@@ -689,8 +689,7 @@ class WorkspaceInstaller:
                     transpiler_name = None
             else:
                 transpiler_name = next(t for t in transpilers)
-                # TODO Change name for bladebridge
-                logger.info(f"lakebridge will use the {transpiler_name} transpiler")
+                logger.info(f"Lakebridge will use the {transpiler_name} transpiler")
             if transpiler_name:
                 transpiler_config_path = self._transpiler_config_path(transpiler_name)
         transpiler_options: dict[str, JsonValue] | None = None
@@ -749,10 +748,11 @@ class WorkspaceInstaller:
     def _configure_reconcile(self) -> ReconcileConfig:
         try:
             self._installation.load(ReconcileConfig)
-            logger.info("lakebridge `reconcile` is already installed on this workspace.")
+            logger.info("Lakebridge `reconcile` is already installed on this workspace.")
             if not self._prompts.confirm("Do you want to override the existing installation?"):
+                # TODO: Exit gracefully, without raising SystemExit
                 raise SystemExit(
-                    "lakebridge `reconcile` is already installed and no override has been requested. Exiting..."
+                    "Lakebridge `reconcile` is already installed and no override has been requested. Exiting..."
                 )
         except NotFound:
             logger.info("Couldn't find existing `reconcile` installation")
