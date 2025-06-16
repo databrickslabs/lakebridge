@@ -9,4 +9,5 @@ if __name__ == "__main__":
     logger = get_logger(__file__)
     logger.setLevel("INFO")
 
-    logger.info("Successfully Setup Remorph Components Locally")
+    logger.info("Successfully Setup Lakebridge Components Locally")
+    logger.info("For more information, please visit https://databrickslabs.github.io/lakebridge/")
