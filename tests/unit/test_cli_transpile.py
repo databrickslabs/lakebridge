@@ -69,7 +69,9 @@ def test_transpile_with_missing_installation(transpiler_config_path: Path) -> No
 
 
 @pytest.fixture
-def mock_cli_for_transpile(mock_workspace_client: WorkspaceClient, transpiler_config_path: Path) -> Generator[tuple[WorkspaceClient, TranspileConfig, Callable[[TranspileConfig], None], MagicMock]]:
+def mock_cli_for_transpile(
+    mock_workspace_client: WorkspaceClient, transpiler_config_path: Path
+) -> Generator[tuple[WorkspaceClient, TranspileConfig, Callable[[TranspileConfig], None], MagicMock], None, None]:
     mock_transpile = MagicMock(return_value=({}, []))
 
     async def do_transpile(*args, **kwargs):
