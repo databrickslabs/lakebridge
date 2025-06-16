@@ -4,7 +4,7 @@ name: Feature Request
 description: Something new needs to happen with Lakebridge
 title: "[FEATURE]: "
 labels: ["needs-triage"]
-type: ["feature"]
+type: "feature"
 
 body:
   - type: checkboxes

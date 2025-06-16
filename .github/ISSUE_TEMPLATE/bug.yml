@@ -4,7 +4,7 @@ name: Bug Report
 description: Something is not working in Lakebridge
 title: "[BUG]: "
 labels: ["needs-triage"]
-type: ["bug"]
+type: "bug"
 
 body:
   - type: checkboxes

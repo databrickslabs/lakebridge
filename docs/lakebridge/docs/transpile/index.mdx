@@ -10,7 +10,7 @@ import useBaseUrl from '@docusaurus/useBaseUrl';
 ## Verify Installation
 Verify the successful installation by executing the provided command; confirmation of a successful installation is indicated when the displayed output aligns with the example screenshot provided:
 ```bash
- databricks labs remorph transpile --help
+ databricks labs lakebridge transpile --help
  ```
 <img src={useBaseUrl('img/transpile-help.png')} alt="transpile-help" />
 
@@ -31,7 +31,7 @@ Below is the detailed explanation on the arguments required for Transpile.
 ## Execution
 Execute the below command to initialize the transpile process.
 ```bash
- databricks labs remorph transpile --transpiler-config-path <absolute-path> --input-source <absolute-path> --source-dialect <snowflake> --output-folder <absolute-path> --skip-validation <True|False> --catalog-name <catalog name> --schema-name <schema name>
+ databricks labs lakebridge transpile --transpiler-config-path <absolute-path> --input-source <absolute-path> --source-dialect <snowflake> --output-folder <absolute-path> --skip-validation <True|False> --catalog-name <catalog name> --schema-name <schema name>
 ```
 
 <img src={useBaseUrl('img/transpile-run.gif')} alt="transpile-run" />

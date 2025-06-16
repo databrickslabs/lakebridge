@@ -363,5 +363,5 @@ def test_transpile_prints_errors(caplog, tmp_path, mock_workspace_client):
             error_file_path=error_file_path,
         )
 
-    assert any("TranspileError" in record.message for record in caplog.records)
-    assert any("UNSUPPORTED_LCA" in record.message for record in caplog.records)
+    assert any(str(input_source) in record.message for record in caplog.records)
+    assert any("LCA conversion not supported" in record.message for record in caplog.records)

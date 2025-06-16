@@ -47,13 +47,13 @@ Let see an example:
    Failed transpilation of /path/to/input/broken.sql
 
    The following errors were found while transpiling:
-     - [3:5] Function GIBBERISH cannot be translated to Databricks SQL
+     - [3:3] Function GIBBERISH cannot be translated to Databricks SQL
 */
-/* 1 */  SELECT
-/* 2 */    t1.name,
-/* 3 */    GIBBERISH(t1.comment)
-/* 4 */  FROM
-/* 5 */    t1;
+SELECT
+  t1.name,
+  GIBBERISH(t1.comment)
+FROM
+  t1;
 ```
 
 Here the input code uses the (made up) `GIBBERISH` function that has no counterpart in Databricks SQL. The error is reported in the header comment with a specific position: `[3:5]` tells you that the problematic expression starts at the fifth character of the third line.

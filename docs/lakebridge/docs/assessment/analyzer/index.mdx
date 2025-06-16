@@ -10,14 +10,14 @@ import useBaseUrl from '@docusaurus/useBaseUrl';
 
 The **Lakebridge Analyzer** is built to scan and interpret metadata from ETL pipelines and SQL assets. Its analysis provides several key insights:
 
-- **Job Complexity Assessment**
-Analyzer evaluates the complexity of your ETL and SQL jobs. These metrics are fed into the **Conversion Calculator** to help estimate both software licensing costs and the engineering hours required for the migration.
+- **Job Complexity Assessment**<br/>
+  Analyzer evaluates the complexity of your ETL and SQL jobs. These metrics are fed into the **Conversion Calculator** to help estimate both software licensing costs and the engineering hours required for the migration.
 
-- **Comprehensive Job Inventory**
-It generates a full inventory of components such as mappings, programs, transformations, functions, and dynamic variables—giving you a clear picture of what exists in your legacy environment.
+- **Comprehensive Job Inventory**<br/>
+  It generates a full inventory of components such as mappings, programs, transformations, functions, and dynamic variables—giving you a clear picture of what exists in your legacy environment.
 
-- **Cross-System Interdependency Mapping**
-Analyzer identifies **interdependencies** between jobs, systems, and components — surfacing how different parts of your codebase interact. This is crucial for sequencing migration efforts, minimizing risk, and avoiding disruption during cutover planning.
+- **Cross-System Interdependency Mapping**<br/>
+  Analyzer identifies **interdependencies** between jobs, systems, and components — surfacing how different parts of your codebase interact. This is crucial for sequencing migration efforts, minimizing risk, and avoiding disruption during cutover planning.
 
 
 
@@ -48,5 +48,4 @@ Execute the below command to initialize the transpile process.
  databricks labs lakebridge analyze --source-directory <absolute-path> --report-file <absolute-path>
 ```
 
-<img src={useBaseUrl('img/lakebridge-analyzer-run.gif')} alt="transpile-run" />
-
+<img src={useBaseUrl('img/remorph-analyzer-run.gif')} alt="transpile-run" />

@@ -4,64 +4,76 @@ title: Exporting Legacy Metadata
 ---
 import useBaseUrl from '@docusaurus/useBaseUrl';
 
-Analyzer expects all the legacy code to be exported into a folder accessible by it.  
-For SQL code exporting, most times a database export can be used to export object definitions (tables, views procedures, functions etc...) in bulk.  Ideally, each SQL file should contain a single artifact.  
+Analyzer expects all the legacy code to be exported into a folder accessible by it.<br/>
+For SQL code exporting, most times a database export can be used to export object definitions (tables, views procedures, functions etc...) in bulk.  Ideally, each SQL file should contain a single artifact.<br/>
 All the major ETL platforms provide some kind of export of their code repositories. Typically this is done into XML or JSON formats which can be used to restore the environment. Here is a short guide for how to export metadata from various platforms:
 
 ## PowerCenter
 
-* **Overview**
-To run the BladeBridge analyzer or converters on Informatica XMLs, the XML file first need to be extracted out of the PowerCenter repository. Typically, it is easier to deal with the analysis and conversion of a relatively granular level, so extracting the artifacts at the workflow level is advisable.  Objects can be exported from Powercenter Repository Manager or using *pmrep* command
+* **Overview**<br/>
+  To run the BladeBridge analyzer or converters on Informatica XMLs, the XML file first need to be extracted out of the PowerCenter repository. Typically, it is easier to deal with the analysis and conversion of a relatively granular level, so extracting the artifacts at the workflow level is advisable.  Objects can be exported from Powercenter Repository Manager or using *pmrep* command
 
-* **Metadata Extraction**
-To extract the metadata out of PowerCenter repository, use the following commands:
+* **Metadata Extraction**<br/>
+  To extract the metadata out of PowerCenter repository, use the following commands:
 
-* **Connect to repository**
-`pmrep connect <list of credentials>`
+* **Connect to repository**<br/>
+  ```
+  pmrep connect <list of credentials>
+  ```
 
-* **Get the list of folders**
-`pmrep listobjects -o FOLDER`
+* **Get the list of folders**<br/>
+  ```
+  pmrep listobjects -o FOLDER
+  ```
 
-* **For each folder, get the list of workflows**
-`pmrep listobjects -o WORKFLOW -f <your folder name>`
+* **For each folder, get the list of workflows**<br/>
+  ```
+  pmrep listobjects -o WORKFLOW -f <your folder name>
+  ```
 
-* **Workflow extraction**
-Create a batch script with the following command template for each folder.
-Note: Excel can be used to create the script with the following command.
-`pmrep objectexport -n workflow_name -o WORKFLOW -f folder_name -b -r -m -s -u path-to-output-file`
+* **Workflow extraction**<br/>
+  Create a batch script with the following command template for each folder.
+
+  Note: Excel can be used to create the script with the following command:
+  ```
+  pmrep objectexport -n workflow_name -o WORKFLOW -f folder_name -b -r -m -s -u path-to-output-file
+  ```
 
 ## DataStage
 
 * Typically in DataStage the easiest way to export the objects is by using the GUI.  However, Datastage has command line utilities to export via CLI.
 * Please use the XML format, as both  Analyzer and Converter support XML-only Datastage exports
 
-
 ## SSIS
 
-* You’ll need to export the DTSX packages. For details on how to obtain it see: https://docs.microsoft.com/en-us/sql/integration-services/import-export-data/save-and-run-package-sql-server-import-and-export-wizard?view=sql-server-ver15  
-In many cases the DTSX packages can also be just copied to the analyzer folder
+You’ll need to export the DTSX packages. For details on how to obtain it see: https://docs.microsoft.com/en-us/sql/integration-services/import-export-data/save-and-run-package-sql-server-import-and-export-wizard?view=sql-server-ver15
+
+In many cases the DTSX packages can also be just copied to the analyzer folder.
 
 ## Talend
 
-* To export all jobs in bulk, right click on Job Designs and select "Export Items".  In the popup, select "Include All Dependencies"
+To export all jobs in bulk, right click on Job Designs and select "Export Items".  In the popup, select "Include All Dependencies"
 <img src={useBaseUrl('img/talend-metadata-extract.png')} alt="talend-export" />
+
 Note: while Talend jobs can be exported as a single zip file, when running analyzer or any converter utilities please unzip the file(s).  Both the analyzer and converters will look for .item and .properties files in non-zipped folders.
 
 ## ODI
 
-* Exporting jobs in ODI is detailed in this document: https://docs.oracle.com/middleware/1212/odi/ODIDG/export_import.htm#ODIDG578
+Exporting jobs in ODI is detailed in this document: https://docs.oracle.com/middleware/1212/odi/ODIDG/export_import.htm#ODIDG578
 
 ## Alteryx
 
-* Analyzer needs the .yxmd files. These can be obtained by Select File > Export to download your workflow to your local machine in .yxmd format.
+Analyzer needs the .yxmd files. These can be obtained by Select File > Export to download your workflow to your local machine in .yxmd format.
 
 ## SAP Business Objects Data Services
 
-* Instructions for export can be found in the following articles: https://help.sap.com/viewer/2d2abbb0fab34071a4c53b7de873241b/4.2.13/en-US/571901366d6d1014b3fc9283b0e91070.html https://help.sap.com/viewer/2d2abbb0fab34071a4c53b7de873241b/4.2.13/en-US/5718d4ba6d6d1014b3fc9283b0e91070.html
+Instructions for export can be found in the following articles: https://help.sap.com/viewer/2d2abbb0fab34071a4c53b7de873241b/4.2.13/en-US/571901366d6d1014b3fc9283b0e91070.html https://help.sap.com/viewer/2d2abbb0fab34071a4c53b7de873241b/4.2.13/en-US/5718d4ba6d6d1014b3fc9283b0e91070.html
 
 ## IICS / IDMC
 
-* Select all the Mapping Configuration tasks you want to read the metadata from and export them as a single file.
+Select all the Mapping Configuration tasks you want to read the metadata from and export them as a single file.
 <img src={useBaseUrl('img/infacloud-export1.png')} alt="infacloud-export" />
+
 Note #1: Analyzer and Converter expect the metadata from InfaCloud to be preserved as zip files.  Please do not change the content of these files.
-Note #2: InfaCloud zip files are deeply nested.  Analyzer and Converter temporarily unzip the contents of the zip files into the folder locations associated with the output analyzer report and output code respectively.  On Windows OS, please keep the paths specified in -d, -r, -o switches short, as the fully exploded path may exceed the Windows max path limitation
+
+Note #2: InfaCloud zip files are deeply nested.  Analyzer and Converter temporarily unzip the contents of the zip files into the folder locations associated with the output analyzer report and output code respectively.  On Windows OS, please keep the paths specified in `-d`, `-r`, `-o` switches short, as the fully exploded path may exceed the Windows max path limitation

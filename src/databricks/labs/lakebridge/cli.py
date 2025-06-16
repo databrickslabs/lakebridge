@@ -1,6 +1,7 @@
 import asyncio
 import dataclasses
 import json
+import logging
 import os
 import time
 from pathlib import Path
@@ -306,8 +307,10 @@ async def _transpile(ctx: ApplicationContext, config: TranspileConfig, engine: T
     logger.debug(f"User: {user}")
     _override_workspace_client_config(ctx, config.sdk_config)
     status, errors = await do_transpile(ctx.workspace_client, engine, config)
+    levels = {"ERROR": logging.ERROR, "WARNING": logging.WARNING, "INFO": logging.INFO}
     for error in errors:
-        logger.error(f"Error Transpiling: {str(error)}")
+        level = levels.get(error.severity.name, logging.DEBUG)
+        logger.log(level, f"{error.path}: {error.message}")
 
     # Table Template in labs.yml requires the status to be list of dicts Do not change this
     logger.info(f"lakebridge Transpiler encountered {len(status)} from given {config.input_source} files.")

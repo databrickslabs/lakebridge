@@ -297,7 +297,7 @@ def test_configure_transpile_installation_no_override(mock_install_morpheus, moc
                     "catalog_name": "transpiler_test",
                     "input_source": "sf_queries",
                     "output_folder": "out_dir",
-                    "schema_name": "convertor_test",
+                    "schema_name": "converter_test",
                     "sdk_config": {
                         "warehouse_id": "abc",
                     },
@@ -316,8 +316,16 @@ def test_configure_transpile_installation_no_override(mock_install_morpheus, moc
         ctx.resource_configurator,
         ctx.workspace_installation,
     )
-    with pytest.raises(SystemExit):
-        workspace_installer.configure(module="transpile")
+    remorph_config = workspace_installer.configure(module="transpile")
+    assert remorph_config.transpile == TranspileConfig(
+        transpiler_config_path=PATH_TO_TRANSPILER_CONFIG,
+        source_dialect="snowflake",
+        input_source="sf_queries",
+        output_folder="out_dir",
+        catalog_name="transpiler_test",
+        schema_name="converter_test",
+        sdk_config={"warehouse_id": "abc"},
+    )
 
 
 def test_configure_transpile_installation_config_error_continue_install(ws_installer, ws):

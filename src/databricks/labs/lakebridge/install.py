@@ -624,10 +624,10 @@ class WorkspaceInstaller:
 
     def _configure_transpile(self) -> TranspileConfig:
         try:
-            self._installation.load(TranspileConfig)
+            config = self._installation.load(TranspileConfig)
             logger.info("Lakebridge `transpile` is already installed on this workspace.")
             if not self._prompts.confirm("Do you want to override the existing installation?"):
-                raise SystemExit("Lak `transpile` is already installed and no override has been requested. Exiting...")
+                return config
         except NotFound:
             logger.info("Couldn't find existing `transpile` installation")
         except (PermissionDenied, SerdeError, ValueError, AttributeError):
