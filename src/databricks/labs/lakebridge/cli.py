@@ -310,7 +310,6 @@ async def _transpile(ctx: ApplicationContext, config: TranspileConfig, engine: T
     status, errors = await do_transpile(ctx.workspace_client, engine, config)
 
     logger.debug(f"Transpilation completed with status: {status}")
-    levels = {"ERROR": logging.ERROR, "WARNING": logging.WARNING, "INFO": logging.INFO}
 
     for path, errors_by_path in itertools.groupby(errors, key=lambda x: x.path):
         errs = list(errors_by_path)
