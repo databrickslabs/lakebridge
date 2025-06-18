@@ -85,7 +85,6 @@ async def _process_one_file(context: TranspilingContext) -> tuple[int, list[Tran
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     if _is_combined_result(transpile_result):
-        logger.debug(f"Processing MIME to Multipart result for file: {context.input_path}")
         _process_combined_result(context, error_list)
     else:
         _process_single_result(context, error_list)
@@ -109,13 +108,13 @@ def _process_combined_result(context: TranspilingContext, _error_list: list[Tran
 
 def _process_combined_part(context: TranspilingContext, part: Message) -> None:
     if part.get_content_type() != "text/plain":
-        return
+        return  # TODO Need to handle other content types, e.g., text/binary, application/json, etc.
     filename = part.get_filename()
-    content = part.get_payload(decode=True)
+    content = part.get_payload(decode=True)  # .decode(part.get_content_charset())
     logger.debug(f"Processing file: {filename}")
 
-    if not filename or not isinstance(content, str):
-        return
+    if not filename:
+        return  # TODO Raise exception!!!!
     filename = Path(filename).name
     folder = context.output_folder
     segments = filename.split("/")
@@ -123,7 +122,8 @@ def _process_combined_part(context: TranspilingContext, part: Message) -> None:
         folder = folder / segment
         folder.mkdir(parents=True, exist_ok=True)
     output = folder / segments[-1]
-    output.write_text(content, "utf-8")
+    logger.debug(f"Writing output to: {output}")
+    output.write_text(str(content), "utf-8")
 
 
 def _process_single_result(context: TranspilingContext, error_list: list[TranspileError]) -> None:
