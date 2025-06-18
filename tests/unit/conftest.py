@@ -2,8 +2,7 @@ import io
 import re
 import shutil
 from pathlib import Path
-from collections.abc import Sequence, AsyncGenerator
-from collections.abc import Generator
+from collections.abc import Generator, Sequence, AsyncGenerator
 from unittest.mock import create_autospec
 
 import pytest
@@ -222,7 +221,7 @@ def path_to_resource(*args: str) -> str:
 
 
 @pytest.fixture
-def mock_workspace_client():
+def mock_workspace_client() -> WorkspaceClient:
     state = {
         "/Users/foo/.lakebridge/config.yml": yaml.dump(
             {
