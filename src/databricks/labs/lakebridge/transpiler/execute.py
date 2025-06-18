@@ -84,6 +84,7 @@ async def _process_one_file(context: TranspilingContext) -> tuple[int, list[Tran
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     if _is_combined_result(transpile_result):
+        logger.debug(f"Processing MIME to Multipart result for file: {context.input_path}")
         _process_combined_result(context, error_list)
     else:
         _process_single_result(context, error_list)
@@ -92,6 +93,7 @@ async def _process_one_file(context: TranspilingContext) -> tuple[int, list[Tran
 
 
 def _is_combined_result(result: TranspileResult):
+    logger.info("Checking if result is a combined result")
     return result.transpiled_code.startswith("Content-Type: multipart/mixed; boundary=")
 
 
@@ -105,10 +107,16 @@ def _process_combined_result(context: TranspilingContext, _error_list: list[Tran
 
 
 def _process_combined_part(context: TranspilingContext, part: Message) -> None:
+
+    logger.debug(f"Processing part: {part}")
+    # BladeBridge sends the content in application/octet-stream encoding
     if part.get_content_type() != "text/plain":
-        return
+        content = part.get_payload(decode=False)
+    else:
+        content = part.get_payload(decode=True)
+
     filename = part.get_filename()
-    content = part.get_payload(decode=False)
+
     logger.debug(f"Processing file: {filename}")
 
     if not filename or not isinstance(content, str):
