@@ -1,30 +1,33 @@
 import datetime
-from unittest.mock import patch
+import re
+from pathlib import Path
 
 import pytest
 
+from databricks.sdk import WorkspaceClient
 
 from databricks.labs.lakebridge import cli
 
 
 @pytest.fixture
-def temp_dirs_for_lineage(tmpdir):
-    input_dir = tmpdir.mkdir("input")
-    output_dir = tmpdir.mkdir("output")
-
-    sample_sql_file = input_dir.join("sample.sql")
+def temp_dirs_for_lineage(empty_input_source: Path, output_folder: Path) -> tuple[Path, Path]:
+    sample_sql_file = empty_input_source / "sample.sql"
     sample_sql_content = """
     create table table1 select * from table2 inner join
     table3 on table2.id = table3.id where table2.id in (select id from table4);
     create table table2 select * from table4;
     create table table5 select * from table3 join table4 on table3.id = table4.id;
     """
-    sample_sql_file.write(sample_sql_content)
+    sample_sql_file.write_text(sample_sql_content, encoding="utf-8")
 
-    return input_dir, output_dir
+    output_folder.mkdir()
+
+    return empty_input_source, output_folder
 
 
-def test_generate_lineage_valid_input(temp_dirs_for_lineage, mock_workspace_client):
+def test_generate_lineage_valid_input(
+    mock_workspace_client: WorkspaceClient, temp_dirs_for_lineage: tuple[Path, Path]
+) -> None:
     input_dir, output_dir = temp_dirs_for_lineage
     cli.generate_lineage(
         mock_workspace_client,
@@ -35,8 +38,8 @@ def test_generate_lineage_valid_input(temp_dirs_for_lineage, mock_workspace_clie
 
     date_str = datetime.datetime.now().strftime("%d%m%y")
     output_filename = f"lineage_{date_str}.dot"
-    output_file = output_dir.join(output_filename)
-    assert output_file.check(file=1)
+    output_file = output_dir / output_filename
+    assert output_file.is_file()
     expected_output = """
     flowchart TD
     Table1 --> Table2
@@ -48,41 +51,42 @@ def test_generate_lineage_valid_input(temp_dirs_for_lineage, mock_workspace_clie
     Table5 --> Table3
     Table5 --> Table4
     """
-    actual_output = output_file.read()
+    actual_output = output_file.read_text()
     assert actual_output.strip() == expected_output.strip()
 
 
-def test_generate_lineage_with_invalid_dialect(mock_workspace_client):
-    with pytest.raises(Exception, match="Invalid value for '--source-dialect'"):
+def test_generate_lineage_with_invalid_dialect(
+    mock_workspace_client: WorkspaceClient,
+    empty_input_source: Path,
+    output_folder: Path,
+) -> None:
+    output_folder.mkdir()
+    expected_error = "Invalid value for '--source-dialect'"
+    with pytest.raises(Exception, match=re.escape(expected_error)):
         cli.generate_lineage(
-            mock_workspace_client,
+            w=mock_workspace_client,
             source_dialect="invalid_dialect",
-            input_source="/path/to/sql/file.sql",
-            output_folder="/path/to/output",
+            input_source=str(empty_input_source),
+            output_folder=str(output_folder),
         )
 
 
-def test_generate_lineage_invalid_input_source(mock_workspace_client):
-    with (
-        patch("os.path.exists", return_value=False),
-        pytest.raises(Exception, match="Invalid value for '--input-source'"),
-    ):
+def test_generate_lineage_invalid_input_source(mock_workspace_client: WorkspaceClient, output_folder: Path) -> None:
+    with pytest.raises(Exception, match="Invalid value for '--input-source'"):
         cli.generate_lineage(
-            mock_workspace_client,
+            w=mock_workspace_client,
             source_dialect="snowflake",
             input_source="/path/to/invalid/sql/file.sql",
-            output_folder="/path/to/output",
+            output_folder=str(output_folder),
         )
 
 
-def test_generate_lineage_invalid_output_dir(mock_workspace_client, monkeypatch):
-    input_source = "/path/to/sql/file.sql"
-    output_folder = "/path/to/output"
-    monkeypatch.setattr("os.path.exists", lambda x: x == input_source)
-    with pytest.raises(Exception, match="Invalid value for '--output-folder'"):
+def test_generate_lineage_invalid_output_dir(mock_workspace_client: WorkspaceClient, empty_input_source: Path) -> None:
+    expected_error = "Invalid value for '--output-folder'"
+    with pytest.raises(Exception, match=re.escape(expected_error)):
         cli.generate_lineage(
-            mock_workspace_client,
+            w=mock_workspace_client,
             source_dialect="snowflake",
-            input_source=input_source,
-            output_folder=output_folder,
+            input_source=str(empty_input_source),
+            output_folder="/does/not/exist",
         )
