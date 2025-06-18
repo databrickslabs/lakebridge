@@ -110,7 +110,12 @@ def _process_combined_part(context: TranspilingContext, part: Message) -> None:
     if part.get_content_type() != "text/plain":
         return  # TODO Need to handle other content types, e.g., text/binary, application/json, etc.
     filename = part.get_filename()
-    content = part.get_payload(decode=True)  # .decode(part.get_content_charset())
+    payload = part.get_payload(decode=True)
+    charset = part.get_content_charset() or "utf-8"
+    if isinstance(payload, bytes):
+        content = payload.decode(charset)
+    else:
+        content = str(payload)
     logger.debug(f"Processing file: {filename}")
 
     if not filename:
@@ -123,7 +128,7 @@ def _process_combined_part(context: TranspilingContext, part: Message) -> None:
         folder.mkdir(parents=True, exist_ok=True)
     output = folder / segments[-1]
     logger.debug(f"Writing output to: {output}")
-    output.write_text(str(content), "utf-8")
+    output.write_text(content)
 
 
 def _process_single_result(context: TranspilingContext, error_list: list[TranspileError]) -> None:
