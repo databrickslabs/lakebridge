@@ -5,7 +5,7 @@ set -xve
 mkdir -p "$HOME"/spark
 cd "$HOME"/spark || exit 1
 
-version=$(wget -O - https://dlcdn.apache.org/spark/ | grep 'href="spark-[0-9.]*/"' | sed 's:</a>:\n:g' | sed -n 's/.*>//p' | tr -d spark/- | sort -r --version-sort | head -1)
+version=$(wget -O - https://downloads.apache.org/spark/ | grep 'href="spark-3\.[0-9.]*/"' | sed 's:</a>:\n:g' | sed -n 's/.*>//p' | tr -d spark/- | sort -r --version-sort | head -1)
 if [ -z "$version" ]; then
   echo "Failed to extract Spark version"
    exit 1
@@ -26,14 +26,15 @@ else
   if [ -f "${spark}.tgz" ];then
     echo "${spark}.tgz already exists"
   else
-    wget "https://dlcdn.apache.org/spark/spark-${version}/${spark}.tgz"
+    wget "https://downloads.apache.org/spark/spark-${version}/${spark}.tgz"
   fi
   tar -xvf "${spark}.tgz"
 fi
 
 cd "${spark}" || exit 1
 ## check spark remote is running,if not start the spark remote
-result=$(${SERVER_SCRIPT} --packages org.apache.spark:${spark_connect}:"${version}" > "$HOME"/spark/log.out; echo $?)
+## Temporary workaround for Spark Connect server still points to 3.5.5
+result=$(${SERVER_SCRIPT} --packages org.apache.spark:${spark_connect}:"3.5.5" > "$HOME"/spark/log.out; echo $?)
 
 if [ "$result" -ne 0 ]; then
     count=$(tail "${HOME}"/spark/log.out | grep -c "SparkConnectServer running as process")

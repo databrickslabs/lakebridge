@@ -1,38 +1,47 @@
 ---
-name: remorph
+name: lakebridge
 description: Code Transpiler and Data Reconciliation tool for Accelerating Data onboarding to Databricks from EDW, CDW and other ETL sources.
 install:
-  script: src/databricks/labs/remorph/base_install.py
+  script: src/databricks/labs/lakebridge/base_install.py
 uninstall:
-  script: src/databricks/labs/remorph/uninstall.py
-entrypoint: src/databricks/labs/remorph/cli.py
+  script: src/databricks/labs/lakebridge/uninstall.py
+entrypoint: src/databricks/labs/lakebridge/cli.py
 min_python: 3.10
 commands:
+  - name: analyze
+    description: Analyze source code from existing technology
+    flags:
+      - name: source-directory
+        description: Source Directory to Analyze
+      - name: report-file
+        description: Name of (.xlsx) report file to write
   - name: transpile
     description: Transpile SQL script to Databricks SQL
     flags:
       - name: transpiler-config-path
         description: Path to the transpiler configuration file
+        default: null
       - name: source-dialect
         description: Dialect name
         default: null
       - name: input-source
         description: Input SQL Folder or File
+        default: null
       - name: output-folder
-        default: null
         description: Output Location For Storing Transpiled Code, defaults to input-source folder
+        default: null
       - name: error-file-path
-        default: null
         description: Output Location For Storing Errors, defaults to input-source folder
+        default: null
       - name: skip-validation
-        default: true
         description: Validate Transpiled Code, default True validation skipped, False validate
+        default: true
       - name: catalog-name
-        default: null
         description: Catalog Name Applicable only when Validation Mode is DATABRICKS
-      - name: schema-name
         default: null
+      - name: schema-name
         description: Schema Name Applicable only when Validation Mode is DATABRICKS
+        default: null
 
     table_template: |-
       total_files_processed\ttotal_queries_processed\tanalysis_error_count\tparsing_error_count\tvalidation_error_count\tgeneration_error_count\terror_log_file
@@ -42,26 +51,13 @@ commands:
     description: Reconcile is an utility to streamline the reconciliation process between source data and target data residing on Databricks.
   - name: aggregates-reconcile
     description: Aggregates Reconcile is an utility to streamline the reconciliation process, specific aggregate metric is compared between source and target data residing on Databricks.
-  - name: generate-lineage
-    description: "[INTERNAL] Utility to generate a lineage of the SQL files"
-    flags:
-      - name: transpiler-config-path
-        description: Path to the transpiler configuration file
-        default: sqlglot
-      - name: source-dialect
-        description: Dialect name
-        default: None
-      - name: input-source
-        description: Input SQL Folder or File
-      - name: output-folder
-        description: Directory to store the generated lineage file
-  - name: configure-secrets
-    description: Utility to setup Scope and Secrets on Databricks Workspace
-  - name: debug-me
-    description: "[INTERNAL] Debug SDK connectivity"
-  - name: install-assessment
-    description: "Install Assessment"
+  - name: configure-database-profiler
+    description: "Configure Database Profiler"
   - name: install-transpile
-    description: "Install Transpile"
-  - name: install-reconcile
-    description: "Install Reconcile"
+    description: "Install & Configure Necessary Transpiler Dependencies"
+    flags:
+      - name: artifact
+        description: Local path to transpiler artifact
+        default: null
+  - name: configure-reconcile
+    description: "Configure Necessary Reconcile Dependencies"

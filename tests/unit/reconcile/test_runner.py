@@ -4,8 +4,8 @@ from databricks.labs.blueprint.installation import MockInstallation
 from databricks.labs.blueprint.installer import InstallState
 from databricks.labs.blueprint.tui import MockPrompts
 from databricks.sdk import WorkspaceClient
-from databricks.labs.remorph.reconcile.runner import ReconcileRunner
-from databricks.labs.remorph.deployment.recon import RECON_JOB_NAME
+from databricks.labs.lakebridge.reconcile.runner import ReconcileRunner
+from databricks.labs.lakebridge.deployment.recon import RECON_JOB_NAME
 
 
 def test_run_with_missing_recon_config():

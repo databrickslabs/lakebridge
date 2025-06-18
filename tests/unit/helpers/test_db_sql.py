@@ -1,7 +1,7 @@
 from unittest.mock import patch, create_autospec
 
 import pytest
-from databricks.labs.remorph.helpers.db_sql import get_sql_backend
+from databricks.labs.lakebridge.helpers.db_sql import get_sql_backend
 from databricks.sdk import WorkspaceClient
 from databricks.labs.lsql.backends import StatementExecutionBackend
 
@@ -19,7 +19,7 @@ def test_get_sql_backend_with_warehouse_id_in_arg():
     assert isinstance(sql_backend, StatementExecutionBackend)
 
 
-@patch('databricks.labs.remorph.helpers.db_sql.DatabricksConnectBackend')
+@patch('databricks.labs.lakebridge.helpers.db_sql.DatabricksConnectBackend')
 def test_get_sql_backend_without_warehouse_id(databricks_connect_backend):
     workspace_client = create_autospec(WorkspaceClient)
     workspace_client.config.warehouse_id = None
@@ -29,7 +29,7 @@ def test_get_sql_backend_without_warehouse_id(databricks_connect_backend):
 
 
 @pytest.mark.usefixtures("monkeypatch")
-@patch('databricks.labs.remorph.helpers.db_sql.RuntimeBackend')
+@patch('databricks.labs.lakebridge.helpers.db_sql.RuntimeBackend')
 def test_get_sql_backend_without_warehouse_id_in_notebook(
     runtime_backend,
     monkeypatch,

@@ -1,6 +1,6 @@
 import pytest
 
-from databricks.labs.remorph.connections.database_manager import MSSQLConnector
+from databricks.labs.lakebridge.connections.database_manager import MSSQLConnector
 from .helpers import get_db_manager
 
 

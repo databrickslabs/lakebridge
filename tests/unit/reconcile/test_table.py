@@ -1,4 +1,4 @@
-from databricks.labs.remorph.reconcile.recon_config import Filters
+from databricks.labs.lakebridge.reconcile.recon_config import Filters
 
 
 def test_table_column_mapping(table_conf):

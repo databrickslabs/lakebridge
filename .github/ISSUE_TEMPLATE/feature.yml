@@ -1,11 +1,11 @@
 # See https://docs.github.com/en/communities/using-templates-to-encourage-useful-issues-and-pull-requests/syntax-for-issue-forms
 # and https://docs.github.com/en/communities/using-templates-to-encourage-useful-issues-and-pull-requests/syntax-for-githubs-form-schema
 name: Feature Request
-description: Something new needs to happen with Remorph
+description: Something new needs to happen with Lakebridge
 title: "[FEATURE]: "
-labels: ["enhancement", "needs-triage"]
-# assignees:
-#   - remorph-write
+labels: ["needs-triage"]
+type: "feature"
+
 body:
   - type: checkboxes
     attributes:
@@ -20,7 +20,9 @@ body:
       label: Category of feature request
       description: Please select the category that best describes the feature you are requesting for.
       options:
-        - Transpile
+        - Profiler
+        - Analyzer
+        - Transpiler
         - Reconcile
         - Other
     validations:

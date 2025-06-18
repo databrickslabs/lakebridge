@@ -1,5 +1,74 @@
 # Version changelog
 
+## 0.10.0
+# 🚀 Lakebridge v0.10.0 – The Bridge to Databricks Awaits! 🌉
+
+Welcome to the inaugural release of **Lakebridge**, your all-in-one, open-source toolkit for seamless SQL migration to Databricks! Whether you're staring down a mountain of legacy SQL or just want to make sure your data lands safely on the other side, Lakebridge is here to make your journey smooth, insightful, and even a little bit fun.
+
+---
+
+## ✨ What's Inside Lakebridge v0.10.0?
+
+### 🕵️ Pre-migration Assessment: Know Before You Go
+
+- **Profiler**: Connects to your existing SQL environment and delivers a detailed report on workload size, complexity, and features used.
+- **Analyzer**: Scans your SQL code and orchestration, highlighting potential migration challenges and estimating the effort required.
+
+
+### 🔄 SQL Conversion: Dialect Dilemmas, Solved
+
+- **Transpilers Galore**: Choose between the battle-tested **BladeBridge** or the next-gen **Morpheus** (with experimental dbt support!) to convert your SQL and ETL code from a variety of platforms, including:
+    - DataStage
+    - Informatica (Cloud, PC)
+    - Netezza
+    - Oracle (incl. ADS \& Exadata)
+    - Snowflake
+    - SQL Server (incl. Synapse)
+    - Teradata
+- **SQL \& ETL/Orchestration Translation**: Move more than just queries—bring your workflows, too!
+- **Error Highlighting \& Compatibility Warnings**: Because nobody likes a silent failure.
+
+
+### 🧮 Post-migration Reconciliation: Trust, but Verify
+
+- **Automated Data Reconciliation**: Compare source and Databricks tables to ensure your data made the leap intact.
+- **Supports Multiple Sources**: Snowflake, Oracle, and Databricks—more to come!
+- **Discrepancy Detection**: Find mismatches before your users do.
+
+---
+
+## 🛠️ Installation: As Easy as Copy-Paste
+
+```bash
+databricks labs install lakebridge
+```
+
+Python 3.10+, Java 11, and the Databricks CLI are your only prerequisites. Windows, Mac, or Linux—Lakebridge welcomes all!
+
+---
+
+## 🧑‍💻 Why Lakebridge?
+
+- **Comprehensive**: Handles every phase of migration, from assessment to reconciliation.
+- **Flexible**: Supports multiple SQL dialects and ETL platforms.
+- **Open Source**: Built by Databricks Labs, improved by the community.
+- **Witty Documentation**: Because migration shouldn't be boring.
+
+---
+
+## 💬 Get Involved!
+
+Spotted a bug? Have a feature idea? Want to contribute? Open an issue or pull request—let's build the future of SQL migration together!
+
+---
+
+Thank you for joining us at the start of this journey.
+
+**Happy Migration! 🚀**
+
+*— The Lakebridge Team*
+
+
 ## 0.9.0
 
 *  Added support for format_datetime function in presto to Databricks ([#1250](https://github.com/databrickslabs/remorph/issues/1250)). A new `format_datetime` function has been added to the `Parser` class in the `presto.py` file to provide support for formatting datetime values in Presto on Databricks. This function utilizes the `DateFormat.from_arg_list` method from the `local_expression` module to format datetime values according to a specified format string. To ensure compatibility and consistency between Presto and Databricks, a new test file `test_format_datetime_1.sql` has been added, containing SQL queries that demonstrate the usage of the `format_datetime` function in Presto and its equivalent in Databricks, `DATE_FORMAT`. This standalone change adds new functionality without modifying any existing code.
@@ -239,13 +308,13 @@ Dependency updates:
 * Added serverless validation using lsql library ([#176](https://github.com/databrickslabs/remorph/issues/176)). Workspaceclient object is used with `product` name and `product_version` along with corresponding `cluster_id` or `warehouse_id` as `sdk_config` in `MorphConfig` object.
 * Enhanced install script to enforce usage of a warehouse or cluster when `skip-validation` is set to `False` ([#213](https://github.com/databrickslabs/remorph/issues/213)). In this release, the installation process has been enhanced to mandate the use of a warehouse or cluster when the `skip-validation` parameter is set to `False`. This change has been implemented across various components, including the install script, `transpile` function, and `get_sql_backend` function. Additionally, new pytest fixtures and methods have been added to improve test configuration and resource management during testing. Unit tests have been updated to enforce usage of a warehouse or cluster when the `skip-validation` flag is set to `False`, ensuring proper resource allocation and validation process improvement. This development focuses on promoting a proper setup and usage of the system, guiding new users towards a correct configuration and improving the overall reliability of the tool.
 * Patch subquery with json column access ([#190](https://github.com/databrickslabs/remorph/issues/190)). The open-source library has been updated with new functionality to modify how subqueries with JSON column access are handled in the `snowflake.py` file. This change includes the addition of a check for an opening parenthesis after the `FROM` keyword to detect and break loops when a subquery is found, as opposed to a table name. This improvement enhances the handling of complex subqueries and JSON column access, making the code more robust and adaptable to different query structures. Additionally, a new test method, `test_nested_query_with_json`, has been introduced to the `tests/unit/snow/test_databricks.py` file to test the behavior of nested queries involving JSON column access when using a Snowflake dialect. This new method validates the expected output of a specific nested query when it is transpiled to Snowflake's SQL dialect, allowing for more comprehensive testing of JSON column access and type casting in Snowflake dialects. The existing `test_delete_from_keyword` method remains unchanged.
-* Snowflake `UPDATE FROM` to Databricks `MERGE INTO` implementation ([#198](https://github.com/databrickslabs/remorph/issues/198)). 
+* Snowflake `UPDATE FROM` to Databricks `MERGE INTO` implementation ([#198](https://github.com/databrickslabs/remorph/issues/198)).
 * Use Runtime SQL backend in Notebooks ([#211](https://github.com/databrickslabs/remorph/issues/211)). In this update, the `db_sql.py` file in the `databricks/labs/remorph/helpers` directory has been modified to support the use of the Runtime SQL backend in Notebooks. This change includes the addition of a new `RuntimeBackend` class in the `backends` module and an import statement for `os`. The `get_sql_backend` function now returns a `RuntimeBackend` instance when the `DATABRICKS_RUNTIME_VERSION` environment variable is present, allowing for more efficient and secure SQL statement execution in Databricks notebooks. Additionally, a new test case for the `get_sql_backend` function has been added to ensure the correct behavior of the function in various runtime environments. These enhancements improve SQL execution performance and security in Databricks notebooks and increase the project's versatility for different use cases.
 * Added Issue Templates for bugs, feature and config ([#194](https://github.com/databrickslabs/remorph/issues/194)). Two new issue templates have been added to the project's GitHub repository to improve issue creation and management. The first template, located in `.github/ISSUE_TEMPLATE/bug.yml`, is for reporting bugs and prompts users to provide detailed information about the issue, including the current and expected behavior, steps to reproduce, relevant log output, and sample query. The second template, added under the path `.github/ISSUE_TEMPLATE/config.yml`, is for configuration-related issues and includes support contact links for general Databricks questions and Remorph documentation, as well as fields for specifying the operating system and software version. A new issue template for feature requests, named "Feature Request", has also been added, providing a structured format for users to submit requests for new functionality for the Remorph project. These templates will help streamline the issue creation process, improve the quality of information provided, and make it easier for the development team to quickly identify and address bugs and feature requests.
 * Added Databricks Source Adapter ([#185](https://github.com/databrickslabs/remorph/issues/185)). In this release, the project has been enhanced with several new features for the Databricks Source Adapter. A new `engine` parameter has been added to the `DataSource` class, replacing the original `source` parameter. The `_get_secrets` and `_get_table_or_query` methods have been updated to use the `engine` parameter for key naming and handling queries with a `select` statement differently, respectively. A Databricks Source Adapter for Oracle databases has been introduced, which includes a new `OracleDataSource` class that provides functionality to connect to an Oracle database using JDBC. A Databricks Source Adapter for Snowflake has also been added, featuring the `SnowflakeDataSource` class that handles data reading and schema retrieval from Snowflake. The `DatabricksDataSource` class has been updated to handle data reading and schema retrieval from Databricks, including a new `get_schema_query` method that generates the query to fetch the schema based on the provided catalog and table name. Exception handling for reading data and fetching schema has been implemented for all new classes. These changes provide increased flexibility for working with various data sources, improved code maintainability, and better support for different use cases.
 * Added Threshold Query Builder ([#188](https://github.com/databrickslabs/remorph/issues/188)). In this release, the open-source library has added a Threshold Query Builder feature, which includes several changes to the existing functionality in the data source connector. A new import statement adds the `re` module for regular expressions, and new parameters have been added to the `read_data` and `get_schema` abstract methods. The `_get_jdbc_reader_options` method has been updated to accept a `options` parameter of type "JdbcReaderOptions", and a new static method, "_get_table_or_query", has been added to construct the table or query string based on provided parameters. Additionally, a new class, "QueryConfig", has been introduced in the "databricks.labs.remorph.reconcile" package to configure queries for data reconciliation tasks. A new abstract base class QueryBuilder has been added to the query_builder.py file, along with HashQueryBuilder and ThresholdQueryBuilder classes to construct SQL queries for generating hash values and selecting columns based on threshold values, transformation rules, and filtering conditions. These changes aim to enhance the functionality of the data source connector, add modularity, customizability, and reusability to the query builder, and improve data reconciliation tasks.
 * Added snowflake connector code ([#177](https://github.com/databrickslabs/remorph/issues/177)). In this release, the open-source library has been updated to add a Snowflake connector for data extraction and schema manipulation. The changes include the addition of the SnowflakeDataSource class, which is used to read data from Snowflake using PySpark, and has methods for getting the JDBC URL, reading data with and without JDBC reader options, getting the schema, and handling exceptions. A new constant, SNOWFLAKE, has been added to the SourceDriver enum in constants.py, which represents the Snowflake JDBC driver class. The code modifications include updating the constructor of the DataSource abstract base class to include a new parameter 'scope', and updating the `_get_secrets` method to accept a `key_name` parameter instead of 'key'. Additionally, a test file 'test_snowflake.py' has been added to test the functionality of the SnowflakeDataSource class. This release also updates the pyproject.toml file to version lock the dependencies like black, ruff, and isort, and modifies the coverage report configuration to exclude certain files and lines from coverage checks. These changes were completed by Ravikumar Thangaraj and SundarShankar89.
-* `remorph reconcile` baseline for Query Builder and Source Adapter for oracle as source ([#150](https://github.com/databrickslabs/remorph/issues/150)). 
+* `remorph reconcile` baseline for Query Builder and Source Adapter for oracle as source ([#150](https://github.com/databrickslabs/remorph/issues/150)).
 
 Dependency updates:
 

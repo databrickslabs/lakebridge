@@ -3,13 +3,13 @@ import pytest
 from pyspark import Row
 from pyspark.testing import assertDataFrameEqual
 
-from databricks.labs.remorph.reconcile.compare import (
+from databricks.labs.lakebridge.reconcile.compare import (
     alias_column_str,
     capture_mismatch_data_and_columns,
     reconcile_data,
 )
-from databricks.labs.remorph.reconcile.exception import ColumnMismatchException
-from databricks.labs.remorph.reconcile.recon_output_config import (
+from databricks.labs.lakebridge.reconcile.exception import ColumnMismatchException
+from databricks.labs.lakebridge.reconcile.recon_output_config import (
     DataReconcileOutput,
     MismatchOutput,
 )

@@ -1,0 +1,331 @@
+<?xml version="1.0" encoding="Windows-1252"?>
+<!-- Informatica proprietary -->
+<!DOCTYPE POWERMART SYSTEM "powrmart.dtd">
+<POWERMART CREATION_DATE="06/05/2025 07:56:05" REPOSITORY_VERSION="189.98">
+<REPOSITORY NAME="nfa_Repo_105_AWS_001" VERSION="189" CODEPAGE="MS1252" DATABASETYPE="Microsoft SQL Server">
+<FOLDER NAME="Conversion_From_Infa" GROUP="" OWNER="Administrator" SHARED="SHARED" DESCRIPTION="" PERMISSIONS="rwx---r--" UUID="62b585e1-f190-4710-990a-cd19deefbcae">
+    <SOURCE BUSINESSNAME ="" DATABASETYPE ="Teradata" DBDNAME ="HR_Database" DESCRIPTION ="" NAME ="Employees" OBJECTVERSION ="1" OWNERNAME ="" VERSIONNUMBER ="1">
+        <SOURCEFIELD BUSINESSNAME ="" DATATYPE ="integer" DESCRIPTION ="" FIELDNUMBER ="1" FIELDPROPERTY ="0" FIELDTYPE ="ELEMITEM" HIDDEN ="NO" KEYTYPE ="NOT A KEY" LENGTH ="11" LEVEL ="0" NAME ="Emp_id" NULLABLE ="NULL" OCCURS ="0" OFFSET ="0" PHYSICALLENGTH ="10" PHYSICALOFFSET ="0" PICTURETEXT ="" PRECISION ="10" SCALE ="0" USAGE_FLAGS =""/>
+        <SOURCEFIELD BUSINESSNAME ="" DATATYPE ="varchar" DESCRIPTION ="" FIELDNUMBER ="2" FIELDPROPERTY ="0" FIELDTYPE ="ELEMITEM" HIDDEN ="NO" KEYTYPE ="NOT A KEY" LENGTH ="0" LEVEL ="0" NAME ="first_name" NULLABLE ="NULL" OCCURS ="0" OFFSET ="11" PHYSICALLENGTH ="100" PHYSICALOFFSET ="10" PICTURETEXT ="" PRECISION ="100" SCALE ="0" USAGE_FLAGS =""/>
+        <SOURCEFIELD BUSINESSNAME ="" DATATYPE ="varchar" DESCRIPTION ="" FIELDNUMBER ="3" FIELDPROPERTY ="0" FIELDTYPE ="ELEMITEM" HIDDEN ="NO" KEYTYPE ="NOT A KEY" LENGTH ="0" LEVEL ="0" NAME ="last_name" NULLABLE ="NULL" OCCURS ="0" OFFSET ="11" PHYSICALLENGTH ="200" PHYSICALOFFSET ="110" PICTURETEXT ="" PRECISION ="200" SCALE ="0" USAGE_FLAGS =""/>
+        <SOURCEFIELD BUSINESSNAME ="" DATATYPE ="date" DESCRIPTION ="" FIELDNUMBER ="4" FIELDPROPERTY ="0" FIELDTYPE ="ELEMITEM" HIDDEN ="NO" KEYTYPE ="NOT A KEY" LENGTH ="19" LEVEL ="0" NAME ="hired_date" NULLABLE ="NULL" OCCURS ="0" OFFSET ="11" PHYSICALLENGTH ="10" PHYSICALOFFSET ="310" PICTURETEXT ="" PRECISION ="10" SCALE ="0" USAGE_FLAGS =""/>
+        <SOURCEFIELD BUSINESSNAME ="" DATATYPE ="timestamp" DESCRIPTION ="" FIELDNUMBER ="5" FIELDPROPERTY ="0" FIELDTYPE ="ELEMITEM" HIDDEN ="NO" KEYTYPE ="NOT A KEY" LENGTH ="19" LEVEL ="0" NAME ="last_upd_date" NULLABLE ="NULL" OCCURS ="0" OFFSET ="30" PHYSICALLENGTH ="26" PHYSICALOFFSET ="320" PICTURETEXT ="" PRECISION ="26" SCALE ="6" USAGE_FLAGS =""/>
+        <SOURCEFIELD BUSINESSNAME ="" DATATYPE ="decimal" DESCRIPTION ="" FIELDNUMBER ="6" FIELDPROPERTY ="0" FIELDTYPE ="ELEMITEM" HIDDEN ="NO" KEYTYPE ="NOT A KEY" LENGTH ="12" LEVEL ="0" NAME ="salary" NULLABLE ="NULL" OCCURS ="0" OFFSET ="49" PHYSICALLENGTH ="10" PHYSICALOFFSET ="346" PICTURETEXT ="" PRECISION ="10" SCALE ="2" USAGE_FLAGS =""/>
+        <SOURCEFIELD BUSINESSNAME ="" DATATYPE ="varchar" DESCRIPTION ="" FIELDNUMBER ="7" FIELDPROPERTY ="0" FIELDTYPE ="ELEMITEM" HIDDEN ="NO" KEYTYPE ="NOT A KEY" LENGTH ="0" LEVEL ="0" NAME ="dept_name" NULLABLE ="NULL" OCCURS ="0" OFFSET ="61" PHYSICALLENGTH ="100" PHYSICALOFFSET ="356" PICTURETEXT ="" PRECISION ="100" SCALE ="0" USAGE_FLAGS =""/>
+        <SOURCEFIELD BUSINESSNAME ="" DATATYPE ="varchar" DESCRIPTION ="" FIELDNUMBER ="8" FIELDPROPERTY ="0" FIELDTYPE ="ELEMITEM" HIDDEN ="NO" KEYTYPE ="NOT A KEY" LENGTH ="0" LEVEL ="0" NAME ="loc_code" NULLABLE ="NULL" OCCURS ="0" OFFSET ="61" PHYSICALLENGTH ="10" PHYSICALOFFSET ="456" PICTURETEXT ="" PRECISION ="10" SCALE ="0" USAGE_FLAGS =""/>
+    </SOURCE>
+    <TARGET BUSINESSNAME ="" CONSTRAINT ="" DATABASETYPE ="Teradata" DESCRIPTION ="" NAME ="dim_party" OBJECTVERSION ="1" TABLEOPTIONS ="" VERSIONNUMBER ="1">
+        <TARGETFIELD BUSINESSNAME ="" DATATYPE ="integer" DESCRIPTION ="" FIELDNUMBER ="1" KEYTYPE ="NOT A KEY" NAME ="PARTY_ID" NULLABLE ="NULL" PICTURETEXT ="" PRECISION ="10" SCALE ="0"/>
+        <TARGETFIELD BUSINESSNAME ="" DATATYPE ="varchar" DESCRIPTION ="" FIELDNUMBER ="2" KEYTYPE ="NOT A KEY" NAME ="FULL_NAME" NULLABLE ="NULL" PICTURETEXT ="" PRECISION ="500" SCALE ="0"/>
+        <TARGETFIELD BUSINESSNAME ="" DATATYPE ="timestamp" DESCRIPTION ="" FIELDNUMBER ="3" KEYTYPE ="NOT A KEY" NAME ="dated_hired" NULLABLE ="NULL" PICTURETEXT ="" PRECISION ="26" SCALE ="0"/>
+        <TARGETFIELD BUSINESSNAME ="" DATATYPE ="integer" DESCRIPTION ="" FIELDNUMBER ="4" KEYTYPE ="NOT A KEY" NAME ="days_employeed" NULLABLE ="NULL" PICTURETEXT ="" PRECISION ="10" SCALE ="0"/>
+        <TARGETFIELD BUSINESSNAME ="" DATATYPE ="timestamp" DESCRIPTION ="" FIELDNUMBER ="5" KEYTYPE ="NOT A KEY" NAME ="created_ts" NULLABLE ="NULL" PICTURETEXT ="" PRECISION ="26" SCALE ="0"/>
+        <TARGETFIELD BUSINESSNAME ="" DATATYPE ="char" DESCRIPTION ="" FIELDNUMBER ="6" KEYTYPE ="NOT A KEY" NAME ="active_ind" NULLABLE ="NULL" PICTURETEXT ="" PRECISION ="1" SCALE ="0"/>
+        <TARGETFIELD BUSINESSNAME ="" DATATYPE ="varchar" DESCRIPTION ="" FIELDNUMBER ="7" KEYTYPE ="NOT A KEY" NAME ="location_name" NULLABLE ="NULL" PICTURETEXT ="" PRECISION ="100" SCALE ="0"/>
+    </TARGET>
+    <TARGET BUSINESSNAME ="" CONSTRAINT ="" DATABASETYPE ="Teradata" DESCRIPTION ="" NAME ="dim_departments" OBJECTVERSION ="1" TABLEOPTIONS ="" VERSIONNUMBER ="1">
+        <TARGETFIELD BUSINESSNAME ="" DATATYPE ="integer" DESCRIPTION ="" FIELDNUMBER ="1" KEYTYPE ="PRIMARY KEY" NAME ="dept_id" NULLABLE ="NOTNULL" PICTURETEXT ="" PRECISION ="10" SCALE ="0"/>
+        <TARGETFIELD BUSINESSNAME ="" DATATYPE ="varchar" DESCRIPTION ="" FIELDNUMBER ="2" KEYTYPE ="NOT A KEY" NAME ="dept_name" NULLABLE ="NULL" PICTURETEXT ="" PRECISION ="100" SCALE ="0"/>
+        <TARGETFIELD BUSINESSNAME ="" DATATYPE ="integer" DESCRIPTION ="" FIELDNUMBER ="3" KEYTYPE ="NOT A KEY" NAME ="cnt" NULLABLE ="NULL" PICTURETEXT ="" PRECISION ="10" SCALE ="0"/>
+    </TARGET>
+    <MAPPING DESCRIPTION ="" ISVALID ="YES" NAME ="m_employees_load" OBJECTVERSION ="1" VERSIONNUMBER ="1">
+        <TRANSFORMATION DESCRIPTION ="" NAME ="SQ_Employees" OBJECTVERSION ="1" REUSABLE ="NO" TYPE ="Source Qualifier" VERSIONNUMBER ="1">
+            <TRANSFORMFIELD DATATYPE ="integer" DEFAULTVALUE ="" DESCRIPTION ="" NAME ="Emp_id" PICTURETEXT ="" PORTTYPE ="INPUT/OUTPUT" PRECISION ="10" SCALE ="0"/>
+            <TRANSFORMFIELD DATATYPE ="string" DEFAULTVALUE ="" DESCRIPTION ="" NAME ="first_name" PICTURETEXT ="" PORTTYPE ="INPUT/OUTPUT" PRECISION ="100" SCALE ="0"/>
+            <TRANSFORMFIELD DATATYPE ="string" DEFAULTVALUE ="" DESCRIPTION ="" NAME ="last_name" PICTURETEXT ="" PORTTYPE ="INPUT/OUTPUT" PRECISION ="200" SCALE ="0"/>
+            <TRANSFORMFIELD DATATYPE ="date/time" DEFAULTVALUE ="" DESCRIPTION ="" NAME ="hired_date" PICTURETEXT ="" PORTTYPE ="INPUT/OUTPUT" PRECISION ="29" SCALE ="9"/>
+            <TRANSFORMFIELD DATATYPE ="date/time" DEFAULTVALUE ="" DESCRIPTION ="" NAME ="last_upd_date" PICTURETEXT ="" PORTTYPE ="INPUT/OUTPUT" PRECISION ="29" SCALE ="9"/>
+            <TRANSFORMFIELD DATATYPE ="decimal" DEFAULTVALUE ="" DESCRIPTION ="" NAME ="salary" PICTURETEXT ="" PORTTYPE ="INPUT/OUTPUT" PRECISION ="10" SCALE ="2"/>
+            <TRANSFORMFIELD DATATYPE ="string" DEFAULTVALUE ="" DESCRIPTION ="" NAME ="dept_name" PICTURETEXT ="" PORTTYPE ="INPUT/OUTPUT" PRECISION ="100" SCALE ="0"/>
+            <TABLEATTRIBUTE NAME ="Sql Query" VALUE =""/>
+            <TABLEATTRIBUTE NAME ="User Defined Join" VALUE =""/>
+            <TABLEATTRIBUTE NAME ="Source Filter" VALUE ="Employees.hired_date &gt; &apos;2020-01-01&apos;"/>
+            <TABLEATTRIBUTE NAME ="Number Of Sorted Ports" VALUE ="0"/>
+            <TABLEATTRIBUTE NAME ="Tracing Level" VALUE ="Normal"/>
+            <TABLEATTRIBUTE NAME ="Select Distinct" VALUE ="NO"/>
+            <TABLEATTRIBUTE NAME ="Is Partitionable" VALUE ="NO"/>
+            <TABLEATTRIBUTE NAME ="Pre SQL" VALUE =""/>
+            <TABLEATTRIBUTE NAME ="Post SQL" VALUE =""/>
+            <TABLEATTRIBUTE NAME ="Output is deterministic" VALUE ="NO"/>
+            <TABLEATTRIBUTE NAME ="Output is repeatable" VALUE ="Never"/>
+        </TRANSFORMATION>
+        <TRANSFORMATION DESCRIPTION ="" NAME ="Exp_employee_attr" OBJECTVERSION ="1" REUSABLE ="NO" TYPE ="Expression" VERSIONNUMBER ="1">
+            <TRANSFORMFIELD DATATYPE ="string" DEFAULTVALUE ="" DESCRIPTION ="" EXPRESSION ="first_name" EXPRESSIONTYPE ="GENERAL" NAME ="first_name" PICTURETEXT ="" PORTTYPE ="INPUT/OUTPUT" PRECISION ="100" SCALE ="0"/>
+            <TRANSFORMFIELD DATATYPE ="string" DEFAULTVALUE ="" DESCRIPTION ="" EXPRESSION ="last_name2" EXPRESSIONTYPE ="GENERAL" NAME ="last_name2" PICTURETEXT ="" PORTTYPE ="INPUT/OUTPUT" PRECISION ="200" SCALE ="0"/>
+            <TRANSFORMFIELD DATATYPE ="string" DEFAULTVALUE ="" DESCRIPTION ="" EXPRESSION ="first_name || &apos; &apos; || last_name2" EXPRESSIONTYPE ="GENERAL" NAME ="v_full_name" PICTURETEXT ="" PORTTYPE ="LOCAL VARIABLE" PRECISION ="1000" SCALE ="0"/>
+            <TRANSFORMFIELD DATATYPE ="string" DEFAULTVALUE ="ERROR(&apos;transformation error&apos;)" DESCRIPTION ="" EXPRESSION ="v_full_name" EXPRESSIONTYPE ="GENERAL" NAME ="out_full_name" PICTURETEXT ="" PORTTYPE ="OUTPUT" PRECISION ="1000" SCALE ="0"/>
+            <TRANSFORMFIELD DATATYPE ="date/time" DEFAULTVALUE ="" DESCRIPTION ="" EXPRESSION ="hired_date" EXPRESSIONTYPE ="GENERAL" NAME ="hired_date" PICTURETEXT ="" PORTTYPE ="INPUT/OUTPUT" PRECISION ="29" SCALE ="9"/>
+            <TRANSFORMFIELD DATATYPE ="integer" DEFAULTVALUE ="ERROR(&apos;transformation error&apos;)" DESCRIPTION ="" EXPRESSION ="DATE_DIFF(SYSDATE, hired_date, &apos;DAY&apos;)" EXPRESSIONTYPE ="GENERAL" NAME ="out_days_worked" PICTURETEXT ="" PORTTYPE ="OUTPUT" PRECISION ="10" SCALE ="0"/>
+            <TRANSFORMFIELD DATATYPE ="string" DEFAULTVALUE ="ERROR(&apos;transformation error&apos;)" DESCRIPTION ="" EXPRESSION ="&apos;Y&apos;" EXPRESSIONTYPE ="GENERAL" NAME ="active" PICTURETEXT ="" PORTTYPE ="OUTPUT" PRECISION ="10" SCALE ="0"/>
+            <TRANSFORMFIELD DATATYPE ="date/time" DEFAULTVALUE ="ERROR(&apos;transformation error&apos;)" DESCRIPTION ="" EXPRESSION ="SYSDATE" EXPRESSIONTYPE ="GENERAL" NAME ="curr_dt" PICTURETEXT ="" PORTTYPE ="OUTPUT" PRECISION ="29" SCALE ="9"/>
+            <TABLEATTRIBUTE NAME ="Tracing Level" VALUE ="Normal"/>
+        </TRANSFORMATION>
+        <TRANSFORMATION DESCRIPTION ="" NAME ="AGGTRANS" OBJECTVERSION ="1" REUSABLE ="NO" TYPE ="Aggregator" VERSIONNUMBER ="1">
+            <TRANSFORMFIELD DATATYPE ="string" DEFAULTVALUE ="" DESCRIPTION ="" EXPRESSION ="dpt_nm" EXPRESSIONTYPE ="GROUPBY" NAME ="dpt_nm" PICTURETEXT ="" PORTTYPE ="INPUT/OUTPUT" PRECISION ="100" SCALE ="0"/>
+            <TRANSFORMFIELD DATATYPE ="integer" DEFAULTVALUE ="ERROR(&apos;transformation error&apos;)" DESCRIPTION ="" EXPRESSION ="count(dpt_nm)" EXPRESSIONTYPE ="GENERAL" NAME ="out_count" PICTURETEXT ="" PORTTYPE ="OUTPUT" PRECISION ="10" SCALE ="0"/>
+            <TABLEATTRIBUTE NAME ="Cache Directory" VALUE ="$PMCacheDir"/>
+            <TABLEATTRIBUTE NAME ="Tracing Level" VALUE ="Normal"/>
+            <TABLEATTRIBUTE NAME ="Sorted Input" VALUE ="NO"/>
+            <TABLEATTRIBUTE NAME ="Aggregator Data Cache Size" VALUE ="Auto"/>
+            <TABLEATTRIBUTE NAME ="Aggregator Index Cache Size" VALUE ="Auto"/>
+            <TABLEATTRIBUTE NAME ="Transformation Scope" VALUE ="All Input"/>
+        </TRANSFORMATION>
+        <TRANSFORMATION DESCRIPTION ="" NAME ="filter_active_dept" OBJECTVERSION ="1" REUSABLE ="NO" TYPE ="Filter" VERSIONNUMBER ="1">
+            <TRANSFORMFIELD DATATYPE ="integer" DEFAULTVALUE ="" DESCRIPTION ="" NAME ="Emp_id" PICTURETEXT ="" PORTTYPE ="INPUT/OUTPUT" PRECISION ="10" SCALE ="0"/>
+            <TRANSFORMFIELD DATATYPE ="string" DEFAULTVALUE ="" DESCRIPTION ="" NAME ="first_name" PICTURETEXT ="" PORTTYPE ="INPUT/OUTPUT" PRECISION ="100" SCALE ="0"/>
+            <TRANSFORMFIELD DATATYPE ="string" DEFAULTVALUE ="" DESCRIPTION ="" NAME ="last_name" PICTURETEXT ="" PORTTYPE ="INPUT/OUTPUT" PRECISION ="200" SCALE ="0"/>
+            <TRANSFORMFIELD DATATYPE ="date/time" DEFAULTVALUE ="" DESCRIPTION ="" NAME ="hired_date" PICTURETEXT ="" PORTTYPE ="INPUT/OUTPUT" PRECISION ="29" SCALE ="9"/>
+            <TRANSFORMFIELD DATATYPE ="date/time" DEFAULTVALUE ="" DESCRIPTION ="" NAME ="last_upd_date" PICTURETEXT ="" PORTTYPE ="INPUT/OUTPUT" PRECISION ="29" SCALE ="9"/>
+            <TRANSFORMFIELD DATATYPE ="decimal" DEFAULTVALUE ="" DESCRIPTION ="" NAME ="salary" PICTURETEXT ="" PORTTYPE ="INPUT/OUTPUT" PRECISION ="10" SCALE ="2"/>
+            <TRANSFORMFIELD DATATYPE ="string" DEFAULTVALUE ="" DESCRIPTION ="" NAME ="dept_name" PICTURETEXT ="" PORTTYPE ="INPUT/OUTPUT" PRECISION ="100" SCALE ="0"/>
+            <TABLEATTRIBUTE NAME ="Filter Condition" VALUE ="SUBSTR(dept_name,1,3) != &apos;000&apos; and first_name != $$VAR100"/>
+            <TABLEATTRIBUTE NAME ="Tracing Level" VALUE ="Normal"/>
+        </TRANSFORMATION>
+        <TRANSFORMATION DESCRIPTION ="" NAME ="filter_2" OBJECTVERSION ="1" REUSABLE ="NO" TYPE ="Filter" VERSIONNUMBER ="1">
+            <TRANSFORMFIELD DATATYPE ="string" DEFAULTVALUE ="" DESCRIPTION ="" NAME ="dept_name_filtered" PICTURETEXT ="" PORTTYPE ="INPUT/OUTPUT" PRECISION ="100" SCALE ="0"/>
+            <TRANSFORMFIELD DATATYPE ="string" DEFAULTVALUE ="" DESCRIPTION ="" NAME ="first_name" PICTURETEXT ="" PORTTYPE ="INPUT/OUTPUT" PRECISION ="100" SCALE ="0"/>
+            <TRANSFORMFIELD DATATYPE ="string" DEFAULTVALUE ="" DESCRIPTION ="" NAME ="last_name" PICTURETEXT ="" PORTTYPE ="INPUT/OUTPUT" PRECISION ="200" SCALE ="0"/>
+            <TABLEATTRIBUTE NAME ="Filter Condition" VALUE ="dept_name_filtered &lt;&gt; &apos;ZZZ&apos;&#xD;&#xA;and last_name &lt;&gt; &apos;YYY&apos;"/>
+            <TABLEATTRIBUTE NAME ="Tracing Level" VALUE ="Normal"/>
+        </TRANSFORMATION>
+        <TRANSFORMATION DESCRIPTION ="" NAME ="exp_finalize" OBJECTVERSION ="1" REUSABLE ="NO" TYPE ="Expression" VERSIONNUMBER ="1">
+            <TRANSFORMFIELD DATATYPE ="string" DEFAULTVALUE ="" DESCRIPTION ="" EXPRESSION ="department_nm" EXPRESSIONTYPE ="GENERAL" NAME ="department_nm" PICTURETEXT ="" PORTTYPE ="INPUT/OUTPUT" PRECISION ="100" SCALE ="0"/>
+            <TRANSFORMFIELD DATATYPE ="integer" DEFAULTVALUE ="" DESCRIPTION ="" EXPRESSION ="COUNT_RENAMED_1" EXPRESSIONTYPE ="GENERAL" NAME ="COUNT_RENAMED_1" PICTURETEXT ="" PORTTYPE ="INPUT/OUTPUT" PRECISION ="10" SCALE ="0"/>
+            <TRANSFORMFIELD DATATYPE ="integer" DEFAULTVALUE ="ERROR(&apos;transformation error&apos;)" DESCRIPTION ="" EXPRESSION ="MD5(department_nm)" EXPRESSIONTYPE ="GENERAL" NAME ="dept_hash" PICTURETEXT ="" PORTTYPE ="OUTPUT" PRECISION ="10" SCALE ="0"/>
+            <TABLEATTRIBUTE NAME ="Tracing Level" VALUE ="Normal"/>
+        </TRANSFORMATION>
+        <TRANSFORMATION DESCRIPTION ="" NAME ="Exp_2" OBJECTVERSION ="1" REUSABLE ="NO" TYPE ="Expression" VERSIONNUMBER ="1">
+            <TRANSFORMFIELD DATATYPE ="string" DEFAULTVALUE ="" DESCRIPTION ="" EXPRESSION ="full_name2" EXPRESSIONTYPE ="GENERAL" NAME ="full_name2" PICTURETEXT ="" PORTTYPE ="INPUT/OUTPUT" PRECISION ="1000" SCALE ="0"/>
+            <TRANSFORMFIELD DATATYPE ="integer" DEFAULTVALUE ="" DESCRIPTION ="" EXPRESSION ="days_worked" EXPRESSIONTYPE ="GENERAL" NAME ="days_worked" PICTURETEXT ="" PORTTYPE ="INPUT/OUTPUT" PRECISION ="10" SCALE ="0"/>
+            <TRANSFORMFIELD DATATYPE ="string" DEFAULTVALUE ="ERROR(&apos;transformation error&apos;)" DESCRIPTION ="" EXPRESSION ="&apos;Y&apos;" EXPRESSIONTYPE ="GENERAL" NAME ="active_flag" PICTURETEXT ="" PORTTYPE ="OUTPUT" PRECISION ="10" SCALE ="0"/>
+            <TRANSFORMFIELD DATATYPE ="date/time" DEFAULTVALUE ="" DESCRIPTION ="" EXPRESSION ="curr_dt2" EXPRESSIONTYPE ="GENERAL" NAME ="curr_dt2" PICTURETEXT ="" PORTTYPE ="INPUT/OUTPUT" PRECISION ="29" SCALE ="9"/>
+            <TRANSFORMFIELD DATATYPE ="string" DEFAULTVALUE ="" DESCRIPTION ="" EXPRESSION ="active" EXPRESSIONTYPE ="GENERAL" NAME ="active" PICTURETEXT ="" PORTTYPE ="INPUT/OUTPUT" PRECISION ="10" SCALE ="0"/>
+            <TRANSFORMFIELD DATATYPE ="string" DEFAULTVALUE ="" DESCRIPTION ="" EXPRESSION ="first_name" EXPRESSIONTYPE ="GENERAL" NAME ="first_name" PICTURETEXT ="" PORTTYPE ="INPUT/OUTPUT" PRECISION ="100" SCALE ="0"/>
+            <TABLEATTRIBUTE NAME ="Tracing Level" VALUE ="Normal"/>
+        </TRANSFORMATION>
+        <INSTANCE DESCRIPTION ="" NAME ="dim_party" TRANSFORMATION_NAME ="dim_party" TRANSFORMATION_TYPE ="Target Definition" TYPE ="TARGET"/>
+        <INSTANCE DESCRIPTION ="" NAME ="dim_departments_INS" TRANSFORMATION_NAME ="dim_departments" TRANSFORMATION_TYPE ="Target Definition" TYPE ="TARGET"/>
+        <INSTANCE DBDNAME ="HR_Database" DESCRIPTION ="" NAME ="Employees" TRANSFORMATION_NAME ="Employees" TRANSFORMATION_TYPE ="Source Definition" TYPE ="SOURCE"/>
+        <INSTANCE DESCRIPTION ="" NAME ="SQ_Employees" REUSABLE ="NO" TRANSFORMATION_NAME ="SQ_Employees" TRANSFORMATION_TYPE ="Source Qualifier" TYPE ="TRANSFORMATION">
+            <ASSOCIATED_SOURCE_INSTANCE NAME ="Employees"/>
+        </INSTANCE>
+        <INSTANCE DESCRIPTION ="" NAME ="Exp_employee_attr" REUSABLE ="NO" TRANSFORMATION_NAME ="Exp_employee_attr" TRANSFORMATION_TYPE ="Expression" TYPE ="TRANSFORMATION"/>
+        <INSTANCE DESCRIPTION ="" NAME ="AGGTRANS" REUSABLE ="NO" TRANSFORMATION_NAME ="AGGTRANS" TRANSFORMATION_TYPE ="Aggregator" TYPE ="TRANSFORMATION"/>
+        <INSTANCE DESCRIPTION ="" NAME ="filter_active_dept" REUSABLE ="NO" TRANSFORMATION_NAME ="filter_active_dept" TRANSFORMATION_TYPE ="Filter" TYPE ="TRANSFORMATION"/>
+        <INSTANCE DESCRIPTION ="" NAME ="filter_2" REUSABLE ="NO" TRANSFORMATION_NAME ="filter_2" TRANSFORMATION_TYPE ="Filter" TYPE ="TRANSFORMATION"/>
+        <INSTANCE DESCRIPTION ="" NAME ="exp_finalize" REUSABLE ="NO" TRANSFORMATION_NAME ="exp_finalize" TRANSFORMATION_TYPE ="Expression" TYPE ="TRANSFORMATION"/>
+        <INSTANCE DESCRIPTION ="" NAME ="Exp_2" REUSABLE ="NO" TRANSFORMATION_NAME ="Exp_2" TRANSFORMATION_TYPE ="Expression" TYPE ="TRANSFORMATION"/>
+        <CONNECTOR FROMFIELD ="hired_date" FROMINSTANCE ="SQ_Employees" FROMINSTANCETYPE ="Source Qualifier" TOFIELD ="dated_hired" TOINSTANCE ="dim_party" TOINSTANCETYPE ="Target Definition"/>
+        <CONNECTOR FROMFIELD ="full_name2" FROMINSTANCE ="Exp_2" FROMINSTANCETYPE ="Expression" TOFIELD ="FULL_NAME" TOINSTANCE ="dim_party" TOINSTANCETYPE ="Target Definition"/>
+        <CONNECTOR FROMFIELD ="days_worked" FROMINSTANCE ="Exp_2" FROMINSTANCETYPE ="Expression" TOFIELD ="days_employeed" TOINSTANCE ="dim_party" TOINSTANCETYPE ="Target Definition"/>
+        <CONNECTOR FROMFIELD ="active_flag" FROMINSTANCE ="Exp_2" FROMINSTANCETYPE ="Expression" TOFIELD ="active_ind" TOINSTANCE ="dim_party" TOINSTANCETYPE ="Target Definition"/>
+        <CONNECTOR FROMFIELD ="curr_dt2" FROMINSTANCE ="Exp_2" FROMINSTANCETYPE ="Expression" TOFIELD ="created_ts" TOINSTANCE ="dim_party" TOINSTANCETYPE ="Target Definition"/>
+        <CONNECTOR FROMFIELD ="dept_hash" FROMINSTANCE ="exp_finalize" FROMINSTANCETYPE ="Expression" TOFIELD ="dept_id" TOINSTANCE ="dim_departments_INS" TOINSTANCETYPE ="Target Definition"/>
+        <CONNECTOR FROMFIELD ="department_nm" FROMINSTANCE ="exp_finalize" FROMINSTANCETYPE ="Expression" TOFIELD ="dept_name" TOINSTANCE ="dim_departments_INS" TOINSTANCETYPE ="Target Definition"/>
+        <CONNECTOR FROMFIELD ="COUNT_RENAMED_1" FROMINSTANCE ="exp_finalize" FROMINSTANCETYPE ="Expression" TOFIELD ="cnt" TOINSTANCE ="dim_departments_INS" TOINSTANCETYPE ="Target Definition"/>
+        <CONNECTOR FROMFIELD ="Emp_id" FROMINSTANCE ="Employees" FROMINSTANCETYPE ="Source Definition" TOFIELD ="Emp_id" TOINSTANCE ="SQ_Employees" TOINSTANCETYPE ="Source Qualifier"/>
+        <CONNECTOR FROMFIELD ="first_name" FROMINSTANCE ="Employees" FROMINSTANCETYPE ="Source Definition" TOFIELD ="first_name" TOINSTANCE ="SQ_Employees" TOINSTANCETYPE ="Source Qualifier"/>
+        <CONNECTOR FROMFIELD ="last_name" FROMINSTANCE ="Employees" FROMINSTANCETYPE ="Source Definition" TOFIELD ="last_name" TOINSTANCE ="SQ_Employees" TOINSTANCETYPE ="Source Qualifier"/>
+        <CONNECTOR FROMFIELD ="hired_date" FROMINSTANCE ="Employees" FROMINSTANCETYPE ="Source Definition" TOFIELD ="hired_date" TOINSTANCE ="SQ_Employees" TOINSTANCETYPE ="Source Qualifier"/>
+        <CONNECTOR FROMFIELD ="last_upd_date" FROMINSTANCE ="Employees" FROMINSTANCETYPE ="Source Definition" TOFIELD ="last_upd_date" TOINSTANCE ="SQ_Employees" TOINSTANCETYPE ="Source Qualifier"/>
+        <CONNECTOR FROMFIELD ="salary" FROMINSTANCE ="Employees" FROMINSTANCETYPE ="Source Definition" TOFIELD ="salary" TOINSTANCE ="SQ_Employees" TOINSTANCETYPE ="Source Qualifier"/>
+        <CONNECTOR FROMFIELD ="dept_name" FROMINSTANCE ="Employees" FROMINSTANCETYPE ="Source Definition" TOFIELD ="dept_name" TOINSTANCE ="SQ_Employees" TOINSTANCETYPE ="Source Qualifier"/>
+        <CONNECTOR FROMFIELD ="first_name" FROMINSTANCE ="SQ_Employees" FROMINSTANCETYPE ="Source Qualifier" TOFIELD ="first_name" TOINSTANCE ="Exp_employee_attr" TOINSTANCETYPE ="Expression"/>
+        <CONNECTOR FROMFIELD ="last_name" FROMINSTANCE ="SQ_Employees" FROMINSTANCETYPE ="Source Qualifier" TOFIELD ="last_name2" TOINSTANCE ="Exp_employee_attr" TOINSTANCETYPE ="Expression"/>
+        <CONNECTOR FROMFIELD ="hired_date" FROMINSTANCE ="SQ_Employees" FROMINSTANCETYPE ="Source Qualifier" TOFIELD ="hired_date" TOINSTANCE ="Exp_employee_attr" TOINSTANCETYPE ="Expression"/>
+        <CONNECTOR FROMFIELD ="Emp_id" FROMINSTANCE ="SQ_Employees" FROMINSTANCETYPE ="Source Qualifier" TOFIELD ="Emp_id" TOINSTANCE ="filter_active_dept" TOINSTANCETYPE ="Filter"/>
+        <CONNECTOR FROMFIELD ="first_name" FROMINSTANCE ="SQ_Employees" FROMINSTANCETYPE ="Source Qualifier" TOFIELD ="first_name" TOINSTANCE ="filter_active_dept" TOINSTANCETYPE ="Filter"/>
+        <CONNECTOR FROMFIELD ="last_name" FROMINSTANCE ="SQ_Employees" FROMINSTANCETYPE ="Source Qualifier" TOFIELD ="last_name" TOINSTANCE ="filter_active_dept" TOINSTANCETYPE ="Filter"/>
+        <CONNECTOR FROMFIELD ="hired_date" FROMINSTANCE ="SQ_Employees" FROMINSTANCETYPE ="Source Qualifier" TOFIELD ="hired_date" TOINSTANCE ="filter_active_dept" TOINSTANCETYPE ="Filter"/>
+        <CONNECTOR FROMFIELD ="last_upd_date" FROMINSTANCE ="SQ_Employees" FROMINSTANCETYPE ="Source Qualifier" TOFIELD ="last_upd_date" TOINSTANCE ="filter_active_dept" TOINSTANCETYPE ="Filter"/>
+        <CONNECTOR FROMFIELD ="salary" FROMINSTANCE ="SQ_Employees" FROMINSTANCETYPE ="Source Qualifier" TOFIELD ="salary" TOINSTANCE ="filter_active_dept" TOINSTANCETYPE ="Filter"/>
+        <CONNECTOR FROMFIELD ="dept_name" FROMINSTANCE ="SQ_Employees" FROMINSTANCETYPE ="Source Qualifier" TOFIELD ="dept_name" TOINSTANCE ="filter_active_dept" TOINSTANCETYPE ="Filter"/>
+        <CONNECTOR FROMFIELD ="first_name" FROMINSTANCE ="Exp_employee_attr" FROMINSTANCETYPE ="Expression" TOFIELD ="first_name" TOINSTANCE ="Exp_2" TOINSTANCETYPE ="Expression"/>
+        <CONNECTOR FROMFIELD ="out_full_name" FROMINSTANCE ="Exp_employee_attr" FROMINSTANCETYPE ="Expression" TOFIELD ="full_name2" TOINSTANCE ="Exp_2" TOINSTANCETYPE ="Expression"/>
+        <CONNECTOR FROMFIELD ="out_days_worked" FROMINSTANCE ="Exp_employee_attr" FROMINSTANCETYPE ="Expression" TOFIELD ="days_worked" TOINSTANCE ="Exp_2" TOINSTANCETYPE ="Expression"/>
+        <CONNECTOR FROMFIELD ="curr_dt" FROMINSTANCE ="Exp_employee_attr" FROMINSTANCETYPE ="Expression" TOFIELD ="curr_dt2" TOINSTANCE ="Exp_2" TOINSTANCETYPE ="Expression"/>
+        <CONNECTOR FROMFIELD ="active" FROMINSTANCE ="Exp_employee_attr" FROMINSTANCETYPE ="Expression" TOFIELD ="active" TOINSTANCE ="Exp_2" TOINSTANCETYPE ="Expression"/>
+        <CONNECTOR FROMFIELD ="dept_name_filtered" FROMINSTANCE ="filter_2" FROMINSTANCETYPE ="Filter" TOFIELD ="dpt_nm" TOINSTANCE ="AGGTRANS" TOINSTANCETYPE ="Aggregator"/>
+        <CONNECTOR FROMFIELD ="dpt_nm" FROMINSTANCE ="AGGTRANS" FROMINSTANCETYPE ="Aggregator" TOFIELD ="department_nm" TOINSTANCE ="exp_finalize" TOINSTANCETYPE ="Expression"/>
+        <CONNECTOR FROMFIELD ="out_count" FROMINSTANCE ="AGGTRANS" FROMINSTANCETYPE ="Aggregator" TOFIELD ="COUNT_RENAMED_1" TOINSTANCE ="exp_finalize" TOINSTANCETYPE ="Expression"/>
+        <CONNECTOR FROMFIELD ="dept_name" FROMINSTANCE ="filter_active_dept" FROMINSTANCETYPE ="Filter" TOFIELD ="dept_name_filtered" TOINSTANCE ="filter_2" TOINSTANCETYPE ="Filter"/>
+        <CONNECTOR FROMFIELD ="first_name" FROMINSTANCE ="filter_active_dept" FROMINSTANCETYPE ="Filter" TOFIELD ="first_name" TOINSTANCE ="filter_2" TOINSTANCETYPE ="Filter"/>
+        <CONNECTOR FROMFIELD ="last_name" FROMINSTANCE ="filter_active_dept" FROMINSTANCETYPE ="Filter" TOFIELD ="last_name" TOINSTANCE ="filter_2" TOINSTANCETYPE ="Filter"/>
+        <TARGETLOADORDER ORDER ="1" TARGETINSTANCE ="dim_party"/>
+        <TARGETLOADORDER ORDER ="1" TARGETINSTANCE ="dim_departments_INS"/>
+        <MAPPINGVARIABLE AGGFUNCTION ="MAX" DATATYPE ="string" DEFAULTVALUE ="ABCDE" DESCRIPTION ="" ISEXPRESSIONVARIABLE ="NO" ISPARAM ="NO" NAME ="$$VAR100" PRECISION ="10" SCALE ="0" USERDEFINED ="YES"/>
+        <MAPPINGVARIABLE AGGFUNCTION ="MAX" DATATYPE ="integer" DEFAULTVALUE ="200" DESCRIPTION ="" ISEXPRESSIONVARIABLE ="NO" ISPARAM ="NO" NAME ="$$VAR200" PRECISION ="10" SCALE ="0" USERDEFINED ="YES"/>
+        <ERPINFO/>
+    </MAPPING>
+    <CONFIG DESCRIPTION ="Default session configuration object" ISDEFAULT ="YES" NAME ="default_session_config" VERSIONNUMBER ="1">
+        <ATTRIBUTE NAME ="Advanced" VALUE =""/>
+        <ATTRIBUTE NAME ="Constraint based load ordering" VALUE ="NO"/>
+        <ATTRIBUTE NAME ="Cache LOOKUP() function" VALUE ="YES"/>
+        <ATTRIBUTE NAME ="Default buffer block size" VALUE ="Auto"/>
+        <ATTRIBUTE NAME ="Line Sequential buffer length" VALUE ="1024"/>
+        <ATTRIBUTE NAME ="Maximum Memory Allowed For Auto Memory Attributes" VALUE ="512MB"/>
+        <ATTRIBUTE NAME ="Maximum Percentage of Total Memory Allowed For Auto Memory Attributes" VALUE ="5"/>
+        <ATTRIBUTE NAME ="Additional Concurrent Pipelines for Lookup Cache Creation" VALUE ="Auto"/>
+        <ATTRIBUTE NAME ="Custom Properties" VALUE =""/>
+        <ATTRIBUTE NAME ="Pre-build lookup cache" VALUE ="Auto"/>
+        <ATTRIBUTE NAME ="Optimization Level" VALUE ="Medium"/>
+        <ATTRIBUTE NAME ="DateTime Format String" VALUE ="MM/DD/YYYY HH24:MI:SS.US"/>
+        <ATTRIBUTE NAME ="Pre 85 Timestamp Compatibility" VALUE ="NO"/>
+        <ATTRIBUTE NAME ="Log Options" VALUE ="0"/>
+        <ATTRIBUTE NAME ="Save session log by" VALUE ="Session runs"/>
+        <ATTRIBUTE NAME ="Save session log for these runs" VALUE ="0"/>
+        <ATTRIBUTE NAME ="Session Log File Max Size" VALUE ="0"/>
+        <ATTRIBUTE NAME ="Session Log File Max Time Period" VALUE ="0"/>
+        <ATTRIBUTE NAME ="Maximum Partial Session Log Files" VALUE ="1"/>
+        <ATTRIBUTE NAME ="Writer Commit Statistics Log Frequency" VALUE ="1"/>
+        <ATTRIBUTE NAME ="Writer Commit Statistics Log Interval" VALUE ="0"/>
+        <ATTRIBUTE NAME ="Error handling" VALUE =""/>
+        <ATTRIBUTE NAME ="Stop on errors" VALUE ="0"/>
+        <ATTRIBUTE NAME ="Override tracing" VALUE ="None"/>
+        <ATTRIBUTE NAME ="On Stored Procedure error" VALUE ="Stop"/>
+        <ATTRIBUTE NAME ="On Pre-session command task error" VALUE ="Stop"/>
+        <ATTRIBUTE NAME ="On Pre-Post SQL error" VALUE ="Stop"/>
+        <ATTRIBUTE NAME ="Enable Recovery" VALUE ="NO"/>
+        <ATTRIBUTE NAME ="Error Log Type" VALUE ="None"/>
+        <ATTRIBUTE NAME ="Error Log Table Name Prefix" VALUE =""/>
+        <ATTRIBUTE NAME ="Error Log File Name" VALUE ="PMError.log"/>
+        <ATTRIBUTE NAME ="Log Source Row Data" VALUE ="NO"/>
+        <ATTRIBUTE NAME ="Data Column Delimiter" VALUE ="|"/>
+        <ATTRIBUTE NAME ="Partitioning Options" VALUE =""/>
+        <ATTRIBUTE NAME ="Dynamic Partitioning" VALUE ="Disabled"/>
+        <ATTRIBUTE NAME ="Number of Partitions" VALUE ="1"/>
+        <ATTRIBUTE NAME ="Multiplication Factor" VALUE ="Auto"/>
+        <ATTRIBUTE NAME ="Session on Grid" VALUE =""/>
+        <ATTRIBUTE NAME ="Is Enabled" VALUE ="NO"/>
+    </CONFIG>
+    <WORKFLOW DESCRIPTION ="These workflows are created from the Workflow Generation Wizard." ISENABLED ="YES" ISRUNNABLESERVICE ="NO" ISSERVICE ="NO" ISVALID ="YES" NAME ="wf_m_employees_load" REUSABLE_SCHEDULER ="NO" SCHEDULERNAME ="Scheduler" SUSPEND_ON_ERROR ="NO" TASKS_MUST_RUN_ON_SERVER ="NO" VERSIONNUMBER ="1">
+        <SCHEDULER DESCRIPTION ="" NAME ="Scheduler" REUSABLE ="NO" VERSIONNUMBER ="1">
+            <SCHEDULEINFO SCHEDULETYPE ="ONDEMAND"/>
+        </SCHEDULER>
+        <TASK DESCRIPTION ="" NAME ="Start" REUSABLE ="NO" TYPE ="Start" VERSIONNUMBER ="1"/>
+        <SESSION DESCRIPTION ="" ISVALID ="NO" MAPPINGNAME ="m_employees_load" NAME ="s_m_employees_load" REUSABLE ="NO" SORTORDER ="Binary" VERSIONNUMBER ="1">
+            <SESSTRANSFORMATIONINST ISREPARTITIONPOINT ="YES" PARTITIONTYPE ="PASS THROUGH" PIPELINE ="1" SINSTANCENAME ="dim_party" STAGE ="1" TRANSFORMATIONNAME ="dim_party" TRANSFORMATIONTYPE ="Target Definition"/>
+            <SESSTRANSFORMATIONINST ISREPARTITIONPOINT ="YES" PARTITIONTYPE ="PASS THROUGH" PIPELINE ="1" SINSTANCENAME ="dim_departments_INS" STAGE ="2" TRANSFORMATIONNAME ="dim_departments_INS" TRANSFORMATIONTYPE ="Target Definition"/>
+            <SESSTRANSFORMATIONINST ISREPARTITIONPOINT ="NO" PIPELINE ="0" SINSTANCENAME ="Employees" STAGE ="0" TRANSFORMATIONNAME ="Employees" TRANSFORMATIONTYPE ="Source Definition"/>
+            <SESSTRANSFORMATIONINST ISREPARTITIONPOINT ="YES" PARTITIONTYPE ="PASS THROUGH" PIPELINE ="1" SINSTANCENAME ="SQ_Employees" STAGE ="3" TRANSFORMATIONNAME ="SQ_Employees" TRANSFORMATIONTYPE ="Source Qualifier"/>
+            <SESSTRANSFORMATIONINST ISREPARTITIONPOINT ="NO" PIPELINE ="1" SINSTANCENAME ="Exp_employee_attr" STAGE ="3" TRANSFORMATIONNAME ="Exp_employee_attr" TRANSFORMATIONTYPE ="Expression">
+                <PARTITION DESCRIPTION ="" NAME ="Partition #1"/>
+            </SESSTRANSFORMATIONINST>
+            <SESSTRANSFORMATIONINST ISREPARTITIONPOINT ="YES" PARTITIONTYPE ="HASH AUTO KEYS" PIPELINE ="1" SINSTANCENAME ="AGGTRANS" STAGE ="4" TRANSFORMATIONNAME ="AGGTRANS" TRANSFORMATIONTYPE ="Aggregator">
+                <PARTITION DESCRIPTION ="" NAME ="Partition #1"/>
+            </SESSTRANSFORMATIONINST>
+            <SESSTRANSFORMATIONINST ISREPARTITIONPOINT ="NO" PIPELINE ="1" SINSTANCENAME ="filter_active_dept" STAGE ="3" TRANSFORMATIONNAME ="filter_active_dept" TRANSFORMATIONTYPE ="Filter">
+                <PARTITION DESCRIPTION ="" NAME ="Partition #1"/>
+            </SESSTRANSFORMATIONINST>
+            <SESSTRANSFORMATIONINST ISREPARTITIONPOINT ="NO" PIPELINE ="1" SINSTANCENAME ="filter_2" STAGE ="3" TRANSFORMATIONNAME ="filter_2" TRANSFORMATIONTYPE ="Filter">
+                <PARTITION DESCRIPTION ="" NAME ="Partition #1"/>
+            </SESSTRANSFORMATIONINST>
+            <SESSTRANSFORMATIONINST ISREPARTITIONPOINT ="NO" PIPELINE ="1" SINSTANCENAME ="exp_finalize" STAGE ="4" TRANSFORMATIONNAME ="exp_finalize" TRANSFORMATIONTYPE ="Expression">
+                <PARTITION DESCRIPTION ="" NAME ="Partition #1"/>
+            </SESSTRANSFORMATIONINST>
+            <SESSTRANSFORMATIONINST ISREPARTITIONPOINT ="NO" PIPELINE ="1" SINSTANCENAME ="Exp_2" STAGE ="3" TRANSFORMATIONNAME ="Exp_2" TRANSFORMATIONTYPE ="Expression">
+                <PARTITION DESCRIPTION ="" NAME ="Partition #1"/>
+            </SESSTRANSFORMATIONINST>
+            <CONFIGREFERENCE REFOBJECTNAME ="default_session_config" TYPE ="Session config"/>
+            <SESSIONEXTENSION NAME ="Relational Writer" SINSTANCENAME ="dim_party" SUBTYPE ="Relational Writer" TRANSFORMATIONTYPE ="Target Definition" TYPE ="WRITER">
+                <CONNECTIONREFERENCE CNXREFNAME ="DB Connection" CONNECTIONNAME ="" CONNECTIONNUMBER ="1" CONNECTIONSUBTYPE ="" CONNECTIONTYPE ="" VARIABLE =""/>
+                <ATTRIBUTE NAME ="Target load type" VALUE ="Bulk"/>
+                <ATTRIBUTE NAME ="Insert" VALUE ="YES"/>
+                <ATTRIBUTE NAME ="Update as Update" VALUE ="YES"/>
+                <ATTRIBUTE NAME ="Update as Insert" VALUE ="NO"/>
+                <ATTRIBUTE NAME ="Update else Insert" VALUE ="NO"/>
+                <ATTRIBUTE NAME ="Enable array upsert or update" VALUE ="NO"/>
+                <ATTRIBUTE NAME ="Delete" VALUE ="YES"/>
+                <ATTRIBUTE NAME ="Truncate target table option" VALUE ="NO"/>
+                <ATTRIBUTE NAME ="Reject file directory" VALUE ="$PMBadFileDir&#x5c;"/>
+                <ATTRIBUTE NAME ="Reject filename" VALUE ="dim_party.bad"/>
+            </SESSIONEXTENSION>
+            <SESSIONEXTENSION NAME ="Relational Writer" SINSTANCENAME ="dim_departments_INS" SUBTYPE ="Relational Writer" TRANSFORMATIONTYPE ="Target Definition" TYPE ="WRITER">
+                <CONNECTIONREFERENCE CNXREFNAME ="DB Connection" CONNECTIONNAME ="" CONNECTIONNUMBER ="1" CONNECTIONSUBTYPE ="" CONNECTIONTYPE ="" VARIABLE =""/>
+                <ATTRIBUTE NAME ="Target load type" VALUE ="Bulk"/>
+                <ATTRIBUTE NAME ="Insert" VALUE ="YES"/>
+                <ATTRIBUTE NAME ="Update as Update" VALUE ="YES"/>
+                <ATTRIBUTE NAME ="Update as Insert" VALUE ="NO"/>
+                <ATTRIBUTE NAME ="Update else Insert" VALUE ="NO"/>
+                <ATTRIBUTE NAME ="Enable array upsert or update" VALUE ="NO"/>
+                <ATTRIBUTE NAME ="Delete" VALUE ="YES"/>
+                <ATTRIBUTE NAME ="Truncate target table option" VALUE ="NO"/>
+                <ATTRIBUTE NAME ="Reject file directory" VALUE ="$PMBadFileDir&#x5c;"/>
+                <ATTRIBUTE NAME ="Reject filename" VALUE ="dim_departments_ins.bad"/>
+            </SESSIONEXTENSION>
+            <SESSIONEXTENSION DSQINSTNAME ="SQ_Employees" DSQINSTTYPE ="Source Qualifier" NAME ="Relational Reader" SINSTANCENAME ="Employees" SUBTYPE ="Relational Reader" TRANSFORMATIONTYPE ="Source Definition" TYPE ="READER"/>
+            <SESSIONEXTENSION NAME ="Relational Reader" SINSTANCENAME ="SQ_Employees" SUBTYPE ="Relational Reader" TRANSFORMATIONTYPE ="Source Qualifier" TYPE ="READER">
+                <CONNECTIONREFERENCE CNXREFNAME ="DB Connection" CONNECTIONNAME ="" CONNECTIONNUMBER ="1" CONNECTIONSUBTYPE ="" CONNECTIONTYPE ="" VARIABLE =""/>
+            </SESSIONEXTENSION>
+            <ATTRIBUTE NAME ="General Options" VALUE =""/>
+            <ATTRIBUTE NAME ="Write Backward Compatible Session Log File" VALUE ="NO"/>
+            <ATTRIBUTE NAME ="Session Log File Name" VALUE ="s_m_employees_load.log"/>
+            <ATTRIBUTE NAME ="Session Log File directory" VALUE ="$PMSessionLogDir&#x5c;"/>
+            <ATTRIBUTE NAME ="Parameter Filename" VALUE =""/>
+            <ATTRIBUTE NAME ="Enable Test Load" VALUE ="NO"/>
+            <ATTRIBUTE NAME ="$Source connection value" VALUE =""/>
+            <ATTRIBUTE NAME ="$Target connection value" VALUE =""/>
+            <ATTRIBUTE NAME ="Treat source rows as" VALUE ="Insert"/>
+            <ATTRIBUTE NAME ="Commit Type" VALUE ="Target"/>
+            <ATTRIBUTE NAME ="Commit Interval" VALUE ="10000"/>
+            <ATTRIBUTE NAME ="Commit On End Of File" VALUE ="YES"/>
+            <ATTRIBUTE NAME ="Rollback Transactions on Errors" VALUE ="NO"/>
+            <ATTRIBUTE NAME ="Recovery Strategy" VALUE ="Fail task and continue workflow"/>
+            <ATTRIBUTE NAME ="Java Classpath" VALUE =""/>
+            <ATTRIBUTE NAME ="Performance" VALUE =""/>
+            <ATTRIBUTE NAME ="DTM buffer size" VALUE ="24000000"/>
+            <ATTRIBUTE NAME ="Collect performance data" VALUE ="NO"/>
+            <ATTRIBUTE NAME ="Write performance data to repository" VALUE ="NO"/>
+            <ATTRIBUTE NAME ="Incremental Aggregation" VALUE ="NO"/>
+            <ATTRIBUTE NAME ="Enable high precision" VALUE ="NO"/>
+            <ATTRIBUTE NAME ="Session retry on deadlock" VALUE ="NO"/>
+            <ATTRIBUTE NAME ="Pushdown Optimization" VALUE ="None"/>
+            <ATTRIBUTE NAME ="Allow Temporary View for Pushdown" VALUE ="NO"/>
+            <ATTRIBUTE NAME ="Allow Temporary Sequence for Pushdown" VALUE ="NO"/>
+            <ATTRIBUTE NAME ="Allow Pushdown for User Incompatible Connections" VALUE ="NO"/>
+        </SESSION>
+        <TASKINSTANCE DESCRIPTION ="" ISENABLED ="YES" NAME ="Start" REUSABLE ="NO" TASKNAME ="Start" TASKTYPE ="Start"/>
+        <TASKINSTANCE DESCRIPTION ="" FAIL_PARENT_IF_INSTANCE_DID_NOT_RUN ="NO" FAIL_PARENT_IF_INSTANCE_FAILS ="YES" ISENABLED ="YES" NAME ="s_m_employees_load" REUSABLE ="NO" TASKNAME ="s_m_employees_load" TASKTYPE ="Session" TREAT_INPUTLINK_AS_AND ="YES"/>
+        <WORKFLOWLINK CONDITION ="" FROMTASK ="Start" TOTASK ="s_m_employees_load"/>
+        <WORKFLOWVARIABLE DATATYPE ="date/time" DEFAULTVALUE ="" DESCRIPTION ="The time this task started" ISNULL ="NO" ISPERSISTENT ="NO" NAME ="$Start.StartTime" USERDEFINED ="NO"/>
+        <WORKFLOWVARIABLE DATATYPE ="date/time" DEFAULTVALUE ="" DESCRIPTION ="The time this task completed" ISNULL ="NO" ISPERSISTENT ="NO" NAME ="$Start.EndTime" USERDEFINED ="NO"/>
+        <WORKFLOWVARIABLE DATATYPE ="integer" DEFAULTVALUE ="" DESCRIPTION ="Status of this task&apos;s execution" ISNULL ="NO" ISPERSISTENT ="NO" NAME ="$Start.Status" USERDEFINED ="NO"/>
+        <WORKFLOWVARIABLE DATATYPE ="integer" DEFAULTVALUE ="" DESCRIPTION ="Status of the previous task that is not disabled" ISNULL ="NO" ISPERSISTENT ="NO" NAME ="$Start.PrevTaskStatus" USERDEFINED ="NO"/>
+        <WORKFLOWVARIABLE DATATYPE ="integer" DEFAULTVALUE ="" DESCRIPTION ="Error code for this task&apos;s execution" ISNULL ="NO" ISPERSISTENT ="NO" NAME ="$Start.ErrorCode" USERDEFINED ="NO"/>
+        <WORKFLOWVARIABLE DATATYPE ="string" DEFAULTVALUE ="" DESCRIPTION ="Error message for this task&apos;s execution" ISNULL ="NO" ISPERSISTENT ="NO" NAME ="$Start.ErrorMsg" USERDEFINED ="NO"/>
+        <WORKFLOWVARIABLE DATATYPE ="date/time" DEFAULTVALUE ="" DESCRIPTION ="The time this task started" ISNULL ="NO" ISPERSISTENT ="NO" NAME ="$s_m_employees_load.StartTime" USERDEFINED ="NO"/>
+        <WORKFLOWVARIABLE DATATYPE ="date/time" DEFAULTVALUE ="" DESCRIPTION ="The time this task completed" ISNULL ="NO" ISPERSISTENT ="NO" NAME ="$s_m_employees_load.EndTime" USERDEFINED ="NO"/>
+        <WORKFLOWVARIABLE DATATYPE ="integer" DEFAULTVALUE ="" DESCRIPTION ="Status of this task&apos;s execution" ISNULL ="NO" ISPERSISTENT ="NO" NAME ="$s_m_employees_load.Status" USERDEFINED ="NO"/>
+        <WORKFLOWVARIABLE DATATYPE ="integer" DEFAULTVALUE ="" DESCRIPTION ="Status of the previous task that is not disabled" ISNULL ="NO" ISPERSISTENT ="NO" NAME ="$s_m_employees_load.PrevTaskStatus" USERDEFINED ="NO"/>
+        <WORKFLOWVARIABLE DATATYPE ="integer" DEFAULTVALUE ="" DESCRIPTION ="Error code for this task&apos;s execution" ISNULL ="NO" ISPERSISTENT ="NO" NAME ="$s_m_employees_load.ErrorCode" USERDEFINED ="NO"/>
+        <WORKFLOWVARIABLE DATATYPE ="string" DEFAULTVALUE ="" DESCRIPTION ="Error message for this task&apos;s execution" ISNULL ="NO" ISPERSISTENT ="NO" NAME ="$s_m_employees_load.ErrorMsg" USERDEFINED ="NO"/>
+        <WORKFLOWVARIABLE DATATYPE ="bigint" DEFAULTVALUE ="" DESCRIPTION ="Rows successfully read" ISNULL ="NO" ISPERSISTENT ="NO" NAME ="$s_m_employees_load.SrcSuccessRows" USERDEFINED ="NO"/>
+        <WORKFLOWVARIABLE DATATYPE ="bigint" DEFAULTVALUE ="" DESCRIPTION ="Rows failed to read" ISNULL ="NO" ISPERSISTENT ="NO" NAME ="$s_m_employees_load.SrcFailedRows" USERDEFINED ="NO"/>
+        <WORKFLOWVARIABLE DATATYPE ="bigint" DEFAULTVALUE ="" DESCRIPTION ="Rows successfully loaded" ISNULL ="NO" ISPERSISTENT ="NO" NAME ="$s_m_employees_load.TgtSuccessRows" USERDEFINED ="NO"/>
+        <WORKFLOWVARIABLE DATATYPE ="bigint" DEFAULTVALUE ="" DESCRIPTION ="Rows failed to load" ISNULL ="NO" ISPERSISTENT ="NO" NAME ="$s_m_employees_load.TgtFailedRows" USERDEFINED ="NO"/>
+        <WORKFLOWVARIABLE DATATYPE ="integer" DEFAULTVALUE ="" DESCRIPTION ="Total number of transformation errors" ISNULL ="NO" ISPERSISTENT ="NO" NAME ="$s_m_employees_load.TotalTransErrors" USERDEFINED ="NO"/>
+        <WORKFLOWVARIABLE DATATYPE ="integer" DEFAULTVALUE ="" DESCRIPTION ="First error code" ISNULL ="NO" ISPERSISTENT ="NO" NAME ="$s_m_employees_load.FirstErrorCode" USERDEFINED ="NO"/>
+        <WORKFLOWVARIABLE DATATYPE ="string" DEFAULTVALUE ="" DESCRIPTION ="First error message" ISNULL ="NO" ISPERSISTENT ="NO" NAME ="$s_m_employees_load.FirstErrorMsg" USERDEFINED ="NO"/>
+        <ATTRIBUTE NAME ="Parameter Filename" VALUE =""/>
+        <ATTRIBUTE NAME ="Write Backward Compatible Workflow Log File" VALUE ="NO"/>
+        <ATTRIBUTE NAME ="Workflow Log File Name" VALUE ="wf_m_employees_load.log"/>
+        <ATTRIBUTE NAME ="Workflow Log File Directory" VALUE ="$PMWorkflowLogDir&#x5c;"/>
+        <ATTRIBUTE NAME ="Save Workflow log by" VALUE ="By runs"/>
+        <ATTRIBUTE NAME ="Save workflow log for these runs" VALUE ="0"/>
+        <ATTRIBUTE NAME ="Service Name" VALUE =""/>
+        <ATTRIBUTE NAME ="Service Timeout" VALUE ="0"/>
+        <ATTRIBUTE NAME ="Is Service Visible" VALUE ="NO"/>
+        <ATTRIBUTE NAME ="Is Service Protected" VALUE ="NO"/>
+        <ATTRIBUTE NAME ="Enable HA recovery" VALUE ="NO"/>
+        <ATTRIBUTE NAME ="Automatically recover terminated tasks" VALUE ="NO"/>
+        <ATTRIBUTE NAME ="Service Level Name" VALUE ="Default"/>
+        <ATTRIBUTE NAME ="Allow concurrent run with unique run instance name" VALUE ="NO"/>
+        <ATTRIBUTE NAME ="Allow concurrent run with same run instance name" VALUE ="NO"/>
+        <ATTRIBUTE NAME ="Maximum number of concurrent runs" VALUE ="0"/>
+        <ATTRIBUTE NAME ="Assigned Web Services Hubs" VALUE =""/>
+        <ATTRIBUTE NAME ="Maximum number of concurrent runs per Hub" VALUE ="1000"/>
+        <ATTRIBUTE NAME ="Expected Service Time" VALUE ="1"/>
+    </WORKFLOW>
+</FOLDER>
+</REPOSITORY>
+</POWERMART>

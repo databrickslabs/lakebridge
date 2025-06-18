@@ -10,8 +10,8 @@ from databricks.sdk.errors import InvalidParameterValue, NotFound
 from databricks.sdk.service.dashboards import Dashboard
 from databricks.sdk.service.dashboards import LifecycleState
 
-from databricks.labs.remorph.config import ReconcileMetadataConfig, ReconcileConfig, DatabaseConfig
-from databricks.labs.remorph.deployment.dashboard import DashboardDeployment
+from databricks.labs.lakebridge.config import ReconcileMetadataConfig, ReconcileConfig, DatabaseConfig
+from databricks.labs.lakebridge.deployment.dashboard import DashboardDeployment
 
 
 def _get_dashboard_query(dashboard: Dashboard | None):
@@ -92,7 +92,7 @@ def test_recovery_invalid_dashboard(caplog, exception):
         ),
         metadata_config=ReconcileMetadataConfig(),
     )
-    with caplog.at_level(logging.DEBUG, logger="databricks.labs.remorph.deployment.dashboard"):
+    with caplog.at_level(logging.DEBUG, logger="databricks.labs.lakebridge.deployment.dashboard"):
         dashboard_publisher.deploy(dashboard_folder, reconcile_config)
     assert "Recovering invalid dashboard" in caplog.text
     assert "Deleted dangling dashboard" in caplog.text
@@ -133,7 +133,7 @@ def test_recovery_trashed_dashboard(caplog):
         ),
         metadata_config=ReconcileMetadataConfig(),
     )
-    with caplog.at_level(logging.DEBUG, logger="databricks.labs.remorph.deployment.dashboard"):
+    with caplog.at_level(logging.DEBUG, logger="databricks.labs.lakebridge.deployment.dashboard"):
         dashboard_publisher.deploy(dashboard_folder, reconcile_config)
     assert "Recreating trashed dashboard" in caplog.text
     ws.lakeview.create.assert_called()

@@ -3,11 +3,11 @@ from unittest.mock import create_autospec
 import pytest
 
 from databricks.connect import DatabricksSession
-from databricks.labs.remorph.transpiler.sqlglot.dialect_utils import get_dialect
-from databricks.labs.remorph.reconcile.connectors.databricks import DatabricksDataSource
-from databricks.labs.remorph.reconcile.connectors.oracle import OracleDataSource
-from databricks.labs.remorph.reconcile.connectors.snowflake import SnowflakeDataSource
-from databricks.labs.remorph.reconcile.connectors.source_adapter import create_adapter
+from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
+from databricks.labs.lakebridge.reconcile.connectors.databricks import DatabricksDataSource
+from databricks.labs.lakebridge.reconcile.connectors.oracle import OracleDataSource
+from databricks.labs.lakebridge.reconcile.connectors.snowflake import SnowflakeDataSource
+from databricks.labs.lakebridge.reconcile.connectors.source_adapter import create_adapter
 from databricks.sdk import WorkspaceClient
 
 

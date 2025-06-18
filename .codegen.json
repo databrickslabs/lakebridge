@@ -1,6 +1,6 @@
 {
   "version": {
-    "src/databricks/labs/remorph/__about__.py": "__version__ = \"$VERSION\""
+    "src/databricks/labs/lakebridge/__about__.py": "__version__ = \"$VERSION\""
   },
   "toolchain": {
     "required": ["hatch"],

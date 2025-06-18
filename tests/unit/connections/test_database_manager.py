@@ -1,7 +1,7 @@
 import os
 import pytest
 from unittest.mock import MagicMock, patch
-from databricks.labs.remorph.connections.database_manager import DatabaseManager
+from databricks.labs.lakebridge.connections.database_manager import DatabaseManager
 
 sample_config = {
     'user': 'test_user',
@@ -18,7 +18,7 @@ def test_create_connector_unsupported_db_type():
 
 
 # Test case for MSSQLConnector
-@patch('databricks.labs.remorph.connections.database_manager.MSSQLConnector')
+@patch('databricks.labs.lakebridge.connections.database_manager.MSSQLConnector')
 def test_mssql_connector(mock_mssql_connector):
     mock_connector_instance = MagicMock()
     mock_mssql_connector.return_value = mock_connector_instance
@@ -29,7 +29,7 @@ def test_mssql_connector(mock_mssql_connector):
     mock_mssql_connector.assert_called_once_with(sample_config)
 
 
-@patch('databricks.labs.remorph.connections.database_manager.MSSQLConnector')
+@patch('databricks.labs.lakebridge.connections.database_manager.MSSQLConnector')
 def test_execute_query(mock_mssql_connector):
     mock_connector_instance = MagicMock()
     mock_mssql_connector.return_value = mock_connector_instance

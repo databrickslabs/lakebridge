@@ -1,3 +1,4 @@
+from pathlib import Path
 from unittest.mock import create_autospec
 
 import pytest
@@ -14,7 +15,7 @@ from pyspark.sql.types import (
 )
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.service import iam
-from databricks.labs.remorph.reconcile.recon_config import (
+from databricks.labs.lakebridge.reconcile.recon_config import (
     Table,
     JdbcReaderOptions,
     Transformation,
@@ -207,3 +208,31 @@ def report_tables_schema():
     )
 
     return recon_schema, metrics_schema, details_schema
+
+
+@pytest.fixture
+def bladebridge_artifact() -> Path:
+    artifact = (
+        Path(__file__).parent
+        / "resources"
+        / "transpiler_configs"
+        / "bladebridge"
+        / "wheel"
+        / "databricks_bb_plugin-0.1.4-py3-none-any.whl"
+    )
+    assert artifact.exists()
+    return artifact
+
+
+@pytest.fixture
+def morpheus_artifact() -> Path:
+    artifact = (
+        Path(__file__).parent
+        / "resources"
+        / "transpiler_configs"
+        / "morpheus"
+        / "jar"
+        / "databricks-morph-plugin-0.4.0.jar"
+    )
+    assert artifact.exists()
+    return artifact

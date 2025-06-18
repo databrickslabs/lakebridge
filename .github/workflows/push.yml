@@ -36,11 +36,6 @@ jobs:
       - name: Install hatch
         run: pip install hatch==$HATCH_VERSION
 
-      - name: Setup Spark Remote
-        run: |
-          chmod +x $GITHUB_WORKSPACE/.github/scripts/setup_spark_remote.sh
-          $GITHUB_WORKSPACE/.github/scripts/setup_spark_remote.sh
-
       - name: Run unit tests
         run: hatch run test
 
@@ -157,7 +152,7 @@ jobs:
       - name: Install Databricks CLI
         uses: databricks/setup-cli@main
 
-      - name: Initialize Python virtual environment for StandardInputPythonSubprocess
+      - name: Initialize Python virtual environment
         run: make dev
 
       - name: Create dummy test file
@@ -179,4 +174,53 @@ jobs:
         run: |
           echo "No file produced in tests-reports/"
           exit 1
+
+  end-to-end:
+
+    runs-on: ${{ matrix.runner }}
+    env: # this is a temporary hack
+      DATABRICKS_HOST: any
+      DATABRICKS_TOKEN: any
+
+    strategy:
+      matrix:
+        runner: [larger, windows-server-2022-latest]
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Install Python
+      uses: actions/setup-python@v5
+      with:
+        cache: 'pip'
+        cache-dependency-path: '**/pyproject.toml'
+        python-version: 3.10.x
+
+    - name: Install hatch (Windows)
+      if: runner.os == 'Windows'
+      run: pip install hatch=="$env:HATCH_VERSION"
+
+    - name: Install hatch (Non-Windows)
+      if: runner.os != 'Windows'
+      run: pip install hatch==$HATCH_VERSION
+
+    - name: Install Databricks CLI
+      uses: databricks/setup-cli@main
+
+    - name: Install JRE 11 (for Morpheus)
+      uses: actions/setup-java@v4
+      with:
+        distribution: zulu
+        java-package: jre
+        java-version: 11
+
+    - name: Run install tests
+      run: hatch run test-install
+
+    - name: Publish test coverage
+      uses: codecov/codecov-action@v5
+      with:
+        codecov_yml_path: codecov.yml
+        token: ${{ secrets.CODECOV_TOKEN }}
 

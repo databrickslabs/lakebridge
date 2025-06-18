@@ -1,12 +1,12 @@
 import pytest
 from pyspark.sql import Row
 
-from databricks.labs.remorph.reconcile.constants import SamplingOptionMethod, SamplingSpecificationsType
-from databricks.labs.remorph.reconcile.recon_config import (
+from databricks.labs.lakebridge.reconcile.constants import SamplingOptionMethod, SamplingSpecificationsType
+from databricks.labs.lakebridge.reconcile.recon_config import (
     SamplingOptions,
     SamplingSpecifications,
 )
-from databricks.labs.remorph.reconcile.sampler import SamplerFactory
+from databricks.labs.lakebridge.reconcile.sampler import SamplerFactory
 
 _MIN_SAMPLE_COUNT = 50
 _MAX_SAMPLE_COUNT = 400

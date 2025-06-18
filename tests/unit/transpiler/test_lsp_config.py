@@ -6,7 +6,7 @@ import copy
 import pytest
 import yaml
 
-from databricks.labs.remorph.transpiler.lsp.lsp_engine import LSPEngine
+from databricks.labs.lakebridge.transpiler.lsp.lsp_engine import LSPEngine
 from tests.unit.conftest import path_to_resource
 
 

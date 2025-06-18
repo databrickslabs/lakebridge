@@ -8,7 +8,7 @@ from unittest.mock import patch
 import pytest
 import pytz
 
-from databricks.labs.remorph.coverage.commons import (
+from databricks.labs.lakebridge.coverage.commons import (
     ReportEntry,
     collect_transpilation_stats,
     get_current_commit_hash,
@@ -17,8 +17,8 @@ from databricks.labs.remorph.coverage.commons import (
     get_supported_sql_files,
     write_json_line,
 )
-from databricks.labs.remorph.transpiler.sqlglot.generator.databricks import Databricks
-from databricks.labs.remorph.transpiler.sqlglot.parsers.snowflake import Snowflake
+from databricks.labs.lakebridge.transpiler.sqlglot.generator.databricks import Databricks
+from databricks.labs.lakebridge.transpiler.sqlglot.parsers.snowflake import Snowflake
 
 
 def test_get_supported_sql_files(tmp_path):
@@ -75,7 +75,7 @@ def test_get_current_commit_hash():
         assert get_current_commit_hash() is None
 
 
-@mock.patch("databricks.labs.remorph.coverage.commons.datetime")
+@mock.patch("databricks.labs.lakebridge.coverage.commons.datetime")
 def test_get_current_time_utc(mock_datetime):
     fixed_timestamp = datetime(2022, 1, 1, 0, 0, 0, tzinfo=pytz.UTC)
     mock_datetime.now = mock.Mock(return_value=fixed_timestamp)
@@ -142,11 +142,11 @@ def test_stats_collection_with_parse_error(io_dir_pair):
 
     with (
         patch(
-            "databricks.labs.remorph.coverage.commons.parse_sql",
+            "databricks.labs.lakebridge.coverage.commons.parse_sql",
             side_effect=Exception("Some parse error"),
         ),
         patch(
-            "databricks.labs.remorph.coverage.commons.get_current_time_utc",
+            "databricks.labs.lakebridge.coverage.commons.get_current_time_utc",
             return_value=fixed_timestamp,
         ),
     ):
@@ -183,11 +183,11 @@ def test_stats_collection_with_transpile_error(io_dir_pair):
 
     with (
         patch(
-            "databricks.labs.remorph.coverage.commons.generate_sql",
+            "databricks.labs.lakebridge.coverage.commons.generate_sql",
             side_effect=Exception("Some transpilation error"),
         ),
         patch(
-            "databricks.labs.remorph.coverage.commons.get_current_time_utc",
+            "databricks.labs.lakebridge.coverage.commons.get_current_time_utc",
             return_value=fixed_timestamp,
         ),
     ):
@@ -226,7 +226,7 @@ def test_stats_collection_no_error(io_dir_pair):
 
     with (
         patch(
-            "databricks.labs.remorph.coverage.commons.get_current_time_utc",
+            "databricks.labs.lakebridge.coverage.commons.get_current_time_utc",
             return_value=fixed_timestamp,
         ),
     ):

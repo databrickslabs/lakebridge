@@ -1,0 +1,20 @@
+:root {
+  --ifm-table-stripe-background: transparent;
+}
+
+html[data-theme="dark"] {
+  --ifm-table-stripe-background: rgba(255, 255, 255, .07);
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  display: block;
+  overflow: auto;
+
+  tbody {
+    tr:nth-child(2n) {
+      background-color: transparent;
+    }
+  }
+}

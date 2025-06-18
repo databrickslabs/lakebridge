@@ -7,15 +7,15 @@ from pyspark.sql import Row, SparkSession
 from pyspark.sql.functions import countDistinct
 from pyspark.sql.types import BooleanType, StringType, StructField, StructType
 
-from databricks.labs.remorph.config import DatabaseConfig, ReconcileMetadataConfig
-from databricks.labs.remorph.transpiler.sqlglot.dialect_utils import get_dialect
-from databricks.labs.remorph.reconcile.exception import WriteToTableException, ReadAndWriteWithVolumeException
-from databricks.labs.remorph.reconcile.recon_capture import (
+from databricks.labs.lakebridge.config import DatabaseConfig, ReconcileMetadataConfig
+from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
+from databricks.labs.lakebridge.reconcile.exception import WriteToTableException, ReadAndWriteWithVolumeException
+from databricks.labs.lakebridge.reconcile.recon_capture import (
     ReconCapture,
     generate_final_reconcile_output,
     ReconIntermediatePersist,
 )
-from databricks.labs.remorph.reconcile.recon_output_config import (
+from databricks.labs.lakebridge.reconcile.recon_output_config import (
     DataReconcileOutput,
     MismatchOutput,
     ReconcileOutput,
@@ -26,7 +26,7 @@ from databricks.labs.remorph.reconcile.recon_output_config import (
     ThresholdOutput,
     ReconcileRecordCount,
 )
-from databricks.labs.remorph.reconcile.recon_config import (
+from databricks.labs.lakebridge.reconcile.recon_config import (
     Table,
     TableThresholds,
     TableThresholdBoundsException,

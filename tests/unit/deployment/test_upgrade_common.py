@@ -2,9 +2,9 @@ from unittest.mock import patch
 from databricks.labs.lsql.backends import MockBackend
 from databricks.labs.blueprint.tui import MockPrompts
 from databricks.labs.blueprint.installation import MockInstallation
-from databricks.labs.remorph.contexts.application import ApplicationContext
+from databricks.labs.lakebridge.contexts.application import ApplicationContext
 
-from databricks.labs.remorph.deployment.upgrade_common import (
+from databricks.labs.lakebridge.deployment.upgrade_common import (
     replace_patterns,
     extract_columns_with_datatype,
     extract_column_name,
@@ -61,7 +61,7 @@ def test_current_table_columns():
 def test_installed_table_columns(mock_workspace_client):
     table_identifier = "main_table"
     with patch(
-        'databricks.labs.remorph.helpers.db_sql.get_sql_backend',
+        'databricks.labs.lakebridge.helpers.db_sql.get_sql_backend',
         return_value=MockBackend(),
     ):
         result = installed_table_columns(mock_workspace_client, table_identifier)

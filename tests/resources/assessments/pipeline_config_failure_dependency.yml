@@ -1,0 +1,14 @@
+name: ExamplePipeline
+version: "1.0"
+extract_folder: /tmp/extracts/
+steps:
+  - name: package_status
+    type: python
+    extract_source: resources/assessments/db_extract_dep.py
+    mode: overwrite
+    frequency: daily
+    flag: active
+    dependencies:
+      - databricks_labs_ucx>=0.50.0
+
+

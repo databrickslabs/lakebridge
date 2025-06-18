@@ -1,0 +1,55 @@
+---
+title: BladeBridge Overview
+sidebar_position: 3
+---
+
+import CodeBlock from '@theme/CodeBlock';
+
+## BladeBridge Functionality Overview
+
+**BladeBridge** (formerly BladeBridge Converter) is a code conversion engine designed to modernize ETL and SQL workloads into Databricks-native formats.
+
+It supports both:
+- **SQL-based platforms** (e.g., Oracle, Teradata, Netezza, SQL Server, Snowflake)
+- **ETL platforms** (e.g., Informatica, DataStage)
+
+---
+
+## Conversion Model
+
+### SQL Input Files
+
+For each SQL source file, BladeBridge generates a **single output file** containing the translated Databricks-compatible logic. This can include:
+- **Tables and view definitions**
+- **Databricks SQL scripting stored procedures**
+
+> **Note:** BladeBridge supports SQL scripting constructs, and source stored procedures are translated to Databricks SQL scripting equivalents.
+
+---
+
+### ETL Input Files
+
+ETL source files may produce **multiple outputs**, depending on job type:
+
+| ETL Job Type             | Output Format                       |
+|--------------------------|-------------------------------------|
+| Transformational Jobs    | Databricks **Notebooks** (cells)    |
+| Workflow/Orchestration   | Databricks **Workflow JSON**        |
+
+Each ETL component is translated into a logical code block, with mapping maintained across source and target systems.
+
+---
+
+## Configuration-Driven Execution
+
+BladeBridge runs based on a **configuration file**, allowing you to define:
+
+- Input/output directories
+- Source and target technologies
+- Custom naming conventions
+- Extension points for converter plugins
+
+---
+
+## Sample CLI Usage
+

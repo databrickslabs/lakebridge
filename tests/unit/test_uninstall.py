@@ -4,10 +4,10 @@ import pytest
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.service import iam
 
-from databricks.labs.remorph import uninstall
-from databricks.labs.remorph.config import RemorphConfigs
-from databricks.labs.remorph.contexts.application import ApplicationContext
-from databricks.labs.remorph.deployment.installation import WorkspaceInstallation
+from databricks.labs.lakebridge import uninstall
+from databricks.labs.lakebridge.config import RemorphConfigs
+from databricks.labs.lakebridge.contexts.application import ApplicationContext
+from databricks.labs.lakebridge.deployment.installation import WorkspaceInstallation
 
 
 @pytest.fixture

@@ -3,7 +3,7 @@ from unittest.mock import patch
 import pytest
 
 from databricks.labs.blueprint.tui import MockPrompts
-from databricks.labs.remorph.helpers.recon_config_utils import ReconConfigPrompts
+from databricks.labs.lakebridge.helpers.recon_config_utils import ReconConfigPrompts
 from databricks.sdk.errors.platform import ResourceDoesNotExist
 from databricks.sdk.service.workspace import SecretScope
 
@@ -52,7 +52,7 @@ def test_configure_secrets_oracle_insert(mock_workspace_client):
     mock_workspace_client.secrets.list_scopes.side_effect = [[SecretScope(name="scope_name")]]
 
     with patch(
-        "databricks.labs.remorph.helpers.recon_config_utils.ReconConfigPrompts._secret_key_exists",
+        "databricks.labs.lakebridge.helpers.recon_config_utils.ReconConfigPrompts._secret_key_exists",
         return_value=False,
     ):
         recon_conf = ReconConfigPrompts(mock_workspace_client, prompts)
@@ -70,7 +70,7 @@ def test_configure_secrets_invalid_source(mock_workspace_client):
     )
 
     with patch(
-        "databricks.labs.remorph.helpers.recon_config_utils.ReconConfigPrompts._scope_exists",
+        "databricks.labs.lakebridge.helpers.recon_config_utils.ReconConfigPrompts._scope_exists",
         return_value=True,
     ):
         recon_conf = ReconConfigPrompts(mock_workspace_client, prompts)
@@ -139,7 +139,7 @@ def test_store_connection_secrets_overwrite(mock_workspace_client):
     )
 
     with patch(
-        "databricks.labs.remorph.helpers.recon_config_utils.ReconConfigPrompts._secret_key_exists", return_value=True
+        "databricks.labs.lakebridge.helpers.recon_config_utils.ReconConfigPrompts._secret_key_exists", return_value=True
     ):
         recon_conf = ReconConfigPrompts(mock_workspace_client, prompts)
         recon_conf.store_connection_secrets("scope_name", ("source", {"key": "value"}))

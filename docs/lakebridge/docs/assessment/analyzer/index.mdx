@@ -1,0 +1,68 @@
+---
+sidebar_position: 2
+title: Analyzer Guide
+---
+import useBaseUrl from '@docusaurus/useBaseUrl';
+
+#  Analyzer Guide
+
+## Analyzer Insights
+
+The **Lakebridge Analyzer** is built to scan and interpret metadata from ETL pipelines and SQL assets. Its analysis provides several key insights:
+
+- **Job Complexity Assessment**<br/>
+  Analyzer evaluates the complexity of your ETL and SQL jobs. These metrics are fed into the **Conversion Calculator** to help estimate both software licensing costs and the engineering hours required for the migration.
+
+- **Comprehensive Job Inventory**<br/>
+  It generates a full inventory of components such as mappings, programs, transformations, functions, and dynamic variables—giving you a clear picture of what exists in your legacy environment.
+
+- **Cross-System Interdependency Mapping**<br/>
+  Analyzer identifies **interdependencies** between jobs, systems, and components — surfacing how different parts of your codebase interact. This is crucial for sequencing migration efforts, minimizing risk, and avoiding disruption during cutover planning.
+
+
+
+## Verify Installation
+Verify the successful installation by executing the provided command; confirmation of a successful installation is indicated when the displayed output aligns with the example screenshot provided:
+```bash
+ databricks labs lakebridge analyze --help
+ ```
+<img src={useBaseUrl('img/analyzer-help.png')} alt="transpile-help" />
+
+## Preparation Step
+To prepare to use Analyzer the metadata needs to be extracted from the legacy system(s). This is done by exporting the metadata to a file system and ultimately making it available in a folder accessible by Analyzer. For a SQL database this is typically done by exporting the SQL files out of the database platform. For ETL/ELT solutions this is done by exporting their repository objects, this usually exports to some kind of *XML* or *JSON* format.
+For examples and instructions of the metadata export process, please refer to the page Exporting Legacy Metadata.
+
+
+
+## Execution Pre-Set Up
+Analyzer accepts as an input a folder name containing the files and subfolders to be scanned, and the Excel report filename to be generated, containing all the collected information.
+
+Below is the detailed explanation on the arguments required for Analyzer.
+- `source-directory [Required]` - Absolute folder path containing the legacy artifacts.
+- `report-file [Required]` - Name of the report file to produce the information info.  Must have .xlsx extension
+#### Before starting the execution, Analyzer will prompt for the type of technology it is scanning
+
+## Execution
+Execute the below command to initialize the transpile process.
+```bash
+ databricks labs lakebridge analyze --source-directory <absolute-path> --report-file <absolute-path>
+```
+
+<img src={useBaseUrl('img/remorph-analyzer-run.gif')} alt="transpile-run" />
+
+## Supported dialects
+
+| Source Platform              | Source Platform              | Source Platform              |
+|:-----------------------------:|:-----------------------------:|:-----------------------------:|
+| ABInitio | Informatica Cloud | SAS |
+| ADF | MS SQL Server | Snowflake |
+| Alteryx | Netezza | SPSS |
+| Athena | Oozie | SQOOP |
+| BigQuery | Oracle | SSIS |
+| Cloudera (Impala) | Oracle Data Integrator | SSRS |
+| Datastage | PentahoDI | Synapse |
+| Greenplum | PIG | Talend |
+| Hive | Presto | Teradata |
+| IBM DB2 | PySpark | Vertica |
+| Informatica - Big Data Edition | Redshift | |
+| Informatica - PC | SAPHANA - CalcViews | |

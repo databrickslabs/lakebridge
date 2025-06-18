@@ -15,7 +15,7 @@ jobs:
     environment: release
     defaults:
       run:
-        working-directory: docs/remorph
+        working-directory: docs/lakebridge
     steps:
       - uses: actions/checkout@v4
         with:
@@ -24,7 +24,7 @@ jobs:
         with:
           node-version: 20
           cache: yarn
-          cache-dependency-path: docs/remorph/yarn.lock # need to put the lockfile path explicitly
+          cache-dependency-path: docs/lakebridge/yarn.lock # need to put the lockfile path explicitly
 
       - name: Install dependencies
         run: yarn install --frozen-lockfile
@@ -34,14 +34,14 @@ jobs:
       - name: Upload Build Artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: docs/remorph/build  # The directory to upload as an artifact
+          path: docs/lakebridge/build  # The directory to upload as an artifact
 
   deploy:
     name: Deploy to GitHub Pages
     needs: build
     defaults:
       run:
-        working-directory: docs/remorph
+        working-directory: docs/lakebridge
 
     # Grant GITHUB_TOKEN the permissions required to make a Pages deployment
     permissions:

@@ -1,6 +1,6 @@
 import codecs
 
-from databricks.labs.remorph.helpers.string_utils import remove_bom, refactor_hexadecimal_chars, format_error_message
+from databricks.labs.lakebridge.helpers.string_utils import remove_bom, refactor_hexadecimal_chars, format_error_message
 
 
 def test_remove_bom():

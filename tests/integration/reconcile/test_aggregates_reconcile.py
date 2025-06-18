@@ -9,20 +9,20 @@ import pytest
 from pyspark.testing import assertDataFrameEqual
 from pyspark.sql import Row
 
-from databricks.labs.remorph.config import DatabaseConfig, ReconcileMetadataConfig
-from databricks.labs.remorph.transpiler.sqlglot.dialect_utils import get_dialect
-from databricks.labs.remorph.reconcile.connectors.data_source import MockDataSource
-from databricks.labs.remorph.reconcile.execute import Reconciliation, main
-from databricks.labs.remorph.reconcile.recon_config import (
+from databricks.labs.lakebridge.config import DatabaseConfig, ReconcileMetadataConfig
+from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
+from databricks.labs.lakebridge.reconcile.connectors.data_source import MockDataSource
+from databricks.labs.lakebridge.reconcile.execute import Reconciliation, main
+from databricks.labs.lakebridge.reconcile.recon_config import (
     Aggregate,
     AggregateRule,
 )
-from databricks.labs.remorph.reconcile.recon_output_config import (
+from databricks.labs.lakebridge.reconcile.recon_output_config import (
     AggregateQueryOutput,
     DataReconcileOutput,
     MismatchOutput,
 )
-from databricks.labs.remorph.reconcile.schema_compare import SchemaCompare
+from databricks.labs.lakebridge.reconcile.schema_compare import SchemaCompare
 
 CATALOG = "org"
 SCHEMA = "data"
@@ -103,7 +103,7 @@ def test_reconcile_aggregate_data_missing_records(
     )
     source = MockDataSource(source_dataframe_repository, source_schema_repository)
     target = MockDataSource(target_dataframe_repository, target_schema_repository)
-    with patch("databricks.labs.remorph.reconcile.execute.generate_volume_path", return_value=str(tmp_path)):
+    with patch("databricks.labs.lakebridge.reconcile.execute.generate_volume_path", return_value=str(tmp_path)):
         actual: list[AggregateQueryOutput] = Reconciliation(
             source,
             target,
@@ -310,7 +310,7 @@ def test_reconcile_aggregate_data_mismatch_and_missing_records(
         target_schema=SCHEMA,
     )
     source = MockDataSource(source_dataframe_repository, source_schema_repository)
-    with patch("databricks.labs.remorph.reconcile.execute.generate_volume_path", return_value=str(tmp_path)):
+    with patch("databricks.labs.lakebridge.reconcile.execute.generate_volume_path", return_value=str(tmp_path)):
         actual_list: list[AggregateQueryOutput] = Reconciliation(
             source,
             MockDataSource(target_dataframe_repository, target_schema_repository),

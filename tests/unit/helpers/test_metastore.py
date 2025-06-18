@@ -11,7 +11,7 @@ from databricks.sdk.service.catalog import (
     SecurableType,
 )
 from databricks.sdk.errors import NotFound
-from databricks.labs.remorph.helpers.metastore import CatalogOperations
+from databricks.labs.lakebridge.helpers.metastore import CatalogOperations
 
 
 @pytest.fixture

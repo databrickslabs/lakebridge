@@ -1,11 +1,11 @@
 # See https://docs.github.com/en/communities/using-templates-to-encourage-useful-issues-and-pull-requests/syntax-for-issue-forms
 # and https://docs.github.com/en/communities/using-templates-to-encourage-useful-issues-and-pull-requests/syntax-for-githubs-form-schema
 name: Bug Report
-description: Something is not working in Remorph
+description: Something is not working in Lakebridge
 title: "[BUG]: "
-labels: ["bug", "needs-triage"]
-# assignees:
-#   - remorph-write
+labels: ["needs-triage"]
+type: "bug"
+
 body:
   - type: checkboxes
     attributes:
@@ -20,10 +20,11 @@ body:
       label: Category of Bug / Issue
       description: Please select the category that best describes the bug / issue you are reporting.
       options:
-        - TranspileParserError
-        - TranspileValidationError
-        - TranspileLateralColumnAliasError
-        - ReconcileError
+        - Application crashed
+        - Profiler bug
+        - Analyzer bug
+        - Converter bug
+        - Reconcile bug
         - Other
     validations:
       required: true
@@ -84,8 +85,6 @@ body:
       description: What version of our software are you running?
       options:
         - latest via Databricks CLI
-        - v0.1.5
-        - v0.1.4
         - other
       default: 0
     validations:

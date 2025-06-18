@@ -5,8 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from databricks.labs.remorph.config import TranspileConfig
-from databricks.labs.remorph.transpiler.lsp.lsp_engine import LSPEngine
+from databricks.labs.lakebridge.config import TranspileConfig
+from databricks.labs.lakebridge.transpiler.lsp.lsp_engine import LSPEngine
 
 
 @asynccontextmanager

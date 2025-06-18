@@ -2,9 +2,9 @@ from pathlib import Path
 import duckdb
 import pytest
 
-from databricks.labs.remorph.assessments.pipeline import PipelineClass, DB_NAME
+from databricks.labs.lakebridge.assessments.pipeline import PipelineClass, DB_NAME, StepExecutionStatus
 
-from databricks.labs.remorph.assessments.profiler_config import Step, PipelineConfig
+from databricks.labs.lakebridge.assessments.profiler_config import Step, PipelineConfig
 from ..connections.helpers import get_db_manager
 
 
@@ -17,6 +17,17 @@ def extractor(mock_credentials):
 def pipeline_config():
     prefix = Path(__file__).parent
     config_path = f"{prefix}/../../resources/assessments/pipeline_config.yml"
+    config = PipelineClass.load_config_from_yaml(config_path)
+
+    for step in config.steps:
+        step.extract_source = f"{prefix}/../../{step.extract_source}"
+    return config
+
+
+@pytest.fixture(scope="module")
+def pipeline_dep_failure_config():
+    prefix = Path(__file__).parent
+    config_path = f"{prefix}/../../resources/assessments/pipeline_config_failure_dependency.yml"
     config = PipelineClass.load_config_from_yaml(config_path)
 
     for step in config.steps:
@@ -46,20 +57,64 @@ def python_failure_config():
 
 def test_run_pipeline(extractor, pipeline_config, get_logger):
     pipeline = PipelineClass(config=pipeline_config, executor=extractor)
-    pipeline.execute()
+    results = pipeline.execute()
+    print("*******************\n")
+    print(results)
+    print("\n*******************")
+
+    # Verify all steps completed successfully
+    for result in results:
+        assert result.status in (
+            StepExecutionStatus.COMPLETE,
+            StepExecutionStatus.SKIPPED,
+        ), f"Step {result.step_name} failed with status {result.status}"
+
     assert verify_output(get_logger, pipeline_config.extract_folder)
 
 
 def test_run_sql_failure_pipeline(extractor, sql_failure_config, get_logger):
     pipeline = PipelineClass(config=sql_failure_config, executor=extractor)
-    with pytest.raises(RuntimeError, match="SQL execution failed"):
-        pipeline.execute()
+    results = pipeline.execute()
+
+    # Find the failed SQL step
+    failed_steps = [r for r in results if r.status == StepExecutionStatus.ERROR]
+    assert len(failed_steps) > 0, "Expected at least one failed step"
+    assert "SQL execution failed" in failed_steps[0].error_message
 
 
 def test_run_python_failure_pipeline(extractor, python_failure_config, get_logger):
     pipeline = PipelineClass(config=python_failure_config, executor=extractor)
-    with pytest.raises(RuntimeError, match="Script execution failed"):
-        pipeline.execute()
+    results = pipeline.execute()
+
+    # Find the failed Python step
+    failed_steps = [r for r in results if r.status == StepExecutionStatus.ERROR]
+    assert len(failed_steps) > 0, "Expected at least one failed step"
+    assert "Script execution failed" in failed_steps[0].error_message
+
+
+def test_run_python_dep_failure_pipeline(extractor, pipeline_dep_failure_config, get_logger):
+    pipeline = PipelineClass(config=pipeline_dep_failure_config, executor=extractor)
+    results = pipeline.execute()
+
+    # Find the failed Python step
+    failed_steps = [r for r in results if r.status == StepExecutionStatus.ERROR]
+    assert len(failed_steps) > 0, "Expected at least one failed step"
+    assert "Script execution failed" in failed_steps[0].error_message
+
+
+def test_skipped_steps(extractor, pipeline_config, get_logger):
+    # Modify config to have some inactive steps
+    for step in pipeline_config.steps:
+        step.flag = "inactive"
+
+    pipeline = PipelineClass(config=pipeline_config, executor=extractor)
+    results = pipeline.execute()
+
+    # Verify all steps are marked as skipped
+    assert len(results) > 0, "Expected at least one step"
+    for result in results:
+        assert result.status == StepExecutionStatus.SKIPPED, f"Step {result.step_name} was not skipped"
+        assert result.error_message is None, "Skipped steps should not have error messages"
 
 
 def verify_output(get_logger, path):

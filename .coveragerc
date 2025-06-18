@@ -2,8 +2,8 @@
 branch = true
 parallel = true
 omit =
-    src/databricks/labs/remorph/coverage/*
-    src/databricks/labs/remorph/helpers/execution_time.py
+    src/databricks/labs/lakebridge/coverage/*
+    src/databricks/labs/lakebridge/helpers/execution_time.py
     tests/resources/lsp_transpiler/lsp_server.py
     __about__.py
 

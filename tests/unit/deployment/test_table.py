@@ -2,7 +2,7 @@ from pathlib import Path
 
 from databricks.labs.lsql.backends import MockBackend
 
-from databricks.labs.remorph.deployment.table import TableDeployment
+from databricks.labs.lakebridge.deployment.table import TableDeployment
 
 
 def test_deploy_table_from_ddl_file():

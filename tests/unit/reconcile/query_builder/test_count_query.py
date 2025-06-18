@@ -1,5 +1,5 @@
-from databricks.labs.remorph.reconcile.query_builder.count_query import CountQueryBuilder
-from databricks.labs.remorph.transpiler.sqlglot.dialect_utils import get_dialect
+from databricks.labs.lakebridge.reconcile.query_builder.count_query import CountQueryBuilder
+from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
 
 
 def test_count_query(table_conf_with_opts):

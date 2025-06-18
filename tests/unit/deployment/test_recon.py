@@ -8,11 +8,11 @@ from databricks.sdk import WorkspaceClient
 from databricks.sdk.errors import InvalidParameterValue
 from databricks.sdk.service import iam
 
-from databricks.labs.remorph.config import RemorphConfigs, ReconcileConfig, DatabaseConfig, ReconcileMetadataConfig
-from databricks.labs.remorph.deployment.dashboard import DashboardDeployment
-from databricks.labs.remorph.deployment.job import JobDeployment
-from databricks.labs.remorph.deployment.recon import ReconDeployment
-from databricks.labs.remorph.deployment.table import TableDeployment
+from databricks.labs.lakebridge.config import RemorphConfigs, ReconcileConfig, DatabaseConfig, ReconcileMetadataConfig
+from databricks.labs.lakebridge.deployment.dashboard import DashboardDeployment
+from databricks.labs.lakebridge.deployment.job import JobDeployment
+from databricks.labs.lakebridge.deployment.recon import ReconDeployment
+from databricks.labs.lakebridge.deployment.table import TableDeployment
 
 
 @pytest.fixture

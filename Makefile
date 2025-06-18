@@ -33,6 +33,9 @@ setup_spark_remote:
 test:
 	hatch run test
 
+test-install:
+	hatch run test-install
+
 integration: setup_spark_remote
 	hatch run integration
 
@@ -43,23 +46,23 @@ clean_coverage_dir:
 	rm -fr ${OUTPUT_DIR}
 
 python_coverage_report:
-	hatch run python src/databricks/labs/remorph/coverage/remorph_snow_transpilation_coverage.py
+	hatch run python src/databricks/labs/lakebridge/coverage/lakebridge_snow_transpilation_coverage.py
 	hatch run pip install --upgrade sqlglot
-	hatch -e sqlglot-latest run python src/databricks/labs/remorph/coverage/sqlglot_snow_transpilation_coverage.py
-	hatch -e sqlglot-latest run python src/databricks/labs/remorph/coverage/sqlglot_tsql_transpilation_coverage.py
+	hatch -e sqlglot-latest run python src/databricks/labs/lakebridge/coverage/sqlglot_snow_transpilation_coverage.py
+	hatch -e sqlglot-latest run python src/databricks/labs/lakebridge/coverage/sqlglot_tsql_transpilation_coverage.py
 
 dialect_coverage_report: clean_coverage_dir python_coverage_report
-	hatch run python src/databricks/labs/remorph/coverage/local_report.py
+	hatch run python src/databricks/labs/lakebridge/coverage/local_report.py
 
 
 docs-build:
-	yarn --cwd docs/remorph build
+	yarn --cwd docs/lakebridge build
 
 docs-serve-dev:
-	yarn --cwd docs/remorph start
+	yarn --cwd docs/lakebridge start
 
 docs-install:
-	yarn --cwd docs/remorph install
+	yarn --cwd docs/lakebridge install
 
 docs-serve: docs-build
-	yarn --cwd docs/remorph serve
+	yarn --cwd docs/lakebridge serve

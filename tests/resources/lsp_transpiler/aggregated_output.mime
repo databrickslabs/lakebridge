@@ -1,0 +1,3564 @@
+Content-Type: multipart/mixed; boundary="===============1634324814236828712=="
+
+--===============1634324814236828712==
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+Content-Disposition: attachment;
+ filename="Jobs/CARMS/STG/CARMS_HYPEFBI_BCA_STG/runTest.py"
+MIME-Version: 1.0
+
+print("Executing component SEQX_CARMS_CARMS_HYPEFBI_BCA_STG_10_ld_stg.Termina=
+tor_Activity")
+sys.exit("Aborting SEQX_CARMS_CARMS_HYPEFBI_BCA_STG_10_ld_stg.Terminator_Acti=
+vity")
+
+--===============1634324814236828712==
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+Content-Disposition: attachment;
+ filename*0*=us-ascii''Jobs%2FCARMS%2FSTG%2FCARMS_HYPEFBI_BCA_STG%2FPXJ_CARMS;
+ filename*1*=_CARMS_HYPEFBI_BCA_STG_10_ld_stg.py
+MIME-Version: 1.0
+
+#Code converted on 2025-06-04 13:32:29
+import os
+from pyspark.sql import *
+from pyspark.sql.functions import *
+from pyspark import SparkContext
+from pyspark.sql.functions import lit, to_timestamp, when, expr, col, explode
+from databricks_conversion_supplements import DatabricksConversionSupplements
+
+
+# COMMAND ----------
+
+dbutils.widgets.text(name =3D 'CARMS_STG_PARAMETER_SET', defaultValue =3D '')
+CARMS_STG_PARAMETER_SET =3D dbutils.widgets.get("CARMS_STG_PARAMETER_SET")
+
+dbutils.widgets.text(name =3D 'pBATCH_SID', defaultValue =3D '')
+pBATCH_SID =3D dbutils.widgets.get("pBATCH_SID")
+
+dbutils.widgets.text(name =3D 'APT_CONFIG_FILE', defaultValue =3D '$PROJDEF')
+APT_CONFIG_FILE =3D dbutils.widgets.get("APT_CONFIG_FILE")
+
+dbutils.widgets.text(name =3D 'ConfigParameterSet_pTDClientCharsetOut', defau=
+ltValue =3D '')
+ConfigParameterSet_pTDClientCharsetOut =3D dbutils.widgets.get("ConfigParamet=
+erSet_pTDClientCharsetOut")
+
+dbutils.widgets.text(name =3D 'ConfigParameterSet_pTDRecordCountOut', default=
+Value =3D '')
+ConfigParameterSet_pTDRecordCountOut =3D dbutils.widgets.get("ConfigParameter=
+Set_pTDRecordCountOut")
+
+dbutils.widgets.text(name =3D 'ConfigParameterSet_pTDArraySizeOut', defaultVa=
+lue =3D '')
+ConfigParameterSet_pTDArraySizeOut =3D dbutils.widgets.get("ConfigParameterSe=
+t_pTDArraySizeOut")
+
+dbutils.widgets.text(name =3D 'ConfigParameterSet_pTDMaxBufferOut', defaultVa=
+lue =3D '')
+ConfigParameterSet_pTDMaxBufferOut =3D dbutils.widgets.get("ConfigParameterSe=
+t_pTDMaxBufferOut")
+
+
+# COMMAND ----------
+# Component in_HYPEFBI_BCA_STG, Type SOURCE Original node name SRC_HYPEFBI_BC=
+A_STG, link in_HYPEFBI_BCA_STG
+in_HYPEFBI_BCA_STG =3D spark.sql(f"""
+SELECT FCST_ELT_DIM_MBR_CD,
+MEAS_DIM_MBR_CD,
+YR_DIM_MBR_CD,
+SCENR_DIM_MBR_CD,
+VER_DIM_MBR_CD,
+ORG_DIM_MBR_CD,
+CST_RESP_DIM_MBR_CD,
+EMPL_TYP_DIM_MBR_CD,
+JOB_DIM_MBR_CD,
+CHG_ITEM_DIM_MBR_CD,
+CHG_TYP_DIM_MBR_CD,
+PRD_DIM_MBR_CD,
+AP_LN_DIM_MBR_CD,
+BCA_JOB_DIM_MBR_CD,
+DATA_SRC_DIM_MBR_CD,
+FCST_ENTY_DIM_MBR_CD,
+FIN_CAT_DIM_MBR_CD,
+PF_DIM_MBR_CD,
+VAL_AMT,
+PLNG_APPL_NM,
+PLAN_TYP_NM,
+HIER_SET_NM,
+FHM_SRC_SYS_DTTM,
+HYP_SRC_SYS_DTTM
+FROM #CARMS_STG_PARAMETER_SET.$CARMS_SRC_SCHEMA#.TBL_HYPEFBI_BCA_STG
+""")
+in_HYPEFBI_BCA_STG.createOrReplaceTempView("in_HYPEFBI_BCA_STG")
+
+
+# COMMAND ----------
+# Component out_CARMS_HYPEFBI_BCA_STG, Type TRANSFORMATION Original node name=
+ add_COL_XFRM, link out_CARMS_HYPEFBI_BCA_STG
+out_CARMS_HYPEFBI_BCA_STG =3D spark.sql(f"""
+SELECT
+( IF ( ( in_HYPEFBI_BCA_STG.FCST_ELT_DIM_MBR_CD ) IS NOT NULL , ( in_HYPEFBI_=
+BCA_STG.FCST_ELT_DIM_MBR_CD ) , ( ' ' ) ) ) as FCST_ELT_DIM_MBR_CD,
+( IF ( ( in_HYPEFBI_BCA_STG.MEAS_DIM_MBR_CD ) IS NOT NULL , ( in_HYPEFBI_BCA_=
+STG.MEAS_DIM_MBR_CD ) , ( ' ' ) ) ) as MEAS_DIM_MBR_CD,
+( IF ( ( in_HYPEFBI_BCA_STG.YR_DIM_MBR_CD ) IS NOT NULL , ( in_HYPEFBI_BCA_ST=
+G.YR_DIM_MBR_CD ) , ( ' ' ) ) ) as YR_DIM_MBR_CD,
+( IF ( ( in_HYPEFBI_BCA_STG.SCENR_DIM_MBR_CD ) IS NOT NULL , ( in_HYPEFBI_BCA=
+_STG.SCENR_DIM_MBR_CD ) , ( ' ' ) ) ) as SCENR_DIM_MBR_CD,
+( IF ( ( in_HYPEFBI_BCA_STG.VER_DIM_MBR_CD ) IS NOT NULL , ( in_HYPEFBI_BCA_S=
+TG.VER_DIM_MBR_CD ) , ( ' ' ) ) ) as VER_DIM_MBR_CD,
+( IF ( ( in_HYPEFBI_BCA_STG.ORG_DIM_MBR_CD ) IS NOT NULL , ( in_HYPEFBI_BCA_S=
+TG.ORG_DIM_MBR_CD ) , ( ' ' ) ) ) as ORG_DIM_MBR_CD,
+( IF ( ( in_HYPEFBI_BCA_STG.CST_RESP_DIM_MBR_CD ) IS NOT NULL , ( in_HYPEFBI_=
+BCA_STG.CST_RESP_DIM_MBR_CD ) , ( ' ' ) ) ) as CST_RESP_DIM_MBR_CD,
+( IF ( ( in_HYPEFBI_BCA_STG.EMPL_TYP_DIM_MBR_CD ) IS NOT NULL , ( in_HYPEFBI_=
+BCA_STG.EMPL_TYP_DIM_MBR_CD ) , ( ' ' ) ) ) as EMPL_TYP_DIM_MBR_CD,
+( IF ( ( in_HYPEFBI_BCA_STG.JOB_DIM_MBR_CD ) IS NOT NULL , ( in_HYPEFBI_BCA_S=
+TG.JOB_DIM_MBR_CD ) , ( ' ' ) ) ) as JOB_DIM_MBR_CD,
+( IF ( ( in_HYPEFBI_BCA_STG.CHG_ITEM_DIM_MBR_CD ) IS NOT NULL , ( in_HYPEFBI_=
+BCA_STG.CHG_ITEM_DIM_MBR_CD ) , ( ' ' ) ) ) as CHG_ITEM_DIM_MBR_CD,
+( IF ( ( in_HYPEFBI_BCA_STG.CHG_TYP_DIM_MBR_CD ) IS NOT NULL , ( in_HYPEFBI_B=
+CA_STG.CHG_TYP_DIM_MBR_CD ) , ( ' ' ) ) ) as CHG_TYP_DIM_MBR_CD,
+( IF ( ( in_HYPEFBI_BCA_STG.PRD_DIM_MBR_CD ) IS NOT NULL , ( in_HYPEFBI_BCA_S=
+TG.PRD_DIM_MBR_CD ) , ( ' ' ) ) ) as PRD_DIM_MBR_CD,
+( IF ( ( in_HYPEFBI_BCA_STG.AP_LN_DIM_MBR_CD ) IS NOT NULL , ( in_HYPEFBI_BCA=
+_STG.AP_LN_DIM_MBR_CD ) , ( ' ' ) ) ) as AP_LN_DIM_MBR_CD,
+( IF ( ( in_HYPEFBI_BCA_STG.BCA_JOB_DIM_MBR_CD ) IS NOT NULL , ( in_HYPEFBI_B=
+CA_STG.BCA_JOB_DIM_MBR_CD ) , ( ' ' ) ) ) as BCA_JOB_DIM_MBR_CD,
+( IF ( ( in_HYPEFBI_BCA_STG.DATA_SRC_DIM_MBR_CD ) IS NOT NULL , ( in_HYPEFBI_=
+BCA_STG.DATA_SRC_DIM_MBR_CD ) , ( ' ' ) ) ) as DATA_SRC_DIM_MBR_CD,
+( IF ( ( in_HYPEFBI_BCA_STG.FCST_ENTY_DIM_MBR_CD ) IS NOT NULL , ( in_HYPEFBI=
+_BCA_STG.FCST_ENTY_DIM_MBR_CD ) , ( ' ' ) ) ) as FCST_ENTY_DIM_MBR_CD,
+( IF ( ( in_HYPEFBI_BCA_STG.FIN_CAT_DIM_MBR_CD ) IS NOT NULL , ( in_HYPEFBI_B=
+CA_STG.FIN_CAT_DIM_MBR_CD ) , ( ' ' ) ) ) as FIN_CAT_DIM_MBR_CD,
+( IF ( ( in_HYPEFBI_BCA_STG.PF_DIM_MBR_CD ) IS NOT NULL , ( in_HYPEFBI_BCA_ST=
+G.PF_DIM_MBR_CD ) , ( ' ' ) ) ) as PF_DIM_MBR_CD,
+( IF ( ( in_HYPEFBI_BCA_STG.VAL_AMT ) IS NOT NULL , ( in_HYPEFBI_BCA_STG.VAL_=
+AMT ) , ( 0 ) ) ) as VAL_AMT,
+( IF ( ( in_HYPEFBI_BCA_STG.PLNG_APPL_NM ) IS NOT NULL , ( in_HYPEFBI_BCA_STG=
+.PLNG_APPL_NM ) , ( ' ' ) ) ) as PLNG_APPL_NM,
+( IF ( ( in_HYPEFBI_BCA_STG.PLAN_TYP_NM ) IS NOT NULL , ( in_HYPEFBI_BCA_STG.=
+PLAN_TYP_NM ) , ( ' ' ) ) ) as PLAN_TYP_NM,
+( IF ( ( in_HYPEFBI_BCA_STG.HIER_SET_NM ) IS NOT NULL , ( in_HYPEFBI_BCA_STG.=
+HIER_SET_NM ) , ( ' ' ) ) ) as HIER_SET_NM,
+in_HYPEFBI_BCA_STG.FHM_SRC_SYS_DTTM as FHM_SRC_SYS_DTTM,
+in_HYPEFBI_BCA_STG.HYP_SRC_SYS_DTTM as SRC_SYS_DTTM,
+'CARMS' as SRC_SYS_ID,
+'N' as LOAD_ERR_FLG,
+'S' as DATA_ORIG_IND,
+'{starttime}' as CREATED_EW_DTTM,
+'{starttime}' as LASTUPD_EW_DTTM,
+'{pBATCH_SID}' as BATCH_ID
+FROM
+in_HYPEFBI_BCA_STG""")
+out_CARMS_HYPEFBI_BCA_STG.createOrReplaceTempView("out_CARMS_HYPEFBI_BCA_STG")
+
+
+# COMMAND ----------
+# Component mv_ERR_CARMS_HYPEFBI_BCA_STG, Type TARGET Original node name TGT_=
+CARMS_HYPEFBI_BCA_STG, link mv_ERR_CARMS_HYPEFBI_BCA_STG
+# COMMAND ----------
+# Component mv_ERR_CARMS_HYPEFBI_BCA_STG, Type INSERT=20
+spark.sql("""INSERT INTO EFBI_#CARMS_STG_PARAMETER_SET.$TD_EFBI_EV#_STG_S.CAR=
+MS_HYPEFBI_BCA_STG
+(
+FCST_ELT_DIM_MBR_CD,
+MEAS_DIM_MBR_CD,
+YR_DIM_MBR_CD,
+SCENR_DIM_MBR_CD,
+VER_DIM_MBR_CD,
+ORG_DIM_MBR_CD,
+CST_RESP_DIM_MBR_CD,
+EMPL_TYP_DIM_MBR_CD,
+JOB_DIM_MBR_CD,
+CHG_ITEM_DIM_MBR_CD,
+CHG_TYP_DIM_MBR_CD,
+PRD_DIM_MBR_CD,
+AP_LN_DIM_MBR_CD,
+BCA_JOB_DIM_MBR_CD,
+DATA_SRC_DIM_MBR_CD,
+FCST_ENTY_DIM_MBR_CD,
+FIN_CAT_DIM_MBR_CD,
+PF_DIM_MBR_CD,
+VAL_AMT,
+PLNG_APPL_NM,
+PLAN_TYP_NM,
+HIER_SET_NM,
+FHM_SRC_SYS_DTTM,
+SRC_SYS_DTTM,
+SRC_SYS_ID,
+LOAD_ERR_FLG,
+DATA_ORIG_IND,
+CREATED_EW_DTTM,
+LASTUPD_EW_DTTM,
+BATCH_ID
+)
+SELECT
+out_CARMS_HYPEFBI_BCA_STG.FCST_ELT_DIM_MBR_CD,
+out_CARMS_HYPEFBI_BCA_STG.MEAS_DIM_MBR_CD,
+out_CARMS_HYPEFBI_BCA_STG.YR_DIM_MBR_CD,
+out_CARMS_HYPEFBI_BCA_STG.SCENR_DIM_MBR_CD,
+out_CARMS_HYPEFBI_BCA_STG.VER_DIM_MBR_CD,
+out_CARMS_HYPEFBI_BCA_STG.ORG_DIM_MBR_CD,
+out_CARMS_HYPEFBI_BCA_STG.CST_RESP_DIM_MBR_CD,
+out_CARMS_HYPEFBI_BCA_STG.EMPL_TYP_DIM_MBR_CD,
+out_CARMS_HYPEFBI_BCA_STG.JOB_DIM_MBR_CD,
+out_CARMS_HYPEFBI_BCA_STG.CHG_ITEM_DIM_MBR_CD,
+out_CARMS_HYPEFBI_BCA_STG.CHG_TYP_DIM_MBR_CD,
+out_CARMS_HYPEFBI_BCA_STG.PRD_DIM_MBR_CD,
+out_CARMS_HYPEFBI_BCA_STG.AP_LN_DIM_MBR_CD,
+out_CARMS_HYPEFBI_BCA_STG.BCA_JOB_DIM_MBR_CD,
+out_CARMS_HYPEFBI_BCA_STG.DATA_SRC_DIM_MBR_CD,
+out_CARMS_HYPEFBI_BCA_STG.FCST_ENTY_DIM_MBR_CD,
+out_CARMS_HYPEFBI_BCA_STG.FIN_CAT_DIM_MBR_CD,
+out_CARMS_HYPEFBI_BCA_STG.PF_DIM_MBR_CD,
+out_CARMS_HYPEFBI_BCA_STG.VAL_AMT,
+out_CARMS_HYPEFBI_BCA_STG.PLNG_APPL_NM,
+out_CARMS_HYPEFBI_BCA_STG.PLAN_TYP_NM,
+out_CARMS_HYPEFBI_BCA_STG.HIER_SET_NM,
+out_CARMS_HYPEFBI_BCA_STG.FHM_SRC_SYS_DTTM,
+out_CARMS_HYPEFBI_BCA_STG.SRC_SYS_DTTM,
+out_CARMS_HYPEFBI_BCA_STG.SRC_SYS_ID,
+out_CARMS_HYPEFBI_BCA_STG.LOAD_ERR_FLG,
+out_CARMS_HYPEFBI_BCA_STG.DATA_ORIG_IND,
+out_CARMS_HYPEFBI_BCA_STG.CREATED_EW_DTTM,
+out_CARMS_HYPEFBI_BCA_STG.LASTUPD_EW_DTTM,
+out_CARMS_HYPEFBI_BCA_STG.BATCH_ID
+FROM
+out_CARMS_HYPEFBI_BCA_STG""")
+
+
+# COMMAND ----------
+# Component err_CARMS_HYPEFBI_BCA_STG, Type TRANSFORMATION Original node name=
+ err_XFRM, link err_CARMS_HYPEFBI_BCA_STG
+err_CARMS_HYPEFBI_BCA_STG =3D spark.sql(f"""
+SELECT
+mv_ERR_CARMS_HYPEFBI_BCA_STG.FCST_ELT_DIM_MBR_CD as FCST_ELT_DIM_MBR_CD,
+mv_ERR_CARMS_HYPEFBI_BCA_STG.MEAS_DIM_MBR_CD as MEAS_DIM_MBR_CD,
+mv_ERR_CARMS_HYPEFBI_BCA_STG.YR_DIM_MBR_CD as YR_DIM_MBR_CD,
+mv_ERR_CARMS_HYPEFBI_BCA_STG.SCENR_DIM_MBR_CD as SCENR_DIM_MBR_CD,
+mv_ERR_CARMS_HYPEFBI_BCA_STG.VER_DIM_MBR_CD as VER_DIM_MBR_CD,
+mv_ERR_CARMS_HYPEFBI_BCA_STG.ORG_DIM_MBR_CD as ORG_DIM_MBR_CD,
+mv_ERR_CARMS_HYPEFBI_BCA_STG.CST_RESP_DIM_MBR_CD as CST_RESP_DIM_MBR_CD,
+mv_ERR_CARMS_HYPEFBI_BCA_STG.EMPL_TYP_DIM_MBR_CD as EMPL_TYP_DIM_MBR_CD,
+mv_ERR_CARMS_HYPEFBI_BCA_STG.JOB_DIM_MBR_CD as JOB_DIM_MBR_CD,
+mv_ERR_CARMS_HYPEFBI_BCA_STG.CHG_ITEM_DIM_MBR_CD as CHG_ITEM_DIM_MBR_CD,
+mv_ERR_CARMS_HYPEFBI_BCA_STG.CHG_TYP_DIM_MBR_CD as CHG_TYP_DIM_MBR_CD,
+mv_ERR_CARMS_HYPEFBI_BCA_STG.PRD_DIM_MBR_CD as PRD_DIM_MBR_CD,
+mv_ERR_CARMS_HYPEFBI_BCA_STG.AP_LN_DIM_MBR_CD as AP_LN_DIM_MBR_CD,
+mv_ERR_CARMS_HYPEFBI_BCA_STG.BCA_JOB_DIM_MBR_CD as BCA_JOB_DIM_MBR_CD,
+mv_ERR_CARMS_HYPEFBI_BCA_STG.DATA_SRC_DIM_MBR_CD as DATA_SRC_DIM_MBR_CD,
+mv_ERR_CARMS_HYPEFBI_BCA_STG.FCST_ENTY_DIM_MBR_CD as FCST_ENTY_DIM_MBR_CD,
+mv_ERR_CARMS_HYPEFBI_BCA_STG.FIN_CAT_DIM_MBR_CD as FIN_CAT_DIM_MBR_CD,
+mv_ERR_CARMS_HYPEFBI_BCA_STG.PF_DIM_MBR_CD as PF_DIM_MBR_CD,
+mv_ERR_CARMS_HYPEFBI_BCA_STG.VAL_AMT as VAL_AMT,
+mv_ERR_CARMS_HYPEFBI_BCA_STG.PLNG_APPL_NM as PLNG_APPL_NM,
+mv_ERR_CARMS_HYPEFBI_BCA_STG.PLAN_TYP_NM as PLAN_TYP_NM,
+mv_ERR_CARMS_HYPEFBI_BCA_STG.HIER_SET_NM as HIER_SET_NM,
+mv_ERR_CARMS_HYPEFBI_BCA_STG.FHM_SRC_SYS_DTTM as FHM_SRC_SYS_DTTM,
+mv_ERR_CARMS_HYPEFBI_BCA_STG.SRC_SYS_DTTM as SRC_SYS_DTTM,
+mv_ERR_CARMS_HYPEFBI_BCA_STG.SRC_SYS_ID as SRC_SYS_ID,
+mv_ERR_CARMS_HYPEFBI_BCA_STG.LOAD_ERR_FLG as LOAD_ERR_FLG,
+mv_ERR_CARMS_HYPEFBI_BCA_STG.DATA_ORIG_IND as DATA_ORIG_IND,
+mv_ERR_CARMS_HYPEFBI_BCA_STG.CREATED_EW_DTTM as CREATED_EW_DTTM,
+mv_ERR_CARMS_HYPEFBI_BCA_STG.LASTUPD_EW_DTTM as LASTUPD_EW_DTTM,
+mv_ERR_CARMS_HYPEFBI_BCA_STG.BATCH_ID as BATCH_ID,
+mv_ERR_CARMS_HYPEFBI_BCA_STG.RejectERRORCODE as RejectERRORCODE,
+mv_ERR_CARMS_HYPEFBI_BCA_STG.RejectERRORTEXT as RejectERRORTEXT,
+mv_ERR_CARMS_HYPEFBI_BCA_STG.RejectTERA_SQLCODE as RejectTERA_SQLCODE,
+mv_ERR_CARMS_HYPEFBI_BCA_STG.RejectTERA_ERRORFIELD as RejectTERA_ERRORFIELD,
+mv_ERR_CARMS_HYPEFBI_BCA_STG.RejectTERA_STMTNO as RejectTERA_STMTNO,
+mv_ERR_CARMS_HYPEFBI_BCA_STG.RejectTERA_ACTIVITYTYPE as RejectTERA_ACTIVITYTY=
+PE,
+mv_ERR_CARMS_HYPEFBI_BCA_STG.RejectTERA_ACTIVITYCOUNT as RejectTERA_ACTIVITYC=
+OUNT
+FROM
+mv_ERR_CARMS_HYPEFBI_BCA_STG""")
+err_CARMS_HYPEFBI_BCA_STG.createOrReplaceTempView("err_CARMS_HYPEFBI_BCA_STG")
+
+
+# COMMAND ----------
+# Component err_CARMS_HYPEFBI_BCA_STG_2_2_2_2_2_2_2_2_2_2, Type TARGET=20
+
+err_CARMS_HYPEFBI_BCA_STG_2_2_2_2_2_2_2_2_2_2 =3D err_CARMS_HYPEFBI_BCA_STG.s=
+elect( \
+	err_CARMS_HYPEFBI_BCA_STG.FCST_ELT_DIM_MBR_CD.alias('FCST_ELT_DIM_MBR_CD'), \
+	err_CARMS_HYPEFBI_BCA_STG.MEAS_DIM_MBR_CD.alias('MEAS_DIM_MBR_CD'), \
+	err_CARMS_HYPEFBI_BCA_STG.YR_DIM_MBR_CD.alias('YR_DIM_MBR_CD'), \
+	err_CARMS_HYPEFBI_BCA_STG.SCENR_DIM_MBR_CD.alias('SCENR_DIM_MBR_CD'), \
+	err_CARMS_HYPEFBI_BCA_STG.VER_DIM_MBR_CD.alias('VER_DIM_MBR_CD'), \
+	err_CARMS_HYPEFBI_BCA_STG.ORG_DIM_MBR_CD.alias('ORG_DIM_MBR_CD'), \
+	err_CARMS_HYPEFBI_BCA_STG.CST_RESP_DIM_MBR_CD.alias('CST_RESP_DIM_MBR_CD'), \
+	err_CARMS_HYPEFBI_BCA_STG.EMPL_TYP_DIM_MBR_CD.alias('EMPL_TYP_DIM_MBR_CD'), \
+	err_CARMS_HYPEFBI_BCA_STG.JOB_DIM_MBR_CD.alias('JOB_DIM_MBR_CD'), \
+	err_CARMS_HYPEFBI_BCA_STG.CHG_ITEM_DIM_MBR_CD.alias('CHG_ITEM_DIM_MBR_CD'), \
+	err_CARMS_HYPEFBI_BCA_STG.CHG_TYP_DIM_MBR_CD.alias('CHG_TYP_DIM_MBR_CD'), \
+	err_CARMS_HYPEFBI_BCA_STG.PRD_DIM_MBR_CD.alias('PRD_DIM_MBR_CD'), \
+	err_CARMS_HYPEFBI_BCA_STG.AP_LN_DIM_MBR_CD.alias('AP_LN_DIM_MBR_CD'), \
+	err_CARMS_HYPEFBI_BCA_STG.BCA_JOB_DIM_MBR_CD.alias('BCA_JOB_DIM_MBR_CD'), \
+	err_CARMS_HYPEFBI_BCA_STG.DATA_SRC_DIM_MBR_CD.alias('DATA_SRC_DIM_MBR_CD'), \
+	err_CARMS_HYPEFBI_BCA_STG.FCST_ENTY_DIM_MBR_CD.alias('FCST_ENTY_DIM_MBR_CD')=
+, \
+	err_CARMS_HYPEFBI_BCA_STG.FIN_CAT_DIM_MBR_CD.alias('FIN_CAT_DIM_MBR_CD'), \
+	err_CARMS_HYPEFBI_BCA_STG.PF_DIM_MBR_CD.alias('PF_DIM_MBR_CD'), \
+	err_CARMS_HYPEFBI_BCA_STG.VAL_AMT.alias('VAL_AMT'), \
+	err_CARMS_HYPEFBI_BCA_STG.PLNG_APPL_NM.alias('PLNG_APPL_NM'), \
+	err_CARMS_HYPEFBI_BCA_STG.PLAN_TYP_NM.alias('PLAN_TYP_NM'), \
+	err_CARMS_HYPEFBI_BCA_STG.HIER_SET_NM.alias('HIER_SET_NM'), \
+	err_CARMS_HYPEFBI_BCA_STG.FHM_SRC_SYS_DTTM.alias('FHM_SRC_SYS_DTTM'), \
+	err_CARMS_HYPEFBI_BCA_STG.SRC_SYS_DTTM.alias('SRC_SYS_DTTM'), \
+	err_CARMS_HYPEFBI_BCA_STG.SRC_SYS_ID.alias('SRC_SYS_ID'), \
+	err_CARMS_HYPEFBI_BCA_STG.LOAD_ERR_FLG.alias('LOAD_ERR_FLG'), \
+	err_CARMS_HYPEFBI_BCA_STG.DATA_ORIG_IND.alias('DATA_ORIG_IND'), \
+	err_CARMS_HYPEFBI_BCA_STG.CREATED_EW_DTTM.alias('CREATED_EW_DTTM'), \
+	err_CARMS_HYPEFBI_BCA_STG.LASTUPD_EW_DTTM.alias('LASTUPD_EW_DTTM'), \
+	err_CARMS_HYPEFBI_BCA_STG.BATCH_ID.alias('BATCH_ID'), \
+	err_CARMS_HYPEFBI_BCA_STG.RejectERRORCODE.alias('RejectERRORCODE'), \
+	err_CARMS_HYPEFBI_BCA_STG.RejectERRORTEXT.alias('RejectERRORTEXT'), \
+	err_CARMS_HYPEFBI_BCA_STG.RejectTERA_SQLCODE.alias('RejectTERA_SQLCODE'), \
+	err_CARMS_HYPEFBI_BCA_STG.RejectTERA_ERRORFIELD.alias('RejectTERA_ERRORFIELD=
+'), \
+	err_CARMS_HYPEFBI_BCA_STG.RejectTERA_STMTNO.alias('RejectTERA_STMTNO'), \
+	err_CARMS_HYPEFBI_BCA_STG.RejectTERA_ACTIVITYTYPE.alias('RejectTERA_ACTIVITY=
+TYPE'), \
+	err_CARMS_HYPEFBI_BCA_STG.RejectTERA_ACTIVITYCOUNT.alias('RejectTERA_ACTIVIT=
+YCOUNT') \
+)
+err_CARMS_HYPEFBI_BCA_STG_2_2_2_2_2_2_2_2_2_2.write.format('csv').option('hea=
+der','true').mode('overwrite').option('sep','').csv(f'''#CARMS_STG_PARAMETER_=
+SET.$DATA_FILE_DIR#/errors/err_CARMS_HYPEFBI_BCA_STG.txt''')
+
+--===============1634324814236828712==
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+Content-Disposition: attachment;
+ filename*0*=us-ascii''Jobs%2FCARMS%2FSTG%2FCARMS_HYPEFBI_BCA_STG%2FSEQX_CARM;
+ filename*1*=S_CARMS_HYPEFBI_BCA_STG_10_ld_stg.json
+MIME-Version: 1.0
+
+{
+   "email_notifications" : {
+      "no_alert_for_skipped_runs" : false,
+      "on_failure" : [
+         "%FAILURE_EMAIL_ADDRESS%"
+      ],
+      "on_start" : [
+         "user.name@databricks.com",
+         "%EMAIL_ADDRESS%"
+      ],
+      "on_success" : [
+         "%SUCCESS_EMAIL_ADDRESS%"
+      ]
+   },
+   "max_concurrent_runs" : 10,
+   "name" : "SEQX_CARMS_CARMS_HYPEFBI_BCA_STG_10_ld_stg",
+   "notification_settings" : {
+      "no_alert_for_canceled_runs" : false,
+      "no_alert_for_skipped_runs" : false
+   },
+   "run_as" : {
+      "user_name" : "%USER_NAME%"
+   },
+   "schedule" : {
+      "pause_status" : "PAUSED",
+      "quartz_cron_expression" : "20 30 * * * ?",
+      "timezone_id" : "Europe/London"
+   },
+   "tags" : {
+      "cost-center" : "engineering",
+      "team" : "jobs"
+   },
+   "tasks" : [
+      {
+         "description" : "",
+         "email_notifications" : {},
+         "existing_cluster_id" : "%CLUSTER_ID%",
+         "notification_settings" : {
+            "alert_on_last_attempt" : false,
+            "no_alert_for_canceled_runs" : false,
+            "no_alert_for_skipped_runs" : false
+         },
+         "spark_python_task" : {
+            "python_file" : "/Workspace/runTest.py"
+         },
+         "task_key" : "Exception_Handle",
+         "webhook_notifications" : {}
+      },
+      {
+         "depends_on" : [
+            {
+               "task_key" : "General_SendMail"
+            }
+         ],
+         "description" : "",
+         "email_notifications" : {},
+         "existing_cluster_id" : "%CLUSTER_ID%",
+         "notification_settings" : {
+            "alert_on_last_attempt" : false,
+            "no_alert_for_canceled_runs" : false,
+            "no_alert_for_skipped_runs" : false
+         },
+         "run_if" : "ALL_SUCCESS",
+         "spark_python_task" : {
+            "python_file" : "/Workspace/runTest.py"
+         },
+         "task_key" : "General_Terminator_Activity",
+         "webhook_notifications" : {}
+      },
+      {
+         "depends_on" : [
+            {
+               "task_key" : "CheckConfigFile"
+            }
+         ],
+         "description" : "",
+         "email_notifications" : {},
+         "existing_cluster_id" : "%CLUSTER_ID%",
+         "max_retries" : 3,
+         "min_retry_interval_millis" : 2000,
+         "notebook_task" : {
+            "notebook_path" : "/Workspace/Users/SEQX_CARMS_CARMS_HYPEFBI_BCA_=
+STG_10_ld_stg",
+            "source" : "WORKSPACE"
+         },
+         "notification_settings" : {
+            "alert_on_last_attempt" : false,
+            "no_alert_for_canceled_runs" : false,
+            "no_alert_for_skipped_runs" : false
+         },
+         "retry_on_timeout" : false,
+         "run_if" : "ALL_SUCCESS",
+         "task_key" : "SEQX_SRC_QLTY_CHK_ORACLE_10_ld_stg",
+         "webhook_notifications" : {}
+      },
+      {
+         "depends_on" : [
+            {
+               "task_key" : "SEQX_SRC_QLTY_CHK_ORACLE_10_ld_stg"
+            }
+         ],
+         "description" : "",
+         "email_notifications" : {},
+         "existing_cluster_id" : "%CLUSTER_ID%",
+         "max_retries" : 3,
+         "min_retry_interval_millis" : 2000,
+         "notebook_task" : {
+            "notebook_path" : "/Workspace/Users/SEQX_CARMS_CARMS_HYPEFBI_BCA_=
+STG_10_ld_stg",
+            "source" : "WORKSPACE"
+         },
+         "notification_settings" : {
+            "alert_on_last_attempt" : false,
+            "no_alert_for_canceled_runs" : false,
+            "no_alert_for_skipped_runs" : false
+         },
+         "retry_on_timeout" : false,
+         "run_if" : "ALL_SUCCESS",
+         "task_key" : "PXJ_CARMS_CARMS_HYPEFBI_BCA_STG_10_ld_stg",
+         "webhook_notifications" : {}
+      },
+      {
+         "depends_on" : [
+            {
+               "task_key" : "PXSaveJobInfo"
+            }
+         ],
+         "description" : "",
+         "email_notifications" : {},
+         "existing_cluster_id" : "%CLUSTER_ID%",
+         "max_retries" : 3,
+         "min_retry_interval_millis" : 2000,
+         "notebook_task" : {
+            "notebook_path" : "/Workspace/Users/SEQX_CARMS_CARMS_HYPEFBI_BCA_=
+STG_10_ld_stg",
+            "source" : "WORKSPACE"
+         },
+         "notification_settings" : {
+            "alert_on_last_attempt" : false,
+            "no_alert_for_canceled_runs" : false,
+            "no_alert_for_skipped_runs" : false
+         },
+         "retry_on_timeout" : false,
+         "run_if" : "ALL_SUCCESS",
+         "task_key" : "XJ_ETL_AUDIT",
+         "webhook_notifications" : {}
+      },
+      {
+         "depends_on" : [
+            {
+               "task_key" : "XJ_ETL_AUDIT"
+            }
+         ],
+         "description" : "",
+         "email_notifications" : {},
+         "existing_cluster_id" : "%CLUSTER_ID%",
+         "max_retries" : 3,
+         "min_retry_interval_millis" : 2000,
+         "notebook_task" : {
+            "notebook_path" : "/Workspace/Users/SEQX_CARMS_CARMS_HYPEFBI_BCA_=
+STG_10_ld_stg",
+            "source" : "WORKSPACE"
+         },
+         "notification_settings" : {
+            "alert_on_last_attempt" : false,
+            "no_alert_for_canceled_runs" : false,
+            "no_alert_for_skipped_runs" : false
+         },
+         "retry_on_timeout" : false,
+         "run_if" : "ALL_SUCCESS",
+         "task_key" : "PXJ_ETL_AUDIT_10_ld_stg",
+         "webhook_notifications" : {}
+      },
+      {
+         "depends_on" : [
+            {
+               "task_key" : "PXJ_ETL_AUDIT_10_ld_stg"
+            }
+         ],
+         "description" : "",
+         "email_notifications" : {},
+         "job_cluster_key" : "auto_scaling_cluster",
+         "notification_settings" : {
+            "alert_on_last_attempt" : false,
+            "no_alert_for_canceled_runs" : false,
+            "no_alert_for_skipped_runs" : false
+         },
+         "run_if" : "ALL_SUCCESS",
+         "spark_python_task" : {
+            "python_file" : "/%TASK_PATH%/SEQX_CARMS_CARMS_HYPEFBI_BCA_STG_10=
+_ld_stg_RemoveRuntimeFile_SHELL_COMMAND.py"
+         },
+         "task_key" : "RemoveRuntimeFile",
+         "webhook_notifications" : {}
+      },
+      {
+         "depends_on" : [
+            {
+               "task_key" : "UtilityEmailAndAbort"
+            }
+         ],
+         "description" : "",
+         "email_notifications" : {},
+         "existing_cluster_id" : "%CLUSTER_ID%",
+         "notification_settings" : {
+            "alert_on_last_attempt" : false,
+            "no_alert_for_canceled_runs" : false,
+            "no_alert_for_skipped_runs" : false
+         },
+         "run_if" : "ALL_SUCCESS",
+         "spark_python_task" : {
+            "python_file" : "/Workspace/runTest.py"
+         },
+         "task_key" : "Terminator_Activity",
+         "webhook_notifications" : {}
+      }
+   ],
+   "timeout_seconds" : 86400,
+   "webhook_notifications" : {}
+}
+
+--===============1634324814236828712==
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+Content-Disposition: attachment;
+ filename*0*=us-ascii''Jobs%2FCARMS%2FSTG%2FCARMS_HYPEFBI_BCA_STG%2FSEQX_CARM;
+ filename*1*=S_CARMS_HYPEFBI_BCA_STG_10_ld_stg_RemoveRuntimeFile_SHELL_COMMAN;
+ filename*2*=D.py
+MIME-Version: 1.0
+
+import os
+command_name_list =3D ["CMD_1"]
+command_list =3D ["""find #$DSPROJDATA#/audit -name "#CARMS_STG_PARAMETER_SET=
+.$DSPROJ#_#spJobName#*.txt" -exec rm -rf {} \; """]
+commandCount =3D 0
+for cmd in command_list:
+    print("Executing command " + str(command_name_list[commandCount]))
+    try:
+        os.system(cmd)
+    except Exception as e:
+        print("Execution error: " + str(e))
+    commandCount +=3D 1
+
+--===============1634324814236828712==
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 7bit
+Content-Disposition: attachment;
+ filename*0*=us-ascii''Jobs%2FCARMS%2FSTG%2FCARMS_HYPEFBI_BCA_STG%2FSEQX_CARM;
+ filename*1*=S_CARMS_HYPEFBI_BCA_STG_10_ld_stg_params.py
+MIME-Version: 1.0
+
+
+
+--===============1634324814236828712==
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+Content-Disposition: attachment;
+ filename*0*=us-ascii''Jobs%2FCARMS%2FRPTG%2FBCA_PRRTD_LABOR_DTL%2FSEQX_CARMS;
+ filename*1*=_BCA_PRRTD_LABOR_DTL_10_ins_rpt.json
+MIME-Version: 1.0
+
+{
+   "email_notifications" : {
+      "no_alert_for_skipped_runs" : false,
+      "on_failure" : [
+         "%FAILURE_EMAIL_ADDRESS%"
+      ],
+      "on_start" : [
+         "user.name@databricks.com",
+         "%EMAIL_ADDRESS%"
+      ],
+      "on_success" : [
+         "%SUCCESS_EMAIL_ADDRESS%"
+      ]
+   },
+   "max_concurrent_runs" : 10,
+   "name" : "SEQX_CARMS_BCA_PRRTD_LABOR_DTL_10_ins_rpt",
+   "notification_settings" : {
+      "no_alert_for_canceled_runs" : false,
+      "no_alert_for_skipped_runs" : false
+   },
+   "run_as" : {
+      "user_name" : "%USER_NAME%"
+   },
+   "schedule" : {
+      "pause_status" : "PAUSED",
+      "quartz_cron_expression" : "20 30 * * * ?",
+      "timezone_id" : "Europe/London"
+   },
+   "tags" : {
+      "cost-center" : "engineering",
+      "team" : "jobs"
+   },
+   "tasks" : [
+      {
+         "description" : "",
+         "email_notifications" : {},
+         "existing_cluster_id" : "%CLUSTER_ID%",
+         "notification_settings" : {
+            "alert_on_last_attempt" : false,
+            "no_alert_for_canceled_runs" : false,
+            "no_alert_for_skipped_runs" : false
+         },
+         "spark_python_task" : {
+            "python_file" : "/Workspace/runTest.py"
+         },
+         "task_key" : "Exception_Handle",
+         "webhook_notifications" : {}
+      },
+      {
+         "depends_on" : [
+            {
+               "task_key" : "General_SendMail"
+            }
+         ],
+         "description" : "",
+         "email_notifications" : {},
+         "existing_cluster_id" : "%CLUSTER_ID%",
+         "notification_settings" : {
+            "alert_on_last_attempt" : false,
+            "no_alert_for_canceled_runs" : false,
+            "no_alert_for_skipped_runs" : false
+         },
+         "run_if" : "ALL_SUCCESS",
+         "spark_python_task" : {
+            "python_file" : "/Workspace/runTest.py"
+         },
+         "task_key" : "General_Terminator_Activity",
+         "webhook_notifications" : {}
+      },
+      {
+         "description" : "",
+         "email_notifications" : {},
+         "job_cluster_key" : "auto_scaling_cluster",
+         "notification_settings" : {
+            "alert_on_last_attempt" : false,
+            "no_alert_for_canceled_runs" : false,
+            "no_alert_for_skipped_runs" : false
+         },
+         "spark_python_task" : {
+            "python_file" : "/%TASK_PATH%/SEQX_CARMS_BCA_PRRTD_LABOR_DTL_10_i=
+ns_rpt_Get_PROC_MNTH_SHELL_COMMAND.py"
+         },
+         "task_key" : "Get_PROC_MNTH",
+         "webhook_notifications" : {}
+      },
+      {
+         "description" : "",
+         "email_notifications" : {},
+         "job_cluster_key" : "auto_scaling_cluster",
+         "notification_settings" : {
+            "alert_on_last_attempt" : false,
+            "no_alert_for_canceled_runs" : false,
+            "no_alert_for_skipped_runs" : false
+         },
+         "spark_python_task" : {
+            "python_file" : "/%TASK_PATH%/SEQX_CARMS_BCA_PRRTD_LABOR_DTL_10_i=
+ns_rpt_Get_PROC_YR_SHELL_COMMAND.py"
+         },
+         "task_key" : "Get_PROC_YR",
+         "webhook_notifications" : {}
+      },
+      {
+         "depends_on" : [
+            {
+               "task_key" : "Get_PROC_YR"
+            },
+            {
+               "task_key" : "Get_PROC_MNTH"
+            }
+         ],
+         "description" : "",
+         "email_notifications" : {},
+         "existing_cluster_id" : "%CLUSTER_ID%",
+         "notification_settings" : {
+            "alert_on_last_attempt" : false,
+            "no_alert_for_canceled_runs" : false,
+            "no_alert_for_skipped_runs" : false
+         },
+         "run_if" : "ALL_SUCCESS",
+         "spark_python_task" : {
+            "python_file" : "/Workspace/runTest.py"
+         },
+         "task_key" : "Seq",
+         "webhook_notifications" : {}
+      },
+      {
+         "depends_on" : [
+            {
+               "task_key" : "CheckConfigFile"
+            }
+         ],
+         "description" : "",
+         "email_notifications" : {},
+         "existing_cluster_id" : "%CLUSTER_ID%",
+         "max_retries" : 3,
+         "min_retry_interval_millis" : 2000,
+         "notebook_task" : {
+            "notebook_path" : "/Workspace/Users/SEQX_CARMS_BCA_PRRTD_LABOR_DT=
+L_10_ins_rpt",
+            "source" : "WORKSPACE"
+         },
+         "notification_settings" : {
+            "alert_on_last_attempt" : false,
+            "no_alert_for_canceled_runs" : false,
+            "no_alert_for_skipped_runs" : false
+         },
+         "retry_on_timeout" : false,
+         "run_if" : "ALL_SUCCESS",
+         "task_key" : "PXJ_CARMS_BCA_PRRTD_LABOR_DTL_10_ins_rpt",
+         "webhook_notifications" : {}
+      },
+      {
+         "depends_on" : [
+            {
+               "task_key" : "PXSaveJobInfo"
+            }
+         ],
+         "description" : "",
+         "email_notifications" : {},
+         "existing_cluster_id" : "%CLUSTER_ID%",
+         "max_retries" : 3,
+         "min_retry_interval_millis" : 2000,
+         "notebook_task" : {
+            "notebook_path" : "/Workspace/Users/SEQX_CARMS_BCA_PRRTD_LABOR_DT=
+L_10_ins_rpt",
+            "source" : "WORKSPACE"
+         },
+         "notification_settings" : {
+            "alert_on_last_attempt" : false,
+            "no_alert_for_canceled_runs" : false,
+            "no_alert_for_skipped_runs" : false
+         },
+         "retry_on_timeout" : false,
+         "run_if" : "ALL_SUCCESS",
+         "task_key" : "XJ_ETL_AUDIT",
+         "webhook_notifications" : {}
+      },
+      {
+         "depends_on" : [
+            {
+               "task_key" : "XJ_ETL_AUDIT"
+            }
+         ],
+         "description" : "",
+         "email_notifications" : {},
+         "existing_cluster_id" : "%CLUSTER_ID%",
+         "max_retries" : 3,
+         "min_retry_interval_millis" : 2000,
+         "notebook_task" : {
+            "notebook_path" : "/Workspace/Users/SEQX_CARMS_BCA_PRRTD_LABOR_DT=
+L_10_ins_rpt",
+            "source" : "WORKSPACE"
+         },
+         "notification_settings" : {
+            "alert_on_last_attempt" : false,
+            "no_alert_for_canceled_runs" : false,
+            "no_alert_for_skipped_runs" : false
+         },
+         "retry_on_timeout" : false,
+         "run_if" : "ALL_SUCCESS",
+         "task_key" : "PXJ_ETL_AUDIT_10_ld_stg",
+         "webhook_notifications" : {}
+      },
+      {
+         "depends_on" : [
+            {
+               "task_key" : "PXJ_ETL_AUDIT_10_ld_stg"
+            }
+         ],
+         "description" : "",
+         "email_notifications" : {},
+         "job_cluster_key" : "auto_scaling_cluster",
+         "notification_settings" : {
+            "alert_on_last_attempt" : false,
+            "no_alert_for_canceled_runs" : false,
+            "no_alert_for_skipped_runs" : false
+         },
+         "run_if" : "ALL_SUCCESS",
+         "spark_python_task" : {
+            "python_file" : "/%TASK_PATH%/SEQX_CARMS_BCA_PRRTD_LABOR_DTL_10_i=
+ns_rpt_RemoveRuntimeFile_SHELL_COMMAND.py"
+         },
+         "task_key" : "RemoveRuntimeFile",
+         "webhook_notifications" : {}
+      },
+      {
+         "depends_on" : [
+            {
+               "task_key" : "Abort_SendMail"
+            }
+         ],
+         "description" : "",
+         "email_notifications" : {},
+         "existing_cluster_id" : "%CLUSTER_ID%",
+         "notification_settings" : {
+            "alert_on_last_attempt" : false,
+            "no_alert_for_canceled_runs" : false,
+            "no_alert_for_skipped_runs" : false
+         },
+         "run_if" : "ALL_SUCCESS",
+         "spark_python_task" : {
+            "python_file" : "/Workspace/runTest.py"
+         },
+         "task_key" : "Terminator_Activity",
+         "webhook_notifications" : {}
+      }
+   ],
+   "timeout_seconds" : 86400,
+   "webhook_notifications" : {}
+}
+
+--===============1634324814236828712==
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+Content-Disposition: attachment;
+ filename="Jobs/CARMS/RPTG/BCA_PRRTD_LABOR_DTL/runTest.py"
+MIME-Version: 1.0
+
+print("Executing component SEQX_CARMS_BCA_PRRTD_LABOR_DTL_20_upd_rpt.Terminat=
+or_Activity")
+sys.exit("Aborting SEQX_CARMS_BCA_PRRTD_LABOR_DTL_20_upd_rpt.Terminator_Activ=
+ity")
+
+--===============1634324814236828712==
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+Content-Disposition: attachment;
+ filename*0*=us-ascii''Jobs%2FCARMS%2FRPTG%2FBCA_PRRTD_LABOR_DTL%2FMSEQX_CARM;
+ filename*1*=S_BCA_PRRTD_LABOR_DTL_ld_rpt.json
+MIME-Version: 1.0
+
+{
+   "email_notifications" : {
+      "no_alert_for_skipped_runs" : false,
+      "on_failure" : [
+         "%FAILURE_EMAIL_ADDRESS%"
+      ],
+      "on_start" : [
+         "user.name@databricks.com",
+         "%EMAIL_ADDRESS%"
+      ],
+      "on_success" : [
+         "%SUCCESS_EMAIL_ADDRESS%"
+      ]
+   },
+   "max_concurrent_runs" : 10,
+   "name" : "MSEQX_CARMS_BCA_PRRTD_LABOR_DTL_ld_rpt",
+   "notification_settings" : {
+      "no_alert_for_canceled_runs" : false,
+      "no_alert_for_skipped_runs" : false
+   },
+   "run_as" : {
+      "user_name" : "%USER_NAME%"
+   },
+   "schedule" : {
+      "pause_status" : "PAUSED",
+      "quartz_cron_expression" : "20 30 * * * ?",
+      "timezone_id" : "Europe/London"
+   },
+   "tags" : {
+      "cost-center" : "engineering",
+      "team" : "jobs"
+   },
+   "tasks" : [
+      {
+         "description" : "",
+         "email_notifications" : {},
+         "existing_cluster_id" : "%CLUSTER_ID%",
+         "notification_settings" : {
+            "alert_on_last_attempt" : false,
+            "no_alert_for_canceled_runs" : false,
+            "no_alert_for_skipped_runs" : false
+         },
+         "spark_python_task" : {
+            "python_file" : "/Workspace/runTest.py"
+         },
+         "task_key" : "Exception_Handle",
+         "webhook_notifications" : {}
+      },
+      {
+         "depends_on" : [
+            {
+               "task_key" : "General_SendMail"
+            }
+         ],
+         "description" : "",
+         "email_notifications" : {},
+         "existing_cluster_id" : "%CLUSTER_ID%",
+         "notification_settings" : {
+            "alert_on_last_attempt" : false,
+            "no_alert_for_canceled_runs" : false,
+            "no_alert_for_skipped_runs" : false
+         },
+         "run_if" : "ALL_SUCCESS",
+         "spark_python_task" : {
+            "python_file" : "/Workspace/runTest.py"
+         },
+         "task_key" : "General_Terminator_Activity",
+         "webhook_notifications" : {}
+      },
+      {
+         "description" : "",
+         "email_notifications" : {},
+         "existing_cluster_id" : "%CLUSTER_ID%",
+         "max_retries" : 3,
+         "min_retry_interval_millis" : 2000,
+         "notebook_task" : {
+            "notebook_path" : "/Workspace/Users/MSEQX_CARMS_BCA_PRRTD_LABOR_D=
+TL_ld_rpt",
+            "source" : "WORKSPACE"
+         },
+         "notification_settings" : {
+            "alert_on_last_attempt" : false,
+            "no_alert_for_canceled_runs" : false,
+            "no_alert_for_skipped_runs" : false
+         },
+         "retry_on_timeout" : false,
+         "task_key" : "SEQX_CARMS_BCA_PRRTD_LABOR_DTL_10_ins_rpt",
+         "webhook_notifications" : {}
+      },
+      {
+         "depends_on" : [
+            {
+               "task_key" : "SEQX_CARMS_BCA_PRRTD_LABOR_DTL_10_ins_rpt"
+            }
+         ],
+         "description" : "",
+         "email_notifications" : {},
+         "existing_cluster_id" : "%CLUSTER_ID%",
+         "max_retries" : 3,
+         "min_retry_interval_millis" : 2000,
+         "notebook_task" : {
+            "notebook_path" : "/Workspace/Users/MSEQX_CARMS_BCA_PRRTD_LABOR_D=
+TL_ld_rpt",
+            "source" : "WORKSPACE"
+         },
+         "notification_settings" : {
+            "alert_on_last_attempt" : false,
+            "no_alert_for_canceled_runs" : false,
+            "no_alert_for_skipped_runs" : false
+         },
+         "retry_on_timeout" : false,
+         "run_if" : "ALL_SUCCESS",
+         "task_key" : "SEQX_CARMS_BCA_PRRTD_LABOR_DTL_20_upd_rpt",
+         "webhook_notifications" : {}
+      }
+   ],
+   "timeout_seconds" : 86400,
+   "webhook_notifications" : {}
+}
+
+--===============1634324814236828712==
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 7bit
+Content-Disposition: attachment;
+ filename*0*=us-ascii''Jobs%2FCARMS%2FRPTG%2FBCA_PRRTD_LABOR_DTL%2FMSEQX_CARM;
+ filename*1*=S_BCA_PRRTD_LABOR_DTL_ld_rpt_params.py
+MIME-Version: 1.0
+
+
+
+--===============1634324814236828712==
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+Content-Disposition: attachment;
+ filename*0*=us-ascii''Jobs%2FCARMS%2FRPTG%2FBCA_PRRTD_LABOR_DTL%2FSEQX_CARMS;
+ filename*1*=_BCA_PRRTD_LABOR_DTL_10_ins_rpt_RemoveRuntimeFile_SHELL_COMMAND.;
+ filename*2*=py
+MIME-Version: 1.0
+
+import os
+command_name_list =3D ["CMD_1"]
+command_list =3D ["""find #$DSPROJDATA#/audit -name "#CARMS_RPTG_PARAMETER_SE=
+T.$DSPROJ#_#spJobName#*.txt" -exec rm -rf {} \; """]
+commandCount =3D 0
+for cmd in command_list:
+    print("Executing command " + str(command_name_list[commandCount]))
+    try:
+        os.system(cmd)
+    except Exception as e:
+        print("Execution error: " + str(e))
+    commandCount +=3D 1
+
+--===============1634324814236828712==
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+Content-Disposition: attachment;
+ filename*0*=us-ascii''Jobs%2FCARMS%2FRPTG%2FBCA_PRRTD_LABOR_DTL%2FSEQX_CARMS;
+ filename*1*=_BCA_PRRTD_LABOR_DTL_10_ins_rpt_Get_PROC_YR_SHELL_COMMAND.py
+MIME-Version: 1.0
+
+import os
+command_name_list =3D ["CMD_1"]
+command_list =3D ["""runtdsql.pl --nonewline "select YR_NBR  from EFBI_#CARMS=
+_RPTG_PARAMETER_SET.$TD_EFBI_EV#_ETL_CTRL_B.CAL_PROC_RPTG_PER where SET_ID =
+=3D 'EFBI' and CAL_ID =3D 'FM' and PER_ID =3D 'MBC'" """]
+commandCount =3D 0
+for cmd in command_list:
+    print("Executing command " + str(command_name_list[commandCount]))
+    try:
+        os.system(cmd)
+    except Exception as e:
+        print("Execution error: " + str(e))
+    commandCount +=3D 1
+
+--===============1634324814236828712==
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+Content-Disposition: attachment;
+ filename*0*=us-ascii''Jobs%2FCARMS%2FRPTG%2FBCA_PRRTD_LABOR_DTL%2FPXJ_CARMS_;
+ filename*1*=BCA_PRRTD_LABOR_DTL_10_ins_rpt.py
+MIME-Version: 1.0
+
+#Code converted on 2025-06-04 13:32:23
+import os
+from pyspark.sql import *
+from pyspark.sql.functions import *
+from pyspark import SparkContext
+from pyspark.sql.functions import lit, to_timestamp, when, expr, col, explode
+from databricks_conversion_supplements import DatabricksConversionSupplements
+
+
+# COMMAND ----------
+
+dbutils.widgets.text(name =3D 'pBATCH_SID', defaultValue =3D '')
+pBATCH_SID =3D dbutils.widgets.get("pBATCH_SID")
+
+dbutils.widgets.text(name =3D 'APT_CONFIG_FILE', defaultValue =3D '$PROJDEF')
+APT_CONFIG_FILE =3D dbutils.widgets.get("APT_CONFIG_FILE")
+
+dbutils.widgets.text(name =3D 'CARMS_RPTG_PARAMETER_SET', defaultValue =3D '')
+CARMS_RPTG_PARAMETER_SET =3D dbutils.widgets.get("CARMS_RPTG_PARAMETER_SET")
+
+dbutils.widgets.text(name =3D 'pPROC_YR', defaultValue =3D '')
+pPROC_YR =3D dbutils.widgets.get("pPROC_YR")
+
+dbutils.widgets.text(name =3D 'pPROC_MNTH', defaultValue =3D '')
+pPROC_MNTH =3D dbutils.widgets.get("pPROC_MNTH")
+
+dbutils.widgets.text(name =3D 'ConfigParameterSet_pTDClientCharsetOut', defau=
+ltValue =3D '')
+ConfigParameterSet_pTDClientCharsetOut =3D dbutils.widgets.get("ConfigParamet=
+erSet_pTDClientCharsetOut")
+
+dbutils.widgets.text(name =3D 'ConfigParameterSet_pTDRecordCountOut', default=
+Value =3D '')
+ConfigParameterSet_pTDRecordCountOut =3D dbutils.widgets.get("ConfigParameter=
+Set_pTDRecordCountOut")
+
+dbutils.widgets.text(name =3D 'ConfigParameterSet_pTDArraySizeOut', defaultVa=
+lue =3D '')
+ConfigParameterSet_pTDArraySizeOut =3D dbutils.widgets.get("ConfigParameterSe=
+t_pTDArraySizeOut")
+
+dbutils.widgets.text(name =3D 'ConfigParameterSet_pTDMaxBufferOut', defaultVa=
+lue =3D '')
+ConfigParameterSet_pTDMaxBufferOut =3D dbutils.widgets.get("ConfigParameterSe=
+t_pTDMaxBufferOut")
+
+dbutils.widgets.text(name =3D 'ConfigParameterSet_pTDClientCharsetIn', defaul=
+tValue =3D '')
+ConfigParameterSet_pTDClientCharsetIn =3D dbutils.widgets.get("ConfigParamete=
+rSet_pTDClientCharsetIn")
+
+dbutils.widgets.text(name =3D 'ConfigParameterSet_pTDRecordCountIn', defaultV=
+alue =3D '')
+ConfigParameterSet_pTDRecordCountIn =3D dbutils.widgets.get("ConfigParameterS=
+et_pTDRecordCountIn")
+
+dbutils.widgets.text(name =3D 'ConfigParameterSet_pTDArraySizeIn', defaultVal=
+ue =3D '')
+ConfigParameterSet_pTDArraySizeIn =3D dbutils.widgets.get("ConfigParameterSet=
+_pTDArraySizeIn")
+
+dbutils.widgets.text(name =3D 'ConfigParameterSet_pTDMaxSessionsIn', defaultV=
+alue =3D '')
+ConfigParameterSet_pTDMaxSessionsIn =3D dbutils.widgets.get("ConfigParameterS=
+et_pTDMaxSessionsIn")
+
+dbutils.widgets.text(name =3D 'ConfigParameterSet_pTDMaxPartSessionsIn', defa=
+ultValue =3D '')
+ConfigParameterSet_pTDMaxPartSessionsIn =3D dbutils.widgets.get("ConfigParame=
+terSet_pTDMaxPartSessionsIn")
+
+dbutils.widgets.text(name =3D 'ConfigParameterSet_pTDMinSessionsIn', defaultV=
+alue =3D '')
+ConfigParameterSet_pTDMinSessionsIn =3D dbutils.widgets.get("ConfigParameterS=
+et_pTDMinSessionsIn")
+
+dbutils.widgets.text(name =3D 'ConfigParameterSet_pTDMaxBufferIn', defaultVal=
+ue =3D '')
+ConfigParameterSet_pTDMaxBufferIn =3D dbutils.widgets.get("ConfigParameterSet=
+_pTDMaxBufferIn")
+
+
+# COMMAND ----------
+# Component mv_ERR_BCA_PRRTD_LABOR_DTL, Type Pre SQL=20
+spark.sql(f"""DELETE FROM EFBI_#CARMS_RPTG_PARAMETER_SET.$TD_EFBI_EV#_CARMS_R=
+.BCA_PRRTD_LABOR_DTL  AS T1 USING=20
+EFBI_#CARMS_RPTG_PARAMETER_SET.$TD_EFBI_EV#_ETL_CTRL_B.CAL_PROC_RPTG_PER AS C=
+AL
+WHERE=20
+CAL.SET_ID =3D 'EFBI' AND CAL.CAL_ID =3D 'FM'=20
+AND CAL.PER_ID =3D 'MBC'=20
+AND T1.FISC_YR_NBR =3D CAL.YR_NBR AND T1.FISC_MNTH_NBR =3D CAL.PER_NBR""")
+
+
+# COMMAND ----------
+# Component in_LRRP_YTD, Type SOURCE Original node name SRC_LRRP_YTD, link in=
+_LRRP_YTD
+in_LRRP_YTD =3D spark.sql(f"""
+select
+FROM_BUS_UNIT_GL_CD as ACCTG_BUS_UN_CD
+,' ' as ACCTG_DEPT_ID
+,' ' as ACCTG_LOC_CD
+,ACCT_CD
+,LY.ACCTG_DT
+,ANLYS_TYP_CD
+,AVG_RT_SEL_CD
+,CLS_CD
+,' ' as DATA_REC_TYP_CD
+,FISC_MTH_NBR as FISC_MNTH_NBR
+,LY.FISC_YR_NBR
+,JV_ITM_CD as JV_ITEM_CD
+,LBR_RT_CD
+,PRJ_TRNS_CD
+,SUM(RES_QTY) as RES_QTY
+,SUM(RES_AMT) as RES_AMT
+,'L' as BCA_SRC_CD
+from EFBI_#CARMS_RPTG_PARAMETER_SET.$TD_EFBI_EV#_EAS_B.LRRP_YTD LY =20
+INNER JOIN EFBI_#CARMS_RPTG_PARAMETER_SET.$TD_EFBI_EV#_ETL_CTRL_B.CAL_PROC_RP=
+TG_PER cal =20
+on LY.acctg_dt between cal.beg_dt and cal.end_dt
+and cal.set_id =3D 'EFBI'
+and cal.Cal_id =3D 'FM'
+and cal.per_id =3D 'MBC'
+/* join to get valid fisc_mnth_nbr value since source doesn't have one */
+join EFBI_#CARMS_RPTG_PARAMETER_SET.$TD_EFBI_EV#_ETL_CTRL_IV.D_CALENDAR_01 as=
+ C1
+on C1.ACCTG_DT =3D LY.ACCTG_DT
+WHERE
+ACCT_CD <> '1263000' and ACCT_CD NOT LIKE '8%' and ANLYS_TYP_CD =3D 'MAN'
+and=20
+/* criteria where abu =3D 66 or abu =3D '76' */
+(FROM_BUS_UNIT_GL_CD in ( '66', '76')  and JV_ITM_CD IN ('05', '10', '01', '0=
+2') and CLS_CD > '9' )
+group by=20
+FROM_BUS_UNIT_GL_CD
+,ACCT_CD
+,LY.ACCTG_DT
+,ANLYS_TYP_CD
+,AVG_RT_SEL_CD
+,CLS_CD
+,FISC_MTH_NBR
+,LY.FISC_YR_NBR
+,JV_ITEM_CD
+,LBR_RT_CD
+,PRJ_TRNS_CD
+""")
+in_LRRP_YTD.createOrReplaceTempView("in_LRRP_YTD")
+
+
+# COMMAND ----------
+# Component agg_input_dollars, Type TRANSFORMATION Original node name XFM_Map=
+, link agg_input_dollars
+agg_input_dollars =3D spark.sql(f"""
+SELECT
+FcstEltDimMbrCd as FCST_ELT_DIM_MBR_CD,
+'Input_Dollars' as MEAS_DIM_MBR_CD,
+'BCA_NoOrg' as ORG_DIM_MBR_CD,
+ACCTG_BUS_UN_CD as ACCTG_BUS_UN_CD,
+query_1.ACCTG_DEPT_ID as ACCTG_DEPT_ID,
+query_1.ACCTG_LOC_CD as ACCTG_LOC_CD,
+query_1.ACCT_CD as ACCT_CD,
+query_1.ACCTG_DT as ACCTG_DT,
+query_1.ANLYS_TYP_CD as ANLYS_TYP_CD,
+query_1.AVG_RT_SEL_CD as AVG_RT_SEL_CD,
+query_1.CLS_CD as CLS_CD,
+query_1.DATA_REC_TYP_CD as DATA_REC_TYP_CD,
+query_1.FISC_MNTH_NBR as FISC_MNTH_NBR,
+query_1.FISC_YR_NBR as FISC_YR_NBR,
+query_1.JV_ITEM_CD as JV_ITEM_CD,
+query_1.LBR_RT_CD as LBR_RT_CD,
+query_1.PRJ_TRNS_CD as PRJ_TRNS_CD,
+query_1.RES_QTY as RES_QTY,
+query_1.RES_AMT as RES_AMT,
+query_1.BCA_SRC_CD as BCA_SRC_CD
+FROM (
+SELECT /* STMT 1 */
+row_number() over (order by 1) as PIPELINE_ROW_ID,
+IF ( in_LRRP_YTD.PRJ_TRNS_CD =3D 'STR' , 'LaborStraight' , IF ( in_LRRP_YTD.P=
+RJ_TRNS_CD =3D 'OTS' OR in_LRRP_YTD.PRJ_TRNS_CD =3D 'PRM' , 'LaborOvertime' ,=
+ 'NOTFOUND' ) ) as FcstEltDimMbrCd,
+in_LRRP_YTD.ACCTG_BUS_UN_CD,
+in_LRRP_YTD.ACCTG_DEPT_ID,
+in_LRRP_YTD.ACCTG_LOC_CD,
+in_LRRP_YTD.ACCT_CD,
+in_LRRP_YTD.ACCTG_DT,
+in_LRRP_YTD.ANLYS_TYP_CD,
+in_LRRP_YTD.AVG_RT_SEL_CD,
+in_LRRP_YTD.CLS_CD,
+in_LRRP_YTD.DATA_REC_TYP_CD,
+in_LRRP_YTD.FISC_MNTH_NBR,
+in_LRRP_YTD.FISC_YR_NBR,
+in_LRRP_YTD.JV_ITEM_CD,
+in_LRRP_YTD.LBR_RT_CD,
+in_LRRP_YTD.PRJ_TRNS_CD,
+in_LRRP_YTD.RES_QTY,
+in_LRRP_YTD.RES_AMT,
+in_LRRP_YTD.BCA_SRC_CD
+FROM in_LRRP_YTD
+) query_1
+WHERE RES_AMT <> 0""")
+agg_input_dollars.createOrReplaceTempView("agg_input_dollars")
+
+
+# COMMAND ----------
+# Component agg_Total_Input_Hours, Type TRANSFORMATION Original node name XFM=
+_Map, link agg_Total_Input_Hours
+agg_Total_Input_Hours =3D spark.sql(f"""
+SELECT
+FcstEltDimMbrCd as FCST_ELT_DIM_MBR_CD,
+'Total_Input_Hours' as MEAS_DIM_MBR_CD,
+'BCA_NoOrg' as ORG_DIM_MBR_CD,
+ACCTG_BUS_UN_CD as ACCTG_BUS_UN_CD,
+query_1.ACCTG_DEPT_ID as ACCTG_DEPT_ID,
+query_1.ACCTG_LOC_CD as ACCTG_LOC_CD,
+query_1.ACCT_CD as ACCT_CD,
+query_1.ACCTG_DT as ACCTG_DT,
+query_1.ANLYS_TYP_CD as ANLYS_TYP_CD,
+query_1.AVG_RT_SEL_CD as AVG_RT_SEL_CD,
+query_1.CLS_CD as CLS_CD,
+query_1.DATA_REC_TYP_CD as DATA_REC_TYP_CD,
+query_1.FISC_MNTH_NBR as FISC_MNTH_NBR,
+query_1.FISC_YR_NBR as FISC_YR_NBR,
+query_1.JV_ITEM_CD as JV_ITEM_CD,
+query_1.LBR_RT_CD as LBR_RT_CD,
+query_1.PRJ_TRNS_CD as PRJ_TRNS_CD,
+query_1.RES_QTY as RES_QTY,
+query_1.RES_AMT as RES_AMT,
+query_1.BCA_SRC_CD as BCA_SRC_CD
+FROM (
+SELECT /* STMT 1 */
+row_number() over (order by 1) as PIPELINE_ROW_ID,
+IF ( in_LRRP_YTD.PRJ_TRNS_CD =3D 'STR' , 'LaborStraight' , IF ( in_LRRP_YTD.P=
+RJ_TRNS_CD =3D 'OTS' OR in_LRRP_YTD.PRJ_TRNS_CD =3D 'PRM' , 'LaborOvertime' ,=
+ 'NOTFOUND' ) ) as FcstEltDimMbrCd,
+in_LRRP_YTD.ACCTG_BUS_UN_CD,
+in_LRRP_YTD.ACCTG_DEPT_ID,
+in_LRRP_YTD.ACCTG_LOC_CD,
+in_LRRP_YTD.ACCT_CD,
+in_LRRP_YTD.ACCTG_DT,
+in_LRRP_YTD.ANLYS_TYP_CD,
+in_LRRP_YTD.AVG_RT_SEL_CD,
+in_LRRP_YTD.CLS_CD,
+in_LRRP_YTD.DATA_REC_TYP_CD,
+in_LRRP_YTD.FISC_MNTH_NBR,
+in_LRRP_YTD.FISC_YR_NBR,
+in_LRRP_YTD.JV_ITEM_CD,
+in_LRRP_YTD.LBR_RT_CD,
+in_LRRP_YTD.PRJ_TRNS_CD,
+in_LRRP_YTD.RES_QTY,
+in_LRRP_YTD.RES_AMT,
+in_LRRP_YTD.BCA_SRC_CD
+FROM in_LRRP_YTD
+) query_1
+WHERE RES_QTY <> 0""")
+agg_Total_Input_Hours.createOrReplaceTempView("agg_Total_Input_Hours")
+
+
+# COMMAND ----------
+# Component Total_input_Dollars_recs, Type TRANSFORMATION Original node name =
+XFM_Map, link Total_input_Dollars_recs
+Total_input_Dollars_recs =3D spark.sql(f"""
+SELECT
+FcstEltDimMbrCd as FCST_ELT_DIM_MBR_CD,
+'Input_Dollars' as MEAS_DIM_MBR_CD,
+'BCA_NoOrg' as ORG_DIM_MBR_CD,
+ACCTG_BUS_UN_CD as ACCTG_BUS_UN_CD,
+query_1.ACCTG_DEPT_ID as ACCTG_DEPT_ID,
+query_1.ACCTG_LOC_CD as ACCTG_LOC_CD,
+query_1.ACCT_CD as ACCT_CD,
+query_1.ACCTG_DT as ACCTG_DT,
+query_1.ANLYS_TYP_CD as ANLYS_TYP_CD,
+query_1.AVG_RT_SEL_CD as AVG_RT_SEL_CD,
+query_1.CLS_CD as CLS_CD,
+query_1.DATA_REC_TYP_CD as DATA_REC_TYP_CD,
+query_1.FISC_MNTH_NBR as FISC_MNTH_NBR,
+query_1.FISC_YR_NBR as FISC_YR_NBR,
+query_1.JV_ITEM_CD as JV_ITEM_CD,
+query_1.LBR_RT_CD as LBR_RT_CD,
+query_1.PRJ_TRNS_CD as PRJ_TRNS_CD,
+query_1.RES_QTY as RES_QTY,
+query_1.RES_AMT as RES_AMT,
+query_1.BCA_SRC_CD as BCA_SRC_CD
+FROM (
+SELECT /* STMT 1 */
+row_number() over (order by 1) as PIPELINE_ROW_ID,
+IF ( in_LRRP_YTD.PRJ_TRNS_CD =3D 'STR' , 'LaborStraight' , IF ( in_LRRP_YTD.P=
+RJ_TRNS_CD =3D 'OTS' OR in_LRRP_YTD.PRJ_TRNS_CD =3D 'PRM' , 'LaborOvertime' ,=
+ 'NOTFOUND' ) ) as FcstEltDimMbrCd,
+in_LRRP_YTD.ACCTG_BUS_UN_CD,
+in_LRRP_YTD.ACCTG_DEPT_ID,
+in_LRRP_YTD.ACCTG_LOC_CD,
+in_LRRP_YTD.ACCT_CD,
+in_LRRP_YTD.ACCTG_DT,
+in_LRRP_YTD.ANLYS_TYP_CD,
+in_LRRP_YTD.AVG_RT_SEL_CD,
+in_LRRP_YTD.CLS_CD,
+in_LRRP_YTD.DATA_REC_TYP_CD,
+in_LRRP_YTD.FISC_MNTH_NBR,
+in_LRRP_YTD.FISC_YR_NBR,
+in_LRRP_YTD.JV_ITEM_CD,
+in_LRRP_YTD.LBR_RT_CD,
+in_LRRP_YTD.PRJ_TRNS_CD,
+in_LRRP_YTD.RES_QTY,
+in_LRRP_YTD.RES_AMT,
+in_LRRP_YTD.BCA_SRC_CD
+FROM in_LRRP_YTD
+) query_1
+WHERE RES_AMT <> 0""")
+Total_input_Dollars_recs.createOrReplaceTempView("Total_input_Dollars_recs")
+
+
+# COMMAND ----------
+# Component Total_input_Hours_recs, Type TRANSFORMATION Original node name XF=
+M_Map, link Total_input_Hours_recs
+Total_input_Hours_recs =3D spark.sql(f"""
+SELECT
+FcstEltDimMbrCd as FCST_ELT_DIM_MBR_CD,
+'Total_Input_Hours' as MEAS_DIM_MBR_CD,
+'BCA_NoOrg' as ORG_DIM_MBR_CD,
+ACCTG_BUS_UN_CD as ACCTG_BUS_UN_CD,
+query_1.ACCTG_DEPT_ID as ACCTG_DEPT_ID,
+query_1.ACCTG_LOC_CD as ACCTG_LOC_CD,
+query_1.ACCT_CD as ACCT_CD,
+query_1.ACCTG_DT as ACCTG_DT,
+query_1.ANLYS_TYP_CD as ANLYS_TYP_CD,
+query_1.AVG_RT_SEL_CD as AVG_RT_SEL_CD,
+query_1.CLS_CD as CLS_CD,
+query_1.DATA_REC_TYP_CD as DATA_REC_TYP_CD,
+query_1.FISC_MNTH_NBR as FISC_MNTH_NBR,
+query_1.FISC_YR_NBR as FISC_YR_NBR,
+query_1.JV_ITEM_CD as JV_ITEM_CD,
+query_1.LBR_RT_CD as LBR_RT_CD,
+query_1.PRJ_TRNS_CD as PRJ_TRNS_CD,
+query_1.RES_QTY as RES_QTY,
+query_1.RES_AMT as RES_AMT,
+query_1.BCA_SRC_CD as BCA_SRC_CD
+FROM (
+SELECT /* STMT 1 */
+row_number() over (order by 1) as PIPELINE_ROW_ID,
+IF ( in_LRRP_YTD.PRJ_TRNS_CD =3D 'STR' , 'LaborStraight' , IF ( in_LRRP_YTD.P=
+RJ_TRNS_CD =3D 'OTS' OR in_LRRP_YTD.PRJ_TRNS_CD =3D 'PRM' , 'LaborOvertime' ,=
+ 'NOTFOUND' ) ) as FcstEltDimMbrCd,
+in_LRRP_YTD.ACCTG_BUS_UN_CD,
+in_LRRP_YTD.ACCTG_DEPT_ID,
+in_LRRP_YTD.ACCTG_LOC_CD,
+in_LRRP_YTD.ACCT_CD,
+in_LRRP_YTD.ACCTG_DT,
+in_LRRP_YTD.ANLYS_TYP_CD,
+in_LRRP_YTD.AVG_RT_SEL_CD,
+in_LRRP_YTD.CLS_CD,
+in_LRRP_YTD.DATA_REC_TYP_CD,
+in_LRRP_YTD.FISC_MNTH_NBR,
+in_LRRP_YTD.FISC_YR_NBR,
+in_LRRP_YTD.JV_ITEM_CD,
+in_LRRP_YTD.LBR_RT_CD,
+in_LRRP_YTD.PRJ_TRNS_CD,
+in_LRRP_YTD.RES_QTY,
+in_LRRP_YTD.RES_AMT,
+in_LRRP_YTD.BCA_SRC_CD
+FROM in_LRRP_YTD
+) query_1
+WHERE RES_QTY <> 0""")
+Total_input_Hours_recs.createOrReplaceTempView("Total_input_Hours_recs")
+
+
+# COMMAND ----------
+# Component out_agg_1, Type AGGREGATOR Original node name Aggregate_Sums_AMT,=
+ link out_agg_1
+out_agg_1 =3D spark.sql(f"""
+SELECT
+agg_input_dollars.ACCT_CD as ACCT_CD,
+agg_input_dollars.ACCTG_BUS_UN_CD as ACCTG_BUS_UN_CD,
+agg_input_dollars.ACCTG_DEPT_ID as ACCTG_DEPT_ID,
+agg_input_dollars.ACCTG_DT as ACCTG_DT,
+agg_input_dollars.ACCTG_LOC_CD as ACCTG_LOC_CD,
+agg_input_dollars.BCA_SRC_CD as BCA_SRC_CD,
+agg_input_dollars.FCST_ELT_DIM_MBR_CD as FCST_ELT_DIM_MBR_CD,
+agg_input_dollars.FISC_MNTH_NBR as FISC_MNTH_NBR,
+agg_input_dollars.FISC_YR_NBR as FISC_YR_NBR,
+agg_input_dollars.MEAS_DIM_MBR_CD as MEAS_DIM_MBR_CD,
+agg_input_dollars.ORG_DIM_MBR_CD as ORG_DIM_MBR_CD,
+agg_input_dollars.PRJ_TRNS_CD as PRJ_TRNS_CD,
+agg_input_dollars.LBR_RT_CD as LBR_RT_CD,
+agg_input_dollars.ANLYS_TYP_CD as ANLYS_TYP_CD,
+agg_input_dollars.AVG_RT_SEL_CD as AVG_RT_SEL_CD,
+agg_input_dollars.CLS_CD as CLS_CD,
+agg_input_dollars.DATA_REC_TYP_CD as DATA_REC_TYP_CD,
+agg_input_dollars.JV_ITEM_CD as JV_ITEM_CD,
+Sum ( agg_input_dollars.RES_AMT ) as VAL_AMT
+FROM
+agg_input_dollars
+GROUP BY
+agg_input_dollars.ACCT_CD,
+agg_input_dollars.ACCTG_BUS_UN_CD,
+agg_input_dollars.ACCTG_DEPT_ID,
+agg_input_dollars.ACCTG_DT,
+agg_input_dollars.ACCTG_LOC_CD,
+agg_input_dollars.BCA_SRC_CD,
+agg_input_dollars.FCST_ELT_DIM_MBR_CD,
+agg_input_dollars.FISC_MNTH_NBR,
+agg_input_dollars.FISC_YR_NBR,
+agg_input_dollars.MEAS_DIM_MBR_CD,
+agg_input_dollars.ORG_DIM_MBR_CD,
+agg_input_dollars.PRJ_TRNS_CD,
+agg_input_dollars.LBR_RT_CD,
+agg_input_dollars.ANLYS_TYP_CD,
+agg_input_dollars.AVG_RT_SEL_CD,
+agg_input_dollars.CLS_CD,
+agg_input_dollars.DATA_REC_TYP_CD,
+agg_input_dollars.JV_ITEM_CD""")
+out_agg_1.createOrReplaceTempView("out_agg_1")
+
+
+# COMMAND ----------
+# Component out_agg_2, Type AGGREGATOR Original node name Aggregate_Sums_QTY,=
+ link out_agg_2
+out_agg_2 =3D spark.sql(f"""
+SELECT
+agg_Total_Input_Hours.ACCT_CD as ACCT_CD,
+agg_Total_Input_Hours.ACCTG_BUS_UN_CD as ACCTG_BUS_UN_CD,
+agg_Total_Input_Hours.ACCTG_DEPT_ID as ACCTG_DEPT_ID,
+agg_Total_Input_Hours.ACCTG_DT as ACCTG_DT,
+agg_Total_Input_Hours.ACCTG_LOC_CD as ACCTG_LOC_CD,
+agg_Total_Input_Hours.BCA_SRC_CD as BCA_SRC_CD,
+agg_Total_Input_Hours.FCST_ELT_DIM_MBR_CD as FCST_ELT_DIM_MBR_CD,
+agg_Total_Input_Hours.FISC_MNTH_NBR as FISC_MNTH_NBR,
+agg_Total_Input_Hours.FISC_YR_NBR as FISC_YR_NBR,
+agg_Total_Input_Hours.MEAS_DIM_MBR_CD as MEAS_DIM_MBR_CD,
+agg_Total_Input_Hours.ORG_DIM_MBR_CD as ORG_DIM_MBR_CD,
+agg_Total_Input_Hours.PRJ_TRNS_CD as PRJ_TRNS_CD,
+agg_Total_Input_Hours.LBR_RT_CD as LBR_RT_CD,
+agg_Total_Input_Hours.ANLYS_TYP_CD as ANLYS_TYP_CD,
+agg_Total_Input_Hours.AVG_RT_SEL_CD as AVG_RT_SEL_CD,
+agg_Total_Input_Hours.CLS_CD as CLS_CD,
+agg_Total_Input_Hours.DATA_REC_TYP_CD as DATA_REC_TYP_CD,
+agg_Total_Input_Hours.JV_ITEM_CD as JV_ITEM_CD,
+Sum ( agg_Total_Input_Hours.RES_QTY ) as VAL_AMT
+FROM
+agg_Total_Input_Hours
+GROUP BY
+agg_Total_Input_Hours.ACCT_CD,
+agg_Total_Input_Hours.ACCTG_BUS_UN_CD,
+agg_Total_Input_Hours.ACCTG_DEPT_ID,
+agg_Total_Input_Hours.ACCTG_DT,
+agg_Total_Input_Hours.ACCTG_LOC_CD,
+agg_Total_Input_Hours.BCA_SRC_CD,
+agg_Total_Input_Hours.FCST_ELT_DIM_MBR_CD,
+agg_Total_Input_Hours.FISC_MNTH_NBR,
+agg_Total_Input_Hours.FISC_YR_NBR,
+agg_Total_Input_Hours.MEAS_DIM_MBR_CD,
+agg_Total_Input_Hours.ORG_DIM_MBR_CD,
+agg_Total_Input_Hours.PRJ_TRNS_CD,
+agg_Total_Input_Hours.LBR_RT_CD,
+agg_Total_Input_Hours.ANLYS_TYP_CD,
+agg_Total_Input_Hours.AVG_RT_SEL_CD,
+agg_Total_Input_Hours.CLS_CD,
+agg_Total_Input_Hours.DATA_REC_TYP_CD,
+agg_Total_Input_Hours.JV_ITEM_CD""")
+out_agg_2.createOrReplaceTempView("out_agg_2")
+
+
+# COMMAND ----------
+# Component lkp_out_1, Type LOOKUP Original node name lookup_VAL_AMT_1, link =
+lkp_out_1
+lkp_out_1 =3D spark.sql(f"""
+SELECT
+FROM
+Total_input_Dollars_recs
+INNER JOIN out_agg_1 ON out_agg_1.AVG_RT_SEL_CD =3D Total_input_Dollars_recs.=
+AVG_RT_SEL_CD AND out_agg_1.ACCT_CD =3D Total_input_Dollars_recs.ACCT_CD AND =
+out_agg_1.PRJ_TRNS_CD =3D Total_input_Dollars_recs.PRJ_TRNS_CD AND out_agg_1.=
+ACCTG_LOC_CD =3D Total_input_Dollars_recs.ACCTG_LOC_CD AND out_agg_1.ORG_DIM_=
+MBR_CD =3D Total_input_Dollars_recs.ORG_DIM_MBR_CD AND out_agg_1.JV_ITEM_CD =
+=3D Total_input_Dollars_recs.JV_ITEM_CD AND out_agg_1.MEAS_DIM_MBR_CD =3D Tot=
+al_input_Dollars_recs.MEAS_DIM_MBR_CD AND out_agg_1.FISC_YR_NBR =3D Total_inp=
+ut_Dollars_recs.FISC_YR_NBR AND out_agg_1.DATA_REC_TYP_CD =3D Total_input_Dol=
+lars_recs.DATA_REC_TYP_CD AND out_agg_1.ACCTG_DT =3D Total_input_Dollars_recs=
+.ACCTG_DT AND out_agg_1.BCA_SRC_CD =3D Total_input_Dollars_recs.BCA_SRC_CD AN=
+D out_agg_1.ANLYS_TYP_CD =3D Total_input_Dollars_recs.ANLYS_TYP_CD AND out_ag=
+g_1.ACCTG_BUS_UN_CD =3D Total_input_Dollars_recs.ACCTG_BUS_UN_CD AND out_agg_=
+1.FISC_MNTH_NBR =3D Total_input_Dollars_recs.FISC_MNTH_NBR AND out_agg_1.LBR_=
+RT_CD =3D Total_input_Dollars_recs.LBR_RT_CD AND out_agg_1.CLS_CD =3D Total_i=
+nput_Dollars_recs.CLS_CD AND out_agg_1.FCST_ELT_DIM_MBR_CD =3D Total_input_Do=
+llars_recs.FCST_ELT_DIM_MBR_CD AND out_agg_1.ACCTG_DEPT_ID =3D Total_input_Do=
+llars_recs.ACCTG_DEPT_ID
+""")
+lkp_out_1.createOrReplaceTempView("lkp_out_1")
+
+
+# COMMAND ----------
+# Component lkp_out_2, Type LOOKUP Original node name lookup_VAL_AMT_2, link =
+lkp_out_2
+lkp_out_2 =3D spark.sql(f"""
+SELECT
+FROM
+Total_input_Hours_recs
+INNER JOIN out_agg_2 ON out_agg_2.LBR_RT_CD =3D Total_input_Hours_recs.LBR_RT=
+_CD AND out_agg_2.CLS_CD =3D Total_input_Hours_recs.CLS_CD AND out_agg_2.FCST=
+_ELT_DIM_MBR_CD =3D Total_input_Hours_recs.FCST_ELT_DIM_MBR_CD AND out_agg_2.=
+ACCTG_DEPT_ID =3D Total_input_Hours_recs.ACCTG_DEPT_ID AND out_agg_2.FISC_MNT=
+H_NBR =3D Total_input_Hours_recs.FISC_MNTH_NBR AND out_agg_2.ACCTG_BUS_UN_CD =
+=3D Total_input_Hours_recs.ACCTG_BUS_UN_CD AND out_agg_2.ANLYS_TYP_CD =3D Tot=
+al_input_Hours_recs.ANLYS_TYP_CD AND out_agg_2.BCA_SRC_CD =3D Total_input_Hou=
+rs_recs.BCA_SRC_CD AND out_agg_2.ACCTG_DT =3D Total_input_Hours_recs.ACCTG_DT=
+ AND out_agg_2.DATA_REC_TYP_CD =3D Total_input_Hours_recs.DATA_REC_TYP_CD AND=
+ out_agg_2.MEAS_DIM_MBR_CD =3D Total_input_Hours_recs.MEAS_DIM_MBR_CD AND out=
+_agg_2.FISC_YR_NBR =3D Total_input_Hours_recs.FISC_YR_NBR AND out_agg_2.JV_IT=
+EM_CD =3D Total_input_Hours_recs.JV_ITEM_CD AND out_agg_2.ACCTG_LOC_CD =3D To=
+tal_input_Hours_recs.ACCTG_LOC_CD AND out_agg_2.ORG_DIM_MBR_CD =3D Total_inpu=
+t_Hours_recs.ORG_DIM_MBR_CD AND out_agg_2.PRJ_TRNS_CD =3D Total_input_Hours_r=
+ecs.PRJ_TRNS_CD AND out_agg_2.AVG_RT_SEL_CD =3D Total_input_Hours_recs.AVG_RT=
+_SEL_CD AND out_agg_2.ACCT_CD =3D Total_input_Hours_recs.ACCT_CD
+""")
+lkp_out_2.createOrReplaceTempView("lkp_out_2")
+
+
+# COMMAND ----------
+# Component fnl_pstagg_out, Type UNION Original node name Funnel_PostAgg, lin=
+k fnl_pstagg_out
+fnl_pstagg_out =3D spark.sql(f"""
+SELECT
+lkp_out_1.FCST_ELT_DIM_MBR_CD as FCST_ELT_DIM_MBR_CD,
+lkp_out_1.MEAS_DIM_MBR_CD as MEAS_DIM_MBR_CD,
+lkp_out_1.ORG_DIM_MBR_CD as ORG_DIM_MBR_CD,
+lkp_out_1.ACCTG_BUS_UN_CD as ACCTG_BUS_UN_CD,
+lkp_out_1.ACCTG_DEPT_ID as ACCTG_DEPT_ID,
+lkp_out_1.ACCTG_LOC_CD as ACCTG_LOC_CD,
+lkp_out_1.ACCT_CD as ACCT_CD,
+lkp_out_1.ACCTG_DT as ACCTG_DT,
+lkp_out_1.ANLYS_TYP_CD as ANLYS_TYP_CD,
+lkp_out_1.AVG_RT_SEL_CD as AVG_RT_SEL_CD,
+lkp_out_1.CLS_CD as CLS_CD,
+lkp_out_1.DATA_REC_TYP_CD as DATA_REC_TYP_CD,
+lkp_out_1.FISC_MNTH_NBR as FISC_MNTH_NBR,
+lkp_out_1.FISC_YR_NBR as FISC_YR_NBR,
+lkp_out_1.JV_ITEM_CD as JV_ITEM_CD,
+lkp_out_1.LBR_RT_CD as LBR_RT_CD,
+lkp_out_1.PRJ_TRNS_CD as PRJ_TRNS_CD,
+lkp_out_1.RES_QTY as RES_QTY,
+lkp_out_1.RES_AMT as RES_AMT,
+lkp_out_1.BCA_SRC_CD as BCA_SRC_CD,
+lkp_out_1.VAL_AMT as VAL_AMT
+FROM lkp_out_1
+UNION ALL
+SELECT
+lkp_out_2.FCST_ELT_DIM_MBR_CD as FCST_ELT_DIM_MBR_CD,
+lkp_out_2.MEAS_DIM_MBR_CD as MEAS_DIM_MBR_CD,
+lkp_out_2.ORG_DIM_MBR_CD as ORG_DIM_MBR_CD,
+lkp_out_2.ACCTG_BUS_UN_CD as ACCTG_BUS_UN_CD,
+lkp_out_2.ACCTG_DEPT_ID as ACCTG_DEPT_ID,
+lkp_out_2.ACCTG_LOC_CD as ACCTG_LOC_CD,
+lkp_out_2.ACCT_CD as ACCT_CD,
+lkp_out_2.ACCTG_DT as ACCTG_DT,
+lkp_out_2.ANLYS_TYP_CD as ANLYS_TYP_CD,
+lkp_out_2.AVG_RT_SEL_CD as AVG_RT_SEL_CD,
+lkp_out_2.CLS_CD as CLS_CD,
+lkp_out_2.DATA_REC_TYP_CD as DATA_REC_TYP_CD,
+lkp_out_2.FISC_MNTH_NBR as FISC_MNTH_NBR,
+lkp_out_2.FISC_YR_NBR as FISC_YR_NBR,
+lkp_out_2.JV_ITEM_CD as JV_ITEM_CD,
+lkp_out_2.LBR_RT_CD as LBR_RT_CD,
+lkp_out_2.PRJ_TRNS_CD as PRJ_TRNS_CD,
+lkp_out_2.RES_QTY as RES_QTY,
+lkp_out_2.RES_AMT as RES_AMT,
+lkp_out_2.BCA_SRC_CD as BCA_SRC_CD,
+lkp_out_2.VAL_AMT as VAL_AMT
+FROM lkp_out_2""")
+fnl_pstagg_out.createOrReplaceTempView("fnl_pstagg_out")
+
+
+# COMMAND ----------
+# Component out_BCA_PRRTD_LABOR_DTL, Type TRANSFORMATION Original node name X=
+FM_AddMetadata_Cols, link out_BCA_PRRTD_LABOR_DTL
+out_BCA_PRRTD_LABOR_DTL =3D spark.sql(f"""
+SELECT
+fnl_pstagg_out.FCST_ELT_DIM_MBR_CD as FCST_ELT_DIM_MBR_CD,
+fnl_pstagg_out.MEAS_DIM_MBR_CD as MEAS_DIM_MBR_CD,
+fnl_pstagg_out.ORG_DIM_MBR_CD as ORG_DIM_MBR_CD,
+'NoChangeItem' as CHG_ITEM_DIM_MBR_CD,
+'NoChangeType' as CHG_TYP_DIM_MBR_CD,
+'BCA_NoCostResp' as CST_RESP_DIM_MBR_CD,
+'Periodic' as CUM_VIEW_DIM_MBR_CD,
+'Input' as DATA_SRC_DIM_MBR_CD,
+'NoEmploymentType' as EMPL_TYP_DIM_MBR_CD,
+'NoFCC' as FIN_CAT_DIM_MBR_CD,
+'BCA_NoJob' as JOB_DIM_MBR_CD,
+'Whole' as SCALE_DIM_MBR_CD,
+'ActLd' as SCENR_DIM_MBR_CD,
+'Final' as VER_DIM_MBR_CD,
+'FY' || right ( fnl_pstagg_out.FISC_YR_NBR , 2 ) as YR_DIM_MBR_CD,
+fnl_pstagg_out.ACCT_CD as ACCT_CD,
+fnl_pstagg_out.ACCTG_BUS_UN_CD as ACCTG_BUS_UN_CD,
+fnl_pstagg_out.ACCTG_DEPT_ID as ACCTG_DEPT_ID,
+fnl_pstagg_out.ACCTG_DT as ACCTG_DT,
+fnl_pstagg_out.ANLYS_TYP_CD as ANLYS_TYP_CD,
+fnl_pstagg_out.AVG_RT_SEL_CD as AVG_RT_SEL_CD,
+fnl_pstagg_out.CLS_CD as CLS_CD,
+fnl_pstagg_out.DATA_REC_TYP_CD as DATA_REC_TYP_CD,
+fnl_pstagg_out.ACCTG_LOC_CD as ACCTG_LOC_CD,
+fnl_pstagg_out.BCA_SRC_CD as BCA_SRC_CD,
+fnl_pstagg_out.FISC_MNTH_NBR as FISC_MNTH_NBR,
+fnl_pstagg_out.FISC_YR_NBR as FISC_YR_NBR,
+fnl_pstagg_out.JV_ITEM_CD as JV_ITEM_CD,
+fnl_pstagg_out.PRJ_TRNS_CD as PRJ_TRNS_CD,
+'{pPROC_MNTH}' as PROC_MNTH_NBR,
+'{pPROC_YR}' as PROC_YR_NBR,
+fnl_pstagg_out.LBR_RT_CD as LBR_RT_CD,
+fnl_pstagg_out.RES_QTY as RSRC_QTY,
+fnl_pstagg_out.RES_AMT as RSRC_AMT,
+fnl_pstagg_out.VAL_AMT as VAL_AMT,
+'EAS' as SRC_SYS_ID,
+'N' as LOAD_ERR_FLG,
+'S' as DATA_ORIG_IND,
+'{starttime}' as CREATED_EW_DTTM,
+'{starttime}' as LASTUPD_EW_DTTM,
+'{pBATCH_SID}' as BATCH_ID
+FROM
+fnl_pstagg_out""")
+out_BCA_PRRTD_LABOR_DTL.createOrReplaceTempView("out_BCA_PRRTD_LABOR_DTL")
+
+
+# COMMAND ----------
+# Component mv_ERR_BCA_PRRTD_LABOR_DTL, Type TARGET Original node name TGT_BC=
+A_PRRTD_LABOR_DTL, link mv_ERR_BCA_PRRTD_LABOR_DTL
+# COMMAND ----------
+# Component mv_ERR_BCA_PRRTD_LABOR_DTL, Type INSERT=20
+spark.sql("""INSERT INTO EFBI_#CARMS_RPTG_PARAMETER_SET.$TD_EFBI_EV#_CARMS_R.=
+BCA_PRRTD_LABOR_DTL
+(
+FCST_ELT_DIM_MBR_CD,
+MEAS_DIM_MBR_CD,
+ORG_DIM_MBR_CD,
+CHG_ITEM_DIM_MBR_CD,
+CHG_TYP_DIM_MBR_CD,
+CST_RESP_DIM_MBR_CD,
+CUM_VIEW_DIM_MBR_CD,
+DATA_SRC_DIM_MBR_CD,
+EMPL_TYP_DIM_MBR_CD,
+FIN_CAT_DIM_MBR_CD,
+JOB_DIM_MBR_CD,
+SCALE_DIM_MBR_CD,
+SCENR_DIM_MBR_CD,
+VER_DIM_MBR_CD,
+YR_DIM_MBR_CD,
+ACCT_CD,
+ACCTG_BUS_UN_CD,
+ACCTG_DEPT_ID,
+ACCTG_DT,
+ANLYS_TYP_CD,
+AVG_RT_SEL_CD,
+CLS_CD,
+DATA_REC_TYP_CD,
+ACCTG_LOC_CD,
+BCA_SRC_CD,
+FISC_MNTH_NBR,
+FISC_YR_NBR,
+JV_ITEM_CD,
+PRJ_TRNS_CD,
+PROC_MNTH_NBR,
+PROC_YR_NBR,
+LBR_RT_CD,
+RSRC_QTY,
+RSRC_AMT,
+VAL_AMT,
+SRC_SYS_ID,
+LOAD_ERR_FLG,
+DATA_ORIG_IND,
+CREATED_EW_DTTM,
+LASTUPD_EW_DTTM,
+BATCH_ID
+)
+SELECT
+out_BCA_PRRTD_LABOR_DTL.FCST_ELT_DIM_MBR_CD,
+out_BCA_PRRTD_LABOR_DTL.MEAS_DIM_MBR_CD,
+out_BCA_PRRTD_LABOR_DTL.ORG_DIM_MBR_CD,
+out_BCA_PRRTD_LABOR_DTL.CHG_ITEM_DIM_MBR_CD,
+out_BCA_PRRTD_LABOR_DTL.CHG_TYP_DIM_MBR_CD,
+out_BCA_PRRTD_LABOR_DTL.CST_RESP_DIM_MBR_CD,
+out_BCA_PRRTD_LABOR_DTL.CUM_VIEW_DIM_MBR_CD,
+out_BCA_PRRTD_LABOR_DTL.DATA_SRC_DIM_MBR_CD,
+out_BCA_PRRTD_LABOR_DTL.EMPL_TYP_DIM_MBR_CD,
+out_BCA_PRRTD_LABOR_DTL.FIN_CAT_DIM_MBR_CD,
+out_BCA_PRRTD_LABOR_DTL.JOB_DIM_MBR_CD,
+out_BCA_PRRTD_LABOR_DTL.SCALE_DIM_MBR_CD,
+out_BCA_PRRTD_LABOR_DTL.SCENR_DIM_MBR_CD,
+out_BCA_PRRTD_LABOR_DTL.VER_DIM_MBR_CD,
+out_BCA_PRRTD_LABOR_DTL.YR_DIM_MBR_CD,
+out_BCA_PRRTD_LABOR_DTL.ACCT_CD,
+out_BCA_PRRTD_LABOR_DTL.ACCTG_BUS_UN_CD,
+out_BCA_PRRTD_LABOR_DTL.ACCTG_DEPT_ID,
+out_BCA_PRRTD_LABOR_DTL.ACCTG_DT,
+out_BCA_PRRTD_LABOR_DTL.ANLYS_TYP_CD,
+out_BCA_PRRTD_LABOR_DTL.AVG_RT_SEL_CD,
+out_BCA_PRRTD_LABOR_DTL.CLS_CD,
+out_BCA_PRRTD_LABOR_DTL.DATA_REC_TYP_CD,
+out_BCA_PRRTD_LABOR_DTL.ACCTG_LOC_CD,
+out_BCA_PRRTD_LABOR_DTL.BCA_SRC_CD,
+out_BCA_PRRTD_LABOR_DTL.FISC_MNTH_NBR,
+out_BCA_PRRTD_LABOR_DTL.FISC_YR_NBR,
+out_BCA_PRRTD_LABOR_DTL.JV_ITEM_CD,
+out_BCA_PRRTD_LABOR_DTL.PRJ_TRNS_CD,
+out_BCA_PRRTD_LABOR_DTL.PROC_MNTH_NBR,
+out_BCA_PRRTD_LABOR_DTL.PROC_YR_NBR,
+out_BCA_PRRTD_LABOR_DTL.LBR_RT_CD,
+out_BCA_PRRTD_LABOR_DTL.RSRC_QTY,
+out_BCA_PRRTD_LABOR_DTL.RSRC_AMT,
+out_BCA_PRRTD_LABOR_DTL.VAL_AMT,
+out_BCA_PRRTD_LABOR_DTL.SRC_SYS_ID,
+out_BCA_PRRTD_LABOR_DTL.LOAD_ERR_FLG,
+out_BCA_PRRTD_LABOR_DTL.DATA_ORIG_IND,
+out_BCA_PRRTD_LABOR_DTL.CREATED_EW_DTTM,
+out_BCA_PRRTD_LABOR_DTL.LASTUPD_EW_DTTM,
+out_BCA_PRRTD_LABOR_DTL.BATCH_ID
+FROM
+out_BCA_PRRTD_LABOR_DTL""")
+
+
+# COMMAND ----------
+# Component err_ERR_BCA_PRRTD_LABOR_DTL_INS, Type TRANSFORMATION Original nod=
+e name ERR_XFM, link err_ERR_BCA_PRRTD_LABOR_DTL_INS
+err_ERR_BCA_PRRTD_LABOR_DTL_INS =3D spark.sql(f"""
+SELECT
+mv_ERR_BCA_PRRTD_LABOR_DTL.FCST_ELT_DIM_MBR_CD as FCST_ELT_DIM_MBR_CD,
+mv_ERR_BCA_PRRTD_LABOR_DTL.MEAS_DIM_MBR_CD as MEAS_DIM_MBR_CD,
+mv_ERR_BCA_PRRTD_LABOR_DTL.ORG_DIM_MBR_CD as ORG_DIM_MBR_CD,
+mv_ERR_BCA_PRRTD_LABOR_DTL.CHG_ITEM_DIM_MBR_CD as CHG_ITEM_DIM_MBR_CD,
+mv_ERR_BCA_PRRTD_LABOR_DTL.CHG_TYP_DIM_MBR_CD as CHG_TYP_DIM_MBR_CD,
+mv_ERR_BCA_PRRTD_LABOR_DTL.CST_RESP_DIM_MBR_CD as CST_RESP_DIM_MBR_CD,
+mv_ERR_BCA_PRRTD_LABOR_DTL.CUM_VIEW_DIM_MBR_CD as CUM_VIEW_DIM_MBR_CD,
+mv_ERR_BCA_PRRTD_LABOR_DTL.DATA_SRC_DIM_MBR_CD as DATA_SRC_DIM_MBR_CD,
+mv_ERR_BCA_PRRTD_LABOR_DTL.EMPL_TYP_DIM_MBR_CD as EMPL_TYP_DIM_MBR_CD,
+mv_ERR_BCA_PRRTD_LABOR_DTL.FIN_CAT_DIM_MBR_CD as FIN_CAT_DIM_MBR_CD,
+mv_ERR_BCA_PRRTD_LABOR_DTL.JOB_DIM_MBR_CD as JOB_DIM_MBR_CD,
+mv_ERR_BCA_PRRTD_LABOR_DTL.SCALE_DIM_MBR_CD as SCALE_DIM_MBR_CD,
+mv_ERR_BCA_PRRTD_LABOR_DTL.SCENR_DIM_MBR_CD as SCENR_DIM_MBR_CD,
+mv_ERR_BCA_PRRTD_LABOR_DTL.VER_DIM_MBR_CD as VER_DIM_MBR_CD,
+mv_ERR_BCA_PRRTD_LABOR_DTL.YR_DIM_MBR_CD as YR_DIM_MBR_CD,
+mv_ERR_BCA_PRRTD_LABOR_DTL.ACCT_CD as ACCT_CD,
+mv_ERR_BCA_PRRTD_LABOR_DTL.ACCTG_BUS_UN_CD as ACCTG_BUS_UN_CD,
+mv_ERR_BCA_PRRTD_LABOR_DTL.ACCTG_DEPT_ID as ACCTG_DEPT_ID,
+mv_ERR_BCA_PRRTD_LABOR_DTL.ACCTG_DT as ACCTG_DT,
+mv_ERR_BCA_PRRTD_LABOR_DTL.ANLYS_TYP_CD as ANLYS_TYP_CD,
+mv_ERR_BCA_PRRTD_LABOR_DTL.AVG_RT_SEL_CD as AVG_RT_SEL_CD,
+mv_ERR_BCA_PRRTD_LABOR_DTL.CLS_CD as CLS_CD,
+mv_ERR_BCA_PRRTD_LABOR_DTL.DATA_REC_TYP_CD as DATA_REC_TYP_CD,
+mv_ERR_BCA_PRRTD_LABOR_DTL.ACCTG_LOC_CD as ACCTG_LOC_CD,
+mv_ERR_BCA_PRRTD_LABOR_DTL.BCA_SRC_CD as BCA_SRC_CD,
+mv_ERR_BCA_PRRTD_LABOR_DTL.FISC_MNTH_NBR as FISC_MNTH_NBR,
+mv_ERR_BCA_PRRTD_LABOR_DTL.FISC_YR_NBR as FISC_YR_NBR,
+mv_ERR_BCA_PRRTD_LABOR_DTL.JV_ITEM_CD as JV_ITEM_CD,
+mv_ERR_BCA_PRRTD_LABOR_DTL.PRJ_TRNS_CD as PRJ_TRNS_CD,
+mv_ERR_BCA_PRRTD_LABOR_DTL.PROC_MNTH_NBR as PROC_MNTH_NBR,
+mv_ERR_BCA_PRRTD_LABOR_DTL.PROC_YR_NBR as PROC_YR_NBR,
+mv_ERR_BCA_PRRTD_LABOR_DTL.LBR_RT_CD as LBR_RT_CD,
+mv_ERR_BCA_PRRTD_LABOR_DTL.RSRC_QTY as RSRC_QTY,
+mv_ERR_BCA_PRRTD_LABOR_DTL.RSRC_AMT as RSRC_AMT,
+mv_ERR_BCA_PRRTD_LABOR_DTL.VAL_AMT as VAL_AMT,
+mv_ERR_BCA_PRRTD_LABOR_DTL.SRC_SYS_ID as SRC_SYS_ID,
+mv_ERR_BCA_PRRTD_LABOR_DTL.LOAD_ERR_FLG as LOAD_ERR_FLG,
+mv_ERR_BCA_PRRTD_LABOR_DTL.DATA_ORIG_IND as DATA_ORIG_IND,
+mv_ERR_BCA_PRRTD_LABOR_DTL.CREATED_EW_DTTM as CREATED_EW_DTTM,
+mv_ERR_BCA_PRRTD_LABOR_DTL.LASTUPD_EW_DTTM as LASTUPD_EW_DTTM,
+mv_ERR_BCA_PRRTD_LABOR_DTL.BATCH_ID as BATCH_ID,
+mv_ERR_BCA_PRRTD_LABOR_DTL.RejectERRORCODE as RejectERRORCODE,
+mv_ERR_BCA_PRRTD_LABOR_DTL.RejectERRORTEXT as RejectERRORTEXT,
+mv_ERR_BCA_PRRTD_LABOR_DTL.RejectTERA_SQLCODE as RejectTERA_SQLCODE,
+mv_ERR_BCA_PRRTD_LABOR_DTL.RejectTERA_ERRORFIELD as RejectTERA_ERRORFIELD,
+mv_ERR_BCA_PRRTD_LABOR_DTL.RejectTERA_STMTNO as RejectTERA_STMTNO,
+mv_ERR_BCA_PRRTD_LABOR_DTL.RejectTERA_ACTIVITYTYPE as RejectTERA_ACTIVITYTYPE,
+mv_ERR_BCA_PRRTD_LABOR_DTL.RejectTERA_ACTIVITYCOUNT as RejectTERA_ACTIVITYCOU=
+NT
+FROM
+mv_ERR_BCA_PRRTD_LABOR_DTL""")
+err_ERR_BCA_PRRTD_LABOR_DTL_INS.createOrReplaceTempView("err_ERR_BCA_PRRTD_LA=
+BOR_DTL_INS")
+
+
+# COMMAND ----------
+# Component ERR_BCA_PRRTD_LABOR_DTL_INS, Type TARGET=20
+
+ERR_BCA_PRRTD_LABOR_DTL_INS =3D err_ERR_BCA_PRRTD_LABOR_DTL_INS.select( \
+	err_ERR_BCA_PRRTD_LABOR_DTL_INS.FCST_ELT_DIM_MBR_CD.alias('FCST_ELT_DIM_MBR_=
+CD'), \
+	err_ERR_BCA_PRRTD_LABOR_DTL_INS.MEAS_DIM_MBR_CD.alias('MEAS_DIM_MBR_CD'), \
+	err_ERR_BCA_PRRTD_LABOR_DTL_INS.ORG_DIM_MBR_CD.alias('ORG_DIM_MBR_CD'), \
+	err_ERR_BCA_PRRTD_LABOR_DTL_INS.CHG_ITEM_DIM_MBR_CD.alias('CHG_ITEM_DIM_MBR_=
+CD'), \
+	err_ERR_BCA_PRRTD_LABOR_DTL_INS.CHG_TYP_DIM_MBR_CD.alias('CHG_TYP_DIM_MBR_CD=
+'), \
+	err_ERR_BCA_PRRTD_LABOR_DTL_INS.CST_RESP_DIM_MBR_CD.alias('CST_RESP_DIM_MBR_=
+CD'), \
+	err_ERR_BCA_PRRTD_LABOR_DTL_INS.CUM_VIEW_DIM_MBR_CD.alias('CUM_VIEW_DIM_MBR_=
+CD'), \
+	err_ERR_BCA_PRRTD_LABOR_DTL_INS.DATA_SRC_DIM_MBR_CD.alias('DATA_SRC_DIM_MBR_=
+CD'), \
+	err_ERR_BCA_PRRTD_LABOR_DTL_INS.EMPL_TYP_DIM_MBR_CD.alias('EMPL_TYP_DIM_MBR_=
+CD'), \
+	err_ERR_BCA_PRRTD_LABOR_DTL_INS.FIN_CAT_DIM_MBR_CD.alias('FIN_CAT_DIM_MBR_CD=
+'), \
+	err_ERR_BCA_PRRTD_LABOR_DTL_INS.JOB_DIM_MBR_CD.alias('JOB_DIM_MBR_CD'), \
+	err_ERR_BCA_PRRTD_LABOR_DTL_INS.SCALE_DIM_MBR_CD.alias('SCALE_DIM_MBR_CD'), \
+	err_ERR_BCA_PRRTD_LABOR_DTL_INS.SCENR_DIM_MBR_CD.alias('SCENR_DIM_MBR_CD'), \
+	err_ERR_BCA_PRRTD_LABOR_DTL_INS.VER_DIM_MBR_CD.alias('VER_DIM_MBR_CD'), \
+	err_ERR_BCA_PRRTD_LABOR_DTL_INS.YR_DIM_MBR_CD.alias('YR_DIM_MBR_CD'), \
+	err_ERR_BCA_PRRTD_LABOR_DTL_INS.ACCT_CD.alias('ACCT_CD'), \
+	err_ERR_BCA_PRRTD_LABOR_DTL_INS.ACCTG_BUS_UN_CD.alias('ACCTG_BUS_UN_CD'), \
+	err_ERR_BCA_PRRTD_LABOR_DTL_INS.ACCTG_DEPT_ID.alias('ACCTG_DEPT_ID'), \
+	err_ERR_BCA_PRRTD_LABOR_DTL_INS.ACCTG_DT.alias('ACCTG_DT'), \
+	err_ERR_BCA_PRRTD_LABOR_DTL_INS.ANLYS_TYP_CD.alias('ANLYS_TYP_CD'), \
+	err_ERR_BCA_PRRTD_LABOR_DTL_INS.AVG_RT_SEL_CD.alias('AVG_RT_SEL_CD'), \
+	err_ERR_BCA_PRRTD_LABOR_DTL_INS.CLS_CD.alias('CLS_CD'), \
+	err_ERR_BCA_PRRTD_LABOR_DTL_INS.DATA_REC_TYP_CD.alias('DATA_REC_TYP_CD'), \
+	err_ERR_BCA_PRRTD_LABOR_DTL_INS.ACCTG_LOC_CD.alias('ACCTG_LOC_CD'), \
+	err_ERR_BCA_PRRTD_LABOR_DTL_INS.BCA_SRC_CD.alias('BCA_SRC_CD'), \
+	err_ERR_BCA_PRRTD_LABOR_DTL_INS.FISC_MNTH_NBR.alias('FISC_MNTH_NBR'), \
+	err_ERR_BCA_PRRTD_LABOR_DTL_INS.FISC_YR_NBR.alias('FISC_YR_NBR'), \
+	err_ERR_BCA_PRRTD_LABOR_DTL_INS.JV_ITEM_CD.alias('JV_ITEM_CD'), \
+	err_ERR_BCA_PRRTD_LABOR_DTL_INS.PRJ_TRNS_CD.alias('PRJ_TRNS_CD'), \
+	err_ERR_BCA_PRRTD_LABOR_DTL_INS.PROC_MNTH_NBR.alias('PROC_MNTH_NBR'), \
+	err_ERR_BCA_PRRTD_LABOR_DTL_INS.PROC_YR_NBR.alias('PROC_YR_NBR'), \
+	err_ERR_BCA_PRRTD_LABOR_DTL_INS.LBR_RT_CD.alias('LBR_RT_CD'), \
+	err_ERR_BCA_PRRTD_LABOR_DTL_INS.RSRC_QTY.alias('RSRC_QTY'), \
+	err_ERR_BCA_PRRTD_LABOR_DTL_INS.RSRC_AMT.alias('RSRC_AMT'), \
+	err_ERR_BCA_PRRTD_LABOR_DTL_INS.VAL_AMT.alias('VAL_AMT'), \
+	err_ERR_BCA_PRRTD_LABOR_DTL_INS.SRC_SYS_ID.alias('SRC_SYS_ID'), \
+	err_ERR_BCA_PRRTD_LABOR_DTL_INS.LOAD_ERR_FLG.alias('LOAD_ERR_FLG'), \
+	err_ERR_BCA_PRRTD_LABOR_DTL_INS.DATA_ORIG_IND.alias('DATA_ORIG_IND'), \
+	err_ERR_BCA_PRRTD_LABOR_DTL_INS.CREATED_EW_DTTM.alias('CREATED_EW_DTTM'), \
+	err_ERR_BCA_PRRTD_LABOR_DTL_INS.LASTUPD_EW_DTTM.alias('LASTUPD_EW_DTTM'), \
+	err_ERR_BCA_PRRTD_LABOR_DTL_INS.BATCH_ID.alias('BATCH_ID'), \
+	err_ERR_BCA_PRRTD_LABOR_DTL_INS.RejectERRORCODE.alias('RejectERRORCODE'), \
+	err_ERR_BCA_PRRTD_LABOR_DTL_INS.RejectERRORTEXT.alias('RejectERRORTEXT'), \
+	err_ERR_BCA_PRRTD_LABOR_DTL_INS.RejectTERA_SQLCODE.alias('RejectTERA_SQLCODE=
+'), \
+	err_ERR_BCA_PRRTD_LABOR_DTL_INS.RejectTERA_ERRORFIELD.alias('RejectTERA_ERRO=
+RFIELD'), \
+	err_ERR_BCA_PRRTD_LABOR_DTL_INS.RejectTERA_STMTNO.alias('RejectTERA_STMTNO')=
+, \
+	err_ERR_BCA_PRRTD_LABOR_DTL_INS.RejectTERA_ACTIVITYTYPE.alias('RejectTERA_AC=
+TIVITYTYPE'), \
+	err_ERR_BCA_PRRTD_LABOR_DTL_INS.RejectTERA_ACTIVITYCOUNT.alias('RejectTERA_A=
+CTIVITYCOUNT') \
+)
+ERR_BCA_PRRTD_LABOR_DTL_INS.write.format('csv').option('header','true').mode(=
+'overwrite').option('sep','').csv(f'''#CARMS_RPTG_PARAMETER_SET.$DATA_FILE_DI=
+R#/errors/ERR_BCA_PRRTD_LABOR_DTL_INS.txt''')
+
+--===============1634324814236828712==
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+Content-Disposition: attachment;
+ filename*0*=us-ascii''Jobs%2FCARMS%2FRPTG%2FBCA_PRRTD_LABOR_DTL%2FPXJ_CARMS_;
+ filename*1*=BCA_PRRTD_LABOR_DTL_20_upd_rpt.py
+MIME-Version: 1.0
+
+#Code converted on 2025-06-04 13:32:27
+import os
+from pyspark.sql import *
+from pyspark.sql.functions import *
+from pyspark import SparkContext
+from pyspark.sql.functions import lit, to_timestamp, when, expr, col, explode
+from databricks_conversion_supplements import DatabricksConversionSupplements
+
+
+# COMMAND ----------
+
+dbutils.widgets.text(name =3D 'pBATCH_SID', defaultValue =3D '')
+pBATCH_SID =3D dbutils.widgets.get("pBATCH_SID")
+
+dbutils.widgets.text(name =3D 'APT_CONFIG_FILE', defaultValue =3D '$PROJDEF')
+APT_CONFIG_FILE =3D dbutils.widgets.get("APT_CONFIG_FILE")
+
+dbutils.widgets.text(name =3D 'CARMS_RPTG_PARAMETER_SET', defaultValue =3D '')
+CARMS_RPTG_PARAMETER_SET =3D dbutils.widgets.get("CARMS_RPTG_PARAMETER_SET")
+
+dbutils.widgets.text(name =3D 'ConfigParameterSet_pTDClientCharsetOut', defau=
+ltValue =3D '')
+ConfigParameterSet_pTDClientCharsetOut =3D dbutils.widgets.get("ConfigParamet=
+erSet_pTDClientCharsetOut")
+
+dbutils.widgets.text(name =3D 'ConfigParameterSet_pTDMaxBufferOut', defaultVa=
+lue =3D '')
+ConfigParameterSet_pTDMaxBufferOut =3D dbutils.widgets.get("ConfigParameterSe=
+t_pTDMaxBufferOut")
+
+
+# COMMAND ----------
+# Component TGT_BCA_PRRTD_LABOR_DTL, Type Pre SQL=20
+spark.sql(f"""BT""")
+
+# COMMAND ----------
+# Component TGT_BCA_PRRTD_LABOR_DTL, Type Pre SQL=20
+spark.sql(f"""/* when ACCTG_BUS_UN_CD  =3D'66'   OR =3D'76'  */""")
+
+# COMMAND ----------
+# Component TGT_BCA_PRRTD_LABOR_DTL, Type Pre SQL=20
+spark.sql(f"""update T1=20
+from EFBI_#CARMS_RPTG_PARAMETER_SET.$TD_EFBI_EV#_CARMS_R.BCA_PRRTD_LABOR_DTL =
+as T1,
+EFBI_#CARMS_RPTG_PARAMETER_SET.$TD_EFBI_EV#_FHM_B.FHM_BCA_ORG T2,
+EFBI_#CARMS_RPTG_PARAMETER_SET.$TD_EFBI_EV#_ETL_CTRL_B.CAL_PROC_RPTG_PER AS C=
+AL
+set LASTUPD_EW_DTTM =3D '${DSJOBSTARTTIMESTAMP}'
+, BATCH_ID =3D ${PBATCH_SID}
+, ORG_DIM_MBR_CD =3D  T2.ORG_DIM_MBR_CD
+where CAL.SET_ID =3D 'EFBI' =20
+AND CAL.CAL_ID =3D 'FM' =20
+AND CAL.PER_ID =3D 'MBC' =20
+/* Get records for current year and 4 Prior Years)  */=20
+AND (T1.FISC_YR_NBR <=3D CAL.YR_NBR=20
+AND T1.FISC_YR_NBR >=3D (CAL.YR_NBR-4))=20
+AND T1.ACCTG_BUS_UN_CD =3D T2.ACCTG_BUS_UN_CD                         =20
+AND T2.LBR_RATE_CD =3D T1.LBR_RT_CD                        =20
+AND T2.SRC_DEL_FLG =3D 'N'                         =20
+AND T2.CST_MGMT_MBR_TYP_NM =3D 'Labor Rate Group'                       =20
+AND T2.EFF_END_DT =3D '9999-12-31'
+AND (T1.ACCTG_BUS_UN_CD  in ('66', '76'))""")
+
+# COMMAND ----------
+# Component TGT_BCA_PRRTD_LABOR_DTL, Type Pre SQL=20
+spark.sql(f"""ET""")
+
+
+# COMMAND ----------
+# Component out_BCA_PRRTD_LABOR_DTL, Type ROW_GENERATOR Original node name Ro=
+w_Generator_0, link out_BCA_PRRTD_LABOR_DTL
+out_BCA_PRRTD_LABOR_DTL =3D spark.sql(f"""
+SELECT
+100 as BATCH_ID""")
+out_BCA_PRRTD_LABOR_DTL.createOrReplaceTempView("out_BCA_PRRTD_LABOR_DTL")
+
+
+# COMMAND ----------
+# Component TGT_BCA_PRRTD_LABOR_DTL, Type TARGET=20
+# COMMAND ----------
+# Component TGT_BCA_PRRTD_LABOR_DTL, Type INSERT=20
+spark.sql("""""")
+
+--===============1634324814236828712==
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+Content-Disposition: attachment;
+ filename*0*=us-ascii''Jobs%2FCARMS%2FRPTG%2FBCA_PRRTD_LABOR_DTL%2FSEQX_CARMS;
+ filename*1*=_BCA_PRRTD_LABOR_DTL_10_ins_rpt_Get_PROC_MNTH_SHELL_COMMAND.py
+MIME-Version: 1.0
+
+import os
+command_name_list =3D ["CMD_1"]
+command_list =3D ["""runtdsql.pl --nonewline "select PER_NBR from EFBI_#CARMS=
+_RPTG_PARAMETER_SET.$TD_EFBI_EV#_ETL_CTRL_B.CAL_PROC_RPTG_PER where SET_ID =
+=3D 'EFBI' and CAL_ID =3D 'FM' and PER_ID =3D 'MBC'" """]
+commandCount =3D 0
+for cmd in command_list:
+    print("Executing command " + str(command_name_list[commandCount]))
+    try:
+        os.system(cmd)
+    except Exception as e:
+        print("Execution error: " + str(e))
+    commandCount +=3D 1
+
+--===============1634324814236828712==
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 7bit
+Content-Disposition: attachment;
+ filename*0*=us-ascii''Jobs%2FCARMS%2FRPTG%2FBCA_PRRTD_LABOR_DTL%2FSEQX_CARMS;
+ filename*1*=_BCA_PRRTD_LABOR_DTL_10_ins_rpt_params.py
+MIME-Version: 1.0
+
+
+
+--===============1634324814236828712==
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+Content-Disposition: attachment;
+ filename*0*=us-ascii''Jobs%2FCARMS%2FRPTG%2FBCA_PRRTD_LABOR_DTL%2FSEQX_CARMS;
+ filename*1*=_BCA_PRRTD_LABOR_DTL_20_upd_rpt.json
+MIME-Version: 1.0
+
+{
+   "email_notifications" : {
+      "no_alert_for_skipped_runs" : false,
+      "on_failure" : [
+         "%FAILURE_EMAIL_ADDRESS%"
+      ],
+      "on_start" : [
+         "user.name@databricks.com",
+         "%EMAIL_ADDRESS%"
+      ],
+      "on_success" : [
+         "%SUCCESS_EMAIL_ADDRESS%"
+      ]
+   },
+   "max_concurrent_runs" : 10,
+   "name" : "SEQX_CARMS_BCA_PRRTD_LABOR_DTL_20_upd_rpt",
+   "notification_settings" : {
+      "no_alert_for_canceled_runs" : false,
+      "no_alert_for_skipped_runs" : false
+   },
+   "run_as" : {
+      "user_name" : "%USER_NAME%"
+   },
+   "schedule" : {
+      "pause_status" : "PAUSED",
+      "quartz_cron_expression" : "20 30 * * * ?",
+      "timezone_id" : "Europe/London"
+   },
+   "tags" : {
+      "cost-center" : "engineering",
+      "team" : "jobs"
+   },
+   "tasks" : [
+      {
+         "description" : "",
+         "email_notifications" : {},
+         "existing_cluster_id" : "%CLUSTER_ID%",
+         "notification_settings" : {
+            "alert_on_last_attempt" : false,
+            "no_alert_for_canceled_runs" : false,
+            "no_alert_for_skipped_runs" : false
+         },
+         "spark_python_task" : {
+            "python_file" : "/Workspace/runTest.py"
+         },
+         "task_key" : "Exception_Handle",
+         "webhook_notifications" : {}
+      },
+      {
+         "depends_on" : [
+            {
+               "task_key" : "General_SendMail"
+            }
+         ],
+         "description" : "",
+         "email_notifications" : {},
+         "existing_cluster_id" : "%CLUSTER_ID%",
+         "notification_settings" : {
+            "alert_on_last_attempt" : false,
+            "no_alert_for_canceled_runs" : false,
+            "no_alert_for_skipped_runs" : false
+         },
+         "run_if" : "ALL_SUCCESS",
+         "spark_python_task" : {
+            "python_file" : "/Workspace/runTest.py"
+         },
+         "task_key" : "General_Terminator_Activity",
+         "webhook_notifications" : {}
+      },
+      {
+         "depends_on" : [
+            {
+               "task_key" : "CheckConfigFile"
+            }
+         ],
+         "description" : "",
+         "email_notifications" : {},
+         "existing_cluster_id" : "%CLUSTER_ID%",
+         "max_retries" : 3,
+         "min_retry_interval_millis" : 2000,
+         "notebook_task" : {
+            "notebook_path" : "/Workspace/Users/SEQX_CARMS_BCA_PRRTD_LABOR_DT=
+L_20_upd_rpt",
+            "source" : "WORKSPACE"
+         },
+         "notification_settings" : {
+            "alert_on_last_attempt" : false,
+            "no_alert_for_canceled_runs" : false,
+            "no_alert_for_skipped_runs" : false
+         },
+         "retry_on_timeout" : false,
+         "run_if" : "ALL_SUCCESS",
+         "task_key" : "PXJ_CARMS_BCA_PRRTD_LABOR_DTL_20_upd_rpt",
+         "webhook_notifications" : {}
+      },
+      {
+         "depends_on" : [
+            {
+               "task_key" : "PXSaveJobInfo"
+            }
+         ],
+         "description" : "",
+         "email_notifications" : {},
+         "existing_cluster_id" : "%CLUSTER_ID%",
+         "max_retries" : 3,
+         "min_retry_interval_millis" : 2000,
+         "notebook_task" : {
+            "notebook_path" : "/Workspace/Users/SEQX_CARMS_BCA_PRRTD_LABOR_DT=
+L_20_upd_rpt",
+            "source" : "WORKSPACE"
+         },
+         "notification_settings" : {
+            "alert_on_last_attempt" : false,
+            "no_alert_for_canceled_runs" : false,
+            "no_alert_for_skipped_runs" : false
+         },
+         "retry_on_timeout" : false,
+         "run_if" : "ALL_SUCCESS",
+         "task_key" : "XJ_ETL_AUDIT",
+         "webhook_notifications" : {}
+      },
+      {
+         "depends_on" : [
+            {
+               "task_key" : "XJ_ETL_AUDIT"
+            }
+         ],
+         "description" : "",
+         "email_notifications" : {},
+         "existing_cluster_id" : "%CLUSTER_ID%",
+         "max_retries" : 3,
+         "min_retry_interval_millis" : 2000,
+         "notebook_task" : {
+            "notebook_path" : "/Workspace/Users/SEQX_CARMS_BCA_PRRTD_LABOR_DT=
+L_20_upd_rpt",
+            "source" : "WORKSPACE"
+         },
+         "notification_settings" : {
+            "alert_on_last_attempt" : false,
+            "no_alert_for_canceled_runs" : false,
+            "no_alert_for_skipped_runs" : false
+         },
+         "retry_on_timeout" : false,
+         "run_if" : "ALL_SUCCESS",
+         "task_key" : "PXJ_ETL_AUDIT_10_ld_stg",
+         "webhook_notifications" : {}
+      },
+      {
+         "depends_on" : [
+            {
+               "task_key" : "PXJ_ETL_AUDIT_10_ld_stg"
+            }
+         ],
+         "description" : "",
+         "email_notifications" : {},
+         "job_cluster_key" : "auto_scaling_cluster",
+         "notification_settings" : {
+            "alert_on_last_attempt" : false,
+            "no_alert_for_canceled_runs" : false,
+            "no_alert_for_skipped_runs" : false
+         },
+         "run_if" : "ALL_SUCCESS",
+         "spark_python_task" : {
+            "python_file" : "/%TASK_PATH%/SEQX_CARMS_BCA_PRRTD_LABOR_DTL_20_u=
+pd_rpt_RemoveRuntimeFile_SHELL_COMMAND.py"
+         },
+         "task_key" : "RemoveRuntimeFile",
+         "webhook_notifications" : {}
+      },
+      {
+         "depends_on" : [
+            {
+               "task_key" : "RemoveRuntimeFile"
+            }
+         ],
+         "description" : "",
+         "email_notifications" : {},
+         "existing_cluster_id" : "%CLUSTER_ID%",
+         "max_retries" : 3,
+         "min_retry_interval_millis" : 2000,
+         "notebook_task" : {
+            "notebook_path" : "/Workspace/Users/SEQX_CARMS_BCA_PRRTD_LABOR_DT=
+L_20_upd_rpt",
+            "source" : "WORKSPACE"
+         },
+         "notification_settings" : {
+            "alert_on_last_attempt" : false,
+            "no_alert_for_canceled_runs" : false,
+            "no_alert_for_skipped_runs" : false
+         },
+         "retry_on_timeout" : false,
+         "run_if" : "ALL_SUCCESS",
+         "task_key" : "SEQX_TGT_QLTY_CHK_10_up_bs",
+         "webhook_notifications" : {}
+      },
+      {
+         "depends_on" : [
+            {
+               "task_key" : "Abort_SendMail"
+            }
+         ],
+         "description" : "",
+         "email_notifications" : {},
+         "existing_cluster_id" : "%CLUSTER_ID%",
+         "notification_settings" : {
+            "alert_on_last_attempt" : false,
+            "no_alert_for_canceled_runs" : false,
+            "no_alert_for_skipped_runs" : false
+         },
+         "run_if" : "ALL_SUCCESS",
+         "spark_python_task" : {
+            "python_file" : "/Workspace/runTest.py"
+         },
+         "task_key" : "Terminator_Activity",
+         "webhook_notifications" : {}
+      }
+   ],
+   "timeout_seconds" : 86400,
+   "webhook_notifications" : {}
+}
+
+--===============1634324814236828712==
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 7bit
+Content-Disposition: attachment;
+ filename*0*=us-ascii''Jobs%2FCARMS%2FRPTG%2FBCA_PRRTD_LABOR_DTL%2FSEQX_CARMS;
+ filename*1*=_BCA_PRRTD_LABOR_DTL_20_upd_rpt_params.py
+MIME-Version: 1.0
+
+
+
+--===============1634324814236828712==
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+Content-Disposition: attachment;
+ filename*0*=us-ascii''Jobs%2FCARMS%2FRPTG%2FBCA_PRRTD_LABOR_DTL%2FSEQX_CARMS;
+ filename*1*=_BCA_PRRTD_LABOR_DTL_20_upd_rpt_RemoveRuntimeFile_SHELL_COMMAND.;
+ filename*2*=py
+MIME-Version: 1.0
+
+import os
+command_name_list =3D ["CMD_1"]
+command_list =3D ["""find #$DSPROJDATA#/audit -name "#CARMS_RPTG_PARAMETER_SE=
+T.$DSPROJ#_#spJobName#*.txt" -exec rm -rf {} \; """]
+commandCount =3D 0
+for cmd in command_list:
+    print("Executing command " + str(command_name_list[commandCount]))
+    try:
+        os.system(cmd)
+    except Exception as e:
+        print("Execution error: " + str(e))
+    commandCount +=3D 1
+
+--===============1634324814236828712==
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 7bit
+Content-Disposition: attachment;
+ filename="Jobs/Common/QLTY_CHK/SEQX_SRC_QLTY_CHK_ORACLE_10_ld_stg_params.py"
+MIME-Version: 1.0
+
+
+
+--===============1634324814236828712==
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 7bit
+Content-Disposition: attachment; filename="Jobs/Common/QLTY_CHK/runTest.py"
+MIME-Version: 1.0
+
+print("Executing component SEQX_TGT_QLTY_CHK_10_up_stg.Terminator_Activity")
+sys.exit("Aborting SEQX_TGT_QLTY_CHK_10_up_stg.Terminator_Activity")
+
+--===============1634324814236828712==
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+Content-Disposition: attachment;
+ filename*0*=us-ascii''Jobs%2FCommon%2FQLTY_CHK%2FSEQX_SRC_QLTY_CHK_ORACLE_10;
+ filename*1*=_ld_stg_Get_QLTY_CHK_SQL_SHELL_COMMAND.py
+MIME-Version: 1.0
+
+import os
+command_name_list =3D ["CMD_1"]
+command_list =3D ["""runtdsql.pl --nonewline SELECT SRC_SQL_TXT FROM EFBI_#$T=
+D_EFBI_EV#_ETL_CTRL_B.SRC_TRGT_QLTY_CHK_INPUT WHERE SRC_JOB_NM =3D \'#spJobNa=
+me#\' """]
+commandCount =3D 0
+for cmd in command_list:
+    print("Executing command " + str(command_name_list[commandCount]))
+    try:
+        os.system(cmd)
+    except Exception as e:
+        print("Execution error: " + str(e))
+    commandCount +=3D 1
+
+--===============1634324814236828712==
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+Content-Disposition: attachment;
+ filename="Jobs/Common/QLTY_CHK/SEQX_TGT_QLTY_CHK_10_up_stg.json"
+MIME-Version: 1.0
+
+{
+   "email_notifications" : {
+      "no_alert_for_skipped_runs" : false,
+      "on_failure" : [
+         "%FAILURE_EMAIL_ADDRESS%"
+      ],
+      "on_start" : [
+         "user.name@databricks.com",
+         "%EMAIL_ADDRESS%"
+      ],
+      "on_success" : [
+         "%SUCCESS_EMAIL_ADDRESS%"
+      ]
+   },
+   "max_concurrent_runs" : 10,
+   "name" : "SEQX_TGT_QLTY_CHK_10_up_stg",
+   "notification_settings" : {
+      "no_alert_for_canceled_runs" : false,
+      "no_alert_for_skipped_runs" : false
+   },
+   "run_as" : {
+      "user_name" : "%USER_NAME%"
+   },
+   "schedule" : {
+      "pause_status" : "PAUSED",
+      "quartz_cron_expression" : "20 30 * * * ?",
+      "timezone_id" : "Europe/London"
+   },
+   "tags" : {
+      "cost-center" : "engineering",
+      "team" : "jobs"
+   },
+   "tasks" : [
+      {
+         "description" : "",
+         "email_notifications" : {},
+         "existing_cluster_id" : "%CLUSTER_ID%",
+         "notification_settings" : {
+            "alert_on_last_attempt" : false,
+            "no_alert_for_canceled_runs" : false,
+            "no_alert_for_skipped_runs" : false
+         },
+         "spark_python_task" : {
+            "python_file" : "/Workspace/runTest.py"
+         },
+         "task_key" : "Exception_Handle",
+         "webhook_notifications" : {}
+      },
+      {
+         "depends_on" : [
+            {
+               "task_key" : "General_SendMail"
+            }
+         ],
+         "description" : "",
+         "email_notifications" : {},
+         "existing_cluster_id" : "%CLUSTER_ID%",
+         "notification_settings" : {
+            "alert_on_last_attempt" : false,
+            "no_alert_for_canceled_runs" : false,
+            "no_alert_for_skipped_runs" : false
+         },
+         "run_if" : "ALL_SUCCESS",
+         "spark_python_task" : {
+            "python_file" : "/Workspace/runTest.py"
+         },
+         "task_key" : "General_Terminator_Activity",
+         "webhook_notifications" : {}
+      },
+      {
+         "description" : "",
+         "email_notifications" : {},
+         "job_cluster_key" : "auto_scaling_cluster",
+         "notification_settings" : {
+            "alert_on_last_attempt" : false,
+            "no_alert_for_canceled_runs" : false,
+            "no_alert_for_skipped_runs" : false
+         },
+         "spark_python_task" : {
+            "python_file" : "/%TASK_PATH%/SEQX_TGT_QLTY_CHK_10_up_stg_Get_QLT=
+Y_CHK_SQL_SHELL_COMMAND.py"
+         },
+         "task_key" : "Get_QLTY_CHK_SQL",
+         "webhook_notifications" : {}
+      },
+      {
+         "depends_on" : [
+            {
+               "task_key" : "Job_Status"
+            }
+         ],
+         "description" : "",
+         "email_notifications" : {},
+         "existing_cluster_id" : "%CLUSTER_ID%",
+         "max_retries" : 3,
+         "min_retry_interval_millis" : 2000,
+         "notebook_task" : {
+            "notebook_path" : "/Workspace/Users/SEQX_TGT_QLTY_CHK_10_up_stg",
+            "source" : "WORKSPACE"
+         },
+         "notification_settings" : {
+            "alert_on_last_attempt" : false,
+            "no_alert_for_canceled_runs" : false,
+            "no_alert_for_skipped_runs" : false
+         },
+         "retry_on_timeout" : false,
+         "run_if" : "ALL_SUCCESS",
+         "task_key" : "PXJ_TGT_QLTY_CHK_10_up_stg",
+         "webhook_notifications" : {}
+      },
+      {
+         "depends_on" : [
+            {
+               "task_key" : "PXJ_TGT_QLTY_CHK_10_up_stg"
+            }
+         ],
+         "description" : "",
+         "email_notifications" : {},
+         "job_cluster_key" : "auto_scaling_cluster",
+         "notification_settings" : {
+            "alert_on_last_attempt" : false,
+            "no_alert_for_canceled_runs" : false,
+            "no_alert_for_skipped_runs" : false
+         },
+         "run_if" : "ALL_SUCCESS",
+         "spark_python_task" : {
+            "python_file" : "/%TASK_PATH%/SEQX_TGT_QLTY_CHK_10_up_stg_Get_QLT=
+Y_Chk_Err_SHELL_COMMAND.py"
+         },
+         "task_key" : "Get_QLTY_Chk_Err",
+         "webhook_notifications" : {}
+      },
+      {
+         "depends_on" : [
+            {
+               "task_key" : "Get_QLTY_Chk_Err"
+            }
+         ],
+         "description" : "",
+         "email_notifications" : {},
+         "job_cluster_key" : "auto_scaling_cluster",
+         "notification_settings" : {
+            "alert_on_last_attempt" : false,
+            "no_alert_for_canceled_runs" : false,
+            "no_alert_for_skipped_runs" : false
+         },
+         "run_if" : "ALL_SUCCESS",
+         "spark_python_task" : {
+            "python_file" : "/%TASK_PATH%/SEQX_TGT_QLTY_CHK_10_up_stg_Get_QLT=
+Y_Chk_Res_SHELL_COMMAND.py"
+         },
+         "task_key" : "Get_QLTY_Chk_Res",
+         "webhook_notifications" : {}
+      },
+      {
+         "depends_on" : [
+            {
+               "task_key" : "UtilityEmailAndAbort"
+            }
+         ],
+         "description" : "",
+         "email_notifications" : {},
+         "existing_cluster_id" : "%CLUSTER_ID%",
+         "notification_settings" : {
+            "alert_on_last_attempt" : false,
+            "no_alert_for_canceled_runs" : false,
+            "no_alert_for_skipped_runs" : false
+         },
+         "run_if" : "ALL_SUCCESS",
+         "spark_python_task" : {
+            "python_file" : "/Workspace/runTest.py"
+         },
+         "task_key" : "Terminator_Activity",
+         "webhook_notifications" : {}
+      }
+   ],
+   "timeout_seconds" : 86400,
+   "webhook_notifications" : {}
+}
+
+--===============1634324814236828712==
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 7bit
+Content-Disposition: attachment;
+ filename="Jobs/Common/QLTY_CHK/SEQX_TGT_QLTY_CHK_10_up_stg_params.py"
+MIME-Version: 1.0
+
+
+
+--===============1634324814236828712==
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+Content-Disposition: attachment;
+ filename*0*=us-ascii''Jobs%2FCommon%2FQLTY_CHK%2FSEQX_TGT_QLTY_CHK_10_up_stg;
+ filename*1*=_Get_QLTY_Chk_Err_SHELL_COMMAND.py
+MIME-Version: 1.0
+
+import os
+command_name_list =3D ["CMD_1"]
+command_list =3D ["""runtdsql.pl --nonewline "SELECT LOAD_ERROR FROM EFBI_#$T=
+D_EFBI_EV#_ETL_CTRL_B.SRC_TRGT_QLTY_CHK_OUTPUT WHERE TRGT_JOB_NM=3D'#spJobNam=
+e#' AND CREATED_EW_DTTM=3D (SELECT MAX(CREATED_EW_DTTM)  FROM  EFBI_#$TD_EFBI=
+_EV#_ETL_CTRL_B.SRC_TRGT_QLTY_CHK_OUTPUT WHERE TRGT_JOB_NM=3D'#spJobName#' )"=
+ """]
+commandCount =3D 0
+for cmd in command_list:
+    print("Executing command " + str(command_name_list[commandCount]))
+    try:
+        os.system(cmd)
+    except Exception as e:
+        print("Execution error: " + str(e))
+    commandCount +=3D 1
+
+--===============1634324814236828712==
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+Content-Disposition: attachment;
+ filename*0*=us-ascii''Jobs%2FCommon%2FQLTY_CHK%2FSEQX_TGT_QLTY_CHK_10_up_stg;
+ filename*1*=_Get_QLTY_CHK_SQL_SHELL_COMMAND.py
+MIME-Version: 1.0
+
+import os
+command_name_list =3D ["CMD_1"]
+command_list =3D ["""runtdsql.pl --nonewline SELECT TRGT_SQL_TXT FROM EFBI_#$=
+TD_EFBI_EV#_ETL_CTRL_B.SRC_TRGT_QLTY_CHK_INPUT WHERE TRGT_JOB_NM =3D \'#spJob=
+Name#\' """]
+commandCount =3D 0
+for cmd in command_list:
+    print("Executing command " + str(command_name_list[commandCount]))
+    try:
+        os.system(cmd)
+    except Exception as e:
+        print("Execution error: " + str(e))
+    commandCount +=3D 1
+
+--===============1634324814236828712==
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+Content-Disposition: attachment;
+ filename="Jobs/Common/QLTY_CHK/PXJ_TGT_QLTY_CHK_10_up_stg.py"
+MIME-Version: 1.0
+
+#Code converted on 2025-06-04 13:32:37
+import os
+from pyspark.sql import *
+from pyspark.sql.functions import *
+from pyspark import SparkContext
+from pyspark.sql.functions import lit, to_timestamp, when, expr, col, explode
+from databricks_conversion_supplements import DatabricksConversionSupplements
+
+
+# COMMAND ----------
+
+dbutils.widgets.text(name =3D 'pBATCH_SID', defaultValue =3D '')
+pBATCH_SID =3D dbutils.widgets.get("pBATCH_SID")
+
+dbutils.widgets.text(name =3D 'spJobName', defaultValue =3D '''')
+spJobName =3D dbutils.widgets.get("spJobName")
+
+dbutils.widgets.text(name =3D 'TD_EFBI_EV', defaultValue =3D '$PROJDEF')
+TD_EFBI_EV =3D dbutils.widgets.get("TD_EFBI_EV")
+
+dbutils.widgets.text(name =3D 'TD_EFBI_PASSWORD', defaultValue =3D 'HDI@IJV8O=
+9JN064IL:JD1K95')
+TD_EFBI_PASSWORD =3D dbutils.widgets.get("TD_EFBI_PASSWORD")
+
+dbutils.widgets.text(name =3D 'TD_EFBI_SERVER', defaultValue =3D '$PROJDEF')
+TD_EFBI_SERVER =3D dbutils.widgets.get("TD_EFBI_SERVER")
+
+dbutils.widgets.text(name =3D 'TD_EFBI_USERNAME', defaultValue =3D '$PROJDEF')
+TD_EFBI_USERNAME =3D dbutils.widgets.get("TD_EFBI_USERNAME")
+
+dbutils.widgets.text(name =3D 'DATA_FILE_DIR', defaultValue =3D '$PROJDEF')
+DATA_FILE_DIR =3D dbutils.widgets.get("DATA_FILE_DIR")
+
+dbutils.widgets.text(name =3D 'RUN_TYPE', defaultValue =3D 'FW-TEST')
+RUN_TYPE =3D dbutils.widgets.get("RUN_TYPE")
+
+dbutils.widgets.text(name =3D 'pTGT_SQL_TXT', defaultValue =3D '''')
+pTGT_SQL_TXT =3D dbutils.widgets.get("pTGT_SQL_TXT")
+
+
+# COMMAND ----------
+# Component in_QLTY_CHK_OUTPUT, Type SOURCE Original node name SRC_QLTY_CHK_O=
+UTPUT, link in_QLTY_CHK_OUTPUT
+in_QLTY_CHK_OUTPUT =3D spark.sql(f"""
+SELECT
+SRC_JOB_NM,
+SRC_ENV_NM,
+SRC_SCHM_DB_NM,
+SRC_TBL_NM,
+SRC_COL_NM,
+SRC_VALUE_TXT,
+TRGT_JOB_NM,
+TRGT_ENV_NM,
+TRGT_DB_NM,
+TRGT_TBL_NM,
+TRGT_COL_NM,
+TRGT_VALUE_TXT,
+SRC_SYS_ID,
+LOAD_ERROR,
+DATA_ORIGIN,
+CREATED_EW_DTTM,
+LASTUPD_EW_DTTM,
+BATCH_SID
+FROM
+EFBI_#$TD_EFBI_EV#_ETL_CTRL_B.SRC_TRGT_QLTY_CHK_OUTPUT
+WHERE
+TRGT_JOB_NM=3D'${SPJOBNAME}' AND
+CREATED_EW_DTTM=3D
+(
+SELECT
+MAX(CREATED_EW_DTTM)
+FROM=20
+EFBI_#$TD_EFBI_EV#_ETL_CTRL_B.SRC_TRGT_QLTY_CHK_OUTPUT
+WHERE
+TRGT_JOB_NM=3D'${SPJOBNAME}'
+)
+""")
+in_QLTY_CHK_OUTPUT.createOrReplaceTempView("in_QLTY_CHK_OUTPUT")
+
+
+# COMMAND ----------
+# Component in_QLTY_CHK_RUN, Type SOURCE Original node name SRC_QLTY_CHK_RUN,=
+ link in_QLTY_CHK_RUN
+in_QLTY_CHK_RUN =3D spark.sql(f"""
+${PTGT_SQL_TXT}
+""")
+in_QLTY_CHK_RUN.createOrReplaceTempView("in_QLTY_CHK_RUN")
+
+
+# COMMAND ----------
+# Component mv_QLTY_CHK_RUN, Type TRANSFORMATION Original node name XFM_Add_J=
+obName, link mv_QLTY_CHK_RUN
+mv_QLTY_CHK_RUN =3D spark.sql(f"""
+SELECT
+*
+FROM
+in_QLTY_CHK_RUN""")
+mv_QLTY_CHK_RUN.createOrReplaceTempView("mv_QLTY_CHK_RUN")
+
+
+# COMMAND ----------
+# Component mv_QLTY_CHK, Type LOOKUP Original node name lkp_QLTY_CHK_OUTPUT, =
+link mv_QLTY_CHK
+mv_QLTY_CHK =3D spark.sql(f"""
+SELECT
+FROM
+mv_QLTY_CHK_RUN
+LEFT OUTER JOIN in_QLTY_CHK_OUTPUT ON=20
+""")
+mv_QLTY_CHK.createOrReplaceTempView("mv_QLTY_CHK")
+
+
+# COMMAND ----------
+# Component out_QLTY_CHK, Type TRANSFORMATION Original node name XFM_Add_Cols=
+, link out_QLTY_CHK
+out_QLTY_CHK =3D spark.sql(f"""
+SELECT
+mv_QLTY_CHK.SRC_JOB_NM as SRC_JOB_NM,
+mv_QLTY_CHK.TRGT_JOB_NM as TRGT_JOB_NM,
+mv_QLTY_CHK.TRGT_VALUE_TXT as TRGT_VALUE_TXT,
+IF ( mv_QLTY_CHK.SRC_VALUE_TXT =3D mv_QLTY_CHK.TRGT_VALUE_TXT , 'N' , 'Y' ) a=
+s LOAD_ERROR,
+mv_QLTY_CHK.CREATED_EW_DTTM as CREATED_EW_DTTM,
+'{starttime}' as LASTUPD_EW_DTTM,
+'{pBATCH_SID}' as BATCH_SID
+FROM
+mv_QLTY_CHK""")
+out_QLTY_CHK.createOrReplaceTempView("out_QLTY_CHK")
+
+
+# COMMAND ----------
+# Component mv_ERR_QLTY_CHK, Type TARGET Original node name TGT_QLTY_CHK, lin=
+k mv_ERR_QLTY_CHK
+# COMMAND ----------
+# Component mv_ERR_QLTY_CHK, Type INSERT=20
+spark.sql("""MERGE INTO EFBI_#$TD_EFBI_EV#_ETL_CTRL_B.SRC_TRGT_QLTY_CHK_OUTPUT
+USING out_QLTY_CHK ON (EFBI_#$TD_EFBI_EV#_ETL_CTRL_B.SRC_TRGT_QLTY_CHK_OUTPUT=
+.SRC_JOB_NM =3D SRC_JOB_NM AND EFBI_#$TD_EFBI_EV#_ETL_CTRL_B.SRC_TRGT_QLTY_CH=
+K_OUTPUT.TRGT_JOB_NM =3D TRGT_JOB_NM AND EFBI_#$TD_EFBI_EV#_ETL_CTRL_B.SRC_TR=
+GT_QLTY_CHK_OUTPUT.CREATED_EW_DTTM =3D CREATED_EW_DTTM)
+WHEN MATCHED THEN UPDATE
+SET
+TRGT_VALUE_TXT =3D out_QLTY_CHK.TRGT_VALUE_TXT,
+LOAD_ERROR =3D out_QLTY_CHK.LOAD_ERROR,
+LASTUPD_EW_DTTM =3D out_QLTY_CHK.LASTUPD_EW_DTTM,
+BATCH_SID =3D out_QLTY_CHK.BATCH_SID""")
+
+
+# COMMAND ----------
+# Component err_ERR_QLTY_CHK, Type TRANSFORMATION Original node name ERR_XFM,=
+ link err_ERR_QLTY_CHK
+err_ERR_QLTY_CHK =3D spark.sql(f"""
+SELECT
+mv_ERR_QLTY_CHK.SRC_JOB_NM as SRC_JOB_NM,
+mv_ERR_QLTY_CHK.TRGT_JOB_NM as TRGT_JOB_NM,
+mv_ERR_QLTY_CHK.TRGT_VALUE_TXT as TRGT_VALUE_TXT,
+mv_ERR_QLTY_CHK.LOAD_ERROR as LOAD_ERROR,
+mv_ERR_QLTY_CHK.CREATED_EW_DTTM as CREATED_EW_DTTM,
+mv_ERR_QLTY_CHK.LASTUPD_EW_DTTM as LASTUPD_EW_DTTM,
+mv_ERR_QLTY_CHK.BATCH_SID as BATCH_SID,
+mv_ERR_QLTY_CHK.RejectERRORCODE as RejectERRORCODE,
+mv_ERR_QLTY_CHK.RejectERRORTEXT as RejectERRORTEXT,
+mv_ERR_QLTY_CHK.RejectTERA_SQLCODE as RejectTERA_SQLCODE,
+mv_ERR_QLTY_CHK.RejectTERA_ERRORFIELD as RejectTERA_ERRORFIELD,
+mv_ERR_QLTY_CHK.RejectTERA_STMTNO as RejectTERA_STMTNO,
+mv_ERR_QLTY_CHK.RejectTERA_ACTIVITYTYPE as RejectTERA_ACTIVITYTYPE,
+mv_ERR_QLTY_CHK.RejectTERA_ACTIVITYCOUNT as RejectTERA_ACTIVITYCOUNT
+FROM
+mv_ERR_QLTY_CHK""")
+err_ERR_QLTY_CHK.createOrReplaceTempView("err_ERR_QLTY_CHK")
+
+
+# COMMAND ----------
+# Component ERR_QLTY_CHK, Type TARGET=20
+
+ERR_QLTY_CHK =3D err_ERR_QLTY_CHK.select( \
+	err_ERR_QLTY_CHK.SRC_JOB_NM.alias('SRC_JOB_NM'), \
+	err_ERR_QLTY_CHK.TRGT_JOB_NM.alias('TRGT_JOB_NM'), \
+	err_ERR_QLTY_CHK.TRGT_VALUE_TXT.alias('TRGT_VALUE_TXT'), \
+	err_ERR_QLTY_CHK.LOAD_ERROR.alias('LOAD_ERROR'), \
+	err_ERR_QLTY_CHK.CREATED_EW_DTTM.alias('CREATED_EW_DTTM'), \
+	err_ERR_QLTY_CHK.LASTUPD_EW_DTTM.alias('LASTUPD_EW_DTTM'), \
+	err_ERR_QLTY_CHK.BATCH_SID.alias('BATCH_SID'), \
+	err_ERR_QLTY_CHK.RejectERRORCODE.alias('RejectERRORCODE'), \
+	err_ERR_QLTY_CHK.RejectERRORTEXT.alias('RejectERRORTEXT'), \
+	err_ERR_QLTY_CHK.RejectTERA_SQLCODE.alias('RejectTERA_SQLCODE'), \
+	err_ERR_QLTY_CHK.RejectTERA_ERRORFIELD.alias('RejectTERA_ERRORFIELD'), \
+	err_ERR_QLTY_CHK.RejectTERA_STMTNO.alias('RejectTERA_STMTNO'), \
+	err_ERR_QLTY_CHK.RejectTERA_ACTIVITYTYPE.alias('RejectTERA_ACTIVITYTYPE'), \
+	err_ERR_QLTY_CHK.RejectTERA_ACTIVITYCOUNT.alias('RejectTERA_ACTIVITYCOUNT') \
+)
+ERR_QLTY_CHK.write.format('csv').option('header','true').mode('overwrite').op=
+tion('sep','').csv(f'''#$DATA_FILE_DIR#/errors/{spJobName}_{RUN_TYPE}.txt''')
+
+--===============1634324814236828712==
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+Content-Disposition: attachment;
+ filename="Jobs/Common/QLTY_CHK/PXJ_SRC_QLTY_CHK_ORACLE_10_ld_stg.py"
+MIME-Version: 1.0
+
+#Code converted on 2025-06-04 13:32:34
+import os
+from pyspark.sql import *
+from pyspark.sql.functions import *
+from pyspark import SparkContext
+from pyspark.sql.functions import lit, to_timestamp, when, expr, col, explode
+from databricks_conversion_supplements import DatabricksConversionSupplements
+
+
+# COMMAND ----------
+
+dbutils.widgets.text(name =3D 'pBATCH_SID', defaultValue =3D '')
+pBATCH_SID =3D dbutils.widgets.get("pBATCH_SID")
+
+dbutils.widgets.text(name =3D 'spJobName', defaultValue =3D '''')
+spJobName =3D dbutils.widgets.get("spJobName")
+
+dbutils.widgets.text(name =3D 'TD_EFBI_EV', defaultValue =3D '$PROJDEF')
+TD_EFBI_EV =3D dbutils.widgets.get("TD_EFBI_EV")
+
+dbutils.widgets.text(name =3D 'TD_EFBI_PASSWORD', defaultValue =3D 'HDI@IJV8O=
+9JN064IL:JD1K95')
+TD_EFBI_PASSWORD =3D dbutils.widgets.get("TD_EFBI_PASSWORD")
+
+dbutils.widgets.text(name =3D 'TD_EFBI_SERVER', defaultValue =3D '$PROJDEF')
+TD_EFBI_SERVER =3D dbutils.widgets.get("TD_EFBI_SERVER")
+
+dbutils.widgets.text(name =3D 'TD_EFBI_USERNAME', defaultValue =3D '$PROJDEF')
+TD_EFBI_USERNAME =3D dbutils.widgets.get("TD_EFBI_USERNAME")
+
+dbutils.widgets.text(name =3D 'SRC_DBCONNECTION', defaultValue =3D '''')
+SRC_DBCONNECTION =3D dbutils.widgets.get("SRC_DBCONNECTION")
+
+dbutils.widgets.text(name =3D 'SRC_USERNAME', defaultValue =3D '''')
+SRC_USERNAME =3D dbutils.widgets.get("SRC_USERNAME")
+
+dbutils.widgets.text(name =3D 'SRC_PASSWORD', defaultValue =3D '')
+SRC_PASSWORD =3D dbutils.widgets.get("SRC_PASSWORD")
+
+dbutils.widgets.text(name =3D 'DATA_FILE_DIR', defaultValue =3D '$PROJDEF')
+DATA_FILE_DIR =3D dbutils.widgets.get("DATA_FILE_DIR")
+
+dbutils.widgets.text(name =3D 'RUN_TYPE', defaultValue =3D '''')
+RUN_TYPE =3D dbutils.widgets.get("RUN_TYPE")
+
+dbutils.widgets.text(name =3D 'pSRC_SQL_TXT', defaultValue =3D '''')
+pSRC_SQL_TXT =3D dbutils.widgets.get("pSRC_SQL_TXT")
+
+
+# COMMAND ----------
+# Component in_QLTY_CHK_INPUT, Type SOURCE Original node name SRC_QLTY_CHK_IN=
+PUT, link in_QLTY_CHK_INPUT
+in_QLTY_CHK_INPUT =3D spark.sql(f"""
+SELECT
+SRC_JOB_NM,
+SRC_ENV_NM,
+SRC_SCHM_DB_NM,
+SRC_TBL_NM,
+SRC_COL_NM,
+TRGT_JOB_NM,
+TRGT_ENV_NM,
+TRGT_DB_NM,
+TRGT_TBL_NM,
+TRGT_COL_NM
+FROM
+EFBI_#$TD_EFBI_EV#_ETL_CTRL_B.SRC_TRGT_QLTY_CHK_INPUT
+WHERE
+SRC_JOB_NM=3D'${SPJOBNAME}'
+""")
+in_QLTY_CHK_INPUT.createOrReplaceTempView("in_QLTY_CHK_INPUT")
+
+
+# COMMAND ----------
+# Component in_QLTY_CHK_RUN, Type SOURCE Original node name SRC_QLTY_CHK_RUN,=
+ link in_QLTY_CHK_RUN
+in_QLTY_CHK_RUN =3D spark.sql(f"""
+#pSRC_SQL_TXT#
+""")
+in_QLTY_CHK_RUN.createOrReplaceTempView("in_QLTY_CHK_RUN")
+
+
+# COMMAND ----------
+# Component mv_QLTY_CHK_RUN, Type TRANSFORMATION Original node name XFM_Add_J=
+obName, link mv_QLTY_CHK_RUN
+mv_QLTY_CHK_RUN =3D spark.sql(f"""
+SELECT
+*
+FROM
+in_QLTY_CHK_RUN""")
+mv_QLTY_CHK_RUN.createOrReplaceTempView("mv_QLTY_CHK_RUN")
+
+
+# COMMAND ----------
+# Component mv_QLTY_CHK, Type LOOKUP Original node name lkp_QLTY_CHK_INPUT, l=
+ink mv_QLTY_CHK
+mv_QLTY_CHK =3D spark.sql(f"""
+SELECT
+FROM
+mv_QLTY_CHK_RUN
+LEFT OUTER JOIN in_QLTY_CHK_INPUT ON=20
+""")
+mv_QLTY_CHK.createOrReplaceTempView("mv_QLTY_CHK")
+
+
+# COMMAND ----------
+# Component out_QLTY_CHK, Type TRANSFORMATION Original node name XFM_Add_Cols=
+, link out_QLTY_CHK
+out_QLTY_CHK =3D spark.sql(f"""
+SELECT
+SRC_JOB_NM as SRC_JOB_NM,
+query_1.SRC_ENV_NM as SRC_ENV_NM,
+query_1.SRC_SCHM_DB_NM as SRC_SCHM_DB_NM,
+query_1.SRC_TBL_NM as SRC_TBL_NM,
+query_1.SRC_COL_NM as SRC_COL_NM,
+query_1.SRC_VALUE_TXT as SRC_VALUE_TXT,
+query_1.TRGT_JOB_NM as TRGT_JOB_NM,
+query_1.TRGT_ENV_NM as TRGT_ENV_NM,
+query_1.TRGT_DB_NM as TRGT_DB_NM,
+query_1.TRGT_TBL_NM as TRGT_TBL_NM,
+query_1.TRGT_COL_NM as TRGT_COL_NM,
+NULL as TRGT_VALUE_TXT,
+'' as SRC_SYS_ID,
+'I' as LOAD_ERROR,
+'S' as DATA_ORIGIN,
+vCurDt as CREATED_EW_DTTM,
+vCurDt as LASTUPD_EW_DTTM,
+'{pBATCH_SID}' as BATCH_SID
+FROM (
+SELECT /* STMT 1 */
+row_number() over (order by 1) as PIPELINE_ROW_ID,
+NULL as vCurDt,
+mv_QLTY_CHK.SRC_JOB_NM,
+mv_QLTY_CHK.SRC_ENV_NM,
+mv_QLTY_CHK.SRC_SCHM_DB_NM,
+mv_QLTY_CHK.SRC_TBL_NM,
+mv_QLTY_CHK.SRC_COL_NM,
+mv_QLTY_CHK.SRC_VALUE_TXT,
+mv_QLTY_CHK.TRGT_JOB_NM,
+mv_QLTY_CHK.TRGT_ENV_NM,
+mv_QLTY_CHK.TRGT_DB_NM,
+mv_QLTY_CHK.TRGT_TBL_NM,
+mv_QLTY_CHK.TRGT_COL_NM
+FROM mv_QLTY_CHK
+) query_1""")
+out_QLTY_CHK.createOrReplaceTempView("out_QLTY_CHK")
+
+
+# COMMAND ----------
+# Component mv_ERR_QLTY_CHK, Type TARGET Original node name TGT_QLTY_CHK, lin=
+k mv_ERR_QLTY_CHK
+# COMMAND ----------
+# Component mv_ERR_QLTY_CHK, Type INSERT=20
+spark.sql("""INSERT INTO EFBI_#$TD_EFBI_EV#_ETL_CTRL_B.SRC_TRGT_QLTY_CHK_OUTP=
+UT
+(
+SRC_JOB_NM,
+SRC_ENV_NM,
+SRC_SCHM_DB_NM,
+SRC_TBL_NM,
+SRC_COL_NM,
+SRC_VALUE_TXT,
+TRGT_JOB_NM,
+TRGT_ENV_NM,
+TRGT_DB_NM,
+TRGT_TBL_NM,
+TRGT_COL_NM,
+TRGT_VALUE_TXT,
+SRC_SYS_ID,
+LOAD_ERROR,
+DATA_ORIGIN,
+CREATED_EW_DTTM,
+LASTUPD_EW_DTTM,
+BATCH_SID
+)
+SELECT
+out_QLTY_CHK.SRC_JOB_NM,
+out_QLTY_CHK.SRC_ENV_NM,
+out_QLTY_CHK.SRC_SCHM_DB_NM,
+out_QLTY_CHK.SRC_TBL_NM,
+out_QLTY_CHK.SRC_COL_NM,
+out_QLTY_CHK.SRC_VALUE_TXT,
+out_QLTY_CHK.TRGT_JOB_NM,
+out_QLTY_CHK.TRGT_ENV_NM,
+out_QLTY_CHK.TRGT_DB_NM,
+out_QLTY_CHK.TRGT_TBL_NM,
+out_QLTY_CHK.TRGT_COL_NM,
+out_QLTY_CHK.TRGT_VALUE_TXT,
+out_QLTY_CHK.SRC_SYS_ID,
+out_QLTY_CHK.LOAD_ERROR,
+out_QLTY_CHK.DATA_ORIGIN,
+out_QLTY_CHK.CREATED_EW_DTTM,
+out_QLTY_CHK.LASTUPD_EW_DTTM,
+out_QLTY_CHK.BATCH_SID
+FROM
+out_QLTY_CHK""")
+
+
+# COMMAND ----------
+# Component err_ERR_QLTY_CHK, Type TRANSFORMATION Original node name ERR_XFM,=
+ link err_ERR_QLTY_CHK
+err_ERR_QLTY_CHK =3D spark.sql(f"""
+SELECT
+mv_ERR_QLTY_CHK.SRC_JOB_NM as SRC_JOB_NM,
+mv_ERR_QLTY_CHK.SRC_ENV_NM as SRC_ENV_NM,
+mv_ERR_QLTY_CHK.SRC_SCHM_DB_NM as SRC_SCHM_DB_NM,
+mv_ERR_QLTY_CHK.SRC_TBL_NM as SRC_TBL_NM,
+mv_ERR_QLTY_CHK.SRC_COL_NM as SRC_COL_NM,
+mv_ERR_QLTY_CHK.SRC_VALUE_TXT as SRC_VALUE_TXT,
+mv_ERR_QLTY_CHK.TRGT_JOB_NM as TRGT_JOB_NM,
+mv_ERR_QLTY_CHK.TRGT_ENV_NM as TRGT_ENV_NM,
+mv_ERR_QLTY_CHK.TRGT_DB_NM as TRGT_DB_NM,
+mv_ERR_QLTY_CHK.TRGT_TBL_NM as TRGT_TBL_NM,
+mv_ERR_QLTY_CHK.TRGT_COL_NM as TRGT_COL_NM,
+mv_ERR_QLTY_CHK.TRGT_VALUE_TXT as TRGT_VALUE_TXT,
+mv_ERR_QLTY_CHK.SRC_SYS_ID as SRC_SYS_ID,
+mv_ERR_QLTY_CHK.LOAD_ERROR as LOAD_ERROR,
+mv_ERR_QLTY_CHK.DATA_ORIGIN as DATA_ORIGIN,
+mv_ERR_QLTY_CHK.CREATED_EW_DTTM as CREATED_EW_DTTM,
+mv_ERR_QLTY_CHK.LASTUPD_EW_DTTM as LASTUPD_EW_DTTM,
+mv_ERR_QLTY_CHK.BATCH_SID as BATCH_SID,
+mv_ERR_QLTY_CHK.RejectERRORCODE as RejectERRORCODE,
+mv_ERR_QLTY_CHK.RejectERRORTEXT as RejectERRORTEXT,
+mv_ERR_QLTY_CHK.RejectTERA_SQLCODE as RejectTERA_SQLCODE,
+mv_ERR_QLTY_CHK.RejectTERA_ERRORFIELD as RejectTERA_ERRORFIELD,
+mv_ERR_QLTY_CHK.RejectTERA_STMTNO as RejectTERA_STMTNO,
+mv_ERR_QLTY_CHK.RejectTERA_ACTIVITYTYPE as RejectTERA_ACTIVITYTYPE,
+mv_ERR_QLTY_CHK.RejectTERA_ACTIVITYCOUNT as RejectTERA_ACTIVITYCOUNT
+FROM
+mv_ERR_QLTY_CHK""")
+err_ERR_QLTY_CHK.createOrReplaceTempView("err_ERR_QLTY_CHK")
+
+
+# COMMAND ----------
+# Component ERR_QLTY_CHK, Type TARGET=20
+
+ERR_QLTY_CHK =3D err_ERR_QLTY_CHK.select( \
+	err_ERR_QLTY_CHK.SRC_JOB_NM.alias('SRC_JOB_NM'), \
+	err_ERR_QLTY_CHK.SRC_ENV_NM.alias('SRC_ENV_NM'), \
+	err_ERR_QLTY_CHK.SRC_SCHM_DB_NM.alias('SRC_SCHM_DB_NM'), \
+	err_ERR_QLTY_CHK.SRC_TBL_NM.alias('SRC_TBL_NM'), \
+	err_ERR_QLTY_CHK.SRC_COL_NM.alias('SRC_COL_NM'), \
+	err_ERR_QLTY_CHK.SRC_VALUE_TXT.alias('SRC_VALUE_TXT'), \
+	err_ERR_QLTY_CHK.TRGT_JOB_NM.alias('TRGT_JOB_NM'), \
+	err_ERR_QLTY_CHK.TRGT_ENV_NM.alias('TRGT_ENV_NM'), \
+	err_ERR_QLTY_CHK.TRGT_DB_NM.alias('TRGT_DB_NM'), \
+	err_ERR_QLTY_CHK.TRGT_TBL_NM.alias('TRGT_TBL_NM'), \
+	err_ERR_QLTY_CHK.TRGT_COL_NM.alias('TRGT_COL_NM'), \
+	err_ERR_QLTY_CHK.TRGT_VALUE_TXT.alias('TRGT_VALUE_TXT'), \
+	err_ERR_QLTY_CHK.SRC_SYS_ID.alias('SRC_SYS_ID'), \
+	err_ERR_QLTY_CHK.LOAD_ERROR.alias('LOAD_ERROR'), \
+	err_ERR_QLTY_CHK.DATA_ORIGIN.alias('DATA_ORIGIN'), \
+	err_ERR_QLTY_CHK.CREATED_EW_DTTM.alias('CREATED_EW_DTTM'), \
+	err_ERR_QLTY_CHK.LASTUPD_EW_DTTM.alias('LASTUPD_EW_DTTM'), \
+	err_ERR_QLTY_CHK.BATCH_SID.alias('BATCH_SID'), \
+	err_ERR_QLTY_CHK.RejectERRORCODE.alias('RejectERRORCODE'), \
+	err_ERR_QLTY_CHK.RejectERRORTEXT.alias('RejectERRORTEXT'), \
+	err_ERR_QLTY_CHK.RejectTERA_SQLCODE.alias('RejectTERA_SQLCODE'), \
+	err_ERR_QLTY_CHK.RejectTERA_ERRORFIELD.alias('RejectTERA_ERRORFIELD'), \
+	err_ERR_QLTY_CHK.RejectTERA_STMTNO.alias('RejectTERA_STMTNO'), \
+	err_ERR_QLTY_CHK.RejectTERA_ACTIVITYTYPE.alias('RejectTERA_ACTIVITYTYPE'), \
+	err_ERR_QLTY_CHK.RejectTERA_ACTIVITYCOUNT.alias('RejectTERA_ACTIVITYCOUNT') \
+)
+ERR_QLTY_CHK.write.format('csv').option('header','true').mode('overwrite').op=
+tion('sep','').csv(f'''#$DATA_FILE_DIR#/errors/{spJobName}_{RUN_TYPE}.txt''')
+
+--===============1634324814236828712==
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+Content-Disposition: attachment;
+ filename*0*=us-ascii''Jobs%2FCommon%2FQLTY_CHK%2FSEQX_TGT_QLTY_CHK_10_up_stg;
+ filename*1*=_Get_QLTY_Chk_Res_SHELL_COMMAND.py
+MIME-Version: 1.0
+
+import os
+command_name_list =3D ["CMD_1"]
+command_list =3D ["""runtdsql.pl --nonewline "SELECT* FROM EFBI_#$TD_EFBI_EV#=
+_ETL_CTRL_B.SRC_TRGT_QLTY_CHK_OUTPUT WHERE TRGT_JOB_NM=3D'#spJobName#' AND CR=
+EATED_EW_DTTM=3D (SELECT MAX(CREATED_EW_DTTM)  FROM  EFBI_#$TD_EFBI_EV#_ETL_C=
+TRL_B.SRC_TRGT_QLTY_CHK_OUTPUT WHERE TRGT_JOB_NM=3D'#spJobName#' )" """]
+commandCount =3D 0
+for cmd in command_list:
+    print("Executing command " + str(command_name_list[commandCount]))
+    try:
+        os.system(cmd)
+    except Exception as e:
+        print("Execution error: " + str(e))
+    commandCount +=3D 1
+
+--===============1634324814236828712==
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+Content-Disposition: attachment;
+ filename="Jobs/Common/QLTY_CHK/SEQX_SRC_QLTY_CHK_ORACLE_10_ld_stg.json"
+MIME-Version: 1.0
+
+{
+   "email_notifications" : {
+      "no_alert_for_skipped_runs" : false,
+      "on_failure" : [
+         "%FAILURE_EMAIL_ADDRESS%"
+      ],
+      "on_start" : [
+         "user.name@databricks.com",
+         "%EMAIL_ADDRESS%"
+      ],
+      "on_success" : [
+         "%SUCCESS_EMAIL_ADDRESS%"
+      ]
+   },
+   "max_concurrent_runs" : 10,
+   "name" : "SEQX_SRC_QLTY_CHK_ORACLE_10_ld_stg",
+   "notification_settings" : {
+      "no_alert_for_canceled_runs" : false,
+      "no_alert_for_skipped_runs" : false
+   },
+   "run_as" : {
+      "user_name" : "%USER_NAME%"
+   },
+   "schedule" : {
+      "pause_status" : "PAUSED",
+      "quartz_cron_expression" : "20 30 * * * ?",
+      "timezone_id" : "Europe/London"
+   },
+   "tags" : {
+      "cost-center" : "engineering",
+      "team" : "jobs"
+   },
+   "tasks" : [
+      {
+         "description" : "",
+         "email_notifications" : {},
+         "existing_cluster_id" : "%CLUSTER_ID%",
+         "notification_settings" : {
+            "alert_on_last_attempt" : false,
+            "no_alert_for_canceled_runs" : false,
+            "no_alert_for_skipped_runs" : false
+         },
+         "spark_python_task" : {
+            "python_file" : "/Workspace/runTest.py"
+         },
+         "task_key" : "Exception_Handle",
+         "webhook_notifications" : {}
+      },
+      {
+         "depends_on" : [
+            {
+               "task_key" : "Exception_Handle"
+            }
+         ],
+         "description" : "",
+         "email_notifications" : {},
+         "existing_cluster_id" : "%CLUSTER_ID%",
+         "notification_settings" : {
+            "alert_on_last_attempt" : false,
+            "no_alert_for_canceled_runs" : false,
+            "no_alert_for_skipped_runs" : false
+         },
+         "run_if" : "ALL_SUCCESS",
+         "spark_python_task" : {
+            "python_file" : "/Workspace/runTest.py"
+         },
+         "task_key" : "General_Terminator_Activity",
+         "webhook_notifications" : {}
+      },
+      {
+         "description" : "",
+         "email_notifications" : {},
+         "job_cluster_key" : "auto_scaling_cluster",
+         "notification_settings" : {
+            "alert_on_last_attempt" : false,
+            "no_alert_for_canceled_runs" : false,
+            "no_alert_for_skipped_runs" : false
+         },
+         "spark_python_task" : {
+            "python_file" : "/%TASK_PATH%/SEQX_SRC_QLTY_CHK_ORACLE_10_ld_stg_=
+Get_QLTY_CHK_SQL_SHELL_COMMAND.py"
+         },
+         "task_key" : "Get_QLTY_CHK_SQL",
+         "webhook_notifications" : {}
+      },
+      {
+         "depends_on" : [
+            {
+               "task_key" : "Get_QLTY_CHK_SQL"
+            }
+         ],
+         "description" : "",
+         "email_notifications" : {},
+         "existing_cluster_id" : "%CLUSTER_ID%",
+         "max_retries" : 3,
+         "min_retry_interval_millis" : 2000,
+         "notebook_task" : {
+            "notebook_path" : "/Workspace/Users/SEQX_SRC_QLTY_CHK_ORACLE_10_l=
+d_stg",
+            "source" : "WORKSPACE"
+         },
+         "notification_settings" : {
+            "alert_on_last_attempt" : false,
+            "no_alert_for_canceled_runs" : false,
+            "no_alert_for_skipped_runs" : false
+         },
+         "retry_on_timeout" : false,
+         "run_if" : "ALL_SUCCESS",
+         "task_key" : "PXJ_SRC_QLTY_CHK_ORACLE_10_ld_stg",
+         "webhook_notifications" : {}
+      },
+      {
+         "depends_on" : [
+            {
+               "task_key" : "UtilityEmailAndAbort"
+            }
+         ],
+         "description" : "",
+         "email_notifications" : {},
+         "existing_cluster_id" : "%CLUSTER_ID%",
+         "notification_settings" : {
+            "alert_on_last_attempt" : false,
+            "no_alert_for_canceled_runs" : false,
+            "no_alert_for_skipped_runs" : false
+         },
+         "run_if" : "ALL_SUCCESS",
+         "spark_python_task" : {
+            "python_file" : "/Workspace/runTest.py"
+         },
+         "task_key" : "Terminator_Activity",
+         "webhook_notifications" : {}
+      }
+   ],
+   "timeout_seconds" : 86400,
+   "webhook_notifications" : {}
+}
+
+--===============1634324814236828712==
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+Content-Disposition: attachment;
+ filename="Jobs/Common/ETL_AUDIT/XJ_ETL_AUDIT.py"
+MIME-Version: 1.0
+
+#Code converted on 2025-06-04 13:32:38
+import os
+from pyspark.sql import *
+from pyspark.sql.functions import *
+from pyspark import SparkContext
+from pyspark.sql.functions import lit, to_timestamp, when, expr, col, explode
+from databricks_conversion_supplements import DatabricksConversionSupplements
+
+
+# COMMAND ----------
+
+dbutils.widgets.text(name =3D 'BATCH_SID', defaultValue =3D '')
+BATCH_SID =3D dbutils.widgets.get("BATCH_SID")
+
+dbutils.widgets.text(name =3D 'pJobName', defaultValue =3D '')
+pJobName =3D dbutils.widgets.get("pJobName")
+
+dbutils.widgets.text(name =3D 'RUN_TYPE', defaultValue =3D 'NIGHTLY')
+RUN_TYPE =3D dbutils.widgets.get("RUN_TYPE")
+
+dbutils.widgets.text(name =3D 'DSPROJ', defaultValue =3D '$PROJDEF')
+DSPROJ =3D dbutils.widgets.get("DSPROJ")
+
+dbutils.widgets.text(name =3D 'DSPROJDATA', defaultValue =3D '$PROJDEF')
+DSPROJDATA =3D dbutils.widgets.get("DSPROJDATA")
+
+
+# COMMAND ----------
+# Component in_HASH_STATS, Type SOURCE Original node name HASH_STATS, link in=
+_HASH_STATS
+in_HASH_STATS =3D spark.read.format('csv').option('header', 'true').load(f'''=
+HASH_STATS''')
+# Conforming fields names to the component layout
+in_HASH_STATS_conformed_cols =3D ["JOB_NAME", "BATCH_ID", "CNT", "BATCH_NAME"=
+, "START_DTS", "END_DTS", "JOB_STATUS", "ERR_MSG", "LINK_NAME", "ROW_CNT"]
+in_HASH_STATS =3D DatabricksConversionSupplements.conform_df_columns(in_HASH_=
+STATS,in_HASH_STATS_conformed_cols)
+in_HASH_STATS.createOrReplaceTempView("in_HASH_STATS")
+
+
+# COMMAND ----------
+# Component in_InitJobInfoDetail, Type SOURCE Original node name InitJobInfoD=
+etail, link in_InitJobInfoDetail
+in_InitJobInfoDetail =3D spark.read.format('csv').option('header', 'true').lo=
+ad(f'''./${pJobName}.dat''')
+# Conforming fields names to the component layout
+in_InitJobInfoDetail_conformed_cols =3D [""]
+in_InitJobInfoDetail =3D DatabricksConversionSupplements.conform_df_columns(i=
+n_InitJobInfoDetail,in_InitJobInfoDetail_conformed_cols)
+in_InitJobInfoDetail.createOrReplaceTempView("in_InitJobInfoDetail")
+
+
+# COMMAND ----------
+# Component mv_Raw_Stats, Type TRANSFORMATION Original node name Stats_Xfm, l=
+ink mv_Raw_Stats
+mv_Raw_Stats =3D spark.sql(f"""
+SELECT
+JOB_NAME as JOB_NAME,
+query_3.BATCH_ID as BATCH_ID,
+query_3.'${START_DT}'S as START_DTS,
+query_3.'${END_DT}'S as END_DTS,
+query_3.JOB_STATUS as JOB_STATUS,
+vLinkName2 as LINK_NAME,
+IF ( vLinkType =3D 'err' , 'OUT' , UPPER(vLinkType) ) as LINK_TYPE,
+query_3.ROW_CNT as ROW_CNT,
+split(query_3.LINK_NAME, '_')[1-1] as ORIG_LIKE_NAME,
+query_3.LINK_NAME as LINK_NAME_1
+FROM (
+SELECT /* STMT 3 */
+IF ( vLen , SUBSTRING ( vLinkName , 1 , vLen - 1 ) , vLinkName ) as vLinkName=
+2,
+query_2.*=20
+FROM (
+SELECT /* STMT 2 */
+charindex ( vLinkName , '_load' , 1 ) as vLen,
+query_1.*=20
+FROM (
+SELECT /* STMT 1 */
+row_number() over (order by 1) as PIPELINE_ROW_ID,
+trim(split ( in_HASH_STATS.LINK_NAME , '_' ) [ 2 - 1 ]) as vLinkName,
+split ( in_HASH_STATS.LINK_NAME , '_' ) [ 1 - 1 ] as vLinkType,
+REPLACE ( pJobName , '__' , '.' ) as vJobName,
+in_HASH_STATS.JOB_NAME,
+in_HASH_STATS.BATCH_ID,
+in_HASH_STATS.START_DTS,
+in_HASH_STATS.END_DTS,
+in_HASH_STATS.JOB_STATUS,
+in_HASH_STATS.ROW_CNT,
+in_HASH_STATS.LINK_NAME
+FROM in_HASH_STATS
+) query_1
+) query_2
+) query_3
+WHERE JOB_NAME =3D vJobName and (vLinkType =3D 'in' or vLinkType =3D 'out' or=
+ vLinkType =3D 'err')""")
+mv_Raw_Stats.createOrReplaceTempView("mv_Raw_Stats")
+
+
+# COMMAND ----------
+# Component mv_InitJobInfoDetail, Type TRANSFORMATION Original node name xfm_=
+rows, link mv_InitJobInfoDetail
+mv_InitJobInfoDetail =3D spark.sql(f"""
+SELECT
+*
+FROM
+in_InitJobInfoDetail""")
+mv_InitJobInfoDetail.createOrReplaceTempView("mv_InitJobInfoDetail")
+
+
+# COMMAND ----------
+# Component lkp_HASH_AUDIT_LKUP, Type TARGET Original node name HASH_AUDIT_LK=
+UP, link lkp_HASH_AUDIT_LKUP
+
+lkp_HASH_AUDIT_LKUP =3D mv_InitJobInfoDetail.select('*')
+lkp_HASH_AUDIT_LKUP.write.format('csv').option('header','true').mode('overwri=
+te').option('sep','').csv(f'''HASH_AUDIT_LKUP''')
+
+
+# COMMAND ----------
+# Component mv_stats, Type AGGREGATOR Original node name Rm_Dups, link mv_sta=
+ts
+mv_stats =3D spark.sql(f"""
+SELECT
+FROM
+mv_Raw_Stats""")
+mv_stats.createOrReplaceTempView("mv_stats")
+
+
+# COMMAND ----------
+# Component out_DSPROJ_JOBNAME_BATCH_SID, Type TRANSFORMATION Original node n=
+ame Run_Control_Xfm, link out_DSPROJ_JOBNAME_BATCH_SID
+out_DSPROJ_JOBNAME_BATCH_SID =3D spark.sql(f"""
+SELECT
+*
+FROM
+mv_stats
+LEFT JOIN lkp_HASH_AUDIT_LKUP ON 1 =3D 1""")
+out_DSPROJ_JOBNAME_BATCH_SID.createOrReplaceTempView("out_DSPROJ_JOBNAME_BATC=
+H_SID")
+
+
+# COMMAND ----------
+# Component TGT_DSPROJ_JOBNAME_BATCH_SID, Type TARGET=20
+
+TGT_DSPROJ_JOBNAME_BATCH_SID =3D out_DSPROJ_JOBNAME_BATCH_SID.select('*')
+TGT_DSPROJ_JOBNAME_BATCH_SID.write.format('csv').option('header','true').mode=
+('overwrite').option('sep','').csv(f'''#$DSPROJDATA#/audit/#$DSPROJ#_#pJobNam=
+e#_#BATCH_SID#.txt''')
+
+--===============1634324814236828712==
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+Content-Disposition: attachment;
+ filename="Jobs/Common/ETL_AUDIT/PXJ_ETL_AUDIT_10_ld_stg.py"
+MIME-Version: 1.0
+
+#Code converted on 2025-06-04 13:32:31
+import os
+from pyspark.sql import *
+from pyspark.sql.functions import *
+from pyspark import SparkContext
+from pyspark.sql.functions import lit, to_timestamp, when, expr, col, explode
+from databricks_conversion_supplements import DatabricksConversionSupplements
+
+
+# COMMAND ----------
+
+dbutils.widgets.text(name =3D 'pBATCH_SID', defaultValue =3D '')
+pBATCH_SID =3D dbutils.widgets.get("pBATCH_SID")
+
+dbutils.widgets.text(name =3D 'spJobName', defaultValue =3D '''')
+spJobName =3D dbutils.widgets.get("spJobName")
+
+dbutils.widgets.text(name =3D 'pDatabase', defaultValue =3D '''')
+pDatabase =3D dbutils.widgets.get("pDatabase")
+
+dbutils.widgets.text(name =3D 'TD_EFBI_EV', defaultValue =3D '$PROJDEF')
+TD_EFBI_EV =3D dbutils.widgets.get("TD_EFBI_EV")
+
+dbutils.widgets.text(name =3D 'TD_EFBI_PASSWORD', defaultValue =3D 'HDI@IJV8O=
+9JN064IL:JD1K95')
+TD_EFBI_PASSWORD =3D dbutils.widgets.get("TD_EFBI_PASSWORD")
+
+dbutils.widgets.text(name =3D 'TD_EFBI_SERVER', defaultValue =3D '$PROJDEF')
+TD_EFBI_SERVER =3D dbutils.widgets.get("TD_EFBI_SERVER")
+
+dbutils.widgets.text(name =3D 'TD_EFBI_USERNAME', defaultValue =3D '$PROJDEF')
+TD_EFBI_USERNAME =3D dbutils.widgets.get("TD_EFBI_USERNAME")
+
+dbutils.widgets.text(name =3D 'RUN_TYPE', defaultValue =3D 'FW-TEST')
+RUN_TYPE =3D dbutils.widgets.get("RUN_TYPE")
+
+dbutils.widgets.text(name =3D 'DSPROJ', defaultValue =3D '$PROJDEF')
+DSPROJ =3D dbutils.widgets.get("DSPROJ")
+
+dbutils.widgets.text(name =3D 'DSPROJDATA', defaultValue =3D '$PROJDEF')
+DSPROJDATA =3D dbutils.widgets.get("DSPROJDATA")
+
+dbutils.widgets.text(name =3D 'pDatabaseIn', defaultValue =3D '''')
+pDatabaseIn =3D dbutils.widgets.get("pDatabaseIn")
+
+
+# COMMAND ----------
+# Component in_ETL_AUDIT, Type SOURCE Original node name ETL_AUDIT_BATCH_SID,=
+ link in_ETL_AUDIT
+in_ETL_AUDIT =3D spark.read.format('csv').option('header', 'true').load(f'''#=
+$DSPROJDATA#/audit/#$DSPROJ{_}spJobName{_}pBATCH_SID#.txt''')
+# Conforming fields names to the component layout
+in_ETL_AUDIT_conformed_cols =3D ["DS_PROJECT", "JOB_NM", "BATCH_ID", "ENVIRON=
+MENT_NM", "TABLE_NM", "ETL_DIRECTION_CD", "STAT_NM", "STAT_VALUE", "JOB_STATU=
+S", "START_DTTM", "END_DTTM", "MASTER_RUN_DSC"]
+in_ETL_AUDIT =3D DatabricksConversionSupplements.conform_df_columns(in_ETL_AU=
+DIT,in_ETL_AUDIT_conformed_cols)
+in_ETL_AUDIT.createOrReplaceTempView("in_ETL_AUDIT")
+
+
+# COMMAND ----------
+# Component inETL_AUDIT_ERR, Type SOURCE Original node name ETL_AUDIT_errReco=
+rds, link inETL_AUDIT_ERR
+inETL_AUDIT_ERR =3D spark.read.format('csv').option('header', 'true').load(f'=
+''#$DSPROJDATA#/audit/#$DSPROJ{_}spJobName{_}pBATCH_SID#.txt''')
+# Conforming fields names to the component layout
+inETL_AUDIT_ERR_conformed_cols =3D [""]
+inETL_AUDIT_ERR =3D DatabricksConversionSupplements.conform_df_columns(inETL_=
+AUDIT_ERR,inETL_AUDIT_ERR_conformed_cols)
+inETL_AUDIT_ERR.createOrReplaceTempView("inETL_AUDIT_ERR")
+
+
+# COMMAND ----------
+# Component inMaxMastrId, Type SOURCE Original node name SRC_ETL_AUDIT_Max_Ma=
+ster_Id, link inMaxMastrId
+inMaxMastrId =3D spark.sql(f"""
+SELECT CAST('#$DSPROJ#' as string)  as DS_PROJECT,COALESCE(MAX(MASTER_RUN_ID)=
+,0) as MASTER_RUN_ID from EFBI_#$TD_EFBI_EV#_ETL_CTRL_T.ETL_AUDIT where MASTE=
+R_RUN_DSC=3D'${RUN_TYPE}'
+""")
+inMaxMastrId.createOrReplaceTempView("inMaxMastrId")
+
+
+# COMMAND ----------
+# Component outErrors, Type TRANSFORMATION Original node name flt_errRecords,=
+ link outErrors
+outErrors =3D spark.sql(f"""
+SELECT
+inETL_AUDIT_ERR.DS_PROJECT as DS_PROJECT,
+inETL_AUDIT_ERR.JOB_NM as JOB_NM,
+inETL_AUDIT_ERR.BATCH_ID as BATCH_ID,
+inETL_AUDIT_ERR.STAT_VALUE as STAT_VALUE
+FROM
+inETL_AUDIT_ERR
+WHERE ETL_DIRECTION_CD=3D'E'""")
+outErrors.createOrReplaceTempView("outErrors")
+
+
+# COMMAND ----------
+# Component mvErrRecords, Type AGGREGATOR Original node name sumErrors, link =
+mvErrRecords
+mvErrRecords =3D spark.sql(f"""
+SELECT
+FROM
+outErrors
+GROUP BY
+outErrors.DS_PROJECT,
+outErrors.JOB_NM,
+outErrors.BATCH_ID""")
+mvErrRecords.createOrReplaceTempView("mvErrRecords")
+
+
+# COMMAND ----------
+# Component mvETL_AUDIT, Type LOOKUP Original node name lkpErrRecords, link m=
+vETL_AUDIT
+mvETL_AUDIT =3D spark.sql(f"""
+SELECT
+FROM
+in_ETL_AUDIT
+LEFT OUTER JOIN mvErrRecords ON=20
+LEFT OUTER JOIN inMaxMastrId ON=20
+""")
+mvETL_AUDIT.createOrReplaceTempView("mvETL_AUDIT")
+
+
+# COMMAND ----------
+# Component out_ETL_AUDIT, Type TRANSFORMATION Original node name XFM_Add_Col=
+s, link out_ETL_AUDIT
+out_ETL_AUDIT =3D spark.sql(f"""
+SELECT
+mvETL_AUDIT.MASTER_RUN_ID as MASTER_RUN_ID,
+mvETL_AUDIT.DS_PROJECT as DS_PROJECT,
+mvETL_AUDIT.JOB_NM as JOB_NM,
+mvETL_AUDIT.BATCH_ID as BATCH_ID,
+mvETL_AUDIT.ENVIRONMENT_NM as ENVIRONMENT_NM,
+IF ( mvETL_AUDIT.ENVIRONMENT_NM =3D 'DATASET' or mvETL_AUDIT.ENVIRONMENT_NM =
+=3D 'INFO' , ' ' , IF ( mvETL_AUDIT.ETL_DIRECTION_CD =3D 'O' , '{pDatabase}' =
+, IF ( mvETL_AUDIT.ETL_DIRECTION_CD =3D 'I' , '{pDatabaseIn}' , ' ' ) ) ) as =
+DATABASE_NM,
+mvETL_AUDIT.TABLE_NM as TABLE_NM,
+mvETL_AUDIT.ETL_DIRECTION_CD as ETL_DIRECTION_CD,
+mvETL_AUDIT.STAT_NM as STAT_NM,
+IF ( mvETL_AUDIT.ERR_STAT_VALUE IS NULL , mvETL_AUDIT.STAT_VALUE , IF ( mvETL=
+_AUDIT.ETL_DIRECTION_CD =3D 'O' , mvETL_AUDIT.STAT_VALUE - mvETL_AUDIT.ERR_ST=
+AT_VALUE , mvETL_AUDIT.STAT_VALUE ) ) as STAT_VALUE,
+mvETL_AUDIT.JOB_STATUS as JOB_STATUS,
+mvETL_AUDIT.'${START_DT}'TM as START_DTTM,
+mvETL_AUDIT.'${END_DT}'TM as END_DTTM,
+mvETL_AUDIT.MASTER_RUN_DSC as MASTER_RUN_DSC
+FROM
+mvETL_AUDIT""")
+out_ETL_AUDIT.createOrReplaceTempView("out_ETL_AUDIT")
+
+
+# COMMAND ----------
+# Component TGT_ETL_AUDIT, Type TARGET=20
+# COMMAND ----------
+# Component TGT_ETL_AUDIT, Type INSERT=20
+spark.sql("""INSERT INTO EFBI_#$TD_EFBI_EV#_ETL_CTRL_T.ETL_AUDIT
+(
+MASTER_RUN_ID,
+DS_PROJECT,
+JOB_NM,
+BATCH_ID,
+ENVIRONMENT_NM,
+DATABASE_NM,
+TABLE_NM,
+ETL_DIRECTION_CD,
+STAT_NM,
+STAT_VALUE,
+JOB_STATUS,
+START_DTTM,
+END_DTTM,
+MASTER_RUN_DSC
+)
+SELECT
+out_ETL_AUDIT.MASTER_RUN_ID,
+out_ETL_AUDIT.DS_PROJECT,
+out_ETL_AUDIT.JOB_NM,
+out_ETL_AUDIT.BATCH_ID,
+out_ETL_AUDIT.ENVIRONMENT_NM,
+out_ETL_AUDIT.DATABASE_NM,
+out_ETL_AUDIT.TABLE_NM,
+out_ETL_AUDIT.ETL_DIRECTION_CD,
+out_ETL_AUDIT.STAT_NM,
+out_ETL_AUDIT.STAT_VALUE,
+out_ETL_AUDIT.JOB_STATUS,
+out_ETL_AUDIT.START_DTTM,
+out_ETL_AUDIT.END_DTTM,
+out_ETL_AUDIT.MASTER_RUN_DSC
+FROM
+out_ETL_AUDIT""")
+
+--===============1634324814236828712==--

@@ -11,8 +11,8 @@ from databricks.sdk.service.catalog import (
 )
 from databricks.sdk.service.sql import EndpointInfo, EndpointInfoWarehouseType, GetWarehouseResponse, State
 
-from databricks.labs.remorph.deployment.configurator import ResourceConfigurator
-from databricks.labs.remorph.helpers.metastore import CatalogOperations
+from databricks.labs.lakebridge.deployment.configurator import ResourceConfigurator
+from databricks.labs.lakebridge.helpers.metastore import CatalogOperations
 
 
 @pytest.fixture

@@ -1,8 +1,8 @@
 import pytest
 from unittest.mock import patch, MagicMock
 from pathlib import Path
-from databricks.labs.remorph.connections.credential_manager import create_credential_manager
-from databricks.labs.remorph.connections.env_getter import EnvGetter
+from databricks.labs.lakebridge.connections.credential_manager import create_credential_manager
+from databricks.labs.lakebridge.connections.env_getter import EnvGetter
 import os
 
 product_name = "remorph"
@@ -56,8 +56,8 @@ def databricks_credentials():
     }
 
 
-@patch('databricks.labs.remorph.connections.credential_manager._load_credentials')
-@patch('databricks.labs.remorph.connections.credential_manager._get_home')
+@patch('databricks.labs.lakebridge.connections.credential_manager._load_credentials')
+@patch('databricks.labs.lakebridge.connections.credential_manager._get_home')
 def test_local_credentials(mock_get_home, mock_load_credentials, local_credentials, env_getter):
     mock_load_credentials.return_value = local_credentials
     mock_get_home.return_value = Path("/fake/home")
@@ -67,8 +67,8 @@ def test_local_credentials(mock_get_home, mock_load_credentials, local_credentia
     assert creds['password'] == 'local_password'
 
 
-@patch('databricks.labs.remorph.connections.credential_manager._load_credentials')
-@patch('databricks.labs.remorph.connections.credential_manager._get_home')
+@patch('databricks.labs.lakebridge.connections.credential_manager._load_credentials')
+@patch('databricks.labs.lakebridge.connections.credential_manager._get_home')
 @patch.dict('os.environ', {'MSSQL_USER_ENV': 'env_user', 'MSSQL_PASSWORD_ENV': 'env_password'})
 def test_env_credentials(mock_get_home, mock_load_credentials, env_credentials, env_getter):
     mock_load_credentials.return_value = env_credentials
@@ -80,8 +80,8 @@ def test_env_credentials(mock_get_home, mock_load_credentials, env_credentials, 
     assert creds['password'] == 'env_password'
 
 
-@patch('databricks.labs.remorph.connections.credential_manager._load_credentials')
-@patch('databricks.labs.remorph.connections.credential_manager._get_home')
+@patch('databricks.labs.lakebridge.connections.credential_manager._load_credentials')
+@patch('databricks.labs.lakebridge.connections.credential_manager._get_home')
 def test_databricks_credentials(mock_get_home, mock_load_credentials, databricks_credentials, env_getter):
     mock_load_credentials.return_value = databricks_credentials
     mock_get_home.return_value = Path("/fake/home")

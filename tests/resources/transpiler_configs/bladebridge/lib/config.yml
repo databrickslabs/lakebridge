@@ -1,0 +1,33 @@
+remorph:
+  version: 1
+  name: Bladebridge
+  dialects:
+    - athena
+    - bigquery
+    - datastage
+    - greenplum
+    - informatica (desktop edition)
+    - mssql
+    - netezza
+    - oracle
+    - redshift
+    - snowflake
+    - synapse
+    - teradata
+  command_line: ["python3", "-m", "databricks.labs.bladebridge.server"]
+options:
+  all:
+    - flag: "overrides-file"
+      method: QUESTION
+      prompt: "Specify the file to use for overrides - press <enter> for none"
+      default: "<none>"
+  datastage:
+    - flag: "target-tech"
+      method: CHOICE
+      prompt: "Specify which technology should be generated"
+      choices: [ SPARKSQL, PYSPARK ]
+  "informatica (desktop edition)":
+    - flag: "target-tech"
+      method: CHOICE
+      prompt: "Specify which technology should be generated"
+      choices: [ SPARKSQL, PYSPARK ]

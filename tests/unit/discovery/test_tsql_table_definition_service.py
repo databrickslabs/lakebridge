@@ -1,6 +1,6 @@
 from unittest.mock import MagicMock
-from databricks.labs.remorph.discovery.table import TableDefinition
-from databricks.labs.remorph.discovery.tsql_table_definition import TsqlTableDefinitionService
+from databricks.labs.lakebridge.discovery.table import TableDefinition
+from databricks.labs.lakebridge.discovery.tsql_table_definition import TsqlTableDefinitionService
 
 
 def test_get_table_definition_with_data():

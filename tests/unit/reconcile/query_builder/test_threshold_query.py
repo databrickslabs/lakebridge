@@ -2,12 +2,12 @@ import re
 
 import pytest
 
-from databricks.labs.remorph.transpiler.sqlglot.dialect_utils import get_dialect
-from databricks.labs.remorph.reconcile.exception import InvalidInputException
-from databricks.labs.remorph.reconcile.query_builder.threshold_query import (
+from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
+from databricks.labs.lakebridge.reconcile.exception import InvalidInputException
+from databricks.labs.lakebridge.reconcile.query_builder.threshold_query import (
     ThresholdQueryBuilder,
 )
-from databricks.labs.remorph.reconcile.recon_config import (
+from databricks.labs.lakebridge.reconcile.recon_config import (
     JdbcReaderOptions,
     Schema,
     ColumnThresholds,

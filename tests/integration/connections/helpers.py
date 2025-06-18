@@ -1,6 +1,6 @@
 from urllib.parse import urlparse
-from databricks.labs.remorph.connections.credential_manager import create_credential_manager
-from databricks.labs.remorph.connections.database_manager import DatabaseManager
+from databricks.labs.lakebridge.connections.credential_manager import create_credential_manager
+from databricks.labs.lakebridge.connections.database_manager import DatabaseManager
 from .debug_envgetter import TestEnvGetter
 
 

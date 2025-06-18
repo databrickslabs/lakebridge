@@ -1,6 +1,6 @@
 import pytest
 
-from databricks.labs.remorph.discovery.tsql_table_definition import TsqlTableDefinitionService
+from databricks.labs.lakebridge.discovery.tsql_table_definition import TsqlTableDefinitionService
 from ..connections.helpers import get_db_manager
 
 

@@ -1,6 +1,6 @@
 import pytest
 
-from databricks.labs.remorph.intermediate.dag import DAG
+from databricks.labs.lakebridge.intermediate.dag import DAG
 
 
 @pytest.fixture(scope="module")

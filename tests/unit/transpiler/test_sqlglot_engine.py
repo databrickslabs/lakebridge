@@ -4,8 +4,8 @@ from pathlib import Path
 import pytest
 from sqlglot import expressions
 
-from databricks.labs.remorph.transpiler.sqlglot import local_expression
-from databricks.labs.remorph.transpiler.sqlglot.sqlglot_engine import SqlglotEngine
+from databricks.labs.lakebridge.transpiler.sqlglot import local_expression
+from databricks.labs.lakebridge.transpiler.sqlglot.sqlglot_engine import SqlglotEngine
 from tests.unit.conftest import get_dialect
 
 

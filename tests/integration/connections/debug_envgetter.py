@@ -2,7 +2,7 @@ import os
 import json
 import logging
 
-from databricks.labs.remorph.connections.env_getter import EnvGetter
+from databricks.labs.lakebridge.connections.env_getter import EnvGetter
 
 
 class TestEnvGetter(EnvGetter):

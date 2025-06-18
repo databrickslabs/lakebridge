@@ -2,7 +2,8 @@ import io
 import re
 import shutil
 from pathlib import Path
-from collections.abc import Sequence
+from collections.abc import Sequence, AsyncGenerator
+from collections.abc import Generator
 from unittest.mock import create_autospec
 
 import pytest
@@ -15,11 +16,12 @@ from sqlglot.errors import SqlglotError, ParseError
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.errors import NotFound
 
-from databricks.labs.remorph.config import TranspileConfig
-from databricks.labs.remorph.helpers.file_utils import make_dir
-from databricks.labs.remorph.transpiler.sqlglot.dialect_utils import SQLGLOT_DIALECTS
-from databricks.labs.remorph.transpiler.sqlglot.generator.databricks import Databricks
-from databricks.labs.remorph.transpiler.sqlglot.parsers.snowflake import Snowflake
+from databricks.labs.lakebridge.config import TranspileConfig
+from databricks.labs.lakebridge.helpers.file_utils import make_dir
+from databricks.labs.lakebridge.transpiler.lsp.lsp_engine import LSPEngine
+from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import SQLGLOT_DIALECTS
+from databricks.labs.lakebridge.transpiler.sqlglot.generator.databricks import Databricks
+from databricks.labs.lakebridge.transpiler.sqlglot.parsers.snowflake import Snowflake
 from databricks.sdk.core import Config
 
 from .transpiler.helpers.functional_test_cases import (
@@ -220,9 +222,9 @@ def path_to_resource(*args: str) -> str:
 
 
 @pytest.fixture
-def mock_workspace_client_cli():
+def mock_workspace_client():
     state = {
-        "/Users/foo/.remorph/config.yml": yaml.dump(
+        "/Users/foo/.lakebridge/config.yml": yaml.dump(
             {
                 'version': 3,
                 'catalog_name': 'transpiler',
@@ -232,7 +234,7 @@ def mock_workspace_client_cli():
                 'sdk_config': {'cluster_id': 'test_cluster'},
             }
         ),
-        "/Users/foo/.remorph/recon_config.yml": yaml.dump(
+        "/Users/foo/.lakebridge/recon_config.yml": yaml.dump(
             {
                 'version': 1,
                 'source_schema': "src_schema",
@@ -292,7 +294,7 @@ def write_data_to_file(path: Path, content: str):
 
 
 @pytest.fixture
-def input_source(tmp_path: Path):
+def input_source(tmp_path: Path) -> Generator[Path, None, None]:
     source_dir = tmp_path / "remorph_source"
     safe_remove_dir(source_dir)  # should never be required but harmless
     make_dir(source_dir)
@@ -406,14 +408,23 @@ def input_source(tmp_path: Path):
 
 
 @pytest.fixture
-def output_folder(tmp_path: Path):
+def output_folder(tmp_path: Path) -> Generator[Path, None, None]:
     output_dir = tmp_path / "remorph_transpiled"
     yield output_dir
     safe_remove_dir(output_dir)
 
 
 @pytest.fixture
-def error_file(tmp_path: Path):
+def error_file(tmp_path: Path) -> Generator[Path, None, None]:
     file_path = tmp_path / "transpile_errors.lst"
     yield file_path
     safe_remove_file(file_path)
+
+
+@pytest.fixture
+async def lsp_engine() -> AsyncGenerator[LSPEngine, None]:
+    config_path = path_to_resource("lsp_transpiler", "lsp_config.yml")
+    engine = LSPEngine.from_config_path(Path(config_path))
+    yield engine
+    if engine.is_alive:
+        await engine.shutdown()

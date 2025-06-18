@@ -3,7 +3,7 @@ from unittest.mock import create_autospec
 
 import pytest
 
-from databricks.labs.remorph.reconcile.connectors.secrets import SecretsMixin
+from databricks.labs.lakebridge.reconcile.connectors.secrets import SecretsMixin
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.errors import NotFound
 from databricks.sdk.service.workspace import GetSecretResponse

@@ -1,7 +1,7 @@
 import pytest
 
-from databricks.labs.remorph.intermediate.root_tables import RootTableAnalyzer
-from databricks.labs.remorph.transpiler.sqlglot.sqlglot_engine import SqlglotEngine
+from databricks.labs.lakebridge.intermediate.root_tables import RootTableAnalyzer
+from databricks.labs.lakebridge.transpiler.sqlglot.sqlglot_engine import SqlglotEngine
 
 
 @pytest.fixture(autouse=True)

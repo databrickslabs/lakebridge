@@ -1,7 +1,7 @@
 <!-- REMOVE IRRELEVANT COMMENTS BEFORE CREATING A PULL REQUEST -->
 ## Changes
 <!-- Summary of your changes that are easy to understand. Add screenshots when necessary, they're helpful to illustrate the before and after state -->
-### What does this PR do? 
+### What does this PR do?
 
 ### Relevant implementation details
 
@@ -16,7 +16,7 @@ Resolves #..
 
 - [ ] added relevant user documentation
 - [ ] added new CLI command
-- [ ] modified existing command: `databricks labs remorph ...`
+- [ ] modified existing command: `databricks labs lakebridge ...`
 - [ ] ... +add your own
 
 ### Tests
