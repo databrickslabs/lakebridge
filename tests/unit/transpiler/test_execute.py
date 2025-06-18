@@ -20,11 +20,22 @@ from databricks.labs.lakebridge.transpiler.execute import (
     transpile as do_transpile,
     transpile_column_exp,
     transpile_sql,
+    make_header,
 )
+
+from databricks.labs.lakebridge.transpiler.transpile_status import (
+    TranspileError,
+    CodeRange,
+    CodePosition,
+    ErrorSeverity,
+    ErrorKind,
+)
+
 from databricks.sdk.core import Config
 
 from databricks.labs.lakebridge.transpiler.sqlglot.sqlglot_engine import SqlglotEngine
 from databricks.labs.lakebridge.transpiler.transpile_engine import TranspileEngine
+
 from tests.unit.conftest import path_to_resource
 
 
@@ -368,3 +379,155 @@ def test_server_decombines_workflow_output(mock_workspace_client, lsp_engine, tr
         _status, _errors = transpile(mock_workspace_client, lsp_engine, transpile_config)
 
         assert any(Path(output_folder).glob("*.json")), "No .json file found in output_folder"
+
+
+def test_make_header_with_no_diagnostics():
+    path = Path("/tmp/path/to/input")
+    diagnostics = []
+    header = make_header(path, diagnostics)
+
+    assert (
+        header
+        == """/*
+    Successfully transpiled from /tmp/path/to/input
+*/
+"""
+    )
+
+
+def test_make_header_with_one_error():
+    path = Path("/tmp/path/to/input")
+    diagnostics = [
+        TranspileError(
+            None,
+            ErrorKind.INTERNAL,
+            ErrorSeverity.ERROR,
+            path,
+            "this is an error message",
+            CodeRange(start=CodePosition(0, 0), end=CodePosition(1, 0)),
+        )
+    ]
+    header = make_header(path, diagnostics)
+
+    assert (
+        header
+        == """/*
+    Failed transpilation of /tmp/path/to/input
+
+    The following errors were found while transpiling:
+      - [7:1] this is an error message
+*/
+"""
+    )
+
+
+def test_make_header_with_one_warning():
+    path = Path("/tmp/path/to/input")
+    diagnostics = [
+        TranspileError(
+            None,
+            ErrorKind.INTERNAL,
+            ErrorSeverity.WARNING,
+            path,
+            "this is a warning",
+            CodeRange(start=CodePosition(0, 0), end=CodePosition(1, 0)),
+        )
+    ]
+    header = make_header(path, diagnostics)
+
+    assert (
+        header
+        == """/*
+    Successfully transpiled from /tmp/path/to/input
+
+    The following warnings were found while transpiling:
+      - [7:1] this is a warning
+*/
+"""
+    )
+
+
+def test_make_header_with_one_repeated_error():
+    path = Path("/tmp/path/to/input")
+    diagnostics = [
+        TranspileError(
+            None,
+            ErrorKind.INTERNAL,
+            ErrorSeverity.ERROR,
+            path,
+            "this is an error message",
+            CodeRange(start=CodePosition(0, 0), end=CodePosition(1, 0)),
+        ),
+        TranspileError(
+            None,
+            ErrorKind.INTERNAL,
+            ErrorSeverity.ERROR,
+            path,
+            "this is an error message",
+            CodeRange(start=CodePosition(1, 0), end=CodePosition(2, 0)),
+        ),
+        TranspileError(
+            None,
+            ErrorKind.INTERNAL,
+            ErrorSeverity.ERROR,
+            path,
+            "this is an error message",
+            CodeRange(start=CodePosition(2, 0), end=CodePosition(3, 0)),
+        ),
+    ]
+    header = make_header(path, diagnostics)
+
+    assert (
+        header
+        == """/*
+    Failed transpilation of /tmp/path/to/input
+
+    The following errors were found while transpiling:
+      - this is an error message
+          Occurred 3 times at the following positions: [8:1], [9:1], [10:1]
+*/
+"""
+    )
+
+
+def test_make_header_with_one_repeated_warning():
+    path = Path("/tmp/path/to/input")
+    diagnostics = [
+        TranspileError(
+            None,
+            ErrorKind.INTERNAL,
+            ErrorSeverity.WARNING,
+            path,
+            "this is a warning",
+            CodeRange(start=CodePosition(0, 0), end=CodePosition(1, 0)),
+        ),
+        TranspileError(
+            None,
+            ErrorKind.INTERNAL,
+            ErrorSeverity.WARNING,
+            path,
+            "this is a warning",
+            CodeRange(start=CodePosition(1, 0), end=CodePosition(2, 0)),
+        ),
+        TranspileError(
+            None,
+            ErrorKind.INTERNAL,
+            ErrorSeverity.WARNING,
+            path,
+            "this is a warning",
+            CodeRange(start=CodePosition(2, 0), end=CodePosition(3, 0)),
+        ),
+    ]
+    header = make_header(path, diagnostics)
+
+    assert (
+        header
+        == """/*
+    Successfully transpiled from /tmp/path/to/input
+
+    The following warnings were found while transpiling:
+      - this is a warning
+          Occurred 3 times at the following positions: [8:1], [9:1], [10:1]
+*/
+"""
+    )

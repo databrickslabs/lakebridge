@@ -150,38 +150,33 @@ def _process_single_result(context: TranspilingContext, error_list: list[Transpi
 
     output_path = cast(Path, context.output_path)
     with output_path.open("w") as w:
-        w.write(_make_header(context.input_path, error_list))
+        w.write(make_header(context.input_path, error_list))
         w.write(output_code)
 
     logger.info(f"Processed file: {context.input_path} (errors: {len(error_list)})")
 
 
-def _make_header(file_path: Path, errors: list[TranspileError]) -> str:
+def make_header(file_path: Path, errors: list[TranspileError]) -> str:
     header = ""
     failed_producing_output = False
-    diag_by_severity = {}
-    line_numbers = {}
+    diag_by_severity = {
+        severity.name: list(diags) for severity, diags in itertools.groupby(errors, key=lambda x: x.severity)
+    }
+    line_numbers: dict[int, int] = {}
 
-    for severity, diags in itertools.groupby(errors, key=lambda x: x.severity):
-        diag_by_severity[severity] = list(diags)
-
-    if ErrorSeverity.ERROR in diag_by_severity:
+    if ErrorSeverity.ERROR.name in diag_by_severity:
         header += f"/*\n    Failed transpilation of {file_path}\n"
         header += "\n    The following errors were found while transpiling:\n"
-        for diag in diag_by_severity[ErrorSeverity.ERROR]:
-            if diag.range:
-                line_numbers[diag.range.start.line] = 0
-            header += _append_diagnostic(diag)
-            failed_producing_output = failed_producing_output or diag.kind == ErrorKind.PARSING
+        header += _append_diagnostics(diag_by_severity[ErrorSeverity.ERROR.name], line_numbers)
+        failed_producing_output = failed_producing_output or any(
+            x.kind == ErrorKind.PARSING for x in diag_by_severity[ErrorSeverity.ERROR.name]
+        )
     else:
         header += f"/*\n    Successfully transpiled from {file_path}\n"
 
-    if ErrorSeverity.WARNING in diag_by_severity:
+    if ErrorSeverity.WARNING.name in diag_by_severity:
         header += "\n    The following warnings were found while transpiling:\n"
-        for diag in diag_by_severity[ErrorSeverity.WARNING]:
-            if diag.range:
-                line_numbers[diag.range.start.line] = 0
-            header += _append_diagnostic(diag)
+        header += _append_diagnostics(diag_by_severity[ErrorSeverity.WARNING.name], line_numbers)
 
     if failed_producing_output:
         header += "\n\n    Parsing errors prevented the converter from translating the input query.\n"
@@ -197,13 +192,29 @@ def _make_header(file_path: Path, errors: list[TranspileError]) -> str:
     return header.format(line_numbers=line_numbers)
 
 
-def _append_diagnostic(diag: TranspileError) -> str:
-    message = diag.message.replace("{", "{{").replace("}", "}}")
-    if diag.range:
-        line = diag.range.start.line
-        column = diag.range.start.character + 1
-        return f"      - [{{line_numbers[{line}]}}:{column}] {message}\n"
-    return f"      - {message}\n"
+def _append_diagnostics(diagnostics: list[TranspileError], line_numbers: dict) -> str:
+    header = ""
+    grouped_by_message = {msg: list(diags) for msg, diags in itertools.groupby(diagnostics, lambda x: x.message)}
+    for msg, occurrences in grouped_by_message.items():
+        for occurrence in occurrences:
+            if occurrence.range:
+                line_numbers.update({occurrence.range.start.line: 0})
+        header += _append_diagnostic(msg, occurrences)
+    return header
+
+
+def _append_diagnostic(msg: str, diags: list[TranspileError]) -> str:
+    positions = [
+        f"[{{line_numbers[{diag.range.start.line}]}}:{diag.range.start.character + 1}]" for diag in diags if diag.range
+    ]
+    message = msg.replace("{", "{{").replace("}", "}}").replace("/n", "\n        ")
+    result = f"      - {message}\n" if len(positions) != 1 else f"      - {positions[0]} {message}\n"
+    if len(positions) > 1:
+        positions_str = ", ".join(positions)
+        result += f"          Occurred {len(diags)} times at the following positions: {positions_str}\n"
+    elif len(diags) > 1:
+        result += f"          Occurred {len(diags)} times\n"
+    return result
 
 
 async def _process_many_files(
@@ -324,7 +335,7 @@ async def _do_transpile(
         msg = f"{config.input_source} does not exist."
         logger.error(msg)
         raise FileNotFoundError(msg)
-    logger.info(f"Transpiler results: {result}")
+    logger.debug(f"Transpiler results: {result}")
 
     if not config.skip_validation:
         logger.info(f"SQL validation errors: {result.validation_error_count}")
