@@ -2,8 +2,7 @@ import io
 import re
 import shutil
 from pathlib import Path
-from collections.abc import Sequence, AsyncGenerator
-from collections.abc import Generator
+from collections.abc import Generator, Sequence, AsyncGenerator
 from unittest.mock import create_autospec
 
 import pytest
@@ -222,7 +221,7 @@ def path_to_resource(*args: str) -> str:
 
 
 @pytest.fixture
-def mock_workspace_client():
+def mock_workspace_client() -> WorkspaceClient:
     state = {
         "/Users/foo/.lakebridge/config.yml": yaml.dump(
             {
@@ -403,6 +402,14 @@ def input_source(tmp_path: Path) -> Generator[Path, None, None]:
     write_data_to_file(stream_1_sql_file, stream_1_sql)
     write_data_to_file(call_center_ddl_file, call_center_ddl)
     write_data_to_file(file_text, "This is a test file")
+    yield source_dir
+    safe_remove_dir(source_dir)
+
+
+@pytest.fixture
+def empty_input_source(tmp_path: Path) -> Generator[Path, None, None]:
+    source_dir = tmp_path / "remorph_source"
+    source_dir.mkdir()
     yield source_dir
     safe_remove_dir(source_dir)
 

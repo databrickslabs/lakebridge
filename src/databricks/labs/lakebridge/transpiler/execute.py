@@ -1,6 +1,7 @@
 import asyncio
 import dataclasses
 import logging
+from email import policy
 from email.message import Message
 from email.parser import Parser as EmailParser
 from pathlib import Path
@@ -97,7 +98,8 @@ def _is_combined_result(result: TranspileResult):
 
 def _process_combined_result(context: TranspilingContext, _error_list: list[TranspileError]) -> None:
     # TODO error handling
-    parser = EmailParser()
+    # Added policy to process quoted-printable encoded
+    parser = EmailParser(policy=policy.default)
     transpiled_code: str = cast(str, context.transpiled_code)
     message: Message = parser.parsestr(transpiled_code)
     for part in message.walk():
@@ -106,13 +108,18 @@ def _process_combined_result(context: TranspilingContext, _error_list: list[Tran
 
 def _process_combined_part(context: TranspilingContext, part: Message) -> None:
     if part.get_content_type() != "text/plain":
-        return
+        return  # TODO Need to handle other content types, e.g., text/binary, application/json, etc.
     filename = part.get_filename()
-    content = part.get_payload(decode=False)
+    payload = part.get_payload(decode=True)
+    charset = part.get_content_charset() or "utf-8"
+    if isinstance(payload, bytes):
+        content = payload.decode(charset)
+    else:
+        content = str(payload)
     logger.debug(f"Processing file: {filename}")
 
-    if not filename or not isinstance(content, str):
-        return
+    if not filename:
+        return  # TODO Raise exception!!!!
     filename = Path(filename).name
     folder = context.output_folder
     segments = filename.split("/")
@@ -120,7 +127,8 @@ def _process_combined_part(context: TranspilingContext, part: Message) -> None:
         folder = folder / segment
         folder.mkdir(parents=True, exist_ok=True)
     output = folder / segments[-1]
-    output.write_text(content, "utf-8")
+    logger.debug(f"Writing output to: {output}")
+    output.write_text(content)
 
 
 def _process_single_result(context: TranspilingContext, error_list: list[TranspileError]) -> None:
