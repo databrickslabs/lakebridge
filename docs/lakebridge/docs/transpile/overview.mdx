@@ -109,28 +109,12 @@ More details about the BladeBridge converter [here](/docs/transpile/bladebridge_
 
 ### Supported dialects
 
-<!-- old table
-| Dialect | Morpheus | BladeBridge |
-|---------|----------|-------------|
-| Snowflake| :white_check_mark: | :white_check_mark: |
-| TSQL | :white_check_mark: | :white_check_mark: |
-| Teradata| :soon: | :white_check_mark: |
--->
-
-
-| Dialect                 | Morpheus            | BladeBridge         |
-|-------------------------|---------------------|---------------------|
-| Athena                  |                     | :white_check_mark: |
-| BigQuery                |                     | :white_check_mark: |
-| DataStage               |                     | :white_check_mark: |
-| Greenplum              |                     | :white_check_mark: |
-| Informatica (Desktop)   |                     | :white_check_mark: |
-| MSSQL                   |                     | :white_check_mark: |
-| Netezza                 |                     | :white_check_mark: |
-| Oracle                  |                     | :white_check_mark: |
-| Redshift                |                     | :white_check_mark: |
-| Snowflake              | :white_check_mark:  | :white_check_mark: |
-| Synapse                 |                     | :white_check_mark: |
-| Teradata               | :soon:              | :white_check_mark: |
-| TSQL                    | :white_check_mark:  | :white_check_mark: |
-
+| Source Platform              | BladeBridge | Morpheus |   SQL    | ETL/Orchestration | dbt Repointing (Experimental) |
+|:-----------------------------|:-----------:|:--------:|:--------:|:-----------------:|:------------------:|
+| DataStage                    |  &#x2705;   |          | &#x2705; |     &#x2705;      |                    |
+| Informatica (Cloud, PC)      |  &#x2705;   |          | &#x2705; |     &#x2705;      |                    |
+| Netezza                      |  &#x2705;   |          | &#x2705; |                   |                    |
+| Oracle (incl. ADS & Exadata) |  &#x2705;   |          | &#x2705; |                   |                    |
+| Snowflake                    |             | &#x2705; | &#x2705; |                   |      &#x2705;      |
+| SQL Server (incl. Synapse)   |  &#x2705;   |          | &#x2705; |                   |                    |
+| Teradata                     |  &#x2705;   |          | &#x2705; |                   |                    |
