@@ -108,7 +108,7 @@ def test_install(ws):
 
     ws.lakeview.trash.side_effect = raise_invalid_parameter_err_for_dashboard
     ws.jobs.delete.side_effect = raise_invalid_parameter_err_for_job
-    recon_deployer.install(reconcile_config, ["remorph-x.y.z-py3-none-any.whl"])
+    recon_deployer.install(reconcile_config, ["lakebridge-x.y.z-py3-none-any.whl"])
     table_deployer.deploy_table_from_ddl_file.assert_called()
     job_deployer.deploy_recon_job.assert_called()
     dashboard_deployer.deploy.assert_called()
