@@ -2,6 +2,7 @@ import asyncio
 import dataclasses
 import itertools
 import json
+import logging
 import os
 import time
 from pathlib import Path
@@ -12,7 +13,7 @@ from databricks.sdk.service.sql import CreateWarehouseRequestWarehouseType
 from databricks.sdk import WorkspaceClient
 
 from databricks.labs.blueprint.cli import App
-from databricks.labs.blueprint.entrypoint import get_logger
+from databricks.labs.blueprint.entrypoint import get_logger, is_in_debug
 from databricks.labs.blueprint.installation import JsonValue
 from databricks.labs.blueprint.tui import Prompts
 
@@ -467,3 +468,5 @@ def analyze(w: WorkspaceClient, source_directory: str, report_file: str):
 
 if __name__ == "__main__":
     lakebridge()
+    if is_in_debug():
+        logger.setLevel(logging.DEBUG)

@@ -1,6 +1,7 @@
 import asyncio
 import dataclasses
 import logging
+from email import policy
 from email.message import Message
 from email.parser import Parser as EmailParser
 from pathlib import Path
@@ -93,13 +94,13 @@ async def _process_one_file(context: TranspilingContext) -> tuple[int, list[Tran
 
 
 def _is_combined_result(result: TranspileResult):
-    logger.info("Checking if result is a combined result")
     return result.transpiled_code.startswith("Content-Type: multipart/mixed; boundary=")
 
 
 def _process_combined_result(context: TranspilingContext, _error_list: list[TranspileError]) -> None:
     # TODO error handling
-    parser = EmailParser()
+    # Added policy to process quoted-printable encoded
+    parser = EmailParser(policy=policy.default)
     transpiled_code: str = cast(str, context.transpiled_code)
     message: Message = parser.parsestr(transpiled_code)
     for part in message.walk():
@@ -107,16 +108,10 @@ def _process_combined_result(context: TranspilingContext, _error_list: list[Tran
 
 
 def _process_combined_part(context: TranspilingContext, part: Message) -> None:
-
-    logger.debug(f"Processing part: {part}")
-    # BladeBridge sends the content in application/octet-stream encoding
     if part.get_content_type() != "text/plain":
-        content = part.get_payload(decode=False)
-    else:
-        content = part.get_payload(decode=True)
-
+        return
     filename = part.get_filename()
-
+    content = part.get_payload(decode=True)
     logger.debug(f"Processing file: {filename}")
 
     if not filename or not isinstance(content, str):
