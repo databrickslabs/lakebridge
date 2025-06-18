@@ -5,7 +5,7 @@ import useBaseUrl from '@docusaurus/useBaseUrl';
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-# Lakebridge Reconciliation
+# Reconcile Guide
 
 Reconcile is an automated tool designed to streamline the reconciliation process between source data and target data
 residing on Databricks. Currently, the platform exclusively offers support for Snowflake, Oracle and other Databricks
@@ -93,9 +93,36 @@ Below are the connection properties required for each source:
 
 
 ### Execution
-Execute the below command to initialize the reconcile process.
-```bash
- databricks labs lakebridge reconcile
-```
-<img src={useBaseUrl('img/recon-run.gif')} alt="reconcile-run" />
+You can execute the reconciliation process by executing the below command in a notebook cell.
 
+
+``` python
+from databricks.labs.lakebridge import __version__
+from databricks.sdk import WorkspaceClient
+
+from databricks.labs.lakebridge.reconcile.execute import recon
+from databricks.labs.lakebridge.reconcile.exception import ReconciliationException
+
+ws = WorkspaceClient(product="lakebridge", product_version=__version__)
+
+
+try:
+  result = recon(
+            ws = ws,
+            spark = spark, # notebook spark session
+            table_recon = table_recon, # previously created
+            reconcile_config = reconcile_config # previously created
+          )
+  print(result.recon_id)
+  print(result)
+except ReconciliationException as e:
+    recon_id = e.reconcile_output.recon_id
+    print(f" Failed : {recon_id}")
+    print(e)
+except Exception as e:
+    print(e.with_traceback)
+    raise e
+    print(f"Exception : {str(e)}")
+```
+
+for more details, refer to the [Reconcile Notebook](recon_notebook.mdx) documentation.

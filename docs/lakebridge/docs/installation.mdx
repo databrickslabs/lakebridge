@@ -17,8 +17,7 @@ Databricks Labs Lakebridge
 * [Transpile](#transpile)
 * [Reconcile](#reconcile)
 * [Environment Setup](#environment-setup)
-* [Install Transpile](#install-transpile)
-* [Install Reconcile](#install-reconcile)
+* [Install Lakebridge](#install-lakebridge)
 
 ----
 ## Lakebridge
@@ -40,18 +39,30 @@ Transpile stands out as a comprehensive and versatile SQL transpiler, boasting a
 ### Transpiler Design Flow:
 ```mermaid
 flowchart TD
-    A(Transpile CLI) --> |Directory| B[Transpile All Files In Directory];
-    A --> |File| C[Transpile Single File] ;
-    B --> D[List Files];
-    C --> E("Sqlglot(transpile)");
-    D --> E
-    E --> |Parse Error| F(Failed Queries)
-    E --> G{Skip Validations}
-    G --> |Yes| H(Save Output)
-    G --> |No| I{Validate}
-    I --> |Success| H
-    I --> |Fail| J(Flag, Capture)
-    J --> H
+    A(Transpile CLI) e1@==> |Directory| B[Transpile All Files In Directory];
+    A e2@==> |File| C[Transpile Single File] ;
+    B e3@==> D[List Files];
+    C e4@==> E("LSP Pluggable Transpiler");
+    D e5@==> E
+    E e6@==> |Parse Error| F(Failed Queries)
+    E e7@==> G{Skip Validations}
+    G e8@==> |Yes| H(Save Output)
+    G e9@==> |No| I{Validate}
+    I e10@==> |Success| H
+    I e11@==> |Fail| J(Flag, Capture)
+    J e12@==> H
+    e1@{ animate: true }
+    e2@{ animate: true }
+    e3@{ animate: true }
+    e4@{ animate: true }
+    e5@{ animate: true }
+    e6@{ animate: true }
+    e7@{ animate: true }
+    e8@{ animate: true }
+    e9@{ animate: true }
+    e10@{ animate: true }
+    e11@{ animate: true }
+    e12@{ animate: true }
 ```
 
 ## Reconcile
@@ -111,7 +122,7 @@ databricks configure --host <host> --profile <profile_name>
 
 ----
 
-## Install Transpile
+## Install Lakebridge
 
 ### Installation
 
@@ -119,6 +130,30 @@ Upon completing the environment setup, install Lakebridge by executing the follo
 ```bash
 databricks labs install lakebridge
 ```
+<img src={useBaseUrl('img/Install_Lakebridge.gif')} alt="lakebridge-install" />
+
+### Verify Installation
+Verify the successful installation by executing the provided command;
+confirmation of a successful installation is indicated when the displayed output aligns with the example below:
+```bash
+ databricks labs lakebridge --help
+ ```
+
+<img src={useBaseUrl('img/check_install.gif')} alt="verify-install" />
+
+[[back to top](#table-of-contents)]
+
+----
+
+## Install Transpile
+
+### Installation
+
+Upon completing the environment setup, you can install the out of the box transpilers by executing the following command:
+```bash
+databricks labs lakebridge install-transpile
+```
+
 <img src={useBaseUrl('img/transpile-install.gif')} alt="transpile-install" />
 
 ### Verify Installation
@@ -134,14 +169,14 @@ Verify the successful installation by executing the provided command; confirmati
 
 ## Install Reconcile
 
-### Installation
+### Configuration
 
-Install Reconciliation with databricks labs cli.
+Configure Reconciliation module .
 
 ```commandline
-databricks labs install lakebridge
+databricks labs lakebridge configure-reconcile
 ```
-<img src={useBaseUrl('img/recon-install.gif')} alt="reconcile-install" />
+<img src={useBaseUrl('img/recon-install.png')} alt="reconcile-configure" />
 
 ### Verify Installation
 Verify the successful installation by executing the provided command; confirmation of a successful installation is indicated when the displayed output aligns with the example screenshot provided:

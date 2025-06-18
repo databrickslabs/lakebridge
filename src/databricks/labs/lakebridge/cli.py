@@ -191,7 +191,7 @@ class _TranspileConfigChecker:
                 transpiler_name = self._prompts.choice("Select the transpiler:", list(transpiler_names))
             else:
                 transpiler_name = next(name for name in transpiler_names)
-                logger.info(f"lakebridge will use the {transpiler_name} transpiler")
+                logger.info(f"Lakebridge will use the {transpiler_name} transpiler")
             transpiler_config_path = str(TranspilerInstaller.transpiler_config_path(transpiler_name))
         logger.debug(f"Setting transpiler_config_path to '{transpiler_config_path}'")
         self._config = dataclasses.replace(self._config, transpiler_config_path=cast(str, transpiler_config_path))
@@ -309,6 +309,8 @@ async def _transpile(ctx: ApplicationContext, config: TranspileConfig, engine: T
     _override_workspace_client_config(ctx, config.sdk_config)
     status, errors = await do_transpile(ctx.workspace_client, engine, config)
 
+    logger.debug(f"Transpilation completed with status: {status}")
+
     for path, errors_by_path in itertools.groupby(errors, key=lambda x: x.path):
         errs = list(errors_by_path)
         errors_by_severity = {
@@ -329,7 +331,6 @@ async def _transpile(ctx: ApplicationContext, config: TranspileConfig, engine: T
             logger.warning(f"{path}: {msg}")
 
     # Table Template in labs.yml requires the status to be list of dicts Do not change this
-    logger.info(f"lakebridge Transpiler encountered {len(status)} from given {config.input_source} files.")
     return [status]
 
 
