@@ -3,7 +3,7 @@
 name: Documentation update
 description: Something new needs to be updated in the Lakebridge documentation
 title: "[DOCS]: "
-labels: ["needs-triage"]
+labels: ["needs-triage","documentation"]
 type: "task"
 
 body:
