@@ -558,7 +558,7 @@ class WorkspaceInstaller:
     @classmethod
     def install_morpheus(cls, artifact: Path | None = None):
         java_version = cls.get_java_version()
-        if java_version is None or java_version < 110:
+        if java_version is None or java_version < (11, 0, 0, 0):
             logger.warning(
                 "This software requires Java 11 or above. Please install Java and re-run 'install-transpile'."
             )
@@ -582,7 +582,7 @@ class WorkspaceInstaller:
             logger.fatal(f"Cannot install unsupported artifact: {artifact}")
 
     @classmethod
-    def get_java_version(cls) -> int | None:
+    def get_java_version(cls) -> tuple[int, int, int, int] | None:
         try:
             completed = run(["java", "-version"], shell=False, capture_output=True, check=True)
         except CalledProcessError as e:
@@ -591,19 +591,9 @@ class WorkspaceInstaller:
                 exc_info=e,
             )
             return None
-        result = completed.stderr.decode("utf-8")
-        start = result.find(" version ")
-        if start < 0:
-            return None
-        start = result.find('"', start + 1)
-        if start < 0:
-            return None
-        end = result.find('"', start + 1)
-        if end < 0:
-            return None
-        version = result[start + 1 : end]
-        parts = version.split('.')
-        return int(parts[0] + parts[1])
+        # It might not be ascii, but the bits we care about are so this will never fail.
+        java_version_output = completed.stderr.decode("ascii", errors="ignore")
+        return cls._parse_java_version(java_version_output)
 
     # Pattern to match a Java version string, compiled at import time to ensure it's valid.
     # Ref: https://docs.oracle.com/en/java/javase/11/install/version-string-format.html
