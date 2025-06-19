@@ -1,3 +1,4 @@
+from collections.abc import Generator, Callable
 from unittest.mock import create_autospec, patch, ANY, MagicMock
 from pathlib import Path
 import dataclasses
@@ -68,7 +69,9 @@ def test_transpile_with_missing_installation(transpiler_config_path: Path) -> No
 
 
 @pytest.fixture
-def mock_cli_for_transpile(mock_workspace_client, transpiler_config_path):
+def mock_cli_for_transpile(
+    mock_workspace_client: WorkspaceClient, transpiler_config_path: Path
+) -> Generator[tuple[WorkspaceClient, TranspileConfig, Callable[[TranspileConfig], None], MagicMock], None, None]:
     mock_transpile = MagicMock(return_value=({}, []))
 
     async def do_transpile(*args, **kwargs):
@@ -111,7 +114,7 @@ def mock_cli_for_transpile(mock_workspace_client, transpiler_config_path):
         set_default_config(default_config)
 
 
-def test_transpile_with_no_sdk_config(mock_cli_for_transpile, transpiler_config_path):
+def test_transpile_with_no_sdk_config(mock_cli_for_transpile, transpiler_config_path: Path) -> None:
     ws, cfg, set_cfg, do_transpile = mock_cli_for_transpile
     set_cfg(dataclasses.replace(cfg, sdk_config=None))
     cli.transpile(
@@ -135,7 +138,7 @@ def test_transpile_with_no_sdk_config(mock_cli_for_transpile, transpiler_config_
     )
 
 
-def test_transpile_with_warehouse_id_in_sdk_config(mock_cli_for_transpile, transpiler_config_path):
+def test_transpile_with_warehouse_id_in_sdk_config(mock_cli_for_transpile, transpiler_config_path: Path) -> None:
     ws, cfg, set_cfg, do_transpile = mock_cli_for_transpile
     sdk_config = {"warehouse_id": "w_id"}
     set_cfg(dataclasses.replace(cfg, sdk_config=sdk_config))
@@ -160,7 +163,7 @@ def test_transpile_with_warehouse_id_in_sdk_config(mock_cli_for_transpile, trans
     )
 
 
-def test_transpile_with_cluster_id_in_sdk_config(mock_cli_for_transpile, transpiler_config_path):
+def test_transpile_with_cluster_id_in_sdk_config(mock_cli_for_transpile, transpiler_config_path: Path) -> None:
     ws, cfg, set_cfg, do_transpile = mock_cli_for_transpile
     sdk_config = {"cluster_id": "c_id"}
     set_cfg(dataclasses.replace(cfg, sdk_config=sdk_config))
@@ -185,7 +188,7 @@ def test_transpile_with_cluster_id_in_sdk_config(mock_cli_for_transpile, transpi
     )
 
 
-def test_transpile_with_invalid_transpiler_config_path(mock_cli_for_transpile):
+def test_transpile_with_invalid_transpiler_config_path(mock_cli_for_transpile) -> None:
     ws, _cfg, _set_cfg, do_transpile = mock_cli_for_transpile
     cli.transpile(
         ws,
@@ -209,7 +212,7 @@ def test_transpile_with_invalid_transpiler_config_path(mock_cli_for_transpile):
     )
 
 
-def test_transpile_with_invalid_transpiler_dialect(mock_cli_for_transpile, transpiler_config_path):
+def test_transpile_with_invalid_transpiler_dialect(mock_cli_for_transpile, transpiler_config_path: Path) -> None:
     ws, _cfg, _set_cfg, do_transpile = mock_cli_for_transpile
     with pytest.raises(ValueError):
         cli.transpile(
@@ -234,7 +237,7 @@ def test_transpile_with_invalid_transpiler_dialect(mock_cli_for_transpile, trans
         )
 
 
-def test_transpile_with_invalid_skip_validation(mock_cli_for_transpile):
+def test_transpile_with_invalid_skip_validation(mock_cli_for_transpile) -> None:
     ws, _cfg, _set_cfg, _do_transpile = mock_cli_for_transpile
     with (pytest.raises(Exception, match="Invalid value for '--skip-validation'"),):
         cli.transpile(
@@ -243,7 +246,7 @@ def test_transpile_with_invalid_skip_validation(mock_cli_for_transpile):
         )
 
 
-def test_transpile_with_invalid_input_source(mock_cli_for_transpile):
+def test_transpile_with_invalid_input_source(mock_cli_for_transpile) -> None:
     ws, _cfg, _set_cfg, _do_transpile = mock_cli_for_transpile
     with (pytest.raises(Exception, match="Invalid value for '--input-source'"),):
         cli.transpile(
@@ -252,7 +255,7 @@ def test_transpile_with_invalid_input_source(mock_cli_for_transpile):
         )
 
 
-def test_transpile_with_valid_inputs(mock_cli_for_transpile, transpiler_config_path):
+def test_transpile_with_valid_inputs(mock_cli_for_transpile, transpiler_config_path: Path) -> None:
     ws, _cfg, _set_cfg, do_transpile = mock_cli_for_transpile
     transpiler = str(transpiler_config_path)
     source_dialect = "oracle"
@@ -291,7 +294,7 @@ def test_transpile_with_valid_inputs(mock_cli_for_transpile, transpiler_config_p
     )
 
 
-def test_transpile_with_real_inputs(mock_cli_for_transpile, transpiler_config_path):
+def test_transpile_with_real_inputs(mock_cli_for_transpile, transpiler_config_path: Path) -> None:
     ws, _cfg, _set_cfg, do_transpile = mock_cli_for_transpile
     with patch("os.path.exists", os.path.exists):
         source_dialect = "snowflake"
@@ -330,7 +333,7 @@ def test_transpile_with_real_inputs(mock_cli_for_transpile, transpiler_config_pa
         )
 
 
-def test_transpile_prints_errors(caplog, tmp_path, mock_workspace_client):
+def test_transpile_prints_errors(caplog, tmp_path: Path, mock_workspace_client: WorkspaceClient) -> None:
     transpiler_config_path = path_to_resource("lsp_transpiler", "lsp_config.yml")
     source_dialect = "snowflake"
     input_source = path_to_resource("lsp_transpiler", "unsupported_lca.sql")

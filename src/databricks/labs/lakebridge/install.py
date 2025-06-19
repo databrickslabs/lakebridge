@@ -558,7 +558,7 @@ class WorkspaceInstaller:
     @classmethod
     def install_morpheus(cls, artifact: Path | None = None):
         java_version = cls.get_java_version()
-        if java_version is None or java_version < 110:
+        if java_version is None or java_version < (11, 0, 0, 0):
             logger.warning(
                 "This software requires Java 11 or above. Please install Java and re-run 'install-transpile'."
             )
@@ -582,25 +582,48 @@ class WorkspaceInstaller:
             logger.fatal(f"Cannot install unsupported artifact: {artifact}")
 
     @classmethod
-    def get_java_version(cls) -> int | None:
-        completed = run(["java", "-version"], shell=False, capture_output=True, check=False)
+    def get_java_version(cls) -> tuple[int, int, int, int] | None:
+        # Platform-independent way to reliably locate the java executable.
+        # Reference: https://docs.python.org/3.10/library/subprocess.html#popen-constructor
+        java_executable = shutil.which("java")
+        if java_executable is None:
+            return None
         try:
-            completed.check_returncode()
-        except CalledProcessError:
+            completed = run([java_executable, "-version"], shell=False, capture_output=True, check=True)
+        except CalledProcessError as e:
+            logger.debug(
+                f"Failed to run {e.args!r} (exit-code={e.returncode}, stdout={e.stdout!r}, stderr={e.stderr!r})",
+                exc_info=e,
+            )
             return None
-        result = completed.stderr.decode("utf-8")
-        start = result.find(" version ")
-        if start < 0:
+        # It might not be ascii, but the bits we care about are so this will never fail.
+        java_version_output = completed.stderr.decode("ascii", errors="ignore")
+        java_version = cls._parse_java_version(java_version_output)
+        logger.debug(f"Detected java version: {java_version}")
+        return java_version
+
+    # Pattern to match a Java version string, compiled at import time to ensure it's valid.
+    # Ref: https://docs.oracle.com/en/java/javase/11/install/version-string-format.html
+    _java_version_pattern = re.compile(
+        r' version "(?P<feature>\d+)(?:\.(?P<interim>\d+)(?:\.(?P<update>\d+)(?:\.(?P<patch>\d+))?)?)?"'
+    )
+
+    @classmethod
+    def _parse_java_version(cls, version: str) -> tuple[int, int, int, int] | None:
+        """Locate and parse the Java version in the output of `java -version`."""
+        # Output looks like this:
+        #   openjdk version "24.0.1" 2025-04-15
+        #   OpenJDK Runtime Environment Temurin-24.0.1+9 (build 24.0.1+9)
+        #   OpenJDK 64-Bit Server VM Temurin-24.0.1+9 (build 24.0.1+9, mixed mode)
+        match = cls._java_version_pattern.search(version)
+        if not match:
+            logger.debug(f"Could not parse java version: {version!r}")
             return None
-        start = result.find('"', start + 1)
-        if start < 0:
-            return None
-        end = result.find('"', start + 1)
-        if end < 0:
-            return None
-        version = result[start + 1 : end]
-        parts = version.split('.')
-        return int(parts[0] + parts[1])
+        feature = int(match["feature"])
+        interim = int(match["interim"] or 0)
+        update = int(match["update"] or 0)
+        patch = int(match["patch"] or 0)
+        return feature, interim, update, patch
 
     def configure(self, module: str) -> RemorphConfigs:
         match module:
