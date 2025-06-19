@@ -605,6 +605,8 @@ class WorkspaceInstaller:
         parts = version.split('.')
         return int(parts[0] + parts[1])
 
+    # Pattern to match a Java version string, compiled at import time to ensure it's valid.
+    # Ref: https://docs.oracle.com/en/java/javase/11/install/version-string-format.html
     _java_version_pattern = re.compile(
         r' version "(?P<feature>\d+)(?:\.(?P<interim>\d+)(?:\.(?P<update>\d+)(?:\.(?P<patch>\d+))?)?)?"'
     )
@@ -616,8 +618,6 @@ class WorkspaceInstaller:
         #   openjdk version "24.0.1" 2025-04-15
         #   OpenJDK Runtime Environment Temurin-24.0.1+9 (build 24.0.1+9)
         #   OpenJDK 64-Bit Server VM Temurin-24.0.1+9 (build 24.0.1+9, mixed mode)
-        # The version itself has been standardized since Java 10.
-        # Ref: https://docs.oracle.com/en/java/javase/11/install/version-string-format.html
         match = cls._java_version_pattern.search(version)
         if not match:
             logger.debug(f"Could not parse java version: {version!r}")
