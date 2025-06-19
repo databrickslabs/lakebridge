@@ -34,13 +34,7 @@ eg:
 | source2     | tpch              | schema      | recon_config_source2_tpch_schema.json |
 
 
-``` bash
-TO BE FIXED
-#### Refer to [Reconcile Configuration Guide][def] for detailed instructions and [example configurations][config]
-
-[def]: docs/static/recon_configurations/README.md
-[config]: docs/static/recon_configurations/reconcile_config_samples.md
-```
+Refer to [Reconcile Configuration Guide](reconcile_configuration) for detailed instructions and [example configurations](example_config)
 
 > 2. Setup the connection properties
 
@@ -90,6 +84,11 @@ Below are the connection properties required for each source:
     </TabItem>
 </Tabs>
 
+>3. Databricks permissions required
+
+- User configuring reconcile must have permission to create Data Warehouses
+- Additionally, the user must have `USE CATALOG` and `CREATE SCHEMA` permission in order to deploy metadata tables and
+dashboards that are created as part of the Reconcile output. If there is a pre-existing schema, the 'create volumes' permission is also required.
 
 
 ### Execution
