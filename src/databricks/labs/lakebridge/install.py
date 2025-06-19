@@ -593,7 +593,9 @@ class WorkspaceInstaller:
             return None
         # It might not be ascii, but the bits we care about are so this will never fail.
         java_version_output = completed.stderr.decode("ascii", errors="ignore")
-        return cls._parse_java_version(java_version_output)
+        java_version = cls._parse_java_version(java_version_output)
+        logger.debug(f"Detected java version: {java_version}")
+        return java_version
 
     # Pattern to match a Java version string, compiled at import time to ensure it's valid.
     # Ref: https://docs.oracle.com/en/java/javase/11/install/version-string-format.html
