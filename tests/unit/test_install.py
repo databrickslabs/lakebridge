@@ -1346,7 +1346,7 @@ def no_java(monkeypatch: pytest.MonkeyPatch) -> None:
     assert shutil.which("java") is None, "The 'java' executable should not be found in the modified PATH."
 
 
-def test_java_version_check_java_missing(no_java: None) -> None:
+def test_java_version_with_java_missing(no_java: None) -> None:
     """Verify the Java version check handles Java missing entirely."""
     expected_missing = WorkspaceInstaller.get_java_version()
     assert expected_missing is None
