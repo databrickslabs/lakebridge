@@ -1343,7 +1343,8 @@ def no_java(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("PATH", os.pathsep.join(modified_path))
 
     # Sanity check: ensure that 'java' is no longer found.
-    assert shutil.which("java") is None, "The 'java' executable should not be found in the modified PATH."
+    expected_missing = shutil.which("java")
+    assert expected_missing is None, "The 'java' executable should not be found in the modified PATH."
 
 
 def test_java_version_with_java_missing(no_java: None) -> None:
