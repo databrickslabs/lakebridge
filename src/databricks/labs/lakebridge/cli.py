@@ -463,7 +463,8 @@ def analyze(w: WorkspaceClient, source_directory: str, report_file: str):
     with_user_agent_extra("analyzer_source_tech", make_alphanum_or_semver(source_tech))
     user = ctx.current_user
     logger.debug(f"User: {user}")
-    Analyzer.analyze(Path(input_folder), Path(output_file), source_tech)
+    is_debug = logger.getEffectiveLevel() == logging.DEBUG
+    Analyzer.analyze(Path(input_folder), Path(output_file), source_tech, is_debug=is_debug)
 
 
 if __name__ == "__main__":

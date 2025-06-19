@@ -1352,3 +1352,45 @@ def test_java_version_with_java_missing(no_java: None) -> None:
     """Verify the Java version check handles Java missing entirely."""
     expected_missing = WorkspaceInstaller.get_java_version()
     assert expected_missing is None
+
+
+class FriendOfWorkspaceInstaller(WorkspaceInstaller):
+    """A friend class to access protected methods for testing purposes."""
+
+    @classmethod
+    def parse_java_version(cls, output: str) -> tuple[int, int, int, int] | None:
+        return cls._parse_java_version(output)
+
+
+@pytest.mark.parametrize(
+    ("version", "expected"),
+    (
+        # Real examples.
+        pytest.param("1.8.0_452", None, id="1.8.0_452"),
+        pytest.param("11.0.27", (11, 0, 27, 0), id="11.0.27"),
+        pytest.param("17.0.15", (17, 0, 15, 0), id="17.0.15"),
+        pytest.param("21.0.7", (21, 0, 7, 0), id="21.0.7"),
+        pytest.param("24.0.1", (24, 0, 1, 0), id="24.0.1"),
+        # All digits.
+        pytest.param("1.2.3.4", (1, 2, 3, 4), id="1.2.3.4"),
+        # Trailing zeros can be omitted.
+        pytest.param("1.2.3", (1, 2, 3, 0), id="1.2.3"),
+        pytest.param("1.2", (1, 2, 0, 0), id="1.2"),
+        pytest.param("1", (1, 0, 0, 0), id="1"),
+        # Another edge case.
+        pytest.param("", None, id="empty string"),
+    ),
+)
+def test_java_version_parse(version: str, expected: tuple[int, int, int, int] | None) -> None:
+    """Verify that the Java version parsing works correctly."""
+    # Format reference: https://docs.oracle.com/en/java/javase/11/install/version-string-format.html
+    version_output = f'openjdk version "{version}" 2025-06-19'
+    parsed = FriendOfWorkspaceInstaller.parse_java_version(version_output)
+    assert parsed == expected
+
+
+def test_java_version_parse_missing() -> None:
+    """Verify that we return None when the version is missing."""
+    version_output = "Nothing in here that looks like a version."
+    parsed = FriendOfWorkspaceInstaller.parse_java_version(version_output)
+    assert parsed is None
