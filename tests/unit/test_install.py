@@ -1,5 +1,7 @@
 import datetime as dt
 import json
+import os
+import shutil
 from pathlib import Path
 from unittest.mock import create_autospec, patch
 
@@ -1323,3 +1325,28 @@ def test_store_product_state(tmp_path) -> None:
         "date": stored_date,
     }
     assert stored_state == expected_state
+
+
+@pytest.fixture
+def no_java(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Ensure that (temporarily) no 'java' binary can be found in the environment."""
+    existing_java = shutil.which("java")
+    if existing_java is None:
+        # Nothing to do: no Java binary found.
+        return
+    # Java is installed, so we need to figure out how to remove it from the path.
+    java_directory = Path(existing_java).parent
+    search_path = os.environ.get("PATH", os.defpath).split(os.pathsep)
+    modified_path = [p for p in search_path if p != str(java_directory)]
+
+    # Set the modified PATH without the directory where 'java' was found.
+    monkeypatch.setenv("PATH", os.pathsep.join(modified_path))
+
+    # Sanity check: ensure that 'java' is no longer found.
+    assert shutil.which("java") is None, "The 'java' executable should not be found in the modified PATH."
+
+
+def test_java_version_check_java_missing(no_java: None) -> None:
+    """Verify the Java version check handles Java missing entirely."""
+    expected_missing = WorkspaceInstaller.get_java_version()
+    assert expected_missing is None
