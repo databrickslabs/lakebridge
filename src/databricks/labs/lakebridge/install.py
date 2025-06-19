@@ -585,7 +585,11 @@ class WorkspaceInstaller:
     def get_java_version(cls) -> int | None:
         try:
             completed = run(["java", "-version"], shell=False, capture_output=True, check=True)
-        except CalledProcessError:
+        except CalledProcessError as e:
+            logger.debug(
+                f"Failed to run {e.args!r} (exit-code={e.returncode}, stdout={e.stdout!r}, stderr={e.stderr!r})",
+                exc_info=e,
+            )
             return None
         result = completed.stderr.decode("utf-8")
         start = result.find(" version ")
