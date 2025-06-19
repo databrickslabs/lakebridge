@@ -583,7 +583,12 @@ class WorkspaceInstaller:
 
     @classmethod
     def get_java_version(cls) -> int | None:
-        completed = run(["java", "-version"], shell=False, capture_output=True, check=False)
+        # Platform-independent way to reliably locate the java executable.
+        # Reference: https://docs.python.org/3.10/library/subprocess.html#popen-constructor
+        java_executable = shutil.which("java")
+        if java_executable is None:
+            return None
+        completed = run([java_executable, "-version"], shell=False, capture_output=True, check=False)
         try:
             completed.check_returncode()
         except CalledProcessError:
