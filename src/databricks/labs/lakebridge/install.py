@@ -583,9 +583,8 @@ class WorkspaceInstaller:
 
     @classmethod
     def get_java_version(cls) -> int | None:
-        completed = run(["java", "-version"], shell=False, capture_output=True, check=False)
         try:
-            completed.check_returncode()
+            completed = run(["java", "-version"], shell=False, capture_output=True, check=True)
         except CalledProcessError:
             return None
         result = completed.stderr.decode("utf-8")
