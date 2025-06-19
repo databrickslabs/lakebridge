@@ -605,6 +605,29 @@ class WorkspaceInstaller:
         parts = version.split('.')
         return int(parts[0] + parts[1])
 
+    _java_version_pattern = re.compile(
+        r' version "(?P<feature>\d+)(?:\.(?P<interim>\d+)(?:\.(?P<update>\d+)(?:\.(?P<patch>\d+))?)?)?"'
+    )
+
+    @classmethod
+    def _parse_java_version(cls, version: str) -> tuple[int, int, int, int] | None:
+        """Locate and parse the Java version in the output of `java -version`."""
+        # Output looks like this:
+        #   openjdk version "24.0.1" 2025-04-15
+        #   OpenJDK Runtime Environment Temurin-24.0.1+9 (build 24.0.1+9)
+        #   OpenJDK 64-Bit Server VM Temurin-24.0.1+9 (build 24.0.1+9, mixed mode)
+        # The version itself has been standardized since Java 10.
+        # Ref: https://docs.oracle.com/en/java/javase/11/install/version-string-format.html
+        match = cls._java_version_pattern.search(version)
+        if not match:
+            logger.debug(f"Could not parse java version: {version!r}")
+            return None
+        feature = int(match["feature"])
+        interim = int(match["interim"] or 0)
+        update = int(match["update"] or 0)
+        patch = int(match["patch"] or 0)
+        return feature, interim, update, patch
+
     def configure(self, module: str) -> RemorphConfigs:
         match module:
             case "transpile":
