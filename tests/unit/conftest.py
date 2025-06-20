@@ -2,7 +2,7 @@ import io
 import re
 import shutil
 from pathlib import Path
-from collections.abc import Generator, Sequence, AsyncGenerator
+from collections.abc import AsyncGenerator, Generator, Sequence
 from unittest.mock import create_autospec
 
 import pytest
@@ -416,6 +416,7 @@ def empty_input_source(tmp_path: Path) -> Generator[Path, None, None]:
 
 @pytest.fixture
 def output_folder(tmp_path: Path) -> Generator[Path, None, None]:
+    # Only the parent of the output folder has to exist.
     output_dir = tmp_path / "remorph_transpiled"
     yield output_dir
     safe_remove_dir(output_dir)
