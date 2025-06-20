@@ -20,6 +20,7 @@ from databricks.labs.lakebridge.helpers.execution_time import timeit
 from databricks.labs.lakebridge.helpers.file_utils import (
     dir_walk,
     make_dir,
+    read_file,
 )
 from databricks.labs.lakebridge.transpiler.transpile_engine import TranspileEngine
 from databricks.labs.lakebridge.transpiler.transpile_status import (
@@ -28,7 +29,6 @@ from databricks.labs.lakebridge.transpiler.transpile_status import (
     ErrorKind,
     ErrorSeverity,
 )
-from databricks.labs.lakebridge.helpers.string_utils import remove_bom
 from databricks.labs.lakebridge.helpers.validation import Validator
 from databricks.labs.lakebridge.transpiler.sqlglot.sqlglot_engine import SqlglotEngine
 from databricks.sdk import WorkspaceClient
@@ -62,9 +62,8 @@ async def _process_one_file(context: TranspilingContext) -> tuple[int, list[Tran
         )
         return 0, [error]
 
-    with context.input_path.open("r") as f:
-        source_code = remove_bom(f.read())
-        context = dataclasses.replace(context, source_code=source_code)
+    source_code = read_file(context.input_path)
+    context = dataclasses.replace(context, source_code=source_code)
 
     transpile_result = await _transpile(
         context.transpiler,

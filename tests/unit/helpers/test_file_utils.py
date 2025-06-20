@@ -1,5 +1,7 @@
+import codecs
 import os
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
 import pytest
 
@@ -7,6 +9,7 @@ from databricks.labs.lakebridge.helpers.file_utils import (
     dir_walk,
     is_sql_file,
     make_dir,
+    detect_encoding,
 )
 
 
@@ -94,3 +97,42 @@ def test_dir_walk_empty_dir():
     assert len(result[0][1]) == 0
     assert len(result[0][2]) == 0
     safe_remove_dir(path)
+
+
+@pytest.mark.parametrize(
+    "encoding,bom",
+    [
+        ("utf-8", None),
+        ("utf-8-sig", codecs.BOM_UTF8),
+        ("utf-16-be", codecs.BOM_UTF16_BE),
+        ("utf-16-le", codecs.BOM_UTF16_LE),
+        ("utf-32-be", codecs.BOM_UTF32_BE),
+        ("utf-32-le", codecs.BOM_UTF32_LE),
+    ],
+)
+def test_detects_bom(encoding, bom):
+    with TemporaryDirectory() as parent:
+        data = "some_text".encode(encoding)
+        if bom:
+            data = bom + data
+        file_path = Path(parent) / "test_file.txt"
+        file_path.write_bytes(data)
+        expected = "utf-8" if encoding == "utf-8-sig" else encoding
+        detected = detect_encoding(file_path)
+        assert detected == expected
+
+
+@pytest.mark.parametrize(
+    "encoding",
+    [
+        "utf-8",
+        "iso-8859-1",
+    ],
+)
+def test_detects_xml_encoding(encoding):
+    with TemporaryDirectory() as parent:
+        text = f"<?xml version=\"1.0\" encoding=\"{encoding}\"?>\n<body/>"
+        file_path = Path(parent) / "test_file.xml"
+        file_path.write_text(text, "ascii")
+        detected = detect_encoding(file_path)
+        assert detected == encoding
