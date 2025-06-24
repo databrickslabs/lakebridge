@@ -158,7 +158,9 @@ def _process_single_result(context: TranspilingContext, error_list: list[Transpi
 
     output_path = cast(Path, context.output_path)
     with output_path.open("w") as w:
-        w.write(make_header(context.input_path, error_list))
+        # The above adds a java-style comment block at the top of the output file
+        # This would break .py or .json outputs so we disable it for now.
+        # w.write(make_header(context.input_path, error_list))
         w.write(output_code)
 
     logger.info(f"Processed file: {context.input_path} (errors: {len(error_list)})")
