@@ -31,6 +31,7 @@ from databricks.labs.lakebridge.transpiler.transpile_status import (
     ErrorKind,
 )
 
+from databricks.labs.blueprint.installation import JsonObject
 from databricks.sdk.core import Config
 
 from databricks.labs.lakebridge.transpiler.sqlglot.sqlglot_engine import SqlglotEngine
@@ -42,7 +43,9 @@ from tests.unit.conftest import path_to_resource
 # pylint: disable=unspecified-encoding
 
 
-def transpile(workspace_client: WorkspaceClient, engine: TranspileEngine, config: TranspileConfig):
+def transpile(
+    workspace_client: WorkspaceClient, engine: TranspileEngine, config: TranspileConfig
+) -> tuple[JsonObject, list[TranspileError]]:
     return asyncio.run(do_transpile(workspace_client, engine, config))
 
 
