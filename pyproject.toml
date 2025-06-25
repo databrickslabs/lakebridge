@@ -31,6 +31,8 @@ dependencies = [
   "standard-distutils~=3.11.9; python_version>='3.11'",
   "databricks-bb-analyzer~=0.1.7",
   "sqlglot==26.1.3",
+  #"databricks-labs-blueprint[yaml]>=0.11.2,<0.12.0",
+  "databricks-labs-blueprint @ git+https://github.com/databrickslabs/blueprint@workaround-login-databricks-host",
   "databricks-labs-blueprint[yaml]>=0.11.0,<0.12.0",
   "databricks-labs-lsql==0.16.0",
   "cryptography>=44.0.2,<45.1.0",
@@ -52,6 +54,9 @@ build-backend = "hatchling.build"
 [tool.hatch.build]
 sources = ["src"]
 include = ["src"]
+
+[tool.hatch.metadata]
+allow-direct-references = true
 
 [tool.hatch.version]
 path = "src/databricks/labs/lakebridge/__about__.py"
