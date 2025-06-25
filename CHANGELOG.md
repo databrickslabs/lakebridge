@@ -1,5 +1,36 @@
 # Version changelog
 
+## 0.10.1
+
+**Analyzer Improvements**
+
+- **Debug Mode for Analyzer** ([\#1727](https://github.com/databrickslabs/lakebridge/issues/1727)): Run the Analyzer in debug mode by setting your logging level to DEBUG for more detailed diagnostics.
+- **Supported Sources Table** ([\#1709](https://github.com/databrickslabs/lakebridge/issues/1709), [\#1708](https://github.com/databrickslabs/lakebridge/issues/1708)): The docs now clearly list all supported source platforms and dialects, so you can quickly check compatibility.
+
+Converter Improvements
+- **Encoding Support** ([\#1719](https://github.com/databrickslabs/lakebridge/issues/1719)): Lakebridge now handles quoted-printable encoding in ETL sources.
+- **Java Version Handling** ([\#1730](https://github.com/databrickslabs/lakebridge/issues/1730), [\#1731](https://github.com/databrickslabs/lakebridge/issues/1731)): The system now detects if Java isn’t installed and gives clear error messages. Java version parsing is also improved.
+- **Cleaner Output** ([\#1684](https://github.com/databrickslabs/lakebridge/issues/1684)): Transpiled code output no longer includes unnecessary line number comments.
+- BladeBridge converter inserts `FIXME` comments in lines of code we couldn't automatically convert
+- BladeBridge converter enabled Informatica Cloud migrations
+
+**Installation and Configuration Updates**
+
+- **Smarter Install Process** ([\#1691](https://github.com/databrickslabs/lakebridge/issues/1691)): The installer now avoids errors if you choose not to overwrite existing configurations.
+- **Configure Reconcile Patch** ([\#1690](https://github.com/databrickslabs/lakebridge/issues/1690)): Deployment of reconciliation jobs, tables, and dashboards now works as expected, targeting the correct files.
+
+**Logging and Error Reporting**
+
+- **Cleaner Logging** ([\#1704](https://github.com/databrickslabs/lakebridge/issues/1704)): Log messages are less noisy and more consistent, with important info easier to spot.
+- **Compact Error Reporting** ([\#1693](https://github.com/databrickslabs/lakebridge/issues/1693)): Errors are grouped and summarized, making it easier to review issues.
+- **Severity-based Logging** ([\#1685](https://github.com/databrickslabs/lakebridge/issues/1685)): Diagnostic messages are logged with the right severity (error, warning, info).
+
+**General Documentation and Template Updates**
+
+- **Clearer, Friendlier Docs** ([\#1701](https://github.com/databrickslabs/lakebridge/issues/1701), [\#1688](https://github.com/databrickslabs/lakebridge/issues/1688)): Installation and usage guides are now easier to follow, with new flowcharts, step-by-step instructions, and improved formatting.
+- **New Issue Templates** ([\#1721](https://github.com/databrickslabs/lakebridge/issues/1721), [\#1687](https://github.com/databrickslabs/lakebridge/issues/1687), [\#1682](https://github.com/databrickslabs/lakebridge/issues/1682)): Submitting documentation or bug issues is easier with new, interactive templates.
+- **Supported Sources and Dialects** ([\#1709](https://github.com/databrickslabs/lakebridge/issues/1709), [\#1708](https://github.com/databrickslabs/lakebridge/issues/1708)): Docs now include clear tables outlining supported platforms and SQL dialects, including experimental dbt repointing.
+
 ## 0.10.0
 # 🚀 Lakebridge v0.10.0 – The Bridge to Databricks Awaits! 🌉
 

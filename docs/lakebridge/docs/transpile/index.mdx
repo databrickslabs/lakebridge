@@ -15,23 +15,30 @@ Verify the successful installation by executing the provided command; confirmati
 <img src={useBaseUrl('img/transpile-help.png')} alt="transpile-help" />
 
 ## Execution Pre-Set Up
-1. Transpile necessitates input in the form of either a directory containing SQL files or a single SQL file.
-2. The SQL file should encompass scripts intended for migration to Databricks SQL.
+When you run `install-transpile`, you will be prompted to enter all the required elements to transpile your code. You can
+choose to configure this at the time of installation, or choose defaults/set later and simply pass these flags on your
+transpile call.
 
-Below is the detailed explanation on the arguments required for Transpile.
-- `transpiler-config-path [Required]` - Path to the transpiler configuration file.
-- `source-dialect [Required]` - Dialect name.
+The `transpile` command will trigger the conversion of the specified code, these are the available arguments:
+- `source-dialect [Required]` - Dialect name (ex: snowflake, oracle, datastage, etc)
 - `input-source [Required]` - The path to the SQL file or directory containing SQL files to be transpiled.
-- `output-folder [Optional]` - The path to the output folder where the transpiled SQL files will be stored. If not specified, the transpiled SQL files will be stored in the same directory as the input SQL file.
-- `error-file-path [Optional]` - The path to the file where the transpile errors will be stored. If not specified, the errors will be stored in the same directory as the input SQL file.
+- `output-folder [Optional]` - The path to the output folder where the transpiled SQL files will be stored. If not specified,
+the transpiled SQL files will be stored in a folder called `transpiled` in your current working directory.
+- `error-file-path [Optional]` - The path to the file where the transpile errors will be stored. If not specified, the
+errors will be stored in a file called `errors.log` in your current working directory.
 - `skip-validation [Optional]` - The default value is True. If set to False, the transpiler will validate the transpiled SQL scripts against the Databricks catalog and schema provided by user.
 - `catalog-name [Optional]` - The name of the catalog in Databricks. If not specified, the default catalog `transpiler_test` will be used.
-- `schema-name [Optional]` - The name of the schema in Databricks. If not specified, the default schema `convertor_test` will be used.
+- `schema-name [Optional]` - The name of the schema in Databricks. If not specified, the default schema `converter_test` will be used.
 
 ## Execution
-Execute the below command to initialize the transpile process.
+Execute the below command to initialize the transpile process passing the arguments to the command directly in the call.
 ```bash
  databricks labs lakebridge transpile --transpiler-config-path <absolute-path> --input-source <absolute-path> --source-dialect <snowflake> --output-folder <absolute-path> --skip-validation <True|False> --catalog-name <catalog name> --schema-name <schema name>
 ```
-
 <img src={useBaseUrl('img/transpile-run.gif')} alt="transpile-run" />
+<br />
+<br />
+If you have configured all the required inputs at installation time, you can simply run
+```bash
+ databricks labs lakebridge transpile
+```

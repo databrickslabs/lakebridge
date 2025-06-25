@@ -114,6 +114,6 @@ def check_valid_version(version: str):
             assert False, f"{version} does not look like a valid semver"
 
 
-def test_java_version():
+def test_java_version() -> None:
     version = WorkspaceInstaller.get_java_version()
-    assert version is None or version >= 110
+    assert version is None or version >= (11, 0, 0, 0)
