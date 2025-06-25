@@ -115,8 +115,16 @@ def transpile(
 ):
     """Transpiles source dialect to databricks dialect"""
     ctx = ApplicationContext(w)
-    logger.debug(f"Application transpiler config: {ctx.transpile_config}")
-    checker = _TranspileConfigChecker(ctx.transpile_config, ctx.prompts)
+    workspace_config = ctx.transpile_config
+    # TODO: this is temp fix ideally we should figure out better way to understand if the installation is complete.
+    if workspace_config is None:
+        logger.error("Installed transpile config not found. Please install lakebridge transpile first.")
+        raise SystemExit(
+            "Please run `databricks labs lakebridge install-transpile` to install the transpile configuration."
+        )
+
+    logger.debug(f"Application transpiler config: {workspace_config}")
+    checker = _TranspileConfigChecker(workspace_config, ctx.prompts)
     checker.check_input_source(input_source)
     checker.check_source_dialect(source_dialect)
     checker.check_transpiler_config_path(transpiler_config_path)
@@ -134,10 +142,8 @@ def transpile(
 
 class _TranspileConfigChecker:
 
-    def __init__(self, config: TranspileConfig | None, prompts: Prompts):
-        if not config:
-            raise SystemExit("Installed transpile config not found. Please install lakebridge transpile first.")
-        self._config: TranspileConfig = config
+    def __init__(self, ws_config: TranspileConfig, prompts: Prompts):
+        self._config: TranspileConfig = ws_config
         self._prompts = prompts
 
     def check_input_source(self, input_source: str | None):
