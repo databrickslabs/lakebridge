@@ -51,14 +51,3 @@ def get_sql_file(input_path: str | Path) -> Generator[Path, None, None]:
         for filename in files:
             if is_sql_file(filename):
                 yield filename
-
-
-def read_file(filename: str | Path) -> str:
-    """
-    Reads the contents of the given file and returns it as a string.
-    :param filename: Input File Path
-    :return: File Contents as String
-    """
-    # pylint: disable=unspecified-encoding
-    with Path(filename).open() as file:
-        return file.read()

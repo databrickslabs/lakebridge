@@ -9,9 +9,12 @@ import pytest
 
 from lsprotocol.types import TextEdit, Range, Position
 
+from databricks.labs.blueprint.paths import read_text
 from databricks.labs.blueprint.wheels import ProductInfo
+
+from databricks.labs.lakebridge.config import TranspileConfig
 from databricks.labs.lakebridge.errors.exceptions import IllegalStateException
-from databricks.labs.lakebridge.transpiler.lsp.lsp_engine import ChangeManager
+from databricks.labs.lakebridge.transpiler.lsp.lsp_engine import ChangeManager, LSPEngine
 from databricks.labs.lakebridge.transpiler.transpile_status import TranspileError, ErrorSeverity, ErrorKind
 
 from tests.unit.conftest import path_to_resource
@@ -108,18 +111,18 @@ async def test_server_fetches_workspace_file(lsp_engine, transpile_config):
     assert f"fetch-document-uri={sample_path.as_uri()}" in log
 
 
-async def test_server_loads_document(lsp_engine, transpile_config):
+async def test_server_loads_document(lsp_engine: LSPEngine, transpile_config: TranspileConfig) -> None:
     sample_path = Path(path_to_resource("lsp_transpiler", "source_stuff.sql"))
     await lsp_engine.initialize(transpile_config)
-    lsp_engine.open_document(sample_path)
+    lsp_engine.open_document(sample_path, read_text(sample_path))
     log = await read_log("open-document-uri")
     assert f"open-document-uri={sample_path.as_uri()}" in log
 
 
-async def test_server_closes_document(lsp_engine, transpile_config):
+async def test_server_closes_document(lsp_engine: LSPEngine, transpile_config: TranspileConfig) -> None:
     sample_path = Path(path_to_resource("lsp_transpiler", "source_stuff.sql"))
     await lsp_engine.initialize(transpile_config)
-    lsp_engine.open_document(sample_path)
+    lsp_engine.open_document(sample_path, read_text(sample_path))
     lsp_engine.close_document(sample_path)
     log = await read_log("close-document-uri")
     assert f"close-document-uri={sample_path.as_uri()}" in log
