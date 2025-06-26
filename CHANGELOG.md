@@ -1,5 +1,29 @@
 # Version changelog
 
+## 0.10.2
+
+Analyzer Improvements
+- Enabled BODS as a source
+
+Converter Improvements
+- Better Handling of Unicode in SQL Files: No more weird characters! Lakebridge now automatically detects and removes Unicode BOMs from SQL files, ensuring your files load cleanly—no matter the encoding. (See [#1733](https://github.com/databrickslabs/lakebridge/issues/1733))
+- Cleaner Output Files: Header comments that sometimes caused formatting issues in Python or JSON files are now gone. Your output files will only contain the code you need—no extra comments at the top. (See [#1751](https://github.com/databrickslabs/lakebridge/issues/1751))
+- Bug fix: Fixed PyArmor issue affecting Windows installations.
+- Morpheus converter:
+	- Databricks Tuple Support: You can now use multi-column (tuple) comparisons like WHERE (A, B, C) NOT IN (SELECT X, Y, Z...)—improving compatibility with Snowflake and Databricks SQL and making complex queries work as expected.
+	- TRUNCATE Function Transformation: Added support for converting the TRUNCATE function and new related keywords, expanding the range of SQL statements you can process.
+	- ALL and ANY Subquery Expressions: The converter now understands and supports ALL and ANY subquery expressions, so you can handle more complex SQL logic with ease.
+	- Improved Snowflake LET Command: The LET command for Snowflake now works even if you don’t provide an assignment or default value.
+- BladeBridge converter:
+	- Datastage: Improved support for duplicate link names  
+	- Datastage: Fixed filter for EXPRESSION in PySpark target
+	- Informatica: Fixed output, now writing to flat file for SparkSql. Placing source post sql after the target writes
+
+Documentation Refresh  
+- Clearer instructions for installation, setup, and requirements. Updated examples and requirements (See [#1738](https://github.com/databrickslabs/lakebridge/issues/1738))
+- Updated converters supported dialects matrix for clarity on supported input and outputs (See [#1764](https://github.com/databrickslabs/lakebridge/pull/1764))
+- Improved Docs Sidebar Navigation: The documentation sidebar is now smarter and more interactive, making it easier to find what you need quickly. (See [#1754](https://github.com/databrickslabs/lakebridge/issues/1754))
+
 ## 0.10.1
 
 **Analyzer Improvements**

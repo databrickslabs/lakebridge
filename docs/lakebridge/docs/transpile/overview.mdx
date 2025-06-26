@@ -135,12 +135,13 @@ More details about the BladeBridge converter [here](/docs/transpile/bladebridge_
 
 ### Supported dialects
 
-| Source Platform              | BladeBridge | Morpheus |   SQL    | ETL/Orchestration | dbt Repointing (Experimental) |
-|:-----------------------------|:-----------:|:--------:|:--------:|:-----------------:|:------------------:|
-| DataStage                    |  &#x2705;   |          | &#x2705; |     &#x2705;      |                    |
-| Informatica (Cloud, PC)      |  &#x2705;   |          | &#x2705; |     &#x2705;      |                    |
-| Netezza                      |  &#x2705;   |          | &#x2705; |                   |                    |
-| Oracle (incl. ADS & Exadata) |  &#x2705;   |          | &#x2705; |                   |                    |
-| Snowflake                    |             | &#x2705; | &#x2705; |                   |      &#x2705;      |
-| SQL Server (incl. Synapse)   |  &#x2705;   |          | &#x2705; |                   |                    |
-| Teradata                     |  &#x2705;   |          | &#x2705; |                   |                    |
+| Source Platform              | Converter: BladeBridge | Converter: Morpheus | Output: SQL | Output: SparkSql | Output: PySpark | Other features available |
+|:-----------------------------|:-----------:|:--------:|:---:|:--------:|:-------:|:---------------------------:|
+| DataStage                    |  &#x2705;   |          |     | &#x2705; | &#x2705; |                             |
+| Informatica (Cloud, PC)      |  &#x2705;   |          |     | &#x2705; | &#x2705; |                             |
+| Netezza                      |  &#x2705;   |          | &#x2705; |         |         |                             |
+| Oracle (incl. ADS & Exadata) |  &#x2705;   |          | &#x2705; |         |         |                             |
+| Snowflake                    |             | &#x2705; | &#x2705; |         |         | dbt Repointing (Experimental) |
+| SQL Server (incl. Synapse)   |  &#x2705;   | &#x2705; | &#x2705; |         |         |                             |
+| Teradata                     |  &#x2705;   |          | &#x2705; |         |         |                             |
+

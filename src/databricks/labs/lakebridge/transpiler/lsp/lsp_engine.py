@@ -523,9 +523,7 @@ class LSPEngine(TranspileEngine):
         self.close_document(file_path)
         return ChangeManager.apply(source_code, response.changes, response.diagnostics, file_path)
 
-    def open_document(self, file_path: Path, encoding="utf-8", source_code: str | None = None) -> None:
-        if source_code is None:
-            source_code = file_path.read_text(encoding)
+    def open_document(self, file_path: Path, source_code: str) -> None:
         text_document = TextDocumentItem(
             uri=file_path.as_uri(), language_id=LanguageKind.Sql, version=1, text=source_code
         )
