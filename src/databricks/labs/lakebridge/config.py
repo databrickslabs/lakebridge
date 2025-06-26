@@ -79,7 +79,7 @@ class TranspileConfig:
     output_folder: str | None = None
     error_file_path: str | None = None
     sdk_config: dict[str, str] | None = None
-    skip_validation: bool | None = False
+    skip_validation: bool = False
     catalog_name: str = "remorph"
     schema_name: str = "transpiler"
     transpiler_options: JsonValue = None
