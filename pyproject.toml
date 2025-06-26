@@ -53,9 +53,6 @@ build-backend = "hatchling.build"
 sources = ["src"]
 include = ["src"]
 
-[tool.hatch.metadata]
-allow-direct-references = true
-
 [tool.hatch.version]
 path = "src/databricks/labs/lakebridge/__about__.py"
 
