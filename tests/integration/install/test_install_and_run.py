@@ -21,6 +21,19 @@ def format_transpiled(sql: str) -> str:
     return sql
 
 
+def run_lsp_operations_sync(lsp_engine, transpile_config, input_source, sql_code):
+    """Helper function to run LSP operations synchronously"""
+    async def run_lsp_operations():
+        await lsp_engine.initialize(transpile_config)
+        dialect = transpile_config.source_dialect
+        input_file = Path(input_source) / "some_query.sql"
+        result = await lsp_engine.transpile(dialect, "databricks", sql_code, input_file)
+        await lsp_engine.shutdown()
+        return result
+    
+    return asyncio.run(run_lsp_operations())
+
+
 base_cwd = os.getcwd()
 
 
@@ -66,16 +79,8 @@ def _install_and_run_local_bladebridge(bladebridge_artifact: Path):
                 schema_name="schema",
             )
             
-            async def run_lsp_operations():
-                await lsp_engine.initialize(transpile_config)
-                dialect = cast(str, transpile_config.source_dialect)
-                input_file = Path(input_source) / "some_query.sql"
-                sql_code = "select * from employees"
-                result = await lsp_engine.transpile(dialect, "databricks", sql_code, input_file)
-                await lsp_engine.shutdown()
-                return result
-            
-            result = asyncio.run(run_lsp_operations())
+            sql_code = "select * from employees"
+            result = run_lsp_operations_sync(lsp_engine, transpile_config, input_source, sql_code)
             transpiled = format_transpiled(result.transpiled_code)
             assert transpiled == sql_code
 
@@ -122,16 +127,8 @@ def _install_and_run_pypi_bladebridge():
                 schema_name="schema",
             )
             
-            async def run_lsp_operations():
-                await lsp_engine.initialize(transpile_config)
-                dialect = transpile_config.source_dialect
-                input_file = Path(input_source) / "some_query.sql"
-                sql_code = "select * from employees"
-                result = await lsp_engine.transpile(dialect, "databricks", sql_code, input_file)
-                await lsp_engine.shutdown()
-                return result
-            
-            result = asyncio.run(run_lsp_operations())
+            sql_code = "select * from employees"
+            result = run_lsp_operations_sync(lsp_engine, transpile_config, input_source, sql_code)
             transpiled = format_transpiled(result.transpiled_code)
             assert transpiled == sql_code
 
@@ -180,15 +177,7 @@ def _install_and_run_local_morpheus(morpheus_artifact):
                 schema_name="schema",
             )
             
-            async def run_lsp_operations():
-                await lsp_engine.initialize(transpile_config)
-                dialect = transpile_config.source_dialect
-                input_file = Path(input_source) / "some_query.sql"
-                sql_code = "select * from employees;"
-                result = await lsp_engine.transpile(dialect, "databricks", sql_code, input_file)
-                await lsp_engine.shutdown()
-                return result
-            
-            result = asyncio.run(run_lsp_operations())
+            sql_code = "select * from employees;"
+            result = run_lsp_operations_sync(lsp_engine, transpile_config, input_source, sql_code)
             transpiled = format_transpiled(result.transpiled_code)
             assert transpiled == sql_code
