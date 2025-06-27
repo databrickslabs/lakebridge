@@ -4,7 +4,6 @@ import shutil
 import sys
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import cast
 from unittest.mock import patch
 
 
@@ -24,6 +23,7 @@ def format_transpiled(sql: str) -> str:
 
 def run_lsp_operations_sync(lsp_engine, transpile_config, input_source, sql_code):
     """Helper function to run LSP operations synchronously"""
+
     async def run_lsp_operations():
         await lsp_engine.initialize(transpile_config)
         dialect = transpile_config.source_dialect
