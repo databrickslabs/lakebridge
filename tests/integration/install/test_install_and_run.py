@@ -17,7 +17,8 @@ def format_transpiled(sql: str) -> str:
     parts = sql.lower().split("\n")
     stripped = [s.strip() for s in parts]
     sql = " ".join(stripped)
-    sql = sql.replace(";;", ";")
+    # Remove any trailing semicolons Since the bug was fixed in the LSP engine, we can safely remove them
+    # sql = sql.replace(";;", ";")
     return sql
 
 
@@ -30,7 +31,7 @@ def run_lsp_operations_sync(lsp_engine, transpile_config, input_source, sql_code
         result = await lsp_engine.transpile(dialect, "databricks", sql_code, input_file)
         await lsp_engine.shutdown()
         return result
-    
+
     return asyncio.run(run_lsp_operations())
 
 
@@ -78,7 +79,7 @@ def _install_and_run_local_bladebridge(bladebridge_artifact: Path):
                 catalog_name="catalog",
                 schema_name="schema",
             )
-            
+
             sql_code = "select * from employees"
             result = run_lsp_operations_sync(lsp_engine, transpile_config, input_source, sql_code)
             transpiled = format_transpiled(result.transpiled_code)
@@ -126,7 +127,7 @@ def _install_and_run_pypi_bladebridge():
                 catalog_name="catalog",
                 schema_name="schema",
             )
-            
+
             sql_code = "select * from employees"
             result = run_lsp_operations_sync(lsp_engine, transpile_config, input_source, sql_code)
             transpiled = format_transpiled(result.transpiled_code)
@@ -176,7 +177,7 @@ def _install_and_run_local_morpheus(morpheus_artifact):
                 catalog_name="catalog",
                 schema_name="schema",
             )
-            
+
             sql_code = "select * from employees;"
             result = run_lsp_operations_sync(lsp_engine, transpile_config, input_source, sql_code)
             transpiled = format_transpiled(result.transpiled_code)
