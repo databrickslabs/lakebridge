@@ -1,11 +1,16 @@
+import asyncio
 import os
 import shutil
 import sys
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from typing import cast
 from unittest.mock import patch
 
+
+from databricks.labs.lakebridge.config import TranspileConfig
 from databricks.labs.lakebridge.install import TranspilerInstaller
+from databricks.labs.lakebridge.transpiler.lsp.lsp_engine import LSPEngine
 
 
 def format_transpiled(sql: str) -> str:
@@ -21,16 +26,13 @@ base_cwd = os.getcwd()
 
 def test_installs_and_runs_local_bladebridge(bladebridge_artifact):
     os.chdir(base_cwd)
-    try:
-        # TODO temporary workaround for RecursionError with temp dirs on Windows
-        if sys.platform == "win32":
-            _install_and_run_pypi_bladebridge()
-        else:
-            with TemporaryDirectory() as tmpdir:
-                with patch.object(TranspilerInstaller, "labs_path", return_value=Path(tmpdir)):
-                    _install_and_run_local_bladebridge(bladebridge_artifact)
-    finally:
-        os.chdir(base_cwd)
+    # TODO temporary workaround for RecursionError with temp dirs on Windows
+    if sys.platform == "win32":
+        _install_and_run_pypi_bladebridge()
+    else:
+        with TemporaryDirectory() as tmpdir:
+            with patch.object(TranspilerInstaller, "labs_path", return_value=Path(tmpdir)):
+                _install_and_run_local_bladebridge(bladebridge_artifact)
 
 
 def _install_and_run_local_bladebridge(bladebridge_artifact: Path):
@@ -49,20 +51,44 @@ def _install_and_run_local_bladebridge(bladebridge_artifact: Path):
     assert config_path.exists()
     version_path = bladebridge / "state" / "version.json"
     assert version_path.exists()
+    # check execution
+    lsp_engine = LSPEngine.from_config_path(config_path)
+    with TemporaryDirectory() as input_source:
+        with TemporaryDirectory() as output_folder:
+            transpile_config = TranspileConfig(
+                transpiler_config_path=str(config_path),
+                source_dialect="oracle",
+                input_source=input_source,
+                output_folder=output_folder,
+                sdk_config={"cluster_id": "test_cluster"},
+                skip_validation=False,
+                catalog_name="catalog",
+                schema_name="schema",
+            )
+            
+            async def run_lsp_operations():
+                await lsp_engine.initialize(transpile_config)
+                dialect = cast(str, transpile_config.source_dialect)
+                input_file = Path(input_source) / "some_query.sql"
+                sql_code = "select * from employees"
+                result = await lsp_engine.transpile(dialect, "databricks", sql_code, input_file)
+                await lsp_engine.shutdown()
+                return result
+            
+            result = asyncio.run(run_lsp_operations())
+            transpiled = format_transpiled(result.transpiled_code)
+            assert transpiled == sql_code
 
 
 def test_installs_and_runs_pypi_bladebridge():
     os.chdir(base_cwd)
-    try:
-        # TODO temporary workaround for RecursionError with temp dirs on Windows
-        if sys.platform == "win32":
-            _install_and_run_pypi_bladebridge()
-        else:
-            with TemporaryDirectory() as tmpdir:
-                with patch.object(TranspilerInstaller, "labs_path", return_value=Path(tmpdir)):
-                    _install_and_run_pypi_bladebridge()
-    finally:
-        os.chdir(base_cwd)
+    # TODO temporary workaround for RecursionError with temp dirs on Windows
+    if sys.platform == "win32":
+        _install_and_run_pypi_bladebridge()
+    else:
+        with TemporaryDirectory() as tmpdir:
+            with patch.object(TranspilerInstaller, "labs_path", return_value=Path(tmpdir)):
+                _install_and_run_pypi_bladebridge()
 
 
 def _install_and_run_pypi_bladebridge():
@@ -81,20 +107,44 @@ def _install_and_run_pypi_bladebridge():
     assert config_path.exists()
     version_path = bladebridge / "state" / "version.json"
     assert version_path.exists()
+    # check execution
+    lsp_engine = LSPEngine.from_config_path(config_path)
+    with TemporaryDirectory() as input_source:
+        with TemporaryDirectory() as output_folder:
+            transpile_config = TranspileConfig(
+                transpiler_config_path=str(config_path),
+                source_dialect="oracle",
+                input_source=input_source,
+                output_folder=output_folder,
+                sdk_config={"cluster_id": "test_cluster"},
+                skip_validation=False,
+                catalog_name="catalog",
+                schema_name="schema",
+            )
+            
+            async def run_lsp_operations():
+                await lsp_engine.initialize(transpile_config)
+                dialect = transpile_config.source_dialect
+                input_file = Path(input_source) / "some_query.sql"
+                sql_code = "select * from employees"
+                result = await lsp_engine.transpile(dialect, "databricks", sql_code, input_file)
+                await lsp_engine.shutdown()
+                return result
+            
+            result = asyncio.run(run_lsp_operations())
+            transpiled = format_transpiled(result.transpiled_code)
+            assert transpiled == sql_code
 
 
 def test_installs_and_runs_local_morpheus(morpheus_artifact):
     os.chdir(base_cwd)
-    try:
-        # TODO temporary workaround for RecursionError with temp dirs on Windows
-        if sys.platform == "win32":
-            _install_and_run_pypi_bladebridge()
-        else:
-            with TemporaryDirectory() as tmpdir:
-                with patch.object(TranspilerInstaller, "labs_path", return_value=Path(tmpdir)):
-                    _install_and_run_local_morpheus(morpheus_artifact)
-    finally:
-        os.chdir(base_cwd)
+    # TODO temporary workaround for RecursionError with temp dirs on Windows
+    if sys.platform == "win32":
+        _install_and_run_pypi_bladebridge()
+    else:
+        with TemporaryDirectory() as tmpdir:
+            with patch.object(TranspilerInstaller, "labs_path", return_value=Path(tmpdir)):
+                _install_and_run_local_morpheus(morpheus_artifact)
 
 
 def _install_and_run_local_morpheus(morpheus_artifact):
@@ -115,3 +165,30 @@ def _install_and_run_local_morpheus(morpheus_artifact):
     assert main_path.exists()
     version_path = morpheus / "state" / "version.json"
     assert version_path.exists()
+    # check execution
+    lsp_engine = LSPEngine.from_config_path(config_path)
+    with TemporaryDirectory() as input_source:
+        with TemporaryDirectory() as output_folder:
+            transpile_config = TranspileConfig(
+                transpiler_config_path=str(config_path),
+                source_dialect="snowflake",
+                input_source=input_source,
+                output_folder=output_folder,
+                sdk_config={"cluster_id": "test_cluster"},
+                skip_validation=False,
+                catalog_name="catalog",
+                schema_name="schema",
+            )
+            
+            async def run_lsp_operations():
+                await lsp_engine.initialize(transpile_config)
+                dialect = transpile_config.source_dialect
+                input_file = Path(input_source) / "some_query.sql"
+                sql_code = "select * from employees;"
+                result = await lsp_engine.transpile(dialect, "databricks", sql_code, input_file)
+                await lsp_engine.shutdown()
+                return result
+            
+            result = asyncio.run(run_lsp_operations())
+            transpiled = format_transpiled(result.transpiled_code)
+            assert transpiled == sql_code
