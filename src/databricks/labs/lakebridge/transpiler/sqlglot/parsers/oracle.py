@@ -1,7 +1,6 @@
 from sqlglot.dialects.oracle import Oracle as Orc
 from sqlglot.tokens import TokenType
 
-
 class Oracle(Orc):
     # Instantiate Oracle Dialect
     oracle = Orc()
@@ -20,4 +19,6 @@ class Oracle(Orc):
             'SDO_GEOMETRY': TokenType.TEXT,
             'SDO_TOPO_GEOMETRY': TokenType.TEXT,
             'SDO_GEORASTER': TokenType.TEXT,
+            'SYSTIMESTAMP': TokenType.CURRENT_TIMESTAMP,
         }
+
