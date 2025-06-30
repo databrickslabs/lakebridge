@@ -632,7 +632,6 @@ class WorkspaceInstaller:
         java_version_output = raw_output.decode("ascii", errors="ignore")
         java_version = cls._parse_java_version(java_version_output)
         if java_version is None:
-            logger.debug(f"Could not parse java version from output: {java_version_output!r}")
             return java_executable_path, raw_output.strip()
         logger.debug(f"Detected java version: {java_version}")
         return java_executable_path, java_version
