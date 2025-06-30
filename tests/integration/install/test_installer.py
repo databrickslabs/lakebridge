@@ -115,5 +115,12 @@ def check_valid_version(version: str):
 
 
 def test_java_version() -> None:
-    version = WorkspaceInstaller.get_java_version()
-    assert version is None or version >= (11, 0, 0, 0)
+    result = WorkspaceInstaller.find_java()
+    match result:
+        case None:
+            # Fine, no Java available.
+            pass
+        case (java_home, tuple(version)):
+            assert java_home.exists() and version >= (11, 0, 0, 0)
+        case _:
+            pytest.fail(f"Unexpected result from WorkspaceInstaller.find_java(): {result!r}")
