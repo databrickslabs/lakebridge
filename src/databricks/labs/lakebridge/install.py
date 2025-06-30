@@ -581,7 +581,8 @@ class WorkspaceInstaller:
                 logger.warning(f"Java found ({java_executable}), but could not parse the version:\n{raw_version}")
                 return False
             case (java_executable, tuple(old_version)) if old_version < (11, 0, 0, 0):
-                logger.warning(f"Java found ({java_executable}), but version {'.'.join(old_version)} is too old.")
+                version_str = ".".join(str(v) for v in old_version)
+                logger.warning(f"Java found ({java_executable}), but version {version_str} is too old.")
                 return False
             case _:
                 return True
