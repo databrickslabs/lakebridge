@@ -89,7 +89,7 @@ def test_run_python_failure_pipeline(extractor, python_failure_config, get_logge
     # Find the failed Python step
     failed_steps = [r for r in results if r.status == StepExecutionStatus.ERROR]
     assert len(failed_steps) > 0, "Expected at least one failed step"
-    assert "Script execution failed" in failed_steps[0].error_message
+    assert "Script reported error: This script is designed to fail" in failed_steps[0].error_message
 
 
 def test_run_python_dep_failure_pipeline(extractor, pipeline_dep_failure_config, get_logger):

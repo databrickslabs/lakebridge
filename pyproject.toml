@@ -114,7 +114,7 @@ asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope="function"
 
 [tool.mypy]
-exclude = ["tests/resources/.*"]
+exclude = ["tests/resources/.*", "src/databricks/labs/remorph/resources/assessments/*"]
 
 [tool.black]
 target-version = ["py310"]
@@ -147,7 +147,8 @@ lint.ignore = [
   "UP038", # Use `X | Y` in `isinstance` call instead of `(X, Y)`
 ]
 extend-exclude = [
-  "notebooks/*.py"
+  "notebooks/*.py",
+  "src/databricks/labs/remorph/resources/assessments/*",
 ]
 
 
@@ -204,7 +205,7 @@ fail-under = 10.0
 ignore-patterns = ["^\\.#"]
 
 # Ignore files under tests/resources
-ignore-paths = ["tests/resources"]
+ignore-paths = ["tests/resources", "src/databricks/labs/remorph/resources/assessments/*" ]
 
 # List of module names for which member attributes should not be checked (useful
 # for modules/projects where namespaces are manipulated during runtime and thus

@@ -53,6 +53,7 @@ def test_configure_synapse_credentials(tmp_path):
             r"Enter SQL user": "test-user",
             r"Enter SQL password": "test-password",
             r"Enter timezone \(e.g. America/New_York\)": "UTC",
+            r"Enter the ODBC driver installed locally": "ODBC Driver 18 for SQL Server",
             r"Enter development endpoint": "test-dev-endpoint",
             r"Enter Azure client ID": "test-client-id",
             r"Enter Azure tenant ID": "test-tenant-id",
@@ -85,6 +86,7 @@ def test_configure_synapse_credentials(tmp_path):
                 'sql_user': 'test-user',
                 'sql_password': 'test-password',
                 'tz_info': 'UTC',
+                'driver': 'ODBC Driver 18 for SQL Server',
             },
             'azure_api_access': {
                 'development_endpoint': 'test-dev-endpoint',

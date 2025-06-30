@@ -123,6 +123,9 @@ class ConfigureSynapseAssessment(AssessmentConfigurator):
             "sql_user": self.prompts.question("Enter SQL user"),
             "sql_password": self.prompts.question("Enter SQL password"),
             "tz_info": self.prompts.question("Enter timezone (e.g. America/New_York)", default="UTC"),
+            "driver": self.prompts.question(
+                "Enter the ODBC driver installed locally", default="ODBC Driver 18 for SQL Server"
+            ),
         }
 
         # Azure API Access Settings
