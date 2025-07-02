@@ -96,14 +96,14 @@ import LakebridgeTabs from '@site/src/components/ReconcileTabs';
 
 The utility consists of three key Databricks notebooks:
 
-# recon_wrapper_nb:
+#### recon_wrapper_nb:
 - Acts as the main orchestrator.
 - Reads the table configurations and triggers reconciliation for each table.
-# lakebridge_recon_main:
+#### lakebridge_recon_main:
 - Core reconciliation utility.
 - Performs row, column and schema level comparisons.
 - Computes reconciliation ID, status, and results.
-# transformation_query_generator:
+#### transformation_query_generator:
 - A source system-specific transformation script.
 - Applies transformations based on source and databricks column data types.
 - Enables efficient hash computation for reconciliation.
