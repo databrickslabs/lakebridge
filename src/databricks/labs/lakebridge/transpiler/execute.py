@@ -9,6 +9,7 @@ from typing import cast
 import itertools
 
 from databricks.labs.blueprint.installation import JsonObject
+from databricks.labs.blueprint.paths import read_text
 from databricks.labs.lakebridge.__about__ import __version__
 from databricks.labs.lakebridge.config import (
     TranspileConfig,
@@ -28,7 +29,6 @@ from databricks.labs.lakebridge.transpiler.transpile_status import (
     ErrorKind,
     ErrorSeverity,
 )
-from databricks.labs.lakebridge.helpers.string_utils import remove_bom
 from databricks.labs.lakebridge.helpers.validation import Validator
 from databricks.labs.lakebridge.transpiler.sqlglot.sqlglot_engine import SqlglotEngine
 from databricks.sdk import WorkspaceClient
@@ -62,15 +62,14 @@ async def _process_one_file(context: TranspilingContext) -> tuple[int, list[Tran
         )
         return 0, [error]
 
-    with context.input_path.open("r") as f:
-        source_code = remove_bom(f.read())
-        context = dataclasses.replace(context, source_code=source_code)
+    source_code = read_text(context.input_path)
+    context = dataclasses.replace(context, source_code=source_code)
 
     transpile_result = await _transpile(
         context.transpiler,
         str(context.config.source_dialect),
         context.config.target_dialect,
-        str(context.source_code),
+        source_code,
         context.input_path,
     )
 
@@ -158,7 +157,9 @@ def _process_single_result(context: TranspilingContext, error_list: list[Transpi
 
     output_path = cast(Path, context.output_path)
     with output_path.open("w") as w:
-        w.write(make_header(context.input_path, error_list))
+        # The above adds a java-style comment block at the top of the output file
+        # This would break .py or .json outputs so we disable it for now.
+        # w.write(make_header(context.input_path, error_list))
         w.write(output_code)
 
     logger.info(f"Processed file: {context.input_path} (errors: {len(error_list)})")
