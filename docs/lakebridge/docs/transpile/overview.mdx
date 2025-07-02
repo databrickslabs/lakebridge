@@ -3,15 +3,41 @@ sidebar_position: 1
 title: Transpilation overview
 ---
 
-Transpilation overview
----
-
 Lakebridge's transpilation module offers a pluggable mechanism for transpiling SQL files written in any supported source dialect into their equivalent in Databricks SQL.
+
+### Design Flow:
+```mermaid
+flowchart TD
+    A(Transpile CLI) e1@==> |Directory| B[Transpile All Files In Directory];
+    A e2@==> |File| C[Transpile Single File] ;
+    B e3@==> D[List Files];
+    C e4@==> E("LSP Pluggable Transpiler");
+    D e5@==> E
+    E e6@==> |Parse Error| F(Failed Queries)
+    E e7@==> G{Skip Validations}
+    G e8@==> |Yes| H(Save Output)
+    G e9@==> |No| I{Validate}
+    I e10@==> |Success| H
+    I e11@==> |Fail| J(Flag, Capture)
+    J e12@==> H
+    e1@{ animate: true }
+    e2@{ animate: true }
+    e3@{ animate: true }
+    e4@{ animate: true }
+    e5@{ animate: true }
+    e6@{ animate: true }
+    e7@{ animate: true }
+    e8@{ animate: true }
+    e9@{ animate: true }
+    e10@{ animate: true }
+    e11@{ animate: true }
+    e12@{ animate: true }
+```
 
 When invoked with the following command line:
 
 ```bash
-databricks labs lakebridge transpile --source-dialect snowflake --input-source /path/to/input --output-folder /path/to/output --transpiler-config-path /path/to/config
+databricks labs lakebridge transpile --source-dialect snowflake --input-source /path/to/input --output-folder /path/to/output
 ```
 
 Lakebridge will (recursively) scan `/path/to/input`, looking for `.sql` files, and for each such file it will produce a corresponding file (with the same relative path) under `/path/to/output`.
@@ -109,12 +135,13 @@ More details about the BladeBridge converter [here](/docs/transpile/bladebridge_
 
 ### Supported dialects
 
-| Source Platform              | BladeBridge | Morpheus |   SQL    | ETL/Orchestration | dbt Repointing (Experimental) |
-|:-----------------------------|:-----------:|:--------:|:--------:|:-----------------:|:------------------:|
-| DataStage                    |  &#x2705;   |          | &#x2705; |     &#x2705;      |                    |
-| Informatica (Cloud, PC)      |  &#x2705;   |          | &#x2705; |     &#x2705;      |                    |
-| Netezza                      |  &#x2705;   |          | &#x2705; |                   |                    |
-| Oracle (incl. ADS & Exadata) |  &#x2705;   |          | &#x2705; |                   |                    |
-| Snowflake                    |             | &#x2705; | &#x2705; |                   |      &#x2705;      |
-| SQL Server (incl. Synapse)   |  &#x2705;   |          | &#x2705; |                   |                    |
-| Teradata                     |  &#x2705;   |          | &#x2705; |                   |                    |
+| Source Platform              | Converter: BladeBridge | Converter: Morpheus | Output: SQL | Output: SparkSql | Output: PySpark | Other features available |
+|:-----------------------------|:-----------:|:--------:|:---:|:--------:|:-------:|:---------------------------:|
+| DataStage                    |  &#x2705;   |          |     | &#x2705; | &#x2705; |                             |
+| Informatica (Cloud, PC)      |  &#x2705;   |          |     | &#x2705; | &#x2705; |                             |
+| Netezza                      |  &#x2705;   |          | &#x2705; |         |         |                             |
+| Oracle (incl. ADS & Exadata) |  &#x2705;   |          | &#x2705; |         |         |                             |
+| Snowflake                    |             | &#x2705; | &#x2705; |         |         | dbt Repointing (Experimental) |
+| SQL Server (incl. Synapse)   |  &#x2705;   | &#x2705; | &#x2705; |         |         |                             |
+| Teradata                     |  &#x2705;   |          | &#x2705; |         |         |                             |
+

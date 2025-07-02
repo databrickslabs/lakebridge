@@ -7,76 +7,28 @@ import TabItem from '@theme/TabItem';
 
 # Installation
 
-Databricks Labs Lakebridge
----
 
 ## [Table of Contents](#table-of-contents)
 
-* [Lakebridge](#lakebridge)
-* [Analyze](#analyze)
-* [Transpile](#transpile)
-* [Reconcile](#reconcile)
-* [Environment Setup](#environment-setup)
+* [Pre-requisites](#pre-requisites)
 * [Install Lakebridge](#install-lakebridge)
+* [Install Transpile](#install-transpile)
+* [Configure Reconcile](#configure-reconcile)
 
 ----
-## Lakebridge
-Lakebridge stands as a comprehensive toolkit meticulously crafted to facilitate seamless migrations to Databricks.
-This suite of tools is dedicated to simplifying and optimizing the entire migration process, offering two distinctive functionalities – Transpile and Reconcile. Whether you are navigating code translation or resolving potential conflicts, Lakebridge ensures a smooth journey for any migration project. With Lakebridge as your trusted ally,
-the migration experience becomes not only efficient but also well-managed, setting the stage for a successful transition to the Databricks platform.
+## Pre-requisites
 
-## Analyze
-Analyze is a functionality designed to analyze source code (SQL and workflows) from various technologies and provide insights on the migration:
-- feature gaps
-- workflow complexity
-- schema complexity
+>1. Install `Databricks CLI` - Ensure that you have the Databricks Command-Line Interface (CLI) installed on your machine. Refer to the installation instructions provided for Linux, MacOS, and Windows, available [here](https://docs.databricks.com/en/dev-tools/cli/install.html#install-or-update-the-databricks-cli).
 
-## Transpile
-Transpile is a self-contained SQL parser, transpiler, and validator designed to interpret a diverse range of SQL inputs and generate syntactically and semantically correct SQL in the Databricks SQL dialect. This tool serves as an automated solution, named Transpile, specifically crafted for migrating and translating SQL scripts from various sources to the Databricks SQL format. Currently, it exclusively supports Snowflake as a source platform, leveraging the open-source SQLglot.
-
-Transpile stands out as a comprehensive and versatile SQL transpiler, boasting a robust test suite to ensure reliability. Developed entirely in Python, it not only demonstrates high performance but also highlights syntax errors and provides warnings or raises alerts for dialect incompatibilities based on configurations.
-
-### Transpiler Design Flow:
-```mermaid
-flowchart TD
-    A(Transpile CLI) e1@==> |Directory| B[Transpile All Files In Directory];
-    A e2@==> |File| C[Transpile Single File] ;
-    B e3@==> D[List Files];
-    C e4@==> E("LSP Pluggable Transpiler");
-    D e5@==> E
-    E e6@==> |Parse Error| F(Failed Queries)
-    E e7@==> G{Skip Validations}
-    G e8@==> |Yes| H(Save Output)
-    G e9@==> |No| I{Validate}
-    I e10@==> |Success| H
-    I e11@==> |Fail| J(Flag, Capture)
-    J e12@==> H
-    e1@{ animate: true }
-    e2@{ animate: true }
-    e3@{ animate: true }
-    e4@{ animate: true }
-    e5@{ animate: true }
-    e6@{ animate: true }
-    e7@{ animate: true }
-    e8@{ animate: true }
-    e9@{ animate: true }
-    e10@{ animate: true }
-    e11@{ animate: true }
-    e12@{ animate: true }
-```
-
-## Reconcile
-Reconcile is an automated tool designed to streamline the reconciliation process between source data and target data residing on Databricks. Currently, the platform exclusively offers support for Snowflake, Oracle and other  Databricks tables as the primary data source. This tool empowers users to efficiently identify discrepancies and variations in data when comparing the source with the Databricks target.
-
-----
-
-## Environment Setup
-### Pre-requisites
-
-1. `Databricks CLI` - Ensure that you have the Databricks Command-Line Interface (CLI) installed on your machine. Refer to the installation instructions provided for Linux, MacOS, and Windows, available [here](https://docs.databricks.com/en/dev-tools/cli/install.html#install-or-update-the-databricks-cli).
-
+Installing the Databricks CLI in different OS:
 <Tabs>
-    <TabItem value="shell" label="Install Databricks CLI on Linux without brew" default>
+    <TabItem value="macos" label="MacOS & Linux" default>
+        <img src={useBaseUrl('img/macos-databricks-cli-install.gif')} alt="macos-databricks-cli-install" />
+    </TabItem>
+    <TabItem value="windows" label="Windows" default>
+        <img src={useBaseUrl('img/windows-databricks-cli-install.gif')} alt="windows-databricks-cli-install" />
+    </TabItem>
+    <TabItem value="shell" label="Linux without brew" default>
         ```shell
         #!/usr/bin/env bash
 
@@ -89,14 +41,15 @@ Reconcile is an automated tool designed to streamline the reconciliation process
     </TabItem>
 </Tabs>
 
-2. `Databricks CLI` - Configure the Databricks CLI by executing the following command with appropriate host and cluster details:
-`profile_name` is optional, if not provided, the `DEFAULT` profile will be used.
-
+>2. Configure `Databricks CLI` - Details can be found [here](https://docs.databricks.com/aws/en/dev-tools/cli/authentication#databricks-personal-access-token-authentication).
+Additionally, Lakebridge requires the profile used for the Databricks CLI to specify a cluster_id, to do this, you can either:
+- Edit your `~/.databrickscfg` file directly and enter a `cluster_id` for the profile you're using or
+- The flag `--configure-cluster` gives you the prompt to select the cluster_id from the available clusters on the workspace
+specified on the selected profile.
 ```shell
 databricks configure --host <host> --configure-cluster --profile <profile_name>
 ```
-The Flag `--configure-cluster` gives you the prompt to select the cluster_id from the available clusters on your workspace.
-Alternatively you can use the environment variable `DATABRICKS_CLUSTER_ID` to set the cluster id you would want to use
+- Alternatively you can use the environment variable `DATABRICKS_CLUSTER_ID` to set the cluster id you would want to use
 for your profile before running the `databricks configure` command.
 
 ```shell
@@ -104,27 +57,19 @@ export DATABRICKS_CLUSTER_ID=<cluster_id>
 databricks configure --host <host> --profile <profile_name>
 ```
 
-3. `Python` - Verify that your machine has Python version **3.10** or later installed to meet the required dependencies for seamless operation.
+>3. `Python` - Verify that Python 3.10 or above is installed
 - `Windows` - Install python from [here](https://www.python.org/downloads/). Your Windows computer will need a shell environment ([GitBash](https://www.git-scm.com/downloads) or [WSL](https://learn.microsoft.com/en-us/windows/wsl/about))
 - `MacOS/Unix` - Use [brew](https://formulae.brew.sh/formula/python@3.10) to install python in macOS/Unix machines
-#### Installing Databricks CLI on macOS
-<img src={useBaseUrl('img/macos-databricks-cli-install.gif')} alt="macos-databricks-cli-install" />
-
-#### Install Databricks CLI via curl on Windows
-<img src={useBaseUrl('img/windows-databricks-cli-install.gif')} alt="windows-databricks-cli-install" />
 
 #### Check Python version on Windows, macOS, and Unix
 <img src={useBaseUrl('img/check-python-version.gif')} alt="check-python-version" />
 
-
+>4. `Java` - Verify that Java 11 or above is installed. This is required for the Morpheus transpiler
 
 [[back to top](#table-of-contents)]
 
 ----
-
 ## Install Lakebridge
-
-### Installation
 
 Upon completing the environment setup, install Lakebridge by executing the following command:
 ```bash
@@ -147,9 +92,10 @@ confirmation of a successful installation is indicated when the displayed output
 
 ## Install Transpile
 
-### Installation
+Upon completing the environment setup, you can install the out of the box transpilers by executing the following command.
+This command will also prompt for the required configuration elements so that you don't need to include them in your command-line
+call every time.
 
-Upon completing the environment setup, you can install the out of the box transpilers by executing the following command:
 ```bash
 databricks labs lakebridge install-transpile
 ```
@@ -167,19 +113,17 @@ Verify the successful installation by executing the provided command; confirmati
 
 ----
 
-## Install Reconcile
+## Configure Reconcile
 
-### Configuration
-
-Configure Reconciliation module .
+Once you're ready to reconcile your data, you need to configure the reconcile module.
 
 ```commandline
 databricks labs lakebridge configure-reconcile
 ```
 <img src={useBaseUrl('img/recon-install.png')} alt="reconcile-configure" />
 
-### Verify Installation
-Verify the successful installation by executing the provided command; confirmation of a successful installation is indicated when the displayed output aligns with the example screenshot provided:
+### Verify Configuration
+Verify the successful configuration by executing the provided command; confirmation of a successful configuration is indicated when the displayed output aligns with the example screenshot provided:
 ```bash
  databricks labs lakebridge reconcile --help
  ```

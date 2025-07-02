@@ -39,11 +39,11 @@ Analyzer accepts as an input a folder name containing the files and subfolders t
 
 Below is the detailed explanation on the arguments required for Analyzer.
 - `source-directory [Required]` - Absolute folder path containing the legacy artifacts.
-- `report-file [Required]` - Name of the report file to produce the information info.  Must have .xlsx extension
+- `report-file [Required]` - Name of the report file to produce the information info.  **IMPORTANT:** Must have .xlsx extension
 #### Before starting the execution, Analyzer will prompt for the type of technology it is scanning
 
 ## Execution
-Execute the below command to initialize the transpile process.
+Execute the below command to initialize the analyze process.
 ```bash
  databricks labs lakebridge analyze --source-directory <absolute-path> --report-file <absolute-path>
 ```
