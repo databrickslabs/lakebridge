@@ -461,7 +461,7 @@ def install_transpile(w: WorkspaceClient, artifact: str | None = None):
 
 @lakebridge.command(is_unauthenticated=False)
 def configure_reconcile(w: WorkspaceClient):
-    """Configure the lakebridge Reconcile Module"""
+    """Configure the Lakebridge reconciliation module"""
     with_user_agent_extra("cmd", "configure-reconcile")
     user = w.current_user
     logger.debug(f"User: {user}")
