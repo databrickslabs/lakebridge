@@ -37,7 +37,7 @@ dependencies = [
   "pyodbc~=5.2.0",
   "SQLAlchemy~=2.0.40",
   "pygls~=2.0.0a2",
-  "duckdb~=1.2.2",
+  "duckdb>=1.2.2,<1.4.0",
 ]
 
 [project.urls]
