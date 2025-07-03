@@ -1350,7 +1350,7 @@ def no_java(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_java_version_with_java_missing(no_java: None) -> None:
     """Verify the Java version check handles Java missing entirely."""
-    expected_missing = WorkspaceInstaller.get_java_version()
+    expected_missing = WorkspaceInstaller.find_java()
     assert expected_missing is None
 
 
