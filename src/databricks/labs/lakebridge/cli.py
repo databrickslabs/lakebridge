@@ -452,7 +452,7 @@ def install_transpile(w: WorkspaceClient, artifact: str | None = None):
     """Install the Lakebridge transpilers"""
     with_user_agent_extra("cmd", "install-transpile")
     if artifact:
-        with_user_agent_extra("artifact-overload", str(Path(artifact).name))
+        with_user_agent_extra("artifact-overload", Path(artifact).name)
     user = w.current_user
     logger.debug(f"User: {user}")
     installer = _installer(w)
