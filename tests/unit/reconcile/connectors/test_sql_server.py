@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, create_autospec
 import pytest
 
 from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
-from databricks.labs.lakebridge.reconcile.connectors.sql_server import SQLServerDataSource
+from databricks.labs.lakebridge.reconcile.connectors.tsql import TSQLServerDataSource
 from databricks.labs.lakebridge.reconcile.exception import DataSourceRuntimeException
 from databricks.labs.lakebridge.reconcile.recon_config import JdbcReaderOptions, Table
 from databricks.sdk import WorkspaceClient
@@ -49,8 +49,8 @@ def initial_setup():
 def test_get_jdbc_url_happy():
     # initial setup
     engine, spark, ws, scope = initial_setup()
-    # create object for SnowflakeDataSource
-    data_source = SQLServerDataSource(engine, spark, ws, scope)
+    # create object for TSQLServerDataSource
+    data_source = TSQLServerDataSource(engine, spark, ws, scope)
     url = data_source.get_jdbc_url
     # Assert that the URL is generated correctly
     assert url == (
@@ -62,8 +62,8 @@ def test_get_jdbc_url_fail():
     # initial setup
     engine, spark, ws, scope = initial_setup()
     ws.secrets.get_secret.side_effect = mock_secret
-    # create object for SnowflakeDataSource
-    data_source = SQLServerDataSource(engine, spark, ws, scope)
+    # create object for TSQLServerDataSource
+    data_source = TSQLServerDataSource(engine, spark, ws, scope)
     url = data_source.get_jdbc_url
     # Assert that the URL is generated correctly
     assert url == (
@@ -75,8 +75,8 @@ def test_read_data_with_options():
     # initial setup
     engine, spark, ws, scope = initial_setup()
 
-    # create object for SnowflakeDataSource
-    data_source = SQLServerDataSource(engine, spark, ws, scope)
+    # create object for MSSQLServerDataSource
+    data_source = TSQLServerDataSource(engine, spark, ws, scope)
     # Create a Tables configuration object with JDBC reader options
     table_conf = Table(
         source_name="src_supplier",
@@ -117,7 +117,7 @@ def test_get_schema():
     # initial setup
     engine, spark, ws, scope = initial_setup()
     # Mocking get secret method to return the required values
-    data_source = SQLServerDataSource(engine, spark, ws, scope)
+    data_source = TSQLServerDataSource(engine, spark, ws, scope)
     # call test method
     data_source.get_schema("org", "schema", "supplier")
     # spark assertions
@@ -163,7 +163,7 @@ def test_get_schema():
 def test_get_schema_exception_handling():
     # initial setup
     engine, spark, ws, scope = initial_setup()
-    data_source = SQLServerDataSource(engine, spark, ws, scope)
+    data_source = TSQLServerDataSource(engine, spark, ws, scope)
 
     spark.read.format().option().option().option().option().load.side_effect = RuntimeError("Test Exception")
 
