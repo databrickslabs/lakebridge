@@ -35,7 +35,7 @@ from pygls.lsp.client import BaseLanguageClient
 from databricks.labs.blueprint.wheels import ProductInfo
 from databricks.labs.lakebridge.config import LSPConfigOptionV1, TranspileConfig, TranspileResult
 from databricks.labs.lakebridge.errors.exceptions import IllegalStateException
-from databricks.labs.lakebridge.helpers.file_utils import is_sql_file, is_dbt_project_file
+from databricks.labs.lakebridge.helpers.file_utils import chdir, is_dbt_project_file, is_sql_file
 from databricks.labs.lakebridge.transpiler.transpile_engine import TranspileEngine
 from databricks.labs.lakebridge.transpiler.transpile_status import (
     CodePosition,
@@ -400,15 +400,14 @@ class LSPEngine(TranspileEngine):
     async def initialize(self, config: TranspileConfig) -> None:
         if self.is_alive:
             raise IllegalStateException("LSP engine is already initialized")
-        cwd = os.getcwd()
         try:
-            os.chdir(self._workdir)
-            await self._do_initialize(config)
+            # TODO: Avoid this by setting the working directory when launching the child process.
+            with chdir(self._workdir):
+                await self._do_initialize(config)
             await self._await_for_transpile_capability()
         # it is good practice to catch broad exceptions raised by launching a child process
         except Exception as e:  # pylint: disable=broad-exception-caught
             logger.error("LSP initialization failed", exc_info=e)
-            os.chdir(cwd)
 
     async def _do_initialize(self, config: TranspileConfig) -> None:
         await self._start_server()
