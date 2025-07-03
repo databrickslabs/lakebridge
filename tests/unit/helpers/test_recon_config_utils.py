@@ -64,7 +64,7 @@ def test_configure_secrets_oracle_insert(mock_workspace_client):
 def test_configure_secrets_invalid_source(mock_workspace_client):
     prompts = MockPrompts(
         {
-            r"Select the source": "3",
+            r"Select the source": "100",  # Invalid source
             r"Enter Secret Scope name": SCOPE_NAME,
         }
     )

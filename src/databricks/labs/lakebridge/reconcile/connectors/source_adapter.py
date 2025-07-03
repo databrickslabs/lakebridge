@@ -6,7 +6,7 @@ from databricks.labs.lakebridge.reconcile.connectors.data_source import DataSour
 from databricks.labs.lakebridge.reconcile.connectors.databricks import DatabricksDataSource
 from databricks.labs.lakebridge.reconcile.connectors.oracle import OracleDataSource
 from databricks.labs.lakebridge.reconcile.connectors.snowflake import SnowflakeDataSource
-from databricks.labs.lakebridge.reconcile.connectors.sql_server import SQLServerDataSource
+from databricks.labs.lakebridge.reconcile.connectors.tsql import TSQLServerDataSource
 from databricks.labs.lakebridge.transpiler.sqlglot.generator.databricks import Databricks
 from databricks.labs.lakebridge.transpiler.sqlglot.parsers.oracle import Oracle
 from databricks.labs.lakebridge.transpiler.sqlglot.parsers.snowflake import Snowflake
@@ -26,5 +26,5 @@ def create_adapter(
     if isinstance(engine, Databricks):
         return DatabricksDataSource(engine, spark, ws, secret_scope)
     if isinstance(engine, TSQL):
-        return SQLServerDataSource(engine, spark, ws, secret_scope)
+        return TSQLServerDataSource(engine, spark, ws, secret_scope)
     raise ValueError(f"Unsupported source type --> {engine}")
