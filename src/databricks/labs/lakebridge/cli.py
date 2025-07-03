@@ -137,9 +137,9 @@ def transpile(
     # name of the lsp plugin being used
     # TODO LSP Client should have type hints so we dont need to do this str conversion
     # checker has already checked transpiler config path is always populated at this stage of processing
-    if config.transpiler_config_path:
+    if (transpiler_path := config.transpiler_path) is not None:
         # user agent expects the name to be either alphanumeric or semver
-        plugin_name = str(LSPConfig.load(Path(config.transpiler_config_path)).name)
+        plugin_name = LSPConfig.load(transpiler_path).name
         plugin_name = re.sub(r"\s+", "_", plugin_name)
         with_user_agent_extra("transpiler_plugin_name", plugin_name)
 
