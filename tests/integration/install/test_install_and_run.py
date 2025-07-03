@@ -1,5 +1,4 @@
 import asyncio
-import os
 import shutil
 import sys
 from pathlib import Path
@@ -23,12 +22,10 @@ def format_transpiled(sql: str) -> str:
 
 # don't run installers in parallel
 installer_lock = asyncio.Lock()
-base_cwd = os.getcwd()
 
 
 async def test_installs_and_runs_local_bladebridge(bladebridge_artifact):
     await installer_lock.acquire()
-    os.chdir(base_cwd)
     try:
         # TODO temporary workaround for RecursionError with temp dirs on Windows
         if sys.platform == "win32":
@@ -83,7 +80,6 @@ async def _install_and_run_local_bladebridge(bladebridge_artifact: Path):
 
 async def test_installs_and_runs_pypi_bladebridge():
     await installer_lock.acquire()
-    os.chdir(base_cwd)
     try:
         # TODO temporary workaround for RecursionError with temp dirs on Windows
         if sys.platform == "win32":
@@ -138,7 +134,6 @@ async def _install_and_run_pypi_bladebridge():
 
 async def test_installs_and_runs_local_morpheus(morpheus_artifact):
     await installer_lock.acquire()
-    os.chdir(base_cwd)
     try:
         # TODO temporary workaround for RecursionError with temp dirs on Windows
         if sys.platform == "win32":
