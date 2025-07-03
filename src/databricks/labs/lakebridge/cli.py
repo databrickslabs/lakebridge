@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import time
+import re
 from pathlib import Path
 from typing import NoReturn, cast
 
@@ -137,7 +138,9 @@ def transpile(
     # TODO LSP Client should have type hints so we dont need to do this str conversion
     # checker has already checked transpiler config path is always populated at this stage of processing
     if config.transpiler_config_path:
+        # user agent expects the name to be either alphanumeric or semver
         plugin_name = str(LSPConfig.load(Path(config.transpiler_config_path)).name)
+        plugin_name = re.sub(r"\s+", "_", plugin_name)
         with_user_agent_extra("transpiler_plugin_name", plugin_name)
 
     user = ctx.current_user
