@@ -21,31 +21,22 @@ async def run_lsp_operations_sync(
     lsp_engine: LSPEngine, transpile_config: TranspileConfig, input_source: str, sql_code: str
 ) -> TranspileResult:
     """Helper function to run LSP operations synchronously"""
-
-    async def run_lsp_operations() -> TranspileResult:
-        await lsp_engine.initialize(transpile_config)
-        dialect = transpile_config.source_dialect or ""  # Ensure it's a string
-        input_file = Path(input_source) / "some_query.sql"
-        result = await lsp_engine.transpile(dialect, "databricks", sql_code, input_file)
-        await lsp_engine.shutdown()
-        return result
-
-    return await run_lsp_operations()  # Await the coroutine
+    await lsp_engine.initialize(transpile_config)
+    dialect = transpile_config.source_dialect or ""  # Ensure it's a string
+    input_file = Path(input_source) / "some_query.sql"
+    result = await lsp_engine.transpile(dialect, "databricks", sql_code, input_file)
+    await lsp_engine.shutdown()
+    return result
 
 
 def test_installs_and_runs_local_bladebridge(bladebridge_artifact: Path) -> None:
-    if sys.platform == "win32":
-        _install_and_run_pypi_bladebridge()
-    else:
-        with TemporaryDirectory() as tmpdir:
-            with patch.object(TranspilerInstaller, "labs_path", return_value=Path(tmpdir)):
-                _install_and_run_local_bladebridge(bladebridge_artifact)
+    with TemporaryDirectory() as tmpdir:
+        with patch.object(TranspilerInstaller, "labs_path", return_value=Path(tmpdir)):
+            _install_and_run_local_bladebridge(bladebridge_artifact)
 
 
 def _install_and_run_local_bladebridge(bladebridge_artifact: Path) -> None:
     bladebridge = TranspilerInstaller.transpilers_path() / "bladebridge"
-    if sys.platform == "win32" and bladebridge.exists():
-        shutil.rmtree(bladebridge)
     assert not bladebridge.exists()
     TranspilerInstaller.install_from_pypi("bladebridge", "databricks-bb-plugin", bladebridge_artifact)
     config_path = bladebridge / "lib" / "config.yml"
