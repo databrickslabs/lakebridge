@@ -33,8 +33,6 @@ async def run_lsp_operations_sync(
     return await run_lsp_operations()  # Await the coroutine
 
 
-
-
 def test_installs_and_runs_local_bladebridge(bladebridge_artifact: Path) -> None:
     if sys.platform == "win32":
         _install_and_run_pypi_bladebridge()
