@@ -1,4 +1,3 @@
-import os
 import asyncio
 import shutil
 import sys
@@ -34,11 +33,9 @@ async def run_lsp_operations_sync(
     return await run_lsp_operations()  # Await the coroutine
 
 
-base_cwd = os.getcwd()
 
 
 def test_installs_and_runs_local_bladebridge(bladebridge_artifact: Path) -> None:
-    os.chdir(base_cwd)
     if sys.platform == "win32":
         _install_and_run_pypi_bladebridge()
     else:
@@ -78,7 +75,6 @@ def _install_and_run_local_bladebridge(bladebridge_artifact: Path) -> None:
 
 
 def test_installs_and_runs_pypi_bladebridge():
-    os.chdir(base_cwd)
     if sys.platform == "win32":
         _install_and_run_pypi_bladebridge()
     else:
@@ -118,7 +114,6 @@ def _install_and_run_pypi_bladebridge() -> None:
 
 
 def test_installs_and_runs_local_morpheus(morpheus_artifact):
-    os.chdir(base_cwd)
     if sys.platform == "win32":
         _install_and_run_pypi_bladebridge()
     else:
