@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import logging
 from dataclasses import dataclass
 from enum import Enum, auto
@@ -31,11 +29,11 @@ class LSPConfigOptionV1:
     default: Any = None
 
     @classmethod
-    def parse_all(cls, data: dict[str, Any]) -> dict[str, list[LSPConfigOptionV1]]:
+    def parse_all(cls, data: dict[str, Any]) -> dict[str, list["LSPConfigOptionV1"]]:
         return {key: list(LSPConfigOptionV1.parse(item) for item in value) for (key, value) in data.items()}
 
     @classmethod
-    def parse(cls, data: Any) -> LSPConfigOptionV1:
+    def parse(cls, data: Any) -> "LSPConfigOptionV1":
         if not isinstance(data, dict):
             raise ValueError(f"Invalid transpiler config option, expecting a dict entry, got {data}")
         flag: str = data.get("flag", "")
