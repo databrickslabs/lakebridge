@@ -58,6 +58,7 @@
     "node": ">=18.0"
   },
   "resolutions": {
+    "brace-expansion": "^1.1.12",
     "webpack-dev-server": "^5.2.1"
   }
 }
