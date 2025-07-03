@@ -37,6 +37,7 @@ from databricks.labs.lakebridge.config import (
 
 from databricks.labs.lakebridge.deployment.configurator import ResourceConfigurator
 from databricks.labs.lakebridge.deployment.installation import WorkspaceInstallation
+from databricks.labs.lakebridge.helpers.file_utils import chdir
 from databricks.labs.lakebridge.reconcile.constants import ReconReportType, ReconSourceType
 from databricks.labs.lakebridge.transpiler.lsp.lsp_engine import LSPConfig
 
@@ -251,12 +252,8 @@ class WheelInstaller(TranspilerInstaller):
         return self._post_install(version)
 
     def _create_venv(self) -> None:
-        cwd = os.getcwd()
-        try:
-            os.chdir(self._install_path)
+        with chdir(self._install_path):
             self._unsafe_create_venv()
-        finally:
-            os.chdir(cwd)
 
     def _unsafe_create_venv(self) -> None:
         # using the venv module doesn't work (maybe it's not possible to create a venv from a venv ?)
@@ -298,16 +295,12 @@ class WheelInstaller(TranspilerInstaller):
         raise ValueError(f"Could not locate 'site-packages' for {self._venv!s}")
 
     def _install_with_pip(self) -> None:
-        cwd = os.getcwd()
-        try:
-            os.chdir(self._install_path)
+        with chdir(self._install_path):
             # the way to call pip from python is highly sensitive to os and source type
             if self._artifact:
                 self._install_local_artifact()
             else:
                 self._install_remote_artifact()
-        finally:
-            os.chdir(cwd)
 
     def _install_local_artifact(self) -> None:
         pip = self._locate_pip()

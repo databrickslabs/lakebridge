@@ -1,3 +1,5 @@
+import contextlib
+import os
 from pathlib import Path
 from collections.abc import Generator
 
@@ -51,3 +53,13 @@ def get_sql_file(input_path: str | Path) -> Generator[Path, None, None]:
         for filename in files:
             if is_sql_file(filename):
                 yield filename
+
+
+@contextlib.contextmanager
+def chdir(new_path: Path) -> Generator[None, None, None]:
+    saved_path = Path.cwd()
+    try:
+        os.chdir(new_path)
+        yield
+    finally:
+        os.chdir(saved_path)
