@@ -1,5 +1,3 @@
-import sys
-
 import pytest
 
 from databricks.labs.blueprint.installation import MockInstallation
