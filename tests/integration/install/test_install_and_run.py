@@ -76,7 +76,6 @@ def _install_and_run_local_bladebridge(bladebridge_artifact: Path) -> None:
             transpiled = format_transpiled(result.transpiled_code)
             assert transpiled == sql_code
 
-
 def test_installs_and_runs_pypi_bladebridge():
     os.chdir(base_cwd)
     if sys.platform == "win32":
