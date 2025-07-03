@@ -449,7 +449,7 @@ def configure_database_profiler():
 
 @lakebridge.command()
 def install_transpile(w: WorkspaceClient, artifact: str | None = None):
-    """Install the lakebridge Transpiler's"""
+    """Install the Lakebridge transpilers"""
     with_user_agent_extra("cmd", "install-transpile")
     if artifact:
         with_user_agent_extra("artifact-overload", str(Path(artifact).name))
