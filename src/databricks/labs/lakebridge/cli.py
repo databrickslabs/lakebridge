@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import time
+import re
 from pathlib import Path
 from typing import NoReturn, cast
 
@@ -116,6 +117,7 @@ def transpile(
     """Transpiles source dialect to databricks dialect"""
     ctx = ApplicationContext(w)
     logger.debug(f"Application transpiler config: {ctx.transpile_config}")
+    with_user_agent_extra("cmd", "execute-transpile")
     checker = _TranspileConfigChecker(ctx.transpile_config, ctx.prompts)
     checker.check_input_source(input_source)
     checker.check_source_dialect(source_dialect)
@@ -127,6 +129,23 @@ def transpile(
     checker.check_catalog_name(catalog_name)
     checker.check_schema_name(schema_name)
     config, engine = checker.check()
+
+    # checker has already checked source dialect is always populated at this stage of processing
+    if config.source_dialect:
+        with_user_agent_extra("transpiler_source_tech", config.source_dialect)
+
+    # name of the lsp plugin being used
+    # TODO LSP Client should have type hints so we dont need to do this str conversion
+    # checker has already checked transpiler config path is always populated at this stage of processing
+    if (transpiler_path := config.transpiler_path) is not None:
+        # user agent expects the name to be either alphanumeric or semver
+        plugin_name = LSPConfig.load(transpiler_path).name
+        plugin_name = re.sub(r"\s+", "_", plugin_name)
+        with_user_agent_extra("transpiler_plugin_name", plugin_name)
+
+    user = ctx.current_user
+    logger.debug(f"User: {user}")
+
     result = asyncio.run(_transpile(ctx, config, engine))
     # DO NOT Modify this print statement, it is used by the CLI to display results in GO Table Template
     print(json.dumps(result))
@@ -430,8 +449,10 @@ def configure_database_profiler():
 
 @lakebridge.command()
 def install_transpile(w: WorkspaceClient, artifact: str | None = None):
-    """Install the lakebridge Transpilers"""
+    """Install the Lakebridge transpilers"""
     with_user_agent_extra("cmd", "install-transpile")
+    if artifact:
+        with_user_agent_extra("artifact-overload", Path(artifact).name)
     user = w.current_user
     logger.debug(f"User: {user}")
     installer = _installer(w)
@@ -440,7 +461,7 @@ def install_transpile(w: WorkspaceClient, artifact: str | None = None):
 
 @lakebridge.command(is_unauthenticated=False)
 def configure_reconcile(w: WorkspaceClient):
-    """Configure the lakebridge Reconcile Package"""
+    """Configure the Lakebridge reconciliation module"""
     with_user_agent_extra("cmd", "configure-reconcile")
     user = w.current_user
     logger.debug(f"User: {user}")
