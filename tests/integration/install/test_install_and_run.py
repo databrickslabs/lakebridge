@@ -112,12 +112,12 @@ def _install_and_run_pypi_bladebridge() -> None:
 
 
 def test_installs_and_runs_local_morpheus(morpheus_artifact):
-    if sys.platform == "win32":
-        _install_and_run_pypi_bladebridge()
-    else:
-        with TemporaryDirectory() as tmpdir:
-            with patch.object(TranspilerInstaller, "labs_path", return_value=Path(tmpdir)):
-                _install_and_run_local_morpheus(morpheus_artifact)
+    #if sys.platform == "win32":
+    #    _install_and_run_pypi_bladebridge()
+    #else:
+    with TemporaryDirectory() as tmpdir:
+        with patch.object(TranspilerInstaller, "labs_path", return_value=Path(tmpdir)):
+            _install_and_run_local_morpheus(morpheus_artifact)
 
 
 def _install_and_run_local_morpheus(morpheus_artifact):
