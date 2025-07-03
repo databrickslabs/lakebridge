@@ -550,16 +550,35 @@ class WorkspaceInstaller:
 
     @classmethod
     def install_morpheus(cls, artifact: Path | None = None):
-        java_version = cls.get_java_version()
-        if java_version is None or java_version < (11, 0, 0, 0):
-            logger.warning(
-                "This software requires Java 11 or above. Please install Java and re-run 'install-transpile'."
+        if not cls.is_java_version_okay():
+            logger.error(
+                "The morpheus transpiler requires Java 11 or above. Please install Java and re-run 'install-transpile'."
             )
             return
         product_name = "databricks-morph-plugin"
         group_id = "com.databricks.labs"
         artifact_id = product_name
         TranspilerInstaller.install_from_maven(product_name, group_id, artifact_id, artifact)
+
+    @classmethod
+    def is_java_version_okay(cls) -> bool:
+        detected_java = cls.find_java()
+        match detected_java:
+            case None:
+                logger.warning("No Java executable found in the system PATH.")
+                return False
+            case (java_executable, None):
+                logger.warning(f"Java found, but could not determine the version: {java_executable}.")
+                return False
+            case (java_executable, bytes(raw_version)):
+                logger.warning(f"Java found ({java_executable}), but could not parse the version:\n{raw_version}")
+                return False
+            case (java_executable, tuple(old_version)) if old_version < (11, 0, 0, 0):
+                version_str = ".".join(str(v) for v in old_version)
+                logger.warning(f"Java found ({java_executable}), but version {version_str} is too old.")
+                return False
+            case _:
+                return True
 
     @classmethod
     def install_artifact(cls, artifact: str):
@@ -575,25 +594,41 @@ class WorkspaceInstaller:
             logger.fatal(f"Cannot install unsupported artifact: {artifact}")
 
     @classmethod
-    def get_java_version(cls) -> tuple[int, int, int, int] | None:
+    def find_java(cls) -> tuple[Path, tuple[int, int, int, int] | bytes | None] | None:
+        """Locate Java and return its version, as reported by `java -version`.
+
+        The java executable is currently located by searching the system PATH. Its version is parsed from the output of
+        the `java -version` command, which has been standardized since Java 10.
+
+        Returns:
+            a tuple of its path and the version as a tuple of integers (feature, interim, update, patch), if the java
+            executable could be located. If the version cannot be parsed, instead the raw version information is
+            returned, or `None` as a last resort. When no java executable is found, `None` is returned instead of a
+            tuple.
+        """
         # Platform-independent way to reliably locate the java executable.
         # Reference: https://docs.python.org/3.10/library/subprocess.html#popen-constructor
         java_executable = shutil.which("java")
         if java_executable is None:
             return None
+        java_executable_path = Path(java_executable)
+        logger.debug(f"Using java executable: {java_executable_path!r}")
         try:
-            completed = run([java_executable, "-version"], shell=False, capture_output=True, check=True)
+            completed = run([str(java_executable_path), "-version"], shell=False, capture_output=True, check=True)
         except CalledProcessError as e:
             logger.debug(
                 f"Failed to run {e.args!r} (exit-code={e.returncode}, stdout={e.stdout!r}, stderr={e.stderr!r})",
                 exc_info=e,
             )
-            return None
+            return java_executable_path, None
         # It might not be ascii, but the bits we care about are so this will never fail.
-        java_version_output = completed.stderr.decode("ascii", errors="ignore")
+        raw_output = completed.stderr
+        java_version_output = raw_output.decode("ascii", errors="ignore")
         java_version = cls._parse_java_version(java_version_output)
+        if java_version is None:
+            return java_executable_path, raw_output.strip()
         logger.debug(f"Detected java version: {java_version}")
-        return java_version
+        return java_executable_path, java_version
 
     # Pattern to match a Java version string, compiled at import time to ensure it's valid.
     # Ref: https://docs.oracle.com/en/java/javase/11/install/version-string-format.html
