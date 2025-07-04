@@ -209,105 +209,67 @@ def test_transpile_error_with_invalid_transpiler_config_path_configuration(mock_
     do_transpile.assert_not_called()
 
 
-def test_transpile_with_invalid_transpiler_dialect(mock_cli_for_transpile, transpiler_config_path: Path) -> None:
-    ws, _cfg, _set_cfg, do_transpile = mock_cli_for_transpile
+def test_transpile_with_invalid_transpiler_dialect(mock_cli_for_transpile) -> None:
+    ws, _, _, _ = mock_cli_for_transpile
     with pytest.raises(ValueError):
-        cli.transpile(
-            ws,
-            source_dialect="invalid_dialect",
-        )
-        do_transpile.assert_called_once_with(
-            ws,
-            ANY,
-            TranspileConfig(
-                transpiler_config_path=str(transpiler_config_path),
-                source_dialect="snowflake",
-                input_source="/path/to/sql/file.sql",
-                output_folder="/path/to/output",
-                error_file_path="/path/to/errors.log",
-                sdk_config=None,
-                skip_validation=True,
-                catalog_name="my_catalog",
-                schema_name="my_schema",
-                transpiler_options={"-experimental": False},
-            ),
-        )
+        cli.transpile(w=ws, source_dialect="invalid_dialect")
 
 
 def test_transpile_with_invalid_skip_validation(mock_cli_for_transpile) -> None:
-    ws, _cfg, _set_cfg, _do_transpile = mock_cli_for_transpile
+    ws, _, _, _ = mock_cli_for_transpile
     with pytest.raises(Exception, match="Invalid value for '--skip-validation'"):
-        cli.transpile(
-            ws,
-            skip_validation="invalid_value",
-        )
+        cli.transpile(w=ws, skip_validation="invalid_value")
 
 
 def test_transpile_with_invalid_input_source(mock_cli_for_transpile) -> None:
-    ws, _cfg, _set_cfg, _do_transpile = mock_cli_for_transpile
+    ws, _, _, _ = mock_cli_for_transpile
     msg = "Invalid path for '--input-source', does not exist: invalid_path"
     with pytest.raises(Exception, match=re.escape(msg)):
-        cli.transpile(
-            ws,
-            input_source="invalid_path",
-        )
+        cli.transpile(w=ws, input_source="invalid_path")
 
 
-def test_transpile_with_valid_inputs(
-    mock_cli_for_transpile,
-    transpiler_config_path: Path,
-    empty_input_source: Path,
-    output_folder: Path,
-    error_file: Path,
-) -> None:
-    ws, _cfg, _set_cfg, do_transpile = mock_cli_for_transpile
+def test_transpile_with_valid_inputs(mock_cli_for_transpile, transpiler_config_path: Path) -> None:
+    ws, cfg, _, do_transpile = mock_cli_for_transpile
     cli.transpile(
         w=ws,
-        transpiler_config_path=str(transpiler_config_path),
-        source_dialect="snowflake",
-        input_source=str(empty_input_source),
-        output_folder=str(output_folder),
-        error_file_path=str(error_file),
-        skip_validation="false",
-        catalog_name="my_catalog",
-        schema_name="my_schema",
+        transpiler_config_path=cfg.transpiler_config_path,
+        source_dialect=cfg.source_dialect,
+        input_source=cfg.input_source,
+        output_folder=cfg.output_folder,
+        error_file_path=cfg.error_file_path,
+        skip_validation=str(cfg.skip_validation),
+        catalog_name=cfg.catalog_name,
+        schema_name=cfg.schema_name,
     )
     do_transpile.assert_called_once_with(
         ws,
         ANY,
         TranspileConfig(
-            transpiler_config_path=str(transpiler_config_path),
-            source_dialect="snowflake",
-            input_source=str(empty_input_source),
-            output_folder=str(output_folder),
-            error_file_path=str(error_file),
-            skip_validation=False,
-            catalog_name="my_catalog",
-            schema_name="my_schema",
+            transpiler_config_path=cfg.transpiler_config_path,
+            source_dialect=cfg.source_dialect,
+            input_source=cfg.input_source,
+            output_folder=cfg.output_folder,
+            error_file_path=cfg.error_file_path,
+            sdk_config=cfg.sdk_config,
+            skip_validation=cfg.skip_validation,
+            catalog_name=cfg.catalog_name,
+            schema_name=cfg.schema_name,
         ),
     )
 
 
 def test_transpile_prints_errors(caplog, tmp_path: Path, mock_workspace_client: WorkspaceClient) -> None:
-    transpiler_config_path = path_to_resource("lsp_transpiler", "lsp_config.yml")
-    source_dialect = "snowflake"
     input_source = path_to_resource("lsp_transpiler", "unsupported_lca.sql")
-    output_folder = str(tmp_path)
-    skip_validation = "true"
-    catalog_name = "my_catalog"
-    schema_name = "my_schema"
-    error_file_path = "errors.log"
     with caplog.at_level("ERROR"):
         cli.transpile(
-            mock_workspace_client,
-            transpiler_config_path=transpiler_config_path,
-            source_dialect=source_dialect,
+            w=mock_workspace_client,
+            transpiler_config_path=path_to_resource("lsp_transpiler", "lsp_config.yml"),
+            source_dialect="snowflake",
             input_source=input_source,
-            output_folder=output_folder,
-            skip_validation=skip_validation,
-            catalog_name=catalog_name,
-            schema_name=schema_name,
-            error_file_path=error_file_path,
+            output_folder=str(tmp_path),
+            skip_validation="true",
+            catalog_name="my_catalog",
+            schema_name="my_schema",
         )
 
     assert any(str(input_source) in record.message for record in caplog.records)

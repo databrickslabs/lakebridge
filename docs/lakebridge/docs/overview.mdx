@@ -31,7 +31,7 @@ Pre-migration Assessment
 The assessment phase is where we analyze your existing SQL workloads and their orchestration, with a view to helping you understand ahead of your migration to Databricks: a) the total cost of ownership (TCO) before you start; b) the complexity and effort of the migration itself. We split this up into two main tasks:
 
  - _Profiling_ your existing SQL workloads. The profiler connects to your existing SQL environment and examines its workloads, providing you with a detailed report on their size, complexity and features used. From this we can estimate the savings of running the same workloads once they have been migrated to Databricks.
- - _Analyzing_ the SQL code, and if necessary its orchestration. This scan provides you with a detailed report on the size and complexity of the code, and identifies potential issues that may arise during migration. These are intended to help you understand the effort that will be required  This helps you understand the effort that will be required to update your SQL jobs, and if necessary its orchestration, for Databricks.
+ - _Analyzing_ the SQL code, and if necessary its orchestration. This scan provides you with a detailed report on the size and complexity of the code, and identifies potential issues that may arise during migration. This helps you understand the effort that will be required to update your SQL jobs, and if necessary its orchestration, for Databricks.
 
 The key purpose here is to provide you as early as possible with a clear understanding of both the TCO benefits of migrating to Databricks, while also being aware of the effort and potential issues this may involve. Aside from setting expectations, this is crucial for planning and understanding the risks associated with your migration.
 
@@ -43,7 +43,7 @@ Converting SQL Workloads
 For migrating your SQL workloads we provide transpilers that can:
 
  - Translate SQL code from a variety of source platforms to Databricks SQL.
- - Translation some orchestration and ETL code to Databricks SQL.
+ - Translate some orchestration and ETL code to Databricks SQL.
 
 Internally, Lakebridge can use two different transpilers:
 
@@ -55,7 +55,7 @@ The table below summarizes the source platforms that we currently support:
 | Source Platform              | BladeBridge | Morpheus |   SQL    | ETL/Orchestration | dbt Repointing (Experimental) |
 |:-----------------------------|:-----------:|:--------:|:--------:|:-----------------:|:------------------:|
 | DataStage                    |  &#x2705;   |          | &#x2705; |     &#x2705;      |                    |
-| Informatica (Cloud, PC)      |  &#x2705;   |          | &#x2705; |     &#x2705;      |                    |
+| Informatica (PC)             |  &#x2705;   |          | &#x2705; |     &#x2705;      |                    |
 | Netezza                      |  &#x2705;   |          | &#x2705; |                   |                    |
 | Oracle (incl. ADS & Exadata) |  &#x2705;   |          | &#x2705; |                   |                    |
 | Snowflake                    |             | &#x2705; | &#x2705; |                   |      &#x2705;      |
@@ -63,6 +63,14 @@ The table below summarizes the source platforms that we currently support:
 | Teradata                     |  &#x2705;   |          | &#x2705; |                   |                    |
 
 For more information on using the transpiler, refer to the [Transpile][3] documentation.
+
+:::danger Alert
+#### INFORMATICA CLOUD SUPPORT
+We recently discovered a bug that prevents the converter from launching correctly for Informatica Cloud sources.
+The underlying issue is understood and we are working on resolving it, but it will require significant work beyond a hotfix:
+it will probably be several weeks before this becomes available.
+Please reach out to your databricks rep.
+::::
 
 Post-migration Reconciliation
 -----------------------------
