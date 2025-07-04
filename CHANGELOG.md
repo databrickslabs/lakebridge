@@ -1,5 +1,50 @@
 # Version changelog
 
+## 0.10.3
+
+# Converter Improvements
+## General:
+- Updated CLI argument handling for transpile (See [1637](https://github.com/databrickslabs/lakebridge/issues/1637)): The transpile command now has improved argument validation, clearer error handling, and more flexible configuration options.
+- Workaround issue loading transpiler configuration with python ≥ 3.12.4 (See [1802](https://github.com/databrickslabs/lakebridge/issues/1802)):
+Fixed an issue with transpiler configuration loading on Python 3.12.4+ by updating type hints and removing problematic imports.
+
+### Bladebridge Converter 
+*Teradata*
+- Enhanced handling of the TRUNC function and improved date part translation logic for more accurate Teradata conversions.
+
+*Synapse*
+- Fixed datatype conversion issues and removed unnecessary parentheses in DDL statements for Synapse.
+- Improved header cleaning, removed unsupported N String literals, and fixed several DDL issues including datatype and null literal handling.
+- Merged Synapse and MS SQL config files, fixed code loss and datatype wrapping issues, improved handling of ALTER TABLE and view definitions, and added new datatype mappings and regex patterns.
+
+*MS SQL*
+- Fixed datatype conversion issues and removed unnecessary parentheses in DDL statements for MS SQL.
+- Fixed issues with object_id handling and resolved transpiler errors with IF conditions in SQL code.
+- Unified configuration with Synapse, addressed code loss, improved datatype and view handling, and cleaned up redundant SQL commands.
+
+*Datastage*
+- Added support for Datastage functions such as DateFromComponents, ALNUM, and SURROGATEKEYGEN, and enhanced function substitution.
+- Fixed expression and filter handling, improved function substitution, and enhanced literal wrapping and SQL expression handling for Datastage to Pyspark conversions.
+
+*Datastage and Informatica PySpark target:*
+- Fixed issues with AGGREGATE node handling and improved column/expression wrapping in aggregate nodes.
+- Enhanced import handling, removed unnecessary aliases, and improved pre- and post-SQL expression processing for PySpark.
+
+*General / Multi-Dialect*
+Fixed issues with generating single output files in nested folders, improving output file handling for XML, Python, and JSON formats.
+
+# Reconcile improvements
+- Enabled TSQL Recon (See [1798](https://github.com/databrickslabs/lakebridge/issues/1798)): Added support for TSQL-based reconciliation, allowing TSQL scripts as input and updating the SQL Server adapter and tests for TSQL compatibility.
+
+# Documentation updates
+- Banner for Informatica Cloud (See [1797](https://github.com/databrickslabs/lakebridge/issues/1797)): Informatica Cloud is temporarily unsupported; a warning banner and updated docs now advise users to contact Databricks for alternatives while a fix is in progress.
+- Documentation for Reconcile Automation (See [1793](https://github.com/databrickslabs/lakebridge/issues/1793)): New documentation and utilities streamline table reconciliation, including example notebooks, validation rules, and a static web interface for Snowflake transformations.
+- Update python requirements (See [1766](https://github.com/databrickslabs/lakebridge/issues/1766)): The library now supports Python 3.10 and above, with updated installation instructions and emphasis on Java 11+ requirements.
+
+# General
+- Improve diagnostics if the Java check fails prior to installing morpheus (See [1784](https://github.com/databrickslabs/lakebridge/issues/1784)): Enhanced Java version checks provide clearer error messages and better logging if Java is missing or incompatible during installation.
+- Updated blueprint dependency, to ensure login URLs are accepted as host (See [1760](https://github.com/databrickslabs/lakebridge/issues/1760)): Blueprint dependency updated to allow login URLs as workspace hosts, resolving previous issues with host profile settings.
+
 ## 0.10.2
 
 Analyzer Improvements
