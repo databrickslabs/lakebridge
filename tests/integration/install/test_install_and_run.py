@@ -4,10 +4,28 @@ import sys
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
+from email import policy
+from email.message import Message
+from email.parser import Parser as EmailParser
 
 from databricks.labs.lakebridge.config import TranspileConfig, TranspileResult
 from databricks.labs.lakebridge.install import TranspilerInstaller
 from databricks.labs.lakebridge.transpiler.lsp.lsp_engine import LSPEngine
+
+
+def process_email_content(msg: str) -> str | None:
+    parser = EmailParser(policy=policy.default)
+    message: Message = parser.parsestr(msg)
+    result: str | None = None
+    if message.is_multipart():
+        for part in message.walk():
+            if part.get_content_maintype() != "multipart":
+                payload = part.get_payload(decode=True)
+                charset = part.get_content_charset() or "utf-8"
+                assert charset == "utf-8", "Only UTF-8 is supported for now"
+                result = (payload.decode(charset) if isinstance(payload, bytes) else str(payload)).rstrip("\n")
+                break
+    return result
 
 
 def format_transpiled(sql: str) -> str:
@@ -59,17 +77,17 @@ def _install_and_run_local_bladebridge(bladebridge_artifact: Path) -> None:
 
             sql_code = "select * from employees"
             result = asyncio.run(run_lsp_operations_sync(lsp_engine, transpile_config, input_source, sql_code))
-            transpiled = format_transpiled(result.transpiled_code)
+            transpiled = process_email_content(result.transpiled_code)
             assert transpiled == sql_code
 
 
-def test_installs_and_runs_pypi_bladebridge():
+def test_installs_and_runs_pypi_bladebridge(tmp_path: Path) -> None:
     if sys.platform == "win32":
         _install_and_run_pypi_bladebridge()
     else:
-        with TemporaryDirectory() as tmpdir:
-            with patch.object(TranspilerInstaller, "labs_path", return_value=Path(tmpdir)):
-                _install_and_run_pypi_bladebridge()
+        labs_path = tmp_path / "labs"
+        with patch.object(TranspilerInstaller, "labs_path", return_value=labs_path):
+            _install_and_run_pypi_bladebridge()
 
 
 def _install_and_run_pypi_bladebridge() -> None:
@@ -98,14 +116,11 @@ def _install_and_run_pypi_bladebridge() -> None:
 
             sql_code = "select * from employees"
             result = asyncio.run(run_lsp_operations_sync(lsp_engine, transpile_config, input_source, sql_code))
-            transpiled = format_transpiled(result.transpiled_code)
+            transpiled = process_email_content(result.transpiled_code)
             assert transpiled == sql_code
 
 
 def test_installs_and_runs_local_morpheus(morpheus_artifact):
-    # if sys.platform == "win32":
-    #    _install_and_run_pypi_bladebridge()
-    # else:
     with TemporaryDirectory() as tmpdir:
         with patch.object(TranspilerInstaller, "labs_path", return_value=Path(tmpdir)):
             _install_and_run_local_morpheus(morpheus_artifact)

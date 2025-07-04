@@ -218,7 +218,7 @@ def bladebridge_artifact() -> Path:
         / "transpiler_configs"
         / "bladebridge"
         / "wheel"
-        / "databricks_bb_plugin-0.1.4-py3-none-any.whl"
+        / "databricks_bb_plugin-0.1.9-py3-none-any.whl"
     )
     assert artifact.exists()
     return artifact
