@@ -37,6 +37,10 @@ class TranspileEngine(abc.ABC):
 
     @property
     @abc.abstractmethod
+    def transpiler_name(self) -> str: ...
+
+    @property
+    @abc.abstractmethod
     def supported_dialects(self) -> list[str]: ...
 
     @abc.abstractmethod

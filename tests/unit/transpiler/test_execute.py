@@ -184,6 +184,10 @@ class IdentityTranspileEngine(TranspileEngine):
     """A simple "identity" transpiler that does not change the source it is given."""
 
     @property
+    def transpiler_name(self) -> str:
+        return "identity"
+
+    @property
     def supported_dialects(self) -> list[str]:
         return ["identity"]
 

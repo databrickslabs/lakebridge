@@ -39,6 +39,10 @@ class SqlglotEngine(TranspileEngine):
     def supported_dialects(self) -> list[str]:
         return sorted(SQLGLOT_DIALECTS.keys())
 
+    @property
+    def transpiler_name(self) -> str:
+        return "sqlglot"
+
     def _partial_transpile(
         self,
         read_dialect: Dialect,

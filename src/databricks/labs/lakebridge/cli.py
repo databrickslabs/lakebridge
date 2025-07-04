@@ -131,19 +131,11 @@ def transpile(
     config, engine = checker.check()
     logger.debug(f"Final configuration for transpilation: {config!r}")
 
-    # checker has already checked source dialect is always populated at this stage of processing
-    if config.source_dialect:
-        with_user_agent_extra("transpiler_source_tech", config.source_dialect)
-
-    # name of the lsp plugin being used
-    # TODO LSP Client should have type hints so we dont need to do this str conversion
-    # checker has already checked transpiler config path is always populated at this stage of processing
-    if (transpiler_path := config.transpiler_path) is not None:
-        # user agent expects the name to be either alphanumeric or semver
-        plugin_name = LSPConfig.load(transpiler_path).name
-        plugin_name = re.sub(r"\s+", "_", plugin_name)
-        with_user_agent_extra("transpiler_plugin_name", plugin_name)
-
+    assert config.source_dialect is not None, "Source dialect has been validated by this point."
+    with_user_agent_extra("transpiler_source_tech", config.source_dialect)
+    plugin_name = engine.transpiler_name
+    plugin_name = re.sub(r"\s+", "_", plugin_name)
+    with_user_agent_extra("transpiler_plugin_name", plugin_name)
     user = ctx.current_user
     logger.debug(f"User: {user}")
 

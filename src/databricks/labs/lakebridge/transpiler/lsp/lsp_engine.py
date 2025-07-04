@@ -389,6 +389,10 @@ class LSPEngine(TranspileEngine):
         self._client = _LanguageClient(name, version)
         self._init_response: InitializeResult | None = None
 
+    @property
+    def transpiler_name(self) -> str:
+        return self._config.name
+
     def options_for_dialect(self, source_dialect: str) -> list[LSPConfigOptionV1]:
         """Get the options supported when transpiling a given source dialect."""
         return self._config.options_for_dialect(source_dialect)
