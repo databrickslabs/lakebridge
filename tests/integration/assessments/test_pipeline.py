@@ -5,12 +5,6 @@ import pytest
 from databricks.labs.lakebridge.assessments.pipeline import PipelineClass, DB_NAME, StepExecutionStatus
 
 from databricks.labs.lakebridge.assessments.profiler_config import Step, PipelineConfig
-from ..connections.helpers import get_db_manager
-
-
-@pytest.fixture()
-def extractor(mock_credentials):
-    return get_db_manager("remorph", "mssql")
 
 
 @pytest.fixture(scope="module")
@@ -55,8 +49,8 @@ def python_failure_config():
     return config
 
 
-def test_run_pipeline(extractor, pipeline_config, get_logger):
-    pipeline = PipelineClass(config=pipeline_config, executor=extractor)
+def test_run_pipeline(test_sqlserver, pipeline_config, get_logger):
+    pipeline = PipelineClass(config=pipeline_config, executor=test_sqlserver)
     results = pipeline.execute()
     print("*******************\n")
     print(results)
@@ -72,8 +66,8 @@ def test_run_pipeline(extractor, pipeline_config, get_logger):
     assert verify_output(get_logger, pipeline_config.extract_folder)
 
 
-def test_run_sql_failure_pipeline(extractor, sql_failure_config, get_logger):
-    pipeline = PipelineClass(config=sql_failure_config, executor=extractor)
+def test_run_sql_failure_pipeline(test_sqlserver, sql_failure_config, get_logger):
+    pipeline = PipelineClass(config=sql_failure_config, executor=test_sqlserver)
     results = pipeline.execute()
 
     # Find the failed SQL step
@@ -82,8 +76,8 @@ def test_run_sql_failure_pipeline(extractor, sql_failure_config, get_logger):
     assert "SQL execution failed" in failed_steps[0].error_message
 
 
-def test_run_python_failure_pipeline(extractor, python_failure_config, get_logger):
-    pipeline = PipelineClass(config=python_failure_config, executor=extractor)
+def test_run_python_failure_pipeline(test_sqlserver, python_failure_config, get_logger):
+    pipeline = PipelineClass(config=python_failure_config, executor=test_sqlserver)
     results = pipeline.execute()
 
     # Find the failed Python step
@@ -92,8 +86,8 @@ def test_run_python_failure_pipeline(extractor, python_failure_config, get_logge
     assert "Script execution failed" in failed_steps[0].error_message
 
 
-def test_run_python_dep_failure_pipeline(extractor, pipeline_dep_failure_config, get_logger):
-    pipeline = PipelineClass(config=pipeline_dep_failure_config, executor=extractor)
+def test_run_python_dep_failure_pipeline(test_sqlserver, pipeline_dep_failure_config, get_logger):
+    pipeline = PipelineClass(config=pipeline_dep_failure_config, executor=test_sqlserver)
     results = pipeline.execute()
 
     # Find the failed Python step
@@ -102,12 +96,12 @@ def test_run_python_dep_failure_pipeline(extractor, pipeline_dep_failure_config,
     assert "Script execution failed" in failed_steps[0].error_message
 
 
-def test_skipped_steps(extractor, pipeline_config, get_logger):
+def test_skipped_steps(test_sqlserver, pipeline_config, get_logger):
     # Modify config to have some inactive steps
     for step in pipeline_config.steps:
         step.flag = "inactive"
 
-    pipeline = PipelineClass(config=pipeline_config, executor=extractor)
+    pipeline = PipelineClass(config=pipeline_config, executor=test_sqlserver)
     results = pipeline.execute()
 
     # Verify all steps are marked as skipped

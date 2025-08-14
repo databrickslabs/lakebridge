@@ -43,7 +43,24 @@ def test_execute_query(mock_mssql_connector):
     result = db_manager.execute_query(query)
 
     assert result == mock_result
-    mock_connector_instance.execute_query.assert_called_once_with(query)
+    mock_connector_instance.execute_query.assert_called_once_with(query, False)
+
+
+@patch('databricks.labs.lakebridge.connections.database_manager.MSSQLConnector')
+def test_execute_query_commit(mock_mssql_connector):
+    mock_connector_instance = MagicMock()
+    mock_mssql_connector.return_value = mock_connector_instance
+
+    db_manager = DatabaseManager("mssql", sample_config)
+
+    mutate_query = "TRUNCATE users"
+    mock_result = MagicMock()
+    mock_connector_instance.execute_query.return_value = mock_result
+
+    mutate_result = db_manager.execute_query(mutate_query, commit=True)
+
+    assert mutate_result == mock_result
+    mock_connector_instance.execute_query.assert_called_once_with(mutate_query, True)
 
 
 def running_on_ci() -> bool:
