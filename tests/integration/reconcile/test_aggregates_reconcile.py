@@ -47,10 +47,10 @@ class AggregateQueryStore:
 @pytest.fixture
 def query_store(mock_spark):
     agg_queries = AggregateQueries(
-        source_agg_query="SELECT min(s_acctbal) AS source_min_s_acctbal FROM :tbl WHERE s_name = 't' AND s_address = 'a'",
-        target_agg_query="SELECT min(s_acctbal_t) AS target_min_s_acctbal FROM :tbl WHERE s_name = 't' AND s_address_t = 'a'",
-        source_group_agg_query="SELECT sum(s_acctbal) AS source_sum_s_acctbal, count(TRIM(s_name)) AS source_count_s_name, s_nationkey AS source_group_by_s_nationkey FROM :tbl WHERE s_name = 't' AND s_address = 'a' GROUP BY s_nationkey",
-        target_group_agg_query="SELECT sum(s_acctbal_t) AS target_sum_s_acctbal, count(TRIM(s_name)) AS target_count_s_name, s_nationkey_t AS target_group_by_s_nationkey FROM :tbl WHERE s_name = 't' AND s_address_t = 'a' GROUP BY s_nationkey_t",
+        source_agg_query="SELECT min(`s_acctbal`) AS `source_min_s_acctbal` FROM :tbl WHERE s_name = 't' AND s_address = 'a'",
+        target_agg_query="SELECT min(`s_acctbal_t`) AS `target_min_s_acctbal` FROM :tbl WHERE s_name = 't' AND s_address_t = 'a'",
+        source_group_agg_query="SELECT sum(`s_acctbal`) AS `source_sum_s_acctbal`, count(TRIM(s_name)) AS `source_count_s_name`, `s_nationkey` AS `source_group_by_s_nationkey` FROM :tbl WHERE s_name = 't' AND s_address = 'a' GROUP BY `s_nationkey`",
+        target_group_agg_query="SELECT sum(`s_acctbal_t`) AS `target_sum_s_acctbal`, count(TRIM(s_name)) AS `target_count_s_name`, `s_nationkey_t` AS `target_group_by_s_nationkey` FROM :tbl WHERE s_name = 't' AND s_address_t = 'a' GROUP BY `s_nationkey_t`",
     )
 
     return AggregateQueryStore(
@@ -60,15 +60,15 @@ def query_store(mock_spark):
 
 def test_reconcile_aggregate_data_missing_records(
     mock_spark,
-    table_conf_with_opts,
-    table_schema,
+    normalized_table_conf_with_opts,
+    table_schema_ansi_ansi,
     query_store,
     tmp_path: Path,
 ):
-    src_schema, tgt_schema = table_schema
-    table_conf_with_opts.drop_columns = ["s_acctbal"]
-    table_conf_with_opts.column_thresholds = None
-    table_conf_with_opts.aggregates = [Aggregate(type="MIN", agg_columns=["s_acctbal"])]
+    src_schema, tgt_schema = table_schema_ansi_ansi
+    normalized_table_conf_with_opts.drop_columns = ["`s_acctbal`"]
+    normalized_table_conf_with_opts.column_thresholds = None
+    normalized_table_conf_with_opts.aggregates = [Aggregate(type="MIN", agg_columns=["`s_acctbal`"])]
 
     source_dataframe_repository = {
         (
@@ -114,7 +114,7 @@ def test_reconcile_aggregate_data_missing_records(
             get_dialect("databricks"),
             mock_spark,
             ReconcileMetadataConfig(),
-        ).reconcile_aggregates(table_conf_with_opts, src_schema, tgt_schema)
+        ).reconcile_aggregates(normalized_table_conf_with_opts, src_schema, tgt_schema)
 
         assert len(actual) == 1
 
@@ -263,17 +263,17 @@ def _compare_reconcile_output(actual_reconcile_output: DataReconcileOutput, expe
 
 def test_reconcile_aggregate_data_mismatch_and_missing_records(
     mock_spark,
-    table_conf_with_opts,
-    table_schema,
+    normalized_table_conf_with_opts,
+    table_schema_ansi_ansi,
     query_store,
     tmp_path: Path,
 ):
-    src_schema, tgt_schema = table_schema
-    table_conf_with_opts.drop_columns = ["s_acctbal"]
-    table_conf_with_opts.column_thresholds = None
-    table_conf_with_opts.aggregates = [
-        Aggregate(type="SUM", agg_columns=["s_acctbal"], group_by_columns=["s_nationkey"]),
-        Aggregate(type="COUNT", agg_columns=["s_name"], group_by_columns=["s_nationkey"]),
+    src_schema, tgt_schema = table_schema_ansi_ansi
+    normalized_table_conf_with_opts.drop_columns = ["`s_acctbal`"]
+    normalized_table_conf_with_opts.column_thresholds = None
+    normalized_table_conf_with_opts.aggregates = [
+        Aggregate(type="SUM", agg_columns=["`s_acctbal`"], group_by_columns=["`s_nationkey`"]),
+        Aggregate(type="COUNT", agg_columns=["`s_name`"], group_by_columns=["`s_nationkey`"]),
     ]
 
     source_dataframe_repository = {
@@ -323,7 +323,7 @@ def test_reconcile_aggregate_data_mismatch_and_missing_records(
             get_dialect("databricks"),
             mock_spark,
             ReconcileMetadataConfig(),
-        ).reconcile_aggregates(table_conf_with_opts, src_schema, tgt_schema)
+        ).reconcile_aggregates(normalized_table_conf_with_opts, src_schema, tgt_schema)
 
         assert len(actual_list) == 2
 

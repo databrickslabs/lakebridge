@@ -3,6 +3,7 @@ from abc import ABC, abstractmethod
 
 from pyspark.sql import DataFrame
 
+from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import DialectUtils
 from databricks.labs.lakebridge.reconcile.connectors.models import NormalizedIdentifier
 from databricks.labs.lakebridge.reconcile.exception import DataSourceRuntimeException
 from databricks.labs.lakebridge.reconcile.recon_config import JdbcReaderOptions, Schema
@@ -65,10 +66,12 @@ class MockDataSource(DataSource):
         dataframe_repository: dict[tuple[str, str, str], DataFrame],
         schema_repository: dict[tuple[str, str, str], list[Schema]],
         exception: Exception = RuntimeError("Mock Exception"),
+        delimiter: str = "`",
     ):
         self._dataframe_repository: dict[tuple[str, str, str], DataFrame] = dataframe_repository
         self._schema_repository: dict[tuple[str, str, str], list[Schema]] = schema_repository
         self._exception = exception
+        self._delimiter = delimiter
 
     def read_data(
         self,
@@ -92,4 +95,4 @@ class MockDataSource(DataSource):
         return mock_schema
 
     def normalize_identifier(self, identifier: str) -> NormalizedIdentifier:
-        return NormalizedIdentifier(identifier, identifier)
+        return DialectUtils.normalize_identifier(identifier, self._delimiter, self._delimiter)

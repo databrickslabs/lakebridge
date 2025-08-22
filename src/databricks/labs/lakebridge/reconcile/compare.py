@@ -233,7 +233,14 @@ def _get_mismatch_df(source: DataFrame, target: DataFrame, key_columns: list[str
 
 def _generate_agg_join_condition(source_alias: str, target_alias: str, key_columns: list[str]):
     join_columns: list[ColumnMapping] = [
-        ColumnMapping(source_name=f"source_group_by_{key_col}", target_name=f"target_group_by_{key_col}")
+        ColumnMapping(
+            source_name=DialectUtils.ansi_normalize_identifier(
+                f"source_group_by_{DialectUtils.unnormalize_identifier(key_col)}"
+            ),
+            target_name=DialectUtils.ansi_normalize_identifier(
+                f"target_group_by_{DialectUtils.unnormalize_identifier(key_col)}"
+            ),
+        )
         for key_col in key_columns
     ]
     conditions = [
@@ -271,7 +278,8 @@ def _agg_conditions(
 
     if condition_type == "group_filter":
         conditions_list = [
-            (col(f"{mapping.source_name}").isNotNull() & col(f"{mapping.target_name}").isNotNull()) for mapping in cols
+            (col(f"{mapping.source_name}").isNotNull() & col(f"{mapping.target_name}").isNotNull())
+            for mapping in cols  # TODO
         ]
     elif condition_type == "select":
         conditions_list = [col(f"{mapping.source_name}") == col(f"{mapping.target_name}") for mapping in cols]
