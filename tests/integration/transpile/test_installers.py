@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from databricks.labs.lakebridge.install import MavenInstaller, WheelInstaller, WorkspaceInstaller
+from databricks.labs.lakebridge.transpiler.installers import MavenInstaller, MorpheusInstaller, WheelInstaller
 
 # TODO: These should run as part of the integration tests, not a separate test suite.
 
@@ -39,7 +39,7 @@ def check_valid_version(version: str) -> None:
 
 
 def test_java_version() -> None:
-    result = WorkspaceInstaller.find_java()
+    result = MorpheusInstaller.find_java()
     match result:
         case None:
             # Fine, no Java available.

@@ -8,7 +8,7 @@ from email.parser import Parser as EmailParser
 import pytest
 
 from databricks.labs.lakebridge.config import TranspileConfig, TranspileResult
-from databricks.labs.lakebridge.install import WheelInstaller, MavenInstaller
+from databricks.labs.lakebridge.transpiler.installers import WheelInstaller, MavenInstaller
 from databricks.labs.lakebridge.transpiler.lsp.lsp_engine import LSPEngine
 from databricks.labs.lakebridge.transpiler.repository import TranspilerRepository
 from databricks.labs.lakebridge.transpiler.transpile_engine import TranspileEngine
