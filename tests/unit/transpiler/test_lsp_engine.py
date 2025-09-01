@@ -138,8 +138,8 @@ async def test_server_transpiles_document(lsp_engine: LSPEngine, transpile_confi
     expected_result = TranspileDocumentResult(
         uri=sample_path.as_uri(),
         language_id="sql",
-        diagnostics=[],
-        changes=[TextEdit(sample_whole_file_range, new_text=expected_source)],
+        diagnostics=(),
+        changes=(TextEdit(sample_whole_file_range, new_text=expected_source),),
     )
     assert result == expected_result
 
