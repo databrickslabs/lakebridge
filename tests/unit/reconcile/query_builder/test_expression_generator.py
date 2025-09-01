@@ -90,6 +90,10 @@ def test_build_column():
     result = build_column(this="test_column", alias="test_alias", table_name="test_table")
     assert str(result) == "test_table.test_column AS test_alias"
 
+    # with table name
+    result = build_column(this="test_column", alias="test_alias", table_name="test_table", quoted=True)
+    assert str(result) == "test_table.test_column AS \"test_alias\""
+
 
 def test_build_literal():
     actual = build_literal(this="abc")

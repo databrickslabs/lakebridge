@@ -257,21 +257,6 @@ class Table:
             return set()
         return {self.get_layer_src_to_tgt_col_mapping(col, layer) for col in self.drop_columns}
 
-    def get_transformation_dict(self, layer: str) -> dict[str, str]:
-        if self.transformations:
-            if layer == "source":
-                return {
-                    trans.column_name: (trans.source if trans.source else trans.column_name)
-                    for trans in self.transformations
-                }
-            return {
-                self.get_layer_src_to_tgt_col_mapping(trans.column_name, layer): (
-                    trans.target if trans.target else self.get_layer_src_to_tgt_col_mapping(trans.column_name, layer)
-                )
-                for trans in self.transformations
-            }
-        return {}
-
     def get_partition_column(self, layer: str) -> set[str]:
         if self.jdbc_reader_options and layer == "source":
             if self.jdbc_reader_options.partition_column:
