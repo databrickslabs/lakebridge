@@ -82,7 +82,7 @@ dependencies = [
   "numpy~=1.26.4",
   "pandas~=2.3.1",
   "pandas-stubs~=2.3.0.250703",
-
+  "faker"
 ]
 
 [project.entry-points.databricks]
