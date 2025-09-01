@@ -13,11 +13,12 @@ class TranspilerSettings:
 
     def as_dict(self):
         return {
+            "stage_name": "transpile",
             "transpiler_name": self._transpiler_name,
             "transpiler_version": self._transpiler_version,
             "source_system": self._source_system,
             "target_system": self._target_system,
-            "transpiler_flags": self._transpiler_flags
+            "command_flags": self._transpiler_flags
         }
 
 class ReconcilerSettings:
@@ -31,6 +32,7 @@ class ReconcilerSettings:
 
     def as_dict(self):
         return {
+            "stage_name": "reconcile",
             "source_system": self._source_system,
             "target_system": self._target_system,
             "reconcile_report_type": self._reconcile_report_type
