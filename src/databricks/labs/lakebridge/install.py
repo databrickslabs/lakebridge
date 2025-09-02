@@ -105,10 +105,9 @@ class TranspilerInstaller(abc.ABC):
     _install_path: Path
     """The path where the transpiler is being installed, once this starts."""
 
-    def __init__(self,
-                 repository: TranspilerRepository,
-                 product_name: str,
-                 legacy_product_names: list[str] | None = None) -> None:
+    def __init__(
+        self, repository: TranspilerRepository, product_name: str, legacy_product_names: list[str] | None = None
+    ) -> None:
         self._repository = repository
         self._product_name = product_name
         self._legacy_product_names = legacy_product_names

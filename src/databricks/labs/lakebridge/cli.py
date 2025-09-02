@@ -27,6 +27,7 @@ from databricks.labs.lakebridge.assessments.configure_assessment import (
 
 from databricks.labs.lakebridge.config import TranspileConfig
 from databricks.labs.lakebridge.contexts.application import ApplicationContext
+from databricks.labs.lakebridge.errors.exceptions import IllegalStateException
 from databricks.labs.lakebridge.helpers.recon_config_utils import ReconConfigPrompts
 from databricks.labs.lakebridge.helpers.telemetry_utils import make_alphanum_or_semver
 from databricks.labs.lakebridge.install import installer
@@ -107,6 +108,13 @@ def transpile(
     plugin_name = engine.transpiler_name
     plugin_name = re.sub(r"\s+", "_", plugin_name)
     with_user_agent_extra("transpiler_plugin_name", plugin_name)
+    transpiler_version = transpiler_repository.get_installed_version(plugin_name)
+    if transpiler_version:
+        with_user_agent_extra("transpiler_plugin_version", make_alphanum_or_semver(transpiler_version))
+    else:
+        logger.warning(f"Could not determine version for transpiler plugin: {plugin_name}")
+        logger.error("Transpiler is out of date. Please run 'install-transpiler' to update.")
+        raise IllegalStateException("Transpiler is out of date.")
     user = ctx.current_user
     logger.debug(f"User: {user}")
 
