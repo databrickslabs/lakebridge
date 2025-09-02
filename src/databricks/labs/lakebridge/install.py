@@ -105,9 +105,13 @@ class TranspilerInstaller(abc.ABC):
     _install_path: Path
     """The path where the transpiler is being installed, once this starts."""
 
-    def __init__(self, repository: TranspilerRepository, product_name: str) -> None:
+    def __init__(self,
+                 repository: TranspilerRepository,
+                 product_name: str,
+                 legacy_product_names: list[str] | None = None) -> None:
         self._repository = repository
         self._product_name = product_name
+        self._legacy_product_names = legacy_product_names
 
     _version_pattern = re.compile(r"[_-](\d+(?:[.\-_]\w*\d+)+)")
 
@@ -165,6 +169,16 @@ class TranspilerInstaller(abc.ABC):
     @abc.abstractmethod
     def _install_version(self, version: str) -> bool:
         """Install a specific version of the transpiler, returning True if successful."""
+
+    def uninstall(self, name: str) -> bool:
+        product_path = self._repository.transpilers_path() / name
+        if not product_path.exists():
+            logger.warning(f"Cannot uninstall non-existing transpiler: {name}")
+            return False
+
+        rmtree(product_path)
+        logger.info(f"Successfully uninstalled transpiler: {name}")
+        return True
 
 
 class WheelInstaller(TranspilerInstaller):
@@ -359,8 +373,9 @@ class MavenInstaller(TranspilerInstaller):
         group_id: str,
         artifact_id: str,
         artifact: Path | None = None,
+        legacy_product_names: list[str] | None = None,
     ) -> None:
-        super().__init__(repository, product_name)
+        super().__init__(repository, product_name, legacy_product_names)
         self._group_id = group_id
         self._artifact_id = artifact_id
         self._artifact = artifact
@@ -399,6 +414,17 @@ class MavenInstaller(TranspilerInstaller):
             zip_file.extract("lsp/config.yml", self._install_path)
         shutil.move(self._install_path / "lsp" / "config.yml", self._install_path / "config.yml")
         os.rmdir(self._install_path / "lsp")
+
+    def find_legacy_installs(self):
+        """Check for legacy installations of this transpiler, returning the names if found."""
+        found = []
+        legacy_product_names = self._legacy_product_names if self._legacy_product_names else []
+        for legacy_name in legacy_product_names:
+            installed_version = self._repository.get_installed_version(legacy_name)
+            if installed_version:
+                logger.info(f"Detected legacy installation of {legacy_name} v{installed_version}")
+                found.append(legacy_name)
+        return found
 
 
 class WorkspaceInstaller:
@@ -466,11 +492,20 @@ class WorkspaceInstaller:
                 "The morpheus transpiler requires Java 11 or above. Please install Java and re-run 'install-transpile'."
             )
             return
-        product_name = "databricks-morph-plugin"
+        product_name = "morpheus"
         group_id = "com.databricks.labs"
-        artifact_id = product_name
-        maven_installer = MavenInstaller(self._transpiler_repository, product_name, group_id, artifact_id, artifact)
-        maven_installer.install()
+        artifact_id = "databricks-morph-plugin"
+        legacy_product_names = list(artifact_id)
+        maven_installer = MavenInstaller(
+            self._transpiler_repository, product_name, group_id, artifact_id, artifact, legacy_product_names
+        )
+        installed = maven_installer.install()
+        if installed:
+            installed_legacy = maven_installer.find_legacy_installs()
+            for legacy_name in installed_legacy:
+                logger.info(f"Found legacy installation, uninstalling: {legacy_name}.")
+                logger.info("Please reconfigure any transpile conf files using this transpiler.")
+                maven_installer.uninstall(legacy_name)
 
     @classmethod
     def is_java_version_okay(cls) -> bool:
