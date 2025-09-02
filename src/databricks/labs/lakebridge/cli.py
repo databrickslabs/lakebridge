@@ -90,7 +90,6 @@ def transpile(
     """Transpiles source dialect to databricks dialect"""
     ctx = ApplicationContext(w)
     logger.debug(f"Preconfigured transpiler config: {ctx.transpile_config!r}")
-    with_user_agent_extra("cmd", "execute-transpile")
     checker = _TranspileConfigChecker(ctx.transpile_config, ctx.prompts, transpiler_repository)
     checker.use_transpiler_config_path(transpiler_config_path)
     checker.use_source_dialect(source_dialect)
@@ -103,24 +102,32 @@ def transpile(
     config, engine = checker.check()
     logger.debug(f"Final configuration for transpilation: {config!r}")
 
-    assert config.source_dialect is not None, "Source dialect has been validated by this point."
-    with_user_agent_extra("transpiler_source_tech", make_alphanum_or_semver(config.source_dialect))
-    plugin_name = engine.transpiler_name
-    plugin_name = re.sub(r"\s+", "_", plugin_name)
-    with_user_agent_extra("transpiler_plugin_name", plugin_name)
-    transpiler_version = transpiler_repository.get_installed_version(plugin_name)
-    if transpiler_version:
-        with_user_agent_extra("transpiler_plugin_version", make_alphanum_or_semver(transpiler_version))
-    else:
-        logger.warning(f"Could not determine version for transpiler plugin: {plugin_name}")
-        logger.error("Transpiler is out of date. Please run 'install-transpiler' to update.")
-        raise IllegalStateException("Transpiler is out of date.")
+    _add_telemetry(config, engine, transpiler_repository)
     user = ctx.current_user
     logger.debug(f"User: {user}")
 
     result = asyncio.run(_transpile(ctx, config, engine))
     # DO NOT Modify this print statement, it is used by the CLI to display results in GO Table Template
     print(json.dumps(result))
+
+
+def _add_telemetry(
+    config: TranspileConfig, engine: TranspileEngine, transpiler_repository: TranspilerRepository
+) -> None:
+    assert config.source_dialect is not None, "Source dialect has been validated by this point."
+
+    with_user_agent_extra("cmd", "execute-transpile")
+    with_user_agent_extra("transpiler_source_tech", make_alphanum_or_semver(config.source_dialect))
+    plugin_name = engine.transpiler_name
+    plugin_name = re.sub(r"\s+", "_", plugin_name)
+    with_user_agent_extra("transpiler_plugin_name", plugin_name)
+    transpiler_version = transpiler_repository.get_installed_version(plugin_name)
+    if transpiler_version:
+        with_user_agent_extra("transpiler_plugin_version", transpiler_version)
+    else:
+        logger.warning(f"Could not determine version for transpiler plugin: {plugin_name}")
+        logger.error("Transpiler is out of date. Please run 'install-transpiler' to update.")
+        raise IllegalStateException("Transpiler is out of date.")
 
 
 class _TranspileConfigChecker:
@@ -480,9 +487,6 @@ class _TranspileConfigChecker:
 
 async def _transpile(ctx: ApplicationContext, config: TranspileConfig, engine: TranspileEngine) -> RootJsonValue:
     """Transpiles source dialect to databricks dialect"""
-    with_user_agent_extra("cmd", "execute-transpile")
-    user = ctx.current_user
-    logger.debug(f"User: {user}")
     _override_workspace_client_config(ctx, config.sdk_config)
     status, errors = await do_transpile(ctx.workspace_client, engine, config)
 
