@@ -13,7 +13,9 @@ from databricks.labs.bladespector.analyzer import Analyzer
 
 def test_analyze_arguments(mock_workspace_client, tmp_path: Path):
     input_path = str(Path(__file__).parent.parent / "resources" / "functional" / "informatica")
-    cli.analyze(mock_workspace_client, input_path, "/tmp/sample", "Informatica - PC")
+    cli.analyze(
+        w=mock_workspace_client, source_directory=input_path, report_file="/tmp/sample", source_tech="Informatica - PC"
+    )
 
 
 def test_analyze_arguments_wrong_tech(mock_workspace_client, tmp_path: Path):
@@ -29,7 +31,12 @@ def test_analyze_arguments_wrong_tech(mock_workspace_client, tmp_path: Path):
 
     with patch.object(ApplicationContext, "prompts", mock_prompts):
         input_path = str(Path(__file__).parent.parent / "resources" / "functional" / "informatica")
-        cli.analyze(mock_workspace_client, input_path, "/tmp/sample.xlsx", "Informatica")
+        cli.analyze(
+            w=mock_workspace_client,
+            source_directory=input_path,
+            report_file="/tmp/sample.xlsx",
+            source_tech="Informatica",
+        )
 
 
 def test_analyze_prompts(mock_workspace_client, tmp_path: Path):
@@ -48,4 +55,4 @@ def test_analyze_prompts(mock_workspace_client, tmp_path: Path):
         }
     )
     with patch.object(ApplicationContext, "prompts", mock_prompts):
-        cli.analyze(mock_workspace_client)
+        cli.analyze(w=mock_workspace_client)

@@ -473,7 +473,9 @@ class LSPEngine(TranspileEngine):
 
     async def _launch_executable(self, executable: str, args: Sequence[str], env: Mapping[str, str]) -> None:
         log_level = logging.getLevelName(logging.getLogger("databricks").level)
+        # TODO: Remove the --log_level argument once all our transpilers support the environment variable.
         args = [*args, f"--log_level={log_level}"]
+        env = {**env, "DATABRICKS_LAKEBRIDGE_LOG_LEVEL": log_level}
         logger.debug(f"Starting LSP engine: {executable} {args} (cwd={self._workdir})")
         await self._client.start_io(executable, *args, env=env, cwd=self._workdir)
 
