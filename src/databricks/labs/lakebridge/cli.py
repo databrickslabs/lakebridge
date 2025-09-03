@@ -340,6 +340,8 @@ class _TranspileConfigChecker:
                 supported_dialects = ", ".join(self._transpiler_repository.all_dialects())
                 msg = f"{msg_prefix}: {source_dialect!r} (supported dialects: {supported_dialects})"
                 raise_validation_exception(msg)
+            else:
+                self._config = dataclasses.replace(self._config, source_dialect=source_dialect)
         else:
             # Check the source dialect against the engine.
             if source_dialect not in engine.supported_dialects:
@@ -366,6 +368,7 @@ class _TranspileConfigChecker:
                 source_dialect = self._prompts.choice("Select the source dialect:", list(supported_dialects))
         engine = self._configure_transpiler_config_path(source_dialect)
         assert engine is not None, "No transpiler engine available for a supported dialect; configuration is invalid."
+        self._config = dataclasses.replace(self._config, source_dialect=source_dialect)
         return engine
 
     def _check_lsp_engine(self) -> TranspileEngine:
