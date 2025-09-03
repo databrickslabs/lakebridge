@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="Windows-1252"?>
+<!-- This comment contains some chàráçterš that will trigger an error if this file is read as UTF-8. -->
 <!-- Informatica proprietary -->
 <!DOCTYPE POWERMART SYSTEM "powrmart.dtd">
 <POWERMART CREATION_DATE="06/05/2025 07:56:05" REPOSITORY_VERSION="189.98">

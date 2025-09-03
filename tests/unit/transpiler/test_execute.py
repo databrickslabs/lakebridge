@@ -13,7 +13,7 @@ from databricks.labs.lsql.backends import MockBackend
 from databricks.labs.lsql.core import Row
 from databricks.sdk import WorkspaceClient
 
-from databricks.labs.lakebridge.config import TranspileConfig, ValidationResult
+from databricks.labs.lakebridge.config import TranspileConfig, ValidationResult, TranspileResult
 from databricks.labs.lakebridge.helpers.file_utils import dir_walk, is_sql_file
 from databricks.labs.lakebridge.helpers.validation import Validator
 from databricks.labs.lakebridge.transpiler.execute import (
@@ -31,6 +31,7 @@ from databricks.labs.lakebridge.transpiler.transpile_status import (
     ErrorKind,
 )
 
+from databricks.labs.blueprint.installation import JsonObject
 from databricks.sdk.core import Config
 
 from databricks.labs.lakebridge.transpiler.sqlglot.sqlglot_engine import SqlglotEngine
@@ -42,7 +43,9 @@ from tests.unit.conftest import path_to_resource
 # pylint: disable=unspecified-encoding
 
 
-def transpile(workspace_client: WorkspaceClient, engine: TranspileEngine, config: TranspileConfig):
+def transpile(
+    workspace_client: WorkspaceClient, engine: TranspileEngine, config: TranspileConfig
+) -> tuple[JsonObject, list[TranspileError]]:
     return asyncio.run(do_transpile(workspace_client, engine, config))
 
 
@@ -175,6 +178,65 @@ def test_with_file(input_source, error_file, mock_workspace_client):
     # check errors
     expected_errors = [{"path": f"{input_source!s}/queries/query1.sql", "message": "Mock validation error"}]
     check_error_lines(status["error_log_file"], expected_errors)
+
+
+class IdentityTranspileEngine(TranspileEngine):
+    """A simple "identity" transpiler that does not change the source it is given."""
+
+    @property
+    def transpiler_name(self) -> str:
+        return "identity"
+
+    @property
+    def supported_dialects(self) -> list[str]:
+        return ["identity"]
+
+    async def initialize(self, config: TranspileConfig) -> None:
+        assert config.source_dialect in self.supported_dialects
+
+    async def shutdown(self) -> None:
+        # Nothing needed here.
+        return
+
+    async def transpile(
+        self, source_dialect: str, target_dialect: str, source_code: str, file_path: Path
+    ) -> TranspileResult:
+        assert source_dialect in self.supported_dialects
+        return TranspileResult(
+            transpiled_code=source_code,
+            success_count=1,
+            error_list=[],
+        )
+
+    def is_supported_file(self, file: Path) -> bool:
+        return True
+
+
+@pytest.mark.parametrize("encoding", ["utf-32-le", "utf-32-be", "utf-16-le", "utf-16-be", "utf-8-sig", "utf-8"])
+def test_transpile_unicode_files(
+    encoding: str, tmp_path: Path, output_folder: Path, mock_workspace_client: WorkspaceClient
+) -> None:
+    # Set up the test: an input file with a specific encoding.
+    sample_query = "SELECT 'All your base belong to us.\U0001f47d'"
+    input_file = tmp_path / "unicode_query.sql"
+    with open(input_file, "w", encoding=encoding) as f:
+        # Python doesn't write the BOM with the endian-specific encodings so we add it manually.
+        if encoding.endswith("-le") or encoding.endswith("-be"):
+            f.write("\ufeff")
+        f.write(sample_query)
+
+    transpile_config = TranspileConfig(
+        transpiler_config_path=None,
+        source_dialect="identity",
+        input_source=str(input_file),
+        output_folder=str(output_folder),
+        skip_validation=True,
+    )
+    status, _ = transpile(mock_workspace_client, IdentityTranspileEngine(), transpile_config)
+
+    assert status.get("total_files_processed") == 1
+    transpiled_query = (output_folder / "unicode_query.sql").read_text(encoding="utf-8")
+    assert sample_query == transpiled_query
 
 
 def test_with_file_with_output_folder_skip_validation(input_source, output_folder, mock_workspace_client):

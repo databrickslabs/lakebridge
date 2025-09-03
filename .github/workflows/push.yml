@@ -118,8 +118,8 @@ jobs:
       - name: Verify no lint disabled in the new code
         run: |
           git fetch origin $GITHUB_BASE_REF:$GITHUB_BASE_REF
-          git diff $GITHUB_BASE_REF...$(git branch --show-current) >> diff_data.txt
-          python tests/unit/no_cheat.py diff_data.txt >> cheats.txt
+          git diff --ignore-space-change $GITHUB_BASE_REF...HEAD -- ':(glob,icase)**/*.py '> diff_data.txt
+          python tests/unit/no_cheat.py diff_data.txt > cheats.txt
           COUNT=$(cat cheats.txt | wc -c)
           if [ ${COUNT} -gt 1 ]; then
             cat cheats.txt
@@ -216,6 +216,10 @@ jobs:
         java-version: 11
 
     - name: Run install tests
+      env:
+        # Without this Python will use AppData\Local\Temp on Windows, leading to test failures.
+        # (Unclear if this is related to permissions, or possibly path length issues due to 260-character maximum.)
+        TMPDIR: ${{ runner.temp }}
       run: hatch run test-install
 
     - name: Publish test coverage

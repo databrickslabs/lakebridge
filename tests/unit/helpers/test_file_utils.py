@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 
 from databricks.labs.lakebridge.helpers.file_utils import (
+    chdir,
     dir_walk,
     is_sql_file,
     make_dir,
@@ -94,3 +95,16 @@ def test_dir_walk_empty_dir():
     assert len(result[0][1]) == 0
     assert len(result[0][2]) == 0
     safe_remove_dir(path)
+
+
+def test_chdir(tmp_path: Path) -> None:
+    """Verify that the chdir() context manager changes (and restores) the current working directory."""
+    original_cwd = Path.cwd()
+    assert original_cwd != tmp_path
+
+    # Check that changing works.
+    with chdir(tmp_path):
+        assert Path.cwd() == tmp_path
+
+    # And that the original has been restored.
+    assert Path.cwd() == original_cwd

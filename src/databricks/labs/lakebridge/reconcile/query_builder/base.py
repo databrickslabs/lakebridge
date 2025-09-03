@@ -4,6 +4,7 @@ from abc import ABC
 import sqlglot.expressions as exp
 from sqlglot import Dialect, parse_one
 
+from databricks.labs.lakebridge.reconcile.connectors.data_source import DataSource
 from databricks.labs.lakebridge.reconcile.exception import InvalidInputException
 from databricks.labs.lakebridge.reconcile.query_builder.expression_generator import (
     DataType_transform_mapping,
@@ -16,17 +17,12 @@ logger = logging.getLogger(__name__)
 
 
 class QueryBuilder(ABC):
-    def __init__(
-        self,
-        table_conf: Table,
-        schema: list[Schema],
-        layer: str,
-        engine: Dialect,
-    ):
+    def __init__(self, table_conf: Table, schema: list[Schema], layer: str, engine: Dialect, data_source: DataSource):
         self._table_conf = table_conf
         self._schema = schema
         self._layer = layer
         self._engine = engine
+        self._data_source = data_source
 
     @property
     def engine(self) -> Dialect:

@@ -4,8 +4,9 @@ from unittest.mock import MagicMock, create_autospec
 
 import pytest
 
+from databricks.labs.lakebridge.reconcile.connectors.models import NormalizedIdentifier
 from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
-from databricks.labs.lakebridge.reconcile.connectors.sql_server import SQLServerDataSource
+from databricks.labs.lakebridge.reconcile.connectors.tsql import TSQLServerDataSource
 from databricks.labs.lakebridge.reconcile.exception import DataSourceRuntimeException
 from databricks.labs.lakebridge.reconcile.recon_config import JdbcReaderOptions, Table
 from databricks.sdk import WorkspaceClient
@@ -49,8 +50,8 @@ def initial_setup():
 def test_get_jdbc_url_happy():
     # initial setup
     engine, spark, ws, scope = initial_setup()
-    # create object for SnowflakeDataSource
-    data_source = SQLServerDataSource(engine, spark, ws, scope)
+    # create object for TSQLServerDataSource
+    data_source = TSQLServerDataSource(engine, spark, ws, scope)
     url = data_source.get_jdbc_url
     # Assert that the URL is generated correctly
     assert url == (
@@ -62,8 +63,8 @@ def test_get_jdbc_url_fail():
     # initial setup
     engine, spark, ws, scope = initial_setup()
     ws.secrets.get_secret.side_effect = mock_secret
-    # create object for SnowflakeDataSource
-    data_source = SQLServerDataSource(engine, spark, ws, scope)
+    # create object for TSQLServerDataSource
+    data_source = TSQLServerDataSource(engine, spark, ws, scope)
     url = data_source.get_jdbc_url
     # Assert that the URL is generated correctly
     assert url == (
@@ -75,8 +76,8 @@ def test_read_data_with_options():
     # initial setup
     engine, spark, ws, scope = initial_setup()
 
-    # create object for SnowflakeDataSource
-    data_source = SQLServerDataSource(engine, spark, ws, scope)
+    # create object for MSSQLServerDataSource
+    data_source = TSQLServerDataSource(engine, spark, ws, scope)
     # Create a Tables configuration object with JDBC reader options
     table_conf = Table(
         source_name="src_supplier",
@@ -117,7 +118,7 @@ def test_get_schema():
     # initial setup
     engine, spark, ws, scope = initial_setup()
     # Mocking get secret method to return the required values
-    data_source = SQLServerDataSource(engine, spark, ws, scope)
+    data_source = TSQLServerDataSource(engine, spark, ws, scope)
     # call test method
     data_source.get_schema("org", "schema", "supplier")
     # spark assertions
@@ -163,7 +164,7 @@ def test_get_schema():
 def test_get_schema_exception_handling():
     # initial setup
     engine, spark, ws, scope = initial_setup()
-    data_source = SQLServerDataSource(engine, spark, ws, scope)
+    data_source = TSQLServerDataSource(engine, spark, ws, scope)
 
     spark.read.format().option().option().option().option().load.side_effect = RuntimeError("Test Exception")
 
@@ -176,3 +177,17 @@ def test_get_schema_exception_handling():
         ),
     ):
         data_source.get_schema("org", "schema", "supplier")
+
+
+def test_normalize_identifier():
+    engine, spark, ws, scope = initial_setup()
+    data_source = TSQLServerDataSource(engine, spark, ws, scope)
+
+    assert data_source.normalize_identifier("a") == NormalizedIdentifier("`a`", "[a]")
+    assert data_source.normalize_identifier('"b"') == NormalizedIdentifier("`b`", "[b]")
+    assert data_source.normalize_identifier("[c]") == NormalizedIdentifier("`c`", "[c]")
+    assert data_source.normalize_identifier('"`e`f`"') == NormalizedIdentifier("```e``f```", '[`e`f`]')
+    assert data_source.normalize_identifier('`e``f`') == NormalizedIdentifier("`e``f`", '[e`f]')
+    assert data_source.normalize_identifier('[ g h ]') == NormalizedIdentifier("` g h `", '[ g h ]')
+    assert data_source.normalize_identifier('[[i]]]') == NormalizedIdentifier("`[i]`", '[[i]]]')
+    assert data_source.normalize_identifier('"""j""k"""') == NormalizedIdentifier('`"j"k"`', '["j"k"]')

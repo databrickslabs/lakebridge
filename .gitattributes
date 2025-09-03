@@ -1,0 +1,18 @@
+#
+# Special attributes for files that aren't UTF-8, etc.
+#
+
+# Default settings.
+* text=auto eol=lf
+
+# Images in our documentation.
+*.gif -text
+*.png -text
+
+# Archives.
+*.jar -text
+*.whl -text
+
+# Specific test examples.
+tests/resources/functional/dbt/sub/sub-query-bom.sql              text working-tree-encoding=UTF-16
+tests/resources/functional/informatica/wf_m_employees_load.XML    text working-tree-encoding=WINDOWS-1252 eol=crlf

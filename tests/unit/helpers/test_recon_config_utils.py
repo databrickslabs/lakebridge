@@ -7,7 +7,7 @@ from databricks.labs.lakebridge.helpers.recon_config_utils import ReconConfigPro
 from databricks.sdk.errors.platform import ResourceDoesNotExist
 from databricks.sdk.service.workspace import SecretScope
 
-SOURCE_DICT = {"databricks": "0", "oracle": "1", "snowflake": "2"}
+SOURCE_DICT = {"databricks": "0", "mssql": "1", "oracle": "2", "snowflake": "3", "synapse": "4"}
 SCOPE_NAME = "dummy_scope"
 
 
@@ -64,7 +64,7 @@ def test_configure_secrets_oracle_insert(mock_workspace_client):
 def test_configure_secrets_invalid_source(mock_workspace_client):
     prompts = MockPrompts(
         {
-            r"Select the source": "3",
+            r"Select the source": "100",  # Invalid source
             r"Enter Secret Scope name": SCOPE_NAME,
         }
     )

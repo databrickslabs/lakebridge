@@ -17,3 +17,14 @@ indent_size = tab
 
 [*.{json,yml}]
 indent_size = 2
+
+#
+# Some exceptions, in particular for tests.
+#
+[tests/resources/functional/dbt/sub/sub-query-bom.sql]
+charset = utf-16le
+[tests/resources/functional/informatica/wf_m_employees_load.XML]
+# Should be Windows-1252, but that's not allowed and we're using the common latin1 subset.
+charset = latin1
+end_of_line = crlf
+insert_final_newline = false

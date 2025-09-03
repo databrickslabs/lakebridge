@@ -18,6 +18,8 @@ SQLGLOT_DIALECTS: dict[str, type[Dialect] | str] = {
     "teradata": Dialects.TERADATA,
     "trino": Dialects.TRINO,
     "tsql": Dialects.TSQL,
+    "mssql": Dialects.TSQL,
+    "synapse": Dialects.TSQL,
     "vertica": Dialects.POSTGRES,
 }
 

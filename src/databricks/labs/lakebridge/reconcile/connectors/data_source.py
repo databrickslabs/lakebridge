@@ -3,6 +3,7 @@ from abc import ABC, abstractmethod
 
 from pyspark.sql import DataFrame
 
+from databricks.labs.lakebridge.reconcile.connectors.models import NormalizedIdentifier
 from databricks.labs.lakebridge.reconcile.exception import DataSourceRuntimeException
 from databricks.labs.lakebridge.reconcile.recon_config import JdbcReaderOptions, Schema
 
@@ -31,11 +32,26 @@ class DataSource(ABC):
     ) -> list[Schema]:
         return NotImplemented
 
+    @abstractmethod
+    def normalize_identifier(self, identifier: str) -> NormalizedIdentifier:
+        pass
+
     @classmethod
     def log_and_throw_exception(cls, exception: Exception, fetch_type: str, query: str):
         error_msg = f"Runtime exception occurred while fetching {fetch_type} using {query} : {exception}"
         logger.warning(error_msg)
         raise DataSourceRuntimeException(error_msg) from exception
+
+    def _map_meta_column(self, meta_column) -> Schema:
+        """Create a normalized Schema DTO from the database metadata
+
+        Used in the implementations of get_schema to build a Schema DTO from the `INFORMATION_SCHEMA` query result.
+        The returned Schema is normalized in case the database is having columns with special characters and standardize
+        """
+        name = meta_column.col_name
+        dtype = meta_column.data_type.strip().lower()
+        normalized = self.normalize_identifier(name)
+        return Schema(normalized.ansi_normalized, dtype, normalized.ansi_normalized, normalized.source_normalized)
 
 
 class MockDataSource(DataSource):
@@ -70,3 +86,6 @@ class MockDataSource(DataSource):
         if not mock_schema:
             return self.log_and_throw_exception(self._exception, "schema", f"({catalog}, {schema}, {table})")
         return mock_schema
+
+    def normalize_identifier(self, identifier: str) -> NormalizedIdentifier:
+        return NormalizedIdentifier(identifier, identifier)

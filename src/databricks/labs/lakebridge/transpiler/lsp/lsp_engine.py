@@ -4,7 +4,9 @@ import abc
 import asyncio
 import logging
 import os
+import shutil
 import sys
+import venv
 from collections.abc import Callable, Sequence, Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -35,7 +37,7 @@ from pygls.lsp.client import BaseLanguageClient
 from databricks.labs.blueprint.wheels import ProductInfo
 from databricks.labs.lakebridge.config import LSPConfigOptionV1, TranspileConfig, TranspileResult
 from databricks.labs.lakebridge.errors.exceptions import IllegalStateException
-from databricks.labs.lakebridge.helpers.file_utils import is_sql_file, is_dbt_project_file
+from databricks.labs.lakebridge.helpers.file_utils import is_dbt_project_file, is_sql_file
 from databricks.labs.lakebridge.transpiler.transpile_engine import TranspileEngine
 from databricks.labs.lakebridge.transpiler.transpile_status import (
     CodePosition,
@@ -390,6 +392,14 @@ class LSPEngine(TranspileEngine):
         self._init_response: InitializeResult | None = None
 
     @property
+    def transpiler_name(self) -> str:
+        return self._config.name
+
+    def options_for_dialect(self, source_dialect: str) -> list[LSPConfigOptionV1]:
+        """Get the options supported when transpiling a given source dialect."""
+        return self._config.options_for_dialect(source_dialect)
+
+    @property
     def supported_dialects(self) -> list[str]:
         return self._config.remorph.dialects
 
@@ -400,15 +410,12 @@ class LSPEngine(TranspileEngine):
     async def initialize(self, config: TranspileConfig) -> None:
         if self.is_alive:
             raise IllegalStateException("LSP engine is already initialized")
-        cwd = os.getcwd()
         try:
-            os.chdir(self._workdir)
             await self._do_initialize(config)
             await self._await_for_transpile_capability()
         # it is good practice to catch broad exceptions raised by launching a child process
         except Exception as e:  # pylint: disable=broad-exception-caught
             logger.error("LSP initialization failed", exc_info=e)
-            os.chdir(cwd)
 
     async def _do_initialize(self, config: TranspileConfig) -> None:
         await self._start_server()
@@ -425,65 +432,52 @@ class LSPEngine(TranspileEngine):
         logger.debug(f"LSP init params: {params}")
         self._init_response = await self._client.initialize_async(params)
 
-    async def _start_server(self):
-        executable = self._config.remorph.command_line[0]
-        if executable in {"python", "python3"}:
-            await self._start_python_server()
-        else:
-            await self._start_other_server()
+    async def _start_server(self) -> None:
+        # Sanity-check and split the command-line into components.
+        if not (command_line := self._config.remorph.command_line):
+            raise ValueError(f"Missing command line for LSP server: {self._config.path}")
+        executable, *args = command_line
 
-    async def _start_python_server(self):
-        has_venv = (self._workdir / ".venv").exists()
-        if has_venv:
-            await self._start_python_server_with_venv()
-        else:
-            await self._start_python_server_without_venv()
-
-    async def _start_python_server_with_venv(self):
+        # Extract the environment, preparing to ensure that PATH is set correctly.
         env: dict[str, str] = os.environ | self._config.remorph.env_vars
-        # ensure modules are searched within venv
-        if "PYTHONPATH" in env.keys():
-            del env["PYTHONPATH"]
-        if "VIRTUAL_ENV" in env.keys():
-            del env["VIRTUAL_ENV"]
-        if "VIRTUAL_ENV_PROMPT" in env.keys():
-            del env["VIRTUAL_ENV_PROMPT"]
-        path = self._workdir / ".venv" / "Scripts" if sys.platform == "win32" else self._workdir / ".venv" / "bin"
-        if "PATH" in env.keys():
-            env["PATH"] = str(path) + os.pathsep + env["PATH"]
-        else:
-            env["PATH"] = str(path)
-        python = "python.exe" if sys.platform == "win32" else "python3"
-        executable = path / python
-        await self._launch_executable(executable, env)
+        path = env.get("PATH", os.defpath)
 
-    async def _start_python_server_without_venv(self):
-        env: dict[str, str] = os.environ | self._config.remorph.env_vars
-        # ensure modules are searched locally before being searched in remorph
-        if "PYTHONPATH" in env.keys():
-            env["PYTHONPATH"] = str(self._workdir) + os.pathsep + env["PYTHONPATH"]
-        else:
-            env["PYTHONPATH"] = str(self._workdir)
-        executable = Path(self._config.remorph.command_line[0])
-        await self._launch_executable(executable, env)
+        # If we have a virtual environment, ensure the bin directory is first on the PATH. This normally takes
+        # care of python executables, but also deals with any entry-points that the LSP server might install.
+        if (venv_path := self._workdir / ".venv").exists():
+            executable, additional_path = self._activate_venv(venv_path, executable)
+            # Ensure PATH is in sync with the search path we will use to locate the LSP server executable.
+            env["PATH"] = path = f"{additional_path}{os.pathsep}{path}"
+        logger.debug(f"Using PATH for launching LSP server: {path}")
 
-    async def _start_other_server(self):
-        env: dict[str, str] = os.environ | self._config.remorph.env_vars
-        # ensure modules are searched within venv
-        if "PYTHONPATH" in env.keys():
-            del env["PYTHONPATH"]
-        if "VIRTUAL_ENV" in env.keys():
-            del env["VIRTUAL_ENV"]
-        if "VIRTUAL_ENV_PROMPT" in env.keys():
-            del env["VIRTUAL_ENV_PROMPT"]
-        executable = Path(self._config.remorph.command_line[0])
-        await self._launch_executable(executable, env)
+        # Locate the LSP server executable in a platform-independent way.
+        # Reference: https://docs.python.org/3/library/subprocess.html#popen-constructor
+        executable = shutil.which(executable, path=path) or executable
 
-    async def _launch_executable(self, executable: Path, env: Mapping):
+        await self._launch_executable(executable, args, env)
+
+    @staticmethod
+    def _activate_venv(venv_path: Path, executable: str) -> tuple[str, Path]:
+        """Obtain the bin/script directory for the virtual environment, to extend the search path."""
+        logger.debug(f"Detected virtual environment to use at: {venv_path}")
+        use_symlinks = sys.platform != "win32"
+        builder = venv.EnvBuilder(symlinks=use_symlinks)
+        context = builder.ensure_directories(venv_path)
+
+        # Workaround for Windows, where bin_path (Scripts/) doesn't contain python3.exe: if the executable is python
+        # or python3, we substitute it for what is needed to launch the venv's python interpreter.
+        if os.path.normcase(executable) in {"python", "python3"}:
+            executable = context.env_exec_cmd
+
+        return executable, context.bin_path
+
+    async def _launch_executable(self, executable: str, args: Sequence[str], env: Mapping[str, str]) -> None:
         log_level = logging.getLevelName(logging.getLogger("databricks").level)
-        args = self._config.remorph.command_line[1:] + [f"--log_level={log_level}"]
-        logger.debug(f"Starting LSP engine: {executable} {args} (cwd={os.getcwd()})")
-        await self._client.start_io(str(executable), env=env, *args)
+        # TODO: Remove the --log_level argument once all our transpilers support the environment variable.
+        args = [*args, f"--log_level={log_level}"]
+        env = {**env, "DATABRICKS_LAKEBRIDGE_LOG_LEVEL": log_level}
+        logger.debug(f"Starting LSP engine: {executable} {args} (cwd={self._workdir})")
+        await self._client.start_io(executable, *args, env=env, cwd=self._workdir)
 
     def _client_capabilities(self):
         return ClientCapabilities()  # TODO do we need to refine this ?
@@ -523,22 +517,20 @@ class LSPEngine(TranspileEngine):
         self.close_document(file_path)
         return ChangeManager.apply(source_code, response.changes, response.diagnostics, file_path)
 
-    def open_document(self, file_path: Path, encoding="utf-8", source_code: str | None = None) -> None:
-        if source_code is None:
-            source_code = file_path.read_text(encoding)
+    def open_document(self, file_path: Path, source_code: str) -> None:
         text_document = TextDocumentItem(
-            uri=file_path.as_uri(), language_id=LanguageKind.Sql, version=1, text=source_code
+            uri=file_path.absolute().as_uri(), language_id=LanguageKind.Sql, version=1, text=source_code
         )
         params = DidOpenTextDocumentParams(text_document)
         self._client.text_document_did_open(params)
 
     def close_document(self, file_path: Path) -> None:
-        text_document = TextDocumentIdentifier(uri=file_path.as_uri())
+        text_document = TextDocumentIdentifier(uri=file_path.absolute().as_uri())
         params = DidCloseTextDocumentParams(text_document)
         self._client.text_document_did_close(params)
 
     async def transpile_document(self, file_path: Path) -> TranspileDocumentResult:
-        params = TranspileDocumentParams(uri=file_path.as_uri(), language_id=LanguageKind.Sql)
+        params = TranspileDocumentParams(uri=file_path.absolute().as_uri(), language_id=LanguageKind.Sql)
         result = await self._client.transpile_document_async(params)
         return result
 

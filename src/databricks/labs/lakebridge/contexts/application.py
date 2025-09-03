@@ -12,7 +12,8 @@ from databricks.sdk.config import Config
 from databricks.sdk.errors import NotFound
 from databricks.sdk.service.iam import User
 
-from databricks.labs.lakebridge.config import TranspileConfig, ReconcileConfig, RemorphConfigs
+from databricks.labs.lakebridge.analyzer.lakebridge_analyzer import LakebridgeAnalyzer
+from databricks.labs.lakebridge.config import TranspileConfig, ReconcileConfig, LakebridgeConfiguration
 from databricks.labs.lakebridge.deployment.configurator import ResourceConfigurator
 from databricks.labs.lakebridge.deployment.dashboard import DashboardDeployment
 from databricks.labs.lakebridge.deployment.installation import WorkspaceInstallation
@@ -22,6 +23,7 @@ from databricks.labs.lakebridge.helpers.metastore import CatalogOperations
 logger = logging.getLogger(__name__)
 
 
+# pylint: disable=too-many-public-methods
 class ApplicationContext:
     def __init__(self, ws: WorkspaceClient):
         self._ws = ws
@@ -42,7 +44,7 @@ class ApplicationContext:
 
     @cached_property
     def product_info(self) -> ProductInfo:
-        return ProductInfo.from_class(RemorphConfigs)
+        return ProductInfo.from_class(LakebridgeConfiguration)
 
     @cached_property
     def installation(self) -> Installation:
@@ -65,8 +67,8 @@ class ApplicationContext:
             return None
 
     @cached_property
-    def remorph_config(self) -> RemorphConfigs:
-        return RemorphConfigs(transpile=self.transpile_config, reconcile=self.recon_config)
+    def remorph_config(self) -> LakebridgeConfiguration:
+        return LakebridgeConfiguration(transpile=self.transpile_config, reconcile=self.recon_config)
 
     @cached_property
     def connect_config(self) -> Config:
@@ -131,3 +133,8 @@ class ApplicationContext:
     @cached_property
     def upgrades(self):
         return Upgrades(self.product_info, self.installation)
+
+    @cached_property
+    def analyzer(self):
+        is_debug = logger.getEffectiveLevel() == logging.DEBUG
+        return LakebridgeAnalyzer(self.current_user, self.prompts, is_debug)

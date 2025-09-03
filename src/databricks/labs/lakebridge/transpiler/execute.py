@@ -9,6 +9,7 @@ from typing import cast
 import itertools
 
 from databricks.labs.blueprint.installation import JsonObject
+from databricks.labs.blueprint.paths import read_text
 from databricks.labs.lakebridge.__about__ import __version__
 from databricks.labs.lakebridge.config import (
     TranspileConfig,
@@ -28,7 +29,6 @@ from databricks.labs.lakebridge.transpiler.transpile_status import (
     ErrorKind,
     ErrorSeverity,
 )
-from databricks.labs.lakebridge.helpers.string_utils import remove_bom
 from databricks.labs.lakebridge.helpers.validation import Validator
 from databricks.labs.lakebridge.transpiler.sqlglot.sqlglot_engine import SqlglotEngine
 from databricks.sdk import WorkspaceClient
@@ -49,8 +49,9 @@ class TranspilingContext:
 
 
 async def _process_one_file(context: TranspilingContext) -> tuple[int, list[TranspileError]]:
+    input_path = context.input_path
 
-    logger.debug(f"Started processing file: {context.input_path!s}")
+    logger.debug(f"Started processing file: {input_path}")
 
     if not context.config.source_dialect:
         error = TranspileError(
@@ -62,15 +63,18 @@ async def _process_one_file(context: TranspilingContext) -> tuple[int, list[Tran
         )
         return 0, [error]
 
-    with context.input_path.open("r") as f:
-        source_code = remove_bom(f.read())
-        context = dataclasses.replace(context, source_code=source_code)
+    # Check if it looks like XML, where we need to sniff the encoding instead of relying on a BOM or defaulting to the
+    # local platform encoding.
+    sniff_xml_encoding = input_path.suffix.lower() == ".xml"
+
+    source_code = read_text(input_path, detect_xml=sniff_xml_encoding)
+    context = dataclasses.replace(context, source_code=source_code)
 
     transpile_result = await _transpile(
         context.transpiler,
         str(context.config.source_dialect),
         context.config.target_dialect,
-        str(context.source_code),
+        source_code,
         context.input_path,
     )
 
@@ -81,8 +85,9 @@ async def _process_one_file(context: TranspilingContext) -> tuple[int, list[Tran
     error_list = list(transpile_result.error_list)
     context = dataclasses.replace(context, transpiled_code=transpile_result.transpiled_code)
 
-    output_path = cast(Path, context.output_path)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path = context.output_path
+    assert output_path is not None, "Output path must be set in the context"
+    output_path.parent.mkdir(exist_ok=True)
 
     if _is_combined_result(transpile_result):
         _process_combined_result(context, error_list)
@@ -158,7 +163,9 @@ def _process_single_result(context: TranspilingContext, error_list: list[Transpi
 
     output_path = cast(Path, context.output_path)
     with output_path.open("w") as w:
-        w.write(make_header(context.input_path, error_list))
+        # The above adds a java-style comment block at the top of the output file
+        # This would break .py or .json outputs so we disable it for now.
+        # w.write(make_header(context.input_path, error_list))
         w.write(output_code)
 
     logger.info(f"Processed file: {context.input_path} (errors: {len(error_list)})")

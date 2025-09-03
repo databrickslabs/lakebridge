@@ -8,7 +8,12 @@ from databricks.sdk import WorkspaceClient
 from databricks.sdk.errors import InvalidParameterValue
 from databricks.sdk.service.jobs import Job
 
-from databricks.labs.lakebridge.config import RemorphConfigs, ReconcileConfig, DatabaseConfig, ReconcileMetadataConfig
+from databricks.labs.lakebridge.config import (
+    LakebridgeConfiguration,
+    ReconcileConfig,
+    DatabaseConfig,
+    ReconcileMetadataConfig,
+)
 from databricks.labs.lakebridge.deployment.job import JobDeployment
 
 
@@ -57,7 +62,7 @@ def test_deploy_new_job(oracle_recon_config):
     workspace_client.jobs.create.return_value = job
     installation = MockInstallation(is_global=False)
     install_state = InstallState.from_installation(installation)
-    product_info = ProductInfo.from_class(RemorphConfigs)
+    product_info = ProductInfo.from_class(LakebridgeConfiguration)
     name = "Recon Job"
     job_deployer = JobDeployment(workspace_client, installation, install_state, product_info)
     job_deployer.deploy_recon_job(name, oracle_recon_config, "remorph-x.y.z-py3-none-any.whl")
@@ -73,7 +78,7 @@ def test_deploy_existing_job(snowflake_recon_config):
     name = "Recon Job"
     installation = MockInstallation({"state.json": {"resources": {"jobs": {name: str(job_id)}}, "version": 1}})
     install_state = InstallState.from_installation(installation)
-    product_info = ProductInfo.for_testing(RemorphConfigs)
+    product_info = ProductInfo.for_testing(LakebridgeConfiguration)
     job_deployer = JobDeployment(workspace_client, installation, install_state, product_info)
     job_deployer.deploy_recon_job(name, snowflake_recon_config, "remorph-x.y.z-py3-none-any.whl")
     workspace_client.jobs.reset.assert_called_once()
@@ -89,7 +94,7 @@ def test_deploy_missing_job(snowflake_recon_config):
     name = "Recon Job"
     installation = MockInstallation({"state.json": {"resources": {"jobs": {name: "5678"}}, "version": 1}})
     install_state = InstallState.from_installation(installation)
-    product_info = ProductInfo.for_testing(RemorphConfigs)
+    product_info = ProductInfo.for_testing(LakebridgeConfiguration)
     job_deployer = JobDeployment(workspace_client, installation, install_state, product_info)
     job_deployer.deploy_recon_job(name, snowflake_recon_config, "remorph-x.y.z-py3-none-any.whl")
     workspace_client.jobs.create.assert_called_once()

@@ -58,19 +58,24 @@ Below are the connection properties required for each source:
         ```yaml
         sfUrl = https://[acount_name].snowflakecomputing.com
         account = [acount_name]
-            sfUser = [user]
-            sfPassword = [password]
-            sfDatabase = [database]
-            sfSchema = [schema]
-            sfWarehouse = [warehouse_name]
-            sfRole = [role_name]
-            pem_private_key = [pkcs8_pem_private_key]
-            ```
-            :::note
-            For Snowflake authentication, either sfPassword or pem_private_key is required.
-            Priority is given to pem_private_key, and if it is not found, sfPassword will be used.
-            If neither is available, an exception will be raised.
-            :::
+        sfUser = [user]
+        sfPassword = [password]
+        sfDatabase = [database]
+        sfSchema = [schema]
+        sfWarehouse = [warehouse_name]
+        sfRole = [role_name]
+        pem_private_key = [pkcs8_pem_private_key]
+        pem_private_key_password = [pkcs8_pem_private_key]
+        ```
+
+        :::note
+        For Snowflake authentication, either sfPassword or pem_private_key is required.
+        Priority is given to pem_private_key, and if it is not found, sfPassword will be used.
+        If neither is available, an exception will be raised.
+
+        When using an encrypted pem_private_key, you'll need to provide the pem_private_key_password.
+        This password is used to decrypt the private key for authentication.
+        :::
     </TabItem>
     <TabItem value="oracle" label="Oracle">
         ```yaml
@@ -99,14 +104,14 @@ You can execute the reconciliation process by executing the below command in a n
 from databricks.labs.lakebridge import __version__
 from databricks.sdk import WorkspaceClient
 
-from databricks.labs.lakebridge.reconcile.execute import recon
+from databricks.labs.lakebridge.reconcile.trigger_recon_service import TriggerReconService
 from databricks.labs.lakebridge.reconcile.exception import ReconciliationException
 
 ws = WorkspaceClient(product="lakebridge", product_version=__version__)
 
 
 try:
-  result = recon(
+  result = TriggerReconService.trigger_recon(
             ws = ws,
             spark = spark, # notebook spark session
             table_recon = table_recon, # previously created

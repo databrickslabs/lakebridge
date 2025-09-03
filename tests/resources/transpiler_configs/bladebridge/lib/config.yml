@@ -19,7 +19,7 @@ options:
   all:
     - flag: "overrides-file"
       method: QUESTION
-      prompt: "Specify the file to use for overrides - press <enter> for none"
+      prompt: "Specify the config file to override the default[Bladebridge] config - press <enter> for none"
       default: "<none>"
   datastage:
     - flag: "target-tech"

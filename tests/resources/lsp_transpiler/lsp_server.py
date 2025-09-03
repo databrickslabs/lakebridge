@@ -129,15 +129,12 @@ class TestLspServer(LanguageServer):
         ]
         register_params = RegistrationParams(registrations)
         await self.client_register_capability_async(register_params)
-        # ensure we can fetch a workspace file
-        uri = self.workspace.root_uri + "/workspace_file.yml"
-        doc = self.workspace.get_text_document(uri)
-        logger.debug(f"fetch-document-uri={uri}: {doc.source}")
 
     def transpile_to_databricks(self, params: TranspileDocumentParams) -> TranspileDocumentResult:
-        source_sql = self.workspace.get_text_document(params.uri).source
-        source_lines = source_sql.split("\n")
-        range = Range(start=Position(0, 0), end=Position(len(source_lines), len(source_lines[-1])))
+        document = self.workspace.get_text_document(params.uri)
+        line_count = len(document.lines)
+        source_sql = document.source
+        range = Range(start=Position(0, 0), end=Position(line_count, 0))
         transpiled_sql, diagnostics = self._transpile(Path(params.uri).name, range, source_sql)
         changes = [TextEdit(range=range, new_text=transpiled_sql)]
         return TranspileDocumentResult(
@@ -209,4 +206,7 @@ if __name__ == "__main__":
     sys.stderr.buffer.flush()
     logger.debug(f"SOME_ENV={os.getenv('SOME_ENV')}")
     logger.debug(f"sys.args={sys.argv}")
+    # Verifying only that the log-level is provided; we don't actually use it in this test server.
+    logger.debug(f"Requested log level: {os.getenv('DATABRICKS_LAKEBRIDGE_LOG_LEVEL')}")
+
     server.start_io()

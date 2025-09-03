@@ -20,10 +20,10 @@ choose to configure this at the time of installation, or choose defaults/set lat
 transpile call.
 
 The `transpile` command will trigger the conversion of the specified code, these are the available arguments:
-- `source-dialect [Required]` - Dialect name (ex: snowflake, oracle, datastage, etc)
 - `input-source [Required]` - The path to the SQL file or directory containing SQL files to be transpiled.
 - `output-folder [Optional]` - The path to the output folder where the transpiled SQL files will be stored. If not specified,
 the transpiled SQL files will be stored in a folder called `transpiled` in your current working directory.
+- `source-dialect [Optional]` - Dialect name (ex: snowflake, oracle, datastage, etc). If not specified, refers to the Source Dialect selected at installation time.
 - `error-file-path [Optional]` - The path to the file where the transpile errors will be stored. If not specified, the
 errors will be stored in a file called `errors.log` in your current working directory.
 - `skip-validation [Optional]` - The default value is True. If set to False, the transpiler will validate the transpiled SQL scripts against the Databricks catalog and schema provided by user.

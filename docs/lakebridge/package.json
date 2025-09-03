@@ -1,5 +1,5 @@
 {
-  "name": "dqx",
+  "name": "lakebridge",
   "version": "1.0.0",
   "private": true,
   "scripts": {
@@ -58,6 +58,8 @@
     "node": ">=18.0"
   },
   "resolutions": {
-    "webpack-dev-server": "^5.2.1"
+    "brace-expansion": "^1.1.12",
+    "webpack-dev-server": "^5.2.1",
+    "on-headers": ">=1.1.0"
   }
 }

@@ -61,6 +61,16 @@ body:
       label: Relevant log output or Exception details
       description: Please copy and paste any relevant log output. This will be automatically formatted into code, so no need for backticks.
       render: shell
+  - type: checkboxes
+    attributes:
+      label: Logs Confirmation
+      description: Additional logs will helps us, Please confirm the following regarding logs. Please ensure you have redacted any personal identifying information (PII) from the logs.
+      options:
+        - label: I ran the command line with `--debug`
+          required: false
+        - label: I have attached the `lsp-server.log` under USER_HOME/.databricks/labs/remorph-transpilers/<converter_name>/lib/lsp-server.log
+          required: false
+
   - type: textarea
     id: query
     attributes:

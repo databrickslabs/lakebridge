@@ -4,9 +4,33 @@ title: Exporting Legacy Metadata
 ---
 import useBaseUrl from '@docusaurus/useBaseUrl';
 
-Analyzer expects all the legacy code to be exported into a folder accessible by it.<br/>
-For SQL code exporting, most times a database export can be used to export object definitions (tables, views procedures, functions etc...) in bulk.  Ideally, each SQL file should contain a single artifact.<br/>
+Analyzer expects all the legacy code to be exported into a folder accessible by it.<br/>For SQL code exporting, most times a database export can be used to export object definitions (tables, views procedures, functions etc...) in bulk.  Ideally, each SQL file should contain a single artifact.<br/>
+
 All the major ETL platforms provide some kind of export of their code repositories. Typically this is done into XML or JSON formats which can be used to restore the environment. Here is a short guide for how to export metadata from various platforms:
+
+## Microsoft SQL Server
+To extract metadata like Table, View, and Stored Procedures DDLs, you can use Microsoft SQL Server Management Studio (SSMS). 
+* In Object Explorer, expand the node for the instance containing the database to be scripted.
+* Right-click on the database you want to script, and select Tasks > Generate Scripts.
+  <img src={useBaseUrl('img/sql-server-export-object-explorer.png')} style={{ width: 500 }} alt="sql-server-export-object-explorer" />
+* On the `Choose Objects` dialog page, select either the entire database or choose the object types to be migrated.
+  * Note: Select all required object types. Screenshot below is for illustration purposes only.
+  <img src={useBaseUrl('img/sql-server-export-choose-objects.png')} alt="sql-server-export-choose-objects" />
+* In the `Set Scripting Options` dialog page, choose `Save as script file` and `one script file per object` as illustrated below.<br/>
+  <img src={useBaseUrl('img/sql-server-export-set-scripting-options.png')} style={{ width: 500 }} alt="sql-server-export-set-scripting-options" />
+See https://learn.microsoft.com/en-us/ssms/scripting/generate-and-publish-scripts-wizard for more details on how to use the Generate Scripts wizard in SSMS.
+
+## Azure Synapse (Dedicated) 
+Follow the same steps as for Microsoft SQL Server above.  The only difference is that you will need to connect to the Synapse Dedicated SQL pool instead of a regular SQL Server instance.
+
+## Azure Synapse (Serverless)
+If you use Synapse Studio and have your SQL code saved in SQL scripts, you can export the files with the [Export-AzSynapseSqlScript PowerShell cmdlet](https://learn.microsoft.com/en-us/powershell/module/az.synapse/export-azsynapsesqlscript?view=azps-14.2.0&viewFallbackFrom=azps-13.4.0). This method requires [Azure PowerShell modules](https://learn.microsoft.com/en-us/powershell/azure/install-Az-ps?view=azps-0.10.0).<br/>
+
+Otherwise, you can use Microsoft SQL Server Management Studio (SSMS) to extract metadata like Table, View, and Stored Procedures DDLs. 
+* Select “Object Explorer Details” under the View button in the toolbar
+  <img src={useBaseUrl('img/synapse-objects-explorer-view.png')} alt="synapse-objects-explorer-view" />
+* For each object type, select the required objects to export and right-click on the selection to choose “Script as” > “CREATE To” > “File” as pictured below. <br/>
+  <img src={useBaseUrl('img/synapse-objects-explorer-script-as.png')} style={{ width: 800}} alt="synapse-objects-explorer-script-as" />
 
 ## PowerCenter
 

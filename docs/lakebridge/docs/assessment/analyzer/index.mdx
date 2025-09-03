@@ -35,17 +35,19 @@ For examples and instructions of the metadata export process, please refer to th
 
 
 ## Execution Pre-Set Up
-Analyzer accepts as an input a folder name containing the files and subfolders to be scanned, and the Excel report filename to be generated, containing all the collected information.
+The analyzer takes a folder path containing source files to be scanned and the source technology type as inputs, then generates an Excel report with analysis results of all files and subfolders.
 
-Below is the detailed explanation on the arguments required for Analyzer.
-- `source-directory [Required]` - Absolute folder path containing the legacy artifacts.
-- `report-file [Required]` - Name of the report file to produce the information info.  **IMPORTANT:** Must have .xlsx extension
-#### Before starting the execution, Analyzer will prompt for the type of technology it is scanning
+Below is the detailed explanation on the optional inputs for Analyzer (if you use inputs then all are required).
+- `Source directory [Optional]` - Absolute folder path containing the legacy artifacts.
+- `Report file name [Optional]` - Enter a custom report name or path if you want to save the analysis report in a different location from the source directory. **IMPORTANT**: Provide the full path + filename without extension - ensure the target directory exists beforehand.
+- `Source technology [Optional]` - Select the underlying technology platform of the source files being analyzed.
+#### If no arguments are passed, Analyzer will prompt for the Source directory, Report file name and Source Technology.
+#### If you plan to use arguments all will be required.
 
 ## Execution
 Execute the below command to initialize the analyze process.
 ```bash
- databricks labs lakebridge analyze --source-directory <absolute-path> --report-file <absolute-path>
+ databricks labs lakebridge analyze [--source-directory <absolute-path>] [--report-file <absolute-path>] [--source-tech <string>]
 ```
 
 <img src={useBaseUrl('img/remorph-analyzer-run.gif')} alt="transpile-run" />

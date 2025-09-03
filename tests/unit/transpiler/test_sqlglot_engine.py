@@ -114,7 +114,6 @@ def test_safe_parse(transpiler, transpile_config):
     )
     for exp in result:
         if exp.parsed_expression:
-            print("yes")
             assert repr(exp.parsed_expression.args["expressions"]) == repr(expected_result)
             assert repr(exp.parsed_expression.args["from"]) == repr(expected_from_result)
     assert error[0].transpile_error.code == "PARSE_ERROR"
