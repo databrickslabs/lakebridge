@@ -45,11 +45,13 @@ Below is the default secret naming convention for managing connection properties
 
 **Default Secret Scope:** lakebridge_data_source
 
-| source     | scope              |
-|------------|--------------------|
-| snowflake  | lakebridge_snowflake  |
-| oracle     | lakebridge_oracle     |
-| databricks | lakebridge_databricks |
+| source        | scope                 |
+|---------------|-----------------------|
+| snowflake     | lakebridge_snowflake  |
+| oracle        | lakebridge_oracle     |
+| databricks    | lakebridge_databricks |
+| mssql         | lakebridge_mssql      |
+| synapse       | lakebridge_synapse    |
 
 Below are the connection properties required for each source:
 
@@ -85,7 +87,17 @@ Below are the connection properties required for each source:
         port = [port]
         database = [database/SID]
         ```
-
+    </TabItem>
+    <TabItem value="mssql" label="MS SQL Server (incl. Synapse)">
+        ```yaml
+        user = [user]
+        password = [password]
+        host = [host]
+        port = [port]
+        database = [database/SID]
+        encrypt = [true/false]
+        trustServerCertificate = [true/false]
+        ```
     </TabItem>
 </Tabs>
 
