@@ -206,4 +206,7 @@ if __name__ == "__main__":
     sys.stderr.buffer.flush()
     logger.debug(f"SOME_ENV={os.getenv('SOME_ENV')}")
     logger.debug(f"sys.args={sys.argv}")
+    # Verifying only that the log-level is provided; we don't actually use it in this test server.
+    logger.debug(f"Requested log level: {os.getenv('DATABRICKS_LAKEBRIDGE_LOG_LEVEL')}")
+
     server.start_io()

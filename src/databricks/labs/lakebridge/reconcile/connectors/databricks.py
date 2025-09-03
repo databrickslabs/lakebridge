@@ -77,6 +77,7 @@ class DatabricksDataSource(DataSource, SecretsMixin):
         catalog: str | None,
         schema: str,
         table: str,
+        normalize: bool = True,
     ) -> list[Schema]:
         catalog_str = catalog if catalog else "hive_metastore"
         schema_query = _get_schema_query(catalog_str, schema, table)
@@ -85,7 +86,7 @@ class DatabricksDataSource(DataSource, SecretsMixin):
             logger.info(f"Fetching Schema: Started at: {datetime.now()}")
             schema_metadata = self._spark.sql(schema_query).where("col_name not like '#%'").distinct().collect()
             logger.info(f"Schema fetched successfully. Completed at: {datetime.now()}")
-            return [self._map_meta_column(field) for field in schema_metadata]
+            return [self._map_meta_column(field, normalize) for field in schema_metadata]
         except (RuntimeError, PySparkException) as e:
             return self.log_and_throw_exception(e, "schema", schema_query)
 

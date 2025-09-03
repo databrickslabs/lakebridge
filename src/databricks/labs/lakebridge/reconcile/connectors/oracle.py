@@ -81,6 +81,7 @@ class OracleDataSource(DataSource, SecretsMixin, JDBCReaderMixin):
         catalog: str | None,
         schema: str,
         table: str,
+        normalize: bool = True,
     ) -> list[Schema]:
         schema_query = re.sub(
             r'\s+',
@@ -94,7 +95,7 @@ class OracleDataSource(DataSource, SecretsMixin, JDBCReaderMixin):
             schema_metadata = df.select([col(c).alias(c.lower()) for c in df.columns]).collect()
             logger.info(f"Schema fetched successfully. Completed at: {datetime.now()}")
             logger.debug(f"schema_metadata: ${schema_metadata}")
-            return [self._map_meta_column(field) for field in schema_metadata]
+            return [self._map_meta_column(field, normalize) for field in schema_metadata]
         except (RuntimeError, PySparkException) as e:
             return self.log_and_throw_exception(e, "schema", schema_query)
 

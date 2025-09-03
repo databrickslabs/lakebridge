@@ -48,6 +48,26 @@ class TranspilingContext:
     transpiled_code: str | None = None
 
 
+def _validate_transpiled_sql(context: TranspilingContext, content: str, error_list: list[TranspileError]) -> str:
+    if context.validator is None:
+        return content
+    validation_result = _validation(context.validator, context.config, str(content))
+    # Potentially expensive, only evaluate if debug is enabled
+    if logger.isEnabledFor(logging.DEBUG):
+        msg = f"Finished validating transpiled code for file: {context.input_path} (result: {validation_result})"
+        logger.debug(msg)
+    if validation_result.exception_msg is not None:
+        error = TranspileError(
+            "VALIDATION_ERROR",
+            ErrorKind.VALIDATION,
+            ErrorSeverity.WARNING,
+            context.input_path,
+            validation_result.exception_msg,
+        )
+        error_list.append(error)
+    return validation_result.validated_sql
+
+
 async def _process_one_file(context: TranspilingContext) -> tuple[int, list[TranspileError]]:
     input_path = context.input_path
 
@@ -89,29 +109,29 @@ async def _process_one_file(context: TranspilingContext) -> tuple[int, list[Tran
     assert output_path is not None, "Output path must be set in the context"
     output_path.parent.mkdir(exist_ok=True)
 
-    if _is_combined_result(transpile_result):
-        _process_combined_result(context, error_list)
+    if _is_mime_result(transpile_result):
+        _process_mime_result(context, error_list)
     else:
-        _process_single_result(context, error_list)
+        _process_non_mime_result(context, error_list)
 
     return transpile_result.success_count, error_list
 
 
-def _is_combined_result(result: TranspileResult):
+def _is_mime_result(result: TranspileResult):
     return result.transpiled_code.startswith("Content-Type: multipart/mixed; boundary=")
 
 
-def _process_combined_result(context: TranspilingContext, _error_list: list[TranspileError]) -> None:
+def _process_mime_result(context: TranspilingContext, error_list: list[TranspileError]) -> None:
     # TODO error handling
     # Added policy to process quoted-printable encoded
     parser = EmailParser(policy=policy.default)
     transpiled_code: str = cast(str, context.transpiled_code)
     message: Message = parser.parsestr(transpiled_code)
     for part in message.walk():
-        _process_combined_part(context, part)
+        _process_combined_part(context, part, error_list)
 
 
-def _process_combined_part(context: TranspilingContext, part: Message) -> None:
+def _process_combined_part(context: TranspilingContext, part: Message, error_list: list[TranspileError]) -> None:
     if part.get_content_type() != "text/plain":
         return  # TODO Need to handle other content types, e.g., text/binary, application/json, etc.
     filename = part.get_filename()
@@ -133,35 +153,21 @@ def _process_combined_part(context: TranspilingContext, part: Message) -> None:
         folder.mkdir(parents=True, exist_ok=True)
     output = folder / segments[-1]
     logger.debug(f"Writing output to: {output}")
+    # Only validate if output file has .sql suffix
+    if output.suffix == ".sql":
+        content = _validate_transpiled_sql(context, content, error_list)
     output.write_text(content)
 
 
-def _process_single_result(context: TranspilingContext, error_list: list[TranspileError]) -> None:
+def _process_non_mime_result(context: TranspilingContext, error_list: list[TranspileError]) -> None:
 
     output_code: str = context.transpiled_code or ""
+    output_path = cast(Path, context.output_path)
 
     if any(err.kind == ErrorKind.PARSING for err in error_list):
         output_code = context.source_code or ""
-
-    elif context.validator:
-        logger.debug(f"Validating transpiled code for file: {context.input_path}")
-        validation_result = _validation(context.validator, context.config, str(context.transpiled_code))
-        # Potentially expensive, only evaluate if debug is enabled
-        if logger.isEnabledFor(logging.DEBUG):
-            msg = f"Finished validating transpiled code for file: {context.input_path} (result: {validation_result})"
-            logger.debug(msg)
-        if validation_result.exception_msg is not None:
-            error = TranspileError(
-                "VALIDATION_ERROR",
-                ErrorKind.VALIDATION,
-                ErrorSeverity.WARNING,
-                context.input_path,
-                validation_result.exception_msg,
-            )
-            error_list.append(error)
-        output_code = validation_result.validated_sql
-
-    output_path = cast(Path, context.output_path)
+    elif output_path.suffix == ".sql":
+        output_code = _validate_transpiled_sql(context, output_code, error_list)
     with output_path.open("w") as w:
         # The above adds a java-style comment block at the top of the output file
         # This would break .py or .json outputs so we disable it for now.
