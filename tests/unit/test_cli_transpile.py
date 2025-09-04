@@ -259,7 +259,7 @@ def test_transpile_with_valid_inputs(mock_cli_for_transpile, transpiler_config_p
 
 def test_transpile_prints_errors(caplog, tmp_path: Path, mock_workspace_client: WorkspaceClient) -> None:
     input_source = path_to_resource("lsp_transpiler", "unsupported_lca.sql")
-    with caplog.at_level("ERROR"):
+    with caplog.at_level("ERROR"), patch.object(ApplicationContext, "workspace_client", mock_workspace_client):
         cli.transpile(
             w=mock_workspace_client,
             transpiler_config_path=path_to_resource("lsp_transpiler", "lsp_config.yml"),
