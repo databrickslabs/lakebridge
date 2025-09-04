@@ -12,6 +12,7 @@ from databricks.sdk.config import Config
 from databricks.sdk.errors import NotFound
 from databricks.sdk.service.iam import User
 
+from databricks.labs.lakebridge.__about__ import __version__
 from databricks.labs.lakebridge.analyzer.lakebridge_analyzer import LakebridgeAnalyzer
 from databricks.labs.lakebridge.config import TranspileConfig, ReconcileConfig, LakebridgeConfiguration
 from databricks.labs.lakebridge.deployment.configurator import ResourceConfigurator
@@ -34,9 +35,10 @@ class ApplicationContext:
             self.__dict__[key] = value
         return self
 
-    @cached_property
+    @property
     def workspace_client(self) -> WorkspaceClient:
-        return self._ws
+        w = WorkspaceClient(product="lakebridge", product_version=__version__)
+        return w
 
     @cached_property
     def current_user(self) -> User:
