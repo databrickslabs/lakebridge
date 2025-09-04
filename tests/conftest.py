@@ -17,6 +17,7 @@ from pyspark.sql.types import (
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.service import iam
 
+from databricks.labs.lakebridge.contexts.application import ApplicationContext
 from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import DialectUtils
 from databricks.labs.lakebridge.reconcile.connectors.models import NormalizedIdentifier
 from databricks.labs.lakebridge.reconcile.connectors.data_source import DataSource, MockDataSource
@@ -431,3 +432,10 @@ def table_schema_ansi_ansi(table_schema):
     src_schema = [ansi_schema_fixture_factory(s.column_name, s.data_type) for s in src_schema]
     tgt_schema = [ansi_schema_fixture_factory(s.column_name, s.data_type) for s in tgt_schema]
     return src_schema, tgt_schema
+
+
+class TestApplicationContext(ApplicationContext):
+
+    @property
+    def workspace_client(self) -> WorkspaceClient:
+        return self._ws

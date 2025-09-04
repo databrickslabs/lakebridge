@@ -6,8 +6,9 @@ from databricks.sdk.service import iam
 
 from databricks.labs.lakebridge import uninstall
 from databricks.labs.lakebridge.config import LakebridgeConfiguration
-from databricks.labs.lakebridge.contexts.application import ApplicationContext
 from databricks.labs.lakebridge.deployment.installation import WorkspaceInstallation
+
+from tests.conftest import TestApplicationContext
 
 
 @pytest.fixture
@@ -21,7 +22,7 @@ def ws():
 
 def test_uninstaller_run(ws):
     ws_installation = create_autospec(WorkspaceInstallation)
-    ctx = ApplicationContext(ws)
+    ctx = TestApplicationContext(ws)
     ctx.replace(
         workspace_installation=ws_installation,
         remorph_config=LakebridgeConfiguration(),

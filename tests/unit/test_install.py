@@ -9,6 +9,7 @@ from databricks.sdk import WorkspaceClient
 from databricks.sdk.service import iam
 from databricks.labs.blueprint.tui import MockPrompts
 from databricks.labs.blueprint.wheels import ProductInfo, WheelsV2
+
 from databricks.labs.lakebridge.config import (
     DatabaseConfig,
     LSPConfigOptionV1,
@@ -18,7 +19,6 @@ from databricks.labs.lakebridge.config import (
     ReconcileMetadataConfig,
     TranspileConfig,
 )
-from databricks.labs.lakebridge.contexts.application import ApplicationContext
 from databricks.labs.lakebridge.deployment.configurator import ResourceConfigurator
 from databricks.labs.lakebridge.deployment.installation import WorkspaceInstallation
 from databricks.labs.lakebridge.install import WorkspaceInstaller
@@ -26,6 +26,7 @@ from databricks.labs.lakebridge.reconcile.constants import ReconSourceType, Reco
 from databricks.labs.lakebridge.transpiler.installers import TranspilerInstaller
 from databricks.labs.lakebridge.transpiler.repository import TranspilerRepository
 
+from tests.conftest import TestApplicationContext
 from tests.unit.conftest import path_to_resource
 
 RECONCILE_DATA_SOURCES = sorted([source_type.value for source_type in ReconSourceType])
@@ -79,7 +80,7 @@ def ws_installer() -> Generator[Callable[..., WorkspaceInstaller], None, None]:
 
 
 def test_workspace_installer_run_raise_error_in_dbr(ws: WorkspaceClient) -> None:
-    ctx = ApplicationContext(ws)
+    ctx = TestApplicationContext(ws)
     environ = {"DATABRICKS_RUNTIME_VERSION": "8.3.x-scala2.12"}
     with pytest.raises(SystemExit):
         WorkspaceInstaller(
@@ -99,7 +100,7 @@ def test_workspace_installer_run_install_not_called_in_test(
     ws: WorkspaceClient,
 ) -> None:
     ws_installation = create_autospec(WorkspaceInstallation)
-    ctx = ApplicationContext(ws)
+    ctx = TestApplicationContext(ws)
     ctx.replace(
         product_info=ProductInfo.for_testing(LakebridgeConfiguration),
         resource_configurator=create_autospec(ResourceConfigurator),
@@ -128,7 +129,7 @@ def test_workspace_installer_run_install_called_with_provided_config(
     ws: WorkspaceClient,
 ) -> None:
     ws_installation = create_autospec(WorkspaceInstallation)
-    ctx = ApplicationContext(ws)
+    ctx = TestApplicationContext(ws)
     ctx.replace(
         resource_configurator=create_autospec(ResourceConfigurator),
         workspace_installation=ws_installation,
@@ -151,7 +152,7 @@ def test_workspace_installer_run_install_called_with_provided_config(
 
 
 def test_configure_error_if_invalid_module_selected(ws: WorkspaceClient) -> None:
-    ctx = ApplicationContext(ws)
+    ctx = TestApplicationContext(ws)
     ctx.replace(
         resource_configurator=create_autospec(ResourceConfigurator),
         workspace_installation=create_autospec(WorkspaceInstallation),
@@ -187,7 +188,7 @@ def test_workspace_installer_run_install_called_with_generated_config(
         }
     )
     installation = MockInstallation()
-    ctx = ApplicationContext(ws)
+    ctx = TestApplicationContext(ws)
     ctx.replace(
         prompts=prompts,
         installation=installation,
@@ -238,7 +239,7 @@ def test_configure_transpile_no_existing_installation(
         }
     )
     installation = MockInstallation()
-    ctx = ApplicationContext(ws)
+    ctx = TestApplicationContext(ws)
     ctx.replace(
         prompts=prompts,
         installation=installation,
@@ -291,7 +292,7 @@ def test_configure_transpile_installation_no_override(ws: WorkspaceClient) -> No
             r"Do you want to override the existing installation?": "no",
         }
     )
-    ctx = ApplicationContext(ws)
+    ctx = TestApplicationContext(ws)
     ctx.replace(
         prompts=prompts,
         resource_configurator=create_autospec(ResourceConfigurator),
@@ -368,7 +369,7 @@ def test_configure_transpile_installation_config_error_continue_install(
             }
         }
     )
-    ctx = ApplicationContext(ws)
+    ctx = TestApplicationContext(ws)
     ctx.replace(
         prompts=prompts,
         installation=installation,
@@ -430,7 +431,7 @@ def test_configure_transpile_installation_with_no_validation(ws, ws_installer):
         }
     )
     installation = MockInstallation()
-    ctx = ApplicationContext(ws)
+    ctx = TestApplicationContext(ws)
     ctx.replace(
         prompts=prompts,
         installation=installation,
@@ -501,7 +502,7 @@ def test_configure_transpile_installation_with_validation_and_warehouse_id_from_
     resource_configurator.prompt_for_schema_setup.return_value = "transpiler_test"
     resource_configurator.prompt_for_warehouse_setup.return_value = "w_id"
 
-    ctx = ApplicationContext(ws)
+    ctx = TestApplicationContext(ws)
     ctx.replace(
         prompts=prompts,
         installation=installation,
@@ -557,7 +558,7 @@ def test_configure_reconcile_installation_no_override(ws: WorkspaceClient) -> No
             r"Do you want to override the existing installation?": "no",
         }
     )
-    ctx = ApplicationContext(ws)
+    ctx = TestApplicationContext(ws)
     ctx.replace(
         prompts=prompts,
         resource_configurator=create_autospec(ResourceConfigurator),
@@ -635,7 +636,7 @@ def test_configure_reconcile_installation_config_error_continue_install(ws: Work
     resource_configurator.prompt_for_schema_setup.return_value = "reconcile"
     resource_configurator.prompt_for_volume_setup.return_value = "reconcile_volume"
 
-    ctx = ApplicationContext(ws)
+    ctx = TestApplicationContext(ws)
     ctx.replace(
         prompts=prompts,
         installation=installation,
@@ -713,7 +714,7 @@ def test_configure_reconcile_no_existing_installation(ws: WorkspaceClient) -> No
     resource_configurator.prompt_for_schema_setup.return_value = "reconcile"
     resource_configurator.prompt_for_volume_setup.return_value = "reconcile_volume"
 
-    ctx = ApplicationContext(ws)
+    ctx = TestApplicationContext(ws)
     ctx.replace(
         prompts=prompts,
         installation=installation,
@@ -836,7 +837,7 @@ def test_configure_all_override_installation(
     resource_configurator.prompt_for_schema_setup.return_value = "reconcile"
     resource_configurator.prompt_for_volume_setup.return_value = "reconcile_volume"
 
-    ctx = ApplicationContext(ws)
+    ctx = TestApplicationContext(ws)
     ctx.replace(
         prompts=prompts,
         installation=installation,
@@ -952,7 +953,7 @@ def test_runs_upgrades_on_more_recent_version(
         }
     )
 
-    ctx = ApplicationContext(ws)
+    ctx = TestApplicationContext(ws)
     prompts = MockPrompts(
         {
             r"Do you want to override the existing installation?": "yes",
@@ -1030,7 +1031,7 @@ def test_runs_and_stores_confirm_config_option(
     resource_configurator.prompt_for_schema_setup.return_value = "transpiler_test"
     resource_configurator.prompt_for_warehouse_setup.return_value = "w_id"
 
-    ctx = ApplicationContext(ws)
+    ctx = TestApplicationContext(ws)
     ctx.replace(
         prompts=prompts,
         installation=installation,
@@ -1122,7 +1123,7 @@ def test_runs_and_stores_force_config_option(
     resource_configurator.prompt_for_schema_setup.return_value = "transpiler_test"
     resource_configurator.prompt_for_warehouse_setup.return_value = "w_id"
 
-    ctx = ApplicationContext(ws)
+    ctx = TestApplicationContext(ws)
     ctx.replace(
         prompts=prompts,
         installation=installation,
@@ -1202,7 +1203,7 @@ def test_runs_and_stores_question_config_option(
     resource_configurator.prompt_for_schema_setup.return_value = "transpiler_test"
     resource_configurator.prompt_for_warehouse_setup.return_value = "w_id"
 
-    ctx = ApplicationContext(ws)
+    ctx = TestApplicationContext(ws)
     ctx.replace(
         prompts=prompts,
         installation=installation,
@@ -1283,7 +1284,7 @@ def test_runs_and_stores_choice_config_option(
     resource_configurator.prompt_for_schema_setup.return_value = "transpiler_test"
     resource_configurator.prompt_for_warehouse_setup.return_value = "w_id"
 
-    ctx = ApplicationContext(ws)
+    ctx = TestApplicationContext(ws)
     ctx.replace(
         prompts=prompts,
         installation=installation,
@@ -1353,7 +1354,7 @@ def test_installer_detects_installed_transpilers(
     """Check detection of whether transpilers are already installed or not."""
     mock_repository = create_autospec(TranspilerRepository)
     mock_repository.all_transpiler_names.return_value = installed_transpilers
-    ctx = ApplicationContext(ws)
+    ctx = TestApplicationContext(ws)
 
     installer = ws_installer(
         ctx.workspace_client,
