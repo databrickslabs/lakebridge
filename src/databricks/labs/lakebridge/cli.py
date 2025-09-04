@@ -117,6 +117,8 @@ def _add_telemetry(
     assert config.source_dialect is not None, "Source dialect has been validated by this point."
 
     with_user_agent_extra("cmd", "execute-transpile")
+    with_user_agent_extra("transpiler_skip_validation", str(config.skip_validation))
+    with_user_agent_extra("transpiler_options", config.transpiler_options if config.transpiler_options else "None")
     with_user_agent_extra("transpiler_source_tech", make_alphanum_or_semver(config.source_dialect))
     plugin_name = engine.transpiler_name
     plugin_name = re.sub(r"\s+", "_", plugin_name)
