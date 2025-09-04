@@ -102,7 +102,7 @@ def transpile(
     config, engine = checker.check()
     logger.debug(f"Final configuration for transpilation: {config!r}")
 
-    _add_telemetry(config, engine, transpiler_repository)
+    _add_user_agent_extras(config, engine, transpiler_repository)
     user = ctx.current_user
     logger.debug(f"User: {user}")
 
@@ -111,18 +111,22 @@ def transpile(
     print(json.dumps(result))
 
 
-def _add_telemetry(
+def _add_user_agent_extras(
     config: TranspileConfig, engine: TranspileEngine, transpiler_repository: TranspilerRepository
 ) -> None:
     assert config.source_dialect is not None, "Source dialect has been validated by this point."
 
     with_user_agent_extra("cmd", "execute-transpile")
     with_user_agent_extra("transpiler_skip_validation", str(config.skip_validation))
-    with_user_agent_extra("transpiler_options", config.transpiler_options if config.transpiler_options else "None")
     with_user_agent_extra("transpiler_source_tech", make_alphanum_or_semver(config.source_dialect))
+
+    if config.transpiler_options:
+        with_user_agent_extra("transpiler_options", str(config.transpiler_options))
+
     plugin_name = engine.transpiler_name
     plugin_name = re.sub(r"\s+", "_", plugin_name)
     with_user_agent_extra("transpiler_plugin_name", plugin_name)
+
     transpiler_version = transpiler_repository.get_installed_version(plugin_name)
     if transpiler_version:
         with_user_agent_extra("transpiler_plugin_version", transpiler_version)

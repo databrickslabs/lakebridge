@@ -61,7 +61,7 @@ def test_transpile_with_missing_installation(
     with (
         patch("databricks.labs.lakebridge.cli.ApplicationContext", autospec=True) as mock_app_context,
         patch("databricks.labs.lakebridge.cli.do_transpile", new=patched_do_transpile),
-        patch("databricks.labs.lakebridge.cli._add_telemetry", new=MagicMock(return_value=None)),
+        patch("databricks.labs.lakebridge.cli._add_user_agent_extras", new=MagicMock(return_value=None)),
         caplog.at_level(logging.WARNING),
     ):
         mock_app_context.return_value.workspace_client = workspace_client
@@ -104,7 +104,7 @@ def mock_cli_for_transpile(
     with (
         patch("databricks.labs.lakebridge.cli.do_transpile", new=do_transpile),
         patch("databricks.labs.lakebridge.cli.ApplicationContext", mock_app_context),
-        patch("databricks.labs.lakebridge.cli._add_telemetry", new=MagicMock(return_value=None)),
+        patch("databricks.labs.lakebridge.cli._add_user_agent_extras", new=MagicMock(return_value=None)),
     ):
         default_config = TranspileConfig(
             transpiler_config_path=str(transpiler_config_path),
@@ -259,7 +259,7 @@ def test_transpile_with_valid_inputs(mock_cli_for_transpile, transpiler_config_p
     )
 
 
-@patch("databricks.labs.lakebridge.cli._add_telemetry", new=MagicMock(return_value=None))
+@patch("databricks.labs.lakebridge.cli._add_user_agent_extras", new=MagicMock(return_value=None))
 def test_transpile_prints_errors(caplog, tmp_path: Path, mock_workspace_client: WorkspaceClient) -> None:
     input_source = path_to_resource("lsp_transpiler", "unsupported_lca.sql")
     with caplog.at_level("ERROR"):
