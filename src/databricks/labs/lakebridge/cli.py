@@ -132,7 +132,7 @@ def _add_user_agent_extras(
         with_user_agent_extra("transpiler_plugin_version", transpiler_version)
     else:
         logger.warning(f"Could not determine version for transpiler plugin: {plugin_name}")
-        logger.error("Transpiler is out of date. Please run 'install-transpiler' to update.")
+        logger.error("Transpiler is out of date. Please run 'install-transpile' to update.")
         raise IllegalStateException("Transpiler is out of date.")
 
 
