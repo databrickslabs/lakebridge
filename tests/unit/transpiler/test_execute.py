@@ -443,6 +443,96 @@ def test_server_decombines_workflow_output(mock_workspace_client, lsp_engine, tr
         assert any(Path(output_folder).glob("*.json")), "No .json file found in output_folder"
 
 
+def test_encoding_error_unicode_decode_error(input_source, output_folder, mock_workspace_client: WorkspaceClient):
+    """Test UnicodeDecodeError handling when file encoding doesn't match expected encoding."""
+    # Create a file with Latin-1 encoding containing non-ASCII characters
+    # When read_text() tries to decode this as UTF-8, it will fail with UnicodeDecodeError
+    problematic_file = input_source / "latin1_file.sql"
+    with open(problematic_file, "wb") as f:
+        # Write Latin-1 encoded content with non-ASCII characters that will fail as UTF-8
+        f.write("SELECT 'héllo wörld' AS greeting;".encode("latin-1"))
+
+    transpile_config = TranspileConfig(
+        transpiler_config_path=None,
+        source_dialect="identity",
+        input_source=str(problematic_file),
+        output_folder=str(output_folder),
+        skip_validation=True,
+    )
+
+    status, errors = transpile(mock_workspace_client, IdentityTranspileEngine(), transpile_config)
+
+    # Verify error handling
+    assert status.get("total_files_processed") == 1  # File was processed (but failed)
+    assert status.get("total_queries_processed") == 0  # No queries successfully processed
+    assert len(errors) == 1
+    assert errors[0].code == "encoding-error"
+    assert errors[0].severity == ErrorSeverity.ERROR
+    assert "codec can't decode" in errors[0].message
+
+
+def test_encoding_error_lookup_error(input_source, output_folder, mock_workspace_client: WorkspaceClient):
+    """Test LookupError handling when XML file declares an unknown encoding."""
+    # Create an XML file that declares an invalid encoding name
+    # When read_text() tries to use this encoding, it will fail with LookupError
+    xml_file = input_source / "invalid_encoding.xml"
+    with open(xml_file, "wb") as f:
+        # XML declaration with non-existent encoding - will trigger LookupError
+        xml_content = '<?xml version="1.0" encoding="definitely-invalid-codec"?><root>data</root>'
+        f.write(xml_content.encode("utf-8"))
+
+    transpile_config = TranspileConfig(
+        transpiler_config_path=None,
+        source_dialect="identity",
+        input_source=str(xml_file),
+        output_folder=str(output_folder),
+        skip_validation=True,
+    )
+
+    status, errors = transpile(mock_workspace_client, IdentityTranspileEngine(), transpile_config)
+
+    # Verify error handling
+    assert status.get("total_files_processed") == 1  # File was processed (but failed)
+    assert status.get("total_queries_processed") == 0  # No queries successfully processed
+    assert len(errors) == 1
+    assert errors[0].code == "encoding-error"
+    assert errors[0].severity == ErrorSeverity.ERROR
+    assert "encoding" in errors[0].message
+
+
+def test_encoding_error_continues_with_other_files(input_source, output_folder, mock_workspace_client):
+    """Test that encoding errors on one file don't prevent processing other files."""
+    # Add a problematic file to the existing input_source directory
+    # This tests the real-world scenario of mixed good/bad files in a directory
+    problematic_file = input_source / "problematic.sql"
+    with open(problematic_file, "wb") as f:
+        f.write("SELECT 'bad encoding héré' AS test;".encode("latin-1"))
+
+    transpile_config = TranspileConfig(
+        transpiler_config_path="sqlglot",
+        input_source=str(input_source),
+        output_folder=str(output_folder),
+        sdk_config=None,
+        source_dialect="snowflake",
+        skip_validation=True,
+    )
+
+    with patch('databricks.labs.lakebridge.helpers.db_sql.get_sql_backend', return_value=MockBackend()):
+        status, errors = transpile(mock_workspace_client, SqlglotEngine(), transpile_config)
+
+    # Should process existing good files successfully despite the problematic one
+    files_processed = status.get("total_files_processed")
+    queries_processed = status.get("total_queries_processed")
+    assert files_processed > 1  # Multiple files were processed
+    assert queries_processed > 0  # Some files had successful queries
+    assert files_processed > queries_processed  # At least one file failed due to encoding error
+
+    # Should have encoding errors for the problematic file
+    encoding_errors = [e for e in errors if e.code == "encoding-error"]
+    assert len(encoding_errors) == 1
+    assert "problematic.sql" in str(encoding_errors[0].path)
+
+
 def test_make_header_with_no_diagnostics():
     path = Path("/tmp/path/to/input")
     diagnostics = []
