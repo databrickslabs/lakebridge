@@ -10,7 +10,6 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import NoReturn
 
-from databricks.sdk.core import with_user_agent_extra
 from databricks.sdk.service.sql import CreateWarehouseRequestWarehouseType
 from databricks.sdk import WorkspaceClient
 
@@ -89,7 +88,7 @@ def transpile(
     """Transpiles source dialect to databricks dialect"""
     ctx = ApplicationContext(w)
     logger.debug(f"Preconfigured transpiler config: {ctx.transpile_config!r}")
-    with_user_agent_extra("cmd", "execute-transpile")
+    ctx.add_user_agent_extra("cmd", "execute-transpile")
     checker = _TranspileConfigChecker(ctx.transpile_config, ctx.prompts, transpiler_repository)
     checker.use_transpiler_config_path(transpiler_config_path)
     checker.use_source_dialect(source_dialect)
@@ -103,10 +102,10 @@ def transpile(
     logger.debug(f"Final configuration for transpilation: {config!r}")
 
     assert config.source_dialect is not None, "Source dialect has been validated by this point."
-    with_user_agent_extra("transpiler_source_tech", make_alphanum_or_semver(config.source_dialect))
+    ctx.add_user_agent_extra("transpiler_source_tech", make_alphanum_or_semver(config.source_dialect))
     plugin_name = engine.transpiler_name
     plugin_name = re.sub(r"\s+", "_", plugin_name)
-    with_user_agent_extra("transpiler_plugin_name", plugin_name)
+    ctx.add_user_agent_extra("transpiler_plugin_name", plugin_name)
     user = ctx.current_user
     logger.debug(f"User: {user}")
 
@@ -472,7 +471,7 @@ class _TranspileConfigChecker:
 
 async def _transpile(ctx: ApplicationContext, config: TranspileConfig, engine: TranspileEngine) -> RootJsonValue:
     """Transpiles source dialect to databricks dialect"""
-    with_user_agent_extra("cmd", "execute-transpile")
+    ctx.add_user_agent_extra("cmd", "execute-transpile")
     user = ctx.current_user
     logger.debug(f"User: {user}")
     _override_workspace_client_config(ctx, config.sdk_config)
@@ -524,8 +523,8 @@ def _override_workspace_client_config(ctx: ApplicationContext, overrides: dict[s
 @lakebridge.command
 def reconcile(*, w: WorkspaceClient) -> None:
     """[EXPERIMENTAL] Reconciles source to Databricks datasets"""
-    with_user_agent_extra("cmd", "execute-reconcile")
     ctx = ApplicationContext(w)
+    ctx.add_user_agent_extra("cmd", "execute-reconcile")
     user = ctx.current_user
     logger.debug(f"User: {user}")
     recon_runner = ReconcileRunner(
@@ -540,8 +539,8 @@ def reconcile(*, w: WorkspaceClient) -> None:
 @lakebridge.command
 def aggregates_reconcile(*, w: WorkspaceClient) -> None:
     """[EXPERIMENTAL] Reconciles Aggregated source to Databricks datasets"""
-    with_user_agent_extra("cmd", "execute-aggregates-reconcile")
     ctx = ApplicationContext(w)
+    ctx.add_user_agent_extra("cmd", "execute-aggregates-reconcile")
     user = ctx.current_user
     logger.debug(f"User: {user}")
     recon_runner = ReconcileRunner(
@@ -616,9 +615,10 @@ def install_transpile(
     transpiler_repository: TranspilerRepository = TranspilerRepository.user_home(),
 ) -> None:
     """Install or upgrade the Lakebridge transpilers."""
-    with_user_agent_extra("cmd", "install-transpile")
+    ctx = ApplicationContext(w)
+    ctx.add_user_agent_extra("cmd", "install-transpile")
     if artifact:
-        with_user_agent_extra("artifact-overload", Path(artifact).name)
+        ctx.add_user_agent_extra("artifact-overload", Path(artifact).name)
     user = w.current_user
     logger.debug(f"User: {user}")
     transpile_installer = installer(w, transpiler_repository)
@@ -632,7 +632,8 @@ def configure_reconcile(
     transpiler_repository: TranspilerRepository = TranspilerRepository.user_home(),
 ) -> None:
     """Configure the Lakebridge reconciliation module"""
-    with_user_agent_extra("cmd", "configure-reconcile")
+    ctx = ApplicationContext(w)
+    ctx.add_user_agent_extra("cmd", "configure-reconcile")
     user = w.current_user
     logger.debug(f"User: {user}")
     if not w.config.warehouse_id:
@@ -652,8 +653,8 @@ def analyze(
     source_tech: str | None = None,
 ):
     """Run the Analyzer"""
-    with_user_agent_extra("cmd", "analyze")
     ctx = ApplicationContext(w)
+    ctx.add_user_agent_extra("cmd", "analyze")
 
     logger.debug(f"User: {ctx.current_user}")
     ctx.analyzer.run_analyzer(source_directory, report_file, source_tech)
