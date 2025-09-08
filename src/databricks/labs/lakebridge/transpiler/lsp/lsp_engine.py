@@ -107,10 +107,7 @@ class LSPConfig:
         return LSPConfig(path, remorph, options, custom)
 
 
-def lsp_feature(
-    name: str,
-    options: Any | None = None,
-):
+def lsp_feature(name: str, options: Any | None = None):
     def wrapped(func: Callable):
         _LSP_FEATURES.append((name, options, func))
         return func
