@@ -22,6 +22,23 @@ class TranspilerRepository:
     via the `TranspilerRepository.user_home()` method.
     """
 
+    #
+    # Transpilers currently have different 'names', for historical reasons:
+    #
+    #  - product_name: the name of the product according to this project, assigned within the `installer` module and
+    #       used as the name of the directory into which the transpiler is installed within a repository.
+    #  - transpiler_name: the name of the product according to its own metadata, found in the configuration file
+    #       bundled within each transpiler as distributed.
+    #
+    # Note: multiple installed transpilers might have the same transpiler name, but a product name is unique to a single
+    # installed transpiler.
+    #
+    #  Known names at the moment:
+    #
+    #   - Morpheus:     product_name = databricks-morph-plugin,  transpiler_name = Morpheus
+    #   - BladeBridge:  product_name = bladebridge,              transpiler_name = Bladebridge
+    #
+
     @staticmethod
     def default_labs_path() -> Path:
         """Return the default path where labs applications are installed."""
