@@ -318,7 +318,7 @@ class _TranspileConfigChecker:
                 return None
             case 1:
                 # Only one transpiler available for the specified dialect, use it.
-                transpiler_name = compatible_transpilers.pop()
+                transpiler_name = next(iter(compatible_transpilers))
                 logger.debug(f"Using only transpiler available for dialect {source_dialect!r}: {transpiler_name!r}")
             case _:
                 # Multiple transpilers available for the specified dialect, prompt for which to use.
@@ -361,7 +361,7 @@ class _TranspileConfigChecker:
                 raise_validation_exception(msg)
             case 1:
                 # Only one dialect available, use it.
-                source_dialect = supported_dialects.pop()
+                source_dialect = next(iter(supported_dialects))
                 logger.debug(f"Using only source dialect available: {source_dialect!r}")
             case _:
                 # Multiple dialects available, prompt for which to use.
