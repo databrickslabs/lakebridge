@@ -20,13 +20,16 @@ from tests.unit.conftest import path_to_resource
 
 TRANSPILERS_PATH = Path(__file__).parent.parent / "resources" / "transpiler_configs"
 
+
 @pytest.fixture()
 def transpilers_repository_path(tmp_path):
     return tmp_path
 
+
 @pytest.fixture()
 def transpiler_repository(transpilers_repository_path) -> TranspilerRepository:
     return TranspilerRepository(transpilers_repository_path)
+
 
 @pytest.fixture(name="transpiler_config_path")
 def stubbed_transpiler_config_path(transpilers_repository_path) -> Path:
@@ -50,8 +53,7 @@ def stubbed_transpiler_config_path(transpilers_repository_path) -> Path:
         },
     }
 
-    config_path = (transpilers_repository_path / "remorph-transpilers" / "stub-transpiler"
-                   / "lib" / "config.yml")
+    config_path = transpilers_repository_path / "remorph-transpilers" / "stub-transpiler" / "lib" / "config.yml"
     config_path.parent.mkdir(parents=True)
     with config_path.open("w") as f:
         yaml.dump(lsp_configuration, f)
@@ -81,7 +83,7 @@ def test_transpile_with_missing_installation(
             source_dialect="snowflake",
             input_source=str(empty_input_source),
             output_folder=str(output_folder),
-            transpiler_repository=transpiler_repository
+            transpiler_repository=transpiler_repository,
         )
 
     mock_transpile.assert_called_once()
@@ -126,8 +128,9 @@ def mock_cli_for_transpile(
         yield mock_workspace_client, default_config, set_default_config, mock_transpile
         set_default_config(default_config)
 
+
 @pytest.fixture
-def mock_cli_for_transpile_without_config(
+def mock_cli_for_transpile_no_config(
     mock_workspace_client: WorkspaceClient,
     transpiler_config_path: Path,
     empty_input_source: Path,
@@ -153,7 +156,7 @@ def mock_cli_for_transpile_without_config(
     ):
         mock_app_context.return_value.workspace_client = mock_workspace_client
         mock_app_context.return_value.prompts = prompts
-        mock_app_context.return_value.transpile_config = None # No pre-set config
+        mock_app_context.return_value.transpile_config = None  # No pre-set config
 
         expected_config = TranspileConfig(
             transpiler_config_path=str(transpiler_config_path),
@@ -235,7 +238,9 @@ def test_transpile_with_cluster_id_in_sdk_config(mock_cli_for_transpile, transpi
     )
 
 
-def test_transpile_error_with_invalid_transpiler_config_path_override(mock_cli_for_transpile, transpiler_repository) -> None:
+def test_transpile_error_with_invalid_transpiler_config_path_override(
+    mock_cli_for_transpile, transpiler_repository
+) -> None:
     ws, _, _, do_transpile = mock_cli_for_transpile
     expected_error = "Invalid path for '--transpiler-config-path', does not exist: invalid_path"
     with pytest.raises(ValueError, match=re.escape(expected_error)):
@@ -243,7 +248,9 @@ def test_transpile_error_with_invalid_transpiler_config_path_override(mock_cli_f
     do_transpile.assert_not_called()
 
 
-def test_transpile_error_with_invalid_transpiler_config_path_configuration(mock_cli_for_transpile, transpiler_repository) -> None:
+def test_transpile_error_with_invalid_transpiler_config_path_configuration(
+    mock_cli_for_transpile, transpiler_repository
+) -> None:
     ws, cfg, set_cfg, do_transpile = mock_cli_for_transpile
     set_cfg(dataclasses.replace(cfg, transpiler_config_path="invalid_path"))
     expected_error = "Error: Invalid value for '--transpiler-config-path': 'invalid_path', file does not exist."
@@ -271,7 +278,9 @@ def test_transpile_with_invalid_input_source(mock_cli_for_transpile, transpiler_
         cli.transpile(w=ws, input_source="invalid_path", transpiler_repository=transpiler_repository)
 
 
-def test_transpile_with_valid_inputs(mock_cli_for_transpile, transpiler_config_path: Path, transpiler_repository) -> None:
+def test_transpile_with_valid_inputs(
+    mock_cli_for_transpile, transpiler_config_path: Path, transpiler_repository
+) -> None:
     ws, cfg, _, do_transpile = mock_cli_for_transpile
     cli.transpile(
         w=ws,
@@ -283,7 +292,7 @@ def test_transpile_with_valid_inputs(mock_cli_for_transpile, transpiler_config_p
         skip_validation=str(cfg.skip_validation),
         catalog_name=cfg.catalog_name,
         schema_name=cfg.schema_name,
-        transpiler_repository=transpiler_repository
+        transpiler_repository=transpiler_repository,
     )
     do_transpile.assert_called_once_with(
         ws,
@@ -302,7 +311,9 @@ def test_transpile_with_valid_inputs(mock_cli_for_transpile, transpiler_config_p
     )
 
 
-def test_transpile_prints_errors(caplog, tmp_path: Path, mock_workspace_client: WorkspaceClient, transpiler_repository) -> None:
+def test_transpile_prints_errors(
+    caplog, tmp_path: Path, mock_workspace_client: WorkspaceClient, transpiler_repository
+) -> None:
     input_source = path_to_resource("lsp_transpiler", "unsupported_lca.sql")
     with caplog.at_level("ERROR"):
         cli.transpile(
@@ -314,7 +325,7 @@ def test_transpile_prints_errors(caplog, tmp_path: Path, mock_workspace_client: 
             skip_validation="true",
             catalog_name="my_catalog",
             schema_name="my_schema",
-            transpiler_repository=transpiler_repository
+            transpiler_repository=transpiler_repository,
         )
 
     assert any(str(input_source) in record.message for record in caplog.records)
@@ -340,8 +351,9 @@ def test_transpile_informatica_transpiler_dialect(mock_cli_for_transpile, transp
         ),
     )
 
-def test_transpile_no_config(mock_cli_for_transpile_without_config, transpiler_repository, transpiler_config_path) -> None:
-    ws, expected_config, do_transpile = mock_cli_for_transpile_without_config
+
+def test_transpile_no_config(mock_cli_for_transpile_no_config, transpiler_repository, transpiler_config_path) -> None:
+    ws, expected_config, do_transpile = mock_cli_for_transpile_no_config
     cli.transpile(w=ws, transpiler_repository=transpiler_repository)
     do_transpile.assert_called_once_with(
         ws,
@@ -349,8 +361,11 @@ def test_transpile_no_config(mock_cli_for_transpile_without_config, transpiler_r
         expected_config,
     )
 
-def test_transpile_no_config_with_source_override(mock_cli_for_transpile_without_config, transpiler_repository, transpiler_config_path) -> None:
-    ws, expected_config, do_transpile = mock_cli_for_transpile_without_config
+
+def test_transpile_no_config_with_source_override(
+    mock_cli_for_transpile_no_config, transpiler_repository, transpiler_config_path
+) -> None:
+    ws, expected_config, do_transpile = mock_cli_for_transpile_no_config
     cli.transpile(w=ws, transpiler_repository=transpiler_repository, source_dialect="snowflake")
     expected_config = dataclasses.replace(expected_config, source_dialect="snowflake")
     do_transpile.assert_called_once_with(
