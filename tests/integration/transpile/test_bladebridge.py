@@ -99,7 +99,6 @@ async def _transpile_bb_sql_file(
 PRIMARY KEY (col1,col3) )
 TBLPROPERTIES('delta.feature.allowColumnDefaults' = 'supported');"""
     # The expected SQL Block is custom formatted to match the output of Bladebridge exactly.
-    # TODO Validate why Morpheus and Bladebridge provides different output for same input, Bladebridge seems to be more correct on validation focused errors.
     expected_validation_failure_sql = """-------------- Exception Start-------------------
 /*
 [UNRESOLVED_ROUTINE] Cannot resolve routine `cole` on search path [`system`.`builtin`, `system`.`session`, `catalog`.`schema`].
