@@ -5,7 +5,7 @@ from databricks.labs.blueprint.installation import MockInstallation
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.service import iam
 
-from tests.conftest import TestApplicationContext
+from databricks.labs.lakebridge.contexts.application import ApplicationContext
 
 
 @pytest.fixture
@@ -19,8 +19,7 @@ def ws():
 
 
 def test_workspace_context_attributes_not_none(ws):
-    ctx = TestApplicationContext(ws)
-
+    ctx = ApplicationContext(ws)
     assert hasattr(ctx, "workspace_client")
     assert ctx.workspace_client is not None
     assert hasattr(ctx, "current_user")
@@ -111,7 +110,7 @@ def test_workspace_context_attributes_not_none(ws):
 
 
 def test_workspace_context_missing_configs(ws):
-    ctx = TestApplicationContext(ws)
+    ctx = ApplicationContext(ws)
     ctx.replace(installation=MockInstallation({}))
     assert hasattr(ctx, "transpile_config")
     assert ctx.transpile_config is None
