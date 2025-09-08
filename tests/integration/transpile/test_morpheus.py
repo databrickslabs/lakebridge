@@ -74,22 +74,15 @@ async def _transpile_sql_file(
   department_id DECIMAL(38, 0),
   remarks VARIANT
 );"""
-    # TODO investigate why morpheus produces a different error to baldebridge for the same query
     # The expected SQL Block is custom formatted to match the output of Morpheus exactly.
     expected_failure_sql = """-------------- Exception Start-------------------
 /*
-
-[PARSE_SYNTAX_ERROR] Syntax error at or near '.'. SQLSTATE: 42601 (line 2, pos 7)
-
-== SQL ==
-EXPLAIN SELECT
-  cole(...) AS world
--------^^^
+[UNRESOLVED_ROUTINE] Cannot resolve routine `COLE` on search path [`system`.`builtin`, `system`.`session`, `catalog`.`schema`].
+*/
+SELECT
+  COLE(hello) AS world
 FROM
   table;
-
-*/
-
  ---------------Exception End --------------------"""
 
     # TODO: Load the engine here, via the validation path.
