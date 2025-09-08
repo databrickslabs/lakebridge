@@ -37,19 +37,21 @@ class Validator:
             config.catalog_name,
             config.schema_name,
         )
+        # Some errors doesn't return the query test alon with the error message so need to handle those separately
+        static_errors_lkp = ["[UNRESOLVED_ROUTINE]", "[UNRESOLVED_COLUMN.WITHOUT_SUGGESTION]"]
         if is_valid:
             result = sql_text
             if exception_type is not None:
                 exception_msg = f"[{exception_type.upper()}]: {exception_msg}"
         else:
             query = ""
-            if "[UNRESOLVED_ROUTINE]" in str(exception_msg):
+            if any(err in str(exception_msg) for err in static_errors_lkp):
                 query = sql_text
             buffer = StringIO()
             buffer.write("-------------- Exception Start-------------------\n")
-            buffer.write("/* \n")
+            buffer.write("/*\n")
             buffer.write(str(exception_msg))
-            buffer.write("\n */ \n")
+            buffer.write("\n*/\n")
             buffer.write(query)
             buffer.write("\n ---------------Exception End --------------------\n")
 

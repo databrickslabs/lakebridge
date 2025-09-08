@@ -138,7 +138,7 @@ class TriggerReconService:
 
         try:
             src_schema, tgt_schema = TriggerReconService.get_schemas(
-                reconciler.source, reconciler.target, table_conf, reconcile_config.database_config
+                reconciler.source, reconciler.target, table_conf, reconcile_config.database_config, True
             )
         except DataSourceRuntimeException as e:
             schema_reconcile_output = SchemaReconcileOutput(is_valid=False, exception=str(e))
@@ -170,17 +170,20 @@ class TriggerReconService:
         target: DataSource,
         table_conf: Table,
         database_config: DatabaseConfig,
+        normalize: bool,
     ) -> tuple[list[Schema], list[Schema]]:
         src_schema = source.get_schema(
             catalog=database_config.source_catalog,
             schema=database_config.source_schema,
             table=table_conf.source_name,
+            normalize=normalize,
         )
 
         tgt_schema = target.get_schema(
             catalog=database_config.target_catalog,
             schema=database_config.target_schema,
             table=table_conf.target_name,
+            normalize=normalize,
         )
 
         return src_schema, tgt_schema

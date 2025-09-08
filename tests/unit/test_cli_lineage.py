@@ -30,7 +30,7 @@ def test_generate_lineage_valid_input(
 ) -> None:
     input_dir, output_dir = temp_dirs_for_lineage
     cli.generate_lineage(
-        mock_workspace_client,
+        w=mock_workspace_client,
         source_dialect="snowflake",
         input_source=str(input_dir),
         output_folder=str(output_dir),

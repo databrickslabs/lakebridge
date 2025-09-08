@@ -109,6 +109,7 @@ class TSQLServerDataSource(DataSource, SecretsMixin, JDBCReaderMixin):
         catalog: str | None,
         schema: str,
         table: str,
+        normalize: bool = True,
     ) -> list[Schema]:
         """
         Fetch the Schema from the INFORMATION_SCHEMA.COLUMNS table in SQL Server.
@@ -128,7 +129,7 @@ class TSQLServerDataSource(DataSource, SecretsMixin, JDBCReaderMixin):
             df = self.reader(schema_query).load()
             schema_metadata = df.select([col(c).alias(c.lower()) for c in df.columns]).collect()
             logger.info(f"Schema fetched successfully. Completed at: {datetime.now()}")
-            return [self._map_meta_column(field) for field in schema_metadata]
+            return [self._map_meta_column(field, normalize) for field in schema_metadata]
         except (RuntimeError, PySparkException) as e:
             return self.log_and_throw_exception(e, "schema", schema_query)
 
