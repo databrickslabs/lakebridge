@@ -13,14 +13,9 @@ from databricks.labs.bladespector.analyzer import Analyzer
 
 def test_analyze_arguments(mock_workspace_client, tmp_path: Path):
     input_path = str(Path(__file__).parent.parent / "resources" / "functional" / "informatica")
-
-    with patch.object(ApplicationContext, "workspace_client", mock_workspace_client):
-        cli.analyze(
-            w=mock_workspace_client,
-            source_directory=input_path,
-            report_file="/tmp/sample",
-            source_tech="Informatica - PC",
-        )
+    cli.analyze(
+        w=mock_workspace_client, source_directory=input_path, report_file="/tmp/sample", source_tech="Informatica - PC"
+    )
 
 
 def test_analyze_arguments_wrong_tech(mock_workspace_client, tmp_path: Path):
@@ -34,10 +29,7 @@ def test_analyze_arguments_wrong_tech(mock_workspace_client, tmp_path: Path):
         }
     )
 
-    with (
-        patch.object(ApplicationContext, "prompts", mock_prompts),
-        patch.object(ApplicationContext, "workspace_client", mock_workspace_client),
-    ):
+    with patch.object(ApplicationContext, "prompts", mock_prompts):
         input_path = str(Path(__file__).parent.parent / "resources" / "functional" / "informatica")
         cli.analyze(
             w=mock_workspace_client,
@@ -62,8 +54,5 @@ def test_analyze_prompts(mock_workspace_client, tmp_path: Path):
             "Enter report file name or custom export path including file name without extension": str(output_dir),
         }
     )
-    with (
-        patch.object(ApplicationContext, "prompts", mock_prompts),
-        patch.object(ApplicationContext, "workspace_client", mock_workspace_client),
-    ):
+    with patch.object(ApplicationContext, "prompts", mock_prompts):
         cli.analyze(w=mock_workspace_client)

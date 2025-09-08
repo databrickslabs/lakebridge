@@ -4,7 +4,6 @@ from unittest.mock import patch
 from databricks.labs.blueprint.tui import MockPrompts
 from databricks.labs.lakebridge import cli
 from databricks.labs.lakebridge.config import LSPConfigOptionV1, LSPPromptMethod
-from databricks.labs.lakebridge.contexts.application import ApplicationContext
 from databricks.labs.lakebridge.helpers.recon_config_utils import ReconConfigPrompts
 
 
@@ -29,18 +28,12 @@ def test_cli_configure_secrets_config(mock_workspace_client):
 
 
 def test_cli_reconcile(mock_workspace_client):
-    with (
-        patch("databricks.labs.lakebridge.reconcile.runner.ReconcileRunner.run", return_value=True),
-        patch.object(ApplicationContext, "workspace_client", mock_workspace_client),
-    ):
+    with patch("databricks.labs.lakebridge.reconcile.runner.ReconcileRunner.run", return_value=True):
         cli.reconcile(w=mock_workspace_client)
 
 
 def test_cli_aggregates_reconcile(mock_workspace_client):
-    with (
-        patch("databricks.labs.lakebridge.reconcile.runner.ReconcileRunner.run", return_value=True),
-        patch.object(ApplicationContext, "workspace_client", mock_workspace_client),
-    ):
+    with patch("databricks.labs.lakebridge.reconcile.runner.ReconcileRunner.run", return_value=True):
         cli.aggregates_reconcile(w=mock_workspace_client)
 
 
