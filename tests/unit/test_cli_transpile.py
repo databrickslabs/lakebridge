@@ -348,3 +348,13 @@ def test_transpile_no_config(mock_cli_for_transpile_without_config, transpiler_r
         ANY,
         expected_config,
     )
+
+def test_transpile_no_config_with_source_override(mock_cli_for_transpile_without_config, transpiler_repository, transpiler_config_path) -> None:
+    ws, expected_config, do_transpile = mock_cli_for_transpile_without_config
+    cli.transpile(w=ws, transpiler_repository=transpiler_repository, source_dialect="snowflake")
+    expected_config = dataclasses.replace(expected_config, source_dialect="snowflake")
+    do_transpile.assert_called_once_with(
+        ws,
+        ANY,
+        expected_config,
+    )
