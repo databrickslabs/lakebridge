@@ -8,11 +8,10 @@ from databricks.labs.blueprint.tui import Prompts
 from databricks.labs.blueprint.wheels import ProductInfo
 from databricks.labs.lsql.backends import SqlBackend, StatementExecutionBackend
 from databricks.sdk import WorkspaceClient
-from databricks.sdk.config import Config
+from databricks.sdk.config import Config, with_user_agent_extra
 from databricks.sdk.errors import NotFound
 from databricks.sdk.service.iam import User
 
-from databricks.labs.lakebridge.__about__ import __version__
 from databricks.labs.lakebridge.analyzer.lakebridge_analyzer import LakebridgeAnalyzer
 from databricks.labs.lakebridge.config import TranspileConfig, ReconcileConfig, LakebridgeConfiguration
 from databricks.labs.lakebridge.deployment.configurator import ResourceConfigurator
@@ -37,8 +36,7 @@ class ApplicationContext:
 
     @property
     def workspace_client(self) -> WorkspaceClient:
-        w = WorkspaceClient(product="lakebridge", product_version=__version__)
-        return w
+        return self._ws
 
     @cached_property
     def current_user(self) -> User:
@@ -72,7 +70,7 @@ class ApplicationContext:
     def remorph_config(self) -> LakebridgeConfiguration:
         return LakebridgeConfiguration(transpile=self.transpile_config, reconcile=self.recon_config)
 
-    @cached_property
+    @property
     def connect_config(self) -> Config:
         return self.workspace_client.config
 
@@ -140,3 +138,11 @@ class ApplicationContext:
     def analyzer(self):
         is_debug = logger.getEffectiveLevel() == logging.DEBUG
         return LakebridgeAnalyzer(self.current_user, self.prompts, is_debug)
+
+    def add_user_agent_extra(self, key: str, value: str) -> None:
+        with_user_agent_extra(key, value)
+        new_config = self._ws.config.with_user_agent_extra(key, value)
+        logger.debug(f"Added User-Agent extra {key}={value}")
+
+        new_client = WorkspaceClient(config=new_config)
+        self._ws = new_client
