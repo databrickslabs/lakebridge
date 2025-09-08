@@ -137,7 +137,7 @@ class ApplicationContext:
     @cached_property
     def analyzer(self):
         is_debug = logger.getEffectiveLevel() == logging.DEBUG
-        return LakebridgeAnalyzer(self.current_user, self.prompts, is_debug)
+        return LakebridgeAnalyzer(self.prompts, is_debug)
 
     def add_user_agent_extra(self, key: str, value: str) -> None:
         new_config = self._ws.config.copy().with_user_agent_extra(key, value)

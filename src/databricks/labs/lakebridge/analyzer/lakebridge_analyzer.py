@@ -1,7 +1,6 @@
 import tempfile
 from pathlib import Path
 
-from databricks.sdk.service.iam import User
 from databricks.sdk.core import with_user_agent_extra
 
 from databricks.labs.blueprint.entrypoint import get_logger
@@ -16,8 +15,7 @@ logger = get_logger(__file__)
 
 
 class LakebridgeAnalyzer(Analyzer):
-    def __init__(self, current_user: User, prompts: Prompts, is_debug: bool = False):
-        self._current_user = current_user
+    def __init__(self, prompts: Prompts, is_debug: bool = False):
         self._prompts = prompts
         self._is_debug = is_debug
         super().__init__()
@@ -47,7 +45,6 @@ class LakebridgeAnalyzer(Analyzer):
                 logger.warning(f"Invalid source technology {platform}")
             platform = self._prompts.choice("Select the source technology", self.supported_source_technologies())
             with_user_agent_extra("analyzer_source_tech", make_alphanum_or_semver(platform))
-            logger.debug(f"User: {self._current_user}")
         return _PLATFORM_TO_SOURCE_TECHNOLOGY[platform]
 
     @staticmethod
