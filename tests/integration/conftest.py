@@ -20,7 +20,7 @@ def debug_env_name():
 
 @pytest.fixture
 def product_info():
-    return "lakebridge", __version__
+    return "lakebridge-integration-tests", __version__
 
 
 @pytest.fixture
