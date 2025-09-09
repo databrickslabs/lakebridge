@@ -140,9 +140,8 @@ class ApplicationContext:
         return LakebridgeAnalyzer(self.current_user, self.prompts, is_debug)
 
     def add_user_agent_extra(self, key: str, value: str) -> None:
-        new_config = self._ws.config.with_user_agent_extra(key, value)
+        new_config = self._ws.config.copy().with_user_agent_extra(key, value)
         logger.debug(f"Added User-Agent extra {key}={value}")
 
-        # Recreate the WorkspaceClient from the same class to preserve type information
-        new_client = type(self._ws)(config=new_config)
-        self._ws = new_client
+        # Recreate the WorkspaceClient from the same type to preserve type information
+        self._ws = type(self._ws)(config=new_config)
