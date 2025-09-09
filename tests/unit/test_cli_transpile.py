@@ -257,7 +257,6 @@ def test_transpile_with_valid_inputs(mock_cli_for_transpile, transpiler_config_p
     )
 
 
-@patch("databricks.labs.lakebridge.contexts.application.ApplicationContext.add_user_agent_extra", new=MagicMock())
 def test_transpile_prints_errors(caplog, tmp_path: Path, mock_workspace_client: WorkspaceClient) -> None:
     input_source = path_to_resource("lsp_transpiler", "unsupported_lca.sql")
     with caplog.at_level("ERROR"):
