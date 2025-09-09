@@ -8,7 +8,7 @@ from databricks.labs.blueprint.tui import Prompts
 from databricks.labs.blueprint.wheels import ProductInfo
 from databricks.labs.lsql.backends import SqlBackend, StatementExecutionBackend
 from databricks.sdk import WorkspaceClient
-from databricks.sdk.config import Config, with_user_agent_extra
+from databricks.sdk.config import Config
 from databricks.sdk.errors import NotFound
 from databricks.sdk.service.iam import User
 
@@ -140,9 +140,9 @@ class ApplicationContext:
         return LakebridgeAnalyzer(self.current_user, self.prompts, is_debug)
 
     def add_user_agent_extra(self, key: str, value: str) -> None:
-        with_user_agent_extra(key, value)
         new_config = self._ws.config.with_user_agent_extra(key, value)
         logger.debug(f"Added User-Agent extra {key}={value}")
 
-        new_client = WorkspaceClient(config=new_config)
+        # Recreate the WorkspaceClient from the same class to preserve type information
+        new_client = type(self._ws)(config=new_config)
         self._ws = new_client
