@@ -1,5 +1,5 @@
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 
 from databricks.labs.blueprint.tui import MockPrompts
 
@@ -11,6 +11,7 @@ from databricks.labs.bladespector.analyzer import Analyzer
 # TODO: These should be moved to the integration tests.
 
 
+@patch("databricks.labs.lakebridge.contexts.application.ApplicationContext.add_user_agent_extra", new=MagicMock())
 def test_analyze_arguments(mock_workspace_client, tmp_path: Path):
     input_path = str(Path(__file__).parent.parent / "resources" / "functional" / "informatica")
     cli.analyze(
@@ -18,6 +19,7 @@ def test_analyze_arguments(mock_workspace_client, tmp_path: Path):
     )
 
 
+@patch("databricks.labs.lakebridge.contexts.application.ApplicationContext.add_user_agent_extra", new=MagicMock())
 def test_analyze_arguments_wrong_tech(mock_workspace_client, tmp_path: Path):
 
     supported_tech = sorted(Analyzer.supported_source_technologies(), key=str.casefold)
@@ -39,6 +41,7 @@ def test_analyze_arguments_wrong_tech(mock_workspace_client, tmp_path: Path):
         )
 
 
+@patch("databricks.labs.lakebridge.contexts.application.ApplicationContext.add_user_agent_extra", new=MagicMock())
 def test_analyze_prompts(mock_workspace_client, tmp_path: Path):
 
     supported_tech = sorted(Analyzer.supported_source_technologies(), key=str.casefold)
