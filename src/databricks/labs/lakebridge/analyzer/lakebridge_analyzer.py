@@ -44,7 +44,11 @@ class LakebridgeAnalyzer(Analyzer):
             if platform is not None:
                 logger.warning(f"Invalid source technology {platform}")
             platform = self._prompts.choice("Select the source technology", self.supported_source_technologies())
-            with_user_agent_extra("analyzer_source_tech", make_alphanum_or_semver(platform))
+
+        # Need to call `ApplicationContext#add_user_agent_extra()` afterwards
+        # in order for this info to be captured correctly in telemetry
+        # which the cli does
+        with_user_agent_extra("analyzer_source_tech", make_alphanum_or_semver(platform))
         return _PLATFORM_TO_SOURCE_TECHNOLOGY[platform]
 
     @staticmethod
