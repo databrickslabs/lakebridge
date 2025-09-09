@@ -19,7 +19,7 @@ def debug_env_name():
 
 
 @pytest.fixture
-def product_info():
+def product_info() -> tuple[str, str]:
     return "lakebridge-integration-tests", __version__
 
 
