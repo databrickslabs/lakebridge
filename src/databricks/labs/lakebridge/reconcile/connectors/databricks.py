@@ -26,7 +26,7 @@ def _get_schema_query(catalog: str, schema: str, table: str):
         return f"describe table {catalog}.{schema}.{table}"
 
     query = f"""select
-                            lower(column_name) as col_name,
+                            lower(column_name) as column_name,
                              full_data_type as data_type
                        from {catalog}.information_schema.columns
                        where lower(table_catalog)='{catalog}'
