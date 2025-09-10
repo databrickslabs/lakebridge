@@ -32,10 +32,10 @@ def test_get_schema():
         re.sub(
             r'\s+',
             ' ',
-            """select lower(column_name) as col_name, full_data_type as data_type from
+            """select lower(column_name) as column_name, full_data_type as data_type from
                     catalog.information_schema.columns where lower(table_catalog)='catalog'
                     and lower(table_schema)='schema' and lower(table_name) ='supplier' order by
-                    col_name""",
+                    column_name""",
         )
     )
     spark.sql().where.assert_called_with("col_name not like '#%'")
@@ -111,9 +111,9 @@ def test_get_schema_exception_handling():
 
     assert str(exception.value) == (
         "Runtime exception occurred while fetching schema using select lower(column_name) "
-        "as col_name, full_data_type as data_type from org.information_schema.columns "
+        "as column_name, full_data_type as data_type from org.information_schema.columns "
         "where lower(table_catalog)='org' and lower(table_schema)='data' and lower("
-        "table_name) ='employee' order by col_name : Test Exception"
+        "table_name) ='employee' order by column_name : Test Exception"
     )
 
 

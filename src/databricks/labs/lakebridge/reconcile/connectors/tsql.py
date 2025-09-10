@@ -18,7 +18,7 @@ from databricks.sdk import WorkspaceClient
 logger = logging.getLogger(__name__)
 
 _SCHEMA_QUERY = """SELECT
-                     COLUMN_NAME as 'column_name',
+                     COLUMN_NAME AS 'column_name',
                      CASE
                         WHEN DATA_TYPE IN ('int', 'bigint')
                             THEN DATA_TYPE
