@@ -674,11 +674,12 @@ def analyze(
 ):
     """Run the Analyzer"""
     ctx = ApplicationContext(w)
-    ctx.analyzer.run_analyzer(source_directory, report_file, source_tech)
-
-    # run_analyzer() adds its own user agent extras so we just need to add the command here
-    ctx.add_user_agent_extra("cmd", "analyze")
-    logger.debug(f"User: {ctx.current_user}")
+    try:
+        ctx.analyzer.run_analyzer(source_directory, report_file, source_tech)
+    finally:
+        # run_analyzer() adds its own user agent extras so we just need to add the command here
+        ctx.add_user_agent_extra("cmd", "analyze")
+        logger.debug(f"User: {ctx.current_user}")
 
 
 if __name__ == "__main__":
