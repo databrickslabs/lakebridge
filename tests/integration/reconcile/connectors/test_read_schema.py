@@ -5,7 +5,7 @@ from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dial
 
 from databricks.sdk import WorkspaceClient
 
-from integration.connections.debug_envgetter import TestEnvGetter
+from tests.integration.connections.debug_envgetter import TestEnvGetter
 
 
 class TSQLServerDataSourceUnderTest(TSQLServerDataSource):
@@ -15,9 +15,12 @@ class TSQLServerDataSourceUnderTest(TSQLServerDataSource):
 
     @property
     def get_jdbc_url(self) -> str:
-        return (self._test_env.get("TEST_TSQL_JDBC")
-                +f"user={self._test_env.get('TEST_TSQL_USER')};"
-                +f"password={self._test_env.get('TEST_TSQL_PASS')};")
+        return (
+            self._test_env.get("TEST_TSQL_JDBC")
+            + f"user={self._test_env.get('TEST_TSQL_USER')};"
+            + f"password={self._test_env.get('TEST_TSQL_PASS')};"
+        )
+
 
 def test_tsql_server_read_schema_happy(mock_spark):
     mock_ws = create_autospec(WorkspaceClient)

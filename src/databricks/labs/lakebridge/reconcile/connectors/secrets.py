@@ -6,6 +6,7 @@ from databricks.sdk.errors import NotFound
 
 logger = logging.getLogger(__name__)
 
+
 # TODO use CredentialManager to allow for changing secret provider for tests
 class SecretsMixin:
     _ws: WorkspaceClient
