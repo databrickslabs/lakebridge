@@ -52,9 +52,6 @@ def python_failure_config():
 def test_run_pipeline(test_sqlserver, pipeline_config, get_logger):
     pipeline = PipelineClass(config=pipeline_config, executor=test_sqlserver)
     results = pipeline.execute()
-    print("*******************\n")
-    print(results)
-    print("\n*******************")
 
     # Verify all steps completed successfully
     for result in results:
