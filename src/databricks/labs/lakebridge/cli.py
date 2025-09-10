@@ -7,6 +7,7 @@ import os
 import re
 import sys
 import time
+import sys
 from collections.abc import Mapping
 from pathlib import Path
 from typing import NoReturn, TextIO
@@ -677,6 +678,9 @@ def analyze(
     try:
         ctx.analyzer.run_analyzer(source_directory, report_file, source_tech)
     finally:
+        exception_cls, _, _ = sys.exc_info()
+        if exception_cls is not None:
+            ctx.add_user_agent_extra("analyzer_error", exception_cls.__name__)
         # run_analyzer() adds its own user agent extras so we just need to add the command here
         ctx.add_user_agent_extra("cmd", "analyze")
         logger.debug(f"User: {ctx.current_user}")
