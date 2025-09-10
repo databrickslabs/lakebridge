@@ -77,9 +77,15 @@ class WorkspaceInstaller:
         return frozenset(factory(self._transpiler_repository) for factory in self._transpiler_installer_factories)
 
     def run(
-        self, module: str, config: LakebridgeConfiguration | None = None, artifact: str | None = None
+        self,
+        module: str,
+        config: LakebridgeConfiguration | None = None,
+        artifact: str | None = None,
+        is_interactive: bool = True,
     ) -> LakebridgeConfiguration:
         logger.debug(f"Initializing workspace installation for module: {module} (config: {config})")
+        # TODO: Implement non-interactive mode.
+        _ = is_interactive
         if module == "transpile" and artifact:
             self._install_artifact(artifact)
         elif module in {"transpile", "all"}:
