@@ -1,5 +1,7 @@
 from unittest.mock import create_autospec
 
+import pytest
+
 from databricks.labs.lakebridge.reconcile.connectors.tsql import TSQLServerDataSource
 from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
 
@@ -22,6 +24,7 @@ class TSQLServerDataSourceUnderTest(TSQLServerDataSource):
         )
 
 
+@pytest.mark.skip(reason="Add the creds to Github secrets and populate the actions' env to enable this test")
 def test_tsql_server_read_schema_happy(mock_spark):
     mock_ws = create_autospec(WorkspaceClient)
     connector = TSQLServerDataSourceUnderTest(get_dialect("tsql"), mock_spark, mock_ws, "my_secret")
