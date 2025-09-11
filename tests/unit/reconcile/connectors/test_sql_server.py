@@ -4,6 +4,7 @@ from unittest.mock import MagicMock, create_autospec
 
 import pytest
 
+from databricks.labs.lakebridge.reconcile.connectors.models import NormalizedIdentifier
 from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
 from databricks.labs.lakebridge.reconcile.connectors.tsql import TSQLServerDataSource
 from databricks.labs.lakebridge.reconcile.exception import DataSourceRuntimeException
@@ -176,3 +177,17 @@ def test_get_schema_exception_handling():
         ),
     ):
         data_source.get_schema("org", "schema", "supplier")
+
+
+def test_normalize_identifier():
+    engine, spark, ws, scope = initial_setup()
+    data_source = TSQLServerDataSource(engine, spark, ws, scope)
+
+    assert data_source.normalize_identifier("a") == NormalizedIdentifier("`a`", "[a]")
+    assert data_source.normalize_identifier('"b"') == NormalizedIdentifier("`b`", "[b]")
+    assert data_source.normalize_identifier("[c]") == NormalizedIdentifier("`c`", "[c]")
+    assert data_source.normalize_identifier('"`e`f`"') == NormalizedIdentifier("```e``f```", '[`e`f`]')
+    assert data_source.normalize_identifier('`e``f`') == NormalizedIdentifier("`e``f`", '[e`f]')
+    assert data_source.normalize_identifier('[ g h ]') == NormalizedIdentifier("` g h `", '[ g h ]')
+    assert data_source.normalize_identifier('[[i]]]') == NormalizedIdentifier("`[i]`", '[[i]]]')
+    assert data_source.normalize_identifier('"""j""k"""') == NormalizedIdentifier('`"j"k"`', '["j"k"]')

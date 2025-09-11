@@ -9,7 +9,9 @@ from sqlglot import Dialect
 
 from databricks.labs.lakebridge.reconcile.connectors.data_source import DataSource
 from databricks.labs.lakebridge.reconcile.connectors.jdbc_reader import JDBCReaderMixin
+from databricks.labs.lakebridge.reconcile.connectors.models import NormalizedIdentifier
 from databricks.labs.lakebridge.reconcile.connectors.secrets import SecretsMixin
+from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import DialectUtils
 from databricks.labs.lakebridge.reconcile.recon_config import JdbcReaderOptions, Schema
 from databricks.sdk import WorkspaceClient
 
@@ -49,6 +51,7 @@ _SCHEMA_QUERY = """SELECT
 
 class TSQLServerDataSource(DataSource, SecretsMixin, JDBCReaderMixin):
     _DRIVER = "sqlserver"
+    _IDENTIFIER_DELIMITER = {"prefix": "[", "suffix": "]"}
 
     def __init__(
         self,
@@ -106,6 +109,7 @@ class TSQLServerDataSource(DataSource, SecretsMixin, JDBCReaderMixin):
         catalog: str | None,
         schema: str,
         table: str,
+        normalize: bool = True,
     ) -> list[Schema]:
         """
         Fetch the Schema from the INFORMATION_SCHEMA.COLUMNS table in SQL Server.
@@ -122,11 +126,33 @@ class TSQLServerDataSource(DataSource, SecretsMixin, JDBCReaderMixin):
         try:
             logger.debug(f"Fetching schema using query: \n`{schema_query}`")
             logger.info(f"Fetching Schema: Started at: {datetime.now()}")
-            schema_metadata = self.reader(schema_query).load().collect()
+            df = self.reader(schema_query).load()
+            schema_metadata = df.select([col(c).alias(c.lower()) for c in df.columns]).collect()
             logger.info(f"Schema fetched successfully. Completed at: {datetime.now()}")
-            return [Schema(field.COLUMN_NAME.lower(), field.DATA_TYPE.lower()) for field in schema_metadata]
+            return [self._map_meta_column(field, normalize) for field in schema_metadata]
         except (RuntimeError, PySparkException) as e:
             return self.log_and_throw_exception(e, "schema", schema_query)
 
     def reader(self, query: str, prepare_query_str="") -> DataFrameReader:
         return self._get_jdbc_reader(query, self.get_jdbc_url, self._DRIVER, prepare_query_str)
+
+    def normalize_identifier(self, identifier: str) -> NormalizedIdentifier:
+        return DialectUtils.normalize_identifier(
+            TSQLServerDataSource._normalize_quotes(identifier),
+            source_start_delimiter=TSQLServerDataSource._IDENTIFIER_DELIMITER["prefix"],
+            source_end_delimiter=TSQLServerDataSource._IDENTIFIER_DELIMITER["suffix"],
+        )
+
+    @staticmethod
+    def _normalize_quotes(identifier: str):
+        if DialectUtils.is_already_delimited(identifier, '"', '"'):
+            identifier = identifier[1:-1]
+            identifier = identifier.replace('""', '"')
+            identifier = (
+                TSQLServerDataSource._IDENTIFIER_DELIMITER["prefix"]
+                + identifier
+                + TSQLServerDataSource._IDENTIFIER_DELIMITER["suffix"]
+            )
+            return identifier
+
+        return identifier

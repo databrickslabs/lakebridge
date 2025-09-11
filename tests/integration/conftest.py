@@ -19,8 +19,8 @@ def debug_env_name():
 
 
 @pytest.fixture
-def product_info():
-    return "remorph", __version__
+def product_info() -> tuple[str, str]:
+    return "lakebridge-integration-tests", __version__
 
 
 @pytest.fixture

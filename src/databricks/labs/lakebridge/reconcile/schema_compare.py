@@ -1,10 +1,10 @@
 import logging
-from dataclasses import asdict
 
 from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql.types import BooleanType, StringType, StructField, StructType
 from sqlglot import Dialect, parse_one
 
+from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import DialectUtils
 from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
 from databricks.labs.lakebridge.reconcile.recon_config import Schema, Table
 from databricks.labs.lakebridge.reconcile.recon_output_config import SchemaMatchResult, SchemaReconcileOutput
@@ -20,8 +20,7 @@ class SchemaCompare:
     ):
         self.spark = spark
 
-    # Define the schema for the schema compare DataFrame
-    _schema_compare_schema: StructType = StructType(
+    _schema_compare_output_schema: StructType = StructType(
         [
             StructField("source_column", StringType(), False),
             StructField("source_datatype", StringType(), False),
@@ -47,14 +46,16 @@ class SchemaCompare:
         target_column_map = table_conf.to_src_col_map or {}
         master_schema_match_res = [
             SchemaMatchResult(
-                source_column=s.column_name,
-                databricks_column=target_column_map.get(s.column_name, s.column_name),
+                source_column_normalized=s.source_normalized_column_name,
+                source_column_normalized_ansi=s.ansi_normalized_column_name,
                 source_datatype=s.data_type,
+                databricks_column=target_column_map.get(s.ansi_normalized_column_name, s.ansi_normalized_column_name),
                 databricks_datatype=next(
                     (
                         tgt.data_type
                         for tgt in databricks_schema
-                        if tgt.column_name == target_column_map.get(s.column_name, s.column_name)
+                        if tgt.ansi_normalized_column_name
+                        == target_column_map.get(s.ansi_normalized_column_name, s.ansi_normalized_column_name)
                     ),
                     "",
                 ),
@@ -63,16 +64,22 @@ class SchemaCompare:
         ]
         return master_schema_match_res
 
-    def _create_dataframe(self, data: list, schema: StructType) -> DataFrame:
-        """
-        :param data: Expectation is list of dataclass
-        :param schema: Target schema
-        :return: DataFrame
-        """
-        data = [tuple(asdict(item).values()) for item in data]
-        df = self.spark.createDataFrame(data, schema)
+    def _create_output_dataframe(self, data: list[SchemaMatchResult], schema: StructType) -> DataFrame:
+        """Return a user-friendly dataframe for schema compare result."""
+        transformed = []
+        for item in data:
+            output = tuple(
+                [
+                    DialectUtils.unnormalize_identifier(item.source_column_normalized_ansi),
+                    item.source_datatype,
+                    DialectUtils.unnormalize_identifier(item.databricks_column),
+                    item.databricks_datatype,
+                    item.is_valid,
+                ]
+            )
+            transformed.append(output)
 
-        return df
+        return self.spark.createDataFrame(transformed, schema)
 
     @classmethod
     def _parse(cls, source: Dialect, column: str, data_type: str) -> str:
@@ -88,10 +95,10 @@ class SchemaCompare:
 
     @classmethod
     def _validate_parsed_query(cls, master: SchemaMatchResult, parsed_query) -> None:
-        databricks_query = f"create table dummy ({master.source_column} {master.databricks_datatype})"
+        databricks_query = f"create table dummy ({master.source_column_normalized_ansi} {master.databricks_datatype})"
         logger.info(
             f"""
-        Source datatype: create table dummy ({master.source_column} {master.source_datatype})
+        Source datatype: create table dummy ({master.source_column_normalized} {master.source_datatype})
         Parse datatype: {parsed_query}
         Databricks datatype: {databricks_query}
         """
@@ -116,11 +123,11 @@ class SchemaCompare:
         master_schema = self._build_master_schema(source_schema, databricks_schema, table_conf)
         for master in master_schema:
             if not isinstance(source, Databricks):
-                parsed_query = self._parse(source, master.source_column, master.source_datatype)
+                parsed_query = self._parse(source, master.source_column_normalized, master.source_datatype)
                 self._validate_parsed_query(master, parsed_query)
             elif master.source_datatype.lower() != master.databricks_datatype.lower():
                 master.is_valid = False
 
-        df = self._create_dataframe(master_schema, self._schema_compare_schema)
+        df = self._create_output_dataframe(master_schema, self._schema_compare_output_schema)
         final_result = self._table_schema_status(master_schema)
         return SchemaReconcileOutput(final_result, df)

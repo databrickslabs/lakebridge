@@ -5,7 +5,7 @@ from databricks.sdk import WorkspaceClient
 from databricks.sdk.service import iam
 
 from databricks.labs.lakebridge import uninstall
-from databricks.labs.lakebridge.config import RemorphConfigs
+from databricks.labs.lakebridge.config import LakebridgeConfiguration
 from databricks.labs.lakebridge.contexts.application import ApplicationContext
 from databricks.labs.lakebridge.deployment.installation import WorkspaceInstallation
 
@@ -24,7 +24,7 @@ def test_uninstaller_run(ws):
     ctx = ApplicationContext(ws)
     ctx.replace(
         workspace_installation=ws_installation,
-        remorph_config=RemorphConfigs(),
+        remorph_config=LakebridgeConfiguration(),
     )
     uninstall.run(ctx)
     ws_installation.uninstall.assert_called_once()

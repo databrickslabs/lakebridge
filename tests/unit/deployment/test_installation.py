@@ -12,7 +12,7 @@ from databricks.sdk.service import iam
 
 from databricks.labs.lakebridge.config import (
     TranspileConfig,
-    RemorphConfigs,
+    LakebridgeConfiguration,
     ReconcileConfig,
     DatabaseConfig,
     ReconcileMetadataConfig,
@@ -65,7 +65,7 @@ def test_install_all(ws):
             volume="reconcile_volume6",
         ),
     )
-    config = RemorphConfigs(transpile=transpile_config, reconcile=reconcile_config)
+    config = LakebridgeConfiguration(transpile=transpile_config, reconcile=reconcile_config)
     installation = WorkspaceInstallation(ws, prompts, installation, recon_deployment, product_info, upgrades)
     installation.install(config)
 
@@ -86,7 +86,7 @@ def test_no_recon_component_installation(ws):
         catalog_name="remorph7",
         schema_name="transpiler7",
     )
-    config = RemorphConfigs(transpile=transpile_config)
+    config = LakebridgeConfiguration(transpile=transpile_config)
     installation = WorkspaceInstallation(ws, prompts, installation, recon_deployment, product_info, upgrades)
     installation.install(config)
     recon_deployment.install.assert_not_called()
@@ -114,7 +114,7 @@ def test_recon_component_installation(ws):
             volume="reconcile_volume8",
         ),
     )
-    config = RemorphConfigs(reconcile=reconcile_config)
+    config = LakebridgeConfiguration(reconcile=reconcile_config)
     installation = WorkspaceInstallation(ws, prompts, installation, recon_deployment, product_info, upgrades)
     installation.install(config)
     recon_deployment.install.assert_called()
@@ -123,7 +123,7 @@ def test_recon_component_installation(ws):
 def test_negative_uninstall_confirmation(ws):
     prompts = MockPrompts(
         {
-            r"Do you want to uninstall Remorph .*": "no",
+            r"Do you want to uninstall Lakebridge .*": "no",
         }
     )
     installation = create_autospec(Installation)
@@ -132,7 +132,7 @@ def test_negative_uninstall_confirmation(ws):
     upgrades = create_autospec(Upgrades)
 
     ws_installation = WorkspaceInstallation(ws, prompts, installation, recon_deployment, wheels, upgrades)
-    config = RemorphConfigs()
+    config = LakebridgeConfiguration()
     ws_installation.uninstall(config)
     installation.remove.assert_not_called()
 
@@ -140,7 +140,7 @@ def test_negative_uninstall_confirmation(ws):
 def test_missing_installation(ws):
     prompts = MockPrompts(
         {
-            r"Do you want to uninstall Remorph .*": "yes",
+            r"Do you want to uninstall Lakebridge .*": "yes",
         }
     )
     installation = create_autospec(Installation)
@@ -151,7 +151,7 @@ def test_missing_installation(ws):
     upgrades = create_autospec(Upgrades)
 
     ws_installation = WorkspaceInstallation(ws, prompts, installation, recon_deployment, wheels, upgrades)
-    config = RemorphConfigs()
+    config = LakebridgeConfiguration()
     ws_installation.uninstall(config)
     installation.remove.assert_not_called()
 
@@ -159,7 +159,7 @@ def test_missing_installation(ws):
 def test_uninstall_configs_exist(ws):
     prompts = MockPrompts(
         {
-            r"Do you want to uninstall Remorph .*": "yes",
+            r"Do you want to uninstall Lakebridge .*": "yes",
         }
     )
 
@@ -190,7 +190,7 @@ def test_uninstall_configs_exist(ws):
             volume="reconcile_volume1",
         ),
     )
-    config = RemorphConfigs(transpile=transpile_config, reconcile=reconcile_config)
+    config = LakebridgeConfiguration(transpile=transpile_config, reconcile=reconcile_config)
     installation = MockInstallation({})
     recon_deployment = create_autospec(ReconDeployment)
     wheels = create_autospec(WheelsV2)
@@ -205,7 +205,7 @@ def test_uninstall_configs_exist(ws):
 def test_uninstall_configs_missing(ws):
     prompts = MockPrompts(
         {
-            r"Do you want to uninstall Remorph .*": "yes",
+            r"Do you want to uninstall Lakebridge .*": "yes",
         }
     )
     installation = MockInstallation()
@@ -214,7 +214,7 @@ def test_uninstall_configs_missing(ws):
     upgrades = create_autospec(Upgrades)
 
     ws_installation = WorkspaceInstallation(ws, prompts, installation, recon_deployment, wheels, upgrades)
-    config = RemorphConfigs()
+    config = LakebridgeConfiguration()
     ws_installation.uninstall(config)
     recon_deployment.uninstall.assert_not_called()
     installation.assert_removed()

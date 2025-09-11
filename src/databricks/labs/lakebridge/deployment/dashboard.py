@@ -54,7 +54,8 @@ class DashboardDeployment:
 
         valid_dashboard_refs = set()
         for dashboard_folder in folder.iterdir():
-            if not dashboard_folder.is_dir():
+            # Make sure the directory contains a dashboard
+            if not (dashboard_folder.is_dir() and dashboard_folder.joinpath("dashboard.yml").exists()):
                 continue
             valid_dashboard_refs.add(self._dashboard_reference(dashboard_folder))
             dashboard = self._update_or_create_dashboard(dashboard_folder, parent_path, config.metadata_config)

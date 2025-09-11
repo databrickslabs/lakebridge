@@ -4,7 +4,6 @@ from pyspark import Row
 from pyspark.testing import assertDataFrameEqual
 
 from databricks.labs.lakebridge.reconcile.compare import (
-    alias_column_str,
     capture_mismatch_data_and_columns,
     reconcile_data,
 )
@@ -253,10 +252,98 @@ def test_capture_mismatch_data_and_cols_fail(mock_spark):
     )
 
 
-def test_alias_column_str():
-    column_list = ['col1', 'col2', 'col3']
-    alias = 'source'
-    actual = alias_column_str(alias=alias, columns=column_list)
-    expected = ['source.col1', 'source.col2', 'source.col3']
+def test_compare_data_special_column_names(mock_spark, tmp_path: Path):
+    model_with_hash = Row("s`supp#", "s_nation#", "hash_value_recon")
+    model = Row("s`supp#", "s_nation#")
+    source = mock_spark.createDataFrame(
+        [
+            model_with_hash(1, 11, '1a1'),
+            model_with_hash(2, 22, '2b2'),
+            model_with_hash(3, 33, '3c3'),
+            model_with_hash(5, 55, '5e5'),
+        ]
+    )
+    target = mock_spark.createDataFrame(
+        [
+            model_with_hash(1, 11, '1a1'),
+            model_with_hash(2, 22, '2b4'),
+            model_with_hash(4, 44, '4d4'),
+            model_with_hash(5, 56, '5e6'),
+        ]
+    )
 
-    assert actual == expected
+    mismatch = MismatchOutput(mismatch_df=mock_spark.createDataFrame([model(2, 22)]))
+    missing_in_src = mock_spark.createDataFrame([model(4, 44), model(5, 56)])
+    missing_in_tgt = mock_spark.createDataFrame([model(3, 33), model(5, 55)])
+
+    actual = reconcile_data(
+        source=source,
+        target=target,
+        key_columns=["`s``supp#`", "`s_nation#`"],
+        report_type="all",
+        spark=mock_spark,
+        path=str(tmp_path),
+    )
+    expected = DataReconcileOutput(
+        mismatch_count=1,
+        missing_in_src_count=1,
+        missing_in_tgt_count=1,
+        missing_in_src=missing_in_src,
+        missing_in_tgt=missing_in_tgt,
+        mismatch=mismatch,
+    )
+
+    assert actual.mismatch.mismatch_df is not None
+    assert expected.mismatch.mismatch_df is not None
+    assert actual.missing_in_src is not None
+    assert expected.missing_in_src is not None
+    assert actual.missing_in_tgt is not None
+    assert expected.missing_in_tgt is not None
+    assertDataFrameEqual(actual.mismatch.mismatch_df, expected.mismatch.mismatch_df)
+    assertDataFrameEqual(actual.missing_in_src, expected.missing_in_src)
+    assertDataFrameEqual(actual.missing_in_tgt, expected.missing_in_tgt)
+
+
+def test_capture_mismatch_data_and_cols_special_column_names(mock_spark):
+    model = Row("s`supp#", "s_nation#", "s`name")
+    expected_model = Row("s`supp#", "s_nation#", "s`name_base", "s`name_compare", "s`name_match")
+    source = mock_spark.createDataFrame(
+        [
+            model(2, 22, '2b2'),
+            model(3, 33, '3c3'),
+            model(5, 55, '5e5'),
+        ]
+    )
+    target = mock_spark.createDataFrame(
+        [
+            model(2, 22, '2b4'),
+            model(3, 33, '3c3'),
+            model(4, 44, '4d4'),
+        ]
+    )
+
+    actual = capture_mismatch_data_and_columns(source=source, target=target, key_columns=["`s``supp#`", "`s_nation#`"])
+
+    expected_df = mock_spark.createDataFrame(
+        [
+            expected_model(
+                2,
+                22,
+                '2b2',
+                '2b4',
+                False,
+            ),
+            expected_model(
+                3,
+                33,
+                '3c3',
+                '3c3',
+                True,
+            ),
+        ]
+    )
+
+    assert actual.mismatch_df is not None
+    assert expected_df is not None
+    assertDataFrameEqual(actual.mismatch_df, expected_df)
+    assert sorted(actual.mismatch_columns) == ['s`name']

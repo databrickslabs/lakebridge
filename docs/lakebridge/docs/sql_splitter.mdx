@@ -1,0 +1,150 @@
+---
+sidebar_position: 9
+title: SQL Splitter
+---
+import useBaseUrl from '@docusaurus/useBaseUrl';
+
+## Overview
+
+The SQL Splitter is a utility designed to process large SQL files containing multiple database objects and split them into individual files — one object per file — for easier management and more granular control over code conversion activities.
+
+Using the SQL Splitter utility is recommended as a best practice before running conversion processes. By organizing each database object into its own file, the splitter ensures a cleaner, more structured input, allowing conversion tools to work more efficiently and with greater accuracy. This approach streamlines processing and helps maintain clarity when handling large or complex SQL files.
+
+It is also recommended to run the SQL Splitter **before** executing the analyzer tool. While the analyzer is not a mandatory step, it is advised for deeper insights. Running the splitter first allows the analyzer to operate on each object at a granular level, producing more accurate and detailed analysis results for individual procedures, functions, tables, views, and other objects.
+
+This tool is particularly useful in situations where your SQL code is stored (or has been exported) in monolithic files that mix different object types (e.g., stored procedures, functions, tables, views, sequences, or Oracle packages).
+
+
+---
+
+## When to Use the SQL Splitter
+
+You might need the SQL Splitter when:
+
+- **Large SQL files contain multiple objects**:
+  Example — one script has the definitions for tables, views, stored procedures, functions, and sequences all together.
+- **Working with Oracle packages**:
+  The tool can split a package body/specification into **individual functions and procedures**, still grouped logically in output subfolders.
+
+---
+
+## Input
+
+- A single `.sql` file or a directory of `.sql` files
+- Files may contain:
+  - Stored procedures
+  - Functions
+  - Tables
+  - Views
+  - Sequences
+  - Oracle packages
+
+---
+
+## Output
+
+- A new output folder containing **subfolders for each object type**:
+  - `/PROCEDURE`
+  - `/FUNCTION`
+  - `/TABLE`
+  - `/VIEW`
+  - `/SEQUENCE`
+  - `/PACKAGE` (and subfolders for its components)
+- Each object is stored in a **separate `.sql` file**.
+- For Oracle packages:
+  - The package is decomposed into **individual files per function and procedure**, with optionally replicated global variables across all derived artifacts.
+  - Still adheres to the “one object per file” principle.
+
+---
+
+## Example
+
+### Input:
+A single file `all_objects.sql` containing:
+- `CREATE TABLE ...`
+- `CREATE VIEW ...`
+- `CREATE PROCEDURE ...`
+- `CREATE PACKAGE ...` with multiple functions and procedures inside
+
+### Output Structure:
+
+```text
+output/
+  TABLE/
+    my_table.sql
+  VIEW/
+    my_view.sql
+  PROCEDURE/
+    my_procedure.sql
+  FUNCTION/
+    function_one.sql
+
+```
+---
+
+## Command-line Usage
+
+```bash
+Usage:
+sql_splitter
+    -h                          this message
+    <OPTIONS>
+
+    -i input file OR comma-separated list of files
+       OR
+    -d input folder
+
+    -o output folder
+
+    [-s]                        plug in newline after semicolon
+    [-E extensions]             default is sql
+    [-t]                        trim lines from both sides
+    [-b]                        remove square brackets
+    [-P]                        do not add package variables to procedures and functions
+    [-G pattern]                custom object separator pattern
+    [-r <reportfile><ext>]      generate <reportfile><ext> file and <reportfile>_duplicates<ext> file
+                                 (or if `-r -` is specified, output to STDOUT)
+    [-v]                        verbose mode
+```
+
+**Note:**
+The output folder specified with `-o` **must already exist** before running the command. The SQL Splitter will create subfolders for each object type inside this folder.
+
+---
+
+### Example
+
+```bash
+./sqlsplit -i /project1/inputs/all_objects.sql -o /path/to/output
+```
+
+This command:
+- Reads the file `all_objects.sql`
+- Uses `/path/to/output` as the output directory (must exist beforehand)
+
+## Download
+
+You can download the latest version of the **SQL Splitter** here:
+
+**Version:** 1.3.2
+**Build Date:** 2025-01-31
+
+<a href={useBaseUrl('downloads/SQLSplitter.zip')} download>
+  ⬇ Download SQLSplitter.zip
+</a>
+
+---
+
+**Installation & Usage:**
+1. Click the link above to download the ZIP file.
+2. Unzip the file — you will see three subfolders:
+   - **Windows/**
+   - **Linux/**
+   - **MacOS/**
+3. Depending on your operating system:
+   - **Windows:** Open the `Windows` folder and run `sqlsplit.exe`.
+   - **Linux:** Open the `Linux` folder and run `./sqlsplit` from the terminal.
+   - **MacOS:** Open the `MacOS` folder and run `./sqlsplit` from the terminal.
+4. Use the appropriate executable to run SQL Splitter with your desired command-line options (see [Usage](#command-line-usage) above).
+
+---

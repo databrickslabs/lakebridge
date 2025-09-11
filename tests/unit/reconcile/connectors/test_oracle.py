@@ -4,6 +4,7 @@ from unittest.mock import MagicMock, create_autospec
 
 import pytest
 
+from databricks.labs.lakebridge.reconcile.connectors.models import NormalizedIdentifier
 from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
 from databricks.labs.lakebridge.reconcile.connectors.oracle import OracleDataSource
 from databricks.labs.lakebridge.reconcile.exception import DataSourceRuntimeException
@@ -175,3 +176,15 @@ def test_get_schema_exception_handling():
                                 WHERE lower(TABLE_NAME) = 'employee' and lower(owner) = 'data' """,
     ):
         ords.get_schema(None, "data", "employee")
+
+
+def test_normalize_identifier():
+    engine, spark, ws, scope = initial_setup()
+    data_source = OracleDataSource(engine, spark, ws, scope)
+
+    assert data_source.normalize_identifier("a") == NormalizedIdentifier("`a`", '"a"')
+    assert data_source.normalize_identifier('"b"') == NormalizedIdentifier("`b`", '"b"')
+    assert data_source.normalize_identifier('"`e`f`"') == NormalizedIdentifier("```e``f```", '"`e`f`"')
+    assert data_source.normalize_identifier('" g h "') == NormalizedIdentifier("` g h `", '" g h "')
+    assert data_source.normalize_identifier('"""j""k"""') == NormalizedIdentifier('`"j"k"`', '"""j""k"""')
+    assert data_source.normalize_identifier('"j""k"') == NormalizedIdentifier('`j"k`', '"j""k"')

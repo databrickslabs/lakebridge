@@ -24,7 +24,7 @@ jobs:
       labels: linux-ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install Python
         uses: actions/setup-python@v5
@@ -51,7 +51,7 @@ jobs:
       labels: linux-ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install Python
         uses: actions/setup-python@v5
@@ -84,7 +84,7 @@ jobs:
       labels: linux-ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install Python
         uses: actions/setup-python@v5
@@ -111,7 +111,7 @@ jobs:
     if: github.event_name == 'pull_request' && (github.event.action == 'opened' || github.event.action == 'synchronize')
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -135,7 +135,7 @@ jobs:
       OUTPUT_DIR: ./test-reports
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -188,7 +188,7 @@ jobs:
 
     steps:
     - name: Checkout
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
 
     - name: Install Python
       uses: actions/setup-python@v5
@@ -216,6 +216,10 @@ jobs:
         java-version: 11
 
     - name: Run install tests
+      env:
+        # Without this Python will use AppData\Local\Temp on Windows, leading to test failures.
+        # (Unclear if this is related to permissions, or possibly path length issues due to 260-character maximum.)
+        TMPDIR: ${{ runner.temp }}
       run: hatch run test-install
 
     - name: Publish test coverage

@@ -17,7 +17,7 @@ jobs:
       run:
         working-directory: docs/lakebridge
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
       - uses: actions/setup-node@v4
@@ -32,7 +32,7 @@ jobs:
         run: yarn build
 
       - name: Upload Build Artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v4
         with:
           path: docs/lakebridge/build  # The directory to upload as an artifact
 

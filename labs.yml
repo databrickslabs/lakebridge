@@ -12,12 +12,11 @@ commands:
     description: Analyze source code from existing technology
     flags:
       - name: source-directory
-        description: Source Directory to Analyze
+        description: (Optional) Source Directory to Analyze
       - name: report-file
-        description: Name of (.xlsx) report file to write
+        description: (Optional) Name of report file to write
       - name: source-tech
-        description: Name of the Source System Technology you want to analyze
-        default: null
+        description: (Optional) Name of the Source System Technology you want to analyze
   - name: transpile
     description: Transpile SQL script to Databricks SQL
     flags:
