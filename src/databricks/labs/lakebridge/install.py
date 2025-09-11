@@ -49,6 +49,7 @@ class WorkspaceInstaller:
         workspace_installation: WorkspaceInstallation,
         environ: dict[str, str] | None = None,
         *,
+        is_interactive: bool = True,
         transpiler_repository: TranspilerRepository = TranspilerRepository.user_home(),
         transpiler_installers: Sequence[Callable[[TranspilerRepository], TranspilerInstaller]] = (
             BladebridgeInstaller,
@@ -62,6 +63,7 @@ class WorkspaceInstaller:
         self._product_info = product_info
         self._resource_configurator = resource_configurator
         self._ws_installation = workspace_installation
+        self._is_interactive = is_interactive
         self._transpiler_repository = transpiler_repository
         self._transpiler_installer_factories = transpiler_installers
 
@@ -81,11 +83,8 @@ class WorkspaceInstaller:
         module: str,
         config: LakebridgeConfiguration | None = None,
         artifact: str | None = None,
-        is_interactive: bool = True,
     ) -> LakebridgeConfiguration:
         logger.debug(f"Initializing workspace installation for module: {module} (config: {config})")
-        # TODO: Implement non-interactive mode.
-        _ = is_interactive
         if module == "transpile" and artifact:
             self._install_artifact(artifact)
         elif module in {"transpile", "all"}:
@@ -374,7 +373,12 @@ class WorkspaceInstaller:
         self._resource_configurator.has_necessary_access(catalog_name, schema_name, volume_name)
 
 
-def installer(ws: WorkspaceClient, transpiler_repository: TranspilerRepository) -> WorkspaceInstaller:
+def installer(
+    ws: WorkspaceClient,
+    transpiler_repository: TranspilerRepository,
+    *,
+    is_interactive: bool,
+) -> WorkspaceInstaller:
     app_context = ApplicationContext(_verify_workspace_client(ws))
     return WorkspaceInstaller(
         app_context.workspace_client,
@@ -385,6 +389,7 @@ def installer(ws: WorkspaceClient, transpiler_repository: TranspilerRepository) 
         app_context.resource_configurator,
         app_context.workspace_installation,
         transpiler_repository=transpiler_repository,
+        is_interactive=is_interactive,
     )
 
 

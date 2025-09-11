@@ -624,8 +624,8 @@ def install_transpile(
         ctx.add_user_agent_extra("artifact-overload", Path(artifact).name)
     user = w.current_user
     logger.debug(f"User: {user}")
-    transpile_installer = installer(w, transpiler_repository)
-    transpile_installer.run(module="transpile", artifact=artifact, is_interactive=is_interactive)
+    transpile_installer = installer(w, transpiler_repository, is_interactive=is_interactive)
+    transpile_installer.run(module="transpile", artifact=artifact)
 
 
 def interactive_mode(interactive: str | None, *, default: str = "auto", input_stream: TextIO = sys.stdin) -> bool:
@@ -660,7 +660,7 @@ def configure_reconcile(
         dbsql_id = _create_warehouse(w)
         w.config.warehouse_id = dbsql_id
     logger.debug(f"Warehouse ID used for configuring reconcile: {w.config.warehouse_id}.")
-    reconcile_installer = installer(w, transpiler_repository)
+    reconcile_installer = installer(w, transpiler_repository, is_interactive=True)
     reconcile_installer.run(module="reconcile")
 
 
