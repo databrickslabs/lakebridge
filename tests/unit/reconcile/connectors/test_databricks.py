@@ -38,17 +38,17 @@ def test_get_schema():
                     column_name""",
         )
     )
-    spark.sql().where.assert_called_with("col_name not like '#%'")
+    spark.sql().where.assert_called_with("column_name not like '#%'")
 
     # hive_metastore as catalog
     ddds.get_schema("hive_metastore", "schema", "supplier")
     spark.sql.assert_called_with(re.sub(r'\s+', ' ', """describe table hive_metastore.schema.supplier"""))
-    spark.sql().where.assert_called_with("col_name not like '#%'")
+    spark.sql().where.assert_called_with("column_name not like '#%'")
 
     # global_temp as schema with hive_metastore
     ddds.get_schema("hive_metastore", "global_temp", "supplier")
     spark.sql.assert_called_with(re.sub(r'\s+', ' ', """describe table global_temp.supplier"""))
-    spark.sql().where.assert_called_with("col_name not like '#%'")
+    spark.sql().where.assert_called_with("column_name not like '#%'")
 
 
 def test_read_data_from_uc():
