@@ -148,10 +148,13 @@ class WorkspaceInstaller:
     def _is_testing(self):
         return self._product_info.product_name() != "lakebridge"
 
-    def _configure_transpile(self) -> TranspileConfig:
+    def _configure_transpile(self) -> TranspileConfig | None:
         try:
             config = self._installation.load(TranspileConfig)
             logger.info("Lakebridge `transpile` is already installed on this workspace.")
+            if not self._is_interactive:
+                logger.debug("Installation is not interactive, keeping existing configuration.")
+                return config
             if not self._prompts.confirm("Do you want to override the existing installation?"):
                 return config
         except NotFound:
@@ -161,6 +164,10 @@ class WorkspaceInstaller:
             logger.warning(
                 f"Existing `transpile` installation at {install_dir} is corrupted. Continuing new installation..."
             )
+
+        if not self._is_interactive:
+            logger.warning("Installation is not interactive, skipping `transpile` configuration.")
+            return None
 
         config = self._configure_new_transpile_installation()
         logger.info("Finished configuring lakebridge `transpile`.")
