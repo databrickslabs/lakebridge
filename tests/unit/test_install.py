@@ -1521,7 +1521,9 @@ def test_installer_upgrade_configure_if_changed(
 
 
 def test_no_reconfigure_if_noninteractive(
-    ws_installer: Callable[..., WorkspaceInstaller], ws: WorkspaceClient, caplog,
+    ws_installer: Callable[..., WorkspaceInstaller],
+    ws: WorkspaceClient,
+    caplog,
 ) -> None:
     """Check that when non-interactive we do not attempt to reconfigure if there is already a config."""
 
@@ -1566,7 +1568,9 @@ def test_no_reconfigure_if_noninteractive(
 
 
 def test_no_configure_if_noninteractive(
-    ws_installer: Callable[..., WorkspaceInstaller], ws: WorkspaceClient, caplog,
+    ws_installer: Callable[..., WorkspaceInstaller],
+    ws: WorkspaceClient,
+    caplog,
 ) -> None:
     """Check that when non-interactive we do not attempt configuration, even if there is no existing config."""
 
@@ -1575,7 +1579,7 @@ def test_no_configure_if_noninteractive(
     ctx = ApplicationContext(ws).replace(
         product_info=ProductInfo.for_testing(LakebridgeConfiguration),
         prompts=no_prompts_available,
-        installation=MockInstallation({})
+        installation=MockInstallation({}),
     )
 
     installer = ws_installer(
