@@ -11,7 +11,6 @@ from databricks.labs.lakebridge.reconcile.connectors.data_source import DataSour
 from databricks.labs.lakebridge.reconcile.connectors.jdbc_reader import JDBCReaderMixin
 from databricks.labs.lakebridge.reconcile.connectors.models import NormalizedIdentifier
 from databricks.labs.lakebridge.reconcile.connectors.secrets import SecretsMixin
-from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import DialectUtils
 from databricks.labs.lakebridge.reconcile.recon_config import JdbcReaderOptions, Schema
 from databricks.sdk import WorkspaceClient
 
@@ -112,8 +111,6 @@ class OracleDataSource(DataSource, SecretsMixin, JDBCReaderMixin):
         return self._get_jdbc_reader(query, self.get_jdbc_url, OracleDataSource._DRIVER)
 
     def normalize_identifier(self, identifier: str) -> NormalizedIdentifier:
-        return DialectUtils.normalize_identifier(
-            identifier,
-            source_start_delimiter=OracleDataSource._IDENTIFIER_DELIMITER,
-            source_end_delimiter=OracleDataSource._IDENTIFIER_DELIMITER,
-        )
+        # TODO: In Oracle, quoted identifiers are case-sensitive,
+        # it is disabled for now till we have a proper strategy to handle it.
+        return NormalizedIdentifier(identifier, identifier)

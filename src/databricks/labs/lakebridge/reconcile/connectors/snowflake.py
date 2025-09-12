@@ -13,7 +13,6 @@ from databricks.labs.lakebridge.reconcile.connectors.data_source import DataSour
 from databricks.labs.lakebridge.reconcile.connectors.jdbc_reader import JDBCReaderMixin
 from databricks.labs.lakebridge.reconcile.connectors.models import NormalizedIdentifier
 from databricks.labs.lakebridge.reconcile.connectors.secrets import SecretsMixin
-from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import DialectUtils
 from databricks.labs.lakebridge.reconcile.exception import InvalidSnowflakePemPrivateKey
 from databricks.labs.lakebridge.reconcile.recon_config import JdbcReaderOptions, Schema
 from databricks.sdk import WorkspaceClient
@@ -199,8 +198,6 @@ class SnowflakeDataSource(DataSource, SecretsMixin, JDBCReaderMixin):
             raise InvalidSnowflakePemPrivateKey(message) from e
 
     def normalize_identifier(self, identifier: str) -> NormalizedIdentifier:
-        return DialectUtils.normalize_identifier(
-            identifier,
-            source_start_delimiter=SnowflakeDataSource._IDENTIFIER_DELIMITER,
-            source_end_delimiter=SnowflakeDataSource._IDENTIFIER_DELIMITER,
-        )
+        # TODO: In Snowflake, quoted identifiers are case-sensitive,
+        # it is disabled for now till we have a proper strategy to handle it.
+        return NormalizedIdentifier(identifier, identifier)
