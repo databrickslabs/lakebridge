@@ -1,17 +1,22 @@
+import dataclasses
 import tempfile
 from pathlib import Path
-
-from databricks.sdk.core import with_user_agent_extra
 
 from databricks.labs.blueprint.entrypoint import get_logger
 from databricks.labs.blueprint.tui import Prompts
 
 from databricks.labs.bladespector.analyzer import Analyzer, _PLATFORM_TO_SOURCE_TECHNOLOGY
 
-from databricks.labs.lakebridge.helpers.telemetry_utils import make_alphanum_or_semver
 from databricks.labs.lakebridge.helpers.file_utils import check_path, move_tmp_file
 
 logger = get_logger(__file__)
+
+
+@dataclasses.dataclass
+class AnalyzerResult:
+    source_directory: Path
+    output_directory: Path
+    source_system: str
 
 
 class LakebridgeAnalyzer(Analyzer):
@@ -38,18 +43,15 @@ class LakebridgeAnalyzer(Analyzer):
         )
         return directory / Path(filename) if len(filename.split("/")) == 1 else Path(filename)
 
-    def _get_source_tech(self, platform: str | None = None) -> str:
+    def _get_source_system(self, platform: str | None = None) -> str:
         """Validate source technology or prompt for a valid source"""
         if platform is None or platform not in self.supported_source_technologies():
             if platform is not None:
                 logger.warning(f"Invalid source technology {platform}")
             platform = self._prompts.choice("Select the source technology", self.supported_source_technologies())
+        assert _PLATFORM_TO_SOURCE_TECHNOLOGY[platform], f"Unsupported platform: {platform}"
 
-        # Need to call `ApplicationContext#add_user_agent_extra()` afterwards
-        # in order for this info to be captured correctly in telemetry
-        # which the cli does
-        with_user_agent_extra("analyzer_source_tech", make_alphanum_or_semver(platform))
-        return _PLATFORM_TO_SOURCE_TECHNOLOGY[platform]
+        return platform
 
     @staticmethod
     def _temp_xlsx_path(results_dir: Path | str) -> Path:
@@ -60,7 +62,8 @@ class LakebridgeAnalyzer(Analyzer):
         source_dir = self._get_source_directory()
         results_dir = self._get_result_file_path(source_dir)
         tmp_dir = self._temp_xlsx_path(results_dir)
-        technology = self._get_source_tech()
+        platform = self._get_source_system()
+        technology = _PLATFORM_TO_SOURCE_TECHNOLOGY[platform]
 
         self._run_binary(source_dir, tmp_dir, technology, self._is_debug)
 
@@ -68,29 +71,34 @@ class LakebridgeAnalyzer(Analyzer):
 
         logger.info(f"Successfully Analyzed files in ${source_dir} for ${technology} and saved report to {results_dir}")
 
-    def _run_arg_analyzer(self, source_dir: str | None, results_dir: str | None, technology: str | None):
+        return AnalyzerResult(source_dir, results_dir, platform)
+
+    def _run_arg_analyzer(self, source_dir: str | None, results_dir: str | None, platform: str | None):
         """Run the analyzer: arg guided"""
-        if source_dir is None or results_dir is None or technology is None:
-            logger.error("All arguments (--source-directory, --report-file, --source-tech) must be provided")
-            return
+        if source_dir is None or results_dir is None or platform is None:
+            message = "All arguments (--source-directory, --report-file, --source-tech) must be provided"
+            logger.error(message)
+            raise ValueError(message)
 
-        if check_path(source_dir) and check_path(results_dir):
-            tmp_dir = self._temp_xlsx_path(results_dir)
-            technology = self._get_source_tech(technology)
-            self._run_binary(Path(source_dir), tmp_dir, technology, self._is_debug)
+        if not check_path(source_dir) or not check_path(results_dir):
+            raise ValueError(f"Invalid path provided: source_dir={source_dir}, results_dir={results_dir}")
 
-            move_tmp_file(tmp_dir, Path(results_dir))
+        tmp_dir = self._temp_xlsx_path(results_dir)
+        platform = self._get_source_system(platform)
+        technology = _PLATFORM_TO_SOURCE_TECHNOLOGY[platform]
+        self._run_binary(Path(source_dir), tmp_dir, technology, self._is_debug)
 
-            logger.info(
-                f"Successfully Analyzed files in ${source_dir} for ${technology} and saved report to {results_dir}"
-            )
+        move_tmp_file(tmp_dir, Path(results_dir))
+
+        logger.info(f"Successfully Analyzed files in ${source_dir} for ${technology} and saved report to {results_dir}")
+
+        return AnalyzerResult(Path(source_dir), Path(results_dir), platform)
 
     def run_analyzer(
         self, source_dir: str | None = None, results_dir: str | None = None, technology: str | None = None
-    ):
+    ) -> AnalyzerResult:
         """Run the analyzer."""
         if not any([source_dir, results_dir, technology]):
-            self._run_prompt_analyzer()
-            return
+            return self._run_prompt_analyzer()
 
-        self._run_arg_analyzer(source_dir, results_dir, technology)
+        return self._run_arg_analyzer(source_dir, results_dir, technology)
