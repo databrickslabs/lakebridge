@@ -63,6 +63,7 @@ class WorkspaceInstaller:
         self._product_info = product_info
         self._resource_configurator = resource_configurator
         self._ws_installation = workspace_installation
+        # TODO: Refactor the 'prompts' property in preference to using this flag, which should be redundant.
         self._is_interactive = is_interactive
         self._transpiler_repository = transpiler_repository
         self._transpiler_installer_factories = transpiler_installers
