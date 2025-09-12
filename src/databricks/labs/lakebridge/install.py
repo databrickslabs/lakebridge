@@ -166,7 +166,7 @@ class WorkspaceInstaller:
             )
 
         if not self._is_interactive:
-            logger.warning("Installation is not interactive, skipping `transpile` configuration.")
+            logger.warning("Installation is not interactive, skipping configuration of transpilers.")
             return None
 
         config = self._configure_new_transpile_installation()
