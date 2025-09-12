@@ -100,7 +100,7 @@ def test_read_data_with_options():
     )
     spark.read.format().option().option.assert_called_with("driver", "com.microsoft.sqlserver.jdbc.SQLServerDriver")
     spark.read.format().option().option().option.assert_called_with(
-        "dbtable", "(WITH tmp AS (SELECT * from org.data.employee) select 1 from tmp) tmp"
+        "dbtable", "(WITH tmp AS (SELECT * from org.data.[employee]) select 1 from tmp) tmp"
     )
     actual_args = spark.read.format().option().option().option().options.call_args.kwargs
     expected_args = {

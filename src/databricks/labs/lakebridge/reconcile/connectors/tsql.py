@@ -85,7 +85,7 @@ class TSQLServerDataSource(DataSource, SecretsMixin, JDBCReaderMixin):
         query: str,
         options: JdbcReaderOptions | None,
     ) -> DataFrame:
-        table_query = query.replace(":tbl", f"{catalog}.{schema}.{table}")
+        table_query = query.replace(":tbl", f"{catalog}.{schema}.{self.normalize_identifier(table).source_normalized}")
         with_clause_pattern = re.compile(r'WITH\s+.*?\)\s*(?=SELECT)', re.IGNORECASE | re.DOTALL)
         match = with_clause_pattern.search(table_query)
         if match:
