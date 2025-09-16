@@ -53,12 +53,12 @@ logger = logging.getLogger(__name__)
 @dataclass
 class _LSPRemorphConfigV1:
     name: str
-    dialects: list[str]
-    env_vars: dict[str, str]
-    command_line: list[str]
+    dialects: Sequence[str]
+    env_vars: Mapping[str, str]
+    command_line: Sequence[str]
 
     @classmethod
-    def parse(cls, data: dict[str, Any]) -> _LSPRemorphConfigV1:
+    def parse(cls, data: Mapping[str, Any]) -> _LSPRemorphConfigV1:
         version = data.get("version", 0)
         if version != 1:
             raise ValueError(f"Unsupported transpiler config version: {version}")
@@ -79,15 +79,15 @@ class _LSPRemorphConfigV1:
 class LSPConfig:
     path: Path
     remorph: _LSPRemorphConfigV1
-    options: dict[str, list[LSPConfigOptionV1]]
-    custom: dict[str, Any]
+    options: Mapping[str, Sequence[LSPConfigOptionV1]]
+    custom: Mapping[str, Any]
 
     @property
     def name(self):
         return self.remorph.name
 
-    def options_for_dialect(self, source_dialect: str) -> list[LSPConfigOptionV1]:
-        return self.options.get("all", []) + self.options.get(source_dialect, [])
+    def options_for_dialect(self, source_dialect: str) -> Sequence[LSPConfigOptionV1]:
+        return [*self.options.get("all", []), *self.options.get(source_dialect, [])]
 
     @classmethod
     def load(cls, path: Path) -> LSPConfig:
@@ -107,10 +107,7 @@ class LSPConfig:
         return LSPConfig(path, remorph, options, custom)
 
 
-def lsp_feature(
-    name: str,
-    options: Any | None = None,
-):
+def lsp_feature(name: str, options: Any | None = None):
     def wrapped(func: Callable):
         _LSP_FEATURES.append((name, options, func))
         return func
@@ -395,12 +392,12 @@ class LSPEngine(TranspileEngine):
     def transpiler_name(self) -> str:
         return self._config.name
 
-    def options_for_dialect(self, source_dialect: str) -> list[LSPConfigOptionV1]:
+    def options_for_dialect(self, source_dialect: str) -> Sequence[LSPConfigOptionV1]:
         """Get the options supported when transpiling a given source dialect."""
         return self._config.options_for_dialect(source_dialect)
 
     @property
-    def supported_dialects(self) -> list[str]:
+    def supported_dialects(self) -> Sequence[str]:
         return self._config.remorph.dialects
 
     @property

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping, Sequence, Set
 from json import loads
 import logging
 import os
@@ -21,6 +21,23 @@ class TranspilerRepository:
     The default repository for a user is always located under ~/.databricks/labs, and can be obtained
     via the `TranspilerRepository.user_home()` method.
     """
+
+    #
+    # Transpilers currently have different 'names', for historical reasons:
+    #
+    #  - product_name: the name of the product according to this project, assigned within the `installer` module and
+    #       used as the name of the directory into which the transpiler is installed within a repository.
+    #  - transpiler_name: the name of the product according to its own metadata, found in the configuration file
+    #       bundled within each transpiler as distributed.
+    #
+    # Note: multiple installed transpilers might have the same transpiler name, but a product name is unique to a single
+    # installed transpiler.
+    #
+    #  Known names at the moment:
+    #
+    #   - Morpheus:     product_name = databricks-morph-plugin,  transpiler_name = Morpheus
+    #   - BladeBridge:  product_name = bladebridge,              transpiler_name = Bladebridge
+    #
 
     @staticmethod
     def default_labs_path() -> Path:
@@ -56,45 +73,91 @@ class TranspilerRepository:
         return self._labs_path / "remorph-transpilers"
 
     def get_installed_version(self, product_name: str) -> str | None:
+        """
+        Obtain the version of an installed transpiler.
+
+        Args:
+          product_name: The product name of the transpiler whose version is sought.
+        Returns:
+          The version of the transpiler if it is installed, or None otherwise.
+        """
         # Warning: product_name here (eg. 'morpheus') and transpiler_name elsewhere (eg. Morpheus) are not the same!
         product_path = self.transpilers_path() / product_name
         current_version_path = product_path / "state" / "version.json"
-        if not current_version_path.exists():
+        try:
+            text = current_version_path.read_text("utf-8")
+        except FileNotFoundError:
             return None
-        text = current_version_path.read_text("utf-8")
         data: dict[str, Any] = loads(text)
         version: str | None = data.get("version", None)
         if not version or not version.startswith("v"):
             return None
         return version[1:]
 
-    def all_transpiler_configs(self) -> dict[str, LSPConfig]:
+    def all_transpiler_configs(self) -> Mapping[str, LSPConfig]:
+        """Obtain all installed transpile configurations.
+
+        Returns:
+          A mapping of configurations, keyed by their transpiler names.
+        """
         all_configs = self._all_transpiler_configs()
         return {config.name: config for config in all_configs}
 
-    def all_transpiler_names(self) -> set[str]:
+    def all_transpiler_names(self) -> Set[str]:
+        """Query the set of transpiler names for all installed transpilers."""
         all_configs = self.all_transpiler_configs()
-        return set(all_configs.keys())
+        return frozenset(all_configs.keys())
 
-    def all_dialects(self) -> set[str]:
+    def all_dialects(self) -> Set[str]:
+        """Query the set of dialects for all installed transpilers."""
         all_dialects: set[str] = set()
         for config in self._all_transpiler_configs():
             all_dialects = all_dialects.union(config.remorph.dialects)
         return all_dialects
 
-    def transpilers_with_dialect(self, dialect: str) -> set[str]:
+    def transpilers_with_dialect(self, dialect: str) -> Set[str]:
+        """
+        Query the set of transpilers that can handle a given dialect.
+
+        Args:
+          dialect: The dialect to check for.
+        Returns:
+          The set of transpiler names for installed transpilers that can handle a given dialect.
+        """
         configs = filter(lambda cfg: dialect in cfg.remorph.dialects, self.all_transpiler_configs().values())
-        return set(config.name for config in configs)
+        return frozenset(config.name for config in configs)
 
     def transpiler_config_path(self, transpiler_name: str) -> Path:
-        # Note: Can't just go straight to the directory: the transpiler names don't exactly match the directory names.
+        """
+        Obtain the path to a configuration file for an installed transpiler.
+
+        Args:
+          transpiler_name: The transpiler name of the transpiler whose path is sought.
+        Returns:
+          The path of the configuration file for the given installed transpiler. If multiple installed transpilers
+          have the same transpiler name, either may be returned.
+        Raises:
+          ValueError: If there is no installed transpiler with the given transpiler name.
+        """
+        # Note: Because it's the transpiler name, have to hunt through the installed list rather get it directly.
         try:
             config = next(c for c in self._all_transpiler_configs() if c.name == transpiler_name)
         except StopIteration as e:
             raise ValueError(f"No such transpiler: {transpiler_name}") from e
         return config.path
 
-    def transpiler_config_options(self, transpiler_name: str, source_dialect: str) -> list[LSPConfigOptionV1]:
+    def transpiler_config_options(self, transpiler_name: str, source_dialect: str) -> Sequence[LSPConfigOptionV1]:
+        """
+        Query the additional configuration options that are available for a given transpiler and source dialect that it
+        supports.
+
+        Args:
+          transpiler_name: The transpiler name of the transpiler that may provide options.
+          source_dialect: The source dialect supported by the given for which options are sought.
+        Returns:
+          A sequence of configuration options, possibly empty, that are supported by the given transpiler for the
+          specified source dialect.
+        """
         config = self.all_transpiler_configs().get(transpiler_name, None)
         if not config:
             return []  # gracefully returns an empty list, since this can only happen during testing
