@@ -27,7 +27,7 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Install Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           cache: 'pip'
           cache-dependency-path: '**/pyproject.toml'
@@ -54,7 +54,7 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Install Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           cache: 'pip'
           cache-dependency-path: '**/pyproject.toml'
@@ -87,7 +87,7 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Install Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           cache: 'pip'
           cache-dependency-path: '**/pyproject.toml'
@@ -140,7 +140,7 @@ jobs:
           fetch-depth: 0
 
       - name: Install Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           cache: 'pip'
           cache-dependency-path: '**/pyproject.toml'
@@ -191,7 +191,7 @@ jobs:
       uses: actions/checkout@v5
 
     - name: Install Python
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v6
       with:
         cache: 'pip'
         cache-dependency-path: '**/pyproject.toml'
