@@ -11,7 +11,7 @@ Documentation is available at: https://databrickslabs.github.io/lakebridge/
 Contribution
 ------------
 
-Please see the contribution guidance here on how to contribute to the project (build, test, and submit a PR).
+Please see the contribution guidance [here](docs/lakebridge/docs/dev/contributing.md) on how to contribute to the project (build, test, and submit a PR).
 
 Project Support
 ---------------
