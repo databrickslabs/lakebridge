@@ -5,10 +5,11 @@ import json
 import logging
 import os
 import re
+import sys
 import time
 from collections.abc import Mapping
 from pathlib import Path
-from typing import NoReturn
+from typing import NoReturn, TextIO
 
 from databricks.sdk.service.sql import CreateWarehouseRequestWarehouseType
 from databricks.sdk import WorkspaceClient
@@ -612,17 +613,36 @@ def install_transpile(
     *,
     w: WorkspaceClient,
     artifact: str | None = None,
+    interactive: str | None = None,
     transpiler_repository: TranspilerRepository = TranspilerRepository.user_home(),
 ) -> None:
     """Install or upgrade the Lakebridge transpilers."""
+    is_interactive = interactive_mode(interactive)
     ctx = ApplicationContext(w)
     ctx.add_user_agent_extra("cmd", "install-transpile")
     if artifact:
         ctx.add_user_agent_extra("artifact-overload", Path(artifact).name)
     user = w.current_user
     logger.debug(f"User: {user}")
-    transpile_installer = installer(w, transpiler_repository)
+    transpile_installer = installer(w, transpiler_repository, is_interactive=is_interactive)
     transpile_installer.run(module="transpile", artifact=artifact)
+
+
+def interactive_mode(interactive: str | None, *, default: str = "auto", input_stream: TextIO = sys.stdin) -> bool:
+    """Convert the raw '--interactive' argument into a boolean."""
+    if interactive is None:
+        interactive = default
+    match interactive.lower():
+        case "true":
+            return True
+        case "false":
+            return False
+        # Convention is that if the input_stream is a TTY, user interaction is allowed.
+        case "auto":
+            return input_stream.isatty()
+
+    msg = f"Invalid value for '--interactive': {interactive!r} must be 'true', 'false' or 'auto'."
+    raise_validation_exception(msg)
 
 
 @lakebridge.command(is_unauthenticated=False)
@@ -640,7 +660,7 @@ def configure_reconcile(
         dbsql_id = _create_warehouse(w)
         w.config.warehouse_id = dbsql_id
     logger.debug(f"Warehouse ID used for configuring reconcile: {w.config.warehouse_id}.")
-    reconcile_installer = installer(w, transpiler_repository)
+    reconcile_installer = installer(w, transpiler_repository, is_interactive=True)
     reconcile_installer.run(module="reconcile")
 
 

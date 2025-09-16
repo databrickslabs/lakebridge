@@ -61,5 +61,8 @@ commands:
       - name: artifact
         description: Local path to transpiler artifact
         default: null
+      - name: interactive
+        description: "Whether installing in interactive mode, which may prompt for configuration settings."
+        default: auto
   - name: configure-reconcile
     description: "Configure Necessary Reconcile Dependencies"
