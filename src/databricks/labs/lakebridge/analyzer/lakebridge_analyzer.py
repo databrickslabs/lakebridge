@@ -49,7 +49,7 @@ class LakebridgeAnalyzer(Analyzer):
             if platform is not None:
                 logger.warning(f"Invalid source technology {platform}")
             platform = self._prompts.choice("Select the source technology", self.supported_source_technologies())
-        assert _PLATFORM_TO_SOURCE_TECHNOLOGY[platform], f"Unsupported platform: {platform}"
+        assert platform in _PLATFORM_TO_SOURCE_TECHNOLOGY
 
         return platform
 
