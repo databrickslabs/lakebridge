@@ -1,3 +1,5 @@
+import sys
+
 from databricks.labs.blueprint.logger import install_logger
 from databricks.labs.blueprint.entrypoint import get_logger
 from databricks.sdk import WorkspaceClient
@@ -18,6 +20,7 @@ def main() -> None:
     installer = _installer(
         WorkspaceClient(product="lakebridge", product_version=__version__),
         transpiler_repository=TranspilerRepository.user_home(),
+        is_interactive=sys.stdin.isatty(),
     )
     if not installer.upgrade_installed_transpilers():
         logger.debug("No existing Lakebridge transpilers detected; assuming fresh installation.")
