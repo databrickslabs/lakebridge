@@ -49,7 +49,7 @@ class DataSource(ABC):
         Used in the implementations of get_schema to build a Schema DTO from the `INFORMATION_SCHEMA` query result.
         The returned Schema is normalized in case the database is having columns with special characters and standardize
         """
-        name = meta_column.col_name.lower()
+        name = meta_column.column_name.lower()
         dtype = meta_column.data_type.strip().lower()
         if normalize:
             normalized = self.normalize_identifier(name)
