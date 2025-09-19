@@ -16,7 +16,7 @@ on:
 
 env:
   HATCH_VERSION: 1.14.1
-  FILTER_JSON: '{}'
+  filter_json: '{}'
 
 jobs:
   test-python:
@@ -38,7 +38,7 @@ jobs:
         run: pip install hatch==$HATCH_VERSION
 
       - name: Test
-        run: echo "FILTER_JSON = $FILTER_JSON"
+        run: echo "FILTER_JSON = $filter_json"
 
       - name: Run unit tests
         run: hatch run test
