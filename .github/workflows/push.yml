@@ -16,6 +16,7 @@ on:
 
 env:
   HATCH_VERSION: 1.14.1
+  FILTER_JSON: '{}'
 
 jobs:
   test-python:
