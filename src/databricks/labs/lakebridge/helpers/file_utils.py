@@ -70,7 +70,7 @@ def chdir(new_path: Path) -> Generator[None, None, None]:
         os.chdir(saved_path)
 
 
-def check_path(path: str) -> bool:
+def check_path(path: Path | str) -> bool:
     """Validates a path for both existing files and writable files."""
     try:
         path_obj = Path(path) if not isinstance(path, Path) else path

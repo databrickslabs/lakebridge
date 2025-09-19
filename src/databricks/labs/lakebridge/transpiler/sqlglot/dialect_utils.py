@@ -1,6 +1,6 @@
 from sqlglot import Dialects, Dialect
 
-from databricks.labs.lakebridge.transpiler.sqlglot.parsers import oracle, presto, snowflake
+from databricks.labs.lakebridge.transpiler.sqlglot.parsers import oracle, presto, snowflake, tsql
 from databricks.labs.lakebridge.transpiler.sqlglot.generator.databricks import Databricks
 
 SQLGLOT_DIALECTS: dict[str, type[Dialect] | str] = {
@@ -17,7 +17,7 @@ SQLGLOT_DIALECTS: dict[str, type[Dialect] | str] = {
     "sqlite": Dialects.SQLITE,
     "teradata": Dialects.TERADATA,
     "trino": Dialects.TRINO,
-    "tsql": Dialects.TSQL,
+    "tsql": tsql.Tsql,
     "mssql": Dialects.TSQL,
     "synapse": Dialects.TSQL,
     "vertica": Dialects.POSTGRES,
