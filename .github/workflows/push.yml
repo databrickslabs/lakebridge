@@ -36,6 +36,9 @@ jobs:
       - name: Install hatch
         run: pip install hatch==$HATCH_VERSION
 
+      - name: Test
+        run: echo "FILTER_JSON = $FILTER_JSON"
+
       - name: Run unit tests
         run: hatch run test
 
