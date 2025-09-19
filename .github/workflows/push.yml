@@ -15,7 +15,7 @@ on:
       - main
 
 env:
-  HATCH_VERSION: 1.9.1
+  HATCH_VERSION: 1.14.1
 
 jobs:
   test-python:
