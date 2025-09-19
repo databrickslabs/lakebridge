@@ -15,7 +15,7 @@ on:
       - main
 
 env:
-  HATCH_VERSION: 1.9.1
+  HATCH_VERSION: 1.14.1
 
 jobs:
   test-python:
@@ -34,7 +34,7 @@ jobs:
           python-version: '3.10'
 
       - name: Install hatch
-        run: pip install hatch==$HATCH_VERSION
+        run: pip install hatch==$HATCH_VERSION 'click<8.3.0' # https://github.com/pallets/click/issues/3065
 
       - name: Run unit tests
         run: hatch run test
@@ -61,7 +61,7 @@ jobs:
           python-version: '3.10'
 
       - name: Install hatch
-        run: pip install hatch==$HATCH_VERSION
+        run: pip install hatch==$HATCH_VERSION 'click<8.3.0' # https://github.com/pallets/click/issues/3065
 
       - name: Setup Spark Remote
         run: |
@@ -94,7 +94,7 @@ jobs:
           python-version: 3.10.x
 
       - name: Install hatch
-        run: pip install hatch==$HATCH_VERSION
+        run: pip install hatch==$HATCH_VERSION 'click<8.3.0' # https://github.com/pallets/click/issues/3065
 
       - name: Reformat code
         run: make fmt
@@ -147,7 +147,7 @@ jobs:
           python-version: 3.10.x
 
       - name: Install hatch
-        run: pip install hatch==$HATCH_VERSION
+        run: pip install hatch==$HATCH_VERSION 'click<8.3.0' # https://github.com/pallets/click/issues/3065
 
       - name: Install Databricks CLI
         uses: databricks/setup-cli@main
@@ -199,11 +199,11 @@ jobs:
 
     - name: Install hatch (Windows)
       if: runner.os == 'Windows'
-      run: pip install hatch=="$env:HATCH_VERSION"
+      run: pip install hatch==$env:HATCH_VERSION 'click<8.3.0' # https://github.com/pallets/click/issues/3065
 
     - name: Install hatch (Non-Windows)
       if: runner.os != 'Windows'
-      run: pip install hatch==$HATCH_VERSION
+      run: pip install hatch==$HATCH_VERSION 'click<8.3.0' # https://github.com/pallets/click/issues/3065
 
     - name: Install Databricks CLI
       uses: databricks/setup-cli@main
