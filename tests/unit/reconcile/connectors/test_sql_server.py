@@ -100,7 +100,7 @@ def test_read_data_with_options():
     )
     spark.read.format().option().option.assert_called_with("driver", "com.microsoft.sqlserver.jdbc.SQLServerDriver")
     spark.read.format().option().option().option.assert_called_with(
-        "dbtable", "(WITH tmp AS (SELECT * from org.data.employee) select 1 from tmp) tmp"
+        "dbtable", "(WITH tmp AS (SELECT * from org.data.[employee]) select 1 from tmp) tmp"
     )
     actual_args = spark.read.format().option().option().option().options.call_args.kwargs
     expected_args = {
@@ -129,7 +129,7 @@ def test_get_schema():
             r'\s+',
             ' ',
             r"""(SELECT
-                     COLUMN_NAME,
+                     COLUMN_NAME AS 'column_name',
                      CASE
                         WHEN DATA_TYPE IN ('int', 'bigint')
                             THEN DATA_TYPE
@@ -150,7 +150,7 @@ def test_get_schema():
                         WHEN DATA_TYPE IN ('binary','varbinary')
                                 THEN 'binary'
                         ELSE DATA_TYPE
-                    END AS 'DATA_TYPE'
+                    END AS 'data_type'
                     FROM
                         INFORMATION_SCHEMA.COLUMNS
                     WHERE LOWER(TABLE_NAME) = LOWER('supplier')
@@ -173,7 +173,7 @@ def test_get_schema_exception_handling():
     with pytest.raises(
         DataSourceRuntimeException,
         match=re.escape(
-            """Runtime exception occurred while fetching schema using SELECT COLUMN_NAME, CASE WHEN DATA_TYPE IN ('int', 'bigint') THEN DATA_TYPE WHEN DATA_TYPE IN ('smallint', 'tinyint') THEN 'smallint' WHEN DATA_TYPE IN ('decimal' ,'numeric') THEN 'decimal(' + CAST(NUMERIC_PRECISION AS VARCHAR) + ',' + CAST(NUMERIC_SCALE AS VARCHAR) + ')' WHEN DATA_TYPE IN ('float', 'real') THEN 'double' WHEN CHARACTER_MAXIMUM_LENGTH IS NOT NULL AND DATA_TYPE IN ('varchar','char','text','nchar','nvarchar','ntext') THEN DATA_TYPE WHEN DATA_TYPE IN ('date','time','datetime', 'datetime2','smalldatetime','datetimeoffset') THEN DATA_TYPE WHEN DATA_TYPE IN ('bit') THEN 'boolean' WHEN DATA_TYPE IN ('binary','varbinary') THEN 'binary' ELSE DATA_TYPE END AS 'DATA_TYPE' FROM INFORMATION_SCHEMA.COLUMNS WHERE LOWER(TABLE_NAME) = LOWER('supplier') AND LOWER(TABLE_SCHEMA) = LOWER('schema') AND LOWER(TABLE_CATALOG) = LOWER('org')  : Test Exception"""
+            """Runtime exception occurred while fetching schema using SELECT COLUMN_NAME AS 'column_name', CASE WHEN DATA_TYPE IN ('int', 'bigint') THEN DATA_TYPE WHEN DATA_TYPE IN ('smallint', 'tinyint') THEN 'smallint' WHEN DATA_TYPE IN ('decimal' ,'numeric') THEN 'decimal(' + CAST(NUMERIC_PRECISION AS VARCHAR) + ',' + CAST(NUMERIC_SCALE AS VARCHAR) + ')' WHEN DATA_TYPE IN ('float', 'real') THEN 'double' WHEN CHARACTER_MAXIMUM_LENGTH IS NOT NULL AND DATA_TYPE IN ('varchar','char','text','nchar','nvarchar','ntext') THEN DATA_TYPE WHEN DATA_TYPE IN ('date','time','datetime', 'datetime2','smalldatetime','datetimeoffset') THEN DATA_TYPE WHEN DATA_TYPE IN ('bit') THEN 'boolean' WHEN DATA_TYPE IN ('binary','varbinary') THEN 'binary' ELSE DATA_TYPE END AS 'data_type' FROM INFORMATION_SCHEMA.COLUMNS WHERE LOWER(TABLE_NAME) = LOWER('supplier') AND LOWER(TABLE_SCHEMA) = LOWER('schema') AND LOWER(TABLE_CATALOG) = LOWER('org')  : Test Exception"""
         ),
     ):
         data_source.get_schema("org", "schema", "supplier")

@@ -674,10 +674,16 @@ def analyze(
 ):
     """Run the Analyzer"""
     ctx = ApplicationContext(w)
-    ctx.add_user_agent_extra("cmd", "analyze")
+    try:
+        result = ctx.analyzer.run_analyzer(source_directory, report_file, source_tech)
+        ctx.add_user_agent_extra("analyzer_source_tech", result.source_system)
+    finally:
+        exception_cls, _, _ = sys.exc_info()
+        if exception_cls is not None:
+            ctx.add_user_agent_extra("analyzer_error", exception_cls.__name__)
 
-    logger.debug(f"User: {ctx.current_user}")
-    ctx.analyzer.run_analyzer(source_directory, report_file, source_tech)
+        ctx.add_user_agent_extra("cmd", "analyze")
+        logger.debug(f"User: {ctx.current_user}")
 
 
 if __name__ == "__main__":
