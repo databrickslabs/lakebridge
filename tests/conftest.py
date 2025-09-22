@@ -323,6 +323,16 @@ def oracle_schema_fixture_factory(column_name: str, data_type: str) -> Schema:
     )
 
 
+def tsql_schema_fixture_factory(column_name: str, data_type: str) -> Schema:
+    norm = DialectUtils.normalize_identifier(column_name, "[", "]")
+    return schema_fixture_factory(
+        norm.ansi_normalized,
+        data_type,
+        norm.ansi_normalized,
+        norm.source_normalized,
+    )
+
+
 def ansi_schema_fixture_factory(column_name: str, data_type: str) -> Schema:
     ansi = DialectUtils.ansi_normalize_identifier(column_name)
     return schema_fixture_factory(
@@ -368,14 +378,15 @@ def morpheus_artifact() -> Path:
 
 class FakeDataSource(DataSource):
 
-    def __init__(self, delimiter: str):
-        self.delimiter = delimiter
+    def __init__(self, start_delimiter: str, end_delimiter: str):
+        self.start_delimiter = start_delimiter
+        self.end_delimiter = end_delimiter
 
     def get_schema(self, catalog: str | None, schema: str, table: str, normalize: bool = True) -> list[Schema]:
         raise RuntimeError("Not implemented")
 
     def normalize_identifier(self, identifier: str) -> NormalizedIdentifier:
-        return DialectUtils.normalize_identifier(identifier, self.delimiter, self.delimiter)
+        return DialectUtils.normalize_identifier(identifier, self.start_delimiter, self.end_delimiter)
 
     def read_data(
         self, catalog: str | None, schema: str, table: str, query: str, options: JdbcReaderOptions | None
@@ -385,12 +396,17 @@ class FakeDataSource(DataSource):
 
 @pytest.fixture
 def fake_oracle_datasource() -> FakeDataSource:
-    return FakeDataSource("\"")
+    return FakeDataSource('"', '"')
 
 
 @pytest.fixture
 def fake_databricks_datasource() -> FakeDataSource:
-    return FakeDataSource("`")
+    return FakeDataSource("`", "`")
+
+
+@pytest.fixture
+def fake_tsql_datasource() -> FakeDataSource:
+    return FakeDataSource("[", "]")
 
 
 @pytest.fixture
@@ -418,6 +434,20 @@ def snowflake_table_conf_with_opts(normalize_config_service: NormalizeReconConfi
 
 
 @pytest.fixture
+def tsql_table_conf_with_opts(normalize_config_service: NormalizeReconConfigService, table_conf_with_opts):
+    conf = normalize_config_service.normalize_recon_table_config(table_conf_with_opts)
+    conf.transformations = [  # SQL has to be valid
+        Transformation(
+            column_name="`s_address`", source="substring([s_address],1,11)", target="substring(`s_address_t`,1,11)"
+        ),
+        Transformation(column_name="`s_name`", source="upper([s_name])", target="upper(`s_name`)"),
+    ]
+    if conf.filters:
+        conf.filters.source = "[s_name]='t' and [s_address]='a'"
+    return conf
+
+
+@pytest.fixture
 def table_schema_oracle_ansi(table_schema):
     src_schema, tgt_schema = table_schema
     src_schema = [oracle_schema_fixture_factory(s.column_name, s.data_type) for s in src_schema]
@@ -429,5 +459,13 @@ def table_schema_oracle_ansi(table_schema):
 def table_schema_ansi_ansi(table_schema):
     src_schema, tgt_schema = table_schema
     src_schema = [ansi_schema_fixture_factory(s.column_name, s.data_type) for s in src_schema]
+    tgt_schema = [ansi_schema_fixture_factory(s.column_name, s.data_type) for s in tgt_schema]
+    return src_schema, tgt_schema
+
+
+@pytest.fixture
+def table_schema_tsql_ansi(table_schema):
+    src_schema, tgt_schema = table_schema
+    src_schema = [tsql_schema_fixture_factory(s.column_name, s.data_type) for s in src_schema]
     tgt_schema = [ansi_schema_fixture_factory(s.column_name, s.data_type) for s in tgt_schema]
     return src_schema, tgt_schema
