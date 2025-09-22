@@ -7,7 +7,7 @@ from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dial
 
 from databricks.sdk import WorkspaceClient
 
-from tests.integration.connections.debug_envgetter import TestEnvGetter
+from tests.integration.debug_envgetter import TestEnvGetter
 
 
 class TSQLServerDataSourceUnderTest(TSQLServerDataSource):
