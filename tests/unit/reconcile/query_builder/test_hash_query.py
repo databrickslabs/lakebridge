@@ -117,6 +117,50 @@ def test_hash_query_builder_for_databricks_src(
     assert tgt_actual == tgt_expected
 
 
+def test_hash_query_builder_for_tsql_src(
+    tsql_table_conf_with_opts,
+    table_schema_tsql_ansi,
+    fake_tsql_datasource,
+    fake_databricks_datasource,
+):
+    src_schema, tgt_schema = table_schema_tsql_ansi
+    src_actual = HashQueryBuilder(
+        tsql_table_conf_with_opts,
+        src_schema,
+        "source",
+        get_dialect("tsql"),
+        fake_tsql_datasource,
+    ).build_query(report_type="data")
+    src_expected = (
+        "SELECT LOWER(CONVERT(VARCHAR(256), HASHBYTES('SHA2_256', "
+        'CONVERT(VARCHAR(256),CONCAT(SUBSTRING([s_address], 1, 11), UPPER([s_name]), '
+        "COALESCE(TRIM(CAST([s_nationkey] AS VARCHAR(256))), '_null_recon_'), "
+        "COALESCE(TRIM(CAST([s_phone] AS VARCHAR(256))), '_null_recon_'), "
+        "COALESCE(TRIM(CAST([s_suppkey] AS VARCHAR(256))), '_null_recon_')))), 2)) AS "
+        'hash_value_recon, [s_nationkey] AS [s_nationkey], [s_suppkey] AS [s_suppkey] '
+        "FROM :tbl WHERE [s_name] = 't' AND [s_address] = 'a'"
+    )
+
+    tgt_actual = HashQueryBuilder(
+        tsql_table_conf_with_opts,
+        tgt_schema,
+        "target",
+        get_dialect("databricks"),
+        fake_databricks_datasource,
+    ).build_query(report_type="data")
+    print(tgt_actual)
+    tgt_expected = (
+        'SELECT LOWER(SHA2(CONCAT(SUBSTRING(`s_address_t`, 1, 11), UPPER(`s_name`), '
+        "COALESCE(TRIM(`s_nationkey_t`), '_null_recon_'), COALESCE(TRIM(`s_phone_t`), "
+        "'_null_recon_'), COALESCE(TRIM(`s_suppkey_t`), '_null_recon_')), 256)) AS "
+        'hash_value_recon, `s_nationkey_t` AS `s_nationkey`, `s_suppkey_t` AS '
+        "`s_suppkey` FROM :tbl WHERE s_name = 't' AND s_address_t = 'a'"
+    )
+
+    assert src_actual == src_expected
+    assert tgt_actual == tgt_expected
+
+
 def test_hash_query_builder_without_column_mapping(table_conf, table_schema_oracle_ansi, fake_databricks_datasource):
     table_conf = table_conf(
         join_columns=["`s_suppkey`"],
