@@ -87,16 +87,15 @@ class WorkspaceInstallation:
     def _upload_wheel(self):
         wheels = self._product_info.wheels(self._ws)
         with wheels:
-            wheel_paths = [wheels.upload_to_wsfs()]
-            wheel_paths = [f"/Workspace{wheel}" for wheel in wheel_paths]
-            return wheel_paths
+            wheel_path = wheels.upload_to_wsfs()
+            return f"/Workspace{wheel_path}"
 
     def install(self, config: LakebridgeConfiguration):
         self._apply_upgrades()
-        wheel_paths: list[str] = self._upload_wheel()
+        wheel_path = self._upload_wheel()
         if config.reconcile:
             logger.info("Installing Lakebridge reconcile Metadata components.")
-            self._recon_deployment.install(config.reconcile, wheel_paths)
+            self._recon_deployment.install(config.reconcile, wheel_path)
 
     def uninstall(self, config: LakebridgeConfiguration):
         # This will remove all the Lakebridge modules
