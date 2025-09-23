@@ -13,7 +13,8 @@ fi
 
 spark=spark-${version}-bin-hadoop3
 spark_connect="spark-connect_2.12"
-
+mssql_jdbc_version="1.4.0"
+mssql_jdbc="spark-mssql-connector_2.12-${mssql_jdbc_version}-BETA"
 mkdir -p "${spark}"
 
 
@@ -29,6 +30,24 @@ else
     wget "https://downloads.apache.org/spark/spark-${version}/${spark}.tgz"
   fi
   tar -xvf "${spark}.tgz"
+fi
+
+JARS_DIR=$HOME/spark/${spark}/jars
+MSSQL_JDBC_JAR=$HOME/spark/${spark}/jars/${mssql_jdbc}.jar
+if [ -f "${MSSQL_JDBC_JAR}" ];then
+  echo "MSSQL JAR already exists"
+else
+  echo "Downloading MSSQL JAR and dependencies"
+  ## fixes ClassNotFoundException: com.microsoft.sqlserver.jdbc.SQLServerDriver
+  ## per https://github.com/microsoft/sql-spark-connector/issues/26#issuecomment-686155736
+  wget https://repo1.maven.org/maven2/com/microsoft/azure/adal4j/1.6.4/adal4j-1.6.4.jar -O "$JARS_DIR"/adal4j-1.6.4.jar
+  wget https://repo1.maven.org/maven2/com/nimbusds/oauth2-oidc-sdk/6.5/oauth2-oidc-sdk-6.5.jar -O "$JARS_DIR"/oauth2-oidc-sdk-6.5.jar
+  wget https://repo1.maven.org/maven2/com/google/code/gson/gson/2.8.0/gson-2.8.0.jar -O "$JARS_DIR"/gson-2.8.0.jar
+  wget https://repo1.maven.org/maven2/net/minidev/json-smart/1.3.1/json-smart-1.3.1.jar -O "$JARS_DIR"/json-smart-1.3.1.jar
+  wget https://repo1.maven.org/maven2/com/nimbusds/nimbus-jose-jwt/8.2.1/nimbus-jose-jwt-8.2.1.jar -O "$JARS_DIR"/nimbus-jose-jwt-8.2.1.jar
+  wget https://repo1.maven.org/maven2/org/slf4j/slf4j-api/1.7.21/slf4j-api-1.7.21.jar -O "$JARS_DIR"/slf4j-api-1.7.21.jar
+  wget https://repo1.maven.org/maven2/com/microsoft/sqlserver/mssql-jdbc/6.4.0.jre8/mssql-jdbc-6.4.0.jre8.jar -O "$JARS_DIR"/mssql-jdbc-6.4.0.jre8.jar
+  wget "https://github.com/microsoft/sql-spark-connector/releases/download/v${mssql_jdbc_version}/${mssql_jdbc}.jar" -O "$JARS_DIR"/${mssql_jdbc}.jar
 fi
 
 cd "${spark}" || exit 1

@@ -1,5 +1,37 @@
 # Version changelog
 
+## 0.10.9
+
+## Analyzer
+- Fixed bug where Analyzer would crash with large DDL files
+- Adjusted calculation of complexity for TSQL queries to make it more accurate
+
+## Transpilers
+
+### Morpheus
+- T-SQL Updates
+	- **Advanced Statement Support**: Added parsing for `CREATE CERTIFICATE`, `CREATE LOGIN`, `PRINT` commands, and `EXECUTE AS LOGIN` statements     
+	- **SET Command Enhancements**: Support for complex assignment operators (`+=`, `-=`, `*=`, `/=`, `%=`, `&=`, `^=`, `|=`) commonly used in T-SQL scripts     
+	- **CREATE EXTERNAL TABLE**: Improved parsing with flexible syntax for external table definitions and location specifications     
+	- **GRANT/REVOKE Statements**: Comprehensive support for T-SQL security statements with clear Unity Catalog migration guidance     
+	- **DROP Commands**: Enhanced handling of `DROP SENSITIVITY` and other specialized DROP variants     
+	- **Improved Error Reporting**: SQL output now includes `FIXME` comments with detailed error messages for unsupported constructs 
+
+- Snowflake Updates
+	- **Analytics Functions**: Full parsing support for `MATCH_RECOGNIZE` clause with pattern analysis capabilities for complex analytical queries     
+	- **Time Travel Queries**: Enhanced handling of `CHANGES`, `AT`, and `BEFORE` clauses for historical data access patterns     
+	- **REGEXP_INSTR Function**: Complete implementation supporting all 7 parameters (vs Databricks' 2), providing accurate behavioral translation     
+	- **Table-Valued Functions**: Support for parsing inline table-valued functions commonly used in Snowflake     
+	- **GRANT/REVOKE Statements**: Full support for Snowflake's complex privilege management syntax including roles and shares     
+	- **DROP Commands**: Enhanced parsing for `DROP SENSITIVITY` and related data governance statements     
+	- **Improved Error Reporting**: SQL output now includes `FIXME` comments with detailed error messages for unsupported constructs 
+
+## Dependency updates:
+
+ * Bump actions/checkout from 4 to 5 ([#1928](https://github.com/databrickslabs/lakebridge/pull/1928)).
+ * Bump actions/upload-pages-artifact from 3 to 4 ([#1964](https://github.com/databrickslabs/lakebridge/pull/1964)).
+ * Bump mermaid from 11.6.0 to 11.10.1 in /docs/lakebridge ([#1956](https://github.com/databrickslabs/lakebridge/pull/1956)).
+
 ## 0.10.8
 
 ## Transpilers

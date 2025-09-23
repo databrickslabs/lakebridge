@@ -579,7 +579,13 @@ class ReconCapture:
                     )
                     agg_details_df_list.append(agg_details_rule_df)
             else:
-                logger.warning("Aggregate Details Rules are empty")
+                logger.info(
+                    f"Aggregate rule reconciliation is successful."
+                    f" No details to store."
+                    f" Rule: {agg_output.rule.column_from_rule}"
+                    if agg_output.rule
+                    else ""
+                )
 
         if agg_details_df_list:
             agg_details_table_df = self._union_dataframes(agg_details_df_list)

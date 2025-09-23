@@ -199,8 +199,14 @@ class SnowflakeDataSource(DataSource, SecretsMixin, JDBCReaderMixin):
             raise InvalidSnowflakePemPrivateKey(message) from e
 
     def normalize_identifier(self, identifier: str) -> NormalizedIdentifier:
-        return DialectUtils.normalize_identifier(
+        normalized = DialectUtils.normalize_identifier(
             identifier,
             source_start_delimiter=SnowflakeDataSource._IDENTIFIER_DELIMITER,
             source_end_delimiter=SnowflakeDataSource._IDENTIFIER_DELIMITER,
         )
+
+        # TODO: In Snowflake, quoted identifiers are case-sensitive,
+        # it is disabled for now till we have a proper strategy to handle it.
+        normalized.source_normalized = DialectUtils.unnormalize_identifier(identifier)
+
+        return normalized
