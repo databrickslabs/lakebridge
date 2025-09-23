@@ -639,7 +639,7 @@ def test_transpiled_code_output_on_parsing_error(tmp_path: Path, mock_workspace_
     transpiled_sql = "SELECT DECIMAL_COL, STRING_COL FROM my_table"
 
     parsing_error = TranspileError(
-        code=None,
+        code="PARSE_ERROR",
         kind=ErrorKind.PARSING,
         severity=ErrorSeverity.ERROR,
         path=input_file,
@@ -717,7 +717,7 @@ def test_empty_transpiled_code_with_parsing_error(tmp_path: Path, mock_workspace
     input_file.write_text(original_sql)
 
     parsing_error = TranspileError(
-        code=None,
+        code="PARSE_ERROR",
         kind=ErrorKind.PARSING,
         severity=ErrorSeverity.ERROR,
         path=input_file,
