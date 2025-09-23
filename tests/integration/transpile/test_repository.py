@@ -29,6 +29,13 @@ def transpiler_repository(tmp_path: Path) -> TranspilerRepository:
     return repository
 
 
+def test_user_home() -> None:
+    repository = TranspilerRepository.user_home()
+    assert repository is not None
+    # Can be called multiple times, returns the same instance.
+    assert repository is TranspilerRepository.user_home()
+
+
 def test_lists_all_transpiler_names(transpiler_repository: TranspilerRepository) -> None:
     transpiler_names = transpiler_repository.all_transpiler_names()
     assert transpiler_names == {'Morpheus', 'Bladebridge'}
