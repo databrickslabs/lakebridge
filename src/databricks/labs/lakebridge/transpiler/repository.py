@@ -1,14 +1,12 @@
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping, Sequence, Set
+from collections.abc import Generator, Iterable, Mapping, Sequence, Set
 from json import loads
-import logging
-import os
 from typing import Any
 from pathlib import Path
+import logging
 
 from databricks.labs.lakebridge.config import LSPConfigOptionV1
-
 from databricks.labs.lakebridge.transpiler.lsp.lsp_engine import LSPConfig
 
 logger = logging.getLogger(__name__)
@@ -100,13 +98,28 @@ class TranspilerRepository:
         Returns:
           A mapping of configurations, keyed by their transpiler names.
         """
-        all_configs = self._all_transpiler_configs()
-        return {config.name: config for config in all_configs}
+        return {config.name: config for config in self._all_transpiler_configs()}
 
     def all_transpiler_names(self) -> Set[str]:
         """Query the set of transpiler names for all installed transpilers."""
-        all_configs = self.all_transpiler_configs()
-        return frozenset(all_configs.keys())
+        all_configs = self._all_transpiler_configs()
+        return frozenset(config.name for config in all_configs)
+
+    def _transpiler_locations(self) -> Generator[Path, None, None]:
+        transpilers_path = self.transpilers_path()
+        try:
+            # Treat the first entry specially: failure here is different from failure once underway.
+            iterator = transpilers_path.iterdir()
+            yield next(iterator)
+        except StopIteration:
+            # Harmless: no transpilers installed.
+            return
+        except OSError as e:
+            # Also generally non-fatal, on the first entry: normally means there's no installation.
+            logger.debug("Unable to list installed transpilers", exc_info=e)
+            return
+        # After the first entry, continue yielding but any errors need to propagate: something is wrong.
+        yield from iterator
 
     def all_dialects(self) -> Set[str]:
         """Query the set of dialects for all installed transpilers."""
@@ -127,6 +140,12 @@ class TranspilerRepository:
         configs = filter(lambda cfg: dialect in cfg.remorph.dialects, self.all_transpiler_configs().values())
         return frozenset(config.name for config in configs)
 
+    def _find_transpile_config(self, transpiler_name: str) -> LSPConfig | None:
+        try:
+            return next(c for c in self._all_transpiler_configs() if c.name == transpiler_name)
+        except StopIteration:
+            return None
+
     def transpiler_config_path(self, transpiler_name: str) -> Path:
         """
         Obtain the path to a configuration file for an installed transpiler.
@@ -140,10 +159,9 @@ class TranspilerRepository:
           ValueError: If there is no installed transpiler with the given transpiler name.
         """
         # Note: Because it's the transpiler name, have to hunt through the installed list rather get it directly.
-        try:
-            config = next(c for c in self._all_transpiler_configs() if c.name == transpiler_name)
-        except StopIteration as e:
-            raise ValueError(f"No such transpiler: {transpiler_name}") from e
+        config = self._find_transpile_config(transpiler_name)
+        if config is None:
+            raise ValueError(f"No such transpiler: {transpiler_name}")
         return config.path
 
     def transpiler_config_options(self, transpiler_name: str, source_dialect: str) -> Sequence[LSPConfigOptionV1]:
@@ -158,19 +176,16 @@ class TranspilerRepository:
           A sequence of configuration options, possibly empty, that are supported by the given transpiler for the
           specified source dialect.
         """
-        config = self.all_transpiler_configs().get(transpiler_name, None)
-        if not config:
+        config = self._find_transpile_config(transpiler_name)
+        if config is None:
             return []  # gracefully returns an empty list, since this can only happen during testing
         return config.options_for_dialect(source_dialect)
 
     def _all_transpiler_configs(self) -> Iterable[LSPConfig]:
-        transpilers_path = self.transpilers_path()
-        if transpilers_path.exists():
-            all_files = os.listdir(transpilers_path)
-            for file in all_files:
-                config = self._transpiler_config(transpilers_path / file)
-                if config:
-                    yield config
+        for path in self._transpiler_locations():
+            config = self._transpiler_config(path)
+            if config:
+                yield config
 
     @classmethod
     def _transpiler_config(cls, path: Path) -> LSPConfig | None:
