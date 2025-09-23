@@ -19,8 +19,8 @@ def transpiler_repository(tmp_path: Path) -> TranspilerRepository:
         # Just the config and state files, not the whole thing: we're only testing the repository and transpiler
         # metadata.
         for resource in (
-                Path("lib") / "config.yml",
-                Path("state") / "version.json",
+            Path("lib") / "config.yml",
+            Path("state") / "version.json",
         ):
             source = resources_folder / transpiler / resource
             target = install_directory / resource
@@ -83,26 +83,26 @@ def test_transpilers_config_path(transpiler_repository: TranspilerRepository, tr
 @pytest.mark.parametrize(
     ("transpiler_name", "source_dialect", "expected_options"),
     (
-            ("Morpheus", "snowflake", []),
-            (
-                    "Bladebridge",
-                    "datastage",
-                    [
-                            LSPConfigOptionV1(
-                                flag="overrides-file",
-                                method=LSPPromptMethod.QUESTION,
-                                prompt="Specify the config file to override the default[Bladebridge] config - press <enter> for none",
-                                choices=[],
-                                default='<none>',
-                            ),
-                            LSPConfigOptionV1(
-                                flag="target-tech",
-                                method=LSPPromptMethod.CHOICE,
-                                prompt="Specify which technology should be generated",
-                                choices=["SPARKSQL", "PYSPARK"],
-                            ),
-                    ],
-            ),
+        ("Morpheus", "snowflake", []),
+        (
+            "Bladebridge",
+            "datastage",
+            [
+                LSPConfigOptionV1(
+                    flag="overrides-file",
+                    method=LSPPromptMethod.QUESTION,
+                    prompt="Specify the config file to override the default[Bladebridge] config - press <enter> for none",
+                    choices=[],
+                    default='<none>',
+                ),
+                LSPConfigOptionV1(
+                    flag="target-tech",
+                    method=LSPPromptMethod.CHOICE,
+                    prompt="Specify which technology should be generated",
+                    choices=["SPARKSQL", "PYSPARK"],
+                ),
+            ],
+        ),
     ),
 )
 def test_transpiler_dialect_options(
