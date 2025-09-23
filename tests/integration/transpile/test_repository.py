@@ -1,5 +1,5 @@
 import shutil
-from collections.abc import Generator, Sequence
+from collections.abc import Sequence
 from pathlib import Path
 
 import pytest
@@ -9,7 +9,7 @@ from databricks.labs.lakebridge.transpiler.repository import TranspilerRepositor
 
 
 @pytest.fixture
-def transpiler_repository(tmp_path: Path) -> Generator[TranspilerRepository, None, None]:
+def transpiler_repository(tmp_path: Path) -> TranspilerRepository:
     """A thin transpiler repository that only contains metadata for the Bladebridge and Morpheus transpilers."""
     resources_folder = Path(__file__).parent.parent.parent / "resources" / "transpiler_configs"
     labs_path = tmp_path / "labs"
@@ -26,7 +26,7 @@ def transpiler_repository(tmp_path: Path) -> Generator[TranspilerRepository, Non
             target = install_directory / resource
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(source, target)
-    yield repository
+    return repository
 
 
 def test_lists_all_transpiler_names(transpiler_repository: TranspilerRepository) -> None:
