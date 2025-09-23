@@ -630,19 +630,14 @@ class MockTranspileEngine(TranspileEngine):
 
 def test_transpiled_code_output_on_parsing_error(tmp_path: Path, mock_workspace_client: WorkspaceClient):
     """Test that transpiled code is output even when parsing errors occur."""
-    # Setup input and output paths
     input_file = tmp_path / "test.sql"
     output_folder = tmp_path / "output"
     output_folder.mkdir()
 
-    # Original Snowflake SQL
     original_sql = "SELECT NUMBER_COL, VARCHAR_COL FROM my_table"
     input_file.write_text(original_sql)
-
-    # Transpiled SQL (what would be generated)
     transpiled_sql = "SELECT DECIMAL_COL, STRING_COL FROM my_table"
 
-    # Create parsing error
     parsing_error = TranspileError(
         code=None,
         kind=ErrorKind.PARSING,
@@ -652,7 +647,6 @@ def test_transpiled_code_output_on_parsing_error(tmp_path: Path, mock_workspace_
         range=CodeRange(start=CodePosition(0, 0), end=CodePosition(0, 10)),
     )
 
-    # Create mock engine that returns transpiled code with parsing error
     mock_engine = MockTranspileEngine(transpiled_sql, [parsing_error])
 
     config = TranspileConfig(
@@ -666,18 +660,13 @@ def test_transpiled_code_output_on_parsing_error(tmp_path: Path, mock_workspace_
     with patch("databricks.labs.lakebridge.helpers.db_sql.get_sql_backend", return_value=MockBackend()):
         status, errors = transpile(mock_workspace_client, mock_engine, config)
 
-    # Check that output file exists
     output_file = output_folder / "test.sql"
     assert output_file.exists(), "Output file was not created"
-
-    # Read output content
     output_content = output_file.read_text()
 
-    # CRITICAL TEST: Due to line 168 change, output should be transpiled code, not original
     assert output_content == transpiled_sql, f"Expected transpiled code '{transpiled_sql}' but got '{output_content}'"
     assert output_content != original_sql, "Output should not be the original SQL"
 
-    # Verify error was recorded
     assert len(errors) == 1
     assert errors[0].kind == ErrorKind.PARSING
     assert status["parsing_error_count"] == 1
@@ -685,19 +674,14 @@ def test_transpiled_code_output_on_parsing_error(tmp_path: Path, mock_workspace_
 
 def test_transpiled_code_output_without_errors(tmp_path: Path, mock_workspace_client: WorkspaceClient):
     """Test that transpiled code is output correctly when no errors occur."""
-    # Setup input and output paths
     input_file = tmp_path / "success.sql"
     output_folder = tmp_path / "output"
     output_folder.mkdir()
 
-    # Original Snowflake SQL
     original_sql = "CREATE TABLE test (id NUMBER, name VARCHAR(100))"
     input_file.write_text(original_sql)
-
-    # Transpiled SQL
     transpiled_sql = "CREATE TABLE test (id DECIMAL(38, 0), name STRING)"
 
-    # Create mock engine that returns transpiled code without errors
     mock_engine = MockTranspileEngine(transpiled_sql, [])
 
     config = TranspileConfig(
@@ -711,18 +695,13 @@ def test_transpiled_code_output_without_errors(tmp_path: Path, mock_workspace_cl
     with patch("databricks.labs.lakebridge.helpers.db_sql.get_sql_backend", return_value=MockBackend()):
         status, errors = transpile(mock_workspace_client, mock_engine, config)
 
-    # Check output file
     output_file = output_folder / "success.sql"
     assert output_file.exists(), "Output file was not created"
-
-    # Read output content
     output_content = output_file.read_text()
 
-    # Verify transpiled code is output
     assert output_content == transpiled_sql, f"Expected '{transpiled_sql}' but got '{output_content}'"
     assert output_content != original_sql, "Output should be transpiled, not original"
 
-    # Verify no errors
     assert len(errors) == 0
     assert status["parsing_error_count"] == 0
     assert status["total_files_processed"] == 1
@@ -730,16 +709,13 @@ def test_transpiled_code_output_without_errors(tmp_path: Path, mock_workspace_cl
 
 def test_empty_transpiled_code_with_parsing_error(tmp_path: Path, mock_workspace_client: WorkspaceClient):
     """Test handling when transpiled_code is empty/None during parsing error."""
-    # Setup input and output paths
     input_file = tmp_path / "error.sql"
     output_folder = tmp_path / "output"
     output_folder.mkdir()
 
-    # Original SQL that causes error
     original_sql = "INVALID SQL SYNTAX !!!"
     input_file.write_text(original_sql)
 
-    # Create parsing error with empty transpiled code
     parsing_error = TranspileError(
         code=None,
         kind=ErrorKind.PARSING,
@@ -749,7 +725,6 @@ def test_empty_transpiled_code_with_parsing_error(tmp_path: Path, mock_workspace
         range=None,
     )
 
-    # Mock engine returns None/empty transpiled code
     mock_engine = MockTranspileEngine("", [parsing_error])
 
     config = TranspileConfig(
@@ -763,17 +738,12 @@ def test_empty_transpiled_code_with_parsing_error(tmp_path: Path, mock_workspace
     with patch("databricks.labs.lakebridge.helpers.db_sql.get_sql_backend", return_value=MockBackend()):
         status, errors = transpile(mock_workspace_client, mock_engine, config)
 
-    # Check output file
     output_file = output_folder / "error.sql"
     assert output_file.exists(), "Output file should be created even with errors"
-
-    # Read output content
     output_content = output_file.read_text()
 
-    # When transpiled_code is empty, line 168 ensures we still output it (empty string)
     assert output_content == "", "Output should be empty string when transpilation fails completely"
 
-    # Verify error was recorded
     assert len(errors) == 1
     assert errors[0].kind == ErrorKind.PARSING
     assert status["parsing_error_count"] == 1
