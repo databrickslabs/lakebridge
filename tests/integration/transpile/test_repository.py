@@ -15,12 +15,17 @@ def transpiler_repository(tmp_path: Path) -> Generator[TranspilerRepository, Non
     labs_path = tmp_path / "labs"
     repository = TranspilerRepository(labs_path=labs_path)
     for transpiler in ("bladebridge", "morpheus"):
-        install_directory = repository.transpilers_path() / transpiler / "lib"
-        install_directory.mkdir(parents=True)
-        source = resources_folder / transpiler / "lib" / "config.yml"
-        target = install_directory / "config.yml"
-        # Just the config file, not the whole thing: we're only testing the repository and transpiler metadata.
-        shutil.copyfile(source, target)
+        install_directory = repository.transpilers_path() / transpiler
+        # Just the config and state files, not the whole thing: we're only testing the repository and transpiler
+        # metadata.
+        for resource in (
+                Path("lib") / "config.yml",
+                Path("state") / "version.json",
+        ):
+            source = resources_folder / transpiler / resource
+            target = install_directory / resource
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(source, target)
     yield repository
 
 
@@ -53,6 +58,12 @@ def test_lists_dialect_transpilers(transpiler_repository: TranspilerRepository) 
     assert transpilers == {'Morpheus', 'Bladebridge'}
     transpilers = transpiler_repository.transpilers_with_dialect("datastage")
     assert transpilers == {'Bladebridge'}
+
+
+@pytest.mark.parametrize(("product_name", "version"), (("morpheus", "0.4.0"), ("bladebridge", "0.1.9")))
+def test_get_installed_version(transpiler_repository: TranspilerRepository, product_name: str, version: str) -> None:
+    installed_version = transpiler_repository.get_installed_version(product_name)
+    assert installed_version == version
 
 
 @pytest.mark.parametrize("transpiler_name", ("Morpheus", "Bladebridge"))
