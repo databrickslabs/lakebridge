@@ -594,6 +594,7 @@ def test_make_header_with_one_repeated_warning():
 """
     )
 
+
 class MockTranspileEngine(TranspileEngine):
     """Mock transpiler that returns predefined transpiled code."""
 
