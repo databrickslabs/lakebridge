@@ -1,9 +1,10 @@
 import shutil
-from collections.abc import Generator
+from collections.abc import Generator, Sequence
 from pathlib import Path
 
 import pytest
 
+from databricks.labs.lakebridge.config import LSPConfigOptionV1, LSPPromptMethod
 from databricks.labs.lakebridge.transpiler.repository import TranspilerRepository
 
 
@@ -52,3 +53,45 @@ def test_lists_dialect_transpilers(transpiler_repository: TranspilerRepository) 
     assert transpilers == {'Morpheus', 'Bladebridge'}
     transpilers = transpiler_repository.transpilers_with_dialect("datastage")
     assert transpilers == {'Bladebridge'}
+
+
+@pytest.mark.parametrize("transpiler_name", ("Morpheus", "Bladebridge"))
+def test_transpilers_config_path(transpiler_repository: TranspilerRepository, transpiler_name: str) -> None:
+    config_path = transpiler_repository.transpiler_config_path(transpiler_name)
+    assert config_path.name == "config.yml" and config_path.parent.name == "lib"
+    assert config_path.is_file()
+
+
+@pytest.mark.parametrize(
+    ("transpiler_name", "source_dialect", "expected_options"),
+    (
+            ("Morpheus", "snowflake", []),
+            (
+                    "Bladebridge",
+                    "datastage",
+                    [
+                            LSPConfigOptionV1(
+                                flag="overrides-file",
+                                method=LSPPromptMethod.QUESTION,
+                                prompt="Specify the config file to override the default[Bladebridge] config - press <enter> for none",
+                                choices=[],
+                                default='<none>',
+                            ),
+                            LSPConfigOptionV1(
+                                flag="target-tech",
+                                method=LSPPromptMethod.CHOICE,
+                                prompt="Specify which technology should be generated",
+                                choices=["SPARKSQL", "PYSPARK"],
+                            ),
+                    ],
+            ),
+    ),
+)
+def test_transpiler_dialect_options(
+    transpiler_repository: TranspilerRepository,
+    transpiler_name: str,
+    source_dialect: str,
+    expected_options: Sequence[LSPConfigOptionV1],
+) -> None:
+    options = transpiler_repository.transpiler_config_options(transpiler_name, source_dialect)
+    assert options == expected_options
