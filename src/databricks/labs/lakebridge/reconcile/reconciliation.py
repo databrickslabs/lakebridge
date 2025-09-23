@@ -31,7 +31,6 @@ from databricks.labs.lakebridge.reconcile.query_builder.threshold_query import (
 from databricks.labs.lakebridge.reconcile.recon_config import (
     Schema,
     Table,
-    AggregateQueryRules,
     SamplingOptions,
 )
 from databricks.labs.lakebridge.reconcile.recon_output_config import (
@@ -212,21 +211,18 @@ class Reconciliation:
                      #3, MAX, COL3,
         """
 
-        src_query_builder = AggregateQueryBuilder(
+        # build Aggregate queries for source, There could be one
+        # or more queries per table based on the group by columns
+        src_agg_queries = AggregateQueryBuilder(
             table_conf,
             src_schema,
             "source",
             self._source_engine,
             self._source,
-        )
-
-        # build Aggregate queries for source,
-        src_agg_queries: list[AggregateQueryRules] = src_query_builder.build_queries()
-
-        # There could be one or more queries per table based on the group by columns
+        ).build_queries()
 
         # build Aggregate queries for target(Databricks),
-        tgt_agg_queries: list[AggregateQueryRules] = AggregateQueryBuilder(
+        tgt_agg_queries = AggregateQueryBuilder(
             table_conf,
             tgt_schema,
             "target",
