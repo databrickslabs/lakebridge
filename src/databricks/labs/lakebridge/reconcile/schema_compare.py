@@ -44,8 +44,7 @@ class SchemaCompare:
         databricks_types_map = {c.column_name: c.data_type for c in databricks_schema}
 
         master_schema_match_res = [
-            SchemaCompare.match_source_target_schemas(s, target_column_map, databricks_types_map)
-            for s in master_schema
+            SchemaCompare.match_source_target_schemas(s, target_column_map, databricks_types_map) for s in master_schema
         ]
 
         return master_schema_match_res
@@ -63,16 +62,18 @@ class SchemaCompare:
         return master_schema
 
     @staticmethod
-    def match_source_target_schemas(s: Schema,
-                                    target_column_map: dict,
-                                    databricks_schema_map: dict) -> SchemaMatchResult:
-        databricks_column_name = target_column_map.get(s.ansi_normalized_column_name, s.ansi_normalized_column_name)
+    def match_source_target_schemas(
+        schema: Schema, target_column_map: dict, databricks_schema_map: dict
+    ) -> SchemaMatchResult:
+        databricks_column_name = target_column_map.get(
+            schema.ansi_normalized_column_name, schema.ansi_normalized_column_name
+        )
         databricks_datatype = databricks_schema_map.get(databricks_column_name, "Unknown")
 
         return SchemaMatchResult(
-            source_column_normalized=s.source_normalized_column_name,
-            source_column_normalized_ansi=s.ansi_normalized_column_name,
-            source_datatype=s.data_type,
+            source_column_normalized=schema.source_normalized_column_name,
+            source_column_normalized_ansi=schema.ansi_normalized_column_name,
+            source_datatype=schema.data_type,
             databricks_column=databricks_column_name,
             databricks_datatype=databricks_datatype,
         )
@@ -117,19 +118,11 @@ class SchemaCompare:
 
     @classmethod
     def _parse(cls, source: Dialect, source_query: str) -> str:
-        return (
-            parse_one(source_query, read=source)
-            .sql(dialect=get_dialect("databricks"))
-            .replace(", ", ",")
-        )
+        return parse_one(source_query, read=source).sql(dialect=get_dialect("databricks")).replace(", ", ",")
 
     @classmethod
     def _parse_from_databricks(cls, source: Dialect, databricks_query: str) -> str:
-        return (
-            parse_one(databricks_query, read=get_dialect("databricks"))
-            .sql(dialect=source)
-            .replace(", ", ",")
-        )
+        return parse_one(databricks_query, read=get_dialect("databricks")).sql(dialect=source).replace(", ", ",")
 
     def compare(
         self,
