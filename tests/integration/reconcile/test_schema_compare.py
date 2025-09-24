@@ -197,6 +197,7 @@ def oracle_databricks_schema():
 
     return src_schema, tgt_schema
 
+
 def tsql_databricks_schema():
     src_schema = [
         tsql_schema_fixture_factory("col_bit", "bit"),

@@ -115,7 +115,6 @@ class SchemaCompare:
 
         :param source: source dialect e.g. TSQL, Oracle, Snowflake etc.
         :param master: source and target column names and datatypes computed by previous step.
-        :return:
         """
         target = get_dialect("databricks")
         source_query = f"create table dummy ({master.source_column_normalized} {master.source_datatype})"
