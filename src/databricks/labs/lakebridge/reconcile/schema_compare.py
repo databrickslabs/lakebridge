@@ -102,9 +102,19 @@ class SchemaCompare:
     @classmethod
     def _validate_parsed_query(cls, source: Dialect, master: SchemaMatchResult) -> None:
         """
-        Validate the parsed query by comparing the source query and the databricks query after parsing using sqlglot.
-        :param source:
-        :param master:
+        Reconcile the schema of a single column by comparing the source column and the databricks column.
+
+        1. This works by creating two SQL queries. both queries are a create table statement with a single column:
+            * first query uses the source column name and datatype
+            * second query uses the same column name and databricks datatype
+            * we don't use the databricks column name as it may have been renamed.
+            * renaming is checked in the previous step to retrieve the databricks column.
+        2. Parse both queries using sqlglot and convert both to the other dialect
+        3. Compare the converted queries with our original queries.
+        4. If neither of the checks succeed, the column is marked as invalid
+
+        :param source: source dialect e.g. TSQL, Oracle, Snowflake etc.
+        :param master: source and target column names and datatypes computed by previous step.
         :return:
         """
         target = get_dialect("databricks")
