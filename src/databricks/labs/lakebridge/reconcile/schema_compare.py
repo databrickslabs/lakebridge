@@ -105,8 +105,8 @@ class SchemaCompare:
         Reconcile the schema of a single column by comparing the source column and the databricks column.
 
         1. This works by creating two SQL queries. both queries are a create table statement with a single column:
-            * first query uses the source column name and datatype
-            * second query uses the same column name and databricks datatype
+            * first query uses the source column name and datatype to simulate the source.
+            * second query uses the same column name as ansi and databricks datatype to simulate databricks.
             * we don't use the databricks column name as it may have been renamed.
             * renaming is checked in the previous step to retrieve the databricks column.
         2. Parse both queries using sqlglot and convert both to the other dialect
@@ -119,18 +119,23 @@ class SchemaCompare:
         """
         target = get_dialect("databricks")
         source_query = f"create table dummy ({master.source_column_normalized} {master.source_datatype})"
-        parsed_query = cls._parse(source, target, source_query)
+        converted_source_query = cls._parse(source, target, source_query)
         databricks_query = f"create table dummy ({master.source_column_normalized_ansi} {master.databricks_datatype})"
-        parsed_databricks_query = cls._parse(target, source, databricks_query)
+        converted_databricks_query = cls._parse(target, source, databricks_query)
+        parsed_source_check = converted_source_query.lower() == databricks_query.lower()
+        parsed_databricks_check = source_query.lower() == converted_databricks_query.lower()
         logger.info(
             f"""
         Source query: {source_query}
-        Parsed query: {parsed_query}
+        Converted source query: {converted_source_query}
         Databricks query: {databricks_query}
+        Converted databricks query: {converted_databricks_query}
+        Source equality check: {parsed_source_check}
+        Databricks equality check: {parsed_databricks_check}
         """
         )
 
-        if parsed_query.lower() != databricks_query.lower() and source_query.lower() != parsed_databricks_query.lower():
+        if not parsed_source_check and not parsed_databricks_check:
             master.is_valid = False
 
     @classmethod
