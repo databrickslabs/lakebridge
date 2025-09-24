@@ -293,7 +293,7 @@ def report_tables_schema():
 
 
 # TODO remove normalized_ansi and normalized_source
-#  and make source delimiter required so our specs
+#  and make source delimiter is required so our specs
 #  are behaving like production which uses normalization
 def schema_fixture_factory(
     column_name: str,
