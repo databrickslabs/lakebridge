@@ -79,27 +79,27 @@ class LSPConfigOptionV1:
         # Whether a prompt is mandatory or not depends on the prompt method.
         try:
             prompt = data["prompt"]
-            if not isinstance(prompt, str):
-                msg = f"Invalid 'prompt' entry in {data}, expecting a string: {prompt}"
-                raise ValueError(msg)
-            return prompt
         except KeyError as e:
             if prompt_method != LSPPromptMethod.FORCE:
                 raise ValueError(f"Missing 'prompt' attribute in {data}") from e
             return None
+        if not isinstance(prompt, str):
+            msg = f"Invalid 'prompt' entry in {data}, expecting a string: {prompt}"
+            raise ValueError(msg)
+        return prompt
 
     @classmethod
     def _get_choices_field(cls, data: Mapping[str, JsonValue], prompt_method: LSPPromptMethod) -> list[str] | None:
         try:
             choices_unsafe = data["choices"]
-            if not isinstance(choices_unsafe, list) or not all(isinstance(item, str) for item in choices_unsafe):
-                msg = f"Invalid 'choices' entry in {data}, expecting a list of strings: {choices_unsafe}"
-                raise ValueError(msg)
-            return cast(list[str], choices_unsafe)
         except KeyError as e:
             if prompt_method == LSPPromptMethod.CHOICE:
                 raise ValueError(f"Missing 'choices' attribute in {data}") from e
             return None
+        if not isinstance(choices_unsafe, list) or not all(isinstance(item, str) for item in choices_unsafe):
+            msg = f"Invalid 'choices' entry in {data}, expecting a list of strings: {choices_unsafe}"
+            raise ValueError(msg)
+        return cast(list[str], choices_unsafe)
 
     @classmethod
     def _get_default_field(cls, data: Mapping[str, JsonValue]) -> str | None:
