@@ -103,15 +103,11 @@ class LSPConfigOptionV1:
 
     @classmethod
     def _get_default_field(cls, data: Mapping[str, JsonValue]) -> str | None:
-        try:
-            default = data["default"]
-            if default is not None and not isinstance(default, str):
-                msg = f"Invalid 'default' entry in {data}, expecting a string: {default}"
-                raise ValueError(msg)
-            return default
-        except KeyError:
-            # No problem, default is optional
-            return None
+        default = data.get("default", None)
+        if default is not None and not isinstance(default, str):
+            msg = f"Invalid 'default' entry in {data}, expecting a string: {default}"
+            raise ValueError(msg)
+        return default
 
     @classmethod
     def parse(cls, data: JsonValue) -> "LSPConfigOptionV1":
