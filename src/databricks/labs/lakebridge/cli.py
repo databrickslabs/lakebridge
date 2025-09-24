@@ -45,7 +45,10 @@ from databricks.labs.lakebridge.transpiler.transpile_status import ErrorSeverity
 # Subclass to allow controlled access to protected methods.
 class LakeBridge(App):
     def create_workspace_client(self) -> WorkspaceClient:
-        """Create a workspace client, with the appropriate product and version information."""
+        """Create a workspace client, with the appropriate product and version information.
+
+        This is intended only for use by the install/uninstall hooks.
+        """
         self._patch_databricks_host()
         return self._workspace_client()
 
