@@ -41,7 +41,7 @@ class SchemaCompare:
         master_schema = SchemaCompare._drop_columns(master_schema, table_conf)
 
         target_column_map = table_conf.to_src_col_map or {}
-        databricks_types_map = {c.column_name: c.data_type for c in databricks_schema}
+        databricks_types_map = {c.ansi_normalized_column_name: c.data_type for c in databricks_schema}
 
         master_schema_match_res = [
             SchemaCompare.match_source_target_schemas(s, target_column_map, databricks_types_map) for s in master_schema
@@ -101,14 +101,21 @@ class SchemaCompare:
 
     @classmethod
     def _validate_parsed_query(cls, source: Dialect, master: SchemaMatchResult) -> None:
+        """
+        Validate the parsed query by comparing the source query and the databricks query after parsing using sqlglot.
+        :param source:
+        :param master:
+        :return:
+        """
+        target = get_dialect("databricks")
         source_query = f"create table dummy ({master.source_column_normalized} {master.source_datatype})"
-        parsed_query = cls._parse(source, source_query)
+        parsed_query = cls._parse(source, target, source_query)
         databricks_query = f"create table dummy ({master.source_column_normalized_ansi} {master.databricks_datatype})"
-        parsed_databricks_query = cls._parse_from_databricks(source, databricks_query)
+        parsed_databricks_query = cls._parse(target, source, databricks_query)
         logger.info(
             f"""
         Source query: {source_query}
-        Parse query: {parsed_query}
+        Parsed query: {parsed_query}
         Databricks query: {databricks_query}
         """
         )
@@ -117,12 +124,8 @@ class SchemaCompare:
             master.is_valid = False
 
     @classmethod
-    def _parse(cls, source: Dialect, source_query: str) -> str:
-        return parse_one(source_query, read=source).sql(dialect=get_dialect("databricks")).replace(", ", ",")
-
-    @classmethod
-    def _parse_from_databricks(cls, source: Dialect, databricks_query: str) -> str:
-        return parse_one(databricks_query, read=get_dialect("databricks")).sql(dialect=source).replace(", ", ",")
+    def _parse(cls, source: Dialect, target: Dialect, source_query: str) -> str:
+        return parse_one(source_query, read=source).sql(dialect=target).replace(", ", ",")
 
     def compare(
         self,

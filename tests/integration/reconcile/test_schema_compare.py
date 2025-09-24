@@ -229,8 +229,8 @@ def test_snowflake_schema_compare(schemas, mock_spark):
     df = schema_compare_output.compare_df
     assert not schema_compare_output.is_valid
     assert df.count() == 35
-    assert df.filter("is_valid = 'true'").count() == 33
-    assert df.filter("is_valid = 'false'").count() == 2
+    assert df.filter("is_valid = 'true'").count() == 34
+    assert df.filter("is_valid = 'false'").count() == 1
 
 
 def test_databricks_schema_compare(schemas, mock_spark):
