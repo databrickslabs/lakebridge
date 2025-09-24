@@ -1,27 +1,5 @@
-import shutil
-from collections.abc import Generator
-from pathlib import Path
-
-import pytest
-
 from databricks.labs.lakebridge.config import LSPConfigOptionV1, LSPPromptMethod
 from databricks.labs.lakebridge.transpiler.repository import TranspilerRepository, TranspilerInfo
-
-
-@pytest.fixture
-def transpiler_repository(tmp_path: Path) -> Generator[TranspilerRepository, None, None]:
-    """A thin transpiler repository that only contains metadata for the Bladebridge and Morpheus transpilers."""
-    resources_folder = Path(__file__).parent.parent.parent / "resources" / "transpiler_configs"
-    labs_path = tmp_path / "labs"
-    repository = TranspilerRepository(labs_path=labs_path)
-    for transpiler in ("bladebridge", "morpheus"):
-        install_directory = repository.transpilers_path() / transpiler / "lib"
-        install_directory.mkdir(parents=True)
-        source = resources_folder / transpiler / "lib" / "config.yml"
-        target = install_directory / "config.yml"
-        # Just the config file, not the whole thing: we're only testing the repository and transpiler metadata.
-        shutil.copyfile(source, target)
-    yield repository
 
 
 def test_lists_all_transpiler_names(transpiler_repository: TranspilerRepository) -> None:
@@ -46,7 +24,7 @@ def test_installed_transpiler_info(transpiler_repository: TranspilerRepository) 
     assert installed_transpilers == {
         "bladebridge": TranspilerInfo(
             transpiler_name="Bladebridge",
-            version=None,
+            version="0.1.9",
             configuration_path=transpiler_repository.transpilers_path() / "bladebridge" / "lib" / "config.yml",
             dialects={
                 "athena": [bb_overrides],
@@ -65,7 +43,7 @@ def test_installed_transpiler_info(transpiler_repository: TranspilerRepository) 
         ),
         "morpheus": TranspilerInfo(
             transpiler_name="Morpheus",
-            version=None,
+            version="0.4.0",
             configuration_path=transpiler_repository.transpilers_path() / "morpheus" / "lib" / "config.yml",
             dialects={
                 "snowflake": [],
