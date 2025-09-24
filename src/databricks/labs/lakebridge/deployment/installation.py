@@ -60,8 +60,8 @@ class WorkspaceInstallation:
     def _get_ws_version(self):
         try:
             return self._installation.load(Version)
-        except ResourceDoesNotExist as err:
-            logger.warning(f"Unable to get Workspace Version due to: {err}")
+        except ResourceDoesNotExist:
+            logger.debug("No existing version found in workspace; assuming fresh installation.")
             return None
 
     def _apply_upgrades(self):

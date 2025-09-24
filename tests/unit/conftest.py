@@ -31,13 +31,13 @@ from .transpiler.helpers.functional_test_cases import (
 
 
 @pytest.fixture(scope="session")
-def mock_databricks_config():
-    yield create_autospec(Config)
+def mock_databricks_config() -> Config:
+    return create_autospec(Config)
 
 
 @pytest.fixture()
-def transpile_config() -> Generator[TranspileConfig, None, None]:
-    yield TranspileConfig(
+def transpile_config() -> TranspileConfig:
+    return TranspileConfig(
         transpiler_config_path="sqlglot",
         transpiler_options={"-experimental": True},
         source_dialect="snowflake",

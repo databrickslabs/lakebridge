@@ -4,6 +4,7 @@ from unittest.mock import MagicMock, create_autospec
 
 import pytest
 
+from databricks.labs.lakebridge.reconcile.connectors.models import NormalizedIdentifier
 from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
 from databricks.labs.lakebridge.reconcile.connectors.tsql import TSQLServerDataSource
 from databricks.labs.lakebridge.reconcile.exception import DataSourceRuntimeException
@@ -99,7 +100,7 @@ def test_read_data_with_options():
     )
     spark.read.format().option().option.assert_called_with("driver", "com.microsoft.sqlserver.jdbc.SQLServerDriver")
     spark.read.format().option().option().option.assert_called_with(
-        "dbtable", "(WITH tmp AS (SELECT * from org.data.employee) select 1 from tmp) tmp"
+        "dbtable", "(WITH tmp AS (SELECT * from org.data.[employee]) select 1 from tmp) tmp"
     )
     actual_args = spark.read.format().option().option().option().options.call_args.kwargs
     expected_args = {
@@ -128,7 +129,7 @@ def test_get_schema():
             r'\s+',
             ' ',
             r"""(SELECT
-                     COLUMN_NAME,
+                     COLUMN_NAME AS 'column_name',
                      CASE
                         WHEN DATA_TYPE IN ('int', 'bigint')
                             THEN DATA_TYPE
@@ -149,7 +150,7 @@ def test_get_schema():
                         WHEN DATA_TYPE IN ('binary','varbinary')
                                 THEN 'binary'
                         ELSE DATA_TYPE
-                    END AS 'DATA_TYPE'
+                    END AS 'data_type'
                     FROM
                         INFORMATION_SCHEMA.COLUMNS
                     WHERE LOWER(TABLE_NAME) = LOWER('supplier')
@@ -172,7 +173,21 @@ def test_get_schema_exception_handling():
     with pytest.raises(
         DataSourceRuntimeException,
         match=re.escape(
-            """Runtime exception occurred while fetching schema using SELECT COLUMN_NAME, CASE WHEN DATA_TYPE IN ('int', 'bigint') THEN DATA_TYPE WHEN DATA_TYPE IN ('smallint', 'tinyint') THEN 'smallint' WHEN DATA_TYPE IN ('decimal' ,'numeric') THEN 'decimal(' + CAST(NUMERIC_PRECISION AS VARCHAR) + ',' + CAST(NUMERIC_SCALE AS VARCHAR) + ')' WHEN DATA_TYPE IN ('float', 'real') THEN 'double' WHEN CHARACTER_MAXIMUM_LENGTH IS NOT NULL AND DATA_TYPE IN ('varchar','char','text','nchar','nvarchar','ntext') THEN DATA_TYPE WHEN DATA_TYPE IN ('date','time','datetime', 'datetime2','smalldatetime','datetimeoffset') THEN DATA_TYPE WHEN DATA_TYPE IN ('bit') THEN 'boolean' WHEN DATA_TYPE IN ('binary','varbinary') THEN 'binary' ELSE DATA_TYPE END AS 'DATA_TYPE' FROM INFORMATION_SCHEMA.COLUMNS WHERE LOWER(TABLE_NAME) = LOWER('supplier') AND LOWER(TABLE_SCHEMA) = LOWER('schema') AND LOWER(TABLE_CATALOG) = LOWER('org')  : Test Exception"""
+            """Runtime exception occurred while fetching schema using SELECT COLUMN_NAME AS 'column_name', CASE WHEN DATA_TYPE IN ('int', 'bigint') THEN DATA_TYPE WHEN DATA_TYPE IN ('smallint', 'tinyint') THEN 'smallint' WHEN DATA_TYPE IN ('decimal' ,'numeric') THEN 'decimal(' + CAST(NUMERIC_PRECISION AS VARCHAR) + ',' + CAST(NUMERIC_SCALE AS VARCHAR) + ')' WHEN DATA_TYPE IN ('float', 'real') THEN 'double' WHEN CHARACTER_MAXIMUM_LENGTH IS NOT NULL AND DATA_TYPE IN ('varchar','char','text','nchar','nvarchar','ntext') THEN DATA_TYPE WHEN DATA_TYPE IN ('date','time','datetime', 'datetime2','smalldatetime','datetimeoffset') THEN DATA_TYPE WHEN DATA_TYPE IN ('bit') THEN 'boolean' WHEN DATA_TYPE IN ('binary','varbinary') THEN 'binary' ELSE DATA_TYPE END AS 'data_type' FROM INFORMATION_SCHEMA.COLUMNS WHERE LOWER(TABLE_NAME) = LOWER('supplier') AND LOWER(TABLE_SCHEMA) = LOWER('schema') AND LOWER(TABLE_CATALOG) = LOWER('org')  : Test Exception"""
         ),
     ):
         data_source.get_schema("org", "schema", "supplier")
+
+
+def test_normalize_identifier():
+    engine, spark, ws, scope = initial_setup()
+    data_source = TSQLServerDataSource(engine, spark, ws, scope)
+
+    assert data_source.normalize_identifier("a") == NormalizedIdentifier("`a`", "[a]")
+    assert data_source.normalize_identifier('"b"') == NormalizedIdentifier("`b`", "[b]")
+    assert data_source.normalize_identifier("[c]") == NormalizedIdentifier("`c`", "[c]")
+    assert data_source.normalize_identifier('"`e`f`"') == NormalizedIdentifier("```e``f```", '[`e`f`]')
+    assert data_source.normalize_identifier('`e``f`') == NormalizedIdentifier("`e``f`", '[e`f]')
+    assert data_source.normalize_identifier('[ g h ]') == NormalizedIdentifier("` g h `", '[ g h ]')
+    assert data_source.normalize_identifier('[[i]]]') == NormalizedIdentifier("`[i]`", '[[i]]]')
+    assert data_source.normalize_identifier('"""j""k"""') == NormalizedIdentifier('`"j"k"`', '["j"k"]')

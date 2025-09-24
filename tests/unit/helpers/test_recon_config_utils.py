@@ -7,7 +7,7 @@ from databricks.labs.lakebridge.helpers.recon_config_utils import ReconConfigPro
 from databricks.sdk.errors.platform import ResourceDoesNotExist
 from databricks.sdk.service.workspace import SecretScope
 
-SOURCE_DICT = {"databricks": "0", "oracle": "1", "snowflake": "2"}
+SOURCE_DICT = {"databricks": "0", "mssql": "1", "oracle": "2", "snowflake": "3", "synapse": "4"}
 SCOPE_NAME = "dummy_scope"
 
 

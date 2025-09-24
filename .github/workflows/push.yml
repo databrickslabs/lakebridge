@@ -15,7 +15,7 @@ on:
       - main
 
 env:
-  HATCH_VERSION: 1.9.1
+  HATCH_VERSION: 1.14.1
 
 jobs:
   test-python:
@@ -24,17 +24,17 @@ jobs:
       labels: linux-ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           cache: 'pip'
           cache-dependency-path: '**/pyproject.toml'
           python-version: '3.10'
 
       - name: Install hatch
-        run: pip install hatch==$HATCH_VERSION
+        run: pip install hatch==$HATCH_VERSION 'click<8.3.0' # https://github.com/pallets/click/issues/3065
 
       - name: Run unit tests
         run: hatch run test
@@ -51,17 +51,17 @@ jobs:
       labels: linux-ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           cache: 'pip'
           cache-dependency-path: '**/pyproject.toml'
           python-version: '3.10'
 
       - name: Install hatch
-        run: pip install hatch==$HATCH_VERSION
+        run: pip install hatch==$HATCH_VERSION 'click<8.3.0' # https://github.com/pallets/click/issues/3065
 
       - name: Setup Spark Remote
         run: |
@@ -84,17 +84,17 @@ jobs:
       labels: linux-ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           cache: 'pip'
           cache-dependency-path: '**/pyproject.toml'
           python-version: 3.10.x
 
       - name: Install hatch
-        run: pip install hatch==$HATCH_VERSION
+        run: pip install hatch==$HATCH_VERSION 'click<8.3.0' # https://github.com/pallets/click/issues/3065
 
       - name: Reformat code
         run: make fmt
@@ -111,7 +111,7 @@ jobs:
     if: github.event_name == 'pull_request' && (github.event.action == 'opened' || github.event.action == 'synchronize')
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -135,19 +135,19 @@ jobs:
       OUTPUT_DIR: ./test-reports
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
       - name: Install Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           cache: 'pip'
           cache-dependency-path: '**/pyproject.toml'
           python-version: 3.10.x
 
       - name: Install hatch
-        run: pip install hatch==$HATCH_VERSION
+        run: pip install hatch==$HATCH_VERSION 'click<8.3.0' # https://github.com/pallets/click/issues/3065
 
       - name: Install Databricks CLI
         uses: databricks/setup-cli@main
@@ -188,10 +188,10 @@ jobs:
 
     steps:
     - name: Checkout
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
 
     - name: Install Python
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v6
       with:
         cache: 'pip'
         cache-dependency-path: '**/pyproject.toml'
@@ -199,11 +199,11 @@ jobs:
 
     - name: Install hatch (Windows)
       if: runner.os == 'Windows'
-      run: pip install hatch=="$env:HATCH_VERSION"
+      run: pip install hatch==$env:HATCH_VERSION 'click<8.3.0' # https://github.com/pallets/click/issues/3065
 
     - name: Install hatch (Non-Windows)
       if: runner.os != 'Windows'
-      run: pip install hatch==$HATCH_VERSION
+      run: pip install hatch==$HATCH_VERSION 'click<8.3.0' # https://github.com/pallets/click/issues/3065
 
     - name: Install Databricks CLI
       uses: databricks/setup-cli@main
@@ -216,6 +216,10 @@ jobs:
         java-version: 11
 
     - name: Run install tests
+      env:
+        # Without this Python will use AppData\Local\Temp on Windows, leading to test failures.
+        # (Unclear if this is related to permissions, or possibly path length issues due to 260-character maximum.)
+        TMPDIR: ${{ runner.temp }}
       run: hatch run test-install
 
     - name: Publish test coverage

@@ -125,6 +125,7 @@ def anonymous(expr: exp.Column, func: str, is_expr: bool = False, dialect=None) 
     return new_expr
 
 
+# TODO Standardize impl and use quoted and Identifier/Column consistently
 def build_column(this: exp.ExpOrStr, table_name="", quoted=False, alias=None) -> exp.Expression:
     if alias:
         if isinstance(this, str):
@@ -133,6 +134,10 @@ def build_column(this: exp.ExpOrStr, table_name="", quoted=False, alias=None) ->
             )
         return exp.Alias(this=this, alias=exp.Identifier(this=alias, quoted=quoted))
     return exp.Column(this=exp.Identifier(this=this, quoted=quoted), table=table_name)
+
+
+def build_column_no_alias(this: str, table_name="") -> exp.Expression:
+    return exp.Column(this=this, table=table_name)
 
 
 def build_literal(this: exp.ExpOrStr, alias=None, quoted=False, is_string=True, cast=None) -> exp.Expression:
@@ -207,10 +212,11 @@ def build_sub(
     right_column_name: str,
     left_table_name: str | None = None,
     right_table_name: str | None = None,
+    quoted: bool = False,
 ) -> exp.Sub:
     return exp.Sub(
-        this=build_column(left_column_name, left_table_name),
-        expression=build_column(right_column_name, right_table_name),
+        this=build_column(left_column_name, left_table_name, quoted=quoted),
+        expression=build_column(right_column_name, right_table_name, quoted=quoted),
     )
 
 
@@ -257,7 +263,7 @@ DataType_transform_mapping: dict[str, dict[str, list[partial[exp.Expression]]]] 
         ],
     },
     "tsql": {
-        "default": [partial(anonymous, func="COALESCE(LTRIM(RTRIM(CAST([{}] AS VARCHAR(256)))), '_null_recon_')")],
+        "default": [partial(anonymous, func="COALESCE(TRIM(CAST({} AS VARCHAR(256))), '_null_recon_')")],
         exp.DataType.Type.DATE.value: [partial(anonymous, func="COALESCE(CONVERT(DATE, {0}, 101), '1900-01-01')")],
         exp.DataType.Type.TIME.value: [partial(anonymous, func="COALESCE(CONVERT(TIME, {0}, 108), '00:00:00')")],
         exp.DataType.Type.DATETIME.value: [
@@ -285,7 +291,10 @@ Dialect_hash_algo_mapping: dict[Dialect, HashAlgoMapping] = {
     ),
     get_dialect("tsql"): HashAlgoMapping(
         source=partial(
-            anonymous, func="CONVERT(VARCHAR(256), HASHBYTES('SHA2_256', CONVERT(VARCHAR(256),{})), 2)", is_expr=True
+            anonymous,
+            func="CONVERT(VARCHAR(256), HASHBYTES('SHA2_256', CONVERT(VARCHAR(256),{})), 2)",
+            is_expr=True,
+            dialect=get_dialect("tsql"),
         ),
         target=sha256_partial,
     ),

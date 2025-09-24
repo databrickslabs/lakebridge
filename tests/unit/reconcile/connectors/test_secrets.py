@@ -9,13 +9,16 @@ from databricks.sdk.errors import NotFound
 from databricks.sdk.service.workspace import GetSecretResponse
 
 
-class MockSecrets(SecretsMixin):
+class SecretsMixinUnderTest(SecretsMixin):
     def __init__(self, ws: WorkspaceClient, secret_scope: str):
         self._ws = ws
         self._secret_scope = secret_scope
 
     def get_secret(self, secret_key: str) -> str:
         return self._get_secret(secret_key)
+
+    def get_secret_or_none(self, secret_key: str) -> str | None:
+        return self._get_secret_or_none(secret_key)
 
 
 def mock_secret(scope, key):
@@ -37,16 +40,26 @@ def test_get_secrets_happy():
     ws = create_autospec(WorkspaceClient)
     ws.secrets.get_secret.side_effect = mock_secret
 
-    mock = MockSecrets(ws, "scope")
+    sut = SecretsMixinUnderTest(ws, "scope")
 
-    assert mock.get_secret("user_name") == "my_user"
-    assert mock.get_secret("password") == "my_password"
+    assert sut.get_secret("user_name") == "my_user"
+    assert sut.get_secret_or_none("user_name") == "my_user"
+    assert sut.get_secret("password") == "my_password"
+    assert sut.get_secret_or_none("password") == "my_password"
 
 
 def test_get_secrets_not_found_exception():
     ws = create_autospec(WorkspaceClient)
     ws.secrets.get_secret.side_effect = NotFound("Test Exception")
-    mock = MockSecrets(ws, "scope")
+    sut = SecretsMixinUnderTest(ws, "scope")
 
     with pytest.raises(NotFound, match="Secret does not exist with scope: scope and key: unknown : Test Exception"):
-        mock.get_secret("unknown")
+        sut.get_secret("unknown")
+
+
+def test_get_secrets_not_found_swallow():
+    ws = create_autospec(WorkspaceClient)
+    ws.secrets.get_secret.side_effect = NotFound("Test Exception")
+    sut = SecretsMixinUnderTest(ws, "scope")
+
+    assert sut.get_secret_or_none("unknown") is None

@@ -1,30 +1,30 @@
-import datetime as dt
-import json
-import os
-import shutil
+import logging
+from collections.abc import Callable, Generator, Sequence
 from pathlib import Path
 from unittest.mock import create_autospec, patch
 
 import pytest
-from databricks.labs.blueprint.installation import MockInstallation
+from databricks.labs.blueprint.installation import JsonObject, MockInstallation
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.service import iam
 from databricks.labs.blueprint.tui import MockPrompts
+from databricks.labs.blueprint.wheels import ProductInfo, WheelsV2
 from databricks.labs.lakebridge.config import (
-    LakebridgeConfiguration,
-    ReconcileConfig,
     DatabaseConfig,
-    ReconcileMetadataConfig,
     LSPConfigOptionV1,
     LSPPromptMethod,
+    LakebridgeConfiguration,
+    ReconcileConfig,
+    ReconcileMetadataConfig,
+    TranspileConfig,
 )
 from databricks.labs.lakebridge.contexts.application import ApplicationContext
 from databricks.labs.lakebridge.deployment.configurator import ResourceConfigurator
 from databricks.labs.lakebridge.deployment.installation import WorkspaceInstallation
-from databricks.labs.lakebridge.install import WorkspaceInstaller, TranspilerInstaller
-from databricks.labs.lakebridge.config import TranspileConfig
-from databricks.labs.blueprint.wheels import ProductInfo, WheelsV2
+from databricks.labs.lakebridge.install import WorkspaceInstaller
 from databricks.labs.lakebridge.reconcile.constants import ReconSourceType, ReconReportType
+from databricks.labs.lakebridge.transpiler.installers import TranspilerInstaller
+from databricks.labs.lakebridge.transpiler.repository import TranspilerRepository
 
 from tests.unit.conftest import path_to_resource
 
@@ -33,7 +33,7 @@ RECONCILE_REPORT_TYPES = sorted([report_type.value for report_type in ReconRepor
 
 
 @pytest.fixture
-def ws():
+def ws() -> WorkspaceClient:
     w = create_autospec(WorkspaceClient)
     w.current_user.me.side_effect = lambda: iam.User(
         user_name="me@example.com", groups=[iam.ComplexValue(display="admins")]
@@ -50,20 +50,18 @@ PATH_TO_TRANSPILER_CONFIG = "/some/path/to/config.yml"
 
 
 @pytest.fixture()
-def ws_installer():
+def ws_installer() -> Generator[Callable[..., WorkspaceInstaller], None, None]:
 
     class TestWorkspaceInstaller(WorkspaceInstaller):
+        def __init__(self, *args, **kwargs):
+            # Ensure that the transpiler repository is mocked for unit tests instead of being the real thing.
+            if "transpiler_repository" not in kwargs:
+                kwargs["transpiler_repository"] = create_autospec(TranspilerRepository)
+            # In these unit tests we have no transpilers to install by default.
+            if "transpiler_installers" not in kwargs:
+                kwargs["transpiler_installers"] = ()
 
-        # TODO the below 'install_xxx' methods currently fail
-        # (because the artifact is either missing or invalid)
-        # TODO remove this once they are available and healthy !!!
-        @classmethod
-        def install_bladebridge(cls, artifact: Path | None = None):
-            pass
-
-        @classmethod
-        def install_morpheus(cls, artifact: Path | None = None):
-            pass
+            super().__init__(*args, **kwargs)
 
         def _all_installed_dialects(self):
             return ALL_INSTALLED_DIALECTS_NO_LATER
@@ -80,7 +78,7 @@ def ws_installer():
     yield installer
 
 
-def test_workspace_installer_run_raise_error_in_dbr(ws):
+def test_workspace_installer_run_raise_error_in_dbr(ws: WorkspaceClient) -> None:
     ctx = ApplicationContext(ws)
     environ = {"DATABRICKS_RUNTIME_VERSION": "8.3.x-scala2.12"}
     with pytest.raises(SystemExit):
@@ -96,7 +94,10 @@ def test_workspace_installer_run_raise_error_in_dbr(ws):
         )
 
 
-def test_workspace_installer_run_install_not_called_in_test(ws_installer, ws):
+def test_workspace_installer_run_install_not_called_in_test(
+    ws_installer: Callable[..., WorkspaceInstaller],
+    ws: WorkspaceClient,
+) -> None:
     ws_installation = create_autospec(WorkspaceInstallation)
     ctx = ApplicationContext(ws)
     ctx.replace(
@@ -122,7 +123,10 @@ def test_workspace_installer_run_install_not_called_in_test(ws_installer, ws):
     ws_installation.install.assert_not_called()
 
 
-def test_workspace_installer_run_install_called_with_provided_config(ws_installer, ws):
+def test_workspace_installer_run_install_called_with_provided_config(
+    ws_installer: Callable[..., WorkspaceInstaller],
+    ws: WorkspaceClient,
+) -> None:
     ws_installation = create_autospec(WorkspaceInstallation)
     ctx = ApplicationContext(ws)
     ctx.replace(
@@ -146,7 +150,7 @@ def test_workspace_installer_run_install_called_with_provided_config(ws_installe
     ws_installation.install.assert_called_once_with(provided_config)
 
 
-def test_configure_error_if_invalid_module_selected(ws):
+def test_configure_error_if_invalid_module_selected(ws: WorkspaceClient) -> None:
     ctx = ApplicationContext(ws)
     ctx.replace(
         resource_configurator=create_autospec(ResourceConfigurator),
@@ -166,12 +170,15 @@ def test_configure_error_if_invalid_module_selected(ws):
         workspace_installer.configure(module="invalid_module")
 
 
-def test_workspace_installer_run_install_called_with_generated_config(ws_installer, ws):
+def test_workspace_installer_run_install_called_with_generated_config(
+    ws_installer: Callable[..., WorkspaceInstaller],
+    ws: WorkspaceClient,
+) -> None:
     prompts = MockPrompts(
         {
             r"Do you want to override the existing installation?": "no",
-            r"Select the source dialect": ALL_INSTALLED_DIALECTS.index("snowflake"),
-            r"Select the transpiler": TRANSPILERS_FOR_SNOWFLAKE.index("Morpheus"),
+            r"Select the source dialect": str(ALL_INSTALLED_DIALECTS.index("snowflake")),
+            r"Select the transpiler": str(TRANSPILERS_FOR_SNOWFLAKE.index("Morpheus")),
             r"Enter input SQL path.*": "/tmp/queries/snow",
             r"Enter output directory.*": "/tmp/queries/databricks",
             r"Enter error file path.*": "/tmp/queries/errors.log",
@@ -214,12 +221,15 @@ def test_workspace_installer_run_install_called_with_generated_config(ws_install
     )
 
 
-def test_configure_transpile_no_existing_installation(ws_installer, ws):
+def test_configure_transpile_no_existing_installation(
+    ws_installer: Callable[..., WorkspaceInstaller],
+    ws: WorkspaceClient,
+) -> None:
     prompts = MockPrompts(
         {
             r"Do you want to override the existing installation?": "no",
-            r"Select the source dialect": ALL_INSTALLED_DIALECTS.index("snowflake"),
-            r"Select the transpiler": TRANSPILERS_FOR_SNOWFLAKE.index("Morpheus"),
+            r"Select the source dialect": str(ALL_INSTALLED_DIALECTS.index("snowflake")),
+            r"Select the transpiler": str(TRANSPILERS_FOR_SNOWFLAKE.index("Morpheus")),
             r"Enter input SQL path.*": "/tmp/queries/snow",
             r"Enter output directory.*": "/tmp/queries/databricks",
             r"Enter error file path.*": "/tmp/queries/errors.log",
@@ -275,12 +285,7 @@ def test_configure_transpile_no_existing_installation(ws_installer, ws):
     )
 
 
-@patch("databricks.labs.lakebridge.install.WorkspaceInstaller.install_bladebridge")
-@patch("databricks.labs.lakebridge.install.WorkspaceInstaller.install_morpheus")
-def test_configure_transpile_installation_no_override(mock_install_morpheus, mock_install_bladebridge, ws):
-    mock_install_bladebridge.return_value = None
-    mock_install_morpheus.return_value = None
-
+def test_configure_transpile_installation_no_override(ws: WorkspaceClient) -> None:
     prompts = MockPrompts(
         {
             r"Do you want to override the existing installation?": "no",
@@ -330,12 +335,15 @@ def test_configure_transpile_installation_no_override(mock_install_morpheus, moc
     )
 
 
-def test_configure_transpile_installation_config_error_continue_install(ws_installer, ws):
+def test_configure_transpile_installation_config_error_continue_install(
+    ws_installer: Callable[..., WorkspaceInstaller],
+    ws: WorkspaceClient,
+) -> None:
     prompts = MockPrompts(
         {
             r"Do you want to override the existing installation?": "yes",
-            r"Select the source dialect": ALL_INSTALLED_DIALECTS.index("snowflake"),
-            r"Select the transpiler": TRANSPILERS_FOR_SNOWFLAKE.index("Morpheus"),
+            r"Select the source dialect": str(ALL_INSTALLED_DIALECTS.index("snowflake")),
+            r"Select the transpiler": str(TRANSPILERS_FOR_SNOWFLAKE.index("Morpheus")),
             r"Enter input SQL path.*": "/tmp/queries/snow",
             r"Enter output directory.*": "/tmp/queries/databricks",
             r"Enter error file path.*": "/tmp/queries/errors.log",
@@ -471,11 +479,14 @@ def test_configure_transpile_installation_with_no_validation(ws, ws_installer):
     )
 
 
-def test_configure_transpile_installation_with_validation_and_warehouse_id_from_prompt(ws_installer, ws):
+def test_configure_transpile_installation_with_validation_and_warehouse_id_from_prompt(
+    ws_installer: Callable[..., WorkspaceInstaller],
+    ws: WorkspaceClient,
+) -> None:
     prompts = MockPrompts(
         {
-            r"Select the source dialect": ALL_INSTALLED_DIALECTS.index("snowflake"),
-            r"Select the transpiler": TRANSPILERS_FOR_SNOWFLAKE.index("Morpheus"),
+            r"Select the source dialect": str(ALL_INSTALLED_DIALECTS.index("snowflake")),
+            r"Select the transpiler": str(TRANSPILERS_FOR_SNOWFLAKE.index("Morpheus")),
             r"Enter input SQL path.*": "/tmp/queries/snow",
             r"Enter output directory.*": "/tmp/queries/databricks",
             r"Enter error file path.*": "/tmp/queries/errors.log",
@@ -540,7 +551,7 @@ def test_configure_transpile_installation_with_validation_and_warehouse_id_from_
     )
 
 
-def test_configure_reconcile_installation_no_override(ws):
+def test_configure_reconcile_installation_no_override(ws: WorkspaceClient) -> None:
     prompts = MockPrompts(
         {
             r"Do you want to override the existing installation?": "no",
@@ -586,11 +597,11 @@ def test_configure_reconcile_installation_no_override(ws):
         workspace_installer.configure(module="reconcile")
 
 
-def test_configure_reconcile_installation_config_error_continue_install(ws):
+def test_configure_reconcile_installation_config_error_continue_install(ws: WorkspaceClient) -> None:
     prompts = MockPrompts(
         {
-            r"Select the Data Source": RECONCILE_DATA_SOURCES.index("oracle"),
-            r"Select the report type": RECONCILE_REPORT_TYPES.index("all"),
+            r"Select the Data Source": str(RECONCILE_DATA_SOURCES.index("oracle")),
+            r"Select the report type": str(RECONCILE_REPORT_TYPES.index("all")),
             r"Enter Secret scope name to store .* connection details / secrets": "remorph_oracle",
             r"Enter source database name for .*": "tpch_sf1000",
             r"Enter target catalog name for Databricks": "tpch",
@@ -683,11 +694,11 @@ def test_configure_reconcile_installation_config_error_continue_install(ws):
 
 
 @patch("webbrowser.open")
-def test_configure_reconcile_no_existing_installation(ws):
+def test_configure_reconcile_no_existing_installation(ws: WorkspaceClient) -> None:
     prompts = MockPrompts(
         {
-            r"Select the Data Source": RECONCILE_DATA_SOURCES.index("snowflake"),
-            r"Select the report type": RECONCILE_REPORT_TYPES.index("all"),
+            r"Select the Data Source": str(RECONCILE_DATA_SOURCES.index("snowflake")),
+            r"Select the report type": str(RECONCILE_REPORT_TYPES.index("all")),
             r"Enter Secret scope name to store .* connection details / secrets": "remorph_snowflake",
             r"Enter source catalog name for .*": "snowflake_sample_data",
             r"Enter source schema name for .*": "tpch_sf1000",
@@ -762,19 +773,22 @@ def test_configure_reconcile_no_existing_installation(ws):
     )
 
 
-def test_configure_all_override_installation(ws_installer, ws):
+def test_configure_all_override_installation(
+    ws_installer: Callable[..., WorkspaceInstaller],
+    ws: WorkspaceClient,
+) -> None:
     prompts = MockPrompts(
         {
             r"Do you want to override the existing installation?": "yes",
-            r"Select the source dialect": ALL_INSTALLED_DIALECTS.index("snowflake"),
-            r"Select the transpiler": TRANSPILERS_FOR_SNOWFLAKE.index("Morpheus"),
+            r"Select the source dialect": str(ALL_INSTALLED_DIALECTS.index("snowflake")),
+            r"Select the transpiler": str(TRANSPILERS_FOR_SNOWFLAKE.index("Morpheus")),
             r"Enter input SQL path.*": "/tmp/queries/snow",
             r"Enter output directory.*": "/tmp/queries/databricks",
             r"Enter error file path.*": "/tmp/queries/errors.log",
             r"Would you like to validate.*": "no",
             r"Open .* in the browser?": "no",
-            r"Select the Data Source": RECONCILE_DATA_SOURCES.index("snowflake"),
-            r"Select the report type": RECONCILE_REPORT_TYPES.index("all"),
+            r"Select the Data Source": str(RECONCILE_DATA_SOURCES.index("snowflake")),
+            r"Select the report type": str(RECONCILE_REPORT_TYPES.index("all")),
             r"Enter Secret scope name to store .* connection details / secrets": "remorph_snowflake",
             r"Enter source catalog name for .*": "snowflake_sample_data",
             r"Enter source schema name for .*": "tpch_sf1000",
@@ -909,7 +923,10 @@ def test_configure_all_override_installation(ws_installer, ws):
     )
 
 
-def test_runs_upgrades_on_more_recent_version(ws_installer, ws):
+def test_runs_upgrades_on_more_recent_version(
+    ws_installer: Callable[..., WorkspaceInstaller],
+    ws: WorkspaceClient,
+) -> None:
     installation = MockInstallation(
         {
             'version.json': {'version': '0.3.0', 'wheel': '...', 'date': '...'},
@@ -939,8 +956,8 @@ def test_runs_upgrades_on_more_recent_version(ws_installer, ws):
     prompts = MockPrompts(
         {
             r"Do you want to override the existing installation?": "yes",
-            r"Select the source dialect": ALL_INSTALLED_DIALECTS.index("snowflake"),
-            r"Select the transpiler": TRANSPILERS_FOR_SNOWFLAKE.index("Morpheus"),
+            r"Select the source dialect": str(ALL_INSTALLED_DIALECTS.index("snowflake")),
+            r"Select the transpiler": str(TRANSPILERS_FOR_SNOWFLAKE.index("Morpheus")),
             r"Enter input SQL path.*": "/tmp/queries/snow",
             r"Enter output directory.*": "/tmp/queries/databricks",
             r"Enter error file.*": "/tmp/queries/errors.log",
@@ -989,11 +1006,15 @@ def test_runs_upgrades_on_more_recent_version(ws_installer, ws):
     )
 
 
-def test_runs_and_stores_confirm_config_option(ws_installer, ws):
+def test_runs_and_stores_confirm_config_option(
+    ws_installer: Callable[..., WorkspaceInstaller],
+    ws: WorkspaceClient,
+    tmp_path: Path,
+) -> None:
     prompts = MockPrompts(
         {
-            r"Select the source dialect": ALL_INSTALLED_DIALECTS.index("snowflake"),
-            r"Select the transpiler": TRANSPILERS_FOR_SNOWFLAKE.index("Remorph Community Transpiler"),
+            r"Select the source dialect": str(ALL_INSTALLED_DIALECTS.index("snowflake")),
+            r"Select the transpiler": str(TRANSPILERS_FOR_SNOWFLAKE.index("Remorph Community Transpiler")),
             r"Do you want to use the experimental Databricks generator ?": "yes",
             r"Enter input SQL path.*": "/tmp/queries/snow",
             r"Enter output directory.*": "/tmp/queries/databricks",
@@ -1017,6 +1038,14 @@ def test_runs_and_stores_confirm_config_option(ws_installer, ws):
         workspace_installation=create_autospec(WorkspaceInstallation),
     )
 
+    class _TranspilerRepository(TranspilerRepository):
+        def __init__(self) -> None:
+            super().__init__(tmp_path / "labs")
+            self._transpilers_path = Path(path_to_resource("transpiler_configs"))
+
+        def transpilers_path(self) -> Path:
+            return self._transpilers_path
+
     workspace_installer = ws_installer(
         ctx.workspace_client,
         ctx.prompts,
@@ -1025,75 +1054,254 @@ def test_runs_and_stores_confirm_config_option(ws_installer, ws):
         ctx.product_info,
         ctx.resource_configurator,
         ctx.workspace_installation,
+        transpiler_repository=_TranspilerRepository(),
     )
 
-    with (
-        patch(
-            "databricks.labs.lakebridge.install.TranspilerInstaller.transpilers_path",
-            return_value=Path(path_to_resource("transpiler_configs")),
+    config = workspace_installer.configure(module="transpile")
+
+    expected_config = LakebridgeConfiguration(
+        transpile=TranspileConfig(
+            transpiler_config_path=PATH_TO_TRANSPILER_CONFIG,
+            transpiler_options={"-experimental": True},
+            source_dialect="snowflake",
+            input_source="/tmp/queries/snow",
+            output_folder="/tmp/queries/databricks",
+            error_file_path="/tmp/queries/errors.log",
+            catalog_name="remorph_test",
+            schema_name="transpiler_test",
+            sdk_config={"warehouse_id": "w_id"},
+        )
+    )
+    assert config == expected_config
+    installation.assert_file_written(
+        "config.yml",
+        {
+            "transpiler_config_path": PATH_TO_TRANSPILER_CONFIG,
+            "transpiler_options": {'-experimental': True},
+            "catalog_name": "remorph_test",
+            "input_source": "/tmp/queries/snow",
+            "output_folder": "/tmp/queries/databricks",
+            "error_file_path": "/tmp/queries/errors.log",
+            "schema_name": "transpiler_test",
+            "sdk_config": {"warehouse_id": "w_id"},
+            "source_dialect": "snowflake",
+            "version": 3,
+        },
+    )
+
+
+class _StubTranspilerRepository(TranspilerRepository):
+    def __init__(self, labs_path: Path, config_options: Sequence[LSPConfigOptionV1]) -> None:
+        super().__init__(labs_path)
+        self._config_options = config_options
+
+    def transpiler_config_options(self, transpiler_name: str, source_dialect: str) -> list[LSPConfigOptionV1]:
+        return list(self._config_options)
+
+
+def test_runs_and_stores_force_config_option(
+    ws_installer: Callable[..., WorkspaceInstaller],
+    ws: WorkspaceClient,
+    tmp_path: Path,
+) -> None:
+    prompts = MockPrompts(
+        {
+            r"Select the source dialect": str(ALL_INSTALLED_DIALECTS.index("snowflake")),
+            r"Select the transpiler": str(TRANSPILERS_FOR_SNOWFLAKE.index("Remorph Community Transpiler")),
+            r"Enter input SQL path.*": "/tmp/queries/snow",
+            r"Enter output directory.*": "/tmp/queries/databricks",
+            r"Enter error file path.*": "/tmp/queries/errors.log",
+            r"Would you like to validate.*": "yes",
+            r"Do you want to use SQL Warehouse for validation?": "yes",
+            r"Open .* in the browser?": "no",
+        }
+    )
+    installation = MockInstallation()
+    resource_configurator = create_autospec(ResourceConfigurator)
+    resource_configurator.prompt_for_catalog_setup.return_value = "remorph_test"
+    resource_configurator.prompt_for_schema_setup.return_value = "transpiler_test"
+    resource_configurator.prompt_for_warehouse_setup.return_value = "w_id"
+
+    ctx = ApplicationContext(ws)
+    ctx.replace(
+        prompts=prompts,
+        installation=installation,
+        resource_configurator=resource_configurator,
+        workspace_installation=create_autospec(WorkspaceInstallation),
+    )
+
+    transpiler_repository = _StubTranspilerRepository(
+        tmp_path / "labs", config_options=(LSPConfigOptionV1(flag="-XX", method=LSPPromptMethod.FORCE, default=1254),)
+    )
+
+    workspace_installer = ws_installer(
+        ctx.workspace_client,
+        ctx.prompts,
+        ctx.installation,
+        ctx.install_state,
+        ctx.product_info,
+        ctx.resource_configurator,
+        ctx.workspace_installation,
+        transpiler_repository=transpiler_repository,
+    )
+
+    config = workspace_installer.configure(module="transpile")
+
+    expected_config = LakebridgeConfiguration(
+        transpile=TranspileConfig(
+            transpiler_config_path=PATH_TO_TRANSPILER_CONFIG,
+            transpiler_options={"-XX": 1254},
+            source_dialect="snowflake",
+            input_source="/tmp/queries/snow",
+            output_folder="/tmp/queries/databricks",
+            error_file_path="/tmp/queries/errors.log",
+            catalog_name="remorph_test",
+            schema_name="transpiler_test",
+            sdk_config={"warehouse_id": "w_id"},
+        )
+    )
+    assert config == expected_config
+    installation.assert_file_written(
+        "config.yml",
+        {
+            "transpiler_config_path": PATH_TO_TRANSPILER_CONFIG,
+            "transpiler_options": {'-XX': 1254},
+            "catalog_name": "remorph_test",
+            "input_source": "/tmp/queries/snow",
+            "output_folder": "/tmp/queries/databricks",
+            "error_file_path": "/tmp/queries/errors.log",
+            "schema_name": "transpiler_test",
+            "sdk_config": {"warehouse_id": "w_id"},
+            "source_dialect": "snowflake",
+            "version": 3,
+        },
+    )
+
+
+def test_runs_and_stores_question_config_option(
+    ws_installer: Callable[..., WorkspaceInstaller],
+    ws: WorkspaceClient,
+    tmp_path: Path,
+) -> None:
+    prompts = MockPrompts(
+        {
+            r"Select the source dialect": str(ALL_INSTALLED_DIALECTS.index("snowflake")),
+            r"Select the transpiler": str(TRANSPILERS_FOR_SNOWFLAKE.index("Remorph Community Transpiler")),
+            r"Max number of heaps:": "1254",
+            r"Enter input SQL path.*": "/tmp/queries/snow",
+            r"Enter output directory.*": "/tmp/queries/databricks",
+            r"Enter error file path.*": "/tmp/queries/errors.log",
+            r"Would you like to validate.*": "yes",
+            r"Do you want to use SQL Warehouse for validation?": "yes",
+            r"Open .* in the browser?": "no",
+        }
+    )
+    installation = MockInstallation()
+    resource_configurator = create_autospec(ResourceConfigurator)
+    resource_configurator.prompt_for_catalog_setup.return_value = "remorph_test"
+    resource_configurator.prompt_for_schema_setup.return_value = "transpiler_test"
+    resource_configurator.prompt_for_warehouse_setup.return_value = "w_id"
+
+    ctx = ApplicationContext(ws)
+    ctx.replace(
+        prompts=prompts,
+        installation=installation,
+        resource_configurator=resource_configurator,
+        workspace_installation=create_autospec(WorkspaceInstallation),
+    )
+
+    transpiler_repository = _StubTranspilerRepository(
+        tmp_path / "labs",
+        config_options=(LSPConfigOptionV1(flag="-XX", method=LSPPromptMethod.QUESTION, prompt="Max number of heaps:"),),
+    )
+
+    workspace_installer = ws_installer(
+        ctx.workspace_client,
+        ctx.prompts,
+        ctx.installation,
+        ctx.install_state,
+        ctx.product_info,
+        ctx.resource_configurator,
+        ctx.workspace_installation,
+        transpiler_repository=transpiler_repository,
+    )
+
+    config = workspace_installer.configure(module="transpile")
+
+    expected_config = LakebridgeConfiguration(
+        transpile=TranspileConfig(
+            transpiler_config_path=PATH_TO_TRANSPILER_CONFIG,
+            transpiler_options={"-XX": "1254"},
+            source_dialect="snowflake",
+            input_source="/tmp/queries/snow",
+            output_folder="/tmp/queries/databricks",
+            error_file_path="/tmp/queries/errors.log",
+            catalog_name="remorph_test",
+            schema_name="transpiler_test",
+            sdk_config={"warehouse_id": "w_id"},
+        )
+    )
+    assert config == expected_config
+    installation.assert_file_written(
+        "config.yml",
+        {
+            "transpiler_config_path": PATH_TO_TRANSPILER_CONFIG,
+            "transpiler_options": {'-XX': "1254"},
+            "catalog_name": "remorph_test",
+            "input_source": "/tmp/queries/snow",
+            "output_folder": "/tmp/queries/databricks",
+            "error_file_path": "/tmp/queries/errors.log",
+            "schema_name": "transpiler_test",
+            "sdk_config": {"warehouse_id": "w_id"},
+            "source_dialect": "snowflake",
+            "version": 3,
+        },
+    )
+
+
+def test_runs_and_stores_choice_config_option(
+    ws_installer: Callable[..., WorkspaceInstaller],
+    ws: WorkspaceClient,
+    tmp_path: Path,
+) -> None:
+    prompts = MockPrompts(
+        {
+            r"Select the source dialect": str(ALL_INSTALLED_DIALECTS.index("snowflake")),
+            r"Select the transpiler": str(TRANSPILERS_FOR_SNOWFLAKE.index("Remorph Community Transpiler")),
+            r"Select currency:": "2",
+            r"Enter input SQL path.*": "/tmp/queries/snow",
+            r"Enter output directory.*": "/tmp/queries/databricks",
+            r"Enter error file path.*": "/tmp/queries/errors.log",
+            r"Would you like to validate.*": "yes",
+            r"Do you want to use SQL Warehouse for validation?": "yes",
+            r"Open .* in the browser?": "no",
+        }
+    )
+    installation = MockInstallation()
+    resource_configurator = create_autospec(ResourceConfigurator)
+    resource_configurator.prompt_for_catalog_setup.return_value = "remorph_test"
+    resource_configurator.prompt_for_schema_setup.return_value = "transpiler_test"
+    resource_configurator.prompt_for_warehouse_setup.return_value = "w_id"
+
+    ctx = ApplicationContext(ws)
+    ctx.replace(
+        prompts=prompts,
+        installation=installation,
+        resource_configurator=resource_configurator,
+        workspace_installation=create_autospec(WorkspaceInstallation),
+    )
+
+    transpiler_repository = _StubTranspilerRepository(
+        tmp_path / "labs",
+        config_options=(
+            LSPConfigOptionV1(
+                flag="-currency",
+                method=LSPPromptMethod.CHOICE,
+                prompt="Select currency:",
+                choices=["CHF", "EUR", "GBP", "USD"],
+            ),
         ),
-    ):
-
-        config = workspace_installer.configure(module="transpile")
-
-        expected_config = LakebridgeConfiguration(
-            transpile=TranspileConfig(
-                transpiler_config_path=PATH_TO_TRANSPILER_CONFIG,
-                transpiler_options={"-experimental": True},
-                source_dialect="snowflake",
-                input_source="/tmp/queries/snow",
-                output_folder="/tmp/queries/databricks",
-                error_file_path="/tmp/queries/errors.log",
-                catalog_name="remorph_test",
-                schema_name="transpiler_test",
-                sdk_config={"warehouse_id": "w_id"},
-            )
-        )
-        assert config == expected_config
-        installation.assert_file_written(
-            "config.yml",
-            {
-                "transpiler_config_path": PATH_TO_TRANSPILER_CONFIG,
-                "transpiler_options": {'-experimental': True},
-                "catalog_name": "remorph_test",
-                "input_source": "/tmp/queries/snow",
-                "output_folder": "/tmp/queries/databricks",
-                "error_file_path": "/tmp/queries/errors.log",
-                "schema_name": "transpiler_test",
-                "sdk_config": {"warehouse_id": "w_id"},
-                "source_dialect": "snowflake",
-                "version": 3,
-            },
-        )
-
-
-def test_runs_and_stores_force_config_option(ws_installer, ws):
-    prompts = MockPrompts(
-        {
-            r"Select the source dialect": ALL_INSTALLED_DIALECTS.index("snowflake"),
-            r"Select the transpiler": TRANSPILERS_FOR_SNOWFLAKE.index("Remorph Community Transpiler"),
-            r"Enter input SQL path.*": "/tmp/queries/snow",
-            r"Enter output directory.*": "/tmp/queries/databricks",
-            r"Enter error file path.*": "/tmp/queries/errors.log",
-            r"Would you like to validate.*": "yes",
-            r"Do you want to use SQL Warehouse for validation?": "yes",
-            r"Open .* in the browser?": "no",
-        }
     )
-    installation = MockInstallation()
-    resource_configurator = create_autospec(ResourceConfigurator)
-    resource_configurator.prompt_for_catalog_setup.return_value = "remorph_test"
-    resource_configurator.prompt_for_schema_setup.return_value = "transpiler_test"
-    resource_configurator.prompt_for_warehouse_setup.return_value = "w_id"
-
-    ctx = ApplicationContext(ws)
-    ctx.replace(
-        prompts=prompts,
-        installation=installation,
-        resource_configurator=resource_configurator,
-        workspace_installation=create_autospec(WorkspaceInstallation),
-    )
-
     workspace_installer = ws_installer(
         ctx.workspace_client,
         ctx.prompts,
@@ -1102,166 +1310,8 @@ def test_runs_and_stores_force_config_option(ws_installer, ws):
         ctx.product_info,
         ctx.resource_configurator,
         ctx.workspace_installation,
+        transpiler_repository=transpiler_repository,
     )
-
-    TranspilerInstaller.transpiler_config_options = lambda a, b: [
-        LSPConfigOptionV1(flag="-XX", method=LSPPromptMethod.FORCE, default=1254)
-    ]
-
-    config = workspace_installer.configure(module="transpile")
-
-    expected_config = LakebridgeConfiguration(
-        transpile=TranspileConfig(
-            transpiler_config_path=PATH_TO_TRANSPILER_CONFIG,
-            transpiler_options={"-XX": 1254},
-            source_dialect="snowflake",
-            input_source="/tmp/queries/snow",
-            output_folder="/tmp/queries/databricks",
-            error_file_path="/tmp/queries/errors.log",
-            catalog_name="remorph_test",
-            schema_name="transpiler_test",
-            sdk_config={"warehouse_id": "w_id"},
-        )
-    )
-    assert config == expected_config
-    installation.assert_file_written(
-        "config.yml",
-        {
-            "transpiler_config_path": PATH_TO_TRANSPILER_CONFIG,
-            "transpiler_options": {'-XX': 1254},
-            "catalog_name": "remorph_test",
-            "input_source": "/tmp/queries/snow",
-            "output_folder": "/tmp/queries/databricks",
-            "error_file_path": "/tmp/queries/errors.log",
-            "schema_name": "transpiler_test",
-            "sdk_config": {"warehouse_id": "w_id"},
-            "source_dialect": "snowflake",
-            "version": 3,
-        },
-    )
-
-
-def test_runs_and_stores_question_config_option(ws_installer, ws):
-    prompts = MockPrompts(
-        {
-            r"Select the source dialect": ALL_INSTALLED_DIALECTS.index("snowflake"),
-            r"Select the transpiler": TRANSPILERS_FOR_SNOWFLAKE.index("Remorph Community Transpiler"),
-            r"Max number of heaps:": 1254,
-            r"Enter input SQL path.*": "/tmp/queries/snow",
-            r"Enter output directory.*": "/tmp/queries/databricks",
-            r"Enter error file path.*": "/tmp/queries/errors.log",
-            r"Would you like to validate.*": "yes",
-            r"Do you want to use SQL Warehouse for validation?": "yes",
-            r"Open .* in the browser?": "no",
-        }
-    )
-    installation = MockInstallation()
-    resource_configurator = create_autospec(ResourceConfigurator)
-    resource_configurator.prompt_for_catalog_setup.return_value = "remorph_test"
-    resource_configurator.prompt_for_schema_setup.return_value = "transpiler_test"
-    resource_configurator.prompt_for_warehouse_setup.return_value = "w_id"
-
-    ctx = ApplicationContext(ws)
-    ctx.replace(
-        prompts=prompts,
-        installation=installation,
-        resource_configurator=resource_configurator,
-        workspace_installation=create_autospec(WorkspaceInstallation),
-    )
-
-    workspace_installer = ws_installer(
-        ctx.workspace_client,
-        ctx.prompts,
-        ctx.installation,
-        ctx.install_state,
-        ctx.product_info,
-        ctx.resource_configurator,
-        ctx.workspace_installation,
-    )
-
-    TranspilerInstaller.transpiler_config_options = lambda a, b: [
-        LSPConfigOptionV1(flag="-XX", method=LSPPromptMethod.QUESTION, prompt="Max number of heaps:")
-    ]
-
-    config = workspace_installer.configure(module="transpile")
-
-    expected_config = LakebridgeConfiguration(
-        transpile=TranspileConfig(
-            transpiler_config_path=PATH_TO_TRANSPILER_CONFIG,
-            transpiler_options={"-XX": 1254},
-            source_dialect="snowflake",
-            input_source="/tmp/queries/snow",
-            output_folder="/tmp/queries/databricks",
-            error_file_path="/tmp/queries/errors.log",
-            catalog_name="remorph_test",
-            schema_name="transpiler_test",
-            sdk_config={"warehouse_id": "w_id"},
-        )
-    )
-    assert config == expected_config
-    installation.assert_file_written(
-        "config.yml",
-        {
-            "transpiler_config_path": PATH_TO_TRANSPILER_CONFIG,
-            "transpiler_options": {'-XX': 1254},
-            "catalog_name": "remorph_test",
-            "input_source": "/tmp/queries/snow",
-            "output_folder": "/tmp/queries/databricks",
-            "error_file_path": "/tmp/queries/errors.log",
-            "schema_name": "transpiler_test",
-            "sdk_config": {"warehouse_id": "w_id"},
-            "source_dialect": "snowflake",
-            "version": 3,
-        },
-    )
-
-
-def test_runs_and_stores_choice_config_option(ws_installer, ws):
-    prompts = MockPrompts(
-        {
-            r"Select the source dialect": ALL_INSTALLED_DIALECTS.index("snowflake"),
-            r"Select the transpiler": TRANSPILERS_FOR_SNOWFLAKE.index("Remorph Community Transpiler"),
-            r"Select currency:": 2,
-            r"Enter input SQL path.*": "/tmp/queries/snow",
-            r"Enter output directory.*": "/tmp/queries/databricks",
-            r"Enter error file path.*": "/tmp/queries/errors.log",
-            r"Would you like to validate.*": "yes",
-            r"Do you want to use SQL Warehouse for validation?": "yes",
-            r"Open .* in the browser?": "no",
-        }
-    )
-    installation = MockInstallation()
-    resource_configurator = create_autospec(ResourceConfigurator)
-    resource_configurator.prompt_for_catalog_setup.return_value = "remorph_test"
-    resource_configurator.prompt_for_schema_setup.return_value = "transpiler_test"
-    resource_configurator.prompt_for_warehouse_setup.return_value = "w_id"
-
-    ctx = ApplicationContext(ws)
-    ctx.replace(
-        prompts=prompts,
-        installation=installation,
-        resource_configurator=resource_configurator,
-        workspace_installation=create_autospec(WorkspaceInstallation),
-    )
-
-    workspace_installer = ws_installer(
-        ctx.workspace_client,
-        ctx.prompts,
-        ctx.installation,
-        ctx.install_state,
-        ctx.product_info,
-        ctx.resource_configurator,
-        ctx.workspace_installation,
-    )
-
-    TranspilerInstaller.transpiler_config_options = lambda a, b: [
-        LSPConfigOptionV1(
-            flag="-currency",
-            method=LSPPromptMethod.CHOICE,
-            prompt="Select currency:",
-            choices=["CHF", "EUR", "GBP", "USD"],
-        )
-    ]
 
     config = workspace_installer.configure(module="transpile")
 
@@ -1296,101 +1346,255 @@ def test_runs_and_stores_choice_config_option(ws_installer, ws):
     )
 
 
-def test_store_product_state(tmp_path) -> None:
-    """Verify the product state is stored after installing is correct."""
+@pytest.mark.parametrize(("installed_transpilers",), (({"foo", "bar"},), ({},)))
+def test_installer_detects_installed_transpilers(
+    ws_installer: Callable[..., WorkspaceInstaller], ws: WorkspaceClient, installed_transpilers: set[str], caplog
+) -> None:
+    """Check detection of whether transpilers are already installed or not."""
+    mock_repository = create_autospec(TranspilerRepository)
+    mock_repository.all_transpiler_names.return_value = installed_transpilers
+    ctx = ApplicationContext(ws)
+
+    installer = ws_installer(
+        ctx.workspace_client,
+        ctx.prompts,
+        ctx.installation,
+        ctx.install_state,
+        ctx.product_info,
+        ctx.resource_configurator,
+        ctx.workspace_installation,
+        transpiler_repository=mock_repository,
+    )
+
+    with caplog.at_level(logging.INFO):
+        installer.upgrade_installed_transpilers()
+
+    if installed_transpilers:
+        info_messages = [log.message for log in caplog.records if log.levelno == logging.INFO]
+        assert f"Detected installed transpilers: {sorted(installed_transpilers)}" in info_messages
+
+
+def test_installer_upgrade_installed_transpilers(
+    ws_installer: Callable[..., WorkspaceInstaller], ws: WorkspaceClient
+) -> None:
+    """Check that during install we attempt to upgrade any known transpilers that are already installed."""
+
+    # The setup here is:
+    #   - 'foo' and 'bar' are installed already.
+    #   - 'bar' and 'baz' are known transpilers.
+    # It should therefore try to install/upgrade bar but _not_ baz.
+
+    mock_repository = create_autospec(TranspilerRepository)
+    mock_repository.all_transpiler_names.return_value = {"foo", "bar"}
+    ctx = ApplicationContext(ws).replace(
+        product_info=ProductInfo.for_testing(LakebridgeConfiguration),
+        prompts=(MockPrompts({r"Do you want to override the existing installation?": "no"})),
+        installation=MockInstallation({"config.yml": {"version": 3}}),
+    )
 
     class MockTranspilerInstaller(TranspilerInstaller):
-        @classmethod
-        def store_product_state(cls, product_path: Path, version: str) -> None:
-            cls._store_product_state(product_path, version)
+        def __init__(self, repository: TranspilerRepository, name: str) -> None:
+            super().__init__(repository)
+            self._name = name
+            self.installed = False
 
-    # Store the product state, capturing the time before and after so we can verify the timestamp it puts in there.
-    before = dt.datetime.now(tz=dt.timezone.utc)
-    MockTranspilerInstaller.store_product_state(tmp_path, "1.2.3")
-    after = dt.datetime.now(tz=dt.timezone.utc)
+        def can_install(self, artifact: Path) -> bool:
+            return False
 
-    # Load the state that was just stored.
-    with (tmp_path / "state" / "version.json").open("r", encoding="utf-8") as f:
-        stored_state = json.load(f)
+        @property
+        def name(self) -> str:
+            return self._name
 
-    # Verify the timestamp first.
-    stored_date = stored_state["date"]
-    parsed_date = dt.datetime.fromisoformat(stored_date)
-    assert parsed_date.tzinfo is not None, "Stored date should be timezone-aware."
-    assert before <= parsed_date <= after, f"Stored date {stored_date} is not within the expected range."
+        def install(self, artifact: Path | None = None) -> bool:
+            self.installed = True
+            return True
 
-    # Verify the rest, now that we've checked the timestamp.
-    expected_state = {
-        "version": "v1.2.3",
-        "date": stored_date,
+        def mock_factory(self, repository: TranspilerRepository) -> TranspilerInstaller:
+            assert repository is self._transpiler_repository
+            return self
+
+    bar_installer = MockTranspilerInstaller(mock_repository, "bar")
+    baz_installer = MockTranspilerInstaller(mock_repository, "baz")
+
+    installer = ws_installer(
+        ctx.workspace_client,
+        ctx.prompts,
+        ctx.installation,
+        ctx.install_state,
+        ctx.product_info,
+        ctx.resource_configurator,
+        ctx.workspace_installation,
+        transpiler_repository=mock_repository,
+        transpiler_installers=(baz_installer.mock_factory, bar_installer.mock_factory),
+    )
+    upgraded_something = installer.upgrade_installed_transpilers()
+
+    assert upgraded_something, "Expected to upgrade at least one transpiler"
+    assert bar_installer.installed, "Expected 'bar' transpiler to be upgraded"
+    assert not baz_installer.installed, "Did not expect 'baz' transpiler to be upgraded"
+
+
+@pytest.mark.parametrize("test_upgrade", (True, False))
+def test_installer_upgrade_configure_if_changed(
+    ws_installer: Callable[..., WorkspaceInstaller],
+    ws: WorkspaceClient,
+    test_upgrade: bool,
+) -> None:
+    """Check that during an upgrade we reconfigure if any transpiler upgrades occurred."""
+
+    # The setup here is:
+    #   - 'foo' is the installed transpiler, and we will attempt to upgrade it.
+    #   - parameterized on whether the upgrade is necessary.
+    #   - if it was, we expect the prompt-adjusted configuration to be returned.
+
+    mock_repository = create_autospec(TranspilerRepository)
+    mock_repository.all_transpiler_names.return_value = {"foo"}
+    prior_source_dialect = "original_dialect"
+    prior_configuration: JsonObject = {
+        "version": 3,
+        "transpiler_config_path": PATH_TO_TRANSPILER_CONFIG,
+        "source_dialect": prior_source_dialect,
+        "input_source": "sf_queries",
+        "output_folder": "out_dir",
+        "error_file_path": "error_log.log",
+        "skip_validation": True,
+        "catalog_name": "remorph",
+        "schema_name": "transpiler",
     }
-    assert stored_state == expected_state
+    mock_installation = MockInstallation({"config.yml": prior_configuration})
+    ctx = ApplicationContext(ws).replace(
+        product_info=ProductInfo.for_testing(LakebridgeConfiguration),
+        prompts=MockPrompts(
+            {
+                r"Do you want to override the existing installation?": "yes",
+                r"Select the source dialect": "2",
+                r"Select the transpiler": "1",
+                r"Enter .*": "/tmp/updated",
+                r"Would you like to validate.*": "no",
+                r"Open config file .* in the browser?": "no",
+            }
+        ),
+        installation=mock_installation,
+    )
+
+    class MockTranspilerInstaller(TranspilerInstaller):
+        def __init__(self, repository: TranspilerRepository) -> None:
+            super().__init__(repository)
+            self.installed = False
+
+        def can_install(self, artifact: Path) -> bool:
+            return False
+
+        @property
+        def name(self) -> str:
+            return "foo"
+
+        def install(self, artifact: Path | None = None) -> bool:
+            self.installed = True
+            return test_upgrade
+
+    installer = ws_installer(
+        ctx.workspace_client,
+        ctx.prompts,
+        ctx.installation,
+        ctx.install_state,
+        ctx.product_info,
+        ctx.resource_configurator,
+        ctx.workspace_installation,
+        transpiler_repository=mock_repository,
+        transpiler_installers=(MockTranspilerInstaller,),
+    )
+    upgraded_something = installer.upgrade_installed_transpilers()
+
+    assert upgraded_something == test_upgrade
+    if test_upgrade:
+        expected_configuration = {
+            **prior_configuration,
+            "version": 3,
+            # These were updated by the configuration.
+            "source_dialect": "tsql",
+            "input_source": "/tmp/updated",
+            "output_folder": "/tmp/updated",
+            "error_file_path": "/tmp/updated",
+        }
+        mock_installation.assert_file_written("config.yml", expected_configuration)
 
 
-@pytest.fixture
-def no_java(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Ensure that (temporarily) no 'java' binary can be found in the environment."""
-    found_java = shutil.which("java")
-    while found_java is not None:
-        # Java is installed, so we need to figure out how to remove it from the path.
-        # (We loop here to handle cases where multiple java binaries are available via the PATH.)
-        java_directory = Path(found_java).parent
-        search_path = os.environ.get("PATH", os.defpath).split(os.pathsep)
-        updated_path = os.pathsep.join(p for p in search_path if p and Path(p) != java_directory)
-        assert (
-            search_path != updated_path
-        ), f"Did not find {java_directory} in {search_path}, but 'java' was found at {found_java}."
+def test_no_reconfigure_if_noninteractive(
+    ws_installer: Callable[..., WorkspaceInstaller],
+    ws: WorkspaceClient,
+    caplog,
+) -> None:
+    """Check that when non-interactive we do not attempt to reconfigure if there is already a config."""
 
-        # Set the modified PATH without the directory where 'java' was found.
-        monkeypatch.setenv("PATH", os.pathsep.join(updated_path))
+    no_prompts_available = MockPrompts({})
 
-        # Check again if 'java' is still found.
-        found_java = shutil.which("java")
+    ctx = ApplicationContext(ws).replace(
+        product_info=ProductInfo.for_testing(LakebridgeConfiguration),
+        prompts=no_prompts_available,
+        installation=MockInstallation(
+            {
+                "config.yml": {
+                    "version": 3,
+                    "transpiler_config_path": PATH_TO_TRANSPILER_CONFIG,
+                    "source_dialect": "frobnicat",
+                    "input_source": "sf_queries",
+                    "output_folder": "out_dir",
+                    "error_file_path": "error_log.log",
+                    "skip_validation": True,
+                    "catalog_name": "remorph",
+                    "schema_name": "transpiler",
+                }
+            }
+        ),
+    )
 
+    installer = ws_installer(
+        ctx.workspace_client,
+        ctx.prompts,
+        ctx.installation,
+        ctx.install_state,
+        ctx.product_info,
+        ctx.resource_configurator,
+        ctx.workspace_installation,
+        is_interactive=False,
+    )
+    with caplog.at_level(logging.DEBUG):
+        config = installer.run(module="transpile")
 
-def test_java_version_with_java_missing(no_java: None) -> None:
-    """Verify the Java version check handles Java missing entirely."""
-    expected_missing = WorkspaceInstaller.find_java()
-    assert expected_missing is None
-
-
-class FriendOfWorkspaceInstaller(WorkspaceInstaller):
-    """A friend class to access protected methods for testing purposes."""
-
-    @classmethod
-    def parse_java_version(cls, output: str) -> tuple[int, int, int, int] | None:
-        return cls._parse_java_version(output)
-
-
-@pytest.mark.parametrize(
-    ("version", "expected"),
-    (
-        # Real examples.
-        pytest.param("1.8.0_452", None, id="1.8.0_452"),
-        pytest.param("11.0.27", (11, 0, 27, 0), id="11.0.27"),
-        pytest.param("17.0.15", (17, 0, 15, 0), id="17.0.15"),
-        pytest.param("21.0.7", (21, 0, 7, 0), id="21.0.7"),
-        pytest.param("24.0.1", (24, 0, 1, 0), id="24.0.1"),
-        # All digits.
-        pytest.param("1.2.3.4", (1, 2, 3, 4), id="1.2.3.4"),
-        # Trailing zeros can be omitted.
-        pytest.param("1.2.3", (1, 2, 3, 0), id="1.2.3"),
-        pytest.param("1.2", (1, 2, 0, 0), id="1.2"),
-        pytest.param("1", (1, 0, 0, 0), id="1"),
-        # Another edge case.
-        pytest.param("", None, id="empty string"),
-    ),
-)
-def test_java_version_parse(version: str, expected: tuple[int, int, int, int] | None) -> None:
-    """Verify that the Java version parsing works correctly."""
-    # Format reference: https://docs.oracle.com/en/java/javase/11/install/version-string-format.html
-    version_output = f'openjdk version "{version}" 2025-06-19'
-    parsed = FriendOfWorkspaceInstaller.parse_java_version(version_output)
-    assert parsed == expected
+    assert config.transpile is not None
+    expected_log_message = "Installation is not interactive, keeping existing configuration."
+    assert any(expected_log_message in log.message for log in caplog.records if log.levelno == logging.DEBUG)
 
 
-def test_java_version_parse_missing() -> None:
-    """Verify that we return None when the version is missing."""
-    version_output = "Nothing in here that looks like a version."
-    parsed = FriendOfWorkspaceInstaller.parse_java_version(version_output)
-    assert parsed is None
+def test_no_configure_if_noninteractive(
+    ws_installer: Callable[..., WorkspaceInstaller],
+    ws: WorkspaceClient,
+    caplog,
+) -> None:
+    """Check that when non-interactive we do not attempt configuration, even if there is no existing config."""
+
+    no_prompts_available = MockPrompts({})
+
+    ctx = ApplicationContext(ws).replace(
+        product_info=ProductInfo.for_testing(LakebridgeConfiguration),
+        prompts=no_prompts_available,
+        installation=MockInstallation({}),
+    )
+
+    installer = ws_installer(
+        ctx.workspace_client,
+        ctx.prompts,
+        ctx.installation,
+        ctx.install_state,
+        ctx.product_info,
+        ctx.resource_configurator,
+        ctx.workspace_installation,
+        is_interactive=False,
+    )
+    with caplog.at_level(logging.WARNING):
+        config = installer.run(module="transpile")
+
+    assert config.transpile is None
+    expected_log_message = "Installation is not interactive, skipping configuration of transpilers."
+    assert any(expected_log_message in log.message for log in caplog.records if log.levelno == logging.WARNING)

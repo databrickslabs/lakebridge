@@ -82,7 +82,9 @@ dependencies = [
   "numpy~=1.26.4",
   "pandas~=2.3.1",
   "pandas-stubs~=2.3.0.250703",
-
+  "cattrs>=25.2.0",
+  "click<8.3.0", # https://github.com/pallets/click/issues/3065 for ruff
+  "faker"
 ]
 
 [project.entry-points.databricks]

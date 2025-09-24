@@ -1,0 +1,23 @@
+CREATE TABLE REF_TABLE
+    ,NO FALLBACK
+(
+    col1    BYTEINT NOT NULL,
+    col2    SMALLINT NOT NULL,
+    col3    INTEGER NOT NULL,
+    col4    BIGINT NOT NULL,
+    col5    DECIMAL(10,2) NOT NULL,
+    col6    DECIMAL(18,4) NOT NULL,
+    col7    TIMESTAMP(1) NOT NULL,
+    col8    TIME,
+    col9    TIMESTAMP(5) WITH TIME ZONE NOT NULL,
+    col10   CHAR(01) NOT NULL,
+    col11   CHAR(04) NOT NULL,
+    col12   CHAR(4),
+    col13   DECIMAL(10,0) NOT NULL,
+    col14   DECIMAL(18,6) NOT NULL,
+    col15   DECIMAL(18,1) NOT NULL DEFAULT 0.0,
+    col16   DATE FORMAT 'YY/MM/DD',
+    col17   VARCHAR(30) NOT CASESPECIFIC,
+    col18   FLOAT NOT NULL
+    )
+    UNIQUE PRIMARY INDEX (col1, col3);

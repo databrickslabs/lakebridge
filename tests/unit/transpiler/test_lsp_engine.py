@@ -59,11 +59,18 @@ async def test_passes_extra_args(lsp_engine, transpile_config):
     assert "--stuff=12" in log  # see command_line in lsp_transpiler/config.yml
 
 
+async def test_passes_log_level_deprecated(lsp_engine, transpile_config):
+    logging.getLogger("databricks").setLevel(logging.INFO)
+    await lsp_engine.initialize(transpile_config)
+    log = Path(path_to_resource("lsp_transpiler", "test-lsp-server.log")).read_text("utf-8")
+    assert "--log_level=INFO" in log
+
+
 async def test_passes_log_level(lsp_engine, transpile_config):
     logging.getLogger("databricks").setLevel(logging.INFO)
     await lsp_engine.initialize(transpile_config)
     log = Path(path_to_resource("lsp_transpiler", "test-lsp-server.log")).read_text("utf-8")
-    assert "--log_level=INFO" in log  # see command_line in lsp_transpiler/config.yml
+    assert "Requested log level: INFO" in log
 
 
 async def test_receives_config(lsp_engine, transpile_config):
@@ -107,13 +114,6 @@ async def read_log(marker: str) -> str:
     return log_path.read_text("utf-8")
 
 
-async def test_server_fetches_workspace_file(lsp_engine, transpile_config):
-    sample_path = Path(path_to_resource("lsp_transpiler", "workspace_file.yml"))
-    await lsp_engine.initialize(transpile_config)
-    log = await read_log("fetch-document-uri")
-    assert f"fetch-document-uri={sample_path.as_uri()}" in log
-
-
 async def test_server_loads_document(lsp_engine: LSPEngine, transpile_config: TranspileConfig) -> None:
     sample_path = Path(path_to_resource("lsp_transpiler", "source_stuff.sql"))
     await lsp_engine.initialize(transpile_config)
@@ -145,8 +145,8 @@ async def test_server_transpiles_document(lsp_engine: LSPEngine, transpile_confi
     expected_result = TranspileDocumentResult(
         uri=sample_path.as_uri(),
         language_id="sql",
-        diagnostics=[],
-        changes=[TextEdit(sample_whole_file_range, new_text=expected_source)],
+        diagnostics=(),
+        changes=(TextEdit(sample_whole_file_range, new_text=expected_source),),
     )
     assert result == expected_result
 

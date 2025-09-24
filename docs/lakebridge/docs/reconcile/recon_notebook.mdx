@@ -55,10 +55,8 @@ from databricks.labs.lakebridge.reconcile.recon_config import (
     Aggregate,
     Filters
 )
-from databricks.labs.lakebridge.reconcile.execute import (
-    recon,
-    reconcile_aggregates
-)
+from databricks.labs.lakebridge.reconcile.trigger_recon_service import TriggerReconService
+from databricks.labs.lakebridge.reconcile.trigger_recon_aggregate_service import TriggerReconAggregateService
 from databricks.labs.lakebridge.reconcile.exception import ReconciliationException
 ```
 
@@ -77,7 +75,7 @@ class ReconcileConfig:
 ```
 Parameters:
 
-- `data_source`: The data source to be reconciled. Supported values: `snowflake`, `teradata`, `oracle`, `tsql`, `databricks` etc.
+- `data_source`: The data source to be reconciled. Supported values: `snowflake`, `teradata`, `oracle`, `mssql`, `synapse`, `databricks`.
 - `report_type`: The type of report to be generated. Available report types are `schema`, `row`, `data` or `all`. For details check [here](./dataflow_example.mdx).
 - `secret_scope`: The secret scope name used to store the connection credentials for the source database system.
 - `database_config`: The database configuration for connecting to the source database. expects a `DatabaseConfig` object.
@@ -220,14 +218,14 @@ To run Reconcile on the configured properties, use the `recon` method. you also 
 from databricks.labs.lakebridge import __version__
 from databricks.sdk import WorkspaceClient
 
-from databricks.labs.lakebridge.reconcile.execute import recon
+from databricks.labs.lakebridge.reconcile.trigger_recon_service import TriggerReconService
 from databricks.labs.lakebridge.reconcile.exception import ReconciliationException
 
 ws = WorkspaceClient(product="lakebridge", product_version=__version__)
 
 
 try:
-  result = recon(
+  result = TriggerReconService.trigger_recon(
             ws = ws,
             spark = spark, # notebook spark session
             table_recon = table_recon, # previously created
