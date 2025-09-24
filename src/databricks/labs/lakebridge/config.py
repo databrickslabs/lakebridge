@@ -24,7 +24,7 @@ class LSPPromptMethod(Enum):
 E = TypeVar("E", bound=Enum)
 
 
-def get_string_field(data: Mapping[str, JsonValue], name: str) -> str:
+def extract_string_field(data: Mapping[str, JsonValue], name: str) -> str:
     """Extract a string field from the given mapping.
 
     Parameters:
@@ -43,7 +43,7 @@ def get_string_field(data: Mapping[str, JsonValue], name: str) -> str:
     return value
 
 
-def get_enum_field(data: Mapping[str, JsonValue], name: str, enum_type: type[E]) -> E:
+def extract_enum_field(data: Mapping[str, JsonValue], name: str, enum_type: type[E]) -> E:
     """Extract an enum field from the given mapping.
 
     Parameters:
@@ -53,7 +53,7 @@ def get_enum_field(data: Mapping[str, JsonValue], name: str, enum_type: type[E])
     Raises:
         ValueError: If the field is not present and no default is provided, or if it's present but not a valid enum value.
     """
-    enum_value = get_string_field(data, name)
+    enum_value = extract_string_field(data, name)
     try:
         return enum_type[enum_value]
     except ValueError as e:
@@ -75,7 +75,7 @@ class LSPConfigOptionV1:
         return {key: list(LSPConfigOptionV1.parse(item) for item in value) for (key, value) in data.items()}
 
     @classmethod
-    def _get_prompt_field(cls, data: Mapping[str, JsonValue], prompt_method: LSPPromptMethod) -> str | None:
+    def _extract_prompt_field(cls, data: Mapping[str, JsonValue], prompt_method: LSPPromptMethod) -> str | None:
         # Whether a prompt is mandatory or not depends on the prompt method.
         try:
             prompt = data["prompt"]
@@ -89,7 +89,7 @@ class LSPConfigOptionV1:
         return prompt
 
     @classmethod
-    def _get_choices_field(cls, data: Mapping[str, JsonValue], prompt_method: LSPPromptMethod) -> list[str] | None:
+    def _extract_choices_field(cls, data: Mapping[str, JsonValue], prompt_method: LSPPromptMethod) -> list[str] | None:
         try:
             choices_unsafe = data["choices"]
         except KeyError as e:
@@ -102,7 +102,7 @@ class LSPConfigOptionV1:
         return cast(list[str], choices_unsafe)
 
     @classmethod
-    def _get_default_field(cls, data: Mapping[str, JsonValue]) -> str | None:
+    def _extract_default_field(cls, data: Mapping[str, JsonValue]) -> str | None:
         default = data.get("default", None)
         if default is not None and not isinstance(default, str):
             msg = f"Invalid 'default' entry in {data}, expecting a string: {default}"
@@ -116,16 +116,16 @@ class LSPConfigOptionV1:
 
         # Field extraction is factored out mainly to ensure the complexity of this method is not too high.
 
-        flag = get_string_field(data, "flag")
-        method = get_enum_field(data, "method", LSPPromptMethod)
-        prompt = cls._get_prompt_field(data, method)
+        flag = extract_string_field(data, "flag")
+        method = extract_enum_field(data, "method", LSPPromptMethod)
+        prompt = cls._extract_prompt_field(data, method)
 
         optional: dict[str, Any] = {}
-        choices = cls._get_choices_field(data, method)
+        choices = cls._extract_choices_field(data, method)
         if choices is not None:
             optional["choices"] = choices
 
-        default = cls._get_default_field(data)
+        default = cls._extract_default_field(data)
         if default is not None:
             optional["default"] = default
 

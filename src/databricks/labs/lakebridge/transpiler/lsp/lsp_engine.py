@@ -36,7 +36,7 @@ from pygls.lsp.client import BaseLanguageClient
 
 from databricks.labs.blueprint.installation import JsonValue, RootJsonValue
 from databricks.labs.blueprint.wheels import ProductInfo
-from databricks.labs.lakebridge.config import LSPConfigOptionV1, TranspileConfig, TranspileResult, get_string_field
+from databricks.labs.lakebridge.config import LSPConfigOptionV1, TranspileConfig, TranspileResult, extract_string_field
 from databricks.labs.lakebridge.errors.exceptions import IllegalStateException
 from databricks.labs.lakebridge.helpers.file_utils import is_dbt_project_file, is_sql_file
 from databricks.labs.lakebridge.transpiler.transpile_engine import TranspileEngine
@@ -71,10 +71,10 @@ class _LSPRemorphConfigV1:
     @classmethod
     def parse(cls, data: Mapping[str, JsonValue]) -> _LSPRemorphConfigV1:
         cls._check_version(data)
-        name = get_string_field(data, "name")
-        dialects = cls._get_dialects(data)
-        env_vars = cls._get_env_vars(data)
-        command_line = cls._get_command_line(data)
+        name = extract_string_field(data, "name")
+        dialects = cls._extract_dialects(data)
+        env_vars = cls._extract_env_vars(data)
+        command_line = cls._extract_command_line(data)
         return _LSPRemorphConfigV1(name, dialects, env_vars, command_line)
 
     @classmethod
@@ -87,7 +87,7 @@ class _LSPRemorphConfigV1:
             raise ValueError(f"Unsupported transpiler config version: {version}")
 
     @classmethod
-    def _get_dialects(cls, data: Mapping[str, JsonValue]) -> Sequence[str]:
+    def _extract_dialects(cls, data: Mapping[str, JsonValue]) -> Sequence[str]:
         try:
             dialects_unsafe = data["dialects"]
         except KeyError as e:
@@ -98,7 +98,7 @@ class _LSPRemorphConfigV1:
         return cast(list[str], dialects_unsafe)
 
     @classmethod
-    def _get_env_vars(cls, data: Mapping[str, JsonValue]) -> Mapping[str, str]:
+    def _extract_env_vars(cls, data: Mapping[str, JsonValue]) -> Mapping[str, str]:
         try:
             env_vars_unsafe = data["environment"]
             if not isinstance(env_vars_unsafe, Mapping) or not _is_all_strings(env_vars_unsafe.values()):
@@ -109,7 +109,7 @@ class _LSPRemorphConfigV1:
             return {}
 
     @classmethod
-    def _get_command_line(cls, data: Mapping[str, JsonValue]) -> Sequence[str]:
+    def _extract_command_line(cls, data: Mapping[str, JsonValue]) -> Sequence[str]:
         try:
             command_line = data["command_line"]
         except KeyError as e:
@@ -142,13 +142,13 @@ class LSPConfig:
             msg = f"Invalid transpiler configuration, expecting a root object but got: {data}"
             raise ValueError(msg)
 
-        remorph = cls._get_remorph_data(data)
-        options = cls._get_options(data)
-        custom = cls._get_custom(data)
+        remorph = cls._extract_remorph_data(data)
+        options = cls._extract_options(data)
+        custom = cls._extract_custom(data)
         return LSPConfig(path, remorph, options, custom)
 
     @classmethod
-    def _get_remorph_data(cls, data: Mapping[str, JsonValue]) -> _LSPRemorphConfigV1:
+    def _extract_remorph_data(cls, data: Mapping[str, JsonValue]) -> _LSPRemorphConfigV1:
         try:
             remorph_data = data["remorph"]
         except KeyError as e:
@@ -159,7 +159,7 @@ class LSPConfig:
         return _LSPRemorphConfigV1.parse(remorph_data)
 
     @classmethod
-    def _get_options(cls, data: Mapping[str, JsonValue]) -> Mapping[str, Sequence[LSPConfigOptionV1]]:
+    def _extract_options(cls, data: Mapping[str, JsonValue]) -> Mapping[str, Sequence[LSPConfigOptionV1]]:
         try:
             options_data_unsfe = data["options"]
         except KeyError:
@@ -172,7 +172,7 @@ class LSPConfig:
         return LSPConfigOptionV1.parse_all(options_data)
 
     @classmethod
-    def _get_custom(cls, data: Mapping[str, JsonValue]) -> Mapping[str, JsonValue]:
+    def _extract_custom(cls, data: Mapping[str, JsonValue]) -> Mapping[str, JsonValue]:
         try:
             custom = data["custom"]
             if not isinstance(custom, Mapping):
