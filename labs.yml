@@ -64,5 +64,16 @@ commands:
       - name: interactive
         description: "Whether installing in interactive mode, which may prompt for configuration settings."
         default: auto
+  - name: describe-transpile
+    description: "Describe installed transpilers."
+    table_template: |-
+      Transpiler\tInstalled Version\tPlugin Configuration
+      ==========\t=================\t====================
+      {{range (index . "installed-transpilers")}}{{ .name }}\t{{(or .versions.installed "<unknown>")}}\t{{ index . "config-path" }}
+      {{end}}
+      Supported Source Dialects
+      =========================
+      {{range (index . "available-dialects")}} - {{ . }}
+      {{end}}
   - name: configure-reconcile
     description: "Configure Necessary Reconcile Dependencies"
