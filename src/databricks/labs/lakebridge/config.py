@@ -33,12 +33,26 @@ def extract_string_field(data: Mapping[str, JsonValue], name: str) -> str:
     Raises:
         ValueError: If the field is not present, not a string, or an empty string.
     """
+    value = _maybe_extract_string_field(data, name, is_required=True)
+    if not value:
+        msg = f"Invalid '{name}' attribute, must be a non-empty string: {value}"
+        raise ValueError(msg)
+    return value
+
+
+def _maybe_extract_string_field(data: Mapping[str, JsonValue], name: str, *, is_required: bool) -> str | None:
+    # A variant of extract_string_field() with two differences:
+    #  - It allows for optional fields.
+    #  - A provided string may be empty.
+    # (This can't easily be folded into extract_string_field() because of the different return type.)
     try:
         value = data[name]
     except KeyError as e:
-        raise ValueError(f"Missing '{name}' attribute in {data}") from e
-    if not isinstance(value, str) or not value:
-        msg = f"Invalid '{name}' attribute, must be a non-empty string: {value}"
+        if is_required:
+            raise ValueError(f"Missing '{name}' attribute in {data}") from e
+        return None
+    if not isinstance(value, str):
+        msg = f"Invalid '{name}' entry in {data}, expecting a string: {value}"
         raise ValueError(msg)
     return value
 
@@ -75,23 +89,6 @@ class LSPConfigOptionV1:
         return {key: list(LSPConfigOptionV1.parse(item) for item in value) for (key, value) in data.items()}
 
     @classmethod
-    def _maybe_extract_string_field(cls, data: Mapping[str, JsonValue], name: str, *, is_required: bool) -> str | None:
-        # A variant of extract_string_field() with two differences:
-        #  - It allows for optional fields.
-        #  - A provided string may be empty.
-        # (This can't easily be folded into extract_string_field() because of the different return type.)
-        try:
-            value = data[name]
-        except KeyError as e:
-            if is_required:
-                raise ValueError(f"Missing '{name}' attribute in {data}") from e
-            return None
-        if not isinstance(value, str):
-            msg = f"Invalid '{name}' entry in {data}, expecting a string: {value}"
-            raise ValueError(msg)
-        return value
-
-    @classmethod
     def _extract_choices_field(cls, data: Mapping[str, JsonValue], prompt_method: LSPPromptMethod) -> list[str] | None:
         try:
             choices_unsafe = data["choices"]
@@ -113,14 +110,14 @@ class LSPConfigOptionV1:
 
         flag = extract_string_field(data, "flag")
         method = extract_enum_field(data, "method", LSPPromptMethod)
-        prompt = cls._maybe_extract_string_field(data, "prompt", is_required=method != LSPPromptMethod.FORCE)
+        prompt = _maybe_extract_string_field(data, "prompt", is_required=method != LSPPromptMethod.FORCE)
 
         optional: dict[str, Any] = {}
         choices = cls._extract_choices_field(data, method)
         if choices is not None:
             optional["choices"] = choices
 
-        default = cls._maybe_extract_string_field(data, "default", is_required=False)
+        default = _maybe_extract_string_field(data, "default", is_required=False)
         if default is not None:
             optional["default"] = default
 

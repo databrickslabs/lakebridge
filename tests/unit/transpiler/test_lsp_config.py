@@ -41,6 +41,7 @@ custom:
         ("version", None, r"Missing 'version' attribute"),
         ("version", 0, r"Unsupported transpiler config version"),
         ("name", None, r"Missing 'name' attribute"),
+        ("name", 42, r"Invalid 'name' entry in \{.*\}, expecting a string"),
         ("name", "", r"Invalid 'name' attribute, must be a non-empty string"),
         ("dialects", None, r"Missing 'dialects' attribute"),
         ("dialects", [], r"Invalid 'dialects' attribute, expected a non-empty list of strings but got: \[\]"),
