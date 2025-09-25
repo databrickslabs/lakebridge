@@ -79,6 +79,7 @@ class LSPConfigOptionV1:
         # A variant of extract_string_field() with two differences:
         #  - It allows for optional fields.
         #  - A provided string may be empty.
+        # (This can't easily be folded into extract_string_field() because of the different return type.)
         try:
             value = data[name]
         except KeyError as e:
