@@ -75,18 +75,20 @@ class LSPConfigOptionV1:
         return {key: list(LSPConfigOptionV1.parse(item) for item in value) for (key, value) in data.items()}
 
     @classmethod
-    def _extract_prompt_field(cls, data: Mapping[str, JsonValue], prompt_method: LSPPromptMethod) -> str | None:
-        # Whether a prompt is mandatory or not depends on the prompt method.
+    def _maybe_extract_string_field(cls, data: Mapping[str, JsonValue], name: str, *, is_required: bool) -> str | None:
+        # A variant of extract_string_field() with two differences:
+        #  - It allows for optional fields.
+        #  - A provided string may be empty.
         try:
-            prompt = data["prompt"]
+            value = data[name]
         except KeyError as e:
-            if prompt_method != LSPPromptMethod.FORCE:
-                raise ValueError(f"Missing 'prompt' attribute in {data}") from e
+            if is_required:
+                raise ValueError(f"Missing '{name}' attribute in {data}") from e
             return None
-        if not isinstance(prompt, str):
-            msg = f"Invalid 'prompt' entry in {data}, expecting a string: {prompt}"
+        if not isinstance(value, str):
+            msg = f"Invalid '{name}' entry in {data}, expecting a string: {value}"
             raise ValueError(msg)
-        return prompt
+        return value
 
     @classmethod
     def _extract_choices_field(cls, data: Mapping[str, JsonValue], prompt_method: LSPPromptMethod) -> list[str] | None:
@@ -102,14 +104,6 @@ class LSPConfigOptionV1:
         return cast(list[str], choices_unsafe)
 
     @classmethod
-    def _extract_default_field(cls, data: Mapping[str, JsonValue]) -> str | None:
-        default = data.get("default", None)
-        if default is not None and not isinstance(default, str):
-            msg = f"Invalid 'default' entry in {data}, expecting a string: {default}"
-            raise ValueError(msg)
-        return default
-
-    @classmethod
     def parse(cls, data: JsonValue) -> "LSPConfigOptionV1":
         if not isinstance(data, dict):
             raise ValueError(f"Invalid transpiler config option, expecting a dict entry, got {data}")
@@ -118,14 +112,14 @@ class LSPConfigOptionV1:
 
         flag = extract_string_field(data, "flag")
         method = extract_enum_field(data, "method", LSPPromptMethod)
-        prompt = cls._extract_prompt_field(data, method)
+        prompt = cls._maybe_extract_string_field(data, "prompt", is_required=method != LSPPromptMethod.FORCE)
 
         optional: dict[str, Any] = {}
         choices = cls._extract_choices_field(data, method)
         if choices is not None:
             optional["choices"] = choices
 
-        default = cls._extract_default_field(data)
+        default = cls._maybe_extract_string_field(data, "default", is_required=False)
         if default is not None:
             optional["default"] = default
 
