@@ -1,5 +1,63 @@
 # Version changelog
 
+## 0.10.10
+
+## Analyzer
+
+- **Large XML file chunking optimization**: Now the analyzer is able to handle large XML files (up to 1TB in size)
+    
+## Converters
+
+### General
+
+- **Non-interactive transpiler installation**: Introduced support for non-interactive installation mode with new `interactive` option that can detect environment context, enabling automated installations without user input while preserving existing configurations. Resolves [#2013](https://github.com/databrickslabs/lakebridge/issues/2013)
+
+### Morpheus
+    
+- **Enhanced GRANT statement support**: Implemented comprehensive GRANT statement support by creating dedicated `permission.g4` grammar file with IR definitions and translation rules for permission-related statements
+    
+- **Improved error handling**: Rewrote print function to properly handle newlines and added extensive unit tests for error annotation, including block and FIXME comments. Resolves [#2030](https://github.com/databrickslabs/lakebridge/issues/2030)
+    
+- **Enhanced LSP server behavior**: Improved LSP server to append original text to error messages when transpilation fails, eliminating need for client-side response manipulation
+    
+- **Standardized dialect options**: Aligned dialect options to present `synapse` and `mssql` to users for consistency with bladebridge 
+    
+- **Fixed Lateral Column Alias handling**: Enhanced dealiasing for Lateral Column Aliases (LCAs) in WHERE clauses under CASE...WHEN expressions. Resolves [#1767](https://github.com/databrickslabs/lakebridge/issues/1767)
+    
+- **Enhanced GROUP BY/aggregation function dealiasing**: Implemented dealiasing for Lateral Column Aliases in GROUP BY clauses and aggregation functions where LCA references are unsupported. Resolves ([https://github.com/databrickslabs/lakebridge/issues/956](https://github.com/databrickslabs/lakebridge/issues/956)) and ([https://github.com/databrickslabs/lakebridge/issues/954](https://github.com/databrickslabs/lakebridge/issues/954))
+    
+- **Optimized Snowflake transformations**: Reordered transformation rules to ensure `TransformWithinGroup` processes all cases before the call mapper. Resolves [#1231](https://github.com/databrickslabs/lakebridge/issues/1231)
+    
+### BladeBridge
+
+- **Enhanced merge statement handlers**: Improved merge statement processing to fix backtick handling, update operations without WHERE clauses, procedure conversions, IF-THEN-SET blocks, and various delimiter and mapping issues
+    
+- **Fixed view creation with WITH clauses**: Corrected CREATE VIEW functionality to properly handle WITH clause statements
+
+- **Oracle script improvements**: Resolved variable declaration issues in Oracle scripts containing exception handling blocks
+    
+- **SQL Server function mapping**: Added function mappings for Microsoft SQL Server functions including GETUTCDATE, IS_MEMBER, SERVERPROPERTY variants, and QUOTENAME with one or two arguments
+    
+- **Fixed variable declarations**: Resolved variable declaration issues in Oracle scripts that contain exception handling blocks
+    
+- MSSQL Server **Enhanced function mappings**: Added comprehensive function mappings including GETUTCDATE, IS_MEMBER, SERVERPROPERTY variants, and QUOTENAME with one or two arguments
+    
+
+## Reconcile
+
+- **Improved logging for aggregate reconciliation**: Enhanced logging functionality to provide more accurate messages by replacing warning logs with informational messages when aggregate details rules are empty, indicating successful reconciliation with no details to store. Resolves [#2040](https://github.com/databrickslabs/lakebridge/issues/2040)
+    
+- **Refactored aggregate query building**: Simplified code using `AggregateQueryBuilder` class to generate queries for both source and target in a more concise and efficient manner
+    
+
+## Documentation
+
+No updates in this release
+
+## Dependency updates:
+
+ * Bump actions/setup-python from 5 to 6 ([#1988](https://github.com/databrickslabs/lakebridge/pull/1988)).
+
 ## 0.10.9
 
 ## Analyzer
