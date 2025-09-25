@@ -101,7 +101,7 @@ def test_deploy_missing_job(snowflake_recon_config):
     assert install_state.jobs[name] == str(job.job_id)
 
 
-def test_parse_package_name():
+def test_parse_package_name() -> None:
     workspace_client = create_autospec(WorkspaceClient)
     installation = MockInstallation(is_global=False)
     install_state = InstallState.from_installation(installation)

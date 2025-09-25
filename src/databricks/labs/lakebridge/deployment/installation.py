@@ -84,7 +84,7 @@ class WorkspaceInstallation:
             except (InvalidParameterValue, NotFound) as err:
                 logger.warning(f"Unable to apply Upgrades due to: {err}")
 
-    def _upload_wheel(self):
+    def _upload_wheel(self) -> str:
         wheels = self._product_info.wheels(self._ws)
         with wheels:
             wheel_path = wheels.upload_to_wsfs()
