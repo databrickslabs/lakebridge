@@ -44,7 +44,7 @@ from databricks.labs.lakebridge.transpiler.transpile_status import ErrorSeverity
 
 
 # Subclass to allow controlled access to protected methods.
-class LakeBridge(App):
+class Lakebridge(App):
     def create_workspace_client(self) -> WorkspaceClient:
         """Create a workspace client, with the appropriate product and version information.
 
@@ -54,7 +54,7 @@ class LakeBridge(App):
         return self._workspace_client()
 
 
-lakebridge = LakeBridge(__file__)
+lakebridge = Lakebridge(__file__)
 logger = get_logger(__file__)
 
 
