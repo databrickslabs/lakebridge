@@ -31,7 +31,7 @@ def extract_string_field(data: Mapping[str, JsonValue], name: str) -> str:
         data: The mapping to get the string field from.
         name: The name of the field to extract.
     Raises:
-        ValueError: If the field is not present, or if it's present not a non-empty string.
+        ValueError: If the field is not present, not a string, or an empty string.
     """
     try:
         value = data[name]
