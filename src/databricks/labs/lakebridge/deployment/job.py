@@ -1,6 +1,5 @@
 import logging
 from datetime import datetime, timezone, timedelta
-from pathlib import Path
 from typing import Any
 
 from databricks.labs.blueprint.installation import Installation
