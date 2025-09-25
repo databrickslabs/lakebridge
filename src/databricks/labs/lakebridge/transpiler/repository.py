@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping, Sequence, Set
+from dataclasses import dataclass
 from json import loads
 import logging
 import os
@@ -12,6 +13,14 @@ from databricks.labs.lakebridge.config import LSPConfigOptionV1
 from databricks.labs.lakebridge.transpiler.lsp.lsp_engine import LSPConfig
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True, kw_only=True)
+class TranspilerInfo:
+    transpiler_name: str
+    version: str | None
+    configuration_path: Path
+    dialects: Mapping[str, Sequence[LSPConfigOptionV1]]
 
 
 class TranspilerRepository:
@@ -101,17 +110,29 @@ class TranspilerRepository:
           A mapping of configurations, keyed by their transpiler names.
         """
         all_configs = self._all_transpiler_configs()
-        return {config.name: config for config in all_configs}
+        return {config.name: config for _, config in all_configs}
 
     def all_transpiler_names(self) -> Set[str]:
         """Query the set of transpiler names for all installed transpilers."""
         all_configs = self.all_transpiler_configs()
         return frozenset(all_configs.keys())
 
+    def installed_transpilers(self) -> Mapping[str, TranspilerInfo]:
+        """Query the set of installed transpilers and their metadata."""
+        return {
+            path.name: TranspilerInfo(
+                transpiler_name=config.name,
+                version=self.get_installed_version(path.name),
+                configuration_path=config.path,
+                dialects={dialect: config.options_for_dialect(dialect) for dialect in config.remorph.dialects},
+            )
+            for path, config in self._all_transpiler_configs()
+        }
+
     def all_dialects(self) -> Set[str]:
         """Query the set of dialects for all installed transpilers."""
         all_dialects: set[str] = set()
-        for config in self._all_transpiler_configs():
+        for _, config in self._all_transpiler_configs():
             all_dialects = all_dialects.union(config.remorph.dialects)
         return all_dialects
 
@@ -141,7 +162,7 @@ class TranspilerRepository:
         """
         # Note: Because it's the transpiler name, have to hunt through the installed list rather get it directly.
         try:
-            config = next(c for c in self._all_transpiler_configs() if c.name == transpiler_name)
+            config = next(c for _, c in self._all_transpiler_configs() if c.name == transpiler_name)
         except StopIteration as e:
             raise ValueError(f"No such transpiler: {transpiler_name}") from e
         return config.path
@@ -163,14 +184,15 @@ class TranspilerRepository:
             return []  # gracefully returns an empty list, since this can only happen during testing
         return config.options_for_dialect(source_dialect)
 
-    def _all_transpiler_configs(self) -> Iterable[LSPConfig]:
+    def _all_transpiler_configs(self) -> Iterable[tuple[Path, LSPConfig]]:
         transpilers_path = self.transpilers_path()
         if transpilers_path.exists():
             all_files = os.listdir(transpilers_path)
             for file in all_files:
-                config = self._transpiler_config(transpilers_path / file)
+                path = transpilers_path / file
+                config = self._transpiler_config(path)
                 if config:
-                    yield config
+                    yield path, config
 
     @classmethod
     def _transpiler_config(cls, path: Path) -> LSPConfig | None:

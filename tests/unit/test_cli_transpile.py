@@ -1,4 +1,5 @@
 import dataclasses
+import json
 import logging
 import re
 from collections.abc import Generator, Callable
@@ -386,3 +387,36 @@ def test_transpile_no_config_with_source_override(
         ANY,
         expected_config,
     )
+
+
+def test_describe_transpile(mock_cli_transpile_no_config, transpiler_repository: TranspilerRepository, capsys) -> None:
+    """Verify that the 'describe-transpile' CLI command produces a JSON summary of installed transpilers."""
+    ws, _, _ = mock_cli_transpile_no_config
+    cli.describe_transpile(w=ws, transpiler_repository=transpiler_repository)
+
+    (out, _) = capsys.readouterr()
+    json_description = json.loads(out)
+
+    experimental_option = {
+        "flag": "-experimental",
+        "method": "CONFIRM",
+        "prompt": "Do you want to use the experimental Databricks generator ?",
+    }
+
+    assert json_description == {
+        "available-dialects": [
+            "informatica pc",
+            "snowflake",
+        ],
+        "installed-transpilers": [
+            {
+                "name": "Stubbed LSP Transpiler Configuration",
+                "config-path": str(transpiler_repository.transpilers_path() / "stub-transpiler" / "lib" / "config.yml"),
+                "versions": {"installed": None, "latest": None},
+                "supported-dialects": {
+                    "informatica pc": {"options": [experimental_option]},
+                    "snowflake": {"options": [experimental_option]},
+                },
+            }
+        ],
+    }
