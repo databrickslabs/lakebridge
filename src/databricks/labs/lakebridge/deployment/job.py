@@ -151,13 +151,6 @@ class JobDeployment:
     def parse_package_name(self, wheel_path: str) -> str:
         default_name = "databricks_labs_lakebridge"
 
-        if not isinstance(wheel_path, Path):
-            wheel_path = str(wheel_path)
-
-        if not isinstance(wheel_path, str):
-            logger.warning("wheel path is not a string, using default.")
-            return default_name
-
         name = wheel_path.split("/")[-1].split("-")[0]
 
         if self._product_info.product_name() not in name:
