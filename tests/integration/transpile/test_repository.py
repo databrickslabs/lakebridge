@@ -14,7 +14,6 @@ def test_installed_transpiler_info(transpiler_repository: TranspilerRepository) 
         "overrides-file",
         LSPPromptMethod.QUESTION,
         "Specify the config file to override the default[Bladebridge] config - press <enter> for none",
-        [],
         default='<none>',
     )
     target_tech = LSPConfigOptionV1(
