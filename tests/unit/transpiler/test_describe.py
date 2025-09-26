@@ -119,17 +119,6 @@ def test_transpiler_repository_as_json() -> None:
         "available-dialects": ["bar", "foo"],
         "installed-transpilers": [
             {
-                "name": "Foo",
-                "config-path": "/path/to/foo/config.yml",
-                "versions": {
-                    "installed": "1.0.0",
-                    "latest": None,
-                },
-                "supported-dialects": {
-                    "foo": {"options": []},
-                },
-            },
-            {
                 "name": "Bar",
                 "config-path": "/path/to/bar/config.yml",
                 "versions": {
@@ -138,6 +127,17 @@ def test_transpiler_repository_as_json() -> None:
                 },
                 "supported-dialects": {
                     "bar": {"options": [{"flag": "an_option", "method": "CONFIRM", "prompt": "Have you any wool?"}]},
+                },
+            },
+            {
+                "name": "Foo",
+                "config-path": "/path/to/foo/config.yml",
+                "versions": {
+                    "installed": "1.0.0",
+                    "latest": None,
+                },
+                "supported-dialects": {
+                    "foo": {"options": []},
                 },
             },
         ],
