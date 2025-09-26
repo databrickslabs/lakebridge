@@ -443,7 +443,11 @@ def test_server_decombines_workflow_output(mock_workspace_client, lsp_engine, tr
         assert any(Path(output_folder).glob("*.json")), "No .json file found in output_folder"
 
 
-def test_encoding_error_unicode_decode_error(input_source, output_folder, mock_workspace_client: WorkspaceClient):
+def test_encoding_error_unicode_decode_error(
+    input_source: Path,
+    output_folder: Path,
+    mock_workspace_client: WorkspaceClient,
+) -> None:
     """Test UnicodeDecodeError handling when file encoding doesn't match expected encoding."""
     # Create a file with Latin-1 encoding containing non-ASCII characters
     # When read_text() tries to decode this as UTF-8, it will fail with UnicodeDecodeError
@@ -470,7 +474,11 @@ def test_encoding_error_unicode_decode_error(input_source, output_folder, mock_w
     assert "codec can't decode" in only_error.message
 
 
-def test_encoding_error_lookup_error(input_source, output_folder, mock_workspace_client: WorkspaceClient):
+def test_encoding_error_lookup_error(
+    input_source: Path,
+    output_folder: Path,
+    mock_workspace_client: WorkspaceClient,
+) -> None:
     """Test LookupError handling when XML file declares an unknown encoding."""
     # Create an XML file that declares an invalid encoding name
     # When read_text() tries to use this encoding, it will fail with LookupError
@@ -497,7 +505,11 @@ def test_encoding_error_lookup_error(input_source, output_folder, mock_workspace
     assert "encoding" in only_error.message
 
 
-def test_encoding_error_continues_with_other_files(input_source, output_folder, mock_workspace_client):
+def test_encoding_error_continues_with_other_files(
+    input_source: Path,
+    output_folder: Path,
+    mock_workspace_client: WorkspaceClient,
+) -> None:
     """Test that encoding errors on one file don't prevent processing other files."""
     # Add a problematic file to the existing input_source directory
     # This tests the real-world scenario of mixed good/bad files in a directory
@@ -516,8 +528,9 @@ def test_encoding_error_continues_with_other_files(input_source, output_folder, 
     status, errors = transpile(mock_workspace_client, SqlglotEngine(), transpile_config)
 
     # Should process existing good files successfully despite the problematic one
-    files_processed = status.get("total_files_processed")
-    queries_processed = status.get("total_queries_processed")
+    files_processed = status.get("total_files_processed", 0)
+    queries_processed = status.get("total_queries_processed", 0)
+    assert isinstance(files_processed, int) and isinstance(queries_processed, int)
     assert files_processed > 1  # Multiple files were processed
     assert queries_processed > 0  # Some files had successful queries
     assert files_processed > queries_processed  # At least one file failed due to encoding error
