@@ -37,18 +37,6 @@ def test_describe_installed_transpilers(transpiler_repository: TranspilerReposit
         ],
         "installed-transpilers": [
             {
-                "name": "Morpheus",
-                "config-path": str(transpiler_repository.transpilers_path() / "morpheus" / "lib" / "config.yml"),
-                "versions": {
-                    "installed": "0.4.0",
-                    "latest": None,
-                },
-                "supported-dialects": {
-                    "snowflake": {"options": []},
-                    "tsql": {"options": []},
-                },
-            },
-            {
                 "name": "Bladebridge",
                 "config-path": str(transpiler_repository.transpilers_path() / "bladebridge" / "lib" / "config.yml"),
                 "versions": {
@@ -68,6 +56,18 @@ def test_describe_installed_transpilers(transpiler_repository: TranspilerReposit
                     "snowflake": {"options": [bb_overrides]},
                     "synapse": {"options": [bb_overrides]},
                     "teradata": {"options": [bb_overrides]},
+                },
+            },
+            {
+                "name": "Morpheus",
+                "config-path": str(transpiler_repository.transpilers_path() / "morpheus" / "lib" / "config.yml"),
+                "versions": {
+                    "installed": "0.4.0",
+                    "latest": None,
+                },
+                "supported-dialects": {
+                    "snowflake": {"options": []},
+                    "tsql": {"options": []},
                 },
             },
         ],
