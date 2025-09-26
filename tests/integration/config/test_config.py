@@ -1,3 +1,5 @@
+from databricks.sdk import WorkspaceClient
+
 from databricks.labs.blueprint.tui import MockPrompts
 from databricks.labs.lakebridge.config import TranspileConfig, ReconcileConfig
 from databricks.labs.lakebridge.contexts.application import ApplicationContext
@@ -10,7 +12,7 @@ class _WorkspaceInstaller(WorkspaceInstaller):
         self._save_config(config)
 
 
-def test_stores_and_fetches_config(ws):
+def test_stores_and_fetches_config(ws: WorkspaceClient) -> None:
     prompts = MockPrompts(
         {
             r"Open .* in the browser?": "no",

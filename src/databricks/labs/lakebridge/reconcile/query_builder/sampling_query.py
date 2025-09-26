@@ -63,12 +63,16 @@ class SamplingQueryBuilder(QueryBuilder):
         query_sql = select(*sql_with_transforms).from_(":tbl").where(self.filter, dialect=self.engine)
         if self.layer == "source":
             with_select = [
-                build_column(this=DialectUtils.unnormalize_identifier(col), table_name="src", quoted=True)
+                build_column(
+                    this=DialectUtils.unnormalize_identifier(col), table_name="src", quoted=True and self._is_add_quotes
+                )
                 for col in sorted(cols)
             ]
         else:
             with_select = [
-                build_column(this=DialectUtils.unnormalize_identifier(col), table_name="src", quoted=True)
+                build_column(
+                    this=DialectUtils.unnormalize_identifier(col), table_name="src", quoted=True and self._is_add_quotes
+                )
                 for col in sorted(self.table_conf.get_tgt_to_src_col_mapping_list(cols))
             ]
 
@@ -107,10 +111,14 @@ class SamplingQueryBuilder(QueryBuilder):
                         alias=DialectUtils.unnormalize_identifier(col),
                         is_string=_get_is_string(column_types_dict, col),
                         cast=orig_types_dict.get(DialectUtils.ansi_normalize_identifier(col)),
-                        quoted=True,
+                        quoted=True and self._is_add_quotes,
                     )
                     if value is not None
-                    else exp.Alias(this=exp.Null(), alias=DialectUtils.unnormalize_identifier(col), quoted=True)
+                    else exp.Alias(
+                        this=exp.Null(),
+                        alias=DialectUtils.unnormalize_identifier(col),
+                        quoted=True and self._is_add_quotes,
+                    )
                 )
                 for col, value in zip(df.columns, row)
             ]

@@ -112,8 +112,14 @@ class OracleDataSource(DataSource, SecretsMixin, JDBCReaderMixin):
         return self._get_jdbc_reader(query, self.get_jdbc_url, OracleDataSource._DRIVER)
 
     def normalize_identifier(self, identifier: str) -> NormalizedIdentifier:
-        return DialectUtils.normalize_identifier(
+        normalized = DialectUtils.normalize_identifier(
             identifier,
             source_start_delimiter=OracleDataSource._IDENTIFIER_DELIMITER,
             source_end_delimiter=OracleDataSource._IDENTIFIER_DELIMITER,
         )
+
+        # TODO: In Oracle, quoted identifiers are case-sensitive,
+        # it is disabled for now till we have a proper strategy to handle it.
+        normalized.source_normalized = DialectUtils.unnormalize_identifier(identifier)
+
+        return normalized

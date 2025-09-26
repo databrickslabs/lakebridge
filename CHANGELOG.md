@@ -1,5 +1,181 @@
 # Version changelog
 
+## 0.10.10
+
+## Analyzer
+
+- **Large XML file chunking optimization**: Now the analyzer is able to handle large XML files (up to 1TB in size)
+    
+## Converters
+
+### General
+
+- **Non-interactive transpiler installation**: Introduced support for non-interactive installation mode with new `interactive` option that can detect environment context, enabling automated installations without user input while preserving existing configurations. Resolves [#2013](https://github.com/databrickslabs/lakebridge/issues/2013)
+
+### Morpheus
+    
+- **Enhanced GRANT statement support**: Implemented comprehensive GRANT statement support by creating dedicated `permission.g4` grammar file with IR definitions and translation rules for permission-related statements
+    
+- **Improved error handling**: Rewrote print function to properly handle newlines and added extensive unit tests for error annotation, including block and FIXME comments. Resolves [#2030](https://github.com/databrickslabs/lakebridge/issues/2030)
+    
+- **Enhanced LSP server behavior**: Improved LSP server to append original text to error messages when transpilation fails, eliminating need for client-side response manipulation
+    
+- **Standardized dialect options**: Aligned dialect options to present `synapse` and `mssql` to users for consistency with bladebridge 
+    
+- **Fixed Lateral Column Alias handling**: Enhanced dealiasing for Lateral Column Aliases (LCAs) in WHERE clauses under CASE...WHEN expressions. Resolves [#1767](https://github.com/databrickslabs/lakebridge/issues/1767)
+    
+- **Enhanced GROUP BY/aggregation function dealiasing**: Implemented dealiasing for Lateral Column Aliases in GROUP BY clauses and aggregation functions where LCA references are unsupported. Resolves ([https://github.com/databrickslabs/lakebridge/issues/956](https://github.com/databrickslabs/lakebridge/issues/956)) and ([https://github.com/databrickslabs/lakebridge/issues/954](https://github.com/databrickslabs/lakebridge/issues/954))
+    
+- **Optimized Snowflake transformations**: Reordered transformation rules to ensure `TransformWithinGroup` processes all cases before the call mapper. Resolves [#1231](https://github.com/databrickslabs/lakebridge/issues/1231)
+    
+### BladeBridge
+
+- **Enhanced merge statement handlers**: Improved merge statement processing to fix backtick handling, update operations without WHERE clauses, procedure conversions, IF-THEN-SET blocks, and various delimiter and mapping issues
+    
+- **Fixed view creation with WITH clauses**: Corrected CREATE VIEW functionality to properly handle WITH clause statements
+
+- **Oracle script improvements**: Resolved variable declaration issues in Oracle scripts containing exception handling blocks
+    
+- **SQL Server function mapping**: Added function mappings for Microsoft SQL Server functions including GETUTCDATE, IS_MEMBER, SERVERPROPERTY variants, and QUOTENAME with one or two arguments
+    
+- **Fixed variable declarations**: Resolved variable declaration issues in Oracle scripts that contain exception handling blocks
+    
+- MSSQL Server **Enhanced function mappings**: Added comprehensive function mappings including GETUTCDATE, IS_MEMBER, SERVERPROPERTY variants, and QUOTENAME with one or two arguments
+    
+
+## Reconcile
+
+- **Improved logging for aggregate reconciliation**: Enhanced logging functionality to provide more accurate messages by replacing warning logs with informational messages when aggregate details rules are empty, indicating successful reconciliation with no details to store. Resolves [#2040](https://github.com/databrickslabs/lakebridge/issues/2040)
+    
+- **Refactored aggregate query building**: Simplified code using `AggregateQueryBuilder` class to generate queries for both source and target in a more concise and efficient manner
+    
+
+## Documentation
+
+No updates in this release
+
+## Dependency updates:
+
+ * Bump actions/setup-python from 5 to 6 ([#1988](https://github.com/databrickslabs/lakebridge/pull/1988)).
+
+## 0.10.9
+
+## Analyzer
+- Fixed bug where Analyzer would crash with large DDL files
+- Adjusted calculation of complexity for TSQL queries to make it more accurate
+
+## Transpilers
+
+### Morpheus
+- T-SQL Updates
+	- **Advanced Statement Support**: Added parsing for `CREATE CERTIFICATE`, `CREATE LOGIN`, `PRINT` commands, and `EXECUTE AS LOGIN` statements     
+	- **SET Command Enhancements**: Support for complex assignment operators (`+=`, `-=`, `*=`, `/=`, `%=`, `&=`, `^=`, `|=`) commonly used in T-SQL scripts     
+	- **CREATE EXTERNAL TABLE**: Improved parsing with flexible syntax for external table definitions and location specifications     
+	- **GRANT/REVOKE Statements**: Comprehensive support for T-SQL security statements with clear Unity Catalog migration guidance     
+	- **DROP Commands**: Enhanced handling of `DROP SENSITIVITY` and other specialized DROP variants     
+	- **Improved Error Reporting**: SQL output now includes `FIXME` comments with detailed error messages for unsupported constructs 
+
+- Snowflake Updates
+	- **Analytics Functions**: Full parsing support for `MATCH_RECOGNIZE` clause with pattern analysis capabilities for complex analytical queries     
+	- **Time Travel Queries**: Enhanced handling of `CHANGES`, `AT`, and `BEFORE` clauses for historical data access patterns     
+	- **REGEXP_INSTR Function**: Complete implementation supporting all 7 parameters (vs Databricks' 2), providing accurate behavioral translation     
+	- **Table-Valued Functions**: Support for parsing inline table-valued functions commonly used in Snowflake     
+	- **GRANT/REVOKE Statements**: Full support for Snowflake's complex privilege management syntax including roles and shares     
+	- **DROP Commands**: Enhanced parsing for `DROP SENSITIVITY` and related data governance statements     
+	- **Improved Error Reporting**: SQL output now includes `FIXME` comments with detailed error messages for unsupported constructs 
+
+## Dependency updates:
+
+ * Bump actions/checkout from 4 to 5 ([#1928](https://github.com/databrickslabs/lakebridge/pull/1928)).
+ * Bump actions/upload-pages-artifact from 3 to 4 ([#1964](https://github.com/databrickslabs/lakebridge/pull/1964)).
+ * Bump mermaid from 11.6.0 to 11.10.1 in /docs/lakebridge ([#1956](https://github.com/databrickslabs/lakebridge/pull/1956)).
+
+## 0.10.8
+
+## Transpilers
+
+## General
+- **SQL Validation Enhancement**: Improved SQL validator to check only SQL outputs with enhanced error handling and support for various transpile results ([#1949](https://github.com/databrickslabs/lakebridge/issues/1949))
+- **Error Handling Improvements**: Added static error lookups for specific cases like unresolved routines and columns, with more readable exception messages
+- **MIME Support**: New functionality to support both MIME and non-MIME transpile results, including validation and output file management
+- **LSP Server Integration**: Log level now passed to Language Server Protocol (LSP) server via environment variable for greater flexibility ([#1967](https://github.com/databrickslabs/lakebridge/issues/1967))
+- **Transpiler Auto-Upgrade**: Enhanced installer to automatically upgrade existing Lakebridge transpilers during CLI upgrade process ([#1978](https://github.com/databrickslabs/lakebridge/issues/1978))
+- **Source Dialect Handling**: Fixed missing transpile source dialect handling to ensure correct assignment in configuration objects ([#1985](https://github.com/databrickslabs/lakebridge/issues/1985))
+    
+
+## Morpheus
+- **Enhanced Snowflake Conversion support**:    
+    - Support for parsing ILIKE, EXCLUDE, REPLACE, RENAME with * LHS
+    - Full support for EXCLUDE and RENAME clauses and all combinations
+    - Fixed REPLACE function with optional third argument
+    - Enhanced OBJECT_DELETE to accept 2 or more arguments
+    - Accurate translation of Snowflake's REGEXP_REPLACE
+        
+- **Parser Improvements**:    
+    - Allow lists of generic options with optional commas
+    - EXTERNAL can now be used as an ID despite being documented as reserved
+    - Support for DROP RULE syntax in TSQL
+    - Allow DBT Jinja macros within JSON literals
+    - Fixed bugs around DBT elseif and comment nodes
+        
+- **Error Handling**: Upgraded SimpleError with support status and simplified user-facing parse error messages
+- **Integration Alignment**: Updated error handling to align with BladeBridge, now returning `UNRESOLVED_ROUTINE` errors consistently ([#1998](https://github.com/databrickslabs/lakebridge/issues/1998))
+    
+
+## BladeBridge
+- **XML Source Processing**:
+    - Automatic detection of XML sources with proper encoding preservation
+    - Maintains UTF-8 encoding while respecting XML-specific encoding declarations
+    - Prevents XML parser failures from encoding mismatches
+        
+- **SQL Scripting Enhancements**:
+    - Fixed nested comment handling in SQL scripts
+    - Improved custom configuration handling for first-match processing
+    - Removed unnecessary begin/end enclosures in pre/post SQL blocks
+        
+- **Teradata Updates**:
+    - Enhanced `convert_update_to_merge` functionality
+    - Replaced list partitioning with `CLUSTER BY` statements
+    - Removed unsupported `CREATE INDEX` and `ALTER INDEX` statements
+    - Fixed `CREATE PROCEDURE` signature generation with proper exception handling
+        
+- **DataStage Updates**:
+    - Added support for `TRUNCATE TABLE` specifications ([#1903](https://github.com/databrickslabs/lakebridge/issues/1903))
+    - Fixed column name handling when dataframe columns match job parameters
+    - Enabled single-pass processing of shared containers
+    - Resolved dataset component path issues for proper PySpark code generation
+        
+
+## Reconcile
+
+- **Schema Normalization**: Added feature flag for identifier normalization with optional `normalize` parameter in `get_schema` method for flexible handling of different data source configurations ([#1953](https://github.com/databrickslabs/lakebridge/issues/1953))
+
+**Enhanced Connection Support**
+- **Snowflake Security**: Added support for encrypted PEM private keys with `pem_private_key_password` field for secure authentication ([#1869](https://github.com/databrickslabs/lakebridge/issues/1869))
+- **JDBC URL Handling**: Improved JDBC URL arguments handling with enhanced error handling and logging
+- **Connection Properties**: Enhanced SecretsMixin class with new `_get_secret_or_none` method for better secret value retrieval
+- **Error Handling**: Introduced new exceptions like `InvalidSnowflakePemPrivateKey` for better error management
+    
+
+## Documentation
+
+**Comprehensive Documentation Updates**
+- **MS SQL and Synapse**: Enhanced documentation for reconcile connections including default secret naming conventions and required connection properties ([#1954](https://github.com/databrickslabs/lakebridge/issues/1954))
+- **Connection Configuration**: Added clear YAML format examples for MS SQL connection properties covering user, password, host, port, database, encryption, and trust server certificate
+- **BladeBridge Updates**: Minor naming correction from "Microsoft MS SQL Server" to "Microsoft SQL Server" while maintaining support for Oracle, Teradata, Netezza, Informatica, and DataStage
+- **SQL Splitter**: Updated documentation to remove RCT references, relocated to main menu with revised terminology using "Lakebridge" consistently ([#1952](https://github.com/databrickslabs/lakebridge/issues/1952))
+- **Transpiler Discovery**: Updated documentation for pluggable transpiler discovery and execution, introducing Morpheus and BladeBridge as Databricks-provided transpilers
+- **Installation Process**: Updated installation processes from Maven Central and PyPi with new directory structure for manual installations
+    
+
+## General
+
+**Installation and Maintenance Improvements**
+- **Automated Upgrades**: Streamlined installation process with automatic transpiler upgrades during CLI upgrade, eliminating need for separate upgrade commands
+- **Plugin Management**: Improved installation process for plugins like Bladebridge and Morpheus
+- **Testing Enhancement**: Added comprehensive test functions to validate SQL file transpilation with various scenarios including table creation and error handling
+    
+
 ## 0.10.7
 
 ## Analyzer

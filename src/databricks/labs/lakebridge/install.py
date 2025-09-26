@@ -49,6 +49,7 @@ class WorkspaceInstaller:
         workspace_installation: WorkspaceInstallation,
         environ: dict[str, str] | None = None,
         *,
+        is_interactive: bool = True,
         transpiler_repository: TranspilerRepository = TranspilerRepository.user_home(),
         transpiler_installers: Sequence[Callable[[TranspilerRepository], TranspilerInstaller]] = (
             BladebridgeInstaller,
@@ -62,6 +63,8 @@ class WorkspaceInstaller:
         self._product_info = product_info
         self._resource_configurator = resource_configurator
         self._ws_installation = workspace_installation
+        # TODO: Refactor the 'prompts' property in preference to using this flag, which should be redundant.
+        self._is_interactive = is_interactive
         self._transpiler_repository = transpiler_repository
         self._transpiler_installer_factories = transpiler_installers
 
@@ -77,7 +80,10 @@ class WorkspaceInstaller:
         return frozenset(factory(self._transpiler_repository) for factory in self._transpiler_installer_factories)
 
     def run(
-        self, module: str, config: LakebridgeConfiguration | None = None, artifact: str | None = None
+        self,
+        module: str,
+        config: LakebridgeConfiguration | None = None,
+        artifact: str | None = None,
     ) -> LakebridgeConfiguration:
         logger.debug(f"Initializing workspace installation for module: {module} (config: {config})")
         if module == "transpile" and artifact:
@@ -143,10 +149,13 @@ class WorkspaceInstaller:
     def _is_testing(self):
         return self._product_info.product_name() != "lakebridge"
 
-    def _configure_transpile(self) -> TranspileConfig:
+    def _configure_transpile(self) -> TranspileConfig | None:
         try:
             config = self._installation.load(TranspileConfig)
             logger.info("Lakebridge `transpile` is already installed on this workspace.")
+            if not self._is_interactive:
+                logger.debug("Installation is not interactive, keeping existing configuration.")
+                return config
             if not self._prompts.confirm("Do you want to override the existing installation?"):
                 return config
         except NotFound:
@@ -156,6 +165,10 @@ class WorkspaceInstaller:
             logger.warning(
                 f"Existing `transpile` installation at {install_dir} is corrupted. Continuing new installation..."
             )
+
+        if not self._is_interactive:
+            logger.warning("Installation is not interactive, skipping configuration of transpilers.")
+            return None
 
         config = self._configure_new_transpile_installation()
         logger.info("Finished configuring lakebridge `transpile`.")
@@ -368,7 +381,12 @@ class WorkspaceInstaller:
         self._resource_configurator.has_necessary_access(catalog_name, schema_name, volume_name)
 
 
-def installer(ws: WorkspaceClient, transpiler_repository: TranspilerRepository) -> WorkspaceInstaller:
+def installer(
+    ws: WorkspaceClient,
+    transpiler_repository: TranspilerRepository,
+    *,
+    is_interactive: bool,
+) -> WorkspaceInstaller:
     app_context = ApplicationContext(_verify_workspace_client(ws))
     return WorkspaceInstaller(
         app_context.workspace_client,
@@ -379,6 +397,7 @@ def installer(ws: WorkspaceClient, transpiler_repository: TranspilerRepository) 
         app_context.resource_configurator,
         app_context.workspace_installation,
         transpiler_repository=transpiler_repository,
+        is_interactive=is_interactive,
     )
 
 

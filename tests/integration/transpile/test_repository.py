@@ -1,31 +1,56 @@
-import shutil
-from collections.abc import Generator
-from pathlib import Path
-
-import pytest
-
-from databricks.labs.lakebridge.transpiler.repository import TranspilerRepository
-
-
-@pytest.fixture
-def transpiler_repository(tmp_path: Path) -> Generator[TranspilerRepository, None, None]:
-    """A thin transpiler repository that only contains metadata for the Bladebridge and Morpheus transpilers."""
-    resources_folder = Path(__file__).parent.parent.parent / "resources" / "transpiler_configs"
-    labs_path = tmp_path / "labs"
-    repository = TranspilerRepository(labs_path=labs_path)
-    for transpiler in ("bladebridge", "morpheus"):
-        install_directory = repository.transpilers_path() / transpiler / "lib"
-        install_directory.mkdir(parents=True)
-        source = resources_folder / transpiler / "lib" / "config.yml"
-        target = install_directory / "config.yml"
-        # Just the config file, not the whole thing: we're only testing the repository and transpiler metadata.
-        shutil.copyfile(source, target)
-    yield repository
+from databricks.labs.lakebridge.config import LSPConfigOptionV1, LSPPromptMethod
+from databricks.labs.lakebridge.transpiler.repository import TranspilerRepository, TranspilerInfo
 
 
 def test_lists_all_transpiler_names(transpiler_repository: TranspilerRepository) -> None:
     transpiler_names = transpiler_repository.all_transpiler_names()
     assert transpiler_names == {'Morpheus', 'Bladebridge'}
+
+
+def test_installed_transpiler_info(transpiler_repository: TranspilerRepository) -> None:
+    installed_transpilers = transpiler_repository.installed_transpilers()
+
+    bb_overrides = LSPConfigOptionV1(
+        "overrides-file",
+        LSPPromptMethod.QUESTION,
+        "Specify the config file to override the default[Bladebridge] config - press <enter> for none",
+        [],
+        default='<none>',
+    )
+    target_tech = LSPConfigOptionV1(
+        "target-tech", LSPPromptMethod.CHOICE, "Specify which technology should be generated", ["SPARKSQL", "PYSPARK"]
+    )
+
+    assert installed_transpilers == {
+        "bladebridge": TranspilerInfo(
+            transpiler_name="Bladebridge",
+            version="0.1.9",
+            configuration_path=transpiler_repository.transpilers_path() / "bladebridge" / "lib" / "config.yml",
+            dialects={
+                "athena": [bb_overrides],
+                "bigquery": [bb_overrides],
+                "datastage": [bb_overrides, target_tech],
+                "greenplum": [bb_overrides],
+                "informatica (desktop edition)": [bb_overrides, target_tech],
+                "mssql": [bb_overrides],
+                "netezza": [bb_overrides],
+                "oracle": [bb_overrides],
+                "redshift": [bb_overrides],
+                "snowflake": [bb_overrides],
+                "synapse": [bb_overrides],
+                "teradata": [bb_overrides],
+            },
+        ),
+        "morpheus": TranspilerInfo(
+            transpiler_name="Morpheus",
+            version="0.4.0",
+            configuration_path=transpiler_repository.transpilers_path() / "morpheus" / "lib" / "config.yml",
+            dialects={
+                "snowflake": [],
+                "tsql": [],
+            },
+        ),
+    }
 
 
 def test_lists_all_dialects(transpiler_repository: TranspilerRepository) -> None:

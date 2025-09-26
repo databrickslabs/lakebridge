@@ -69,16 +69,15 @@ class ThresholdQueryBuilder(QueryBuilder):
                     this=column,
                     alias=f"{DialectUtils.unnormalize_identifier(column)}_source",
                     table_name="source",
-                    quoted=True,
+                    quoted=True and self._is_add_quotes,
                 )
             )
         where = build_where_clause(where_clause)
 
         return select_clause, where
 
-    @classmethod
     def _build_expression_alias_components(
-        cls,
+        self,
         threshold: ColumnThresholds,
         base: exp.Expression,
     ) -> tuple[list[exp.Expression], exp.Expression]:
@@ -89,7 +88,7 @@ class ThresholdQueryBuilder(QueryBuilder):
                 this=column,
                 alias=f"{DialectUtils.unnormalize_identifier(column)}_source",
                 table_name="source",
-                quoted=True,
+                quoted=True and self._is_add_quotes,
             ).transform(coalesce)
         )
         select_clause.append(
@@ -97,7 +96,7 @@ class ThresholdQueryBuilder(QueryBuilder):
                 this=column,
                 alias=f"{DialectUtils.unnormalize_identifier(column)}_databricks",
                 table_name="databricks",
-                quoted=True,
+                quoted=True and self._is_add_quotes,
             ).transform(coalesce)
         )
         where_clause = exp.NEQ(this=base, expression=exp.Literal(this="0", is_string=False))
@@ -133,7 +132,7 @@ class ThresholdQueryBuilder(QueryBuilder):
             build_column(
                 this=func(base=base, threshold=threshold),
                 alias=f"{DialectUtils.unnormalize_identifier(column)}_match",
-                quoted=True,
+                quoted=True and self._is_add_quotes,
             )
         )
 

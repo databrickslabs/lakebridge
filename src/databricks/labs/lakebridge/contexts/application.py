@@ -12,7 +12,7 @@ from databricks.sdk.config import Config
 from databricks.sdk.errors import NotFound
 from databricks.sdk.service.iam import User
 
-from databricks.labs.lakebridge.analyzer.lakebridge_analyzer import LakebridgeAnalyzer
+from databricks.labs.lakebridge.analyzer.lakebridge_analyzer import LakebridgeAnalyzer, AnalyzerPrompts, AnalyzerRunner
 from databricks.labs.lakebridge.config import TranspileConfig, ReconcileConfig, LakebridgeConfiguration
 from databricks.labs.lakebridge.deployment.configurator import ResourceConfigurator
 from databricks.labs.lakebridge.deployment.dashboard import DashboardDeployment
@@ -34,7 +34,7 @@ class ApplicationContext:
             self.__dict__[key] = value
         return self
 
-    @cached_property
+    @property
     def workspace_client(self) -> WorkspaceClient:
         return self._ws
 
@@ -70,7 +70,7 @@ class ApplicationContext:
     def remorph_config(self) -> LakebridgeConfiguration:
         return LakebridgeConfiguration(transpile=self.transpile_config, reconcile=self.recon_config)
 
-    @cached_property
+    @property
     def connect_config(self) -> Config:
         return self.workspace_client.config
 
@@ -137,4 +137,13 @@ class ApplicationContext:
     @cached_property
     def analyzer(self):
         is_debug = logger.getEffectiveLevel() == logging.DEBUG
-        return LakebridgeAnalyzer(self.current_user, self.prompts, is_debug)
+        prompts = AnalyzerPrompts(self.prompts)
+        runner = AnalyzerRunner.create(is_debug)
+        return LakebridgeAnalyzer(prompts, runner)
+
+    def add_user_agent_extra(self, key: str, value: str) -> None:
+        new_config = self._ws.config.copy().with_user_agent_extra(key, value)
+        logger.debug(f"Added User-Agent extra {key}={value}")
+
+        # Recreate the WorkspaceClient from the same type to preserve type information
+        self._ws = type(self._ws)(config=new_config)
