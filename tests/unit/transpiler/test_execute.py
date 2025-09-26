@@ -464,10 +464,10 @@ def test_encoding_error_unicode_decode_error(input_source, output_folder, mock_w
     # Verify error handling
     assert status.get("total_files_processed") == 1  # File was processed (but failed)
     assert status.get("total_queries_processed") == 0  # No queries successfully processed
-    assert len(errors) == 1
-    assert errors[0].code == "encoding-error"
-    assert errors[0].severity == ErrorSeverity.ERROR
-    assert "codec can't decode" in errors[0].message
+    [only_error] = errors
+    assert only_error.code == "encoding-error"
+    assert only_error.severity == ErrorSeverity.ERROR
+    assert "codec can't decode" in only_error.message
 
 
 def test_encoding_error_lookup_error(input_source, output_folder, mock_workspace_client: WorkspaceClient):
@@ -491,10 +491,10 @@ def test_encoding_error_lookup_error(input_source, output_folder, mock_workspace
     # Verify error handling
     assert status.get("total_files_processed") == 1  # File was processed (but failed)
     assert status.get("total_queries_processed") == 0  # No queries successfully processed
-    assert len(errors) == 1
-    assert errors[0].code == "encoding-error"
-    assert errors[0].severity == ErrorSeverity.ERROR
-    assert "encoding" in errors[0].message
+    [only_error] = errors
+    assert only_error.code == "encoding-error"
+    assert only_error.severity == ErrorSeverity.ERROR
+    assert "encoding" in only_error.message
 
 
 def test_encoding_error_continues_with_other_files(input_source, output_folder, mock_workspace_client):
@@ -525,8 +525,8 @@ def test_encoding_error_continues_with_other_files(input_source, output_folder, 
 
     # Should have encoding errors for the problematic file
     encoding_errors = [e for e in errors if e.code == "encoding-error"]
-    assert len(encoding_errors) == 1
-    assert "problematic.sql" in str(encoding_errors[0].path)
+    [only_encoding_error] = encoding_errors
+    assert "problematic.sql" in str(only_encoding_error.path)
 
 
 def test_make_header_with_no_diagnostics():
