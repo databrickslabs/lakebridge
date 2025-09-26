@@ -114,7 +114,6 @@ def test_transpilers_config_path(transpiler_repository: TranspilerRepository, tr
                     flag="overrides-file",
                     method=LSPPromptMethod.QUESTION,
                     prompt="Specify the config file to override the default[Bladebridge] config - press <enter> for none",
-                    choices=[],
                     default='<none>',
                 ),
                 LSPConfigOptionV1(
