@@ -448,9 +448,8 @@ def test_encoding_error_unicode_decode_error(input_source, output_folder, mock_w
     # Create a file with Latin-1 encoding containing non-ASCII characters
     # When read_text() tries to decode this as UTF-8, it will fail with UnicodeDecodeError
     problematic_file = input_source / "latin1_file.sql"
-    with open(problematic_file, "wb") as f:
-        # Write Latin-1 encoded content with non-ASCII characters that will fail as UTF-8
-        f.write("SELECT 'héllo wörld' AS greeting;".encode("latin-1"))
+    # Write Latin-1 encoded content with non-ASCII characters that will fail as UTF-8
+    problematic_file.write_text("SELECT 'h\u00e9llo w\u00f6rld' AS greeting;", encoding="latin-1")
 
     transpile_config = TranspileConfig(
         transpiler_config_path=None,
@@ -476,10 +475,8 @@ def test_encoding_error_lookup_error(input_source, output_folder, mock_workspace
     # Create an XML file that declares an invalid encoding name
     # When read_text() tries to use this encoding, it will fail with LookupError
     xml_file = input_source / "invalid_encoding.xml"
-    with open(xml_file, "wb") as f:
-        # XML declaration with non-existent encoding - will trigger LookupError
-        xml_content = '<?xml version="1.0" encoding="definitely-invalid-codec"?><root>data</root>'
-        f.write(xml_content.encode("utf-8"))
+    # XML declaration with non-existent encoding - will trigger LookupError
+    xml_file.write_text("<?xml version='1.0' encoding='definitely-invalid-codec'?><empty_root/>", encoding="utf-8")
 
     transpile_config = TranspileConfig(
         transpiler_config_path=None,
@@ -505,8 +502,7 @@ def test_encoding_error_continues_with_other_files(input_source, output_folder, 
     # Add a problematic file to the existing input_source directory
     # This tests the real-world scenario of mixed good/bad files in a directory
     problematic_file = input_source / "problematic.sql"
-    with open(problematic_file, "wb") as f:
-        f.write("SELECT 'bad encoding héré' AS test;".encode("latin-1"))
+    problematic_file.write_text("SELECT 'bad encoding h\u00e9r\u00e9' AS test;", encoding="latin-1")
 
     transpile_config = TranspileConfig(
         transpiler_config_path="sqlglot",
