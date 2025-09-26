@@ -444,14 +444,15 @@ def test_server_decombines_workflow_output(mock_workspace_client, lsp_engine, tr
 
 
 def test_encoding_error_unicode_decode_error(
-    input_source: Path,
+    tmp_path: Path,
     output_folder: Path,
     mock_workspace_client: WorkspaceClient,
 ) -> None:
     """Test UnicodeDecodeError handling when file encoding doesn't match expected encoding."""
     # Create a file with Latin-1 encoding containing non-ASCII characters
     # When read_text() tries to decode this as UTF-8, it will fail with UnicodeDecodeError
-    problematic_file = input_source / "latin1_file.sql"
+    problematic_file = tmp_path / "input" / "latin1_file.sql"
+    problematic_file.parent.mkdir(parents=True)
     # Write Latin-1 encoded content with non-ASCII characters that will fail as UTF-8
     problematic_file.write_text("SELECT 'h\u00e9llo w\u00f6rld' AS greeting;", encoding="latin-1")
 
@@ -475,14 +476,15 @@ def test_encoding_error_unicode_decode_error(
 
 
 def test_encoding_error_lookup_error(
-    input_source: Path,
+    tmp_path: Path,
     output_folder: Path,
     mock_workspace_client: WorkspaceClient,
 ) -> None:
     """Test LookupError handling when XML file declares an unknown encoding."""
     # Create an XML file that declares an invalid encoding name
     # When read_text() tries to use this encoding, it will fail with LookupError
-    xml_file = input_source / "invalid_encoding.xml"
+    xml_file = tmp_path / "input" / "invalid_encoding.xml"
+    xml_file.parent.mkdir(parents=True)
     # XML declaration with non-existent encoding - will trigger LookupError
     xml_file.write_text("<?xml version='1.0' encoding='definitely-invalid-codec'?><empty_root/>", encoding="utf-8")
 
