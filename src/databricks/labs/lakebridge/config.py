@@ -1,8 +1,9 @@
 import logging
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from enum import Enum, auto
 from pathlib import Path
-from typing import Any, Literal, cast
+from typing import Any, Literal, TypeVar, cast
 
 from databricks.labs.blueprint.installation import JsonValue
 from databricks.labs.blueprint.tui import Prompts
@@ -20,39 +21,112 @@ class LSPPromptMethod(Enum):
     CONFIRM = auto()
 
 
-@dataclass
+E = TypeVar("E", bound=Enum)
+
+
+def extract_string_field(data: Mapping[str, JsonValue], name: str) -> str:
+    """Extract a string field from the given mapping.
+
+    Parameters:
+        data: The mapping to get the string field from.
+        name: The name of the field to extract.
+    Raises:
+        ValueError: If the field is not present, not a string, or an empty string.
+    """
+    value = _maybe_extract_string_field(data, name, is_required=True)
+    if not value:
+        msg = f"Invalid '{name}' attribute, must be a non-empty string: {value}"
+        raise ValueError(msg)
+    return value
+
+
+def _maybe_extract_string_field(data: Mapping[str, JsonValue], name: str, *, is_required: bool) -> str | None:
+    # A variant of extract_string_field() with two differences:
+    #  - It allows for optional fields.
+    #  - A provided string may be empty.
+    # (This can't easily be folded into extract_string_field() because of the different return type.)
+    try:
+        value = data[name]
+    except KeyError as e:
+        if is_required:
+            raise ValueError(f"Missing '{name}' attribute in {data}") from e
+        return None
+    if not isinstance(value, str):
+        msg = f"Invalid '{name}' entry in {data}, expecting a string: {value}"
+        raise ValueError(msg)
+    return value
+
+
+def extract_enum_field(data: Mapping[str, JsonValue], name: str, enum_type: type[E]) -> E:
+    """Extract an enum field from the given mapping.
+
+    Parameters:
+        data: The mapping to get the enum field from.
+        name: The name of the field to extract.
+        enum_type: The enum type to use for parsing the value.
+    Raises:
+        ValueError: If the field is not present and no default is provided, or if it's present but not a valid enum value.
+    """
+    enum_value = extract_string_field(data, name)
+    try:
+        return enum_type[enum_value]
+    except ValueError as e:
+        valid_values = [m.name for m in enum_type]
+        msg = f"Invalid '{name}' entry in {data}, expecting one of [{', '.join(valid_values)}]: {enum_value}"
+        raise ValueError(msg) from e
+
+
+@dataclass(frozen=True)
 class LSPConfigOptionV1:
     flag: str
     method: LSPPromptMethod
-    prompt: str = ""
+    prompt: str | None = None
     choices: list[str] | None = None
-    default: Any = None
+    default: str | None = None
 
     @classmethod
-    def parse_all(cls, data: dict[str, Any]) -> dict[str, list["LSPConfigOptionV1"]]:
+    def parse_all(cls, data: dict[str, Sequence[JsonValue]]) -> dict[str, list["LSPConfigOptionV1"]]:
         return {key: list(LSPConfigOptionV1.parse(item) for item in value) for (key, value) in data.items()}
 
     @classmethod
-    def parse(cls, data: Any) -> "LSPConfigOptionV1":
+    def _extract_choices_field(cls, data: Mapping[str, JsonValue], prompt_method: LSPPromptMethod) -> list[str] | None:
+        try:
+            choices_unsafe = data["choices"]
+        except KeyError as e:
+            if prompt_method == LSPPromptMethod.CHOICE:
+                raise ValueError(f"Missing 'choices' attribute in {data}") from e
+            return None
+        if not isinstance(choices_unsafe, list) or not all(isinstance(item, str) for item in choices_unsafe):
+            msg = f"Invalid 'choices' entry in {data}, expecting a list of strings: {choices_unsafe}"
+            raise ValueError(msg)
+        return cast(list[str], choices_unsafe)
+
+    @classmethod
+    def parse(cls, data: JsonValue) -> "LSPConfigOptionV1":
         if not isinstance(data, dict):
             raise ValueError(f"Invalid transpiler config option, expecting a dict entry, got {data}")
-        flag: str = data.get("flag", "")
-        if not flag:
-            raise ValueError(f"Missing 'flag' entry in {data}")
-        method_name: str = data.get("method", "")
-        if not method_name:
-            raise ValueError(f"Missing 'method' entry in {data}")
-        method: LSPPromptMethod = cast(LSPPromptMethod, LSPPromptMethod[method_name])
-        prompt: str = data.get("prompt", "")
-        if not prompt:
-            raise ValueError(f"Missing 'prompt' entry in {data}")
-        choices = data.get("choices", [])
-        default = data.get("default", None)
-        return LSPConfigOptionV1(flag, method, prompt, choices, default)
+
+        # Field extraction is factored out mainly to ensure the complexity of this method is not too high.
+
+        flag = extract_string_field(data, "flag")
+        method = extract_enum_field(data, "method", LSPPromptMethod)
+        prompt = _maybe_extract_string_field(data, "prompt", is_required=method != LSPPromptMethod.FORCE)
+
+        optional: dict[str, Any] = {}
+        choices = cls._extract_choices_field(data, method)
+        if choices is not None:
+            optional["choices"] = choices
+
+        default = _maybe_extract_string_field(data, "default", is_required=False)
+        if default is not None:
+            optional["default"] = default
+
+        return LSPConfigOptionV1(flag, method, prompt, **optional)
 
     def prompt_for_value(self, prompts: Prompts) -> JsonValue:
         if self.method == LSPPromptMethod.FORCE:
             return self.default
+        assert self.prompt is not None
         if self.method == LSPPromptMethod.CONFIRM:
             return prompts.confirm(self.prompt)
         if self.method == LSPPromptMethod.QUESTION:
