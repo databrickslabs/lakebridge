@@ -513,8 +513,7 @@ def test_encoding_error_continues_with_other_files(input_source, output_folder, 
         skip_validation=True,
     )
 
-    with patch('databricks.labs.lakebridge.helpers.db_sql.get_sql_backend', return_value=MockBackend()):
-        status, errors = transpile(mock_workspace_client, SqlglotEngine(), transpile_config)
+    status, errors = transpile(mock_workspace_client, SqlglotEngine(), transpile_config)
 
     # Should process existing good files successfully despite the problematic one
     files_processed = status.get("total_files_processed")
