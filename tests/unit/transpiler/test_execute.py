@@ -1,5 +1,6 @@
 import asyncio
 import dataclasses
+import locale
 import re
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -443,12 +444,15 @@ def test_server_decombines_workflow_output(mock_workspace_client, lsp_engine, tr
         assert any(Path(output_folder).glob("*.json")), "No .json file found in output_folder"
 
 
-def test_encoding_error_unicode_decode_error(
+@pytest.mark.xfail(
+    locale.getpreferredencoding().lower() != "utf-8", reason="This test assumes system default encoding is UTF-8."
+)
+def test_encoding_error_utf8_decode_error(
     tmp_path: Path,
     output_folder: Path,
     mock_workspace_client: WorkspaceClient,
 ) -> None:
-    """Test UnicodeDecodeError handling when file encoding doesn't match expected encoding."""
+    """Test UnicodeDecodeError handling when files should be UTF-8 but aren't."""
     # Create a file with Latin-1 encoding containing non-ASCII characters
     # When read_text() tries to decode this as UTF-8, it will fail with UnicodeDecodeError
     problematic_file = tmp_path / "input" / "latin1_file.sql"
@@ -464,6 +468,7 @@ def test_encoding_error_unicode_decode_error(
         skip_validation=True,
     )
 
+    # This reads files using the default system encoding, and this test assumes it's UTF-8.
     status, errors = transpile(mock_workspace_client, IdentityTranspileEngine(), transpile_config)
 
     # Verify error handling
