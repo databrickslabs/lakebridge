@@ -33,6 +33,7 @@ from databricks.labs.lakebridge.install import installer
 from databricks.labs.lakebridge.reconcile.runner import ReconcileRunner
 from databricks.labs.lakebridge.lineage import lineage_generator
 from databricks.labs.lakebridge.reconcile.recon_config import RECONCILE_OPERATION_NAME, AGG_RECONCILE_OPERATION_NAME
+from databricks.labs.lakebridge.transpiler.describe import TranspilersDescription
 from databricks.labs.lakebridge.transpiler.execute import transpile as do_transpile
 from databricks.labs.lakebridge.transpiler.lsp.lsp_engine import LSPEngine
 from databricks.labs.lakebridge.transpiler.repository import TranspilerRepository
@@ -41,7 +42,19 @@ from databricks.labs.lakebridge.transpiler.transpile_engine import TranspileEngi
 
 from databricks.labs.lakebridge.transpiler.transpile_status import ErrorSeverity
 
-lakebridge = App(__file__)
+
+# Subclass to allow controlled access to protected methods.
+class Lakebridge(App):
+    def create_workspace_client(self) -> WorkspaceClient:
+        """Create a workspace client, with the appropriate product and version information.
+
+        This is intended only for use by the install/uninstall hooks.
+        """
+        self._patch_databricks_host()
+        return self._workspace_client()
+
+
+lakebridge = Lakebridge(__file__)
 logger = get_logger(__file__)
 
 
@@ -643,6 +656,22 @@ def interactive_mode(interactive: str | None, *, default: str = "auto", input_st
 
     msg = f"Invalid value for '--interactive': {interactive!r} must be 'true', 'false' or 'auto'."
     raise_validation_exception(msg)
+
+
+@lakebridge.command
+def describe_transpile(
+    *,
+    w: WorkspaceClient,
+    transpiler_repository: TranspilerRepository = TranspilerRepository.user_home(),
+) -> None:
+    """Describe the installed Lakebridge transpilers and available options."""
+    ctx = ApplicationContext(w)
+    ctx.add_user_agent_extra("cmd", "describe-transpile")
+    user = w.current_user.me()
+    logger.debug(f"User: {user}")
+    transpilers_description = TranspilersDescription(transpiler_repository)
+    json_description = transpilers_description.as_json()
+    json.dump(json_description, sys.stdout, indent=2)
 
 
 @lakebridge.command(is_unauthenticated=False)
