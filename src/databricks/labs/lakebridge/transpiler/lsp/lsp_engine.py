@@ -7,10 +7,10 @@ import os
 import shutil
 import sys
 import venv
-from collections.abc import Callable, Sequence, Mapping
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 import attrs
 import yaml
@@ -34,8 +34,9 @@ from lsprotocol.types import Registration, RegistrationParams, TextDocumentIdent
 from pygls.exceptions import FeatureRequestError
 from pygls.lsp.client import BaseLanguageClient
 
+from databricks.labs.blueprint.installation import JsonValue, RootJsonValue
 from databricks.labs.blueprint.wheels import ProductInfo
-from databricks.labs.lakebridge.config import LSPConfigOptionV1, TranspileConfig, TranspileResult
+from databricks.labs.lakebridge.config import LSPConfigOptionV1, TranspileConfig, TranspileResult, extract_string_field
 from databricks.labs.lakebridge.errors.exceptions import IllegalStateException
 from databricks.labs.lakebridge.helpers.file_utils import is_dbt_project_file, is_sql_file
 from databricks.labs.lakebridge.transpiler.transpile_engine import TranspileEngine
@@ -50,6 +51,16 @@ from databricks.labs.lakebridge.transpiler.transpile_status import (
 logger = logging.getLogger(__name__)
 
 
+def _is_all_strings(values: Iterable[object]) -> bool:
+    """Typeguard, to check if all values in the iterable are strings."""
+    return all(isinstance(x, str) for x in values)
+
+
+def _is_all_sequences(values: Iterable[object]) -> bool:
+    """Typeguard, to check if all values in the iterable are sequences."""
+    return all(isinstance(x, Sequence) for x in values)
+
+
 @dataclass
 class _LSPRemorphConfigV1:
     name: str
@@ -58,21 +69,55 @@ class _LSPRemorphConfigV1:
     command_line: Sequence[str]
 
     @classmethod
-    def parse(cls, data: Mapping[str, Any]) -> _LSPRemorphConfigV1:
-        version = data.get("version", 0)
+    def parse(cls, data: Mapping[str, JsonValue]) -> _LSPRemorphConfigV1:
+        cls._check_version(data)
+        name = extract_string_field(data, "name")
+        dialects = cls._extract_dialects(data)
+        env_vars = cls._extract_env_vars(data)
+        command_line = cls._extract_command_line(data)
+        return _LSPRemorphConfigV1(name, dialects, env_vars, command_line)
+
+    @classmethod
+    def _check_version(cls, data: Mapping[str, JsonValue]) -> None:
+        try:
+            version = data["version"]
+        except KeyError as e:
+            raise ValueError("Missing 'version' attribute") from e
         if version != 1:
             raise ValueError(f"Unsupported transpiler config version: {version}")
-        name: str | None = data.get("name", None)
-        if not name:
-            raise ValueError("Missing 'name' entry")
-        dialects = data.get("dialects", [])
-        if len(dialects) == 0:
-            raise ValueError("Missing 'dialects' entry")
-        env_vars = data.get("environment", {})
-        command_line = data.get("command_line", [])
-        if len(command_line) == 0:
-            raise ValueError("Missing 'command_line' entry")
-        return _LSPRemorphConfigV1(name, dialects, env_vars, command_line)
+
+    @classmethod
+    def _extract_dialects(cls, data: Mapping[str, JsonValue]) -> Sequence[str]:
+        try:
+            dialects_unsafe = data["dialects"]
+        except KeyError as e:
+            raise ValueError("Missing 'dialects' attribute") from e
+        if not isinstance(dialects_unsafe, list) or not dialects_unsafe or not _is_all_strings(dialects_unsafe):
+            msg = f"Invalid 'dialects' attribute, expected a non-empty list of strings but got: {dialects_unsafe}"
+            raise ValueError(msg)
+        return cast(list[str], dialects_unsafe)
+
+    @classmethod
+    def _extract_env_vars(cls, data: Mapping[str, JsonValue]) -> Mapping[str, str]:
+        try:
+            env_vars_unsafe = data["environment"]
+            if not isinstance(env_vars_unsafe, Mapping) or not _is_all_strings(env_vars_unsafe.values()):
+                msg = f"Invalid 'environment' entry, expected a mapping with string values but got: {env_vars_unsafe}"
+                raise ValueError(msg)
+            return cast(dict[str, str], env_vars_unsafe)
+        except KeyError:
+            return {}
+
+    @classmethod
+    def _extract_command_line(cls, data: Mapping[str, JsonValue]) -> Sequence[str]:
+        try:
+            command_line = data["command_line"]
+        except KeyError as e:
+            raise ValueError("Missing 'command_line' attribute") from e
+        if not isinstance(command_line, list) or not command_line or not _is_all_strings(command_line):
+            msg = f"Invalid 'command_line' attribute, expected a non-empty list of strings but got: {command_line}"
+            raise ValueError(msg)
+        return cast(list[str], command_line)
 
 
 @dataclass
@@ -80,7 +125,7 @@ class LSPConfig:
     path: Path
     remorph: _LSPRemorphConfigV1
     options: Mapping[str, Sequence[LSPConfigOptionV1]]
-    custom: Mapping[str, Any]
+    custom: Mapping[str, JsonValue]
 
     @property
     def name(self):
@@ -92,19 +137,51 @@ class LSPConfig:
     @classmethod
     def load(cls, path: Path) -> LSPConfig:
         yaml_text = path.read_text()
-        data = yaml.safe_load(yaml_text)
-        if not isinstance(data, dict):
-            raise ValueError(f"Invalid transpiler config, expecting a dict, got a {type(data).__name__}")
-        remorph_data = data.get("remorph", None)
-        if not isinstance(remorph_data, dict):
-            raise ValueError(f"Invalid transpiler config, expecting a 'remorph' dict entry, got {remorph_data}")
-        remorph = _LSPRemorphConfigV1.parse(remorph_data)
-        options_data = data.get("options", {})
-        if not isinstance(options_data, dict):
-            raise ValueError(f"Invalid transpiler config, expecting an 'options' dict entry, got {options_data}")
-        options = LSPConfigOptionV1.parse_all(options_data)
-        custom = data.get("custom", {})
+        data: RootJsonValue = yaml.safe_load(yaml_text)
+        if not isinstance(data, Mapping):
+            msg = f"Invalid transpiler configuration, expecting a root object but got: {data}"
+            raise ValueError(msg)
+
+        remorph = cls._extract_remorph_data(data)
+        options = cls._extract_options(data)
+        custom = cls._extract_custom(data)
         return LSPConfig(path, remorph, options, custom)
+
+    @classmethod
+    def _extract_remorph_data(cls, data: Mapping[str, JsonValue]) -> _LSPRemorphConfigV1:
+        try:
+            remorph_data = data["remorph"]
+        except KeyError as e:
+            raise ValueError("Missing 'remorph' attribute") from e
+        if not isinstance(remorph_data, Mapping):
+            msg = f"Invalid transpiler config, 'remorph' entry must be an object but got: {remorph_data}"
+            raise ValueError(msg)
+        return _LSPRemorphConfigV1.parse(remorph_data)
+
+    @classmethod
+    def _extract_options(cls, data: Mapping[str, JsonValue]) -> Mapping[str, Sequence[LSPConfigOptionV1]]:
+        try:
+            options_data_unsfe = data["options"]
+        except KeyError:
+            # Optional, so no problem if missing
+            return {}
+        if not isinstance(options_data_unsfe, Mapping) or not _is_all_sequences(options_data_unsfe.values()):
+            msg = f"Invalid transpiler config, 'options' must be an object with list properties but got: {options_data_unsfe}"
+            raise ValueError(msg)
+        options_data = cast(dict[str, Sequence[JsonValue]], options_data_unsfe)
+        return LSPConfigOptionV1.parse_all(options_data)
+
+    @classmethod
+    def _extract_custom(cls, data: Mapping[str, JsonValue]) -> Mapping[str, JsonValue]:
+        try:
+            custom = data["custom"]
+            if not isinstance(custom, Mapping):
+                msg = f"Invalid 'custom' entry, expected a mapping but got: {custom}"
+                raise ValueError(msg)
+            return custom
+        except KeyError:
+            # Optional, so no problem if missing
+            return {}
 
 
 def lsp_feature(name: str, options: Any | None = None):

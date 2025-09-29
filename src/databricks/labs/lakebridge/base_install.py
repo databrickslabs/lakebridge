@@ -2,10 +2,9 @@ import sys
 
 from databricks.labs.blueprint.logger import install_logger
 from databricks.labs.blueprint.entrypoint import get_logger
-from databricks.sdk import WorkspaceClient
 from databricks.sdk.core import with_user_agent_extra
 
-from databricks.labs.lakebridge import __version__
+from databricks.labs.lakebridge.cli import lakebridge
 from databricks.labs.lakebridge.install import installer as _installer
 from databricks.labs.lakebridge.transpiler.repository import TranspilerRepository
 
@@ -18,7 +17,7 @@ def main() -> None:
     logger.setLevel("INFO")
 
     installer = _installer(
-        WorkspaceClient(product="lakebridge", product_version=__version__),
+        ws=lakebridge.create_workspace_client(),
         transpiler_repository=TranspilerRepository.user_home(),
         is_interactive=sys.stdin.isatty(),
     )
