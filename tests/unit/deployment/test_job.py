@@ -65,7 +65,7 @@ def test_deploy_new_job(oracle_recon_config):
     product_info = ProductInfo.from_class(LakebridgeConfiguration)
     name = "Recon Job"
     job_deployer = JobDeployment(workspace_client, installation, install_state, product_info)
-    job_deployer.deploy_recon_job(name, oracle_recon_config, "remorph-x.y.z-py3-none-any.whl")
+    job_deployer.deploy_recon_job(name, oracle_recon_config, "lakebridge-x.y.z-py3-none-any.whl")
     workspace_client.jobs.create.assert_called_once()
     assert install_state.jobs[name] == str(job.job_id)
 
@@ -80,7 +80,7 @@ def test_deploy_existing_job(snowflake_recon_config):
     install_state = InstallState.from_installation(installation)
     product_info = ProductInfo.for_testing(LakebridgeConfiguration)
     job_deployer = JobDeployment(workspace_client, installation, install_state, product_info)
-    job_deployer.deploy_recon_job(name, snowflake_recon_config, "remorph-x.y.z-py3-none-any.whl")
+    job_deployer.deploy_recon_job(name, snowflake_recon_config, "lakebridge-x.y.z-py3-none-any.whl")
     workspace_client.jobs.reset.assert_called_once()
     assert install_state.jobs[name] == str(job.job_id)
 
@@ -96,6 +96,27 @@ def test_deploy_missing_job(snowflake_recon_config):
     install_state = InstallState.from_installation(installation)
     product_info = ProductInfo.for_testing(LakebridgeConfiguration)
     job_deployer = JobDeployment(workspace_client, installation, install_state, product_info)
-    job_deployer.deploy_recon_job(name, snowflake_recon_config, "remorph-x.y.z-py3-none-any.whl")
+    job_deployer.deploy_recon_job(name, snowflake_recon_config, "lakebridge-x.y.z-py3-none-any.whl")
     workspace_client.jobs.create.assert_called_once()
     assert install_state.jobs[name] == str(job.job_id)
+
+
+def test_parse_package_name() -> None:
+    workspace_client = create_autospec(WorkspaceClient)
+    installation = MockInstallation(is_global=False)
+    install_state = InstallState.from_installation(installation)
+    product_info = ProductInfo.from_class(LakebridgeConfiguration)
+    job_deployer = JobDeployment(workspace_client, installation, install_state, product_info)
+
+    assert job_deployer.parse_package_name("lakebridge-1.2.3-py3-none-any.whl") == "lakebridge"
+    assert job_deployer.parse_package_name("remorph-1.2.3-py3-none-any.whl") == "databricks_labs_lakebridge"
+    assert (
+        job_deployer.parse_package_name("databricks_labs_lakebridge-1.2.3-py3-none-any.whl")
+        == "databricks_labs_lakebridge"
+    )
+    assert (
+        job_deployer.parse_package_name(
+            "/Workspace/Users/username@domain.com/.lakebridge/wheels/databricks_labs_lakebridge-0.10.7-py3-none-any.whl"
+        )
+        == "databricks_labs_lakebridge"
+    )

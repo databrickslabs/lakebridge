@@ -39,16 +39,14 @@ class ReconDeployment:
         self._job_deployer = job_deployer
         self._dashboard_deployer = dashboard_deployer
 
-    def install(self, recon_config: ReconcileConfig | None, wheel_paths: list[str]):
+    def install(self, recon_config: ReconcileConfig | None, wheel_path: str):
         if not recon_config:
             logger.warning("Recon Config is empty.")
             return
         logger.info("Installing reconcile components.")
         self._deploy_tables(recon_config)
         self._deploy_dashboards(recon_config)
-        # TODO INVESTIGATE: Why is this needed?
-        remorph_wheel_path = [whl for whl in wheel_paths if "lakebridge" in whl][0]
-        self._deploy_jobs(recon_config, remorph_wheel_path)
+        self._deploy_jobs(recon_config, wheel_path)
         self._install_state.save()
         logger.info("Installation of reconcile components completed successfully.")
 
@@ -108,9 +106,9 @@ class ReconDeployment:
                 logger.warning(f"Dashboard with id={dashboard_id} doesn't exist anymore for some reason.")
                 continue
 
-    def _deploy_jobs(self, recon_config: ReconcileConfig, remorph_wheel_path: str):
+    def _deploy_jobs(self, recon_config: ReconcileConfig, lakebridge_wheel_path: str):
         logger.info("Deploying reconciliation jobs.")
-        self._job_deployer.deploy_recon_job(RECON_JOB_NAME, recon_config, remorph_wheel_path)
+        self._job_deployer.deploy_recon_job(RECON_JOB_NAME, recon_config, lakebridge_wheel_path)
         for job_name, job_id in self._get_deprecated_jobs():
             try:
                 logger.info(f"Removing job_id={job_id}, as it is no longer needed.")
