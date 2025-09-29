@@ -447,10 +447,9 @@ def join_aggregate_data(
             how="cross",
         )
 
-    joined_df = df.selectExpr(
-        *source.columns,
-        *target.columns,
-    )
+    joined_cols = source.columns + target.columns
+    normalized_joined_cols = [DialectUtils.ansi_normalize_identifier(col) for col in joined_cols]
+    joined_df = df.select(*normalized_joined_cols)
 
     # Write the joined df to volume path
     joined_volume_df = ReconIntermediatePersist(spark, path).write_and_read_unmatched_df_with_volumes(joined_df).cache()
