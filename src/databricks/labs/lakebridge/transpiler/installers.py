@@ -283,8 +283,12 @@ class MavenInstaller(ArtifactInstaller):
     @classmethod
     def get_current_maven_artifact_version(cls, group_id: str, artifact_id: str) -> str | None:
         url = cls.artifact_metadata_url(group_id, artifact_id)
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36'
+        }
+        req = request.Request(url, headers=headers)
         try:
-            with request.urlopen(url) as server:
+            with request.urlopen(req) as server:
                 text = server.read()
         except HTTPError as e:
             logger.error(f"Error while fetching maven metadata: {group_id}:{artifact_id}", exc_info=e)
