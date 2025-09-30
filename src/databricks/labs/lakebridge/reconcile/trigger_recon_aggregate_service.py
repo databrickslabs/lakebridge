@@ -37,7 +37,7 @@ class TriggerReconAggregateService:
             recon_process_duration = ReconcileProcessDuration(start_ts=str(datetime.now()), end_ts=None)
             try:
                 src_schema, tgt_schema = TriggerReconService.get_schemas(
-                    reconciler.source, reconciler.target, table_conf, reconcile_config.database_config, False
+                    reconciler.source, reconciler.target, table_conf, reconcile_config.database_config, True
                 )
             except DataSourceRuntimeException as e:
                 raise ReconciliationException(message=str(e)) from e
