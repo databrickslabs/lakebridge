@@ -207,6 +207,6 @@ class SnowflakeDataSource(DataSource, SecretsMixin, JDBCReaderMixin):
 
         # TODO: In Snowflake, quoted identifiers are case-sensitive,
         # it is disabled for now till we have a proper strategy to handle it.
-        normalized.source_normalized = DialectUtils.unnormalize_identifier(identifier)
+        normalized.source_normalized = DialectUtils.unnormalize_identifier(normalized.ansi_normalized)
 
         return normalized

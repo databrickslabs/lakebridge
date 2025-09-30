@@ -36,8 +36,6 @@ TGT_TABLE = "target_supplier"
 class AggregateQueries:
     source_agg_query: str
     target_agg_query: str
-    source_group_agg_query: str
-    target_group_agg_query: str
 
 
 @dataclass
@@ -50,8 +48,6 @@ def query_store(mock_spark):
     agg_queries = AggregateQueries(
         source_agg_query="SELECT min(`s_acctbal`) AS `source_min_s_acctbal` FROM :tbl WHERE s_name = 't' AND s_address = 'a'",
         target_agg_query="SELECT min(`s_acctbal_t`) AS `target_min_s_acctbal` FROM :tbl WHERE s_name = 't' AND s_address_t = 'a'",
-        source_group_agg_query="SELECT sum(`s_acctbal`) AS `source_sum_s_acctbal`, count(TRIM(s_name)) AS `source_count_s_name`, `s_nationkey` AS `source_group_by_s_nationkey` FROM :tbl WHERE s_name = 't' AND s_address = 'a' GROUP BY `s_nationkey`",
-        target_group_agg_query="SELECT sum(`s_acctbal_t`) AS `target_sum_s_acctbal`, count(TRIM(s_name)) AS `target_count_s_name`, `s_nationkey_t` AS `target_group_by_s_nationkey` FROM :tbl WHERE s_name = 't' AND s_address_t = 'a' GROUP BY `s_nationkey_t`",
     )
 
     return AggregateQueryStore(
@@ -62,10 +58,8 @@ def query_store(mock_spark):
 @pytest.fixture
 def query_store_special_char(mock_spark):
     agg_queries = AggregateQueries(
-        source_agg_query="",
-        target_agg_query="",
-        source_group_agg_query="SELECT sum(`s_acctbal`) AS `source_sum_s_acctbal`, count(TRIM(s_name)) AS `source_count_s_name`, min(`$carat$`) AS `source_min_$carat$`, max(`$carat$`) AS `source_max_$carat$`, `s_nationkey` AS `source_group_by_s_nationkey` FROM :tbl WHERE s_name = 't' AND s_address = 'a' GROUP BY `s_nationkey`",
-        target_group_agg_query="SELECT sum(`s_acctbal_t`) AS `target_sum_s_acctbal`, count(TRIM(s_name)) AS `target_count_s_name`, min(`$carat$`) AS `target_min_$carat$`, max(`$carat$`) AS `target_max_$carat$`, `s_nationkey_t` AS `target_group_by_s_nationkey` FROM :tbl WHERE s_name = 't' AND s_address_t = 'a' GROUP BY `s_nationkey_t`",
+        source_agg_query=""" SELECT sum("s_acctbal") AS "source_sum_s_acctbal", count(TRIM(s_name)) AS "source_count_s_name", min("$carat$") AS "source_min_$carat$", max("$carat$") AS "source_max_$carat$", "s_nationkey" AS "source_group_by_s_nationkey" FROM :tbl WHERE s_name = 't' AND s_address = 'a' GROUP BY "s_nationkey" """.strip(),
+        target_agg_query="SELECT sum(`s_acctbal_t`) AS `target_sum_s_acctbal`, count(TRIM(s_name)) AS `target_count_s_name`, min(`$carat$`) AS `target_min_$carat$`, max(`$carat$`) AS `target_max_$carat$`, `s_nationkey_t` AS `target_group_by_s_nationkey` FROM :tbl WHERE s_name = 't' AND s_address_t = 'a' GROUP BY `s_nationkey_t`",
     )
 
     return AggregateQueryStore(
@@ -293,11 +287,11 @@ def _compare_reconcile_output(actual_reconcile_output: DataReconcileOutput, expe
 def test_reconcile_aggregate_data_mismatch_and_missing_records(
     mock_spark,
     normalized_table_conf_with_opts,
-    table_schema_ansi_ansi,
+    table_schema_oracle_ansi,
     query_store_special_char,
     tmp_path: Path,
 ):
-    src_schema, tgt_schema = table_schema_ansi_ansi
+    src_schema, tgt_schema = table_schema_oracle_ansi
     src_schema.append(ansi_schema_fixture_factory("$carat$", "number"))
     tgt_schema.append(ansi_schema_fixture_factory("$carat$", "number"))
     normalized_table_conf_with_opts.select_columns.append("`$carat$`")
@@ -321,7 +315,7 @@ def test_reconcile_aggregate_data_mismatch_and_missing_records(
         (
             CATALOG,
             SCHEMA,
-            query_store_special_char.agg_queries.source_group_agg_query,
+            query_store_special_char.agg_queries.source_agg_query,
         ): mock_spark.createDataFrame(
             [
                 source_df_model(101, 13, 1, 2, 11),
@@ -343,7 +337,7 @@ def test_reconcile_aggregate_data_mismatch_and_missing_records(
         (
             CATALOG,
             SCHEMA,
-            query_store_special_char.agg_queries.target_group_agg_query,
+            query_store_special_char.agg_queries.target_agg_query,
         ): mock_spark.createDataFrame(
             [
                 target_df_model(101, 13, 1, 2, 11),
@@ -360,7 +354,7 @@ def test_reconcile_aggregate_data_mismatch_and_missing_records(
         target_catalog=CATALOG,
         target_schema=SCHEMA,
     )
-    source = MockDataSource(source_dataframe_repository, source_schema_repository)
+    source = MockDataSource(source_dataframe_repository, source_schema_repository, delimiter='"')
     target = MockDataSource(target_dataframe_repository, target_schema_repository)
     with patch("databricks.labs.lakebridge.reconcile.utils.generate_volume_path", return_value=str(tmp_path)):
         actual_list: list[AggregateQueryOutput] = Reconciliation(
@@ -369,7 +363,7 @@ def test_reconcile_aggregate_data_mismatch_and_missing_records(
             db_config,
             "",
             SchemaCompare(mock_spark),
-            get_dialect("databricks"),
+            get_dialect("snowflake"),
             mock_spark,
             ReconcileMetadataConfig(),
         ).reconcile_aggregates(normalized_table_conf_with_opts, src_schema, tgt_schema)

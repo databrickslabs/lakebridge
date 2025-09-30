@@ -59,7 +59,11 @@ class AggregateQueryBuilder(QueryBuilder):
         cols_with_mapping: list[exp.Expression] = []
         for col in cols_list:
             column_expr = build_column(
-                this=self._build_column_name_source_normalized(f"{self._get_mapping_col(col)}"),
+                this=(
+                    self._build_column_name_source_normalized(self._get_mapping_col(col))
+                    if self._is_add_quotes
+                    else self._unnormalize_identifier(self._get_mapping_col(col))
+                ),
                 alias=f"{agg_type.lower()}<#>{DialectUtils.unnormalize_identifier(col)}",
             )
             cols_with_mapping.append(column_expr)
@@ -168,8 +172,8 @@ class AggregateQueryBuilder(QueryBuilder):
             # Group by column doesn't support alias (GROUP BY to_date(COL1, 'yyyy-MM-dd') AS col1) throws error
             group_by_col_without_alias = [
                 build_column(
-                    this=DialectUtils.unnormalize_identifier(_remove_aliases(group_by_col_with_alias).sql()),
-                    quoted=True,
+                    this=self._unnormalize_identifier(_remove_aliases(group_by_col_with_alias).sql()),
+                    quoted=self._is_add_quotes,
                 )
                 for group_by_col_with_alias in select_group_by_cols_with_alias
                 if " AS " in group_by_col_with_alias.sql()
