@@ -323,6 +323,13 @@ class MavenInstaller(ArtifactInstaller):
             return True
         url = cls.artifact_url(group_id, artifact_id, version, classifier, extension)
         try:
+            opener = request.build_opener()
+            headers = (
+                'User-Agent',
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36',
+            )
+            opener.addheaders = [headers]
+            request.install_opener(opener)
             path, _ = request.urlretrieve(url)
             logger.debug(f"Downloaded maven artefact from {url} to {path}")
         except URLError as e:
