@@ -86,7 +86,7 @@ class AggregateQueryBuilder(QueryBuilder):
             # Create a new Column Expression with the new alias,
             # ex: MIN(pid) AS source_min_pid, MIN(product_id) AS target_min_pid
             column_name = col_name if agg_type == "group_by" else f"{agg_type}({col_name})"
-            col_with_alias = build_column(this=column_name, alias=layer_agg_type_col_alias, quoted=True)
+            col_with_alias = build_column(this=column_name, alias=layer_agg_type_col_alias, quoted=self._is_add_quotes)
             cols_with_alias.append(col_with_alias)
 
         return cols_with_alias
