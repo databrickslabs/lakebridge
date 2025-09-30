@@ -8,17 +8,24 @@ import subprocess
 import sys
 import venv
 import xml.etree.ElementTree as ET
-from json import dump, loads
+from json import dump
 from pathlib import Path
 from shutil import rmtree
-from typing import Any, Literal
-from urllib import request
-from urllib.error import HTTPError, URLError
+from typing import Literal
 from zipfile import ZipFile
 
+import requests
+from requests.exceptions import HTTPError
+
+from databricks.labs.blueprint.installation import RootJsonValue
 from databricks.labs.lakebridge.transpiler.repository import TranspilerRepository
 
 logger = logging.getLogger(__name__)
+
+
+# This is not the total timeout for a request, but rather a timeout when waiting for the response
+# to start once the request has been sent.
+_DEFAULT_HTTP_TIMEOUT = 60  # seconds
 
 
 class _PathBackup:
@@ -154,14 +161,20 @@ class WheelInstaller(ArtifactInstaller):
 
     @classmethod
     def get_latest_artifact_version_from_pypi(cls, product_name: str) -> str | None:
+        url = f"https://pypi.org/pypi/{product_name}/json"
+        response = requests.get(url, timeout=_DEFAULT_HTTP_TIMEOUT)
         try:
-            with request.urlopen(f"https://pypi.org/pypi/{product_name}/json") as server:
-                text: bytes = server.read()
-            data: dict[str, Any] = loads(text)
-            return data.get("info", {}).get('version', None)
+            response.raise_for_status()
+            data: RootJsonValue = response.json()
         except HTTPError as e:
             logger.error(f"Error while fetching PyPI metadata: {product_name}", exc_info=e)
             return None
+        logger.debug(f"PyPI metadata for {product_name}: {data}")
+        match data:
+            case {"info": {"version": str(version), **_ignored}, **_also_ignored}:
+                return version
+            case _:
+                return None
 
     def __init__(
         self,
@@ -283,9 +296,11 @@ class MavenInstaller(ArtifactInstaller):
     @classmethod
     def get_current_maven_artifact_version(cls, group_id: str, artifact_id: str) -> str | None:
         url = cls.artifact_metadata_url(group_id, artifact_id)
+        response = requests.get(url, timeout=_DEFAULT_HTTP_TIMEOUT)
         try:
-            with request.urlopen(url) as server:
-                text = server.read()
+            response.raise_for_status()
+            # Content will be XML.
+            text = response.text
         except HTTPError as e:
             logger.error(f"Error while fetching maven metadata: {group_id}:{artifact_id}", exc_info=e)
             return None
@@ -318,14 +333,20 @@ class MavenInstaller(ArtifactInstaller):
             logger.warning(f"Skipping download of {group_id}:{artifact_id}:{version}; target already exists: {target}")
             return True
         url = cls.artifact_url(group_id, artifact_id, version, classifier, extension)
+        tmp_target = target.parent / f".{target.name}.download"
+        request = requests.get(url, stream=True, timeout=_DEFAULT_HTTP_TIMEOUT)
         try:
-            path, _ = request.urlretrieve(url)
-            logger.debug(f"Downloaded maven artefact from {url} to {path}")
-        except URLError as e:
+            request.raise_for_status()
+            with tmp_target.open("wb") as f:
+                for chunk in request.iter_content(chunk_size=8192):
+                    if chunk:
+                        f.write(chunk)
+            logger.debug(f"Downloaded maven artefact: {url} -> {tmp_target}")
+        except HTTPError as e:
             logger.error(f"Unable to download maven artefact: {group_id}:{artifact_id}:{version}", exc_info=e)
             return False
-        logger.debug(f"Moving {path} to {target}")
-        shutil.move(path, target)
+        logger.debug(f"Moving {tmp_target} to {target}")
+        shutil.move(tmp_target, target)
         logger.info(f"Successfully installed: {group_id}:{artifact_id}:{version}")
         return True
 
