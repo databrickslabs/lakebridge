@@ -9,6 +9,7 @@ import pytest
 from pyspark.testing import assertDataFrameEqual
 from pyspark.sql import Row
 
+from tests.conftest import ansi_schema_fixture_factory
 from databricks.labs.lakebridge.config import DatabaseConfig, ReconcileMetadataConfig
 from databricks.labs.lakebridge.reconcile.reconciliation import Reconciliation
 from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
@@ -51,6 +52,20 @@ def query_store(mock_spark):
         target_agg_query="SELECT min(`s_acctbal_t`) AS `target_min_s_acctbal` FROM :tbl WHERE s_name = 't' AND s_address_t = 'a'",
         source_group_agg_query="SELECT sum(`s_acctbal`) AS `source_sum_s_acctbal`, count(TRIM(s_name)) AS `source_count_s_name`, `s_nationkey` AS `source_group_by_s_nationkey` FROM :tbl WHERE s_name = 't' AND s_address = 'a' GROUP BY `s_nationkey`",
         target_group_agg_query="SELECT sum(`s_acctbal_t`) AS `target_sum_s_acctbal`, count(TRIM(s_name)) AS `target_count_s_name`, `s_nationkey_t` AS `target_group_by_s_nationkey` FROM :tbl WHERE s_name = 't' AND s_address_t = 'a' GROUP BY `s_nationkey_t`",
+    )
+
+    return AggregateQueryStore(
+        agg_queries=agg_queries,
+    )
+
+
+@pytest.fixture
+def query_store_special_char(mock_spark):
+    agg_queries = AggregateQueries(
+        source_agg_query="",
+        target_agg_query="",
+        source_group_agg_query="SELECT sum(`s_acctbal`) AS `source_sum_s_acctbal`, count(TRIM(s_name)) AS `source_count_s_name`, min(`$carat$`) AS `source_min_$carat$`, max(`$carat$`) AS `source_max_$carat$`, `s_nationkey` AS `source_group_by_s_nationkey` FROM :tbl WHERE s_name = 't' AND s_address = 'a' GROUP BY `s_nationkey`",
+        target_group_agg_query="SELECT sum(`s_acctbal_t`) AS `target_sum_s_acctbal`, count(TRIM(s_name)) AS `target_count_s_name`, min(`$carat$`) AS `target_min_$carat$`, max(`$carat$`) AS `target_max_$carat$`, `s_nationkey_t` AS `target_group_by_s_nationkey` FROM :tbl WHERE s_name = 't' AND s_address_t = 'a' GROUP BY `s_nationkey_t`",
     )
 
     return AggregateQueryStore(
@@ -173,7 +188,21 @@ def expected_rule_output():
         group_by_columns_as_str="s_nationkey",
     )
 
-    return {"count": count_rule_output, "sum": sum_rule_output}
+    min_carat_output = AggregateRule(
+        agg_type="min",
+        agg_column="$carat$",
+        group_by_columns=["s_nationkey"],
+        group_by_columns_as_str="s_nationkey",
+    )
+
+    max_carat_output = AggregateRule(
+        agg_type="max",
+        agg_column="$carat$",
+        group_by_columns=["s_nationkey"],
+        group_by_columns_as_str="s_nationkey",
+    )
+
+    return {"count": count_rule_output, "sum": sum_rule_output, "min": min_carat_output, "max": max_carat_output}
 
 
 def expected_reconcile_output_dict(spark):
@@ -265,42 +294,61 @@ def test_reconcile_aggregate_data_mismatch_and_missing_records(
     mock_spark,
     normalized_table_conf_with_opts,
     table_schema_ansi_ansi,
-    query_store,
+    query_store_special_char,
     tmp_path: Path,
 ):
     src_schema, tgt_schema = table_schema_ansi_ansi
+    src_schema.append(ansi_schema_fixture_factory("$carat$", "number"))
+    tgt_schema.append(ansi_schema_fixture_factory("$carat$", "number"))
+    normalized_table_conf_with_opts.select_columns.append("`$carat$`")
     normalized_table_conf_with_opts.drop_columns = ["`s_acctbal`"]
     normalized_table_conf_with_opts.column_thresholds = None
     normalized_table_conf_with_opts.aggregates = [
         Aggregate(type="SUM", agg_columns=["`s_acctbal`"], group_by_columns=["`s_nationkey`"]),
         Aggregate(type="COUNT", agg_columns=["`s_name`"], group_by_columns=["`s_nationkey`"]),
+        Aggregate(type="MIN", agg_columns=["`$carat$`"], group_by_columns=["`s_nationkey`"]),
+        Aggregate(type="MAX", agg_columns=["`$carat$`"], group_by_columns=["`s_nationkey`"]),
     ]
 
+    source_df_model = Row(
+        "source_sum_s_acctbal",
+        "source_count_s_name",
+        "source_min_$carat$",
+        "source_max_$carat$",
+        "source_group_by_s_nationkey",
+    )
     source_dataframe_repository = {
         (
             CATALOG,
             SCHEMA,
-            query_store.agg_queries.source_group_agg_query,
+            query_store_special_char.agg_queries.source_group_agg_query,
         ): mock_spark.createDataFrame(
             [
-                Row(source_sum_s_acctbal=101, source_count_s_name=13, source_group_by_s_nationkey=11),
-                Row(source_sum_s_acctbal=23, source_count_s_name=11, source_group_by_s_nationkey=12),
-                Row(source_sum_s_acctbal=112, source_count_s_name=21, source_group_by_s_nationkey=13),
+                source_df_model(101, 13, 1, 2, 11),
+                source_df_model(23, 11, 0, 1, 12),
+                source_df_model(112, 21, 1, 1, 13),
             ]
         ),
     }
     source_schema_repository = {(CATALOG, SCHEMA, SRC_TABLE): src_schema}
 
+    target_df_model = Row(
+        "target_sum_s_acctbal",
+        "target_count_s_name",
+        "target_min_$carat$",
+        "target_max_$carat$",
+        "target_group_by_s_nationkey",
+    )
     target_dataframe_repository = {
         (
             CATALOG,
             SCHEMA,
-            query_store.agg_queries.target_group_agg_query,
+            query_store_special_char.agg_queries.target_group_agg_query,
         ): mock_spark.createDataFrame(
             [
-                Row(target_sum_s_acctbal=101, target_count_s_name=13, target_group_by_s_nationkey=11),
-                Row(target_sum_s_acctbal=43, target_count_s_name=9, target_group_by_s_nationkey=12),
-                Row(target_sum_s_acctbal=348, target_count_s_name=76, target_group_by_s_nationkey=14),
+                target_df_model(101, 13, 1, 2, 11),
+                target_df_model(43, 9, 0, 1, 12),
+                target_df_model(348, 76, 1, 1, 14),
             ]
         )
     }
@@ -325,7 +373,7 @@ def test_reconcile_aggregate_data_mismatch_and_missing_records(
             ReconcileMetadataConfig(),
         ).reconcile_aggregates(normalized_table_conf_with_opts, src_schema, tgt_schema)
 
-        assert len(actual_list) == 2
+        assert len(actual_list) == 4
 
         for actual in actual_list:
             assert actual.rule, "Rule must be generated"

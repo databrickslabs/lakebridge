@@ -384,7 +384,7 @@ def reconcile_agg_data_per_rule(
     for mapping in rule_select_columns:
         df_rule_columns.extend([mapping.source_name, mapping.target_name])
 
-    joined_df_with_rule_cols = joined_df.selectExpr(*df_rule_columns)
+    joined_df_with_rule_cols = joined_df.select(*df_rule_columns)
 
     # Data mismatch between Source and Target aggregated data
     mismatch = _get_mismatch_agg_data(joined_df_with_rule_cols, rule_select_columns, rule_group_columns)
