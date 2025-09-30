@@ -162,6 +162,7 @@ class WheelInstaller(ArtifactInstaller):
     @classmethod
     def get_latest_artifact_version_from_pypi(cls, product_name: str) -> str | None:
         url = f"https://pypi.org/pypi/{product_name}/json"
+        # TODO: Use a user-agent that identifies this application.
         response = requests.get(url, timeout=_DEFAULT_HTTP_TIMEOUT)
         try:
             response.raise_for_status()
@@ -296,6 +297,7 @@ class MavenInstaller(ArtifactInstaller):
     @classmethod
     def get_current_maven_artifact_version(cls, group_id: str, artifact_id: str) -> str | None:
         url = cls.artifact_metadata_url(group_id, artifact_id)
+        # TODO: Use a user-agent that identifies this application.
         response = requests.get(url, timeout=_DEFAULT_HTTP_TIMEOUT)
         try:
             response.raise_for_status()
@@ -334,6 +336,7 @@ class MavenInstaller(ArtifactInstaller):
             return True
         url = cls.artifact_url(group_id, artifact_id, version, classifier, extension)
         tmp_target = target.parent / f".{target.name}.download"
+        # TODO: Use a user-agent that identifies this application.
         request = requests.get(url, stream=True, timeout=_DEFAULT_HTTP_TIMEOUT)
         try:
             request.raise_for_status()
