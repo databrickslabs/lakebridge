@@ -345,7 +345,7 @@ class MavenInstaller(ArtifactInstaller):
                     if chunk:
                         f.write(chunk)
             logger.debug(f"Downloaded maven artefact: {url} -> {tmp_target}")
-        except RequestException as e:
+        except (RequestException, IOError) as e:
             logger.error(f"Unable to download maven artefact: {group_id}:{artifact_id}:{version}", exc_info=e)
             return False
         logger.debug(f"Moving {tmp_target} to {target}")
