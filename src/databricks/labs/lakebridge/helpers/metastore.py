@@ -152,7 +152,7 @@ class CatalogOperations:
 
     @functools.lru_cache(maxsize=1024)
     def _get_user_privileges(self, user: str, securable_type: SecurableType, full_name: str) -> set[Privilege]:
-        permissions = self._ws.grants.get_effective(securable_type, full_name, principal=user)
+        permissions = self._ws.grants.get_effective(str(securable_type), full_name, principal=user)
         if not permissions or not permissions.privilege_assignments:
             return set()
         return {
