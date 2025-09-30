@@ -373,7 +373,7 @@ class MavenInstaller(ArtifactInstaller):
             latest_version = self.get_current_maven_artifact_version(self._group_id, self._artifact_id)
         if latest_version is None:
             logger.warning(f"Could not determine the latest version of Databricks {self._product_name} transpiler")
-            logger.error("Failed to install transpiler: Databricks {self._product_name} transpiler")
+            logger.error(f"Failed to install transpiler: Databricks {self._product_name} transpiler")
             return None
         installed_version = self._repository.get_installed_version(self._product_name)
         if installed_version == latest_version:
