@@ -361,10 +361,11 @@ def test_reconcile_aggregate_data_mismatch_and_missing_records(
         target_schema=SCHEMA,
     )
     source = MockDataSource(source_dataframe_repository, source_schema_repository)
+    target = MockDataSource(target_dataframe_repository, target_schema_repository)
     with patch("databricks.labs.lakebridge.reconcile.utils.generate_volume_path", return_value=str(tmp_path)):
         actual_list: list[AggregateQueryOutput] = Reconciliation(
             source,
-            MockDataSource(target_dataframe_repository, target_schema_repository),
+            target,
             db_config,
             "",
             SchemaCompare(mock_spark),
