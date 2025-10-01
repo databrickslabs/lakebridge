@@ -111,7 +111,7 @@ class ApplicationContext:
     @cached_property
     def dashboard_manager(self) -> DashboardManager:
         is_debug = logger.getEffectiveLevel() == logging.DEBUG
-        return DashboardManager(self.workspace_client, self.current_user, self.dashboard_deployment, is_debug)
+        return DashboardManager(self.workspace_client, self.current_user, is_debug)
 
     @cached_property
     def recon_deployment(self) -> ReconDeployment:
