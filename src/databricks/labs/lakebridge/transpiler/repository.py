@@ -111,8 +111,8 @@ class TranspilerRepository:
 
     def all_transpiler_names(self) -> Set[str]:
         """Query the set of transpiler names for all installed transpilers."""
-        all_configs = self.all_transpiler_configs()
-        return frozenset(all_configs.keys())
+        all_configs = self._all_transpiler_configs()
+        return frozenset(config.name for _, config in all_configs)
 
     def _transpiler_locations(self) -> Generator[Path, None, None]:
         transpilers_path = self.transpilers_path()
