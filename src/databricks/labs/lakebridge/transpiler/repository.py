@@ -105,9 +105,9 @@ class TranspilerRepository:
         """Obtain all installed transpile configurations.
 
         Returns:
-          A mapping of configurations, keyed by their transpiler names.
+          A mapping of configurations, keyed by their product names.
         """
-        return {config.name: config for _, config in self._all_transpiler_configs()}
+        return {path.name: config for path, config in self._all_transpiler_configs()}
 
     def all_transpiler_names(self) -> Set[str]:
         """Query the set of transpiler names for all installed transpilers."""
