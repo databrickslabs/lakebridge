@@ -30,7 +30,7 @@ def test_mssql_connector(mock_mssql_connector):
 
 
 @patch('databricks.labs.lakebridge.connections.database_manager.MSSQLConnector')
-def test_execute_query(mock_mssql_connector):
+def test_fetch(mock_mssql_connector):
     mock_connector_instance = MagicMock()
     mock_mssql_connector.return_value = mock_connector_instance
 
@@ -38,16 +38,16 @@ def test_execute_query(mock_mssql_connector):
 
     query = "SELECT * FROM users"
     mock_result = MagicMock()
-    mock_connector_instance.execute_query.return_value = mock_result
+    mock_connector_instance.fetch.return_value = mock_result
 
     result = db_manager.fetch(query)
 
     assert result == mock_result
-    mock_connector_instance.execute_query.assert_called_once_with(query)
+    mock_connector_instance.fetch.assert_called_once_with(query)
 
 
 @patch('databricks.labs.lakebridge.connections.database_manager.MSSQLConnector')
-def test_execute_query_commit(mock_mssql_connector):
+def test_fetch_commit(mock_mssql_connector):
     mock_connector_instance = MagicMock()
     mock_mssql_connector.return_value = mock_connector_instance
 
@@ -55,12 +55,12 @@ def test_execute_query_commit(mock_mssql_connector):
 
     mutate_query = "TRUNCATE users"
     mock_result = MagicMock()
-    mock_connector_instance.execute_query.return_value = mock_result
+    mock_connector_instance.fetch.return_value = mock_result
 
     mutate_result = db_manager.fetch(mutate_query)
 
     assert mutate_result == mock_result
-    mock_connector_instance.execute_query.assert_called_once_with(mutate_query)
+    mock_connector_instance.fetch.assert_called_once_with(mutate_query)
 
 
 def running_on_ci() -> bool:
@@ -87,7 +87,7 @@ def odbc_available() -> bool:
     reason="This test needs native ODBC libraries to be installed.",
     raises=ImportError,
 )
-def test_execute_query_without_connection():
+def test_fetch_without_connection():
     db_manager = DatabaseManager("mssql", sample_config)
 
     # Simulating that the engine is not connected

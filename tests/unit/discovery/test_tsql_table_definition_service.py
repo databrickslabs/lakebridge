@@ -36,7 +36,7 @@ def test_get_table_definition_with_data():
     mock_query_result = MagicMock()
     mock_query_result.keys.return_value = mock_column_names
     mock_query_result.__iter__.return_value = iter(mock_result)
-    db_manager.execute_query.return_value = mock_query_result
+    db_manager.fetch.return_value = mock_query_result
 
     tss = TsqlTableDefinitionService(db_manager)
     result = list(tss.get_table_definition("test_catalog"))
