@@ -1,9 +1,11 @@
 import logging
 from abc import ABC, abstractmethod
 from typing import Any
+from collections.abc import Sequence
 
 from sqlalchemy import create_engine
-from sqlalchemy.engine import Engine, Result, URL
+from sqlalchemy.engine import Engine, URL
+from sqlalchemy.engine.row import Row
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import text
 from sqlalchemy.exc import OperationalError
@@ -18,7 +20,7 @@ class DatabaseConnector(ABC):
         pass
 
     @abstractmethod
-    def execute_query(self, query: str, commit: bool = False) -> Result[Any]:
+    def execute_query(self, query: str) -> Sequence[Row[Any]]:
         pass
 
 
@@ -30,15 +32,12 @@ class _BaseConnector(DatabaseConnector):
     def _connect(self) -> Engine:
         raise NotImplementedError("Subclasses should implement this method")
 
-    def execute_query(self, query: str, commit: bool = False) -> Result[Any]:
+    def execute_query(self, query: str) -> Sequence[Row[Any]]:
         if not self.engine:
             raise ConnectionError("Not connected to the database.")
-        session = sessionmaker(bind=self.engine)
-        connection = session()
-        result = connection.execute(text(query))
-        if commit:
-            connection.commit()
-        return result
+        Session = sessionmaker(self.engine)  # pylint: disable=invalid-name
+        with Session.begin() as session:  # pylint: disable=no-member
+            return session.execute(text(query)).all()
 
 
 def _create_connector(db_type: str, config: dict[str, Any]) -> DatabaseConnector:
@@ -85,9 +84,9 @@ class DatabaseManager:
     def __init__(self, db_type: str, config: dict[str, Any]):
         self.connector = _create_connector(db_type, config)
 
-    def execute_query(self, query: str, commit: bool = False) -> Result[Any]:
+    def execute_query(self, query: str) -> Sequence[Row[Any]]:
         try:
-            return self.connector.execute_query(query, commit)
+            return self.connector.execute_query(query)
         except OperationalError:
             logger.error("Error connecting to the database check credentials")
             raise ConnectionError("Error connecting to the database check credentials") from None
@@ -95,7 +94,6 @@ class DatabaseManager:
     def check_connection(self) -> bool:
         query = "SELECT 101 AS test_column"
         result = self.execute_query(query)
-        row = result.fetchone()
-        if row is None:
+        if result is None:
             return False
-        return row[0] == 101
+        return result[0][0] == 101

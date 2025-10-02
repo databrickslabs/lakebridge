@@ -15,12 +15,12 @@ class SecretProvider(Protocol):
         pass
 
 
-class LocalSecretProvider:
+class LocalSecretProvider(SecretProvider):
     def get_secret(self, key: str) -> str:
         return key
 
 
-class EnvSecretProvider:
+class EnvSecretProvider(SecretProvider):
     def __init__(self, env_getter: EnvGetter):
         self._env_getter = env_getter
 
