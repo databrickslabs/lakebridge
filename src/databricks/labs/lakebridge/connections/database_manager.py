@@ -14,10 +14,12 @@ from sqlalchemy.exc import OperationalError
 logger = logging.getLogger(__name__)
 logger.setLevel("INFO")
 
+
 @dataclasses.dataclass
 class FetchResult:
     columns: Set[str]
     rows: Sequence[Row[Any]]
+
 
 class DatabaseConnector(ABC):
     @abstractmethod
@@ -102,4 +104,4 @@ class DatabaseManager:
         result = self.fetch(query)
         if result is None:
             return False
-        return result[0][0] == 101
+        return result.rows[0][0] == 101

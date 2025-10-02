@@ -1,4 +1,6 @@
 from unittest.mock import MagicMock
+
+from databricks.labs.lakebridge.connections.database_manager import FetchResult
 from databricks.labs.lakebridge.discovery.table import TableDefinition
 from databricks.labs.lakebridge.discovery.tsql_table_definition import TsqlTableDefinitionService
 
@@ -10,13 +12,13 @@ def test_get_table_definition_with_data():
             "catalog1",
             "schema1",
             "table1",
-            "col1§int§YES§Primary Column‡col2§string§NO§Description",
-            "col1:col2",
             "/path/to/table",
             "parquet",
             "",
+            "col1§int§YES§Primary Column‡col2§string§NO§Description",
             10.5,
             "Table Comment",
+            "col1:col2",
         ),
     ]
 
@@ -24,19 +26,18 @@ def test_get_table_definition_with_data():
         "TABLE_CATALOG",
         "TABLE_SCHEMA",
         "TABLE_NAME",
-        "DERIVED_SCHEMA",
-        "PK_COLUMN_NAME",
         "location",
         "TABLE_FORMAT",
         "view_definition",
+        "DERIVED_SCHEMA",
         "SIZE_GB",
         "TABLE_COMMENT",
+        "PK_COLUMN_NAME",
     ]
 
     mock_query_result = MagicMock()
-    mock_query_result.keys.return_value = mock_column_names
     mock_query_result.__iter__.return_value = iter(mock_result)
-    db_manager.fetch.return_value = mock_query_result
+    db_manager.fetch.return_value = FetchResult(mock_column_names, mock_result)
 
     tss = TsqlTableDefinitionService(db_manager)
     result = list(tss.get_table_definition("test_catalog"))
@@ -49,7 +50,7 @@ def test_get_table_definition_with_data():
 
 def test_get_catalogs():
     db_manager = MagicMock()
-    db_manager.connector.fetch.return_value = [('db1',), ('db2',)]
+    db_manager.fetch.return_value = FetchResult([], [('db1',), ('db2',)])
     tss = TsqlTableDefinitionService(db_manager)
     result = list(tss.get_all_catalog())
     assert result == ['db1', 'db2']

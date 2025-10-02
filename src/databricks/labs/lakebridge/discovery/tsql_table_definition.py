@@ -1,6 +1,5 @@
 from collections.abc import Iterable
 
-from databricks.labs.lakebridge.connections.database_manager import DatabaseManager
 from databricks.labs.lakebridge.discovery.table import TableDefinition, TableFQN, FieldInfo
 from databricks.labs.lakebridge.discovery.table_definition import TableDefinitionService
 
@@ -140,14 +139,12 @@ class TsqlTableDefinitionService(TableDefinitionService):
     def get_table_definition(self, catalog_name: str) -> Iterable[TableDefinition]:
         sql = self._get_table_definition_query(catalog_name)
         tsql_connection = self.connection
-        rows = tsql_connection.fetch(sql)
+        rows = tsql_connection.fetch(sql).rows
 
         table_definitions = []
 
         for row in rows:
-            table_fqn = TableFQN(
-                catalog=row[0], schema=row[1], name=row[2]
-            )
+            table_fqn = TableFQN(catalog=row[0], schema=row[1], name=row[2])
             columns = row[6].split("‡") if row[6] else None
             field_info = []
             if columns is not None:
@@ -176,8 +173,7 @@ class TsqlTableDefinitionService(TableDefinitionService):
         return table_definitions
 
     def get_all_catalog(self) -> Iterable[str]:
-        cursor: DatabaseManager = self.connection
-        result = cursor.connector.fetch("""select name from sys.databases""")
-        catalogs = [row[0] for row in result]
-        print(catalogs)
+        cursor = self.connection
+        result = cursor.fetch("""select name from sys.databases""")
+        catalogs = [row[0] for row in result.rows]
         return catalogs

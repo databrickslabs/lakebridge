@@ -147,7 +147,7 @@ class PipelineClass:
                 logging.error(f"Python script failed: {error_msg}")
                 raise RuntimeError(f"Script execution failed: {error_msg}") from e
 
-    def _save_to_db(self, result: FetchResult, step_name: str, mode: str, batch_size: int = 1000):
+    def _save_to_db(self, result: FetchResult, step_name: str, mode: str):
         self._create_dir(self.db_path_prefix)
         db_path = str(self.db_path_prefix / DB_NAME)
 
