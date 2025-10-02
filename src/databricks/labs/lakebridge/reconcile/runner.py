@@ -14,7 +14,7 @@ from databricks.labs.lakebridge.reconcile.recon_config import RECONCILE_OPERATIO
 
 logger = logging.getLogger(__name__)
 
-_RECON_README_URL = "https://github.com/databrickslabs/lakebridge/blob/main/docs/recon_configurations/README.md"
+_RECON_DOCS_URL = "https://databrickslabs.github.io/lakebridge/docs/reconcile/"
 
 
 class ReconcileRunner:
@@ -76,7 +76,7 @@ class ReconcileRunner:
                 "Cannot find recon table configuration in existing `reconcile` installation. "
                 f"Please provide the configuration file {filename} in the workspace."
             )
-            logger.error(f"{err_msg}. For more details, please refer to {_RECON_README_URL}")
+            logger.error(f"{err_msg}. For more details, please refer to the docs {_RECON_DOCS_URL}")
             raise SystemExit(err_msg) from e
         except (PermissionDenied, SerdeError, ValueError, AttributeError) as e:
             install_dir = self._installation.install_folder()
@@ -84,7 +84,7 @@ class ReconcileRunner:
                 f"Cannot load corrupted recon table configuration from {install_dir}/{filename}. "
                 f"Please validate the file."
             )
-            logger.error(f"{err_msg}. For more details, please refer to {_RECON_README_URL}")
+            logger.error(f"{err_msg}. For more details, please refer to the docs {_RECON_DOCS_URL}")
             raise SystemExit(err_msg) from e
 
     def _get_recon_job_id(self, reconcile_config: ReconcileConfig) -> int:

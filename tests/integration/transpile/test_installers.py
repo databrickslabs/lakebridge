@@ -24,7 +24,7 @@ def test_downloads_from_maven(tmp_path: Path) -> None:
 
 
 def test_gets_pypi_artifact_version() -> None:
-    version = WheelInstaller.get_latest_artifact_version_from_pypi("databricks-labs-remorph")
+    version = WheelInstaller.get_latest_artifact_version_from_pypi("databricks-labs-lakebridge")
     assert version is not None
     check_valid_version(version)
 
