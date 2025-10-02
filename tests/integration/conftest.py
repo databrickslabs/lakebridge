@@ -56,10 +56,10 @@ def mock_spark() -> SparkSession:
 
 
 @pytest.fixture()
-def sandbox_sqlserver_config():
+def sandbox_sqlserver_config() -> dict:
     env = TestEnvGetter(True)
     db_url = env.get("TEST_TSQL_JDBC").removeprefix("jdbc:")
-    base_url, params = db_url.replace("jdbc:", "", 1).split(";", 1)
+    base_url, params = db_url.split(";", 1)
     url_parts = urlparse(base_url)
     server = url_parts.hostname
     query_params = dict(param.split("=", 1) for param in params.split(";") if "=" in param)
@@ -76,5 +76,5 @@ def sandbox_sqlserver_config():
 
 
 @pytest.fixture()
-def sandbox_sqlserver(sandbox_sqlserver_config):
+def sandbox_sqlserver(sandbox_sqlserver_config) -> DatabaseManager:
     return DatabaseManager("mssql", sandbox_sqlserver_config)
