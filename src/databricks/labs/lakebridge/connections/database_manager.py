@@ -20,7 +20,7 @@ class DatabaseConnector(ABC):
         pass
 
     @abstractmethod
-    def execute_query(self, query: str) -> Sequence[Row[Any]]:
+    def fetch(self, query: str) -> Sequence[Row[Any]]:
         pass
 
 
@@ -32,7 +32,7 @@ class _BaseConnector(DatabaseConnector):
     def _connect(self) -> Engine:
         raise NotImplementedError("Subclasses should implement this method")
 
-    def execute_query(self, query: str) -> Sequence[Row[Any]]:
+    def fetch(self, query: str) -> Sequence[Row[Any]]:
         if not self.engine:
             raise ConnectionError("Not connected to the database.")
         Session = sessionmaker(self.engine)  # pylint: disable=invalid-name
@@ -86,7 +86,7 @@ class DatabaseManager:
 
     def execute_query(self, query: str) -> Sequence[Row[Any]]:
         try:
-            return self.connector.execute_query(query)
+            return self.connector.fetch(query)
         except OperationalError:
             logger.error("Error connecting to the database check credentials")
             raise ConnectionError("Error connecting to the database check credentials") from None

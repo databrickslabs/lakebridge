@@ -140,7 +140,7 @@ class TsqlTableDefinitionService(TableDefinitionService):
     def get_table_definition(self, catalog_name: str) -> Iterable[TableDefinition]:
         sql = self._get_table_definition_query(catalog_name)
         tsql_connection = self.connection
-        result = tsql_connection.execute_query(sql)
+        result = tsql_connection.fetch(sql)
 
         column_names = list(result.keys())
         table_definitions = []
@@ -179,7 +179,7 @@ class TsqlTableDefinitionService(TableDefinitionService):
 
     def get_all_catalog(self) -> Iterable[str]:
         cursor: DatabaseManager = self.connection
-        result = cursor.connector.execute_query("""select name from sys.databases""")
+        result = cursor.connector.fetch("""select name from sys.databases""")
         catalogs = [row[0] for row in result]
         print(catalogs)
         return catalogs

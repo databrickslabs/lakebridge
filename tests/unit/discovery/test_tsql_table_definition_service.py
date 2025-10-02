@@ -49,7 +49,7 @@ def test_get_table_definition_with_data():
 
 def test_get_catalogs():
     db_manager = MagicMock()
-    db_manager.connector.execute_query.return_value = [('db1',), ('db2',)]
+    db_manager.connector.fetch.return_value = [('db1',), ('db2',)]
     tss = TsqlTableDefinitionService(db_manager)
     result = list(tss.get_all_catalog())
     assert result == ['db1', 'db2']
