@@ -86,7 +86,7 @@ def _remove_warehouse(ws: WorkspaceClient, warehouse_id: str):
 
 
 @lakebridge.command
-def transpile(
+def transpile(  # pylint: disable=too-many-arguments
     *,
     w: WorkspaceClient,
     transpiler_config_path: str | None = None,
@@ -99,10 +99,13 @@ def transpile(
     skip_validation: str | None = None,
     catalog_name: str | None = None,
     schema_name: str | None = None,
+    ctx: ApplicationContext | None = None,
     transpiler_repository: TranspilerRepository = TranspilerRepository.user_home(),
 ):
     """Transpiles source dialect to databricks dialect"""
-    ctx = ApplicationContext(w)
+    if ctx is None:
+        ctx = ApplicationContext(w)
+    del w
     logger.debug(f"Preconfigured transpiler config: {ctx.transpile_config!r}")
     ctx.add_user_agent_extra("cmd", "execute-transpile")
     checker = _TranspileConfigChecker(ctx.transpile_config, ctx.prompts, transpiler_repository)

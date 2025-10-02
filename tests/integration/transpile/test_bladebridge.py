@@ -1,81 +1,143 @@
+import json
 import logging
+from collections.abc import Generator
+from functools import cached_property
 from pathlib import Path
 
-
+import pytest
+from databricks.labs.blueprint.wheels import ProductInfo
 from databricks.sdk import WorkspaceClient
 
+from databricks.labs.lakebridge import cli
 from databricks.labs.lakebridge.config import TranspileConfig
-from databricks.labs.lakebridge.transpiler.execute import transpile
+from databricks.labs.lakebridge.contexts.application import ApplicationContext
 from databricks.labs.lakebridge.transpiler.installers import WheelInstaller
-from databricks.labs.lakebridge.transpiler.lsp.lsp_engine import LSPEngine
 from databricks.labs.lakebridge.transpiler.repository import TranspilerRepository
-from .common_utils import run_transpile_and_assert
+from .common_utils import assert_sql_outputs
 
 logger = logging.getLogger(__name__)
 
 
-def _install_bladebridge(transpiler_repository: TranspilerRepository, bladebridge_artifact: Path | None) -> tuple:
-    WheelInstaller(transpiler_repository, "bladebridge", "databricks-bb-plugin", bladebridge_artifact).install()
-    config_path = transpiler_repository.transpiler_config_path("Bladebridge")
-    return config_path, LSPEngine.from_config_path(config_path)
-
-
-async def test_transpiles_informatica_with_sparksql(
-    ws: WorkspaceClient,
-    bladebridge_artifact: Path,
-    tmp_path: Path,
-) -> None:
-    labs_path = tmp_path / "labs"
-    output_folder = tmp_path / "output"
+@pytest.fixture(scope="module")
+def repository_with_bladebridge(tmp_path_factory) -> TranspilerRepository:
+    """A module-scoped repository with the latest published version of Bladebridge installed, for re-use across tests."""
+    labs_path = tmp_path_factory.mktemp("labs")
     transpiler_repository = TranspilerRepository(labs_path)
-    await _transpile_informatica_with_sparksql(ws, transpiler_repository, bladebridge_artifact, output_folder)
+    path = WheelInstaller(transpiler_repository, "bladebridge", "databricks-bb-plugin").install()
+    assert path is not None and path.exists()
+    return transpiler_repository
 
 
-async def _transpile_informatica_with_sparksql(
-    ws: WorkspaceClient,
-    transpiler_repository: TranspilerRepository,
-    bladebridge_artifact: Path,
-    output_folder: Path,
+class MockApplicationContext(ApplicationContext):
+    """A mock application context that uses a unique installation path."""
+
+    @cached_property
+    def product_info(self) -> ProductInfo:
+        return ProductInfo.for_testing(ApplicationContext)
+
+
+@pytest.fixture
+def application_ctx(ws: WorkspaceClient) -> Generator[ApplicationContext, None, None]:
+    """A mock application context with a unique installation path, cleaned up after the test."""
+    ctx = MockApplicationContext(ws)
+    yield ctx
+    ctx.installation.remove()
+
+
+def test_transpiles_informatica_to_sparksql(
+    application_ctx: ApplicationContext, repository_with_bladebridge: TranspilerRepository, tmp_path: Path, capsys
 ) -> None:
-
-    config_path, lsp_engine = _install_bladebridge(transpiler_repository, bladebridge_artifact)
+    """Check that 'transpile' can convert an Informatica (ETL) mapping to SparkSQL using Bladebridge."""
+    # Prepare the application context with a configuration for converting Informatica (ETL)
+    config_path = repository_with_bladebridge.transpiler_config_path("Bladebridge")
     input_source = Path(__file__).parent.parent.parent / "resources" / "functional" / "informatica"
+    output_folder = tmp_path / "output"
+    output_folder.mkdir(parents=True, exist_ok=True)
+    errors_path = output_folder / "errors.log"
     transpile_config = TranspileConfig(
         transpiler_config_path=str(config_path),
         source_dialect="informatica (desktop edition)",
         input_source=str(input_source),
         output_folder=str(output_folder),
+        error_file_path=str(errors_path),
         skip_validation=True,
-        catalog_name="catalog",
-        schema_name="schema",
-        transpiler_options={"target-tech": "SPARKSQL"},
+        transpiler_options={"overrides-file": None, "target-tech": "SPARKSQL"},
     )
-    # TODO: Load the engine here, via the validation path.
-    await transpile(ws, lsp_engine, transpile_config)
-    # TODO: This seems to be flaky; debug logging to help diagnose the flakiness.
-    files = [f.name for f in output_folder.iterdir()]
-    logger.debug(f"Transpiled files: {files}")
+    application_ctx.installation.save(transpile_config)
+
+    # Run the conversion.
+    cli.transpile(
+        w=application_ctx.workspace_client,
+        ctx=application_ctx,
+        transpiler_repository=repository_with_bladebridge,
+    )
+    (out, _) = capsys.readouterr()
+
+    # Check the conversion summary.
+    summary = json.loads(out)
+    assert summary == [
+        {
+            "total_files_processed": 1,
+            "total_queries_processed": 1,
+            "analysis_error_count": 0,
+            "parsing_error_count": 0,
+            "validation_error_count": 0,
+            "generation_error_count": 0,
+            "error_log_file": None,
+        }
+    ]
+
+    # Check the conversion by merely looking for the files we expect from our reference Informatica mapping.
     assert (output_folder / "m_employees_load.py").exists()
     assert (output_folder / "wf_m_employees_load.json").exists()
     assert (output_folder / "wf_m_employees_load_params.py").exists()
+    # No errors should have been logged, which means the errors file should not exist.
+    assert not errors_path.exists()
 
 
-async def test_transpile_sql_file(ws: WorkspaceClient, tmp_path: Path) -> None:
-    labs_path = tmp_path / "labs"
-    output_folder = tmp_path / "output"
-    transpiler_repository = TranspilerRepository(labs_path)
-    await _transpile_bb_sql_file(ws, transpiler_repository, output_folder)
-
-
-async def _transpile_bb_sql_file(
-    ws: WorkspaceClient,
-    transpiler_repository: TranspilerRepository,
-    bb_output_folder: Path,
+def test_transpile_teradata_sql(
+    application_ctx: ApplicationContext, repository_with_bladebridge: TranspilerRepository, tmp_path: Path, capsys
 ) -> None:
-    # SQL Version installs latest Bladebridge from pypi
-    config_path, lsp_engine = _install_bladebridge(transpiler_repository, None)
-    bb_input_source = Path(__file__).parent.parent.parent / "resources" / "functional" / "teradata" / "integration"
-    # The expected SQL Block is custom formatted to match the output of Bladebridge exactly.
+    """Check that 'transpile' can convert a Teradata (SQL) to DBSQL using Bladebridge, and then validate the output."""
+    # Prepare the application context with a configuration for converting Teradata (SQL)
+    config_path = repository_with_bladebridge.transpiler_config_path("Bladebridge")
+    input_source = Path(__file__).parent.parent.parent / "resources" / "functional" / "teradata" / "integration"
+    output_folder = tmp_path / "output"
+    output_folder.mkdir(parents=True, exist_ok=True)
+    errors_path = output_folder / "errors.log"
+    transpile_config = TranspileConfig(
+        transpiler_config_path=str(config_path),
+        source_dialect="teradata",
+        input_source=str(input_source),
+        output_folder=str(output_folder),
+        error_file_path=str(errors_path),
+        skip_validation=False,
+        catalog_name="catalog",
+        schema_name="schema",
+        transpiler_options={"overrides-file": None},
+    )
+    application_ctx.installation.save(transpile_config)
+
+    # Run the conversion.
+    cli.transpile(w=application_ctx.workspace_client, ctx=application_ctx)
+    (out, _) = capsys.readouterr()
+
+    # Check the conversion summary.
+    summary = json.loads(out)
+    assert summary == [
+        {
+            "total_files_processed": 2,
+            "total_queries_processed": 2,
+            "analysis_error_count": 0,
+            "parsing_error_count": 0,
+            "validation_error_count": 1,
+            "generation_error_count": 0,
+            "error_log_file": str(errors_path),
+        }
+    ]
+
+    # Check the output.
+    # Note: these are formatted exactly to match the output of Bladebridge.
     expected_teradata_sql = """CREATE TABLE REF_TABLE
 (
     col1    TINYINT NOT NULL,
@@ -98,7 +160,6 @@ async def _transpile_bb_sql_file(
     col18   FLOAT NOT NULL,
 PRIMARY KEY (col1,col3) )
 TBLPROPERTIES('delta.feature.allowColumnDefaults' = 'supported');"""
-    # The expected SQL Block is custom formatted to match the output of Bladebridge exactly.
     expected_validation_failure_sql = """-------------- Exception Start-------------------
 /*
 [UNRESOLVED_ROUTINE] Cannot resolve routine `cole` on search path [`system`.`builtin`, `system`.`session`, `catalog`.`schema`].
@@ -106,14 +167,13 @@ TBLPROPERTIES('delta.feature.allowColumnDefaults' = 'supported');"""
 select cole(hello) world from table;
 
  ---------------Exception End --------------------"""
-
-    await run_transpile_and_assert(
-        ws,
-        lsp_engine,
-        config_path,
-        bb_input_source,
-        bb_output_folder,
-        "teradata",
-        expected_teradata_sql,
-        expected_validation_failure_sql,
+    assert_sql_outputs(
+        output_folder,
+        expected_sql=expected_teradata_sql,
+        expected_failure_sql=expected_validation_failure_sql,
     )
+
+    # Verify the errors that were reported.
+    reported_errors = list(errors_path.open())
+    [only_error] = reported_errors
+    assert "[UNRESOLVED_ROUTINE] Cannot resolve routine `cole` on search path" in only_error
