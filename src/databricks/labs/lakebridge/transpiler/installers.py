@@ -242,6 +242,7 @@ class WheelInstaller(ArtifactInstaller):
             "--disable-pip-version-check",
             "install",
             to_install,
+            "--only-binary=:all:",
         ]
         result = subprocess.run(command, stdin=sys.stdin, stdout=sys.stdout, stderr=sys.stderr, check=False)
         result.check_returncode()
