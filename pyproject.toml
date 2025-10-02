@@ -24,7 +24,6 @@ classifiers = [
     "Intended Audience :: System Administrators",
     "Operating System :: MacOS",
     "Operating System :: Microsoft :: Windows",
-    "Topic :: Software Development :: Libraries",
     "Topic :: Utilities",
 ]
 
