@@ -83,7 +83,7 @@ class ResourceConfigurator:
         pro_warehouses = {"[Create new PRO SQL warehouse]": "create_new"} | {
             f"{_.name} ({_.id}, {warehouse_type(_)}, {_.state.value})": _.id
             for _ in self._ws.warehouses.list()
-            if _.warehouse_type == EndpointInfoWarehouseType.PRO
+            if _.state is not None and _.warehouse_type == EndpointInfoWarehouseType.PRO
         }
         warehouse_id = self._prompts.choice_from_dict(
             "Select PRO or SERVERLESS SQL warehouse",
