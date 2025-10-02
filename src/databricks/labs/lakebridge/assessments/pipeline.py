@@ -83,7 +83,7 @@ class PipelineClass:
         # Execute the query using the database manager
         logging.info(f"Executing query: {query}")
         try:
-            result = self.executor.execute_query(query)
+            result = self.executor.fetch(query)
 
             # Save the result to duckdb
             self._save_to_db(result, step.name, str(step.mode))

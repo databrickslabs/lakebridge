@@ -40,7 +40,7 @@ def test_execute_query(mock_mssql_connector):
     mock_result = MagicMock()
     mock_connector_instance.execute_query.return_value = mock_result
 
-    result = db_manager.execute_query(query)
+    result = db_manager.fetch(query)
 
     assert result == mock_result
     mock_connector_instance.execute_query.assert_called_once_with(query)
@@ -57,7 +57,7 @@ def test_execute_query_commit(mock_mssql_connector):
     mock_result = MagicMock()
     mock_connector_instance.execute_query.return_value = mock_result
 
-    mutate_result = db_manager.execute_query(mutate_query)
+    mutate_result = db_manager.fetch(mutate_query)
 
     assert mutate_result == mock_result
     mock_connector_instance.execute_query.assert_called_once_with(mutate_query)
@@ -94,4 +94,4 @@ def test_execute_query_without_connection():
     db_manager.connector.engine = None
 
     with pytest.raises(ConnectionError, match="Not connected to the database."):
-        db_manager.execute_query("SELECT * FROM users")
+        db_manager.fetch("SELECT * FROM users")

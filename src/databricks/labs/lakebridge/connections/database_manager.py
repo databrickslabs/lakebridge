@@ -84,7 +84,7 @@ class DatabaseManager:
     def __init__(self, db_type: str, config: dict[str, Any]):
         self.connector = _create_connector(db_type, config)
 
-    def execute_query(self, query: str) -> Sequence[Row[Any]]:
+    def fetch(self, query: str) -> Sequence[Row[Any]]:
         try:
             return self.connector.fetch(query)
         except OperationalError:
@@ -93,7 +93,7 @@ class DatabaseManager:
 
     def check_connection(self) -> bool:
         query = "SELECT 101 AS test_column"
-        result = self.execute_query(query)
+        result = self.fetch(query)
         if result is None:
             return False
         return result[0][0] == 101
