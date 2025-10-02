@@ -1,4 +1,3 @@
-
 from databricks.labs.blueprint.installation import MockInstallation
 
 from databricks.labs.lakebridge.config import TranspileConfig
