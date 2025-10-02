@@ -38,8 +38,8 @@ class DatabricksSecretProvider:
 
 
 class CredentialManager:
-    def __init__(self, credential_loader: dict, secret_providers: dict):
-        self._credentials = credential_loader
+    def __init__(self, credentials: dict, secret_providers: dict[str, SecretProvider]):
+        self._credentials = credentials
         self._default_vault = self._credentials.get('secret_vault_type', 'local').lower()
         self._provider = secret_providers.get(self._default_vault)
         if not self._provider:
@@ -76,8 +76,9 @@ def _load_credentials(path: Path) -> dict:
         raise FileNotFoundError(f"Credentials file not found at {path}") from e
 
 
-def create_credential_manager(product_name: str, env_getter: EnvGetter):
+def create_credential_manager(product_name: str, env_getter: EnvGetter) -> CredentialManager:
     creds_path = cred_file(product_name)
+    creds = _load_credentials(creds_path)
 
     secret_providers = {
         'local': LocalSecretProvider(),
@@ -85,5 +86,4 @@ def create_credential_manager(product_name: str, env_getter: EnvGetter):
         'databricks': DatabricksSecretProvider(),
     }
 
-    loader = _load_credentials(creds_path)
-    return CredentialManager(loader, secret_providers)
+    return CredentialManager(creds, secret_providers)
