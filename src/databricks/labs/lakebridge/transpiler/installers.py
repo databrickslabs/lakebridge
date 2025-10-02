@@ -238,6 +238,7 @@ class WheelInstaller(ArtifactInstaller):
             self._venv_exec_cmd,
             "-m",
             "pip",
+            "--require-virtualenv",
             "--disable-pip-version-check",
             "install",
             to_install,
