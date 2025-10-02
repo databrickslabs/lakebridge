@@ -140,17 +140,15 @@ class TsqlTableDefinitionService(TableDefinitionService):
     def get_table_definition(self, catalog_name: str) -> Iterable[TableDefinition]:
         sql = self._get_table_definition_query(catalog_name)
         tsql_connection = self.connection
-        result = tsql_connection.fetch(sql)
+        rows = tsql_connection.fetch(sql)
 
-        column_names = list(result.keys())
         table_definitions = []
 
-        for row in result:
-            result = dict(zip(column_names, row))
+        for row in rows:
             table_fqn = TableFQN(
-                catalog=result["TABLE_CATALOG"], schema=result["TABLE_SCHEMA"], name=result["TABLE_NAME"]
+                catalog=row[0], schema=row[1], name=row[2]
             )
-            columns = result["DERIVED_SCHEMA"].split("‡") if result["DERIVED_SCHEMA"] else None
+            columns = row[6].split("‡") if row[6] else None
             field_info = []
             if columns is not None:
                 for column in columns:
@@ -163,15 +161,15 @@ class TsqlTableDefinitionService(TableDefinitionService):
                     )
                     field_info.append(field)
 
-            pks = result["PK_COLUMN_NAME"].split(":") if result["PK_COLUMN_NAME"] else None
+            pks = row[9].split(":") if row[9] else None
             table_definition = TableDefinition(
                 fqn=table_fqn,
-                location=result["location"],
-                table_format=result["TABLE_FORMAT"],
-                view_text=result["view_definition"],
+                location=row[3],
+                table_format=row[4],
+                view_text=row[5],
                 columns=field_info,
-                size_gb=result["SIZE_GB"],
-                comment=result["TABLE_COMMENT"],
+                size_gb=row[7],
+                comment=row[8],
                 primary_keys=pks,
             )
             table_definitions.append(table_definition)

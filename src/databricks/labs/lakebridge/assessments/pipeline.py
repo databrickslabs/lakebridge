@@ -13,7 +13,7 @@ import duckdb
 from databricks.labs.lakebridge.connections.credential_manager import cred_file
 
 from databricks.labs.lakebridge.assessments.profiler_config import PipelineConfig, Step
-from databricks.labs.lakebridge.connections.database_manager import DatabaseManager
+from databricks.labs.lakebridge.connections.database_manager import DatabaseManager, FetchResult
 
 logger = logging.getLogger(__name__)
 logger.setLevel("INFO")
@@ -147,14 +147,13 @@ class PipelineClass:
                 logging.error(f"Python script failed: {error_msg}")
                 raise RuntimeError(f"Script execution failed: {error_msg}") from e
 
-    def _save_to_db(self, result, step_name: str, mode: str, batch_size: int = 1000):
+    def _save_to_db(self, result: FetchResult, step_name: str, mode: str, batch_size: int = 1000):
         self._create_dir(self.db_path_prefix)
         db_path = str(self.db_path_prefix / DB_NAME)
 
         with duckdb.connect(db_path) as conn:
-            columns = result.keys()
             # TODO: Add support for figuring out data types from SQLALCHEMY result object result.cursor.description is not reliable
-            schema = ' STRING, '.join(columns) + ' STRING'
+            schema = ' STRING, '.join(result.columns) + ' STRING'
 
             # Handle write modes
             if mode == 'overwrite':
@@ -163,15 +162,10 @@ class PipelineClass:
                 conn.execute(f"CREATE TABLE {step_name} ({schema})")
 
             # Batch insert using prepared statements
-            placeholders = ', '.join(['?' for _ in columns])
+            placeholders = ', '.join(['?' for _ in result.columns])
             insert_query = f"INSERT INTO {step_name} VALUES ({placeholders})"
 
-            # Fetch and insert rows in batches
-            while True:
-                rows = result.fetchmany(batch_size)
-                if not rows:
-                    break
-                conn.executemany(insert_query, rows)
+            conn.executemany(insert_query, result.rows)
 
     @staticmethod
     def _create_dir(dir_path: Path):

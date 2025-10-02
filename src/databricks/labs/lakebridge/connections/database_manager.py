@@ -1,7 +1,8 @@
+import dataclasses
 import logging
 from abc import ABC, abstractmethod
 from typing import Any
-from collections.abc import Sequence
+from collections.abc import Sequence, Set
 
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine, URL
@@ -13,6 +14,10 @@ from sqlalchemy.exc import OperationalError
 logger = logging.getLogger(__name__)
 logger.setLevel("INFO")
 
+@dataclasses.dataclass
+class FetchResult:
+    columns: Set[str]
+    rows: Sequence[Row[Any]]
 
 class DatabaseConnector(ABC):
     @abstractmethod
@@ -20,7 +25,7 @@ class DatabaseConnector(ABC):
         pass
 
     @abstractmethod
-    def fetch(self, query: str) -> Sequence[Row[Any]]:
+    def fetch(self, query: str) -> FetchResult:
         pass
 
 
@@ -32,12 +37,13 @@ class _BaseConnector(DatabaseConnector):
     def _connect(self) -> Engine:
         raise NotImplementedError("Subclasses should implement this method")
 
-    def fetch(self, query: str) -> Sequence[Row[Any]]:
+    def fetch(self, query: str) -> FetchResult:
         if not self.engine:
             raise ConnectionError("Not connected to the database.")
         Session = sessionmaker(self.engine)  # pylint: disable=invalid-name
         with Session.begin() as session:  # pylint: disable=no-member
-            return session.execute(text(query)).all()
+            result = session.execute(text(query))
+            return FetchResult(result.keys(), result.fetchall())
 
 
 def _create_connector(db_type: str, config: dict[str, Any]) -> DatabaseConnector:
@@ -84,7 +90,7 @@ class DatabaseManager:
     def __init__(self, db_type: str, config: dict[str, Any]):
         self.connector = _create_connector(db_type, config)
 
-    def fetch(self, query: str) -> Sequence[Row[Any]]:
+    def fetch(self, query: str) -> FetchResult:
         try:
             return self.connector.fetch(query)
         except OperationalError:
