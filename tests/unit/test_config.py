@@ -1,5 +1,3 @@
-import pytest
-
 from databricks.labs.blueprint.installation import MockInstallation
 
 from databricks.labs.lakebridge.config import TranspileConfig
@@ -44,8 +42,6 @@ def test_typical_transpiler_config() -> None:
     assert loaded == config
 
 
-# TODO: Disabled due to issues with forward references in dataclasses with Python >= 3.12.4.
-@pytest.mark.skip(reason="Enable once databrickslabs/blueprint#252 is merged, and bump the dependency version.")
 def test_complete_transpiler_config() -> None:
     """Verify that a complete TranspileConfig dataclass can be saved and loaded correctly."""
     config = TranspileConfig(
