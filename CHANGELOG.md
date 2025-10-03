@@ -1,5 +1,78 @@
 # Version changelog
 
+## # Lakebridge v0.10.11 Release Notes
+
+## Analyzer
+No updates in this release
+
+## Converters
+
+### General
+- Fixed special character handling in filenames by introducing from_uri() helper function for safer URI handling
+- Ensured SQL converter returns UTF-8 encoded files for proper character encoding
+- Fixed filename to correctly output databricks_conversion_supplements.py supplemental file
+- Fixed broken splitter URL by updating directory naming conventions from "Downloads" to "downloads"
+- Improved handling of encoding-related errors by catching UnicodeDecodeError and LookupError exceptions during file processing, creating TranspileError with specific encoding-error codes instead of stopping
+
+### Morpheus
+
+#### Snowflake
+- Added support for TRUNCATE TABLE statements with proper IR and translation support
+- Correctly support  and  system variables
+- Refactored and extended grammar and AST support for SQL procedure creation with improved handling of raw string literals
+- Enhanced schema reconciliation functionality to support Snowflake arrays, addressing the corner case where Databricks arrays are typed and Snowflake arrays are untyped
+
+#### TSQL
+- Added support for TRUNCATE TABLE statements with proper IR and translation support
+- Support full CREATE and ALTER INDEX statements in TSQL parsing, rejecting INDEX CREATE/ALTER statements sensibly instead of raising syntax errors
+- Fixed implementation of IF scripting blocks with improvements to SQL parser, grammar enhancements, and enhanced scripting grammar for more robust handling of block statements and conditional branches
+- Allow CLUSTERED to be an identifier to improve CREATE TABLE syntax as a CONSTRAINT qualifier
+- Support percentage expressions in TSQL options (e.g., OPT = 42%) instead of raising parsing errors
+- Added support for REVOKE statements, similar to existing GRANT statement implementation
+- Ensure that ROWS and OBJECTS can be used as identifiers even with Jinja templates
+- Correctly support  and  system variables
+
+#### General (Multiple Dialects)
+- Support comments on column declarations when generating SQL and renamed legacy builders for consistency
+- Refactored IR around CREATE FUNCTION and CREATE PROCEDURE, unifying all ways to create stored procedures under a single CreateStoredProcedure IR node and all ways to create user defined functions under a single CreateUDF IR node
+- Implemented grammar and IR placeholders for named windows, introducing initial support for the SQL standard WINDOW clause in parser grammar
+
+### BladeBridge
+
+#### Oracle
+- Removed unsupported Oracle DDL constraints (add/create constraint unique) and extraneous TBLPROPERTIES from converted output
+
+#### MSSQL
+- Added handle_xml_nodes function for MS SQL processing
+- Fixed multiple MSSQL issues including CTEs in views/stored procedures, ADD CONSTRAINT problems, DEFAULT value handling, and parameter data types
+
+#### Synapse
+- Fixed multiple Synapse issues including CTEs in views/stored procedures, ADD CONSTRAINT problems, DEFAULT value handling, parameter data types, error handling in stored procedures, and Synapse-specific features (e.g., table distribution)
+
+#### Teradata
+- Added Teradata function mappings including ZEROIFNULL, TEMPORAL_TIMESTAMP, TRYCAST, ANY, FIRST, NULLIFZERO, DECODE with different parameter counts, and HASHAMP
+- Removed collect statistics and lock table statements
+
+#### DataStage
+- Implemented DataStage Checksum component translation to SparkSQL equivalent and fixed Pyspark checksum translation to use MD5() instead of SHA2()
+
+## Reconcile
+- Added handling for special characters in reconcile aggregate, enhancing the library to handle special characters in column names by properly delimiting identifiers in SQL queries
+- Fixed deploy reconcile jobs by updating wheel file handling, simplifying deployment process to use single wheel path, and fixing broken documentation links
+
+## Documentation
+- Fixed download link in docs (reconcile automation) by replacing broken markdown link with JSX link utilizing useBaseUrl hook
+
+## General
+- Implemented new describe-transpile CLI subcommand that describes installed transpilers, including their versions, configuration paths, and supported source dialects
+- Switched from urllib to requests library for making HTTP calls to PyPI and Maven Central, with default 60-second timeout and improved error handling
+- Work around DATABRICKS_HOST normalization issue during install and uninstall by introducing new Lakebridge subclass with appropriate workspace client
+
+# Dependency updates
+* Bump Databricks SDK Version to 0.67.0 by @goodwillpunning in https://github.com/databrickslabs/lakebridge/pull/2062
+* Bump sigstore/gh-action-sigstore-python from 3.0.0 to 3.0.1 by @dependabot[bot] in https://github.com/databrickslabs/lakebridge/pull/1753
+
+Special thanks to @BrianDeacon for his contribution to fix https://github.com/databrickslabs/lakebridge/issues/1858
 ## 0.10.10
 
 ## Analyzer
