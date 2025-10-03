@@ -8,7 +8,7 @@ def test_mssql_connector_connection(sandbox_sqlserver):
 def test_mssql_connector_execute_query(sandbox_sqlserver):
     # Test executing a query
     query = "SELECT 101 AS test_column"
-    result = sandbox_sqlserver.fetch(query)
+    result = sandbox_sqlserver.fetch(query).rows
     assert result[0][0] == 101
 
 
