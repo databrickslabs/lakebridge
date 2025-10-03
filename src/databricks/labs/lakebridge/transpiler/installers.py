@@ -238,9 +238,11 @@ class WheelInstaller(ArtifactInstaller):
             self._venv_exec_cmd,
             "-m",
             "pip",
+            "--require-virtualenv",
             "--disable-pip-version-check",
             "install",
             to_install,
+            "--only-binary=:all:",
         ]
         result = subprocess.run(command, stdin=sys.stdin, stdout=sys.stdout, stderr=sys.stderr, check=False)
         result.check_returncode()
