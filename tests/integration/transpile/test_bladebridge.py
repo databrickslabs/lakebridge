@@ -45,7 +45,10 @@ def application_ctx(ws: WorkspaceClient) -> Generator[ApplicationContext, None, 
 
 
 def test_transpiles_informatica_to_sparksql(
-    application_ctx: ApplicationContext, repository_with_bladebridge: TranspilerRepository, tmp_path: Path, capsys
+    application_ctx: ApplicationContext,
+    repository_with_bladebridge: TranspilerRepository,
+    tmp_path: Path,
+    capsys,
 ) -> None:
     """Check that 'transpile' can convert an Informatica (ETL) mapping to SparkSQL using Bladebridge."""
     # Prepare the application context with a configuration for converting Informatica (ETL)
@@ -96,7 +99,10 @@ def test_transpiles_informatica_to_sparksql(
 
 
 def test_transpile_teradata_sql(
-    application_ctx: ApplicationContext, repository_with_bladebridge: TranspilerRepository, tmp_path: Path, capsys
+    application_ctx: ApplicationContext,
+    repository_with_bladebridge: TranspilerRepository,
+    tmp_path: Path,
+    capsys,
 ) -> None:
     """Check that 'transpile' can convert a Teradata (SQL) to DBSQL using Bladebridge, and then validate the output."""
     # Prepare the application context with a configuration for converting Teradata (SQL)
