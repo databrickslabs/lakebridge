@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 from databricks.labs.blueprint.wheels import ProductInfo
+from databricks.labs.blueprint.paths import WorkspacePath
 from databricks.sdk import WorkspaceClient
 
 from databricks.labs.lakebridge import cli
@@ -41,7 +42,8 @@ def application_ctx(ws: WorkspaceClient) -> Generator[ApplicationContext, None, 
     """A mock application context with a unique installation path, cleaned up after the test."""
     ctx = MockApplicationContext(ws)
     yield ctx
-    ctx.installation.remove()
+    if WorkspacePath(ws, ctx.installation.install_folder()).exists():
+        ctx.installation.remove()
 
 
 def test_transpiles_informatica_to_sparksql(
@@ -98,6 +100,71 @@ def test_transpiles_informatica_to_sparksql(
     assert not errors_path.exists()
 
 
+@pytest.mark.parametrize("provide_overrides", [True, False])
+def test_transpiles_informatica_to_sparksql_non_interactive(
+    provide_overrides: bool,
+    application_ctx: ApplicationContext,
+    repository_with_bladebridge: TranspilerRepository,
+    tmp_path: Path,
+    capsys,
+) -> None:
+    """Check that 'transpile' can non-interactively convert an Informatica (ETL) mapping to SparkSQL using Bladebridge."""
+    # Prepare the application context as if it were non-interactive (no config.yml file).
+    config_path = repository_with_bladebridge.transpiler_config_path("Bladebridge")
+    input_source = Path(__file__).parent.parent.parent / "resources" / "functional" / "informatica"
+    output_folder = tmp_path / "output"
+    output_folder.mkdir(parents=True, exist_ok=True)
+    errors_path = output_folder / "errors.log"
+    kwargs: dict[str, str] = {}
+    if provide_overrides:
+        # This is horrible but we need it for the minimum valid overrides file that will work with Informatica/SparkSQL.
+        transpilers_path = repository_with_bladebridge.transpilers_path()
+        overrides_base = next(transpilers_path.glob("**/base_infapc2databricks_sparksql.json"))
+        overrides_file = tmp_path / "overrides.json"
+        overrides_file.write_text(json.dumps({"inherit_from": [str(overrides_base.absolute())]}), encoding="utf-8")
+        kwargs["overrides_file"] = str(overrides_file)
+
+    # Run the conversion: everything has to be passed as parameters.
+    cli.transpile(
+        w=application_ctx.workspace_client,
+        transpiler_config_path=str(config_path),
+        source_dialect="informatica (desktop edition)",
+        target_technology="SPARKSQL",
+        input_source=str(input_source),
+        output_folder=str(output_folder),
+        error_file_path=str(errors_path),
+        ctx=application_ctx,
+        transpiler_repository=repository_with_bladebridge,
+        **kwargs,
+    )
+    (out, _) = capsys.readouterr()
+
+    _check_transpile_informatica_to_sparksql(out, output_folder, errors_path)
+
+
+def _check_transpile_informatica_to_sparksql(stdout: str, output_folder: Path, errors_path: Path) -> None:
+    # Check the conversion summary.
+    summary = json.loads(stdout)
+    assert summary == [
+        {
+            "total_files_processed": 1,
+            "total_queries_processed": 1,
+            "analysis_error_count": 0,
+            "parsing_error_count": 0,
+            "validation_error_count": 0,
+            "generation_error_count": 0,
+            "error_log_file": None,
+        }
+    ]
+
+    # Check the conversion by merely looking for the files we expect from our reference Informatica mapping.
+    assert (output_folder / "m_employees_load.py").exists()
+    assert (output_folder / "wf_m_employees_load.json").exists()
+    assert (output_folder / "wf_m_employees_load_params.py").exists()
+    # No errors should have been logged, which means the errors file should not exist.
+    assert not errors_path.exists()
+
+
 def test_transpile_teradata_sql(
     application_ctx: ApplicationContext,
     repository_with_bladebridge: TranspilerRepository,
@@ -128,8 +195,56 @@ def test_transpile_teradata_sql(
     cli.transpile(w=application_ctx.workspace_client, ctx=application_ctx)
     (out, _) = capsys.readouterr()
 
+    _check_transpile_teradata_sql(out, output_folder, errors_path)
+
+
+@pytest.mark.parametrize("provide_overrides", [True, False])
+def test_transpile_teradata_sql_non_interactive(
+    provide_overrides: bool,
+    application_ctx: ApplicationContext,
+    repository_with_bladebridge: TranspilerRepository,
+    tmp_path: Path,
+    capsys,
+) -> None:
+    """Check that 'transpile' can non-interactively convert a Teradata (SQL) to DBSQL using Bladebridge, and then validate the output."""
+    # Prepare the application context as if it were non-interactive (no config.yml file).
+    config_path = repository_with_bladebridge.transpiler_config_path("Bladebridge")
+    input_source = Path(__file__).parent.parent.parent / "resources" / "functional" / "teradata" / "integration"
+    output_folder = tmp_path / "output"
+    output_folder.mkdir(parents=True, exist_ok=True)
+    errors_path = output_folder / "errors.log"
+    kwargs: dict[str, str] = {}
+    if provide_overrides:
+        # This is horrible but we need it for the minimum valid overrides file that will work with Teradata.
+        transpilers_path = repository_with_bladebridge.transpilers_path()
+        overrides_base = next(transpilers_path.glob("**/base_teradata2databricks_sql.json"))
+        overrides_file = tmp_path / "overrides.json"
+        overrides_file.write_text(json.dumps({"inherit_from": [str(overrides_base.absolute())]}), encoding="utf-8")
+        kwargs["overrides_file"] = str(overrides_file)
+
+    # Run the conversion: everything has to be passed as parameters.
+    cli.transpile(
+        w=application_ctx.workspace_client,
+        transpiler_config_path=str(config_path),
+        source_dialect="teradata",
+        input_source=str(input_source),
+        output_folder=str(output_folder),
+        error_file_path=str(errors_path),
+        skip_validation="false",
+        catalog_name="catalog",
+        schema_name="schema",
+        ctx=application_ctx,
+        transpiler_repository=repository_with_bladebridge,
+        **kwargs,
+    )
+    (out, _) = capsys.readouterr()
+
+    _check_transpile_teradata_sql(out, output_folder, errors_path)
+
+
+def _check_transpile_teradata_sql(stdout: str, output_folder: Path, errors_path: Path) -> None:
     # Check the conversion summary.
-    summary = json.loads(out)
+    summary = json.loads(stdout)
     assert summary == [
         {
             "total_files_processed": 2,
