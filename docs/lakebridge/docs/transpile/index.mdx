@@ -10,9 +10,33 @@ import useBaseUrl from '@docusaurus/useBaseUrl';
 ## Verify Installation
 Verify the successful installation by executing the provided command; confirmation of a successful installation is indicated when the displayed output aligns with the example screenshot provided:
 ```bash
- databricks labs lakebridge transpile --help
- ```
-<img src={useBaseUrl('img/transpile-help.png')} alt="transpile-help" />
+databricks labs lakebridge transpile --help
+```
+```console
+Transpile SQL script to Databricks SQL
+
+Usage:
+  databricks labs lakebridge transpile [flags]
+
+Flags:
+      --catalog-name string                Catalog Name Applicable only when Validation Mode is DATABRICKS
+      --error-file-path <pwd>/errors.log   Output Location For Storing Errors, defaults to (Current Working Directory) <pwd>/errors.log
+  -h, --help                               help for transpile
+      --input-source string                Input Script Folder or File
+      --output-folder <pwd>/transpiled     Output Location For Storing Transpiled Code, defaults to (Current Working Directory) <pwd>/transpiled folder
+      --overrides-file string              Path to a file containing transpiler overrides, if supported by the transpiler in use.
+      --schema-name string                 Schema Name Applicable only when Validation Mode is DATABRICKS
+      --skip-validation string             Validate Transpiled Code, default True validation skipped, False validate (default "true")
+      --source-dialect install-transpile   Dialect name as selected during install-transpile or refer to documentation
+      --target-technology string           Target technology to use for code generation, if supported by the transpiler in use.
+      --transpiler-config-path string      Path to the transpiler configuration file [Pluggable Transpilers] eg:- Morpheus/Bladebridge
+
+Global Flags:
+      --debug            enable debug logging
+  -o, --output type      output type: text or json (default text)
+  -p, --profile string   ~/.databrickscfg profile
+  -t, --target string    bundle target to use (if applicable)
+```
 
 ## Execution Pre-Set Up
 When you run `install-transpile`, you will be prompted to enter all the required elements to transpile your code. You can
@@ -24,6 +48,8 @@ The `transpile` command will trigger the conversion of the specified code, these
 - `output-folder [Optional]` - The path to the output folder where the transpiled SQL files will be stored. If not specified,
 the transpiled SQL files will be stored in a folder called `transpiled` in your current working directory.
 - `source-dialect [Optional]` - Dialect name (ex: snowflake, oracle, datastage, etc). If not specified, refers to the Source Dialect selected at installation time.
+- `overrides-file [Optional]` - An optional path to a JSON file containing custom overrides for the transpilation process, if the underlying transpiler supports this. (Refer to [this documentation](pluggable_transpilers/bladebridge_configuration) for more details on custom overrides.)
+- `target-technology [Optional]` - The target technology to use for conversion output, if the underlying transpiler supports this.
 - `error-file-path [Optional]` - The path to the file where the transpile errors will be stored. If not specified, the
 errors will be stored in a file called `errors.log` in your current working directory.
 - `skip-validation [Optional]` - The default value is True. If set to False, the transpiler will validate the transpiled SQL scripts against the Databricks catalog and schema provided by user.
