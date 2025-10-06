@@ -16,7 +16,7 @@ from databricks.sdk import WorkspaceClient
 
 from databricks.labs.blueprint.cli import App
 from databricks.labs.blueprint.entrypoint import get_logger, is_in_debug
-from databricks.labs.blueprint.installation import RootJsonValue, JsonObject
+from databricks.labs.blueprint.installation import RootJsonValue, JsonObject, JsonValue
 from databricks.labs.blueprint.tui import Prompts
 
 
@@ -25,7 +25,7 @@ from databricks.labs.lakebridge.assessments.configure_assessment import (
     PROFILER_SOURCE_SYSTEM,
 )
 
-from databricks.labs.lakebridge.config import TranspileConfig
+from databricks.labs.lakebridge.config import TranspileConfig, LSPConfigOptionV1
 from databricks.labs.lakebridge.contexts.application import ApplicationContext
 from databricks.labs.lakebridge.helpers.recon_config_utils import ReconConfigPrompts
 from databricks.labs.lakebridge.helpers.telemetry_utils import make_alphanum_or_semver
@@ -510,11 +510,16 @@ class _TranspileConfigChecker:
             option.flag: (
                 transpiler_options[option.flag]
                 if option.flag in transpiler_options
-                else option.prompt_for_value(self._prompts)
+                else self._handle_missing_transpiler_option(option)
             )
             for option in options_for_dialect
         }
         self._config = dataclasses.replace(self._config, transpiler_options=checked_options)
+
+    def _handle_missing_transpiler_option(self, option: LSPConfigOptionV1) -> JsonValue:
+        if option.default == "<none>":
+            return None
+        return option.prompt_for_value(self._prompts)
 
     def check(self) -> tuple[TranspileConfig, TranspileEngine]:
         """Checks that all configuration parameters are present and valid."""
