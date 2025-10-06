@@ -130,6 +130,11 @@ class LSPConfigOptionV1:
         if self.method == LSPPromptMethod.CONFIRM:
             return prompts.confirm(self.prompt)
         if self.method == LSPPromptMethod.QUESTION:
+            # Hack to:
+            #  - trick prompts.question() into indicating that no answer is required;
+            #  - allow no answer to be given.
+            # Normally prompts.confirm() requires an answer, or returns the default, and the default can't be None.
+            # Note: LSP servers use '<none>' as a default to indicate that no answer is required.
             no_answer = "<none>"
             default = self.default if self.default else no_answer
             result = prompts.question(self.prompt, default=default)
