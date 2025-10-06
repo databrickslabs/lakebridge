@@ -305,7 +305,7 @@ def test_transpile_overrides_file_specified(
     """Verify that the overrides file can be manually specified and is passed to the transpiler."""
     ws, cfg, _, do_transpile = mock_cli_for_transpile
     overrides_path = tmp_path / "overrides.json"
-    overrides_path.write_text("{}")
+    overrides_path.write_text("{}", encoding="utf-8")
 
     cli.transpile(
         w=ws,
