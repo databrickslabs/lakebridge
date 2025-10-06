@@ -517,6 +517,29 @@ class _TranspileConfigChecker:
         self._config = dataclasses.replace(self._config, transpiler_options=checked_options)
 
     def _handle_missing_transpiler_option(self, option: LSPConfigOptionV1) -> JsonValue:
+        # Semantics during configuration:
+        #  - Entries are present in the config file for all options the LSP server needs for a dialect.
+        #  - If a value is `None`, it means the user wants the value to be left unset.
+        #  - There is no 'provide it later' option: either it's set, or it's unset.
+        # As a corner case, if there is no entry present it means the user wasn't prompted. Here we have
+        # some complexity. We have two ways of obtaining a value:
+        #  - The user could provide it on the command-line, using --target-technology or --overrides-file.
+        #    Problem: via command-line options there's no way to indicate 'no value'.
+        #  - We could prompt for it, assuming the user is running interactively.
+        # In terms of what is required by the option:
+        #  - If the option has a default of <none>, it means that no value is required.
+        #  - Everything else requires a value.
+        #
+        # This leads to the following business rules:
+        #  - If the option has a default of <none> that means that no value is required, no further action is required.
+        #  - Otherwise, a value is required: prompt for it.
+        #
+        # TODO: When adding non-interactive support, the otherwise branch need to be modified:
+        #     1. If it can be provided by the command-line, fail and ask the user to provide it.
+        #     2. If it cannot be provided by the command-line, prompt for it if we are running interactively.
+        #     3. If we cannot prompt because we are not running interactively, use the default if there is one.
+        #     4. Fail: the only way to provide a value is via the config.yml, which can be set via 'install-transpile'.
+
         if option.default == "<none>":
             return None
         return option.prompt_for_value(self._prompts)
