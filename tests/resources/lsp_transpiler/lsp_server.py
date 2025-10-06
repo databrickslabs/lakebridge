@@ -104,7 +104,7 @@ class TestLspServer(LanguageServer):
     @property
     def experimental(self) -> str | None:
         options = self.initialization_options.get("options", {}) or {}
-        return options.get("-experimental", None)
+        return options.get("experimental", None)
 
     @property
     def whatever(self) -> str | None:
