@@ -498,8 +498,11 @@ class _TranspileConfigChecker:
         assert self._config.source_dialect is not None, "Source dialect must be set before checking transpiler options."
         options_for_dialect = engine.options_for_dialect(self._config.source_dialect)
         transpiler_options = self._config.transpiler_options
-        if not isinstance(transpiler_options, Mapping):
-            return
+        if transpiler_options is None:
+            transpiler_options = {}
+        elif not isinstance(transpiler_options, Mapping):
+            logger.warning(f"Ignoring transpiler_options in config.yml, must be a mapping: {transpiler_options!r}")
+            transpiler_options = {}
         # Only checks if the option is present, does not validate the value.
         # TODO: Validate the value for CHOICE/CONFIRM options.
         # TODO: Handle FORCE options: these are fixed by the transpiler, and cannot be overridden.
