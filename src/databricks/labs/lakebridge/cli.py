@@ -501,7 +501,8 @@ class _TranspileConfigChecker:
         if not isinstance(transpiler_options, Mapping):
             return
         # Only checks if the option is present, does not validate the value.
-        # TODO: Validate the value for CHOICE/FORCE/CONFIRM options.
+        # TODO: Validate the value for CHOICE/CONFIRM options.
+        # TODO: Handle FORCE options: these are fixed by the transpiler, and cannot be overridden.
         checked_options = {
             option.flag: (
                 transpiler_options[option.flag]
