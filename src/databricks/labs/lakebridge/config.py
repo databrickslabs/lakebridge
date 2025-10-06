@@ -130,9 +130,10 @@ class LSPConfigOptionV1:
         if self.method == LSPPromptMethod.CONFIRM:
             return prompts.confirm(self.prompt)
         if self.method == LSPPromptMethod.QUESTION:
-            default = self.default if self.default else "None"
+            no_answer = "<none>"
+            default = self.default if self.default else no_answer
             result = prompts.question(self.prompt, default=default)
-            if result == "<none>":
+            if result == no_answer:
                 return None
             return result
         if self.method == LSPPromptMethod.CHOICE:
