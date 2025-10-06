@@ -7,6 +7,7 @@ from collections.abc import Callable
 
 from sqlglot import expressions as exp
 
+from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import DialectUtils
 from databricks.labs.lakebridge.reconcile.constants import SamplingOptionMethod, SamplingSpecificationsType
 
 logger = logging.getLogger(__name__)
@@ -299,7 +300,7 @@ class Aggregate:
 
     @classmethod
     def _join_columns(cls, columns: list[str]):
-        return "+__+".join(columns)
+        return "+__+".join([DialectUtils.unnormalize_identifier(col) for col in columns])
 
     @property
     def group_by_columns_as_str(self):

@@ -235,7 +235,7 @@ def test_hash_query_builder_without_transformation(
 
 
 def test_hash_query_builder_for_report_type_is_row(
-    normalized_table_conf_with_opts, table_schema_oracle_ansi, column_mapping, fake_databricks_datasource
+    normalized_table_conf_with_opts, table_schema_oracle_ansi, fake_databricks_datasource
 ):
     sch, sch_with_alias = table_schema_oracle_ansi
     src_actual = HashQueryBuilder(
