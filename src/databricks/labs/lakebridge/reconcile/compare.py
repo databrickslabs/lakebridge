@@ -233,7 +233,14 @@ def _get_mismatch_df(source: DataFrame, target: DataFrame, key_columns: list[str
 
 def _generate_agg_join_condition(source_alias: str, target_alias: str, key_columns: list[str]):
     join_columns: list[ColumnMapping] = [
-        ColumnMapping(source_name=f"source_group_by_{key_col}", target_name=f"target_group_by_{key_col}")
+        ColumnMapping(
+            source_name=DialectUtils.ansi_normalize_identifier(
+                f"source_group_by_{DialectUtils.unnormalize_identifier(key_col)}"
+            ),
+            target_name=DialectUtils.ansi_normalize_identifier(
+                f"target_group_by_{DialectUtils.unnormalize_identifier(key_col)}"
+            ),
+        )
         for key_col in key_columns
     ]
     conditions = [
@@ -271,7 +278,8 @@ def _agg_conditions(
 
     if condition_type == "group_filter":
         conditions_list = [
-            (col(f"{mapping.source_name}").isNotNull() & col(f"{mapping.target_name}").isNotNull()) for mapping in cols
+            (col(f"{mapping.source_name}").isNotNull() & col(f"{mapping.target_name}").isNotNull())
+            for mapping in cols  # TODO
         ]
     elif condition_type == "select":
         conditions_list = [col(f"{mapping.source_name}") == col(f"{mapping.target_name}") for mapping in cols]
@@ -376,7 +384,7 @@ def reconcile_agg_data_per_rule(
     for mapping in rule_select_columns:
         df_rule_columns.extend([mapping.source_name, mapping.target_name])
 
-    joined_df_with_rule_cols = joined_df.selectExpr(*df_rule_columns)
+    joined_df_with_rule_cols = joined_df.select(*df_rule_columns)
 
     # Data mismatch between Source and Target aggregated data
     mismatch = _get_mismatch_agg_data(joined_df_with_rule_cols, rule_select_columns, rule_group_columns)
@@ -439,10 +447,9 @@ def join_aggregate_data(
             how="cross",
         )
 
-    joined_df = df.selectExpr(
-        *source.columns,
-        *target.columns,
-    )
+    joined_cols = source.columns + target.columns
+    normalized_joined_cols = [DialectUtils.ansi_normalize_identifier(col) for col in joined_cols]
+    joined_df = df.select(*normalized_joined_cols)
 
     # Write the joined df to volume path
     joined_volume_df = ReconIntermediatePersist(spark, path).write_and_read_unmatched_df_with_volumes(joined_df).cache()
