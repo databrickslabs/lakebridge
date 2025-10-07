@@ -1,0 +1,13 @@
+name: ExamplePipeline
+version: "1.0"
+extract_folder: /tmp/profiler_main/
+steps:
+  - name: random_data
+    type: python
+    extract_source: tests/resources/assessments/db_extract.py
+    mode: overwrite
+    frequency: daily
+    flag: active
+    dependencies:
+      - pandas
+      - duckdb

@@ -10,7 +10,7 @@ from ..connections.helpers import get_db_manager
 
 @pytest.fixture()
 def extractor(mock_credentials):
-    return get_db_manager("remorph", "mssql")
+    return get_db_manager("lakebridge", "mssql")
 
 
 @pytest.fixture(scope="module")
@@ -58,9 +58,6 @@ def python_failure_config():
 def test_run_pipeline(extractor, pipeline_config, get_logger):
     pipeline = PipelineClass(config=pipeline_config, executor=extractor)
     results = pipeline.execute()
-    print("*******************\n")
-    print(results)
-    print("\n*******************")
 
     # Verify all steps completed successfully
     for result in results:
@@ -74,32 +71,29 @@ def test_run_pipeline(extractor, pipeline_config, get_logger):
 
 def test_run_sql_failure_pipeline(extractor, sql_failure_config, get_logger):
     pipeline = PipelineClass(config=sql_failure_config, executor=extractor)
-    results = pipeline.execute()
+    with pytest.raises(RuntimeError) as e:
+        pipeline.execute()
 
     # Find the failed SQL step
-    failed_steps = [r for r in results if r.status == StepExecutionStatus.ERROR]
-    assert len(failed_steps) > 0, "Expected at least one failed step"
-    assert "SQL execution failed" in failed_steps[0].error_message
+    assert "Pipeline execution failed due to errors in steps: invalid_sql_step" in str(e.value)
 
 
 def test_run_python_failure_pipeline(extractor, python_failure_config, get_logger):
     pipeline = PipelineClass(config=python_failure_config, executor=extractor)
-    results = pipeline.execute()
+    with pytest.raises(RuntimeError) as e:
+        pipeline.execute()
 
     # Find the failed Python step
-    failed_steps = [r for r in results if r.status == StepExecutionStatus.ERROR]
-    assert len(failed_steps) > 0, "Expected at least one failed step"
-    assert "Script execution failed" in failed_steps[0].error_message
+    assert "Pipeline execution failed due to errors in steps: invalid_python_step" in str(e.value)
 
 
 def test_run_python_dep_failure_pipeline(extractor, pipeline_dep_failure_config, get_logger):
     pipeline = PipelineClass(config=pipeline_dep_failure_config, executor=extractor)
-    results = pipeline.execute()
+    with pytest.raises(RuntimeError) as e:
+        pipeline.execute()
 
     # Find the failed Python step
-    failed_steps = [r for r in results if r.status == StepExecutionStatus.ERROR]
-    assert len(failed_steps) > 0, "Expected at least one failed step"
-    assert "Script execution failed" in failed_steps[0].error_message
+    assert "Pipeline execution failed due to errors in steps: package_status" in str(e.value)
 
 
 def test_skipped_steps(extractor, pipeline_config, get_logger):

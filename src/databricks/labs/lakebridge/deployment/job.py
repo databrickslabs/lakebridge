@@ -1,4 +1,3 @@
-import dataclasses
 import logging
 from datetime import datetime, timezone, timedelta
 from typing import Any
@@ -32,18 +31,18 @@ class JobDeployment:
         self._install_state = install_state
         self._product_info = product_info
 
-    def deploy_recon_job(self, name, recon_config: ReconcileConfig, remorph_wheel_path: str):
+    def deploy_recon_job(self, name, recon_config: ReconcileConfig, lakebridge_wheel_path: str):
         logger.info("Deploying reconciliation job.")
-        job_id = self._update_or_create_recon_job(name, recon_config, remorph_wheel_path)
+        job_id = self._update_or_create_recon_job(name, recon_config, lakebridge_wheel_path)
         logger.info(f"Reconciliation job deployed with job_id={job_id}")
         logger.info(f"Job URL: {self._ws.config.host}#job/{job_id}")
         self._install_state.save()
 
-    def _update_or_create_recon_job(self, name, recon_config: ReconcileConfig, remorph_wheel_path: str) -> str:
+    def _update_or_create_recon_job(self, name, recon_config: ReconcileConfig, lakebridge_wheel_path: str) -> str:
         description = "Run the reconciliation process"
         task_key = "run_reconciliation"
 
-        job_settings = self._recon_job_settings(name, task_key, description, recon_config, remorph_wheel_path)
+        job_settings = self._recon_job_settings(name, task_key, description, recon_config, lakebridge_wheel_path)
         if name in self._install_state.jobs:
             try:
                 job_id = int(self._install_state.jobs[name])
@@ -53,7 +52,7 @@ class JobDeployment:
             except InvalidParameterValue:
                 del self._install_state.jobs[name]
                 logger.warning(f"Job `{name}` does not exist anymore for some reason")
-                return self._update_or_create_recon_job(name, recon_config, remorph_wheel_path)
+                return self._update_or_create_recon_job(name, recon_config, lakebridge_wheel_path)
 
         logger.info(f"Creating new job configuration for job `{name}`")
         new_job = self._ws.jobs.create(**job_settings)
@@ -67,7 +66,7 @@ class JobDeployment:
         task_key: str,
         description: str,
         recon_config: ReconcileConfig,
-        remorph_wheel_path: str,
+        lakebridge_wheel_path: str,
     ) -> dict[str, Any]:
         latest_lts_spark = self._ws.clusters.select_spark_version(latest=True, long_term_support=True)
         version = self._product_info.version()
@@ -95,22 +94,21 @@ class JobDeployment:
             ],
             "tasks": [
                 self._job_recon_task(
-                    Task(
-                        task_key=task_key,
-                        description=description,
-                        job_cluster_key="Remorph_Reconciliation_Cluster",
-                    ),
+                    task_key,
+                    description,
                     recon_config,
-                    remorph_wheel_path,
+                    lakebridge_wheel_path,
                 ),
             ],
             "max_concurrent_runs": 2,
             "parameters": [JobParameterDefinition(name="operation_name", default="reconcile")],
         }
 
-    def _job_recon_task(self, jobs_task: Task, recon_config: ReconcileConfig, remorph_wheel_path: str) -> Task:
+    def _job_recon_task(
+        self, task_key: str, description: str, recon_config: ReconcileConfig, lakebridge_wheel_path: str
+    ) -> Task:
         libraries = [
-            compute.Library(whl=remorph_wheel_path),
+            compute.Library(whl=lakebridge_wheel_path),
         ]
 
         if recon_config.data_source == ReconSourceType.ORACLE.value:
@@ -122,18 +120,21 @@ class JobDeployment:
                 ),
             )
 
-        return dataclasses.replace(
-            jobs_task,
+        return Task(
+            task_key=task_key,
+            description=description,
+            job_cluster_key="Remorph_Reconciliation_Cluster",
             libraries=libraries,
             python_wheel_task=PythonWheelTask(
-                package_name="databricks_labs_remorph",
+                package_name=self.parse_package_name(lakebridge_wheel_path),
                 entry_point="reconcile",
                 parameters=["{{job.parameters.[operation_name]}}"],
             ),
         )
 
+    # TODO: DRY: delete as it is already implemented in install.py
     def _is_testing(self):
-        return self._product_info.product_name() != "remorph"
+        return self._product_info.product_name() != "lakebridge"
 
     @staticmethod
     def _get_test_purge_time() -> str:
@@ -145,3 +146,14 @@ class JobDeployment:
     def _name_with_prefix(self, name: str) -> str:
         prefix = self._installation.product()
         return f"{prefix.upper()}_{name}".replace(" ", "_")
+
+    def parse_package_name(self, wheel_path: str) -> str:
+        default_name = "databricks_labs_lakebridge"
+
+        name = wheel_path.split("/")[-1].split("-")[0]
+
+        if self._product_info.product_name() not in name:
+            logger.warning(f"Parsed package name {name} does not match product name, using default.")
+            name = default_name
+
+        return name

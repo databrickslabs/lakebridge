@@ -1131,7 +1131,7 @@ def test_runs_and_stores_force_config_option(
     )
 
     transpiler_repository = _StubTranspilerRepository(
-        tmp_path / "labs", config_options=(LSPConfigOptionV1(flag="-XX", method=LSPPromptMethod.FORCE, default=1254),)
+        tmp_path / "labs", config_options=(LSPConfigOptionV1(flag="-XX", method=LSPPromptMethod.FORCE, default="1254"),)
     )
 
     workspace_installer = ws_installer(
@@ -1150,7 +1150,7 @@ def test_runs_and_stores_force_config_option(
     expected_config = LakebridgeConfiguration(
         transpile=TranspileConfig(
             transpiler_config_path=PATH_TO_TRANSPILER_CONFIG,
-            transpiler_options={"-XX": 1254},
+            transpiler_options={"-XX": "1254"},
             source_dialect="snowflake",
             input_source="/tmp/queries/snow",
             output_folder="/tmp/queries/databricks",
@@ -1165,7 +1165,7 @@ def test_runs_and_stores_force_config_option(
         "config.yml",
         {
             "transpiler_config_path": PATH_TO_TRANSPILER_CONFIG,
-            "transpiler_options": {'-XX': 1254},
+            "transpiler_options": {'-XX': "1254"},
             "catalog_name": "remorph_test",
             "input_source": "/tmp/queries/snow",
             "output_folder": "/tmp/queries/databricks",
@@ -1518,3 +1518,83 @@ def test_installer_upgrade_configure_if_changed(
             "error_file_path": "/tmp/updated",
         }
         mock_installation.assert_file_written("config.yml", expected_configuration)
+
+
+def test_no_reconfigure_if_noninteractive(
+    ws_installer: Callable[..., WorkspaceInstaller],
+    ws: WorkspaceClient,
+    caplog,
+) -> None:
+    """Check that when non-interactive we do not attempt to reconfigure if there is already a config."""
+
+    no_prompts_available = MockPrompts({})
+
+    ctx = ApplicationContext(ws).replace(
+        product_info=ProductInfo.for_testing(LakebridgeConfiguration),
+        prompts=no_prompts_available,
+        installation=MockInstallation(
+            {
+                "config.yml": {
+                    "version": 3,
+                    "transpiler_config_path": PATH_TO_TRANSPILER_CONFIG,
+                    "source_dialect": "frobnicat",
+                    "input_source": "sf_queries",
+                    "output_folder": "out_dir",
+                    "error_file_path": "error_log.log",
+                    "skip_validation": True,
+                    "catalog_name": "remorph",
+                    "schema_name": "transpiler",
+                }
+            }
+        ),
+    )
+
+    installer = ws_installer(
+        ctx.workspace_client,
+        ctx.prompts,
+        ctx.installation,
+        ctx.install_state,
+        ctx.product_info,
+        ctx.resource_configurator,
+        ctx.workspace_installation,
+        is_interactive=False,
+    )
+    with caplog.at_level(logging.DEBUG):
+        config = installer.run(module="transpile")
+
+    assert config.transpile is not None
+    expected_log_message = "Installation is not interactive, keeping existing configuration."
+    assert any(expected_log_message in log.message for log in caplog.records if log.levelno == logging.DEBUG)
+
+
+def test_no_configure_if_noninteractive(
+    ws_installer: Callable[..., WorkspaceInstaller],
+    ws: WorkspaceClient,
+    caplog,
+) -> None:
+    """Check that when non-interactive we do not attempt configuration, even if there is no existing config."""
+
+    no_prompts_available = MockPrompts({})
+
+    ctx = ApplicationContext(ws).replace(
+        product_info=ProductInfo.for_testing(LakebridgeConfiguration),
+        prompts=no_prompts_available,
+        installation=MockInstallation({}),
+    )
+
+    installer = ws_installer(
+        ctx.workspace_client,
+        ctx.prompts,
+        ctx.installation,
+        ctx.install_state,
+        ctx.product_info,
+        ctx.resource_configurator,
+        ctx.workspace_installation,
+        is_interactive=False,
+    )
+    with caplog.at_level(logging.WARNING):
+        config = installer.run(module="transpile")
+
+    assert config.transpile is None
+    expected_log_message = "Installation is not interactive, skipping configuration of transpilers."
+    assert any(expected_log_message in log.message for log in caplog.records if log.levelno == logging.WARNING)

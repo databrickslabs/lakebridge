@@ -5,10 +5,11 @@ import json
 import logging
 import os
 import re
+import sys
 import time
 from collections.abc import Mapping
 from pathlib import Path
-from typing import NoReturn
+from typing import NoReturn, TextIO
 
 from databricks.sdk.service.sql import CreateWarehouseRequestWarehouseType
 from databricks.sdk import WorkspaceClient
@@ -19,10 +20,8 @@ from databricks.labs.blueprint.installation import RootJsonValue
 from databricks.labs.blueprint.tui import Prompts
 
 
-from databricks.labs.lakebridge.assessments.configure_assessment import (
-    create_assessment_configurator,
-    PROFILER_SOURCE_SYSTEM,
-)
+from databricks.labs.lakebridge.assessments.configure_assessment import create_assessment_configurator
+from databricks.labs.lakebridge.assessments import PROFILER_SOURCE_SYSTEM
 
 from databricks.labs.lakebridge.config import TranspileConfig
 from databricks.labs.lakebridge.contexts.application import ApplicationContext
@@ -32,6 +31,7 @@ from databricks.labs.lakebridge.install import installer
 from databricks.labs.lakebridge.reconcile.runner import ReconcileRunner
 from databricks.labs.lakebridge.lineage import lineage_generator
 from databricks.labs.lakebridge.reconcile.recon_config import RECONCILE_OPERATION_NAME, AGG_RECONCILE_OPERATION_NAME
+from databricks.labs.lakebridge.transpiler.describe import TranspilersDescription
 from databricks.labs.lakebridge.transpiler.execute import transpile as do_transpile
 from databricks.labs.lakebridge.transpiler.lsp.lsp_engine import LSPEngine
 from databricks.labs.lakebridge.transpiler.repository import TranspilerRepository
@@ -40,7 +40,19 @@ from databricks.labs.lakebridge.transpiler.transpile_engine import TranspileEngi
 
 from databricks.labs.lakebridge.transpiler.transpile_status import ErrorSeverity
 
-lakebridge = App(__file__)
+
+# Subclass to allow controlled access to protected methods.
+class Lakebridge(App):
+    def create_workspace_client(self) -> WorkspaceClient:
+        """Create a workspace client, with the appropriate product and version information.
+
+        This is intended only for use by the install/uninstall hooks.
+        """
+        self._patch_databricks_host()
+        return self._workspace_client()
+
+
+lakebridge = Lakebridge(__file__)
 logger = get_logger(__file__)
 
 
@@ -612,17 +624,52 @@ def install_transpile(
     *,
     w: WorkspaceClient,
     artifact: str | None = None,
+    interactive: str | None = None,
     transpiler_repository: TranspilerRepository = TranspilerRepository.user_home(),
 ) -> None:
     """Install or upgrade the Lakebridge transpilers."""
+    is_interactive = interactive_mode(interactive)
     ctx = ApplicationContext(w)
     ctx.add_user_agent_extra("cmd", "install-transpile")
     if artifact:
         ctx.add_user_agent_extra("artifact-overload", Path(artifact).name)
     user = w.current_user
     logger.debug(f"User: {user}")
-    transpile_installer = installer(w, transpiler_repository)
+    transpile_installer = installer(w, transpiler_repository, is_interactive=is_interactive)
     transpile_installer.run(module="transpile", artifact=artifact)
+
+
+def interactive_mode(interactive: str | None, *, default: str = "auto", input_stream: TextIO = sys.stdin) -> bool:
+    """Convert the raw '--interactive' argument into a boolean."""
+    if interactive is None:
+        interactive = default
+    match interactive.lower():
+        case "true":
+            return True
+        case "false":
+            return False
+        # Convention is that if the input_stream is a TTY, user interaction is allowed.
+        case "auto":
+            return input_stream.isatty()
+
+    msg = f"Invalid value for '--interactive': {interactive!r} must be 'true', 'false' or 'auto'."
+    raise_validation_exception(msg)
+
+
+@lakebridge.command
+def describe_transpile(
+    *,
+    w: WorkspaceClient,
+    transpiler_repository: TranspilerRepository = TranspilerRepository.user_home(),
+) -> None:
+    """Describe the installed Lakebridge transpilers and available options."""
+    ctx = ApplicationContext(w)
+    ctx.add_user_agent_extra("cmd", "describe-transpile")
+    user = w.current_user.me()
+    logger.debug(f"User: {user}")
+    transpilers_description = TranspilersDescription(transpiler_repository)
+    json_description = transpilers_description.as_json()
+    json.dump(json_description, sys.stdout, indent=2)
 
 
 @lakebridge.command(is_unauthenticated=False)
@@ -640,7 +687,7 @@ def configure_reconcile(
         dbsql_id = _create_warehouse(w)
         w.config.warehouse_id = dbsql_id
     logger.debug(f"Warehouse ID used for configuring reconcile: {w.config.warehouse_id}.")
-    reconcile_installer = installer(w, transpiler_repository)
+    reconcile_installer = installer(w, transpiler_repository, is_interactive=True)
     reconcile_installer.run(module="reconcile")
 
 
@@ -654,10 +701,16 @@ def analyze(
 ):
     """Run the Analyzer"""
     ctx = ApplicationContext(w)
-    ctx.add_user_agent_extra("cmd", "analyze")
+    try:
+        result = ctx.analyzer.run_analyzer(source_directory, report_file, source_tech)
+        ctx.add_user_agent_extra("analyzer_source_tech", result.source_system)
+    finally:
+        exception_cls, _, _ = sys.exc_info()
+        if exception_cls is not None:
+            ctx.add_user_agent_extra("analyzer_error", exception_cls.__name__)
 
-    logger.debug(f"User: {ctx.current_user}")
-    ctx.analyzer.run_analyzer(source_directory, report_file, source_tech)
+        ctx.add_user_agent_extra("cmd", "analyze")
+        logger.debug(f"User: {ctx.current_user}")
 
 
 if __name__ == "__main__":

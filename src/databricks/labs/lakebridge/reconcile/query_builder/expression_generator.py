@@ -263,7 +263,7 @@ DataType_transform_mapping: dict[str, dict[str, list[partial[exp.Expression]]]] 
         ],
     },
     "tsql": {
-        "default": [partial(anonymous, func="COALESCE(LTRIM(RTRIM(CAST([{}] AS VARCHAR(256)))), '_null_recon_')")],
+        "default": [partial(anonymous, func="COALESCE(TRIM(CAST({} AS VARCHAR(256))), '_null_recon_')")],
         exp.DataType.Type.DATE.value: [partial(anonymous, func="COALESCE(CONVERT(DATE, {0}, 101), '1900-01-01')")],
         exp.DataType.Type.TIME.value: [partial(anonymous, func="COALESCE(CONVERT(TIME, {0}, 108), '00:00:00')")],
         exp.DataType.Type.DATETIME.value: [
@@ -291,7 +291,10 @@ Dialect_hash_algo_mapping: dict[Dialect, HashAlgoMapping] = {
     ),
     get_dialect("tsql"): HashAlgoMapping(
         source=partial(
-            anonymous, func="CONVERT(VARCHAR(256), HASHBYTES('SHA2_256', CONVERT(VARCHAR(256),{})), 2)", is_expr=True
+            anonymous,
+            func="CONVERT(VARCHAR(256), HASHBYTES('SHA2_256', CONVERT(VARCHAR(256),{})), 2)",
+            is_expr=True,
+            dialect=get_dialect("tsql"),
         ),
         target=sha256_partial,
     ),

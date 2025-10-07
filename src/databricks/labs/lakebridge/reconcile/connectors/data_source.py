@@ -3,6 +3,7 @@ from abc import ABC, abstractmethod
 
 from pyspark.sql import DataFrame
 
+from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import DialectUtils
 from databricks.labs.lakebridge.reconcile.connectors.models import NormalizedIdentifier
 from databricks.labs.lakebridge.reconcile.exception import DataSourceRuntimeException
 from databricks.labs.lakebridge.reconcile.recon_config import JdbcReaderOptions, Schema
@@ -49,7 +50,7 @@ class DataSource(ABC):
         Used in the implementations of get_schema to build a Schema DTO from the `INFORMATION_SCHEMA` query result.
         The returned Schema is normalized in case the database is having columns with special characters and standardize
         """
-        name = meta_column.col_name.lower()
+        name = meta_column.column_name.lower()
         dtype = meta_column.data_type.strip().lower()
         if normalize:
             normalized = self.normalize_identifier(name)
@@ -65,10 +66,12 @@ class MockDataSource(DataSource):
         dataframe_repository: dict[tuple[str, str, str], DataFrame],
         schema_repository: dict[tuple[str, str, str], list[Schema]],
         exception: Exception = RuntimeError("Mock Exception"),
+        delimiter: str = "`",
     ):
         self._dataframe_repository: dict[tuple[str, str, str], DataFrame] = dataframe_repository
         self._schema_repository: dict[tuple[str, str, str], list[Schema]] = schema_repository
         self._exception = exception
+        self._delimiter = delimiter
 
     def read_data(
         self,
@@ -92,4 +95,4 @@ class MockDataSource(DataSource):
         return mock_schema
 
     def normalize_identifier(self, identifier: str) -> NormalizedIdentifier:
-        return NormalizedIdentifier(identifier, identifier)
+        return DialectUtils.normalize_identifier(identifier, self._delimiter, self._delimiter)

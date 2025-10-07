@@ -46,7 +46,7 @@ def test_install_missing_config(ws):
         dashboard_deployer,
     )
     remorph_config = None
-    recon_deployer.install(remorph_config, ["remorph-x.y.z-py3-none-any.whl"])
+    recon_deployer.install(remorph_config, ["lakebridge-x.y.z-py3-none-any.whl"])
     table_deployer.deploy_table_from_ddl_file.assert_not_called()
     job_deployer.deploy_recon_job.assert_not_called()
     dashboard_deployer.deploy.assert_not_called()

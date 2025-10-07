@@ -26,13 +26,13 @@ def _get_schema_query(catalog: str, schema: str, table: str):
         return f"describe table {catalog}.{schema}.{table}"
 
     query = f"""select
-                            lower(column_name) as col_name,
+                            lower(column_name) as column_name,
                              full_data_type as data_type
                        from {catalog}.information_schema.columns
                        where lower(table_catalog)='{catalog}'
                                     and lower(table_schema)='{schema}'
                                      and lower(table_name) ='{table}'
-                       order by col_name"""
+                       order by column_name"""
     return re.sub(r'\s+', ' ', query)
 
 
@@ -84,7 +84,7 @@ class DatabricksDataSource(DataSource, SecretsMixin):
         try:
             logger.debug(f"Fetching schema using query: \n`{schema_query}`")
             logger.info(f"Fetching Schema: Started at: {datetime.now()}")
-            schema_metadata = self._spark.sql(schema_query).where("col_name not like '#%'").distinct().collect()
+            schema_metadata = self._spark.sql(schema_query).where("column_name not like '#%'").distinct().collect()
             logger.info(f"Schema fetched successfully. Completed at: {datetime.now()}")
             return [self._map_meta_column(field, normalize) for field in schema_metadata]
         except (RuntimeError, PySparkException) as e:

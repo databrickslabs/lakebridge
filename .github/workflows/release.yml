@@ -19,7 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           cache: 'pip'
           cache-dependency-path: '**/pyproject.toml'
@@ -27,7 +27,7 @@ jobs:
 
       - name: Build wheels
         run: |
-          pip install hatch==1.7.0
+          pip install hatch==1.14.2
           hatch build
 
       - name: Draft release
@@ -41,7 +41,7 @@ jobs:
         name: Publish package distributions to PyPI
 
       - name: Sign artifacts with Sigstore
-        uses: sigstore/gh-action-sigstore-python@v3.0.0
+        uses: sigstore/gh-action-sigstore-python@v3.0.1
         with:
           inputs: |
             dist/databricks_*.whl
