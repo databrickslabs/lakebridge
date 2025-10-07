@@ -33,9 +33,9 @@ dependencies = [
   "standard-distutils~=3.11.9; python_version>='3.11'",
   "databricks-bb-analyzer~=0.1.9",
   "sqlglot==26.1.3",
-  "databricks-labs-blueprint[yaml]>=0.11.3,<0.12.0",
+  "databricks-labs-blueprint[yaml]>=0.11.4,<0.12.0",
   "databricks-labs-lsql==0.16.0",
-  "cryptography>=44.0.2,<45.1.0",
+  "cryptography>=44.0.2,<46.1.0",
   "pyodbc~=5.2.0",
   "SQLAlchemy~=2.0.40",
   "pygls~=2.0.0a2",
@@ -459,7 +459,7 @@ max-bool-expr = 5
 max-branches = 20
 
 # Maximum number of locals for function / method body.
-max-locals = 19
+max-locals = 20
 
 # Maximum number of parents for a class (see R0901).
 max-parents = 7

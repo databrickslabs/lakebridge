@@ -98,6 +98,9 @@ class ResourceConfigurator:
                 max_num_clusters=1,
             )
             warehouse_id = new_warehouse.id
+
+        if warehouse_id is None:
+            raise SystemExit("Cannot continue installation, without a valid warehouse. Aborting the installation.")
         return warehouse_id
 
     def has_necessary_catalog_access(

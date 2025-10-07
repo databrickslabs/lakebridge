@@ -43,7 +43,6 @@ def _create_connector(db_type: str, config: dict[str, Any]) -> DatabaseConnector
         "snowflake": SnowflakeConnector,
         "mssql": MSSQLConnector,
         "tsql": MSSQLConnector,
-        "synapse": MSSQLConnector,
     }
 
     connector_class = connectors.get(db_type.lower())
