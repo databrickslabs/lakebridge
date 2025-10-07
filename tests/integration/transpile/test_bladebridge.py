@@ -1,3 +1,4 @@
+import contextlib
 import json
 import logging
 from collections.abc import Generator
@@ -27,6 +28,34 @@ def repository_with_bladebridge(tmp_path_factory) -> TranspilerRepository:
     path = WheelInstaller(transpiler_repository, "bladebridge", "databricks-bb-plugin").install()
     assert path is not None and path.exists()
     return transpiler_repository
+
+
+@contextlib.contextmanager
+def capture_bladebridge_logs(transpiler_repository: TranspilerRepository, *, level: int = logging.DEBUG) -> Generator[None, None, None]:
+    """Reset the logs from Bladebridge before yielding, and capture them afterward, to help with test debugging."""
+    # TODO: Move this into the core?
+    #   - Extend the LSP config.yml to describe where error logs go.
+    #   - If the LSP server fails, capture the error logs automatically.
+
+    # Step 1: Remove any existing log files, so we know that anything afterward is fresh.
+    bladebridge_lib_dir = transpiler_repository.transpilers_path() / "bladebridge" / "lib"
+    for log_file in bladebridge_lib_dir.glob("*.log"):
+        logger.debug(f"Removing existing log file: {log_file}")
+        log_file.unlink(missing_ok=True)
+
+    # Step 2: Yield to the caller, who will presumably run some Bladebridge operations.
+    yield
+
+    # Step 3: Capture any logs that were produced, to help with debugging if the test failed.
+    produced_log_files = list(bladebridge_lib_dir.glob("*.log"))
+    logger.debug(f"Captured {len(produced_log_files)} log file(s): {produced_log_files}")
+    if not logger.isEnabledFor(level):
+        return
+    for log_file in produced_log_files:
+        logger.log(level, f"============ Bladebridge log: {log_file.name} starting... ==================")
+        for line in log_file.open(encoding="utf-8", errors="replace"):
+            logger.log(level, f"{log_file.name}: {line.strip()}")
+        logger.log(level, f"============ Bladebridge log: {log_file.name} finished. ====================")
 
 
 class MockApplicationContext(ApplicationContext):
@@ -86,11 +115,12 @@ def test_transpiles_informatica_to_sparksql(
     application_ctx.installation.save(transpile_config)
 
     # Run the conversion.
-    cli.transpile(
-        w=application_ctx.workspace_client,
-        ctx=application_ctx,
-        transpiler_repository=repository_with_bladebridge,
-    )
+    with capture_bladebridge_logs(repository_with_bladebridge):
+        cli.transpile(
+            w=application_ctx.workspace_client,
+            ctx=application_ctx,
+            transpiler_repository=repository_with_bladebridge,
+        )
     (out, _) = capsys.readouterr()
 
     # Check the conversion summary.
@@ -140,18 +170,19 @@ def test_transpiles_informatica_to_sparksql_non_interactive(
         kwargs["overrides_file"] = str(overrides_file)
 
     # Run the conversion: everything has to be passed as parameters.
-    cli.transpile(
-        w=application_ctx.workspace_client,
-        transpiler_config_path=str(config_path),
-        source_dialect="informatica (desktop edition)",
-        target_technology="SPARKSQL",
-        input_source=str(input_source),
-        output_folder=str(output_folder),
-        error_file_path=str(errors_path),
-        ctx=application_ctx,
-        transpiler_repository=repository_with_bladebridge,
-        **kwargs,
-    )
+    with capture_bladebridge_logs(repository_with_bladebridge):
+        cli.transpile(
+            w=application_ctx.workspace_client,
+            transpiler_config_path=str(config_path),
+            source_dialect="informatica (desktop edition)",
+            target_technology="SPARKSQL",
+            input_source=str(input_source),
+            output_folder=str(output_folder),
+            error_file_path=str(errors_path),
+            ctx=application_ctx,
+            transpiler_repository=repository_with_bladebridge,
+            **kwargs,
+        )
     (out, _) = capsys.readouterr()
 
     _check_transpile_informatica_to_sparksql(out, output_folder, errors_path)
@@ -207,7 +238,8 @@ def test_transpile_teradata_sql(
     application_ctx.installation.save(transpile_config)
 
     # Run the conversion.
-    cli.transpile(w=application_ctx.workspace_client, ctx=application_ctx)
+    with capture_bladebridge_logs(repository_with_bladebridge):
+        cli.transpile(w=application_ctx.workspace_client, ctx=application_ctx)
     (out, _) = capsys.readouterr()
 
     _check_transpile_teradata_sql(out, output_folder, errors_path)
@@ -238,20 +270,21 @@ def test_transpile_teradata_sql_non_interactive(
         kwargs["overrides_file"] = str(overrides_file)
 
     # Run the conversion: everything has to be passed as parameters.
-    cli.transpile(
-        w=application_ctx.workspace_client,
-        transpiler_config_path=str(config_path),
-        source_dialect="teradata",
-        input_source=str(input_source),
-        output_folder=str(output_folder),
-        error_file_path=str(errors_path),
-        skip_validation="false",
-        catalog_name="catalog",
-        schema_name="schema",
-        ctx=application_ctx,
-        transpiler_repository=repository_with_bladebridge,
-        **kwargs,
-    )
+    with capture_bladebridge_logs(repository_with_bladebridge):
+        cli.transpile(
+            w=application_ctx.workspace_client,
+            transpiler_config_path=str(config_path),
+            source_dialect="teradata",
+            input_source=str(input_source),
+            output_folder=str(output_folder),
+            error_file_path=str(errors_path),
+            skip_validation="false",
+            catalog_name="catalog",
+            schema_name="schema",
+            ctx=application_ctx,
+            transpiler_repository=repository_with_bladebridge,
+            **kwargs,
+        )
     (out, _) = capsys.readouterr()
 
     _check_transpile_teradata_sql(out, output_folder, errors_path)
