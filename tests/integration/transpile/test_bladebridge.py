@@ -31,7 +31,11 @@ def repository_with_bladebridge(tmp_path_factory) -> TranspilerRepository:
 
 
 @contextlib.contextmanager
-def capture_bladebridge_logs(transpiler_repository: TranspilerRepository, *, level: int = logging.DEBUG) -> Generator[None, None, None]:
+def capture_bladebridge_logs(
+    transpiler_repository: TranspilerRepository,
+    *,
+    level: int = logging.DEBUG,
+) -> Generator[None, None, None]:
     """Reset the logs from Bladebridge before yielding, and capture them afterward, to help with test debugging."""
     # TODO: Move this into the core?
     #   - Extend the LSP config.yml to describe where error logs go.
