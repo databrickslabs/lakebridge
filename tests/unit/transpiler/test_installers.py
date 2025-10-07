@@ -99,8 +99,8 @@ def test_java_version_parse(version: str, lts_suffix: bool, expected: tuple[int,
     """Verify that the Java version parsing works correctly."""
     # Format reference: https://docs.oracle.com/en/java/javase/11/install/version-string-format.html
     # The version string for these releases looks the same, except that as of 25 the "LTS" suffix can be added.
-    lts_suffix = " LTS" if lts_suffix else ""
-    version_output = f'openjdk version "{version}" 2025-06-19{lts_suffix}'
+    suffix = " LTS" if lts_suffix else ""
+    version_output = f'openjdk version "{version}" 2025-06-19{suffix}'
     parsed = FriendOfMorpheusInstaller.parse_java_version(version_output)
     assert parsed == expected
 
