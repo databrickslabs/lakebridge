@@ -540,6 +540,10 @@ class MorpheusInstaller(TranspilerInstaller):
         #   openjdk version "24.0.1" 2025-04-15
         #   OpenJDK Runtime Environment Temurin-24.0.1+9 (build 24.0.1+9)
         #   OpenJDK 64-Bit Server VM Temurin-24.0.1+9 (build 24.0.1+9, mixed mode)
+        # Or:
+        #   openjdk version "25" 2025-09-16 LTS
+        #   OpenJDK Runtime Environment Temurin-25+36 (build 25+36-LTS)
+        #   OpenJDK 64-Bit Server VM Temurin-25+36 (build 25+36-LTS, mixed mode, sharing)
         match = cls._java_version_pattern.search(version)
         if not match:
             logger.debug(f"Could not parse java version: {version!r}")
