@@ -11,6 +11,7 @@ import xml.etree.ElementTree as ET
 from json import dump
 from pathlib import Path
 from shutil import rmtree
+from types import SimpleNamespace
 from typing import Literal
 from zipfile import ZipFile
 
@@ -223,12 +224,23 @@ class WheelInstaller(ArtifactInstaller):
             lib_path = venv_path / "lib" / f"python{major}.{minor}" / "site-packages"
         else:
             lib_path = venv_path / "Lib" / "site-packages"
-        builder = venv.EnvBuilder(with_pip=True, prompt=f"{self._product_name}", symlinks=use_symlinks)
+        # Handle installing pip ourselves, to help with diagnostics if something goes wrong.
+        builder = venv.EnvBuilder(with_pip=False, prompt=f"{self._product_name}", symlinks=use_symlinks)
         builder.create(venv_path)
         context = builder.ensure_directories(venv_path)
         logger.debug(f"Created virtual environment with context: {context}")
+        self._ensure_pip(context)
         self._venv_exec_cmd = context.env_exec_cmd
         self._site_packages = lib_path
+
+    @classmethod
+    def _ensure_pip(cls, venv_context: SimpleNamespace) -> None:
+        install_pip_cmd = [venv_context.env_exec_cmd, "-m", "ensurepip", "--upgrade"]
+        if logger.isEnabledFor(logging.DEBUG):
+            install_pip_cmd.append("--verbose")
+            logger.debug(f"Ensuring pip is installed in virtual environment: {install_pip_cmd}")
+        result = subprocess.run(install_pip_cmd, stderr=subprocess.STDOUT, check=False)
+        result.check_returncode()
 
     def _install_with_pip(self) -> None:
         # Based on: https://pip.pypa.io/en/stable/user_guide/#using-pip-from-your-program
@@ -244,6 +256,8 @@ class WheelInstaller(ArtifactInstaller):
             to_install,
             "--only-binary=:all:",
         ]
+        if logger.isEnabledFor(logging.DEBUG):
+            command.append("--verbose")
         result = subprocess.run(command, stdin=sys.stdin, stdout=sys.stdout, stderr=sys.stderr, check=False)
         result.check_returncode()
 
