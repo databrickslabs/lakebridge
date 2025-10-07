@@ -46,9 +46,25 @@ def application_ctx(ws: WorkspaceClient) -> Generator[ApplicationContext, None, 
         ctx.installation.remove()
 
 
+@pytest.fixture(name="errors_path")
+def capture_errors_log(tmp_path: Path) -> Generator[Path, None, None]:
+    """The path to an errors log file. If it exists after the test, its content will be logged to help with debugging."""
+    path = tmp_path / "errors.log"
+    yield path
+    try:
+        with open(path, encoding="utf-8", errors="replace") as f:
+            errors_logged = list(f)
+    except OSError:
+        logger.debug("No errors log found.")
+    else:
+        for line in errors_logged:
+            logger.error(f"Error logged: {line.strip()}")
+
+
 def test_transpiles_informatica_to_sparksql(
     application_ctx: ApplicationContext,
     repository_with_bladebridge: TranspilerRepository,
+    errors_path: Path,
     tmp_path: Path,
     capsys,
 ) -> None:
@@ -58,7 +74,6 @@ def test_transpiles_informatica_to_sparksql(
     input_source = Path(__file__).parent.parent.parent / "resources" / "functional" / "informatica"
     output_folder = tmp_path / "output"
     output_folder.mkdir(parents=True, exist_ok=True)
-    errors_path = output_folder / "errors.log"
     transpile_config = TranspileConfig(
         transpiler_config_path=str(config_path),
         source_dialect="informatica (desktop edition)",
@@ -105,6 +120,7 @@ def test_transpiles_informatica_to_sparksql_non_interactive(
     provide_overrides: bool,
     application_ctx: ApplicationContext,
     repository_with_bladebridge: TranspilerRepository,
+    errors_path: Path,
     tmp_path: Path,
     capsys,
 ) -> None:
@@ -114,7 +130,6 @@ def test_transpiles_informatica_to_sparksql_non_interactive(
     input_source = Path(__file__).parent.parent.parent / "resources" / "functional" / "informatica"
     output_folder = tmp_path / "output"
     output_folder.mkdir(parents=True, exist_ok=True)
-    errors_path = output_folder / "errors.log"
     kwargs: dict[str, str] = {}
     if provide_overrides:
         # This is horrible but we need it for the minimum valid overrides file that will work with Informatica/SparkSQL.
@@ -168,6 +183,7 @@ def _check_transpile_informatica_to_sparksql(stdout: str, output_folder: Path, e
 def test_transpile_teradata_sql(
     application_ctx: ApplicationContext,
     repository_with_bladebridge: TranspilerRepository,
+    errors_path: Path,
     tmp_path: Path,
     capsys,
 ) -> None:
@@ -177,7 +193,6 @@ def test_transpile_teradata_sql(
     input_source = Path(__file__).parent.parent.parent / "resources" / "functional" / "teradata" / "integration"
     output_folder = tmp_path / "output"
     output_folder.mkdir(parents=True, exist_ok=True)
-    errors_path = output_folder / "errors.log"
     transpile_config = TranspileConfig(
         transpiler_config_path=str(config_path),
         source_dialect="teradata",
@@ -203,6 +218,7 @@ def test_transpile_teradata_sql_non_interactive(
     provide_overrides: bool,
     application_ctx: ApplicationContext,
     repository_with_bladebridge: TranspilerRepository,
+    errors_path: Path,
     tmp_path: Path,
     capsys,
 ) -> None:
@@ -212,7 +228,6 @@ def test_transpile_teradata_sql_non_interactive(
     input_source = Path(__file__).parent.parent.parent / "resources" / "functional" / "teradata" / "integration"
     output_folder = tmp_path / "output"
     output_folder.mkdir(parents=True, exist_ok=True)
-    errors_path = output_folder / "errors.log"
     kwargs: dict[str, str] = {}
     if provide_overrides:
         # This is horrible but we need it for the minimum valid overrides file that will work with Teradata.
