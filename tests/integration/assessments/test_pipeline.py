@@ -65,32 +65,29 @@ def test_run_pipeline(sandbox_sqlserver, pipeline_config, get_logger):
 
 def test_run_sql_failure_pipeline(sandbox_sqlserver, sql_failure_config, get_logger):
     pipeline = PipelineClass(config=sql_failure_config, executor=sandbox_sqlserver)
-    results = pipeline.execute()
+    with pytest.raises(RuntimeError) as e:
+        pipeline.execute()
 
     # Find the failed SQL step
-    failed_steps = [r for r in results if r.status == StepExecutionStatus.ERROR]
-    assert len(failed_steps) > 0, "Expected at least one failed step"
-    assert "SQL execution failed" in failed_steps[0].error_message
+    assert "Pipeline execution failed due to errors in steps: invalid_sql_step" in str(e.value)
 
 
 def test_run_python_failure_pipeline(sandbox_sqlserver, python_failure_config, get_logger):
     pipeline = PipelineClass(config=python_failure_config, executor=sandbox_sqlserver)
-    results = pipeline.execute()
+    with pytest.raises(RuntimeError) as e:
+        pipeline.execute()
 
     # Find the failed Python step
-    failed_steps = [r for r in results if r.status == StepExecutionStatus.ERROR]
-    assert len(failed_steps) > 0, "Expected at least one failed step"
-    assert "Script execution failed" in failed_steps[0].error_message
+    assert "Pipeline execution failed due to errors in steps: invalid_python_step" in str(e.value)
 
 
 def test_run_python_dep_failure_pipeline(sandbox_sqlserver, pipeline_dep_failure_config, get_logger):
     pipeline = PipelineClass(config=pipeline_dep_failure_config, executor=sandbox_sqlserver)
-    results = pipeline.execute()
+    with pytest.raises(RuntimeError) as e:
+        pipeline.execute()
 
     # Find the failed Python step
-    failed_steps = [r for r in results if r.status == StepExecutionStatus.ERROR]
-    assert len(failed_steps) > 0, "Expected at least one failed step"
-    assert "Script execution failed" in failed_steps[0].error_message
+    assert "Pipeline execution failed due to errors in steps: package_status" in str(e.value)
 
 
 def test_skipped_steps(sandbox_sqlserver, pipeline_config, get_logger):

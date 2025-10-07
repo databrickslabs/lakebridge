@@ -21,7 +21,9 @@ def test_configure_sqlserver_credentials(tmp_path):
         }
     )
     file = tmp_path / ".credentials.yml"
-    assessment = ConfigureSqlServerAssessment(product_name="lakebridge", prompts=prompts, credential_file=file)
+    assessment = ConfigureSqlServerAssessment(
+        product_name="lakebridge", source_name="mssql", prompts=prompts, credential_file=file
+    )
     assessment.run()
 
     expected_credentials = {
@@ -48,15 +50,11 @@ def test_configure_synapse_credentials(tmp_path):
         {
             r"Enter secret vault type \(local \| env\)": sorted(['local', 'env']).index("env"),
             r"Enter Synapse workspace name": "test-workspace",
-            r"Enter dedicated SQL endpoint": "test-dedicated-endpoint",
-            r"Enter serverless SQL endpoint": "test-serverless-endpoint",
             r"Enter SQL user": "test-user",
             r"Enter SQL password": "test-password",
             r"Enter timezone \(e.g. America/New_York\)": "UTC",
+            r"Enter the ODBC driver installed locally": "ODBC Driver 18 for SQL Server",
             r"Enter development endpoint": "test-dev-endpoint",
-            r"Enter Azure client ID": "test-client-id",
-            r"Enter Azure tenant ID": "test-tenant-id",
-            r"Enter Azure client secret": "test-client-secret",
             r"Select authentication type": sorted(
                 ["sql_authentication", "ad_passwd_authentication", "spn_authentication"]
             ).index("sql_authentication"),
@@ -71,7 +69,9 @@ def test_configure_synapse_credentials(tmp_path):
         }
     )
     file = tmp_path / ".credentials.yml"
-    assessment = ConfigureSynapseAssessment(product_name="lakebridge", prompts=prompts, credential_file=file)
+    assessment = ConfigureSynapseAssessment(
+        product_name="lakebridge", source_name="synapse", prompts=prompts, credential_file=file
+    )
     assessment.run()
 
     expected_credentials = {
@@ -80,17 +80,15 @@ def test_configure_synapse_credentials(tmp_path):
         'synapse': {
             'workspace': {
                 'name': 'test-workspace',
-                'dedicated_sql_endpoint': 'test-dedicated-endpoint',
-                'serverless_sql_endpoint': 'test-serverless-endpoint',
+                'dedicated_sql_endpoint': 'test-workspace.sql.azuresynapse.net',
+                'serverless_sql_endpoint': 'test-workspace-ondemand.sql.azuresynapse.net',
                 'sql_user': 'test-user',
                 'sql_password': 'test-password',
                 'tz_info': 'UTC',
+                'driver': 'ODBC Driver 18 for SQL Server',
             },
             'azure_api_access': {
                 'development_endpoint': 'test-dev-endpoint',
-                'azure_client_id': 'test-client-id',
-                'azure_tenant_id': 'test-tenant-id',
-                'azure_client_secret': 'test-client-secret',
             },
             'jdbc': {
                 'auth_type': 'sql_authentication',

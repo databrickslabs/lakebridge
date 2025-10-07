@@ -20,10 +20,8 @@ from databricks.labs.blueprint.installation import RootJsonValue
 from databricks.labs.blueprint.tui import Prompts
 
 
-from databricks.labs.lakebridge.assessments.configure_assessment import (
-    create_assessment_configurator,
-    PROFILER_SOURCE_SYSTEM,
-)
+from databricks.labs.lakebridge.assessments.configure_assessment import create_assessment_configurator
+from databricks.labs.lakebridge.assessments import PROFILER_SOURCE_SYSTEM
 
 from databricks.labs.lakebridge.config import TranspileConfig
 from databricks.labs.lakebridge.contexts.application import ApplicationContext
