@@ -7,9 +7,9 @@ from collections.abc import Sequence, Set
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine, URL
 from sqlalchemy.engine.row import Row
-from sqlalchemy.orm import sessionmaker
 from sqlalchemy import text
 from sqlalchemy.exc import OperationalError
+from sqlalchemy.orm.session import Session
 
 logger = logging.getLogger(__name__)
 logger.setLevel("INFO")
@@ -42,8 +42,8 @@ class _BaseConnector(DatabaseConnector):
     def fetch(self, query: str) -> FetchResult:
         if not self.engine:
             raise ConnectionError("Not connected to the database.")
-        Session = sessionmaker(self.engine)  # pylint: disable=invalid-name
-        with Session.begin() as session:  # pylint: disable=no-member
+
+        with Session(self.engine) as session, session.begin():
             result = session.execute(text(query))
             return FetchResult(result.keys(), result.fetchall())
 
