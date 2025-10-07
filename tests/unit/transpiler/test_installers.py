@@ -84,6 +84,7 @@ class FriendOfMorpheusInstaller(MorpheusInstaller):
         pytest.param("17.0.15", (17, 0, 15, 0), id="17.0.15"),
         pytest.param("21.0.7", (21, 0, 7, 0), id="21.0.7"),
         pytest.param("24.0.1", (24, 0, 1, 0), id="24.0.1"),
+        pytest.param("25", (25, 0, 0, 0), id="25"),
         # All digits.
         pytest.param("1.2.3.4", (1, 2, 3, 4), id="1.2.3.4"),
         # Trailing zeros can be omitted.
