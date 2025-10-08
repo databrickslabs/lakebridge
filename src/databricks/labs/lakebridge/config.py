@@ -123,6 +123,15 @@ class LSPConfigOptionV1:
 
         return LSPConfigOptionV1(flag, method, prompt, **optional)
 
+    def is_optional(self) -> bool:
+        # Semantics are currently that a value for an option is always required, except in the specific case of:
+        #  - It being a QUESTION; AND
+        #  - The default is set to the special "<none>" value.
+        return self.method == LSPPromptMethod.QUESTION and self.default == self._question_optional_sentinel
+
+    # Magic value that indicates no answer is required for a QUESTION prompt.
+    _question_optional_sentinel = "<none>"
+
     def prompt_for_value(self, prompts: Prompts) -> JsonValue:
         if self.method == LSPPromptMethod.FORCE:
             return self.default
@@ -135,10 +144,9 @@ class LSPConfigOptionV1:
             #  - allow no answer to be given.
             # Normally prompts.confirm() requires an answer, or returns the default, and the default can't be None.
             # Note: LSP servers use '<none>' as a default to indicate that no answer is required.
-            no_answer = "<none>"
-            default = self.default if self.default else no_answer
+            default = self.default if self.default else self._question_optional_sentinel
             result = prompts.question(self.prompt, default=default)
-            if result == no_answer:
+            if result == self._question_optional_sentinel:
                 return None
             return result
         if self.method == LSPPromptMethod.CHOICE:

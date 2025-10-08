@@ -536,7 +536,7 @@ class _TranspileConfigChecker:
         #     3. If we cannot prompt because we are not running interactively, use the default if there is one.
         #     4. Fail: the only way to provide a value is via the config.yml, which can be set via 'install-transpile'.
 
-        if option.default == "<none>":
+        if option.is_optional():
             return None
         return option.prompt_for_value(self._prompts)
 
