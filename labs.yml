@@ -43,7 +43,7 @@ commands:
         default: null
       - name: skip-validation
         description: Validate Transpiled Code, default True validation skipped, False validate
-        default: "true"
+        default: true
       - name: catalog-name
         description: Catalog Name Applicable only when Validation Mode is DATABRICKS
         default: null
