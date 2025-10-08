@@ -19,7 +19,7 @@ commands:
         description: (Optional) The technology/platform of the sources to analyze
 
   - name: transpile
-    description: Transpile SQL script to Databricks SQL
+    description: Transpile SQL/ETL sources to Databricks-compatible code
     flags:
       - name: transpiler-config-path
         description: Path to the transpiler configuration file [Pluggable Transpilers] eg:- Morpheus/Bladebridge
@@ -43,16 +43,16 @@ commands:
       {{end}}
 
   - name: reconcile
-    description: Reconcile is an utility to streamline the reconciliation process between source data and target data residing on Databricks.
+    description: Reconcile source and target data residing on Databricks
 
   - name: aggregates-reconcile
-    description: Aggregates Reconcile is an utility to streamline the reconciliation process, specific aggregate metric is compared between source and target data residing on Databricks.
+    description: Reconcile source and target data residing on Databricks using aggregated metrics
 
   - name: configure-database-profiler
-    description: "Configure Database Profiler"
+    description: Configure database profiler
 
   - name: install-transpile
-    description: "Install & Configure Necessary Transpiler Dependencies"
+    description: Install & optionally configure 'transpile' dependencies
     flags:
       - name: artifact
         description: Local path to transpiler artifact
@@ -61,7 +61,7 @@ commands:
         default: auto
 
   - name: describe-transpile
-    description: "Describe installed transpilers."
+    description: Describe installed transpilers
     table_template: |-
       Transpiler\tInstalled Version\tPlugin Configuration
       ==========\t=================\t====================
@@ -73,4 +73,4 @@ commands:
       {{end}}
 
   - name: configure-reconcile
-    description: "Configure Necessary Reconcile Dependencies"
+    description: Configure 'reconcile' dependencies
