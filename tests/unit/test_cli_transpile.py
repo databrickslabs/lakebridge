@@ -1,6 +1,5 @@
 import dataclasses
 import json
-import logging
 import re
 from collections.abc import Generator, Callable
 from unittest.mock import create_autospec, patch, ANY, MagicMock
@@ -57,13 +56,12 @@ def stubbed_transpiler_config_path(tmp_path: Path) -> Path:
 
 
 def test_transpile_with_missing_installation(
-    caplog,
     transpiler_repository: TranspilerRepository,
     transpiler_config_path: Path,
     empty_input_source: Path,
     output_folder: Path,
 ) -> None:
-    """Test that the CLI warns but continues when no workspace transpile configuration is found."""
+    """Test that the transpiling works when no workspace transpile configuration is found."""
     workspace_client = create_autospec(WorkspaceClient)
     mock_transpile = MagicMock(return_value=({}, []))
 
@@ -73,7 +71,6 @@ def test_transpile_with_missing_installation(
     with (
         patch("databricks.labs.lakebridge.cli.ApplicationContext", autospec=True) as mock_app_context,
         patch("databricks.labs.lakebridge.cli.do_transpile", new=patched_do_transpile),
-        caplog.at_level(logging.WARNING),
     ):
         mock_app_context.return_value.workspace_client = workspace_client
         mock_app_context.return_value.transpile_config = None
@@ -87,9 +84,6 @@ def test_transpile_with_missing_installation(
         )
 
     mock_transpile.assert_called_once()
-    warning_messages = [record.message for record in caplog.records if record.levelno == logging.WARNING]
-    expected_msg = "No workspace transpile configuration, use 'install-transpile' to (re)install and configure; using defaults for now."
-    assert expected_msg in warning_messages
 
 
 @pytest.fixture

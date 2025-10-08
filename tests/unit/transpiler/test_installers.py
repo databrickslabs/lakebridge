@@ -76,28 +76,31 @@ class FriendOfMorpheusInstaller(MorpheusInstaller):
 
 
 @pytest.mark.parametrize(
-    ("version", "expected"),
+    ("version", "lts_suffix", "expected"),
     (
         # Real examples.
-        pytest.param("1.8.0_452", None, id="1.8.0_452"),
-        pytest.param("11.0.27", (11, 0, 27, 0), id="11.0.27"),
-        pytest.param("17.0.15", (17, 0, 15, 0), id="17.0.15"),
-        pytest.param("21.0.7", (21, 0, 7, 0), id="21.0.7"),
-        pytest.param("24.0.1", (24, 0, 1, 0), id="24.0.1"),
+        pytest.param("1.8.0_452", False, None, id="1.8.0_452"),
+        pytest.param("11.0.27", False, (11, 0, 27, 0), id="11.0.27"),
+        pytest.param("17.0.15", False, (17, 0, 15, 0), id="17.0.15"),
+        pytest.param("21.0.7", False, (21, 0, 7, 0), id="21.0.7"),
+        pytest.param("24.0.1", False, (24, 0, 1, 0), id="24.0.1"),
+        pytest.param("25", True, (25, 0, 0, 0), id="25"),
         # All digits.
-        pytest.param("1.2.3.4", (1, 2, 3, 4), id="1.2.3.4"),
+        pytest.param("1.2.3.4", False, (1, 2, 3, 4), id="1.2.3.4"),
         # Trailing zeros can be omitted.
-        pytest.param("1.2.3", (1, 2, 3, 0), id="1.2.3"),
-        pytest.param("1.2", (1, 2, 0, 0), id="1.2"),
-        pytest.param("1", (1, 0, 0, 0), id="1"),
+        pytest.param("1.2.3", False, (1, 2, 3, 0), id="1.2.3"),
+        pytest.param("1.2", False, (1, 2, 0, 0), id="1.2"),
+        pytest.param("1", False, (1, 0, 0, 0), id="1"),
         # Another edge case.
-        pytest.param("", None, id="empty string"),
+        pytest.param("", False, None, id="empty string"),
     ),
 )
-def test_java_version_parse(version: str, expected: tuple[int, int, int, int] | None) -> None:
+def test_java_version_parse(version: str, lts_suffix: bool, expected: tuple[int, int, int, int] | None) -> None:
     """Verify that the Java version parsing works correctly."""
     # Format reference: https://docs.oracle.com/en/java/javase/11/install/version-string-format.html
-    version_output = f'openjdk version "{version}" 2025-06-19'
+    # The version string for these releases looks the same, except that as of 25 the "LTS" suffix can be added.
+    suffix = " LTS" if lts_suffix else ""
+    version_output = f'openjdk version "{version}" 2025-06-19{suffix}'
     parsed = FriendOfMorpheusInstaller.parse_java_version(version_output)
     assert parsed == expected
 
