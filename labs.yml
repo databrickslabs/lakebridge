@@ -33,7 +33,6 @@ commands:
         description: Output Location For Storing Errors, defaults to (Current Working Directory) `<pwd>/errors.log`
       - name: skip-validation
         description: Validate Transpiled Code, default True validation skipped, False validate
-        default: true
       - name: catalog-name
         description: Catalog Name Applicable only when Validation Mode is DATABRICKS
       - name: schema-name
