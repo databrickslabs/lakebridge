@@ -27,11 +27,9 @@ commands:
         description: Dialect name as selected during `install-transpile` or refer to documentation
         default: null
       - name: overrides-file
-        description: Path to a file containing transpiler overrides, if supported by the transpiler in use.
-        default: null
+        description: (Optional) Local `path` of a file containing transpiler overrides, if supported by the transpiler in use
       - name: target-technology
-        description: Target technology to use for code generation, if supported by the transpiler in use.
-        default: null
+        description: (Optional) Target technology to use for code generation, if supported by the transpiler in use
       - name: input-source
         description: Input Script Folder or File
         default: null
