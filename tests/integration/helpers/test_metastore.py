@@ -12,7 +12,6 @@ def catalog_ops(ws: WorkspaceClient):
 
 
 # TODO: Add more tests for Resource Configurator, for now this helps when we upgrade databricks sdk
-@pytest.mark.skipif(not os.environ.get("CI"), reason="Runs only in CI")
 def test_has_privileges_user_has_all(ws: WorkspaceClient, catalog_ops: CatalogOperations):
     user = ws.current_user.me().user_name
     # Ensure the user has the required privileges in the test environment
