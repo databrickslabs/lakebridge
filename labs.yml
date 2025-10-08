@@ -17,6 +17,7 @@ commands:
         description: (Optional) Name of report file to write
       - name: source-tech
         description: (Optional) Name of the Source System Technology you want to analyze
+
   - name: transpile
     description: Transpile SQL script to Databricks SQL
     flags:
@@ -44,17 +45,20 @@ commands:
       - name: schema-name
         description: Schema Name Applicable only when Validation Mode is DATABRICKS
         default: null
-
     table_template: |-
       total_files_processed\ttotal_queries_processed\tanalysis_error_count\tparsing_error_count\tvalidation_error_count\tgeneration_error_count\terror_log_file
       {{range .}}{{.total_files_processed}}\t{{.total_queries_processed}}\t{{.analysis_error_count}}\t{{.parsing_error_count}}\t{{.validation_error_count}}\t{{.generation_error_count}}\t{{.error_log_file}}
       {{end}}
+
   - name: reconcile
     description: Reconcile is an utility to streamline the reconciliation process between source data and target data residing on Databricks.
+
   - name: aggregates-reconcile
     description: Aggregates Reconcile is an utility to streamline the reconciliation process, specific aggregate metric is compared between source and target data residing on Databricks.
+
   - name: configure-database-profiler
     description: "Configure Database Profiler"
+
   - name: install-transpile
     description: "Install & Configure Necessary Transpiler Dependencies"
     flags:
@@ -64,6 +68,7 @@ commands:
       - name: interactive
         description: "Whether installing in interactive mode, which may prompt for configuration settings."
         default: auto
+
   - name: describe-transpile
     description: "Describe installed transpilers."
     table_template: |-
@@ -75,5 +80,6 @@ commands:
       =========================
       {{range (index . "available-dialects")}} - {{ . }}
       {{end}}
+
   - name: configure-reconcile
     description: "Configure Necessary Reconcile Dependencies"
