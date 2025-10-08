@@ -55,9 +55,9 @@ commands:
     description: Install & optionally configure 'transpile' dependencies
     flags:
       - name: artifact
-        description: Local path to transpiler artifact
+        description: (Optional) Local `path` to a transpiler artifact to install instead of the default transpilers.
       - name: interactive
-        description: "Whether installing in interactive mode, which may prompt for configuration settings."
+        description: (Optional) Whether installing in interactive mode (`true|false|auto`); configuration settings are prompted for when interactive
         default: auto
 
   - name: describe-transpile
