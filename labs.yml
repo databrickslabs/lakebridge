@@ -23,28 +23,21 @@ commands:
     flags:
       - name: transpiler-config-path
         description: Path to the transpiler configuration file [Pluggable Transpilers] eg:- Morpheus/Bladebridge
-        default: null
       - name: source-dialect
         description: Dialect name as selected during `install-transpile` or refer to documentation
-        default: null
       - name: input-source
         description: Input Script Folder or File
-        default: null
       - name: output-folder
         description: Output Location For Storing Transpiled Code, defaults to (Current Working Directory) `<pwd>/transpiled` folder
-        default: null
       - name: error-file-path
         description: Output Location For Storing Errors, defaults to (Current Working Directory) `<pwd>/errors.log`
-        default: null
       - name: skip-validation
         description: Validate Transpiled Code, default True validation skipped, False validate
         default: true
       - name: catalog-name
         description: Catalog Name Applicable only when Validation Mode is DATABRICKS
-        default: null
       - name: schema-name
         description: Schema Name Applicable only when Validation Mode is DATABRICKS
-        default: null
     table_template: |-
       total_files_processed\ttotal_queries_processed\tanalysis_error_count\tparsing_error_count\tvalidation_error_count\tgeneration_error_count\terror_log_file
       {{range .}}{{.total_files_processed}}\t{{.total_queries_processed}}\t{{.analysis_error_count}}\t{{.parsing_error_count}}\t{{.validation_error_count}}\t{{.generation_error_count}}\t{{.error_log_file}}
@@ -64,7 +57,6 @@ commands:
     flags:
       - name: artifact
         description: Local path to transpiler artifact
-        default: null
       - name: interactive
         description: "Whether installing in interactive mode, which may prompt for configuration settings."
         default: auto
