@@ -131,7 +131,7 @@ def test_all_transpiler_configurations() -> None:
 
     transpiler_configurations = transpiler_repository.all_transpiler_configs()
 
-    # Note: keyed by transpiler name, not product name.
+    # Note: keyed by product name, not transpiler name.
     assert transpiler_configurations == {
         "a_transpiler": LSPConfig.load(a_transpiler / "lib" / "config.yml"),
         "b_transpiler": LSPConfig.load(b_transpiler / "lib" / "config.yml"),
