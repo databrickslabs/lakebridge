@@ -9,63 +9,59 @@ entrypoint: src/databricks/labs/lakebridge/cli.py
 min_python: 3.10
 commands:
   - name: analyze
-    description: Analyze source code from existing technology
+    description: Analyze existing non-Databricks database or ETL sources
     flags:
       - name: source-directory
-        description: (Optional) Source Directory to Analyze
+        description: (Optional) Local filesystem `path` of a directory containing sources to analyze
       - name: report-file
-        description: (Optional) Name of report file to write
+        description: (Optional) Local filesystem `path` of the analysis report file to write
       - name: source-tech
-        description: (Optional) Name of the Source System Technology you want to analyze
+        description: (Optional) The technology/platform of the sources to analyze
+
   - name: transpile
-    description: Transpile SQL script to Databricks SQL
+    description: Transpile SQL/ETL sources to Databricks-compatible code
     flags:
       - name: transpiler-config-path
-        description: Path to the transpiler configuration file [Pluggable Transpilers] eg:- Morpheus/Bladebridge
-        default: null
+        description: (Optional) Local `path` to the configuration file of the transpiler to use for conversion
       - name: source-dialect
-        description: Dialect name as selected during `install-transpile` or refer to documentation
-        default: null
+        description: (Optional) The source dialect to use when performing conversion
       - name: input-source
-        description: Input Script Folder or File
-        default: null
+        description: (Optional) Local `path` of the sources to be convert
       - name: output-folder
-        description: Output Location For Storing Transpiled Code, defaults to (Current Working Directory) `<pwd>/transpiled` folder
-        default: null
+        description: (Optional) Local `path` where converted code will be written
       - name: error-file-path
-        description: Output Location For Storing Errors, defaults to (Current Working Directory) `<pwd>/errors.log`
-        default: null
+        description: (Optional) Local `path` where a log of conversion errors (if any) will be written
       - name: skip-validation
-        description: Validate Transpiled Code, default True validation skipped, False validate
-        default: true
+        description: (Optional) Whether to skip validating the output ('true') after conversion or not ('false')
       - name: catalog-name
-        description: Catalog Name Applicable only when Validation Mode is DATABRICKS
-        default: null
+        description: (Optional) Catalog `name`, only used when validating converted code
       - name: schema-name
-        description: Schema Name Applicable only when Validation Mode is DATABRICKS
-        default: null
-
+        description: (Optional) Schema `name`, only used when validating converted code
     table_template: |-
       total_files_processed\ttotal_queries_processed\tanalysis_error_count\tparsing_error_count\tvalidation_error_count\tgeneration_error_count\terror_log_file
       {{range .}}{{.total_files_processed}}\t{{.total_queries_processed}}\t{{.analysis_error_count}}\t{{.parsing_error_count}}\t{{.validation_error_count}}\t{{.generation_error_count}}\t{{.error_log_file}}
       {{end}}
+
   - name: reconcile
-    description: Reconcile is an utility to streamline the reconciliation process between source data and target data residing on Databricks.
+    description: Reconcile source and target data residing on Databricks
+
   - name: aggregates-reconcile
-    description: Aggregates Reconcile is an utility to streamline the reconciliation process, specific aggregate metric is compared between source and target data residing on Databricks.
+    description: Reconcile source and target data residing on Databricks using aggregated metrics
+
   - name: configure-database-profiler
-    description: "Configure Database Profiler"
+    description: Configure database profiler
+
   - name: install-transpile
-    description: "Install & Configure Necessary Transpiler Dependencies"
+    description: Install & optionally configure 'transpile' dependencies
     flags:
       - name: artifact
-        description: Local path to transpiler artifact
-        default: null
+        description: (Optional) Local `path` to a transpiler artifact to install instead of the default transpilers.
       - name: interactive
-        description: "Whether installing in interactive mode, which may prompt for configuration settings."
+        description: (Optional) Whether installing in interactive mode (`true|false|auto`); configuration settings are prompted for when interactive
         default: auto
+
   - name: describe-transpile
-    description: "Describe installed transpilers."
+    description: Describe installed transpilers
     table_template: |-
       Transpiler\tInstalled Version\tPlugin Configuration
       ==========\t=================\t====================
@@ -75,5 +71,6 @@ commands:
       =========================
       {{range (index . "available-dialects")}} - {{ . }}
       {{end}}
+
   - name: configure-reconcile
-    description: "Configure Necessary Reconcile Dependencies"
+    description: Configure 'reconcile' dependencies
