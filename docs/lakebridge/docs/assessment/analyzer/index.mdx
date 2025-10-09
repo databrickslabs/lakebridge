@@ -23,10 +23,31 @@ The **Lakebridge Analyzer** is built to scan and interpret metadata from ETL pip
 
 ## Verify Installation
 Verify the successful installation by executing the provided command; confirmation of a successful installation is indicated when the displayed output aligns with the example screenshot provided:
+
+Command:
 ```bash
  databricks labs lakebridge analyze --help
  ```
-<img src={useBaseUrl('img/analyzer-help.png')} alt="transpile-help" />
+
+ Should output:
+ ```console
+Analyze existing non-Databricks database or ETL sources
+
+Usage:
+    databricks labs lakebridge analyze [flags]
+
+Flags:
+    -h, --help help for analyze
+    --report-file path        (Optional) Local filesystem path of the analysis report file to write
+    --source-directory path   (Optional) Local filesystem path of a directory containing sources to analyze
+    --source-tech string      (Optional) The technology/platform of the sources to analyze
+
+Global Flags:
+  --debug            enable debug logging
+  -o, --output type      output type: text or json (default text)
+  -p, --profile string   ~/.databrickscfg profile
+  -t, --target string    bundle target to use (if applicable)
+ ```
 
 ## Preparation Step
 To prepare to use Analyzer the metadata needs to be extracted from the legacy system(s). This is done by exporting the metadata to a file system and ultimately making it available in a folder accessible by Analyzer. For a SQL database this is typically done by exporting the SQL files out of the database platform. For ETL/ELT solutions this is done by exporting their repository objects, this usually exports to some kind of *XML* or *JSON* format.
@@ -56,7 +77,7 @@ Execute the below command to initialize the analyze process.
 
 | Source Platform              | Source Platform              | Source Platform              |
 |:-----------------------------:|:-----------------------------:|:-----------------------------:|
-| ABInitio | Informatica Cloud | SAS |
+| ABInitio |  SAS | Redshift |
 | ADF | MS SQL Server | Snowflake |
 | Alteryx | Netezza | SPSS |
 | Athena | Oozie | SQOOP |
@@ -66,5 +87,4 @@ Execute the below command to initialize the analyze process.
 | Greenplum | PIG | Talend |
 | Hive | Presto | Teradata |
 | IBM DB2 | PySpark | Vertica |
-| Informatica - Big Data Edition | Redshift | |
-| Informatica - PC | SAPHANA - CalcViews | |
+| SAPHANA - CalcViews | | |
