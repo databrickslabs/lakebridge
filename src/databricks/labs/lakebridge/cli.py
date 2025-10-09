@@ -184,9 +184,7 @@ class _TranspileConfigChecker:
         transpiler_repository: TranspilerRepository,
     ) -> None:
         if config is None:
-            logger.warning(
-                "No workspace transpile configuration, use 'install-transpile' to (re)install and configure; using defaults for now."
-            )
+            logger.debug("No workspace transpile configuration, starting from defaults.")
             config = TranspileConfig()
         self._config = config
         self._prompts = prompts
