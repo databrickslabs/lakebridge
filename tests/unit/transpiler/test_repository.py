@@ -282,12 +282,16 @@ def test_transpiler_options() -> None:
 
 
 def test_get_installed_transpiler_version() -> None:
-    """Verify that the installed version of a transpiler can be queried."""
-    a_transpiler = mock_transpiler("a_transpiler", transpiler_config("A Transpiler"), version="1.2.3")
+    """Verify that the version of an installed transpiler can be queried."""
+    a_transpiler = mock_transpiler(
+        product_name="a_transpiler",
+        config=transpiler_config("A Transpiler"),
+        version="1.2.3",
+    )
     labs_dir = mock_labs_path_with_registry((a_transpiler,))
     transpiler_repository = TranspilerRepository(labs_dir)
 
-    version = transpiler_repository.get_installed_version("a_transpiler")
+    version = transpiler_repository.get_installed_version(product_name="a_transpiler")
     assert version == "1.2.3"
 
 
