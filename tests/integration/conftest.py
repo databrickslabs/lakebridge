@@ -34,7 +34,7 @@ def pytest_collection_modifyitems(config, items):
     selected_items = []
     deselected_items = []
     # Add only specific tests to run from acceptance.yml
-    inclusions = {'assessments', 'connections', 'config', 'discovery', 'transpile'}
+    inclusions = {'assessments', 'connections', 'config', 'discovery', 'helpers', 'transpile'}
     for item in items:
         if any(f"tests/integration/{inclusion}" in str(item.fspath) for inclusion in inclusions):
             selected_items.append(item)

@@ -9,10 +9,36 @@ import useBaseUrl from '@docusaurus/useBaseUrl';
 
 ## Verify Installation
 Verify the successful installation by executing the provided command; confirmation of a successful installation is indicated when the displayed output aligns with the example screenshot provided:
+
+Command:
 ```bash
  databricks labs lakebridge transpile --help
  ```
-<img src={useBaseUrl('img/transpile-help.png')} alt="transpile-help" />
+
+Should output:
+```console
+Transpile SQL/ETL sources to Databricks-compatible code
+
+Usage:
+  databricks labs lakebridge transpile [flags]
+
+Flags:
+      --catalog-name name             (Optional) Catalog name, only used when validating converted code
+      --error-file-path path          (Optional) Local path where a log of conversion errors (if any) will be written
+  -h, --help                          help for transpile
+      --input-source path             (Optional) Local path of the sources to be convert
+      --output-folder path            (Optional) Local path where converted code will be written
+      --schema-name name              (Optional) Schema name, only used when validating converted code
+      --skip-validation string        (Optional) Whether to skip validating the output ('true') after conversion or not ('false')
+      --source-dialect string         (Optional) The source dialect to use when performing conversion
+      --transpiler-config-path path   (Optional) Local path to the configuration file of the transpiler to use for conversion
+
+Global Flags:
+      --debug            enable debug logging
+  -o, --output type      output type: text or json (default text)
+  -p, --profile string   ~/.databrickscfg profile
+  -t, --target string    bundle target to use (if applicable)
+```
 
 ## Execution Pre-Set Up
 When you run `install-transpile`, you will be prompted to enter all the required elements to transpile your code. You can

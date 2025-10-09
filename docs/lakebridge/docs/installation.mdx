@@ -90,11 +90,38 @@ databricks auth profiles
 ### Verify Installation
 Verify the successful installation by executing the provided command;
 confirmation of a successful installation is indicated when the displayed output aligns with the example below:
+
+Command:
 ```bash
  databricks labs lakebridge --help
  ```
 
-<img src={useBaseUrl('img/check_install.gif')} alt="verify-install" />
+Should output:
+```console
+Code Transpiler and Data Reconciliation tool for Accelerating Data onboarding to Databricks from EDW, CDW and other ETL sources.
+
+Usage:
+  databricks labs lakebridge [command]
+
+Available Commands:
+  aggregates-reconcile        Reconcile source and target data residing on Databricks using aggregated metrics
+  analyze                     Analyze existing non-Databricks database or ETL sources
+  configure-database-profiler Configure database profiler
+  configure-reconcile         Configure 'reconcile' dependencies
+  describe-transpile          Describe installed transpilers
+  install-transpile           Install & optionally configure 'transpile' dependencies
+  reconcile                   Reconcile source and target data residing on Databricks
+  transpile                   Transpile SQL/ETL sources to Databricks-compatible code
+
+Flags:
+  -h, --help   help for lakebridge
+
+Global Flags:
+      --debug            enable debug logging
+  -o, --output type      output type: text or json (default text)
+  -p, --profile string   ~/.databrickscfg profile
+  -t, --target string    bundle target to use (if applicable)
+```
 
 [[back to top](#table-of-contents)]
 
@@ -116,7 +143,7 @@ databricks labs lakebridge install-transpile
 :::tip
 #### Override the default[Bladebridge] config:
 
-There is an option for you to override the default config file that `Lakebridge` uses for converting source code from dialects like `informatica`, `datastage`, `synapse`,
+There is an option for you to override the default config file that `Lakebridge` uses for converting source code from dialects like `datastage`, `synapse`,
 `orcale` etc. During installtion you may use your own custom config file and `Lakebridge` will override the config with the one you would provide. You can only setup this
 override during installation.
 
@@ -128,10 +155,36 @@ Specify the config file to override the default[Bladebridge] config - press <ent
 
 ### Verify Installation
 Verify the successful installation by executing the provided command; confirmation of a successful installation is indicated when the displayed output aligns with the example screenshot provided:
+
+Command:
 ```bash
  databricks labs lakebridge transpile --help
  ```
-<img src={useBaseUrl('img/transpile-help.png')} alt="transpile-help" />
+
+Should output:
+```console
+Transpile SQL/ETL sources to Databricks-compatible code
+
+Usage:
+  databricks labs lakebridge transpile [flags]
+
+Flags:
+      --catalog-name name             (Optional) Catalog name, only used when validating converted code
+      --error-file-path path          (Optional) Local path where a log of conversion errors (if any) will be written
+  -h, --help                          help for transpile
+      --input-source path             (Optional) Local path of the sources to be convert
+      --output-folder path            (Optional) Local path where converted code will be written
+      --schema-name name              (Optional) Schema name, only used when validating converted code
+      --skip-validation string        (Optional) Whether to skip validating the output ('true') after conversion or not ('false')
+      --source-dialect string         (Optional) The source dialect to use when performing conversion
+      --transpiler-config-path path   (Optional) Local path to the configuration file of the transpiler to use for conversion
+
+Global Flags:
+      --debug            enable debug logging
+  -o, --output type      output type: text or json (default text)
+  -p, --profile string   ~/.databrickscfg profile
+  -t, --target string    bundle target to use (if applicable)
+```
 
 [[back to top](#table-of-contents)]
 
@@ -166,9 +219,27 @@ warehouse_id = <your-warehouse-id>
 
 ### Verify Configuration
 Verify the successful configuration by executing the provided command; confirmation of a successful configuration is indicated when the displayed output aligns with the example screenshot provided:
+
+Command:
 ```bash
  databricks labs lakebridge reconcile --help
  ```
-<img src={useBaseUrl('img/reconcile-help.png')} alt="reconcile-help" />
+
+ Should output:
+ ```console
+ Reconcile source and target data residing on Databricks
+
+Usage:
+  databricks labs lakebridge reconcile [flags]
+
+Flags:
+  -h, --help   help for reconcile
+
+Global Flags:
+      --debug            enable debug logging
+  -o, --output type      output type: text or json (default text)
+  -p, --profile string   ~/.databrickscfg profile
+  -t, --target string    bundle target to use (if applicable)
+ ```
 
 [[back to top](#table-of-contents)]
