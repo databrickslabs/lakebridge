@@ -126,7 +126,8 @@ def test_all_transpiler_configurations() -> None:
     """Verify that the repository yields the set of transpiler configurations that are available."""
     a_transpiler = mock_transpiler("a_transpiler", transpiler_config("A Transpiler", dialects=("foo",)))
     b_transpiler = mock_transpiler("b_transpiler", transpiler_config("B Transpiler", dialects=("bar",)))
-    labs_dir = mock_labs_path_with_registry((a_transpiler, b_transpiler))
+    another_b = mock_transpiler("another_b", transpiler_config("B Transpiler", dialects=("baz",)))
+    labs_dir = mock_labs_path_with_registry((a_transpiler, b_transpiler, another_b))
     transpiler_repository = TranspilerRepository(labs_dir)
 
     transpiler_configurations = transpiler_repository.all_transpiler_configs()
@@ -135,6 +136,7 @@ def test_all_transpiler_configurations() -> None:
     assert transpiler_configurations == {
         "a_transpiler": LSPConfig.load(a_transpiler / "lib" / "config.yml"),
         "b_transpiler": LSPConfig.load(b_transpiler / "lib" / "config.yml"),
+        "another_b": LSPConfig.load(another_b / "lib" / "config.yml"),
     }
 
 
