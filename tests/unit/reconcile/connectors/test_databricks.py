@@ -41,7 +41,6 @@ def test_get_schema():
     spark.sql().selectExpr.assert_called_with("col_name as column_name", "data_type")
     spark.sql().selectExpr().where.assert_called_with("column_name not like '#%'")
 
-
     # hive_metastore as catalog
     ddds.get_schema("hive_metastore", "schema", "supplier")
     spark.sql.assert_called_with(re.sub(r'\s+', ' ', """describe table hive_metastore.schema.supplier"""))

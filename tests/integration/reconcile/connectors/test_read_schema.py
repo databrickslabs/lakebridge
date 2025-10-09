@@ -33,6 +33,7 @@ def test_tsql_server_read_schema_happy(mock_spark):
     columns = connector.get_schema("labs_azure_sandbox_remorph", "dbo", "Employees")
     assert columns
 
+
 def test_databricks_read_schema_happy(mock_spark):
     mock_ws = create_autospec(WorkspaceClient)
     connector = DatabricksDataSource(get_dialect("databricks"), mock_spark, mock_ws, "my_secret")
