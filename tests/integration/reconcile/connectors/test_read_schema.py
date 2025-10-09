@@ -89,14 +89,14 @@ def test_databricks_read_schema_happy(mock_spark):
     assert columns
 
 # FIXME
-# 1. the databse gets shutdown after some idle time, so the test fails
-# 2. add oracle password to the test env getter
-@pytest.mark.skip(reason="Not Ready")
+# 1. Deploy Oracle Free
+# 2. Add credentials to the test env getter
+@pytest.mark.skip(reason="Not Ready! Deploy Infra")
 def test_oracle_read_schema_happy(mock_spark):
     mock_ws = create_autospec(WorkspaceClient)
     connector = OracleDataSourceUnderTest(mock_spark, mock_ws)
 
-    columns = connector.get_schema(None, "ADMIN", "DIM_CYCLE_CONTROL")
+    columns = connector.get_schema(None, "SYSTEM", "help")
     assert columns
 
 # FIXME the test pem key does not have access to LABS schema as it should
