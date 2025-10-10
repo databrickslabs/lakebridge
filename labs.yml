@@ -25,6 +25,10 @@ commands:
         description: (Optional) Local `path` to the configuration file of the transpiler to use for conversion
       - name: source-dialect
         description: (Optional) The source dialect to use when performing conversion
+      - name: overrides-file
+        description: (Optional) Local `path` of a file containing transpiler overrides, if supported by the transpiler in use
+      - name: target-technology
+        description: (Optional) Target technology to use for code generation, if supported by the transpiler in use
       - name: input-source
         description: (Optional) Local `path` of the sources to be convert
       - name: output-folder

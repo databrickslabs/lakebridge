@@ -4,14 +4,10 @@ from databricks.labs.lakebridge.transpiler.execute import transpile
 
 
 def assert_sql_outputs(output_folder: Path, expected_sql: str, expected_failure_sql: str) -> None:
-    assert (output_folder / "create_ddl.sql").exists()
-    with open(output_folder / "create_ddl.sql", "r", encoding="utf-8") as f:
-        actual_sql = f.read()
-    assert actual_sql.strip() == expected_sql.strip()
+    actual_sql = (output_folder / "create_ddl.sql").read_text(encoding="utf-8")
+    actual_failure_sql = (output_folder / "dummy_function.sql").read_text(encoding="utf-8")
 
-    assert (output_folder / "dummy_function.sql").exists()
-    with open(output_folder / "dummy_function.sql", "r", encoding="utf-8") as f:
-        actual_failure_sql = f.read()
+    assert actual_sql.strip() == expected_sql.strip()
     assert actual_failure_sql.strip() == expected_failure_sql.strip()
 
 

@@ -284,7 +284,7 @@ def mock_data_source():
     return MockDataSource({}, {})
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def bladebridge_artifact() -> Path:
     artifact = (
         Path(__file__).parent
@@ -298,7 +298,7 @@ def bladebridge_artifact() -> Path:
     return artifact
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def morpheus_artifact() -> Path:
     artifact = (
         Path(__file__).parent

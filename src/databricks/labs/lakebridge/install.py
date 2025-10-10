@@ -262,6 +262,11 @@ class WorkspaceInstaller:
         config_options = self._transpiler_repository.transpiler_config_options(transpiler_name, source_dialect)
         if len(config_options) == 0:
             return None
+        # Semantics here are different from the other properties of a TranspileConfig. Specifically:
+        #  - Entries are present for all options.
+        #  - If the value is None, it means the user chose to not provide a value. (This differs to other
+        #    attributes, where None means the user chose to provide a value later.)
+        #  - There is no way to express 'provide a value later'.
         return {option.flag: option.prompt_for_value(self._prompts) for option in config_options}
 
     def _configure_catalog(self) -> str:

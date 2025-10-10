@@ -40,11 +40,20 @@ def stubbed_transpiler_config_path(tmp_path: Path) -> Path:
         "options": {
             "all": [
                 {
-                    "flag": "-experimental",
-                    "method": "CONFIRM",
-                    "prompt": "Do you want to use the experimental Databricks generator ?",
+                    "flag": "overrides-file",
+                    "method": "QUESTION",
+                    "prompt": "Specify the config file to override",
+                    "default": "<none>",
                 }
-            ]
+            ],
+            "informatica pc": [
+                {
+                    "flag": "target-tech",
+                    "method": "CHOICE",
+                    "prompt": "Specify which technology should be generated",
+                    "choices": ["SPARKSQL", "PYSPARK"],
+                },
+            ],
         },
     }
 
@@ -112,6 +121,7 @@ def mock_cli_for_transpile(
             skip_validation=True,
             catalog_name="my_catalog",
             schema_name="my_schema",
+            transpiler_options={"overrides-file": None},
         )
         mock_app_context.return_value.workspace_client = mock_workspace_client
 
@@ -141,6 +151,7 @@ def mock_cli_transpile_no_config(
             "Select the source dialect.*": "0",
             "Enter input SQL path.*": str(empty_input_source),
             "Enter output folder.*": str(output_folder),
+            "Specify which technology should be generated.*": "0",
         }
     )
     mock_app_context = create_autospec(ApplicationContext)
@@ -161,6 +172,10 @@ def mock_cli_transpile_no_config(
             skip_validation=False,
             catalog_name="remorph",
             schema_name="transpiler",
+            transpiler_options={
+                "overrides-file": None,
+                "target-tech": "PYSPARK",
+            },
         )
 
         yield mock_workspace_client, expected_config, mock_transpile
@@ -282,6 +297,101 @@ def test_transpile_with_invalid_input_source(
         cli.transpile(w=ws, input_source="invalid_path", transpiler_repository=transpiler_repository)
 
 
+def test_transpile_overrides_file_specified(
+    mock_cli_for_transpile,
+    transpiler_repository: TranspilerRepository,
+    tmp_path: Path,
+) -> None:
+    """Verify that the overrides file can be manually specified and is passed to the transpiler."""
+    ws, cfg, _, do_transpile = mock_cli_for_transpile
+    overrides_path = tmp_path / "overrides.json"
+    overrides_path.write_text("{}", encoding="utf-8")
+
+    cli.transpile(
+        w=ws,
+        transpiler_config_path=cfg.transpiler_config_path,
+        source_dialect=cfg.source_dialect,
+        overrides_file=str(overrides_path),
+        input_source=cfg.input_source,
+        output_folder=cfg.output_folder,
+        error_file_path=cfg.error_file_path,
+        skip_validation=str(cfg.skip_validation),
+        catalog_name=cfg.catalog_name,
+        schema_name=cfg.schema_name,
+        transpiler_repository=transpiler_repository,
+    )
+    do_transpile.assert_called_once_with(
+        ws,
+        ANY,
+        TranspileConfig(
+            transpiler_config_path=cfg.transpiler_config_path,
+            source_dialect=cfg.source_dialect,
+            input_source=cfg.input_source,
+            output_folder=cfg.output_folder,
+            error_file_path=cfg.error_file_path,
+            sdk_config=cfg.sdk_config,
+            skip_validation=cfg.skip_validation,
+            catalog_name=cfg.catalog_name,
+            schema_name=cfg.schema_name,
+            transpiler_options={"overrides-file": str(overrides_path)},
+        ),
+    )
+
+
+def test_transpile_invalid_overrides_file_specified(
+    mock_cli_for_transpile,
+    transpiler_repository: TranspilerRepository,
+    tmp_path: Path,
+) -> None:
+    """Verify that the overrides file argument is checked for whether it is a valid path."""
+    ws, _, _, _ = mock_cli_for_transpile
+    with pytest.raises(
+        ValueError, match=re.escape("Invalid path for '--overrides-file', does not exist: does_not_exist.json")
+    ):
+        cli.transpile(w=ws, overrides_file="does_not_exist.json", transpiler_repository=transpiler_repository)
+
+
+def test_transpile_target_technology_specified(
+    mock_cli_for_transpile,
+    transpiler_repository: TranspilerRepository,
+) -> None:
+    """Verify that the target technology can be manually specified and is passed to the transpiler."""
+    ws, cfg, set_cfg, do_transpile = mock_cli_for_transpile
+    cfg.source_dialect = "informatica pc"
+    cfg.transpiler_options = {"overrides-file": "a_file.json"}
+    set_cfg(cfg)
+
+    cli.transpile(
+        w=ws,
+        transpiler_config_path=cfg.transpiler_config_path,
+        source_dialect=cfg.source_dialect,
+        target_technology="PYSPARK",
+        input_source=cfg.input_source,
+        output_folder=cfg.output_folder,
+        error_file_path=cfg.error_file_path,
+        skip_validation=str(cfg.skip_validation),
+        catalog_name=cfg.catalog_name,
+        schema_name=cfg.schema_name,
+        transpiler_repository=transpiler_repository,
+    )
+    do_transpile.assert_called_once_with(
+        ws,
+        ANY,
+        TranspileConfig(
+            transpiler_config_path=cfg.transpiler_config_path,
+            source_dialect=cfg.source_dialect,
+            input_source=cfg.input_source,
+            output_folder=cfg.output_folder,
+            error_file_path=cfg.error_file_path,
+            sdk_config=cfg.sdk_config,
+            skip_validation=cfg.skip_validation,
+            catalog_name=cfg.catalog_name,
+            schema_name=cfg.schema_name,
+            transpiler_options={**cfg.transpiler_options, "target-tech": "PYSPARK"},
+        ),
+    )
+
+
 def test_transpile_with_valid_inputs(
     mock_cli_for_transpile, transpiler_config_path: Path, transpiler_repository: TranspilerRepository
 ) -> None:
@@ -311,6 +421,7 @@ def test_transpile_with_valid_inputs(
             skip_validation=cfg.skip_validation,
             catalog_name=cfg.catalog_name,
             schema_name=cfg.schema_name,
+            transpiler_options=cfg.transpiler_options,
         ),
     )
 
@@ -318,6 +429,8 @@ def test_transpile_with_valid_inputs(
 def test_transpile_prints_errors(
     caplog, tmp_path: Path, mock_workspace_client: WorkspaceClient, transpiler_repository: TranspilerRepository
 ) -> None:
+    prompts = MockPrompts({"Do you want to use the experimental.*": "no"})
+    ctx = ApplicationContext(ws=mock_workspace_client).replace(prompts=prompts)
     input_source = path_to_resource("lsp_transpiler", "unsupported_lca.sql")
     with caplog.at_level("ERROR"):
         cli.transpile(
@@ -329,6 +442,7 @@ def test_transpile_prints_errors(
             skip_validation="true",
             catalog_name="my_catalog",
             schema_name="my_schema",
+            ctx=ctx,
             transpiler_repository=transpiler_repository,
         )
 
@@ -340,7 +454,12 @@ def test_transpile_informatica_transpiler_dialect(
 ) -> None:
     ws, cfg, _, do_transpile = mock_cli_for_transpile
     # Test with Informatica PC dialect ensure user agent handles sources dialect with spaces in them
-    cli.transpile(w=ws, source_dialect="informatica pc", transpiler_repository=transpiler_repository)
+    cli.transpile(
+        w=ws,
+        source_dialect="informatica pc",
+        target_technology="PYSPARK",
+        transpiler_repository=transpiler_repository,
+    )
     do_transpile.assert_called_once_with(
         ws,
         ANY,
@@ -354,6 +473,7 @@ def test_transpile_informatica_transpiler_dialect(
             skip_validation=cfg.skip_validation,
             catalog_name=cfg.catalog_name,
             schema_name=cfg.schema_name,
+            transpiler_options={**cfg.transpiler_options, "target-tech": "PYSPARK"},
         ),
     )
 
@@ -375,7 +495,11 @@ def test_transpile_no_config_with_source_override(
 ) -> None:
     ws, expected_config, do_transpile = mock_cli_transpile_no_config
     cli.transpile(w=ws, transpiler_repository=transpiler_repository, source_dialect="snowflake")
-    expected_config = dataclasses.replace(expected_config, source_dialect="snowflake")
+    expected_config = dataclasses.replace(
+        expected_config,
+        source_dialect="snowflake",
+        transpiler_options={k: v for k, v in expected_config.transpiler_options.items() if k != "target-tech"},
+    )
     do_transpile.assert_called_once_with(
         ws,
         ANY,
@@ -391,10 +515,17 @@ def test_describe_transpile(mock_cli_transpile_no_config, transpiler_repository:
     (out, _) = capsys.readouterr()
     json_description = json.loads(out)
 
-    experimental_option = {
-        "flag": "-experimental",
-        "method": "CONFIRM",
-        "prompt": "Do you want to use the experimental Databricks generator ?",
+    overrides_file_option = {
+        "flag": "overrides-file",
+        "method": "QUESTION",
+        "prompt": "Specify the config file to override",
+        "default": "<none>",
+    }
+    target_tech_option = {
+        "flag": "target-tech",
+        "method": "CHOICE",
+        "prompt": "Specify which technology should be generated",
+        "choices": ["SPARKSQL", "PYSPARK"],
     }
 
     assert json_description == {
@@ -408,8 +539,8 @@ def test_describe_transpile(mock_cli_transpile_no_config, transpiler_repository:
                 "config-path": str(transpiler_repository.transpilers_path() / "stub-transpiler" / "lib" / "config.yml"),
                 "versions": {"installed": None, "latest": None},
                 "supported-dialects": {
-                    "informatica pc": {"options": [experimental_option]},
-                    "snowflake": {"options": [experimental_option]},
+                    "informatica pc": {"options": [overrides_file_option, target_tech_option]},
+                    "snowflake": {"options": [overrides_file_option]},
                 },
             }
         ],

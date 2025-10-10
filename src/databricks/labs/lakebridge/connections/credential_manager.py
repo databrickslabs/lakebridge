@@ -15,12 +15,12 @@ class SecretProvider(Protocol):
         pass
 
 
-class LocalSecretProvider:
+class LocalSecretProvider(SecretProvider):
     def get_secret(self, key: str) -> str:
         return key
 
 
-class EnvSecretProvider:
+class EnvSecretProvider(SecretProvider):
     def __init__(self, env_getter: EnvGetter):
         self._env_getter = env_getter
 
@@ -38,10 +38,12 @@ class DatabricksSecretProvider:
 
 
 class CredentialManager:
-    def __init__(self, credential_loader: dict, secret_providers: dict):
-        self._credentials = credential_loader
-        self._secret_providers = secret_providers
+    def __init__(self, credentials: dict, secret_providers: dict[str, SecretProvider]):
+        self._credentials = credentials
         self._default_vault = self._credentials.get('secret_vault_type', 'local').lower()
+        self._provider = secret_providers.get(self._default_vault)
+        if not self._provider:
+            raise ValueError(f"Unsupported secret vault type: {self._default_vault}")
 
     def get_credentials(self, source: str) -> dict:
         if source not in self._credentials:
@@ -54,10 +56,8 @@ class CredentialManager:
         return {k: self._get_secret_value(v) for k, v in value.items()}
 
     def _get_secret_value(self, key: str) -> str:
-        provider = self._secret_providers.get(self._default_vault)
-        if not provider:
-            raise ValueError(f"Unsupported secret vault type: {self._default_vault}")
-        return provider.get_secret(key)
+        assert self._provider is not None
+        return self._provider.get_secret(key)
 
 
 def _get_home() -> Path:
@@ -76,8 +76,9 @@ def _load_credentials(path: Path) -> dict:
         raise FileNotFoundError(f"Credentials file not found at {path}") from e
 
 
-def create_credential_manager(product_name: str, env_getter: EnvGetter):
-    file_path = Path(f"{_get_home()}/.databricks/labs/{product_name}/.credentials.yml")
+def create_credential_manager(product_name: str, env_getter: EnvGetter) -> CredentialManager:
+    creds_path = cred_file(product_name)
+    creds = _load_credentials(creds_path)
 
     secret_providers = {
         'local': LocalSecretProvider(),
@@ -85,5 +86,4 @@ def create_credential_manager(product_name: str, env_getter: EnvGetter):
         'databricks': DatabricksSecretProvider(),
     }
 
-    loader = _load_credentials(file_path)
-    return CredentialManager(loader, secret_providers)
+    return CredentialManager(creds, secret_providers)

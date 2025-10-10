@@ -1,25 +1,16 @@
-import pytest
-
 from databricks.labs.lakebridge.connections.database_manager import MSSQLConnector
-from .helpers import get_db_manager
 
 
-@pytest.fixture()
-def db_manager(mock_credentials):
-    return get_db_manager("remorph", "mssql")
+def test_mssql_connector_connection(sandbox_sqlserver):
+    assert isinstance(sandbox_sqlserver.connector, MSSQLConnector)
 
 
-def test_mssql_connector_connection(db_manager):
-    assert isinstance(db_manager.connector, MSSQLConnector)
-
-
-def test_mssql_connector_execute_query(db_manager):
+def test_mssql_connector_execute_query(sandbox_sqlserver):
     # Test executing a query
     query = "SELECT 101 AS test_column"
-    result = db_manager.execute_query(query)
-    row = result.fetchone()
-    assert row[0] == 101
+    result = sandbox_sqlserver.fetch(query).rows
+    assert result[0][0] == 101
 
 
-def test_connection_test(db_manager):
-    assert db_manager.check_connection()
+def test_connection_test(sandbox_sqlserver):
+    assert sandbox_sqlserver.check_connection()
