@@ -14,12 +14,12 @@ def test_store_product_state(tmp_path) -> None:
 
     class MockArtifactInstaller(ArtifactInstaller):
         @classmethod
-        def store_product_state(cls, product_path: Path, version: str) -> None:
-            cls._store_product_state(product_path, version)
+        def store_artifact_state(cls, product_path: Path, version: str) -> None:
+            cls._store_artifact_state(product_path, version)
 
     # Store the product state, capturing the time before and after so we can verify the timestamp it puts in there.
     before = dt.datetime.now(tz=dt.timezone.utc)
-    MockArtifactInstaller.store_product_state(tmp_path, "1.2.3")
+    MockArtifactInstaller.store_artifact_state(tmp_path, "1.2.3")
     after = dt.datetime.now(tz=dt.timezone.utc)
 
     # Load the state that was just stored.

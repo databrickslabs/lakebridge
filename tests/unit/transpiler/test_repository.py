@@ -68,10 +68,10 @@ def guard_path() -> Path:
     return guard_file
 
 
-def mock_transpiler(product_name: str, config: JsonObject, version="1.0.0") -> Path:
+def mock_transpiler(transpiler_id: str, config: JsonObject, version="1.0.0") -> Path:
     """Create a mock path representing a transpiler installation."""
     transpiler_root = create_autospec(Path)
-    type(transpiler_root).name = PropertyMock(return_value=product_name)
+    type(transpiler_root).name = PropertyMock(return_value=transpiler_id)
     transpiler_root.is_dir.return_value = True
 
     transpiler_lib = create_autospec(Path)
@@ -286,14 +286,14 @@ def test_transpiler_options() -> None:
 def test_get_installed_transpiler_version() -> None:
     """Verify that the version of an installed transpiler can be queried."""
     a_transpiler = mock_transpiler(
-        product_name="a_transpiler",
+        transpiler_id="a_transpiler",
         config=transpiler_config("A Transpiler"),
         version="1.2.3",
     )
     labs_dir = mock_labs_path_with_registry((a_transpiler,))
     transpiler_repository = TranspilerRepository(labs_dir)
 
-    version = transpiler_repository.get_installed_version(product_name="a_transpiler")
+    version = transpiler_repository.get_installed_version(transpiler_id="a_transpiler")
     assert version == "1.2.3"
 
 

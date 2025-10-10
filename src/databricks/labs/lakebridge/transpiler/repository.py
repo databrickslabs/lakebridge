@@ -30,20 +30,20 @@ class TranspilerRepository:
     """
 
     #
-    # Transpilers currently have different 'names', for historical reasons:
+    # Transpilers currently have different identifiers, for historical reasons:
     #
-    #  - product_name: the name of the product according to this project, assigned within the `installer` module and
-    #       used as the name of the directory into which the transpiler is installed within a repository.
-    #  - transpiler_name: the name of the product according to its own metadata, found in the configuration file
+    #  - transpiler_id: the unique identifier of the transpiler according to this project, assigned within the `installer`
+    #        module and used as the name of the directory into which the transpiler is installed within a repository.
+    #  - transpiler_name: the name of the transpiler according to its own metadata, found in the configuration file
     #       bundled within each transpiler as distributed.
     #
-    # Note: multiple installed transpilers might have the same transpiler name, but a product name is unique to a single
+    # Note: multiple installed transpilers might have the same transpiler name, but a transpiler id is unique to a single
     # installed transpiler.
     #
-    #  Known names at the moment:
+    #  Known identifiers at the moment:
     #
-    #   - Morpheus:     product_name = databricks-morph-plugin,  transpiler_name = Morpheus
-    #   - BladeBridge:  product_name = bladebridge,              transpiler_name = Bladebridge
+    #   - Morpheus:     transpiler_id = databricks-morph-plugin,  transpiler_name = Morpheus
+    #   - BladeBridge:  transpiler_id = bladebridge,              transpiler_name = Bladebridge
     #
 
     @staticmethod
@@ -79,18 +79,18 @@ class TranspilerRepository:
     def transpilers_path(self) -> Path:
         return self._labs_path / "remorph-transpilers"
 
-    def get_installed_version(self, product_name: str) -> str | None:
+    def get_installed_version(self, transpiler_id: str) -> str | None:
         """
         Obtain the version of an installed transpiler.
 
         Args:
-          product_name: The product name of the transpiler whose version is sought.
+          transpiler_id: The id of the transpiler whose version is sought.
         Returns:
           The version of the transpiler if it is installed, or None otherwise.
         """
-        # Warning: product_name here (eg. 'morpheus') and transpiler_name elsewhere (eg. Morpheus) are not the same!
-        product_path = self.transpilers_path() / product_name
-        current_version_path = product_path / "state" / "version.json"
+        # Warning: transpiler_id here (eg. 'morpheus') and transpiler_name elsewhere (eg. Morpheus) are not the same!
+        transpiler_path = self.transpilers_path() / transpiler_id
+        current_version_path = transpiler_path / "state" / "version.json"
         try:
             text = current_version_path.read_text("utf-8")
         except FileNotFoundError:
@@ -105,7 +105,7 @@ class TranspilerRepository:
         """Obtain all installed transpile configurations.
 
         Returns:
-          A mapping of configurations, keyed by their product names.
+          A mapping of configurations, keyed by their ids.
         """
         return {path.name: config for path, config in self._all_transpiler_configs()}
 

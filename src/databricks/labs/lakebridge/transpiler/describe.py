@@ -53,7 +53,7 @@ class TranspilersDescription:
         all_dialects = cast(JsonList, sorted(list(transpiler_repository.all_dialects())))
         return {
             "installed-transpilers": [
-                self.transpiler_as_json(info) for product_name, info in sorted(installed_transpilers.items())
+                self.transpiler_as_json(info) for transpiler_id, info in sorted(installed_transpilers.items())
             ],
             "available-dialects": all_dialects,
         }

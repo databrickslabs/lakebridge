@@ -89,9 +89,9 @@ def test_lists_dialect_transpilers(transpiler_repository: TranspilerRepository) 
     assert transpilers == {'Bladebridge'}
 
 
-@pytest.mark.parametrize(("product_name", "version"), (("morpheus", "0.4.0"), ("bladebridge", "0.1.9")))
-def test_get_installed_version(transpiler_repository: TranspilerRepository, product_name: str, version: str) -> None:
-    installed_version = transpiler_repository.get_installed_version(product_name)
+@pytest.mark.parametrize(("transpiler_id", "version"), (("morpheus", "0.4.0"), ("bladebridge", "0.1.9")))
+def test_get_installed_version(transpiler_repository: TranspilerRepository, transpiler_id: str, version: str) -> None:
+    installed_version = transpiler_repository.get_installed_version(transpiler_id)
     assert installed_version == version
 
 
