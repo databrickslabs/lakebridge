@@ -1,11 +1,13 @@
 import os
 import logging
-from unittest.mock import patch
+from urllib.parse import urlparse
 
 import pytest
 from pyspark.sql import SparkSession
-from databricks.labs.lakebridge.__about__ import __version__
 
+from databricks.labs.lakebridge.__about__ import __version__
+from databricks.labs.lakebridge.connections.database_manager import DatabaseManager
+from tests.integration.debug_envgetter import TestEnvGetter
 
 logging.getLogger("tests").setLevel("DEBUG")
 logging.getLogger("databricks.labs.lakebridge").setLevel("DEBUG")
@@ -53,48 +55,26 @@ def mock_spark() -> SparkSession:
     return SparkSession.builder.appName("Remorph Reconcile Test").remote("sc://localhost").getOrCreate()
 
 
-@pytest.fixture(scope="session")
-def mock_credentials():
-    with patch(
-        'databricks.labs.lakebridge.connections.credential_manager._load_credentials',
-        return_value={
-            'secret_vault_type': 'env',
-            'secret_vault_name': '',
-            'mssql': {
-                'user': 'TEST_TSQL_USER',
-                'password': 'TEST_TSQL_PASS',
-                'server': 'TEST_TSQL_JDBC',
-                'database': 'TEST_TSQL_JDBC',
-                'driver': 'ODBC Driver 18 for SQL Server',
-            },
-            'synapse': {
-                'workspace': {
-                    'name': 'test-workspace',
-                    'dedicated_sql_endpoint': 'test-dedicated-endpoint',
-                    'serverless_sql_endpoint': 'test-serverless-endpoint',
-                    'sql_user': 'test-user',
-                    'sql_password': 'test-password',
-                    'tz_info': 'UTC',
-                },
-                'azure_api_access': {
-                    'development_endpoint': 'test-dev-endpoint',
-                    'azure_client_id': 'test-client-id',
-                    'azure_tenant_id': 'test-tenant-id',
-                    'azure_client_secret': 'test-client-secret',
-                },
-                'jdbc': {
-                    'auth_type': 'sql_authentication',
-                    'fetch_size': '1000',
-                    'login_timeout': '30',
-                },
-                'profiler': {
-                    'exclude_serverless_sql_pool': False,
-                    'exclude_dedicated_sql_pools': False,
-                    'exclude_spark_pools': False,
-                    'exclude_monitoring_metrics': False,
-                    'redact_sql_pools_sql_text': False,
-                },
-            },
-        },
-    ):
-        yield
+@pytest.fixture()
+def sandbox_sqlserver_config() -> dict:
+    env = TestEnvGetter(True)
+    db_url = env.get("TEST_TSQL_JDBC").removeprefix("jdbc:")
+    base_url, params = db_url.split(";", 1)
+    url_parts = urlparse(base_url)
+    server = url_parts.hostname
+    query_params = dict(param.split("=", 1) for param in params.split(";") if "=" in param)
+    database = query_params.get("database", "")
+
+    config = {
+        "user": env.get("TEST_TSQL_USER"),
+        "password": env.get("TEST_TSQL_PASS"),
+        "server": server,
+        "database": database,
+        "driver": "ODBC Driver 18 for SQL Server",
+    }
+    return config
+
+
+@pytest.fixture()
+def sandbox_sqlserver(sandbox_sqlserver_config) -> DatabaseManager:
+    return DatabaseManager("mssql", sandbox_sqlserver_config)
