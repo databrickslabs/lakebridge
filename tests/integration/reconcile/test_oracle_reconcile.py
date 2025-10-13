@@ -1,9 +1,9 @@
 from unittest.mock import patch
 
 import pytest
-from databricks.connect import DatabricksSession
 from pyspark.sql import DataFrame
 
+from databricks.connect import DatabricksSession
 from databricks.labs.lakebridge.config import DatabaseConfig, ReconcileMetadataConfig, ReconcileConfig
 from databricks.labs.lakebridge.reconcile.connectors.databricks import DatabricksDataSource
 from databricks.labs.lakebridge.reconcile.recon_capture import ReconCapture
@@ -71,7 +71,7 @@ def test_oracle_db_reconcile(mock_spark, mock_workspace_client, tmp_path):
         local_test_run=True,
     )
     with patch("databricks.labs.lakebridge.reconcile.utils.generate_volume_path", return_value=str(tmp_path)):
-        schema_reconcile_output, data_reconcile_output = TriggerReconService.recon_one(
+        _, data_reconcile_output = TriggerReconService.recon_one(
             spark=mock_spark,
             reconciler=recon,
             recon_capture=recon_capture,

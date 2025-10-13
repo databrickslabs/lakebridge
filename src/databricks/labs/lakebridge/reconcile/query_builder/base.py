@@ -139,7 +139,9 @@ class QueryBuilder(ABC):
             parsed = datatype
             try:
                 parsed = exp.DataType.build(datatype, source).this.value
-            except sqlglot.errors.ParseError or ValueError:
+            except sqlglot.errors.ParseError:
+                logger.warning(f"Could not parse datatype {datatype} for source {source_dialect}")
+            except ValueError:
                 logger.warning(f"Could not parse datatype {datatype} for source {source_dialect}")
 
             if source_mapping.get(parsed) is not None:

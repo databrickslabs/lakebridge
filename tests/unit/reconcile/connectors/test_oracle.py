@@ -143,7 +143,9 @@ def test_read_data_exception_handling():
         filters=None,
     )
 
-    spark.read.format().option().option().option().option().option().options().load.side_effect = RuntimeError("Test Exception")
+    spark.read.format().option().option().option().option().option().options().load.side_effect = RuntimeError(
+        "Test Exception"
+    )
 
     # Call the read_data method with the Tables configuration and assert that a PySparkException is raised
     with pytest.raises(
