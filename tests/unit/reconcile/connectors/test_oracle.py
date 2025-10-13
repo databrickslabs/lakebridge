@@ -74,7 +74,7 @@ def test_read_data_with_options():
         "url",
         "jdbc:oracle:thin@//my_host:777/my_database",
     )
-    spark.read.format().option().option.assert_called_with("driver", "oracle.jdbc.driver.OracleDriver")
+    spark.read.format().option().option.assert_called_with("driver", "oracle.jdbc.OracleDriver")
     spark.read.format().option().option().option.assert_called_with("dbtable", "(select 1 from data.employee) tmp")
     spark.read.format().option().option().option().option.assert_called_with("user", "my_user")
     spark.read.format().option().option().option().option().option.assert_called_with("password", "my_password")
