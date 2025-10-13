@@ -225,7 +225,7 @@ class WheelInstaller(ArtifactInstaller):
         else:
             lib_path = venv_path / "Lib" / "site-packages"
         # Handle installing pip ourselves, to help with diagnostics if something goes wrong.
-        builder = venv.EnvBuilder(with_pip=False, prompt=f"{self._artifact_id}", symlinks=use_symlinks)
+        builder = venv.EnvBuilder(with_pip=False, prompt=self._artifact_id, symlinks=use_symlinks)
         builder.create(venv_path)
         context = builder.ensure_directories(venv_path)
         logger.debug(f"Created virtual environment with context: {context}")
