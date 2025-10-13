@@ -63,6 +63,10 @@ if [ -f "$JARS_DIR/$ORACLE_JDBC_JAR" ]; then
 else
   echo "Downloading Oracle JDBC JAR"
   wget "https://repo1.maven.org/maven2/com/oracle/database/jdbc/ojdbc8/${ORACLE_JDBC_VERSION}/ojdbc8-${ORACLE_JDBC_VERSION}.jar" -O "$JARS_DIR/$ORACLE_JDBC_JAR"
+  if [ $? -ne 0 ]; then
+      echo "Failed to download Oracle JDBC JAR"
+      exit 1
+    fi
 fi
 
 
