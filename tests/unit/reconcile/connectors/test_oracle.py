@@ -85,7 +85,7 @@ def test_read_data_with_options():
         "lowerBound": '0',
         "upperBound": "100",
         "fetchsize": 100,
-        "oracle.jdbc.mapDateToTimestamp": "False",
+        "oracle.jdbc.mapDateToTimestamp": "false",
         "sessionInitStatement": r"BEGIN dbms_session.set_nls('nls_date_format', "
         r"'''YYYY-MM-DD''');dbms_session.set_nls('nls_timestamp_format', '''YYYY-MM-DD "
         r"HH24:MI:SS''');END;",
