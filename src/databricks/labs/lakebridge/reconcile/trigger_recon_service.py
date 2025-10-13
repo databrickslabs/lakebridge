@@ -110,7 +110,7 @@ class TriggerReconService:
         recon_capture: ReconCapture,
         reconcile_config: ReconcileConfig,
         table_conf: Table,
-    ):
+    ) -> tuple[SchemaReconcileOutput, DataReconcileOutput]:
         normalized_table_conf = NormalizeReconConfigService(
             reconciler.source, reconciler.target
         ).normalize_recon_table_config(table_conf)
@@ -129,6 +129,8 @@ class TriggerReconService:
             normalized_table_conf,
             recon_process_duration,
         )
+
+        return schema_reconcile_output, data_reconcile_output
 
     @staticmethod
     def _do_recon_one(reconciler: Reconciliation, reconcile_config: ReconcileConfig, table_conf: Table):
@@ -150,7 +152,7 @@ class TriggerReconService:
                     src_schema=src_schema,
                     tgt_schema=tgt_schema,
                 )
-                logger.warning("Schema comparison is completed.")
+                logger.info("Schema comparison is completed.")
 
             if reconciler.report_type in {"data", "row", "all"}:
                 data_reconcile_output = TriggerReconService._run_reconcile_data(
@@ -159,7 +161,7 @@ class TriggerReconService:
                     src_schema=src_schema,
                     tgt_schema=tgt_schema,
                 )
-                logger.warning(f"Reconciliation for '{reconciler.report_type}' report completed.")
+                logger.info(f"Reconciliation for '{reconciler.report_type}' report completed.")
 
         recon_process_duration.end_ts = str(datetime.now())
         return schema_reconcile_output, data_reconcile_output, recon_process_duration
