@@ -1,6 +1,7 @@
 import os
 import json
 import logging
+from urllib.parse import urlparse
 
 from databricks.labs.lakebridge.connections.env_getter import EnvGetter
 
@@ -25,3 +26,25 @@ class TestEnvGetter(EnvGetter):
         if self.is_debug:
             self.env = self._get_debug_env()
         return super().get(key)
+
+
+def parse_snowflake_jdbc_url(jdbc_url: str) -> dict:
+    """
+    Parse a Snowflake JDBC URL and return its components as a dictionary.
+
+    Args:
+        jdbc_url (str): The Snowflake JDBC URL to parse.
+
+    Returns:
+        dict: A dictionary containing the components of the JDBC URL.
+    """
+    if not jdbc_url.startswith("jdbc:snowflake://"):
+        raise ValueError("Invalid Snowflake JDBC URL")
+
+    url_parts = urlparse(jdbc_url.removeprefix("jdbc:"))
+    server = url_parts.hostname
+    query_params = dict(param.split("=", 1) for param in url_parts.query.split("&") if "=" in param)
+
+    result = {'url': server, **query_params}
+
+    return result

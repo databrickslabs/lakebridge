@@ -1,4 +1,3 @@
-import os
 from unittest.mock import create_autospec
 
 import pytest
@@ -13,7 +12,7 @@ from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dial
 
 from databricks.sdk import WorkspaceClient
 
-from tests.integration.debug_envgetter import TestEnvGetter
+from tests.integration.debug_envgetter import TestEnvGetter, parse_snowflake_jdbc_url
 
 
 class TSQLServerDataSourceUnderTest(TSQLServerDataSource):
@@ -37,11 +36,11 @@ class OracleDataSourceUnderTest(OracleDataSource):
 
     @property
     def get_jdbc_url(self) -> str:
-        return "jdbc:oracle:thin:@//HOST:PORT/SERVICE"  # FIXME
+        return self._test_env.get("TEST_ORACLE_JDBC")
 
     def reader(self, query: str) -> DataFrameReader:
-        user = "FIXME"
-        password = "FIXME"
+        user = self._test_env.get("TEST_ORACLE_USER")
+        password = self._test_env.get("TEST_ORACLE_PASSWORD")
         return self._get_jdbc_reader(
             query, self.get_jdbc_url, OracleDataSource._DRIVER, {"user": user, "password": password}
         )
@@ -61,17 +60,19 @@ class SnowflakeDataSourceUnderTest(SnowflakeDataSource):
         return self._spark.read.format("snowflake").option("dbtable", f"({query}) as tmp").options(**options)
 
     def _get_snowflake_options(self):
-        return {
-            "sfURL": "FIXME",
-            "sfUser": "FIXME",
-            "sfDatabase": "FIXME",
-            "sfSchema": "FIXME",
-            "sfWarehouse": "FIXME",
-            "sfRole": "FIXME",
+        parsed = parse_snowflake_jdbc_url(self._test_env.get("TEST_SNOWFLAKE_JDBC"))
+        opts = {
+            "sfURL": parsed.get("url"),
+            "sfUser": parsed.get("user"),
+            "sfDatabase": parsed.get("db"),
+            "sfSchema": parsed.get("schema"),
+            "sfWarehouse": parsed.get("warehouse"),
+            "sfRole": parsed.get("role"),
             "pem_private_key": SnowflakeDataSource._get_private_key(
                 self._test_env.get("TEST_SNOWFLAKE_PRIVATE_KEY"), None
             ),
         }
+        return opts
 
 
 @pytest.mark.skip(reason="Add the creds to Github secrets and populate the actions' env to enable this test")
@@ -107,8 +108,10 @@ def test_oracle_read_schema_happy(mock_spark):
     assert columns
 
 
-# FIXME the test pem key does not have access to LABS schema as it should
-@pytest.mark.skip(reason="Add the creds to Github secrets and populate the actions' env to enable this test")
+# FIXME
+#  1. the test pem key does not have access to LABS schema as it should
+#  2. complete jdbc url
+@pytest.mark.skip(reason="Missing Access to LABS schema")
 def test_snowflake_read_schema_happy(mock_spark):
     mock_ws = create_autospec(WorkspaceClient)
     connector = SnowflakeDataSourceUnderTest(mock_spark, mock_ws)
