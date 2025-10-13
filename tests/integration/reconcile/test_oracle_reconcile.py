@@ -14,6 +14,7 @@ from databricks.labs.lakebridge.reconcile.trigger_recon_service import TriggerRe
 from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
 from tests.integration.reconcile.connectors.test_read_schema import OracleDataSourceUnderTest
 
+
 class DatabricksDataSourceUnderTest(DatabricksDataSource):
     def __init__(self, databricks, ws, local_spark):
         super().__init__(get_dialect("databricks"), databricks, ws, "not used")
@@ -33,54 +34,44 @@ class DatabricksDataSourceUnderTest(DatabricksDataSource):
 
 @pytest.mark.skip(reason="Requires Oracle DB running locally and a databricks cluster to connect to.")
 def test_oracle_db_reconcile(mock_spark, mock_workspace_client, tmp_path):
-    databricks = DatabricksSession.builder.clusterId("TODO").getOrCreate()
+    databricks = DatabricksSession.builder.getOrCreate()
     databricks_data_source = DatabricksDataSourceUnderTest(databricks, mock_workspace_client, mock_spark)
     oracle_data_source = OracleDataSourceUnderTest(mock_spark, mock_workspace_client)
     report = "all"
+    db_config = DatabaseConfig(
+        source_schema="SYSTEM",
+        target_catalog="main",
+        target_schema="lakebridge",
+    )
     reconcile_config = ReconcileConfig(
-        data_source = "oracle",
-        report_type = report,
-        secret_scope = "not used",
-        database_config= DatabaseConfig(
-            source_schema="SYSTEM",
-            target_catalog="main",
-            target_schema="lakebridge",
-
-        ),
-        metadata_config = ReconcileMetadataConfig(catalog = "tmp", schema= "reconcile")
+        data_source="oracle",
+        report_type=report,
+        secret_scope="not used",
+        database_config=db_config,
+        metadata_config=ReconcileMetadataConfig(catalog="tmp", schema="reconcile"),
     )
     recon = Reconciliation(
         source=oracle_data_source,
         target=databricks_data_source,
-        database_config=DatabaseConfig(
-            source_schema="SYSTEM",
-            target_catalog="main",
-            target_schema="lakebridge",
-
-        ),
+        database_config=db_config,
         report_type=report,
         schema_comparator=SchemaCompare(mock_spark),
         source_engine=get_dialect("oracle"),
         spark=mock_spark,
-        metadata_config=ReconcileMetadataConfig(catalog = "tmp", schema= "reconcile")
+        metadata_config=ReconcileMetadataConfig(catalog="tmp", schema="reconcile"),
     )
     recon_capture = ReconCapture(
-        database_config=DatabaseConfig(
-            source_schema="SYSTEM",
-            target_catalog="main",
-            target_schema="lakebridge",
-
-        ),
+        database_config=db_config,
         recon_id="test_oracle_db_reconcile",
         report_type=report,
         source_dialect=get_dialect("oracle"),
         ws=mock_workspace_client,
         spark=mock_spark,
-        metadata_config=ReconcileMetadataConfig(catalog = "tmp", schema= "reconcile"),
+        metadata_config=ReconcileMetadataConfig(catalog="tmp", schema="reconcile"),
         local_test_run=True,
     )
     with patch("databricks.labs.lakebridge.reconcile.utils.generate_volume_path", return_value=str(tmp_path)):
-        result = TriggerReconService.recon_one(
+        schema_reconcile_output, data_reconcile_output = TriggerReconService.recon_one(
             spark=mock_spark,
             reconciler=recon,
             recon_capture=recon_capture,
@@ -88,9 +79,9 @@ def test_oracle_db_reconcile(mock_spark, mock_workspace_client, tmp_path):
             table_conf=Table(
                 source_name="source_table",
                 target_name="target_table",
-                join_columns= ["id"],
-            )
+                join_columns=["id"],
+            ),
         )
 
-        assert result
-
+        assert not data_reconcile_output.missing_in_src_count
+        assert not data_reconcile_output.missing_in_tgt_count

@@ -1,3 +1,4 @@
+import os
 from unittest.mock import create_autospec
 
 import pytest
@@ -28,6 +29,7 @@ class TSQLServerDataSourceUnderTest(TSQLServerDataSource):
             + f"password={self._test_env.get('TEST_TSQL_PASS')};"
         )
 
+
 class OracleDataSourceUnderTest(OracleDataSource):
     def __init__(self, spark, ws):
         super().__init__(get_dialect("oracle"), spark, ws, "secret_scope")
@@ -40,7 +42,9 @@ class OracleDataSourceUnderTest(OracleDataSource):
     def reader(self, query: str) -> DataFrameReader:
         user = "FIXME"
         password = "FIXME"
-        return self._get_jdbc_reader(query, self.get_jdbc_url, OracleDataSource._DRIVER, {"user": user, "password": password})
+        return self._get_jdbc_reader(
+            query, self.get_jdbc_url, OracleDataSource._DRIVER, {"user": user, "password": password}
+        )
 
 
 class SnowflakeDataSourceUnderTest(SnowflakeDataSource):
@@ -64,7 +68,9 @@ class SnowflakeDataSourceUnderTest(SnowflakeDataSource):
             "sfSchema": "FIXME",
             "sfWarehouse": "FIXME",
             "sfRole": "FIXME",
-            "pem_private_key": SnowflakeDataSource._get_private_key(self._test_env.get("TEST_SNOWFLAKE_PRIVATE_KEY"), None)
+            "pem_private_key": SnowflakeDataSource._get_private_key(
+                self._test_env.get("TEST_SNOWFLAKE_PRIVATE_KEY"), None
+            ),
         }
 
 
@@ -88,6 +94,7 @@ def test_databricks_read_schema_happy(mock_spark):
     columns = connector.get_schema(None, "global_temp", "my_global_test_view")
     assert columns
 
+
 # FIXME
 # 1. Deploy Oracle Free
 # 2. Add credentials to the test env getter
@@ -98,6 +105,7 @@ def test_oracle_read_schema_happy(mock_spark):
 
     columns = connector.get_schema(None, "SYSTEM", "help")
     assert columns
+
 
 # FIXME the test pem key does not have access to LABS schema as it should
 @pytest.mark.skip(reason="Add the creds to Github secrets and populate the actions' env to enable this test")
