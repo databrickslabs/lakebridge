@@ -18,7 +18,7 @@ from databricks.sdk import WorkspaceClient
 logger = logging.getLogger(__name__)
 
 _SCHEMA_QUERY = """SELECT
-                     COLUMN_NAME,
+                     COLUMN_NAME AS 'column_name',
                      CASE
                         WHEN DATA_TYPE IN ('int', 'bigint')
                             THEN DATA_TYPE
@@ -39,7 +39,7 @@ _SCHEMA_QUERY = """SELECT
                         WHEN DATA_TYPE IN ('binary','varbinary')
                                 THEN 'binary'
                         ELSE DATA_TYPE
-                    END AS 'DATA_TYPE'
+                    END AS 'data_type'
                     FROM
                         INFORMATION_SCHEMA.COLUMNS
                     WHERE
@@ -85,7 +85,7 @@ class TSQLServerDataSource(DataSource, SecretsMixin, JDBCReaderMixin):
         query: str,
         options: JdbcReaderOptions | None,
     ) -> DataFrame:
-        table_query = query.replace(":tbl", f"{catalog}.{schema}.{table}")
+        table_query = query.replace(":tbl", f"{catalog}.{schema}.{self.normalize_identifier(table).source_normalized}")
         with_clause_pattern = re.compile(r'WITH\s+.*?\)\s*(?=SELECT)', re.IGNORECASE | re.DOTALL)
         match = with_clause_pattern.search(table_query)
         if match:

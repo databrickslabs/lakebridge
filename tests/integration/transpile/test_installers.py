@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from databricks.labs.lakebridge.install import MavenInstaller, WheelInstaller, WorkspaceInstaller
+from databricks.labs.lakebridge.transpiler.installers import MavenInstaller, MorpheusInstaller, WheelInstaller
 
 # TODO: These should run as part of the integration tests, not a separate test suite.
 
@@ -24,7 +24,7 @@ def test_downloads_from_maven(tmp_path: Path) -> None:
 
 
 def test_gets_pypi_artifact_version() -> None:
-    version = WheelInstaller.get_latest_artifact_version_from_pypi("databricks-labs-remorph")
+    version = WheelInstaller.get_latest_artifact_version_from_pypi("databricks-labs-lakebridge")
     assert version is not None
     check_valid_version(version)
 
@@ -39,7 +39,7 @@ def check_valid_version(version: str) -> None:
 
 
 def test_java_version() -> None:
-    result = WorkspaceInstaller.find_java()
+    result = MorpheusInstaller.find_java()
     match result:
         case None:
             # Fine, no Java available.

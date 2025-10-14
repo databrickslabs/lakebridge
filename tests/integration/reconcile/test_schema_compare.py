@@ -4,7 +4,7 @@ from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dial
 from databricks.labs.lakebridge.reconcile.recon_config import ColumnMapping, Table
 from databricks.labs.lakebridge.reconcile.schema_compare import SchemaCompare
 
-from tests.conftest import schema_fixture_factory
+from tests.conftest import schema_fixture_factory, tsql_schema_fixture_factory, ansi_schema_fixture_factory
 
 
 def snowflake_databricks_schema():
@@ -32,6 +32,8 @@ def snowflake_databricks_schema():
         schema_fixture_factory("col_variant", "variant"),
         schema_fixture_factory("col_object", "object"),
         schema_fixture_factory("col_array", "array"),
+        schema_fixture_factory("col_array_int", "array"),
+        schema_fixture_factory("col_array_float", "array"),
         schema_fixture_factory("col_geography", "geography"),
         schema_fixture_factory("col_num10", "number(10,1)"),
         schema_fixture_factory("col_dec", "number(20,2)"),
@@ -68,6 +70,8 @@ def snowflake_databricks_schema():
         schema_fixture_factory("col_variant", "variant"),
         schema_fixture_factory("col_object", "string"),
         schema_fixture_factory("array_col", "array<string>"),
+        schema_fixture_factory("col_array_int", "array<int>"),
+        schema_fixture_factory("col_array_float", "array<double>"),
         schema_fixture_factory("col_geography", "string"),
         schema_fixture_factory("col_num10", "decimal(10,1)"),
         schema_fixture_factory("col_dec", "decimal(20,1)"),
@@ -194,12 +198,78 @@ def oracle_databricks_schema():
     return src_schema, tgt_schema
 
 
+def tsql_databricks_schema():
+    src_schema = [
+        tsql_schema_fixture_factory("col_bit", "bit"),
+        tsql_schema_fixture_factory("col_tinyint", "tinyint"),
+        tsql_schema_fixture_factory("col_smallint", "smallint"),
+        tsql_schema_fixture_factory("col_int", "int"),
+        tsql_schema_fixture_factory("col_bigint", "bigint"),
+        tsql_schema_fixture_factory("col_decimal", "decimal(20,2)"),
+        tsql_schema_fixture_factory("col_numeric", "numeric(38,0)"),
+        tsql_schema_fixture_factory("col_money", "money"),
+        tsql_schema_fixture_factory("col_smallmoney", "smallmoney"),
+        tsql_schema_fixture_factory("col_float", "float"),
+        tsql_schema_fixture_factory("col_real", "real"),
+        tsql_schema_fixture_factory("col_char", "char(8)"),
+        tsql_schema_fixture_factory("col_varchar", "varchar(255)"),
+        tsql_schema_fixture_factory("col_text", "text"),
+        tsql_schema_fixture_factory("col_nchar", "nchar(8)"),
+        tsql_schema_fixture_factory("col_nvarchar", "nvarchar(255)"),
+        tsql_schema_fixture_factory("col_ntext", "ntext"),
+        tsql_schema_fixture_factory("col_binary", "binary(50)"),
+        tsql_schema_fixture_factory("col_varbinary", "varbinary(50)"),
+        tsql_schema_fixture_factory("col_image", "image"),
+        tsql_schema_fixture_factory("col_uniqueidentifier", "uniqueidentifier"),
+        tsql_schema_fixture_factory("col_date", "date"),
+        tsql_schema_fixture_factory("col_time", "time"),
+        tsql_schema_fixture_factory("col_datetime", "datetime"),
+        tsql_schema_fixture_factory("col_datetime2", "datetime2"),
+        tsql_schema_fixture_factory("col_datetimeoffset", "datetimeoffset"),
+        tsql_schema_fixture_factory("col_smalldatetime", "smalldatetime"),
+        tsql_schema_fixture_factory("col_timestamp", "timestamp"),
+    ]
+
+    tgt_schema = [
+        ansi_schema_fixture_factory("my_bit", "boolean"),
+        ansi_schema_fixture_factory("col_tinyint", "tinyint"),
+        ansi_schema_fixture_factory("col_smallint", "smallint"),
+        ansi_schema_fixture_factory("col_int", "int"),
+        ansi_schema_fixture_factory("col_bigint", "bigint"),
+        ansi_schema_fixture_factory("col_decimal", "decimal(20,2)"),
+        ansi_schema_fixture_factory("col_numeric", "decimal(38,0)"),
+        ansi_schema_fixture_factory("col_money", "decimal(15,4)"),
+        ansi_schema_fixture_factory("col_smallmoney", "decimal(6,4)"),
+        ansi_schema_fixture_factory("col_float", "double"),
+        ansi_schema_fixture_factory("col_real", "float"),
+        ansi_schema_fixture_factory("char", "string"),
+        ansi_schema_fixture_factory("col_varchar", "string"),
+        ansi_schema_fixture_factory("col_text", "string"),
+        ansi_schema_fixture_factory("col_nchar", "string"),
+        ansi_schema_fixture_factory("col_nvarchar", "string"),
+        ansi_schema_fixture_factory("col_ntext", "string"),
+        ansi_schema_fixture_factory("col_binary", "binary"),
+        ansi_schema_fixture_factory("col_varbinary", "binary"),
+        ansi_schema_fixture_factory("col_image", "binary"),
+        ansi_schema_fixture_factory("col_uniqueidentifier", "string"),
+        ansi_schema_fixture_factory("col_date", "date"),
+        ansi_schema_fixture_factory("col_time", "timestamp"),
+        ansi_schema_fixture_factory("col_datetime", "timestamp"),
+        ansi_schema_fixture_factory("col_datetime2", "timestamp"),
+        ansi_schema_fixture_factory("col_datetimeoffset", "timestamp"),
+        ansi_schema_fixture_factory("col_smalldatetime", "timestamp"),
+        ansi_schema_fixture_factory("col_timestamp", "binary"),
+    ]
+    return src_schema, tgt_schema
+
+
 @pytest.fixture
 def schemas():
     return {
         "snowflake_databricks_schema": snowflake_databricks_schema(),
         "databricks_databricks_schema": databricks_databricks_schema(),
         "oracle_databricks_schema": oracle_databricks_schema(),
+        "tsql_databricks_schema": tsql_databricks_schema(),
     }
 
 
@@ -224,9 +294,9 @@ def test_snowflake_schema_compare(schemas, mock_spark):
     )
     df = schema_compare_output.compare_df
     assert not schema_compare_output.is_valid
-    assert df.count() == 33
-    assert df.filter("is_valid = 'true'").count() == 31
-    assert df.filter("is_valid = 'false'").count() == 2
+    assert df.count() == 35
+    assert df.filter("is_valid = 'true'").count() == 34
+    assert df.filter("is_valid = 'false'").count() == 1
 
 
 def test_databricks_schema_compare(schemas, mock_spark):
@@ -294,6 +364,31 @@ def test_oracle_schema_compare(schemas, mock_spark):
     assert df.count() == 32
     assert df.filter("is_valid = 'true'").count() == 32
     assert df.filter("is_valid = 'false'").count() == 0
+
+
+def test_tsql_schema_compare(schemas, mock_spark):
+    src_schema, tgt_schema = schemas["tsql_databricks_schema"]
+    spark = mock_spark
+    table_conf = Table(
+        source_name="supplier",
+        target_name="supplier",
+        column_mapping=[
+            ColumnMapping(source_name="`col_bit`", target_name="`my_bit`"),
+            ColumnMapping(source_name="`col_char`", target_name="`char`"),
+        ],
+    )
+
+    schema_compare_output = SchemaCompare(spark).compare(
+        src_schema,
+        tgt_schema,
+        get_dialect("tsql"),
+        table_conf,
+    )
+    df = schema_compare_output.compare_df
+    assert not schema_compare_output.is_valid
+    assert df.count() == 28
+    assert df.filter("is_valid = 'true'").count() == 25
+    assert df.filter("is_valid = 'false'").count() == 3
 
 
 def test_schema_compare(mock_spark):

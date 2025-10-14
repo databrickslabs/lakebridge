@@ -4,6 +4,7 @@ from operator import attrgetter
 
 import sqlglot.expressions as exp
 
+from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import DialectUtils
 from databricks.labs.lakebridge.reconcile.query_builder.base import QueryBuilder
 from databricks.labs.lakebridge.reconcile.query_builder.expression_generator import (
     build_column,
@@ -58,7 +59,12 @@ class AggregateQueryBuilder(QueryBuilder):
         cols_with_mapping: list[exp.Expression] = []
         for col in cols_list:
             column_expr = build_column(
-                this=f"{self._get_mapping_col(col)}", alias=f"{agg_type.lower()}<#>{col.lower()}"
+                this=(
+                    self._build_column_name_source_normalized(self._get_mapping_col(col))
+                    if self._is_add_quotes
+                    else self._unnormalize_identifier(self._get_mapping_col(col))
+                ),
+                alias=f"{agg_type.lower()}<#>{DialectUtils.unnormalize_identifier(col)}",
             )
             cols_with_mapping.append(column_expr)
         return cols_with_mapping
@@ -79,8 +85,8 @@ class AggregateQueryBuilder(QueryBuilder):
 
             # Create a new Column Expression with the new alias,
             # ex: MIN(pid) AS source_min_pid, MIN(product_id) AS target_min_pid
-            column_name = f"{col_name}" if agg_type == "group_by" else f"{agg_type}({col_name})"
-            col_with_alias = build_column(this=column_name, alias=layer_agg_type_col_alias)
+            column_name = col_name if agg_type == "group_by" else f"{agg_type}({col_name})"
+            col_with_alias = build_column(this=column_name, alias=layer_agg_type_col_alias, quoted=self._is_add_quotes)
             cols_with_alias.append(col_with_alias)
 
         return cols_with_alias
@@ -120,7 +126,7 @@ class AggregateQueryBuilder(QueryBuilder):
 
             # Skip duplicate rules
             # Example: {min_grp1+__+grp2 : col1+__+col2}, key = min_grp1+__+grp2
-            key = f"{agg.type}_{agg.group_by_columns_as_str}"
+            key = f"{agg.type}_{DialectUtils.unnormalize_identifier(agg.group_by_columns_as_str)}"
             if key in processed_rules:
                 existing_rule = processed_rules.get(key)
                 if existing_rule == agg.agg_columns_as_str:
@@ -165,7 +171,10 @@ class AggregateQueryBuilder(QueryBuilder):
 
             # Group by column doesn't support alias (GROUP BY to_date(COL1, 'yyyy-MM-dd') AS col1) throws error
             group_by_col_without_alias = [
-                build_column(this=_remove_aliases(group_by_col_with_alias).sql())
+                build_column(
+                    this=self._unnormalize_identifier(_remove_aliases(group_by_col_with_alias).sql()),
+                    quoted=self._is_add_quotes,
+                )
                 for group_by_col_with_alias in select_group_by_cols_with_alias
                 if " AS " in group_by_col_with_alias.sql()
             ]
@@ -186,7 +195,7 @@ class AggregateQueryBuilder(QueryBuilder):
         )
         return agg_query_rules
 
-    def grouped_aggregates(self):
+    def _grouped_aggregates(self):
         """
         Group items based on group_by_columns_keys:
         Example:
@@ -251,8 +260,12 @@ class AggregateQueryBuilder(QueryBuilder):
         return [
             AggregateRule(
                 agg_type=agg.type,
-                agg_column=agg_col,
-                group_by_columns=agg.group_by_columns,
+                agg_column=DialectUtils.unnormalize_identifier(agg_col),
+                group_by_columns=(
+                    [DialectUtils.unnormalize_identifier(col) for col in agg.group_by_columns]
+                    if agg.group_by_columns
+                    else None
+                ),
                 group_by_columns_as_str=agg.group_by_columns_as_str,
             )
             for agg_col in agg.agg_columns
@@ -286,7 +299,7 @@ class AggregateQueryBuilder(QueryBuilder):
         :return: Dictionary with Source and Target Queries
         """
         query_with_rules_list = []
-        for key, group in self.grouped_aggregates():
+        for key, group in self._grouped_aggregates():
             logger.info(f"Building Query and Rules for key: {key}, layer: {self.layer}")
             query_with_rules_list.append(self._get_layer_query(list(group)))
 

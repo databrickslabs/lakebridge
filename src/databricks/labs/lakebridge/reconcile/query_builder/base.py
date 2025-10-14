@@ -6,6 +6,8 @@ from sqlglot import Dialect, parse_one
 
 from databricks.labs.lakebridge.reconcile.connectors.data_source import DataSource
 from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import DialectUtils
+from databricks.labs.lakebridge.reconcile.connectors.oracle import OracleDataSource
+from databricks.labs.lakebridge.reconcile.connectors.snowflake import SnowflakeDataSource
 from databricks.labs.lakebridge.reconcile.exception import InvalidInputException
 from databricks.labs.lakebridge.reconcile.query_builder.expression_generator import (
     DataType_transform_mapping,
@@ -161,13 +163,26 @@ class QueryBuilder(ABC):
             alias=DialectUtils.unnormalize_identifier(
                 self.table_conf.get_layer_tgt_to_src_col_mapping(column, self.layer)
             ),
-            quoted=True,
+            quoted=True and self._is_add_quotes,
         )
 
     def _build_column_name_source_normalized(self, column: str):
         return self._data_source.normalize_identifier(column).source_normalized
 
+    def _unnormalize_identifier(self, identifier: str):
+        """
+        Convert the identifier to its unnormalized form.
+        We use ansi because the identifier might be source normalized
+        """
+        return DialectUtils.unnormalize_identifier(self._data_source.normalize_identifier(identifier).ansi_normalized)
+
     def _build_alias_source_normalized(self, column: str):
         return self._data_source.normalize_identifier(
             self.table_conf.get_layer_tgt_to_src_col_mapping(column, self.layer)
         ).source_normalized
+
+    @property
+    def _is_add_quotes(self) -> bool:
+        # TODO: In Oracle and Snowflake, quoted identifiers are case-sensitive,
+        # it is disabled for now till we have a proper strategy to handle it.
+        return not isinstance(self._data_source, (OracleDataSource, SnowflakeDataSource))

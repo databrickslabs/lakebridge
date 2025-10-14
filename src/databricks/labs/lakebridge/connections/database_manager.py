@@ -1,15 +1,24 @@
+import dataclasses
 import logging
 from abc import ABC, abstractmethod
 from typing import Any
+from collections.abc import Sequence, Set
 
 from sqlalchemy import create_engine
-from sqlalchemy.engine import Engine, Result, URL
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.engine import Engine, URL
+from sqlalchemy.engine.row import Row
 from sqlalchemy import text
 from sqlalchemy.exc import OperationalError
+from sqlalchemy.orm.session import Session
 
 logger = logging.getLogger(__name__)
 logger.setLevel("INFO")
+
+
+@dataclasses.dataclass
+class FetchResult:
+    columns: Set[str]
+    rows: Sequence[Row[Any]]
 
 
 class DatabaseConnector(ABC):
@@ -18,7 +27,7 @@ class DatabaseConnector(ABC):
         pass
 
     @abstractmethod
-    def execute_query(self, query: str) -> Result[Any]:
+    def fetch(self, query: str) -> FetchResult:
         pass
 
 
@@ -30,12 +39,13 @@ class _BaseConnector(DatabaseConnector):
     def _connect(self) -> Engine:
         raise NotImplementedError("Subclasses should implement this method")
 
-    def execute_query(self, query: str) -> Result[Any]:
+    def fetch(self, query: str) -> FetchResult:
         if not self.engine:
             raise ConnectionError("Not connected to the database.")
-        session = sessionmaker(bind=self.engine)
-        connection = session()
-        return connection.execute(text(query))
+
+        with Session(self.engine) as session, session.begin():
+            result = session.execute(text(query))
+            return FetchResult(result.keys(), result.fetchall())
 
 
 def _create_connector(db_type: str, config: dict[str, Any]) -> DatabaseConnector:
@@ -43,7 +53,6 @@ def _create_connector(db_type: str, config: dict[str, Any]) -> DatabaseConnector
         "snowflake": SnowflakeConnector,
         "mssql": MSSQLConnector,
         "tsql": MSSQLConnector,
-        "synapse": MSSQLConnector,
     }
 
     connector_class = connectors.get(db_type.lower())
@@ -61,18 +70,29 @@ class SnowflakeConnector(_BaseConnector):
 
 class MSSQLConnector(_BaseConnector):
     def _connect(self) -> Engine:
-        query_params = {"driver": self.config['driver']}
+        auth_type = self.config.get('auth_type', 'sql_authentication')
+        db_name = self.config.get('database')
 
-        for key, value in self.config.items():
-            if key not in ["user", "password", "server", "database", "port"]:
-                query_params[key] = value
+        query_params = {
+            "driver": self.config['driver'],
+            "loginTimeout": "30",
+        }
+
+        if auth_type == "ad_passwd_authentication":
+            query_params = {
+                **query_params,
+                "authentication": "ActiveDirectoryPassword",
+            }
+        elif auth_type == "spn_authentication":
+            raise NotImplementedError("SPN Authentication not implemented yet")
+
         connection_string = URL.create(
-            "mssql+pyodbc",
+            drivername="mssql+pyodbc",
             username=self.config['user'],
             password=self.config['password'],
             host=self.config['server'],
             port=self.config.get('port', 1433),
-            database=self.config['database'],
+            database=db_name,
             query=query_params,
         )
         return create_engine(connection_string)
@@ -82,17 +102,16 @@ class DatabaseManager:
     def __init__(self, db_type: str, config: dict[str, Any]):
         self.connector = _create_connector(db_type, config)
 
-    def execute_query(self, query: str) -> Result[Any]:
+    def fetch(self, query: str) -> FetchResult:
         try:
-            return self.connector.execute_query(query)
+            return self.connector.fetch(query)
         except OperationalError:
             logger.error("Error connecting to the database check credentials")
             raise ConnectionError("Error connecting to the database check credentials") from None
 
     def check_connection(self) -> bool:
         query = "SELECT 101 AS test_column"
-        result = self.execute_query(query)
-        row = result.fetchone()
-        if row is None:
+        result = self.fetch(query)
+        if result is None:
             return False
-        return row[0] == 101
+        return result.rows[0][0] == 101

@@ -21,6 +21,6 @@ remorph:
     - databricks/labs/remorph/transpiler/server.py
 options:
   all:
-    - flag: "-experimental"
+    - flag: "experimental"
       method: CONFIRM
       prompt: Do you want to use the experimental Databricks generator ?

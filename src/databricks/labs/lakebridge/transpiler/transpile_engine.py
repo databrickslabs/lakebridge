@@ -1,5 +1,6 @@
 from __future__ import annotations
 import abc
+from collections.abc import Sequence
 from pathlib import Path
 
 from databricks.labs.lakebridge.config import TranspileResult, TranspileConfig
@@ -23,7 +24,7 @@ class TranspileEngine(abc.ABC):
 
     @property
     @abc.abstractmethod
-    def supported_dialects(self) -> list[str]: ...
+    def supported_dialects(self) -> Sequence[str]: ...
 
     @abc.abstractmethod
     def is_supported_file(self, file: Path) -> bool: ...
