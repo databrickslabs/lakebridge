@@ -122,7 +122,7 @@ asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope="function"
 
 [tool.mypy]
-exclude = ["tests/resources/.*"]
+exclude = ["tests/resources/.*", "src/databricks/labs/lakebridge/resources/assessments/.*"]
 
 [tool.black]
 target-version = ["py310"]
@@ -211,7 +211,7 @@ fail-under = 10.0
 ignore-patterns = ["^\\.#"]
 
 # Ignore files under tests/resources
-ignore-paths = ["tests/resources"]
+ignore-paths = ["tests/resources", "src/databricks/labs/lakebridge/resources/assessments"]
 
 # List of module names for which member attributes should not be checked (useful
 # for modules/projects where namespaces are manipulated during runtime and thus

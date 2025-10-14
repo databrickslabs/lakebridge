@@ -70,18 +70,29 @@ class SnowflakeConnector(_BaseConnector):
 
 class MSSQLConnector(_BaseConnector):
     def _connect(self) -> Engine:
-        query_params = {"driver": self.config['driver']}
+        auth_type = self.config.get('auth_type', 'sql_authentication')
+        db_name = self.config.get('database')
 
-        for key, value in self.config.items():
-            if key not in ["user", "password", "server", "database", "port"]:
-                query_params[key] = value
+        query_params = {
+            "driver": self.config['driver'],
+            "loginTimeout": "30",
+        }
+
+        if auth_type == "ad_passwd_authentication":
+            query_params = {
+                **query_params,
+                "authentication": "ActiveDirectoryPassword",
+            }
+        elif auth_type == "spn_authentication":
+            raise NotImplementedError("SPN Authentication not implemented yet")
+
         connection_string = URL.create(
-            "mssql+pyodbc",
+            drivername="mssql+pyodbc",
             username=self.config['user'],
             password=self.config['password'],
             host=self.config['server'],
             port=self.config.get('port', 1433),
-            database=self.config['database'],
+            database=db_name,
             query=query_params,
         )
         return create_engine(connection_string)
