@@ -25,7 +25,6 @@ from databricks.labs.lakebridge.assessments import PROFILER_SOURCE_SYSTEM
 
 from databricks.labs.lakebridge.config import TranspileConfig, LSPConfigOptionV1
 from databricks.labs.lakebridge.contexts.application import ApplicationContext
-from databricks.labs.lakebridge.errors.exceptions import IllegalStateException
 from databricks.labs.lakebridge.helpers.recon_config_utils import ReconConfigPrompts
 from databricks.labs.lakebridge.helpers.telemetry_utils import make_alphanum_or_semver
 from databricks.labs.lakebridge.install import installer
@@ -120,43 +119,36 @@ def transpile(  # pylint: disable=too-many-arguments
     checker.use_schema_name(schema_name)
     config, engine = checker.check()
     logger.debug(f"Final configuration for transpilation: {config!r}")
-
-    assert config.source_dialect is not None, "Source dialect has been validated by this point."
-    ctx.add_user_agent_extra("transpiler_source_tech", make_alphanum_or_semver(config.source_dialect))
-    plugin_name = engine.transpiler_name
-    plugin_name = re.sub(r"\s+", "_", plugin_name)
-    ctx.add_user_agent_extra("transpiler_plugin_name", plugin_name)
-    user = ctx.current_user
-    logger.debug(f"User: {user}")
-
+    _add_user_agent_extras_transpile(ctx, config, engine, transpiler_repository)
     result = asyncio.run(_transpile(ctx, config, engine))
     # DO NOT Modify this print statement, it is used by the CLI to display results in GO Table Template
     print(json.dumps(result))
 
 
-def _add_user_agent_extras(
-    config: TranspileConfig, engine: TranspileEngine, transpiler_repository: TranspilerRepository
+def _add_user_agent_extras_transpile(
+    ctx: ApplicationContext,
+    config: TranspileConfig,
+    engine: TranspileEngine,
+    transpiler_repository: TranspilerRepository,
 ) -> None:
     assert config.source_dialect is not None, "Source dialect has been validated by this point."
-
-    with_user_agent_extra("cmd", "execute-transpile")
-    with_user_agent_extra("transpiler_skip_validation", str(config.skip_validation))
-    with_user_agent_extra("transpiler_source_tech", make_alphanum_or_semver(config.source_dialect))
-
-    if config.transpiler_options:
-        with_user_agent_extra("transpiler_options", str(config.transpiler_options))
+    ctx.add_user_agent_extra("transpiler_source_tech", make_alphanum_or_semver(config.source_dialect))
 
     plugin_name = engine.transpiler_name
     plugin_name = re.sub(r"\s+", "_", plugin_name)
-    with_user_agent_extra("transpiler_plugin_name", plugin_name)
+    ctx.add_user_agent_extra("transpiler_plugin_name", plugin_name)
 
-    transpiler_version = transpiler_repository.get_installed_version(plugin_name)
+    config_path = config.transpiler_config_path_parsed
+    assert config_path is not None, "Transpiler config path has been validated by this point."
+    transpiler_version = transpiler_repository.get_installed_version_given_config_path(config_path)
     if transpiler_version:
-        with_user_agent_extra("transpiler_plugin_version", transpiler_version)
+        ctx.add_user_agent_extra("transpiler_plugin_version", transpiler_version)
     else:
-        logger.warning(f"Could not determine version for transpiler plugin: {plugin_name}")
-        logger.error("Transpiler is out of date. Please run 'install-transpile' to update.")
-        raise IllegalStateException("Transpiler is out of date.")
+        logger.warning("Cannot determine transpiler plugin version.")
+
+    # Send telemetry
+    user = ctx.current_user
+    logger.debug(f"User: {user}")
 
 
 class _TranspileConfigChecker:
