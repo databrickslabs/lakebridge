@@ -612,13 +612,15 @@ def configure_database_profiler() -> None:
 def create_profiler_dashboard(
     *,
     w: WorkspaceClient,
-    extract_file: str | None = None,
-    source_tech: str | None = None,
+    extract_file: str,
+    source_tech: str,
+    catalog_name: str,
+    schema_name: str,
 ) -> None:
-    """Uploads profiler output summary as a Databricks dashboard."""
+    """Deploys a profiler summary as an AI/BI dashboard."""
     with_user_agent_extra("cmd", "create-profiler-dashboard")
     ctx = ApplicationContext(w)
-    ctx.dashboard_manager.create_profiler_summary_dashboard(extract_file, source_tech)
+    ctx.dashboard_manager.create_profiler_summary_dashboard(extract_file, source_tech, catalog_name, schema_name)
 
 
 @lakebridge.command

@@ -4,7 +4,7 @@ import json
 import logging
 from pathlib import Path
 
-from databricks.sdk.errors.platform import ResourceAlreadyExists
+from databricks.sdk.errors.platform import ResourceAlreadyExists, DatabricksError
 from databricks.sdk.service.dashboards import Dashboard
 from databricks.sdk.service.iam import User
 from databricks.sdk import WorkspaceClient
@@ -96,10 +96,10 @@ class DashboardManager:
             dashboard = self._ws.lakeview.create(dashboard=dashboard)
         except ResourceAlreadyExists:
             logging.info("Dashboard already exists! Removing dashboard from workspace location.")
-            dashboard_full_path = f"{ws_parent_path}{self._DASHBOARD_NAME}.lvdash.json"
-            self._ws.workspace.delete(dashboard_full_path)
+            dashboard_ws_path = str(Path(ws_parent_path) / f"{self._DASHBOARD_NAME}.lvdash.json")
+            self._ws.workspace.delete(dashboard_ws_path)
             dashboard = self._ws.lakeview.create(dashboard=dashboard)
-        except Exception as e:
+        except DatabricksError as e:
             logging.error(f"Could not create profiler summary dashboard: {e}")
 
         if dashboard.dashboard_id:
@@ -109,8 +109,8 @@ class DashboardManager:
 
     def create_profiler_summary_dashboard(
         self,
-        extract_file: str | None,
-        source_tech: str | None,
+        extract_file: str,
+        source_tech: str,
         catalog_name: str = "lakebridge_profiler",
         schema_name: str = "profiler_runs",
     ) -> None:
