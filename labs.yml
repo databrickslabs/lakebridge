@@ -56,12 +56,16 @@ commands:
   - name: configure-database-profiler
     description: "Configure Database Profiler"
   - name: create-profiler-dashboard
+<<<<<<< Updated upstream
     description: "Upload the Profiler Results as a Databricks Dashboard."
     flags:
       - name: extract-file
         description: (Optional) Path Location of the Profiler Extract File
       - name: source-tech
         description: (Optional) Name of the Source System Technology that was Profiled
+=======
+    description: "Upload Profiler Results as a Dashboard."
+>>>>>>> Stashed changes
   - name: install-transpile
     description: "Install & Configure Necessary Transpiler Dependencies"
     flags:
