@@ -608,7 +608,7 @@ def configure_database_profiler() -> None:
     assessment.run()
 
 
-@lakebridge.command(is_unauthenticated=False)
+@lakebridge.command()
 def create_profiler_dashboard(
     *,
     w: WorkspaceClient,
