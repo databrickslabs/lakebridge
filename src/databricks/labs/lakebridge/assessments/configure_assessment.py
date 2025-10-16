@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from pathlib import Path
 import logging
 import shutil
 import yaml
@@ -12,20 +13,32 @@ from databricks.labs.lakebridge.connections.credential_manager import (
 )
 from databricks.labs.lakebridge.connections.database_manager import DatabaseManager
 from databricks.labs.lakebridge.connections.env_getter import EnvGetter
+from databricks.labs.lakebridge.assessments import CONNECTOR_REQUIRED
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-PROFILER_SOURCE_SYSTEM = ["mssql", "synapse"]
+
+def _save_to_disk(credential: dict, cred_file: Path) -> None:
+    if cred_file.exists():
+        backup_filename = cred_file.with_suffix('.bak')
+        shutil.copy(cred_file, backup_filename)
+        logger.debug(f"Backup of the existing file created at {backup_filename}")
+
+    with open(cred_file, 'w', encoding='utf-8') as file:
+        yaml.dump(credential, file, default_flow_style=False)
 
 
 class AssessmentConfigurator(ABC):
     """Abstract base class for assessment configuration."""
 
-    def __init__(self, product_name: str, prompts: Prompts, credential_file=None):
+    def __init__(
+        self, product_name: str, prompts: Prompts, source_name: str, credential_file: Path | str | None = None
+    ):
         self.prompts = prompts
         self._product_name = product_name
-        self._credential_file = creds(product_name) if not credential_file else credential_file
+        self._credential_file = creds(product_name) if not credential_file else Path(credential_file)
+        self._source_name = source_name
 
     @abstractmethod
     def _configure_credentials(self) -> str:
@@ -52,10 +65,11 @@ class AssessmentConfigurator(ABC):
         logger.info(f"Welcome to the {self._product_name} Assessment Configuration")
         source = self._configure_credentials()
         logger.info(f"{source.capitalize()} details and credentials received.")
-        if self.prompts.confirm(f"Do you want to test the connection to {source}?"):
-            cred_manager = create_credential_manager("lakebridge", EnvGetter())
-            if cred_manager:
-                self._test_connection(source, cred_manager)
+        if CONNECTOR_REQUIRED.get(self._source_name, True):
+            if self.prompts.confirm(f"Do you want to test the connection to {source}?"):
+                cred_manager = create_credential_manager("lakebridge", EnvGetter())
+                if cred_manager:
+                    self._test_connection(source, cred_manager)
         logger.info(f"{source.capitalize()} Assessment Configuration Completed")
 
 
@@ -64,7 +78,7 @@ class ConfigureSqlServerAssessment(AssessmentConfigurator):
 
     def _configure_credentials(self) -> str:
         cred_file = self._credential_file
-        source = "mssql"
+        source = self._source_name
 
         logger.info(
             "\n(local | env) \nlocal means values are read as plain text \nenv means values are read "
@@ -84,18 +98,11 @@ class ConfigureSqlServerAssessment(AssessmentConfigurator):
                 "server": self.prompts.question("Enter the server or host details"),
                 "port": int(self.prompts.question("Enter the port details", valid_number=True)),
                 "user": self.prompts.question("Enter the user details"),
-                "password": self.prompts.question("Enter the password details"),
+                "password": self.prompts.password("Enter the password details"),
             },
         }
 
-        if cred_file.exists():
-            backup_filename = cred_file.with_suffix('.bak')
-            shutil.copy(cred_file, backup_filename)
-            logger.debug(f"Backup of the existing file created at {backup_filename}")
-
-        with open(cred_file, 'w', encoding='utf-8') as file:
-            yaml.dump(credential, file, default_flow_style=False)
-
+        _save_to_disk(credential, cred_file)
         logger.info(f"Credential template created for {source}.")
         return source
 
@@ -105,7 +112,7 @@ class ConfigureSynapseAssessment(AssessmentConfigurator):
 
     def _configure_credentials(self) -> str:
         cred_file = self._credential_file
-        source = "synapse"
+        source = self._source_name
 
         logger.info(
             "\n(local | env) \nlocal means values are read as plain text \nenv means values are read "
@@ -116,23 +123,23 @@ class ConfigureSynapseAssessment(AssessmentConfigurator):
 
         # Synapse Workspace Settings
         logger.info("Please provide Synapse Workspace settings:")
+        workspace_name = self.prompts.question("Enter Synapse workspace name")
         synapse_workspace = {
-            "name": self.prompts.question("Enter Synapse workspace name"),
-            "dedicated_sql_endpoint": self.prompts.question("Enter dedicated SQL endpoint"),
-            "serverless_sql_endpoint": self.prompts.question("Enter serverless SQL endpoint"),
+            "name": workspace_name,
+            "dedicated_sql_endpoint": f"{workspace_name}.sql.azuresynapse.net",
+            "serverless_sql_endpoint": f"{workspace_name}-ondemand.sql.azuresynapse.net",
             "sql_user": self.prompts.question("Enter SQL user"),
-            "sql_password": self.prompts.question("Enter SQL password"),
+            "sql_password": self.prompts.password("Enter SQL password"),
             "tz_info": self.prompts.question("Enter timezone (e.g. America/New_York)", default="UTC"),
+            "driver": self.prompts.question(
+                "Enter the ODBC driver installed locally", default="ODBC Driver 18 for SQL Server"
+            ),
         }
 
         # Azure API Access Settings
-        logger.info("Please provide Azure API access settings:")
-        azure_api_access = {
-            "development_endpoint": self.prompts.question("Enter development endpoint"),
-            "azure_client_id": self.prompts.question("Enter Azure client ID"),
-            "azure_tenant_id": self.prompts.question("Enter Azure tenant ID"),
-            "azure_client_secret": self.prompts.question("Enter Azure client secret"),
-        }
+        logger.info("Please provide Azure access settings:")
+        # Users use az cli to login to their Azure account and we just need the endpoint
+        azure_api_access = {"development_endpoint": self.prompts.question("Enter development endpoint")}
 
         # JDBC Settings
         logger.info("Please select JDBC authentication type:")
@@ -166,14 +173,7 @@ class ConfigureSynapseAssessment(AssessmentConfigurator):
                 "profiler": synapse_profiler,
             },
         }
-
-        if cred_file.exists():
-            backup_filename = cred_file.with_suffix('.bak')
-            shutil.copy(cred_file, backup_filename)
-            logger.debug(f"Backup of the existing file created at {backup_filename}")
-
-        with open(cred_file, 'w', encoding='utf-8') as file:
-            yaml.dump(credential, file, default_flow_style=False)
+        _save_to_disk(credential, cred_file)
 
         logger.info(f"Credential template created for {source}.")
         return source
@@ -191,4 +191,4 @@ def create_assessment_configurator(
     if source_system not in configurators:
         raise ValueError(f"Unsupported source system: {source_system}")
 
-    return configurators[source_system](product_name, prompts, credential_file)
+    return configurators[source_system](product_name, prompts, source_system, credential_file)

@@ -36,7 +36,7 @@ flowchart TD
 
 When invoked with the following command line:
 
-```bash
+```shell
 databricks labs lakebridge transpile --source-dialect snowflake --input-source /path/to/input --output-folder /path/to/output
 ```
 
@@ -135,13 +135,12 @@ More details about the BladeBridge converter [here](/docs/transpile/pluggable_tr
 
 ### Supported dialects
 
-| Source Platform              | Converter: BladeBridge | Converter: Morpheus | Output: SQL | Output: SparkSql | Output: PySpark | Other features available |
-|:-----------------------------|:-----------:|:--------:|:---:|:--------:|:-------:|:---------------------------:|
-| DataStage                    |  &#x2705;   |          |     | &#x2705; | &#x2705; |                             |
-| Informatica (Cloud, PC)      |  &#x2705;   |          |     | &#x2705; | &#x2705; |                             |
-| Netezza                      |  &#x2705;   |          | &#x2705; |         |         |                             |
-| Oracle (incl. ADS & Exadata) |  &#x2705;   |          | &#x2705; |         |         |                             |
-| Snowflake                    |             | &#x2705; | &#x2705; |         |         | dbt Repointing (Experimental) |
-| MS SQL Server (incl. Synapse)|  &#x2705;   | &#x2705; | &#x2705; |         |         |                             |
-| Teradata                     |  &#x2705;   |          | &#x2705; |         |         |                             |
-
+| Source Platform              | Converter: BladeBridge | Converter: Morpheus | Output: SQL | Output: SparkSql | Output: PySpark |   Other features available    |
+|:-----------------------------|:----------------------:|:-------------------:|:-----------:|:----------------:|:---------------:|:-----------------------------:|
+| DataStage                    |        &#x2705;        |                     |             |     &#x2705;     |    &#x2705;     |                               |
+| MS SQL Server                |        &#x2705;        |      &#x2705;       |  &#x2705;   |                  |                 |                               |
+| Netezza                      |        &#x2705;        |                     |  &#x2705;   |                  |                 |                               |
+| Oracle (incl. ADS & Exadata) |        &#x2705;        |                     |  &#x2705;   |                  |                 |                               |
+| Snowflake                    |                        |      &#x2705;       |  &#x2705;   |                  |                 | dbt Repointing (Experimental) |
+| Synapse                      |        &#x2705;        |      &#x2705;       |  &#x2705;   |                  |                 |                               |
+| Teradata                     |        &#x2705;        |                     |  &#x2705;   |                  |                 |                               |

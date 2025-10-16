@@ -6,6 +6,7 @@ import copy
 import pytest
 import yaml
 
+from databricks.labs.blueprint.installation import JsonValue
 from databricks.labs.lakebridge.transpiler.lsp.lsp_engine import LSPEngine
 from tests.unit.conftest import path_to_resource
 
@@ -24,7 +25,7 @@ VALID_CONFIG: dict[str, Any] = yaml.safe_load(
     - snowflake
     - oracle
   environment:
-    - SOME_ENV: abc
+    SOME_ENV: abc
   command_line:
     - python
     - lsp_server.py
@@ -37,17 +38,18 @@ custom:
 @pytest.mark.parametrize(
     "key, value, message",
     [
-        ("version", None, "Unsupported transpiler config version"),
-        ("version", 0, "Unsupported transpiler config version"),
-        ("name", None, "Missing 'name' entry"),
-        ("name", "", "Missing 'name' entry"),
-        ("dialects", None, "Missing 'dialects' entry"),
-        ("dialects", [], "Missing 'dialects' entry"),
-        ("command_line", None, "Missing 'command_line' entry"),
-        ("command_line", [], "Missing 'command_line' entry"),
+        ("version", None, r"Missing 'version' attribute"),
+        ("version", 0, r"Unsupported transpiler config version"),
+        ("name", None, r"Missing 'name' attribute"),
+        ("name", 42, r"Invalid 'name' entry in \{.*\}, expecting a string"),
+        ("name", "", r"Invalid 'name' attribute, must be a non-empty string"),
+        ("dialects", None, r"Missing 'dialects' attribute"),
+        ("dialects", [], r"Invalid 'dialects' attribute, expected a non-empty list of strings but got: \[\]"),
+        ("command_line", None, r"Missing 'command_line' attribute"),
+        ("command_line", [], r"Invalid 'command_line' attribute, expected a non-empty list of strings but got: \[\]"),
     ],
 )
-def test_invalid_config_raises_error(key, value, message):
+def test_invalid_config_raises_error(key: str, value: JsonValue, message: str) -> None:
     config = copy.deepcopy(VALID_CONFIG)
     if value is None:
         del config["remorph"][key]

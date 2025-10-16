@@ -8,17 +8,25 @@ import subprocess
 import sys
 import venv
 import xml.etree.ElementTree as ET
-from json import dump, loads
+from json import dump
 from pathlib import Path
 from shutil import rmtree
-from typing import Any, Literal
-from urllib import request
-from urllib.error import HTTPError, URLError
+from types import SimpleNamespace
+from typing import Literal
 from zipfile import ZipFile
 
+import requests
+from requests.exceptions import RequestException
+
+from databricks.labs.blueprint.installation import RootJsonValue
 from databricks.labs.lakebridge.transpiler.repository import TranspilerRepository
 
 logger = logging.getLogger(__name__)
+
+
+# This is not the total timeout for a request, but rather a timeout when waiting for the response
+# to start once the request has been sent.
+_DEFAULT_HTTP_TIMEOUT = 60  # seconds
 
 
 class _PathBackup:
@@ -82,9 +90,9 @@ class ArtifactInstaller(abc.ABC):
     _install_path: Path
     """The path where the transpiler is being installed, once this starts."""
 
-    def __init__(self, repository: TranspilerRepository, product_name: str) -> None:
+    def __init__(self, repository: TranspilerRepository, artifact_id: str) -> None:
         self._repository = repository
-        self._product_name = product_name
+        self._artifact_id = artifact_id
 
     _version_pattern = re.compile(r"[_-](\d+(?:[.\-_]\w*\d+)+)")
 
@@ -105,8 +113,8 @@ class ArtifactInstaller(abc.ABC):
         return group
 
     @classmethod
-    def _store_product_state(cls, product_path: Path, version: str) -> None:
-        state_path = product_path / "state"
+    def _store_artifact_state(cls, artifact_path: Path, version: str) -> None:
+        state_path = artifact_path / "state"
         state_path.mkdir()
         version_data = {"version": f"v{version}", "date": dt.datetime.now(dt.timezone.utc).isoformat()}
         version_path = state_path / "version.json"
@@ -116,10 +124,10 @@ class ArtifactInstaller(abc.ABC):
 
     def _install_version_with_backup(self, version: str) -> Path | None:
         """Install a specific version of the transpiler, with backup handling."""
-        logger.info(f"Installing Databricks {self._product_name} transpiler (v{version})")
-        product_path = self._repository.transpilers_path() / self._product_name
-        with _PathBackup(product_path) as backup:
-            self._install_path = product_path / "lib"
+        logger.info(f"Installing Databricks {self._artifact_id} transpiler (v{version})")
+        artifact_path = self._repository.transpilers_path() / self._artifact_id
+        with _PathBackup(artifact_path) as backup:
+            self._install_path = artifact_path / "lib"
             self._install_path.mkdir(parents=True, exist_ok=True)
             try:
                 result = self._install_version(version)
@@ -128,14 +136,14 @@ class ArtifactInstaller(abc.ABC):
                 # trying to inject itself into the subprocess. Try disabling:
                 #   Settings | Build, Execution, Deployment | Python Debugger | Attach to subprocess automatically while debugging
                 # Note: Subprocess output is not captured, and should already be visible in the console.
-                logger.error(f"Failed to install {self._product_name} transpiler (v{version})", exc_info=e)
+                logger.error(f"Failed to install {self._artifact_id} transpiler (v{version})", exc_info=e)
                 result = False
 
             if result:
-                logger.info(f"Successfully installed {self._product_name} transpiler (v{version})")
-                self._store_product_state(product_path=product_path, version=version)
+                logger.info(f"Successfully installed {self._artifact_id} transpiler (v{version})")
+                self._store_artifact_state(artifact_path=artifact_path, version=version)
                 backup.commit()
-                return product_path
+                return artifact_path
             backup.rollback()
         return None
 
@@ -153,24 +161,31 @@ class WheelInstaller(ArtifactInstaller):
     """Once created, the path to the site-packages directory in the virtual environment."""
 
     @classmethod
-    def get_latest_artifact_version_from_pypi(cls, product_name: str) -> str | None:
+    def get_latest_artifact_version_from_pypi(cls, artifact_id: str) -> str | None:
+        url = f"https://pypi.org/pypi/{artifact_id}/json"
         try:
-            with request.urlopen(f"https://pypi.org/pypi/{product_name}/json") as server:
-                text: bytes = server.read()
-            data: dict[str, Any] = loads(text)
-            return data.get("info", {}).get('version', None)
-        except HTTPError as e:
-            logger.error(f"Error while fetching PyPI metadata: {product_name}", exc_info=e)
+            # TODO: Use a user-agent that identifies this application.
+            response = requests.get(url, timeout=_DEFAULT_HTTP_TIMEOUT)
+            response.raise_for_status()
+            data: RootJsonValue = response.json()
+        except RequestException as e:
+            logger.error(f"Error while fetching PyPI metadata: {artifact_id}", exc_info=e)
             return None
+        logger.debug(f"PyPI metadata for {artifact_id}: {data}")
+        match data:
+            case {"info": {"version": str(version), **_ignored}, **_also_ignored}:
+                return version
+            case _:
+                return None
 
     def __init__(
         self,
         repository: TranspilerRepository,
-        product_name: str,
+        artifact_id: str,
         pypi_name: str,
         artifact: Path | None = None,
     ) -> None:
-        super().__init__(repository, product_name)
+        super().__init__(repository, artifact_id)
         self._pypi_name = pypi_name
         self._artifact = artifact
 
@@ -185,9 +200,9 @@ class WheelInstaller(ArtifactInstaller):
         )
         if latest_version is None:
             logger.warning(f"Could not determine the latest version of {self._pypi_name}")
-            logger.error(f"Failed to install transpiler: {self._product_name}")
+            logger.error(f"Failed to install transpiler: {self._artifact_id}")
             return None
-        installed_version = self._repository.get_installed_version(self._product_name)
+        installed_version = self._repository.get_installed_version(self._artifact_id)
         if installed_version == latest_version:
             logger.info(f"{self._pypi_name} v{latest_version} already installed")
             return None
@@ -209,12 +224,23 @@ class WheelInstaller(ArtifactInstaller):
             lib_path = venv_path / "lib" / f"python{major}.{minor}" / "site-packages"
         else:
             lib_path = venv_path / "Lib" / "site-packages"
-        builder = venv.EnvBuilder(with_pip=True, prompt=f"{self._product_name}", symlinks=use_symlinks)
+        # Handle installing pip ourselves, to help with diagnostics if something goes wrong.
+        builder = venv.EnvBuilder(with_pip=False, prompt=self._artifact_id, symlinks=use_symlinks)
         builder.create(venv_path)
         context = builder.ensure_directories(venv_path)
         logger.debug(f"Created virtual environment with context: {context}")
+        self._ensure_pip(context)
         self._venv_exec_cmd = context.env_exec_cmd
         self._site_packages = lib_path
+
+    @classmethod
+    def _ensure_pip(cls, venv_context: SimpleNamespace) -> None:
+        install_pip_cmd = [venv_context.env_exec_cmd, "-m", "ensurepip", "--upgrade"]
+        if logger.isEnabledFor(logging.DEBUG):
+            install_pip_cmd.append("--verbose")
+            logger.debug(f"Ensuring pip is installed in virtual environment: {install_pip_cmd}")
+        result = subprocess.run(install_pip_cmd, stderr=subprocess.STDOUT, check=False)
+        result.check_returncode()
 
     def _install_with_pip(self) -> None:
         # Based on: https://pip.pypa.io/en/stable/user_guide/#using-pip-from-your-program
@@ -224,10 +250,14 @@ class WheelInstaller(ArtifactInstaller):
             self._venv_exec_cmd,
             "-m",
             "pip",
+            "--require-virtualenv",
             "--disable-pip-version-check",
             "install",
             to_install,
+            "--only-binary=:all:",
         ]
+        if logger.isEnabledFor(logging.DEBUG):
+            command.append("--verbose")
         result = subprocess.run(command, stdin=sys.stdin, stdout=sys.stdout, stderr=sys.stderr, check=False)
         result.check_returncode()
 
@@ -284,9 +314,12 @@ class MavenInstaller(ArtifactInstaller):
     def get_current_maven_artifact_version(cls, group_id: str, artifact_id: str) -> str | None:
         url = cls.artifact_metadata_url(group_id, artifact_id)
         try:
-            with request.urlopen(url) as server:
-                text = server.read()
-        except HTTPError as e:
+            # TODO: Use a user-agent that identifies this application.
+            response = requests.get(url, timeout=_DEFAULT_HTTP_TIMEOUT)
+            response.raise_for_status()
+            # Content will be XML.
+            text = response.text
+        except RequestException as e:
             logger.error(f"Error while fetching maven metadata: {group_id}:{artifact_id}", exc_info=e)
             return None
         logger.debug(f"Maven metadata for {group_id}:{artifact_id}: {text}")
@@ -318,28 +351,33 @@ class MavenInstaller(ArtifactInstaller):
             logger.warning(f"Skipping download of {group_id}:{artifact_id}:{version}; target already exists: {target}")
             return True
         url = cls.artifact_url(group_id, artifact_id, version, classifier, extension)
+        tmp_target = target.parent / f".{target.name}.download"
         try:
-            path, _ = request.urlretrieve(url)
-            logger.debug(f"Downloaded maven artefact from {url} to {path}")
-        except URLError as e:
+            # TODO: Use a user-agent that identifies this application.
+            request = requests.get(url, stream=True, timeout=_DEFAULT_HTTP_TIMEOUT)
+            request.raise_for_status()
+            with tmp_target.open("wb") as f:
+                for chunk in request.iter_content(chunk_size=8192):
+                    if chunk:
+                        f.write(chunk)
+            logger.debug(f"Downloaded maven artefact: {url} -> {tmp_target}")
+        except IOError as e:
             logger.error(f"Unable to download maven artefact: {group_id}:{artifact_id}:{version}", exc_info=e)
             return False
-        logger.debug(f"Moving {path} to {target}")
-        shutil.move(path, target)
+        logger.debug(f"Moving {tmp_target} to {target}")
+        shutil.move(tmp_target, target)
         logger.info(f"Successfully installed: {group_id}:{artifact_id}:{version}")
         return True
 
     def __init__(
         self,
         repository: TranspilerRepository,
-        product_name: str,
-        group_id: str,
         artifact_id: str,
+        group_id: str,
         artifact: Path | None = None,
     ) -> None:
-        super().__init__(repository, product_name)
+        super().__init__(repository, artifact_id)
         self._group_id = group_id
-        self._artifact_id = artifact_id
         self._artifact = artifact
 
     def install(self) -> Path | None:
@@ -351,12 +389,12 @@ class MavenInstaller(ArtifactInstaller):
         else:
             latest_version = self.get_current_maven_artifact_version(self._group_id, self._artifact_id)
         if latest_version is None:
-            logger.warning(f"Could not determine the latest version of Databricks {self._product_name} transpiler")
-            logger.error("Failed to install transpiler: Databricks {self._product_name} transpiler")
+            logger.warning(f"Could not determine the latest version of Databricks {self._artifact_id} transpiler")
+            logger.error(f"Failed to install transpiler: Databricks {self._artifact_id} transpiler")
             return None
-        installed_version = self._repository.get_installed_version(self._product_name)
+        installed_version = self._repository.get_installed_version(self._artifact_id)
         if installed_version == latest_version:
-            logger.info(f"Databricks {self._product_name} transpiler v{latest_version} already installed")
+            logger.info(f"Databricks {self._artifact_id} transpiler v{latest_version} already installed")
             return None
         return self._install_version_with_backup(latest_version)
 
@@ -366,7 +404,7 @@ class MavenInstaller(ArtifactInstaller):
             logger.debug(f"Copying: {self._artifact} -> {jar_file_path}")
             shutil.copyfile(self._artifact, jar_file_path)
         elif not self.download_artifact_from_maven(self._group_id, self._artifact_id, version, jar_file_path):
-            logger.error(f"Failed to install Databricks {self._product_name} transpiler (v{version})")
+            logger.error(f"Failed to install Databricks {self._artifact_id} transpiler (v{version})")
             return False
         self._copy_lsp_config(jar_file_path)
         return True
@@ -414,9 +452,9 @@ class BladebridgeInstaller(TranspilerInstaller):
         return "databricks_bb_plugin" in artifact.name and artifact.suffix == ".whl"
 
     def install(self, artifact: Path | None = None) -> bool:
-        local_name = "bladebridge"
+        bladebridge = self.name.lower()
         pypi_name = "databricks-bb-plugin"
-        wheel_installer = WheelInstaller(self._transpiler_repository, local_name, pypi_name, artifact)
+        wheel_installer = WheelInstaller(self._transpiler_repository, bladebridge, pypi_name, artifact)
         return wheel_installer.install() is not None
 
 
@@ -434,10 +472,9 @@ class MorpheusInstaller(TranspilerInstaller):
                 "The morpheus transpiler requires Java 11 or above. Please install Java and re-run 'install-transpile'."
             )
             return False
-        product_name = "databricks-morph-plugin"
+        artifact_id = "databricks-morph-plugin"
         group_id = "com.databricks.labs"
-        artifact_id = product_name
-        maven_installer = MavenInstaller(self._transpiler_repository, product_name, group_id, artifact_id, artifact)
+        maven_installer = MavenInstaller(self._transpiler_repository, artifact_id, group_id, artifact)
         return maven_installer.install() is not None
 
     @classmethod
@@ -451,7 +488,9 @@ class MorpheusInstaller(TranspilerInstaller):
                 logger.warning(f"Java found, but could not determine the version: {java_executable}.")
                 return False
             case (java_executable, bytes(raw_version)):
-                logger.warning(f"Java found ({java_executable}), but could not parse the version:\n{raw_version}")
+                # Strip leading/trailing b' and ' from the repr.
+                display_version = repr(raw_version)[2:-1]  # Strip b'' from the repr.
+                logger.warning(f"Java found ({java_executable}), but could not parse the version:\n{display_version}")
                 return False
             case (java_executable, tuple(old_version)) if old_version < (11, 0, 0, 0):
                 version_str = ".".join(str(v) for v in old_version)
@@ -512,6 +551,10 @@ class MorpheusInstaller(TranspilerInstaller):
         #   openjdk version "24.0.1" 2025-04-15
         #   OpenJDK Runtime Environment Temurin-24.0.1+9 (build 24.0.1+9)
         #   OpenJDK 64-Bit Server VM Temurin-24.0.1+9 (build 24.0.1+9, mixed mode)
+        # Or:
+        #   openjdk version "25" 2025-09-16 LTS
+        #   OpenJDK Runtime Environment Temurin-25+36 (build 25+36-LTS)
+        #   OpenJDK 64-Bit Server VM Temurin-25+36 (build 25+36-LTS, mixed mode, sharing)
         match = cls._java_version_pattern.search(version)
         if not match:
             logger.debug(f"Could not parse java version: {version!r}")

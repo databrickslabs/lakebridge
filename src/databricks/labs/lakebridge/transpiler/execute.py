@@ -87,7 +87,21 @@ async def _process_one_file(context: TranspilingContext) -> tuple[int, list[Tran
     # local platform encoding.
     sniff_xml_encoding = input_path.suffix.lower() == ".xml"
 
-    source_code = read_text(input_path, detect_xml=sniff_xml_encoding)
+    try:
+        source_code = read_text(input_path, detect_xml=sniff_xml_encoding)
+    except (UnicodeDecodeError, LookupError) as e:
+        # UnicodeDecodeError can be thrown by bad encodings. LookupError can be thrown
+        # when detect_xml is True and the XML specifies an unknown encoding.
+        error = TranspileError(
+            code="encoding-error",
+            kind=ErrorKind.INTERNAL,
+            severity=ErrorSeverity.ERROR,
+            path=context.input_path,
+            message=f"File encoding error: {e}. File may use or specify an unsupported encoding.",
+        )
+        logger.warning(f"Skipping file {input_path} due to encoding error: {e}")
+        return 0, [error]
+
     context = dataclasses.replace(context, source_code=source_code)
 
     transpile_result = await _transpile(

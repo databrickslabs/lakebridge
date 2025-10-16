@@ -11,7 +11,7 @@ from .common_utils import run_transpile_and_assert
 
 
 def _install_morpheus(transpiler_repository: TranspilerRepository) -> tuple:
-    MavenInstaller(transpiler_repository, "morpheus", "com.databricks.labs", "databricks-morph-plugin").install()
+    MavenInstaller(transpiler_repository, "databricks-morph-plugin", "com.databricks.labs").install()
     config_path = transpiler_repository.transpiler_config_path("Morpheus")
     return config_path, LSPEngine.from_config_path(config_path)
 

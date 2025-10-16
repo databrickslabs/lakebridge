@@ -1,5 +1,6 @@
 import asyncio
 import dataclasses
+import locale
 import re
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -441,6 +442,110 @@ def test_server_decombines_workflow_output(mock_workspace_client, lsp_engine, tr
         _status, _errors = transpile(mock_workspace_client, lsp_engine, transpile_config)
 
         assert any(Path(output_folder).glob("*.json")), "No .json file found in output_folder"
+
+
+@pytest.mark.xfail(
+    locale.getpreferredencoding().lower() != "utf-8", reason="This test assumes system default encoding is UTF-8."
+)
+def test_encoding_error_utf8_decode_error(
+    tmp_path: Path,
+    output_folder: Path,
+    mock_workspace_client: WorkspaceClient,
+) -> None:
+    """Test UnicodeDecodeError handling when files should be UTF-8 but aren't."""
+    # Create a file with Latin-1 encoding containing non-ASCII characters
+    # When read_text() tries to decode this as UTF-8, it will fail with UnicodeDecodeError
+    problematic_file = tmp_path / "input" / "latin1_file.sql"
+    problematic_file.parent.mkdir(parents=True)
+    # Write Latin-1 encoded content with non-ASCII characters that will fail as UTF-8
+    problematic_file.write_text("SELECT 'h\u00e9llo w\u00f6rld' AS greeting;", encoding="latin-1")
+
+    transpile_config = TranspileConfig(
+        transpiler_config_path=None,
+        source_dialect="identity",
+        input_source=str(problematic_file),
+        output_folder=str(output_folder),
+        skip_validation=True,
+    )
+
+    # This reads files using the default system encoding, and this test assumes it's UTF-8.
+    status, errors = transpile(mock_workspace_client, IdentityTranspileEngine(), transpile_config)
+
+    # Verify error handling
+    assert status.get("total_files_processed") == 1  # File was processed (but failed)
+    assert status.get("total_queries_processed") == 0  # No queries successfully processed
+    [only_error] = errors
+    assert only_error.code == "encoding-error"
+    assert only_error.severity == ErrorSeverity.ERROR
+    assert "codec can't decode" in only_error.message
+
+
+def test_encoding_error_lookup_error(
+    tmp_path: Path,
+    output_folder: Path,
+    mock_workspace_client: WorkspaceClient,
+) -> None:
+    """Test LookupError handling when XML file declares an unknown encoding."""
+    # Create an XML file that declares an invalid encoding name
+    # When read_text() tries to use this encoding, it will fail with LookupError
+    xml_file = tmp_path / "input" / "invalid_encoding.xml"
+    xml_file.parent.mkdir(parents=True)
+    # XML declaration with non-existent encoding - will trigger LookupError
+    xml_file.write_text("<?xml version='1.0' encoding='definitely-invalid-codec'?><empty_root/>", encoding="utf-8")
+
+    transpile_config = TranspileConfig(
+        transpiler_config_path=None,
+        source_dialect="identity",
+        input_source=str(xml_file),
+        output_folder=str(output_folder),
+        skip_validation=True,
+    )
+
+    status, errors = transpile(mock_workspace_client, IdentityTranspileEngine(), transpile_config)
+
+    # Verify error handling
+    assert status.get("total_files_processed") == 1  # File was processed (but failed)
+    assert status.get("total_queries_processed") == 0  # No queries successfully processed
+    [only_error] = errors
+    assert only_error.code == "encoding-error"
+    assert only_error.severity == ErrorSeverity.ERROR
+    assert "encoding" in only_error.message
+
+
+def test_encoding_error_continues_with_other_files(
+    input_source: Path,
+    output_folder: Path,
+    mock_workspace_client: WorkspaceClient,
+) -> None:
+    """Test that encoding errors on one file don't prevent processing other files."""
+    # Add a problematic file to the existing input_source directory
+    # This tests the real-world scenario of mixed good/bad files in a directory
+    problematic_file = input_source / "problematic.sql"
+    problematic_file.write_text("SELECT 'bad encoding h\u00e9r\u00e9' AS test;", encoding="latin-1")
+
+    transpile_config = TranspileConfig(
+        transpiler_config_path="sqlglot",
+        input_source=str(input_source),
+        output_folder=str(output_folder),
+        sdk_config=None,
+        source_dialect="snowflake",
+        skip_validation=True,
+    )
+
+    status, errors = transpile(mock_workspace_client, SqlglotEngine(), transpile_config)
+
+    # Should process existing good files successfully despite the problematic one
+    files_processed = status.get("total_files_processed", 0)
+    queries_processed = status.get("total_queries_processed", 0)
+    assert isinstance(files_processed, int) and isinstance(queries_processed, int)
+    assert files_processed > 1  # Multiple files were processed
+    assert queries_processed > 0  # Some files had successful queries
+    assert files_processed > queries_processed  # At least one file failed due to encoding error
+
+    # Should have encoding errors for the problematic file
+    encoding_errors = [e for e in errors if e.code == "encoding-error"]
+    [only_encoding_error] = encoding_errors
+    assert "problematic.sql" in str(only_encoding_error.path)
 
 
 def test_make_header_with_no_diagnostics():

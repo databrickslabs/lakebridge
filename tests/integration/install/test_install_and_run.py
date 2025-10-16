@@ -148,7 +148,7 @@ async def test_installs_and_runs_local_morpheus(
     input_source = tmp_path / "input_source"
     output_folder = tmp_path / "output_folder"
     location = MavenInstaller(
-        transpiler_repository, "morpheus", "com.databricks.labs", "databricks-morph-plugin", morpheus_artifact
+        transpiler_repository, "databricks-morph-plugin", "com.databricks.labs", morpheus_artifact
     ).install()
     assert location is not None
     config_path = transpiler_repository.transpiler_config_path("Morpheus")
@@ -173,9 +173,7 @@ async def test_installs_and_runs_local_morpheus(
 async def test_installs_and_runs_maven_morpheus(transpiler_repository: TranspilerRepository, tmp_path: Path) -> None:
     input_source = tmp_path / "input_source"
     output_folder = tmp_path / "output_folder"
-    location = MavenInstaller(
-        transpiler_repository, "morpheus", "com.databricks.labs", "databricks-morph-plugin"
-    ).install()
+    location = MavenInstaller(transpiler_repository, "databricks-morph-plugin", "com.databricks.labs").install()
     assert location is not None
     config_path = transpiler_repository.transpiler_config_path("Morpheus")
     engine = LSPEngine.from_config_path(config_path)
