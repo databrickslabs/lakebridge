@@ -171,7 +171,7 @@ class TranspileConfig:
     transpiler_options: JsonValue = None
 
     @property
-    def transpiler_path(self) -> Path | None:
+    def transpiler_config_path_parsed(self) -> Path | None:
         return Path(self.transpiler_config_path) if self.transpiler_config_path is not None else None
 
     @property

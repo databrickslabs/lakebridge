@@ -95,6 +95,15 @@ def test_get_installed_version(transpiler_repository: TranspilerRepository, tran
     assert installed_version == version
 
 
+@pytest.mark.parametrize(("transpiler_id", "version"), (("morpheus", "0.4.0"), ("bladebridge", "0.1.9")))
+def test_get_installed_version_given_config_path(
+    transpiler_repository: TranspilerRepository, transpiler_id: str, version: str
+) -> None:
+    config_path = transpiler_repository.transpilers_path() / transpiler_id / "lib" / "config.yml"
+    installed_version = transpiler_repository.get_installed_version_given_config_path(config_path)
+    assert installed_version == version
+
+
 @pytest.mark.parametrize("transpiler_name", ("Morpheus", "Bladebridge"))
 def test_transpilers_config_path(transpiler_repository: TranspilerRepository, transpiler_name: str) -> None:
     config_path = transpiler_repository.transpiler_config_path(transpiler_name)
