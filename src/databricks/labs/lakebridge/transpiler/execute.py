@@ -178,9 +178,7 @@ def _process_non_mime_result(context: TranspilingContext, error_list: list[Trans
     output_code: str = context.transpiled_code or ""
     output_path = cast(Path, context.output_path)
 
-    if any(err.kind == ErrorKind.PARSING for err in error_list):
-        output_code = context.source_code or ""
-    elif output_path.suffix == ".sql":
+    if output_path.suffix == ".sql":
         output_code = _validate_transpiled_sql(context, output_code, error_list)
     with output_path.open("w") as w:
         # The above adds a java-style comment block at the top of the output file
