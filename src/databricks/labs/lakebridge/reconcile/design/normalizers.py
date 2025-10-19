@@ -3,12 +3,12 @@ from abc import ABC, abstractmethod
 
 import expressions as e
 from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import DialectUtils
-from utypes import ExternalType, UType, DatabaseTypeName
+from utypes import ExternalType, UType, ColumnTypeName
 
 
 @dataclasses.dataclass(frozen=True)
 class ExternalColumnDefinition:
-    name: str
+    column_name: str
     data_type: ExternalType
     encoding: str = "utf-8"
 
@@ -59,19 +59,19 @@ class QuoteIdentifierNormalizer(UniversalNormalizer):
 
     def _quote_oracle(self, column: e.ExpressionBuilder, column_def: ExternalColumnDefinition) -> e.ExpressionBuilder:
         normalized = DialectUtils.normalize_identifier(
-            column_def.name,
+            column_def.column_name,
             source_start_delimiter='"',
             source_end_delimiter='"',
         ).source_normalized
         return column.column_name(normalized)
 
     def _quote_databricks(self, column: e.ExpressionBuilder, column_def: ExternalColumnDefinition) -> e.ExpressionBuilder:
-        normalized = DialectUtils.ansi_quote_identifier(column_def.name)
+        normalized = DialectUtils.ansi_quote_identifier(column_def.column_name)
         return column.column_name(normalized)
 
     def _quote_snowflake(self, column: e.ExpressionBuilder, column_def: ExternalColumnDefinition) -> e.ExpressionBuilder:
         normalized = DialectUtils.normalize_identifier(
-            column_def.name,
+            column_def.column_name,
             source_start_delimiter='"',
             source_end_delimiter='"',
         ).source_normalized
@@ -118,7 +118,7 @@ class UDatetimeTypeNormalizer(AbstractTypeNormalizer):
 
     @classmethod
     def utype(cls) -> UType:
-        return UType(DatabaseTypeName.DATETIME)
+        return UType(ColumnTypeName.DATETIME)
 
     def _normalize_oracle(self, column: e.ExpressionBuilder, source_col: ExternalColumnDefinition) -> e.ExpressionBuilder:
         return column
@@ -139,7 +139,7 @@ class UStringTypeNormalizer(AbstractTypeNormalizer):
 
     @classmethod
     def utype(cls) -> UType:
-        return UType(DatabaseTypeName.VARCHAR)
+        return UType(ColumnTypeName.VARCHAR)
 
     def _normalize_oracle(self, column: e.ExpressionBuilder,
                          column_def: ExternalColumnDefinition) -> e.ExpressionBuilder:
@@ -165,14 +165,14 @@ class NormalizersRegistry:
             self._registry[normalizer.registry_key_family()] = {}
         self._registry[normalizer.registry_key_family()][normalizer.registry_key()] = normalizer
 
-    def get_type_normalizer(self, name: DatabaseTypeName) -> AbstractTypeNormalizer | None:
+    def get_type_normalizer(self, name: ColumnTypeName) -> AbstractTypeNormalizer | None:
         return self._registry.get(AbstractTypeNormalizer.registry_key_family(), {}).get(name.name)
 
     def get_universal_normalizers(self):
         return self._registry.get(UniversalNormalizer.registry_key_family(), {}).values()
 
 class DialectNormalizer(ABC):
-    DbTypeNormalizerType = dict[DatabaseTypeName, DatabaseTypeName]
+    DbTypeNormalizerType = dict[ColumnTypeName, ColumnTypeName]
     # or ExternalType to UType. what about extra type information e.g scale, precision?
 
     dialect: e.DialectType
@@ -180,16 +180,16 @@ class DialectNormalizer(ABC):
     @classmethod
     def type_normalizers(cls) -> DbTypeNormalizerType:
         return {
-            DatabaseTypeName("DATE"): UDatetimeTypeNormalizer.utype().name,
-            DatabaseTypeName("NCHAR"): UStringTypeNormalizer.utype().name,
-            DatabaseTypeName("CHAR"): UStringTypeNormalizer.utype().name,
-            DatabaseTypeName("VARCHAR"): UStringTypeNormalizer.utype().name,
-            DatabaseTypeName("NVARCHAR"): UStringTypeNormalizer.utype().name,
-            DatabaseTypeName("VARCHAR2"): UStringTypeNormalizer.utype().name,
+            ColumnTypeName("DATE"): UDatetimeTypeNormalizer.utype().name,
+            ColumnTypeName("NCHAR"): UStringTypeNormalizer.utype().name,
+            ColumnTypeName("CHAR"): UStringTypeNormalizer.utype().name,
+            ColumnTypeName("VARCHAR"): UStringTypeNormalizer.utype().name,
+            ColumnTypeName("NVARCHAR"): UStringTypeNormalizer.utype().name,
+            ColumnTypeName("VARCHAR2"): UStringTypeNormalizer.utype().name,
         }
 
     def normalize(self, column_def: ExternalColumnDefinition, registry: NormalizersRegistry) -> e.ExpressionBuilder:
-        start = e.ExpressionBuilder(column_def.name, self.dialect, None)
+        start = e.ExpressionBuilder(column_def.column_name, self.dialect, None)
         for normalizer in registry.get_universal_normalizers():
             start = normalizer.normalize(start, self.dialect, column_def)
         utype = self.type_normalizers().get(column_def.data_type.name)
@@ -216,7 +216,7 @@ if __name__ == "__main__":
     oracle = OracleNormalizer()
     snow = SnowflakeNormalizer()
 
-    column = ExternalColumnDefinition("student_id", ExternalType(DatabaseTypeName["NCHAR"]))
+    column = ExternalColumnDefinition("student_id", ExternalType(ColumnTypeName["NCHAR"]))
 
     oracle_column = oracle.normalize(column, registry).build()
     assert oracle_column == "COALESCE(TRIM(\"student_id\"), '__null_recon__')"

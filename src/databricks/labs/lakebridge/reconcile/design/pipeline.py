@@ -4,43 +4,8 @@ from abc import ABC
 from pyspark.sql import DataFrame
 
 from databricks.labs.lakebridge.reconcile.connectors.data_source import DataSource
+from databricks.labs.lakebridge.reconcile.design.normalizers import DialectNormalizer
 
-class TypeNormalizer(ABC):
-    def normalize_oracle(self, source_column: str) -> str:
-        pass
-
-    def normalize_databricks(self, source_column: str) -> str:
-        pass
-
-    def normalize_snowflake(self, source_column: str) -> str:
-        pass
-
-class DateTypeNormalizer(TypeNormalizer):
-    def normalize_oracle(self, source_column: str) -> str:
-        pass
-
-    def normalize_databricks(self, source_column: str) -> str:
-        pass
-
-    def normalize_snowflake(self, source_column: str) -> str:
-        pass
-
-class DialectNormalizer(ABC):
-    normalizers: dict[str, TypeNormalizer]
-
-    def normalize(self, source_data_type: str, source_column: str) -> str:
-        pass
-
-class OracleNormalizer(DialectNormalizer):
-    parsers = {
-        "DATE": TypeNormalizer
-    }
-
-    def normalize(self, source_data_type: str, source_column: str) -> str:
-        normalizer = self.parsers.get(source_data_type)
-        if normalizer:
-            return normalizer().normalize_oracle(source_column)
-        return source_column
 
 @dataclasses.dataclass
 class ReconcileOutput:
@@ -109,6 +74,7 @@ class HashBasedComparisonStrategy(ComparisonStrategy):
     name = "row"
 
     def query_source_data(self, config: ReconcileRequest) -> DataFrame:
+
         pass
 
     def query_target_data(self, config: ReconcileRequest) -> DataFrame:

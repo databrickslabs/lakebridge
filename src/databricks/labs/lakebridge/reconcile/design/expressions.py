@@ -49,6 +49,10 @@ class ExpressionBuilder:
         self._transformations.append(transform)
         return self
 
+    def concat(self, other: "ExpressionBuilder"):
+        pass
+
+
 def coalesce(column: ExpressionBuilder, default=0, is_string=False) -> ExpressionBuilder:
     expressions = [e.Literal(this=default, is_string=is_string)]
     return column.transform(e.Coalesce, expressions=expressions)
