@@ -23,17 +23,17 @@ class ExpressionBuilder:
 
     def build(self) -> str:
         if self._table_name:
-            id_exp = e.Identifier(this=self.column_name, table=self._table_name)
+            column = e.Column(this=self._column_name, table=self._table_name)
         else:
-            id_exp = e.Identifier(this=self.column_name)
-        column = e.Column(this=id_exp)
-        exp = self._apply_transformations(column)
-        return exp.sql(dialect=self._dialect)
+            column = e.Column(this=self._column_name, quoted=False)
+        transformed = self._apply_transformations(column)
+        select_stmt = e.select(transformed).sql(dialect=self._dialect)
+        return select_stmt.removeprefix("SELECT ") # return only column with the transformations
 
     def _apply_transformations(self, column: e.Column) -> e.Expression:
         exp = column
         for transformation in self._transformations:
-            exp = transformation.func(exp.copy(), **transformation.args) # add error handling
+            exp = transformation.func(this=exp.copy(), **transformation.args) # add error handling
         return exp
 
     def column_name(self, name: str):
