@@ -37,7 +37,7 @@ def test_oracle_db_reconcile(mock_spark, mock_workspace_client, tmp_path):
     databricks = DatabricksSession.builder.getOrCreate()
     databricks_data_source = DatabricksDataSourceUnderTest(databricks, mock_workspace_client, mock_spark)
     oracle_data_source = OracleDataSourceUnderTest(mock_spark, mock_workspace_client)
-    report = "all"
+    report = "row"
     db_config = DatabaseConfig(
         source_schema="SYSTEM",
         target_catalog="main",

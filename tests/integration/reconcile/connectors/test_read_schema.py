@@ -32,7 +32,7 @@ class TSQLServerDataSourceUnderTest(TSQLServerDataSource):
 class OracleDataSourceUnderTest(OracleDataSource):
     def __init__(self, spark, ws):
         super().__init__(get_dialect("oracle"), spark, ws, "secret_scope")
-        self._test_env = TestEnvGetter(True)
+        self._test_env = TestEnvGetter(False)
 
     @property
     def get_jdbc_url(self) -> str:
