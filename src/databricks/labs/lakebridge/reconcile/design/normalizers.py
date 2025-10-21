@@ -177,6 +177,9 @@ class DialectNormalizer(ABC):
 
     dialect: e.DialectType
 
+    def __init__(self, registry: NormalizersRegistry):
+        self._registry = registry
+
     @classmethod
     def type_normalizers(cls) -> DbTypeNormalizerType:
         return {
@@ -188,13 +191,13 @@ class DialectNormalizer(ABC):
             ColumnTypeName("VARCHAR2"): UStringTypeNormalizer.utype().name,
         }
 
-    def normalize(self, column_def: ExternalColumnDefinition, registry: NormalizersRegistry) -> e.ExpressionBuilder:
-        start = e.ExpressionBuilder(column_def.column_name, self.dialect, None)
-        for normalizer in registry.get_universal_normalizers():
+    def normalize(self, column_def: ExternalColumnDefinition) -> e.ExpressionBuilder:
+        start = e.ExpressionBuilder(column_def.column_name, self.dialect)
+        for normalizer in self._registry.get_universal_normalizers():
             start = normalizer.normalize(start, self.dialect, column_def)
         utype = self.type_normalizers().get(column_def.data_type.name)
         if utype:
-            normalizer = registry.get_type_normalizer(utype)
+            normalizer = self._registry.get_type_normalizer(utype)
             if normalizer:
                 return normalizer.normalize(start, self.dialect, column_def)
         return start
@@ -213,8 +216,8 @@ if __name__ == "__main__":
     registry.register_normalizer(UStringTypeNormalizer())
     # registry.register_normalizer(HandleNullsAndTrimNormalizer())
     registry.register_normalizer(QuoteIdentifierNormalizer())
-    oracle = OracleNormalizer()
-    snow = SnowflakeNormalizer()
+    oracle = OracleNormalizer(registry)
+    snow = SnowflakeNormalizer(registry)
 
     column = ExternalColumnDefinition("student_id", ExternalType(ColumnTypeName["NCHAR"]))
 
@@ -222,5 +225,14 @@ if __name__ == "__main__":
     assert oracle_column == "COALESCE(TRIM(\"student_id\"), '__null_recon__')"
     snow_column = snow.normalize(column, registry).build()
     assert snow_column == "COALESCE(TRIM(\"student_id\"), '__null_recon__')"
+
+
+"""
+1. source system
+2. target system
+3. datatype
+4. encoding
+5. query
+"""
 
 

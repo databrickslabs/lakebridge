@@ -2,9 +2,14 @@ import dataclasses
 from abc import ABC
 
 from pyspark.sql import DataFrame
+from pyspark.sql.functions import col
 
 from databricks.labs.lakebridge.reconcile.connectors.data_source import DataSource
-from databricks.labs.lakebridge.reconcile.design.normalizers import DialectNormalizer
+from databricks.labs.lakebridge.reconcile.design.expressions import HashExpressionsBuilder, DialectType, QueryBuilder
+from databricks.labs.lakebridge.reconcile.design.normalizers import DialectNormalizer, ExternalColumnDefinition, \
+    NormalizersRegistry
+from databricks.labs.lakebridge.reconcile.design.utypes import ExternalType, ColumnTypeName
+from databricks.labs.lakebridge.reconcile.recon_config import Table, Schema
 
 
 @dataclasses.dataclass
@@ -23,6 +28,7 @@ class ReconcileOutput:
 @dataclasses.dataclass
 class ReconcileLayerContext:
     layer: str
+    dialect: DialectType
     source: DataSource
     normalizer: DialectNormalizer
 
@@ -32,6 +38,7 @@ class ReconcileRequest:
     reconcile_type: str
     source_context: ReconcileLayerContext
     target_context: ReconcileLayerContext
+    config: Table
 
 class Reconcile:
 
@@ -40,6 +47,7 @@ class Reconcile:
 
 class ComparisonStrategy(ABC):
     name: str
+    registry: NormalizersRegistry
 
     def query_source_data(self, config: ReconcileRequest) -> DataFrame:
         pass
@@ -47,11 +55,12 @@ class ComparisonStrategy(ABC):
     def query_target_data(self, config: ReconcileRequest) -> DataFrame:
         pass
 
-    def compare_data(self, source_data: DataFrame, target_data: DataFrame) -> ReconcileOutput:
+    def compare_data(self, config: ReconcileRequest, source_data: DataFrame, target_data: DataFrame) -> ReconcileOutput:
         pass
 
     def execute(self, config: ReconcileRequest) -> ReconcileOutput:
         return self.compare_data(
+            config,
             self.query_source_data(config),
             self.query_target_data(config)
         )
@@ -73,15 +82,43 @@ class ComparisonStrategy(ABC):
 class HashBasedComparisonStrategy(ComparisonStrategy):
     name = "row"
 
-    def query_source_data(self, config: ReconcileRequest) -> DataFrame:
+    hash_column_name = "hash_value_recon"
 
-        pass
+    def build_query(self, layer: ReconcileLayerContext, schema: list[Schema], config: Table):
+        columns =  [ExternalColumnDefinition(s.column_name, ExternalType(ColumnTypeName(s.data_type))) for s in schema]
+        normalized = [layer.normalizer.normalize(c) for c in columns]
+
+        join_columns = [jc for jc in normalized if jc.column_name in config.join_columns]
+        hashed = HashExpressionsBuilder(layer.dialect, normalized).alias(self.hash_column_name)
+        select_cols = join_columns.copy()
+        select_cols.append(hashed)
+        query = QueryBuilder(layer.dialect, select_cols)
+        return query
+
+    def query_source_data(self, config: ReconcileRequest) -> DataFrame:
+        source_table_fqn = ".".join(["catalog", "schema", config.config.source_name]) # FIXME implement
+        schema = config.source_context.source.get_schema(None, "", source_table_fqn, False)
+        query = self.build_query(config.source_context, schema, config.config)
+        df = config.source_context.source.read_data(None, "", source_table_fqn, query.build(), config.config.jdbc_reader_options)
+        df = df.alias("src")
+        return df
 
     def query_target_data(self, config: ReconcileRequest) -> DataFrame:
-        pass
+        target_table_fqn = ".".join(["catalog", "schema", config.config.target_name]) # FIXME implement
+        schema = config.source_context.source.get_schema(None, "", target_table_fqn, False)
+        query = self.build_query(config.target_context, schema, config.config)
+        df = config.source_context.source.read_data(None, "", target_table_fqn, query.build(), config.config.jdbc_reader_options)
+        df = df.alias("tgt")
+        return df
 
-    def compare_data(self, source_data: DataFrame, target_data: DataFrame) -> ReconcileOutput:
-        pass
+    def compare_data(self, config: ReconcileRequest, source_data: DataFrame, target_data: DataFrame) -> ReconcileOutput:
+        joined = source_data.join(target_data,
+                         col(f"src.{self.hash_column_name}") == col(f"tgt.{self.hash_column_name}"),
+                         'outer')
+
+        successful = joined.count() == source_data.count() == target_data.count() # Very basic comparison for now
+        sample = max(1.0, 100/joined.count())
+        return ReconcileOutput(successful, self.name, config.recon_id, {"sample_output": joined.sample(sample, 42).collect()})
 
 class AggregateComparisonStrategy(ComparisonStrategy):
     name = "aggregate"
