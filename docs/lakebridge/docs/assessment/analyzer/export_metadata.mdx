@@ -9,7 +9,7 @@ Analyzer expects all the legacy code to be exported into a folder accessible by 
 All the major ETL platforms provide some kind of export of their code repositories. Typically this is done into XML or JSON formats which can be used to restore the environment. Here is a short guide for how to export metadata from various platforms:
 
 ## Microsoft SQL Server
-To extract metadata like Table, View, and Stored Procedures DDLs, you can use Microsoft SQL Server Management Studio (SSMS). 
+To extract metadata like Table, View, and Stored Procedures DDLs, you can use Microsoft SQL Server Management Studio (SSMS).
 * In Object Explorer, expand the node for the instance containing the database to be scripted.
 * Right-click on the database you want to script, and select Tasks > Generate Scripts.
   <img src={useBaseUrl('img/sql-server-export-object-explorer.png')} style={{ width: 500 }} alt="sql-server-export-object-explorer" />
@@ -20,13 +20,13 @@ To extract metadata like Table, View, and Stored Procedures DDLs, you can use Mi
   <img src={useBaseUrl('img/sql-server-export-set-scripting-options.png')} style={{ width: 500 }} alt="sql-server-export-set-scripting-options" />
 See https://learn.microsoft.com/en-us/ssms/scripting/generate-and-publish-scripts-wizard for more details on how to use the Generate Scripts wizard in SSMS.
 
-## Azure Synapse (Dedicated) 
+## Azure Synapse (Dedicated)
 Follow the same steps as for Microsoft SQL Server above.  The only difference is that you will need to connect to the Synapse Dedicated SQL pool instead of a regular SQL Server instance.
 
 ## Azure Synapse (Serverless)
 If you use Synapse Studio and have your SQL code saved in SQL scripts, you can export the files with the [Export-AzSynapseSqlScript PowerShell cmdlet](https://learn.microsoft.com/en-us/powershell/module/az.synapse/export-azsynapsesqlscript?view=azps-14.2.0&viewFallbackFrom=azps-13.4.0). This method requires [Azure PowerShell modules](https://learn.microsoft.com/en-us/powershell/azure/install-Az-ps?view=azps-0.10.0).<br/>
 
-Otherwise, you can use Microsoft SQL Server Management Studio (SSMS) to extract metadata like Table, View, and Stored Procedures DDLs. 
+Otherwise, you can use Microsoft SQL Server Management Studio (SSMS) to extract metadata like Table, View, and Stored Procedures DDLs.
 * Select “Object Explorer Details” under the View button in the toolbar
   <img src={useBaseUrl('img/synapse-objects-explorer-view.png')} alt="synapse-objects-explorer-view" />
 * For each object type, select the required objects to export and right-click on the selection to choose “Script as” > “CREATE To” > “File” as pictured below. <br/>
@@ -35,7 +35,7 @@ Otherwise, you can use Microsoft SQL Server Management Studio (SSMS) to extract 
 ## PowerCenter
 
 * **Overview**<br/>
-  To run the BladeBridge analyzer or converters on Informatica XMLs, the XML file first need to be extracted out of the PowerCenter repository. Typically, it is easier to deal with the analysis and conversion of a relatively granular level, so extracting the artifacts at the workflow level is advisable.  Objects can be exported from Powercenter Repository Manager or using *pmrep* command
+  To run the BladeBridge analyzer on Informatica XMLs, the XML file first need to be extracted out of the PowerCenter repository. Typically, it is easier to deal with the analysis and conversion of a relatively granular level, so extracting the artifacts at the workflow level is advisable.  Objects can be exported from Powercenter Repository Manager or using *pmrep* command
 
 * **Metadata Extraction**<br/>
   To extract the metadata out of PowerCenter repository, use the following commands:
