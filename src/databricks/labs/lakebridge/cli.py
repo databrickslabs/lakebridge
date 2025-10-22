@@ -15,7 +15,7 @@ from databricks.sdk.service.sql import CreateWarehouseRequestWarehouseType
 from databricks.sdk import WorkspaceClient
 
 from databricks.labs.blueprint.cli import App
-from databricks.labs.blueprint.entrypoint import get_logger, is_in_debug
+from databricks.labs.blueprint.entrypoint import is_in_debug
 from databricks.labs.blueprint.installation import RootJsonValue, JsonObject, JsonValue
 from databricks.labs.blueprint.tui import Prompts
 
@@ -51,9 +51,14 @@ class Lakebridge(App):
         self._patch_databricks_host()
         return self._workspace_client()
 
+    def get_logger(self) -> logging.Logger:
+        _logger = self._logger
+        _logger.setLevel(logging.INFO)
+        return _logger
+
 
 lakebridge = Lakebridge(__file__)
-logger = get_logger(__file__)
+logger = lakebridge.get_logger()
 
 
 def raise_validation_exception(msg: str) -> NoReturn:
@@ -811,6 +816,8 @@ def analyze(
 
 
 if __name__ == "__main__":
-    lakebridge()
+    app = lakebridge
+    logger = app.get_logger()
+    app()
     if is_in_debug():
         logger.setLevel(logging.DEBUG)
