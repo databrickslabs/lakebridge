@@ -61,9 +61,6 @@ with the full path. Otherwise, the converter will look for the file in the same 
 
 ```
     Name of the various files per source you might want to inherit from:
-      - INFAPC:
-          - Target SPARKSQL: "base_infapc2databricks_sparksql.json",
-          - Target PYSPARK : "base_infapc2databricks_pyspark.json"
       - DATASTAGE:
           - Target SPARKSQL : "base_datastage2databricks_sparksql.json",
           - Target PYSPARK : "base_datastage2databricks_pyspark.json"
@@ -456,12 +453,12 @@ ETL configuration thus serves as the orchestration layer that combines rule-base
 | use_notebook_md                               | Indicates whether Databricks notebook markdown should be used.                         | 1                                                                      |
 | script_header                                 | Adds a code block at the start of the generated script, often for imports or metadata. | # Databricks notebook source\n from datetime import datetime       |
 | script_footer                                 | Adds a code block at the end of the generated script | quit()      |
-| rowid_expression                              | Specifies the expression used to compute a row ID.  This is needed for InfaPC because of the way InfaPC links nodes in a mapping                                     | xxhash64(%DELIMITED_COLUMN_LIST%) as %ROWID_COL_NAME%                  |
+| rowid_expression                              | Specifies the expression used to compute a row ID.                                       | xxhash64(%DELIMITED_COLUMN_LIST%) as %ROWID_COL_NAME%                  |
 | rowid_column_name | Name of the column containing rowid | source_record_id |
 | dataset_creation_method                       | Indicates whether datasets are created as CTEs or tables.  <br/>"TABLE" is typically used for lift and shift, but "CTE" can be used for custom dbt outputs                            | TABLE or CTE                                                                 |
 | table_creation_statement                      | Template for creating a temporary table from a SQL block.                              | %TABLE_NAME% = spark.sql (rf\"\"\"%INNER_SQL%\"\"\"%FORMAT_SPEC%)<br/> %TABLE_NAME%. createOrReplaceTempView(\"`%TABLE_NAME%`\")  |
 | ddl_statement_wrap                            | Wraps DDL statements in a Spark SQL invocation.                                        | spark.sql(f"""%INNER_SQL%"""%FORMAT_SPEC%).display()                   |
-| etl_converter_config_file                     | Points to a secondary config file for ETL expression conversion.                       | infa2databricks.json                                                   |
+| etl_converter_config_file                     | Points to a secondary config file for ETL expression conversion.                       | base_datastage2databricks_pyspark.json                                                   |
 | commands | section on how to generate various read and write statements for different system types |
 | system_type_class | system type classifications |
 | conform_source_columns | instructs the writer to generate column-conforming statement for sources |

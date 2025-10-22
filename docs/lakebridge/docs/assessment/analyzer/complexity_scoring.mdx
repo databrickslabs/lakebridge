@@ -36,32 +36,6 @@ If the analyzer encounters a SQL procedure or function body inside a SQL file, i
 
 Teradata MLOAD and FLOAD scripts follow the same rules as above.
 
-## Informatica Code Analysis
-At the beginning of mapping analysis, mark mapping with complexity level of **LOW**
-
-If any of the following conditions are true, then mark the mapping as **MEDIUM** complexity:
-1. Number of expressions with 5+ function calls between 2 and 4
-2. Number of sources > 1
-3. Number of joins >= 1
-4. Number of lookups between 4 and 6
-5. Number of targets > 1
-6. Overall function call count >= 10
-7. Number of components (transformations) >= 10
-
-If any of the following conditions are true, then mark the mapping as **COMPLEX** complexity:
-1. Three MEDIUM breaks from the list above
-2. Number of expressions with 5+ function calls between 5 and 7
-3. Number of mapping components >= 20
-4. Overall function call count >= 20
-5. Complex or Unstructured nodes are being used (e.g. Normalizer)
-6. Number of lookups between 7 and 14
-
-If any of the following conditions are true, then mark the mapping as **VERY COMPLEX** complexity:
-1. Three COMPLEX breaks from the list above
-2. Number of expressions with 5+ function calls > 7
-3. Number of lookups > 15
-4. Number of job components >= 50
-
 ## DataStage Analysis
 At the beginning of job analysis, mark job with complexity level of **LOW**
 
