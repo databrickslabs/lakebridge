@@ -7,14 +7,14 @@ nchar;oracle;NVL(TRIM({}), '_null_recon_');
 nvarchar2;oracle;NVL({}, '_null_recon_');
 varchar2;oracle;NVL({}, '_null_recon_');
 text;snowflake;COALESCE({}, '_null_recon_');
-timestamp;snowflake;COALESCE(TO_VARCHAR(DATE_PART(EPOCH_MILLISECOND, {}::TIMESTAMP_NTZ)), '_null_recon_');
-TIMESTAMP_NTZ;snowflake;COALESCE(TO_VARCHAR(DATE_PART(EPOCH_MILLISECOND, {})), '_null_recon_');
-TIMESTAMP_TZ;snowflake;COALESCE(TO_VARCHAR(DATE_PART(EPOCH_MILLISECOND, {})), '_null_recon_');
-timestamp;databricks;COALESCE(CAST(unix_millis(CAST({} AS timestamp)) AS string), '_null_recon_');
-TIMESTAMP_NTZ;databricks;COALESCE(CAST(unix_millis(CAST({} AS timestamp)) AS string), '_null_recon_');
-TIMESTAMP_TZ;databricks;COALESCE(CAST(unix_millis(CAST({} AS timestamp)) AS string), '_null_recon_');
-date;tsql;COALESCE(CONVERT(varchar(10), {}, 23), '_null_recon_');      -- yyyy-MM-dd
-time;tsql;COALESCE(CONVERT(varchar(12), {}, 24), '_null_recon_');      -- HH:mm:ss
-datetime;tsql;COALESCE(CONVERT(varchar(23), {}, 126), '_null_recon_'); -- ISO-8601
+timestamp;snowflake;COALESCE(TO_VARCHAR({}, 'YYYY-MM-DD"T"HH24:MI:SS.FF3"Z"'), '_null_recon_');ISO 8601 UTC
+TIMESTAMP_NTZ;snowflake;COALESCE(TO_VARCHAR({}, 'YYYY-MM-DD"T"HH24:MI:SS.FF3"Z"'), '_null_recon_');ISO 8601 UTC
+TIMESTAMP_TZ;snowflake;COALESCE(TO_VARCHAR(CONVERT_TIMEZONE('UTC', {}), 'YYYY-MM-DD"T"HH24:MI:SS.FF3"Z"'), '_null_recon_');ISO 8601 UTC
+timestamp;databricks;COALESCE(DATE_FORMAT(CAST({} AS timestamp), "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"), '_null_recon_');ISO 8601 UTC
+TIMESTAMP_NTZ;databricks;COALESCE(DATE_FORMAT(CAST({} AS timestamp), "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"), '_null_recon_');ISO 8601 UTC
+TIMESTAMP_TZ;databricks;COALESCE(DATE_FORMAT(CAST({} AS timestamp), "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"), '_null_recon_');ISO 8601 UTC
+date;tsql;COALESCE(CONVERT(varchar(23), CAST({} AS datetime), 127), '_null_recon_');ISO 8601
+time;tsql;COALESCE(CONVERT(varchar(23), CAST({} AS datetime), 127), '_null_recon_');ISO 8601
+datetime;tsql;COALESCE(CONVERT(varchar(23), {}, 127), '_null_recon_');ISO 8601
 array;databricks;CONCAT_WS(',', ARRAY_SORT(FILTER({}, x -> x IS NOT NULL)));
 array;snowflake;ARRAY_TO_STRING(ARRAY_SORT(ARRAY_COMPACT({})), ',');
