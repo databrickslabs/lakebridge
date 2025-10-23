@@ -2,15 +2,15 @@ type;dialect;transformation;notes
 string;databricks;COALESCE({}, 'null_recon');already string
 varchar;databricks;COALESCE({}, 'null_recon');alias of string
 char;databricks;COALESCE(RTRIM({}), 'null_recon');trim padding
-timestamp;databricks;COALESCE(date_format({}, "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"), 'null_recon');assumes UTC already
+timestamp;databricks;COALESCE(date_format({}, 'yyyy-MM-ddTHH:mm:ss.SSSZ'), 'null_recon');assumes UTC already
 array;databricks;COALESCE(CONCAT_WS(',', ARRAY_SORT(FILTER({}, x -> x IS NOT NULL))), 'null_recon');filter NULLs then sort then join
 string;snowflake;COALESCE({}, 'null_recon');already string
 varchar;snowflake;COALESCE({}, 'null_recon');alias of string
 text;snowflake;COALESCE({}, 'null_recon');alias of string
 char;snowflake;COALESCE(RTRIM({}), 'null_recon');trim padding
-timestamp_ntz;snowflake;COALESCE(TO_VARCHAR({}::TIMESTAMP_NTZ, 'YYYY-MM-DD""T""HH24:MI:SS.FF3""Z""'), 'null_recon');UTC ISO-8601 with millis
-timestamp_tz;snowflake;COALESCE(TO_VARCHAR(CONVERT_TIMEZONE('UTC', {}::TIMESTAMP_TZ), 'YYYY-MM-DD""T""HH24:MI:SS.FF3""Z""'), 'null_recon');convert to UTC then format
-timestamp_ltz;snowflake;COALESCE(TO_VARCHAR(CONVERT_TIMEZONE('UTC', {}::TIMESTAMP_LTZ), 'YYYY-MM-DD""T""HH24:MI:SS.FF3""Z""'), 'null_recon');convert to UTC then format
+timestamp_ntz;snowflake;COALESCE(TO_VARCHAR({}::TIMESTAMP_NTZ, 'YYYY-MM-DDTHH24:MI:SS.FF3Z'), 'null_recon');UTC ISO-8601 with millis
+timestamp_tz;snowflake;COALESCE(TO_VARCHAR(CONVERT_TIMEZONE('UTC', {}::TIMESTAMP_TZ), 'YYYY-MM-DDTHH24:MI:SS.FF3Z'), 'null_recon');convert to UTC then format
+timestamp_ltz;snowflake;COALESCE(TO_VARCHAR(CONVERT_TIMEZONE('UTC', {}::TIMESTAMP_LTZ), 'YYYY-MM-DDTHH24:MI:SS.FF3Z'), 'null_recon');convert to UTC then format
 array;snowflake;COALESCE(ARRAY_TO_STRING(ARRAY_SORT(ARRAY_COMPACT({})), ','), 'null_recon');remove NULLs then sort then join
 string;tsql;COALESCE({}, 'null_recon');already string
 varchar;tsql;COALESCE({}, 'null_recon');alias of string
@@ -18,3 +18,8 @@ char;tsql;COALESCE(RTRIM({}), 'null_recon');trim padding
 datetime;tsql;COALESCE(CONVERT(varchar(24), CAST(TODATETIMEOFFSET(CAST({} AS datetime2(3)), '+00:00') AS datetime2(3)), 126) + 'Z', 'null_recon');assume UTC then format
 date;tsql;COALESCE(CONVERT(varchar(10), CAST({} AS date), 23), 'null_recon');YYYY-MM-DD
 time;tsql;COALESCE(CONVERT(varchar(12), CAST({} AS time(3)), 114), 'null_recon');HH:mm:ss.fff
+string;oracle;NVL({}, 'null_recon');already string
+varchar2;oracle;NVL({}, 'null_recon');already string
+nvarchar2;oracle;NVL({}, 'null_recon');already string
+char;oracle;NVL(TRIM({}), 'null_recon');trim padding
+nchar;oracle;NVL(TRIM({}), 'null_recon');trim padding
