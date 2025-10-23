@@ -1,0 +1,18 @@
+type;dialect;transformation;notes
+string;all;coalesce(cast({} as string),'_null_recon_');do we need the cast?
+varchar;snowflake;coalesce(cast({} as string),'_null_recon_');do we need the cast?
+char;snowflake;coalesce(cast({} as string),'_null_recon_');do we need the cast?
+text;snowflake;coalesce(cast({} as string),'_null_recon_');do we need the cast?
+char;oracle;NVL(TRIM(TO_CHAR({})),'_null_recon_');
+nchar;oracle;NVL(TRIM(TO_CHAR({})),'_null_recon_');
+timestamp;snowflake;coalesce(cast(EXTRACT(epoch_millisecond FROM {}) as string), '_null_recon_');
+TIMESTAMP_NTZ;snowflake;coalesce(cast(EXTRACT(epoch_millisecond FROM {}) as string), '_null_recon_');
+TIMESTAMP_TZ;snowflake;coalesce(cast(EXTRACT(epoch_millisecond FROM {}) as string), '_null_recon_');
+timestamp;databricks;coalesce(cast( unix_millis(cast({i[0]} as timestamp)) as string), '_null_recon_');
+TIMESTAMP_NTZ;databricks;coalesce(cast( unix_millis(cast({i[0]} as timestamp)) as string), '_null_recon_');
+TIMESTAMP_TZ;databricks;coalesce(cast( unix_millis(cast({i[0]} as timestamp)) as string), '_null_recon_')
+date;tsql;COALESCE(CONVERT(DATE, {}, 101), '1900-01-01');
+time;tsql;COALESCE(CONVERT(TIME, {}, 108), '00:00:00');
+datetime;tsql;COALESCE(CONVERT(DATETIME, {}, 120), '1900-01-01 00:00:00');
+array;databricks;CONCAT_WS(',', SORT_ARRAY({}));
+array;snowflake;ARRAY_TO_STRING(ARRAY_SORT(my_array_column), ',');
