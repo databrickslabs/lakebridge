@@ -7,14 +7,14 @@ nchar;oracle;NVL(TRIM({}), '_null_recon_');
 nvarchar2;oracle;NVL({}, '_null_recon_');
 varchar2;oracle;NVL({}, '_null_recon_');
 text;snowflake;COALESCE({}, '_null_recon_');
-timestamp;snowflake;COALESCE(TO_VARCHAR({}, 'YYYY-MM-DD"T"HH24:MI:SS.FF3"Z"'), '_null_recon_');ISO 8601 UTC
-TIMESTAMP_NTZ;snowflake;COALESCE(TO_VARCHAR({}, 'YYYY-MM-DD"T"HH24:MI:SS.FF3"Z"'), '_null_recon_');ISO 8601 UTC
+timestamp;snowflake;COALESCE(TO_VARCHAR(CONVERT_TIMEZONE('UTC', {}::TIMESTAMP_NTZ), 'YYYY-MM-DD"T"HH24:MI:SS.FF3"Z"'), '_null_recon_');ISO 8601 UTC
+TIMESTAMP_NTZ;snowflake;COALESCE(TO_VARCHAR({}, 'YYYY-MM-DD"T"HH24:MI:SS.FF3"Z"'), '_null_recon_');ISO 8601 UTC (no TZ conversion needed)
 TIMESTAMP_TZ;snowflake;COALESCE(TO_VARCHAR(CONVERT_TIMEZONE('UTC', {}), 'YYYY-MM-DD"T"HH24:MI:SS.FF3"Z"'), '_null_recon_');ISO 8601 UTC
-timestamp;databricks;COALESCE(DATE_FORMAT(CAST({} AS timestamp), "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"), '_null_recon_');ISO 8601 UTC
-TIMESTAMP_NTZ;databricks;COALESCE(DATE_FORMAT(CAST({} AS timestamp), "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"), '_null_recon_');ISO 8601 UTC
-TIMESTAMP_TZ;databricks;COALESCE(DATE_FORMAT(CAST({} AS timestamp), "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"), '_null_recon_');ISO 8601 UTC
-date;tsql;COALESCE(CONVERT(varchar(23), CAST({} AS datetime), 127), '_null_recon_');ISO 8601
-time;tsql;COALESCE(CONVERT(varchar(23), CAST({} AS datetime), 127), '_null_recon_');ISO 8601
-datetime;tsql;COALESCE(CONVERT(varchar(23), {}, 127), '_null_recon_');ISO 8601
-array;databricks;CONCAT_WS(',', ARRAY_SORT(FILTER({}, x -> x IS NOT NULL)));
-array;snowflake;ARRAY_TO_STRING(ARRAY_SORT(ARRAY_COMPACT({})), ',');
+timestamp;databricks;COALESCE(DATE_FORMAT(to_utc_timestamp(CAST({} AS timestamp), current_timezone()), "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"), '_null_recon_');ISO 8601 UTC
+TIMESTAMP_NTZ;databricks;COALESCE(DATE_FORMAT(CAST({} AS timestamp), "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"), '_null_recon_');ISO 8601 UTC (no TZ)
+TIMESTAMP_TZ;databricks;COALESCE(DATE_FORMAT(to_utc_timestamp(CAST({} AS timestamp), 'UTC'), "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"), '_null_recon_');ISO 8601 UTC
+date;tsql;COALESCE(CONVERT(varchar(24), CAST({} AS datetime), 127) + 'Z', '_null_recon_');ISO 8601 with UTC
+time;tsql;COALESCE(CONVERT(varchar(24), CAST({} AS datetime), 127) + 'Z', '_null_recon_');ISO 8601 with UTC
+datetime;tsql;COALESCE(CONVERT(varchar(24), {}, 127) + 'Z', '_null_recon_');ISO 8601 with UTC (assumes UTC)
+array;databricks;COALESCE(CONCAT_WS(',', ARRAY_SORT(FILTER({}, x -> x IS NOT NULL))), '_null_recon_');sorted, nulls filtered
+array;snowflake;COALESCE(ARRAY_TO_STRING(ARRAY_SORT(ARRAY_COMPACT({})), ','), '_null_recon_');sorted, nulls removed
