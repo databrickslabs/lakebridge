@@ -1,0 +1,134 @@
+# ============================================================================
+# TEMPORAL TYPE TRANSFORMATIONS
+# ============================================================================
+# This file defines all transformations for date, time, and timestamp types
+# across supported database dialects.
+# ============================================================================
+
+version: "1.0.0"
+category_name: "temporal"
+description: >
+    Temporal types represent points in time or durations. This category
+    covers DATE (calendar dates), TIME (time of day), TIMESTAMP (date+time),
+    TIMESTAMPTZ (with timezone), and INTERVAL (duration) types.
+
+type_classes:
+    - "DATE"
+    - "TIME"
+    - "TIMESTAMP"
+    - "TIMESTAMPTZ"
+    - "TIMESTAMPNTZ"
+    - "DATETIME"
+    - "INTERVAL"
+    - "YEAR"
+
+supported_dialects:
+    - "databricks"
+    - "sqlserver"
+    - "oracle"
+    - "snowflake"
+
+# ----------------------------------------------------------------------------
+# TRANSFORMATIONS
+# ----------------------------------------------------------------------------
+transformations:
+
+    date_to_iso8601:
+        description: >
+            Normalize DATE types to ISO 8601 string format (YYYY-MM-DD).
+            This is the most portable and human-readable date format.
+
+        dialects:
+            all:
+                types: ["DATE"]
+                sql: "TO_CHAR({}, 'YYYY-MM-DD')"
+
+            sqlserver:
+                types: ["DATE"]
+                sql: "CONVERT(VARCHAR(10), {}, 23)"
+                notes: "Style 23 = ISO 8601 format (YYYY-MM-DD)"
+
+        test_cases:
+            - name: "standard_date"
+              input: "2025-10-24"
+              expected_output: "2025-10-24"
+
+            - name: "leap_year_date"
+              input: "2024-02-29"
+              expected_output: "2024-02-29"
+
+            - name: "null_handling"
+              input: null
+              expected_output: null
+
+    timestamp_to_iso8601:
+        description: >
+            Normalize TIMESTAMP types (without timezone) to ISO 8601 string format
+            with microsecond precision (YYYY-MM-DD HH:MI:SS.ffffff).
+
+        dialects:
+            snowflake:
+                types: ["TIMESTAMP_NTZ", "TIMESTAMP_TZ"]
+                sql: "TO_VARCHAR({}, 'YYYY-MM-DD HH24:MI:SS.FF6')"
+                notes: "FF6 = fractional seconds with 6 digits"
+
+            oracle:
+                types: ["TIMESTAMP"]
+                sql: "TO_CHAR({}, 'YYYY-MM-DD HH24:MI:SS.FF6')"
+
+            sqlserver:
+                types: ["DATETIME2", "DATETIME", "SMALLDATETIME"]
+                sql: "CONVERT(VARCHAR(27), {}, 121)"
+                notes: "Style 121 = ODBC canonical format with milliseconds"
+
+            databricks:
+                types: ["TIMESTAMP"]
+                sql: "DATE_FORMAT({}, 'yyyy-MM-dd HH:mm:ss.SSSSSS')"
+                notes: "Databricks uses Java SimpleDateFormat patterns"
+
+        test_cases:
+            - name: "standard_timestamp"
+              input: "2025-10-24 13:45:30.123456"
+              expected_output: "2025-10-24 13:45:30.123456"
+
+            - name: "midnight_timestamp"
+              input: "2025-01-01 00:00:00.000000"
+              expected_output: "2025-01-01 00:00:00.000000"
+
+            - name: "end_of_day"
+              input: "2025-12-31 23:59:59.999999"
+              expected_output: "2025-12-31 23:59:59.999999"
+
+        limitations:
+            - "SQL Server DATETIME limited to 3.33ms precision, use DATETIME2 for microseconds"
+            - "Precision varies by dialect version"
+
+    timestamp_to_utc:
+        description: >
+            Normalize timezone-aware timestamps to UTC ISO 8601 format.
+            Ensures all timestamps are comparable regardless of source timezone.
+
+        dialects:
+            snowflake:
+                types: ["TIMESTAMP_TZ"]
+                sql: "TO_VARCHAR(CONVERT_TIMEZONE('UTC', {}), 'YYYY-MM-DD HH24:MI:SS.FF6')"
+
+            oracle:
+                types: ["TIMESTAMP WITH TIME ZONE", "TIMESTAMP WITH LOCAL TIME ZONE"]
+                sql: "TO_CHAR(SYS_EXTRACT_UTC({}), 'YYYY-MM-DD HH24:MI:SS.FF6')"
+
+            sqlserver:
+                types: ["DATETIMEOFFSET"]
+                sql: "CONVERT(VARCHAR(33), SWITCHOFFSET({}, '+00:00'), 127)"
+                notes: "SWITCHOFFSET converts to UTC, style 127 = ISO 8601"
+
+        test_cases:
+            - name: "utc_timestamp"
+              dialect: "snowflake"
+              input: "2025-10-24 13:45:30.123456+00:00"
+              expected_output: "2025-10-24 13:45:30.123456"
+
+            - name: "est_to_utc"
+              dialect: "snowflake"
+              input: "2025-10-24 09:45:30.123456-04:00"
+              expected_output: "2025-10-24 13:45:30.123456"
