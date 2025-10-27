@@ -608,21 +608,6 @@ def configure_database_profiler() -> None:
     assessment.run()
 
 
-@lakebridge.command()
-def create_profiler_dashboard(
-    *,
-    w: WorkspaceClient,
-    extract_file: str,
-    source_tech: str,
-    catalog_name: str,
-    schema_name: str,
-) -> None:
-    """Deploys a profiler summary as an AI/BI dashboard."""
-    with_user_agent_extra("cmd", "create-profiler-dashboard")
-    ctx = ApplicationContext(w)
-    ctx.dashboard_manager.create_profiler_summary_dashboard(extract_file, source_tech, catalog_name, schema_name)
-
-
 @lakebridge.command
 def install_transpile(
     *,
