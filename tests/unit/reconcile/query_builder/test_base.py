@@ -19,6 +19,7 @@ def test_use_default_transformations_for_bogus_input(table_conf, mock_data_sourc
 
     assert result != exps
 
+
 def test_use_type_transformations(table_conf, mock_data_source):
     conf = table_conf()
     engine = get_dialect("databricks")
