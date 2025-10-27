@@ -18,3 +18,14 @@ def test_use_default_transformations_for_bogus_input(table_conf, mock_data_sourc
     result = builder.add_transformations(exps, engine)
 
     assert result != exps
+
+def test_use_type_transformations(table_conf, mock_data_source):
+    conf = table_conf()
+    engine = get_dialect("databricks")
+    schema = [Schema("`col1`", "ARRAY", "`col1`", "`col1`")]
+    exps = [build_column("`col1`")]
+    builder = QueryBuilderUnderTest(conf, schema, "source", engine, mock_data_source)
+
+    result = builder.add_transformations(exps, engine)
+
+    assert result != exps
