@@ -110,3 +110,27 @@ lakebridge:
                         - name: "standard_time"
                           input: "13:45:30"
                           expected_output: "13:45:30"
+
+        numeric:
+            description: >
+                Numeric types represent numbers, including integers, decimals, and floating‑point values.
+
+            # Per-category dialect type mapping -> canonical numeric classes
+            type_map:
+                canonical_classes: ["INTEGER", "DECIMAL", "FLOAT"]
+                tsql: # implement
+                    INTEGER: []
+                    DECIMAL: []
+                    FLOAT: []
+                oracle:
+                    INTEGER: []
+                    DECIMAL: ["NUMBER"]
+                    FLOAT: ["BINARY_DOUBLE", "BINARY_FLOAT"]
+                snowflake: # implement
+                    INTEGER: []
+                    DECIMAL: []
+                    FLOAT: []
+                databricks:
+                    INTEGER: ["TINYINT", "SMALLINT", "INT", "BIGINT"]
+                    DECIMAL: ["DECIMAL"]
+                    FLOAT: ["FLOAT", "DOUBLE"]
