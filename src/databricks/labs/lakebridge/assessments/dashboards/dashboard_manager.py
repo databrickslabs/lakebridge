@@ -1,9 +1,11 @@
+import io
 import os
 import json
 
 import logging
 from pathlib import Path
 
+from databricks.sdk.errors import PermissionDenied, NotFound, InternalError
 from databricks.sdk.errors.platform import ResourceAlreadyExists, DatabricksError
 from databricks.sdk.service.dashboards import Dashboard
 from databricks.sdk.service.iam import User
@@ -47,10 +49,8 @@ class DashboardManager:
 
     _DASHBOARD_NAME = "Lakebridge Profiler Assessment"
 
-    def __init__(self, ws: WorkspaceClient, current_user: User, is_debug: bool = False):
+    def __init__(self, ws: WorkspaceClient, is_debug: bool = False):
         self._ws = ws
-        self._current_user = current_user
-        self._dashboard_location = f"/Workspace/Users/{self._current_user}/Lakebridge/Dashboards"
         self._is_debug = is_debug
 
     @staticmethod
@@ -127,3 +127,45 @@ class DashboardManager:
         self._create_or_replace_dashboard(
             folder=template_folder, ws_parent_path=ws_path, dest_catalog=catalog_name, dest_schema=schema_name
         )
+
+    def upload_duckdb_to_uc_volume(self, local_file_path, volume_path):
+        """
+        Upload a DuckDB file to Unity Catalog Volume
+        Args:
+            local_file_path (str): Local path to the DuckDB file
+            volume_path (str): Target path in UC Volume (e.g., '/Volumes/catalog/schema/volume/myfile.duckdb')
+        Returns:
+            bool: True if successful, False otherwise
+        """
+
+        # Validate inputs
+        if not os.path.exists(local_file_path):
+            logger.error(f"Local file not found: {local_file_path}")
+            return False
+
+        if not volume_path.startswith('/Volumes/'):
+            logger.error("Volume path must start with '/Volumes/'")
+            return False
+
+        try:
+            with open(local_file_path, 'rb') as f:
+                file_bytes = f.read()
+                binary_data = io.BytesIO(file_bytes)
+                self._ws.files.upload(volume_path, binary_data, overwrite=True)
+            logger.info(f"Successfully uploaded {local_file_path} to {volume_path}")
+            return True
+        except FileNotFoundError as e:
+            logger.error(f"Profiler extract file was not found: \n{e}")
+            return False
+        except PermissionDenied as e:
+            logger.error(f"Insufficient privileges detected while accessing Volume path: \n{e}")
+            return False
+        except NotFound as e:
+            logger.error(f"Invalid Volume path provided: \n{e}")
+            return False
+        except InternalError as e:
+            logger.error(f"Internal Databricks error while uploading extract file: \n{e}")
+            return False
+        except Exception as e:
+            logger.error(f"Failed to upload file: {str(e)}")
+            return False

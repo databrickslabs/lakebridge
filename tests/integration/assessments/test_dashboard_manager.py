@@ -1,24 +1,60 @@
+import io
+
 import pytest
+from unittest.mock import create_autospec, MagicMock, patch
+from databricks.sdk import WorkspaceClient
 
-from .utils.profiler_extract_utils import build_mock_synapse_extract
-
-
-@pytest.fixture(scope="module")
-def mock_synapse_profiler_extract():
-    synapse_extract_path = build_mock_synapse_extract("mock_profiler_extract")
-    return synapse_extract_path
+from databricks.labs.lakebridge.assessments.dashboards.dashboard_manager import DashboardManager
 
 
-# Step One:
-# Fetch environment variables for Databricks workspace URL, token, catalog, schema, volume name
-# This will be moved into CLI prompts
+@pytest.fixture
+def dashboard_manager():
+    workspace_client = create_autospec(WorkspaceClient)
+    return DashboardManager(ws=workspace_client, is_debug=True)
 
-# Step Two:
-# Test that the DuckDB file can be uploaded to a target UC Volume
-# TODO: Create class/function for uploading Duck DB file
 
-# Step Three:
-# Test that the job can be deployed to Databricks workspace
+@patch("os.path.exists")
+def test_upload_duckdb_to_uc_volume_file_not_found(mock_exists, dashboard_manager):
+    mock_exists.return_value = False
+    result = dashboard_manager.upload_duckdb_to_uc_volume("non_existent_file.duckdb",
+                                                          "/Volumes/catalog/schema/volume/myfile.duckdb")
+    assert result is False
+    dashboard_manager._ws.files.upload.assert_not_called()
 
-# Step Four:
-# Test that the dashboard can be deployed to the workspace
+
+def test_upload_duckdb_to_uc_volume_invalid_volume_path(dashboard_manager):
+    result = dashboard_manager.upload_duckdb_to_uc_volume("file.duckdb",
+                                                          "invalid_path/myfile.duckdb")
+    assert result is False
+    dashboard_manager._ws.files.upload.assert_not_called()
+
+
+@patch("os.path.exists")
+@patch("builtins.open", new_callable=MagicMock)
+def test_upload_duckdb_to_uc_volume_success(mock_open, mock_exists, dashboard_manager):
+    mock_exists.return_value = True
+    mock_open.return_value.__enter__.return_value.read.return_value = b"test_data"
+    dashboard_manager._ws.files.upload = MagicMock()
+
+    result = dashboard_manager.upload_duckdb_to_uc_volume("file.duckdb",
+                                                          "/Volumes/catalog/schema/volume/myfile.duckdb")
+    assert result is True
+    dashboard_manager._ws.files.upload.assert_called_once()
+    args, kwargs = dashboard_manager._ws.files.upload.call_args
+    assert args[0] == "/Volumes/catalog/schema/volume/myfile.duckdb"
+    assert isinstance(args[1], io.BytesIO)
+    assert args[1].getvalue() == b"test_data"
+    assert kwargs["overwrite"] is True
+
+
+@patch("os.path.exists")
+@patch("builtins.open", new_callable=MagicMock)
+def test_upload_duckdb_to_uc_volume_failure(mock_open, mock_exists, dashboard_manager):
+    mock_exists.return_value = True
+    mock_open.return_value.__enter__.return_value.read.return_value = b"test_data"
+    dashboard_manager._ws.files.upload = MagicMock(side_effect=Exception("Upload failed"))
+
+    result = dashboard_manager.upload_duckdb_to_uc_volume("file.duckdb",
+                                                          "/Volumes/catalog/schema/volume/myfile.duckdb")
+    assert result is False
+    dashboard_manager._ws.files.upload.assert_called_once()
