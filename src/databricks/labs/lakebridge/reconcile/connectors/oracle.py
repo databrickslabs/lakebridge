@@ -49,7 +49,7 @@ class OracleDataSource(DataSource, SecretsMixin, JDBCReaderMixin):
     @property
     def get_jdbc_url(self) -> str:
         return (
-            f"jdbc:{OracleDataSource._DRIVER}:thin@//{self._get_secret('host')}"
+            f"jdbc:{OracleDataSource._DRIVER}:thin:@//{self._get_secret('host')}"
             f":{self._get_secret('port')}/{self._get_secret('database')}"
         )
 
