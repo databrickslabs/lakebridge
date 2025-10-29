@@ -80,7 +80,7 @@ def reconcile_data(
 
     # Write unmatched df to volume
     df = ReconIntermediatePersist(spark, path).write_and_read_unmatched_df_with_volumes(df)
-    logger.warning(f"Unmatched data was written to {path} successfully")
+    logger.debug(f"Unmatched data was written to {path} successfully")
 
     mismatch = _get_mismatch_data(df, source_alias, target_alias) if report_type in {"all", "data"} else None
 

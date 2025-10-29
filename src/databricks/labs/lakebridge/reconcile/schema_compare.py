@@ -106,6 +106,7 @@ class SchemaCompare:
 
         1. This works by creating two SQL queries. both queries are a create table statement with a single column:
             * first query uses the source column name and datatype to simulate the source.
+            * we escape the ansi name with sqlglot because normalize is not implemented for oracle and snowflake
             * second query uses the same column name as ansi and databricks datatype to simulate databricks.
             * we don't use the databricks column name as it may have been renamed.
             * renaming is checked in the previous step to retrieve the databricks column.
@@ -117,7 +118,8 @@ class SchemaCompare:
         :param master: source and target column names and datatypes computed by previous step.
         """
         target = get_dialect("databricks")
-        source_query = f"create table dummy ({master.source_column_normalized} {master.source_datatype})"
+        source_column_normalized = cls._escape_source_column(source, target, master.source_column_normalized_ansi)
+        source_query = f"create table dummy ({source_column_normalized} {master.source_datatype})"
         converted_source_query = cls._parse(source, target, source_query)
         databricks_query = f"create table dummy ({master.source_column_normalized_ansi} {master.databricks_datatype})"
         converted_databricks_query = cls._parse(target, source, databricks_query)
@@ -140,6 +142,10 @@ class SchemaCompare:
     @classmethod
     def _parse(cls, source: Dialect, target: Dialect, source_query: str) -> str:
         return parse_one(source_query, read=source).sql(dialect=target).replace(", ", ",")
+
+    @classmethod
+    def _escape_source_column(cls, source: Dialect, target: Dialect, ansi_column: str) -> str:
+        return parse_one(ansi_column, read=target).sql(dialect=source).replace(", ", ",")
 
     def compare(
         self,

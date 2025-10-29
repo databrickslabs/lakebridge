@@ -60,7 +60,7 @@ class ReconIntermediatePersist:
             # workspace_client.dbfs.delete(path, recursive=True)
             empty_df = self.spark.createDataFrame([], schema=StructType([StructField("empty", StringType(), True)]))
             empty_df.write.format("parquet").mode("overwrite").save(self.path)
-            logger.warning(f"Unmatched DF cleaned up from {self.path} successfully.")
+            logger.debug(f"Unmatched DF cleaned up from {self.path} successfully.")
         except PySparkException as e:
             message = f"Error cleaning up unmatched DF from {self.path} volumes --> {e}"
             logger.error(message)
@@ -296,8 +296,6 @@ class ReconCapture:
         total_mismatch_count = (
             data_reconcile_output.mismatch_count + data_reconcile_output.threshold_output.threshold_mismatch_count
         )
-        logger.info(f"total_mismatch_count : {total_mismatch_count}")
-        logger.warning(f"reconciled_record_count : {record_count}")
         # if the mismatch count is 0 then no need of checking bounds.
         if total_mismatch_count == 0:
             return True

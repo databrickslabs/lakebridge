@@ -1,6 +1,7 @@
 import logging
 from abc import ABC
 
+import sqlglot
 import sqlglot.expressions as exp
 from sqlglot import Dialect, parse_one
 
@@ -135,8 +136,14 @@ class QueryBuilder(ABC):
 
             source_mapping = DataType_transform_mapping.get(source_dialect, {})
 
-            if source_mapping.get(datatype.upper()) is not None:
-                return source_mapping.get(datatype.upper())
+            parsed = datatype
+            try:
+                parsed = exp.DataType.build(datatype, source).this.value
+            except sqlglot.errors.ParseError:
+                logger.warning(f"Could not parse datatype {datatype} for source {source_dialect}")
+
+            if source_mapping.get(parsed) is not None:
+                return source_mapping.get(parsed)
             if source_mapping.get("default") is not None:
                 return source_mapping.get("default")
 

@@ -253,7 +253,7 @@ DataType_transform_mapping: dict[str, dict[str, list[partial[exp.Expression]]]] 
         exp.DataType.Type.NCHAR.value: [
             partial(anonymous, func="NVL(TRIM(TO_CHAR({})),'_null_recon_')", dialect=get_dialect("oracle"))
         ],
-        exp.DataType.Type.NVARCHAR.value: [
+        exp.DataType.Type.CHAR.value: [
             partial(anonymous, func="NVL(TRIM(TO_CHAR({})),'_null_recon_')", dialect=get_dialect("oracle"))
         ],
     },
@@ -281,7 +281,10 @@ Dialect_hash_algo_mapping: dict[Dialect, HashAlgoMapping] = {
     ),
     get_dialect("oracle"): HashAlgoMapping(
         source=partial(
-            anonymous, func="DBMS_CRYPTO.HASH(RAWTOHEX({}), 2)", is_expr=True, dialect=get_dialect("oracle")
+            anonymous,
+            func="DBMS_CRYPTO.HASH(UTL_I18N.STRING_TO_RAW({}, 'AL32UTF8'), 4)",
+            is_expr=True,
+            dialect=get_dialect("oracle"),
         ),
         target=md5_partial,
     ),

@@ -9,9 +9,9 @@ class JDBCReaderMixin:
     _spark: SparkSession
 
     # TODO update the url
-    def _get_jdbc_reader(self, query, jdbc_url, driver, prepare_query=None):
+    def _get_jdbc_reader(self, query, jdbc_url, driver, additional_options: dict | None = None):
         driver_class = {
-            "oracle": "oracle.jdbc.driver.OracleDriver",
+            "oracle": "oracle.jdbc.OracleDriver",
             "snowflake": "net.snowflake.client.jdbc.SnowflakeDriver",
             "sqlserver": "com.microsoft.sqlserver.jdbc.SQLServerDriver",
         }
@@ -21,8 +21,9 @@ class JDBCReaderMixin:
             .option("driver", driver_class.get(driver, driver))
             .option("dbtable", f"({query}) tmp")
         )
-        if prepare_query is not None:
-            reader = reader.option('prepareQuery', prepare_query)
+        if isinstance(additional_options, dict):
+            for key, value in additional_options.items():
+                reader = reader.option(key, value)
         return reader
 
     @staticmethod
