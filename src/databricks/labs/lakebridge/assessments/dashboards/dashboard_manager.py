@@ -111,7 +111,6 @@ class DashboardManager:
 
     def create_profiler_summary_dashboard(
         self,
-        extract_file: str,
         source_tech: str,
         catalog_name: str = "lakebridge_profiler",
         schema_name: str = "profiler_runs",

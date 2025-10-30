@@ -1,9 +1,8 @@
 import io
-
 import pytest
+
 from unittest.mock import create_autospec, MagicMock, patch
 from databricks.sdk import WorkspaceClient
-
 from databricks.labs.lakebridge.assessments.dashboards.dashboard_manager import DashboardManager
 
 from .utils.profiler_extract_utils import build_mock_synapse_extract
