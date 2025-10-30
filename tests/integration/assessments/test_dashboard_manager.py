@@ -3,6 +3,7 @@ import pytest
 
 from unittest.mock import create_autospec, MagicMock, patch
 from databricks.sdk import WorkspaceClient
+from databricks.sdk.service.iam import User
 from databricks.labs.lakebridge.assessments.dashboards.dashboard_manager import DashboardManager
 
 from .utils.profiler_extract_utils import build_mock_synapse_extract
@@ -10,7 +11,8 @@ from .utils.profiler_extract_utils import build_mock_synapse_extract
 @pytest.fixture
 def dashboard_manager():
     workspace_client = create_autospec(WorkspaceClient)
-    return DashboardManager(ws=workspace_client, is_debug=True)
+    user = create_autospec(User)
+    return DashboardManager(ws=workspace_client, current_user=user, is_debug=True)
 
 
 @patch("os.path.exists")
