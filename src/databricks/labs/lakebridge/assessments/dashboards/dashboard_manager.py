@@ -167,6 +167,7 @@ class DashboardManager:
         except InternalError as e:
             logger.error(f"Internal Databricks error while uploading extract file: \n{e}")
             return False
-        except Exception as e:
-            logger.error(f"Failed to upload file: {str(e)}")
-            return False
+        # Catch any other unexpected exception to avoid crashing the process, but log for debugging.
+        except Exception as e:  # noqa: BLE001
+            logger.error(f"Unexpected error occurred while uploading file: {str(e)}")
+            raise  # Re-raise to avoid swallowing unexpected exceptions (pylint W0718)
