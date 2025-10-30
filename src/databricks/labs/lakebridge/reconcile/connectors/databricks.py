@@ -84,7 +84,13 @@ class DatabricksDataSource(DataSource, SecretsMixin):
         try:
             logger.debug(f"Fetching schema using query: \n`{schema_query}`")
             logger.info(f"Fetching Schema: Started at: {datetime.now()}")
-            schema_metadata = self._spark.sql(schema_query).where("col_name not like '#%'").distinct().collect()
+            schema_metadata = (
+                self._spark.sql(schema_query)
+                .selectExpr("col_name as column_name", "data_type")
+                .where("column_name not like '#%'")
+                .distinct()
+                .collect()
+            )
             logger.info(f"Schema fetched successfully. Completed at: {datetime.now()}")
             return [self._map_meta_column(field, normalize) for field in schema_metadata]
         except (RuntimeError, PySparkException) as e:

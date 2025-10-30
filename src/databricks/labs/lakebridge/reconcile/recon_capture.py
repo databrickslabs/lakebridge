@@ -60,7 +60,7 @@ class ReconIntermediatePersist:
             # workspace_client.dbfs.delete(path, recursive=True)
             empty_df = self.spark.createDataFrame([], schema=StructType([StructField("empty", StringType(), True)]))
             empty_df.write.format("parquet").mode("overwrite").save(self.path)
-            logger.warning(f"Unmatched DF cleaned up from {self.path} successfully.")
+            logger.debug(f"Unmatched DF cleaned up from {self.path} successfully.")
         except PySparkException as e:
             message = f"Error cleaning up unmatched DF from {self.path} volumes --> {e}"
             logger.error(message)
@@ -296,8 +296,6 @@ class ReconCapture:
         total_mismatch_count = (
             data_reconcile_output.mismatch_count + data_reconcile_output.threshold_output.threshold_mismatch_count
         )
-        logger.info(f"total_mismatch_count : {total_mismatch_count}")
-        logger.warning(f"reconciled_record_count : {record_count}")
         # if the mismatch count is 0 then no need of checking bounds.
         if total_mismatch_count == 0:
             return True
@@ -579,7 +577,13 @@ class ReconCapture:
                     )
                     agg_details_df_list.append(agg_details_rule_df)
             else:
-                logger.warning("Aggregate Details Rules are empty")
+                logger.info(
+                    f"Aggregate rule reconciliation is successful."
+                    f" No details to store."
+                    f" Rule: {agg_output.rule.column_from_rule}"
+                    if agg_output.rule
+                    else ""
+                )
 
         if agg_details_df_list:
             agg_details_table_df = self._union_dataframes(agg_details_df_list)

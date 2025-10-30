@@ -27,7 +27,7 @@ def test_table_with_all_options(table_conf_with_opts):
     assert table_conf_with_opts.get_threshold_columns("target") == {"s_acctbal_t"}
 
 
-def test_table_without_column_mapping(table_conf, column_mapping):
+def test_table_without_column_mapping(table_conf):
     table_conf = table_conf()
 
     assert table_conf.get_tgt_to_src_col_mapping_list(["s_address", "s_name"]) == {"s_address", "s_name"}

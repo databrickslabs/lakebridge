@@ -5,27 +5,25 @@ import json
 import logging
 import os
 import re
+import sys
 import time
 from collections.abc import Mapping
 from pathlib import Path
-from typing import NoReturn
+from typing import NoReturn, TextIO
 
-from databricks.sdk.core import with_user_agent_extra
 from databricks.sdk.service.sql import CreateWarehouseRequestWarehouseType
 from databricks.sdk import WorkspaceClient
 
 from databricks.labs.blueprint.cli import App
-from databricks.labs.blueprint.entrypoint import get_logger, is_in_debug
-from databricks.labs.blueprint.installation import RootJsonValue
+from databricks.labs.blueprint.entrypoint import is_in_debug
+from databricks.labs.blueprint.installation import RootJsonValue, JsonObject, JsonValue
 from databricks.labs.blueprint.tui import Prompts
 
 
-from databricks.labs.lakebridge.assessments.configure_assessment import (
-    create_assessment_configurator,
-    PROFILER_SOURCE_SYSTEM,
-)
+from databricks.labs.lakebridge.assessments.configure_assessment import create_assessment_configurator
+from databricks.labs.lakebridge.assessments import PROFILER_SOURCE_SYSTEM
 
-from databricks.labs.lakebridge.config import TranspileConfig
+from databricks.labs.lakebridge.config import TranspileConfig, LSPConfigOptionV1
 from databricks.labs.lakebridge.contexts.application import ApplicationContext
 from databricks.labs.lakebridge.helpers.recon_config_utils import ReconConfigPrompts
 from databricks.labs.lakebridge.helpers.telemetry_utils import make_alphanum_or_semver
@@ -33,6 +31,7 @@ from databricks.labs.lakebridge.install import installer
 from databricks.labs.lakebridge.reconcile.runner import ReconcileRunner
 from databricks.labs.lakebridge.lineage import lineage_generator
 from databricks.labs.lakebridge.reconcile.recon_config import RECONCILE_OPERATION_NAME, AGG_RECONCILE_OPERATION_NAME
+from databricks.labs.lakebridge.transpiler.describe import TranspilersDescription
 from databricks.labs.lakebridge.transpiler.execute import transpile as do_transpile
 from databricks.labs.lakebridge.transpiler.lsp.lsp_engine import LSPEngine
 from databricks.labs.lakebridge.transpiler.repository import TranspilerRepository
@@ -41,8 +40,28 @@ from databricks.labs.lakebridge.transpiler.transpile_engine import TranspileEngi
 
 from databricks.labs.lakebridge.transpiler.transpile_status import ErrorSeverity
 
-lakebridge = App(__file__)
-logger = get_logger(__file__)
+
+# Subclass to allow controlled access to protected methods.
+class Lakebridge(App):
+    _logger_instance: logging.Logger | None = None
+
+    def create_workspace_client(self) -> WorkspaceClient:
+        """Create a workspace client, with the appropriate product and version information.
+
+        This is intended only for use by the install/uninstall hooks.
+        """
+        self._patch_databricks_host()
+        return self._workspace_client()
+
+    def get_logger(self) -> logging.Logger:
+        if self._logger_instance is None:
+            self._logger_instance = self._logger
+            self._logger_instance.setLevel(logging.INFO)
+        return self._logger_instance
+
+
+lakebridge = Lakebridge(__file__)
+logger = lakebridge.get_logger()
 
 
 def raise_validation_exception(msg: str) -> NoReturn:
@@ -73,26 +92,33 @@ def _remove_warehouse(ws: WorkspaceClient, warehouse_id: str):
 
 
 @lakebridge.command
-def transpile(
+def transpile(  # pylint: disable=too-many-arguments
     *,
     w: WorkspaceClient,
     transpiler_config_path: str | None = None,
     source_dialect: str | None = None,
+    overrides_file: str | None = None,
+    target_technology: str | None = None,
     input_source: str | None = None,
     output_folder: str | None = None,
     error_file_path: str | None = None,
     skip_validation: str | None = None,
     catalog_name: str | None = None,
     schema_name: str | None = None,
+    ctx: ApplicationContext | None = None,
     transpiler_repository: TranspilerRepository = TranspilerRepository.user_home(),
 ):
     """Transpiles source dialect to databricks dialect"""
-    ctx = ApplicationContext(w)
+    if ctx is None:
+        ctx = ApplicationContext(w)
+    del w
     logger.debug(f"Preconfigured transpiler config: {ctx.transpile_config!r}")
-    with_user_agent_extra("cmd", "execute-transpile")
+    ctx.add_user_agent_extra("cmd", "execute-transpile")
     checker = _TranspileConfigChecker(ctx.transpile_config, ctx.prompts, transpiler_repository)
     checker.use_transpiler_config_path(transpiler_config_path)
     checker.use_source_dialect(source_dialect)
+    checker.use_overrides_file(overrides_file)
+    checker.use_target_technology(target_technology)
     checker.use_input_source(input_source)
     checker.use_output_folder(output_folder)
     checker.use_error_file_path(error_file_path)
@@ -101,18 +127,36 @@ def transpile(
     checker.use_schema_name(schema_name)
     config, engine = checker.check()
     logger.debug(f"Final configuration for transpilation: {config!r}")
-
-    assert config.source_dialect is not None, "Source dialect has been validated by this point."
-    with_user_agent_extra("transpiler_source_tech", make_alphanum_or_semver(config.source_dialect))
-    plugin_name = engine.transpiler_name
-    plugin_name = re.sub(r"\s+", "_", plugin_name)
-    with_user_agent_extra("transpiler_plugin_name", plugin_name)
-    user = ctx.current_user
-    logger.debug(f"User: {user}")
-
+    _add_user_agent_extras_transpile(ctx, config, engine, transpiler_repository)
     result = asyncio.run(_transpile(ctx, config, engine))
     # DO NOT Modify this print statement, it is used by the CLI to display results in GO Table Template
     print(json.dumps(result))
+
+
+def _add_user_agent_extras_transpile(
+    ctx: ApplicationContext,
+    config: TranspileConfig,
+    engine: TranspileEngine,
+    transpiler_repository: TranspilerRepository,
+) -> None:
+    assert config.source_dialect is not None, "Source dialect has been validated by this point."
+    ctx.add_user_agent_extra("transpiler_source_tech", make_alphanum_or_semver(config.source_dialect))
+
+    plugin_name = engine.transpiler_name
+    plugin_name = re.sub(r"\s+", "_", plugin_name)
+    ctx.add_user_agent_extra("transpiler_plugin_name", plugin_name)
+
+    config_path = config.transpiler_config_path_parsed
+    assert config_path is not None, "Transpiler config path has been validated by this point."
+    transpiler_version = transpiler_repository.get_installed_version_given_config_path(config_path)
+    if transpiler_version:
+        ctx.add_user_agent_extra("transpiler_plugin_version", transpiler_version)
+    else:
+        logger.warning("Cannot determine transpiler plugin version.")
+
+    # Send telemetry
+    user = ctx.current_user
+    logger.debug(f"User: {user}")
 
 
 class _TranspileConfigChecker:
@@ -173,9 +217,7 @@ class _TranspileConfigChecker:
         transpiler_repository: TranspilerRepository,
     ) -> None:
         if config is None:
-            logger.warning(
-                "No workspace transpile configuration, use 'install-transpile' to (re)install and configure; using defaults for now."
-            )
+            logger.debug("No workspace transpile configuration, starting from defaults.")
             config = TranspileConfig()
         self._config = config
         self._prompts = prompts
@@ -203,6 +245,36 @@ class _TranspileConfigChecker:
             # Defer validation: depends on the transpiler config path, we'll deal with this later.
             logger.debug(f"Pending source_dialect override: {source_dialect!r}")
             self._source_dialect_override = source_dialect
+
+    @staticmethod
+    def _validate_overrides_file(overrides_file: str, msg: str) -> None:
+        """Validate the overrides file: it must be a valid path that exists."""
+        # Note: in addition to this check, later we verify the transpiler supports it.
+        if not Path(overrides_file).exists():
+            raise_validation_exception(msg)
+
+    def use_overrides_file(self, overrides_file: str | None) -> None:
+        if overrides_file is not None:
+            logger.debug(f"Setting overrides_file to: {overrides_file!r}")
+            msg = f"Invalid path for '--overrides-file', does not exist: {overrides_file}"
+            self._validate_overrides_file(overrides_file, msg)
+            try:
+                self._set_config_transpiler_option("overrides-file", overrides_file)
+            except ValueError:
+                # TODO: Update the `config.yml` format to disallow incompatible `transpiler_options`.
+                msg = "Cannot use --overrides-file; workspace config.yml has incompatible transpiler_options."
+                raise_validation_exception(msg)
+
+    def use_target_technology(self, target_technology: str | None) -> None:
+        if target_technology is not None:
+            logger.debug(f"Setting target_technology to: {target_technology!r}")
+            # Cannot validate this here: depends on the transpiler engine, and will be checked later.
+            try:
+                self._set_config_transpiler_option("target-tech", target_technology)
+            except ValueError:
+                # TODO: Update the `config.yml` format to disallow incompatible `transpiler_options`.
+                msg = "Cannot use --target-technology; workspace config.yml has incompatible transpiler_options."
+                raise_validation_exception(msg)
 
     @staticmethod
     def _validate_input_source(input_source: str, msg: str) -> None:
@@ -308,6 +380,19 @@ class _TranspileConfigChecker:
             logger.debug(f"Setting schema_name to: {schema_name!r}")
             self._config = dataclasses.replace(self._config, schema_name=schema_name)
 
+    def _set_config_transpiler_option(self, flag: str, value: str) -> None:
+        transpiler_options: JsonObject
+        match self._config.transpiler_options:
+            case None:
+                transpiler_options = {flag: value}
+            case Mapping() as found_options:
+                transpiler_options = {**found_options, flag: value}
+            case found_options:
+                # TODO: Update `config.yml' to constrain `transpiler_options` to be a dict[str, str].
+                msg = f"Incompatible transpiler options configured, must be a mapping: {found_options!r}"
+                raise ValueError(msg)
+        self._config = dataclasses.replace(self._config, transpiler_options=transpiler_options)
+
     def _configure_transpiler_config_path(self, source_dialect: str) -> TranspileEngine | None:
         """Configure the transpiler config path based on the requested source dialect."""
         # Names of compatible transpiler engines for the given dialect.
@@ -318,7 +403,7 @@ class _TranspileConfigChecker:
                 return None
             case 1:
                 # Only one transpiler available for the specified dialect, use it.
-                transpiler_name = compatible_transpilers.pop()
+                transpiler_name = next(iter(compatible_transpilers))
                 logger.debug(f"Using only transpiler available for dialect {source_dialect!r}: {transpiler_name!r}")
             case _:
                 # Multiple transpilers available for the specified dialect, prompt for which to use.
@@ -361,7 +446,7 @@ class _TranspileConfigChecker:
                 raise_validation_exception(msg)
             case 1:
                 # Only one dialect available, use it.
-                source_dialect = supported_dialects.pop()
+                source_dialect = next(iter(supported_dialects))
                 logger.debug(f"Using only source dialect available: {source_dialect!r}")
             case _:
                 # Multiple dialects available, prompt for which to use.
@@ -435,17 +520,51 @@ class _TranspileConfigChecker:
         assert self._config.source_dialect is not None, "Source dialect must be set before checking transpiler options."
         options_for_dialect = engine.options_for_dialect(self._config.source_dialect)
         transpiler_options = self._config.transpiler_options
-        if not isinstance(transpiler_options, Mapping):
-            return
+        if transpiler_options is None:
+            transpiler_options = {}
+        elif not isinstance(transpiler_options, Mapping):
+            logger.warning(f"Ignoring transpiler_options in config.yml, must be a mapping: {transpiler_options!r}")
+            transpiler_options = {}
+        # Only checks if the option is present, does not validate the value.
+        # TODO: Validate the value for CHOICE/CONFIRM options.
+        # TODO: Handle FORCE options: these are fixed by the transpiler, and cannot be overridden.
         checked_options = {
             option.flag: (
                 transpiler_options[option.flag]
                 if option.flag in transpiler_options
-                else option.prompt_for_value(self._prompts)
+                else self._handle_missing_transpiler_option(option)
             )
             for option in options_for_dialect
         }
         self._config = dataclasses.replace(self._config, transpiler_options=checked_options)
+
+    def _handle_missing_transpiler_option(self, option: LSPConfigOptionV1) -> JsonValue:
+        # Semantics during configuration:
+        #  - Entries are present in the config file for all options the LSP server needs for a dialect.
+        #  - If a value is `None`, it means the user wants the value to be left unset.
+        #  - There is no 'provide it later' option: either it's set, or it's unset.
+        # As a corner case, if there is no entry present it means the user wasn't prompted. Here we have
+        # some complexity. We have two ways of obtaining a value:
+        #  - The user could provide it on the command-line, using --target-technology or --overrides-file.
+        #    Problem: via command-line options there's no way to indicate 'no value'.
+        #  - We could prompt for it, assuming the user is running interactively.
+        # In terms of what is required by the option:
+        #  - If the option has a default of <none>, it means that no value is required.
+        #  - Everything else requires a value.
+        #
+        # This leads to the following business rules:
+        #  - If the option has a default of <none> that means that no value is required, no further action is required.
+        #  - Otherwise, a value is required: prompt for it.
+        #
+        # TODO: When adding non-interactive support, the otherwise branch need to be modified:
+        #     1. If it can be provided by the command-line, fail and ask the user to provide it.
+        #     2. If it cannot be provided by the command-line, prompt for it if we are running interactively.
+        #     3. If we cannot prompt because we are not running interactively, use the default if there is one.
+        #     4. Fail: the only way to provide a value is via the config.yml, which can be set via 'install-transpile'.
+
+        if option.is_optional():
+            return None
+        return option.prompt_for_value(self._prompts)
 
     def check(self) -> tuple[TranspileConfig, TranspileEngine]:
         """Checks that all configuration parameters are present and valid."""
@@ -472,9 +591,6 @@ class _TranspileConfigChecker:
 
 async def _transpile(ctx: ApplicationContext, config: TranspileConfig, engine: TranspileEngine) -> RootJsonValue:
     """Transpiles source dialect to databricks dialect"""
-    with_user_agent_extra("cmd", "execute-transpile")
-    user = ctx.current_user
-    logger.debug(f"User: {user}")
     _override_workspace_client_config(ctx, config.sdk_config)
     status, errors = await do_transpile(ctx.workspace_client, engine, config)
 
@@ -524,8 +640,8 @@ def _override_workspace_client_config(ctx: ApplicationContext, overrides: dict[s
 @lakebridge.command
 def reconcile(*, w: WorkspaceClient) -> None:
     """[EXPERIMENTAL] Reconciles source to Databricks datasets"""
-    with_user_agent_extra("cmd", "execute-reconcile")
     ctx = ApplicationContext(w)
+    ctx.add_user_agent_extra("cmd", "execute-reconcile")
     user = ctx.current_user
     logger.debug(f"User: {user}")
     recon_runner = ReconcileRunner(
@@ -540,8 +656,8 @@ def reconcile(*, w: WorkspaceClient) -> None:
 @lakebridge.command
 def aggregates_reconcile(*, w: WorkspaceClient) -> None:
     """[EXPERIMENTAL] Reconciles Aggregated source to Databricks datasets"""
-    with_user_agent_extra("cmd", "execute-aggregates-reconcile")
     ctx = ApplicationContext(w)
+    ctx.add_user_agent_extra("cmd", "execute-aggregates-reconcile")
     user = ctx.current_user
     logger.debug(f"User: {user}")
     recon_runner = ReconcileRunner(
@@ -613,16 +729,52 @@ def install_transpile(
     *,
     w: WorkspaceClient,
     artifact: str | None = None,
+    interactive: str | None = None,
     transpiler_repository: TranspilerRepository = TranspilerRepository.user_home(),
 ) -> None:
     """Install or upgrade the Lakebridge transpilers."""
-    with_user_agent_extra("cmd", "install-transpile")
+    is_interactive = interactive_mode(interactive)
+    ctx = ApplicationContext(w)
+    ctx.add_user_agent_extra("cmd", "install-transpile")
     if artifact:
-        with_user_agent_extra("artifact-overload", Path(artifact).name)
+        ctx.add_user_agent_extra("artifact-overload", Path(artifact).name)
     user = w.current_user
     logger.debug(f"User: {user}")
-    transpile_installer = installer(w, transpiler_repository)
+    transpile_installer = installer(w, transpiler_repository, is_interactive=is_interactive)
     transpile_installer.run(module="transpile", artifact=artifact)
+
+
+def interactive_mode(interactive: str | None, *, default: str = "auto", input_stream: TextIO = sys.stdin) -> bool:
+    """Convert the raw '--interactive' argument into a boolean."""
+    if interactive is None:
+        interactive = default
+    match interactive.lower():
+        case "true":
+            return True
+        case "false":
+            return False
+        # Convention is that if the input_stream is a TTY, user interaction is allowed.
+        case "auto":
+            return input_stream.isatty()
+
+    msg = f"Invalid value for '--interactive': {interactive!r} must be 'true', 'false' or 'auto'."
+    raise_validation_exception(msg)
+
+
+@lakebridge.command
+def describe_transpile(
+    *,
+    w: WorkspaceClient,
+    transpiler_repository: TranspilerRepository = TranspilerRepository.user_home(),
+) -> None:
+    """Describe the installed Lakebridge transpilers and available options."""
+    ctx = ApplicationContext(w)
+    ctx.add_user_agent_extra("cmd", "describe-transpile")
+    user = w.current_user.me()
+    logger.debug(f"User: {user}")
+    transpilers_description = TranspilersDescription(transpiler_repository)
+    json_description = transpilers_description.as_json()
+    json.dump(json_description, sys.stdout, indent=2)
 
 
 @lakebridge.command(is_unauthenticated=False)
@@ -632,14 +784,15 @@ def configure_reconcile(
     transpiler_repository: TranspilerRepository = TranspilerRepository.user_home(),
 ) -> None:
     """Configure the Lakebridge reconciliation module"""
-    with_user_agent_extra("cmd", "configure-reconcile")
+    ctx = ApplicationContext(w)
+    ctx.add_user_agent_extra("cmd", "configure-reconcile")
     user = w.current_user
     logger.debug(f"User: {user}")
     if not w.config.warehouse_id:
         dbsql_id = _create_warehouse(w)
         w.config.warehouse_id = dbsql_id
     logger.debug(f"Warehouse ID used for configuring reconcile: {w.config.warehouse_id}.")
-    reconcile_installer = installer(w, transpiler_repository)
+    reconcile_installer = installer(w, transpiler_repository, is_interactive=True)
     reconcile_installer.run(module="reconcile")
 
 
@@ -652,14 +805,22 @@ def analyze(
     source_tech: str | None = None,
 ):
     """Run the Analyzer"""
-    with_user_agent_extra("cmd", "analyze")
     ctx = ApplicationContext(w)
+    try:
+        result = ctx.analyzer.run_analyzer(source_directory, report_file, source_tech)
+        ctx.add_user_agent_extra("analyzer_source_tech", result.source_system)
+    finally:
+        exception_cls, _, _ = sys.exc_info()
+        if exception_cls is not None:
+            ctx.add_user_agent_extra("analyzer_error", exception_cls.__name__)
 
-    logger.debug(f"User: {ctx.current_user}")
-    ctx.analyzer.run_analyzer(source_directory, report_file, source_tech)
+        ctx.add_user_agent_extra("cmd", "analyze")
+        logger.debug(f"User: {ctx.current_user}")
 
 
 if __name__ == "__main__":
-    lakebridge()
+    app = lakebridge
+    logger = app.get_logger()
     if is_in_debug():
         logger.setLevel(logging.DEBUG)
+    app()

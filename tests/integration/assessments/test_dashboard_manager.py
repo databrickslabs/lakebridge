@@ -6,6 +6,7 @@ from databricks.sdk import WorkspaceClient
 
 from databricks.labs.lakebridge.assessments.dashboards.dashboard_manager import DashboardManager
 
+from .utils.profiler_extract_utils import build_mock_synapse_extract
 
 @pytest.fixture
 def dashboard_manager():
@@ -58,3 +59,9 @@ def test_upload_duckdb_to_uc_volume_failure(mock_open, mock_exists, dashboard_ma
                                                           "/Volumes/catalog/schema/volume/myfile.duckdb")
     assert result is False
     dashboard_manager._ws.files.upload.assert_called_once()
+
+
+@pytest.fixture(scope="module")
+def mock_synapse_profiler_extract():
+    synapse_extract_path = build_mock_synapse_extract("mock_profiler_extract")
+    return synapse_extract_path

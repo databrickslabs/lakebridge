@@ -75,7 +75,7 @@ def _parse_to_timestamp(args: list) -> exp.StrToTime | exp.UnixToTime | exp.Time
         # case: <variant_expr> or other expressions such as columns
         return exp.TimeStrToTime.from_arg_list(args)
 
-    if first_arg.is_string:
+    if first_arg is not None and first_arg.is_string:
         if is_int(first_arg.this):
             # case: <integer>
             return exp.UnixToTime.from_arg_list(args)

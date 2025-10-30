@@ -9,7 +9,7 @@ Analyzer expects all the legacy code to be exported into a folder accessible by 
 All the major ETL platforms provide some kind of export of their code repositories. Typically this is done into XML or JSON formats which can be used to restore the environment. Here is a short guide for how to export metadata from various platforms:
 
 ## Microsoft SQL Server
-To extract metadata like Table, View, and Stored Procedures DDLs, you can use Microsoft SQL Server Management Studio (SSMS). 
+To extract metadata like Table, View, and Stored Procedures DDLs, you can use Microsoft SQL Server Management Studio (SSMS).
 * In Object Explorer, expand the node for the instance containing the database to be scripted.
 * Right-click on the database you want to script, and select Tasks > Generate Scripts.
   <img src={useBaseUrl('img/sql-server-export-object-explorer.png')} style={{ width: 500 }} alt="sql-server-export-object-explorer" />
@@ -20,48 +20,17 @@ To extract metadata like Table, View, and Stored Procedures DDLs, you can use Mi
   <img src={useBaseUrl('img/sql-server-export-set-scripting-options.png')} style={{ width: 500 }} alt="sql-server-export-set-scripting-options" />
 See https://learn.microsoft.com/en-us/ssms/scripting/generate-and-publish-scripts-wizard for more details on how to use the Generate Scripts wizard in SSMS.
 
-## Azure Synapse (Dedicated) 
+## Azure Synapse (Dedicated)
 Follow the same steps as for Microsoft SQL Server above.  The only difference is that you will need to connect to the Synapse Dedicated SQL pool instead of a regular SQL Server instance.
 
 ## Azure Synapse (Serverless)
 If you use Synapse Studio and have your SQL code saved in SQL scripts, you can export the files with the [Export-AzSynapseSqlScript PowerShell cmdlet](https://learn.microsoft.com/en-us/powershell/module/az.synapse/export-azsynapsesqlscript?view=azps-14.2.0&viewFallbackFrom=azps-13.4.0). This method requires [Azure PowerShell modules](https://learn.microsoft.com/en-us/powershell/azure/install-Az-ps?view=azps-0.10.0).<br/>
 
-Otherwise, you can use Microsoft SQL Server Management Studio (SSMS) to extract metadata like Table, View, and Stored Procedures DDLs. 
+Otherwise, you can use Microsoft SQL Server Management Studio (SSMS) to extract metadata like Table, View, and Stored Procedures DDLs.
 * Select “Object Explorer Details” under the View button in the toolbar
   <img src={useBaseUrl('img/synapse-objects-explorer-view.png')} alt="synapse-objects-explorer-view" />
 * For each object type, select the required objects to export and right-click on the selection to choose “Script as” > “CREATE To” > “File” as pictured below. <br/>
   <img src={useBaseUrl('img/synapse-objects-explorer-script-as.png')} style={{ width: 800}} alt="synapse-objects-explorer-script-as" />
-
-## PowerCenter
-
-* **Overview**<br/>
-  To run the BladeBridge analyzer or converters on Informatica XMLs, the XML file first need to be extracted out of the PowerCenter repository. Typically, it is easier to deal with the analysis and conversion of a relatively granular level, so extracting the artifacts at the workflow level is advisable.  Objects can be exported from Powercenter Repository Manager or using *pmrep* command
-
-* **Metadata Extraction**<br/>
-  To extract the metadata out of PowerCenter repository, use the following commands:
-
-* **Connect to repository**<br/>
-  ```
-  pmrep connect <list of credentials>
-  ```
-
-* **Get the list of folders**<br/>
-  ```
-  pmrep listobjects -o FOLDER
-  ```
-
-* **For each folder, get the list of workflows**<br/>
-  ```
-  pmrep listobjects -o WORKFLOW -f <your folder name>
-  ```
-
-* **Workflow extraction**<br/>
-  Create a batch script with the following command template for each folder.
-
-  Note: Excel can be used to create the script with the following command:
-  ```
-  pmrep objectexport -n workflow_name -o WORKFLOW -f folder_name -b -r -m -s -u path-to-output-file
-  ```
 
 ## DataStage
 
@@ -92,12 +61,3 @@ Analyzer needs the .yxmd files. These can be obtained by Select File > Export to
 ## SAP Business Objects Data Services
 
 Instructions for export can be found in the following articles: https://help.sap.com/viewer/2d2abbb0fab34071a4c53b7de873241b/4.2.13/en-US/571901366d6d1014b3fc9283b0e91070.html https://help.sap.com/viewer/2d2abbb0fab34071a4c53b7de873241b/4.2.13/en-US/5718d4ba6d6d1014b3fc9283b0e91070.html
-
-## IICS / IDMC
-
-Select all the Mapping Configuration tasks you want to read the metadata from and export them as a single file.
-<img src={useBaseUrl('img/infacloud-export1.png')} alt="infacloud-export" />
-
-Note #1: Analyzer and Converter expect the metadata from InfaCloud to be preserved as zip files.  Please do not change the content of these files.
-
-Note #2: InfaCloud zip files are deeply nested.  Analyzer and Converter temporarily unzip the contents of the zip files into the folder locations associated with the output analyzer report and output code respectively.  On Windows OS, please keep the paths specified in `-d`, `-r`, `-o` switches short, as the fully exploded path may exceed the Windows max path limitation

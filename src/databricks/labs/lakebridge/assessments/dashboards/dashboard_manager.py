@@ -49,8 +49,10 @@ class DashboardManager:
 
     _DASHBOARD_NAME = "Lakebridge Profiler Assessment"
 
-    def __init__(self, ws: WorkspaceClient, is_debug: bool = False):
+    def __init__(self, ws: WorkspaceClient, current_user: User, is_debug: bool = False):
         self._ws = ws
+        self._current_user = current_user
+        self._dashboard_location = f"/Workspace/Users/{self._current_user}/Lakebridge/Dashboards"
         self._is_debug = is_debug
 
     @staticmethod
