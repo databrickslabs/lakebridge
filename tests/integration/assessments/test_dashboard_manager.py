@@ -62,9 +62,7 @@ def test_upload_duckdb_to_uc_volume_failure(mock_open, mock_exists, dashboard_ma
     with patch.object(dashboard_manager, "_ws") as mock_ws:
         mock_ws.files.upload = MagicMock(side_effect=Exception("Upload failed"))
         with pytest.raises(Exception, match="Upload failed"):
-            dashboard_manager.upload_duckdb_to_uc_volume(
-                "file.duckdb", "/Volumes/catalog/schema/volume/myfile.duckdb"
-            )
+            dashboard_manager.upload_duckdb_to_uc_volume("file.duckdb", "/Volumes/catalog/schema/volume/myfile.duckdb")
         mock_ws.files.upload.assert_called_once()
 
 
