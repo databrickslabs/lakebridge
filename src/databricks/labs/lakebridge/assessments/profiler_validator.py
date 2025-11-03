@@ -96,15 +96,11 @@ class ExtractSchemaValidationCheck(ValidationStrategy):
         self.schema_path = schema_path
         self.severity = severity
 
-    def validate(self, connection) -> ValidationOutcome:
-        """Validates that a table conforms to the expected schema.
-        input:
-          connection: a DuckDB connection object
-        returns:
-          a ValidationOutcome object
+    def _load_schema_definition(self) -> dict:
         """
-
-        # First, load the table info from the schema definition YAML file
+        Loads a schema definition file from a local path.
+        An `AssertionError` is raised if the schema does not match the expected source tech type.
+        """
         try:
             with open(self.schema_path, "r", encoding="UTF-8") as f:
                 schema_definition = yaml.safe_load(f)
@@ -117,6 +113,19 @@ class ExtractSchemaValidationCheck(ValidationStrategy):
         assert (
             schema_definition["source_tech"].lower() == self.source_tech.lower()
         ), f"Incorrect schema definition type for source tech '{self.source_tech}'"
+
+        return schema_definition
+
+    def validate(self, connection) -> ValidationOutcome:
+        """Validates that a table conforms to the expected schema.
+        input:
+          connection: a DuckDB connection object
+        returns:
+          a ValidationOutcome object
+        """
+
+        # First, load the table info from the schema definition YAML file
+        schema_definition = self._load_schema_definition()
 
         # Load the table name and column info
         try:
