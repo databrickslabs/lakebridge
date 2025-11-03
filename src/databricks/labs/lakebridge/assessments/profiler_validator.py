@@ -1,6 +1,6 @@
 import os
-import yaml
 from dataclasses import dataclass
+import yaml
 from duckdb import DuckDBPyConnection, CatalogException, ParserException, Error
 
 from databricks.labs.lakebridge.assessments.pipeline import PipelineClass
@@ -10,12 +10,10 @@ PROFILER_DB_NAME = "profiler_extract.db"
 
 class SchemaDefinitionLoadError(Exception):
     """An exception that is raised when a schema definition cannot be loaded."""
-    pass
 
 
 class SchemaValidationError(Exception):
     """An exception that is raised when a schema cannot be validated against the source."""
-    pass
 
 
 @dataclass(frozen=True)
@@ -87,8 +85,9 @@ class EmptyTableValidationCheck(ValidationStrategy):
 class ExtractSchemaValidationCheck(ValidationStrategy):
     """Concrete class for validating the schema of a profiler extract."""
 
-    def __init__(self, schema: str, table: str, source_tech: str, extract_path: str, schema_path: str,
-                 severity: str = "WARN") -> None:
+    def __init__(
+        self, schema: str, table: str, source_tech: str, extract_path: str, schema_path: str, severity: str = "WARN"
+    ) -> None:
         self.name = self.__class__.__name__
         self.schema = schema
         self.table = table
@@ -107,7 +106,7 @@ class ExtractSchemaValidationCheck(ValidationStrategy):
 
         # First, load the table info from the schema definition YAML file
         try:
-            with open(self.schema_path, "r") as f:
+            with open(self.schema_path, "r", encoding="UTF-8") as f:
                 schema_definition = yaml.safe_load(f)
         except FileNotFoundError as e:
             raise SchemaDefinitionLoadError(f"Schema definition file not found: '{self.schema_path}'") from e
@@ -115,7 +114,9 @@ class ExtractSchemaValidationCheck(ValidationStrategy):
             raise SchemaDefinitionLoadError(f"Error while loading schema definition file: '{e}'") from e
 
         # Ensure that the correct schema definition was loaded
-        assert schema_definition["source_tech"].lower() == self.source_tech.lower()
+        assert (
+            schema_definition["source_tech"].lower() == self.source_tech.lower()
+        ), f"Incorrect schema definition type for source tech '{self.source_tech}'"
 
         # Load the table name and column info
         try:
@@ -138,30 +139,36 @@ class ExtractSchemaValidationCheck(ValidationStrategy):
             result = connection.execute(column_info_query).fetchall()
         except (CatalogException, ParserException, Error) as e:
             raise SchemaValidationError(
-                f"Could not query column information for table '{self.schema}.{self.table}' - {e}") from e
+                f"Could not query column information for table '{self.schema}.{self.table}' - {e}"
+            ) from e
 
         # compare the extract schema with the schema definition
         if not result:
-            raise SchemaValidationError(
-                f"Could not find table '{self.schema}.{self.table}' in the profiler extract."
-            )
-        extract_columns = {col_name: data_type for col_name, data_type in result}
+            raise SchemaValidationError(f"Could not find table '{self.schema}.{self.table}' in the profiler extract.")
+        extract_columns = dict(result)
         for col in expected_columns:
             expected_col_name = col["name"]
             expected_data_type = col["type"]
 
             # Column must be present in the extracted table
             if expected_col_name not in extract_columns:
-                return ValidationOutcome(f"{self.schema}.{self.table}", expected_col_name, "Column does not exist",
-                                         "FAIL", self.severity)
+                return ValidationOutcome(
+                    f"{self.schema}.{self.table}", expected_col_name, "Column does not exist", "FAIL", self.severity
+                )
 
             extracted_col_type = extract_columns[expected_col_name]
             if expected_data_type != extracted_col_type:
-                return ValidationOutcome(f"{self.schema}.{self.table}", expected_col_name,
-                                         "Unexpected column data type", "FAIL", self.severity)
+                return ValidationOutcome(
+                    f"{self.schema}.{self.table}",
+                    expected_col_name,
+                    "Unexpected column data type",
+                    "FAIL",
+                    self.severity,
+                )
 
-        return ValidationOutcome(f"{self.schema}.{self.table}", "all columns", "All columns match expected schema",
-                                 "PASS", self.severity)
+        return ValidationOutcome(
+            f"{self.schema}.{self.table}", "all columns", "All columns match expected schema", "PASS", self.severity
+        )
 
 
 def get_profiler_extract_path(pipeline_config_path: str) -> str:

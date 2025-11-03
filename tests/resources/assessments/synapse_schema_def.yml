@@ -1,0 +1,82 @@
+source_tech: synapse
+version: 0.1
+
+schemas:
+  main:
+    tables:
+      dedicated_routines:
+        columns:
+          - name: CREATED
+            type: VARCHAR
+          - name: DATA_TYPE
+            type: VARCHAR
+          - name: IS_DETERMINISTIC
+            type: VARCHAR
+          - name: IS_IMPLICITLY_INVOCABLE
+            type: VARCHAR
+          - name: IS_NULL_CALL
+            type: VARCHAR
+          - name: IS_USER_DEFINED_CAST
+            type: VARCHAR
+          - name: LAST_ALTERED
+            type: VARCHAR
+          - name: MAX_DYNAMIC_RESULT_SETS
+            type: BIGINT
+          - name: NUMERIC_PRECISION
+            type: BIGINT
+          - name: NUMERIC_PRECISION_RADIX
+            type: BIGINT
+          - name: NUMERIC_SCALE
+            type: BIGINT
+          - name: ROUTINE_BODY
+            type: VARCHAR
+          - name: ROUTINE_CATALOG
+            type: VARCHAR
+          - name: ROUTINE_DEFINITION
+            type: VARCHAR
+          - name: ROUTINE_NAME
+            type: VARCHAR
+          - name: ROUTINE_SCHEMA
+            type: VARCHAR
+          - name: ROUTINE_TYPE
+            type: VARCHAR
+          - name: SCHEMA_LEVEL_ROUTINE
+            type: VARCHAR
+          - name: SPECIFIC_CATALOG
+            type: VARCHAR
+          - name: SPECIFIC_NAME
+            type: VARCHAR
+          - name: SPECIFIC_SCHEMA
+            type: VARCHAR
+          - name: SQL_DATA_ACCESS
+            type: VARCHAR
+          - name: POOL_NAME
+            type: VARCHAR
+      dedicated_sql_pool_metrics:
+        columns:
+          - name: average
+            type: DOUBLE
+          - name: count
+            type: BIGINT
+          - name: maximum
+            type: BIGINT
+          - name: minimum
+            type: BIGINT
+          - name: name
+            type: VARCHAR
+          - name: timestamp
+            type: VARCHAR
+          - name: total
+            type: DOUBLE
+          - name: pool_name
+            type: VARCHAR
+      dedicated_storage_info:
+        columns:
+          - name: ReservedSpaceMB
+            type: BIGINT
+          - name: UsedSpaceMB
+            type: BIGINT
+          - name: extract_ts
+            type: VARCHAR
+          - name: node_id
+            type: DOUBLE
