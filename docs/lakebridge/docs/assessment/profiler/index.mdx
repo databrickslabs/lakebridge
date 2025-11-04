@@ -113,3 +113,130 @@ Each execution will create a timestamped snapshot of your source environment.
 | Source Platform | Configuration Status |
 |:---------------:|:-------------------:|
 | Azure Synapse | &#x2705; |
+
+## Publish Profiler Summary Dashboard
+
+Upload a summary of a profiler run as a dashboard to your local Databricks workspace using the `create-profiler-dashboard`.
+
+### Description
+
+`create-profiler-dashboard` command converts a profiler extract file to a dashboard and deploys it to a Databricks workspace.
+This helps users quickly visualize and explore profiler results without additional setup in a SQL or BI tool.
+
+**Note:** This command is part of the experimental profiler workflow and is subject to change in future versions.
+
+### Syntax
+
+```bash
+databricks labs lakebridge create-profiler-dashboard \
+  --extract-file <path-to-local-extract-file> \
+  --source-tech <source-system-name> \
+  --uc-volume <uc-volume-path> \
+  [--catalog-name <uc-catalog-name>] \
+  [--schema-name <uc-schema-name>]
+```
+
+### Options
+
+#### `--extract-file`
+
+**Description:**
+Specifies the local file path to an extract file containing the profiler results.
+This file is automatically output after the successful execution of a profiler run using
+`databricks labs lakebridge execute-database-profiler`.
+
+**Example:**
+
+```bash
+--extract-file ./output/profiler_results.db
+```
+
+**Required:** Yes
+
+#### `--source-tech`
+
+**Description:**
+
+Specifies the name of the source system technology that was profiled.
+This value is used to load the profiler dashboard template.
+
+**Example:**
+
+```bash
+--source-tech synapse
+```
+
+**Required:** Yes
+
+#### `--uc-volume`
+
+**Description:**
+
+The name of the Unity Catalog (UC) volume where the extract file will be uploaded.
+
+**Example:**
+
+```bash
+--uc-volume /Volumes/lakebridge_profiler/profiler_runs
+```
+
+**Required:** Yes
+
+#### `--catalog-name`
+
+**Description:**
+
+(Optional) The name of the catalog where the extract data will be uploaded to as Delta tables.
+If not provided, the command uses the default catalog `lakebridge_profiler`.
+
+**Example:**
+
+```bash
+--catalog-name lakebridge_profiler
+```
+
+**Required:** No
+
+#### `--schema-name`
+
+**Description:**
+
+(Optional) The name of the schema where extract data will be uploaded as Delta tables.
+If not provided, the command uses the default schema `profiler_runs`.
+
+**Example:**
+
+```bash
+--schema-name profiler_runs
+```
+
+**Required:** No
+
+### Example
+
+The following example deploys a profiler summary dashboard for an Azure Synapse profiler run:
+
+```bash
+databricks labs lakebridge create-profiler-dashboard \
+  --extract-file ./output/profile_output.db \
+  --source-tech synapse \
+  --uc-volume /Volumes/lakebridge_profiler/profiler_runs \
+  --catalog-name lakebridge_profiler \
+  --schema-name profiler_runs
+```
+
+#### Result:
+
+```bash
+Profiler extract file was uploaded successfully.
+Dashboard created at: https://<databricks-workspace-url>/sql/dashboards/<dashboard-id>
+```
+#### Output
+
+When the command executes, the following actions will take place:
+
+1. The profiler extract file is uploaded to the specified UC volume.
+2. A Databricks job for ingesting the extract file is deployed to the Databricks workspace and immediately executed.
+3. The profiler extract results are converted to Delta tables in the workspace catalog and schema.
+4. A Databricks dashboard summarizing the profiler results is deployed to the workspace.
+5. A workspace URL for accessing the dashboard is returned.
