@@ -28,6 +28,10 @@ class SwitchRunner:
         volume_input_path: str,
         output_ws_folder: str,
         source_tech: str,
+        catalog: str,
+        schema: str,
+        volume: str,
+        foundational_model: str,
         job_id: int,
         wait_for_completion: bool = False,
     ) -> RootJsonValue:
@@ -37,6 +41,10 @@ class SwitchRunner:
             input_dir=volume_input_path,
             output_dir=output_ws_folder,
             source_tech=source_tech,
+            catalog=catalog,
+            schema=schema,
+            volume=volume,
+            foundational_model=foundational_model,
         )
         logger.info(f"Triggering Switch job with job_id: {job_id}")
 
@@ -89,6 +97,10 @@ class SwitchRunner:
         input_dir: str,
         output_dir: str,
         source_tech: str,
+        catalog: str,
+        schema: str,
+        volume: str,
+        foundational_model: str,
         switch_options: dict | None = None,
     ) -> dict[str, str]:
         """Build Switch job parameters."""
@@ -98,6 +110,10 @@ class SwitchRunner:
             "input_dir": input_dir,
             "output_dir": output_dir,
             "source_tech": source_tech,
+            "catalog": catalog,
+            "schema": schema,
+            "volume": volume,
+            "foundational_model": foundational_model,
             **switch_options,
         }
 

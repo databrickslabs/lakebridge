@@ -647,132 +647,6 @@ def _override_workspace_client_config(ctx: ApplicationContext, overrides: dict[s
         ctx.connect_config.cluster_id = cluster_id
 
 
-def _validate_llm_transpile_args(
-    input_source: str | None,
-    output_ws_folder: str | None,
-    source_dialect: str | None,
-    transpile_config: TranspileConfig | None,
-    prompts: Prompts,
-) -> tuple[str, str, str]:
-
-    if input_source is None:
-        input_source = transpile_config.input_source if transpile_config else None
-    if output_ws_folder is None:
-        output_ws_folder = transpile_config.output_folder if transpile_config else None
-    if source_dialect is None:
-        source_dialect = transpile_config.source_dialect if transpile_config else None
-
-    _switch_dialects = get_switch_dialects()
-
-    # Validate presence after attempting to source from config
-    if not input_source:
-        input_source = prompts.question("Enter input SQL path")
-    if not output_ws_folder:
-        output_ws_folder = prompts.question("Enter output workspace folder must start with /Workspace/")
-    if not source_dialect:
-        source_dialect = prompts.choice("Select the source dialect", sorted(_switch_dialects))
-
-    # Validate input_source path exists (local path)
-    if not Path(input_source).exists():
-        raise_validation_exception(f"Invalid path for '--input-source': Path '{input_source}' does not exist.")
-
-    # Validate output_ws_folder is a workspace path
-    if not str(output_ws_folder).startswith("/Workspace/"):
-        raise_validation_exception(
-            f"Invalid value for '--output-ws-folder': workspace output path must start with /Workspace/. Got: {output_ws_folder!r}"
-        )
-
-    if source_dialect not in _switch_dialects:
-        raise_validation_exception(
-            f"Invalid value for '--source-dialect': {source_dialect!r} must be one of: {', '.join(sorted(_switch_dialects))}"
-        )
-
-    return input_source, output_ws_folder, source_dialect
-
-
-@lakebridge.command
-def llm_transpile(
-    *,
-    w: WorkspaceClient,
-    input_source: str | None = None,
-    output_ws_folder: str | None = None,
-    source_dialect: str | None = None,
-    ctx: ApplicationContext | None = None,
-) -> None:
-    """Transpile source code to Databricks using LLM Transpiler (Switch)"""
-    if ctx is None:
-        ctx = ApplicationContext(w)
-    del w
-    ctx.add_user_agent_extra("cmd", "llm-transpile")
-    user = ctx.current_user
-    logger.debug(f"User: {user}")
-
-    prompts = ctx.prompts
-    transpile_config = ctx.transpile_config
-    # If CLI args are missing, try to read them from config.yml
-    input_source, output_ws_folder, source_dialect = _validate_llm_transpile_args(
-        input_source,
-        output_ws_folder,
-        source_dialect,
-        transpile_config,
-        prompts,
-    )
-
-    job_list = ctx.install_state.jobs
-    if "Switch" not in job_list:
-        raise RuntimeError(
-            "Switch Job ID not found. "
-            "Please run 'databricks labs lakebridge install-transpile --include-llm-transpiler true' first."
-        )
-    logger.debug("Switch job ID found in InstallState")
-    job_id = int(job_list["Switch"])
-
-    # Upload File to Volume
-    transpile_config = ctx.transpile_config
-    if transpile_config is None or transpile_config.transpiler_options is None:
-        raise RuntimeError(
-            "Transpile configuration config.yml not found in workspace."
-            "Please run 'databricks labs lakebridge install-transpile --include-llm-transpiler true' first."
-        )
-
-    transpile_options = transpile_config.transpiler_options
-    logger.debug(f"Transpiler options: {transpile_options}")
-    if not isinstance(transpile_options, Mapping):
-        raise RuntimeError(
-            "Invalid transpile configuration: transpiler_options must be a mapping. "
-            "Please run 'databricks labs lakebridge install-transpile --include-llm-transpiler true' first."
-        )
-    catalog = transpile_options.get("catalog", None)
-    schema = transpile_options.get("schema", None)
-    volume = transpile_options.get("volume", None)
-
-    if catalog is None or schema is None or volume is None:
-        raise RuntimeError(
-            "Invalid transpile configuration: catalog, schema or volume is missing. "
-            "Please run 'databricks labs lakebridge install-transpile --include-llm-transpiler true' first."
-        )
-    assert isinstance(catalog, str)
-    assert isinstance(schema, str)
-    assert isinstance(volume, str)
-
-    try:
-        ctx.add_user_agent_extra("transpiler_source_dialect", source_dialect)
-        job_runner = SwitchRunner(ctx.workspace_client, ctx.installation)
-        volume_input_path = job_runner.upload_to_volume(
-            local_path=Path(input_source), catalog=catalog, schema=schema, volume=volume
-        )
-
-        response = job_runner.run(
-            volume_input_path=volume_input_path,
-            output_ws_folder=output_ws_folder,
-            source_tech=source_dialect,
-            job_id=job_id,
-        )
-        json.dump(response, sys.stdout, indent=2)
-    except Exception as ex:
-        raise RuntimeError(ex) from ex
-
-
 @lakebridge.command
 def reconcile(*, w: WorkspaceClient) -> None:
     """[EXPERIMENTAL] Reconciles source to Databricks datasets"""
@@ -959,6 +833,132 @@ def analyze(
 
         ctx.add_user_agent_extra("cmd", "analyze")
         logger.debug(f"User: {ctx.current_user}")
+
+
+def _validate_llm_transpile_args(
+    input_source: str | None,
+    output_ws_folder: str | None,
+    source_dialect: str | None,
+    prompts: Prompts,
+) -> tuple[str, str, str]:
+
+    _switch_dialects = get_switch_dialects()
+
+    # Validate presence after attempting to source from config
+    if not input_source:
+        input_source = prompts.question("Enter input SQL path")
+    if not output_ws_folder:
+        output_ws_folder = prompts.question("Enter output workspace folder must start with /Workspace/")
+    if not source_dialect:
+        source_dialect = prompts.choice("Select the source dialect", sorted(_switch_dialects))
+
+    # Validate input_source path exists (local path)
+    if not Path(input_source).exists():
+        raise_validation_exception(f"Invalid path for '--input-source': Path '{input_source}' does not exist.")
+
+    # Validate output_ws_folder is a workspace path
+    if not str(output_ws_folder).startswith("/Workspace/"):
+        raise_validation_exception(
+            f"Invalid value for '--output-ws-folder': workspace output path must start with /Workspace/. Got: {output_ws_folder!r}"
+        )
+
+    if source_dialect not in _switch_dialects:
+        raise_validation_exception(
+            f"Invalid value for '--source-dialect': {source_dialect!r} must be one of: {', '.join(sorted(_switch_dialects))}"
+        )
+
+    return input_source, output_ws_folder, source_dialect
+
+
+@lakebridge.command
+def llm_transpile(
+    *,
+    w: WorkspaceClient,
+    input_source: str | None = None,
+    output_ws_folder: str | None = None,
+    source_dialect: str | None = None,
+    catalog_name: str | None = None,
+    schema_name: str | None = None,
+    volume: str | None = None,
+    foundational_model: str | None = None,
+    ctx: ApplicationContext | None = None,
+) -> None:
+    """Transpile source code to Databricks using LLM Transpiler (Switch)"""
+    if ctx is None:
+        ctx = ApplicationContext(w)
+    del w
+    ctx.add_user_agent_extra("cmd", "llm-transpile")
+    user = ctx.current_user
+    logger.debug(f"User: {user}")
+
+    logger.info(
+        """This Feature leverages a large language model (LLM) to analyse and convert your provided content, code and data.\n
+                You consent to your content being transmitted to, processed by, and returned from the LLM hosted by Databricks foundational models or other external models you may configure during the runtime.\n
+                The outputs of the LLM are generated automatically without human review, and may contain inaccuracies or errors. \n
+                You are responsible for reviewing and validating all outputs before relying on them for any critical or production use. \n
+                By running this feature you accept these conditions.
+    """
+    )
+
+    prompts = ctx.prompts
+    resource_configurator = ctx.resource_configurator
+
+    # If CLI args are missing, try to read them from config.yml
+    input_source, output_ws_folder, source_dialect = _validate_llm_transpile_args(
+        input_source,
+        output_ws_folder,
+        source_dialect,
+        prompts,
+    )
+
+    if catalog_name is None:
+        catalog_name = resource_configurator.prompt_for_catalog_setup(default_catalog_name="lakebridge")
+
+    if schema_name is None:
+        schema_name = resource_configurator.prompt_for_schema_setup(catalog=catalog_name, default_schema_name="switch")
+
+    if volume is None:
+        volume = resource_configurator.prompt_for_volume_setup(
+            catalog=catalog_name, schema=schema_name, default_volume_name="switch_volume"
+        )
+
+    resource_configurator.has_necessary_access(catalog_name, schema_name, volume)
+
+    if foundational_model is None:
+        foundational_model = resource_configurator.prompt_for_foundation_model_choice()
+
+    job_list = ctx.install_state.jobs
+    if "Switch" not in job_list:
+        raise RuntimeError(
+            "Switch Job ID not found. "
+            "Please run 'databricks labs lakebridge install-transpile --include-llm-transpiler true' first."
+        )
+    logger.debug("Switch job ID found in InstallState")
+    job_id = int(job_list["Switch"])
+
+    try:
+        ctx.add_user_agent_extra("transpiler_source_dialect", source_dialect)
+        job_runner = SwitchRunner(ctx.workspace_client, ctx.installation)
+        volume_input_path = job_runner.upload_to_volume(
+            local_path=Path(input_source),
+            catalog=catalog_name,
+            schema=schema_name,
+            volume=volume,
+        )
+
+        response = job_runner.run(
+            volume_input_path=volume_input_path,
+            output_ws_folder=output_ws_folder,
+            source_tech=source_dialect,
+            catalog=catalog_name,
+            schema=schema_name,
+            volume=volume,
+            foundational_model=foundational_model,
+            job_id=job_id,
+        )
+        json.dump(response, sys.stdout, indent=2)
+    except Exception as ex:
+        raise RuntimeError(ex) from ex
 
 
 if __name__ == "__main__":

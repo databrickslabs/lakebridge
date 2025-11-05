@@ -6,12 +6,15 @@ from typing import cast
 import pytest
 
 from databricks.labs.blueprint.installation import MockInstallation, RootJsonValue
-from databricks.labs.blueprint.tui import MockPrompts
+from databricks.labs.blueprint.tui import MockPrompts, Prompts
 from databricks.labs.switch.lsp import get_switch_dialects
 
 from databricks.labs.lakebridge import cli
 from databricks.labs.lakebridge.contexts.application import ApplicationContext
 from databricks.sdk import WorkspaceClient
+
+from databricks.labs.lakebridge.deployment.configurator import ResourceConfigurator
+from databricks.labs.lakebridge.helpers.metastore import CatalogOperations
 
 _JOB_ID = 1234567890
 _RUN_ID = 123456789
@@ -24,6 +27,10 @@ def make_mock_prompts(input_path: str, output_folder: str, source_dialect: str =
             r"Enter input SQL path": str(input_path),
             r"Enter output workspace folder must start with /Workspace/": output_folder,
             r"Select the source dialect": str(sorted(_switch_dialects).index(source_dialect)),
+            r"Enter catalog name": "lakebridge",
+            r"Enter schema name": "switch",
+            r"Enter volume name": "switch_volume",
+            r"Select a Foundation Model serving endpoint:": "0",
         }
     )
 
@@ -39,28 +46,16 @@ def create_switch_workspace_client_mock() -> WorkspaceClient:
     return ws
 
 
+def mock_resource_configurator(ws: WorkspaceClient, prompts: Prompts) -> ResourceConfigurator:
+    catalog_operations = create_autospec(CatalogOperations)
+    catalog_operations.has_catalog_access.return_value = True
+    return ResourceConfigurator(ws, prompts, catalog_operations)
+
+
 @pytest.fixture
 def mock_installation_with_switch() -> MockInstallation:
     """MockInstallation with Switch configuration state."""
     state: dict[str, RootJsonValue] = {
-        "config.yml": {
-            "version": 3,
-            "transpiler_config_path": str(Path.home() / ".lakebridge" / "Switch" / "lsp" / "config.yml"),
-            "transpiler_options": {
-                "catalog": "test_catalog",
-                "schema": "test_schema",
-                "volume": "test_volume",
-                "foundation_model": "databricks-claude-sonnet-4-5",
-                "transpiler_name": "Switch",
-            },
-            "source_dialect": None,
-            "input_source": None,
-            "output_folder": None,
-            "sdk_config": None,
-            "skip_validation": False,
-            "catalog_name": "catalog",
-            "schema_name": "schema",
-        },
         "state.json": {"resources": {"jobs": {"Switch": f"{_JOB_ID}"}}, "version": 1},
     }
     return MockInstallation(cast(dict[str, RootJsonValue], state))
@@ -78,16 +73,24 @@ def test_llm_transpile_success(
 
     # Use a dedicated WorkspaceClient mock tailored for SwitchRunner
     mock_ws = create_switch_workspace_client_mock()
+    mock_configurator = mock_resource_configurator(mock_ws, make_mock_prompts(str(input_source), output_folder))
 
     ctx = ApplicationContext(mock_ws)
-    ctx.replace(installation=mock_installation_with_switch)
-    ctx.replace(add_user_agent_extra=lambda w, *args, **kwargs: w)
+    ctx.replace(
+        installation=mock_installation_with_switch,
+        add_user_agent_extra=lambda w, *args, **kwargs: w,
+        resource_configurator=mock_configurator,
+    )
 
     cli.llm_transpile(
         w=mock_ws,
         input_source=str(input_source),
         output_ws_folder=output_folder,
         source_dialect="mssql",
+        catalog_name="lakebridge",
+        schema_name="switch",
+        volume="switch_volume",
+        foundational_model="databricks-claude-sonnet-4-5",
         ctx=ctx,
     )
 
@@ -116,6 +119,7 @@ def test_llm_transpile_without_parms(
 
     # Use a dedicated WorkspaceClient mock tailored for SwitchRunner
     mock_ws = create_switch_workspace_client_mock()
+    mock_configurator = mock_resource_configurator(mock_ws, make_mock_prompts(str(input_source), output_folder))
 
     ctx = ApplicationContext(mock_ws)
 
@@ -123,6 +127,7 @@ def test_llm_transpile_without_parms(
         installation=mock_installation_with_switch,
         add_user_agent_extra=lambda w, *args, **kwargs: w,
         prompts=mock_prompts,
+        resource_configurator=mock_configurator,
     )
 
     cli.llm_transpile(w=mock_ws, ctx=ctx)
@@ -151,6 +156,7 @@ def test_llm_transpile_with_incorrect_output_parms(
 
     # Use a dedicated WorkspaceClient mock tailored for SwitchRunner
     mock_ws = create_switch_workspace_client_mock()
+    mock_configurator = mock_resource_configurator(mock_ws, make_mock_prompts(str(input_source), output_folder))
 
     ctx = ApplicationContext(mock_ws)
 
@@ -158,6 +164,7 @@ def test_llm_transpile_with_incorrect_output_parms(
         installation=mock_installation_with_switch,
         add_user_agent_extra=lambda w, *args, **kwargs: w,
         prompts=mock_prompts,
+        resource_configurator=mock_configurator,
     )
 
     error_msg = "Invalid value for '--output-ws-folder': workspace output path must start with /Workspace/. Got: '/Users/test/output'"
@@ -179,6 +186,7 @@ def test_llm_transpile_with_incorrect_dialect(
 
     # Use a dedicated WorkspaceClient mock tailored for SwitchRunner
     mock_ws = create_switch_workspace_client_mock()
+    mock_configurator = mock_resource_configurator(mock_ws, make_mock_prompts(str(input_source), output_folder))
 
     ctx = ApplicationContext(mock_ws)
 
@@ -186,6 +194,7 @@ def test_llm_transpile_with_incorrect_dialect(
         installation=mock_installation_with_switch,
         add_user_agent_extra=lambda w, *args, **kwargs: w,
         prompts=mock_prompts,
+        resource_configurator=mock_configurator,
     )
 
     error_msg = "Invalid value for '--source-dialect': 'agent_sql' must be one of: airflow, mssql, mysql, netezza, oracle, postgresql, redshift, snowflake, synapse, teradata"

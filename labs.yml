@@ -51,13 +51,18 @@ commands:
     flags:
       - name: input-source
         description: Input Script Folder or File (local path)
-        default: null
       - name: output-ws-folder
         description: Output folder path (Databricks Workspace path starting with /Workspace/)
-        default: null
       - name: source-dialect
         description: Source dialect name (e.g., 'snowflake', 'teradata')
-        default: null
+      - name: catalog-name
+        description: Databricks Catalog name (already existing with relevant permission)
+      - name: schema-name
+        description: Databricks Schema name (already existing with relevant permission)
+      - name: volume
+        description: Databricks UC Volume name (already existing with relevant permission)
+      - name: foundational-model
+        description: Databricks Model Serving Endpoint
 
   - name: reconcile
     description: Reconcile source and target data residing on Databricks
