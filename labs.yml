@@ -54,6 +54,7 @@ commands:
 
   - name: configure-database-profiler
     description: "Configure Database Profiler"
+
   - name: install-transpile
     description: Install & optionally configure 'transpile' dependencies
     flags:
