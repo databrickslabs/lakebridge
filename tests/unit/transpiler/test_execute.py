@@ -911,7 +911,11 @@ def test_transpiled_output_nested_directories(tmp_path: Path, mock_workspace_cli
         path.write_text(source, encoding="utf-8")
 
     # Set up a mock engine for exercising the processing loop.
-    mock_engine = ConfigurableTestEngine(supported_dialects=["sql"], file_extensions=[".sql"], transform=lambda sql: f"-- Transformed!\n{sql}")
+    mock_engine = ConfigurableTestEngine(
+        supported_dialects=["sql"],
+        file_extensions=[".sql"],
+        transform=lambda sql: f"-- Transformed!\n{sql}",
+    )
     config = TranspileConfig(
         transpiler_config_path="mock",
         input_source=str(input_path),
