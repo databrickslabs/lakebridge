@@ -53,7 +53,7 @@ commands:
     description: Reconcile source and target data residing on Databricks using aggregated metrics
 
   - name: configure-database-profiler
-    description: "Configure database profiler"
+    description: Configure database profiler
 
   - name: install-transpile
     description: Install & optionally configure 'transpile' dependencies
