@@ -188,7 +188,7 @@ def test_install_configures_job_with_correct_parameters(
 
     # Verify parameters
     param_names = {param.name for param in call_kwargs["parameters"]}
-    assert param_names == {"source_tech", "input_dir", "output_dir"}
+    assert param_names == {"catalog", "volume", "output_dir", "foundation_model", "schema", "source_tech", "input_dir"}
 
     # Verify max concurrent runs
     assert call_kwargs["max_concurrent_runs"] == 100

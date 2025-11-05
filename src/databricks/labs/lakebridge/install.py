@@ -10,7 +10,6 @@ from databricks.labs.blueprint.installation import Installation, JsonValue, Serd
 from databricks.labs.blueprint.installer import InstallState
 from databricks.labs.blueprint.tui import Prompts
 from databricks.labs.blueprint.wheels import ProductInfo
-from databricks.labs.switch.lsp import get_switch_dialects
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.errors import NotFound, PermissionDenied
 
@@ -203,31 +202,21 @@ class WorkspaceInstaller:
         return config
 
     def _all_installed_dialects(self) -> list[str]:
-        if self._include_llm:
-            self._switch_dialects = get_switch_dialects()
-        return sorted(self._transpiler_repository.all_dialects() | set(self._switch_dialects))
+        return sorted(self._transpiler_repository.all_dialects())
 
     def _transpilers_with_dialect(self, dialect: str) -> list[str]:
         return sorted(self._transpiler_repository.transpilers_with_dialect(dialect))
 
     def _transpiler_config_path(self, transpiler: str) -> Path:
-        if transpiler == self._llm_transpiler:
-            folder = self._installation.install_folder()
-            return Path(f"{folder}/{self._llm_transpiler}/lsp/config.yml")
         return self._transpiler_repository.transpiler_config_path(transpiler)
 
     # Sentinel value for special "set it later" option in prompts.
     _install_later = "Set it later"
-    _llm_transpiler = "Switch"
-    _switch_dialects: list = []
 
     def _prompt_for_new_transpile_installation(self) -> TranspileConfig:
         # TODO tidy this up, logger might not display the below in console...
         logger.info("Please answer a few questions to configure lakebridge `transpile`")
-        transpiler_name: str | None = None
-
         all_dialects = [self._install_later, *self._all_installed_dialects()]
-
         source_dialect: str | None = self._prompts.choice("Select the source dialect:", all_dialects, sort=False)
         if source_dialect == self._install_later:
             source_dialect = None
@@ -235,8 +224,6 @@ class WorkspaceInstaller:
         transpiler_options: dict[str, JsonValue] | None = None
         if source_dialect:
             transpilers = self._transpilers_with_dialect(source_dialect)
-            if self._include_llm and source_dialect in self._switch_dialects:
-                transpilers.append(self._llm_transpiler)
             if (found_config := self._get_transpiler_config(transpilers)) is not None:
                 transpiler_name, transpiler_config_path = found_config
                 transpiler_options = self._prompt_for_transpiler_options(transpiler_name, source_dialect)
@@ -253,37 +240,9 @@ class WorkspaceInstaller:
         if error_file_path == "errors.log":
             error_file_path = str(Path.cwd() / "errors.log")
 
-        run_validation = False
-
-        if transpiler_name == self._llm_transpiler:
-            logger.info("Note: Switch transpiler is LLM Transpiler has a different execution process")
-            logger.info("Starting the additional configuration required for Switch...")
-            logger.info("Please provide the **Mandatory** following resources to set up Switch:")
-            catalog = self._resource_configurator.prompt_for_catalog_setup("lakebridge")
-            schema = self._resource_configurator.prompt_for_schema_setup(catalog, "switch")
-            volume = self._resource_configurator.prompt_for_volume_setup(catalog, schema, "switch_volume")
-
-            # Prompt for a Foundation Model serving endpoint to use with the LLM converter.
-            logger.info("Now select the foundational model to use with Switch for LLM Transpile")
-            foundation_model = self._resource_configurator.prompt_for_foundation_model_choice()
-
-            # Ensure transpiler options exist and persist the choices for later use by the transpiler.
-            transpiler_options = {} if transpiler_options is None else dict(transpiler_options)
-            transpiler_options.update(
-                {
-                    "transpiler_name": transpiler_name,
-                    "foundation_model": foundation_model,
-                    "catalog": catalog,
-                    "schema": schema,
-                    "volume": volume,
-                }
-            )
-
-        else:
-            # LLM Converter bakes in LLM validation, so no need to ask the user again.
-            run_validation = self._prompts.confirm(
-                "Would you like to validate the syntax and semantics of the transpiled queries?"
-            )
+        run_validation = self._prompts.confirm(
+            "Would you like to validate the syntax and semantics of the transpiled queries?"
+        )
 
         return TranspileConfig(
             transpiler_config_path=str(transpiler_config_path) if transpiler_config_path is not None else None,
