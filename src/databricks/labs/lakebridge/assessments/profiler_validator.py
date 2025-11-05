@@ -1,9 +1,11 @@
 import os
 from dataclasses import dataclass
+
 from collections.abc import Sequence
 import yaml
 from duckdb import DuckDBPyConnection, CatalogException, ParserException, Error
 from collections.abc import Sequence
+
 
 from databricks.labs.lakebridge.assessments.pipeline import PipelineClass
 
