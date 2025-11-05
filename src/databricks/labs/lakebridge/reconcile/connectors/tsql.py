@@ -134,7 +134,7 @@ class TSQLServerDataSource(DataSource, SecretsMixin, JDBCReaderMixin):
             return self.log_and_throw_exception(e, "schema", schema_query)
 
     def reader(self, query: str, prepare_query_str="") -> DataFrameReader:
-        return self._get_jdbc_reader(query, self.get_jdbc_url, self._DRIVER, prepare_query_str)
+        return self._get_jdbc_reader(query, self.get_jdbc_url, self._DRIVER, {"prepareQuery": prepare_query_str})
 
     def normalize_identifier(self, identifier: str) -> NormalizedIdentifier:
         return DialectUtils.normalize_identifier(

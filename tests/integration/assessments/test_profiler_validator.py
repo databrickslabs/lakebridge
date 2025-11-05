@@ -7,6 +7,9 @@ from databricks.labs.lakebridge.assessments.profiler_validator import (
     EmptyTableValidationCheck,
     build_validation_report,
     NullValidationCheck,
+    ExtractSchemaValidationCheck,
+    SchemaDefinitionLoadError,
+    SchemaValidationError,
 )
 from .utils.profiler_extract_utils import build_mock_synapse_extract
 
@@ -72,9 +75,128 @@ def test_validate_mixed_checks(mock_synapse_profiler_extract):
             NullValidationCheck(table_2, "sku", "WARN"),
         ]
         report = build_validation_report(validation_checks, duck_conn)
-        print(report)
         num_failures = len(list(filter(lambda row: row.outcome == "FAIL", report)))
         num_passing = len(list(filter(lambda row: row.outcome == "PASS", report)))
         assert len(report) == 4
         assert num_failures == 0
         assert num_passing == 4
+
+
+def test_validate_invalid_schema_path(mock_synapse_profiler_extract):
+    with duckdb.connect(database=mock_synapse_profiler_extract) as duck_conn:
+        validation_checks = []
+        # Build a schema check with an invalid schema def path
+        prefix = Path(__file__).parent
+        schema_def_path = f"{prefix}/../../resources/assessments/synapse_scheme_def_nonexists.yml"
+        schema_check = ExtractSchemaValidationCheck(
+            "main",
+            "dedicated_routines",
+            source_tech="synapse",
+            extract_path=mock_synapse_profiler_extract,
+            schema_path=schema_def_path,
+        )
+        validation_checks.append(schema_check)
+
+        # Build the validation report and trap the exception
+        with pytest.raises(SchemaDefinitionLoadError) as exec_info:
+            build_validation_report(validation_checks, duck_conn)
+
+        # Ensure correct error message is returned
+        assert "Schema definition file not found:" in str(exec_info.value)
+
+
+def test_validate_invalid_source_tech(mock_synapse_profiler_extract):
+    with duckdb.connect(database=mock_synapse_profiler_extract) as duck_conn:
+        validation_checks = []
+        prefix = Path(__file__).parent
+        schema_def_path = f"{prefix}/../../resources/assessments/synapse_schema_def.yml"
+        # Provide a mismatched source tech with schema definition
+        schema_check = ExtractSchemaValidationCheck(
+            "main",
+            "dedicated_routines",
+            source_tech="oracle",
+            extract_path=mock_synapse_profiler_extract,
+            schema_path=schema_def_path,
+        )
+        validation_checks.append(schema_check)
+
+        # Ensure that a failed assertion is reported
+        with pytest.raises(AssertionError) as exec_info:
+            build_validation_report(validation_checks, duck_conn)
+
+        # Ensure correct error message is returned
+        assert "Incorrect schema definition type for source tech" in str(exec_info.value)
+
+
+def test_validate_table_not_found(mock_synapse_profiler_extract):
+    with duckdb.connect(database=mock_synapse_profiler_extract) as duck_conn:
+        validation_checks = []
+        prefix = Path(__file__).parent
+        schema_def_path = f"{prefix}/../../resources/assessments/synapse_schema_def.yml"
+        # Provide a table not in the profiler extract
+        schema_check = ExtractSchemaValidationCheck(
+            "main",
+            "table_does_not_exist",
+            source_tech="synapse",
+            extract_path=mock_synapse_profiler_extract,
+            schema_path=schema_def_path,
+        )
+        validation_checks.append(schema_check)
+
+        # Build the validation report and trap the exception
+        with pytest.raises(SchemaValidationError) as exec_info:
+            build_validation_report(validation_checks, duck_conn)
+
+        # Ensure correct error message is returned
+        assert "could not be found" in str(exec_info.value)
+
+
+def test_validate_successful_schema_check(mock_synapse_profiler_extract):
+    with duckdb.connect(database=mock_synapse_profiler_extract) as duck_conn:
+        validation_checks = []
+        prefix = Path(__file__).parent
+        schema_def_path = f"{prefix}/../../resources/assessments/synapse_schema_def.yml"
+
+        # Validate SQL Pool metrics
+        schema_check = ExtractSchemaValidationCheck(
+            "main",
+            "dedicated_sql_pool_metrics",
+            source_tech="synapse",
+            extract_path=mock_synapse_profiler_extract,
+            schema_path=schema_def_path,
+        )
+        validation_checks.append(schema_check)
+
+        # Validate the report output
+        report = build_validation_report(validation_checks, duck_conn)
+        num_failures = len(list(filter(lambda row: row.outcome == "FAIL", report)))
+        num_passing = len(list(filter(lambda row: row.outcome == "PASS", report)))
+        assert len(report) == 1
+        assert num_failures == 0
+        assert num_passing == 1
+
+
+def test_validate_invalid_schema_check(mock_synapse_profiler_extract):
+    with duckdb.connect(database=mock_synapse_profiler_extract) as duck_conn:
+        validation_checks = []
+        prefix = Path(__file__).parent
+        schema_def_path = f"{prefix}/../../resources/assessments/synapse_schema_def.yml"
+
+        # Validate SQL Pool metrics
+        schema_check = ExtractSchemaValidationCheck(
+            "main",
+            "dedicated_storage_info",
+            source_tech="synapse",
+            extract_path=mock_synapse_profiler_extract,
+            schema_path=schema_def_path,
+        )
+        validation_checks.append(schema_check)
+
+        # Validate the report output
+        report = build_validation_report(validation_checks, duck_conn)
+        num_failures = len(list(filter(lambda row: row.outcome == "FAIL", report)))
+        num_passing = len(list(filter(lambda row: row.outcome == "PASS", report)))
+        assert len(report) == 1
+        assert num_failures == 1
+        assert num_passing == 0
+        assert report[0].strategy == "Unexpected column data type"

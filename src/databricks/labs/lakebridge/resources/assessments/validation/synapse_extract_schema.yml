@@ -1,0 +1,698 @@
+source_tech: synapse
+version: 0.1
+
+schemas:
+  main:
+    tables:
+      dedicated_columns:
+        columns:
+          - name: TABLE_CATALOG
+            type: VARCHAR
+          - name: TABLE_SCHEMA
+            type: VARCHAR
+          - name: TABLE_NAME
+            type: VARCHAR
+          - name: COLUMN_NAME
+            type: VARCHAR
+          - name: ORDINAL_POSITION
+            type: BIGINT
+          - name: COLUMN_DEFAULT
+            type: VARCHAR
+          - name: IS_NULLABLE
+            type: VARCHAR
+          - name: DATA_TYPE
+            type: VARCHAR
+          - name: CHARACTER_MAXIMUM_LENGTH
+            type: BIGINT
+          - name: CHARACTER_OCTET_LENGTH
+            type: BIGINT
+          - name: NUMERIC_PRECISION
+            type: BIGINT
+          - name: NUMERIC_PRECISION_RADIX
+            type: BIGINT
+          - name: NUMERIC_SCALE
+            type: BIGINT
+          - name: DATETIME_PRECISION
+            type: BIGINT
+          - name: CHARACTER_SET_CATALOG
+            type: VARCHAR
+          - name: CHARACTER_SET_SCHEMA
+            type: VARCHAR
+          - name: CHARACTER_SET_NAME
+            type: VARCHAR
+          - name: COLLATION_CATALOG
+            type: VARCHAR
+          - name: COLLATION_SCHEMA
+            type: VARCHAR
+          - name: COLLATION_NAME
+            type: VARCHAR
+          - name: DOMAIN_CATALOG
+            type: VARCHAR
+          - name: DOMAIN_SCHEMA
+            type: VARCHAR
+          - name: DOMAIN_NAME
+            type: VARCHAR
+          - name: POOL_NAME
+            type: VARCHAR
+      dedicated_routines:
+        columns:
+          - name: CREATED
+            type: VARCHAR
+          - name: DATA_TYPE
+            type: VARCHAR
+          - name: IS_DETERMINISTIC
+            type: VARCHAR
+          - name: IS_IMPLICITLY_INVOCABLE
+            type: VARCHAR
+          - name: IS_NULL_CALL
+            type: VARCHAR
+          - name: IS_USER_DEFINED_CAST
+            type: VARCHAR
+          - name: LAST_ALTERED
+            type: VARCHAR
+          - name: MAX_DYNAMIC_RESULT_SETS
+            type: BIGINT
+          - name: NUMERIC_PRECISION
+            type: BIGINT
+          - name: NUMERIC_PRECISION_RADIX
+            type: BIGINT
+          - name: NUMERIC_SCALE
+            type: BIGINT
+          - name: ROUTINE_BODY
+            type: VARCHAR
+          - name: ROUTINE_CATALOG
+            type: VARCHAR
+          - name: ROUTINE_DEFINITION
+            type: VARCHAR
+          - name: ROUTINE_NAME
+            type: VARCHAR
+          - name: ROUTINE_SCHEMA
+            type: VARCHAR
+          - name: ROUTINE_TYPE
+            type: VARCHAR
+          - name: SCHEMA_LEVEL_ROUTINE
+            type: VARCHAR
+          - name: SPECIFIC_CATALOG
+            type: VARCHAR
+          - name: SPECIFIC_NAME
+            type: VARCHAR
+          - name: SPECIFIC_SCHEMA
+            type: VARCHAR
+          - name: SQL_DATA_ACCESS
+            type: VARCHAR
+          - name: POOL_NAME
+            type: VARCHAR
+      dedicated_session_requests:
+        columns:
+          - name: CLIENT_CORRELATION_ID
+            type: VARCHAR
+          - name: COMMAND
+            type: VARCHAR
+          - name: COMMAND2
+            type: VARCHAR
+          - name: COMMAND_TYPE
+            type: VARCHAR
+          - name: DATABASE_ID
+            type: BIGINT
+          - name: END_COMPILE_TIME
+            type: VARCHAR
+          - name: END_TIME
+            type: VARCHAR
+          - name: ERROR_ID
+            type: VARCHAR
+          - name: GROUP_NAME
+            type: VARCHAR
+          - name: IMPORTANCE
+            type: VARCHAR
+          - name: LABEL
+            type: VARCHAR
+          - name: REQUEST_ID
+            type: VARCHAR
+          - name: RESOURCE_ALLOCATION_PERCENTAGE
+            type: DOUBLE
+          - name: RESOURCE_CLASS
+            type: VARCHAR
+          - name: RESULT_CACHE_HIT
+            type: BIGINT
+          - name: SESSION_ID
+            type: VARCHAR
+          - name: START_TIME
+            type: VARCHAR
+          - name: STATUS
+            type: VARCHAR
+          - name: SUBMIT_TIME
+            type: VARCHAR
+          - name: TOTAL_ELAPSED_TIME
+            type: BIGINT
+          - name: POOL_NAME
+            type: VARCHAR
+          - name: EXTRACT_TS
+            type: VARCHAR
+      dedicated_sessions:
+        columns:
+          - name: APP_NAME
+            type: VARCHAR
+          - name: CLIENT_ID
+            type: VARCHAR
+          - name: IS_TRANSACTIONAL
+            type: BOOLEAN
+          - name: LOGIN_NAME
+            type: VARCHAR
+          - name: LOGIN_TIME
+            type: VARCHAR
+          - name: QUERY_COUNT
+            type: BIGINT
+          - name: REQUEST_ID
+            type: VARCHAR
+          - name: SESSION_ID
+            type: VARCHAR
+          - name: SQL_SPID
+            type: BIGINT
+          - name: STATUS
+            type: VARCHAR
+          - name: POOL_NAME
+            type: VARCHAR
+          - name: EXTRACT_TS
+            type: VARCHAR
+      dedicated_storage_info:
+        columns:
+          - name: NODE_ID
+            type: BIGINT
+          - name: RESERVEDSPACEMB
+            type: DOUBLE
+          - name: USEDSPACEMB
+            type: DOUBLE
+          - name: POOL_NAME
+            type: VARCHAR
+          - name: EXTRACT_TS
+            type: VARCHAR
+      dedicated_tables:
+        columns:
+          - name: TABLE_CATALOG
+            type: VARCHAR
+          - name: TABLE_NAME
+            type: VARCHAR
+          - name: TABLE_SCHEMA
+            type: VARCHAR
+          - name: TABLE_TYPE
+            type: VARCHAR
+          - name: POOL_NAME
+            type: VARCHAR
+      dedicated_views:
+        columns:
+          - name: CHECK_OPTION
+            type: VARCHAR
+          - name: IS_UPDATABLE
+            type: VARCHAR
+          - name: TABLE_CATALOG
+            type: VARCHAR
+          - name: TABLE_NAME
+            type: VARCHAR
+          - name: TABLE_SCHEMA
+            type: VARCHAR
+          - name: VIEW_DEFINITION
+            type: VARCHAR
+          - name: POOL_NAME
+            type: VARCHAR
+      metrics_dedicated_pool_metrics:
+        columns:
+          - name: name
+            type: VARCHAR
+          - name: timestamp
+            type: TIMESTAMP WITH TIME ZONE
+          - name: average
+            type: DOUBLE
+          - name: count
+            type: BIGINT
+          - name: maximum
+            type: BIGINT
+          - name: minimum
+            type: BIGINT
+          - name: total
+            type: DOUBLE
+      metrics_spark_pool_metrics:
+        columns:
+          - name: name
+            type: VARCHAR
+          - name: timestamp
+            type: TIMESTAMP WITH TIME ZONE
+          - name: average
+            type: DOUBLE
+          - name: count
+            type: DOUBLE
+          - name: maximum
+            type: DOUBLE
+          - name: minimum
+            type: DOUBLE
+          - name: total
+            type: DOUBLE
+      metrics_workspace_level_metrics:
+        columns:
+          - name: name
+            type: VARCHAR
+          - name: timestamp
+            type: TIMESTAMP WITH TIME ZONE
+          - name: average
+            type: BIGINT
+          - name: count
+            type: BIGINT
+          - name: maximum
+            type: BIGINT
+          - name: minimum
+            type: BIGINT
+          - name: total
+            type: BIGINT
+      workspace_datasets:
+        columns:
+          - name: '0'
+            type: STRUCT(id VARCHAR, "name" VARCHAR, "type" VARCHAR, etag VARCHAR, "properties.type"
+              VARCHAR, "properties.schema" INTEGER[], "properties.linked_service_name.type"
+              VARCHAR, "properties.linked_service_name.reference_name" VARCHAR, "properties.linked_service_name.parameters.ServerName.value"
+              VARCHAR, "properties.linked_service_name.parameters.ServerName.type" VARCHAR,
+              "properties.linked_service_name.parameters.DatabaseName.value" VARCHAR,
+              "properties.linked_service_name.parameters.DatabaseName.type" VARCHAR,
+              "properties.linked_service_name.parameters.UserName.value" VARCHAR, "properties.linked_service_name.parameters.UserName.type"
+              VARCHAR, "properties.linked_service_name.parameters.AKVSecretName.value"
+              VARCHAR, "properties.linked_service_name.parameters.AKVSecretName.type"
+              VARCHAR, "properties.parameters.ServerName.type" VARCHAR, "properties.parameters.DataBaseName.type"
+              VARCHAR, "properties.parameters.UserName.type" VARCHAR, "properties.parameters.DBSecret.type"
+              VARCHAR, "properties.parameters.TableName.type" VARCHAR, "properties.parameters.SchemaName.type"
+              VARCHAR, "properties.annotations" INTEGER[], "properties.schema_type_properties_schema.value"
+              VARCHAR, "properties.schema_type_properties_schema.type" VARCHAR, "properties.table.value"
+              VARCHAR, "properties.table.type" VARCHAR)
+          - name: '1'
+            type: STRUCT(id VARCHAR, "name" VARCHAR, "type" VARCHAR, etag VARCHAR, "properties.type"
+              VARCHAR, "properties.linked_service_name.type" VARCHAR, "properties.linked_service_name.reference_name"
+              VARCHAR, "properties.annotations" INTEGER[], "properties.location.type"
+              VARCHAR)
+          - name: '2'
+            type: STRUCT(id VARCHAR, "name" VARCHAR, "type" VARCHAR, etag VARCHAR, "properties.type"
+              VARCHAR, "properties.linked_service_name.type" VARCHAR, "properties.linked_service_name.reference_name"
+              VARCHAR, "properties.linked_service_name.parameters.BaseUrl.value" VARCHAR,
+              "properties.linked_service_name.parameters.BaseUrl.type" VARCHAR, "properties.parameters.BaseUrl.type"
+              VARCHAR, "properties.parameters.AddlPath.type" VARCHAR, "properties.annotations"
+              INTEGER[], "properties.location.type" VARCHAR, "properties.location.relative_url.value"
+              VARCHAR, "properties.location.relative_url.type" VARCHAR)
+          - name: '3'
+            type: STRUCT(id VARCHAR, "name" VARCHAR, "type" VARCHAR, etag VARCHAR, "properties.type"
+              VARCHAR, "properties.schema" INTEGER[], "properties.linked_service_name.type"
+              VARCHAR, "properties.linked_service_name.reference_name" VARCHAR, "properties.parameters.Index.type"
+              VARCHAR, "properties.annotations" INTEGER[], "properties.location.type"
+              VARCHAR, "properties.location.file_system" VARCHAR, "properties.sheet_index.value"
+              VARCHAR, "properties.sheet_index.type" VARCHAR, "properties.first_row_as_header"
+              BOOLEAN)
+          - name: '4'
+            type: STRUCT(id VARCHAR, "name" VARCHAR, "type" VARCHAR, etag VARCHAR, "properties.type"
+              VARCHAR, "properties.schema" INTEGER[], "properties.linked_service_name.type"
+              VARCHAR, "properties.linked_service_name.reference_name" VARCHAR, "properties.parameters.ColumnDelimiter.type"
+              VARCHAR, "properties.annotations" INTEGER[], "properties.location.type"
+              VARCHAR, "properties.location.file_system" VARCHAR, "properties.column_delimiter.value"
+              VARCHAR, "properties.column_delimiter.type" VARCHAR, "properties.quote_char"
+              VARCHAR, "properties.escape_char" VARCHAR, "properties.first_row_as_header"
+              BOOLEAN)
+          - name: '5'
+            type: STRUCT(id VARCHAR, "name" VARCHAR, "type" VARCHAR, etag VARCHAR, "properties.type"
+              VARCHAR, "properties.linked_service_name.type" VARCHAR, "properties.linked_service_name.reference_name"
+              VARCHAR, "properties.parameters.Directory.type" VARCHAR, "properties.annotations"
+              INTEGER[], "properties.location.type" VARCHAR, "properties.location.folder_path.value"
+              VARCHAR, "properties.location.folder_path.type" VARCHAR)
+          - name: '6'
+            type: STRUCT(id VARCHAR, "name" VARCHAR, "type" VARCHAR, etag VARCHAR, "properties.type"
+              VARCHAR, "properties.linked_service_name.type" VARCHAR, "properties.linked_service_name.reference_name"
+              VARCHAR, "properties.annotations" INTEGER[], "properties.location.type"
+              VARCHAR)
+          - name: '7'
+            type: STRUCT(id VARCHAR, "name" VARCHAR, "type" VARCHAR, etag VARCHAR, "properties.type"
+              VARCHAR, "properties.linked_service_name.type" VARCHAR, "properties.linked_service_name.reference_name"
+              VARCHAR, "properties.parameters.directory.type" VARCHAR, "properties.annotations"
+              INTEGER[], "properties.location.type" VARCHAR, "properties.location.folder_path.value"
+              VARCHAR, "properties.location.folder_path.type" VARCHAR)
+          - name: '8'
+            type: STRUCT(id VARCHAR, "name" VARCHAR, "type" VARCHAR, etag VARCHAR, "properties.type"
+              VARCHAR, "properties.linked_service_name.type" VARCHAR, "properties.linked_service_name.reference_name"
+              VARCHAR, "properties.parameters.directory.type" VARCHAR, "properties.parameters.file.type"
+              VARCHAR, "properties.annotations" INTEGER[], "properties.location.type"
+              VARCHAR, "properties.location.folder_path.value" VARCHAR, "properties.location.folder_path.type"
+              VARCHAR, "properties.location.file_name.value" VARCHAR, "properties.location.file_name.type"
+              VARCHAR, "properties.location.file_system" VARCHAR, "properties.compression.type"
+              VARCHAR, "properties.compression.level" VARCHAR)
+          - name: '9'
+            type: STRUCT(id VARCHAR, "name" VARCHAR, "type" VARCHAR, etag VARCHAR, "properties.type"
+              VARCHAR, "properties.linked_service_name.type" VARCHAR, "properties.linked_service_name.reference_name"
+              VARCHAR, "properties.parameters.Folder.type" VARCHAR, "properties.parameters.Folder.default_value"
+              VARCHAR, "properties.annotations" INTEGER[], "properties.location.type"
+              VARCHAR, "properties.location.folder_path.value" VARCHAR, "properties.location.folder_path.type"
+              VARCHAR)
+          - name: '10'
+            type: STRUCT(id VARCHAR, "name" VARCHAR, "type" VARCHAR, etag VARCHAR, "properties.type"
+              VARCHAR, "properties.linked_service_name.type" VARCHAR, "properties.linked_service_name.reference_name"
+              VARCHAR, "properties.parameters.Directory.type" VARCHAR, "properties.annotations"
+              INTEGER[], "properties.location.type" VARCHAR, "properties.location.folder_path.value"
+              VARCHAR, "properties.location.folder_path.type" VARCHAR)
+          - name: '11'
+            type: STRUCT(id VARCHAR, "name" VARCHAR, "type" VARCHAR, etag VARCHAR, "properties.type"
+              VARCHAR, "properties.linked_service_name.type" VARCHAR, "properties.linked_service_name.reference_name"
+              VARCHAR, "properties.annotations" INTEGER[], "properties.location.type"
+              VARCHAR, "properties.location.folder_path" VARCHAR)
+          - name: '12'
+            type: STRUCT(id VARCHAR, "name" VARCHAR, "type" VARCHAR, etag VARCHAR, "properties.type"
+              VARCHAR, "properties.linked_service_name.type" VARCHAR, "properties.linked_service_name.reference_name"
+              VARCHAR, "properties.parameters.directory.type" VARCHAR, "properties.annotations"
+              INTEGER[], "properties.location.type" VARCHAR, "properties.location.folder_path.value"
+              VARCHAR, "properties.location.folder_path.type" VARCHAR)
+          - name: '13'
+            type: STRUCT(id VARCHAR, "name" VARCHAR, "type" VARCHAR, etag VARCHAR, "properties.sqlPool.referenceName"
+              VARCHAR, "properties.sqlPool.type" VARCHAR, "properties.typeProperties.schema.value"
+              VARCHAR, "properties.typeProperties.schema.type" VARCHAR, "properties.typeProperties.table.value"
+              VARCHAR, "properties.typeProperties.table.type" VARCHAR, "properties.schema"
+              INTEGER[], "properties.parameters.TableName.type" VARCHAR, "properties.parameters.SchemaName.type"
+              VARCHAR, "properties.annotations" INTEGER[])
+          - name: '14'
+            type: STRUCT(id VARCHAR, "name" VARCHAR, "type" VARCHAR, etag VARCHAR, "properties.type"
+              VARCHAR, "properties.linked_service_name.type" VARCHAR, "properties.linked_service_name.reference_name"
+              VARCHAR, "properties.parameters.Directory.type" VARCHAR, "properties.annotations"
+              INTEGER[], "properties.location.type" VARCHAR, "properties.location.folder_path.value"
+              VARCHAR, "properties.location.folder_path.type" VARCHAR)
+      workspace_linked_services:
+        columns:
+          - name: '0'
+            type: STRUCT(id VARCHAR, "name" VARCHAR, "type" VARCHAR, etag VARCHAR, "properties.type"
+              VARCHAR, "properties.connect_via.type" VARCHAR, "properties.connect_via.reference_name"
+              VARCHAR, "properties.annotations" INTEGER[], "properties.host" VARCHAR,
+              "properties.port" INTEGER, "properties.authentication_type" VARCHAR, "properties.user_name"
+              VARCHAR, "properties.encrypted_credential" VARCHAR, "properties.skip_host_key_validation"
+              BOOLEAN)
+          - name: '1'
+            type: STRUCT(id VARCHAR, "name" VARCHAR, "type" VARCHAR, etag VARCHAR, "properties.type"
+              VARCHAR, "properties.connect_via.type" VARCHAR, "properties.connect_via.reference_name"
+              VARCHAR, "properties.annotations" INTEGER[], "properties.host" VARCHAR,
+              "properties.port" INTEGER, "properties.authentication_type" VARCHAR, "properties.user_name"
+              VARCHAR, "properties.password.type" VARCHAR, "properties.password.store.type"
+              VARCHAR, "properties.password.store.reference_name" VARCHAR, "properties.password.secret_name"
+              VARCHAR, "properties.skip_host_key_validation" BOOLEAN)
+          - name: '2'
+            type: STRUCT(id VARCHAR, "name" VARCHAR, "type" VARCHAR, etag VARCHAR, "properties.type"
+              VARCHAR, "properties.connect_via.type" VARCHAR, "properties.connect_via.reference_name"
+              VARCHAR, "properties.annotations" INTEGER[], "properties.host" VARCHAR,
+              "properties.port" INTEGER, "properties.authentication_type" VARCHAR, "properties.user_name"
+              VARCHAR, "properties.password.type" VARCHAR, "properties.password.store.type"
+              VARCHAR, "properties.password.store.reference_name" VARCHAR, "properties.password.secret_name"
+              VARCHAR, "properties.skip_host_key_validation" BOOLEAN)
+          - name: '3'
+            type: STRUCT(id VARCHAR, "name" VARCHAR, "type" VARCHAR, etag VARCHAR, "properties.type"
+              VARCHAR, "properties.connect_via.type" VARCHAR, "properties.connect_via.reference_name"
+              VARCHAR, "properties.annotations" INTEGER[], "properties.host" VARCHAR,
+              "properties.port" INTEGER, "properties.authentication_type" VARCHAR, "properties.user_name"
+              VARCHAR, "properties.password.type" VARCHAR, "properties.password.store.type"
+              VARCHAR, "properties.password.store.reference_name" VARCHAR, "properties.password.secret_name"
+              VARCHAR, "properties.skip_host_key_validation" BOOLEAN)
+          - name: '4'
+            type: STRUCT(id VARCHAR, "name" VARCHAR, "type" VARCHAR, etag VARCHAR, "properties.type"
+              VARCHAR, "properties.connect_via.type" VARCHAR, "properties.connect_via.reference_name"
+              VARCHAR, "properties.annotations" INTEGER[], "properties.host" VARCHAR,
+              "properties.port" INTEGER, "properties.authentication_type" VARCHAR, "properties.user_name"
+              VARCHAR, "properties.password.type" VARCHAR, "properties.password.store.type"
+              VARCHAR, "properties.password.store.reference_name" VARCHAR, "properties.password.secret_name"
+              VARCHAR, "properties.skip_host_key_validation" BOOLEAN)
+          - name: '5'
+            type: STRUCT(id VARCHAR, "name" VARCHAR, "type" VARCHAR, etag VARCHAR, "properties.type"
+              VARCHAR, "properties.connect_via.type" VARCHAR, "properties.connect_via.reference_name"
+              VARCHAR, "properties.annotations" INTEGER[], "properties.host" VARCHAR,
+              "properties.port" INTEGER, "properties.authentication_type" VARCHAR, "properties.user_name"
+              VARCHAR, "properties.password.type" VARCHAR, "properties.password.store.type"
+              VARCHAR, "properties.password.store.reference_name" VARCHAR, "properties.password.secret_name"
+              VARCHAR, "properties.skip_host_key_validation" BOOLEAN)
+      workspace_notebooks:
+        columns:
+          - name: '0'
+            type: VARCHAR
+          - name: '1'
+            type: VARCHAR
+      workspace_pipelines:
+        columns:
+          - name: '0'
+            type: VARCHAR
+          - name: '1'
+            type: VARCHAR
+          - name: '2'
+            type: VARCHAR
+          - name: '3'
+            type: VARCHAR
+          - name: '4'
+            type: VARCHAR
+          - name: '5'
+            type: VARCHAR
+      workspace_spark_pools:
+        columns:
+          - name: id
+            type: VARCHAR
+          - name: name
+            type: VARCHAR
+          - name: type
+            type: VARCHAR
+          - name: provisioning_state
+            type: VARCHAR
+          - name: creation_date
+            type: VARCHAR
+          - name: is_compute_isolation_enabled
+            type: BOOLEAN
+          - name: session_level_packages_enabled
+            type: BOOLEAN
+          - name: cache_size
+            type: BIGINT
+          - name: node_count
+            type: BIGINT
+          - name: spark_version
+            type: VARCHAR
+          - name: node_size
+            type: VARCHAR
+          - name: node_size_family
+            type: VARCHAR
+          - name: last_succeeded_timestamp
+            type: VARCHAR
+          - name: auto_scale.min_node_count
+            type: BIGINT
+          - name: auto_scale.enabled
+            type: BOOLEAN
+          - name: auto_scale.max_node_count
+            type: BIGINT
+          - name: auto_pause.delay_in_minutes
+            type: BIGINT
+          - name: auto_pause.enabled
+            type: BOOLEAN
+          - name: dynamic_executor_allocation.enabled
+            type: BOOLEAN
+      workspace_sql_pools:
+        columns:
+          - name: id
+            type: VARCHAR
+          - name: name
+            type: VARCHAR
+          - name: type
+            type: VARCHAR
+          - name: location
+            type: VARCHAR
+          - name: provisioning_state
+            type: VARCHAR
+          - name: status
+            type: VARCHAR
+          - name: creation_date
+            type: VARCHAR
+          - name: sku.name
+            type: VARCHAR
+          - name: sku.capacity
+            type: BIGINT
+      workspace_triggers:
+        columns:
+          - name: '0'
+            type: STRUCT(id VARCHAR, "name" VARCHAR, "type" VARCHAR, etag VARCHAR, "properties.type"
+              VARCHAR, "properties.runtime_state" VARCHAR, "properties.annotations"
+              INTEGER[], "properties.pipelines" STRUCT(pipeline_reference STRUCT("type"
+              VARCHAR, reference_name VARCHAR), parameters STRUCT(Product VARCHAR))[],
+              "properties.recurrence.frequency" VARCHAR, "properties.recurrence.interval"
+              INTEGER, "properties.recurrence.start_time" VARCHAR, "properties.recurrence.time_zone"
+              VARCHAR, "properties.recurrence.schedule.minutes" INTEGER[], "properties.recurrence.schedule.hours"
+              INTEGER[])
+          - name: '1'
+            type: STRUCT(id VARCHAR, "name" VARCHAR, "type" VARCHAR, etag VARCHAR, "properties.type"
+              VARCHAR, "properties.runtime_state" VARCHAR, "properties.annotations"
+              INTEGER[], "properties.pipelines" STRUCT(pipeline_reference STRUCT("type"
+              VARCHAR, reference_name VARCHAR), parameters STRUCT(Product VARCHAR, InstanceName
+              VARCHAR))[], "properties.recurrence.frequency" VARCHAR, "properties.recurrence.interval"
+              INTEGER, "properties.recurrence.start_time" VARCHAR, "properties.recurrence.time_zone"
+              VARCHAR, "properties.recurrence.schedule.minutes" INTEGER[], "properties.recurrence.schedule.hours"
+              INTEGER[])
+          - name: '2'
+            type: STRUCT(id VARCHAR, "name" VARCHAR, "type" VARCHAR, etag VARCHAR, "properties.type"
+              VARCHAR, "properties.runtime_state" VARCHAR, "properties.annotations"
+              INTEGER[], "properties.pipelines" STRUCT(pipeline_reference STRUCT("type"
+              VARCHAR, reference_name VARCHAR), parameters MAP(INTEGER, INTEGER))[],
+              "properties.recurrence.frequency" VARCHAR, "properties.recurrence.interval"
+              INTEGER, "properties.recurrence.start_time" VARCHAR, "properties.recurrence.time_zone"
+              VARCHAR, "properties.recurrence.schedule.hours" INTEGER[], "properties.recurrence.schedule.week_days"
+              VARCHAR[])
+          - name: '3'
+            type: STRUCT(id VARCHAR, "name" VARCHAR, "type" VARCHAR, etag VARCHAR, "properties.type"
+              VARCHAR, "properties.runtime_state" VARCHAR, "properties.annotations"
+              INTEGER[], "properties.pipelines" STRUCT(pipeline_reference STRUCT("type"
+              VARCHAR, reference_name VARCHAR), parameters MAP(INTEGER, INTEGER))[],
+              "properties.recurrence.frequency" VARCHAR, "properties.recurrence.interval"
+              INTEGER, "properties.recurrence.start_time" VARCHAR, "properties.recurrence.time_zone"
+              VARCHAR, "properties.recurrence.schedule.minutes" INTEGER[], "properties.recurrence.schedule.hours"
+              INTEGER[])
+          - name: '4'
+            type: STRUCT(id VARCHAR, "name" VARCHAR, "type" VARCHAR, etag VARCHAR, "properties.type"
+              VARCHAR, "properties.runtime_state" VARCHAR, "properties.annotations"
+              INTEGER[], "properties.pipelines" STRUCT(pipeline_reference STRUCT("type"
+              VARCHAR, reference_name VARCHAR), parameters STRUCT(Product VARCHAR))[],
+              "properties.recurrence.frequency" VARCHAR, "properties.recurrence.interval"
+              INTEGER, "properties.recurrence.start_time" VARCHAR, "properties.recurrence.time_zone"
+              VARCHAR, "properties.recurrence.schedule.minutes" INTEGER[], "properties.recurrence.schedule.hours"
+              INTEGER[])
+          - name: '5'
+            type: STRUCT(id VARCHAR, "name" VARCHAR, "type" VARCHAR, etag VARCHAR, "properties.type"
+              VARCHAR, "properties.runtime_state" VARCHAR, "properties.annotations"
+              INTEGER[], "properties.pipelines" STRUCT(pipeline_reference STRUCT("type"
+              VARCHAR, reference_name VARCHAR), parameters STRUCT(Product VARCHAR))[],
+              "properties.recurrence.frequency" VARCHAR, "properties.recurrence.interval"
+              INTEGER, "properties.recurrence.start_time" VARCHAR, "properties.recurrence.time_zone"
+              VARCHAR, "properties.recurrence.schedule.minutes" INTEGER[], "properties.recurrence.schedule.hours"
+              INTEGER[])
+          - name: '6'
+            type: STRUCT(id VARCHAR, "name" VARCHAR, "type" VARCHAR, etag VARCHAR, "properties.type"
+              VARCHAR, "properties.runtime_state" VARCHAR, "properties.annotations"
+              INTEGER[], "properties.pipelines" STRUCT(pipeline_reference STRUCT("type"
+              VARCHAR, reference_name VARCHAR), parameters STRUCT(BuildProcessName VARCHAR,
+              WatermarkTable VARCHAR))[], "properties.recurrence.frequency" VARCHAR,
+              "properties.recurrence.interval" INTEGER, "properties.recurrence.start_time"
+              VARCHAR, "properties.recurrence.time_zone" VARCHAR, "properties.recurrence.schedule.minutes"
+              INTEGER[], "properties.recurrence.schedule.hours" INTEGER[])
+          - name: '7'
+            type: STRUCT(id VARCHAR, "name" VARCHAR, "type" VARCHAR, etag VARCHAR, "properties.type"
+              VARCHAR, "properties.runtime_state" VARCHAR, "properties.annotations"
+              INTEGER[], "properties.pipelines" STRUCT(pipeline_reference STRUCT("type"
+              VARCHAR, reference_name VARCHAR), parameters MAP(INTEGER, INTEGER))[],
+              "properties.recurrence.frequency" VARCHAR, "properties.recurrence.interval"
+              INTEGER, "properties.recurrence.start_time" VARCHAR, "properties.recurrence.time_zone"
+              VARCHAR, "properties.recurrence.schedule.minutes" INTEGER[], "properties.recurrence.schedule.hours"
+              INTEGER[], "properties.recurrence.schedule.week_days" VARCHAR[])
+          - name: '8'
+            type: STRUCT(id VARCHAR, "name" VARCHAR, "type" VARCHAR, etag VARCHAR, "properties.type"
+              VARCHAR, "properties.runtime_state" VARCHAR, "properties.annotations"
+              INTEGER[], "properties.pipelines" STRUCT(pipeline_reference STRUCT("type"
+              VARCHAR, reference_name VARCHAR), parameters STRUCT(Product VARCHAR))[],
+              "properties.recurrence.frequency" VARCHAR, "properties.recurrence.interval"
+              INTEGER, "properties.recurrence.start_time" VARCHAR, "properties.recurrence.time_zone"
+              VARCHAR, "properties.recurrence.schedule.minutes" INTEGER[], "properties.recurrence.schedule.hours"
+              INTEGER[])
+          - name: '9'
+            type: STRUCT(id VARCHAR, "name" VARCHAR, "type" VARCHAR, etag VARCHAR, "properties.type"
+              VARCHAR, "properties.runtime_state" VARCHAR, "properties.annotations"
+              INTEGER[], "properties.pipelines" STRUCT(pipeline_reference STRUCT("type"
+              VARCHAR, reference_name VARCHAR), parameters MAP(INTEGER, INTEGER))[],
+              "properties.recurrence.frequency" VARCHAR, "properties.recurrence.interval"
+              INTEGER, "properties.recurrence.start_time" VARCHAR, "properties.recurrence.time_zone"
+              VARCHAR, "properties.recurrence.schedule.minutes" INTEGER[], "properties.recurrence.schedule.hours"
+              INTEGER[], "properties.recurrence.schedule.week_days" VARCHAR[])
+          - name: '10'
+            type: STRUCT(id VARCHAR, "name" VARCHAR, "type" VARCHAR, etag VARCHAR, "properties.type"
+              VARCHAR, "properties.runtime_state" VARCHAR, "properties.annotations"
+              INTEGER[], "properties.pipelines" STRUCT(pipeline_reference STRUCT("type"
+              VARCHAR, reference_name VARCHAR), parameters STRUCT(BuildProcessName VARCHAR,
+              WatermarkTable VARCHAR))[], "properties.recurrence.frequency" VARCHAR,
+              "properties.recurrence.interval" INTEGER, "properties.recurrence.start_time"
+              VARCHAR, "properties.recurrence.time_zone" VARCHAR, "properties.recurrence.schedule.minutes"
+              INTEGER[], "properties.recurrence.schedule.hours" INTEGER[])
+          - name: '11'
+            type: STRUCT(id VARCHAR, "name" VARCHAR, "type" VARCHAR, etag VARCHAR, "properties.type"
+              VARCHAR, "properties.runtime_state" VARCHAR, "properties.annotations"
+              INTEGER[], "properties.pipelines" STRUCT(pipeline_reference STRUCT("type"
+              VARCHAR, reference_name VARCHAR), parameters MAP(INTEGER, INTEGER))[],
+              "properties.recurrence.frequency" VARCHAR, "properties.recurrence.interval"
+              INTEGER, "properties.recurrence.start_time" VARCHAR, "properties.recurrence.time_zone"
+              VARCHAR, "properties.recurrence.schedule.minutes" INTEGER[], "properties.recurrence.schedule.hours"
+              INTEGER[], "properties.recurrence.schedule.month_days" INTEGER[])
+          - name: '12'
+            type: STRUCT(id VARCHAR, "name" VARCHAR, "type" VARCHAR, etag VARCHAR, "properties.type"
+              VARCHAR, "properties.runtime_state" VARCHAR, "properties.annotations"
+              INTEGER[], "properties.pipelines" STRUCT(pipeline_reference STRUCT("type"
+              VARCHAR, reference_name VARCHAR), parameters STRUCT(Product VARCHAR, InstanceName
+              VARCHAR))[], "properties.recurrence.frequency" VARCHAR, "properties.recurrence.interval"
+              INTEGER, "properties.recurrence.start_time" VARCHAR, "properties.recurrence.time_zone"
+              VARCHAR, "properties.recurrence.schedule.minutes" INTEGER[], "properties.recurrence.schedule.hours"
+              INTEGER[])
+          - name: '13'
+            type: STRUCT(id VARCHAR, "name" VARCHAR, "type" VARCHAR, etag VARCHAR, "properties.type"
+              VARCHAR, "properties.description" VARCHAR, "properties.runtime_state"
+              VARCHAR, "properties.annotations" INTEGER[], "properties.pipelines" STRUCT(pipeline_reference
+              STRUCT("type" VARCHAR, reference_name VARCHAR), parameters STRUCT(BuildProcessName
+              VARCHAR, WatermarkTable VARCHAR))[], "properties.recurrence.frequency"
+              VARCHAR, "properties.recurrence.interval" INTEGER, "properties.recurrence.start_time"
+              VARCHAR, "properties.recurrence.time_zone" VARCHAR, "properties.recurrence.schedule.minutes"
+              INTEGER[], "properties.recurrence.schedule.hours" INTEGER[])
+          - name: '14'
+            type: STRUCT(id VARCHAR, "name" VARCHAR, "type" VARCHAR, etag VARCHAR, "properties.type"
+              VARCHAR, "properties.runtime_state" VARCHAR, "properties.annotations"
+              INTEGER[], "properties.pipelines" STRUCT(pipeline_reference STRUCT("type"
+              VARCHAR, reference_name VARCHAR), parameters STRUCT(Product VARCHAR, InstanceName
+              VARCHAR))[], "properties.recurrence.frequency" VARCHAR, "properties.recurrence.interval"
+              INTEGER, "properties.recurrence.start_time" VARCHAR, "properties.recurrence.time_zone"
+              VARCHAR, "properties.recurrence.schedule.minutes" INTEGER[], "properties.recurrence.schedule.hours"
+              INTEGER[])
+          - name: '15'
+            type: STRUCT(id VARCHAR, "name" VARCHAR, "type" VARCHAR, etag VARCHAR, "properties.type"
+              VARCHAR, "properties.runtime_state" VARCHAR, "properties.annotations"
+              INTEGER[], "properties.pipelines" STRUCT(pipeline_reference STRUCT("type"
+              VARCHAR, reference_name VARCHAR), parameters STRUCT(Product VARCHAR, InstanceName
+              VARCHAR))[], "properties.recurrence.frequency" VARCHAR, "properties.recurrence.interval"
+              INTEGER, "properties.recurrence.start_time" VARCHAR, "properties.recurrence.time_zone"
+              VARCHAR, "properties.recurrence.schedule.minutes" INTEGER[], "properties.recurrence.schedule.hours"
+              INTEGER[])
+      workspace_workspace_info:
+        columns:
+          - name: id
+            type: VARCHAR
+          - name: name
+            type: VARCHAR
+          - name: type
+            type: VARCHAR
+          - name: location
+            type: VARCHAR
+          - name: provisioning_state
+            type: VARCHAR
+          - name: workspace_uid
+            type: VARCHAR
+          - name: default_data_lake_storage.account_url
+            type: VARCHAR
+          - name: default_data_lake_storage.filesystem
+            type: VARCHAR
+          - name: extra_properties.WorkspaceType
+            type: VARCHAR
+          - name: extra_properties.Quotas.spark.memoryoptimized.highPriority
+            type: BIGINT
+          - name: extra_properties.Quotas.spark.memoryoptimized.lowPriority
+            type: BIGINT
+          - name: extra_properties.Quotas.spark.fpga.highPriority
+            type: BIGINT
+          - name: extra_properties.Quotas.spark.fpga.lowPriority
+            type: BIGINT
+          - name: extra_properties.Quotas.spark.gpu.highPriority
+            type: BIGINT
+          - name: extra_properties.Quotas.spark.gpu.lowPriority
+            type: BIGINT
+          - name: extra_properties.Quotas.adf.memoryoptimized.highPriority
+            type: BIGINT
+          - name: extra_properties.Quotas.adf.memoryoptimized.lowPriority
+            type: BIGINT
+          - name: extra_properties.Quotas.adf.fpga.highPriority
+            type: BIGINT
+          - name: extra_properties.Quotas.adf.fpga.lowPriority
+            type: BIGINT
+          - name: extra_properties.Quotas.adf.gpu.highPriority
+            type: BIGINT
+          - name: extra_properties.Quotas.adf.gpu.lowPriority
+            type: BIGINT
+          - name: extra_properties.Quotas.scope.au
+            type: BIGINT
+          - name: extra_properties.Quotas.scope.ecoTokens
+            type: BIGINT

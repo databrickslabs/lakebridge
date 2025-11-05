@@ -15,7 +15,7 @@ from databricks.sdk.service.sql import CreateWarehouseRequestWarehouseType
 from databricks.sdk import WorkspaceClient
 
 from databricks.labs.blueprint.cli import App
-from databricks.labs.blueprint.entrypoint import get_logger, is_in_debug
+from databricks.labs.blueprint.entrypoint import is_in_debug
 from databricks.labs.blueprint.installation import RootJsonValue, JsonObject, JsonValue
 from databricks.labs.blueprint.tui import Prompts
 
@@ -43,6 +43,8 @@ from databricks.labs.lakebridge.transpiler.transpile_status import ErrorSeverity
 
 # Subclass to allow controlled access to protected methods.
 class Lakebridge(App):
+    _logger_instance: logging.Logger | None = None
+
     def create_workspace_client(self) -> WorkspaceClient:
         """Create a workspace client, with the appropriate product and version information.
 
@@ -51,9 +53,15 @@ class Lakebridge(App):
         self._patch_databricks_host()
         return self._workspace_client()
 
+    def get_logger(self) -> logging.Logger:
+        if self._logger_instance is None:
+            self._logger_instance = self._logger
+            self._logger_instance.setLevel(logging.INFO)
+        return self._logger_instance
+
 
 lakebridge = Lakebridge(__file__)
-logger = get_logger(__file__)
+logger = lakebridge.get_logger()
 
 
 def raise_validation_exception(msg: str) -> NoReturn:
@@ -811,6 +819,8 @@ def analyze(
 
 
 if __name__ == "__main__":
-    lakebridge()
+    app = lakebridge
+    logger = app.get_logger()
     if is_in_debug():
         logger.setLevel(logging.DEBUG)
+    app()

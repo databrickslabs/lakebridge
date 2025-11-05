@@ -13,10 +13,7 @@ fi
 
 spark=spark-${version}-bin-hadoop3
 spark_connect="spark-connect_2.12"
-mssql_jdbc_version="1.4.0"
-mssql_jdbc="spark-mssql-connector_2.12-${mssql_jdbc_version}-BETA"
 mkdir -p "${spark}"
-
 
 SERVER_SCRIPT=$HOME/spark/${spark}/sbin/start-connect-server.sh
 
@@ -33,7 +30,18 @@ else
 fi
 
 JARS_DIR=$HOME/spark/${spark}/jars
-MSSQL_JDBC_JAR=$HOME/spark/${spark}/jars/${mssql_jdbc}.jar
+mssql_jdbc_version="1.4.0"
+mssql_jdbc="spark-mssql-connector_2.12-${mssql_jdbc_version}-BETA"
+MSSQL_JDBC_JAR=$JARS_DIR/${mssql_jdbc}.jar
+ORACLE_JDBC_VERSION="19.28.0.0"
+ORACLE_JDBC_JAR="ojdbc8-${ORACLE_JDBC_VERSION}.jar"
+SNOWFLAKE_JDBC_VERSION="3.26.1"
+SNOWFLAKE_JDBC_JAR="snowflake-jdbc-${SNOWFLAKE_JDBC_VERSION}.jar"
+SNOWFLAKE_JDBC_JAR_PATH="$JARS_DIR/$SNOWFLAKE_JDBC_JAR"
+SNOWFLAKE_SPARK_VERSION="2.11.2-spark_3.3"
+SNOWFLAKE_SPARK_JAR="spark-snowflake_2.12-${SNOWFLAKE_SPARK_VERSION}.jar"
+SNOWFLAKE_SPARK_JAR_PATH="$JARS_DIR/$SNOWFLAKE_SPARK_JAR"
+
 if [ -f "${MSSQL_JDBC_JAR}" ];then
   echo "MSSQL JAR already exists"
 else
@@ -49,6 +57,40 @@ else
   wget https://repo1.maven.org/maven2/com/microsoft/sqlserver/mssql-jdbc/6.4.0.jre8/mssql-jdbc-6.4.0.jre8.jar -O "$JARS_DIR"/mssql-jdbc-6.4.0.jre8.jar
   wget "https://github.com/microsoft/sql-spark-connector/releases/download/v${mssql_jdbc_version}/${mssql_jdbc}.jar" -O "$JARS_DIR"/${mssql_jdbc}.jar
 fi
+
+if [ -f "$JARS_DIR/$ORACLE_JDBC_JAR" ]; then
+  echo "Oracle JDBC JAR already exists"
+else
+  echo "Downloading Oracle JDBC JAR"
+  wget "https://repo1.maven.org/maven2/com/oracle/database/jdbc/ojdbc8/${ORACLE_JDBC_VERSION}/ojdbc8-${ORACLE_JDBC_VERSION}.jar" -O "$JARS_DIR/$ORACLE_JDBC_JAR"
+  if [ $? -ne 0 ]; then
+      echo "Failed to download Oracle JDBC JAR"
+      exit 1
+    fi
+fi
+
+
+if [ -f "${SNOWFLAKE_JDBC_JAR_PATH}" ]; then
+  echo "Snowflake JDBC JAR already exists"
+else
+  echo "Downloading Snowflake JDBC JAR"
+  wget "https://repo1.maven.org/maven2/net/snowflake/snowflake-jdbc/${SNOWFLAKE_JDBC_VERSION}/${SNOWFLAKE_JDBC_JAR}" -O "${SNOWFLAKE_JDBC_JAR_PATH}"
+  if [ $? -ne 0 ]; then
+    echo "Failed to download Snowflake JDBC JAR"
+    exit 1
+  fi
+fi
+if [ -f "${SNOWFLAKE_SPARK_JAR_PATH}" ]; then
+  echo "Snowflake Spark Connector JAR already exists"
+else
+  echo "Downloading Snowflake Spark Connector JAR"
+  wget "https://repo1.maven.org/maven2/net/snowflake/spark-snowflake_2.12/${SNOWFLAKE_SPARK_VERSION}/${SNOWFLAKE_SPARK_JAR}" -O "${SNOWFLAKE_SPARK_JAR_PATH}"
+  if [ $? -ne 0 ]; then
+    echo "Failed to download Snowflake Spark Connector JAR"
+    exit 1
+  fi
+fi
+
 
 cd "${spark}" || exit 1
 ## check spark remote is running,if not start the spark remote

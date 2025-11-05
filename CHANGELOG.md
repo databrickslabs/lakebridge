@@ -1,5 +1,56 @@
 # Version changelog
 
+## 0.10.13
+
+## Analyzer
+
+- **Added defensive code to prevent analyzer crashes on DataStage files with empty array references** - Fixes an issue where the DataStage analyzer would crash when encountering empty array references
+    
+## Converters
+    
+## Morpheus
+
+### General
+- **Enhanced name representation consistency** - Major refactoring that replaces String representations with Expression types for table names, column names, and constraints across IR nodes, improving SQL/PySpark code generation accuracy
+    
+- **Fixed DBT parsing issues** - Resolved template parsing problems by changing template markers to `!#Jinja0001#!` format and improving whitespace handling for proper tokenization
+### TSQL (Synapse/SQL Server)
+
+- **Support for dual OUTPUT clauses in TSQL INSERT/DELETE/UPDATE statements** - Enhanced T-SQL parser to handle complex statements with multiple OUTPUT clauses (OUTPUT ... INTO ... OUTPUT ...) with comprehensive test coverage
+    
+- **Fixed TSQL DECLARE statement handling** - Refactored DECLARE statement processing by moving logic to dedicated visitor methods and properly marking unsupported statements for future implementation
+    
+- **Improved BLOCK structure parsing for BEGIN and BEGIN TRY statements** - Updated parser grammar to support flexible scripting blocks and transaction handling, allowing zero or more statements in control flow constructs
+    
+- **Added comprehensive USE statement support** - Introduced new IR representations (UseCatalog, UseSchema) with dialect-specific AST building logic and proper SQL generation
+
+### Snowflake
+
+- **Fixed Snowflake connection tests** - Internal improvements for database connection test reliability
+    
+- **Added comprehensive USE statement support** - Introduced new IR representations (UseCatalog, UseSchema) with dialect-specific AST building logic and proper SQL generation
+
+## BladeBridge
+
+### General
+- **Automatically creates and cleans up temporary folders for embedded SQL conversion in wrapper scripts** - Improves workflow management by implicitly creating temp folders and cleaning them up once conversion is complete
+
+### MSSQL (SQL Server)
+
+- **Enhanced table variable and temporary table conversion** - Added support for table variable conversion to temporary tables and improved string handling with logic to convert double single quotes to double quotes
+    
+- **Fixed semicolon placement in nested select statements** - Resolved issue where semicolons appeared before comments in nested select statements
+    
+- **Improved MS SQL procedure handling** - Added LIMIT 1 for Set in select statements, enhanced function mappings, fixed string concatenation, and removed unsupported constraints
+    
+## Reconcile
+
+No updates in this release.
+
+## Documentation
+
+No updates in this release.
+
 ## 0.10.12
 
 ## Analyzer

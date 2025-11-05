@@ -38,7 +38,9 @@ def snowflake_databricks_schema():
         schema_fixture_factory("col_num10", "number(10,1)"),
         schema_fixture_factory("col_dec", "number(20,2)"),
         schema_fixture_factory("col_numeric_2", "numeric(38,0)"),
-        schema_fixture_factory("col_escaped", "float", source_delimiter='"'),
+        schema_fixture_factory(
+            "col_escaped", "double", normalized_ansi="`col_escaped`", normalized_source="col_escaped"
+        ),  # production snowflake normalize is not implemented
         schema_fixture_factory("`col Escaped2`", "float", source_delimiter='"'),
         schema_fixture_factory('"col escaped3"', "float", source_delimiter='"'),
         schema_fixture_factory('"col""escaped4"', "float", source_delimiter='"'),
@@ -151,7 +153,9 @@ def oracle_databricks_schema():
         schema_fixture_factory("col_anytype", "anytype"),
         schema_fixture_factory("col_anydata", "anydata"),
         schema_fixture_factory("col_anydataset", "anydataset"),
-        schema_fixture_factory("col_escaped", "float", source_delimiter='"'),
+        schema_fixture_factory(
+            "col_escaped", "double", normalized_ansi="`col_escaped`", normalized_source="col_escaped"
+        ),  # production oracle normalize is not implemented
         schema_fixture_factory("`col Escaped2`", "float", source_delimiter='"'),
         schema_fixture_factory('"col escaped3"', "float", source_delimiter='"'),
         schema_fixture_factory('"col""escaped4"', "float", source_delimiter='"'),

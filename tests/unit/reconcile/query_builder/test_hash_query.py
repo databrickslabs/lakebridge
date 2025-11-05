@@ -55,11 +55,11 @@ def test_hash_query_builder_for_oracle_src(
         table_conf, schema, "source", get_dialect("oracle"), fake_oracle_datasource
     ).build_query(report_type="all")
     src_expected = (
-        "SELECT LOWER(DBMS_CRYPTO.HASH(RAWTOHEX(COALESCE(TRIM(\"s_acctbal\"), '_null_recon_') || COALESCE(TRIM("
+        "SELECT LOWER(DBMS_CRYPTO.HASH(UTL_I18N.STRING_TO_RAW(COALESCE(TRIM(\"s_acctbal\"), '_null_recon_') || COALESCE(TRIM("
         "\"s_address\"), '_null_recon_') || "
         "COALESCE(TRIM(\"s_comment\"), '_null_recon_') || COALESCE(TRIM(\"s_name\"), '_null_recon_') || COALESCE(TRIM("
         "\"s_nationkey\"), '_null_recon_') || COALESCE(TRIM(\"s_phone\"), '_null_recon_') || COALESCE(TRIM(\"s_suppkey\"), "
-        "'_null_recon_')), 2)) AS hash_value_recon, \"s_nationkey\" AS \"s_nationkey\", "
+        "'_null_recon_'), 'AL32UTF8'), 4)) AS hash_value_recon, \"s_nationkey\" AS \"s_nationkey\", "
         "\"s_suppkey\" AS \"s_suppkey\" FROM :tbl WHERE \"s_nationkey\" = 1"
     )
 

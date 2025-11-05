@@ -155,7 +155,7 @@ def test_build_query_for_oracle_src(
         'NVL(TRIM(TO_CHAR("s_comment")),\'_null_recon_\') AS "s_comment", '
         'COALESCE(TRIM("s_name"), \'_null_recon_\') AS "s_name", '
         'COALESCE(TRIM("s_nationkey"), \'_null_recon_\') AS "s_nationkey", '
-        'NVL(TRIM(TO_CHAR("s_phone")),\'_null_recon_\') AS "s_phone", '
+        'COALESCE(TRIM("s_phone"), \'_null_recon_\') AS "s_phone", '
         'COALESCE(TRIM("s_suppkey"), \'_null_recon_\') AS "s_suppkey" FROM :tbl WHERE '
         's_nationkey = 1) SELECT src."s_acctbal", src."s_address", src."s_comment", '
         'src."s_name", src."s_nationkey", src."s_phone", src."s_suppkey" FROM src '
