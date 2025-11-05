@@ -892,7 +892,8 @@ def llm_transpile(
     logger.debug(f"User: {user}")
 
     logger.info(
-        """This Feature leverages a large language model (LLM) to analyse and convert your provided content, code and data.\n
+        """Please read and accept the following comments before proceeding:\n
+        This Feature leverages a large language model (LLM) to analyse and convert your provided content, code and data.\n
         You consent to your content being transmitted to, processed by, and returned from the LLM hosted by Databricks foundational models or other external models you may configure during the runtime.\n
         The outputs of the LLM are generated automatically without human review, and may contain inaccuracies or errors. \n
         You are responsible for reviewing and validating all outputs before relying on them for any critical or production use. \n
