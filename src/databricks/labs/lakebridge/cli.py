@@ -741,6 +741,8 @@ def install_transpile(
         ctx.add_user_agent_extra("artifact-overload", Path(artifact).name)
     if include_llm_transpiler:
         ctx.add_user_agent_extra("include-llm-transpiler", "true")
+        # Decision was made not to prompt when include_llm_transpiler is set, and we expect users to use llm-transpile and pass all the arguments
+        is_interactive = False
     user = w.current_user
     logger.debug(f"User: {user}")
     transpile_installer = installer(
