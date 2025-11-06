@@ -53,12 +53,12 @@ class SwitchDeployment:
 
         job_id = int(self._install_state.jobs[self._INSTALL_STATE_KEY])
         try:
-            logger.info(f"Removing Switch job with job_id={job_id}")
+            logger.info(f"Removing Switch job: id={job_id}")
             del self._install_state.jobs[self._INSTALL_STATE_KEY]
             self._ws.jobs.delete(job_id)
             self._install_state.save()
         except (InvalidParameterValue, NotFound):
-            logger.warning(f"Switch job {job_id} doesn't exist anymore")
+            logger.debug(f"Switch job (id={job_id}) doesn't exist anymore, nothing to do.")
             self._install_state.save()
 
     def _get_switch_workspace_path(self) -> WorkspacePath:
@@ -74,7 +74,7 @@ class SwitchDeployment:
             resource_root.rmdir(recursive=True)
         resource_root.mkdir(parents=True)
         already_created = {resource_root}
-        logger.info(f"Copying resources to {resource_root} in workspace.......")
+        logger.info(f"Copying resources to workspace: {resource_root}")
         for resource_path, resource in self._enumerate_package_files(switch):
             # Resource path has a leading 'switch' that we want to strip off.
             nested_path = resource_path.relative_to(PurePosixPath("switch"))
@@ -85,7 +85,7 @@ class SwitchDeployment:
                 already_created.add(parent)
             logger.debug(f"Uploading: {resource_path} -> {upload_path}")
             upload_path.write_bytes(resource.read_bytes())
-        logger.info(f"Completed Copying resources to {resource_root} in workspace...")
+        logger.debug(f"Resources copied to workspace: {resource_root}")
 
     @staticmethod
     def _enumerate_package_files(package) -> Generator[tuple[PurePosixPath, Traversable]]:
@@ -112,7 +112,7 @@ class SwitchDeployment:
     def _setup_job(self) -> None:
         """Create or update Switch job."""
         existing_job_id = self._get_existing_job_id()
-        logger.info("Setting up Switch job in workspace...")
+        logger.debug("Setting up Switch job in workspace...")
         try:
             job_id = self._create_or_update_switch_job(existing_job_id)
             self._install_state.jobs[self._INSTALL_STATE_KEY] = job_id
@@ -140,14 +140,14 @@ class SwitchDeployment:
         # Try to update existing job
         if job_id:
             try:
-                logger.info(f"Updating Switch job: {job_id}")
+                logger.debug(f"Updating Switch job (id={job_id}) with settings: {job_settings}")
                 self._ws.jobs.reset(int(job_id), JobSettings(**job_settings))
                 return job_id
             except (ValueError, InvalidParameterValue):
                 logger.warning("Previous Switch job not found, creating new one")
 
         # Create new job
-        logger.info("Creating new Switch job")
+        logger.debug(f"Creating new Switch job with settings: {job_settings}")
         new_job = self._ws.jobs.create(**job_settings)
         new_job_id = str(new_job.job_id)
         assert new_job_id is not None
