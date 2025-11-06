@@ -8,9 +8,10 @@ from pathlib import Path
 from databricks.sdk.errors import PermissionDenied, NotFound, InternalError
 from databricks.sdk.errors.platform import ResourceAlreadyExists, DatabricksError
 from databricks.sdk.service.dashboards import Dashboard
-from databricks.sdk.service.iam import User
 from databricks.sdk import WorkspaceClient
 
+from databricks.labs.blueprint.installation import Installation
+from databricks.labs.blueprint.installer import InstallState
 from databricks.labs.blueprint.wheels import find_project_root
 
 logging.basicConfig(level=logging.INFO)
@@ -37,7 +38,7 @@ class DashboardTemplateLoader:
         filename = f"{source_system.lower()}_dashboard.lvdash.json"
         filepath = os.path.join(self.templates_dir, filename)
         if not os.path.exists(filepath):
-            raise FileNotFoundError(f"Could not find dashboard template matching '{source_system}'.")
+            raise FileNotFoundError(f"Could not find dashboard template matching {source_system}.")
         with open(filepath, "r", encoding="utf-8") as f:
             return json.load(f)
 
@@ -49,10 +50,12 @@ class DashboardManager:
 
     _DASHBOARD_NAME = "Lakebridge Profiler Assessment"
 
-    def __init__(self, ws: WorkspaceClient, current_user: User, is_debug: bool = False):
+    def __init__(
+        self, ws: WorkspaceClient, installation: Installation, install_state: InstallState, is_debug: bool = False
+    ):
         self._ws = ws
-        self._current_user = current_user
-        self._dashboard_location = f"/Workspace/Users/{self._current_user}/Lakebridge/Dashboards"
+        self._installation = installation
+        self._install_state = install_state
         self._is_debug = is_debug
 
     @staticmethod
@@ -77,7 +80,8 @@ class DashboardManager:
         """
 
         # Load the dashboard template
-        logging.info(f"Loading dashboard template {folder}")
+        logging.info(f"Loading dashboard template from folder: {folder}")
+        dash_reference = f"{folder.stem}".lower()
         dashboard_loader = DashboardTemplateLoader(folder)
         dashboard_json = dashboard_loader.load(source_system="synapse")
         dashboard_str = json.dumps(dashboard_json)
@@ -104,9 +108,9 @@ class DashboardManager:
         except DatabricksError as e:
             logging.error(f"Could not create profiler summary dashboard: {e}")
 
-        if dashboard.dashboard_id:
-            logging.info(f"Created dashboard '{dashboard.dashboard_id}' in workspace location '{ws_parent_path}'.")
-
+        assert dashboard.dashboard_id is not None
+        logging.info(f"Created dashboard '{dashboard.dashboard_id}' in workspace location {ws_parent_path}.")
+        self._install_state.dashboards[dash_reference] = dashboard.dashboard_id
         return dashboard
 
     def create_profiler_summary_dashboard(
@@ -119,14 +123,19 @@ class DashboardManager:
 
         logger.info("Deploying profiler summary dashboard.")
 
-        # Load the AI/BI Dashboard template for the source system
+        # Load the dashboard template for the source system
         template_folder = (
             find_project_root(__file__)
             / f"src/databricks/labs/lakebridge/resources/assessments/dashboards/{source_tech}"
         )
-        ws_path = f"/Workspace/Users/{self._current_user}/Lakebridge/Dashboards/"
+        logger.info(f"Deploying profiler dashboard from template folder: {template_folder}")
+        ws_parent_path = f"{self._installation.install_folder()}/dashboards"
+        try:
+            self._ws.workspace.mkdirs(ws_parent_path)
+        except ResourceAlreadyExists:
+            logger.info(f"Workspace parent path already exists for dashboards: {ws_parent_path}")
         self._create_or_replace_dashboard(
-            folder=template_folder, ws_parent_path=ws_path, dest_catalog=catalog_name, dest_schema=schema_name
+            folder=template_folder, ws_parent_path=ws_parent_path, dest_catalog=catalog_name, dest_schema=schema_name
         )
 
     def upload_duckdb_to_uc_volume(self, local_file_path, volume_path):
@@ -167,7 +176,3 @@ class DashboardManager:
         except InternalError as e:
             logger.error(f"Internal Databricks error while uploading extract file: \n{e}")
             return False
-        # Catch any other unexpected exception to avoid crashing the process, but log for debugging.
-        except Exception as e:  # noqa: BLE001
-            logger.error(f"Unexpected error occurred while uploading file: {str(e)}")
-            raise  # Re-raise to avoid swallowing unexpected exceptions (pylint W0718)
