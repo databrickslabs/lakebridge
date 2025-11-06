@@ -116,7 +116,73 @@ def test_parse_package_name() -> None:
     )
     assert (
         job_deployer.parse_package_name(
-            "/Workspace/Users/username@domain.com/.lakebridge/wheels/databricks_labs_lakebridge-0.10.7-py3-none-any.whl"
+            "/Workspace/Users/username@@domain.com/.lakebridge/wheels/databricks_labs_lakebridge-0.10.7-py3-none-any.whl"
         )
         == "databricks_labs_lakebridge"
     )
+
+
+def test_deploy_new_profiler_ingestion_job():
+    workspace_client = create_autospec(WorkspaceClient)
+    job = Job(job_id=5678)
+    workspace_client.jobs.create.return_value = job
+    installation = MockInstallation(is_global=False)
+    install_state = InstallState.from_installation(installation)
+    product_info = ProductInfo.from_class(LakebridgeConfiguration)
+    name = "Profiler Ingestion Job"
+    job_deployer = JobDeployment(workspace_client, installation, install_state, product_info)
+    job_deployer.deploy_profiler_ingestion_job(
+        name,
+        catalog_name="lakebridge_profiler",
+        schema_name="profiler_runs",
+        volume_location="/Volumes/lakebridge-profiler/default/synapse-extract",
+        source_tech="Synapse",
+        lakebridge_wheel_path="lakebridge-x.y.z-py3-none-any.whl",
+    )
+    workspace_client.jobs.create.assert_called_once()
+    assert install_state.jobs[name] == str(job.job_id)
+
+
+def test_deploy_existing_profiler_ingestion_job():
+    workspace_client = create_autospec(WorkspaceClient)
+    job_id = 5678
+    job = Job(job_id=job_id)
+    name = "Profiler Ingestion Job"
+    # Create an existing state
+    installation = MockInstallation({"state.json": {"resources": {"jobs": {name: str(job_id)}}, "version": 1}})
+    install_state = InstallState.from_installation(installation)
+    product_info = ProductInfo.for_testing(LakebridgeConfiguration)
+    job_deployer = JobDeployment(workspace_client, installation, install_state, product_info)
+    job_deployer.deploy_profiler_ingestion_job(
+        name,
+        catalog_name="lakebridge_profiler",
+        schema_name="profiler_runs",
+        volume_location="/Volumes/lakebridge-profiler/default/synapse-extract",
+        source_tech="Synapse",
+        lakebridge_wheel_path="lakebridge-x.y.z-py3-none-any.whl",
+    )
+    workspace_client.jobs.reset.assert_called_once()
+    assert install_state.jobs[name] == str(job.job_id)
+
+
+def test_deploy_missing_profiler_ingestion_job():
+    workspace_client = create_autospec(WorkspaceClient)
+    job = Job(job_id=5678)
+    workspace_client.jobs.create.return_value = job
+    # Simulate a `Job not found` response
+    workspace_client.jobs.reset.side_effect = InvalidParameterValue("Job not found")
+    name = "Profiler Ingestion Job"
+    installation = MockInstallation({"state.json": {"resources": {"jobs": {name: "9012"}}, "version": 1}})
+    install_state = InstallState.from_installation(installation)
+    product_info = ProductInfo.for_testing(LakebridgeConfiguration)
+    job_deployer = JobDeployment(workspace_client, installation, install_state, product_info)
+    job_deployer.deploy_profiler_ingestion_job(
+        name,
+        catalog_name="lakebridge_profiler",
+        schema_name="profiler_runs",
+        volume_location="/Volumes/lakebridge-profiler/default/synapse-extract",
+        source_tech="Synapse",
+        lakebridge_wheel_path="lakebridge-x.y.z-py3-none-any.whl",
+    )
+    workspace_client.jobs.create.assert_called_once()
+    assert install_state.jobs[name] == str(job.job_id)

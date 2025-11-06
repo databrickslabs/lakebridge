@@ -92,6 +92,7 @@ dependencies = [
 
 [project.entry-points.databricks]
 reconcile = "databricks.labs.lakebridge.reconcile.execute:main"
+profiler_dashboards = "databricks.labs.lakebridge.assessments.dashboards.execute:main"
 
 [tool.hatch.envs.default.scripts]
 test         = "pytest --cov src --cov-report=xml tests/unit"
