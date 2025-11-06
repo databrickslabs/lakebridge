@@ -138,10 +138,14 @@ def _ingest_profiler_tables(catalog_name: str, schema_name: str, extract_locatio
         except RuntimeError as e:
             logger.error(f"Unknown error while ingested table from profiler database: {e}")
             unsuccessful_tables.append(source_table)
+
     logger.info(f"Ingested {len(successful_tables)} tables from profiler extract.")
     logger.info(",".join(successful_tables))
-    logger.info(f"Failed to ingest {len(unsuccessful_tables)} tables from profiler extract.")
-    logger.info(",".join(str(t) for t in unsuccessful_tables))
+
+    # Only log failed tables if there were errors
+    if unsuccessful_tables:
+        logger.warning(f"Failed to ingest {len(unsuccessful_tables)} tables from profiler extract.")
+        logger.warning(",".join(str(t) for t in unsuccessful_tables))
 
 
 def _ingest_table(extract_location: str, source_table_name: str, target_table_name: str) -> None:
