@@ -103,7 +103,7 @@ class SwitchDeployment:
                 for child in resource.iterdir():
                     yield from _enumerate_resources(child, next_parent)
             elif resource.is_file():
-                # Skip hidden files and compiled Python files
+                # Skip compiled Python files
                 if not (name := resource.name).endswith((".pyc", ".pyo")):
                     yield parent / name, resource
 
