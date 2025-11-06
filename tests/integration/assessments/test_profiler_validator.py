@@ -11,7 +11,7 @@ from databricks.labs.lakebridge.assessments.profiler_validator import (
     SchemaDefinitionLoadError,
     SchemaValidationError,
 )
-from .utils.profiler_extract_utils import build_mock_synapse_extract
+from tests.utils.profiler_extract_utils import build_mock_synapse_extract
 
 
 @pytest.fixture(scope="module")

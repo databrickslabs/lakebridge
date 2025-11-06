@@ -1,0 +1,2136 @@
+{
+  "datasets": [
+    {
+      "name": "749e0114",
+      "displayName": "synapse_dsp_top_schemas_by_objects",
+      "queryLines": [
+        "with \n",
+        "dedicated_tables as (select * from IDENTIFIER('`PROFILER_CATALOG`.`PROFILER_SCHEMA`.dedicated_tables')),\n",
+        "dedicated_views as (select * from IDENTIFIER('`PROFILER_CATALOG`.`PROFILER_SCHEMA`.dedicated_views')),\n",
+        "\n",
+        "tables as (\n",
+        "  select table_catalog, table_schema, table_name\n",
+        "  from dedicated_tables\n",
+        "  where table_type != 'VIEW'\n",
+        "  qualify row_number() over (partition by table_catalog, table_schema, table_name order by table_name) =1\n",
+        "\n",
+        "),\n",
+        "table_counts as (\n",
+        "  select \n",
+        "    table_catalog as catalog,\n",
+        "    table_schema as schema,\n",
+        "    'Tables' as object_type,\n",
+        "    count(*) as num_objects\n",
+        "  from tables\n",
+        "  group by 1, 2 order by 3 desc\n",
+        "  limit 10\n",
+        "),\n",
+        "\n",
+        "views as (\n",
+        "  select table_catalog, table_schema, table_name\n",
+        "  from dedicated_views\n",
+        "  qualify row_number() over (partition by table_catalog, table_schema, table_name order by table_name) =1\n",
+        "\n",
+        "),\n",
+        "view_counts as (\n",
+        "  select \n",
+        "    table_catalog as catalog,\n",
+        "    table_schema as schema,\n",
+        "    'Views' as object_type,\n",
+        "    count(*) as num_objects\n",
+        "  from views\n",
+        "  group by 1, 2 order by 3 desc\n",
+        "  limit 10\n",
+        ")\n",
+        "\n",
+        "\n",
+        "\n",
+        "select \n",
+        "  *\n",
+        "from \n",
+        "(\n",
+        "  select * from table_counts\n",
+        "  union all\n",
+        "  select * from view_counts\n",
+        ") X\n",
+        "order by 3 desc\n",
+        ";"
+      ],
+      "parameters": [
+        {
+          "displayName": "run_name",
+          "keyword": "run_name",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": "agl_cm"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "displayName": "top_N",
+          "keyword": "top_N",
+          "dataType": "INTEGER",
+          "defaultSelection": {
+            "values": {
+              "dataType": "INTEGER",
+              "values": [
+                {
+                  "value": "20"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "8331f370",
+      "displayName": "synapse_dsp_dwu_utilization",
+      "queryLines": [
+        "\n",
+        "\n",
+        "use catalog `PROFILER_CATALOG`;\n",
+        "use schema IDENTIFIER(PROFILER_SCHEMA);\n",
+        "\n",
+        "select  pool_name, name, date(`timestamp`) date, max(average) as avg, avg(maximum) as avg_max, max(maximum) as max_max\n",
+        "from metrics_dedicated_sql_pool_metrics\n",
+        "where name in ('DWUUsedPercent', 'DWU used percentage','DWU percentage') \n",
+        "group by pool_name,name, date(`timestamp`)\n",
+        "order by 3,1,2"
+      ],
+      "parameters": [
+        {
+          "displayName": "run_name",
+          "keyword": "run_name",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": "beone_test_run2"
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "schema": "_fivetran_setup_test"
+    },
+    {
+      "name": "3d2f9598",
+      "displayName": "synapse_dsp_query_metrics",
+      "queryLines": [
+        "with \n",
+        "dedicated_session_requests as (\n",
+        "  select * from IDENTIFIER('`PROFILER_CATALOG`.`PROFILER_SCHEMA`.dedicated_session_requests')\n",
+        "  qualify row_number() OVER ( partition by pool_name, session_id, request_id order by end_time) = 1\n",
+        "  ),\n",
+        "commands as (\n",
+        "  select \n",
+        "    pool_name, \n",
+        "    session_id, \n",
+        "    request_id, \n",
+        "    command,\n",
+        "    from_utc_timestamp(start_time, 'US/Eastern') start_time,\n",
+        "    from_utc_timestamp(end_time, 'US/Eastern') end_time,\n",
+        "    command_w1,\n",
+        "    command_w2,\n",
+        "    command_type,\n",
+        "    CASE\n",
+        "      WHEN command_type in ('DML', 'ROUTINE', 'DDL') THEN 'ETL'\n",
+        "      WHEN command_type = 'QUERY' THEN 'SQL Serving'\n",
+        "      ELSE 'OTHER'\n",
+        "    END as workload_type\n",
+        "  from dedicated_session_requests\n",
+        "  where \n",
+        "    start_time is not null and end_time is not null\n",
+        "    AND command_w1 not in ('SET', 'USE') \n",
+        "    AND not (command_w1 = 'SELECT' and command_w2 = '@@SPID;')\n",
+        "    AND not (command_w1 = 'EXEC' and command_w2 = '[SP_EXECUTESQL]')  \n",
+        "),\n",
+        "timex_10min_windows as (\n",
+        "  select\n",
+        "    make_timestamp(year(dt), month(dt), day(dt), t_hours.hr, t_minutes.min*10, 00) as st,\n",
+        "    make_timestamp(year(dt), month(dt), day(dt), t_hours.hr, (t_minutes.min+1)*10-1, 59.999) as ed\n",
+        "  from\n",
+        "    (\n",
+        "      select distinct date(start_time) dt from commands \n",
+        "      union\n",
+        "      select distinct date(end_time) dt from commands\n",
+        "    ) x,\n",
+        "  (\n",
+        "    select explode(sequence(0, 23)) hr\n",
+        "  ) t_hours,\n",
+        "  (\n",
+        "    select explode(sequence(0, 5)) min \n",
+        "  ) t_minutes  \n",
+        "),\n",
+        "daily_10min_interval_metrics as (\n",
+        "    select\n",
+        "      date_format(st, \"HH:mm\") as st,\n",
+        "      workload_type,\n",
+        "      command_type,\n",
+        "      avg(query_count) avg_query_count,\n",
+        "      min(query_count) min_query_count,\n",
+        "      max(query_count) max_query_count\n",
+        "    from (  \n",
+        "      select\n",
+        "        st,\n",
+        "        ed,\n",
+        "        workload_type,\n",
+        "        command_type,\n",
+        "        count(distinct request_id) as query_count\n",
+        "      from timex_10min_windows X\n",
+        "      left join commands  Y\n",
+        "      on (start_time between X.st and X.ed) or (end_time between X.st and X.ed) \n",
+        "      group by 1, 2, 3, 4\n",
+        "    )\n",
+        "    group by 1, 2, 3\n",
+        "    order by 1, 2, 3\n",
+        "  )\n",
+        "\n",
+        "\n",
+        "select\n",
+        " *,\n",
+        " sum(avg_query_count) over (partition by st, workload_type)/10 as queries_per_minute_by_workload\n",
+        "from  daily_10min_interval_metrics\n",
+        ";"
+      ],
+      "parameters": [
+        {
+          "displayName": "time_zone",
+          "keyword": "time_zone",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": "Australia/Melbourne"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "displayName": "run_name",
+          "keyword": "run_name",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": "agl_ie"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "5d0d81e1",
+      "displayName": "synapse_dsp_applications",
+      "queryLines": [
+        "with \n",
+        "sessions as (\n",
+        "  select * from IDENTIFIER('`PROFILER_CATALOG`.`PROFILER_SCHEMA`.dedicated_sessions')\n",
+        "  qualify row_number() over (partition by pool_name, session_id order by query_count desc ) = 1 \n",
+        "  ),\n",
+        " app_session_queries as (\n",
+        "  select \n",
+        "    pool_name, \n",
+        "    query_count,\n",
+        "    login_time,\n",
+        "    login_user_type,    \n",
+        "    case \n",
+        "      WHEN trim(lower(regexp_extract(app_name, '^(\\\\w+\\\\s+\\\\w+)-(\\\\w+)-(\\\\w+)-(\\\\w+)', 1 ))) = 'data integration' THEN 'Azure Data Integration Pipeline'\n",
+        "        WHEN trim(lower(regexp_extract(app_name, '^(\\\\w+)_(\\\\w+)', 1 ))) = 'azurestreamanalytics' THEN 'Azure Stream Analytics'\n",
+        "        WHEN trim(lower(regexp_extract(app_name, '^(\\\\w+)\\\\s*(\\\\d+)', 1 ))) = 'tableau' THEN 'Tableau'\n",
+        "      WHEN instr(app_name, 'SQL Server Management Studio') > 0 THEN 'Microsoft SSMS'\n",
+        "      ELSE app_name\n",
+        "    END as app_name_condt\n",
+        "  from sessions\n",
+        ")\n",
+        "\n",
+        "select\n",
+        "  pool_name,\n",
+        "  app_name_condt as app_name,\n",
+        "  sum(query_count)\n",
+        "from app_session_queries\n",
+        "where login_user_type <> 'USER'\n",
+        "group by 1, 2 order by 3 desc"
+      ],
+      "parameters": [
+        {
+          "displayName": "run_name",
+          "keyword": "run_name",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": "beone_test_run2"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "6f49a6dd",
+      "displayName": "synapse_dsp_profiler_run_info",
+      "queryLines": [
+        "use catalog `PROFILER_CATALOG`\n",
+        ";\n",
+        "\n",
+        "select schema_name \n",
+        "from information_schema.schemata\n",
+        "where schema_name not in (\n",
+        "  'default',\n",
+        "  'information_schema',\n",
+        "  'utils'\n",
+        ")\n",
+        "order by 1\n",
+        ";\n",
+        "\n",
+        "-- WITH \n",
+        "-- workspace_workspace_info as (select * from IDENTIFIER('`PROFILER_CATALOG`.`PROFILER_SCHEMA`.workspace_workspace_info')),\n",
+        "-- workspace_name_region as (\n",
+        "--     select distinct name, location from workspace_workspace_info limit 1\n",
+        "--     ),\n",
+        "-- dedicated_session_requests as (\n",
+        "--     select * \n",
+        "--     from IDENTIFIER('`PROFILER_CATALOG`.`PROFILER_SCHEMA`.dedicated_session_requests')\n",
+        "--     qualify row_number() over (PARTITION BY pool_name, session_id, request_id order by end_time desc) = 1\n",
+        "-- )\n",
+        "\n",
+        "-- select *\n",
+        "-- from \n",
+        "-- workspace_name_region,\n",
+        "-- (\n",
+        "--     select \n",
+        "--         pool_name, \n",
+        "--         min(start_time) as start_ts, \n",
+        "--         max(end_time) as end_ts,\n",
+        "--         count(distinct to_date(start_time)) as days,\n",
+        "--         count(distinct session_id) as sessions,\n",
+        "--         count(*) as requests\n",
+        "--     from dedicated_session_requests\n",
+        "--     group by 1\n",
+        "-- ) X"
+      ]
+    },
+    {
+      "name": "8ec472d6",
+      "displayName": "00_synapse_profiler_runs",
+      "queryLines": [
+        "use catalog `PROFILER_CATALOG`\n",
+        ";\n",
+        "\n",
+        "select schema_name \n",
+        "from information_schema.schemata\n",
+        "where schema_name not in (\n",
+        "  'default',\n",
+        "  'information_schema',\n",
+        "  'utils'\n",
+        ")\n",
+        "order by 1\n",
+        ";"
+      ],
+      "catalog": "main",
+      "schema": "_fivetran_setup_test"
+    },
+    {
+      "name": "87f64dc8",
+      "displayName": "synapse_dsp_top_schemas_by_routines",
+      "queryLines": [
+        "WITH \n",
+        "dedicated_routines as (select * from IDENTIFIER('`PROFILER_CATALOG`.`PROFILER_SCHEMA`.dedicated_routines')),\n",
+        "\n",
+        "routines as (\n",
+        "  select routine_catalog, routine_schema, routine_type, routine_name\n",
+        "  from dedicated_routines\n",
+        "  qualify row_number() over (partition by routine_catalog, routine_schema, routine_name order by routine_name) =1\n",
+        "\n",
+        "),\n",
+        "routine_counts as (\n",
+        "  select \n",
+        "    routine_catalog as catalog,\n",
+        "    routine_schema as schema,\n",
+        "    routine_type as object_type,\n",
+        "    count(*) as num_objects\n",
+        "  from routines\n",
+        "  group by 1, 2, 3 order by 4 desc\n",
+        "  limit 10\n",
+        ")\n",
+        "\n",
+        "select \n",
+        "  *\n",
+        "from \n",
+        "(\n",
+        "  select * from routine_counts\n",
+        ") X\n",
+        "order by 4 desc\n",
+        ";"
+      ],
+      "parameters": [
+        {
+          "displayName": "top_N",
+          "keyword": "top_N",
+          "dataType": "INTEGER",
+          "defaultSelection": {
+            "values": {
+              "dataType": "INTEGER",
+              "values": [
+                {
+                  "value": "20"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "displayName": "run_name",
+          "keyword": "run_name",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": "beone_test_run2"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "0e20c910",
+      "displayName": "synapse_dsp_dwu_used",
+      "queryLines": [
+        "use catalog `PROFILER_CATALOG`;\n",
+        "use schema IDENTIFIER(PROFILER_SCHEMA);\n",
+        "\n",
+        "select concat(pool_name,'_',coalesce(cast(floor(maximum) as string),'Inactive')) as pool_dwulimit, date(CAST(timestamp AS TIMESTAMP)) as day, count(*) as cnt_slots_used, 24*4 as total_15min_slots, cnt_slots_used/total_15min_slots*100 perc_used_slots\n",
+        "from metrics_dedicated_sql_pool_metrics\n",
+        "where name in ('DWU limit', 'DWULimit')\n",
+        "group by 1,2\n",
+        "order by 1,3"
+      ],
+      "parameters": [
+        {
+          "displayName": "run_name",
+          "keyword": "run_name",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": "agl_cm"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "42b167ce",
+      "displayName": "synapse_dsp_profiler_extract_info",
+      "queryLines": [
+        "WITH \n",
+        "dedicated_session_requests as (\n",
+        "    select * \n",
+        "    from IDENTIFIER('`PROFILER_CATALOG`.`PROFILER_SCHEMA`.dedicated_session_requests')\n",
+        "    qualify row_number() over (PARTITION BY pool_name, session_id, request_id order by end_time desc) = 1\n",
+        ")\n",
+        "select extract_ts, count(*) requests\n",
+        "FROM dedicated_session_requests\n",
+        "group by 1 order by 1"
+      ],
+      "parameters": [
+        {
+          "displayName": "run_name",
+          "keyword": "run_name",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": "beone_test_run2"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "b4a08f84",
+      "displayName": "synapse_dsp_storage_size",
+      "queryLines": [
+        "use catalog `PROFILER_CATALOG`;\n",
+        "use schema IDENTIFIER(PROFILER_SCHEMA);\n",
+        "\n",
+        "\n",
+        "select avg(UsedSpaceMB/1024/1024) as avg_data_size_tb\n",
+        "from dedicated_storage_info"
+      ],
+      "parameters": [
+        {
+          "displayName": "run_name",
+          "keyword": "run_name",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": "beone_test_run2"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "71185579",
+      "displayName": "Synapse_dsp_sessions_activity",
+      "queryLines": [
+        "with \n",
+        "sessions as (\n",
+        "  select * from IDENTIFIER('`PROFILER_CATALOG`.`PROFILER_SCHEMA`.dedicated_sessions')\n",
+        "  qualify row_number() over (partition by pool_name, session_id order by query_count desc ) = 1 \n",
+        "  ),\n",
+        "sessions_silver as (\n",
+        "  select \n",
+        "    pool_name, \n",
+        "    query_count,\n",
+        "    login_time,\n",
+        "    login_user,\n",
+        "    login_user_type,    \n",
+        "    case\n",
+        "      WHEN trim(app_name) = '' or app_name is null THEN 'UNKOWN'\n",
+        "      WHEN trim(lower(regexp_extract(app_name, '^(\\\\w+\\\\s+\\\\w+)-(\\\\w+)-(\\\\w+)-(\\\\w+)', 1 ))) = 'data integration' THEN 'Azure Data Integration Pipeline'\n",
+        "      WHEN trim(lower(regexp_extract(app_name, '^(\\\\w+)_(\\\\w+)', 1 ))) = 'azurestreamanalytics' THEN 'Azure Stream Analytics'\n",
+        "      WHEN trim(lower(regexp_extract(app_name, '^(\\\\w+)\\\\s*(\\\\d+)', 1 ))) = 'tableau' THEN 'Tableau'\n",
+        "      WHEN instr(app_name, 'SQL Server Management Studio') > 0 THEN 'Microsoft SSMS'\n",
+        "      ELSE app_name\n",
+        "    END as app_name_condt\n",
+        "  from sessions\n",
+        "),\n",
+        "user_app_sessions as (\n",
+        "    select\n",
+        "      pool_name as stage1,\n",
+        "      case when login_user_type = 'USER' THEN 'USER_SESSION' ELSE app_name_condt END stage2,\n",
+        "      login_user as stage3,\n",
+        "      query_count as value\n",
+        "    from sessions_silver\n",
+        "),\n",
+        "session_activity_sankey as (\n",
+        "  select stage1, stage2, stage3 , sum(value) as value from user_app_sessions group by 1, 2, 3\n",
+        ")\n",
+        "select\n",
+        "  stage1,\n",
+        "  stage2,\n",
+        "  CASE \n",
+        "    WHEN dense_rank() over (partition by stage2 order by value desc) <= :`topN` THEN stage3 \n",
+        "    WHEN stage2 = 'USER_SESSION' THEN 'other.user'\n",
+        "    ELSE 'other.app'\n",
+        "  END stage3,\n",
+        "  value\n",
+        "from \n",
+        "  session_activity_sankey\n",
+        ";"
+      ],
+      "parameters": [
+        {
+          "displayName": "run_name",
+          "keyword": "run_name",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": "beone_test_run2"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "displayName": "topN",
+          "keyword": "topN",
+          "dataType": "DECIMAL",
+          "defaultSelection": {
+            "values": {
+              "dataType": "DECIMAL",
+              "values": [
+                {
+                  "value": "10.0"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "e18e029d",
+      "displayName": "synapse_dsp_session_request_activity",
+      "queryLines": [
+        "with \n",
+        "dedicated_session_requests as (\n",
+        "  select * from IDENTIFIER('`PROFILER_CATALOG`.`PROFILER_SCHEMA`.dedicated_session_requests')\n",
+        "  qualify row_number() OVER ( partition by pool_name, session_id, request_id order by end_time) = 1\n",
+        "  ),\n",
+        "dedicated_sessions as (\n",
+        "  select * from IDENTIFIER('`PROFILER_CATALOG`.`PROFILER_SCHEMA`.dedicated_sessions')\n",
+        "  qualify row_number() over (partition by pool_name, session_id order by query_count desc ) = 1 \n",
+        "  ),\n",
+        "session_requests_silver as (\n",
+        "  select \n",
+        "    pool_name, \n",
+        "    session_id, \n",
+        "    request_id, \n",
+        "    command,\n",
+        "    start_time,\n",
+        "    end_time,\n",
+        "    (unix_millis(from_utc_timestamp(end_time, 'US/Eastern')) - unix_millis(from_utc_timestamp(start_time, 'US/Eastern'))) as exec_wall_misecs,    \n",
+        "    command_w1,\n",
+        "    command_w2,\n",
+        "    command_type,\n",
+        "    CASE\n",
+        "      WHEN command_type in ('DML', 'ROUTINE', 'DDL') THEN 'ETL'\n",
+        "      WHEN command_type = 'QUERY' THEN 'SQL Serving'\n",
+        "      ELSE 'OTHER'\n",
+        "    END as workload_type\n",
+        "  from dedicated_session_requests\n",
+        "  where \n",
+        "  command_w1 not in ('SET', 'USE') AND \n",
+        "  not (command_w1 = 'SELECT' and command_w2 = '@@SPID;') AND \n",
+        "  not (command_w1 = 'EXEC' and command_w2 = '[SP_EXECUTESQL]')    \n",
+        "),\n",
+        "sessions_silver as (\n",
+        "  select \n",
+        "    pool_name, \n",
+        "    query_count,\n",
+        "    login_time,\n",
+        "    session_id,\n",
+        "    login_user || \".\" || dense_rank() over (partition by login_user order by login_user_sha2) as login_user,\n",
+        "    login_user_type,    \n",
+        "    CASE\n",
+        "      WHEN login_user_type = 'USER' THEN 'USER_SESSION'\n",
+        "        WHEN trim(app_name) = '' or app_name is null THEN 'UNKOWN'\n",
+        "        WHEN trim(lower(regexp_extract(app_name, '^(\\\\w+\\\\s+\\\\w+)-(\\\\w+)-(\\\\w+)-(\\\\w+)', 1 ))) = 'data integration' THEN 'Azure Data Integration Pipeline'\n",
+        "        WHEN trim(lower(regexp_extract(app_name, '^(\\\\w+)_(\\\\w+)', 1 ))) = 'azurestreamanalytics' THEN 'Azure Stream Analytics'\n",
+        "        WHEN trim(lower(regexp_extract(app_name, '^(\\\\w+)\\\\s*(\\\\d+)', 1 ))) = 'tableau' THEN 'Tableau'\n",
+        "        WHEN instr(app_name, 'SQL Server Management Studio') > 0 THEN 'Microsoft SSMS'\n",
+        "        ELSE app_name\n",
+        "    END as app_name\n",
+        "  from dedicated_sessions\n",
+        "),\n",
+        "app_and_user_session_sankey as (\n",
+        "select \n",
+        "  pool_name as stage1,\n",
+        "  app_name as stage2,\n",
+        "  login_user as stage3,\n",
+        "  command_type as stage4,\n",
+        "  workload_type as stage5,\n",
+        "  sum(exec_wall_misecs) as value\n",
+        "from sessions_silver\n",
+        "join session_requests_silver\n",
+        "using (pool_name, session_id)\n",
+        "group by 1, 2, 3, 4, 5\n",
+        ")\n",
+        "select \n",
+        "  stage1,\n",
+        "  stage2,\n",
+        "  \n",
+        "  CASE \n",
+        "    WHEN dense_rank() over (partition by stage4, stage5 order by value desc) <= :`topN` THEN stage3 \n",
+        "    WHEN stage2 = 'USER_SESSION' THEN 'other.user'\n",
+        "    ELSE 'other.app'\n",
+        "  END stage3,\n",
+        "  stage4,\n",
+        "  stage5,\n",
+        "  value\n",
+        "from \n",
+        "  app_and_user_session_sankey"
+      ],
+      "parameters": [
+        {
+          "displayName": "run_name",
+          "keyword": "run_name",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": "beone_test_run2"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "displayName": "topN",
+          "keyword": "topN",
+          "dataType": "DECIMAL",
+          "defaultSelection": {
+            "values": {
+              "dataType": "DECIMAL",
+              "values": [
+                {
+                  "value": "10.0"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4d870a15",
+      "displayName": "synapse_dsp_typed_queries",
+      "queryLines": [
+        "\n",
+        "\n",
+        "with \n",
+        "dedicated_session_requests as (select * from IDENTIFIER('`PROFILER_CATALOG`.`PROFILER_SCHEMA`.dedicated_session_requests')),\n",
+        "commands as (\n",
+        "  select \n",
+        "    pool_name, \n",
+        "    session_id, \n",
+        "    request_id, \n",
+        "    command,\n",
+        "    start_time,\n",
+        "    end_time,\n",
+        "    (unix_millis(from_utc_timestamp(end_time, 'US/Eastern')) - unix_millis(from_utc_timestamp(start_time, 'US/Eastern'))) as exec_wall_misecs,    \n",
+        "    \n",
+        "    command_w1,\n",
+        "    command_w2,\n",
+        "    command_type\n",
+        "  from dedicated_session_requests\n",
+        "  qualify row_number() OVER ( partition by pool_name, session_id, request_id order by end_time) = 1\n",
+        "),\n",
+        "data_commands as (\n",
+        "  select * from commands \n",
+        "  where \n",
+        "  command_w1 not in ('SET', 'USE') \n",
+        "  AND not (command_w1 = 'SELECT' and command_w2 = '@@SPID;')\n",
+        "  AND not (command_w1 = 'EXEC' and command_w2 = '[SP_EXECUTESQL]')\n",
+        "),\n",
+        "typed_commands as (\n",
+        "  select\n",
+        "    \n",
+        "    *\n",
+        "  from data_commands\n",
+        "),\n",
+        "typed_commands_by_volume as (\n",
+        "  select command_type, 'Volume' as metric_type, count(*)  as value \n",
+        "  from typed_commands\n",
+        "  group by 1, 2 \n",
+        "  order by 3 desc\n",
+        "),\n",
+        "typed_commands_by_time as (\n",
+        "  select command_type, 'Time (Wall)' as metric_type, sum(exec_wall_misecs)/1000  as value \n",
+        "  from typed_commands\n",
+        "  group by 1, 2 \n",
+        "  order by 3 desc\n",
+        ")\n",
+        "select * from typed_commands_by_volume\n",
+        "union all\n",
+        "select * from typed_commands_by_time"
+      ],
+      "parameters": [
+        {
+          "displayName": "run_name",
+          "keyword": "run_name",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": "beone_test_run2"
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "schema": "_fivetran_setup_test"
+    },
+    {
+      "name": "d25873f9",
+      "displayName": "synapse_dsp_storage_size 1",
+      "queryLines": [
+        "use catalog `PROFILER_CATALOG`;\n",
+        "use schema IDENTIFIER(PROFILER_SCHEMA);\n",
+        "\n",
+        "\n",
+        "select *\n",
+        "from dedicated_storage_info"
+      ],
+      "parameters": [
+        {
+          "displayName": "run_name",
+          "keyword": "run_name",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": "agl_corp"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "pages": [
+    {
+      "name": "7e48c4bc",
+      "displayName": "Profile Results",
+      "layout": [
+        {
+          "widget": {
+            "name": "ebb68b02",
+            "multilineTextboxSpec": {
+              "lines": [
+                "## Profiling Information:"
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 1,
+            "width": 6,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "dc78da5f",
+            "multilineTextboxSpec": {
+              "lines": [
+                "## SQL Pool Schemata"
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 14,
+            "width": 6,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "7ad02c62",
+            "multilineTextboxSpec": {
+              "lines": [
+                "## SQL Pool Activity"
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 27,
+            "width": 6,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "442843be",
+            "multilineTextboxSpec": {
+              "lines": [
+                "## System Utilization"
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 91,
+            "width": 6,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "a2d0756b",
+            "multilineTextboxSpec": {
+              "lines": [
+                "*Note: Profiler Run Info throws error if Synapse Workspace level information is missing. Typically the case when profiling standalone Dedicated SQL Pool*"
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 6,
+            "width": 6,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "5433f330",
+            "queries": [
+              {
+                "name": "7f68ab3b02534c358cc82bf559865354",
+                "query": {
+                  "datasetName": "71185579",
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 0,
+              "viz_spec": {
+                "display_name": "Session Activity  (By Query Volume)",
+                "description": "",
+                "viz_type": "SANKEY",
+                "serialized_options": "{\"condensed\": true, \"withRowNumber\": true}",
+                "query_name": "7f68ab3b02534c358cc82bf559865354",
+                "parameter_mappings": [
+                  {
+                    "keyword": "topN",
+                    "type": "widget-level",
+                    "map_to": "topN",
+                    "display_name": "",
+                    "control_type": "SINGLE_SELECT"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 2,
+            "y": 77,
+            "width": 4,
+            "height": 14
+          }
+        },
+        {
+          "widget": {
+            "name": "bf3e4d6c",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "8331f370",
+                  "fields": [
+                    {
+                      "name": "date",
+                      "expression": "`date`"
+                    },
+                    {
+                      "name": "avg(avg_max)",
+                      "expression": "AVG(`avg_max`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "line",
+              "encodings": {
+                "x": {
+                  "fieldName": "date",
+                  "scale": {
+                    "type": "temporal"
+                  },
+                  "displayName": "date"
+                },
+                "y": {
+                  "fieldName": "avg(avg_max)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Average avg_max"
+                }
+              },
+              "frame": {
+                "title": "SQL Pool Utilization (DWU Used Percentage)",
+                "showTitle": true
+              }
+            }
+          },
+          "position": {
+            "x": 2,
+            "y": 93,
+            "width": 4,
+            "height": 8
+          }
+        },
+        {
+          "widget": {
+            "name": "a9a547c1",
+            "queries": [
+              {
+                "name": "5e3bcac188f84b9bb5cd2422e32176d0",
+                "query": {
+                  "datasetName": "6f49a6dd",
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 0,
+              "viz_spec": {
+                "display_name": "Profiler Run Info ",
+                "description": "",
+                "viz_type": "TABLE",
+                "serialized_options": "{\"itemsPerPage\": 25, \"condensed\": true, \"withRowNumber\": false, \"columns\": [{\"booleanValues\": [\"false\", \"true\"], \"imageUrlTemplate\": \"{{ @ }}\", \"imageTitleTemplate\": \"{{ @ }}\", \"imageWidth\": \"\", \"imageHeight\": \"\", \"linkUrlTemplate\": \"{{ @ }}\", \"linkTextTemplate\": \"{{ @ }}\", \"linkTitleTemplate\": \"{{ @ }}\", \"linkOpenInNewTab\": true, \"name\": \"name\", \"type\": \"string\", \"displayAs\": \"string\", \"visible\": true, \"order\": 100000, \"title\": \"name\", \"allowSearch\": false, \"alignContent\": \"left\", \"allowHTML\": true, \"highlightLinks\": false, \"useMonospaceFont\": false, \"preserveWhitespace\": false}, {\"booleanValues\": [\"false\", \"true\"], \"imageUrlTemplate\": \"{{ @ }}\", \"imageTitleTemplate\": \"{{ @ }}\", \"imageWidth\": \"\", \"imageHeight\": \"\", \"linkUrlTemplate\": \"{{ @ }}\", \"linkTextTemplate\": \"{{ @ }}\", \"linkTitleTemplate\": \"{{ @ }}\", \"linkOpenInNewTab\": true, \"name\": \"location\", \"type\": \"string\", \"displayAs\": \"string\", \"visible\": true, \"order\": 100001, \"title\": \"location\", \"allowSearch\": false, \"alignContent\": \"left\", \"allowHTML\": true, \"highlightLinks\": false, \"useMonospaceFont\": false, \"preserveWhitespace\": false}, {\"booleanValues\": [\"false\", \"true\"], \"imageUrlTemplate\": \"{{ @ }}\", \"imageTitleTemplate\": \"{{ @ }}\", \"imageWidth\": \"\", \"imageHeight\": \"\", \"linkUrlTemplate\": \"{{ @ }}\", \"linkTextTemplate\": \"{{ @ }}\", \"linkTitleTemplate\": \"{{ @ }}\", \"linkOpenInNewTab\": true, \"name\": \"pool_name\", \"type\": \"string\", \"displayAs\": \"string\", \"visible\": true, \"order\": 100002, \"title\": \"pool_name\", \"allowSearch\": false, \"alignContent\": \"left\", \"allowHTML\": true, \"highlightLinks\": false, \"useMonospaceFont\": false, \"preserveWhitespace\": false}, {\"dateTimeFormat\": \"YYYY-MM-DD HH:mm:ss.SSS\", \"booleanValues\": [\"false\", \"true\"], \"imageUrlTemplate\": \"{{ @ }}\", \"imageTitleTemplate\": \"{{ @ }}\", \"imageWidth\": \"\", \"imageHeight\": \"\", \"linkUrlTemplate\": \"{{ @ }}\", \"linkTextTemplate\": \"{{ @ }}\", \"linkTitleTemplate\": \"{{ @ }}\", \"linkOpenInNewTab\": true, \"name\": \"start_ts\", \"type\": \"datetime\", \"displayAs\": \"datetime\", \"visible\": true, \"order\": 100003, \"title\": \"start_ts\", \"allowSearch\": false, \"alignContent\": \"right\", \"allowHTML\": true, \"highlightLinks\": false, \"useMonospaceFont\": false, \"preserveWhitespace\": false}, {\"dateTimeFormat\": \"YYYY-MM-DD HH:mm:ss.SSS\", \"booleanValues\": [\"false\", \"true\"], \"imageUrlTemplate\": \"{{ @ }}\", \"imageTitleTemplate\": \"{{ @ }}\", \"imageWidth\": \"\", \"imageHeight\": \"\", \"linkUrlTemplate\": \"{{ @ }}\", \"linkTextTemplate\": \"{{ @ }}\", \"linkTitleTemplate\": \"{{ @ }}\", \"linkOpenInNewTab\": true, \"name\": \"end_ts\", \"type\": \"datetime\", \"displayAs\": \"datetime\", \"visible\": true, \"order\": 100004, \"title\": \"end_ts\", \"allowSearch\": false, \"alignContent\": \"right\", \"allowHTML\": true, \"highlightLinks\": false, \"useMonospaceFont\": false, \"preserveWhitespace\": false}, {\"numberFormat\": \"0\", \"booleanValues\": [\"false\", \"true\"], \"imageUrlTemplate\": \"{{ @ }}\", \"imageTitleTemplate\": \"{{ @ }}\", \"imageWidth\": \"\", \"imageHeight\": \"\", \"linkUrlTemplate\": \"{{ @ }}\", \"linkTextTemplate\": \"{{ @ }}\", \"linkTitleTemplate\": \"{{ @ }}\", \"linkOpenInNewTab\": true, \"name\": \"days\", \"type\": \"integer\", \"displayAs\": \"number\", \"visible\": true, \"order\": 100005, \"title\": \"days\", \"allowSearch\": false, \"alignContent\": \"right\", \"allowHTML\": true, \"highlightLinks\": false, \"useMonospaceFont\": false, \"preserveWhitespace\": false}, {\"numberFormat\": \"00,00\", \"booleanValues\": [\"false\", \"true\"], \"imageUrlTemplate\": \"{{ @ }}\", \"imageTitleTemplate\": \"{{ @ }}\", \"imageWidth\": \"\", \"imageHeight\": \"\", \"linkUrlTemplate\": \"{{ @ }}\", \"linkTextTemplate\": \"{{ @ }}\", \"linkTitleTemplate\": \"{{ @ }}\", \"linkOpenInNewTab\": true, \"name\": \"sessions\", \"type\": \"integer\", \"displayAs\": \"number\", \"visible\": true, \"order\": 100006, \"title\": \"sessions\", \"allowSearch\": false, \"alignContent\": \"right\", \"allowHTML\": true, \"highlightLinks\": false, \"useMonospaceFont\": false, \"preserveWhitespace\": false}, {\"numberFormat\": \"00,00\", \"booleanValues\": [\"false\", \"true\"], \"imageUrlTemplate\": \"{{ @ }}\", \"imageTitleTemplate\": \"{{ @ }}\", \"imageWidth\": \"\", \"imageHeight\": \"\", \"linkUrlTemplate\": \"{{ @ }}\", \"linkTextTemplate\": \"{{ @ }}\", \"linkTitleTemplate\": \"{{ @ }}\", \"linkOpenInNewTab\": true, \"name\": \"requests\", \"type\": \"integer\", \"displayAs\": \"number\", \"visible\": true, \"order\": 100007, \"title\": \"requests\", \"allowSearch\": false, \"alignContent\": \"right\", \"allowHTML\": true, \"highlightLinks\": false, \"useMonospaceFont\": false, \"preserveWhitespace\": false}]}",
+                "query_name": "5e3bcac188f84b9bb5cd2422e32176d0"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 3,
+            "width": 6,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "94561e09",
+            "queries": [
+              {
+                "name": "df314830bd14433c9c911484ca41b434",
+                "query": {
+                  "datasetName": "0e20c910",
+                  "fields": [
+                    {
+                      "name": "day",
+                      "expression": "`day`"
+                    },
+                    {
+                      "name": "column_122d18d216659",
+                      "expression": "SUM(`perc_used_slots`)"
+                    },
+                    {
+                      "name": "pool_dwulimit",
+                      "expression": "`pool_dwulimit`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 0,
+              "viz_spec": {
+                "display_name": "DWULimit Used By Day",
+                "description": "",
+                "viz_type": "CHART",
+                "serialized_options": "{\"version\":2,\"globalSeriesType\":\"line\",\"sortX\":true,\"sortY\":true,\"legend\":{\"traceorder\":\"normal\"},\"xAxis\":{\"type\":\"-\",\"labels\":{\"enabled\":true},\"title\":{\"text\":\"Date\"}},\"yAxis\":[{\"type\":\"-\",\"title\":{\"text\":\"Percent of the Time Used \"}},{\"type\":\"-\",\"opposite\":true}],\"alignYAxesAtZero\":true,\"error_y\":{\"type\":\"data\",\"visible\":true},\"series\":{\"stacking\":null,\"error_y\":{\"type\":\"data\",\"visible\":true}},\"seriesOptions\":{\"column_122d18d216659\":{\"yAxis\":0,\"type\":\"line\"}},\"valuesOptions\":{},\"direction\":{\"type\":\"counterclockwise\"},\"sizemode\":\"diameter\",\"coefficient\":1,\"numberFormat\":\"0,0.[00]\",\"percentFormat\":\"0[.]00%\",\"textFormat\":\"\",\"missingValuesAsZero\":true,\"useAggregationsUi\":true,\"swappedAxes\":false,\"dateTimeFormat\":\"YYYY-MM-DD HH:mm:ss.SSS\",\"showDataLabels\":false,\"columnConfigurationMap\":{\"x\":{\"column\":\"day\",\"id\":\"column_122d18d216656\"},\"y\":[{\"id\":\"column_122d18d216659\",\"column\":\"perc_used_slots\",\"transform\":\"SUM\"}],\"series\":{\"column\":\"pool_dwulimit\",\"id\":\"column_122d18d222143\"}},\"isAggregationOn\":true,\"condensed\":true,\"withRowNumber\":true}",
+                "query_name": "df314830bd14433c9c911484ca41b434"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 101,
+            "width": 6,
+            "height": 8
+          }
+        },
+        {
+          "widget": {
+            "name": "e2e25a94",
+            "queries": [
+              {
+                "name": "61e3f3d6511b4a4a8eee61fa8e2656f4",
+                "query": {
+                  "datasetName": "87f64dc8",
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 0,
+              "viz_spec": {
+                "display_name": "Top Schemas By Routines",
+                "description": "",
+                "viz_type": "TABLE",
+                "serialized_options": "{\"version\": 2}",
+                "query_name": "61e3f3d6511b4a4a8eee61fa8e2656f4",
+                "parameter_mappings": [
+                  {
+                    "keyword": "top_N",
+                    "type": "widget-level",
+                    "map_to": "top_N",
+                    "display_name": "",
+                    "control_type": "SINGLE_SELECT"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 3,
+            "y": 16,
+            "width": 3,
+            "height": 11
+          }
+        },
+        {
+          "widget": {
+            "name": "b587fc45",
+            "queries": [
+              {
+                "name": "a238aca52019497097613c6021fb3130",
+                "query": {
+                  "datasetName": "e18e029d",
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 0,
+              "viz_spec": {
+                "display_name": "Query Activity (By Wall Time)",
+                "description": "",
+                "viz_type": "SANKEY",
+                "serialized_options": "{}",
+                "query_name": "a238aca52019497097613c6021fb3130",
+                "parameter_mappings": [
+                  {
+                    "keyword": "topN",
+                    "type": "widget-level",
+                    "map_to": "topN",
+                    "display_name": "",
+                    "control_type": "SINGLE_SELECT"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 60,
+            "width": 6,
+            "height": 17
+          }
+        },
+        {
+          "widget": {
+            "name": "0cf67513",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "4d870a15",
+                  "fields": [
+                    {
+                      "name": "sum(value)",
+                      "expression": "SUM(`value`)"
+                    },
+                    {
+                      "name": "command_type",
+                      "expression": "`command_type`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "pie",
+              "encodings": {
+                "angle": {
+                  "fieldName": "sum(value)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Sum of value"
+                },
+                "color": {
+                  "fieldName": "command_type",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "displayName": "command_type"
+                },
+                "label": {
+                  "show": true
+                }
+              },
+              "frame": {
+                "title": "Query Distribution",
+                "showTitle": true
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 29,
+            "width": 3,
+            "height": 14
+          }
+        },
+        {
+          "widget": {
+            "name": "431c9fbc",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "5d0d81e1",
+                  "fields": [
+                    {
+                      "name": "sum(sum(query_count))",
+                      "expression": "SUM(`sum(query_count)`)"
+                    },
+                    {
+                      "name": "app_name",
+                      "expression": "`app_name`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "pie",
+              "encodings": {
+                "angle": {
+                  "fieldName": "sum(sum(query_count))",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Sum of sum(query_count)"
+                },
+                "color": {
+                  "fieldName": "app_name",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "displayName": "app_name"
+                }
+              },
+              "frame": {
+                "title": "Application Activity (By Query Volume)",
+                "showTitle": true
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 77,
+            "width": 2,
+            "height": 14
+          }
+        },
+        {
+          "widget": {
+            "name": "7b5144fd",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "42b167ce",
+                  "fields": [
+                    {
+                      "name": "extract_ts",
+                      "expression": "`extract_ts`"
+                    },
+                    {
+                      "name": "requests",
+                      "expression": "`requests`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "extract_ts",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "displayName": "extract_ts"
+                },
+                "y": {
+                  "fieldName": "requests",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "axis": {
+                    "title": "query count"
+                  },
+                  "displayName": "query count"
+                }
+              },
+              "frame": {
+                "title": "Profiler Extract Info ",
+                "showTitle": true
+              },
+              "mark": {
+                "colors": [
+                  "#1B3139"
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 7,
+            "width": 6,
+            "height": 7
+          }
+        },
+        {
+          "widget": {
+            "name": "fecee786",
+            "queries": [
+              {
+                "name": "ab0d89fde4214714a64f8e00cc75c28b",
+                "query": {
+                  "datasetName": "b4a08f84",
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 0,
+              "viz_spec": {
+                "display_name": "Storage Size",
+                "description": "",
+                "viz_type": "COUNTER",
+                "serialized_options": "{\"counterLabel\": \"TB\", \"counterColName\": \"avg_data_size_tb\", \"rowNumber\": 1, \"targetRowNumber\": 1, \"stringDecimal\": 2, \"stringDecChar\": \".\", \"stringThouSep\": \",\", \"tooltipFormat\": \"0,0.000\", \"formatTargetValue\": false, \"condensed\": true, \"withRowNumber\": true}",
+                "query_name": "ab0d89fde4214714a64f8e00cc75c28b"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 93,
+            "width": 1,
+            "height": 8
+          }
+        },
+        {
+          "widget": {
+            "name": "666fbd4a",
+            "queries": [
+              {
+                "name": "a83362b6c3d5415cbb11970d18469ded",
+                "query": {
+                  "datasetName": "3d2f9598",
+                  "fields": [
+                    {
+                      "name": "workload_type",
+                      "expression": "`workload_type`"
+                    },
+                    {
+                      "name": "column_3f3b9c8741505",
+                      "expression": "AVG(`queries_per_minute_by_workload`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 0,
+              "viz_spec": {
+                "display_name": "Concurrent Queries Per Minute",
+                "description": "",
+                "viz_type": "CHART",
+                "serialized_options": "{\"version\": 2, \"globalSeriesType\": \"column\", \"sortX\": true, \"sortY\": true, \"legend\": {\"traceorder\": \"normal\"}, \"xAxis\": {\"type\": \"-\", \"labels\": {\"enabled\": true}}, \"yAxis\": [{\"type\": \"-\"}, {\"type\": \"-\", \"opposite\": true}], \"alignYAxesAtZero\": true, \"error_y\": {\"type\": \"data\", \"visible\": true}, \"series\": {\"stacking\": null, \"error_y\": {\"type\": \"data\", \"visible\": true}}, \"seriesOptions\": {\"column_3f3b9c8741505\": {\"yAxis\": 0, \"type\": \"column\", \"color\": \"#1B3139\"}}, \"valuesOptions\": {}, \"direction\": {\"type\": \"counterclockwise\"}, \"sizemode\": \"diameter\", \"coefficient\": 1, \"numberFormat\": \"0,0\", \"percentFormat\": \"0[.]00%\", \"textFormat\": \"\", \"missingValuesAsZero\": true, \"useAggregationsUi\": true, \"swappedAxes\": true, \"dateTimeFormat\": \"YYYY-MM-DD HH:mm:ss\", \"showDataLabels\": true, \"columnConfigurationMap\": {\"x\": {\"column\": \"workload_type\", \"id\": \"column_3f3b9c8741467\"}, \"y\": [{\"id\": \"column_3f3b9c8741505\", \"column\": \"queries_per_minute_by_workload\", \"transform\": \"AVG\"}]}, \"isAggregationOn\": true}",
+                "query_name": "a83362b6c3d5415cbb11970d18469ded"
+              }
+            }
+          },
+          "position": {
+            "x": 3,
+            "y": 29,
+            "width": 1,
+            "height": 14
+          }
+        },
+        {
+          "widget": {
+            "name": "9e01c72b",
+            "queries": [
+              {
+                "name": "a83362b6c3d5415cbb11970d18469ded",
+                "query": {
+                  "datasetName": "3d2f9598",
+                  "fields": [
+                    {
+                      "name": "workload_type",
+                      "expression": "`workload_type`"
+                    },
+                    {
+                      "name": "column_3f3b9c8743144",
+                      "expression": "AVG(`avg_query_count`)"
+                    },
+                    {
+                      "name": "command_type",
+                      "expression": "`command_type`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 0,
+              "viz_spec": {
+                "display_name": "Avg Query Volume (10 Minute Interval)",
+                "description": "",
+                "viz_type": "CHART",
+                "serialized_options": "{\"version\": 2, \"globalSeriesType\": \"column\", \"sortX\": true, \"sortY\": true, \"legend\": {\"traceorder\": \"normal\"}, \"xAxis\": {\"type\": \"-\", \"labels\": {\"enabled\": true}}, \"yAxis\": [{\"type\": \"-\", \"title\": {\"text\": \"Average Query Count\"}}, {\"type\": \"-\", \"opposite\": true}], \"alignYAxesAtZero\": true, \"error_y\": {\"type\": \"data\", \"visible\": true}, \"series\": {\"stacking\": \"stack\", \"error_y\": {\"type\": \"data\", \"visible\": true}}, \"seriesOptions\": {\"column_3f3b9c8743144\": {\"yAxis\": 0, \"type\": \"column\"}, \"DDL\": {\"color\": \"#FCBA33\"}, \"DML\": {\"color\": \"#FFAB00\"}, \"OTHER\": {\"color\": \"#98102A\"}, \"QUERY\": {\"color\": \"#1B3139\"}, \"ROUTINE\": {\"color\": \"#FFE6B8\"}, \"TRANSACTION_CONTROL\": {\"color\": \"#DCE0E2\"}, \"null\": {\"color\": \"#FFFFFF\"}}, \"valuesOptions\": {}, \"direction\": {\"type\": \"counterclockwise\"}, \"sizemode\": \"diameter\", \"coefficient\": 1, \"numberFormat\": \"0,0\", \"percentFormat\": \"0[.]00%\", \"textFormat\": \"\", \"missingValuesAsZero\": true, \"useAggregationsUi\": true, \"swappedAxes\": true, \"dateTimeFormat\": \"YYYY-MM-DD HH:mm:ss\", \"showDataLabels\": true, \"columnConfigurationMap\": {\"x\": {\"column\": \"workload_type\", \"id\": \"column_3f3b9c8743142\"}, \"y\": [{\"id\": \"column_3f3b9c8743144\", \"column\": \"avg_query_count\", \"transform\": \"AVG\"}], \"series\": {\"column\": \"command_type\", \"id\": \"column_3f3b9c8743145\"}}, \"isAggregationOn\": true, \"condensed\": true, \"withRowNumber\": true}",
+                "query_name": "a83362b6c3d5415cbb11970d18469ded"
+              }
+            }
+          },
+          "position": {
+            "x": 4,
+            "y": 29,
+            "width": 2,
+            "height": 7
+          }
+        },
+        {
+          "widget": {
+            "name": "ccb917e0",
+            "queries": [
+              {
+                "name": "a83362b6c3d5415cbb11970d18469ded",
+                "query": {
+                  "datasetName": "3d2f9598",
+                  "fields": [
+                    {
+                      "name": "workload_type",
+                      "expression": "`workload_type`"
+                    },
+                    {
+                      "name": "column_3f3b9c8744700",
+                      "expression": "MAX(`avg_query_count`)"
+                    },
+                    {
+                      "name": "command_type",
+                      "expression": "`command_type`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 0,
+              "viz_spec": {
+                "display_name": "Max Query Volume (10 Minute Interval)",
+                "description": "",
+                "viz_type": "CHART",
+                "serialized_options": "{\"version\": 2, \"globalSeriesType\": \"column\", \"sortX\": true, \"sortY\": true, \"legend\": {\"traceorder\": \"normal\"}, \"xAxis\": {\"type\": \"-\", \"labels\": {\"enabled\": true}}, \"yAxis\": [{\"type\": \"-\", \"title\": {\"text\": \"Max Query Count\"}}, {\"type\": \"-\", \"opposite\": true}], \"alignYAxesAtZero\": true, \"error_y\": {\"type\": \"data\", \"visible\": true}, \"series\": {\"stacking\": \"stack\", \"error_y\": {\"type\": \"data\", \"visible\": true}}, \"seriesOptions\": {\"column_3f3b9c8744700\": {\"yAxis\": 0, \"type\": \"column\"}, \"DDL\": {\"color\": \"#FCBA33\"}, \"DML\": {\"color\": \"#FFAB00\"}, \"OTHER\": {\"color\": \"#98102A\"}, \"QUERY\": {\"color\": \"#1B3139\"}, \"ROUTINE\": {\"color\": \"#FFE6B8\"}, \"TRANSACTION_CONTROL\": {\"color\": \"#DCE0E2\"}, \"null\": {\"color\": \"#FFFFFF\"}}, \"valuesOptions\": {}, \"direction\": {\"type\": \"counterclockwise\"}, \"sizemode\": \"diameter\", \"coefficient\": 1, \"numberFormat\": \"0,0\", \"percentFormat\": \"0[.]00%\", \"textFormat\": \"\", \"missingValuesAsZero\": true, \"useAggregationsUi\": true, \"swappedAxes\": true, \"dateTimeFormat\": \"YYYY-MM-DD HH:mm:ss\", \"showDataLabels\": true, \"columnConfigurationMap\": {\"x\": {\"column\": \"workload_type\", \"id\": \"column_3f3b9c8744698\"}, \"y\": [{\"id\": \"column_3f3b9c8744700\", \"column\": \"avg_query_count\", \"transform\": \"MAX\"}], \"series\": {\"column\": \"command_type\", \"id\": \"column_3f3b9c8744701\"}}, \"isAggregationOn\": true}",
+                "query_name": "a83362b6c3d5415cbb11970d18469ded"
+              }
+            }
+          },
+          "position": {
+            "x": 4,
+            "y": 36,
+            "width": 2,
+            "height": 7
+          }
+        },
+        {
+          "widget": {
+            "name": "76603c51",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "3d2f9598",
+                  "fields": [
+                    {
+                      "name": "workload_type",
+                      "expression": "`workload_type`"
+                    },
+                    {
+                      "name": "st",
+                      "expression": "`st`"
+                    },
+                    {
+                      "name": "sum(avg_query_count)",
+                      "expression": "SUM(`avg_query_count`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "st",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "axis": {
+                    "title": "time"
+                  },
+                  "displayName": "time"
+                },
+                "y": {
+                  "fieldName": "sum(avg_query_count)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "axis": {
+                    "title": "Average Query Count"
+                  },
+                  "displayName": "Average Query Count"
+                },
+                "color": {
+                  "fieldName": "workload_type",
+                  "scale": {
+                    "type": "categorical",
+                    "mappings": [
+                      {
+                        "value": "null",
+                        "color": "#799CFF"
+                      },
+                      {
+                        "value": "ETL",
+                        "color": "#FFAB00"
+                      },
+                      {
+                        "value": "OTHER",
+                        "color": "#98102A"
+                      },
+                      {
+                        "value": "SQL Serving",
+                        "color": "#1B3139"
+                      }
+                    ]
+                  },
+                  "displayName": "workload_type"
+                },
+                "label": {
+                  "show": false
+                }
+              },
+              "frame": {
+                "title": "Daily Workload Activity (10 min interval)",
+                "showTitle": true
+              },
+              "mark": {
+                "layout": "stack"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 43,
+            "width": 6,
+            "height": 7
+          }
+        },
+        {
+          "widget": {
+            "name": "3c559ecd",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "3d2f9598",
+                  "fields": [
+                    {
+                      "name": "command_type",
+                      "expression": "`command_type`"
+                    },
+                    {
+                      "name": "st",
+                      "expression": "`st`"
+                    },
+                    {
+                      "name": "avg(avg_query_count)",
+                      "expression": "AVG(`avg_query_count`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "st",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "axis": {
+                    "title": "time"
+                  },
+                  "displayName": "time"
+                },
+                "y": {
+                  "fieldName": "avg(avg_query_count)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "axis": {
+                    "title": "Average Query Count"
+                  },
+                  "displayName": "Average Query Count"
+                },
+                "color": {
+                  "fieldName": "command_type",
+                  "scale": {
+                    "type": "categorical",
+                    "mappings": [
+                      {
+                        "value": "DDL",
+                        "color": "#FFAB00"
+                      },
+                      {
+                        "value": "DML",
+                        "color": "#FCBA33"
+                      },
+                      {
+                        "value": "OTHER",
+                        "color": "#98102A"
+                      },
+                      {
+                        "value": "QUERY",
+                        "color": "#1B3139"
+                      },
+                      {
+                        "value": "ROUTINE",
+                        "color": "#FFE6B8"
+                      },
+                      {
+                        "value": "TRANSACTION_CONTROL",
+                        "color": "#DCE0E2"
+                      },
+                      {
+                        "value": "null",
+                        "color": "#FFFFFF"
+                      }
+                    ]
+                  },
+                  "displayName": "command_type"
+                },
+                "label": {
+                  "show": false
+                }
+              },
+              "frame": {
+                "title": "Query Activity(10 min interval)",
+                "showTitle": true
+              },
+              "mark": {
+                "layout": "stack"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 50,
+            "width": 6,
+            "height": 10
+          }
+        },
+        {
+          "widget": {
+            "name": "939f2593",
+            "queries": [
+              {
+                "name": "ed1cdea3330846599a64c0b443deccf8",
+                "query": {
+                  "datasetName": "749e0114",
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 0,
+              "viz_spec": {
+                "display_name": "Top Schemas By Objects",
+                "description": "",
+                "viz_type": "TABLE",
+                "serialized_options": "{\"itemsPerPage\": 25, \"condensed\": true, \"withRowNumber\": false, \"columns\": [{\"booleanValues\": [\"false\", \"true\"], \"imageUrlTemplate\": \"{{ @ }}\", \"imageTitleTemplate\": \"{{ @ }}\", \"imageWidth\": \"\", \"imageHeight\": \"\", \"linkUrlTemplate\": \"{{ @ }}\", \"linkTextTemplate\": \"{{ @ }}\", \"linkTitleTemplate\": \"{{ @ }}\", \"linkOpenInNewTab\": true, \"name\": \"catalog\", \"type\": \"string\", \"displayAs\": \"string\", \"visible\": true, \"order\": 100000, \"title\": \"catalog\", \"allowSearch\": true, \"alignContent\": \"left\", \"allowHTML\": false, \"highlightLinks\": false, \"useMonospaceFont\": false, \"preserveWhitespace\": false}, {\"booleanValues\": [\"false\", \"true\"], \"imageUrlTemplate\": \"{{ @ }}\", \"imageTitleTemplate\": \"{{ @ }}\", \"imageWidth\": \"\", \"imageHeight\": \"\", \"linkUrlTemplate\": \"{{ @ }}\", \"linkTextTemplate\": \"{{ @ }}\", \"linkTitleTemplate\": \"{{ @ }}\", \"linkOpenInNewTab\": true, \"name\": \"schema\", \"type\": \"string\", \"displayAs\": \"string\", \"visible\": true, \"order\": 100001, \"title\": \"schema\", \"allowSearch\": true, \"alignContent\": \"left\", \"allowHTML\": false, \"highlightLinks\": false, \"useMonospaceFont\": false, \"preserveWhitespace\": false}, {\"booleanValues\": [\"false\", \"true\"], \"imageUrlTemplate\": \"{{ @ }}\", \"imageTitleTemplate\": \"{{ @ }}\", \"imageWidth\": \"\", \"imageHeight\": \"\", \"linkUrlTemplate\": \"{{ @ }}\", \"linkTextTemplate\": \"{{ @ }}\", \"linkTitleTemplate\": \"{{ @ }}\", \"linkOpenInNewTab\": true, \"name\": \"object_type\", \"type\": \"string\", \"displayAs\": \"string\", \"visible\": true, \"order\": 100002, \"title\": \"object_type\", \"allowSearch\": true, \"alignContent\": \"left\", \"allowHTML\": false, \"highlightLinks\": false, \"useMonospaceFont\": false, \"preserveWhitespace\": false}, {\"numberFormat\": \"0\", \"booleanValues\": [\"false\", \"true\"], \"imageUrlTemplate\": \"{{ @ }}\", \"imageTitleTemplate\": \"{{ @ }}\", \"imageWidth\": \"\", \"imageHeight\": \"\", \"linkUrlTemplate\": \"{{ @ }}\", \"linkTextTemplate\": \"{{ @ }}\", \"linkTitleTemplate\": \"{{ @ }}\", \"linkOpenInNewTab\": true, \"name\": \"num_objects\", \"type\": \"integer\", \"displayAs\": \"number\", \"visible\": true, \"order\": 100003, \"title\": \"num_objects\", \"allowSearch\": false, \"alignContent\": \"right\", \"allowHTML\": false, \"highlightLinks\": false, \"useMonospaceFont\": false, \"preserveWhitespace\": false}], \"version\": 2}",
+                "query_name": "ed1cdea3330846599a64c0b443deccf8",
+                "parameter_mappings": [
+                  {
+                    "keyword": "top_N",
+                    "type": "widget-level",
+                    "map_to": "top_N",
+                    "display_name": "",
+                    "control_type": "SINGLE_SELECT"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 16,
+            "width": 3,
+            "height": 11
+          }
+        },
+        {
+          "widget": {
+            "name": "689bb182",
+            "queries": [
+              {
+                "name": "dashboards/01f05b4529d4122a8e8a7b3675097630/datasets/01f05b4529d418d39c816b173a615a57_schema_name",
+                "query": {
+                  "datasetName": "8ec472d6",
+                  "fields": [
+                    {
+                      "name": "schema_name",
+                      "expression": "`schema_name`"
+                    },
+                    {
+                      "name": "schema_name_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "parameter_dashboards/01f05b4529d4122a8e8a7b3675097630/datasets/01f05b4529d4197491846184c8b876cc_run_name",
+                "query": {
+                  "datasetName": "71185579",
+                  "parameters": [
+                    {
+                      "name": "run_name",
+                      "keyword": "run_name"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "parameter_dashboards/01f05b4529d4122a8e8a7b3675097630/datasets/01f05b4529d419b087f1521b2ce4e39e_run_name",
+                "query": {
+                  "datasetName": "8331f370",
+                  "parameters": [
+                    {
+                      "name": "run_name",
+                      "keyword": "run_name"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "parameter_dashboards/01f05b4529d4122a8e8a7b3675097630/datasets/01f05b4529d4199780305f70c75dbb7f_run_name",
+                "query": {
+                  "datasetName": "6f49a6dd",
+                  "parameters": [
+                    {
+                      "name": "run_name",
+                      "keyword": "run_name"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "parameter_dashboards/01f05b4529d4122a8e8a7b3675097630/datasets/01f05b4529d419c994fc85aab2f80e36_run_name",
+                "query": {
+                  "datasetName": "0e20c910",
+                  "parameters": [
+                    {
+                      "name": "run_name",
+                      "keyword": "run_name"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "parameter_dashboards/01f05b4529d4122a8e8a7b3675097630/datasets/01f05b4529d4198a9fab17a9307918ae_run_name",
+                "query": {
+                  "datasetName": "87f64dc8",
+                  "parameters": [
+                    {
+                      "name": "run_name",
+                      "keyword": "run_name"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "parameter_dashboards/01f05b4529d4122a8e8a7b3675097630/datasets/01f05b4529d41959862d22244f8762a5_run_name",
+                "query": {
+                  "datasetName": "e18e029d",
+                  "parameters": [
+                    {
+                      "name": "run_name",
+                      "keyword": "run_name"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "parameter_dashboards/01f05b4529d4122a8e8a7b3675097630/datasets/01f05b4529d4193c8e7c119eebdf59f2_run_name",
+                "query": {
+                  "datasetName": "4d870a15",
+                  "parameters": [
+                    {
+                      "name": "run_name",
+                      "keyword": "run_name"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "parameter_dashboards/01f05b4529d4122a8e8a7b3675097630/datasets/01f05b4529d419678b6132a2fe48f161_run_name",
+                "query": {
+                  "datasetName": "5d0d81e1",
+                  "parameters": [
+                    {
+                      "name": "run_name",
+                      "keyword": "run_name"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "parameter_dashboards/01f05b4529d4122a8e8a7b3675097630/datasets/01f05b4529d419a4b27f8ac7d8eaafe8_run_name",
+                "query": {
+                  "datasetName": "42b167ce",
+                  "parameters": [
+                    {
+                      "name": "run_name",
+                      "keyword": "run_name"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "parameter_dashboards/01f05b4529d4122a8e8a7b3675097630/datasets/01f05b4529d419bd9499408e081d8df2_run_name",
+                "query": {
+                  "datasetName": "b4a08f84",
+                  "parameters": [
+                    {
+                      "name": "run_name",
+                      "keyword": "run_name"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "parameter_dashboards/01f05b4529d4122a8e8a7b3675097630/datasets/01f05b4529d4194b9c274ad8892c9d4e_run_name",
+                "query": {
+                  "datasetName": "3d2f9598",
+                  "parameters": [
+                    {
+                      "name": "run_name",
+                      "keyword": "run_name"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "parameter_dashboards/01f05b4529d4122a8e8a7b3675097630/datasets/01f05b4529d41926a8f0fe50f44abd27_run_name",
+                "query": {
+                  "datasetName": "749e0114",
+                  "parameters": [
+                    {
+                      "name": "run_name",
+                      "keyword": "run_name"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-single-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "parameterName": "run_name",
+                    "queryName": "parameter_dashboards/01f05b4529d4122a8e8a7b3675097630/datasets/01f05b4529d4197491846184c8b876cc_run_name"
+                  },
+                  {
+                    "parameterName": "run_name",
+                    "queryName": "parameter_dashboards/01f05b4529d4122a8e8a7b3675097630/datasets/01f05b4529d419b087f1521b2ce4e39e_run_name"
+                  },
+                  {
+                    "parameterName": "run_name",
+                    "queryName": "parameter_dashboards/01f05b4529d4122a8e8a7b3675097630/datasets/01f05b4529d4199780305f70c75dbb7f_run_name"
+                  },
+                  {
+                    "parameterName": "run_name",
+                    "queryName": "parameter_dashboards/01f05b4529d4122a8e8a7b3675097630/datasets/01f05b4529d419c994fc85aab2f80e36_run_name"
+                  },
+                  {
+                    "parameterName": "run_name",
+                    "queryName": "parameter_dashboards/01f05b4529d4122a8e8a7b3675097630/datasets/01f05b4529d4198a9fab17a9307918ae_run_name"
+                  },
+                  {
+                    "parameterName": "run_name",
+                    "queryName": "parameter_dashboards/01f05b4529d4122a8e8a7b3675097630/datasets/01f05b4529d41959862d22244f8762a5_run_name"
+                  },
+                  {
+                    "parameterName": "run_name",
+                    "queryName": "parameter_dashboards/01f05b4529d4122a8e8a7b3675097630/datasets/01f05b4529d4193c8e7c119eebdf59f2_run_name"
+                  },
+                  {
+                    "parameterName": "run_name",
+                    "queryName": "parameter_dashboards/01f05b4529d4122a8e8a7b3675097630/datasets/01f05b4529d419678b6132a2fe48f161_run_name"
+                  },
+                  {
+                    "parameterName": "run_name",
+                    "queryName": "parameter_dashboards/01f05b4529d4122a8e8a7b3675097630/datasets/01f05b4529d419a4b27f8ac7d8eaafe8_run_name"
+                  },
+                  {
+                    "parameterName": "run_name",
+                    "queryName": "parameter_dashboards/01f05b4529d4122a8e8a7b3675097630/datasets/01f05b4529d419bd9499408e081d8df2_run_name"
+                  },
+                  {
+                    "parameterName": "run_name",
+                    "queryName": "parameter_dashboards/01f05b4529d4122a8e8a7b3675097630/datasets/01f05b4529d4194b9c274ad8892c9d4e_run_name"
+                  },
+                  {
+                    "parameterName": "run_name",
+                    "queryName": "parameter_dashboards/01f05b4529d4122a8e8a7b3675097630/datasets/01f05b4529d41926a8f0fe50f44abd27_run_name"
+                  },
+                  {
+                    "fieldName": "schema_name",
+                    "displayName": "schema_name",
+                    "queryName": "dashboards/01f05b4529d4122a8e8a7b3675097630/datasets/01f05b4529d418d39c816b173a615a57_schema_name"
+                  },
+                  {
+                    "fieldName": "schema_name",
+                    "displayName": "schema_name",
+                    "queryName": "dashboards/01f05b4529d4122a8e8a7b3675097630/datasets/01f05b4529d418d39c816b173a615a57_schema_name"
+                  },
+                  {
+                    "fieldName": "schema_name",
+                    "displayName": "schema_name",
+                    "queryName": "dashboards/01f05b4529d4122a8e8a7b3675097630/datasets/01f05b4529d418d39c816b173a615a57_schema_name"
+                  },
+                  {
+                    "fieldName": "schema_name",
+                    "displayName": "schema_name",
+                    "queryName": "dashboards/01f05b4529d4122a8e8a7b3675097630/datasets/01f05b4529d418d39c816b173a615a57_schema_name"
+                  },
+                  {
+                    "fieldName": "schema_name",
+                    "displayName": "schema_name",
+                    "queryName": "dashboards/01f05b4529d4122a8e8a7b3675097630/datasets/01f05b4529d418d39c816b173a615a57_schema_name"
+                  },
+                  {
+                    "fieldName": "schema_name",
+                    "displayName": "schema_name",
+                    "queryName": "dashboards/01f05b4529d4122a8e8a7b3675097630/datasets/01f05b4529d418d39c816b173a615a57_schema_name"
+                  },
+                  {
+                    "fieldName": "schema_name",
+                    "displayName": "schema_name",
+                    "queryName": "dashboards/01f05b4529d4122a8e8a7b3675097630/datasets/01f05b4529d418d39c816b173a615a57_schema_name"
+                  },
+                  {
+                    "fieldName": "schema_name",
+                    "displayName": "schema_name",
+                    "queryName": "dashboards/01f05b4529d4122a8e8a7b3675097630/datasets/01f05b4529d418d39c816b173a615a57_schema_name"
+                  },
+                  {
+                    "fieldName": "schema_name",
+                    "displayName": "schema_name",
+                    "queryName": "dashboards/01f05b4529d4122a8e8a7b3675097630/datasets/01f05b4529d418d39c816b173a615a57_schema_name"
+                  },
+                  {
+                    "fieldName": "schema_name",
+                    "displayName": "schema_name",
+                    "queryName": "dashboards/01f05b4529d4122a8e8a7b3675097630/datasets/01f05b4529d418d39c816b173a615a57_schema_name"
+                  },
+                  {
+                    "fieldName": "schema_name",
+                    "displayName": "schema_name",
+                    "queryName": "dashboards/01f05b4529d4122a8e8a7b3675097630/datasets/01f05b4529d418d39c816b173a615a57_schema_name"
+                  },
+                  {
+                    "fieldName": "schema_name",
+                    "displayName": "schema_name",
+                    "queryName": "dashboards/01f05b4529d4122a8e8a7b3675097630/datasets/01f05b4529d418d39c816b173a615a57_schema_name"
+                  }
+                ]
+              },
+              "frame": {
+                "title": "run_name",
+                "showTitle": true
+              },
+              "selection": {
+                "defaultSelection": {
+                  "values": {
+                    "dataType": "STRING",
+                    "values": [
+                      {
+                        "value": "beone_test_run1"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 2,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "95390063",
+            "queries": [
+              {
+                "name": "a83362b6c3d5415cbb11970d18469ded",
+                "query": {
+                  "datasetName": "3d2f9598",
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 0,
+              "dashboard_parameter_spec": {
+                "query_and_parameter_keywords": [
+                  {
+                    "query_name": "a83362b6c3d5415cbb11970d18469ded",
+                    "keyword": "time_zone"
+                  }
+                ],
+                "display_name": "time_zone",
+                "control_type": "SINGLE_SELECT",
+                "default_selection": {
+                  "values": {
+                    "data_type": "HELIOS_TYPE_STRING",
+                    "values": [
+                      {
+                        "value": "US/Eastern"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 2,
+            "y": 0,
+            "width": 2,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "da03a899",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "b4a08f84",
+                  "fields": [
+                    {
+                      "name": "avg_data_size_tb",
+                      "expression": "`avg_data_size_tb`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "avg_data_size_tb",
+                  "format": {
+                    "type": "number-plain",
+                    "abbreviation": "none",
+                    "decimalPlaces": {
+                      "type": "exact",
+                      "places": 2
+                    }
+                  },
+                  "rowNumber": 1,
+                  "displayName": "avg_data_size_tb"
+                }
+              },
+              "frame": {
+                "title": "Storage Size",
+                "showTitle": true,
+                "description": "TB",
+                "showDescription": true
+              }
+            }
+          },
+          "position": {
+            "x": 1,
+            "y": 93,
+            "width": 1,
+            "height": 8
+          }
+        }
+      ],
+      "pageType": "PAGE_TYPE_CANVAS"
+    }
+  ],
+  "uiSettings": {
+    "theme": {
+      "widgetHeaderAlignment": "ALIGNMENT_UNSPECIFIED"
+    }
+  }
+}
