@@ -1,0 +1,82 @@
+version: "1.0.0"
+
+lakebridge:
+    description: >
+        Defines transformations that standardize snowflake data types before comparison to databricks.
+    transformations:
+        # ------------------------------------------------------------------------
+        # TEMPORAL CATEGORY
+        # ------------------------------------------------------------------------
+        date_to_iso8601: # Use any name here
+            description: "Normalize DATE to ISO 8601 (YYYY-MM-DD)."
+            databricks_type: ["DATE"]
+            databricks_transformation: "DATE_FORMAT({}, 'yyyy-MM-dd')"
+            rules:
+                date: # Use any name here
+                    source_types: ["DATE"]
+                    source_transformation: "TO_VARCHAR({}, 'YYYY-MM-DD')" # can also override databricks transformation if needed
+                string:
+                    source_types: ["CHAR", "VARCHAR", "STRING", "TEXT"]
+                    source_transformation: "{}" # identity, no transformation needed for strings
+
+        timestamp_ntz_to_iso8601:
+            description: "Normalize TIMESTAMP (no tz) to ISO 8601 with milliseconds."
+            databricks_type: ["TIMESTAMP_NTZ", "TIMESTAMP WITHOUT TIME ZONE"]
+            databricks_transformation: "DATE_FORMAT({}, 'yyyy-MM-dd HH:mm:ss.SSS')"
+            rules:
+                timestamp_ntz:
+                    source_types: [] # applies to all types if empty
+                    source_transformation: "TO_VARCHAR(TO_TIMESTAMP_NTZ({}))"
+
+        timestamp_to_iso8601:
+            description: "Normalize TIMESTAMP with time zone to ISO 8601 with milliseconds."
+            databricks_type: ["TIMESTAMP"]
+            databricks_transformation: "DATE_FORMAT({}, 'yyyy-MM-dd HH:mm:ss.SSS ZZZZZ')"
+            rules:
+                timestamp_tz:
+                    source_types: [] # applies to all types if empty
+                    source_transformation: "TO_VARCHAR(TO_TIMESTAMP_TZ({}))"
+
+        # ------------------------------------------------------------------------
+        # SEMI-STRUCTURED AND STRUCTURED CATEGORY
+        # ------------------------------------------------------------------------
+        arrays:
+            description: "Normalize Arrays: filter NULLs then sort then join"
+            databricks_type: ["ARRAY"]
+            databricks_transformation: "COALESCE(CONCAT_WS(',', ARRAY_SORT(FILTER({}, x -> x IS NOT NULL))), 'null_recon')"
+            rules:
+                array:
+                    source_types: ["ARRAY"]
+                    source_transformation: "COALESCE(ARRAY_TO_STRING(ARRAY_SORT(ARRAY_COMPACT({})), ','), 'null_recon')"
+
+        structs:
+            description: "Serialize or flatten nested structures to JSON."
+            databricks_type: ["STRUCT", "MAP", "VARIANT", "OBJECT"]
+            databricks_transformation: "TO_JSON({})"
+            rules:
+                struct:
+                    source_types: ["OBJECT", "MAP"]
+                    source_transformation: "TO_JSON({})"
+
+        # ------------------------------------------------------------------------
+        # NUMERIC CATEGORY
+        # ------------------------------------------------------------------------
+
+
+        # ------------------------------------------------------------------------
+        # OTHER CATEGORY
+        # ------------------------------------------------------------------------
+        booleans:
+            description: "Normalize boolean and boolean-like values to TRUE/FALSE."
+            databricks_type: ["BOOLEAN"]
+            databricks_transformation: "{}"
+            rules:
+                boolean:
+                    source_types: [ "BOOLEAN" ]
+                    source_transformation: "{}"
+                integer_as_boolean:
+                    source_types: [ "INT", "INTEGER", "SMALLINT", "TINYINT", "BYTEINT", "NUMBER" ]
+                    source_transformation: "CASE WHEN {} = 1 THEN TRUE WHEN {} = 0 THEN FALSE ELSE FALSE END"
+                string_as_boolean:
+                    source_types: [ "CHAR", "VARCHAR", "TEXT", "STRING" ]
+                    source_transformation: "CASE WHEN UPPER({}) IN ('Y','YES','TRUE','1') THEN TRUE ELSE FALSE END"
