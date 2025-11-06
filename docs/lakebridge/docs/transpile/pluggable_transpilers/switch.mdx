@@ -57,7 +57,7 @@ Switch requires a Databricks catalog, schema, and volume:
 
 **Required permissions:**
 - **If using existing resources**: `USE CATALOG`, `USE SCHEMA`, `CREATE TABLE`, `READ VOLUME`, `WRITE VOLUME`
-- **If creating new resources**: Catalog/schema/volume creation permissions (Switch will create them automatically during installation)
+- **If creating new resources**: Catalog/schema/volume creation permissions (Switch will create them when running llm-transpile if prompted and confirmed)
 
 ---
 
@@ -104,17 +104,8 @@ For custom prompt creation, see the [Customizable Prompts](#customizable-prompts
 Install Switch using the `install-transpile` command with the `--include-llm-transpiler` option:
 
 ```bash
-databricks labs lakebridge install-transpile --include-llm-transpiler true
+databricks labs lakebridge install-transpile --include-llm-transpiler true --profile profile_name
 ```
-
-During installation, you will be prompted to configure:
-
-1. **Catalog**: Catalog for state tables
-2. **Schema**: Schema for storing conversion results
-3. **Volume**: Volume for uploading input files
-4. **Foundation Model**: Model serving endpoint (e.g., `my_foundation_model`)
-
-**Note**: If you specify non-existing catalog, schema, or volume, Switch will attempt to create them (requires appropriate creation permissions).
 
 The installation automatically:
 
@@ -129,13 +120,14 @@ Use the `llm-transpile` command to run Switch conversions. The command takes loc
 
 ```bash
 databricks labs lakebridge llm-transpile \
-  --input-source /local/path/to/files \
-  --output-ws-folder /Workspace/path/to/notebooks \
+  --input-source /local/path/to/input \
+  --output-ws-folder /Workspace/path/to/output \
   --source-dialect mysql \
-  --catalog-name my_catalog \
-  --schema-name my_schema \
-  --volume my_volume \
-  --foundational-model my_foundation_model
+  [--catalog-name your_catalog] \
+  [--schema-name your_schema] \
+  [--volume your_volume] \
+  [--foundational-model your_foundation_model] \
+  [--profile profile_name]
 ```
 
 When executing the above command, the response will look like this:
@@ -166,17 +158,17 @@ Switch provides flexible configuration through two tiers: command-line parameter
 
 ### Command-Line Parameters
 
-The `llm-transpile` command accepts the following parameters. Parameters without default values must be provided as CLI arguments. Parameters with default values will be prompted interactively if not provided via CLI.
+The `llm-transpile` command accepts the following parameters:
 
-| Parameter | Description | Default | Example |
-|-----------|-------------|---------|---------|
-| `--input-source` | Local file system path containing files to convert (automatically uploaded to Volume) | - | `/local/path/to/sql` |
-| `--output-ws-folder` | Databricks workspace path for generated outputs (must start with `/Workspace/`) | - | `/Workspace/path/to/notebooks` |
-| `--source-dialect` | Source technology/dialect to convert from (see [Source Format Support](#source-format-support) for available options) | - | `snowflake`, `oracle`, `python`, `airflow`, etc. |
-| `--catalog-name` | Unity Catalog for Switch Delta tables and Volume | `lakebridge` | `my_catalog` |
-| `--schema-name` | Schema within the catalog for Switch Delta tables and Volume | `switch` | `my_schema` |
-| `--volume` | Unity Catalog Volume for uploaded input source files | `switch_volume` | `my_volume` |
-| `--foundational-model` | Model serving endpoint name for conversions | (selected from available FM APIs in workspace) | `databricks-claude-sonnet-4-5` |
+| Parameter | Specification | Description | Example |
+|-----------|---------------|-------------|---------|
+| `--input-source` | Required | Local file system path containing files to convert (automatically uploaded to Volume) | `/local/path/to/input` |
+| `--output-ws-folder` | Required | Databricks workspace path for generated outputs (must start with `/Workspace/`) | `/Workspace/path/to/output` |
+| `--source-dialect` | Required | Source technology/dialect to convert from (see [Source Format Support](#source-format-support) for available options) | `snowflake`, `oracle`, `python`, `airflow`, etc. |
+| `--catalog-name` | Optional (prompted, default: `lakebridge`) | Unity Catalog for Switch Delta tables and Volume | `your_catalog` |
+| `--schema-name` | Optional (prompted, default: `switch`) | Schema within the catalog for Switch Delta tables and Volume | `your_schema` |
+| `--volume` | Optional (prompted, default: `switch_volume`) | Unity Catalog Volume for uploaded input source files | `your_volume` |
+| `--foundational-model` | Optional (prompted from available FM APIs) | Model serving endpoint name for conversions | `databricks-claude-sonnet-4-5` |
 
 ### Switch Configuration File
 
@@ -204,16 +196,14 @@ Additional conversion parameters are managed in the Switch configuration file. Y
 
 ### Example 1: SQL conversion using built-in prompt
 
-Convert Snowflake SQL to Databricks Python notebooks using the built-in Snowflake conversion prompt. Foundation model will be prompted interactively:
+Convert Snowflake SQL to Databricks Python notebooks using the built-in Snowflake conversion prompt. Catalog, schema, volume, and foundation model will be prompted interactively:
 
 ```bash
 databricks labs lakebridge llm-transpile \
-  --input-source /local/path/to/sql \
-  --output-ws-folder /Workspace/path/to/notebooks \
+  --input-source /local/path/to/input \
+  --output-ws-folder /Workspace/path/to/output \
   --source-dialect snowflake \
-  --catalog-name my_catalog \
-  --schema-name my_schema \
-  --volume my_volume
+  --profile profile_name
 ```
 
 ### Example 2: SQL conversion using custom prompt
@@ -228,12 +218,10 @@ conversion_prompt_yaml: "/Workspace/path/to/my_custom_prompt.yml"
 Then run (note: when using a custom prompt, `--source-dialect` can be any value since the custom prompt takes precedence):
 ```bash
 databricks labs lakebridge llm-transpile \
-  --input-source /local/path/to/sql \
-  --output-ws-folder /Workspace/path/to/notebooks \
-  --source-dialect oracle
-  --catalog-name my_catalog \
-  --schema-name my_schema \
-  --volume my_volume
+  --input-source /local/path/to/input \
+  --output-ws-folder /Workspace/path/to/output \
+  --source-dialect oracle \
+  --profile profile_name
 ```
 
 ### Example 3: Python script to Databricks notebook
@@ -248,12 +236,10 @@ source_format: "generic"
 Then run:
 ```bash
 databricks labs lakebridge llm-transpile \
-  --input-source /local/path/to/scripts \
-  --output-ws-folder /Workspace/path/to/notebooks \
+  --input-source /local/path/to/input \
+  --output-ws-folder /Workspace/path/to/output \
   --source-dialect python \
-  --catalog-name my_catalog \
-  --schema-name my_schema \
-  --volume my_volume
+  --profile profile_name
 ```
 
 ### Example 4: Airflow DAG to Databricks Jobs YAML
@@ -270,12 +256,10 @@ output_extension: ".yml"
 Then run:
 ```bash
 databricks labs lakebridge llm-transpile \
-  --input-source /local/path/to/dags \
-  --output-ws-folder /Workspace/path/to/workflows \
+  --input-source /local/path/to/input \
+  --output-ws-folder /Workspace/path/to/output \
   --source-dialect airflow \
-  --catalog-name my_catalog \
-  --schema-name my_schema \
-  --volume my_volume
+  --profile profile_name
 ```
 
 ---
