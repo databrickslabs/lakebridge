@@ -168,11 +168,12 @@ class SwitchDeployment:
             "name": job_name,
             "tags": {"created_by": self._ws.current_user.me().user_name, "switch_version": f"v{switch_version}"},
             "tasks": [task],
-            "parameters": self._get_switch_job_parameters(),
+            "parameters": self._generate_switch_job_parameters(),
             "max_concurrent_runs": 100,  # Allow simultaneous transpilations
         }
 
-    def _get_switch_job_parameters(self) -> Sequence[JobParameterDefinition]:
+    @staticmethod
+    def _generate_switch_job_parameters() -> Sequence[JobParameterDefinition]:
         # Add required runtime parameters, static for now.
         parameters = {
             "source_tech": "",
