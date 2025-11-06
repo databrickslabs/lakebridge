@@ -90,7 +90,7 @@ class ReconDeployment:
         dashboard_base_dir = (
             find_project_root(__file__) / "src/databricks/labs/lakebridge/resources/reconcile/dashboards"
         )
-        self._dashboard_deployer.deploy(dashboard_base_dir, recon_config)
+        self._dashboard_deployer.deploy(dashboard_base_dir, recon_config.metadata_config)
 
     def _get_dashboards(self) -> list[tuple[str, str]]:
         return list(self._install_state.dashboards.items())

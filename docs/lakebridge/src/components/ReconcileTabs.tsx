@@ -69,14 +69,14 @@ const LakebridgeTabs: React.FC = () => (
             <FrameTab src="/lakebridge_reconcile/Readme.html" label="Readme" />
         </TabItem>*/}
         <TabItem value="Recon Main" label="Recon Main">
-            <FrameTab src="/lakebridge_reconcile/lakebridge_recon_main.html" label="Recon Main" />
+            <FrameTab src={useBaseUrl("lakebridge_reconcile/lakebridge_recon_main.html")} label="Recon Main" />
         </TabItem>
         <TabItem value="Recon Wrapper" label="Recon Wrapper">
-            <FrameTab src="/lakebridge_reconcile/recon_wrapper_nb.html" label="Recon Wrapper" />
+            <FrameTab src={useBaseUrl("lakebridge_reconcile/recon_wrapper_nb.html")} label="Recon Wrapper" />
         </TabItem>
         <TabItem value="Snowflake Example" label="Transformation Query Generator">
             <FrameTab
-                src="/lakebridge_reconcile/snowflake_transformation_query_generator.html"
+                src={useBaseUrl("lakebridge_reconcile/snowflake_transformation_query_generator.html")}
                 label="Query Generator"
             />
         </TabItem>

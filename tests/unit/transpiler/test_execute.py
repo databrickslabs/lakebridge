@@ -895,3 +895,44 @@ def test_empty_transpiled_code_with_parsing_error(tmp_path: Path, mock_workspace
     assert len(errors) == 1
     assert errors[0].kind == ErrorKind.PARSING
     assert status["parsing_error_count"] == 1
+
+
+def test_transpiled_output_nested_directories(tmp_path: Path, mock_workspace_client: WorkspaceClient) -> None:
+    """Verify that nested directory hierarchies are preserved properly."""
+    # Setup an input hierarchy that we expect to be preserved.
+    input_path = tmp_path / "input"
+    output_path = tmp_path / "output"
+    sources = {
+        input_path / "file_1.sql": "select 'file_1';",
+        input_path / "outer" / "inner" / "file_2.sql": "select 'file_2';",
+    }
+    for path, source in sources.items():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(source, encoding="utf-8")
+
+    # Set up a mock engine for exercising the processing loop.
+    mock_engine = ConfigurableTestEngine(
+        supported_dialects=["sql"],
+        file_extensions=[".sql"],
+        transform=lambda sql: f"-- Transformed!\n{sql}",
+    )
+    config = TranspileConfig(
+        transpiler_config_path="mock",
+        input_source=str(input_path),
+        output_folder=str(output_path),
+        source_dialect="sql",
+        skip_validation=True,
+    )
+
+    # Perform the conversion.
+    status, errors = transpile(mock_workspace_client, mock_engine, config)
+    assert status["total_files_processed"] == 2 and not errors
+
+    # Verify the conversion occurred and the results.
+    for path, source in sources.items():
+        relative_path = path.relative_to(input_path)
+        expected_output_path = output_path / relative_path
+        assert expected_output_path.is_file(), f"Missing expected output path: {path} -> {expected_output_path}"
+        expected_output = f"-- Transformed!\n{source}"
+        actual_output = expected_output_path.read_text(encoding="utf-8")
+        assert actual_output == expected_output
