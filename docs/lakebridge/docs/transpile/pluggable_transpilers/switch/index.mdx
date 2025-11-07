@@ -5,9 +5,18 @@ sidebar_position: 5
 
 import CodeBlock from '@theme/CodeBlock';
 
-**Switch** is a Lakebridge transpiler plugin that uses Large Language Models (LLMs) to convert SQL and other source formats into Databricks notebooks or generic files. Switch leverages [Mosaic AI Model Serving](https://docs.databricks.com/aws/en/machine-learning/model-serving/) to understand code intent and semantics, generating equivalent Python notebooks with Spark SQL or other target formats.
+:::warning Attention:
+The Switch LLM Converter is currently an Experimental feature in Lakebridge. For any feedback and/or issues, feel free to reach out
+via Github issues.
+:::
 
-This LLM-powered approach excels at converting complex SQL code and business logic where context and intent matter more than syntactic transformation. While generated notebooks may require manual adjustments, they provide a valuable foundation for Databricks migration.
+**Switch** is a Lakebridge transpiler plugin that uses Large Language Models (LLMs) to convert SQL and other source formats
+into Databricks notebooks or generic files. Switch leverages [Mosaic AI Model Serving](https://docs.databricks.com/aws/en/machine-learning/model-serving/)
+to understand code intent and semantics, generating equivalent Python notebooks with Spark SQL or other target formats.
+
+This LLM-powered approach excels at converting complex SQL code and business logic where context and intent matter more
+than syntactic transformation. While generated notebooks may require manual adjustments, they provide a valuable foundation
+for Databricks migration.
 
 ---
 
@@ -15,20 +24,20 @@ This LLM-powered approach excels at converting complex SQL code and business log
 
 Switch operates through three key components that distinguish it from rule-based transpilers:
 
-### LLM-Powered Semantic Understanding
+### 1. LLM-Powered Semantic Understanding
 Instead of parsing rules, Switch uses [Mosaic AI Model Serving](https://docs.databricks.com/aws/en/machine-learning/model-serving/) to:
 - Interpret code intent and business context beyond syntax
 - Handle SQL dialects, programming languages, and workflow definitions
 - Support complex logic patterns and proprietary extensions
 - Enable extensible conversion through custom YAML prompts
 
-### Native Databricks Integration
-Switch runs entirely within the Databricks workspace:
+### 2. Native Databricks Integration
+Switch runs entirely within the Databricks workspace. You can find details about this architecture [here](#databricks-implementation-details)
 - **Jobs API**: Executes as scalable Databricks Jobs for batch processing
 - **Model Serving**: Direct integration with Databricks LLM endpoints, with concurrent processing for multiple files
 - **Delta Tables**: Tracks conversion progress and results
 
-### Flexible Output Formats
+### 3. Flexible Output Formats
 - **Notebooks**: Python notebooks containing Spark SQL (primary output)
 - **Generic Files**: YAML workflows, JSON configurations, and other text formats
 - **Experimental**: Additional SQL notebook output converted from generated Python notebooks
@@ -39,25 +48,23 @@ Switch runs entirely within the Databricks workspace:
 
 Before installing Switch, ensure your Databricks environment meets the following requirements:
 
-### User Entitlements
-
-Users installing and running Switch require **Workspace Access** entitlement.
-
 ### Workspace Resources
 
 - **Serverless job compute** (used by default for Switch job execution)
   - If unavailable: Manually configure the Switch job to use classic job compute with DBR 14.3 LTS or higher
-- **Foundation Model API** enabled workspace
+- **Foundation Model API** enabled
 
 ### Unity Catalog Resources
 
 Switch requires a Databricks catalog, schema, and volume:
 - **Catalog and Schema**: Store Delta tables for state management and conversion results
+    - Defaults: catalog - lakebridge, schema - switch
 - **Volume**: Store uploaded input source files
+    - Default: switch_volume
 
 **Required permissions:**
 - **If using existing resources**: `USE CATALOG`, `USE SCHEMA`, `CREATE TABLE`, `READ VOLUME`, `WRITE VOLUME`
-- **If creating new resources**: Catalog/schema/volume creation permissions (Switch will create them when running llm-transpile if prompted and confirmed)
+- **If creating new resources**: Catalog/schema/volume creation permissions (Switch will prompt to create them when running `llm-transpile`)
 
 ---
 
@@ -132,12 +139,11 @@ databricks labs lakebridge llm-transpile \
 
 When executing the above command, the response will look like this:
 
-```json
-{
-  "job_id": 12345,
-  "run_id": 67890,
-  "run_url": "https://your-workspace.databricks.com/jobs/12345/runs/67890"
-}
+```console
+INFO [d.l.l.transpiler.switch_runner] Uploading /local/path/to/input to your_volume
+INFO [d.l.l.transpiler.switch_runner] Upload complete: your_volume/input-xyz
+INFO [d.l.l.transpiler.switch_runner] Triggering Switch job with job_id: <switch_job_id>
+INFO [d.l.l.transpiler.switch_runner] Switch LLM transpilation job started: https://workspace.databricks.com/jobs/switch_job_id/runs/run_id
 ```
 
 ### Operational Notes
@@ -145,7 +151,7 @@ When executing the above command, the response will look like this:
 Switch operates differently from other Lakebridge transpilers:
 
 - **Local Input Paths**: Input files are read from your local filesystem and automatically uploaded to Unity Catalog Volumes
-- **Workspace Output Paths**: Output is written to Databricks Workspace paths (e.g., `/Workspace/path/to/...`)
+- **Workspace Output Paths**: Output is written to Databricks Workspace paths specified in the `--output-ws-folder` param (e.g., `/Workspace/path/to/...`)
 - **Jobs API Execution**: Switch runs as a Databricks Job in your workspace, not as a local process
 - **Asynchronous by Default**: The command returns immediately with a job URL, allowing you to monitor progress in the Databricks workspace
 - **Monitoring**: Use the returned job URL to track conversion progress and view logs
@@ -263,142 +269,6 @@ databricks labs lakebridge llm-transpile \
 ```
 
 ---
-
-## Customizable Prompts
-
-You can create custom conversion prompts for Switch to handle new SQL dialects or specialized conversion requirements.
-
-### Creating Custom Conversion Prompts
-
-To create a custom conversion prompt:
-
-1. **Create a YAML file** with the required structure
-2. **Place it in your Databricks workspace**
-3. **Specify the full path** in the `conversion_prompt_yaml` parameter
-
-Custom conversion prompts require two main sections:
-
-#### Required Structure
-
-Here's a simple example showing the basic structure of a custom conversion prompt:
-
-```yaml
-system_message: |
-  Convert SQL code to Python code that runs on Databricks according to the following instructions:
-
-  # Input and Output
-  - Input: A single SQL file containing one or multiple T-SQL statements
-  - Output: Python code with Python comments (in {comment_lang}) explaining the code
-
-  ${common_python_instructions_and_guidelines}
-
-  # Additional Instructions
-  1. Convert SQL queries to spark.sql() format
-  2. Add clear Python comments explaining the code
-  3. Use DataFrame operations instead of loops when possible
-  4. Handle errors using try-except blocks
-
-few_shots:
-- role: user
-  content: |
-    SELECT name, age
-    FROM users
-    WHERE active = 1;
-- role: assistant
-  content: |
-    # Get names and ages of active users
-    active_users = spark.sql("""
-        SELECT name, age
-        FROM users
-        WHERE active = 1
-    """)
-    display(active_users)
-```
-
-#### Key Elements
-
-**`system_message` Section**:
-- Clear explanation of the conversion purpose
-- Definition of input and output formats
-- Additional instructions for specific conversions
-- (Optional) Comment language specification (`{comment_lang}` will be replaced automatically by Switch)
-- (Optional) Common instructions placeholder (`${common_python_instructions_and_guidelines}` will be replaced automatically by Switch with built-in conversion guidelines)
-
-**`few_shots` Section** (Optional but recommended):
-- Include examples ranging from simple to complex cases
-- Each example demonstrates specific patterns for LLM understanding
-- Shows typical conversion patterns for your SQL dialect
-
-### Reference: Built-in YAML Files
-
-Switch includes built-in YAML configuration files for supported conversion types, including SQL dialects and other source formats. When creating custom prompts, these built-in configurations serve as excellent starting points - even for supported conversion types, customizing the default prompts based on your specific input patterns can significantly improve conversion accuracy.
-
-**Location**: You can find built-in YAML files in the `/Workspace/Users/{user}/.lakebridge/switch/resources/builtin_prompts/` directory within the Switch installation. These files demonstrate the proper structure and provide conversion-specific examples that you can adapt for your custom requirements.
-
----
-
-## Transpiler Selection Guide
-
-Lakebridge offers both LLM-powered and rule-based transpilers, each optimized for different conversion scenarios.
-
-### LLM-Powered Conversion (Switch)
-
-Switch is best suited for scenarios requiring semantic understanding and flexibility:
-- **Complex logic requiring contextual understanding** - Stored procedures and business logic where intent matters more than syntax
-- **Source formats not covered by rule-based transpilers** - Any SQL dialect or programming language through custom prompts
-- **Extensible conversion through custom YAML prompts** - Adapt to proprietary or uncommon source formats
-- **Python notebook output for SQL beyond ANSI SQL/PSM standards** - Complex transformations that benefit from procedural code
-
-### Rule-Based Conversion (BladeBridge & Morpheus)
-
-Rule-based transpilers excel in scenarios requiring consistency and speed:
-- **Deterministic output with guaranteed syntax equivalence** - Every conversion produces the same predictable result
-- **High-volume batch processing** - Efficiently handle thousands of files without API rate limits
-- **Fast local execution without API dependencies** - Sub-minute processing with no external service calls
-- **Production-grade SQL aligned with Databricks SQL evolution** - Leverages SQL Scripting, Stored Procedures, and latest DBSQL features
-
-### Key Decision Factors
-
-Consider these aspects when choosing between transpilers:
-- **Complexity**: Switch excels at complex logic requiring contextual understanding; rule-based transpilers handle standard SQL patterns efficiently
-- **Volume**: Rule-based transpilers process large volumes quickly; Switch is better for selective, complex conversions
-- **Customization**: Switch adapts to any source format through prompts; rule-based transpilers support specific, well-defined dialects
-- **Output format**: Switch primarily generates Python notebooks; rule-based transpilers produce SQL files
-
-### Best Practices for Switch
-
-When using Switch, follow these guidelines for optimal results:
-1. **Start with representative sample files** - Test conversion quality before processing entire codebase
-2. **Iteratively refine prompts based on results** - Adjust YAML prompts to improve accuracy for your specific patterns
-3. **Review generated code before production use** - LLM outputs may require manual adjustments
-4. **Document successful patterns for future reference** - Keep track of effective prompts and configurations for reuse
-
----
-
-## FAQ: Can Switch Support My Source System?
-
-A common question is whether Switch can handle sources beyond the built-in conversion types. The answer is: **try it!**
-
-Switch already supports various source formats including SQL dialects (MySQL, Snowflake, Oracle, etc.), programming languages (Python scripts, Scala code), and workflows (Airflow DAGs).
-
-**For SQL-based sources**: Creating a custom prompt YAML file should work well for most SQL dialects. Since LLMs understand SQL syntax patterns, you can typically achieve good results by:
-- Starting with a similar built-in dialect's YAML as a template
-- Adding specific syntax examples from your source system
-- Testing and iterating based on results
-
-**Tips for efficient prompt creation:**
-- **Quick baseline creation**: Feed built-in prompts and your source dialect's representative features to an advanced LLM to quickly generate a baseline YAML configuration
-- **Dialect-specific patterns**: Reference open source projects like [SQLGlot dialects](https://github.com/tobymao/sqlglot/tree/main/sqlglot/dialects) for insights into dialect-specific transformation patterns
-
-**For other source formats**: Switch's LLM-based architecture means it can potentially handle various conversions beyond the built-in types. Modern LLMs have strong comprehension capabilities across many languages and formats. You can experiment by:
-- Creating custom prompts that define your source format
-- Providing clear conversion examples in the few-shots section
-- Testing with representative source samples
-
-Rather than waiting for additional built-in examples, we encourage experimentation with custom prompts. The flexibility of LLM-based conversion means many use cases are possible with the right prompt engineering.
-
----
-
 ## Databricks Implementation Details
 
 When you run Switch via the CLI, it executes as Databricks Jobs using a sophisticated multi-stage processing pipeline. This section covers the internal architecture and configuration options.
@@ -420,13 +290,13 @@ Switch supports two target types with different processing workflows. The main e
 ```mermaid
 flowchart TD
     main["00_main (Entry Point)"] e1@==> decision{target_type?}
-    
+
     decision e2@==>|notebook| notebookOrch["orchestrate_to_notebook (Full Processing Pipeline)"]
     decision e3@==>|file| fileOrch["orchestrate_to_file (Simplified Processing Pipeline)"]
-    
+
     notebookOrch e4@==> notebookFlow["7-Step Workflow: analyze → convert → validate → fix → split → export → sql_convert(optional)"]
     fileOrch e5@==> fileFlow["3-Step Workflow: analyze → convert → export"]
-    
+
     notebookFlow e6@==> notebookOutput[Python/SQL Notebooks]
     fileFlow e7@==> fileOutput["Generic Files (YAML, JSON, etc.)"]
     e1@{ animate: true }
@@ -445,7 +315,7 @@ For `target_type=notebook`, the `orchestrate_to_notebook` orchestrator executes 
 ```mermaid
 flowchart TD
     orchestrator[orchestrate_to_notebook] e1@==>|sequentially calls| processing
-    
+
     subgraph processing ["Notebook Processing Workflow"]
         direction TB
         analyze[analyze_input_files] e2@==> convert[convert_with_llm]
@@ -455,13 +325,13 @@ flowchart TD
         split e6@==> export[export_to_notebook]
         export -.-> sqlExport["convert_notebook_to_sql<br>(Optional)"]
     end
-    
+
     processing <-->|Read & Write| table[Conversion Result Table]
-    
+
     convert -.->|Uses| endpoint[Model Serving Endpoint]
     fix -.->|Uses| endpoint
     sqlExport -.->|Uses| endpoint
-    
+
     export e7@==> notebooks[Python Notebooks]
     sqlExport -.-> sqlNotebooks["SQL Notebooks<br>(Optional Output)"]
     e1@{ animate: true }
@@ -480,17 +350,17 @@ For `target_type=file`, the `orchestrate_to_file` orchestrator uses a simplified
 ```mermaid
 flowchart TD
     orchestrator[orchestrate_to_file] e1@==>|sequentially calls| processing
-    
+
     subgraph processing ["File Processing Workflow"]
         direction TB
         analyze[analyze_input_files] e2@==> convert[convert_with_llm]
         convert e3@==> export[export_to_file]
     end
-    
+
     processing <-->|Read & Write| table[Conversion Result Table]
-    
+
     convert -.->|Uses| endpoint[Model Serving Endpoint]
-    
+
     export e4@==> files["Generic Files (YAML, JSON, etc.)"]
     e1@{ animate: true }
     e2@{ animate: true }
@@ -512,7 +382,7 @@ The following sections describe each processing step used in the workflows above
 ### analyze_input_files
 Scans the input directory recursively and performs initial analysis. Stores all file contents, metadata, and analysis results in a timestamped Delta table. For SQL sources, creates preprocessed versions with comments removed and whitespace normalized in the table. Counts tokens using model-specific tokenizers (Claude uses ~3.4 characters per token, OpenAI and other models use tiktoken) to determine if files exceed the `token_count_threshold`. Files exceeding the threshold are excluded from conversion.
 
-### convert_with_llm  
+### convert_with_llm
 Loads conversion prompts (built-in or custom YAML) and sends file content to the configured model serving endpoint. Multiple files are processed concurrently (configurable, default: 4) for efficiency. The LLM transforms source code based on the conversion prompt, preserving business logic while adapting to Databricks patterns. For SQL sources, generates Python code with `spark.sql()` calls. For generic sources, adapts content to the specified target format.
 
 ### validate_python_notebook
@@ -529,157 +399,3 @@ Creates Databricks-compatible `.py` notebooks in the specified output directory.
 
 ### convert_notebook_to_sql (Optional)
 When `sql_output_dir` is specified, this optional step uses the model serving endpoint to convert Python notebooks into SQL notebook format with Databricks SQL syntax. Useful for teams preferring SQL-only workflows, though some Python logic may be lost in the conversion process.
-
----
-
-## LLM Configuration
-
-### Supported LLM Endpoints
-
-Switch offers flexible model selection - choose any Model Serving endpoint through configuration parameters.
-
-**Default Setup**  
-Pre-configured with an latest Claude model via Foundation Model API for immediate use (no configuration required). This ensures strong code comprehension and large context handling out of the box.
-
-**Model Options**  
-Switch works with Foundation Model APIs that have large context windows and strong code comprehension capabilities:
-
-- **Pay-per-token pricing**: For light to moderate usage
-- **Provisioned Throughput**: For high-volume workloads with predictable cost and guaranteed performance
-
-**Advanced Configuration**  
-For complex code transformations and intricate business logic, Claude’s extended thinking mode can significantly improve conversion accuracy. This mode allows the model to reason through complex transformations more thoroughly, though it increases processing time and token usage. Configure via `request_params`:
-
-```json
-{"max_tokens": 64000, "thinking": {"type": "enabled", "budget_tokens": 16000}}
-```
-
-### Token Management
-
-LLMs have limits on how much text they can process at once. Switch uses a configurable threshold approach to ensure stable processing.
-
-#### Token Counting and Thresholds
-
-Switch sets a default threshold of **20,000 tokens per file**. Token estimation varies by model: Claude models use approximately 3.4 characters per token (meaning 20,000 tokens ≈ 68,000 characters), while other models use the tiktoken library with o200k_base encoding. For SQL sources, Switch removes comments and compresses whitespace before counting tokens to provide more accurate estimates.
-
-#### Adjusting the Threshold
-
-This base configuration of 20,000 tokens has been tested with Claude 3.7 Sonnet's 128k context window. However, you should adjust this threshold based on your specific needs:
-
-- **Lower the threshold (e.g., 8,000 tokens)** for complex transformations using extended thinking mode
-- **Raise the threshold** when using larger context models like Claude Sonnet 4 (200k context)
-
-#### Handling Oversized Files
-
-When files exceed the token threshold, Switch automatically excludes them during the analyze phase and marks them with status "Not converted". These files require manual splitting before processing.
-
-Consider these logical splitting strategies:
-- Separate stored procedures into individual files
-- Split by functional modules or business domains
-- Maintain referential integrity across split files
-
-### Performance Optimization
-
-**Concurrency Settings:**
-- **Default concurrency**: Set to 4 based on testing with Claude models for stable operation
-- **Model-specific considerations**: Different foundation models have varying rate limits and optimal concurrency levels
-- **Scaling for large workloads**: For processing many files simultaneously, consider:
-  - **Increased concurrency**: Test higher values with your chosen model to find optimal settings
-  - **Provisioned Throughput**: Deploy dedicated Foundation Model API capacity with guaranteed throughput
-
-**Monitoring:**
-- Watch for rate limiting or throttling responses from model endpoints
-- Consider enabling [Inference Tables](https://docs.databricks.com/aws/en/machine-learning/model-serving/inference-tables) to automatically capture requests and responses for detailed monitoring and debugging
-
----
-
-## State Management
-
-Switch uses a Delta table to track conversion progress and results. Each conversion job creates a timestamped table: `{catalog}.{schema}.lakebridge_switch_{timestamp}_{random}` (e.g., `main.default.lakebridge_switch_20250115143022_7ka9`)
-
-The table stores input file information (path, content, token counts), conversion results (generated notebooks, token usage, processing time), error details when conversions fail, and syntax check results from validation stages. This allows you to monitor which files were processed successfully and investigate any issues that occurred during conversion.
-
-### Conversion Result Table Schema
-
-Switch creates Delta tables with the following complete schema:
-
-| Column | Type | Description |
-|--------|------|-------------|
-| `input_file_number` | int | Unique integer identifier for each input file (starts from 1) |
-| `input_file_path` | string | Full path to the input file |
-| `input_file_encoding` | string | Detected encoding of the input file (e.g., UTF-8) |
-| `tokenizer_type` | string | Type of tokenizer used (claude or openai) |
-| `tokenizer_model` | string | Specific tokenizer model/encoding used |
-| `input_file_token_count` | int | Total number of tokens in the input file |
-| `input_file_token_count_preprocessed` | int | Token count of preprocessed content (SQL comments removed for SQL files, original count for generic files) |
-| `input_file_content` | string | Entire content of the input file |
-| `input_file_content_preprocessed` | string | Preprocessed content (SQL comments removed for SQL files, original content for generic files) |
-| `is_conversion_target` | boolean | Whether file should be processed (updated during conversion) |
-| `model_serving_endpoint_for_conversion` | string | Model endpoint used for conversion |
-| `model_serving_endpoint_for_fix` | string | Model endpoint used for syntax error fixing |
-| `request_params_for_conversion` | string | Conversion request parameters in JSON format |
-| `request_params_for_fix` | string | Fix request parameters in JSON format |
-| `result_content` | string | Generated notebook content (initially null) |
-| `result_prompt_tokens` | int | Number of prompt tokens used (initially null) |
-| `result_completion_tokens` | int | Number of completion tokens generated (initially null) |
-| `result_total_tokens` | int | Total tokens used (prompt + completion, initially null) |
-| `result_processing_time_seconds` | float | Processing time in seconds (initially null) |
-| `result_timestamp` | timestamp | UTC timestamp when processing completed (initially null) |
-| `result_error` | string | Any conversion errors encountered (initially null) |
-| `result_python_parse_error` | string | Python syntax errors found using ast.parse (initially null) |
-| `result_extracted_sqls` | array&lt;string&gt; | SQL statements extracted from Python code (initially null) |
-| `result_sql_parse_errors` | array&lt;string&gt; | SQL syntax errors found using EXPLAIN (initially null) |
-| `export_output_path` | string | Path to the exported file (initially null) |
-| `export_status` | string | Export processing status (initially null) |
-| `export_error` | string | Export error information (initially null) |
-| `export_timestamp` | timestamp | UTC timestamp when export completed (initially null) |
-| `export_content_size_bytes` | long | Size of exported content in bytes (initially null) |
-
----
-
-## Conversion Results and Troubleshooting
-
-### Understanding Conversion Results
-
-After your Switch job completes, review the conversion results displayed at the end of the `00_main` notebook execution. The results table shows the status of each input file:
-
-- **Successfully converted files**: Ready to use as Databricks notebooks
-- **Files requiring attention**: May need manual review or re-processing
-
-If you encounter files that didn't convert successfully, here are the most common issues and their solutions:
-
-### Files Not Converting (Status: `Not converted`)
-
-These files were skipped during the conversion process, typically because they're too large for the model to process effectively.
-
-**Cause**: Input files exceed the token count threshold
-
-**Solutions**:
-- Split large input files into smaller, more manageable parts
-- Increase the `token_count_threshold` parameter if your LLM model can handle larger inputs
-
-### Conversion with Errors (Status: `Converted with errors`)
-
-These files were successfully processed by the LLM but the generated code contains syntax errors that need to be addressed.
-
-**Cause**: Files were converted but contain syntax errors
-
-**Solutions**:
-- Review syntax error messages in the result table's error_details column
-- Manually fix errors in the converted notebooks/files
-- Increase `max_fix_attempts` for more automatic error correction attempts
-
-### Export Failures (Status: `Export failed` or `Not exported`)
-
-These files were converted successfully but couldn't be exported to the output directory.
-
-**Causes**: 
-- Content exceeds 10MB size limit of Databricks notebooks
-- File system permissions issues
-- Invalid output paths
-
-**Solutions**:
-- Check the `export_error` column in the result table for specific error details
-- For size issues: Manually split large converted content into smaller units
-- For permission issues: Verify workspace access to the output directory
-- For path issues: Ensure output directory paths are valid workspace locations
