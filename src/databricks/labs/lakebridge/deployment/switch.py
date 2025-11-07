@@ -10,12 +10,10 @@ from databricks.labs.switch.__about__ import __version__ as switch_version
 from databricks.labs.blueprint.installation import Installation
 from databricks.labs.blueprint.installer import InstallState
 from databricks.labs.blueprint.paths import WorkspacePath
-from databricks.labs.blueprint.wheels import ProductInfo
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.errors import InvalidParameterValue, NotFound
 from databricks.sdk.service.jobs import JobParameterDefinition, JobSettings, NotebookTask, Source, Task
 
-from databricks.labs.lakebridge.deployment.job import JobDeployment
 
 logger = logging.getLogger(__name__)
 
@@ -29,21 +27,22 @@ class SwitchDeployment:
         ws: WorkspaceClient,
         installation: Installation,
         install_state: InstallState,
-        product_info: ProductInfo,
-        job_deployer: JobDeployment,
     ):
         self._ws = ws
         self._installation = installation
         self._install_state = install_state
-        self._product_info = product_info
-        self._job_deployer = job_deployer
 
     def install(self) -> None:
         """Deploy Switch to workspace and configure resources."""
         logger.debug("Deploying Switch resources to workspace...")
-        self._deploy_resources_to_workspace()
-        self._setup_job()
-        logger.debug("Switch deployment completed")
+        try:
+            self._deploy_resources_to_workspace()
+            self._setup_job()
+            logger.debug("Switch deployment completed")
+        except (RuntimeError, ValueError, InvalidParameterValue) as e:
+            msg = f"Failed to setup required resources for Switch llm transpiler: {e}"
+            logger.error(msg)
+            raise SystemExit(msg) from e
 
     def uninstall(self) -> None:
         """Remove Switch job from workspace."""
@@ -113,14 +112,11 @@ class SwitchDeployment:
         """Create or update Switch job."""
         existing_job_id = self._get_existing_job_id()
         logger.debug("Setting up Switch job in workspace...")
-        try:
-            job_id = self._create_or_update_switch_job(existing_job_id)
-            self._install_state.jobs[self._INSTALL_STATE_KEY] = job_id
-            self._install_state.save()
-            job_url = f"{self._ws.config.host}/jobs/{job_id}"
-            logger.info(f"Switch job created/updated: {job_url}")
-        except (RuntimeError, ValueError, InvalidParameterValue) as e:
-            logger.error(f"Failed to create/update Switch job: {e}")
+        job_id = self._create_or_update_switch_job(existing_job_id)
+        self._install_state.jobs[self._INSTALL_STATE_KEY] = job_id
+        self._install_state.save()
+        job_url = f"{self._ws.config.host}/jobs/{job_id}"
+        logger.info(f"Switch job created/updated: {job_url}")
 
     def _get_existing_job_id(self) -> str | None:
         """Check if Switch job already exists in workspace."""

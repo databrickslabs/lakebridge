@@ -51,7 +51,7 @@ def switch_deployment(
     product_info: ProductInfo,
     job_deployer: JobDeployment,
 ) -> SwitchDeployment:
-    return SwitchDeployment(mock_workspace_client, installation, install_state, product_info, job_deployer)
+    return SwitchDeployment(mock_workspace_client, installation, install_state)
 
 
 def test_install_creates_job_successfully(
@@ -100,10 +100,8 @@ def test_install_handles_job_creation_error(
     """Test installation handles job creation errors gracefully."""
     mock_workspace_client.jobs.create.side_effect = RuntimeError("Job creation failed")
 
-    switch_deployment.install()
-
-    # State should not be updated on error
-    assert "Switch" not in install_state.jobs
+    with pytest.raises(SystemExit):
+        switch_deployment.install()
 
 
 def test_install_handles_invalid_parameter_error(
@@ -112,9 +110,8 @@ def test_install_handles_invalid_parameter_error(
     """Test installation handles invalid parameter errors gracefully."""
     mock_workspace_client.jobs.create.side_effect = InvalidParameterValue("Invalid parameter")
 
-    switch_deployment.install()
-
-    assert "Switch" not in install_state.jobs
+    with pytest.raises(SystemExit):
+        switch_deployment.install()
 
 
 def test_install_fallback_on_update_failure(
