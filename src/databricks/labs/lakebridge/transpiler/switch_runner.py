@@ -6,7 +6,7 @@ import string
 from datetime import datetime, timezone
 from pathlib import Path
 
-from databricks.labs.blueprint.installation import Installation, RootJsonValue
+from databricks.labs.blueprint.installation import RootJsonValue
 from databricks.sdk import WorkspaceClient
 
 logger = logging.getLogger(__name__)
@@ -18,10 +18,8 @@ class SwitchRunner:
     def __init__(
         self,
         ws: WorkspaceClient,
-        installation: Installation,
     ):
         self._ws = ws
-        self._installation = installation
 
     def run(
         self,
@@ -34,7 +32,7 @@ class SwitchRunner:
         job_id: int,
         wait_for_completion: bool = False,
     ) -> RootJsonValue:
-        """Upload local files to Volume and trigger Switch job."""
+        """Trigger Switch job."""
 
         job_params = self._build_job_parameters(
             input_dir=volume_input_path,

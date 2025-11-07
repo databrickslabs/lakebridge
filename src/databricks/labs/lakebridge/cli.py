@@ -933,7 +933,7 @@ def llm_transpile(
 
     try:
         ctx.add_user_agent_extra("transpiler_source_dialect", source_dialect)
-        job_runner = SwitchRunner(ctx.workspace_client, ctx.installation)
+        job_runner = SwitchRunner(ctx.workspace_client)
         volume_input_path = job_runner.upload_to_volume(
             local_path=Path(input_source),
             catalog=catalog_name,
