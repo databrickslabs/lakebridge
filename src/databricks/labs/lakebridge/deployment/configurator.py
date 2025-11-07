@@ -5,7 +5,6 @@ from collections.abc import Iterator
 
 from databricks.labs.blueprint.tui import Prompts
 from databricks.sdk import WorkspaceClient
-from databricks.sdk.errors import DatabricksError
 from databricks.sdk.service.catalog import Privilege, SecurableType
 from databricks.sdk.service.sql import (
     CreateWarehouseRequestWarehouseType,
@@ -127,7 +126,7 @@ class ResourceConfigurator:
         foundation_model_names = [ep.name for ep in model_endpoints if ep.name]
 
         if not foundation_model_names:
-            raise DatabricksError("No Foundation Model serving endpoints found. Aborting the installation.")
+            raise RuntimeError("No Foundation Model serving endpoints found. Aborting the installation.")
         # This logic is implemented to make the default choice always to appear first in the list
         other_models = sorted(set(foundation_model_names) - {default_choice})
         choices = [f"[Recommended] {default_choice}", *other_models]
