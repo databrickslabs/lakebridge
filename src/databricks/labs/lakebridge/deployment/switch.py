@@ -35,9 +35,14 @@ class SwitchDeployment:
     def install(self) -> None:
         """Deploy Switch to workspace and configure resources."""
         logger.debug("Deploying Switch resources to workspace...")
-        self._deploy_resources_to_workspace()
-        self._setup_job()
-        logger.debug("Switch deployment completed")
+        try:
+            self._deploy_resources_to_workspace()
+            self._setup_job()
+            logger.debug("Switch deployment completed")
+        except (RuntimeError, ValueError, InvalidParameterValue) as e:
+            msg = f"Failed to setup required resources for Switch llm transpiler: {e}"
+            logger.error(msg)
+            raise SystemExit(msg) from e
 
     def uninstall(self) -> None:
         """Remove Switch job from workspace."""
@@ -107,14 +112,11 @@ class SwitchDeployment:
         """Create or update Switch job."""
         existing_job_id = self._get_existing_job_id()
         logger.debug("Setting up Switch job in workspace...")
-        try:
-            job_id = self._create_or_update_switch_job(existing_job_id)
-            self._install_state.jobs[self._INSTALL_STATE_KEY] = job_id
-            self._install_state.save()
-            job_url = f"{self._ws.config.host}/jobs/{job_id}"
-            logger.info(f"Switch job created/updated: {job_url}")
-        except (RuntimeError, ValueError, InvalidParameterValue) as e:
-            logger.error(f"Failed to create/update Switch job: {e}")
+        job_id = self._create_or_update_switch_job(existing_job_id)
+        self._install_state.jobs[self._INSTALL_STATE_KEY] = job_id
+        self._install_state.save()
+        job_url = f"{self._ws.config.host}/jobs/{job_id}"
+        logger.info(f"Switch job created/updated: {job_url}")
 
     def _get_existing_job_id(self) -> str | None:
         """Check if Switch job already exists in workspace."""
