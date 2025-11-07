@@ -886,13 +886,18 @@ def llm_transpile(
     logger.debug(f"User: {user}")
 
     logger.warning(
-        """Please read and accept the following comments before proceeding:\n
-        This Feature leverages a large language model (LLM) to analyse and convert your provided content, code and data.\n
-        You consent to your content being transmitted to, processed by, and returned from the LLM hosted by Databricks foundation models or other external models you may configure during the runtime.\n
-        The outputs of the LLM are generated automatically without human review, and may contain inaccuracies or errors. \n
-        You are responsible for reviewing and validating all outputs before relying on them for any critical or production use. \n
-        By running this feature you accept these conditions.
-    """
+        """Please read and accept the following comments before proceeding:
+    This feature leverages a Large Language Model (LLM) to analyse and convert
+    your provided content, code and data. You consent to your content being
+    transmitted to, processed by, and returned from the foundation models hosted
+    by Databricks or external foundation models you have configured in your
+    workspace. The outputs of the LLM are generated automatically without human
+    review, and may contain inaccuracies or errors. You are responsible for
+    reviewing and validating all outputs before relying on them for any critical
+    or production use.
+
+    By using this feature you accept these conditions.
+            """
     )
 
     prompts = ctx.prompts
