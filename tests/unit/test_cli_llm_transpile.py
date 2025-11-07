@@ -1,4 +1,5 @@
 import json
+import logging
 from pathlib import Path
 from unittest.mock import create_autospec
 from typing import cast
@@ -107,6 +108,7 @@ def test_llm_transpile_success(
 
     cli.llm_transpile(
         w=mock_ws,
+        accept_terms=True,
         input_source=str(input_source),
         output_ws_folder=output_folder,
         source_dialect="mssql",
@@ -126,6 +128,35 @@ def test_llm_transpile_success(
             "run_url": f"https://workspace.databricks.com/jobs/{_JOB_ID}/runs/{_RUN_ID}",
         }
     ] == result
+
+
+def test_llm_transpile_terms_notice(
+    mock_installation_with_switch: MockInstallation,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Verify that llm-transpile exits with just the terms notice when terms are not accepted."""
+    mock_ws = create_autospec(spec=WorkspaceClient, instance=True)
+    mock_prompts = MockPrompts({})
+    mock_configurator = ResourceConfigurator(mock_ws, mock_prompts, create_autospec(CatalogOperations, instance=True))
+    ctx = ApplicationContext(mock_ws).replace(
+        installation=mock_installation_with_switch,
+        prompts=mock_prompts,
+        resource_configurator=mock_configurator,
+    )
+
+    with caplog.at_level(logging.WARNING), pytest.raises(SystemExit):
+        cli.llm_transpile(w=mock_ws, ctx=ctx)
+
+    # Verify that the terms notice was logged.
+    warning_messages = [record.message for record in caplog.records if record.levelno == logging.WARNING]
+    assert any(
+        "By using this feature you accept these terms, re-run with '--accept-terms=true'." in msg
+        for msg in warning_messages
+    )
+
+    # Verify that we didn't try to run the job.
+    mock_ws.jobs.run_now.assert_not_called()
+    mock_ws.jobs.run_now_and_wait.assert_not_called()
 
 
 def test_llm_transpile_without_parms(
@@ -153,7 +184,7 @@ def test_llm_transpile_without_parms(
         resource_configurator=mock_configurator,
     )
 
-    cli.llm_transpile(w=mock_ws, ctx=ctx)
+    cli.llm_transpile(w=mock_ws, accept_terms=True, ctx=ctx)
 
     (out, _) = capsys.readouterr()
     result = json.loads(out)
@@ -192,7 +223,7 @@ def test_llm_transpile_with_incorrect_output_parms(
 
     error_msg = "Invalid value for '--output-ws-folder': workspace output path must start with /Workspace/. Got: '/Users/test/output'"
     with pytest.raises(ValueError, match=rf"{error_msg}"):
-        cli.llm_transpile(w=mock_ws, output_ws_folder=output_folder, ctx=ctx)
+        cli.llm_transpile(w=mock_ws, accept_terms=True, output_ws_folder=output_folder, ctx=ctx)
 
 
 def test_llm_transpile_with_incorrect_dialect(
@@ -222,4 +253,4 @@ def test_llm_transpile_with_incorrect_dialect(
 
     error_msg = "Invalid value for '--source-dialect': 'agent_sql' must be one of: airflow, mssql, mysql, netezza, oracle, postgresql, redshift, snowflake, synapse, teradata"
     with pytest.raises(ValueError, match=rf"{error_msg}"):
-        cli.llm_transpile(w=mock_ws, source_dialect="agent_sql", ctx=ctx)
+        cli.llm_transpile(w=mock_ws, accept_terms=True, source_dialect="agent_sql", ctx=ctx)
