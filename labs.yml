@@ -56,7 +56,7 @@ commands:
     description: Configure database profiler
 
   - name: create-profiler-dashboard
-    description: [EXPERIMENTAL] Upload the profiler results as a Databricks dashboard.
+    description: (Experimental) Upload the profiler results as a Databricks dashboard.
     flags:
       - name: extract-file
         description: Path Location of the Profiler Extract File
