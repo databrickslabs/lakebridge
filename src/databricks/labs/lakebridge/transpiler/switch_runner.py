@@ -65,6 +65,9 @@ class SwitchRunner:
 
         # File upload
         if local_path.is_file():
+            if local_path.name.startswith('.'):
+                logger.debug(f"Skipping hidden file: {local_path}")
+                return volume_input_path
             volume_file_path = f"{volume_input_path}/{local_path.name}"
             with open(local_path, 'rb') as f:
                 content = f.read()
@@ -73,7 +76,11 @@ class SwitchRunner:
 
         # Directory upload
         else:
-            for root, _, files in os.walk(local_path):
+            for root, dirs, files in os.walk(local_path):
+                # remove hidden directories
+                dirs[:] = [d for d in dirs if not d.startswith('.')]
+                # skip hidden files
+                files = [f for f in files if not f.startswith('.')]
                 for file in files:
                     local_file = Path(root) / file
                     relative_path = local_file.relative_to(local_path)

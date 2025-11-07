@@ -12,6 +12,7 @@ from databricks.labs.switch.lsp import get_switch_dialects
 from databricks.labs.lakebridge import cli
 from databricks.labs.lakebridge.contexts.application import ApplicationContext
 from databricks.sdk import WorkspaceClient
+from databricks.sdk.service.serving import ServingEndpoint, EndpointCoreConfigSummary, ServedEntitySpec, FoundationModel
 
 from databricks.labs.lakebridge.deployment.configurator import ResourceConfigurator
 from databricks.labs.lakebridge.helpers.metastore import CatalogOperations
@@ -30,7 +31,7 @@ def make_mock_prompts(input_path: str, output_folder: str, source_dialect: str =
             r"Enter catalog name": "lakebridge",
             r"Enter schema name": "switch",
             r"Enter volume name": "switch_volume",
-            r"Select a Foundation Model serving endpoint:": "0",
+            r"Select a Foundation Model serving endpoint:": "1",
         }
     )
 
@@ -42,6 +43,28 @@ def create_switch_workspace_client_mock() -> WorkspaceClient:
     ws.files.upload.return_value = None
     ws.jobs.run_now.return_value.run_id = _RUN_ID
     ws.jobs.run_now_and_wait_result.return_value.run_id = _RUN_ID
+    ws.serving_endpoints.list.return_value = [
+        ServingEndpoint(
+            name="databricks-claude-sonnet-4",
+            config=EndpointCoreConfigSummary(
+                served_entities=[
+                    ServedEntitySpec(
+                        foundation_model=FoundationModel(name="claude-sonnet-4"),
+                    )
+                ]
+            ),
+        ),
+        ServingEndpoint(
+            name="databricks-gpt-4-mini",
+            config=EndpointCoreConfigSummary(
+                served_entities=[
+                    ServedEntitySpec(
+                        foundation_model=FoundationModel(name="gpt-4-mini"),
+                    )
+                ]
+            ),
+        ),
+    ]
 
     return ws
 
