@@ -932,28 +932,25 @@ def llm_transpile(
     job_id = int(job_list["Switch"])
     logger.debug(f"Switch job ID found: {job_id}")
 
-    try:
-        ctx.add_user_agent_extra("transpiler_source_dialect", source_dialect)
-        job_runner = SwitchRunner(ctx.workspace_client)
-        volume_input_path = job_runner.upload_to_volume(
-            local_path=Path(input_source),
-            catalog=catalog_name,
-            schema=schema_name,
-            volume=volume,
-        )
+    ctx.add_user_agent_extra("transpiler_source_dialect", source_dialect)
+    job_runner = SwitchRunner(ctx.workspace_client)
+    volume_input_path = job_runner.upload_to_volume(
+        local_path=Path(input_source),
+        catalog=catalog_name,
+        schema=schema_name,
+        volume=volume,
+    )
 
-        response = job_runner.run(
-            volume_input_path=volume_input_path,
-            output_ws_folder=output_ws_folder,
-            source_tech=source_dialect,
-            catalog=catalog_name,
-            schema=schema_name,
-            foundation_model=foundation_model,
-            job_id=job_id,
-        )
-        json.dump(response, sys.stdout, indent=2)
-    except Exception as ex:
-        raise RuntimeError(ex) from ex
+    response = job_runner.run(
+        volume_input_path=volume_input_path,
+        output_ws_folder=output_ws_folder,
+        source_tech=source_dialect,
+        catalog=catalog_name,
+        schema=schema_name,
+        foundation_model=foundation_model,
+        job_id=job_id,
+    )
+    json.dump(response, sys.stdout, indent=2)
 
 
 if __name__ == "__main__":
