@@ -858,7 +858,22 @@ def execute_database_profiler(w: WorkspaceClient, source_tech: str | None = None
 
     # TODO: Add extractor logic to ApplicationContext instead of creating inside the Profiler class
     profiler.profile()
-
+    
+@lakebridge.command()
+def create_profiler_dashboard(
+    *,
+    w: WorkspaceClient,
+    extract_file: str,
+    source_tech: str,
+    volume_path: str,
+    catalog_name: str,
+    schema_name: str,
+) -> None:
+    """Deploys a profiler summary as a Databricks dashboard"""
+    ctx = ApplicationContext(w)
+    ctx.add_user_agent_extra("cmd", "create-profiler-dashboard")
+    ctx.dashboard_manager.upload_duckdb_to_uc_volume(extract_file, volume_path)
+    ctx.dashboard_manager.create_profiler_summary_dashboard(source_tech, catalog_name, schema_name)
 
 if __name__ == "__main__":
     app = lakebridge
