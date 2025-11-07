@@ -3,7 +3,8 @@ version: "1.0.0"
 lakebridge:
     description: >
         Defines transformations that standardize snowflake data types before comparison to databricks.
-    transformations:
+    source_dialect: "snowflake"
+    normalizers:
         # ------------------------------------------------------------------------
         # TEMPORAL CATEGORY
         # ------------------------------------------------------------------------
