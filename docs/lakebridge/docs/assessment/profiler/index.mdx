@@ -19,55 +19,26 @@ Key capabilities:
 - **Workload Analysis**: Profiles active queries and identifies optimization opportunities
 
 <Admonition type="info" title="Prerequisites">
-    For detailed source system specific prerequisites, refer to <a href="./Prerequisites" style={{ fontWeight: 'bold', color: '#1976d2', textDecoration: 'underline' }}>Pre-Req</a> section.
+    Each system will have different prerequisites either for connection, or metrics collected. Please refer to the details
+    for each system following the links below.
 </Admonition>
+
+## Supported Source Systems
+
+| Source Platform | Configuration Status |
+|:---------------:|:-------------------:|
+| <a href="./synapse" style={{ fontWeight: 'bold', color: '#1976d2', textDecoration: 'underline' }}>Azure Synapse</a> | &#x2705; |
+
 
 ## Configure Profiler
 
 Before running the profiler, you need to configure the connection details for your source system.
 
-Execute the following command to configure the profiler:
+Execute the following command to configure the profiler, which will prompt you to select the source system and provide
+connection details specific to that source:
 
 ```bash
 databricks labs lakebridge configure-database-profiler
-```
-
-This will prompt you to select the source system and provide connection details:
-
-```console
-Please select the source system you want to configure
-[0] mssql
-[1] synapse
-Enter a number between 0 and 1: 1
-(local | env)
-local means values are read as plain text
-env means values are read from environment variables fall back to plain text if not variable is not found
-
-Enter secret vault type (local | env)
-[0] env
-[1] local
-Enter a number between 0 and 1: 1
-Please provide Synapse Workspace settings:
-Enter Synapse workspace name: synapse
-Enter SQL user: user
-Enter SQL password:
-Enter timezone (e.g. America/New_York) (default: UTC):
-Enter the ODBC driver installed locally (default: ODBC Driver 18 for SQL Server):
-Please provide Azure access settings:
-Enter development endpoint: synapse.endpoint
-Please select JDBC authentication type:
-Select authentication type
-[0] ad_passwd_authentication
-[1] spn_authentication
-[2] sql_authentication
-Enter a number between 0 and 2: 2
-Enter fetch size (default: 1000):
-Enter login timeout (seconds) (default: 30):
-Exclude serverless SQL pool from profiling? (default: no):
-Exclude dedicated SQL pools from profiling? (default: no):
-Exclude Spark pools from profiling? (default: no):
-Exclude monitoring metrics from profiling? (default: no):
-Redact SQL pools SQL text? (default: no):
 ```
 
 ## Execute Profiler
@@ -108,12 +79,6 @@ The profiler can be run multiple times to capture different time periods or upda
 Each execution will create a timestamped snapshot of your source environment.
 :::
 
-## Supported Source Systems
-
-| Source Platform | Configuration Status |
-|:---------------:|:-------------------:|
-| Azure Synapse | &#x2705; |
-
 ## Publish Profiler Summary Dashboard
 
 Upload a summary of a profiler run as a dashboard to your local Databricks workspace using the `create-profiler-dashboard`.
@@ -138,79 +103,37 @@ databricks labs lakebridge create-profiler-dashboard \
 
 ### Options
 
-#### `--extract-file`
+#### `--extract-file` (example: ```--extract-file ./output/profiler_results.db ```)
 
 **Description:**
 Specifies the local file path to an extract file containing the profiler results.
 This file is automatically output after the successful execution of a profiler run using
 `databricks labs lakebridge execute-database-profiler`.
 
-**Example:**
-
-```bash
---extract-file ./output/profiler_results.db
-```
-
-**Required:** Yes
-
-#### `--source-tech`
+#### `--source-tech` (example: ```--source-tech synapse ```)
 
 **Description:**
-
 Specifies the name of the source system technology that was profiled.
 This value is used to load the profiler dashboard template.
 
-**Example:**
-
-```bash
---source-tech synapse
-```
-
-**Required:** Yes
-
-#### `--uc-volume`
+#### `--uc-volume` (example: ```--uc-volume /Volumes/lakebridge_profiler/profiler_runs```)
 
 **Description:**
-
 The name of the Unity Catalog (UC) volume where the extract file will be uploaded.
 
-**Example:**
-
-```bash
---uc-volume /Volumes/lakebridge_profiler/profiler_runs
-```
-
-**Required:** Yes
-
-#### `--catalog-name`
+#### `--catalog-name` (example: ```--catalog-name lakebridge_profiler```)
 
 **Description:**
 
-(Optional) The name of the catalog where the extract data will be uploaded to as Delta tables.
+[OPTIONAL] The name of the catalog where the extract data will be uploaded to as Delta tables.
 If not provided, the command uses the default catalog `lakebridge_profiler`.
 
-**Example:**
-
-```bash
---catalog-name lakebridge_profiler
-```
-
-**Required:** No
-
-#### `--schema-name`
+#### `--schema-name` (example: ```--schema-name profiler_runs```)
 
 **Description:**
 
-(Optional) The name of the schema where extract data will be uploaded as Delta tables.
+[OPTIONAL] The name of the schema where extract data will be uploaded as Delta tables.
 If not provided, the command uses the default schema `profiler_runs`.
-
-**Example:**
-
-```bash
---schema-name profiler_runs
-```
-
-**Required:** No
 
 ### Example
 
@@ -231,7 +154,7 @@ databricks labs lakebridge create-profiler-dashboard \
 Profiler extract file was uploaded successfully.
 Dashboard created at: https://<databricks-workspace-url>/sql/dashboards/<dashboard-id>
 ```
-#### Output
+### Output
 
 When the command executes, the following actions will take place:
 
