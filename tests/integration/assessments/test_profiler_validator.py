@@ -11,7 +11,7 @@ from databricks.labs.lakebridge.assessments.profiler_validator import (
     SchemaDefinitionLoadError,
     SchemaValidationError,
 )
-from .utils.profiler_extract_utils import build_mock_synapse_extract
+from tests.utils.profiler_extract_utils import build_mock_synapse_extract
 
 
 @pytest.fixture(scope="module")
@@ -199,4 +199,4 @@ def test_validate_invalid_schema_check(mock_synapse_profiler_extract):
         assert len(report) == 1
         assert num_failures == 1
         assert num_passing == 0
-        assert report[0].strategy == "Unexpected column data type"
+        assert report[0].summary == "Unexpected column data type"
