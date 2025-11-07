@@ -47,22 +47,22 @@ commands:
       {{end}}
 
   - name: llm-transpile
-    description: Transpile source code to Databricks using LLM Transpiler (Switch)
+    description: Transpile SQL/ETL sources to Databricks using LLM-based conversion (EXPERIMENTAL)
     flags:
       - name: input-source
-        description: Input Script Folder or File (local path)
+        description: Local `path` of the sources to be convert
       - name: output-ws-folder
-        description: Output folder path (Databricks Workspace path starting with /Workspace/)
+        description: Output `path` where converted code will be written in the workspace. (Must start with '/Workspace/'.)
       - name: source-dialect
-        description: Source dialect name (e.g., 'snowflake', 'teradata')
+        description: The source dialect to use when performing conversion
       - name: catalog-name
-        description: Databricks Catalog name (already existing with relevant permission)
+        description: Databricks Catalog `name` to use. (Must already exist and have permissions.)
       - name: schema-name
-        description: Databricks Schema name (already existing with relevant permission)
+        description: Databricks Schema `name` to use. (Must already exist and have permissions.)
       - name: volume
-        description: Databricks UC Volume name (already existing with relevant permission)
+        description: Databricks UC Volume `name` for staging sources to convert. (Must already exist and have permissions.)
       - name: foundation-model
-        description: Databricks Model Serving Endpoint
+        description: The Foundation Model to use for conversion. (Must be available via the Databricks Model Serving Endpoint.)
 
   - name: reconcile
     description: Reconcile source and target data residing on Databricks
