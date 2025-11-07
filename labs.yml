@@ -49,6 +49,8 @@ commands:
   - name: llm-transpile
     description: Transpile SQL/ETL sources to Databricks using LLM-based conversion (EXPERIMENTAL)
     flags:
+      - name: accept-terms
+        description: Whether to accept the terms for using LLM-based transpilation (`true|false`).
       - name: input-source
         description: Local `path` of the sources to be convert
       - name: output-ws-folder
