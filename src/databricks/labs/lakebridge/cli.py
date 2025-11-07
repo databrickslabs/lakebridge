@@ -94,7 +94,7 @@ def _remove_warehouse(ws: WorkspaceClient, warehouse_id: str):
 
 
 @lakebridge.command
-def transpile(
+def transpile(  # pylint: disable=too-many-arguments
     *,
     w: WorkspaceClient,
     transpiler_config_path: str | None = None,
@@ -241,14 +241,6 @@ class _TranspileConfigChecker:
                 f"Invalid path for '--transpiler-config-path', does not exist: {transpiler_config_path}",
             )
             self._config = dataclasses.replace(self._config, transpiler_config_path=transpiler_config_path)
-
-        # Switch is installed inside "/Users/<>/.lakebridge/transpilers/Switch/lsp/config.yml
-        if (
-            self._config.transpiler_config_path is not None
-            and Path(self._config.transpiler_config_path).parent.parent.name == "Switch"
-        ):
-            msg = "Switch transpiler is not supported through `transpile` run `llm-transpile` instead."
-            raise RuntimeError(msg)
 
     def use_source_dialect(self, source_dialect: str | None) -> None:
         if source_dialect is not None:
@@ -880,7 +872,7 @@ def llm_transpile(
     catalog_name: str | None = None,
     schema_name: str | None = None,
     volume: str | None = None,
-    foundational_model: str | None = None,
+    foundation_model: str | None = None,
     ctx: ApplicationContext | None = None,
 ) -> None:
     """Transpile source code to Databricks using LLM Transpiler (Switch)"""
@@ -891,7 +883,7 @@ def llm_transpile(
     user = ctx.current_user
     logger.debug(f"User: {user}")
 
-    logger.info(
+    logger.warning(
         """Please read and accept the following comments before proceeding:\n
         This Feature leverages a large language model (LLM) to analyse and convert your provided content, code and data.\n
         You consent to your content being transmitted to, processed by, and returned from the LLM hosted by Databricks foundational models or other external models you may configure during the runtime.\n
@@ -925,8 +917,8 @@ def llm_transpile(
 
     resource_configurator.has_necessary_access(catalog_name, schema_name, volume)
 
-    if foundational_model is None:
-        foundational_model = resource_configurator.prompt_for_foundation_model_choice()
+    if foundation_model is None:
+        foundation_model = resource_configurator.prompt_for_foundation_model_choice()
 
     job_list = ctx.install_state.jobs
     if "Switch" not in job_list:
@@ -953,8 +945,7 @@ def llm_transpile(
             source_tech=source_dialect,
             catalog=catalog_name,
             schema=schema_name,
-            volume=volume,
-            foundational_model=foundational_model,
+            foundation_model=foundation_model,
             job_id=job_id,
         )
         json.dump(response, sys.stdout, indent=2)

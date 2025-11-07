@@ -90,7 +90,7 @@ def test_llm_transpile_success(
         catalog_name="lakebridge",
         schema_name="switch",
         volume="switch_volume",
-        foundational_model="databricks-claude-sonnet-4-5",
+        foundation_model="databricks-claude-sonnet-4-5",
         ctx=ctx,
     )
 

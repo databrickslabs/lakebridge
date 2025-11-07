@@ -61,7 +61,7 @@ commands:
         description: Databricks Schema name (already existing with relevant permission)
       - name: volume
         description: Databricks UC Volume name (already existing with relevant permission)
-      - name: foundational-model
+      - name: foundation-model
         description: Databricks Model Serving Endpoint
 
   - name: reconcile

@@ -181,6 +181,5 @@ class SwitchDeployment:
             "foundation_model": "databricks-claude-sonnet-4-5",
             "catalog": "lakebridge",
             "schema": "switch",
-            "volume": "switch_volume",
         }
         return [JobParameterDefinition(name=key, default=value) for key, value in parameters.items()]

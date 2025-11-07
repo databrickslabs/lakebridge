@@ -39,7 +39,7 @@ TRANSPILER_WAREHOUSE_PREFIX = "Lakebridge Transpiler Validation"
 
 class WorkspaceInstaller:
     # TODO: Temporary suppression, is_interactive is pending removal.
-    def __init__(
+    def __init__(  # pylint: disable=too-many-arguments
         self,
         ws: WorkspaceClient,
         prompts: Prompts,
