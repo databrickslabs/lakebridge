@@ -13,6 +13,7 @@ from databricks.sdk.errors.platform import InvalidParameterValue, ResourceDoesNo
 
 from databricks.labs.lakebridge.config import LakebridgeConfiguration
 from databricks.labs.lakebridge.deployment.recon import ReconDeployment
+from databricks.labs.lakebridge.deployment.switch import SwitchDeployment
 
 logger = logging.getLogger("databricks.labs.lakebridge.install")
 
@@ -24,6 +25,7 @@ class WorkspaceInstallation:
         prompts: Prompts,
         installation: Installation,
         recon_deployment: ReconDeployment,
+        switch_deployment: SwitchDeployment,
         product_info: ProductInfo,
         upgrades: Upgrades,
     ):
@@ -31,6 +33,7 @@ class WorkspaceInstallation:
         self._prompts = prompts
         self._installation = installation
         self._recon_deployment = recon_deployment
+        self._switch_deployment = switch_deployment
         self._product_info = product_info
         self._upgrades = upgrades
 
@@ -96,6 +99,9 @@ class WorkspaceInstallation:
         if config.reconcile:
             logger.info("Installing Lakebridge reconcile Metadata components.")
             self._recon_deployment.install(config.reconcile, wheel_path)
+        if config.include_switch:
+            logger.info("Installing Switch transpiler to workspace.")
+            self._switch_deployment.install()
 
     def uninstall(self, config: LakebridgeConfiguration):
         # This will remove all the Lakebridge modules
@@ -116,9 +122,14 @@ class WorkspaceInstallation:
                 f"Won't remove transpile validation schema `{config.transpile.schema_name}` "
                 f"from catalog `{config.transpile.catalog_name}`. Please remove it manually."
             )
+            self._uninstall_switch_job()
 
         if config.reconcile:
             self._recon_deployment.uninstall(config.reconcile)
 
         self._installation.remove()
         logger.info("Uninstallation completed successfully.")
+
+    def _uninstall_switch_job(self) -> None:
+        """Remove Switch transpiler job if exists."""
+        self._switch_deployment.uninstall()
