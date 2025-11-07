@@ -16,7 +16,7 @@ from databricks.sdk.errors import (
 from databricks.sdk.retries import retried
 from databricks.sdk.service.dashboards import LifecycleState, Dashboard
 
-from databricks.labs.lakebridge.config import ReconcileConfig, ReconcileMetadataConfig
+from databricks.labs.lakebridge.config import ReconcileMetadataConfig
 
 logger = logging.getLogger(__name__)
 
@@ -36,14 +36,14 @@ class DashboardDeployment:
     def deploy(
         self,
         folder: Path,
-        config: ReconcileConfig,
+        metadata_config: ReconcileMetadataConfig,
     ):
         """
         Create dashboards from Dashboard metadata files.
         The given folder is expected to contain subfolders each containing metadata for individual dashboards.
 
         :param folder: Path to the base folder.
-        :param config: Configuration for reconciliation.
+        :param metadata_config: Meta configuration for reconciliation.
         """
         logger.info(f"Deploying dashboards from base folder {folder}")
         parent_path = f"{self._installation.install_folder()}/dashboards"
@@ -58,7 +58,7 @@ class DashboardDeployment:
             if not (dashboard_folder.is_dir() and dashboard_folder.joinpath("dashboard.yml").exists()):
                 continue
             valid_dashboard_refs.add(self._dashboard_reference(dashboard_folder))
-            dashboard = self._update_or_create_dashboard(dashboard_folder, parent_path, config.metadata_config)
+            dashboard = self._update_or_create_dashboard(dashboard_folder, parent_path, metadata_config)
             logger.info(
                 f"Dashboard deployed with URL: {self._ws.config.host}/sql/dashboardsv3/{dashboard.dashboard_id}"
             )

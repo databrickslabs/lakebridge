@@ -13,11 +13,14 @@ from databricks.sdk.errors import NotFound
 from databricks.sdk.service.iam import User
 
 from databricks.labs.lakebridge.analyzer.lakebridge_analyzer import LakebridgeAnalyzer, AnalyzerPrompts, AnalyzerRunner
+from databricks.labs.lakebridge.assessments.dashboards.dashboard_manager import DashboardManager
+
 from databricks.labs.lakebridge.config import TranspileConfig, ReconcileConfig, LakebridgeConfiguration
 from databricks.labs.lakebridge.deployment.configurator import ResourceConfigurator
 from databricks.labs.lakebridge.deployment.dashboard import DashboardDeployment
 from databricks.labs.lakebridge.deployment.installation import WorkspaceInstallation
 from databricks.labs.lakebridge.deployment.recon import TableDeployment, JobDeployment, ReconDeployment
+from databricks.labs.lakebridge.deployment.switch import SwitchDeployment
 from databricks.labs.lakebridge.helpers.metastore import CatalogOperations
 
 logger = logging.getLogger(__name__)
@@ -108,6 +111,11 @@ class ApplicationContext:
         return DashboardDeployment(self.workspace_client, self.installation, self.install_state)
 
     @cached_property
+    def dashboard_manager(self) -> DashboardManager:
+        is_debug = logger.getEffectiveLevel() == logging.DEBUG
+        return DashboardManager(self.workspace_client, self.installation, self.install_state, is_debug)
+
+    @cached_property
     def recon_deployment(self) -> ReconDeployment:
         return ReconDeployment(
             self.workspace_client,
@@ -120,12 +128,21 @@ class ApplicationContext:
         )
 
     @cached_property
+    def switch_deployment(self) -> SwitchDeployment:
+        return SwitchDeployment(
+            self.workspace_client,
+            self.installation,
+            self.install_state,
+        )
+
+    @cached_property
     def workspace_installation(self) -> WorkspaceInstallation:
         return WorkspaceInstallation(
             self.workspace_client,
             self.prompts,
             self.installation,
             self.recon_deployment,
+            self.switch_deployment,
             self.product_info,
             self.upgrades,
         )

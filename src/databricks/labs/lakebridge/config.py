@@ -274,5 +274,7 @@ class ReconcileConfig:
 
 @dataclass
 class LakebridgeConfiguration:
-    transpile: TranspileConfig | None = None
-    reconcile: ReconcileConfig | None = None
+    transpile: TranspileConfig | None
+    reconcile: ReconcileConfig | None
+    # Temporary flag, indicating whether to include the LLM-based Switch transpiler.
+    include_switch: bool = False

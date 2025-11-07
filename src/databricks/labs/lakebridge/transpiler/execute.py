@@ -121,7 +121,7 @@ async def _process_one_file(context: TranspilingContext) -> tuple[int, list[Tran
 
     output_path = context.output_path
     assert output_path is not None, "Output path must be set in the context"
-    output_path.parent.mkdir(exist_ok=True)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
 
     if _is_mime_result(transpile_result):
         _process_mime_result(context, error_list)

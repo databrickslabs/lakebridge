@@ -24,7 +24,7 @@ def test_uninstaller_run(ws):
     ctx = ApplicationContext(ws)
     ctx.replace(
         workspace_installation=ws_installation,
-        remorph_config=LakebridgeConfiguration(),
+        remorph_config=LakebridgeConfiguration(transpile=None, reconcile=None),
     )
     uninstall.run(ctx)
     ws_installation.uninstall.assert_called_once()
