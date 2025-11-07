@@ -1,4 +1,3 @@
-import json
 import logging
 from pathlib import Path
 from unittest.mock import create_autospec
@@ -88,7 +87,7 @@ def mock_installation_with_switch() -> MockInstallation:
 def test_llm_transpile_success(
     mock_installation_with_switch: MockInstallation,
     tmp_path: Path,
-    capsys,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Test successful LLM transpile execution."""
     input_source = tmp_path / "input.sql"
@@ -106,28 +105,25 @@ def test_llm_transpile_success(
         resource_configurator=mock_configurator,
     )
 
-    cli.llm_transpile(
-        w=mock_ws,
-        accept_terms=True,
-        input_source=str(input_source),
-        output_ws_folder=output_folder,
-        source_dialect="mssql",
-        catalog_name="lakebridge",
-        schema_name="switch",
-        volume="switch_volume",
-        foundation_model="databricks-claude-sonnet-4-5",
-        ctx=ctx,
-    )
+    with caplog.at_level(logging.INFO):
+        cli.llm_transpile(
+            w=mock_ws,
+            accept_terms=True,
+            input_source=str(input_source),
+            output_ws_folder=output_folder,
+            source_dialect="mssql",
+            catalog_name="lakebridge",
+            schema_name="switch",
+            volume="switch_volume",
+            foundation_model="databricks-claude-sonnet-4-5",
+            ctx=ctx,
+        )
 
-    (out, _) = capsys.readouterr()
-    result = json.loads(out)
-    assert [
-        {
-            "job_id": _JOB_ID,
-            "run_id": _RUN_ID,
-            "run_url": f"https://workspace.databricks.com/jobs/{_JOB_ID}/runs/{_RUN_ID}",
-        }
-    ] == result
+    expected_msg = (
+        f"Switch LLM transpilation job started: https://workspace.databricks.com/jobs/{_JOB_ID}/runs/{_RUN_ID}"
+    )
+    info_messages = [record.message for record in caplog.records if record.levelno == logging.INFO]
+    assert expected_msg in info_messages
 
 
 def test_llm_transpile_terms_notice(
@@ -162,7 +158,7 @@ def test_llm_transpile_terms_notice(
 def test_llm_transpile_without_parms(
     mock_installation_with_switch: MockInstallation,
     tmp_path: Path,
-    capsys,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Test LLM transpile execution without parameters, relying on config file."""
     input_source = tmp_path / "input.sql"
@@ -184,17 +180,14 @@ def test_llm_transpile_without_parms(
         resource_configurator=mock_configurator,
     )
 
-    cli.llm_transpile(w=mock_ws, accept_terms=True, ctx=ctx)
+    with caplog.at_level(logging.INFO):
+        cli.llm_transpile(w=mock_ws, accept_terms=True, ctx=ctx)
 
-    (out, _) = capsys.readouterr()
-    result = json.loads(out)
-    assert [
-        {
-            "job_id": _JOB_ID,
-            "run_id": _RUN_ID,
-            "run_url": f"https://workspace.databricks.com/jobs/{_JOB_ID}/runs/{_RUN_ID}",
-        }
-    ] == result
+    expected_msg = (
+        f"Switch LLM transpilation job started: https://workspace.databricks.com/jobs/{_JOB_ID}/runs/{_RUN_ID}"
+    )
+    info_messages = [record.message for record in caplog.records if record.levelno == logging.INFO]
+    assert expected_msg in info_messages
 
 
 def test_llm_transpile_with_incorrect_output_parms(
