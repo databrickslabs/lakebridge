@@ -949,7 +949,7 @@ def llm_transpile(
         volume=volume,
     )
 
-    response = job_runner.run(
+    job_runner.run(
         volume_input_path=volume_input_path,
         output_ws_folder=output_ws_folder,
         source_tech=source_dialect,
@@ -958,7 +958,6 @@ def llm_transpile(
         foundation_model=foundation_model,
         job_id=job_id,
     )
-    json.dump(response, sys.stdout, indent=2)
 
 
 if __name__ == "__main__":
