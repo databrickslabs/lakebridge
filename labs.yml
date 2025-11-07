@@ -53,7 +53,7 @@ commands:
     description: Reconcile source and target data residing on Databricks using aggregated metrics
 
   - name: configure-database-profiler
-    description: Configure database profiler
+    description: (Experimental) Configure database profiler
 
   - name: install-transpile
     description: Install & optionally configure 'transpile' dependencies
@@ -80,7 +80,7 @@ commands:
     description: Configure 'reconcile' dependencies
 
   - name: execute-database-profiler
-    description: Profile the source system database
+    description: (Experimental) Profile the source system database
     flags:
       - name: source-tech
         description: (Optional) The technology/platform of the sources to Profile
