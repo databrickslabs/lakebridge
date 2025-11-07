@@ -57,9 +57,8 @@ class SwitchRunner:
         now = datetime.now(timezone.utc)
         time_part = now.strftime("%Y%m%d%H%M%S")
         random_part = ''.join(random.choices(string.ascii_lowercase + string.digits, k=4))
-        timestamp_suffix = f"{time_part}_{random_part}"
         volume_base_path = f"/Volumes/{catalog}/{schema}/{volume}"
-        volume_input_path = f"{volume_base_path}/input_{timestamp_suffix}"
+        volume_input_path = f"{volume_base_path}/input-{time_part}-{random_part}"
 
         logger.info(f"Uploading {local_path} to {volume_input_path}...")
 
