@@ -20,6 +20,7 @@ from databricks.labs.lakebridge.deployment.configurator import ResourceConfigura
 from databricks.labs.lakebridge.deployment.dashboard import DashboardDeployment
 from databricks.labs.lakebridge.deployment.installation import WorkspaceInstallation
 from databricks.labs.lakebridge.deployment.recon import TableDeployment, JobDeployment, ReconDeployment
+from databricks.labs.lakebridge.deployment.switch import SwitchDeployment
 from databricks.labs.lakebridge.helpers.metastore import CatalogOperations
 
 logger = logging.getLogger(__name__)
@@ -127,12 +128,21 @@ class ApplicationContext:
         )
 
     @cached_property
+    def switch_deployment(self) -> SwitchDeployment:
+        return SwitchDeployment(
+            self.workspace_client,
+            self.installation,
+            self.install_state,
+        )
+
+    @cached_property
     def workspace_installation(self) -> WorkspaceInstallation:
         return WorkspaceInstallation(
             self.workspace_client,
             self.prompts,
             self.installation,
             self.recon_deployment,
+            self.switch_deployment,
             self.product_info,
             self.upgrades,
         )

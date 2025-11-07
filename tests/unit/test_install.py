@@ -106,7 +106,7 @@ def test_workspace_installer_run_install_not_called_in_test(
         workspace_installation=ws_installation,
     )
 
-    provided_config = LakebridgeConfiguration()
+    provided_config = LakebridgeConfiguration(transpile=None, reconcile=None)
     workspace_installer = ws_installer(
         ctx.workspace_client,
         ctx.prompts,
@@ -133,7 +133,7 @@ def test_workspace_installer_run_install_called_with_provided_config(
         resource_configurator=create_autospec(ResourceConfigurator),
         workspace_installation=ws_installation,
     )
-    provided_config = LakebridgeConfiguration()
+    provided_config = LakebridgeConfiguration(transpile=None, reconcile=None)
     workspace_installer = ws_installer(
         ctx.workspace_client,
         ctx.prompts,
@@ -267,7 +267,7 @@ def test_configure_transpile_no_existing_installation(
         catalog_name="remorph",
         schema_name="transpiler",
     )
-    expected_config = LakebridgeConfiguration(transpile=expected_morph_config)
+    expected_config = LakebridgeConfiguration(transpile=expected_morph_config, reconcile=None)
     assert config == expected_config
     installation.assert_file_written(
         "config.yml",
@@ -398,7 +398,7 @@ def test_configure_transpile_installation_config_error_continue_install(
         catalog_name="remorph",
         schema_name="transpiler",
     )
-    expected_config = LakebridgeConfiguration(transpile=expected_morph_config)
+    expected_config = LakebridgeConfiguration(transpile=expected_morph_config, reconcile=None)
     assert config == expected_config
     installation.assert_file_written(
         "config.yml",
@@ -461,7 +461,7 @@ def test_configure_transpile_installation_with_no_validation(ws, ws_installer):
         catalog_name="remorph",
         schema_name="transpiler",
     )
-    expected_config = LakebridgeConfiguration(transpile=expected_morph_config)
+    expected_config = LakebridgeConfiguration(transpile=expected_morph_config, reconcile=None)
     assert config == expected_config
     installation.assert_file_written(
         "config.yml",
@@ -532,7 +532,8 @@ def test_configure_transpile_installation_with_validation_and_warehouse_id_from_
             catalog_name="remorph_test",
             schema_name="transpiler_test",
             sdk_config={"warehouse_id": "w_id"},
-        )
+        ),
+        reconcile=None,
     )
     assert config == expected_config
     installation.assert_file_written(
@@ -669,7 +670,8 @@ def test_configure_reconcile_installation_config_error_continue_install(ws: Work
                 schema="reconcile",
                 volume="reconcile_volume",
             ),
-        )
+        ),
+        transpile=None,
     )
     assert config == expected_config
     installation.assert_file_written(
@@ -748,7 +750,8 @@ def test_configure_reconcile_no_existing_installation(ws: WorkspaceClient) -> No
                 schema="reconcile",
                 volume="reconcile_volume",
             ),
-        )
+        ),
+        transpile=None,
     )
     assert config == expected_config
     installation.assert_file_written(
@@ -1001,7 +1004,8 @@ def test_runs_upgrades_on_more_recent_version(
                 catalog_name="remorph",
                 schema_name="transpiler",
                 skip_validation=True,
-            )
+            ),
+            reconcile=None,
         )
     )
 
@@ -1070,7 +1074,8 @@ def test_runs_and_stores_confirm_config_option(
             catalog_name="remorph_test",
             schema_name="transpiler_test",
             sdk_config={"warehouse_id": "w_id"},
-        )
+        ),
+        reconcile=None,
     )
     assert config == expected_config
     installation.assert_file_written(
@@ -1158,7 +1163,8 @@ def test_runs_and_stores_force_config_option(
             catalog_name="remorph_test",
             schema_name="transpiler_test",
             sdk_config={"warehouse_id": "w_id"},
-        )
+        ),
+        reconcile=None,
     )
     assert config == expected_config
     installation.assert_file_written(
@@ -1239,7 +1245,8 @@ def test_runs_and_stores_question_config_option(
             catalog_name="remorph_test",
             schema_name="transpiler_test",
             sdk_config={"warehouse_id": "w_id"},
-        )
+        ),
+        reconcile=None,
     )
     assert config == expected_config
     installation.assert_file_written(
@@ -1326,7 +1333,8 @@ def test_runs_and_stores_choice_config_option(
             catalog_name="remorph_test",
             schema_name="transpiler_test",
             sdk_config={"warehouse_id": "w_id"},
-        )
+        ),
+        reconcile=None,
     )
     assert config == expected_config
     installation.assert_file_written(
@@ -1600,3 +1608,40 @@ def test_no_configure_if_noninteractive(
     assert config.transpile is None
     expected_log_message = "Installation is not interactive, skipping configuration of transpilers."
     assert any(expected_log_message in log.message for log in caplog.records if log.levelno == logging.WARNING)
+
+
+@pytest.mark.xfail(raises=ValueError, reason="Reconcile module can't yet be configured in non-interactive mode")
+@pytest.mark.parametrize(
+    ("include_llm_transpiler", "should_include_switch"),
+    (
+        (False, False),  # Default: exclude Switch
+        (True, True),  # Flag enabled: include Switch
+        (None, False),  # Not specified: default behavior (exclude Switch)
+    ),
+)
+def test_transpiler_installers_llm_flag(
+    ws_installer: Callable[..., WorkspaceInstaller],
+    ws: WorkspaceClient,
+    include_llm_transpiler: bool | None,
+    should_include_switch: bool,
+) -> None:
+    """Test switch configuration flag based on the include_llm parameter."""
+    ctx = ApplicationContext(ws).replace(
+        product_info=ProductInfo.for_testing(LakebridgeConfiguration),
+        prompts=MockPrompts({}),
+        installation=MockInstallation({}),
+    )
+    kw_args = {"include_llm": include_llm_transpiler} if include_llm_transpiler is not None else {}
+    installer = ws_installer(
+        ctx.workspace_client,
+        ctx.prompts,
+        ctx.installation,
+        ctx.install_state,
+        ctx.product_info,
+        ctx.resource_configurator,
+        ctx.workspace_installation,
+        is_interactive=False,
+        **kw_args,
+    )
+    assert installer.configure("transpile").include_switch == should_include_switch
+    assert installer.configure("all").include_switch == should_include_switch

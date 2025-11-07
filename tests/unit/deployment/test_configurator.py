@@ -9,6 +9,12 @@ from databricks.sdk.service.catalog import (
     SchemaInfo,
     VolumeInfo,
 )
+from databricks.sdk.service.serving import (
+    EndpointCoreConfigSummary,
+    FoundationModel,
+    ServedEntitySpec,
+    ServingEndpoint,
+)
 from databricks.sdk.service.sql import EndpointInfo, EndpointInfoWarehouseType, GetWarehouseResponse, State
 
 from databricks.labs.lakebridge.deployment.configurator import ResourceConfigurator
@@ -314,3 +320,63 @@ def test_prompt_for_warehouse_setup_new(ws):
     catalog_operations = create_autospec(CatalogOperations)
     configurator = ResourceConfigurator(ws, prompts, catalog_operations)
     assert configurator.prompt_for_warehouse_setup("Test") == "new_w_id"
+
+
+def test_prompt_for_foundation_model_default_choice(ws):
+    ws.serving_endpoints.list.return_value = [
+        ServingEndpoint(
+            name="databricks-claude-sonnet-4-5",
+            config=EndpointCoreConfigSummary(
+                served_entities=[
+                    ServedEntitySpec(
+                        foundation_model=FoundationModel(name="claude-sonnet-4.5"),
+                    )
+                ]
+            ),
+        ),
+        ServingEndpoint(
+            name="databricks-gpt-4",
+            config=EndpointCoreConfigSummary(
+                served_entities=[
+                    ServedEntitySpec(
+                        foundation_model=FoundationModel(name="gpt-4"),
+                    )
+                ]
+            ),
+        ),
+    ]
+    prompts = MockPrompts({r"Select a Foundation Model serving endpoint:": "0"})
+    catalog_operations = create_autospec(CatalogOperations)
+    configurator = ResourceConfigurator(ws, prompts, catalog_operations)
+    result = configurator.prompt_for_foundation_model_choice()
+    assert result == "databricks-claude-sonnet-4-5"
+
+
+def test_prompt_for_foundation_model_non_default_choice(ws):
+    ws.serving_endpoints.list.return_value = [
+        ServingEndpoint(
+            name="databricks-claude-sonnet-4-5",
+            config=EndpointCoreConfigSummary(
+                served_entities=[
+                    ServedEntitySpec(
+                        foundation_model=FoundationModel(name="claude-sonnet-4.5"),
+                    )
+                ]
+            ),
+        ),
+        ServingEndpoint(
+            name="databricks-gpt-4",
+            config=EndpointCoreConfigSummary(
+                served_entities=[
+                    ServedEntitySpec(
+                        foundation_model=FoundationModel(name="gpt-4"),
+                    )
+                ]
+            ),
+        ),
+    ]
+    prompts = MockPrompts({r"Select a Foundation Model serving endpoint:": "1"})
+    catalog_operations = create_autospec(CatalogOperations)
+    configurator = ResourceConfigurator(ws, prompts, catalog_operations)
+    result = configurator.prompt_for_foundation_model_choice()
+    assert result == "databricks-gpt-4"
