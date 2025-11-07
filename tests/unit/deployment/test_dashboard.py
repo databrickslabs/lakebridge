@@ -10,7 +10,7 @@ from databricks.sdk.errors import InvalidParameterValue, NotFound
 from databricks.sdk.service.dashboards import Dashboard
 from databricks.sdk.service.dashboards import LifecycleState
 
-from databricks.labs.lakebridge.config import ReconcileMetadataConfig, ReconcileConfig, DatabaseConfig
+from databricks.labs.lakebridge.config import ReconcileMetadataConfig
 from databricks.labs.lakebridge.deployment.dashboard import DashboardDeployment
 
 
@@ -40,18 +40,8 @@ def test_deploy_dashboard():
     installation = MockInstallation(is_global=False)
     install_state = InstallState.from_installation(installation)
     dashboard_publisher = DashboardDeployment(ws, installation, install_state)
-    reconcile_config = ReconcileConfig(
-        data_source="oracle",
-        report_type="all",
-        secret_scope="remorph_oracle69",
-        database_config=DatabaseConfig(
-            source_schema="tpch_sf100069",
-            target_catalog="tpch69",
-            target_schema="1000gb69",
-        ),
-        metadata_config=ReconcileMetadataConfig(),
-    )
-    dashboard_publisher.deploy(dashboard_folder, reconcile_config)
+    metadata_config = ReconcileMetadataConfig()
+    dashboard_publisher.deploy(dashboard_folder, metadata_config)
     _, dash = ws.lakeview.create.call_args
     query = _get_dashboard_query(dash.get("dashboard"))
     assert query == expected_query
@@ -81,19 +71,9 @@ def test_recovery_invalid_dashboard(caplog, exception):
     )
     install_state = InstallState.from_installation(installation)
     dashboard_publisher = DashboardDeployment(ws, installation, install_state)
-    reconcile_config = ReconcileConfig(
-        data_source="oracle",
-        report_type="all",
-        secret_scope="remorph_oracle66",
-        database_config=DatabaseConfig(
-            source_schema="tpch_sf100066",
-            target_catalog="tpch66",
-            target_schema="1000gb66",
-        ),
-        metadata_config=ReconcileMetadataConfig(),
-    )
+    metadata_config = ReconcileMetadataConfig()
     with caplog.at_level(logging.DEBUG, logger="databricks.labs.lakebridge.deployment.dashboard"):
-        dashboard_publisher.deploy(dashboard_folder, reconcile_config)
+        dashboard_publisher.deploy(dashboard_folder, metadata_config)
     assert "Recovering invalid dashboard" in caplog.text
     assert "Deleted dangling dashboard" in caplog.text
     ws.workspace.delete.assert_called()
@@ -122,19 +102,9 @@ def test_recovery_trashed_dashboard(caplog):
     )
     install_state = InstallState.from_installation(installation)
     dashboard_publisher = DashboardDeployment(ws, installation, install_state)
-    reconcile_config = ReconcileConfig(
-        data_source="oracle",
-        report_type="all",
-        secret_scope="remorph_oracle77",
-        database_config=DatabaseConfig(
-            source_schema="tpch_sf100077",
-            target_catalog="tpch77",
-            target_schema="1000gb77",
-        ),
-        metadata_config=ReconcileMetadataConfig(),
-    )
+    metadata_config = ReconcileMetadataConfig()
     with caplog.at_level(logging.DEBUG, logger="databricks.labs.lakebridge.deployment.dashboard"):
-        dashboard_publisher.deploy(dashboard_folder, reconcile_config)
+        dashboard_publisher.deploy(dashboard_folder, metadata_config)
     assert "Recreating trashed dashboard" in caplog.text
     ws.lakeview.create.assert_called()
     ws.lakeview.update.assert_not_called()

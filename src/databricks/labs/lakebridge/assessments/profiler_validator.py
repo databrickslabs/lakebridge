@@ -1,7 +1,10 @@
 import os
 from dataclasses import dataclass
+from collections.abc import Sequence
+
 import yaml
 from duckdb import DuckDBPyConnection, CatalogException, ParserException, Error
+from pyspark.sql import DataFrame, SparkSession
 
 from databricks.labs.lakebridge.assessments.pipeline import PipelineClass
 
@@ -25,6 +28,7 @@ class ValidationOutcome:
     strategy: str
     outcome: str
     severity: str
+    summary: str | None
 
 
 class ValidationStrategy:
@@ -55,7 +59,7 @@ class NullValidationCheck(ValidationStrategy):
             outcome = "FAIL" if row_count > 0 else "PASS"
         else:
             outcome = "FAIL"
-        return ValidationOutcome(self.table, self.column, self.name, outcome, self.severity)
+        return ValidationOutcome(self.table, self.column, self.name, outcome, self.severity, None)
 
 
 class EmptyTableValidationCheck(ValidationStrategy):
@@ -73,13 +77,16 @@ class EmptyTableValidationCheck(ValidationStrategy):
         returns:
           a ValidationOutcome object
         """
-        result = connection.execute(f"SELECT COUNT(*) FROM {self.table}").fetchone()
-        if result:
-            row_count = result[0]
-            outcome = "PASS" if row_count > 0 else "FAIL"
-        else:
-            outcome = "FAIL"
-        return ValidationOutcome(self.table, None, self.name, outcome, self.severity)
+        try:
+            result = connection.execute(f"SELECT COUNT(*) FROM {self.table}").fetchone()
+            if result:
+                row_count = result[0]
+                outcome = "PASS" if row_count > 0 else "FAIL"
+            else:
+                outcome = "FAIL"
+        except (CatalogException, ParserException):
+            return ValidationOutcome(self.table, None, self.name, "FAIL", self.severity, "Table not found.")
+        return ValidationOutcome(self.table, None, self.name, outcome, self.severity, None)
 
 
 class ExtractSchemaValidationCheck(ValidationStrategy):
@@ -153,7 +160,15 @@ class ExtractSchemaValidationCheck(ValidationStrategy):
 
         # compare the extract schema with the schema definition
         if not result:
-            raise SchemaValidationError(f"Could not find table '{self.schema}.{self.table}' in the profiler extract.")
+            return ValidationOutcome(
+                f"{self.schema}.{self.table}",
+                None,
+                self.name,
+                "FAIL",
+                self.severity,
+                "Table not found in the profiler extract",
+            )
+
         extract_columns = dict(result)
         for col in expected_columns:
             expected_col_name = col["name"]
@@ -162,7 +177,12 @@ class ExtractSchemaValidationCheck(ValidationStrategy):
             # Column must be present in the extracted table
             if expected_col_name not in extract_columns:
                 return ValidationOutcome(
-                    f"{self.schema}.{self.table}", expected_col_name, "Column does not exist", "FAIL", self.severity
+                    f"{self.schema}.{self.table}",
+                    expected_col_name,
+                    self.name,
+                    "FAIL",
+                    self.severity,
+                    "Column does not exist",
                 )
 
             extracted_col_type = extract_columns[expected_col_name]
@@ -170,13 +190,14 @@ class ExtractSchemaValidationCheck(ValidationStrategy):
                 return ValidationOutcome(
                     f"{self.schema}.{self.table}",
                     expected_col_name,
-                    "Unexpected column data type",
+                    self.name,
                     "FAIL",
                     self.severity,
+                    "Unexpected column data type",
                 )
 
         return ValidationOutcome(
-            f"{self.schema}.{self.table}", "all columns", "All columns match expected schema", "PASS", self.severity
+            f"{self.schema}.{self.table}", None, self.name, "PASS", self.severity, "All columns match expected schema"
         )
 
 
@@ -195,7 +216,7 @@ def get_profiler_extract_path(pipeline_config_path: str) -> str:
 
 
 def build_validation_report(
-    validations: list[ValidationStrategy], connection: DuckDBPyConnection
+    validations: Sequence[ValidationStrategy], connection: DuckDBPyConnection
 ) -> list[ValidationOutcome]:
     """
     Builds a list of ValidationOutcomes from list of validation checks.
@@ -208,3 +229,24 @@ def build_validation_report(
     for validation in validations:
         validation_report.append(validation.validate(connection))
     return validation_report
+
+
+def build_validation_report_dataframe(
+    validations: Sequence[ValidationStrategy], connection: DuckDBPyConnection
+) -> DataFrame:
+    """
+    Builds a list of ValidationOutcomes from list of validation checks.
+    input:
+      validations: a list of ValidationStrategy objects
+      connection: a DuckDB connection object
+    returns: a list of ValidationOutcomes
+    """
+    validation_report = []
+    for validation in validations:
+        result = validation.validate(connection)
+        validation_report.append(
+            (result.table, result.column, result.strategy, result.outcome, result.severity, result.summary)
+        )
+    spark = SparkSession.builder.getOrCreate()
+    schema = "table STRING, column STRING, strategy STRING, outcome STRING, severity STRING, summary STRING"
+    return spark.createDataFrame(validation_report, schema)
