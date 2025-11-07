@@ -1,5 +1,72 @@
 # Version changelog
 
+## # Lakebridge v0.11.0 Release Notes
+
+## 🎉 New Features
+
+This release introduces **two exciting new capabilities** to Lakebridge:
+
+### Synapse Profiler
+A powerful new Synapse Profiler feature is now available to help you analyze and profile your Synapse data. Refer to the documentation for usage details and examples.
+
+### Switch LLM Converter
+Introducing the new Switch LLM converter, expanding Lakebridge's conversion capabilities. Refer to the documentation for usage details and examples.
+
+---
+## Other updates
+## Converters
+
+### General
+
+**Conversion Output Fix**
+Fixed a bug where files nested 2 or more directories deep within the input directory could fail to be written out after conversion when the directory structure wasn't already in place.
+
+### Morpheus
+**Code Formatting Improvements**
+Refactored code formatting logic by introducing a tree-like structure in `CodeBlock` and a new `CodeBlockRenderer` to handle whitespace, comments, and error positioning, making the formatting system more maintainable and accurate.
+#### TSQL
+Added support for translating TSQL join hints (like `REPLICATE` and `MERGE`) to their Databricks SQL equivalents by transforming them into special `/*+ ... */` comments after the `SELECT` keyword, while unsupported hints are flagged as annotated errors.
+
+### BladeBridge
+
+#### SQL Server
+- Fixed SELECT INTO real table syntax, corrected LIKE pattern handling, and mapped unsupported FUNC_ROW_NUMBER function while removing ANON_NOLOCK.
+- Resolved an issue where CASE WHEN expressions as the last statement in a file generated incorrect semicolon placement in SQL scripts.
+- Added fragment breaker before GO keyword and removed unsupported COMMIT TRANSACTION and CREATE INDEX constraints.
+- Fixed T-SQL UPDATE statements that were not correctly converted to MERGE operations in specific cases.
+- Corrected fragment handling around SELECT and UNION statements, and fixed issues with IF condition blocks and error handling blocks being mixed up.
+- Removed SET IDENTITY_INSERT and BEGIN/COMMIT TRANSACTION statements, and changed INT GENERATED ALWAYS AS IDENTITY to BIGINT GENERATED ALWAYS AS IDENTITY.
+- Added validation check for converted MERGE statements, implemented global variable reset in init_hook subroutine, and performed code refactoring.
+- Fixed T-SQL DELETE statements that were not correctly converted to MERGE operations and added corresponding test cases.
+
+## Reconcile
+
+### Oracle
+Improved Oracle support with the following enhancements:
+- Fixed Oracle JDBC URL by moving credentials out of URL into options and correcting thin syntax
+- Updated hashing/expression pipeline to replace `RAWTOHEX(...), 2` with `UTL_I18N.STRING_TO_RAW(...,'AL32UTF8'), 4` (SHA-256)
+- Fixed schema comparison for Oracle
+- Tweaked datatype parsing in default transformations for Oracle compatibility
+- Added Oracle jars in setup script
+- Extended integration scaffolding and added end-to-end tests
+
+### Snowflake
+- Fixed schema comparison for Snowflake
+- Adjusted log levels by demoting noisy warnings to debug/info
+- Added Snowflake jars in setup script
+- Extended integration scaffolding
+
+## Documentation
+
+Added documentation for deploying reconciliation dashboards and updated documentation notebooks.
+
+Dependency updates:
+* Bump actions/setup-node from 5 to 6 by @dependabot[bot] in https://github.com/databrickslabs/lakebridge/pull/2094
+
+## New Contributors
+* @hiroyukinakazato-db made their first contribution in https://github.com/databrickslabs/lakebridge/pull/2066
+
+**Full Changelog**: https://github.com/databrickslabs/lakebridge/compare/v0.10.13...v0.11.0
 ## 0.10.13
 
 ## Analyzer
