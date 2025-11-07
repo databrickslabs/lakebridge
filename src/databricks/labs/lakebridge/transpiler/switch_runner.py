@@ -30,7 +30,6 @@ class SwitchRunner:
         schema: str,
         foundation_model: str,
         job_id: int,
-        wait_for_completion: bool = False,
     ) -> RootJsonValue:
         """Trigger Switch job."""
 
@@ -44,7 +43,7 @@ class SwitchRunner:
         )
         logger.info(f"Triggering Switch job with job_id: {job_id}")
 
-        return self._run_job(job_id, job_params, wait_for_completion)
+        return self._run_job(job_id, job_params)
 
     def upload_to_volume(
         self,
@@ -121,30 +120,8 @@ class SwitchRunner:
         self,
         job_id: int,
         job_params: dict[str, str],
-        wait_for_completion: bool,
     ) -> RootJsonValue:
-        """Execute Switch job and return run information."""
-        if wait_for_completion:
-            run = self._ws.jobs.run_now_and_wait(job_id, job_parameters=job_params)
-
-            if not run.run_id:
-                raise SystemExit(f"Job {job_id} execution failed.")
-
-            job_run_url = f"{self._ws.config.host}/jobs/{job_id}/runs/{run.run_id}"
-            logger.info(f"Switch LLM transpilation job completed: {job_run_url}")
-
-            return [
-                {
-                    "job_id": job_id,
-                    "run_id": run.run_id,
-                    "run_url": job_run_url,
-                    "state": (
-                        run.state.life_cycle_state.value if run.state and run.state.life_cycle_state else "UNKNOWN"
-                    ),
-                    "result_state": run.state.result_state.value if run.state and run.state.result_state else None,
-                }
-            ]
-
+        """Trigger Switch job and return run information."""
         wait = self._ws.jobs.run_now(job_id, job_parameters=job_params)
 
         if not wait.run_id:
