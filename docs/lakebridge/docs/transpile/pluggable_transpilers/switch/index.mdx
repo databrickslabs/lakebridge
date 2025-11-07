@@ -130,6 +130,7 @@ databricks labs lakebridge llm-transpile \
   --input-source /local/path/to/input \
   --output-ws-folder /Workspace/path/to/output \
   --source-dialect mysql \
+  --accept-terms true \
   [--catalog-name your_catalog] \
   [--schema-name your_schema] \
   [--volume your_volume] \
@@ -171,6 +172,7 @@ The `llm-transpile` command accepts the following parameters:
 | `--input-source` | Required | Local file system path containing files to convert (automatically uploaded to Volume) | `/local/path/to/input` |
 | `--output-ws-folder` | Required | Databricks workspace path for generated outputs (must start with `/Workspace/`) | `/Workspace/path/to/output` |
 | `--source-dialect` | Required | Source technology/dialect to convert from (see [Source Format Support](#source-format-support) for available options) | `snowflake`, `oracle`, `python`, `airflow`, etc. |
+| `--accept-terms` | Required | Whether to accept the terms for using LLM-based transpilation (`true\|false`) | `true`|
 | `--catalog-name` | Optional (prompted, default: `lakebridge`) | Unity Catalog for Switch Delta tables and Volume | `your_catalog` |
 | `--schema-name` | Optional (prompted, default: `switch`) | Schema within the catalog for Switch Delta tables and Volume | `your_schema` |
 | `--volume` | Optional (prompted, default: `switch_volume`) | Unity Catalog Volume for uploaded input source files | `your_volume` |
@@ -209,7 +211,8 @@ databricks labs lakebridge llm-transpile \
   --input-source /local/path/to/input \
   --output-ws-folder /Workspace/path/to/output \
   --source-dialect snowflake \
-  --profile profile_name
+  --profile profile_name \
+  --accept-terms true
 ```
 
 ### Example 2: SQL conversion using custom prompt
@@ -227,7 +230,8 @@ databricks labs lakebridge llm-transpile \
   --input-source /local/path/to/input \
   --output-ws-folder /Workspace/path/to/output \
   --source-dialect oracle \
-  --profile profile_name
+  --profile profile_name \
+  --accept-terms true
 ```
 
 ### Example 3: Python script to Databricks notebook
@@ -245,7 +249,8 @@ databricks labs lakebridge llm-transpile \
   --input-source /local/path/to/input \
   --output-ws-folder /Workspace/path/to/output \
   --source-dialect python \
-  --profile profile_name
+  --profile profile_name \
+  --accept-terms true
 ```
 
 ### Example 4: Airflow DAG to Databricks Jobs YAML
@@ -265,7 +270,8 @@ databricks labs lakebridge llm-transpile \
   --input-source /local/path/to/input \
   --output-ws-folder /Workspace/path/to/output \
   --source-dialect airflow \
-  --profile profile_name
+  --profile profile_name \
+  --accept-terms true
 ```
 
 ---
