@@ -924,12 +924,13 @@ def llm_transpile(
 
     job_list = ctx.install_state.jobs
     if "Switch" not in job_list:
+        logger.debug(f"Missing Switch from installed state jobs: {job_list!r}")
         raise RuntimeError(
-            "Switch Job ID not found. "
+            "Switch Job not found. "
             "Please run 'databricks labs lakebridge install-transpile --include-llm-transpiler true' first."
         )
-    logger.debug("Switch job ID found in InstallState")
     job_id = int(job_list["Switch"])
+    logger.debug(f"Switch job ID found: {job_id}")
 
     try:
         ctx.add_user_agent_extra("transpiler_source_dialect", source_dialect)
