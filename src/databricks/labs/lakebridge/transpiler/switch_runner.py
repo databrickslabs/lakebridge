@@ -122,18 +122,18 @@ class SwitchRunner:
         job_params: dict[str, str],
     ) -> RootJsonValue:
         """Trigger Switch job and return run information."""
-        wait = self._ws.jobs.run_now(job_id, job_parameters=job_params)
+        job_run = self._ws.jobs.run_now(job_id, job_parameters=job_params)
 
-        if not wait.run_id:
+        if not job_run.run_id:
             raise SystemExit(f"Job {job_id} execution failed.")
 
-        job_run_url = f"{self._ws.config.host}/jobs/{job_id}/runs/{wait.run_id}"
+        job_run_url = f"{self._ws.config.host}/jobs/{job_id}/runs/{job_run.run_id}"
         logger.info(f"Switch LLM transpilation job started: {job_run_url}")
 
         return [
             {
                 "job_id": job_id,
-                "run_id": wait.run_id,
+                "run_id": job_run.run_id,
                 "run_url": job_run_url,
             }
         ]
