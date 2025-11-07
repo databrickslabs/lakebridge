@@ -124,14 +124,14 @@ class ResourceConfigurator:
             and any(getattr(se, "foundation_model", None) is not None for se in ep.config.served_entities)
         ]
 
-        foundational_model_names = [ep.name for ep in model_endpoints if ep.name]
+        foundation_model_names = [ep.name for ep in model_endpoints if ep.name]
 
-        if foundational_model_names is None:
+        if not foundation_model_names:
             raise DatabricksError("No Foundation Model serving endpoints found. Aborting the installation.")
         # This logic is implemented to make the default choice always to appear first in the list
-        other_models = sorted(set(foundational_model_names) - {default_choice})
+        other_models = sorted(set(foundation_model_names) - {default_choice})
         choices = [f"[Recommended] {default_choice}", *other_models]
-        selected = self._prompts.choice("Select a Foundation Model serving endpoint:", choices, sort=True)
+        selected = self._prompts.choice("Select a Foundation Model serving endpoint:", choices, sort=False)
 
         if selected.startswith("[Recommended]"):
             selected = default_choice

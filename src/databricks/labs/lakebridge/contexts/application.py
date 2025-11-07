@@ -133,8 +133,6 @@ class ApplicationContext:
             self.workspace_client,
             self.installation,
             self.install_state,
-            self.product_info,
-            self.job_deployment,
         )
 
     @cached_property

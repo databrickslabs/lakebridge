@@ -10,12 +10,10 @@ from databricks.labs.switch.__about__ import __version__ as switch_version
 from databricks.labs.blueprint.installation import Installation
 from databricks.labs.blueprint.installer import InstallState
 from databricks.labs.blueprint.paths import WorkspacePath
-from databricks.labs.blueprint.wheels import ProductInfo
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.errors import InvalidParameterValue, NotFound
 from databricks.sdk.service.jobs import JobParameterDefinition, JobSettings, NotebookTask, Source, Task
 
-from databricks.labs.lakebridge.deployment.job import JobDeployment
 
 logger = logging.getLogger(__name__)
 
@@ -29,14 +27,10 @@ class SwitchDeployment:
         ws: WorkspaceClient,
         installation: Installation,
         install_state: InstallState,
-        product_info: ProductInfo,
-        job_deployer: JobDeployment,
     ):
         self._ws = ws
         self._installation = installation
         self._install_state = install_state
-        self._product_info = product_info
-        self._job_deployer = job_deployer
 
     def install(self) -> None:
         """Deploy Switch to workspace and configure resources."""
@@ -182,6 +176,5 @@ class SwitchDeployment:
             "foundation_model": "databricks-claude-sonnet-4-5",
             "catalog": "lakebridge",
             "schema": "switch",
-            "volume": "switch_volume",
         }
         return [JobParameterDefinition(name=key, default=value) for key, value in parameters.items()]

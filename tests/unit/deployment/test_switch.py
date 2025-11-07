@@ -51,7 +51,7 @@ def switch_deployment(
     product_info: ProductInfo,
     job_deployer: JobDeployment,
 ) -> SwitchDeployment:
-    return SwitchDeployment(mock_workspace_client, installation, install_state, product_info, job_deployer)
+    return SwitchDeployment(mock_workspace_client, installation, install_state)
 
 
 def test_install_creates_job_successfully(
@@ -188,7 +188,7 @@ def test_install_configures_job_with_correct_parameters(
 
     # Verify parameters
     param_names = {param.name for param in call_kwargs["parameters"]}
-    assert param_names == {"catalog", "volume", "output_dir", "foundation_model", "schema", "source_tech", "input_dir"}
+    assert param_names == {"catalog", "output_dir", "foundation_model", "schema", "source_tech", "input_dir"}
 
     # Verify max concurrent runs
     assert call_kwargs["max_concurrent_runs"] == 100
