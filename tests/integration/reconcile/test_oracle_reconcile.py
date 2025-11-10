@@ -17,7 +17,7 @@ from tests.integration.reconcile.connectors.test_read_schema import OracleDataSo
 
 class DatabricksDataSourceUnderTest(DatabricksDataSource):
     def __init__(self, databricks, ws, local_spark):
-        super().__init__(get_dialect("databricks"), databricks, ws, "not used")
+        super().__init__(get_dialect("databricks"), databricks, ws)
         self._local_spark = local_spark
 
     def read_data(

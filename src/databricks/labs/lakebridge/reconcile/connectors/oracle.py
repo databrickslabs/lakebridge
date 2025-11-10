@@ -7,7 +7,7 @@ from pyspark.sql import DataFrame, DataFrameReader, SparkSession
 from pyspark.sql.functions import col
 from sqlglot import Dialect
 
-from databricks.labs.lakebridge.connections.credential_manager import DatabricksSecretProvider
+from databricks.labs.lakebridge.config import ReconcileCredentialConfig
 from databricks.labs.lakebridge.reconcile.connectors.data_source import DataSource
 from databricks.labs.lakebridge.reconcile.connectors.jdbc_reader import JDBCReaderMixin
 from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import DialectUtils, NormalizedIdentifier
@@ -33,25 +33,17 @@ class OracleDataSource(DataSource, JDBCReaderMixin):
                                               FROM ALL_TAB_COLUMNS
                             WHERE lower(TABLE_NAME) = '{table}' and lower(owner) = '{owner}'"""
 
-    def __init__(
-        self,
-        engine: Dialect,
-        spark: SparkSession,
-        ws: WorkspaceClient,
-        secret_scope: str,
-        secrets: DatabricksSecretProvider,  # only Databricks secrets are supported currently
-    ):
+    def __init__(self, engine: Dialect, spark: SparkSession, ws: WorkspaceClient):
         self._engine = engine
         self._spark = spark
         self._ws = ws
-        self._secret_scope = secret_scope
-        self._secrets = secrets
+        self._creds: dict[str, str] = {}
 
     @property
     def get_jdbc_url(self) -> str:
         return (
-            f"jdbc:{OracleDataSource._DRIVER}:thin:@//{self._secrets.get_databricks_secret(self._secret_scope, 'host')}"
-            f":{self._secrets.get_databricks_secret(self._secret_scope, 'port')}/{self._secrets.get_databricks_secret(self._secret_scope, 'database')}"
+            f"jdbc:{OracleDataSource._DRIVER}:thin:@//{self._creds.get('host')}"
+            f":{self._creds.get('port')}/{self._creds.get('database')}"
         )
 
     def read_data(
@@ -109,12 +101,15 @@ class OracleDataSource(DataSource, JDBCReaderMixin):
         }
 
     def reader(self, query: str) -> DataFrameReader:
-        user = self._secrets.get_databricks_secret(self._secret_scope, 'user')
-        password = self._secrets.get_databricks_secret(self._secret_scope, 'password')
+        user = self._creds.get('user')
+        password = self._creds.get('password')
         logger.debug(f"Using user: {user} to connect to Oracle")
         return self._get_jdbc_reader(
             query, self.get_jdbc_url, OracleDataSource._DRIVER, {"user": user, "password": password}
         )
+
+    def load_credentials(self, creds: ReconcileCredentialConfig) -> "OracleDataSource":
+        return self
 
     def normalize_identifier(self, identifier: str) -> NormalizedIdentifier:
         normalized = DialectUtils.normalize_identifier(

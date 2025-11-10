@@ -122,12 +122,11 @@ def _load_credentials(path: Path) -> dict:
         raise FileNotFoundError(f"Credentials file not found at {path}") from e
 
 
-def create_databricks_secret_provider() -> DatabricksSecretProvider:
-    ws = WorkspaceClient()
+def create_databricks_secret_provider(ws) -> DatabricksSecretProvider:
     return DatabricksSecretProvider(ws)
 
 
-def create_credential_manager(creds_or_path: dict | Path | str) -> CredentialManager:
+def create_credential_manager(creds_or_path: dict | Path | str, ws: WorkspaceClient | None = None) -> CredentialManager:
     if isinstance(creds_or_path, str):
         creds_or_path = Path(creds_or_path)
     if isinstance(creds_or_path, Path):
@@ -139,7 +138,9 @@ def create_credential_manager(creds_or_path: dict | Path | str) -> CredentialMan
     secret_providers: dict[str, CredentialManager.SecretProviderFactory] = {
         'local': LocalSecretProvider,
         'env': partial(EnvSecretProvider, EnvGetter()),
-        'databricks': create_databricks_secret_provider,
     }
+
+    if ws:
+        secret_providers['databricks'] = partial(create_databricks_secret_provider, ws)
 
     return CredentialManager(creds, secret_providers)

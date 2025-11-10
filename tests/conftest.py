@@ -17,6 +17,7 @@ from pyspark.sql.types import (
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.service import iam
 
+from databricks.labs.lakebridge.config import ReconcileCredentialConfig
 from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import DialectUtils, NormalizedIdentifier
 from databricks.labs.lakebridge.reconcile.connectors.data_source import DataSource, MockDataSource
 from databricks.labs.lakebridge.reconcile.recon_config import (
@@ -326,6 +327,9 @@ class FakeDataSource(DataSource):
     def read_data(
         self, catalog: str | None, schema: str, table: str, query: str, options: JdbcReaderOptions | None
     ) -> DataFrame:
+        raise RuntimeError("Not implemented")
+
+    def load_credentials(self, creds: ReconcileCredentialConfig) -> "FakeDataSource":
         raise RuntimeError("Not implemented")
 
 

@@ -13,6 +13,7 @@ from databricks.labs.lakebridge.config import (
     TableRecon,
     ReconcileMetadataConfig,
     ReconcileConfig,
+    ReconcileCredentialConfig,
 )
 from databricks.labs.lakebridge.reconcile.reconciliation import Reconciliation
 from databricks.labs.lakebridge.reconcile.trigger_recon_service import TriggerReconService
@@ -1901,11 +1902,12 @@ def test_data_recon_with_source_exception(
 
 def test_initialise_data_source(mock_workspace_client, mock_spark):
     src_engine = get_dialect("snowflake")
-    secret_scope = "test"
 
-    source, target = initialise_data_source(mock_workspace_client, mock_spark, src_engine, secret_scope)
+    source, target = initialise_data_source(
+        mock_workspace_client, mock_spark, "snowflake", ReconcileCredentialConfig("xx", {})
+    )
 
-    snowflake_data_source = SnowflakeDataSource(src_engine, mock_spark, mock_workspace_client, secret_scope).__class__
+    snowflake_data_source = SnowflakeDataSource(src_engine, mock_spark, mock_workspace_client).__class__
     databricks_data_source = DatabricksDataSource(src_engine, mock_spark, mock_workspace_client).__class__
 
     assert isinstance(source, snowflake_data_source)

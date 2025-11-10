@@ -7,7 +7,7 @@ from pyspark.sql import DataFrame, DataFrameReader, SparkSession
 from pyspark.sql.functions import col
 from sqlglot import Dialect
 
-from databricks.labs.lakebridge.connections.credential_manager import DatabricksSecretProvider
+from databricks.labs.lakebridge.config import ReconcileCredentialConfig
 from databricks.labs.lakebridge.reconcile.connectors.data_source import DataSource
 from databricks.labs.lakebridge.reconcile.connectors.jdbc_reader import JDBCReaderMixin
 from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import DialectUtils, NormalizedIdentifier
@@ -57,25 +57,22 @@ class TSQLServerDataSource(DataSource, JDBCReaderMixin):
         engine: Dialect,
         spark: SparkSession,
         ws: WorkspaceClient,
-        secret_scope: str,
-        secrets: DatabricksSecretProvider,  # only Databricks secrets are supported currently
     ):
         self._engine = engine
         self._spark = spark
         self._ws = ws
-        self._secret_scope = secret_scope
-        self._secrets = secrets
+        self._creds: dict[str, str] = {}
 
     @property
     def get_jdbc_url(self) -> str:
         # Construct the JDBC URL
         return (
-            f"jdbc:{self._DRIVER}://{self._secrets.get_databricks_secret(self._secret_scope, 'host')}:{self._secrets.get_databricks_secret(self._secret_scope, 'port')};"
-            f"databaseName={self._secrets.get_databricks_secret(self._secret_scope, 'database')};"
-            f"user={self._secrets.get_databricks_secret(self._secret_scope, 'user')};"
-            f"password={self._secrets.get_databricks_secret(self._secret_scope, 'password')};"
-            f"encrypt={self._secrets.get_databricks_secret(self._secret_scope, 'encrypt')};"
-            f"trustServerCertificate={self._secrets.get_databricks_secret(self._secret_scope, 'trustServerCertificate')};"
+            f"jdbc:{self._DRIVER}://{self._creds.get('host')}:{self._creds.get('port')};"
+            f"databaseName={self._creds.get('database')};"
+            f"user={self._creds.get('user')};"
+            f"password={self._creds.get('password')};"
+            f"encrypt={self._creds.get('encrypt')};"
+            f"trustServerCertificate={self._creds.get('trustServerCertificate')};"
         )
 
     def read_data(
@@ -104,6 +101,9 @@ class TSQLServerDataSource(DataSource, JDBCReaderMixin):
             return df.select([col(column).alias(column.lower()) for column in df.columns])
         except (RuntimeError, PySparkException) as e:
             return self.log_and_throw_exception(e, "data", table_query)
+
+    def load_credentials(self, creds: ReconcileCredentialConfig) -> "TSQLServerDataSource":
+        return self
 
     def get_schema(
         self,

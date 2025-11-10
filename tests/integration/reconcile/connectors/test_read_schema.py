@@ -17,8 +17,8 @@ from tests.integration.debug_envgetter import TestEnvGetter, parse_snowflake_jdb
 
 class TSQLServerDataSourceUnderTest(TSQLServerDataSource):
     def __init__(self, spark, ws):
-        super().__init__(get_dialect("tsql"), spark, ws, "secret_scope")
-        self._test_env = TestEnvGetter(True)
+        super().__init__(get_dialect("tsql"), spark, ws)
+        self._test_env = TestEnvGetter(True)  # TODO use load_credentials
 
     @property
     def get_jdbc_url(self) -> str:
@@ -31,8 +31,8 @@ class TSQLServerDataSourceUnderTest(TSQLServerDataSource):
 
 class OracleDataSourceUnderTest(OracleDataSource):
     def __init__(self, spark, ws):
-        super().__init__(get_dialect("oracle"), spark, ws, "secret_scope")
-        self._test_env = TestEnvGetter(False)
+        super().__init__(get_dialect("oracle"), spark, ws)
+        self._test_env = TestEnvGetter(False)  # TODO use load_credentials
 
     @property
     def get_jdbc_url(self) -> str:
@@ -48,8 +48,8 @@ class OracleDataSourceUnderTest(OracleDataSource):
 
 class SnowflakeDataSourceUnderTest(SnowflakeDataSource):
     def __init__(self, spark, ws):
-        super().__init__(get_dialect("snowflake"), spark, ws, "secret_scope")
-        self._test_env = TestEnvGetter(True)
+        super().__init__(get_dialect("snowflake"), spark, ws)
+        self._test_env = TestEnvGetter(True)  # TODO use load_credentials
 
     @property
     def get_jdbc_url(self) -> str:

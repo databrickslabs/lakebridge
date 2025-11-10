@@ -49,9 +49,9 @@ def initial_setup():
 
 def test_get_jdbc_url_happy():
     # initial setup
-    engine, spark, ws, scope = initial_setup()
+    engine, spark, ws, _ = initial_setup()
     # create object for TSQLServerDataSource
-    data_source = TSQLServerDataSource(engine, spark, ws, scope)
+    data_source = TSQLServerDataSource(engine, spark, ws)
     url = data_source.get_jdbc_url
     # Assert that the URL is generated correctly
     assert url == (
@@ -61,10 +61,10 @@ def test_get_jdbc_url_happy():
 
 def test_get_jdbc_url_fail():
     # initial setup
-    engine, spark, ws, scope = initial_setup()
+    engine, spark, ws, _ = initial_setup()
     ws.secrets.get_secret.side_effect = mock_secret
     # create object for TSQLServerDataSource
-    data_source = TSQLServerDataSource(engine, spark, ws, scope)
+    data_source = TSQLServerDataSource(engine, spark, ws)
     url = data_source.get_jdbc_url
     # Assert that the URL is generated correctly
     assert url == (
@@ -74,10 +74,10 @@ def test_get_jdbc_url_fail():
 
 def test_read_data_with_options():
     # initial setup
-    engine, spark, ws, scope = initial_setup()
+    engine, spark, ws, _ = initial_setup()
 
     # create object for MSSQLServerDataSource
-    data_source = TSQLServerDataSource(engine, spark, ws, scope)
+    data_source = TSQLServerDataSource(engine, spark, ws)
     # Create a Tables configuration object with JDBC reader options
     table_conf = Table(
         source_name="src_supplier",
@@ -116,9 +116,9 @@ def test_read_data_with_options():
 
 def test_get_schema():
     # initial setup
-    engine, spark, ws, scope = initial_setup()
+    engine, spark, ws, _ = initial_setup()
     # Mocking get secret method to return the required values
-    data_source = TSQLServerDataSource(engine, spark, ws, scope)
+    data_source = TSQLServerDataSource(engine, spark, ws)
     # call test method
     data_source.get_schema("org", "schema", "supplier")
     # spark assertions
@@ -163,8 +163,8 @@ def test_get_schema():
 
 def test_get_schema_exception_handling():
     # initial setup
-    engine, spark, ws, scope = initial_setup()
-    data_source = TSQLServerDataSource(engine, spark, ws, scope)
+    engine, spark, ws, _ = initial_setup()
+    data_source = TSQLServerDataSource(engine, spark, ws)
 
     spark.read.format().option().option().option().option().load.side_effect = RuntimeError("Test Exception")
 
@@ -180,8 +180,8 @@ def test_get_schema_exception_handling():
 
 
 def test_normalize_identifier():
-    engine, spark, ws, scope = initial_setup()
-    data_source = TSQLServerDataSource(engine, spark, ws, scope)
+    engine, spark, ws, _ = initial_setup()
+    data_source = TSQLServerDataSource(engine, spark, ws)
 
     assert data_source.normalize_identifier("a") == NormalizedIdentifier("`a`", "[a]")
     assert data_source.normalize_identifier('"b"') == NormalizedIdentifier("`b`", "[b]")
