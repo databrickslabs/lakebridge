@@ -75,10 +75,11 @@ def test_get_jdbc_url_happy():
 
 def test_read_data_with_options():
     # initial setup
-    engine, spark, ws, _ = initial_setup()
+    engine, spark, ws, scope = initial_setup()
 
     # create object for MSSQLServerDataSource
     data_source = TSQLServerDataSource(engine, spark, ws)
+    data_source.load_credentials(ReconcileCredentialConfig("databricks", mssql_creds(scope)))
     # Create a Tables configuration object with JDBC reader options
     table_conf = Table(
         source_name="src_supplier",
@@ -95,7 +96,7 @@ def test_read_data_with_options():
 
     # spark assertions
     spark.read.format.assert_called_with("jdbc")
-    spark.read.format().option.assert_called_with(  # FIXME
+    spark.read.format().option.assert_called_with(
         "url",
         "jdbc:sqlserver://my_host:777;databaseName=my_database;user=my_user;password=my_password;encrypt=true;trustServerCertificate=true;",
     )

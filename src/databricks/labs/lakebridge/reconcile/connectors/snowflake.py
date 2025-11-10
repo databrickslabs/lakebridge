@@ -67,11 +67,12 @@ class SnowflakeDataSource(DataSource, JDBCReaderMixin):
             "sfWarehouse",
             "sfRole",
         ]
-        connector_additional_creds = ["sfPassword", "pem_private_key", "pem_private_key_password"]
 
         use_scope = creds.source_creds.get("__secret_scope")
         if use_scope:
-            source_creds = {key: f"{use_scope}/{key}" for key in connector_creds + connector_additional_creds}
+            # to use pem key and/or pem password, migrate to source_creds approach
+            connector_creds += ["sfPassword"]
+            source_creds = {key: f"{use_scope}/{key}" for key in connector_creds}
 
             assert creds.vault_type == "databricks", "Secret scope provided, vault_type must be 'databricks'"
             parsed_creds = build_credentials(creds.vault_type, "snowflake", source_creds)
@@ -83,8 +84,8 @@ class SnowflakeDataSource(DataSource, JDBCReaderMixin):
             self._creds.get(k) for k in connector_creds
         ), f"Missing mandatory Snowflake credentials. Please configure all of {connector_creds}."
         assert any(
-            self._creds.get(k) for k in connector_additional_creds
-        ), f"Missing Snowflake credentials. Please configure any of {connector_additional_creds}."
+            self._creds.get(k) for k in ["sfPassword", "pem_private_key"]
+        ), "Missing Snowflake credentials. Please configure any of [sfPassword, pem_private_key]."
 
         if self._creds.get("pem_private_key"):
             self._creds["pem_private_key"] = SnowflakeDataSource._get_private_key(
