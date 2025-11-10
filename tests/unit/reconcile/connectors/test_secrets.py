@@ -42,7 +42,9 @@ def test_get_secrets_not_found_exception():
     ws.secrets.get_secret.side_effect = NotFound("Test Exception")
     sut = DatabricksSecretProvider(ws)
 
-    with pytest.raises(NotFound, match="Secret does not exist with scope: scope and key: unknown : Test Exception"):
+    with pytest.raises(
+        KeyError, match="Secret does not exist with scope: some_scope and key: unknown : Test Exception"
+    ):
         sut.get_secret("some_scope/unknown")
 
 

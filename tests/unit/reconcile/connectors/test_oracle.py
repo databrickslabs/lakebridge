@@ -4,6 +4,7 @@ from unittest.mock import MagicMock, create_autospec
 
 import pytest
 
+from databricks.labs.lakebridge.config import ReconcileCredentialConfig
 from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import NormalizedIdentifier
 from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
 from databricks.labs.lakebridge.reconcile.connectors.oracle import OracleDataSource
@@ -31,6 +32,16 @@ def mock_secret(scope, key):
     return secret_mock[scope][key]
 
 
+def oracle_creds(scope):
+    return {
+        "host": f"{scope}/host",
+        "port": f"{scope}/port",
+        "database": f"{scope}/database",
+        "user": f"{scope}/user",
+        "password": f"{scope}/password",
+    }
+
+
 def initial_setup():
     pyspark_sql_session = MagicMock()
     spark = pyspark_sql_session.SparkSession.builder.getOrCreate()
@@ -45,10 +56,11 @@ def initial_setup():
 
 def test_read_data_with_options():
     # initial setup
-    engine, spark, ws, _ = initial_setup()
+    engine, spark, ws, scope = initial_setup()
 
-    # create object for SnowflakeDataSource
+    # create object for OracleDataSource
     ords = OracleDataSource(engine, spark, ws)
+    ords.load_credentials(ReconcileCredentialConfig("databricks", oracle_creds(scope)))
     # Create a Tables configuration object with JDBC reader options
     table_conf = Table(
         source_name="supplier",
@@ -98,7 +110,7 @@ def test_get_schema():
     # initial setup
     engine, spark, ws, _ = initial_setup()
 
-    # create object for SnowflakeDataSource
+    # create object for OracleDataSource
     ords = OracleDataSource(engine, spark, ws)
     # call test method
     ords.get_schema(None, "data", "employee")

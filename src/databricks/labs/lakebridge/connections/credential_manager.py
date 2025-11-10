@@ -61,8 +61,9 @@ class DatabricksSecretProvider(SecretProvider):
           NotFound: The secret could not be found.
           UnicodeDecodeError: The secret value was not Base64-encoded UTF-8.
         """
-        scope, key_only = key.split(sep="/")
-        assert scope and key_only, "Secret name must be in the format 'scope/secret'"
+        key_parts = key.split(sep="/")
+        assert len(key_parts) == 2, "Secret name must be in the format 'scope/secret'"
+        scope, key_only = key_parts[0], key_parts[1]
 
         try:
             secret = self._ws.secrets.get_secret(scope, key_only)

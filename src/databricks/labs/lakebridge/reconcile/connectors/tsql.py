@@ -8,7 +8,8 @@ from pyspark.sql.functions import col
 from sqlglot import Dialect
 
 from databricks.labs.lakebridge.config import ReconcileCredentialConfig
-from databricks.labs.lakebridge.reconcile.connectors.data_source import DataSource
+from databricks.labs.lakebridge.connections.credential_manager import create_credential_manager
+from databricks.labs.lakebridge.reconcile.connectors.data_source import DataSource, build_credentials
 from databricks.labs.lakebridge.reconcile.connectors.jdbc_reader import JDBCReaderMixin
 from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import DialectUtils, NormalizedIdentifier
 from databricks.labs.lakebridge.reconcile.recon_config import JdbcReaderOptions, Schema
@@ -103,6 +104,30 @@ class TSQLServerDataSource(DataSource, JDBCReaderMixin):
             return self.log_and_throw_exception(e, "data", table_query)
 
     def load_credentials(self, creds: ReconcileCredentialConfig) -> "TSQLServerDataSource":
+        connector_creds = [
+            "host",
+            "port",
+            "database",
+            "user",
+            "password",
+            "encrypt",
+            "trustServerCertificate",
+        ]
+
+        use_scope = creds.source_creds.get("__secret_scope")
+        if use_scope:
+            source_creds = {key: f"{use_scope}/{key}" for key in connector_creds}
+
+            assert creds.vault_type == "databricks", "Secret scope provided, vault_type must be 'databricks'"
+            parsed_creds = build_credentials(creds.vault_type, "mssql", source_creds)
+        else:
+            parsed_creds = build_credentials(creds.vault_type, "mssql", creds.source_creds)
+
+        self._creds = create_credential_manager(parsed_creds, self._ws).get_credentials("mssql")
+        assert all(
+            self._creds.get(k) for k in connector_creds
+        ), f"Missing mandatory MS SQL credentials. Please configure all of {connector_creds}."
+
         return self
 
     def get_schema(

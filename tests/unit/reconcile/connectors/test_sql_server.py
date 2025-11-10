@@ -4,6 +4,7 @@ from unittest.mock import MagicMock, create_autospec
 
 import pytest
 
+from databricks.labs.lakebridge.config import ReconcileCredentialConfig
 from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import NormalizedIdentifier
 from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
 from databricks.labs.lakebridge.reconcile.connectors.tsql import TSQLServerDataSource
@@ -35,6 +36,18 @@ def mock_secret(scope, key):
     return scope_secret_mock[scope][key]
 
 
+def mssql_creds(scope):
+    return {
+        "host": f"{scope}/host",
+        "port": f"{scope}/port",
+        "database": f"{scope}/database",
+        "user": f"{scope}/user",
+        "password": f"{scope}/password",
+        "encrypt": f"{scope}/encrypt",
+        "trustServerCertificate": f"{scope}/trustServerCertificate",
+    }
+
+
 def initial_setup():
     pyspark_sql_session = MagicMock()
     spark = pyspark_sql_session.SparkSession.builder.getOrCreate()
@@ -49,22 +62,10 @@ def initial_setup():
 
 def test_get_jdbc_url_happy():
     # initial setup
-    engine, spark, ws, _ = initial_setup()
+    engine, spark, ws, scope = initial_setup()
     # create object for TSQLServerDataSource
     data_source = TSQLServerDataSource(engine, spark, ws)
-    url = data_source.get_jdbc_url
-    # Assert that the URL is generated correctly
-    assert url == (
-        """jdbc:sqlserver://my_host:777;databaseName=my_database;user=my_user;password=my_password;encrypt=true;trustServerCertificate=true;"""
-    )
-
-
-def test_get_jdbc_url_fail():
-    # initial setup
-    engine, spark, ws, _ = initial_setup()
-    ws.secrets.get_secret.side_effect = mock_secret
-    # create object for TSQLServerDataSource
-    data_source = TSQLServerDataSource(engine, spark, ws)
+    data_source.load_credentials(ReconcileCredentialConfig("databricks", mssql_creds(scope)))
     url = data_source.get_jdbc_url
     # Assert that the URL is generated correctly
     assert url == (
@@ -94,7 +95,7 @@ def test_read_data_with_options():
 
     # spark assertions
     spark.read.format.assert_called_with("jdbc")
-    spark.read.format().option.assert_called_with(
+    spark.read.format().option.assert_called_with(  # FIXME
         "url",
         "jdbc:sqlserver://my_host:777;databaseName=my_database;user=my_user;password=my_password;encrypt=true;trustServerCertificate=true;",
     )
