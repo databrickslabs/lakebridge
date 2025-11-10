@@ -1,0 +1,182 @@
+---
+title: Customizing Switch
+sidebar_position: 6
+---
+
+import CodeBlock from '@theme/CodeBlock';
+
+## Customizable Prompts
+
+You can create custom conversion prompts for Switch to handle new SQL dialects or specialized conversion requirements.
+
+### Creating Custom Conversion Prompts
+
+To create a custom conversion prompt:
+
+1. **Create a YAML file** with the required structure
+2. **Place it in your Databricks workspace**
+3. **Specify the full path** in the `conversion_prompt_yaml` parameter
+
+Custom conversion prompts require two main sections:
+
+#### Required Structure
+
+Here's a simple example showing the basic structure of a custom conversion prompt:
+
+```yaml
+system_message: |
+  Convert SQL code to Python code that runs on Databricks according to the following instructions:
+
+  # Input and Output
+  - Input: A single SQL file containing one or multiple T-SQL statements
+  - Output: Python code with Python comments (in {comment_lang}) explaining the code
+
+  ${common_python_instructions_and_guidelines}
+
+  # Additional Instructions
+  1. Convert SQL queries to spark.sql() format
+  2. Add clear Python comments explaining the code
+  3. Use DataFrame operations instead of loops when possible
+  4. Handle errors using try-except blocks
+
+few_shots:
+- role: user
+  content: |
+    SELECT name, age
+    FROM users
+    WHERE active = 1;
+- role: assistant
+  content: |
+    # Get names and ages of active users
+    active_users = spark.sql("""
+        SELECT name, age
+        FROM users
+        WHERE active = 1
+    """)
+    display(active_users)
+```
+
+#### Key Elements
+
+**`system_message` Section**:
+- Clear explanation of the conversion purpose
+- Definition of input and output formats
+- Additional instructions for specific conversions
+- (Optional) Comment language specification (`{comment_lang}` will be replaced automatically by Switch)
+- (Optional) Common instructions placeholder (`${common_python_instructions_and_guidelines}` will be replaced automatically by Switch with built-in conversion guidelines)
+
+**`few_shots` Section** (Optional but recommended):
+- Include examples ranging from simple to complex cases
+- Each example demonstrates specific patterns for LLM understanding
+- Shows typical conversion patterns for your SQL dialect
+
+### Reference: Built-in YAML Files
+
+Switch includes built-in YAML configuration files for supported conversion types, including SQL dialects and other source formats. When creating custom prompts, these built-in configurations serve as excellent starting points - even for supported conversion types, customizing the default prompts based on your specific input patterns can significantly improve conversion accuracy.
+
+**Location**: You can find built-in YAML files in the `/Workspace/Users/{user}/.lakebridge/switch/resources/builtin_prompts/` directory within the Switch installation. These files demonstrate the proper structure and provide conversion-specific examples that you can adapt for your custom requirements.
+
+---
+
+## LLM Configuration
+
+### Supported LLM Endpoints
+
+Switch offers flexible model selection - choose any Model Serving endpoint through configuration parameters.
+
+**Default Setup**
+Pre-configured with an latest Claude model via Foundation Model API for immediate use (no configuration required). This ensures strong code comprehension and large context handling out of the box.
+
+**Model Options**
+Switch works with Foundation Model APIs that have large context windows and strong code comprehension capabilities:
+
+- **Pay-per-token pricing**: For light to moderate usage
+- **Provisioned Throughput**: For high-volume workloads with predictable cost and guaranteed performance
+
+**Advanced Configuration**
+For complex code transformations and intricate business logic, Claude’s extended thinking mode can significantly improve conversion accuracy. This mode allows the model to reason through complex transformations more thoroughly, though it increases processing time and token usage. Configure via `request_params`:
+
+```json
+{"max_tokens": 64000, "thinking": {"type": "enabled", "budget_tokens": 16000}}
+```
+
+### Token Management
+
+LLMs have limits on how much text they can process at once. Switch uses a configurable threshold approach to ensure stable processing.
+
+#### Token Counting and Thresholds
+
+Switch sets a default threshold of **20,000 tokens per file**. Token estimation varies by model: Claude models use approximately 3.4 characters per token (meaning 20,000 tokens ≈ 68,000 characters), while other models use the tiktoken library with o200k_base encoding. For SQL sources, Switch removes comments and compresses whitespace before counting tokens to provide more accurate estimates.
+
+#### Adjusting the Threshold
+
+This base configuration of 20,000 tokens has been tested with Claude 3.7 Sonnet's 128k context window. However, you should adjust this threshold based on your specific needs:
+
+- **Lower the threshold (e.g., 8,000 tokens)** for complex transformations using extended thinking mode
+- **Raise the threshold** when using larger context models like Claude Sonnet 4 (200k context)
+
+#### Handling Oversized Files
+
+When files exceed the token threshold, Switch automatically excludes them during the analyze phase and marks them with status "Not converted". These files require manual splitting before processing.
+
+Consider these logical splitting strategies:
+- Separate stored procedures into individual files
+- Split by functional modules or business domains
+- Maintain referential integrity across split files
+
+### Performance Optimization
+
+**Concurrency Settings:**
+- **Default concurrency**: Set to 4 based on testing with Claude models for stable operation
+- **Model-specific considerations**: Different foundation models have varying rate limits and optimal concurrency levels
+- **Scaling for large workloads**: For processing many files simultaneously, consider:
+  - **Increased concurrency**: Test higher values with your chosen model to find optimal settings
+  - **Provisioned Throughput**: Deploy dedicated Foundation Model API capacity with guaranteed throughput
+
+**Monitoring:**
+- Watch for rate limiting or throttling responses from model endpoints
+- Consider enabling [Inference Tables](https://docs.databricks.com/aws/en/machine-learning/model-serving/inference-tables) to automatically capture requests and responses for detailed monitoring and debugging
+
+---
+
+## State Management
+
+Switch uses a Delta table to track conversion progress and results. Each conversion job creates a timestamped table: `{catalog}.{schema}.lakebridge_switch_{timestamp}_{random}` (e.g., `main.default.lakebridge_switch_20250115143022_7ka9`)
+
+The table stores input file information (path, content, token counts), conversion results (generated notebooks, token usage, processing time), error details when conversions fail, and syntax check results from validation stages. This allows you to monitor which files were processed successfully and investigate any issues that occurred during conversion.
+
+### Conversion Result Table Schema
+
+Switch creates Delta tables with the following complete schema:
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `input_file_number` | int | Unique integer identifier for each input file (starts from 1) |
+| `input_file_path` | string | Full path to the input file |
+| `input_file_encoding` | string | Detected encoding of the input file (e.g., UTF-8) |
+| `tokenizer_type` | string | Type of tokenizer used (claude or openai) |
+| `tokenizer_model` | string | Specific tokenizer model/encoding used |
+| `input_file_token_count` | int | Total number of tokens in the input file |
+| `input_file_token_count_preprocessed` | int | Token count of preprocessed content (SQL comments removed for SQL files, original count for generic files) |
+| `input_file_content` | string | Entire content of the input file |
+| `input_file_content_preprocessed` | string | Preprocessed content (SQL comments removed for SQL files, original content for generic files) |
+| `is_conversion_target` | boolean | Whether file should be processed (updated during conversion) |
+| `model_serving_endpoint_for_conversion` | string | Model endpoint used for conversion |
+| `model_serving_endpoint_for_fix` | string | Model endpoint used for syntax error fixing |
+| `request_params_for_conversion` | string | Conversion request parameters in JSON format |
+| `request_params_for_fix` | string | Fix request parameters in JSON format |
+| `result_content` | string | Generated notebook content (initially null) |
+| `result_prompt_tokens` | int | Number of prompt tokens used (initially null) |
+| `result_completion_tokens` | int | Number of completion tokens generated (initially null) |
+| `result_total_tokens` | int | Total tokens used (prompt + completion, initially null) |
+| `result_processing_time_seconds` | float | Processing time in seconds (initially null) |
+| `result_timestamp` | timestamp | UTC timestamp when processing completed (initially null) |
+| `result_error` | string | Any conversion errors encountered (initially null) |
+| `result_python_parse_error` | string | Python syntax errors found using ast.parse (initially null) |
+| `result_extracted_sqls` | array&lt;string&gt; | SQL statements extracted from Python code (initially null) |
+| `result_sql_parse_errors` | array&lt;string&gt; | SQL syntax errors found using EXPLAIN (initially null) |
+| `export_output_path` | string | Path to the exported file (initially null) |
+| `export_status` | string | Export processing status (initially null) |
+| `export_error` | string | Export error information (initially null) |
+| `export_timestamp` | timestamp | UTC timestamp when export completed (initially null) |
+| `export_content_size_bytes` | long | Size of exported content in bytes (initially null) |

@@ -45,10 +45,11 @@ For migrating your SQL workloads we provide transpilers that can:
  - Translate SQL code from a variety of source platforms to Databricks SQL.
  - Translate some orchestration and ETL code to Databricks SQL.
 
-Internally, Lakebridge can use two different transpilers:
+Internally, Lakebridge can use three different transpilers:
 
  - *BladeBridge*, a mature transpiler that can handle a wide range of source dialects as well as some ETL/orchestration.
  - *Morpheus*, a next-generation transpiler that currently handles a smaller set of dialects, but includes experimental support for dbt.
+ - *Switch*, an LLM-powered transpiler that uses Large Language Models to convert SQL and other source formats to Databricks notebooks.
 
 The table below summarizes the source platforms that we currently support:
 

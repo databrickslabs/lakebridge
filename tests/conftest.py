@@ -312,6 +312,21 @@ def morpheus_artifact() -> Path:
     return artifact
 
 
+@pytest.fixture
+def switch_artifact() -> Path:
+    """Get Switch wheel for testing."""
+    artifact = (
+        Path(__file__).parent
+        / "resources"
+        / "transpiler_configs"
+        / "switch"
+        / "wheel"
+        / "databricks_switch_plugin-0.1.2-py3-none-any.whl"
+    )
+    assert artifact.exists(), f"Switch artifact not found: {artifact}"
+    return artifact
+
+
 class FakeDataSource(DataSource):
 
     def __init__(self, start_delimiter: str, end_delimiter: str):

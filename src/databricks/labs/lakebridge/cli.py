@@ -21,10 +21,12 @@ from databricks.labs.blueprint.tui import Prompts
 
 
 from databricks.labs.lakebridge.assessments.configure_assessment import create_assessment_configurator
-from databricks.labs.lakebridge.assessments import PROFILER_SOURCE_SYSTEM
+from databricks.labs.lakebridge.assessments import PROFILER_SOURCE_SYSTEM, PRODUCT_NAME
+from databricks.labs.lakebridge.assessments.profiler import Profiler
 
 from databricks.labs.lakebridge.config import TranspileConfig, LSPConfigOptionV1
 from databricks.labs.lakebridge.contexts.application import ApplicationContext
+from databricks.labs.lakebridge.connections.credential_manager import cred_file
 from databricks.labs.lakebridge.helpers.recon_config_utils import ReconConfigPrompts
 from databricks.labs.lakebridge.helpers.telemetry_utils import make_alphanum_or_semver
 from databricks.labs.lakebridge.install import installer
@@ -36,9 +38,11 @@ from databricks.labs.lakebridge.transpiler.execute import transpile as do_transp
 from databricks.labs.lakebridge.transpiler.lsp.lsp_engine import LSPEngine
 from databricks.labs.lakebridge.transpiler.repository import TranspilerRepository
 from databricks.labs.lakebridge.transpiler.sqlglot.sqlglot_engine import SqlglotEngine
+from databricks.labs.lakebridge.transpiler.switch_runner import SwitchRunner
 from databricks.labs.lakebridge.transpiler.transpile_engine import TranspileEngine
 
 from databricks.labs.lakebridge.transpiler.transpile_status import ErrorSeverity
+from databricks.labs.switch.lsp import get_switch_dialects
 
 
 # Subclass to allow controlled access to protected methods.
@@ -709,18 +713,19 @@ def configure_secrets(*, w: WorkspaceClient) -> None:
     recon_conf.prompt_and_save_connection_details()
 
 
-@lakebridge.command(is_unauthenticated=True)
-def configure_database_profiler() -> None:
-    """[Experimental] Install the lakebridge Assessment package"""
-    prompts = Prompts()
-
-    # Prompt for source system
-    source_system = str(
-        prompts.choice("Please select the source system you want to configure", PROFILER_SOURCE_SYSTEM)
-    ).lower()
+@lakebridge.command
+def configure_database_profiler(w: WorkspaceClient) -> None:
+    """[Experimental] Installs and runs the Lakebridge Assessment package for database profiling"""
+    ctx = ApplicationContext(w)
+    ctx.add_user_agent_extra("cmd", "configure-profiler")
+    prompts = ctx.prompts
+    source_tech = prompts.choice("Select the source technology", PROFILER_SOURCE_SYSTEM).lower()
+    ctx.add_user_agent_extra("profiler_source_tech", make_alphanum_or_semver(source_tech))
+    user = ctx.current_user
+    logger.debug(f"User: {user}")
 
     # Create appropriate assessment configurator
-    assessment = create_assessment_configurator(source_system=source_system, product_name="lakebridge", prompts=prompts)
+    assessment = create_assessment_configurator(source_system=source_tech, product_name="lakebridge", prompts=prompts)
     assessment.run()
 
 
@@ -825,6 +830,184 @@ def analyze(
 
         ctx.add_user_agent_extra("cmd", "analyze")
         logger.debug(f"User: {ctx.current_user}")
+
+
+def _validate_llm_transpile_args(
+    input_source: str | None,
+    output_ws_folder: str | None,
+    source_dialect: str | None,
+    prompts: Prompts,
+) -> tuple[str, str, str]:
+
+    _switch_dialects = get_switch_dialects()
+
+    # Validate presence after attempting to source from config
+    if not input_source:
+        input_source = prompts.question("Enter input SQL path")
+    if not output_ws_folder:
+        output_ws_folder = prompts.question("Enter output workspace folder must start with /Workspace/")
+    if not source_dialect:
+        source_dialect = prompts.choice("Select the source dialect", sorted(_switch_dialects))
+
+    # Validate input_source path exists (local path)
+    if not Path(input_source).exists():
+        raise_validation_exception(f"Invalid path for '--input-source': Path '{input_source}' does not exist.")
+
+    # Validate output_ws_folder is a workspace path
+    if not str(output_ws_folder).startswith("/Workspace/"):
+        raise_validation_exception(
+            f"Invalid value for '--output-ws-folder': workspace output path must start with /Workspace/. Got: {output_ws_folder!r}"
+        )
+
+    if source_dialect not in _switch_dialects:
+        raise_validation_exception(
+            f"Invalid value for '--source-dialect': {source_dialect!r} must be one of: {', '.join(sorted(_switch_dialects))}"
+        )
+
+    return input_source, output_ws_folder, source_dialect
+
+
+@lakebridge.command
+def llm_transpile(
+    *,
+    w: WorkspaceClient,
+    accept_terms: bool = False,
+    input_source: str | None = None,
+    output_ws_folder: str | None = None,
+    source_dialect: str | None = None,
+    catalog_name: str | None = None,
+    schema_name: str | None = None,
+    volume: str | None = None,
+    foundation_model: str | None = None,
+    ctx: ApplicationContext | None = None,
+) -> None:
+    """Transpile source code to Databricks using LLM Transpiler (Switch)"""
+    if ctx is None:
+        ctx = ApplicationContext(w)
+    del w
+    ctx.add_user_agent_extra("cmd", "llm-transpile")
+    user = ctx.current_user
+    logger.debug(f"User: {user}")
+
+    if not accept_terms:
+        logger.warning(
+            """Please read and accept these terms before proceeding:
+    This feature leverages a Large Language Model (LLM) to analyse and convert
+    your provided content, code and data. You consent to your content being
+    transmitted to, processed by, and returned from the foundation models hosted
+    by Databricks or external foundation models you have configured in your
+    workspace. The outputs of the LLM are generated automatically without human
+    review, and may contain inaccuracies or errors. You are responsible for
+    reviewing and validating all outputs before relying on them for any critical
+    or production use.
+
+    By using this feature you accept these terms, re-run with '--accept-terms=true'.
+                """
+        )
+        raise SystemExit("LLM transpiler terms not accepted, exiting.")
+
+    prompts = ctx.prompts
+    resource_configurator = ctx.resource_configurator
+
+    # If CLI args are missing, try to read them from config.yml
+    input_source, output_ws_folder, source_dialect = _validate_llm_transpile_args(
+        input_source,
+        output_ws_folder,
+        source_dialect,
+        prompts,
+    )
+
+    if catalog_name is None:
+        catalog_name = resource_configurator.prompt_for_catalog_setup(default_catalog_name="lakebridge")
+
+    if schema_name is None:
+        schema_name = resource_configurator.prompt_for_schema_setup(catalog=catalog_name, default_schema_name="switch")
+
+    if volume is None:
+        volume = resource_configurator.prompt_for_volume_setup(
+            catalog=catalog_name, schema=schema_name, default_volume_name="switch_volume"
+        )
+
+    resource_configurator.has_necessary_access(catalog_name, schema_name, volume)
+
+    if foundation_model is None:
+        foundation_model = resource_configurator.prompt_for_foundation_model_choice()
+
+    job_list = ctx.install_state.jobs
+    if "Switch" not in job_list:
+        logger.debug(f"Missing Switch from installed state jobs: {job_list!r}")
+        raise RuntimeError(
+            "Switch Job not found. "
+            "Please run 'databricks labs lakebridge install-transpile --include-llm-transpiler true' first."
+        )
+    job_id = int(job_list["Switch"])
+    logger.debug(f"Switch job ID found: {job_id}")
+
+    ctx.add_user_agent_extra("transpiler_source_dialect", source_dialect)
+    job_runner = SwitchRunner(ctx.workspace_client)
+    volume_input_path = job_runner.upload_to_volume(
+        local_path=Path(input_source),
+        catalog=catalog_name,
+        schema=schema_name,
+        volume=volume,
+    )
+
+    job_runner.run(
+        volume_input_path=volume_input_path,
+        output_ws_folder=output_ws_folder,
+        source_tech=source_dialect,
+        catalog=catalog_name,
+        schema=schema_name,
+        foundation_model=foundation_model,
+        job_id=job_id,
+    )
+
+
+@lakebridge.command()
+def execute_database_profiler(w: WorkspaceClient, source_tech: str | None = None) -> None:
+    """Execute the Profiler Extraction for the given source technology"""
+    ctx = ApplicationContext(w)
+    ctx.add_user_agent_extra("cmd", "execute-profiler")
+    prompts = ctx.prompts
+    if source_tech is None:
+        source_tech = prompts.choice("Select the source technology", PROFILER_SOURCE_SYSTEM)
+    source_tech = source_tech.lower()
+
+    if source_tech not in PROFILER_SOURCE_SYSTEM:
+        logger.error(f"Only the following source systems are supported: {PROFILER_SOURCE_SYSTEM}")
+        raise_validation_exception(f"Invalid source technology {source_tech}")
+
+    ctx.add_user_agent_extra("profiler_source_tech", make_alphanum_or_semver(source_tech))
+    user = ctx.current_user
+    logger.debug(f"User: {user}")
+    # check if cred_file is present which has the connection details before running the profiler
+    file = cred_file(PRODUCT_NAME)
+    if not file.exists():
+        raise_validation_exception(
+            f"Connection details not found. Please run `databricks labs lakebridge configure-database-profiler` "
+            f"to set up connection details for {source_tech}."
+        )
+    profiler = Profiler.create(source_tech)
+
+    # TODO: Add extractor logic to ApplicationContext instead of creating inside the Profiler class
+    profiler.profile()
+
+
+@lakebridge.command()
+def create_profiler_dashboard(
+    *,
+    w: WorkspaceClient,
+    extract_file: str,
+    source_tech: str,
+    volume_path: str,
+    catalog_name: str,
+    schema_name: str,
+) -> None:
+    """Deploys a profiler summary as a Databricks dashboard"""
+    ctx = ApplicationContext(w)
+    ctx.add_user_agent_extra("cmd", "create-profiler-dashboard")
+    ctx.dashboard_manager.upload_duckdb_to_uc_volume(extract_file, volume_path)
+    ctx.dashboard_manager.create_profiler_summary_dashboard(source_tech, catalog_name, schema_name)
 
 
 if __name__ == "__main__":

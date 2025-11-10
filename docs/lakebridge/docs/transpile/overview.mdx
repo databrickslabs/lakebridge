@@ -131,16 +131,195 @@ BladeBridge is fully **extensible** — new converters can be added, and the out
 
 Whether you're migrating a single job or thousands, BladeBridge delivers predictable, repeatable results optimized for the Databricks ecosystem.
 
-More details about the BladeBridge converter [here](/docs/transpile/pluggable_transpilers/bladebridge_overview)
+More details about the BladeBridge converter [here](/docs/transpile/pluggable_transpilers/bladebridge)
 
-### Supported dialects
+### Switch
 
-| Source Platform              | Converter: BladeBridge | Converter: Morpheus | Output: SQL | Output: SparkSql | Output: PySpark |   Other features available    |
-|:-----------------------------|:----------------------:|:-------------------:|:-----------:|:----------------:|:---------------:|:-----------------------------:|
-| DataStage                    |        &#x2705;        |                     |             |     &#x2705;     |    &#x2705;     |                               |
-| MS SQL Server                |        &#x2705;        |      &#x2705;       |  &#x2705;   |                  |                 |                               |
-| Netezza                      |        &#x2705;        |                     |  &#x2705;   |                  |                 |                               |
-| Oracle (incl. ADS & Exadata) |        &#x2705;        |                     |  &#x2705;   |                  |                 |                               |
-| Snowflake                    |                        |      &#x2705;       |  &#x2705;   |                  |                 | dbt Repointing (Experimental) |
-| Synapse                      |        &#x2705;        |      &#x2705;       |  &#x2705;   |                  |                 |                               |
-| Teradata                     |        &#x2705;        |                     |  &#x2705;   |                  |                 |                               |
+Switch is an LLM-powered Lakebridge transpiler that extends beyond SQL to convert various source formats into Databricks-compatible outputs. Using [Mosaic AI Model Serving](https://docs.databricks.com/aws/en/machine-learning/model-serving/), it understands code intent and semantics to handle complex transformations.
+
+Key characteristics:
+- **LLM-powered extensibility** - Built-in prompts for multiple SQL dialects (T-SQL, Snowflake, Teradata, Oracle, etc.) and generic formats (Python, Scala, Airflow)
+- **Custom prompt support** - Add YAML prompts to handle any source format not covered by built-in options
+- **Flexible outputs** - Python notebooks with Spark SQL (default), SQL notebooks, or any text-based format
+- **Databricks-native processing** - Executes as scalable Lakeflow Jobs with serverless compute
+- **Model flexibility** - Uses Databricks Foundation Model APIs with configurable endpoint selection
+- **Complex logic handling** - Excels at stored procedures and business logic beyond ANSI SQL/PSM standards
+
+Switch's LLM-based approach enables support for any source format through custom prompts. For built-in prompt details and custom prompt creation, see the [Switch documentation](/docs/transpile/pluggable_transpilers/switch).
+
+## Supported dialects
+
+<table>
+  <thead>
+    <tr>
+      <th rowspan="2">Source Platform</th>
+      <th colspan="3">BladeBridge</th>
+      <th>Morpheus</th>
+      <th colspan="3">Switch (Experimental)</th>
+    </tr>
+    <tr>
+      <th>SQL</th>
+      <th>SparkSql</th>
+      <th>PySpark</th>
+      <th>SQL</th>
+      <th>SparkSql</th>
+      <th>Python Notebook</th>
+      <th>Databricks Workflow</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Airflow</td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td>✅</td>
+    </tr>
+    <tr>
+      <td>DataStage</td>
+      <td></td>
+      <td>✅</td>
+      <td>✅</td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+    </tr>
+    <tr>
+      <td>MS SQL Server</td>
+      <td>✅</td>
+      <td></td>
+      <td></td>
+      <td>✅</td>
+      <td>✅</td>
+      <td></td>
+      <td></td>
+    </tr>
+    <tr>
+      <td>MySQL</td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td>✅</td>
+      <td></td>
+      <td></td>
+    </tr>
+    <tr>
+      <td>Netezza</td>
+      <td>✅</td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td>✅</td>
+      <td></td>
+      <td></td>
+    </tr>
+    <tr>
+      <td>Oracle (incl. ADS & Exadata)</td>
+      <td>✅</td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td>✅</td>
+      <td></td>
+      <td></td>
+    </tr>
+    <tr>
+      <td>PostgreSQL</td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td>✅</td>
+      <td></td>
+      <td></td>
+    </tr>
+    <tr>
+      <td>Python Code</td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td>✅</td>
+      <td></td>
+    </tr>
+    <tr>
+      <td>Redshift</td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td>✅</td>
+      <td></td>
+      <td></td>
+    </tr>
+    <tr>
+      <td>Scala Code</td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td>✅</td>
+      <td></td>
+    </tr>
+    <tr>
+      <td>Snowflake (including dbt Repointing)</td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td>✅</td>
+      <td>✅</td>
+      <td></td>
+      <td></td>
+    </tr>
+    <tr>
+      <td>Synapse</td>
+      <td>✅</td>
+      <td></td>
+      <td></td>
+      <td>✅</td>
+      <td>✅</td>
+      <td></td>
+      <td></td>
+    </tr>
+    <tr>
+      <td>Teradata</td>
+      <td>✅</td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td>✅</td>
+      <td></td>
+      <td></td>
+    </tr>
+  </tbody>
+</table>
+
+
+---
+Transpiler Selection Guide
+---
+
+Lakebridge offers both deterministic and LLM-powered transpilers out of the box, each optimized for different conversion scenarios.
+
+### Deterministic Conversion (BladeBridge & Morpheus)
+
+Deterministic transpilers excel in scenarios requiring consistency and speed:
+- **Deterministic output with guaranteed syntax equivalence** - Every conversion produces the same predictable result
+- **High-volume batch processing** - Efficiently handle thousands of files without API rate limits
+- **Fast local execution without API dependencies** - Sub-minute processing with no external service calls
+- **Production-grade SQL aligned with Databricks SQL evolution** - Leverages SQL Scripting, Stored Procedures, and latest DBSQL features
+
+### LLM-Powered Conversion (Switch)
+
+Switch is best suited for scenarios requiring semantic understanding and flexibility:
+- **Complex logic requiring contextual understanding** - Stored procedures and business logic where intent matters more than syntax
+- **Source formats not covered by deterministic transpilers** - Any SQL dialect or programming language through custom prompts
+- **Extensible conversion through custom YAML prompts** - Adapt to proprietary or uncommon source formats
+- **Python notebook output for SQL beyond ANSI SQL/PSM standards** - Complex transformations that benefit from procedural code

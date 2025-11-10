@@ -64,10 +64,11 @@ custom: # this section is optional, it is passed to the transpiler at startup
     <key 1>: <value 1> # can be pretty much anything
 ```
 
-Databricks provides 2 transpilers: _Morpheus_, its AST-based transpiler, and _BladeBridge_, a pattern-based transpiler.
+Databricks provides 3 transpilers: _Morpheus_, its AST-based transpiler, _BladeBridge_, a pattern-based transpiler, and _Switch_, an LLM-powered transpiler.
 These transpilers are installed by `Lakebridge` itself as part of running the `install-transpile` command, as follows:
  - the latest _Morpheus_ is fetched from [Maven Central](https://central.sonatype.com/), and installed at `.databricks/labs/remorph-transpilers/databricks-morph-plugin/`.
  - the latest _BladeBridge_ is fetched from [PyPi](https://pypi.org/), and installed at `.databricks/labs/remorph-transpilers/bladebridge/`.
+ - the latest _Switch_ is fetched from [PyPi](https://pypi.org/), and installed as an optional direct dependency (enabled with `--include-llm-transpiler true`).
 
 Installing 3rd party transpilers is the responsibility of their provider.
 

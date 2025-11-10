@@ -1,0 +1,77 @@
+---
+title: Switch FAQs and Troubleshooting
+sidebar_position: 7
+---
+
+import CodeBlock from '@theme/CodeBlock';
+
+## Can Switch Support My Source System?
+
+A common question is whether Switch can handle sources beyond the built-in conversion types. The answer is: **try it!**
+
+Switch already supports various source formats including SQL dialects (MySQL, Snowflake, Oracle, etc.), programming languages (Python scripts, Scala code), and workflows (Airflow DAGs).
+
+**For SQL-based sources**: Creating a custom prompt YAML file should work well for most SQL dialects. Since LLMs understand SQL syntax patterns, you can typically achieve good results by:
+- Starting with a similar built-in dialect's YAML as a template
+- Adding specific syntax examples from your source system
+- Testing and iterating based on results
+
+**Tips for efficient prompt creation:**
+- **Quick baseline creation**: Feed built-in prompts and your source dialect's representative features to an advanced LLM to quickly generate a baseline YAML configuration
+- **Dialect-specific patterns**: Reference open source projects like [SQLGlot dialects](https://github.com/tobymao/sqlglot/tree/main/sqlglot/dialects) for insights into dialect-specific transformation patterns
+
+**For other source formats**: Switch's LLM-based architecture means it can potentially handle various conversions beyond the built-in types. Modern LLMs have strong comprehension capabilities across many languages and formats. You can experiment by:
+- Creating custom prompts that define your source format
+- Providing clear conversion examples in the few-shots section
+- Testing with representative source samples
+
+Rather than waiting for additional built-in examples, we encourage experimentation with custom prompts. The flexibility of LLM-based conversion means many use cases are possible with the right prompt engineering.
+
+---
+
+## Conversion Results and Troubleshooting
+
+### Understanding Conversion Results
+
+After your Switch job completes, review the conversion results displayed at the end of the `00_main` notebook execution. The results table shows the status of each input file:
+
+- **Successfully converted files**: Ready to use as Databricks notebooks
+- **Files requiring attention**: May need manual review or re-processing
+
+If you encounter files that didn't convert successfully, here are the most common issues and their solutions:
+
+### Files Not Converting (Status: `Not converted`)
+
+These files were skipped during the conversion process, typically because they're too large for the model to process effectively.
+
+**Cause**: Input files exceed the token count threshold
+
+**Solutions**:
+- Split large input files into smaller, more manageable parts
+- Increase the `token_count_threshold` parameter if your LLM model can handle larger inputs
+
+### Conversion with Errors (Status: `Converted with errors`)
+
+These files were successfully processed by the LLM but the generated code contains syntax errors that need to be addressed.
+
+**Cause**: Files were converted but contain syntax errors
+
+**Solutions**:
+- Review syntax error messages in the result table's error_details column
+- Manually fix errors in the converted notebooks/files
+- Increase `max_fix_attempts` for more automatic error correction attempts
+
+### Export Failures (Status: `Export failed` or `Not exported`)
+
+These files were converted successfully but couldn't be exported to the output directory.
+
+**Causes**:
+- Content exceeds 10MB size limit of Databricks notebooks
+- File system permissions issues
+- Invalid output paths
+
+**Solutions**:
+- Check the `export_error` column in the result table for specific error details
+- For size issues: Manually split large converted content into smaller units
+- For permission issues: Verify workspace access to the output directory
+- For path issues: Ensure output directory paths are valid workspace locations
