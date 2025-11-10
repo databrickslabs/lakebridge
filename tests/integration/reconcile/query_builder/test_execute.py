@@ -1907,8 +1907,17 @@ def test_data_recon_with_source_exception(
 def test_initialise_data_source(mock_workspace_client, mock_spark):
     src_engine = get_dialect("snowflake")
 
+    sf_creds = {
+        "sfUser": "user",
+        "sfPassword": "password",
+        "sfUrl": "account.snowflakecomputing.com",
+        "sfDatabase": "database",
+        "sfSchema": "schema",
+        "sfWarehouse": "warehouse",
+        "sfRole": "role",
+    }
     source, target = initialise_data_source(
-        mock_workspace_client, mock_spark, "snowflake", ReconcileCredentialConfig("local", {})
+        mock_workspace_client, mock_spark, "snowflake", ReconcileCredentialConfig("local", sf_creds)
     )
 
     snowflake_data_source = SnowflakeDataSource(src_engine, mock_spark, mock_workspace_client).__class__

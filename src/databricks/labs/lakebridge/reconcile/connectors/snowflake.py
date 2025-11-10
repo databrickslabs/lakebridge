@@ -84,7 +84,7 @@ class SnowflakeDataSource(DataSource, JDBCReaderMixin):
             self._creds.get(k) for k in connector_creds
         ), f"Missing mandatory Snowflake credentials. Please configure all of {connector_creds}."
         assert any(
-            self._creds.get(k) for k in ["sfPassword", "pem_private_key"]
+            self._creds.get(k) for k in ("sfPassword", "pem_private_key")
         ), "Missing Snowflake credentials. Please configure any of [sfPassword, pem_private_key]."
 
         if self._creds.get("pem_private_key"):
@@ -97,19 +97,15 @@ class SnowflakeDataSource(DataSource, JDBCReaderMixin):
 
     @property
     def get_jdbc_url(self) -> str:
-        sf_password = self._creds.get('sfPassword')
-        if not sf_password:
-            message = "sfPassword is mandatory for jdbc connectivity with Snowflake."
-            logger.error(message)
-            raise ValueError(message)
-            # TODO Support PEM key auth
+        if not self._creds:
+            raise RuntimeError("Credentials not loaded. Please call `load_credentials(ReconcileCredentialConfig)`.")
 
         return (
             f"jdbc:{SnowflakeDataSource._DRIVER}://{self._creds['sfUrl']}"
-            f"/?user={self._creds['sfUser']}&password={sf_password}"
+            f"/?user={self._creds['sfUser']}&password={self._creds['sfPassword']}"
             f"&db={self._creds['sfDatabase']}&schema={self._creds['sfSchema']}"
             f"&warehouse={self._creds['sfWarehouse']}&role={self._creds['sfRole']}"
-        )
+        )  # TODO Support PEM key auth
 
     def read_data(
         self,
@@ -164,6 +160,9 @@ class SnowflakeDataSource(DataSource, JDBCReaderMixin):
             return self.log_and_throw_exception(e, "schema", schema_query)
 
     def reader(self, query: str) -> DataFrameReader:
+        if not self._creds:
+            raise RuntimeError("Credentials not loaded. Please call `load_credentials(ReconcileCredentialConfig)`.")
+
         return self._spark.read.format("snowflake").option("dbtable", f"({query}) as tmp").options(**self._creds)
 
     @staticmethod
