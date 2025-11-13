@@ -39,11 +39,13 @@ class OracleDataSourceUnderTest(OracleDataSource):
     def get_jdbc_url(self) -> str:
         return self._test_env.get("TEST_ORACLE_JDBC")
 
-    def reader(self, query: str) -> DataFrameReader:
+    def reader(self, query: str, options: dict | None = None) -> DataFrameReader:
+        if options is None:
+            options = {}
         user = self._test_env.get("TEST_ORACLE_USER")
         password = self._test_env.get("TEST_ORACLE_PASSWORD")
         return self._get_jdbc_reader(
-            query, self.get_jdbc_url, OracleDataSource._DRIVER, {"user": user, "password": password}
+            query, self.get_jdbc_url, OracleDataSource._DRIVER, {**options, "user": user, "password": password}
         )
 
 
@@ -76,12 +78,11 @@ class SnowflakeDataSourceUnderTest(SnowflakeDataSource):
         return opts
 
 
-# @pytest.mark.skip(reason="Add the creds to Github secrets and populate the actions' env to enable this test")
 def test_sql_server_read_schema_happy(mock_spark):
     mock_ws = create_autospec(WorkspaceClient)
     connector = TSQLServerDataSourceUnderTest(mock_spark, mock_ws)
 
-    columns = connector.get_schema("labs_azure_sandbox_remorph", "dbo", "Employees")
+    columns = connector.get_schema("labs_azure_sandbox_remorph", "dbo", "reconcile_in")
     assert columns
 
 

@@ -64,9 +64,9 @@ class OracleDataSource(DataSource, SecretsMixin, JDBCReaderMixin):
         table_query = query.replace(":tbl", f"{schema}.{table}")
         try:
             if options is None:
-                return self.reader(table_query).options(**self._get_timestamp_options()).load()
+                return self.reader(table_query, self._get_timestamp_options()).load()
             reader_options = self._get_jdbc_reader_options(options) | self._get_timestamp_options()
-            df = self.reader(table_query).options(**reader_options).load()
+            df = self.reader(table_query, reader_options).load()
             logger.warning(f"Fetching data using query: \n`{table_query}`")
 
             # Convert all column names to lower case
@@ -107,12 +107,14 @@ class OracleDataSource(DataSource, SecretsMixin, JDBCReaderMixin):
             "HH24:MI:SS''');END;",
         }
 
-    def reader(self, query: str) -> DataFrameReader:
+    def reader(self, query: str, options: dict | None = None) -> DataFrameReader:
+        if options is None:
+            options = {}
         user = self._get_secret('user')
         password = self._get_secret('password')
         logger.debug(f"Using user: {user} to connect to Oracle")
         return self._get_jdbc_reader(
-            query, self.get_jdbc_url, OracleDataSource._DRIVER, {"user": user, "password": password}
+            query, self.get_jdbc_url, OracleDataSource._DRIVER, {**options, "user": user, "password": password}
         )
 
     def normalize_identifier(self, identifier: str) -> NormalizedIdentifier:
