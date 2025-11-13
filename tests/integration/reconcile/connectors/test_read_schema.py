@@ -78,6 +78,7 @@ class SnowflakeDataSourceUnderTest(SnowflakeDataSource):
         return opts
 
 
+@pytest.mark.skip(reason="Run in acceptance environment only")
 def test_sql_server_read_schema_happy(mock_spark):
     mock_ws = create_autospec(WorkspaceClient)
     connector = TSQLServerDataSourceUnderTest(mock_spark, mock_ws)
