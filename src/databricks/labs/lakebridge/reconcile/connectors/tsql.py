@@ -71,8 +71,6 @@ class TSQLServerDataSource(DataSource, SecretsMixin, JDBCReaderMixin):
         return (
             f"jdbc:{self._DRIVER}://{self._get_secret('host')}:{self._get_secret('port')};"
             f"databaseName={self._get_secret('database')};"
-            f"user={self._get_secret('user')};"
-            f"password={self._get_secret('password')};"
             f"encrypt={self._get_secret('encrypt')};"
             f"trustServerCertificate={self._get_secret('trustServerCertificate')};"
         )
@@ -96,10 +94,10 @@ class TSQLServerDataSource(DataSource, SecretsMixin, JDBCReaderMixin):
             prepare_query_string = ""
         try:
             if options is None:
-                df = self.reader(query, prepare_query_string).load()
+                df = self.reader(query, {"prepareQuery": prepare_query_string}).load()
             else:
-                options = self._get_jdbc_reader_options(options)
-                df = self._get_jdbc_reader(table_query, self.get_jdbc_url, self._DRIVER).options(**options).load()
+                spark_options = self._get_jdbc_reader_options(options)
+                df = self.reader(table_query, spark_options).load()
             return df.select([col(column).alias(column.lower()) for column in df.columns])
         except (RuntimeError, PySparkException) as e:
             return self.log_and_throw_exception(e, "data", table_query)
@@ -126,15 +124,22 @@ class TSQLServerDataSource(DataSource, SecretsMixin, JDBCReaderMixin):
         try:
             logger.debug(f"Fetching schema using query: \n`{schema_query}`")
             logger.info(f"Fetching Schema: Started at: {datetime.now()}")
-            df = self.reader(schema_query).load()
+            df = self.reader(schema_query, {}).load()
             schema_metadata = df.select([col(c).alias(c.lower()) for c in df.columns]).collect()
             logger.info(f"Schema fetched successfully. Completed at: {datetime.now()}")
             return [self._map_meta_column(field, normalize) for field in schema_metadata]
         except (RuntimeError, PySparkException) as e:
             return self.log_and_throw_exception(e, "schema", schema_query)
 
-    def reader(self, query: str, prepare_query_str="") -> DataFrameReader:
-        return self._get_jdbc_reader(query, self.get_jdbc_url, self._DRIVER, {"prepareQuery": prepare_query_str})
+    def reader(self, query: str, options: dict) -> DataFrameReader:
+        creds = self._get_user_password()
+        return self._get_jdbc_reader(query, self.get_jdbc_url, self._DRIVER, {**options, **creds})
+
+    def _get_user_password(self) -> dict:
+        return {
+            "user": self._get_secret("user"),
+            "password": self._get_secret("password"),
+        }
 
     def normalize_identifier(self, identifier: str) -> NormalizedIdentifier:
         return DialectUtils.normalize_identifier(

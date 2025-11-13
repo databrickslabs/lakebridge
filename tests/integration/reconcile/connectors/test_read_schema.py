@@ -22,11 +22,12 @@ class TSQLServerDataSourceUnderTest(TSQLServerDataSource):
 
     @property
     def get_jdbc_url(self) -> str:
-        return (
-            self._test_env.get("TEST_TSQL_JDBC")
-            + f"user={self._test_env.get('TEST_TSQL_USER')};"
-            + f"password={self._test_env.get('TEST_TSQL_PASS')};"
-        )
+        return self._test_env.get("TEST_TSQL_JDBC")
+
+    def _get_user_password(self) -> dict:
+        user = self._test_env.get("TEST_TSQL_USER")
+        password = self._test_env.get("TEST_TSQL_PASS")
+        return {"user": user, "password": password}
 
 
 class OracleDataSourceUnderTest(OracleDataSource):
@@ -75,7 +76,7 @@ class SnowflakeDataSourceUnderTest(SnowflakeDataSource):
         return opts
 
 
-@pytest.mark.skip(reason="Add the creds to Github secrets and populate the actions' env to enable this test")
+# @pytest.mark.skip(reason="Add the creds to Github secrets and populate the actions' env to enable this test")
 def test_sql_server_read_schema_happy(mock_spark):
     mock_ws = create_autospec(WorkspaceClient)
     connector = TSQLServerDataSourceUnderTest(mock_spark, mock_ws)
