@@ -1,27 +1,35 @@
-from databricks.labs.lakebridge.cli import configure_reconcile
-from databricks.labs.lakebridge.config import ReconcileConfig, DatabaseConfig, ReconcileMetadataConfig, TableRecon, \
+from databricks.labs.lakebridge.config import ReconcileConfig, DatabaseConfig, ReconcileMetadataConfig, \
     LakebridgeConfiguration, ReconcileTablesConfig
 from databricks.labs.lakebridge.contexts.application import ApplicationContext
-from databricks.labs.lakebridge.install import installer
 from databricks.labs.lakebridge.reconcile.recon_config import Table, RECONCILE_OPERATION_NAME
 from databricks.labs.lakebridge.reconcile.runner import ReconcileRunner
-from databricks.labs.lakebridge.transpiler.repository import TranspilerRepository
-from databricks.sdk import WorkspaceClient
-from databricks.labs.lakebridge.__about__ import __version__
-import json
+table_recon_json = """
+{
+  "source_schema": "test_source",
+  "target_catalog": "sandbox",
+  "target_schema": "test_target",
+  "tables": [
+    {
+      "source_name": "diamonds",
+      "target_name": "diamonds",
+      "join_columns": ["color", "clarity"]
+    }
+  ]
+}
+"""
 
-table_recon = TableRecon(
-    source_schema="test_source",
-    target_catalog="sandbox",
-    target_schema="test_target",
-    tables=[
-        Table(
-            source_name="diamonds",
-            target_name="diamonds",
-            join_columns= ["color", "clarity"],
-        )
-    ]
-)
+table_recon_yaml = """
+source_schema: test_source
+target_catalog: sandbox
+target_schema: test_target
+tables:
+  - source_name: diamonds
+    target_name: diamonds
+    join_columns:
+      - color
+      - clarity
+"""
+
 reconcile_config = ReconcileConfig(
     data_source = "databricks",
     report_type = "all",
@@ -36,7 +44,7 @@ reconcile_config = ReconcileConfig(
         schema= "reconcile"
     ),
     job_id="e2e_test_recon_job",
-    tables=ReconcileTablesConfig("all", list(json.dumps(table_recon)))
+    tables=ReconcileTablesConfig("all", list(table_recon_json))
 )
 config = LakebridgeConfiguration(None, reconcile_config)
 
