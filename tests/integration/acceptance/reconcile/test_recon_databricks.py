@@ -44,8 +44,7 @@ source_catalog_or_schema = (
 filename = f"recon_config_{recon_config.data_source}_{source_catalog_or_schema}_{recon_config.report_type}.json"
 
 
-def test_recon():
-    ws = WorkspaceClient(product="lakebridge acceptance")
+def test_recon(ws):
     ctx = ApplicationContext(ws)
     recon_runner = ReconcileRunner(
         ctx.workspace_client,
@@ -57,5 +56,6 @@ def test_recon():
     ctx.installation.save(recon_config)
     ctx.installation.save(recon_config, filename=filename)
     ctx.workspace_installation.install(config)
+
     recon_runner.run(operation_name=RECONCILE_OPERATION_NAME)
     assert True
