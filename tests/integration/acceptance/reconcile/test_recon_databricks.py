@@ -31,7 +31,6 @@ recon_config = ReconcileConfig(
         source_catalog="sandbox", source_schema="test_source", target_catalog="sandbox", target_schema="test_target"
     ),
     metadata_config=ReconcileMetadataConfig(catalog="sandbox", schema="reconcile"),
-    job_id="e2e_test_recon_job",
 )
 config = LakebridgeConfiguration(None, recon_config)
 source_catalog_or_schema = (
@@ -48,12 +47,12 @@ def test_recon(ws):
         ctx.workspace_client,
         ctx.installation,
         ctx.install_state,
-        ctx.prompts,
     )
 
     ctx.installation.save(recon_config)
-    ctx.installation.save(recon_config, filename=filename)
+    ctx.installation.upload(filename, TABLE_RECON_JSON.encode())
     ctx.workspace_installation.install(config)
 
-    recon_runner.run(operation_name=RECONCILE_OPERATION_NAME)
-    assert True
+    run, _ = recon_runner.run(operation_name=RECONCILE_OPERATION_NAME)
+    result = run.result()
+    assert result

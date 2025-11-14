@@ -7,6 +7,7 @@ import os
 import re
 import sys
 import time
+import webbrowser
 from collections.abc import Mapping
 from pathlib import Path
 from typing import NoReturn, TextIO
@@ -652,9 +653,11 @@ def reconcile(*, w: WorkspaceClient) -> None:
         ctx.workspace_client,
         ctx.installation,
         ctx.install_state,
-        ctx.prompts,
     )
-    recon_runner.run(operation_name=RECONCILE_OPERATION_NAME)
+
+    _, job_run_url = recon_runner.run(operation_name=RECONCILE_OPERATION_NAME)
+    if ctx.prompts.confirm(f"Would you like to open the job run URL `{job_run_url}` in the browser?"):
+        webbrowser.open(job_run_url)
 
 
 @lakebridge.command
@@ -668,10 +671,11 @@ def aggregates_reconcile(*, w: WorkspaceClient) -> None:
         ctx.workspace_client,
         ctx.installation,
         ctx.install_state,
-        ctx.prompts,
     )
 
-    recon_runner.run(operation_name=AGG_RECONCILE_OPERATION_NAME)
+    _, job_run_url = recon_runner.run(operation_name=AGG_RECONCILE_OPERATION_NAME)
+    if ctx.prompts.confirm(f"Would you like to open the job run URL `{job_run_url}` in the browser?"):
+        webbrowser.open(job_run_url)
 
 
 @lakebridge.command

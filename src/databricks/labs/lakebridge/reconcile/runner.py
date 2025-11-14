@@ -1,12 +1,12 @@
 import logging
-import webbrowser
 
 from databricks.labs.blueprint.installation import Installation
 from databricks.labs.blueprint.installation import SerdeError
 from databricks.labs.blueprint.installer import InstallState
-from databricks.labs.blueprint.tui import Prompts
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.errors import NotFound, PermissionDenied
+from databricks.sdk.service._internal import Wait
+from databricks.sdk.service.jobs import Run
 
 from databricks.labs.lakebridge.config import ReconcileConfig, TableRecon
 from databricks.labs.lakebridge.deployment.recon import RECON_JOB_NAME
@@ -23,14 +23,12 @@ class ReconcileRunner:
         ws: WorkspaceClient,
         installation: Installation,
         install_state: InstallState,
-        prompts: Prompts,
     ):
         self._ws = ws
         self._installation = installation
         self._install_state = install_state
-        self._prompts = prompts
 
-    def run(self, operation_name=RECONCILE_OPERATION_NAME):
+    def run(self, operation_name: str = RECONCILE_OPERATION_NAME) -> tuple[Wait[Run], str]:
         reconcile_config = self._get_verified_recon_config()
         job_id = self._get_recon_job_id(reconcile_config)
         logger.info(f"Triggering the reconcile job with job_id: `{job_id}`")
@@ -42,8 +40,7 @@ class ReconcileRunner:
         logger.info(
             f"'{operation_name.upper()}' job started. Please check the job_url `{job_run_url}` for the current status."
         )
-        if self._prompts.confirm(f"Would you like to open the job run URL `{job_run_url}` in the browser?"):
-            webbrowser.open(job_run_url)
+        return wait, job_run_url
 
     def _get_verified_recon_config(self) -> ReconcileConfig:
         try:

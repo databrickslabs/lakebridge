@@ -2,7 +2,6 @@ from unittest.mock import create_autospec, Mock
 import pytest
 from databricks.labs.blueprint.installation import MockInstallation
 from databricks.labs.blueprint.installer import InstallState
-from databricks.labs.blueprint.tui import MockPrompts
 from databricks.sdk import WorkspaceClient
 from databricks.labs.lakebridge.reconcile.runner import ReconcileRunner
 from databricks.labs.lakebridge.deployment.recon import RECON_JOB_NAME
@@ -12,15 +11,15 @@ def test_run_with_missing_recon_config():
     ws = create_autospec(WorkspaceClient)
     installation = MockInstallation()
     install_state = InstallState.from_installation(installation)
-    prompts = MockPrompts({})
-    recon_runner = ReconcileRunner(ws, installation, install_state, prompts)
+
+    recon_runner = ReconcileRunner(ws, installation, install_state)
     with pytest.raises(SystemExit):
         recon_runner.run()
 
 
 def test_run_with_corrupt_recon_config():
     ws = create_autospec(WorkspaceClient)
-    prompts = MockPrompts({})
+
     installation = MockInstallation(
         {
             "reconcile.yml": {
@@ -42,7 +41,7 @@ def test_run_with_corrupt_recon_config():
         }
     )
     install_state = InstallState.from_installation(installation)
-    recon_runner = ReconcileRunner(ws, installation, install_state, prompts)
+    recon_runner = ReconcileRunner(ws, installation, install_state)
     with pytest.raises(SystemExit):
         recon_runner.run()
 
@@ -76,8 +75,8 @@ def test_run_with_missing_table_config():
         }
     )
     install_state = InstallState.from_installation(installation)
-    prompts = MockPrompts({})
-    recon_runner = ReconcileRunner(ws, installation, install_state, prompts)
+
+    recon_runner = ReconcileRunner(ws, installation, install_state)
     with pytest.raises(SystemExit):
         recon_runner.run()
 
@@ -129,8 +128,8 @@ def test_run_with_corrupt_table_config():
         }
     )
     install_state = InstallState.from_installation(installation)
-    prompts = MockPrompts({})
-    recon_runner = ReconcileRunner(ws, installation, install_state, prompts)
+
+    recon_runner = ReconcileRunner(ws, installation, install_state)
     with pytest.raises(SystemExit):
         recon_runner.run()
 
@@ -181,19 +180,14 @@ def test_run_with_missing_job_id():
         }
     )
     install_state = InstallState.from_installation(installation)
-    prompts = MockPrompts({})
-    recon_runner = ReconcileRunner(ws, installation, install_state, prompts)
+
+    recon_runner = ReconcileRunner(ws, installation, install_state)
     with pytest.raises(SystemExit):
         recon_runner.run()
 
 
 def test_run_with_job_id_in_config():
     ws = create_autospec(WorkspaceClient)
-    prompts = MockPrompts(
-        {
-            r"Would you like to open the job run URL .*": "no",
-        }
-    )
     installation = MockInstallation(
         {
             "reconcile.yml": {
@@ -243,7 +237,7 @@ def test_run_with_job_id_in_config():
     wait.run_id = "rid"
     ws.jobs.run_now.return_value = wait
 
-    recon_runner = ReconcileRunner(ws, installation, install_state, prompts)
+    recon_runner = ReconcileRunner(ws, installation, install_state)
     recon_runner.run()
     ws.jobs.run_now.assert_called_once_with(1234, job_parameters={'operation_name': 'reconcile'})
 
@@ -251,11 +245,6 @@ def test_run_with_job_id_in_config():
 def test_run_with_job_id_in_state(monkeypatch):
     monkeypatch.setattr("webbrowser.open", lambda url: None)
     ws = create_autospec(WorkspaceClient)
-    prompts = MockPrompts(
-        {
-            r"Would you like to open the job run URL .*": "yes",
-        }
-    )
     installation = MockInstallation(
         {
             "state.json": {
@@ -308,7 +297,7 @@ def test_run_with_job_id_in_state(monkeypatch):
     wait.run_id = "rid"
     ws.jobs.run_now.return_value = wait
 
-    recon_runner = ReconcileRunner(ws, installation, install_state, prompts)
+    recon_runner = ReconcileRunner(ws, installation, install_state)
     recon_runner.run()
     ws.jobs.run_now.assert_called_once_with(1234, job_parameters={'operation_name': 'reconcile'})
 
@@ -363,12 +352,12 @@ def test_run_with_failed_execution():
         }
     )
     install_state = InstallState.from_installation(installation)
-    prompts = MockPrompts({})
+
     wait = Mock()
     wait.run_id = None
     ws.jobs.run_now.return_value = wait
 
-    recon_runner = ReconcileRunner(ws, installation, install_state, prompts)
+    recon_runner = ReconcileRunner(ws, installation, install_state)
     with pytest.raises(SystemExit):
         recon_runner.run()
     ws.jobs.run_now.assert_called_once_with(1234, job_parameters={'operation_name': 'reconcile'})
@@ -377,11 +366,6 @@ def test_run_with_failed_execution():
 def test_aggregates_reconcile_run_with_job_id_in_state(monkeypatch):
     monkeypatch.setattr("webbrowser.open", lambda url: None)
     ws = create_autospec(WorkspaceClient)
-    prompts = MockPrompts(
-        {
-            r"Would you like to open the job run URL .*": "yes",
-        }
-    )
     state = {
         "resources": {"jobs": {RECON_JOB_NAME: "1234"}},
         "version": 1,
@@ -449,6 +433,6 @@ def test_aggregates_reconcile_run_with_job_id_in_state(monkeypatch):
     wait.run_id = "rid"
     ws.jobs.run_now.return_value = wait
 
-    recon_runner = ReconcileRunner(ws, installation, install_state, prompts)
+    recon_runner = ReconcileRunner(ws, installation, install_state)
     recon_runner.run(operation_name="aggregates-reconcile")
     ws.jobs.run_now.assert_called_once_with(1234, job_parameters={'operation_name': 'aggregates-reconcile'})
