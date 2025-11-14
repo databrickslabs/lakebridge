@@ -12,7 +12,7 @@ from databricks.labs.lakebridge.reconcile.reconciliation import Reconciliation
 from databricks.labs.lakebridge.reconcile.schema_compare import SchemaCompare
 from databricks.labs.lakebridge.reconcile.trigger_recon_service import TriggerReconService
 from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
-from tests.acceptance.reconcile.test_read_schema import OracleDataSourceUnderTest
+from tests.integration.acceptance.reconcile.test_read_schema import OracleDataSourceUnderTest
 
 
 class DatabricksDataSourceUnderTest(DatabricksDataSource):

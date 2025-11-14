@@ -5,7 +5,6 @@
   "toolchain": {
     "required": ["hatch"],
     "pre_setup": ["hatch env create"],
-    "prepend_path": ".venv/bin",
-    "acceptance_path": "tests/acceptance"
+    "prepend_path": ".venv/bin"
   }
 }

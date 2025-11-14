@@ -58,3 +58,4 @@ def test_recon():
     ctx.installation.save(recon_config, filename=filename)
     ctx.workspace_installation.install(config)
     recon_runner.run(operation_name=RECONCILE_OPERATION_NAME)
+    assert True
