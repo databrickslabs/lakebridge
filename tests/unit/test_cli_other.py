@@ -1,5 +1,5 @@
 import io
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, patch, MagicMock
 
 import pytest
 
@@ -67,12 +67,34 @@ def test_cli_configure_secrets_config(mock_workspace_client):
 
 
 def test_cli_reconcile(mock_workspace_client):
-    with patch("databricks.labs.lakebridge.reconcile.runner.ReconcileRunner.run", return_value=True):
+    ctx_mock = MagicMock()
+    prompts = MockPrompts(
+        {
+            r"Would you like to open the job run URL .*": "no",
+        }
+    )
+    ctx_mock.prompts = prompts
+
+    with (
+        patch("databricks.labs.lakebridge.reconcile.runner.ReconcileRunner.run", return_value=(MagicMock(), True)),
+        patch("databricks.labs.lakebridge.cli.ApplicationContext", return_value=ctx_mock),
+    ):
         cli.reconcile(w=mock_workspace_client)
 
 
 def test_cli_aggregates_reconcile(mock_workspace_client):
-    with patch("databricks.labs.lakebridge.reconcile.runner.ReconcileRunner.run", return_value=True):
+    ctx_mock = MagicMock()
+    prompts = MockPrompts(
+        {
+            r"Would you like to open the job run URL .*": "no",
+        }
+    )
+    ctx_mock.prompts = prompts
+
+    with (
+        patch("databricks.labs.lakebridge.reconcile.runner.ReconcileRunner.run", return_value=(MagicMock(), True)),
+        patch("databricks.labs.lakebridge.cli.ApplicationContext", return_value=ctx_mock),
+    ):
         cli.aggregates_reconcile(w=mock_workspace_client)
 
 
