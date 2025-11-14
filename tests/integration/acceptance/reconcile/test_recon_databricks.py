@@ -1,5 +1,3 @@
-from databricks.sdk import WorkspaceClient
-
 from databricks.labs.lakebridge.config import (
     ReconcileConfig,
     DatabaseConfig,
