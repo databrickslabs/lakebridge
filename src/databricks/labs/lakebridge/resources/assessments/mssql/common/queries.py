@@ -166,8 +166,7 @@ class MSSQLQueries:
                      FROM   sys.dm_os_sys_info),
                  cpu_utilization
                  AS (SELECT record_id,
-                            Dateadd (ms, ( [timestamp] - ms_ticks ), Getdate()) AS EventTime
-                            ,
+                            Dateadd (ms, ( [timestamp] - ms_ticks ), Getdate()) AS EventTime,
                             systemidle,
                             sqlprocessutilization
                      FROM   process_utilization_info
@@ -177,4 +176,153 @@ class MSSQLQueries:
             FROM   cpu_utilization
             {predicate}
             ORDER  BY eventtime
+        """
+
+    @staticmethod
+    def get_sys_info():
+        """
+        Retrieves system-level information from SQL Server using sys.dm_os_sys_info.
+        Returns details about memory, CPU, scheduler count, and other OS-related
+        metadata for the SQL Server instance, along with a timestamp indicating when
+        the data was extracted.
+        """
+        return """
+        SELECT *,
+               Sysdatetime() AS extract_ts
+        FROM   sys.dm_os_sys_info
+        """
+
+    @staticmethod
+    def get_databases():
+        """
+        Retrieve metadata for all user databases, excluding system databases.
+        Returns each database's ID, name, collation, creation date,
+        and a timestamp indicating when the data was extracted.
+        """
+        return """
+            SELECT DB_ID(NAME) AS db_id,
+                   NAME,
+                   collation_name,
+                   create_date,
+                   SYSDATETIME() AS extract_ts
+            FROM   sys.databases
+            WHERE  NAME NOT IN ( 'master', 'tempdb', 'model', 'msdb' );
+          """
+
+    @staticmethod
+    def get_tables(db_name: str):
+        """
+        Retrieves metadata for all tables in the specified database by querying
+        INFORMATION_SCHEMA.TABLES. Returns table definitions along with a timestamp
+        indicating when the data was extracted.
+        """
+        return f"""
+        SELECT
+            *,
+            SYSDATETIME() as extract_ts
+          FROM {db_name}.information_schema.tables
+        """
+
+    @staticmethod
+    def get_views(db_name: str):
+        """
+        Retrieves metadata for all views in the specified database by querying
+        `INFORMATION_SCHEMA.VIEWS`. Returns view definitions along with a timestamp
+        indicating when the data was extracted.
+        """
+        return f"""
+        SELECT
+           *,
+           SYSDATETIME() as extract_ts
+          FROM {db_name}.information_schema.views
+        """
+
+    @staticmethod
+    def get_columns(db_name: str):
+        """
+        Retrieves column-level metadata for all tables and views in the specified
+        database by querying INFORMATION_SCHEMA.COLUMNS. Returns column attributes
+        along with a timestamp indicating when the data was extracted.
+        """
+        return f"""
+        SELECT
+           *,
+           SYSDATETIME() as extract_ts
+        FROM {db_name}.information_schema.columns
+        """
+
+    @staticmethod
+    def get_indexed_views(db_name: str):
+        """
+        Retrieves metadata for all indexed views in the specified database by joining
+        `sys.views` with `sys.indexes`. Returns view details for those with a clustered
+        index (index_id = 1) along with a timestamp indicating when the data was extracted.
+        """
+        return f"""
+        SELECT A.*, SYSDATETIME() as extract_ts
+            FROM {db_name}.sys.views A
+            JOIN {db_name}.sys.indexes B ON A.object_id = B.object_id
+            WHERE B.index_id = 1
+        """
+
+    @staticmethod
+    def get_routines(db_name: str):
+        """
+        Retrieves metadata for all routines (stored procedures and functions) in the
+        specified database by querying INFORMATION_SCHEMA.ROUTINES. Returns routine
+        details along with a timestamp indicating when the data was extracted.
+        """
+        return f"""
+        select
+           *,
+           SYSDATETIME() as extract_ts
+        from {db_name}.information_schema.routines"""
+
+    @staticmethod
+    def get_db_sizes(db_name: str):
+        """
+        Retrieves metadata for all data files (type = 0) in the specified database
+        from sys.database_files. Returns file name, type, current size, free space,
+        maximum size, and a timestamp indicating when the data was extracted.
+        """
+        return f"""
+        SELECT
+           '{db_name}' AS DbName,
+           name AS FileName,
+           type_desc,
+           size/128.0 AS CurrentSizeMB,
+           size/128.0 - CAST(FILEPROPERTY(name, 'SpaceUsed') AS int)/128.0 AS FreeSpaceInMB,
+           max_size as MaxSize,
+           SYSDATETIME() as extract_ts
+          FROM {db_name}.sys.database_files WHERE type=0
+        """
+
+    @staticmethod
+    def get_table_sizes(db_name: str):
+        """
+        Retrieves storage and row count statistics for all user tables in the specified
+        database by querying sys.dm_db_partition_stats and sys.objects. Returns table
+        name, total rows, reserved, used, and unused space (MB), breakdown of data vs.
+        index space, and a timestamp indicating when the data was extracted.
+        """
+        return f"""
+        SELECT
+            o.name AS TableName,
+            SUM(ps.row_count) AS [RowCount],
+            SUM(ps.reserved_page_count) * 8 / 1024 AS ReservedMB,
+            SUM(ps.used_page_count) * 8 / 1024 AS UsedMB,
+            (SUM(ps.reserved_page_count) - SUM(ps.used_page_count)) * 8 / 1024 AS UnusedMB,
+            SUM(CASE
+                    WHEN ps.index_id < 2 THEN ps.in_row_data_page_count + ps.lob_used_page_count + ps.row_overflow_used_page_count
+                    ELSE 0
+                END) * 8 / 1024 AS DataMB,
+            SUM(CASE
+                    WHEN ps.index_id >= 2 THEN ps.in_row_data_page_count
+                    ELSE 0
+                END) * 8 / 1024 AS IndexMB,
+            SYSDATETIME() as extract_ts
+          FROM  {db_name}.sys.dm_db_partition_stats AS ps
+          JOIN  {db_name}sys.objects AS o ON ps.object_id = o.object_id
+          WHERE o.type = 'U'
+          GROUP BY schema_name(o.schema_id), o.name
         """
