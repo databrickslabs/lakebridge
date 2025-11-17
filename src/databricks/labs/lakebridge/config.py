@@ -212,17 +212,7 @@ class TableRecon:
     __file__ = "recon_config.yml"
     __version__ = 1
 
-    source_schema: str
-    target_catalog: str
-    target_schema: str
     tables: list[Table]
-    source_catalog: str | None = None
-
-    def __post_init__(self):
-        self.source_schema = self.source_schema.lower()
-        self.target_schema = self.target_schema.lower()
-        self.target_catalog = self.target_catalog.lower()
-        self.source_catalog = self.source_catalog.lower() if self.source_catalog else self.source_catalog
 
 
 @dataclass
@@ -269,8 +259,6 @@ class ReconcileConfig:
     secret_scope: str
     database_config: DatabaseConfig
     metadata_config: ReconcileMetadataConfig
-    job_id: str | None = None
-    tables: ReconcileTablesConfig | None = None
 
 
 @dataclass

@@ -31,8 +31,7 @@ class ReconcileRunner:
         self._prompts = prompts
 
     def run(self, operation_name=RECONCILE_OPERATION_NAME):
-        reconcile_config = self._get_verified_recon_config()
-        job_id = self._get_recon_job_id(reconcile_config)
+        job_id = self._get_recon_job_id()
         logger.info(f"Triggering the reconcile job with job_id: `{job_id}`")
         wait = self._ws.jobs.run_now(job_id, job_parameters={"operation_name": operation_name})
         if not wait.run_id:
@@ -87,10 +86,7 @@ class ReconcileRunner:
             logger.error(f"{err_msg}. For more details, please refer to the docs {_RECON_DOCS_URL}")
             raise SystemExit(err_msg) from e
 
-    def _get_recon_job_id(self, reconcile_config: ReconcileConfig) -> int:
-        if reconcile_config.job_id:
-            logger.debug("Reconcile job id found in the reconcile config.")
-            return int(reconcile_config.job_id)
+    def _get_recon_job_id(self) -> int:
         if RECON_JOB_NAME in self._install_state.jobs:
             logger.debug("Reconcile job id found in the install state.")
             return int(self._install_state.jobs[RECON_JOB_NAME])
