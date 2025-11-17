@@ -1,0 +1,19 @@
+name: mssql_assessment
+version: "1.0"
+extract_folder: "/tmp/data/mssql_assessment"
+steps:
+  - name: activity_extract
+    type: python
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/mssql/activity_extract.py
+    mode: overwrite
+    frequency: once
+    flag: active
+    dependencies:
+      - pandas
+      - duckdb
+      - databricks-sdk
+      - databricks-labs-blueprint[yaml]>=0.10.1
+      - sqlalchemy
+      - azure-mgmt-sql>=0.5.0
+      - azure-identity>=1.25.1
+      - pyodbc

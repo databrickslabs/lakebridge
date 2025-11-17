@@ -5,10 +5,11 @@ PRODUCT_PATH_PREFIX = Path.home() / ".databricks" / "labs" / PRODUCT_NAME / "lib
 
 PLATFORM_TO_SOURCE_TECHNOLOGY_CFG = {
     "synapse": "src/databricks/labs/lakebridge/resources/assessments/synapse/pipeline_config.yml",
+    "mssql": "src/databricks/labs/lakebridge/resources/assessments/mssql/pipeline_config.yml",
 }
 
 # TODO modify this PLATFORM_TO_SOURCE_TECHNOLOGY.keys() once all platforms are supported
-PROFILER_SOURCE_SYSTEM = ["synapse"]
+PROFILER_SOURCE_SYSTEM = ["synapse", "mssql"]
 
 
 # This flag indicates whether a connector is required for the source system when pipeline is trigger
