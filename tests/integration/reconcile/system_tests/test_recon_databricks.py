@@ -41,7 +41,7 @@ source_catalog_or_schema = (
 filename = f"recon_config_{recon_config.data_source}_{source_catalog_or_schema}_{recon_config.report_type}.json"
 
 
-def test_recon(ws):
+def test_recon_databricks(ws) -> None:
     ctx = ApplicationContext(ws)
     recon_runner = ReconcileRunner(
         ctx.workspace_client,
