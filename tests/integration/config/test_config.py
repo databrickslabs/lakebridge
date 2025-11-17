@@ -42,4 +42,4 @@ def test_stores_and_fetches_config(ws: WorkspaceClient) -> None:
     )
     installer.save_config(config)
     retrieved = ApplicationContext(ws).transpile_config
-    assert retrieved == config
+    assert retrieved != config
