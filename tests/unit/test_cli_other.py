@@ -86,7 +86,7 @@ def test_cli_aggregates_reconcile(mock_workspace_client):
     ctx_mock = MagicMock()
     prompts = MockPrompts(
         {
-            r"Would you like to open the job run URL .*": "no",
+            r"Would you like to open the job run URL .*": "yes",
         }
     )
     ctx_mock.prompts = prompts
