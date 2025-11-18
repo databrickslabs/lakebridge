@@ -35,6 +35,7 @@ def execute():
             # Extract activity metrics
             server_name = sql_server.name
             logger.info(f"Extracting activity metrics for: {server_name}")
+            print(f"Extracting activity metrics for: {server_name}")
             fully_qualified_domain = sql_server.fully_qualified_domain_name
             connection = get_sqlserver_reader(
                 config, db_name="master", fully_qualified_domain_name=fully_qualified_domain, auth_type=auth_type
