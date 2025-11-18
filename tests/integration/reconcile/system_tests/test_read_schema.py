@@ -95,6 +95,13 @@ def test_databricks_read_schema_happy(mock_spark):
     assert columns
 
 
+def test_databricks_read_schema_happy_sandbox(spark, ws):
+    connector = DatabricksDataSource(get_dialect("databricks"), spark, ws, "my_secret")
+
+    columns = connector.get_schema("main", "lakebridge", "diamonds")
+    assert columns
+
+
 # FIXME
 # 1. Deploy Oracle Free
 # 2. Add credentials to the test env getter
