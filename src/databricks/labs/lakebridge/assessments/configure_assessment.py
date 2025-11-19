@@ -87,18 +87,25 @@ class ConfigureSqlServerAssessment(AssessmentConfigurator):
         secret_vault_type = str(self.prompts.choice("Enter secret vault type (local | env)", ["local", "env"])).lower()
         secret_vault_name = None
 
-        logger.info("Please refer to the documentation to understand the difference between local and env.")
-
+        # Profiler settings
+        logger.info("Please configure profiler settings:")
+        mssql_profiler = {
+            "redact_sql_pools_sql_text": self.prompts.confirm("Redact SQL pools SQL text?"),
+        }
         credential = {
             "secret_vault_type": secret_vault_type,
             "secret_vault_name": secret_vault_name,
             source: {
-                "database": self.prompts.question("Enter the database name"),
-                "driver": self.prompts.question("Enter the driver details"),
+                "db_names": self.prompts.question("Enter the database names (comma-separated)"),
+                "driver": self.prompts.question(
+                    "Enter the ODBC driver installed locally", default="ODBC Driver 18 for SQL Server"
+                ),
                 "server": self.prompts.question("Enter the server or host details"),
                 "port": int(self.prompts.question("Enter the port details", valid_number=True)),
                 "user": self.prompts.question("Enter the user details"),
                 "password": self.prompts.password("Enter the password details"),
+                "tz_info": self.prompts.question("Enter timezone (e.g. America/New_York)", default="UTC"),
+                "profiler": mssql_profiler,
             },
         }
 

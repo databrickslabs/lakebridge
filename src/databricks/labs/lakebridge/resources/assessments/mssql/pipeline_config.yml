@@ -14,8 +14,8 @@ steps:
       - databricks-sdk
       - databricks-labs-blueprint[yaml]>=0.10.1
       - sqlalchemy
-      - azure-mgmt-sql>=0.5.0
-      - azure-identity>=1.25.1
+      - azure-mgmt-sql
+      - azure-identity
       - pyodbc
   - name: info_extract
     type: python
@@ -29,6 +29,6 @@ steps:
       - databricks-sdk
       - databricks-labs-blueprint[yaml]>=0.10.1
       - sqlalchemy
-      - azure-mgmt-sql>=0.5.0
-      - azure-identity>=1.25.1
+      - azure-mgmt-sql
+      - azure-identity
       - pyodbc
