@@ -325,8 +325,15 @@ flowchart TD
     subgraph processing ["Notebook Processing Workflow"]
         direction TB
         analyze[analyze_input_files] e2@==> convert[convert_with_llm]
-        convert e3@==> validate[validate_python_notebook]
-        validate e4@==> fix[fix_syntax_with_llm]
+
+        %% Branch: decide validation path
+        convert -->|if SDP| validate_sdp[validate_sdp]
+        convert e3@==>|if NOT SDP| validate_nb[validate_python_notebook]
+
+        %% Downstream connections
+        validate_nb e4@==> fix[fix_syntax_with_llm]
+        validate_sdp ----> fix  %% both validations flow to fix_syntax
+
         fix e5@==> split[split_code_into_cells]
         split e6@==> export[export_to_notebook]
         export -.-> sqlExport["convert_notebook_to_sql<br>(Optional)"]
