@@ -99,7 +99,7 @@ profiler_dashboards = "databricks.labs.lakebridge.assessments.dashboards.execute
 [tool.hatch.envs.default.scripts]
 test           = "pytest --cov src --cov-report=xml tests/unit"
 test-install   = "pytest --cov src --cov-report=xml tests/integration/install"
-test-reconcile = "pytest --cov src tests/integration/reconcile --ignore=tests/integration/reconcile/system_tests --durations 20"
+test-reconcile = "pytest --cov src tests/integration/reconcile --durations 20"
 coverage       = "pytest --cov src tests --cov-report=html --ignore=tests/integration/install --ignore=tests/integration/connections --ignore=tests/integration/assessments"
 fmt            = ["black .",
                      "ruff  check . --fix",
