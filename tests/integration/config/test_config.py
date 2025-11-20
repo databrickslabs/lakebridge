@@ -1,3 +1,5 @@
+from unittest.mock import MagicMock
+
 from databricks.sdk import WorkspaceClient
 
 from databricks.labs.blueprint.tui import MockPrompts
@@ -26,6 +28,7 @@ def test_stores_and_fetches_config(ws: WorkspaceClient) -> None:
         context.install_state,
         context.product_info,
         context.resource_configurator,
+        MagicMock(),
         context.workspace_installation,
     )
     config = TranspileConfig(

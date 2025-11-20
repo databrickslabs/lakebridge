@@ -1,7 +1,7 @@
 import logging
 from collections.abc import Callable, Generator, Sequence
 from pathlib import Path
-from unittest.mock import create_autospec, patch
+from unittest.mock import create_autospec, patch, MagicMock
 
 import pytest
 from databricks.labs.blueprint.installation import JsonObject, MockInstallation
@@ -17,10 +17,12 @@ from databricks.labs.lakebridge.config import (
     ReconcileConfig,
     ReconcileMetadataConfig,
     TranspileConfig,
+    ReconcileCredentialConfig,
 )
 from databricks.labs.lakebridge.contexts.application import ApplicationContext
 from databricks.labs.lakebridge.deployment.configurator import ResourceConfigurator
 from databricks.labs.lakebridge.deployment.installation import WorkspaceInstallation
+from databricks.labs.lakebridge.helpers.recon_config_utils import ReconConfigPrompts
 from databricks.labs.lakebridge.install import WorkspaceInstaller
 from databricks.labs.lakebridge.reconcile.constants import ReconSourceType, ReconReportType
 from databricks.labs.lakebridge.transpiler.installers import (
@@ -91,6 +93,7 @@ def test_workspace_installer_run_raise_error_in_dbr(ws: WorkspaceClient) -> None
             ctx.install_state,
             ctx.product_info,
             ctx.resource_configurator,
+            MagicMock(),
             ctx.workspace_installation,
             environ=environ,
         )
@@ -116,6 +119,7 @@ def test_workspace_installer_run_install_not_called_in_test(
         ctx.install_state,
         ctx.product_info,
         ctx.resource_configurator,
+        MagicMock(),
         ctx.workspace_installation,
     )
 
@@ -143,6 +147,7 @@ def test_workspace_installer_run_install_called_with_provided_config(
         ctx.install_state,
         ctx.product_info,
         ctx.resource_configurator,
+        MagicMock(),
         ctx.workspace_installation,
     )
 
@@ -165,6 +170,7 @@ def test_configure_error_if_invalid_module_selected(ws: WorkspaceClient) -> None
         ctx.install_state,
         ctx.product_info,
         ctx.resource_configurator,
+        MagicMock(),
         ctx.workspace_installation,
     )
 
@@ -204,6 +210,7 @@ def test_workspace_installer_run_install_called_with_generated_config(
         ctx.install_state,
         ctx.product_info,
         ctx.resource_configurator,
+        MagicMock(),
         ctx.workspace_installation,
     )
     workspace_installer.run("transpile")
@@ -254,6 +261,7 @@ def test_configure_transpile_no_existing_installation(
         ctx.install_state,
         ctx.product_info,
         ctx.resource_configurator,
+        MagicMock(),
         ctx.workspace_installation,
     )
 
@@ -323,6 +331,7 @@ def test_configure_transpile_installation_no_override(ws: WorkspaceClient) -> No
         ctx.install_state,
         ctx.product_info,
         ctx.resource_configurator,
+        MagicMock(),
         ctx.workspace_installation,
     )
     remorph_config = workspace_installer.configure(module="transpile")
@@ -384,6 +393,7 @@ def test_configure_transpile_installation_config_error_continue_install(
         ctx.install_state,
         ctx.product_info,
         ctx.resource_configurator,
+        MagicMock(),
         ctx.workspace_installation,
     )
 
@@ -447,6 +457,7 @@ def test_configure_transpile_installation_with_no_validation(ws, ws_installer):
         ctx.install_state,
         ctx.product_info,
         ctx.resource_configurator,
+        MagicMock(),
         ctx.workspace_installation,
     )
 
@@ -518,6 +529,7 @@ def test_configure_transpile_installation_with_validation_and_warehouse_id_from_
         ctx.install_state,
         ctx.product_info,
         ctx.resource_configurator,
+        MagicMock(),
         ctx.workspace_installation,
     )
 
@@ -594,6 +606,7 @@ def test_configure_reconcile_installation_no_override(ws: WorkspaceClient) -> No
         ctx.install_state,
         ctx.product_info,
         ctx.resource_configurator,
+        MagicMock(),
         ctx.workspace_installation,
     )
     with pytest.raises(SystemExit):
@@ -646,6 +659,9 @@ def test_configure_reconcile_installation_config_error_continue_install(ws: Work
         workspace_installation=create_autospec(WorkspaceInstallation),
     )
 
+    creds_mock = MagicMock(ReconConfigPrompts)
+    creds_sample = ReconcileCredentialConfig("local", {"test_secret": "dummy"})
+    creds_mock.prompt_recon_creds.return_value = (creds_sample.vault_type, creds_sample.source_creds)
     workspace_installer = WorkspaceInstaller(
         ctx.workspace_client,
         ctx.prompts,
@@ -653,6 +669,7 @@ def test_configure_reconcile_installation_config_error_continue_install(ws: Work
         ctx.install_state,
         ctx.product_info,
         ctx.resource_configurator,
+        creds_mock,
         ctx.workspace_installation,
     )
     config = workspace_installer.configure(module="reconcile")
@@ -661,7 +678,7 @@ def test_configure_reconcile_installation_config_error_continue_install(ws: Work
         reconcile=ReconcileConfig(
             data_source="oracle",
             report_type="all",
-            secret_scope="remorph_oracle",
+            secret_scope="NOT_USED",
             database_config=DatabaseConfig(
                 source_schema="tpch_sf1000",
                 target_catalog="tpch",
@@ -672,6 +689,7 @@ def test_configure_reconcile_installation_config_error_continue_install(ws: Work
                 schema="reconcile",
                 volume="reconcile_volume",
             ),
+            creds_or_secret_scope=creds_sample,
         ),
         transpile=None,
     )
@@ -681,7 +699,7 @@ def test_configure_reconcile_installation_config_error_continue_install(ws: Work
         {
             "data_source": "oracle",
             "report_type": "all",
-            "secret_scope": "remorph_oracle",
+            "secret_scope": "NOT_USED",
             "database_config": {
                 "source_schema": "tpch_sf1000",
                 "target_catalog": "tpch",
@@ -692,6 +710,7 @@ def test_configure_reconcile_installation_config_error_continue_install(ws: Work
                 "schema": "reconcile",
                 "volume": "reconcile_volume",
             },
+            "creds_or_secret_scope": {"vault_type": "local", "source_creds": {"test_secret": "dummy"}},
             "version": 1,
         },
     )
@@ -703,7 +722,6 @@ def test_configure_reconcile_no_existing_installation(ws: WorkspaceClient) -> No
         {
             r"Select the Data Source": str(RECONCILE_DATA_SOURCES.index("snowflake")),
             r"Select the report type": str(RECONCILE_REPORT_TYPES.index("all")),
-            r"Enter Secret scope name to store .* connection details / secrets": "remorph_snowflake",
             r"Enter source catalog name for .*": "snowflake_sample_data",
             r"Enter source schema name for .*": "tpch_sf1000",
             r"Enter target catalog name for Databricks": "tpch",
@@ -725,6 +743,9 @@ def test_configure_reconcile_no_existing_installation(ws: WorkspaceClient) -> No
         workspace_installation=create_autospec(WorkspaceInstallation),
     )
 
+    creds_mock = MagicMock(ReconConfigPrompts)
+    creds_sample = ReconcileCredentialConfig("local", {"test_secret": "dummy"})
+    creds_mock.prompt_recon_creds.return_value = (creds_sample.vault_type, creds_sample.source_creds)
     workspace_installer = WorkspaceInstaller(
         ctx.workspace_client,
         ctx.prompts,
@@ -732,6 +753,7 @@ def test_configure_reconcile_no_existing_installation(ws: WorkspaceClient) -> No
         ctx.install_state,
         ctx.product_info,
         ctx.resource_configurator,
+        creds_mock,
         ctx.workspace_installation,
     )
     config = workspace_installer.configure(module="reconcile")
@@ -740,7 +762,7 @@ def test_configure_reconcile_no_existing_installation(ws: WorkspaceClient) -> No
         reconcile=ReconcileConfig(
             data_source="snowflake",
             report_type="all",
-            secret_scope="remorph_snowflake",
+            secret_scope="NOT_USED",
             database_config=DatabaseConfig(
                 source_schema="tpch_sf1000",
                 target_catalog="tpch",
@@ -752,6 +774,7 @@ def test_configure_reconcile_no_existing_installation(ws: WorkspaceClient) -> No
                 schema="reconcile",
                 volume="reconcile_volume",
             ),
+            creds_or_secret_scope=creds_sample,
         ),
         transpile=None,
     )
@@ -761,7 +784,7 @@ def test_configure_reconcile_no_existing_installation(ws: WorkspaceClient) -> No
         {
             "data_source": "snowflake",
             "report_type": "all",
-            "secret_scope": "remorph_snowflake",
+            "secret_scope": "NOT_USED",
             "database_config": {
                 "source_catalog": "snowflake_sample_data",
                 "source_schema": "tpch_sf1000",
@@ -773,6 +796,7 @@ def test_configure_reconcile_no_existing_installation(ws: WorkspaceClient) -> No
                 "schema": "reconcile",
                 "volume": "reconcile_volume",
             },
+            "creds_or_secret_scope": {"vault_type": "local", "source_creds": {"test_secret": "dummy"}},
             "version": 1,
         },
     )
@@ -794,7 +818,6 @@ def test_configure_all_override_installation(
             r"Open .* in the browser?": "no",
             r"Select the Data Source": str(RECONCILE_DATA_SOURCES.index("snowflake")),
             r"Select the report type": str(RECONCILE_REPORT_TYPES.index("all")),
-            r"Enter Secret scope name to store .* connection details / secrets": "remorph_snowflake",
             r"Enter source catalog name for .*": "snowflake_sample_data",
             r"Enter source schema name for .*": "tpch_sf1000",
             r"Enter target catalog name for Databricks": "tpch",
@@ -819,7 +842,7 @@ def test_configure_all_override_installation(
             "reconcile.yml": {
                 "data_source": "snowflake",
                 "report_type": "all",
-                "secret_scope": "remorph_snowflake",
+                "secret_scope": "NOT_USED",
                 "database_config": {
                     "source_catalog": "snowflake_sample_data",
                     "source_schema": "tpch_sf1000",
@@ -849,6 +872,9 @@ def test_configure_all_override_installation(
         workspace_installation=create_autospec(WorkspaceInstallation),
     )
 
+    creds_mock = MagicMock(ReconConfigPrompts)
+    creds_sample = ReconcileCredentialConfig("local", {"test_secret": "dummy"})
+    creds_mock.prompt_recon_creds.return_value = (creds_sample.vault_type, creds_sample.source_creds)
     workspace_installer = ws_installer(
         ctx.workspace_client,
         ctx.prompts,
@@ -856,6 +882,7 @@ def test_configure_all_override_installation(
         ctx.install_state,
         ctx.product_info,
         ctx.resource_configurator,
+        creds_mock,
         ctx.workspace_installation,
     )
 
@@ -876,7 +903,7 @@ def test_configure_all_override_installation(
     expected_reconcile_config = ReconcileConfig(
         data_source="snowflake",
         report_type="all",
-        secret_scope="remorph_snowflake",
+        secret_scope="NOT_USED",
         database_config=DatabaseConfig(
             source_schema="tpch_sf1000",
             target_catalog="tpch",
@@ -888,6 +915,7 @@ def test_configure_all_override_installation(
             schema="reconcile",
             volume="reconcile_volume",
         ),
+        creds_or_secret_scope=creds_sample,
     )
     expected_config = LakebridgeConfiguration(transpile=expected_transpile_config, reconcile=expected_reconcile_config)
     assert config == expected_config
@@ -911,7 +939,7 @@ def test_configure_all_override_installation(
         {
             "data_source": "snowflake",
             "report_type": "all",
-            "secret_scope": "remorph_snowflake",
+            "secret_scope": "NOT_USED",
             "database_config": {
                 "source_catalog": "snowflake_sample_data",
                 "source_schema": "tpch_sf1000",
@@ -923,6 +951,7 @@ def test_configure_all_override_installation(
                 "schema": "reconcile",
                 "volume": "reconcile_volume",
             },
+            "creds_or_secret_scope": {"vault_type": "local", "source_creds": {"test_secret": "dummy"}},
             "version": 1,
         },
     )
@@ -989,6 +1018,7 @@ def test_runs_upgrades_on_more_recent_version(
         ctx.install_state,
         ctx.product_info,
         ctx.resource_configurator,
+        MagicMock(),
         ctx.workspace_installation,
     )
 
@@ -1059,6 +1089,7 @@ def test_runs_and_stores_confirm_config_option(
         ctx.install_state,
         ctx.product_info,
         ctx.resource_configurator,
+        MagicMock(),
         ctx.workspace_installation,
         transpiler_repository=_TranspilerRepository(),
     )
@@ -1148,6 +1179,7 @@ def test_runs_and_stores_force_config_option(
         ctx.install_state,
         ctx.product_info,
         ctx.resource_configurator,
+        MagicMock(),
         ctx.workspace_installation,
         transpiler_repository=transpiler_repository,
     )
@@ -1230,6 +1262,7 @@ def test_runs_and_stores_question_config_option(
         ctx.install_state,
         ctx.product_info,
         ctx.resource_configurator,
+        MagicMock(),
         ctx.workspace_installation,
         transpiler_repository=transpiler_repository,
     )
@@ -1318,6 +1351,7 @@ def test_runs_and_stores_choice_config_option(
         ctx.install_state,
         ctx.product_info,
         ctx.resource_configurator,
+        MagicMock(),
         ctx.workspace_installation,
         transpiler_repository=transpiler_repository,
     )
@@ -1372,6 +1406,7 @@ def test_installer_detects_installed_transpilers(
         ctx.install_state,
         ctx.product_info,
         ctx.resource_configurator,
+        MagicMock(),
         ctx.workspace_installation,
         transpiler_repository=mock_repository,
     )
@@ -1433,6 +1468,7 @@ def test_installer_upgrade_installed_transpilers(
         ctx.install_state,
         ctx.product_info,
         ctx.resource_configurator,
+        MagicMock(),
         ctx.workspace_installation,
         transpiler_repository=mock_repository,
         transpiler_installers=(baz_installer.mock_factory, bar_installer.mock_factory),
@@ -1510,6 +1546,7 @@ def test_installer_upgrade_configure_if_changed(
         ctx.install_state,
         ctx.product_info,
         ctx.resource_configurator,
+        MagicMock(),
         ctx.workspace_installation,
         transpiler_repository=mock_repository,
         transpiler_installers=(MockTranspilerInstaller,),
@@ -1568,6 +1605,7 @@ def test_no_reconfigure_if_noninteractive(
         ctx.install_state,
         ctx.product_info,
         ctx.resource_configurator,
+        MagicMock(),
         ctx.workspace_installation,
         is_interactive=False,
     )
@@ -1601,6 +1639,7 @@ def test_no_configure_if_noninteractive(
         ctx.install_state,
         ctx.product_info,
         ctx.resource_configurator,
+        MagicMock(),
         ctx.workspace_installation,
         is_interactive=False,
     )
@@ -1641,6 +1680,7 @@ def test_transpiler_installers_llm_flag(
         ctx.install_state,
         ctx.product_info,
         ctx.resource_configurator,
+        MagicMock(),
         ctx.workspace_installation,
         is_interactive=False,
         **kw_args,

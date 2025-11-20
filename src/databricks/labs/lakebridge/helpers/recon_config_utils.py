@@ -10,7 +10,6 @@ logger = logging.getLogger(__name__)
 
 class ReconConfigPrompts:
     def __init__(self, ws: WorkspaceClient, prompts: Prompts = Prompts()):
-        self._source = None
         self._prompts = prompts
         self._ws = ws
 
@@ -87,14 +86,7 @@ class ReconConfigPrompts:
             self._store_secret(scope_name, secret_key, value)
             logger.info(f"{info_op} Secret: *{secret_key}* in Scope: `{scope_name}`")
 
-    def prompt_source(self):
-        source = self._prompts.choice(
-            "Select the source dialect", [source_type.value for source_type in ReconSourceType]
-        )
-        self._source = source
-        return source
-
-    def _prompt_snowflake_connection_details(self) -> tuple[str, dict[str, str]]:
+    def _prompt_snowflake_connection_details(self) -> dict[str, str]:
         """
         Prompt for Snowflake connection details
         :return: tuple[str, dict[str, str]]
@@ -103,30 +95,38 @@ class ReconConfigPrompts:
             f"Please answer a couple of questions to configure `{ReconSourceType.SNOWFLAKE.value}` Connection profile"
         )
 
-        sf_url = self._prompts.question("Enter Snowflake URL")
-        account = self._prompts.question("Enter Account Name")
-        sf_user = self._prompts.question("Enter User")
-        sf_password = self._prompts.question("Enter Password")
-        sf_db = self._prompts.question("Enter Database")
-        sf_schema = self._prompts.question("Enter Schema")
-        sf_warehouse = self._prompts.question("Enter Snowflake Warehouse")
-        sf_role = self._prompts.question("Enter Role", default=" ")
+        sf_url = self._prompts.question("Enter Snowflake URL Secret")
+        sf_user = self._prompts.question("Enter User Secret")
+        password_dict = {}
+        sf_password = self._prompts.question("Enter Password Secret if using password authentication else leave blank")
+        if not sf_password:
+            logger.info("Proceeding with PEM Private Key authentication...")
+            sf_pem_key = self._prompts.question("Enter PEM Private Key Secret")
+            password_dict["pem_private_key"] = sf_pem_key
+            sf_pem_key_password = self._prompts.question(
+                "Enter PEM Private Key Password Secret if used else leave blank"
+            )
+            if sf_pem_key_password:
+                password_dict["pem_private_key_password"] = sf_pem_key_password
+        else:
+            password_dict["sfPassword"] = sf_password
+        sf_db = self._prompts.question("Enter Database Secret")
+        sf_schema = self._prompts.question("Enter Schema Secret")
+        sf_warehouse = self._prompts.question("Enter Snowflake Warehouse Secret")
+        sf_role = self._prompts.question("Enter Role Secret")
 
         sf_conn_details = {
             "sfUrl": sf_url,
-            "account": account,
             "sfUser": sf_user,
-            "sfPassword": sf_password,
             "sfDatabase": sf_db,
             "sfSchema": sf_schema,
             "sfWarehouse": sf_warehouse,
             "sfRole": sf_role,
-        }
+        } | password_dict
 
-        sf_conn_dict = (ReconSourceType.SNOWFLAKE.value, sf_conn_details)
-        return sf_conn_dict
+        return sf_conn_details
 
-    def _prompt_oracle_connection_details(self) -> tuple[str, dict[str, str]]:
+    def _prompt_oracle_connection_details(self) -> dict[str, str]:
         """
         Prompt for Oracle connection details
         :return: tuple[str, dict[str, str]]
@@ -134,43 +134,67 @@ class ReconConfigPrompts:
         logger.info(
             f"Please answer a couple of questions to configure `{ReconSourceType.ORACLE.value}` Connection profile"
         )
-        user = self._prompts.question("Enter User")
-        password = self._prompts.question("Enter Password")
-        host = self._prompts.question("Enter host")
-        port = self._prompts.question("Enter port")
-        database = self._prompts.question("Enter database/SID")
+        user = self._prompts.question("Enter User Secret")
+        password = self._prompts.question("Enter Password Secret")
+        host = self._prompts.question("Enter host Secret")
+        port = self._prompts.question("Enter port Secret")
+        database = self._prompts.question("Enter database/SID Secret")
 
         oracle_conn_details = {"user": user, "password": password, "host": host, "port": port, "database": database}
 
-        oracle_conn_dict = (ReconSourceType.ORACLE.value, oracle_conn_details)
-        return oracle_conn_dict
+        return oracle_conn_details
 
-    def _connection_details(self):
+    def _prompt_mssql_connection_details(self) -> dict[str, str]:
         """
-        Prompt for connection details based on the source
-        :return: None
+        Prompt for Oracle connection details
+        :return: tuple[str, dict[str, str]]
         """
-        logger.debug(f"Prompting for `{self._source}` connection details")
-        match self._source:
+        logger.info(
+            f"Please answer a couple of questions to configure `{ReconSourceType.MSSQL.value}`/`{ReconSourceType.SYNAPSE.value}` Connection profile"
+        )
+        user = self._prompts.question("Enter User Secret")
+        password = self._prompts.question("Enter Password Secret")
+        host = self._prompts.question("Enter host Secret")
+        port = self._prompts.question("Enter port Secret")
+        database = self._prompts.question("Enter database Secret")
+        encrypt = self._prompts.question("Enter Encrypt Secret")
+        trust_server_certificate = self._prompts.question("Enter Trust Server Certificate Secret")
+
+        tsql_conn_details = {
+            "user": user,
+            "password": password,
+            "host": host,
+            "port": port,
+            "database": database,
+            "encrypt": encrypt,
+            "trustServerCertificate": trust_server_certificate,
+        }
+
+        return tsql_conn_details
+
+    def _connection_details(self, source: str):
+        logger.debug(f"Prompting for `{source}` connection details")
+        match source:
             case ReconSourceType.SNOWFLAKE.value:
                 return self._prompt_snowflake_connection_details()
             case ReconSourceType.ORACLE.value:
                 return self._prompt_oracle_connection_details()
+            case ReconSourceType.MSSQL.value | ReconSourceType.SYNAPSE.value:
+                return self._prompt_mssql_connection_details()
 
-    def prompt_and_save_connection_details(self):
-        """
-        Prompt for connection details and save them as Secrets in Databricks Workspace
-        """
-        # prompt for connection_details only if source is other than Databricks
-        if self._source == ReconSourceType.DATABRICKS.value:
-            logger.info("*Databricks* as a source is supported only for **Hive MetaStore (HMS) setup**")
-            return
+    def prompt_recon_creds(self, source: str):
+        logger.info(
+            "\n(local | env | databricks) \nlocal means values are read as plain text \nenv means values are read "
+            "from environment variables fall back to plain text if not variable is not found\ndatabricks means values are read from Databricks Secrets\n",
+        )
+        secret_vault_type = str(
+            self._prompts.choice("Enter secret vault type (local | env | databricks)", ["local", "env", "databricks"])
+        ).lower()
 
-        # Prompt for secret scope
-        scope_name = self._prompts.question("Enter Secret Scope name")
-        self._ensure_scope_exists(scope_name)
+        if secret_vault_type == "databricks":
+            logger.info(
+                "Since you have chosen `databricks` as secret vault type, you need to provide secret names in the following steps in the format <secret_scope>/<secret_key>"
+            )
 
-        # Prompt for connection details
-        connection_details = self._connection_details()
-        logger.debug(f"Storing `{self._source}` connection details as Secrets in Databricks Workspace...")
-        self.store_connection_secrets(scope_name, connection_details)
+        connection_details = self._connection_details(source)
+        return secret_vault_type, connection_details

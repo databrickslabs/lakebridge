@@ -20,10 +20,12 @@ from databricks.labs.lakebridge.config import (
     LakebridgeConfiguration,
     ReconcileMetadataConfig,
     TranspileConfig,
+    ReconcileCredentialConfig,
 )
 from databricks.labs.lakebridge.contexts.application import ApplicationContext
 from databricks.labs.lakebridge.deployment.configurator import ResourceConfigurator
 from databricks.labs.lakebridge.deployment.installation import WorkspaceInstallation
+from databricks.labs.lakebridge.helpers.recon_config_utils import ReconConfigPrompts
 from databricks.labs.lakebridge.reconcile.constants import ReconReportType, ReconSourceType
 from databricks.labs.lakebridge.transpiler.installers import (
     BladebridgeInstaller,
@@ -47,6 +49,7 @@ class WorkspaceInstaller:
         install_state: InstallState,
         product_info: ProductInfo,
         resource_configurator: ResourceConfigurator,
+        recon_creds_prompts: ReconConfigPrompts,
         workspace_installation: WorkspaceInstallation,
         environ: dict[str, str] | None = None,
         *,
@@ -64,6 +67,7 @@ class WorkspaceInstaller:
         self._install_state = install_state
         self._product_info = product_info
         self._resource_configurator = resource_configurator
+        self._recon_creds_prompts = recon_creds_prompts
         self._ws_installation = workspace_installation
         # TODO: Refactor the 'prompts' property in preference to using this flag, which should be redundant.
         self._is_interactive = is_interactive
@@ -325,10 +329,10 @@ class WorkspaceInstaller:
         report_type = self._prompts.choice(
             "Select the report type:", [report_type.value for report_type in ReconReportType]
         )
-        scope_name = self._prompts.question(  # TODO deprecate
-            f"Enter Secret scope name to store `{data_source.capitalize()}` connection details / secrets",
-            default=f"remorph_{data_source}",
-        )
+        creds_or_secret_scope: str | ReconcileCredentialConfig = "NOT_USED"
+        if data_source != ReconSourceType.DATABRICKS.value:
+            vault, credentials = self._recon_creds_prompts.prompt_recon_creds(data_source)
+            creds_or_secret_scope = ReconcileCredentialConfig(vault, credentials)
 
         db_config = self._prompt_for_reconcile_database_config(data_source)
         metadata_config = self._prompt_for_reconcile_metadata_config()
@@ -336,9 +340,10 @@ class WorkspaceInstaller:
         return ReconcileConfig(
             data_source=data_source,
             report_type=report_type,
-            secret_scope=scope_name,
+            secret_scope="NOT_USED",
             database_config=db_config,
             metadata_config=metadata_config,
+            creds_or_secret_scope=creds_or_secret_scope,
         )
 
     def _prompt_for_reconcile_database_config(self, source) -> DatabaseConfig:
@@ -410,6 +415,7 @@ def installer(
         app_context.install_state,
         app_context.product_info,
         app_context.resource_configurator,
+        ReconConfigPrompts(ws, app_context.prompts),
         app_context.workspace_installation,
         transpiler_repository=transpiler_repository,
         is_interactive=is_interactive,
