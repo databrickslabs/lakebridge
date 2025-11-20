@@ -30,8 +30,13 @@ class SwitchRunner:
         schema: str,
         foundation_model: str,
         job_id: int,
+        output_sdp: bool = False,
     ) -> RootJsonValue:
         """Trigger Switch job."""
+
+        switch_options = {}
+        if output_sdp:
+            switch_options["output_sdp"] = "true"
 
         job_params = self._build_job_parameters(
             input_dir=volume_input_path,
@@ -40,6 +45,7 @@ class SwitchRunner:
             catalog=catalog,
             schema=schema,
             foundation_model=foundation_model,
+            switch_options=switch_options,
         )
         logger.info(f"Triggering Switch job with job_id: {job_id}")
 
@@ -55,7 +61,7 @@ class SwitchRunner:
         """Upload local files to UC Volume with unique timestamped path."""
         now = datetime.now(timezone.utc)
         time_part = now.strftime("%Y%m%d%H%M%S")
-        random_part = ''.join(random.choices(string.ascii_lowercase + string.digits, k=4))
+        random_part = "".join(random.choices(string.ascii_lowercase + string.digits, k=4))
         volume_base_path = f"/Volumes/{catalog}/{schema}/{volume}"
         volume_input_path = f"{volume_base_path}/input-{time_part}-{random_part}"
 
@@ -63,11 +69,11 @@ class SwitchRunner:
 
         # File upload
         if local_path.is_file():
-            if local_path.name.startswith('.'):
+            if local_path.name.startswith("."):
                 logger.debug(f"Skipping hidden file: {local_path}")
                 return volume_input_path
             volume_file_path = f"{volume_input_path}/{local_path.name}"
-            with open(local_path, 'rb') as f:
+            with open(local_path, "rb") as f:
                 content = f.read()
             self._ws.files.upload(file_path=volume_file_path, contents=io.BytesIO(content), overwrite=True)
             logger.debug(f"Uploaded: {local_path} -> {volume_file_path}")
@@ -76,15 +82,15 @@ class SwitchRunner:
         else:
             for root, dirs, files in os.walk(local_path):
                 # remove hidden directories
-                dirs[:] = [d for d in dirs if not d.startswith('.')]
+                dirs[:] = [d for d in dirs if not d.startswith(".")]
                 # skip hidden files
-                files = [f for f in files if not f.startswith('.')]
+                files = [f for f in files if not f.startswith(".")]
                 for file in files:
                     local_file = Path(root) / file
                     relative_path = local_file.relative_to(local_path)
                     volume_file_path = f"{volume_input_path}/{relative_path}"
 
-                    with open(local_file, 'rb') as f:
+                    with open(local_file, "rb") as f:
                         content = f.read()
 
                     self._ws.files.upload(file_path=volume_file_path, contents=io.BytesIO(content), overwrite=True)

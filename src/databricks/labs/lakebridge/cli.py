@@ -73,7 +73,6 @@ def raise_validation_exception(msg: str) -> NoReturn:
 
 
 def _create_warehouse(ws: WorkspaceClient) -> str:
-
     dbsql = ws.warehouses.create_and_wait(
         name=f"lakebridge-warehouse-{time.time_ns()}",
         warehouse_type=CreateWarehouseRequestWarehouseType.PRO,
@@ -838,7 +837,6 @@ def _validate_llm_transpile_args(
     source_dialect: str | None,
     prompts: Prompts,
 ) -> tuple[str, str, str]:
-
     _switch_dialects = get_switch_dialects()
 
     # Validate presence after attempting to source from config
@@ -879,6 +877,7 @@ def llm_transpile(
     schema_name: str | None = None,
     volume: str | None = None,
     foundation_model: str | None = None,
+    output_sdp: bool = False,
     ctx: ApplicationContext | None = None,
 ) -> None:
     """Transpile source code to Databricks using LLM Transpiler (Switch)"""
@@ -960,6 +959,7 @@ def llm_transpile(
         schema=schema_name,
         foundation_model=foundation_model,
         job_id=job_id,
+        output_sdp=output_sdp,
     )
 
 

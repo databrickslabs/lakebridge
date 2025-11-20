@@ -39,7 +39,7 @@ def make_mock_prompts(input_path: str, output_folder: str, source_dialect: str =
 def create_switch_workspace_client_mock() -> WorkspaceClient:
     ws = create_autospec(spec=WorkspaceClient, instance=True)
 
-    ws.config.host = 'https://workspace.databricks.com'
+    ws.config.host = "https://workspace.databricks.com"
     ws.files.upload.return_value = None
     ws.jobs.run_now.return_value.run_id = _RUN_ID
     ws.jobs.run_now_and_wait_result.return_value.run_id = _RUN_ID
@@ -194,7 +194,6 @@ def test_llm_transpile_with_incorrect_output_parms(
     mock_installation_with_switch: MockInstallation,
     tmp_path: Path,
 ) -> None:
-
     input_source = tmp_path / "input.sql"
     input_source.write_text("SELECT * FROM table1;")
     output_folder = "/Users/test/output"
@@ -223,7 +222,6 @@ def test_llm_transpile_with_incorrect_dialect(
     mock_installation_with_switch: MockInstallation,
     tmp_path: Path,
 ) -> None:
-
     input_source = tmp_path / "input.sql"
     input_source.write_text("SELECT * FROM table1;")
     output_folder = "/Workspace/Users/test/output"
@@ -247,3 +245,111 @@ def test_llm_transpile_with_incorrect_dialect(
     error_msg = "Invalid value for '--source-dialect': 'agent_sql' must be one of: airflow, mssql, mysql, netezza, oracle, postgresql, redshift, snowflake, synapse, teradata"
     with pytest.raises(ValueError, match=rf"{error_msg}"):
         cli.llm_transpile(w=mock_ws, accept_terms=True, source_dialect="agent_sql", ctx=ctx)
+
+
+def test_llm_transpile_with_output_sdp_flag(
+    mock_installation_with_switch: MockInstallation,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test that output_sdp flag is properly passed to job parameters."""
+    input_source = tmp_path / "input.sql"
+    input_source.write_text("SELECT * FROM table1;")
+    output_folder = "/Workspace/Users/test/output"
+
+    # Use a dedicated WorkspaceClient mock tailored for SwitchRunner
+    mock_ws = create_switch_workspace_client_mock()
+    mock_configurator = mock_resource_configurator(mock_ws, make_mock_prompts(str(input_source), output_folder))
+
+    ctx = ApplicationContext(mock_ws)
+    ctx.replace(
+        installation=mock_installation_with_switch,
+        add_user_agent_extra=lambda w, *args, **kwargs: w,
+        resource_configurator=mock_configurator,
+    )
+
+    with caplog.at_level(logging.INFO):
+        cli.llm_transpile(
+            w=mock_ws,
+            accept_terms=True,
+            input_source=str(input_source),
+            output_ws_folder=output_folder,
+            source_dialect="mssql",
+            catalog_name="lakebridge",
+            schema_name="switch",
+            volume="switch_volume",
+            foundation_model="databricks-claude-sonnet-4-5",
+            output_sdp=True,
+            ctx=ctx,
+        )
+
+    # Verify that the job was called with the correct parameters including output_sdp
+    mock_ws.jobs.run_now.assert_called_once()
+    call_args = mock_ws.jobs.run_now.call_args
+    job_params = call_args.kwargs["job_parameters"]
+
+    # Verify output_sdp is in the job parameters
+    assert "output_sdp" in job_params
+    assert job_params["output_sdp"] == "true"
+
+    # Verify other expected parameters are still present
+    assert job_params["source_tech"] == "mssql"
+    assert job_params["catalog"] == "lakebridge"
+    assert job_params["schema"] == "switch"
+    assert job_params["foundation_model"] == "databricks-claude-sonnet-4-5"
+
+    expected_msg = (
+        f"Switch LLM transpilation job started: https://workspace.databricks.com/jobs/{_JOB_ID}/runs/{_RUN_ID}"
+    )
+    info_messages = [record.message for record in caplog.records if record.levelno == logging.INFO]
+    assert expected_msg in info_messages
+
+
+def test_llm_transpile_without_output_sdp_flag(
+    mock_installation_with_switch: MockInstallation,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test that output_sdp is not in job parameters when flag is not set."""
+    input_source = tmp_path / "input.sql"
+    input_source.write_text("SELECT * FROM table1;")
+    output_folder = "/Workspace/Users/test/output"
+
+    # Use a dedicated WorkspaceClient mock tailored for SwitchRunner
+    mock_ws = create_switch_workspace_client_mock()
+    mock_configurator = mock_resource_configurator(mock_ws, make_mock_prompts(str(input_source), output_folder))
+
+    ctx = ApplicationContext(mock_ws)
+    ctx.replace(
+        installation=mock_installation_with_switch,
+        add_user_agent_extra=lambda w, *args, **kwargs: w,
+        resource_configurator=mock_configurator,
+    )
+
+    with caplog.at_level(logging.INFO):
+        cli.llm_transpile(
+            w=mock_ws,
+            accept_terms=True,
+            input_source=str(input_source),
+            output_ws_folder=output_folder,
+            source_dialect="mssql",
+            catalog_name="lakebridge",
+            schema_name="switch",
+            volume="switch_volume",
+            foundation_model="databricks-claude-sonnet-4-5",
+            output_sdp=False,
+            ctx=ctx,
+        )
+
+    # Verify that the job was called
+    mock_ws.jobs.run_now.assert_called_once()
+    call_args = mock_ws.jobs.run_now.call_args
+    job_params = call_args.kwargs["job_parameters"]
+
+    # Verify output_sdp is NOT in the job parameters when flag is False
+    assert "output_sdp" not in job_params
+
+    # Verify other expected parameters are still present
+    assert job_params["source_tech"] == "mssql"
+    assert job_params["catalog"] == "lakebridge"
+    assert job_params["schema"] == "switch"
