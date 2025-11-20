@@ -1,4 +1,3 @@
-
 from databricks.labs.blueprint.tui import MockPrompts
 from databricks.labs.lakebridge.helpers.recon_config_utils import ReconConfigPrompts
 
