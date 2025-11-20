@@ -98,14 +98,12 @@ class ReconConfigPrompts:
         sf_url = self._prompts.question("Enter Snowflake URL Secret")
         sf_user = self._prompts.question("Enter User Secret")
         password_dict = {}
-        sf_password = self._prompts.question("Enter Password Secret if using password authentication else leave blank")
+        sf_password = self._prompts.question("Enter Password Secret or leave empty to use key-based auth")
         if not sf_password:
             logger.info("Proceeding with PEM Private Key authentication...")
             sf_pem_key = self._prompts.question("Enter PEM Private Key Secret")
             password_dict["pem_private_key"] = sf_pem_key
-            sf_pem_key_password = self._prompts.question(
-                "Enter PEM Private Key Password Secret if used else leave blank"
-            )
+            sf_pem_key_password = self._prompts.question("Enter PEM Private Key Password Secret or leave empty")
             if sf_pem_key_password:
                 password_dict["pem_private_key_password"] = sf_pem_key_password
         else:
@@ -182,7 +180,7 @@ class ReconConfigPrompts:
             case ReconSourceType.MSSQL.value | ReconSourceType.SYNAPSE.value:
                 return self._prompt_mssql_connection_details()
 
-    def prompt_recon_creds(self, source: str):
+    def prompt_recon_creds(self, source: str) -> tuple[str, dict[str, str]]:
         logger.info(
             "\n(local | env | databricks) \nlocal means values are read as plain text \nenv means values are read "
             "from environment variables fall back to plain text if not variable is not found\ndatabricks means values are read from Databricks Secrets\n",

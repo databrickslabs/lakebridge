@@ -21,7 +21,26 @@ def test_configure_secrets_snowflake(mock_workspace_client):
         }
     )
     recon_conf = ReconConfigPrompts(mock_workspace_client, prompts)
-    recon_conf.prompt_recon_creds(ReconSourceType.SNOWFLAKE)
+    recon_conf.prompt_recon_creds(ReconSourceType.SNOWFLAKE.value)
+
+
+def test_configure_secrets_snowflake_pem(mock_workspace_client):
+    prompts = MockPrompts(
+        {
+            r"Enter secret vault type": "0",
+            r"Enter Snowflake URL": "dummy",
+            r"Enter User": "dummy",
+            r"Enter Password*": "",
+            r"Enter PEM*": "dummy",
+            r"Enter PEM*Password*": "dummy",
+            r"Enter Database": "dummy",
+            r"Enter Schema": "dummy",
+            r"Enter Snowflake Warehouse": "dummy",
+            r"Enter Role": "dummy",
+        }
+    )
+    recon_conf = ReconConfigPrompts(mock_workspace_client, prompts)
+    recon_conf.prompt_recon_creds(ReconSourceType.SNOWFLAKE.value)
 
 
 def test_configure_secrets_oracle(mock_workspace_client):
@@ -39,7 +58,7 @@ def test_configure_secrets_oracle(mock_workspace_client):
     )
 
     recon_conf = ReconConfigPrompts(mock_workspace_client, prompts)
-    recon_conf.prompt_recon_creds(ReconSourceType.ORACLE)
+    recon_conf.prompt_recon_creds(ReconSourceType.ORACLE.value)
 
 
 def test_configure_secrets_tsql(mock_workspace_client):
@@ -57,8 +76,8 @@ def test_configure_secrets_tsql(mock_workspace_client):
     )
 
     recon_conf = ReconConfigPrompts(mock_workspace_client, prompts)
-    recon_conf.prompt_recon_creds(ReconSourceType.MSSQL)
-    recon_conf.prompt_recon_creds(ReconSourceType.SYNAPSE)
+    recon_conf.prompt_recon_creds(ReconSourceType.MSSQL.value)
+    recon_conf.prompt_recon_creds(ReconSourceType.SYNAPSE.value)
 
 
 def test_store_connection_secrets_exception(mock_workspace_client):
