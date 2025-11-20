@@ -8,7 +8,7 @@ import re
 import sys
 import time
 import webbrowser
-from collections.abc import Mapping
+from collections.abc import Mapping, Callable
 from pathlib import Path
 from typing import NoReturn, TextIO
 
@@ -643,9 +643,11 @@ def _override_workspace_client_config(ctx: ApplicationContext, overrides: dict[s
 
 
 @lakebridge.command
-def reconcile(*, w: WorkspaceClient) -> None:
+def reconcile(
+    *, w: WorkspaceClient, application_ctx_factory: Callable[[WorkspaceClient], ApplicationContext] = ApplicationContext
+) -> None:
     """[EXPERIMENTAL] Reconciles source to Databricks datasets"""
-    ctx = ApplicationContext(w)
+    ctx = application_ctx_factory(w)
     ctx.add_user_agent_extra("cmd", "execute-reconcile")
     user = ctx.current_user
     logger.debug(f"User: {user}")
@@ -661,9 +663,11 @@ def reconcile(*, w: WorkspaceClient) -> None:
 
 
 @lakebridge.command
-def aggregates_reconcile(*, w: WorkspaceClient) -> None:
+def aggregates_reconcile(
+    *, w: WorkspaceClient, application_ctx_factory: Callable[[WorkspaceClient], ApplicationContext] = ApplicationContext
+) -> None:
     """[EXPERIMENTAL] Reconciles Aggregated source to Databricks datasets"""
-    ctx = ApplicationContext(w)
+    ctx = application_ctx_factory(w)
     ctx.add_user_agent_extra("cmd", "execute-aggregates-reconcile")
     user = ctx.current_user
     logger.debug(f"User: {user}")

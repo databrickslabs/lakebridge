@@ -66,7 +66,7 @@ def test_cli_configure_secrets_config(mock_workspace_client):
         mock_recon_config.assert_called_once_with(mock_workspace_client)
 
 
-def test_cli_reconcile(mock_workspace_client):
+def app_factory(_):
     ctx_mock = MagicMock()
     prompts = MockPrompts(
         {
@@ -74,28 +74,17 @@ def test_cli_reconcile(mock_workspace_client):
         }
     )
     ctx_mock.prompts = prompts
+    return ctx_mock
 
-    with (
-        patch("databricks.labs.lakebridge.reconcile.runner.ReconcileRunner.run", return_value=(MagicMock(), True)),
-        patch("databricks.labs.lakebridge.cli.ApplicationContext", return_value=ctx_mock),
-    ):
-        cli.reconcile(w=mock_workspace_client)
+
+def test_cli_reconcile(mock_workspace_client):
+    with patch("databricks.labs.lakebridge.reconcile.runner.ReconcileRunner.run", return_value=(MagicMock(), True)):
+        cli.reconcile(w=mock_workspace_client, application_ctx_factory=app_factory)
 
 
 def test_cli_aggregates_reconcile(mock_workspace_client):
-    ctx_mock = MagicMock()
-    prompts = MockPrompts(
-        {
-            r"Would you like to open the job run URL .*": "yes",
-        }
-    )
-    ctx_mock.prompts = prompts
-
-    with (
-        patch("databricks.labs.lakebridge.reconcile.runner.ReconcileRunner.run", return_value=(MagicMock(), True)),
-        patch("databricks.labs.lakebridge.cli.ApplicationContext", return_value=ctx_mock),
-    ):
-        cli.aggregates_reconcile(w=mock_workspace_client)
+    with patch("databricks.labs.lakebridge.reconcile.runner.ReconcileRunner.run", return_value=(MagicMock(), True)):
+        cli.aggregates_reconcile(w=mock_workspace_client, application_ctx_factory=app_factory)
 
 
 def test_prompts_question():
