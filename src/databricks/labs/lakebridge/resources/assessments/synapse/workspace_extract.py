@@ -2,6 +2,8 @@ import json
 import sys
 from datetime import date, timedelta
 import zoneinfo
+from pathlib import Path
+
 import pandas as pd
 
 from databricks.labs.lakebridge.connections.credential_manager import create_credential_manager
@@ -20,7 +22,7 @@ def execute():
 
     db_path, creds_file = arguments_loader(desc="Workspace Extract")
 
-    cred_manager = create_credential_manager(creds_file)
+    cred_manager = create_credential_manager(Path(creds_file))
     synapse_workspace_settings = cred_manager.get_credentials("synapse")
     tz_info = synapse_workspace_settings["workspace"]["tz_info"]
     workspace_tz = zoneinfo.ZoneInfo(tz_info)

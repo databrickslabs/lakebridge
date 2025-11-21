@@ -1,5 +1,7 @@
 import json
 import sys
+from pathlib import Path
+
 import duckdb
 
 from databricks.labs.lakebridge.connections.credential_manager import create_credential_manager
@@ -53,7 +55,7 @@ def execute():
     logger = set_logger(__name__)
     db_path, creds_file = arguments_loader(desc="Synapse Synapse Serverless SQL Pool Extract Script")
 
-    cred_manager = create_credential_manager(creds_file)
+    cred_manager = create_credential_manager(Path(creds_file))
     synapse_workspace_settings = cred_manager.get_credentials("synapse")
     config = synapse_workspace_settings["workspace"]
     auth_type = synapse_workspace_settings["jdbc"].get("auth_type", "sql_authentication")
