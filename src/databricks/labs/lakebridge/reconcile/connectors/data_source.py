@@ -3,29 +3,12 @@ from abc import ABC, abstractmethod
 
 from pyspark.sql import DataFrame
 
-from databricks.labs.lakebridge.config import ReconcileCredentialConfig
-from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import DialectUtils, NormalizedIdentifier
+from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import DialectUtils
+from databricks.labs.lakebridge.reconcile.connectors.models import NormalizedIdentifier
 from databricks.labs.lakebridge.reconcile.exception import DataSourceRuntimeException
 from databricks.labs.lakebridge.reconcile.recon_config import JdbcReaderOptions, Schema
 
 logger = logging.getLogger(__name__)
-
-
-def build_credentials(vault_type: str, source: str, credentials: dict) -> dict:
-    """Build credentials dictionary with secret vault type included.
-
-    Args:
-        vault_type: The type of secret vault (e.g., 'local', 'databricks').
-        source: The source system name.
-        credentials: The original credentials dictionary.
-
-    Returns:
-        A new credentials dictionary including the secret vault type.
-    """
-    return {
-        source: credentials,
-        'secret_vault_type': vault_type.lower(),
-    }
 
 
 class DataSource(ABC):
@@ -49,10 +32,6 @@ class DataSource(ABC):
         table: str,
         normalize: bool = True,
     ) -> list[Schema]:
-        return NotImplemented
-
-    @abstractmethod
-    def load_credentials(self, creds: ReconcileCredentialConfig) -> "DataSource":
         return NotImplemented
 
     @abstractmethod
@@ -114,9 +93,6 @@ class MockDataSource(DataSource):
         if not mock_schema:
             return self.log_and_throw_exception(self._exception, "schema", f"({catalog}, {schema}, {table})")
         return mock_schema
-
-    def load_credentials(self, creds: ReconcileCredentialConfig) -> "MockDataSource":
-        return self
 
     def normalize_identifier(self, identifier: str) -> NormalizedIdentifier:
         return DialectUtils.normalize_identifier(identifier, self._delimiter, self._delimiter)

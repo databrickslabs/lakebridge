@@ -7,18 +7,18 @@ from pyspark.sql import DataFrame, DataFrameReader, SparkSession
 from pyspark.sql.functions import col
 from sqlglot import Dialect
 
-from databricks.labs.lakebridge.config import ReconcileCredentialConfig
-from databricks.labs.lakebridge.connections.credential_manager import create_credential_manager
-from databricks.labs.lakebridge.reconcile.connectors.data_source import DataSource, build_credentials
+from databricks.labs.lakebridge.reconcile.connectors.data_source import DataSource
 from databricks.labs.lakebridge.reconcile.connectors.jdbc_reader import JDBCReaderMixin
-from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import DialectUtils, NormalizedIdentifier
+from databricks.labs.lakebridge.reconcile.connectors.models import NormalizedIdentifier
+from databricks.labs.lakebridge.reconcile.connectors.secrets import SecretsMixin
+from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import DialectUtils
 from databricks.labs.lakebridge.reconcile.recon_config import JdbcReaderOptions, Schema
 from databricks.sdk import WorkspaceClient
 
 logger = logging.getLogger(__name__)
 
 
-class OracleDataSource(DataSource, JDBCReaderMixin):
+class OracleDataSource(DataSource, SecretsMixin, JDBCReaderMixin):
     _DRIVER = "oracle"
     _IDENTIFIER_DELIMITER = "\""
     _SCHEMA_QUERY = """select column_name, case when (data_precision is not null
@@ -34,17 +34,23 @@ class OracleDataSource(DataSource, JDBCReaderMixin):
                                               FROM ALL_TAB_COLUMNS
                             WHERE lower(TABLE_NAME) = '{table}' and lower(owner) = '{owner}'"""
 
-    def __init__(self, engine: Dialect, spark: SparkSession, ws: WorkspaceClient):
+    def __init__(
+        self,
+        engine: Dialect,
+        spark: SparkSession,
+        ws: WorkspaceClient,
+        secret_scope: str,
+    ):
         self._engine = engine
         self._spark = spark
         self._ws = ws
-        self._creds: dict[str, str] = {}
+        self._secret_scope = secret_scope
 
     @property
     def get_jdbc_url(self) -> str:
         return (
-            f"jdbc:{OracleDataSource._DRIVER}:thin:@//{self._creds.get('host')}"
-            f":{self._creds.get('port')}/{self._creds.get('database')}"
+            f"jdbc:{OracleDataSource._DRIVER}:thin:@//{self._get_secret('host')}"
+            f":{self._get_secret('port')}/{self._get_secret('database')}"
         )
 
     def read_data(
@@ -102,37 +108,12 @@ class OracleDataSource(DataSource, JDBCReaderMixin):
         }
 
     def reader(self, query: str) -> DataFrameReader:
-        user = self._creds.get('user')
-        password = self._creds.get('password')
+        user = self._get_secret('user')
+        password = self._get_secret('password')
         logger.debug(f"Using user: {user} to connect to Oracle")
         return self._get_jdbc_reader(
             query, self.get_jdbc_url, OracleDataSource._DRIVER, {"user": user, "password": password}
         )
-
-    def load_credentials(self, creds: ReconcileCredentialConfig) -> "OracleDataSource":
-        connector_creds = [
-            "host",
-            "port",
-            "database",
-            "user",
-            "password",
-        ]
-
-        use_scope = creds.source_creds.get("__secret_scope")
-        if use_scope:
-            source_creds = {key: f"{use_scope}/{key}" for key in connector_creds}
-
-            assert creds.vault_type == "databricks", "Secret scope provided, vault_type must be 'databricks'"
-            parsed_creds = build_credentials(creds.vault_type, "oracle", source_creds)
-        else:
-            parsed_creds = build_credentials(creds.vault_type, "oracle", creds.source_creds)
-
-        self._creds = create_credential_manager(parsed_creds, self._ws).get_credentials("oracle")
-        assert all(
-            self._creds.get(k) for k in connector_creds
-        ), f"Missing mandatory Oracle credentials. Please configure all of {connector_creds}."
-
-        return self
 
     def normalize_identifier(self, identifier: str) -> NormalizedIdentifier:
         normalized = DialectUtils.normalize_identifier(
