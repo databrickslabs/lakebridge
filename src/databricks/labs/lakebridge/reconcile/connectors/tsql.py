@@ -7,11 +7,11 @@ from pyspark.sql import DataFrame, DataFrameReader, SparkSession
 from pyspark.sql.functions import col
 from sqlglot import Dialect
 
-from databricks.labs.lakebridge.reconcile.connectors.data_source import DataSource
+from databricks.labs.lakebridge.config import ReconcileCredentialConfig
+from databricks.labs.lakebridge.connections.credential_manager import create_credential_manager
+from databricks.labs.lakebridge.reconcile.connectors.data_source import DataSource, build_credentials
 from databricks.labs.lakebridge.reconcile.connectors.jdbc_reader import JDBCReaderMixin
-from databricks.labs.lakebridge.reconcile.connectors.models import NormalizedIdentifier
-from databricks.labs.lakebridge.reconcile.connectors.secrets import SecretsMixin
-from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import DialectUtils
+from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import DialectUtils, NormalizedIdentifier
 from databricks.labs.lakebridge.reconcile.recon_config import JdbcReaderOptions, Schema
 from databricks.sdk import WorkspaceClient
 
@@ -49,7 +49,7 @@ _SCHEMA_QUERY = """SELECT
               """
 
 
-class TSQLServerDataSource(DataSource, SecretsMixin, JDBCReaderMixin):
+class TSQLServerDataSource(DataSource, JDBCReaderMixin):
     _DRIVER = "sqlserver"
     _IDENTIFIER_DELIMITER = {"prefix": "[", "suffix": "]"}
 
@@ -58,23 +58,22 @@ class TSQLServerDataSource(DataSource, SecretsMixin, JDBCReaderMixin):
         engine: Dialect,
         spark: SparkSession,
         ws: WorkspaceClient,
-        secret_scope: str,
     ):
         self._engine = engine
         self._spark = spark
         self._ws = ws
-        self._secret_scope = secret_scope
+        self._creds: dict[str, str] = {}
 
     @property
     def get_jdbc_url(self) -> str:
         # Construct the JDBC URL
         return (
-            f"jdbc:{self._DRIVER}://{self._get_secret('host')}:{self._get_secret('port')};"
-            f"databaseName={self._get_secret('database')};"
-            f"user={self._get_secret('user')};"
-            f"password={self._get_secret('password')};"
-            f"encrypt={self._get_secret('encrypt')};"
-            f"trustServerCertificate={self._get_secret('trustServerCertificate')};"
+            f"jdbc:{self._DRIVER}://{self._creds.get('host')}:{self._creds.get('port')};"
+            f"databaseName={self._creds.get('database')};"
+            f"user={self._creds.get('user')};"
+            f"password={self._creds.get('password')};"
+            f"encrypt={self._creds.get('encrypt')};"
+            f"trustServerCertificate={self._creds.get('trustServerCertificate')};"
         )
 
     def read_data(
@@ -103,6 +102,33 @@ class TSQLServerDataSource(DataSource, SecretsMixin, JDBCReaderMixin):
             return df.select([col(column).alias(column.lower()) for column in df.columns])
         except (RuntimeError, PySparkException) as e:
             return self.log_and_throw_exception(e, "data", table_query)
+
+    def load_credentials(self, creds: ReconcileCredentialConfig) -> "TSQLServerDataSource":
+        connector_creds = [
+            "host",
+            "port",
+            "database",
+            "user",
+            "password",
+            "encrypt",
+            "trustServerCertificate",
+        ]
+
+        use_scope = creds.source_creds.get("__secret_scope")
+        if use_scope:
+            source_creds = {key: f"{use_scope}/{key}" for key in connector_creds}
+
+            assert creds.vault_type == "databricks", "Secret scope provided, vault_type must be 'databricks'"
+            parsed_creds = build_credentials(creds.vault_type, "mssql", source_creds)
+        else:
+            parsed_creds = build_credentials(creds.vault_type, "mssql", creds.source_creds)
+
+        self._creds = create_credential_manager(parsed_creds, self._ws).get_credentials("mssql")
+        assert all(
+            self._creds.get(k) for k in connector_creds
+        ), f"Missing mandatory MS SQL credentials. Please configure all of {connector_creds}."
+
+        return self
 
     def get_schema(
         self,

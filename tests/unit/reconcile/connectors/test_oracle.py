@@ -4,7 +4,8 @@ from unittest.mock import MagicMock, create_autospec
 
 import pytest
 
-from databricks.labs.lakebridge.reconcile.connectors.models import NormalizedIdentifier
+from databricks.labs.lakebridge.config import ReconcileCredentialConfig
+from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import NormalizedIdentifier
 from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
 from databricks.labs.lakebridge.reconcile.connectors.oracle import OracleDataSource
 from databricks.labs.lakebridge.reconcile.exception import DataSourceRuntimeException
@@ -31,6 +32,16 @@ def mock_secret(scope, key):
     return secret_mock[scope][key]
 
 
+def oracle_creds(scope):
+    return {
+        "host": f"{scope}/host",
+        "port": f"{scope}/port",
+        "database": f"{scope}/database",
+        "user": f"{scope}/user",
+        "password": f"{scope}/password",
+    }
+
+
 def initial_setup():
     pyspark_sql_session = MagicMock()
     spark = pyspark_sql_session.SparkSession.builder.getOrCreate()
@@ -47,8 +58,9 @@ def test_read_data_with_options():
     # initial setup
     engine, spark, ws, scope = initial_setup()
 
-    # create object for SnowflakeDataSource
-    ords = OracleDataSource(engine, spark, ws, scope)
+    # create object for OracleDataSource
+    ords = OracleDataSource(engine, spark, ws)
+    ords.load_credentials(ReconcileCredentialConfig("databricks", oracle_creds(scope)))
     # Create a Tables configuration object with JDBC reader options
     table_conf = Table(
         source_name="supplier",
@@ -96,10 +108,10 @@ def test_read_data_with_options():
 
 def test_get_schema():
     # initial setup
-    engine, spark, ws, scope = initial_setup()
+    engine, spark, ws, _ = initial_setup()
 
-    # create object for SnowflakeDataSource
-    ords = OracleDataSource(engine, spark, ws, scope)
+    # create object for OracleDataSource
+    ords = OracleDataSource(engine, spark, ws)
     # call test method
     ords.get_schema(None, "data", "employee")
     # spark assertions
@@ -127,8 +139,8 @@ def test_get_schema():
 
 def test_read_data_exception_handling():
     # initial setup
-    engine, spark, ws, scope = initial_setup()
-    ords = OracleDataSource(engine, spark, ws, scope)
+    engine, spark, ws, _ = initial_setup()
+    ords = OracleDataSource(engine, spark, ws)
     # Create a Tables configuration object
     table_conf = Table(
         source_name="supplier",
@@ -157,8 +169,8 @@ def test_read_data_exception_handling():
 
 def test_get_schema_exception_handling():
     # initial setup
-    engine, spark, ws, scope = initial_setup()
-    ords = OracleDataSource(engine, spark, ws, scope)
+    engine, spark, ws, _ = initial_setup()
+    ords = OracleDataSource(engine, spark, ws)
 
     spark.read.format().option().option().option().option().option().load.side_effect = RuntimeError("Test Exception")
 
@@ -184,8 +196,8 @@ def test_get_schema_exception_handling():
 
 @pytest.mark.skip("Turned off till we can handle case sensitivity.")
 def test_normalize_identifier():
-    engine, spark, ws, scope = initial_setup()
-    data_source = OracleDataSource(engine, spark, ws, scope)
+    engine, spark, ws, _ = initial_setup()
+    data_source = OracleDataSource(engine, spark, ws)
 
     assert data_source.normalize_identifier("a") == NormalizedIdentifier("`a`", '"a"')
     assert data_source.normalize_identifier('"b"') == NormalizedIdentifier("`b`", '"b"')

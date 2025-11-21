@@ -8,7 +8,6 @@ from databricks.labs.lakebridge.reconcile.recon_config import JdbcReaderOptions
 class JDBCReaderMixin:
     _spark: SparkSession
 
-    # TODO update the url
     def _get_jdbc_reader(self, query, jdbc_url, driver, additional_options: dict | None = None):
         driver_class = {
             "oracle": "oracle.jdbc.OracleDriver",
