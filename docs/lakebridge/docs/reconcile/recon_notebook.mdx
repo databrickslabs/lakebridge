@@ -72,12 +72,13 @@ class ReconcileConfig:
     secret_scope: str
     database_config: DatabaseConfig
     metadata_config: ReconcileMetadataConfig
+    creds_or_secret_scope: ReconcileCredentialConfig | str | None = None
 ```
 Parameters:
 
 - `data_source`: The data source to be reconciled. Supported values: `snowflake`, `teradata`, `oracle`, `mssql`, `synapse`, `databricks`.
 - `report_type`: The type of report to be generated. Available report types are `schema`, `row`, `data` or `all`. For details check [here](./dataflow_example.mdx).
-- `secret_scope`: The secret scope name used to store the connection credentials for the source database system.
+- `secret_scope`: (Deprecated in favor of `creds_or_secret_scope` and kept for backwards compatibility) The secret scope name used to store the connection credentials for the source database system.
 - `database_config`: The database configuration for connecting to the source database. expects a `DatabaseConfig` object.
     - `source_schema`: The source schema name.
     - `target_catalog`: The target catalog name.
@@ -104,6 +105,16 @@ class ReconcileMetadataConfig:
 ```
 If not set the default values will be used to store the metadata. The default resources are created during the installation
 of Lakebridge.
+- `creds_or_secret_scope`: The credentials to use to connect to the data source. Made optional for backwards compatibility.
+Can also be a string having value of secret scope to mimic old behavior of credentials. If used, `secret_scope` will be ignored.
+    - `vault_type`: Can be local to use the values directly, env to load from env variables or databricks to load from databricks secrets.
+    - `source_creds`: A mapping of reconcile credentials keys to the values that will be resolved depending on vault type.
+```python
+@dataclass
+class ReconcileCredentialConfig:
+    vault_type: str
+    source_creds: dict[str, str]
+```
 
 An Example of configuring the Reconcile properties:
 
@@ -111,13 +122,14 @@ An Example of configuring the Reconcile properties:
 from databricks.labs.lakebridge.config import (
     DatabaseConfig,
     ReconcileConfig,
-    ReconcileMetadataConfig
+    ReconcileMetadataConfig,
+    ReconcileCredentialConfig
 )
 
 reconcile_config = ReconcileConfig(
          data_source = "snowflake",
          report_type = "all",
-         secret_scope = "snowflake-credential",
+         secret_scope = "NOT_USED",
          database_config= DatabaseConfig(source_catalog="source_sf_catalog",
                                          source_schema="source_sf_schema",
                                          target_catalog="target_databricks_catalog",
@@ -126,9 +138,25 @@ reconcile_config = ReconcileConfig(
          metadata_config = ReconcileMetadataConfig(
               catalog = "lakebridge_metadata",
               schema= "reconcile"
-         )
+         ),
+        creds_or_secret_scope=ReconcileCredentialConfig(
+            vault_type="local",
+            source_creds={"sfUrl": "xxx@snowflakecomputing.com", "sfUser": "app", "sfPassword": "the P@asswort", "sfRole": "app"}
+        )
     )
 ```
+An Example of using databricks secrets for the source credentials:
+```python
+reconcile_config = ReconcileConfig(
+    ...,
+    creds_or_secret_scope=ReconcileCredentialConfig(
+        vault_type="databricks",
+        source_creds={"sfUrl": "some_secret_scope/some_key", "sfUser": "another_secret_scope/user_key", "sfPassword": "scope/key", "sfRole": "scope/key"}
+    )
+)
+
+```
+All the expected credentials have to be configured.
 
 ## Configure Table Properties
 
