@@ -38,6 +38,76 @@ Refer to [Reconcile Configuration Guide](reconcile_configuration) for detailed i
 
 > 2. Setup the connection properties
 
+#### Option A: Using Lakebridge credentials mechanism
+Reconcile connection properties are configured through a dynamic mapping from connection property to value.
+The values can be loaded from databricks, env vars or used directly. It depends on the config in `reconcile.yml`
+```yaml
+...
+creds_or_secret_scope:
+    vault_type: local
+    source_creds:
+      <mappings of connection properties to values>
+```
+or to use databricks secrets. And the value has to be in the form of `<scope_name>/<secret_key>`
+```yaml
+...
+creds_or_secret_scope:
+    vault_type: databricks
+    source_creds:
+      some_property = <scope_name>/<secret_key>
+      ...
+```
+The expected connection properties under `source_creds` per data source are:
+<Tabs>
+    <TabItem value="snowflake" label="Snowflake">
+        ```yaml
+        sfUrl = [local_or_databricks_mapping]
+        account = [local_or_databricks_mapping]
+        sfUser = [local_or_databricks_mapping]
+        sfPassword = [local_or_databricks_mapping]
+        sfDatabase = [local_or_databricks_mapping]
+        sfSchema = [local_or_databricks_mapping]
+        sfWarehouse = [local_or_databricks_mapping]
+        sfRole = [local_or_databricks_mapping]
+        pem_private_key = [local_or_databricks_mapping]
+        pem_private_key_password = [local_or_databricks_mapping]
+        ```
+
+        :::note
+        For Snowflake authentication, either sfPassword or pem_private_key is required.
+        Priority is given to pem_private_key, and if it is not found, sfPassword will be used.
+        If neither is available, an exception will be raised.
+
+        When using an encrypted pem_private_key, you'll need to provide the pem_private_key_password.
+        This password is used to decrypt the private key for authentication.
+        :::
+    </TabItem>
+    <TabItem value="oracle" label="Oracle">
+        ```yaml
+        user = [local_or_databricks_mapping]
+        password = [local_or_databricks_mapping]
+        host = [local_or_databricks_mapping]
+        port = [local_or_databricks_mapping]
+        database = [local_or_databricks_mapping]
+        ```
+    </TabItem>
+    <TabItem value="mssql" label="MS SQL Server (incl. Synapse)">
+        ```yaml
+        user = [local_or_databricks_mapping]
+        password = [local_or_databricks_mapping]
+        host = [local_or_databricks_mapping]
+        port = [local_or_databricks_mapping]
+        database = [local_or_databricks_mapping]
+        encrypt = [local_or_databricks_mapping]
+        trustServerCertificate = [local_or_databricks_mapping]
+        ```
+    </TabItem>
+</Tabs>
+#### Option B: Using secret scopes
+:::warning
+Deprecated in favor of Lakebridge credentials mechanism
+:::
+
 Lakebridge-Reconcile manages connection properties by utilizing secrets stored in the Databricks workspace.
 Below is the default secret naming convention for managing connection properties.
 
