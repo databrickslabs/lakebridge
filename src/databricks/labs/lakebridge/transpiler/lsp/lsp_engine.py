@@ -254,7 +254,7 @@ METHOD_TO_TYPES[TRANSPILE_TO_DATABRICKS_METHOD] = (
 
 
 # subclass BaseLanguageClient so we can override stuff when required
-class _LanguageClient(BaseLanguageClient):
+class LanguageClient(BaseLanguageClient):
 
     def __init__(self, name: str, version: str) -> None:
         super().__init__(name, version)
@@ -330,36 +330,36 @@ class _LanguageClient(BaseLanguageClient):
         """Read lines from the LSP server's stderr and log them.
 
         The lines will be logged in real-time as they arrive, once the newline character is seen. Trailing whitespace
-        will be stripped from each line before logging, and empty lines will be ignored.
+        is stripped from each line before logging, and empty lines are ignored.
 
-        On EOF the pending line will be logged, even if it is incomplete (i.e. does not end with a newline).
+        On EOF any pending line will be logged, even if it is incomplete (i.e. does not end with a newline).
 
         Logs are treated as UTF-8, with invalid byte sequences replaced with the Unicode replacement character.
 
-        Long lines will be split into chunks based on the limit argument as logged as-is. If the boundary between chunks
-        falls in the middle of a multi-byte UTF-8 character, the bytes on either side of the boundary will likely be
-        invalid and logged as above.
+        Long lines will be split into chunks with a maximum length of the limit. If the split falls in the middle of a
+        multi-byte UTF-8 character, the bytes on either side of the boundary will likely be invalid and logged as such.
 
         Args:
               stream: The stream to mirror as logger output.
               limit: The maximum number of bytes for a line to be logged as a single line. Longer lines will be split
                 into chunks and logged as each chunk arrives.
         """
+        # Maximum size of pending buffer is the limit argument.
         pending_buffer = bytearray()
 
         # Loop, reading whatever data is available as it arrives.
-        while chunk := await stream.read(limit):
+        while chunk := await stream.read(limit - len(pending_buffer)):
             # Process the chunk we've read, line by line.
             line_from = 0
             while -1 != (idx := chunk.find(b"\n", line_from)):
                 # Figure out the slice corresponding to this line, accounting for any pending data the last read.
-                line_chunk = chunk[line_from:idx]
-                line_bytes: bytes | bytearray
+                line_chunk = memoryview(chunk)[line_from:idx]
+                line_bytes: bytearray | bytes
                 if pending_buffer:
                     pending_buffer.extend(line_chunk)
                     line_bytes = pending_buffer
                 else:
-                    line_bytes = line_chunk
+                    line_bytes = bytes(line_chunk)
                 del line_chunk
 
                 # Invalid UTF-8 isn't great, but we can at least log it with the replacement character rather than
@@ -373,16 +373,18 @@ class _LanguageClient(BaseLanguageClient):
                 pending_buffer.clear()
                 line_from = idx + 1
             # Anything remaining in this chunk is pending data for the next read.
-            if remaining := chunk[line_from:]:
+            if remaining := memoryview(chunk)[line_from:]:
                 pending_buffer.extend(remaining)
                 if len(pending_buffer) >= limit:
                     # Line too long, log what we have and reset.
-                    log_now, leave_for_later = pending_buffer[:limit], pending_buffer[limit:]
+                    log_now = pending_buffer[:limit]
                     message = log_now.decode("utf-8", errors="replace").rstrip()
                     if message:
-                        logger.info(f"{message}[...]")
-                    pending_buffer[:] = leave_for_later
-                    del log_now, leave_for_later, message
+                        # Note: the very next character might be a '\n', but we don't know that yet. So might be more
+                        # for this line, might not be.
+                        logger.info(f"{message}[..?]")
+                    del log_now, message, pending_buffer[:limit]
+            del remaining
         if pending_buffer:
             # Here we've hit EOF but have an incomplete line pending. Log it anyway.
             message = pending_buffer.decode("utf-8", errors="replace").rstrip()
@@ -522,7 +524,7 @@ class LSPEngine(TranspileEngine):
         self._workdir = workdir
         self._config = config
         name, version = self.client_metadata()
-        self._client = _LanguageClient(name, version)
+        self._client = LanguageClient(name, version)
         self._init_response: InitializeResult | None = None
 
     @property
