@@ -319,7 +319,14 @@ class _LanguageClient(BaseLanguageClient):
         task.add_done_callback(self._detect_pipe_stderr_exception)
         self._async_tasks.append(task)
 
-    async def pipe_stderr(self, *, limit: int) -> None:
+    async def pipe_stderr(self, *, limit: int = _DEFAULT_LIMIT) -> None:
+        assert (server := self._server) is not None
+        assert (stderr := server.stderr) is not None
+
+        return await self.pipe_stream(stream=stderr, limit=limit)
+
+    @staticmethod
+    async def pipe_stream(*, stream: asyncio.StreamReader, limit: int) -> None:
         """Read lines from the LSP server's stderr and log them.
 
         The lines will be logged in real-time as they arrive, once the newline character is seen. Trailing whitespace
@@ -334,16 +341,14 @@ class _LanguageClient(BaseLanguageClient):
         invalid and logged as above.
 
         Args:
+              stream: The stream to mirror as logger output.
               limit: The maximum number of bytes for a line to be logged as a single line. Longer lines will be split
                 into chunks and logged as each chunk arrives.
         """
-        assert (server := self._server) is not None
-        assert (stderr := server.stderr) is not None
-
         pending_buffer = bytearray()
 
         # Loop, reading whatever data is available as it arrives.
-        while chunk := await stderr.read(limit):
+        while chunk := await stream.read(limit):
             # Process the chunk we've read, line by line.
             line_from = 0
             while -1 != (idx := chunk.find(b"\n", line_from)):

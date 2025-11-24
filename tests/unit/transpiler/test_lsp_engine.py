@@ -38,7 +38,7 @@ class LSPServerLogs:
     # The log-level at which the LSP engine writes out stderr lines from the LSP server.
     stderr_log_level: ClassVar[int] = logging.INFO
     # The function name from the stderr lines are logged, to help filter out other logs.
-    stderr_log_function: ClassVar[str] = "pipe_stderr"
+    stderr_log_function: ClassVar[str] = "pipe_stream"
 
     def __init__(self, caplog: pytest.LogCaptureFixture):
         self._caplog = caplog
