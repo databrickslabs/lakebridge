@@ -136,17 +136,11 @@ Below are the connection properties required for each source:
         sfSchema = [schema]
         sfWarehouse = [warehouse_name]
         sfRole = [role_name]
-        pem_private_key = [pkcs8_pem_private_key]
-        pem_private_key_password = [pkcs8_pem_private_key]
         ```
 
         :::note
-        For Snowflake authentication, either sfPassword or pem_private_key is required.
-        Priority is given to pem_private_key, and if it is not found, sfPassword will be used.
-        If neither is available, an exception will be raised.
-
-        When using an encrypted pem_private_key, you'll need to provide the pem_private_key_password.
-        This password is used to decrypt the private key for authentication.
+        For Snowflake authentication, sfPassword is required. To use pem_private_key,
+        and optionally pem_private_key_password, please use the Lakebridge credentials mechanism.
         :::
     </TabItem>
     <TabItem value="oracle" label="Oracle">
