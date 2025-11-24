@@ -551,7 +551,7 @@ class LSPEngine(TranspileEngine):
         args = [*args, f"--log_level={log_level}"]
         env = {**env, "DATABRICKS_LAKEBRIDGE_LOG_LEVEL": log_level}
         logger.debug(f"Starting LSP engine: {executable} {args} (cwd={self._workdir})")
-        # Increase limit to 256MB to handle large lines on stderr from LSP servers
+        # Increase limit to 64MiB to handle large lines on stderr from LSP servers
         await self._client.start_io(executable, *args, env=env, cwd=self._workdir, limit=64 * 1024 * 1024)
 
     def _client_capabilities(self):
