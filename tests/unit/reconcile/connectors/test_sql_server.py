@@ -187,7 +187,7 @@ def test_credentials_not_loaded_fails():
     # Call the get_schema method with predefined table, schema, and catalog names and assert that a PySparkException
     # is raised
     with pytest.raises(
-        RuntimeError,
+        DataSourceRuntimeException,
         match=re.escape("MS SQL/Synapse credentials have not been loaded. Please call load_credentials() first."),
     ):
         data_source.get_schema("org", "schema", "supplier")
