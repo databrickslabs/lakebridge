@@ -1,16 +1,12 @@
-import base64
 from pathlib import Path
 from dataclasses import dataclass
 from datetime import datetime
-from unittest.mock import patch, MagicMock, create_autospec
+from unittest.mock import patch, MagicMock
 
 import pytest
 from pyspark import Row
 from pyspark.errors import PySparkException
 from pyspark.testing import assertDataFrameEqual
-
-from databricks.sdk import WorkspaceClient
-from databricks.sdk.service.workspace import GetSecretResponse
 
 from databricks.labs.lakebridge.config import (
     DatabaseConfig,
@@ -740,7 +736,7 @@ def mock_for_report_type_data(
     reconcile_config_data = ReconcileConfig(
         data_source="databricks",
         report_type="data",
-        secret_scope="remorph_databricks",
+        creds=ReconcileCredentialConfig(vault_type="local", source_creds={"fake": "fake"}),
         database_config=DatabaseConfig(
             source_catalog=CATALOG,
             source_schema=SCHEMA,
@@ -941,7 +937,7 @@ def mock_for_report_type_schema(
     reconcile_config_schema = ReconcileConfig(
         data_source="databricks",
         report_type="schema",
-        secret_scope="remorph_databricks",
+        creds=ReconcileCredentialConfig(vault_type="local", source_creds={"fake": "fake"}),
         database_config=DatabaseConfig(
             source_catalog=CATALOG,
             source_schema=SCHEMA,
@@ -1157,7 +1153,7 @@ def mock_for_report_type_all(
     reconcile_config_all = ReconcileConfig(
         data_source="snowflake",
         report_type="all",
-        secret_scope="remorph_snowflake",
+        creds=ReconcileCredentialConfig(vault_type="local", source_creds={"fake": "fake"}),
         database_config=DatabaseConfig(
             source_catalog=CATALOG,
             source_schema=SCHEMA,
@@ -1436,7 +1432,7 @@ def mock_for_report_type_row(
     reconcile_config_row = ReconcileConfig(
         data_source="snowflake",
         report_type="row",
-        secret_scope="remorph_snowflake",
+        creds=ReconcileCredentialConfig(vault_type="local", source_creds={"fake": "fake"}),
         database_config=DatabaseConfig(
             source_catalog=CATALOG,
             source_schema=SCHEMA,
@@ -1586,7 +1582,7 @@ def mock_for_recon_exception(normalized_table_conf_with_opts, setup_metadata_tab
     reconcile_config_exception = ReconcileConfig(
         data_source="snowflake",
         report_type="all",
-        secret_scope="remorph_snowflake",
+        creds=ReconcileCredentialConfig(vault_type="local", source_creds={"fake": "fake"}),
         database_config=DatabaseConfig(
             source_catalog=CATALOG,
             source_schema=SCHEMA,
@@ -1906,22 +1902,12 @@ def test_data_recon_with_source_exception(
 
 def test_initialise_data_source(mock_workspace_client, mock_spark):
     src_engine = get_dialect("snowflake")
+    secret_scope = "test"
 
-    sf_creds = {
-        "sfUser": "user",
-        "sfPassword": "password",
-        "sfUrl": "account.snowflakecomputing.com",
-        "sfDatabase": "database",
-        "sfSchema": "schema",
-        "sfWarehouse": "warehouse",
-        "sfRole": "role",
-    }
-    source, target = initialise_data_source(
-        mock_workspace_client, mock_spark, "snowflake", ReconcileCredentialConfig("local", sf_creds)
-    )
+    source, target = initialise_data_source(mock_workspace_client, mock_spark, src_engine, secret_scope)
 
-    snowflake_data_source = SnowflakeDataSource(src_engine, mock_spark, mock_workspace_client).__class__
-    databricks_data_source = DatabricksDataSource(src_engine, mock_spark, mock_workspace_client).__class__
+    snowflake_data_source = SnowflakeDataSource(src_engine, mock_spark, mock_workspace_client, secret_scope).__class__
+    databricks_data_source = DatabricksDataSource(src_engine, mock_spark, mock_workspace_client, secret_scope).__class__
 
     assert isinstance(source, snowflake_data_source)
     assert isinstance(target, databricks_data_source)
@@ -2035,10 +2021,7 @@ def test_reconcile_data_with_threshold_and_row_report_type(
 
 @patch('databricks.labs.lakebridge.reconcile.recon_capture.generate_final_reconcile_output')
 def test_recon_output_without_exception(mock_gen_final_recon_output):
-    mock_workspace_client = create_autospec(WorkspaceClient)
-    mock_workspace_client.secrets.get_secret.return_value = GetSecretResponse(
-        key="key", value=base64.b64encode(bytes('value', 'utf-8')).decode('utf-8')
-    )
+    mock_workspace_client = MagicMock()
     mock_spark = MagicMock()
     mock_table_recon = MagicMock()
     mock_gen_final_recon_output.return_value = ReconcileOutput(
@@ -2059,7 +2042,7 @@ def test_recon_output_without_exception(mock_gen_final_recon_output):
     reconcile_config = ReconcileConfig(
         data_source="snowflake",
         report_type="all",
-        secret_scope="remorph_snowflake",
+        creds=ReconcileCredentialConfig(vault_type="local", source_creds={"fake": "fake"}),
         database_config=DatabaseConfig(
             source_catalog=CATALOG,
             source_schema=SCHEMA,

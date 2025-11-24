@@ -340,10 +340,9 @@ class WorkspaceInstaller:
         return ReconcileConfig(
             data_source=data_source,
             report_type=report_type,
-            secret_scope="NOT_USED",
+            creds=creds_or_secret_scope,
             database_config=db_config,
             metadata_config=metadata_config,
-            creds_or_secret_scope=creds_or_secret_scope,
         )
 
     def _prompt_for_reconcile_database_config(self, source) -> DatabaseConfig:

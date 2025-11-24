@@ -1,5 +1,7 @@
 import json
 import sys
+from pathlib import Path
+
 import urllib3
 import zoneinfo
 import pandas as pd
@@ -22,7 +24,7 @@ def execute():
     logger = set_logger(__name__)
 
     db_path, creds_file = arguments_loader(desc="Monitoring Metrics Extract Script")
-    cred_manager = create_credential_manager(creds_file)
+    cred_manager = create_credential_manager(Path(creds_file))
     synapse_workspace_settings = cred_manager.get_credentials("synapse")
     synapse_profiler_settings = synapse_workspace_settings["profiler"]
 

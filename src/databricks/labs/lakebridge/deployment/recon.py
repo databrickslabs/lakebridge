@@ -61,7 +61,7 @@ class ReconDeployment:
             f"from catalog `{recon_config.metadata_config.catalog}`. Please remove it and the tables inside manually."
         )
         logging.info(
-            f"Won't remove configured reconcile secret scope `{recon_config.secret_scope}`. "
+            f"Won't remove configured reconcile creds from `{recon_config.creds.vault_type}`. "
             f"Please remove it manually."
         )
 

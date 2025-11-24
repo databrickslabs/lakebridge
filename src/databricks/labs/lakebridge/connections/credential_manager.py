@@ -20,12 +20,6 @@ class SecretProvider(Protocol):
     def get_secret(self, key: str) -> str:
         pass
 
-    def get_secret_or_none(self, key: str) -> str | None:
-        try:
-            return self.get_secret(key)
-        except KeyError:
-            return None
-
 
 class LocalSecretProvider(SecretProvider):
     def get_secret(self, key: str) -> str:
@@ -127,9 +121,7 @@ def create_databricks_secret_provider(ws) -> DatabricksSecretProvider:
     return DatabricksSecretProvider(ws)
 
 
-def create_credential_manager(creds_or_path: dict | Path | str, ws: WorkspaceClient | None = None) -> CredentialManager:
-    if isinstance(creds_or_path, str):
-        creds_or_path = Path(creds_or_path)
+def create_credential_manager(creds_or_path: dict | Path, ws: WorkspaceClient | None = None) -> CredentialManager:
     if isinstance(creds_or_path, Path):
         creds = _load_credentials(creds_or_path)
     else:

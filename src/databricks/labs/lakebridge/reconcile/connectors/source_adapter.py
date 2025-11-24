@@ -17,13 +17,14 @@ def create_adapter(
     engine: Dialect,
     spark: SparkSession,
     ws: WorkspaceClient,
+    secret_scope: str,
 ) -> DataSource:
     if isinstance(engine, Snowflake):
-        return SnowflakeDataSource(engine, spark, ws)
+        return SnowflakeDataSource(engine, spark, ws, secret_scope)
     if isinstance(engine, Oracle):
-        return OracleDataSource(engine, spark, ws)
+        return OracleDataSource(engine, spark, ws, secret_scope)
     if isinstance(engine, Databricks):
-        return DatabricksDataSource(engine, spark, ws)
+        return DatabricksDataSource(engine, spark, ws, secret_scope)
     if isinstance(engine, TSQL):
-        return TSQLServerDataSource(engine, spark, ws)
+        return TSQLServerDataSource(engine, spark, ws, secret_scope)
     raise ValueError(f"Unsupported source type --> {engine}")
