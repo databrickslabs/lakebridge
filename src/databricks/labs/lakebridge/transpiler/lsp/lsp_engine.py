@@ -10,7 +10,7 @@ import venv
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Literal, cast, ClassVar
+from typing import Any, Literal, ClassVar, cast
 
 import attrs
 import yaml
