@@ -2042,7 +2042,7 @@ def test_recon_output_without_exception(mock_gen_final_recon_output):
     reconcile_config = ReconcileConfig(
         data_source="snowflake",
         report_type="all",
-        creds=ReconcileCredentialConfig(vault_type="local", source_creds={"fake": "fake"}),
+        creds=ReconcileCredentialConfig(vault_type="databricks", source_creds={"__secret_scope": "fake"}),
         database_config=DatabaseConfig(
             source_catalog=CATALOG,
             source_schema=SCHEMA,
