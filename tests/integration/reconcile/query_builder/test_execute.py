@@ -736,7 +736,7 @@ def mock_for_report_type_data(
     reconcile_config_data = ReconcileConfig(
         data_source="databricks",
         report_type="data",
-        creds=ReconcileCredentialConfig(vault_type="local", source_creds={"fake": "fake"}),
+        creds=ReconcileCredentialConfig(vault_type="databricks", source_creds={"__secret_scope": "fake"}),
         database_config=DatabaseConfig(
             source_catalog=CATALOG,
             source_schema=SCHEMA,
@@ -937,7 +937,7 @@ def mock_for_report_type_schema(
     reconcile_config_schema = ReconcileConfig(
         data_source="databricks",
         report_type="schema",
-        creds=ReconcileCredentialConfig(vault_type="local", source_creds={"fake": "fake"}),
+        creds=ReconcileCredentialConfig(vault_type="databricks", source_creds={"__secret_scope": "fake"}),
         database_config=DatabaseConfig(
             source_catalog=CATALOG,
             source_schema=SCHEMA,
@@ -1582,7 +1582,7 @@ def mock_for_recon_exception(normalized_table_conf_with_opts, setup_metadata_tab
     reconcile_config_exception = ReconcileConfig(
         data_source="snowflake",
         report_type="all",
-        creds=ReconcileCredentialConfig(vault_type="local", source_creds={"fake": "fake"}),
+        creds=ReconcileCredentialConfig(vault_type="databricks", source_creds={"__secret_scope": "fake"}),
         database_config=DatabaseConfig(
             source_catalog=CATALOG,
             source_schema=SCHEMA,
