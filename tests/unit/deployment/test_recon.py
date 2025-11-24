@@ -13,6 +13,7 @@ from databricks.labs.lakebridge.config import (
     ReconcileConfig,
     DatabaseConfig,
     ReconcileMetadataConfig,
+    ReconcileCredentialConfig,
 )
 from databricks.labs.lakebridge.deployment.dashboard import DashboardDeployment
 from databricks.labs.lakebridge.deployment.job import JobDeployment
@@ -56,7 +57,7 @@ def test_install(ws):
     reconcile_config = ReconcileConfig(
         data_source="snowflake",
         report_type="all",
-        secret_scope="remorph_snowflake4",
+        creds=ReconcileCredentialConfig(vault_type="local", source_creds={"fake": "fake"}),
         database_config=DatabaseConfig(
             source_catalog="snowflake_sample_data4",
             source_schema="tpch_sf10004",
@@ -149,7 +150,7 @@ def test_uninstall(ws):
     recon_config = ReconcileConfig(
         data_source="snowflake",
         report_type="all",
-        secret_scope="remorph_snowflake5",
+        creds=ReconcileCredentialConfig(vault_type="local", source_creds={"fake": "fake"}),
         database_config=DatabaseConfig(
             source_catalog="snowflake_sample_data5",
             source_schema="tpch_sf10005",

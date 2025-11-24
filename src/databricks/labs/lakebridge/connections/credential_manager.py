@@ -20,6 +20,7 @@ class SecretProvider(Protocol):
     def get_secret(self, key: str) -> str:
         pass
 
+
 class LocalSecretProvider(SecretProvider):
     def get_secret(self, key: str) -> str:
         return key
