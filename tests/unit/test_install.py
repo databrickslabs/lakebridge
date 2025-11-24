@@ -678,7 +678,7 @@ def test_configure_reconcile_installation_config_error_continue_install(ws: Work
         reconcile=ReconcileConfig(
             data_source="oracle",
             report_type="all",
-            creds=ReconcileCredentialConfig(vault_type="databricks", source_creds={"__secret_scope": "NOT_USED"}),
+            creds=ReconcileCredentialConfig(vault_type="local", source_creds={"test_secret": "dummy"}),
             database_config=DatabaseConfig(
                 source_schema="tpch_sf1000",
                 target_catalog="tpch",
@@ -698,10 +698,7 @@ def test_configure_reconcile_installation_config_error_continue_install(ws: Work
         {
             "data_source": "oracle",
             "report_type": "all",
-            "creds": {
-                "vault_type": "databricks",
-                "source_creds": {"__secret_scope": "NOT_USED"},
-            },
+            "creds": {"vault_type": "local", "source_creds": {"test_secret": "dummy"}},
             "database_config": {
                 "source_schema": "tpch_sf1000",
                 "target_catalog": "tpch",
@@ -712,7 +709,6 @@ def test_configure_reconcile_installation_config_error_continue_install(ws: Work
                 "schema": "reconcile",
                 "volume": "reconcile_volume",
             },
-            "creds_or_secret_scope": {"vault_type": "local", "source_creds": {"test_secret": "dummy"}},
             "version": 2,
         },
     )
@@ -764,7 +760,7 @@ def test_configure_reconcile_no_existing_installation(ws: WorkspaceClient) -> No
         reconcile=ReconcileConfig(
             data_source="snowflake",
             report_type="all",
-            creds=ReconcileCredentialConfig(vault_type="databricks", source_creds={"__secret_scope": "NOT_USED"}),
+            creds=ReconcileCredentialConfig(vault_type="local", source_creds={"test_secret": "dummy"}),
             database_config=DatabaseConfig(
                 source_schema="tpch_sf1000",
                 target_catalog="tpch",
@@ -785,10 +781,7 @@ def test_configure_reconcile_no_existing_installation(ws: WorkspaceClient) -> No
         {
             "data_source": "snowflake",
             "report_type": "all",
-            "creds": {
-                "vault_type": "databricks",
-                "source_creds": {"__secret_scope": "NOT_USED"},
-            },
+            "creds": {"vault_type": "local", "source_creds": {"test_secret": "dummy"}},
             "database_config": {
                 "source_catalog": "snowflake_sample_data",
                 "source_schema": "tpch_sf1000",
@@ -800,7 +793,6 @@ def test_configure_reconcile_no_existing_installation(ws: WorkspaceClient) -> No
                 "schema": "reconcile",
                 "volume": "reconcile_volume",
             },
-            "creds_or_secret_scope": {"vault_type": "local", "source_creds": {"test_secret": "dummy"}},
             "version": 2,
         },
     )
@@ -907,7 +899,7 @@ def test_configure_all_override_installation(
     expected_reconcile_config = ReconcileConfig(
         data_source="snowflake",
         report_type="all",
-        creds=ReconcileCredentialConfig(vault_type="databricks", source_creds={"__secret_scope": "NOT_USED"}),
+        creds=ReconcileCredentialConfig(vault_type="local", source_creds={"test_secret": "dummy"}),
         database_config=DatabaseConfig(
             source_schema="tpch_sf1000",
             target_catalog="tpch",
@@ -942,10 +934,7 @@ def test_configure_all_override_installation(
         {
             "data_source": "snowflake",
             "report_type": "all",
-            "creds": {
-                "vault_type": "databricks",
-                "source_creds": {"__secret_scope": "NOT_USED"},
-            },
+            "creds": {"vault_type": "local", "source_creds": {"test_secret": "dummy"}},
             "database_config": {
                 "source_catalog": "snowflake_sample_data",
                 "source_schema": "tpch_sf1000",
@@ -957,7 +946,6 @@ def test_configure_all_override_installation(
                 "schema": "reconcile",
                 "volume": "reconcile_volume",
             },
-            "creds_or_secret_scope": {"vault_type": "local", "source_creds": {"test_secret": "dummy"}},
             "version": 2,
         },
     )
