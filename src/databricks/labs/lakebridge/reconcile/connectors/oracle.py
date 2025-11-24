@@ -12,6 +12,7 @@ from databricks.labs.lakebridge.connections.credential_manager import create_cre
 from databricks.labs.lakebridge.reconcile.connectors.data_source import DataSource
 from databricks.labs.lakebridge.reconcile.connectors.jdbc_reader import JDBCReaderMixin
 from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import DialectUtils, NormalizedIdentifier
+from databricks.labs.lakebridge.reconcile.exception import DataSourceRuntimeException
 from databricks.labs.lakebridge.reconcile.recon_config import JdbcReaderOptions, Schema
 from databricks.sdk import WorkspaceClient
 
@@ -44,7 +45,9 @@ class OracleDataSource(DataSource, JDBCReaderMixin):
     def _creds(self):
         if self._creds_or_empty:
             return self._creds_or_empty
-        raise ValueError("Oracle credentials have not been loaded. Please call load_credentials() first.")
+        raise DataSourceRuntimeException(
+            "Oracle credentials have not been loaded. Please call load_credentials() first."
+        )
 
     @property
     def get_jdbc_url(self) -> str:

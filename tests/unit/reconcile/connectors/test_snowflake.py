@@ -333,6 +333,19 @@ def test_read_data_without_any_auth(snowflake_creds):
         dfds.load_credentials(ReconcileCredentialConfig("databricks", creds))
 
 
+def test_credentials_not_loaded_fails():
+    engine, spark, ws, _ = initial_setup()
+    data_source = SnowflakeDataSource(engine, spark, ws)
+
+    # Call the get_schema method with predefined table, schema, and catalog names and assert that a PySparkException
+    # is raised
+    with pytest.raises(
+        DataSourceRuntimeException,
+        match=re.escape("Snowflake credentials have not been loaded. Please call load_credentials() first."),
+    ):
+        data_source.get_schema("org", "schema", "supplier")
+
+
 @pytest.mark.skip("Turned off till we can handle case sensitivity.")
 def test_normalize_identifier():
     engine, spark, ws, _ = initial_setup()

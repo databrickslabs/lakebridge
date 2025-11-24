@@ -117,13 +117,12 @@ def test_read_data_with_options():
 
 
 def test_get_schema():
-    # initial setup
     engine, spark, ws, _ = initial_setup()
-    # Mocking get secret method to return the required values
     data_source = TSQLServerDataSource(engine, spark, ws)
-    # call test method
+    data_source.load_credentials(ReconcileCredentialConfig("databricks", mssql_creds("scope")))
+
     data_source.get_schema("org", "schema", "supplier")
-    # spark assertions
+
     spark.read.format.assert_called_with("jdbc")
     spark.read.format().option().option().option.assert_called_with(
         "dbtable",
@@ -164,9 +163,9 @@ def test_get_schema():
 
 
 def test_get_schema_exception_handling():
-    # initial setup
     engine, spark, ws, _ = initial_setup()
     data_source = TSQLServerDataSource(engine, spark, ws)
+    data_source.load_credentials(ReconcileCredentialConfig("databricks", mssql_creds("scope")))
 
     spark.read.format().option().option().option().option().load.side_effect = RuntimeError("Test Exception")
 
@@ -177,6 +176,19 @@ def test_get_schema_exception_handling():
         match=re.escape(
             """Runtime exception occurred while fetching schema using SELECT COLUMN_NAME AS 'column_name', CASE WHEN DATA_TYPE IN ('int', 'bigint') THEN DATA_TYPE WHEN DATA_TYPE IN ('smallint', 'tinyint') THEN 'smallint' WHEN DATA_TYPE IN ('decimal' ,'numeric') THEN 'decimal(' + CAST(NUMERIC_PRECISION AS VARCHAR) + ',' + CAST(NUMERIC_SCALE AS VARCHAR) + ')' WHEN DATA_TYPE IN ('float', 'real') THEN 'double' WHEN CHARACTER_MAXIMUM_LENGTH IS NOT NULL AND DATA_TYPE IN ('varchar','char','text','nchar','nvarchar','ntext') THEN DATA_TYPE WHEN DATA_TYPE IN ('date','time','datetime', 'datetime2','smalldatetime','datetimeoffset') THEN DATA_TYPE WHEN DATA_TYPE IN ('bit') THEN 'boolean' WHEN DATA_TYPE IN ('binary','varbinary') THEN 'binary' ELSE DATA_TYPE END AS 'data_type' FROM INFORMATION_SCHEMA.COLUMNS WHERE LOWER(TABLE_NAME) = LOWER('supplier') AND LOWER(TABLE_SCHEMA) = LOWER('schema') AND LOWER(TABLE_CATALOG) = LOWER('org')  : Test Exception"""
         ),
+    ):
+        data_source.get_schema("org", "schema", "supplier")
+
+
+def test_credentials_not_loaded_fails():
+    engine, spark, ws, _ = initial_setup()
+    data_source = TSQLServerDataSource(engine, spark, ws)
+
+    # Call the get_schema method with predefined table, schema, and catalog names and assert that a PySparkException
+    # is raised
+    with pytest.raises(
+        DataSourceRuntimeException,
+        match=re.escape("MS SQL/Synapse credentials have not been loaded. Please call load_credentials() first."),
     ):
         data_source.get_schema("org", "schema", "supplier")
 

@@ -112,6 +112,7 @@ def test_get_schema():
 
     # create object for OracleDataSource
     ords = OracleDataSource(engine, spark, ws)
+    ords.load_credentials(ReconcileCredentialConfig("databricks", oracle_creds("scope")))
     # call test method
     ords.get_schema(None, "data", "employee")
     # spark assertions
@@ -141,6 +142,7 @@ def test_read_data_exception_handling():
     # initial setup
     engine, spark, ws, _ = initial_setup()
     ords = OracleDataSource(engine, spark, ws)
+    ords.load_credentials(ReconcileCredentialConfig("databricks", oracle_creds("scope")))
     # Create a Tables configuration object
     table_conf = Table(
         source_name="supplier",
@@ -171,7 +173,7 @@ def test_get_schema_exception_handling():
     # initial setup
     engine, spark, ws, _ = initial_setup()
     ords = OracleDataSource(engine, spark, ws)
-
+    ords.load_credentials(ReconcileCredentialConfig("databricks", oracle_creds("scope")))
     spark.read.format().option().option().option().option().option().load.side_effect = RuntimeError("Test Exception")
 
     # Call the get_schema method with predefined table, schema, and catalog names and assert that a PySparkException
@@ -192,6 +194,19 @@ def test_get_schema_exception_handling():
                                 WHERE lower(TABLE_NAME) = 'employee' and lower(owner) = 'data' """,
     ):
         ords.get_schema(None, "data", "employee")
+
+
+def test_credentials_not_loaded_fails():
+    engine, spark, ws, _ = initial_setup()
+    data_source = OracleDataSource(engine, spark, ws)
+
+    # Call the get_schema method with predefined table, schema, and catalog names and assert that a PySparkException
+    # is raised
+    with pytest.raises(
+        DataSourceRuntimeException,
+        match=re.escape("Oracle credentials have not been loaded. Please call load_credentials() first."),
+    ):
+        data_source.get_schema("org", "schema", "supplier")
 
 
 @pytest.mark.skip("Turned off till we can handle case sensitivity.")
