@@ -4,7 +4,9 @@ from unittest.mock import patch
 import pytest
 
 from databricks.labs.lakebridge.connections.credential_manager import create_credential_manager
+from databricks.sdk.errors import NotFound
 from databricks.sdk.service.workspace import GetSecretResponse
+
 
 product_name = "remorph"
 
@@ -73,3 +75,11 @@ def test_databricks_credentials(databricks_credentials, mock_workspace_client):
     creds = credentials.get_credentials('mssql')
     assert creds['user'] == 'some_secret'
     assert creds['password'] == 'some_secret'
+
+
+def test_databricks_credentials_not_found(databricks_credentials, mock_workspace_client):
+    mock_workspace_client.secrets.get_secret.side_effect = NotFound("Test Exception")
+    credentials = create_credential_manager(databricks_credentials, mock_workspace_client)
+
+    with pytest.raises(KeyError, match="Source system: unknown credentials not found"):
+        credentials.get_credentials("unknown")
