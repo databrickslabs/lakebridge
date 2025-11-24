@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 class DataSource(ABC):
+    _DOCS_URL = "https://databrickslabs.github.io/lakebridge/docs/reconcile/"
 
     @abstractmethod
     def read_data(

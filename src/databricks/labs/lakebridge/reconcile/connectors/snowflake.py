@@ -75,6 +75,9 @@ class SnowflakeDataSource(DataSource, JDBCReaderMixin):
         use_scope = creds.source_creds.get("__secret_scope")
         if use_scope:
             # to use pem key and/or pem password, migrate to source_creds approach
+            logger.warning(
+                f"Secret scope configuration is deprecated. Using secret scopes supports password authentication only. Please refer to the docs {self._DOCS_URL} to update and to access full features."
+            )
             connector_creds += ["sfPassword"]
             source_creds = {key: f"{use_scope}/{key}" for key in connector_creds}
 

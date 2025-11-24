@@ -127,6 +127,9 @@ class OracleDataSource(DataSource, JDBCReaderMixin):
         use_scope = creds.source_creds.get("__secret_scope")
         if use_scope:
             source_creds = {key: f"{use_scope}/{key}" for key in connector_creds}
+            logger.warning(
+                f"Secret scope configuration is deprecated. Please refer to the docs {self._DOCS_URL} to update."
+            )
 
             assert creds.vault_type == "databricks", "Secret scope provided, vault_type must be 'databricks'"
             parsed_creds = build_credentials(creds.vault_type, "oracle", source_creds)

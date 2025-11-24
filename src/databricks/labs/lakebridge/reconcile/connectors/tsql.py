@@ -122,6 +122,9 @@ class TSQLServerDataSource(DataSource, JDBCReaderMixin):
 
         use_scope = creds.source_creds.get("__secret_scope")
         if use_scope:
+            logger.warning(
+                f"Secret scope configuration is deprecated. Please refer to the docs {self._DOCS_URL} to update."
+            )
             source_creds = {key: f"{use_scope}/{key}" for key in connector_creds}
 
             assert creds.vault_type == "databricks", "Secret scope provided, vault_type must be 'databricks'"
