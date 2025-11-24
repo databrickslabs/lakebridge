@@ -329,10 +329,11 @@ class WorkspaceInstaller:
         report_type = self._prompts.choice(
             "Select the report type:", [report_type.value for report_type in ReconReportType]
         )
-        creds_or_secret_scope: str | ReconcileCredentialConfig = "NOT_USED"
         if data_source != ReconSourceType.DATABRICKS.value:
             vault, credentials = self._recon_creds_prompts.prompt_recon_creds(data_source)
-            creds_or_secret_scope = ReconcileCredentialConfig(vault, credentials)
+            creds = ReconcileCredentialConfig(vault, credentials)
+        else:
+            creds = ReconcileCredentialConfig("n/a", {})
 
         db_config = self._prompt_for_reconcile_database_config(data_source)
         metadata_config = self._prompt_for_reconcile_metadata_config()
@@ -340,7 +341,7 @@ class WorkspaceInstaller:
         return ReconcileConfig(
             data_source=data_source,
             report_type=report_type,
-            creds=creds_or_secret_scope,
+            creds=creds,
             database_config=db_config,
             metadata_config=metadata_config,
         )

@@ -689,7 +689,6 @@ def test_configure_reconcile_installation_config_error_continue_install(ws: Work
                 schema="reconcile",
                 volume="reconcile_volume",
             ),
-            creds_or_secret_scope=creds_sample,
         ),
         transpile=None,
     )
@@ -765,9 +764,7 @@ def test_configure_reconcile_no_existing_installation(ws: WorkspaceClient) -> No
         reconcile=ReconcileConfig(
             data_source="snowflake",
             report_type="all",
-            creds=ReconcileCredentialConfig(
-                vault_type="databricks", source_creds={"__secret_scope": "NOT_USED"}
-            ),
+            creds=ReconcileCredentialConfig(vault_type="databricks", source_creds={"__secret_scope": "NOT_USED"}),
             database_config=DatabaseConfig(
                 source_schema="tpch_sf1000",
                 target_catalog="tpch",
@@ -779,7 +776,6 @@ def test_configure_reconcile_no_existing_installation(ws: WorkspaceClient) -> No
                 schema="reconcile",
                 volume="reconcile_volume",
             ),
-            creds_or_secret_scope=creds_sample,
         ),
         transpile=None,
     )
@@ -923,7 +919,6 @@ def test_configure_all_override_installation(
             schema="reconcile",
             volume="reconcile_volume",
         ),
-        creds_or_secret_scope=creds_sample,
     )
     expected_config = LakebridgeConfiguration(transpile=expected_transpile_config, reconcile=expected_reconcile_config)
     assert config == expected_config
