@@ -11,23 +11,6 @@ from databricks.labs.lakebridge.reconcile.recon_config import JdbcReaderOptions,
 logger = logging.getLogger(__name__)
 
 
-def build_credentials(vault_type: str, source: str, credentials: dict) -> dict:
-    """Build credentials dictionary with secret vault type included.
-
-    Args:
-        vault_type: The type of secret vault (e.g., 'local', 'databricks').
-        source: The source system name.
-        credentials: The original credentials dictionary.
-
-    Returns:
-        A new credentials dictionary including the secret vault type.
-    """
-    return {
-        source: credentials,
-        'secret_vault_type': vault_type.lower(),
-    }
-
-
 class DataSource(ABC):
 
     @abstractmethod

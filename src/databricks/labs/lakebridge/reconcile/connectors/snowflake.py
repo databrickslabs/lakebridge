@@ -10,10 +10,8 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
 
 from databricks.labs.lakebridge.config import ReconcileCredentialConfig
-from databricks.labs.lakebridge.connections.credential_manager import (
-    create_credential_manager,
-)
-from databricks.labs.lakebridge.reconcile.connectors.data_source import DataSource, build_credentials
+from databricks.labs.lakebridge.connections.credential_manager import create_credential_manager, build_credentials
+from databricks.labs.lakebridge.reconcile.connectors.data_source import DataSource
 from databricks.labs.lakebridge.reconcile.connectors.jdbc_reader import JDBCReaderMixin
 from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import DialectUtils, NormalizedIdentifier
 from databricks.labs.lakebridge.reconcile.exception import InvalidSnowflakePemPrivateKey
@@ -56,7 +54,13 @@ class SnowflakeDataSource(DataSource, JDBCReaderMixin):
         self._engine = engine
         self._spark = spark
         self._ws = ws
-        self._creds: dict[str, str] = {}
+        self._creds_or_empty: dict[str, str] = {}
+
+    @property
+    def _creds(self):
+        if self._creds_or_empty:
+            return self._creds_or_empty
+        raise ValueError("Snowflake credentials have not been loaded. Please call load_credentials() first.")
 
     def load_credentials(self, creds: ReconcileCredentialConfig) -> "SnowflakeDataSource":
         connector_creds = [
@@ -79,7 +83,7 @@ class SnowflakeDataSource(DataSource, JDBCReaderMixin):
         else:
             parsed_creds = build_credentials(creds.vault_type, "snowflake", creds.source_creds)
 
-        self._creds = create_credential_manager(parsed_creds, self._ws).get_credentials("snowflake")
+        self._creds_or_empty = create_credential_manager(parsed_creds, self._ws).get_credentials("snowflake")
         assert all(
             self._creds.get(k) for k in connector_creds
         ), f"Missing mandatory Snowflake credentials. Please configure all of {connector_creds}."
