@@ -1,9 +1,14 @@
 import asyncio
 import dataclasses
 import logging
+import re
 import os
+from collections.abc import Sequence, Generator
+from contextlib import contextmanager
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from typing import final, ClassVar
+
 import pytest
 
 from lsprotocol.types import TextEdit, Range, Position
@@ -14,13 +19,50 @@ from databricks.labs.blueprint.wheels import ProductInfo
 from databricks.labs.lakebridge.config import TranspileConfig
 from databricks.labs.lakebridge.errors.exceptions import IllegalStateException
 from databricks.labs.lakebridge.helpers.file_utils import chdir
-from databricks.labs.lakebridge.transpiler.lsp.lsp_engine import ChangeManager, LSPEngine, TranspileDocumentResult
+from databricks.labs.lakebridge.transpiler.lsp.lsp_engine import (
+    ChangeManager,
+    LSPEngine,
+    TranspileDocumentResult,
+    logger as lsp_logger,
+)
 from databricks.labs.lakebridge.transpiler.transpile_status import TranspileError, ErrorSeverity, ErrorKind
 
 from tests.unit.conftest import path_to_resource
 
 
 # TODO: Arguably a form of integration test, as it round-trips with a real LSP server.
+
+
+@final
+class LSPServerLogs:
+    # The log-level at which the LSP engine writes out stderr lines from the LSP server.
+    stderr_log_level: ClassVar[int] = logging.INFO
+    # The function name from the stderr lines are logged, to help filter out other logs.
+    stderr_log_function: ClassVar[str] = "pipe_stderr"
+
+    def __init__(self, caplog: pytest.LogCaptureFixture):
+        self._caplog = caplog
+
+    @contextmanager
+    def capture(self) -> Generator[None]:
+        current_log_level = lsp_logger.getEffectiveLevel()
+        includes_info = current_log_level if current_log_level < self.stderr_log_level else self.stderr_log_level
+        with self._caplog.at_level(includes_info):
+            yield
+
+    def log_lines(self) -> Sequence[str]:
+        return [
+            record.getMessage()
+            for record in self._caplog.records
+            if record.levelno == self.stderr_log_level
+            and record.name == lsp_logger.name
+            and record.funcName == self.stderr_log_function
+        ]
+
+
+@pytest.fixture
+def capture_lsp_server_logs(caplog: pytest.LogCaptureFixture) -> LSPServerLogs:
+    return LSPServerLogs(caplog)
 
 
 async def test_initializes_lsp_server(lsp_engine, transpile_config):
@@ -41,7 +83,7 @@ async def test_shuts_lsp_server_down(lsp_engine, transpile_config):
     assert not lsp_engine.is_alive
 
 
-async def test_sets_env_variables(lsp_engine, transpile_config):
+async def test_sets_env_variables(lsp_engine: LSPEngine, transpile_config: TranspileConfig) -> None:
     await lsp_engine.initialize(transpile_config)
     log = Path(path_to_resource("lsp_transpiler", "test-lsp-server.log")).read_text("utf-8")
     assert "SOME_ENV=abc" in log  # see environment in lsp_transpiler/config.yml
@@ -161,6 +203,40 @@ async def test_server_transpiles_from_memory(lsp_engine: LSPEngine, transpile_co
     await lsp_engine.shutdown()
     transpiled_path = Path(path_to_resource("lsp_transpiler", "transpiled_stuff.sql"))
     assert result.transpiled_code == transpiled_path.read_text(encoding="utf-8")
+
+
+async def test_server_with_long_stderr_lines(
+    tmp_path: Path, lsp_engine: LSPEngine, transpile_config: TranspileConfig, capture_lsp_server_logs: LSPServerLogs
+) -> None:
+    """Test our handling of really long stderr lines from the LSP server."""
+    # Testing method is based on the LSP server logging the query to stderr, which we can make very very very long.
+    padding_size = 100_000
+    sample_path = tmp_path / "large_file.sql"
+    sample_code = f"select '{'x' * padding_size}';"
+    sample_path.write_text(sample_code, encoding="utf-8")
+    assert (source_dialect := transpile_config.source_dialect) is not None
+
+    await lsp_engine.initialize(transpile_config)
+
+    with capture_lsp_server_logs.capture():
+        result = await lsp_engine.transpile(source_dialect, "databricks", sample_code, sample_path)
+
+    await lsp_engine.shutdown()
+
+    lsp_server_logs = capture_lsp_server_logs.log_lines()
+
+    expected_code = sample_code.upper()
+    assert result.transpiled_code == expected_code
+
+    # The logs, being long, will be split. Rather than joint we will look for the query prefix/suffix start/end and
+    # count the 'x's.
+    log_text = "\n".join(lsp_server_logs)
+    sample_matcher = re.compile(r"select '(?P<padding>.*?)';", re.DOTALL | re.MULTILINE)
+    assert (sample_match := sample_matcher.search(log_text)) is not None
+    assert sample_match.group("padding").count("x") == padding_size
+    expected_matcher = re.compile(r"SELECT '(?P<padding>.*?)';", re.DOTALL | re.MULTILINE)
+    assert (expected_match := expected_matcher.search(log_text)) is not None
+    assert expected_match.group("padding").count("X") == padding_size
 
 
 async def test_server_transpiles_relative_path(lsp_engine: LSPEngine, transpile_config: TranspileConfig) -> None:
