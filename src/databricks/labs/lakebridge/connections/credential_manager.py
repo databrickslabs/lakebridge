@@ -20,13 +20,6 @@ class SecretProvider(Protocol):
     def get_secret(self, key: str) -> str:
         pass
 
-    def get_secret_or_none(self, key: str) -> str | None:
-        try:
-            return self.get_secret(key)
-        except KeyError:
-            return None
-
-
 class LocalSecretProvider(SecretProvider):
     def get_secret(self, key: str) -> str:
         return key
