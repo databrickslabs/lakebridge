@@ -261,35 +261,29 @@ class ReconcileMetadataConfig:
 
 @dataclass
 class ReconcileCredentialConfig:
-    vault_type: str
+    vault_type: str  # supports local, env, databricks creds.
     source_creds: dict[str, str]
 
 
 @dataclass
 class ReconcileConfig:
     __file__ = "reconcile.yml"
-    __version__ = 1
+    __version__ = 2
 
     data_source: str
     report_type: str
-    secret_scope: str  # TODO deprecate in favor of creds_or_secret_scope or remove altogether
+    creds: ReconcileCredentialConfig
     database_config: DatabaseConfig
     metadata_config: ReconcileMetadataConfig
     job_id: str | None = None
     tables: ReconcileTablesConfig | None = None
-    creds_or_secret_scope: ReconcileCredentialConfig | str | None = None
-    # supports local, env, databricks creds or direct secret scope string (old behavior)
-    # TODO make not optional
 
-    @property
-    def creds(self):
-        if self.creds_or_secret_scope is not None and isinstance(self.creds_or_secret_scope, ReconcileCredentialConfig):
-            return self.creds_or_secret_scope
-
-        return ReconcileCredentialConfig(
-            vault_type="databricks",
-            source_creds={"__secret_scope": self.creds_or_secret_scope or self.secret_scope},
-        )
+    @classmethod
+    def v1_migrate(cls, raw: dict[str, Any]) -> dict[str, Any]:
+        secret_scope = raw.pop("secret_scope")
+        raw["version"] = 2
+        raw["creds"] = {"vault_type": "local", "source_creds": {"__secret_scope": secret_scope}}
+        return raw
 
 
 @dataclass

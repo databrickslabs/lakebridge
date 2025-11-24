@@ -1,20 +1,14 @@
-import os
 import base64
-from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 import pytest
 
 from databricks.labs.lakebridge.connections.credential_manager import create_credential_manager
-from databricks.labs.lakebridge.connections.env_getter import EnvGetter
+from databricks.sdk.errors import NotFound
 from databricks.sdk.service.workspace import GetSecretResponse
 
+
 product_name = "remorph"
-
-
-@pytest.fixture
-def env_getter():
-    return MagicMock(spec=EnvGetter)
 
 
 @pytest.fixture
@@ -50,45 +44,42 @@ def databricks_credentials():
     return {
         'secret_vault_type': 'databricks',
         'mssql': {
-            'database': 'databricks_vault_name/DB_NAME',
-            'driver': 'databricks_vault_name/ODBC Driver 18 for SQL Server',
-            'server': 'databricks_vault_name/example_host',
-            'user': 'databricks_vault_name/databricks_user',
-            'password': 'databricks_vault_name/databricks_password',
+            'database': 'databricks_vault_name/db_key',
+            'server': 'databricks_vault_name/host_key',
+            'user': 'databricks_vault_name/user_key',
+            'password': 'databricks_vault_name/pass_key',
         },
     }
 
 
-@patch('databricks.labs.lakebridge.connections.credential_manager._load_credentials')
-@patch('databricks.labs.lakebridge.connections.credential_manager._get_home')
-def test_local_credentials(mock_get_home, mock_load_credentials, local_credentials, env_getter):
-    mock_load_credentials.return_value = local_credentials
-    mock_get_home.return_value = Path("/fake/home")
-    credentials = create_credential_manager(product_name, env_getter)
+def test_local_credentials(local_credentials):
+    credentials = create_credential_manager(local_credentials)
     creds = credentials.get_credentials('mssql')
     assert creds['user'] == 'local_user'
     assert creds['password'] == 'local_password'
 
 
-@patch('databricks.labs.lakebridge.connections.credential_manager._load_credentials')
-@patch('databricks.labs.lakebridge.connections.credential_manager._get_home')
 @patch.dict('os.environ', {'MSSQL_USER_ENV': 'env_user', 'MSSQL_PASSWORD_ENV': 'env_password'})
-def test_env_credentials(mock_get_home, mock_load_credentials, env_credentials, env_getter):
-    mock_load_credentials.return_value = env_credentials
-    env_getter.get.side_effect = lambda key: os.environ[key]
-    credentials = create_credential_manager(Path("/fake/home"))
+def test_env_credentials(env_credentials):
+    credentials = create_credential_manager(env_credentials)
     creds = credentials.get_credentials('mssql')
     assert creds['user'] == 'env_user'
     assert creds['password'] == 'env_password'
 
 
-@patch('databricks.labs.lakebridge.connections.credential_manager._load_credentials')
-def test_databricks_credentials(mock_load_credentials, databricks_credentials, env_getter, mock_workspace_client):
+def test_databricks_credentials(databricks_credentials, mock_workspace_client):
     mock_workspace_client.secrets.get_secret.return_value = GetSecretResponse(
         key='some_key', value=base64.b64encode(bytes('some_secret', 'utf-8')).decode('utf-8')
     )
-    mock_load_credentials.return_value = databricks_credentials
-    credentials = create_credential_manager(Path("/fake/home"), mock_workspace_client)
+    credentials = create_credential_manager(databricks_credentials, mock_workspace_client)
     creds = credentials.get_credentials('mssql')
     assert creds['user'] == 'some_secret'
     assert creds['password'] == 'some_secret'
+
+
+def test_databricks_credentials_not_found(databricks_credentials, mock_workspace_client):
+    mock_workspace_client.secrets.get_secret.side_effect = NotFound("Test Exception")
+    credentials = create_credential_manager(databricks_credentials, mock_workspace_client)
+
+    with pytest.raises(KeyError, match="Source system: unknown credentials not found"):
+        credentials.get_credentials("unknown")

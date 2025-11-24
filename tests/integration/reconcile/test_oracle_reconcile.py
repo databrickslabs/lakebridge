@@ -4,7 +4,12 @@ import pytest
 from pyspark.sql import DataFrame
 
 from databricks.connect import DatabricksSession
-from databricks.labs.lakebridge.config import DatabaseConfig, ReconcileMetadataConfig, ReconcileConfig
+from databricks.labs.lakebridge.config import (
+    DatabaseConfig,
+    ReconcileMetadataConfig,
+    ReconcileConfig,
+    ReconcileCredentialConfig,
+)
 from databricks.labs.lakebridge.reconcile.connectors.databricks import DatabricksDataSource
 from databricks.labs.lakebridge.reconcile.recon_capture import ReconCapture
 from databricks.labs.lakebridge.reconcile.recon_config import Table, JdbcReaderOptions
@@ -46,7 +51,7 @@ def test_oracle_db_reconcile(mock_spark, mock_workspace_client, tmp_path):
     reconcile_config = ReconcileConfig(
         data_source="oracle",
         report_type=report,
-        secret_scope="not used",
+        creds=ReconcileCredentialConfig(vault_type="local", source_creds={"fake": "fake"}),
         database_config=db_config,
         metadata_config=ReconcileMetadataConfig(catalog="tmp", schema="reconcile"),
     )

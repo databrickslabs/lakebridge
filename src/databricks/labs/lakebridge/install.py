@@ -20,6 +20,7 @@ from databricks.labs.lakebridge.config import (
     LakebridgeConfiguration,
     ReconcileMetadataConfig,
     TranspileConfig,
+    ReconcileCredentialConfig,
 )
 from databricks.labs.lakebridge.contexts.application import ApplicationContext
 from databricks.labs.lakebridge.deployment.configurator import ResourceConfigurator
@@ -336,7 +337,7 @@ class WorkspaceInstaller:
         return ReconcileConfig(
             data_source=data_source,
             report_type=report_type,
-            secret_scope=scope_name,
+            creds=ReconcileCredentialConfig(vault_type="databricks", source_creds={"__secret_scope": scope_name}),
             database_config=db_config,
             metadata_config=metadata_config,
         )
