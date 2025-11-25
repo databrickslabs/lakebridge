@@ -5,12 +5,12 @@ def get_sqlserver_reader(
     input_cred: dict,
     db_name: str,
     *,
-    fully_qualified_domain_name: str,
+    server_name: str,
     auth_type: str = 'sql_authentication',
 ) -> DatabaseManager:
     config = {
         "driver": input_cred['driver'],
-        "server": fully_qualified_domain_name,
+        "server": server_name,
         "database": db_name,
         "user": input_cred['sql_user'],
         "password": input_cred['sql_password'],

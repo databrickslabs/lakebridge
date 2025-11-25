@@ -96,14 +96,14 @@ class ConfigureSqlServerAssessment(AssessmentConfigurator):
             "secret_vault_type": secret_vault_type,
             "secret_vault_name": secret_vault_name,
             source: {
-                "db_names": self.prompts.question("Enter the database names (comma-separated)"),
+                "db_names": self.prompts.question("Enter the database names to profile (comma-separated)"),
                 "driver": self.prompts.question(
                     "Enter the ODBC driver installed locally", default="ODBC Driver 18 for SQL Server"
                 ),
-                "server": self.prompts.question("Enter the server or host details"),
+                "server": self.prompts.question("Enter the fully-qualified server name"),
                 "port": int(self.prompts.question("Enter the port details", valid_number=True)),
-                "user": self.prompts.question("Enter the user details"),
-                "password": self.prompts.password("Enter the password details"),
+                "user": self.prompts.question("Enter the SQL username"),
+                "password": self.prompts.password("Enter the SQL password"),
                 "tz_info": self.prompts.question("Enter timezone (e.g. America/New_York)", default="UTC"),
                 "profiler": mssql_profiler,
             },
