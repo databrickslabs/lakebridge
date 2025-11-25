@@ -14,6 +14,7 @@ steps:
       - databricks-sdk
       - databricks-labs-blueprint[yaml]>=0.10.1
       - sqlalchemy
+      - azure-synapse-artifacts
       - azure-mgmt-sql
       - azure-identity
       - azure-monitor-query==1.3.0b1
@@ -30,6 +31,7 @@ steps:
       - databricks-sdk
       - databricks-labs-blueprint[yaml]>=0.10.1
       - sqlalchemy
+      - azure-synapse-artifacts
       - azure-mgmt-sql
       - azure-identity
       - azure-monitor-query==1.3.0b1
