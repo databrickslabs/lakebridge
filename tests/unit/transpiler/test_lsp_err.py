@@ -10,7 +10,7 @@ from databricks.labs.lakebridge.transpiler.lsp.lsp_engine import LSPEngine
 
 
 @asynccontextmanager
-async def run_lsp_server() -> AsyncGenerator[LSPEngine, None]:
+async def run_lsp_server() -> AsyncGenerator[LSPEngine]:
     """Run the LSP server and yield the LSPEngine instance."""
     config_path = Path(__file__).parent.parent.parent / "resources" / "lsp_transpiler" / "lsp_config.yml"
     lsp_engine = LSPEngine.from_config_path(config_path)
@@ -27,7 +27,7 @@ async def run_lsp_server() -> AsyncGenerator[LSPEngine, None]:
 
 
 @pytest.mark.asyncio
-async def test_stderr_captured_as_logs(caplog) -> None:
+async def test_stderr_captured_as_logs(caplog: pytest.LogCaptureFixture) -> None:
     """Verify that output from the LSP engine is captured as logs at INFO level."""
     # The LSP engine logs a message to stderr when it starts; look for that message in the logs.
     with caplog.at_level(logging.INFO):
@@ -39,7 +39,7 @@ async def test_stderr_captured_as_logs(caplog) -> None:
 
 
 @pytest.mark.asyncio
-async def test_stderr_non_utf8_captured(caplog) -> None:
+async def test_stderr_non_utf8_captured(caplog: pytest.LogCaptureFixture) -> None:
     """Verify that output from the LSP engine on stderr is captured even if it doesn't decode as UTF-8."""
     with caplog.at_level(logging.INFO):
         async with run_lsp_server() as lsp_engine:
