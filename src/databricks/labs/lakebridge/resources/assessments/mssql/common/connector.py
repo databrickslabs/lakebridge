@@ -12,8 +12,8 @@ def get_sqlserver_reader(
         "driver": input_cred['driver'],
         "server": server_name,
         "database": db_name,
-        "user": input_cred['sql_user'],
-        "password": input_cred['sql_password'],
+        "user": input_cred['user'],
+        "password": input_cred['password'],
         "port": input_cred.get('port', 1433),
         "auth_type": auth_type,
     }
