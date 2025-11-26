@@ -87,24 +87,36 @@ class ConfigureSqlServerAssessment(AssessmentConfigurator):
         secret_vault_type = str(self.prompts.choice("Enter secret vault type (local | env)", ["local", "env"])).lower()
         secret_vault_name = None
 
+        # JDBC Settings
+        logger.info("Please select JDBC authentication type:")
+        auth_type = self.prompts.choice(
+            "Select authentication type", ["sql_authentication", "ad_passwd_authentication", "spn_authentication"]
+        )
+        mssql_jdbc = {
+            "auth_type": auth_type,
+            "fetch_size": self.prompts.question("Enter fetch size", default="1000"),
+            "login_timeout": self.prompts.question("Enter login timeout (seconds)", default="30"),
+            "server": self.prompts.question("Enter the fully-qualified server name"),
+            "port": int(self.prompts.question("Enter the port details", valid_number=True)),
+            "sql_user": self.prompts.question("Enter the SQL username"),
+            "sql_password": self.prompts.password("Enter the SQL password"),
+            "tz_info": self.prompts.question("Enter timezone (e.g. America/New_York)", default="UTC"),
+            "db_names": self.prompts.question("Enter the database names to profile (comma-separated)"),
+            "driver": self.prompts.question(
+                "Enter the ODBC driver installed locally", default="ODBC Driver 18 for SQL Server"
+            ),
+        }
+
         # Profiler settings
         logger.info("Please configure profiler settings:")
         mssql_profiler = {
-            "redact_sql_pools_sql_text": self.prompts.confirm("Redact SQL pools SQL text?"),
+            "redact_sql_pools_sql_text": self.prompts.confirm("Redact SQL text?"),
         }
         credential = {
             "secret_vault_type": secret_vault_type,
             "secret_vault_name": secret_vault_name,
             source: {
-                "db_names": self.prompts.question("Enter the database names to profile (comma-separated)"),
-                "driver": self.prompts.question(
-                    "Enter the ODBC driver installed locally", default="ODBC Driver 18 for SQL Server"
-                ),
-                "server": self.prompts.question("Enter the fully-qualified server name"),
-                "port": int(self.prompts.question("Enter the port details", valid_number=True)),
-                "user": self.prompts.question("Enter the SQL username"),
-                "password": self.prompts.password("Enter the SQL password"),
-                "tz_info": self.prompts.question("Enter timezone (e.g. America/New_York)", default="UTC"),
+                "jdbc": mssql_jdbc,
                 "profiler": mssql_profiler,
             },
         }

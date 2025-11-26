@@ -17,7 +17,7 @@ def execute():
     cred_manager = create_credential_manager(PRODUCT_NAME, creds_file)
     mssql_settings = cred_manager.get_credentials("mssql")
     auth_type = mssql_settings["jdbc"].get("auth_type", "sql_authentication")
-    server_name = mssql_settings["jdbc"].get("server_name")
+    server_name = mssql_settings["jdbc"].get("server", "")
     mssql_profiler_settings = mssql_settings["profiler"]
     mssql_client = create_msql_sql_client(mssql_profiler_settings)
 
