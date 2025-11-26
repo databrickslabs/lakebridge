@@ -30,21 +30,21 @@ async def run_lsp_server() -> AsyncGenerator[LSPEngine, None]:
 async def test_stderr_captured_as_logs(caplog) -> None:
     """Verify that output from the LSP engine is captured as logs at INFO level."""
     # The LSP engine logs a message to stderr when it starts; look for that message in the logs.
-    with caplog.at_level(logging.INFO):
+    with caplog.at_level(logging.DEBUG):
         async with run_lsp_server() as lsp_engine:
             assert lsp_engine.is_alive
 
-    expected = (LSPEngine.__module__, logging.INFO, "Running LSP Test Server\u2026")
+    expected = (LSPEngine.__module__, logging.DEBUG, "Running LSP Test Server\u2026")
     assert expected in caplog.record_tuples
 
 
 @pytest.mark.asyncio
 async def test_stderr_non_utf8_captured(caplog) -> None:
     """Verify that output from the LSP engine on stderr is captured even if it doesn't decode as UTF-8."""
-    with caplog.at_level(logging.INFO):
+    with caplog.at_level(logging.DEBUG):
         async with run_lsp_server() as lsp_engine:
             assert lsp_engine.is_alive
 
     # U+FFFD is the Unicode replacement character, when invalid UTF-8 is encountered.
-    expected = (LSPEngine.__module__, logging.INFO, "Some bytes that are invalid UTF-8: [\ufffd\ufffd]")
+    expected = (LSPEngine.__module__, logging.DEBUG, "Some bytes that are invalid UTF-8: [\ufffd\ufffd]")
     assert expected in caplog.record_tuples
