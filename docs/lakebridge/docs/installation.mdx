@@ -18,54 +18,145 @@ import TabItem from '@theme/TabItem';
 ----
 ## Pre-requisites
 
-1. Install `Databricks CLI` - Ensure that you have the Databricks Command-Line Interface (CLI) installed on your machine. Refer to the installation instructions provided for Linux, MacOS, and Windows, available [here](https://docs.databricks.com/en/dev-tools/cli/install.html#install-or-update-the-databricks-cli).
+### 1. Databricks Workspace Requirements
 
-   Installing the Databricks CLI in different OS:
-   <Tabs>
-       <TabItem value="macos" label="MacOS & Linux" default>
-           <img src={useBaseUrl('img/macos-databricks-cli-install.gif')} alt="macos-databricks-cli-install" />
-       </TabItem>
-       <TabItem value="windows" label="Windows" default>
-           <img src={useBaseUrl('img/windows-databricks-cli-install.gif')} alt="windows-databricks-cli-install" />
-       </TabItem>
-       <TabItem value="shell" label="Linux without brew" default>
-           ```shell
-           #!/usr/bin/env bash
+#### 1.1 Databricks Workspace Access
+You must have access to a Databricks workspace to install and use Lakebridge:
 
-           #install dependencies
-           apt update && apt install -y curl sudo unzip
+- **Production/Enterprise Workspace:** Recommended for production migrations
+- **Development Workspace:** Suitable for testing and development
+- **Free Databricks Workspace:** Available at [databricks.com/try-databricks](https://www.databricks.com/try-databricks) - Perfect for evaluation and learning
 
-           #install databricks cli
-           curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/v0.242.0/install.sh | sudo sh
-           ```
-       </TabItem>
-   </Tabs>
+:::tip Pro Tip
+For evaluation purposes, using a free Databricks workspace with a Personal Access Token is the fastest way to get started. This combination requires no enterprise approvals and can be set up in minutes.
+:::
 
-2. Configure `Databricks CLI` - Details can be found [here](https://docs.databricks.com/aws/en/dev-tools/cli/authentication#databricks-personal-access-token-authentication). Additionally, Lakebridge requires the profile used for the Databricks CLI to specify a cluster_id, to do this, you can either:
+#### 1.2 Databricks CLI Installation & Configuration
 
-   - Edit your `~/.databrickscfg` file directly and enter a `cluster_id` for the profile you're using or;
-   - The flag `--configure-cluster` gives you the prompt to select the cluster_id from the available clusters on the workspace specified on the selected profile.
-     ```shell
-     databricks configure --host <host> --configure-cluster --profile <profile_name>
-     ```
-   - Alternatively you can use the environment variable `DATABRICKS_CLUSTER_ID` to set the cluster id you would want to use for your profile before running the `databricks configure` command.
+**Install Databricks CLI** - Ensure that you have the Databricks Command-Line Interface (CLI) installed on your machine. Refer to the installation instructions provided for Linux, MacOS, and Windows, available [here](https://docs.databricks.com/en/dev-tools/cli/install.html#install-or-update-the-databricks-cli).
 
-     ```shell
-     export DATABRICKS_CLUSTER_ID=<cluster_id>
-     databricks configure --host <host> --profile <profile_name>
-     ```
+Installing the Databricks CLI in different OS:
+<Tabs>
+    <TabItem value="macos" label="MacOS & Linux" default>
+        <img src={useBaseUrl('img/macos-databricks-cli-install.gif')} alt="macos-databricks-cli-install" />
+    </TabItem>
+    <TabItem value="windows" label="Windows" default>
+        <img src={useBaseUrl('img/windows-databricks-cli-install.gif')} alt="windows-databricks-cli-install" />
+    </TabItem>
+    <TabItem value="shell" label="Linux without brew" default>
+        ```shell
+        #!/usr/bin/env bash
 
-3. `Python` - Verify that Python is installed, versions between 3.10 and 3.13 are supported:
+        #install dependencies
+        apt update && apt install -y curl sudo unzip
 
-   - `Windows` - Install python from [here](https://www.python.org/downloads/). Your Windows computer will need a shell environment ([GitBash](https://www.git-scm.com/downloads) or [WSL](https://learn.microsoft.com/en-us/windows/wsl/about)).
-   - `MacOS/Unix` - Use [brew](https://formulae.brew.sh/formula/python@3.13) to install python in macOS/Unix machines.
+        #install databricks cli
+        curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/v0.242.0/install.sh | sudo sh
+        ```
+    </TabItem>
+</Tabs>
 
-   **Note: Python 3.14 is not currently supported.**
+**Configure Databricks CLI** - Details can be found [here](https://docs.databricks.com/aws/en/dev-tools/cli/authentication#databricks-personal-access-token-authentication).
 
-   Check Python version on Windows, macOS, and Unix:
-   <img src={useBaseUrl('img/check-python-version.gif')} alt="check-python-version" />
+**Authentication Options:**
+- **Personal Access Token (PAT):** Recommended for individual users - Generate from User Settings → Developer → Access Tokens
+- **Service Principal:** Recommended for automated/production deployments - Requires admin privileges to create
 
-4. `Java` - Verify that Java 11 or above is installed. This is required for the Morpheus transpiler.
+**Profile Configuration:**
+
+Additionally, Lakebridge requires the profile used for the Databricks CLI to specify a cluster_id, to do this, you can either:
+- Edit your `~/.databrickscfg` file directly and enter a `cluster_id` for the profile you're using or
+- The flag `--configure-cluster` gives you the prompt to select the cluster_id from the available clusters on the workspace
+specified on the selected profile.
+```shell
+databricks configure --host <host> --configure-cluster --profile <profile_name>
+```
+- Alternatively you can use the environment variable `DATABRICKS_CLUSTER_ID` to set the cluster id you would want to use
+for your profile before running the `databricks configure` command.
+
+```shell
+export DATABRICKS_CLUSTER_ID=<cluster_id>
+databricks configure --host <host> --profile <profile_name>
+```
+
+**Verification:** Run `databricks clusters list` to confirm connectivity
+
+### 2. Software Requirements
+
+#### 2.1 Python
+
+**Version Required:** Python 3.10 or newer; verify that the installed version is in the supported versions (3.10–3.13).
+
+- **Windows** - Install python from [here](https://www.python.org/downloads/). Your Windows computer will need a shell environment ([GitBash](https://www.git-scm.com/downloads) or [WSL](https://learn.microsoft.com/en-us/windows/wsl/about))
+- **MacOS/Unix** - Use [brew](https://formulae.brew.sh/formula/python@3.10) to install python in macOS/Unix machines
+
+**Check Python version on Windows, macOS, and Unix:**
+<img src={useBaseUrl('img/check-python-version.gif')} alt="check-python-version" />
+
+**Verification:** Run `python --version` to confirm installation
+
+**Note: Python 3.14 is not currently supported.**
+
+#### 2.2 Java
+
+**Version Required:** [Java 11 or above](https://www.oracle.com/java/technologies/downloads/)
+
+- **Recommended:** OpenJDK 11 or later (available via system package managers)
+- **Purpose:** Required for the Morpheus transpiler component that powers code conversion
+- **Verification:** Run `java -version` to confirm installation
+
+### 3. Network & Environment Access
+
+The following network endpoints must be accessible from your installation environment:
+
+#### 3.1 GitHub Access
+Access to Databricks Labs GitHub repository for downloading Lakebridge.
+- **Repository:** [github.com/databrickslabs/lakebridge](https://github.com/databrickslabs/lakebridge)
+- **Purpose:** Download latest official Lakebridge installation packages
+
+#### 3.2 Maven Central Repository
+Access to Maven Central for downloading transpiler plugins and dependencies.
+- **Repository:** [central.sonatype.com](https://central.sonatype.com/artifact/com.databricks.labs/databricks-morph-plugin)
+- **Purpose:** Download latest version of the transpiler plugins
+
+#### 3.3 PyPI (Python Package Index)
+Access to PyPI for Python package dependencies.
+- **Repository:** [pypi.org](https://pypi.org)
+- **Purpose:** Install Python dependencies
+
+:::warning Hardened & Security-Restricted Environments
+If you are operating in a hardened environment with internet restrictions, firewall rules, or security policies, you must whitelist the following resources **before installation**:
+
+- **GitHub:** `github.com`, `raw.githubusercontent.com` - For Lakebridge source code
+- **Maven Central:** `repo1.maven.org`, `central.sonatype.com` - For transpiler plugins
+- **PyPI:** `pypi.org`, `files.pythonhosted.org` - For Python packages
+- **Python Downloads:** `python.org` - If installing Python
+- **Java Downloads:** `oracle.com` or OpenJDK mirrors - If installing Java
+
+**Action Required:** Contact your IT Security, CyberSecOps, or Infrastructure team to request whitelisting. Consider setting up a **private repository/artifact mirror** for organizations with strict internet access policies.
+:::
+
+#### 3.4 Private Repository Hosting (Optional)
+For organizations with restricted internet access or security requirements:
+- **Purpose:** Internal hosting and distribution of Lakebridge components
+- **Options:** Artifactory, Nexus
+- **Benefits:** Control over versions, security scanning, compliance validation
+
+### Pre-Installation Checklist
+
+Verify all prerequisites before proceeding:
+
+- ☐ Databricks workspace access confirmed (production, dev, or free trial)
+- ☐ Databricks CLI installed on your machine
+- ☐ Databricks CLI configured with PAT or Service Principal for your workspace
+- ☐ CLI connectivity verified (`databricks clusters list` succeeds)
+- ☐ Python 3.10+ installed and verified (`python --version`)
+- ☐ Java 11+ installed and verified (`java -version`)
+- ☐ Network access to GitHub confirmed
+- ☐ Network access to Maven Central confirmed
+- ☐ Network access to PyPI confirmed
+- ☐ (If applicable) All required resources whitelisted in restricted environments
+- ☐ (If applicable) Private repository configured for package hosting
 
 [[back to top](#table-of-contents)]
 
