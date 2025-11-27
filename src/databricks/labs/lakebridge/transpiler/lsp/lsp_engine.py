@@ -366,7 +366,7 @@ class LanguageClient(BaseLanguageClient):
                 # dropping it silently or triggering an exception.
                 message = line_bytes.decode("utf-8", errors="replace").rstrip()
                 if message:
-                    logger.info(message)
+                    logger.debug(message)
                 del line_bytes, message
 
                 # Set up for handling the next line of this chunk.
@@ -382,14 +382,14 @@ class LanguageClient(BaseLanguageClient):
                     if message:
                         # Note: the very next character might be a '\n', but we don't know that yet. So might be more
                         # for this line, might not be.
-                        logger.info(f"{message}[..?]")
+                        logger.debug(f"{message}[..?]")
                     del log_now, message, pending_buffer[:limit]
             del remaining
         if pending_buffer:
             # Here we've hit EOF but have an incomplete line pending. Log it anyway.
             message = pending_buffer.decode("utf-8", errors="replace").rstrip()
             if message:
-                logger.info(f"{message} <missing EOL at EOF>")
+                logger.debug(f"{message} <missing EOL at EOF>")
 
     def _detect_pipe_stderr_exception(self, task: asyncio.Task) -> None:
         if (err := task.exception()) is not None:

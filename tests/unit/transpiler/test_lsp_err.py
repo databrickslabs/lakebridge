@@ -15,7 +15,7 @@ from databricks.labs.lakebridge.transpiler.lsp.lsp_engine import LSPEngine, Lang
 @final
 class LSPServerLogs:
     # The log-level at which the LSP engine writes out stderr lines from the LSP server.
-    stderr_log_level: ClassVar[int] = logging.INFO
+    stderr_log_level: ClassVar[int] = logging.DEBUG
     # The function name from the stderr lines are logged, to help filter out other logs.
     stderr_log_function: ClassVar[str] = "pipe_stream"
 
