@@ -1,5 +1,55 @@
 # Version changelog
 
+## # Lakebridge v0.11.1  Release Notes
+
+## Analyzer
+
+No updates in this release.
+
+## Converters
+
+## General
+
+- Improved end-to-end migration behavior through tighter integration with the centralized Morpheus function mapping layer and expanded cross-dialect coverage
+
+## Morpheus
+
+**Snowflake**
+
+- Centralized SQL function mappings and expanded cross-dialect coverage, improving Snowflake-to-Databricks SQL conversions and reducing noisy, non-actionable warnings.
+- Added full translation support for Snowflake exception blocks, enabling richer error-handling logic to be preserved when converting to Databricks SQL.
+    
+
+**TSQL / SQL Server**
+
+- Reworked SQL function handling so most mappings are centralized, making TSQL-to-Databricks SQL conversions more accurate and easier to extend for future Lakebridge-based migrations.
+- Implemented full support for TSQL TRY/CATCH constructs, including THROW/RAISERROR-style logic and helper-based error handling, improving the fidelity of translated control-flow and error semantics.
+    
+
+## BladeBridge
+
+**TSQL / SQL Server**
+
+- Fixed handling of T-SQL column alias syntax in SELECT statements so aliases are no longer mistaken for variable assignments, and removed a deprecated alias-normalization method to improve translation accuracy.
+- Resolved failures caused by nested comments, improved post-conversion handling for shell and Python wrapper scripts, and ensured labeled UPDATE/DELETE statements that translate to MERGE remain correctly embedded in SQL.
+- Corrected processing of SELECT statements without a FROM clause when assigning to variables, so expressions like variable increments and severity mappings are handled reliably during migration.
+- Improved “delete by source” MERGE translations so separators and DELETE placement are preserved, and fixed static string handling so T-SQL patterns that use square brackets are not misinterpreted as identifier quoting or ranges.
+    
+
+## Reconcile
+
+No updates in this release
+
+## Documentation
+
+- Clarified that Python 3.14 is not yet supported and updated macOS instructions to recommend Python 3.13 as the latest supported version
+- Expanded installation prerequisites with detailed Databricks workspace requirements, authentication options, network and repository access expectations, and a comprehensive pre-installation checklist aimed at enterprise and security-restricted environments    
+
+## General
+
+- Increased the maximum stderr line size accepted from LSP servers during transpilation to prevent crashes or hangs when converters emit very large log lines
+- Reduced noise from LSP integrations by lowering stderr mirroring from INFO to DEBUG level, ensuring detailed logs remain available for troubleshooting without cluttering normal operation logs
+
 ## # Lakebridge v0.11.0 Release Notes
 
 ## 🎉 New Features
