@@ -7,7 +7,7 @@ from pyspark.sql import SparkSession
 
 from databricks.labs.lakebridge.__about__ import __version__
 from databricks.labs.lakebridge.connections.database_manager import DatabaseManager
-from tests.integration.debug_envgetter import TestEnvGetter
+from databricks.labs.lakebridge.connections.debug_envgetter import TestEnvGetter
 
 logging.getLogger("tests").setLevel("DEBUG")
 logging.getLogger("databricks.labs.lakebridge").setLevel("DEBUG")
