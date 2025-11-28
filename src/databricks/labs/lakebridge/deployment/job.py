@@ -16,6 +16,7 @@ from databricks.sdk.service.jobs import (
     JobParameterDefinition,
 )
 from databricks.labs.lakebridge.config import ReconcileConfig
+from databricks.labs.lakebridge.connections.debug_envgetter import TestEnvGetter
 from databricks.labs.lakebridge.reconcile.constants import ReconSourceType
 
 logger = logging.getLogger(__name__)
@@ -35,6 +36,8 @@ class JobDeployment:
         self._installation = installation
         self._install_state = install_state
         self._product_info = product_info
+        if self._is_testing():
+            self._test_env = TestEnvGetter()
 
     def deploy_recon_job(self, name, recon_config: ReconcileConfig, lakebridge_wheel_path: str):
         logger.info("Deploying reconciliation job.")
@@ -85,18 +88,22 @@ class JobDeployment:
         return {
             "name": self._name_with_prefix(job_name),
             "tags": tags,
-            "job_clusters": [
-                JobCluster(
-                    job_cluster_key="Remorph_Reconciliation_Cluster",
-                    new_cluster=compute.ClusterSpec(
-                        data_security_mode=compute.DataSecurityMode.USER_ISOLATION,
-                        spark_conf={},
-                        node_type_id=self._get_default_node_type_id(),
-                        autoscale=compute.AutoScale(min_workers=2, max_workers=10),
-                        spark_version=latest_lts_spark,
-                    ),
-                )
-            ],
+            "job_clusters": (
+                []
+                if self._is_testing()
+                else [
+                    JobCluster(
+                        job_cluster_key="Remorph_Reconciliation_Cluster",
+                        new_cluster=compute.ClusterSpec(
+                            data_security_mode=compute.DataSecurityMode.USER_ISOLATION,
+                            spark_conf={},
+                            node_type_id=self._get_default_node_type_id(),
+                            autoscale=compute.AutoScale(min_workers=2, max_workers=10),
+                            spark_version=latest_lts_spark,
+                        ),
+                    )
+                ]
+            ),
             "tasks": [
                 self._job_recon_task(
                     task_key,
@@ -128,7 +135,8 @@ class JobDeployment:
         return Task(
             task_key=task_key,
             description=description,
-            job_cluster_key="Remorph_Reconciliation_Cluster",
+            job_cluster_key=None if self._is_testing() else "Remorph_Reconciliation_Cluster",
+            existing_cluster_id=self._test_cluster_id() if self._is_testing() else None,
             libraries=libraries,
             python_wheel_task=PythonWheelTask(
                 package_name=self.parse_package_name(lakebridge_wheel_path),
@@ -140,6 +148,10 @@ class JobDeployment:
     # TODO: DRY: delete as it is already implemented in install.py
     def _is_testing(self):
         return self._product_info.product_name() != "lakebridge"
+
+    def _test_cluster_id(self):
+        assert self._test_env, "Test environment not initialized because this is not a testing deployment."
+        return self._test_env.get("TEST_DEFAULT_CLUSTER_ID")
 
     @staticmethod
     def _get_test_purge_time() -> str:
