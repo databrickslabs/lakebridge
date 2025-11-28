@@ -7,6 +7,7 @@ from databricks.labs.lakebridge.config import (
 from databricks.labs.lakebridge.contexts.application import ApplicationContext
 from databricks.labs.lakebridge.reconcile.recon_config import RECONCILE_OPERATION_NAME
 from databricks.labs.lakebridge.reconcile.runner import ReconcileRunner
+from databricks.labs.blueprint.wheels import ProductInfo
 
 TABLE_RECON_JSON = """
 {
@@ -41,18 +42,19 @@ source_catalog_or_schema = (
 filename = f"recon_config_{recon_config.data_source}_{source_catalog_or_schema}_{recon_config.report_type}.json"
 
 
-def test_recon(ws):
+def test_recon_databricks(ws):
     ctx = ApplicationContext(ws)
+    ctx.replace(product_info=ProductInfo.for_testing(LakebridgeConfiguration))
+    ctx.installation.save(recon_config)
+    ctx.installation.upload(filename, TABLE_RECON_JSON.encode())
+    ctx.workspace_installation.install(config)
+
     recon_runner = ReconcileRunner(
         ctx.workspace_client,
         ctx.installation,
         ctx.install_state,
     )
-
-    ctx.installation.save(recon_config)
-    ctx.installation.upload(filename, TABLE_RECON_JSON.encode())
-    ctx.workspace_installation.install(config)
-
     run, _ = recon_runner.run(operation_name=RECONCILE_OPERATION_NAME)
     result = run.result()
+
     assert result
