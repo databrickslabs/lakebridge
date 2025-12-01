@@ -15,8 +15,8 @@ def execute():
     db_path, creds_file = arguments_loader(desc="MSSQL Server Activity Extract Script")
     cred_manager = create_credential_manager(PRODUCT_NAME, creds_file)
     mssql_settings = cred_manager.get_credentials("mssql")
-    auth_type = mssql_settings["jdbc"].get("auth_type", "sql_authentication")
-    server_name = mssql_settings["jdbc"].get("server", "")
+    auth_type = mssql_settings.get("auth_type", "sql_authentication")
+    server_name = mssql_settings.get("server", "")
     try:
 
         # TODO: get the last time the profiler was executed
