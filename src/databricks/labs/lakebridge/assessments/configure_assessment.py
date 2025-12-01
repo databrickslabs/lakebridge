@@ -101,7 +101,6 @@ class ConfigureSqlServerAssessment(AssessmentConfigurator):
             "sql_user": self.prompts.question("Enter the SQL username"),
             "sql_password": self.prompts.password("Enter the SQL password"),
             "tz_info": self.prompts.question("Enter timezone (e.g. America/New_York)", default="UTC"),
-            "db_names": self.prompts.question("Enter the database names to profile (comma-separated)"),
             "driver": self.prompts.question(
                 "Enter the ODBC driver installed locally", default="ODBC Driver 18 for SQL Server"
             ),

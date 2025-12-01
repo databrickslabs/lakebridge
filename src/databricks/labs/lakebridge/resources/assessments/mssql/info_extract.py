@@ -1,10 +1,10 @@
 import json
 import sys
 
+
 from databricks.labs.lakebridge.connections.credential_manager import create_credential_manager
 from databricks.labs.lakebridge.assessments import PRODUCT_NAME
 from databricks.labs.lakebridge.resources.assessments.mssql.common.connector import get_sqlserver_reader
-from databricks.labs.lakebridge.resources.assessments.mssql.common.functions import create_msql_sql_client
 from databricks.labs.lakebridge.resources.assessments.mssql.common.queries import MSSQLQueries
 from databricks.labs.lakebridge.resources.assessments.synapse.common.duckdb_helpers import save_resultset_to_db
 from databricks.labs.lakebridge.resources.assessments.synapse.common.functions import arguments_loader, set_logger
@@ -23,7 +23,6 @@ def execute():
         # TODO: get the last time the profiler was executed
         # For now, we'll default to None, but this will eventually need
         # input from a scheduler component.
-        last_execution_time = None
         mode = "overwrite"
 
         # Extract info metrics
@@ -45,57 +44,54 @@ def execute():
         table_name = "databases"
         table_query = MSSQLQueries.get_databases()
         logger.info(f"Loading '{table_name}' for SQL server: {server_name}")
-        # TODO: if list of `db_names` not provided in config
-        # then loop through all the databases to collect the following info
         result = connection.fetch(table_query)
-        db_name = "main"
         save_resultset_to_db(result, f"mssql_{table_name}", db_path, mode=mode)
 
         # Tables
         table_name = "tables"
-        table_query = MSSQLQueries.get_tables(db_name)
+        table_query = MSSQLQueries.get_tables()
         logger.info(f"Loading '{table_name}' for SQL server: {server_name}")
         result = connection.fetch(table_query)
         save_resultset_to_db(result, f"mssql_{table_name}", db_path, mode=mode)
 
         # Views
         table_name = "views"
-        table_query = MSSQLQueries.get_views(db_name)
+        table_query = MSSQLQueries.get_views()
         logger.info(f"Loading '{table_name}' for SQL server: {server_name}")
         result = connection.fetch(table_query)
         save_resultset_to_db(result, f"mssql_{table_name}", db_path, mode=mode)
 
         # Columns
         table_name = "columns"
-        table_query = MSSQLQueries.get_columns(db_name)
+        table_query = MSSQLQueries.get_columns()
         logger.info(f"Loading '{table_name}' for SQL server: {server_name}")
         result = connection.fetch(table_query)
         save_resultset_to_db(result, f"mssql_{table_name}", db_path, mode=mode)
 
         # Indexed views
         table_name = "indexed_views"
-        table_query = MSSQLQueries.get_indexed_views(db_name)
+        table_query = MSSQLQueries.get_indexed_views()
         logger.info(f"Loading '{table_name}' for SQL server: {server_name}")
         result = connection.fetch(table_query)
         save_resultset_to_db(result, f"mssql_{table_name}", db_path, mode=mode)
 
         # Routines
         table_name = "routines"
-        table_query = MSSQLQueries.get_routines(db_name)
+        table_query = MSSQLQueries.get_routines()
         logger.info(f"Loading '{table_name}' for SQL server: {server_name}")
         result = connection.fetch(table_query)
         save_resultset_to_db(result, f"mssql_{table_name}", db_path, mode=mode)
 
         # Database sizes
         table_name = "db_sizes"
-        table_query = MSSQLQueries.get_db_sizes(db_name)
+        table_query = MSSQLQueries.get_db_sizes()
         logger.info(f"Loading '{table_name}' for SQL server: {server_name}")
         result = connection.fetch(table_query)
         save_resultset_to_db(result, f"mssql_{table_name}", db_path, mode=mode)
 
         # Table sizes
         table_name = "table_sizes"
-        table_query = MSSQLQueries.get_table_sizes(db_name)
+        table_query = MSSQLQueries.get_table_sizes()
         logger.info(f"Loading '{table_name}' for SQL server: {server_name}")
         result = connection.fetch(table_query)
         save_resultset_to_db(result, f"mssql_{table_name}", db_path, mode=mode)

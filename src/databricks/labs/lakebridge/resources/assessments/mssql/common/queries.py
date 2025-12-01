@@ -210,102 +210,159 @@ class MSSQLQueries:
           """
 
     @staticmethod
-    def get_tables(db_name: str):
+    def get_tables():
         """
         Retrieves metadata for all tables in the specified database by querying
         INFORMATION_SCHEMA.TABLES. Returns table definitions along with a timestamp
         indicating when the data was extracted.
         """
-        return f"""
-        SELECT
-            *,
-            SYSDATETIME() as extract_ts
-          FROM {db_name}.information_schema.tables
-        """
+        return """
+               SELECT
+                   TABLE_CATALOG,
+                   TABLE_SCHEMA,
+                   TABLE_NAME,
+                   TABLE_TYPE
+               FROM INFORMATION_SCHEMA.TABLES ;
+               """
 
     @staticmethod
-    def get_views(db_name: str):
+    def get_views():
         """
         Retrieves metadata for all views in the specified database by querying
         `INFORMATION_SCHEMA.VIEWS`. Returns view definitions along with a timestamp
         indicating when the data was extracted.
         """
-        return f"""
-        SELECT
-           *,
-           SYSDATETIME() as extract_ts
-          FROM {db_name}.information_schema.views
-        """
+        return """
+               SELECT
+                   TABLE_CATALOG,
+                   TABLE_SCHEMA,
+                   TABLE_NAME,
+                   CHECK_OPTION,
+                   IS_UPDATABLE,
+                   '[REDACTED]' as VIEW_DEFINITION
+               FROM INFORMATION_SCHEMA.VIEWS
+               """
 
     @staticmethod
-    def get_columns(db_name: str):
+    def get_columns():
         """
         Retrieves column-level metadata for all tables and views in the specified
         database by querying INFORMATION_SCHEMA.COLUMNS. Returns column attributes
         along with a timestamp indicating when the data was extracted.
         """
-        return f"""
-        SELECT
-           *,
-           SYSDATETIME() as extract_ts
-        FROM {db_name}.information_schema.columns
-        """
+        return """
+               SELECT
+                   TABLE_CATALOG,
+                   TABLE_SCHEMA,
+                   TABLE_NAME,
+                   COLUMN_NAME,
+                   ORDINAL_POSITION,
+                   COLUMN_DEFAULT,
+                   IS_NULLABLE,
+                   DATA_TYPE,
+                   CHARACTER_MAXIMUM_LENGTH,
+                   CHARACTER_OCTET_LENGTH,
+                   NUMERIC_PRECISION,
+                   NUMERIC_PRECISION_RADIX,
+                   NUMERIC_SCALE,
+                   DATETIME_PRECISION,
+                   CHARACTER_SET_CATALOG,
+                   CHARACTER_SET_SCHEMA,
+                   CHARACTER_SET_NAME,
+                   COLLATION_CATALOG,
+                   COLLATION_SCHEMA,
+                   COLLATION_NAME,
+                   DOMAIN_CATALOG,
+                   DOMAIN_SCHEMA,
+                   DOMAIN_NAME
+               FROM INFORMATION_SCHEMA.COLUMNS ;
+               """
 
     @staticmethod
-    def get_indexed_views(db_name: str):
+    def get_indexed_views():
         """
         Retrieves metadata for all indexed views in the specified database by joining
         `sys.views` with `sys.indexes`. Returns view details for those with a clustered
         index (index_id = 1) along with a timestamp indicating when the data was extracted.
         """
-        return f"""
-        SELECT A.*, SYSDATETIME() as extract_ts
-            FROM {db_name}.sys.views A
-            JOIN {db_name}.sys.indexes B ON A.object_id = B.object_id
-            WHERE B.index_id = 1
+        return """
+        SELECT
+            v.[name] AS indexed_view_name,
+            s.[name] AS schema_name,
+            i.[name] AS index_name,
+            i.[type_desc] AS index_type,
+            i.[index_id],
+            SYSDATETIME() as extract_ts
+        FROM sys.views AS v
+        JOIN sys.schemas AS s
+            ON v.[schema_id] = s.[schema_id]
+        JOIN sys.indexes AS i
+            ON v.[object_id] = i.[object_id]
+        WHERE i.[index_id] = 1;
         """
 
     @staticmethod
-    def get_routines(db_name: str):
+    def get_routines():
         """
         Retrieves metadata for all routines (stored procedures and functions) in the
         specified database by querying INFORMATION_SCHEMA.ROUTINES. Returns routine
         details along with a timestamp indicating when the data was extracted.
         """
-        return f"""
-        select
-           *,
-           SYSDATETIME() as extract_ts
-        from {db_name}.information_schema.routines"""
+        return """
+                       SELECT
+                           CREATED,
+                           DATA_TYPE,
+                           IS_DETERMINISTIC,
+                           IS_IMPLICITLY_INVOCABLE,
+                           IS_NULL_CALL,
+                           IS_USER_DEFINED_CAST,
+                           LAST_ALTERED,
+                           MAX_DYNAMIC_RESULT_SETS,
+                           NUMERIC_PRECISION,
+                           NUMERIC_PRECISION_RADIX,
+                           NUMERIC_SCALE,
+                           ROUTINE_BODY,
+                           ROUTINE_CATALOG,
+                           '[REDACTED]' as ROUTINE_DEFINITION,
+                           ROUTINE_NAME,
+                           ROUTINE_SCHEMA,
+                           ROUTINE_TYPE,
+                           SCHEMA_LEVEL_ROUTINE,
+                           SPECIFIC_CATALOG,
+                           SPECIFIC_NAME,
+                           SPECIFIC_SCHEMA,
+                           SQL_DATA_ACCESS
+                           FROM information_schema.routines
+                           """
 
     @staticmethod
-    def get_db_sizes(db_name: str):
+    def get_db_sizes():
         """
         Retrieves metadata for all data files (type = 0) in the specified database
         from sys.database_files. Returns file name, type, current size, free space,
         maximum size, and a timestamp indicating when the data was extracted.
         """
-        return f"""
+        return """
         SELECT
-           '{db_name}' AS DbName,
+           DB_NAME() AS database_name,
            name AS FileName,
            type_desc,
            size/128.0 AS CurrentSizeMB,
            size/128.0 - CAST(FILEPROPERTY(name, 'SpaceUsed') AS int)/128.0 AS FreeSpaceInMB,
            max_size as MaxSize,
            SYSDATETIME() as extract_ts
-          FROM {db_name}.sys.database_files WHERE type=0
+          FROM sys.database_files WHERE type=0
         """
 
     @staticmethod
-    def get_table_sizes(db_name: str):
+    def get_table_sizes():
         """
         Retrieves storage and row count statistics for all user tables in the specified
         database by querying sys.dm_db_partition_stats and sys.objects. Returns table
         name, total rows, reserved, used, and unused space (MB), breakdown of data vs.
         index space, and a timestamp indicating when the data was extracted.
         """
-        return f"""
+        return """
         SELECT
             o.name AS TableName,
             SUM(ps.row_count) AS [RowCount],
@@ -321,8 +378,8 @@ class MSSQLQueries:
                     ELSE 0
                 END) * 8 / 1024 AS IndexMB,
             SYSDATETIME() as extract_ts
-          FROM  {db_name}.sys.dm_db_partition_stats AS ps
-          JOIN  {db_name}sys.objects AS o ON ps.object_id = o.object_id
+          FROM  sys.dm_db_partition_stats AS ps
+          JOIN  sys.objects AS o ON ps.object_id = o.object_id
           WHERE o.type = 'U'
           GROUP BY schema_name(o.schema_id), o.name
         """
