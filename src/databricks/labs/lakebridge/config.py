@@ -217,7 +217,8 @@ class TableRecon:
     @classmethod
     def v1_migrate(cls, raw: dict[str, Any]) -> dict[str, Any]:
         old_keys = ["source_catalog", "source_schema", "target_catalog", "target_schema"]
-        [raw.pop(key) for key in old_keys if key in raw]
+        for key in old_keys:
+            raw.pop(key, None)
         raw["version"] = 2
         return raw
 
