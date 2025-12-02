@@ -236,9 +236,19 @@ class PipelineClass:
     def _save_to_db(self, result: FetchResult, step_name: str, mode: str):
         db_path = str(self.db_path_prefix / DB_NAME)
 
+        # Check row count and log appropriately and skip data insertion if 0 rows
+        row_count = len(result.rows)
+        if row_count == 0:
+            logging.warning(
+                f"Query for step '{step_name}' returned 0 rows. Skipping table creation and data insertion."
+            )
+            return
+
+        logging.info(f"Query for step '{step_name}' returned {row_count} rows.")
+
         with duckdb.connect(db_path) as conn:
             # TODO: Add support for figuring out data types from SQLALCHEMY result object result.cursor.description is not reliable
-            schema = ' STRING, '.join(result.columns) + ' STRING'
+            schema = ', '.join(f"{col} STRING" for col in result.columns)
 
             # Handle write modes
             if mode == 'overwrite':
@@ -246,11 +256,9 @@ class PipelineClass:
             elif mode == 'append' and step_name not in conn.get_table_names(""):
                 conn.execute(f"CREATE TABLE {step_name} ({schema})")
 
-            # Batch insert using prepared statements
-            placeholders = ', '.join(['?' for _ in result.columns])
-            insert_query = f"INSERT INTO {step_name} VALUES ({placeholders})"
-
-            conn.executemany(insert_query, result.rows)
+            placeholders = ', '.join(['?'] * len(result.columns))
+            conn.executemany(f"INSERT INTO {step_name} VALUES ({placeholders})", result.rows)
+            logging.info(f"Successfully inserted {row_count} rows into table '{step_name}'.")
 
     @staticmethod
     def _create_dir(dir_path: Path):

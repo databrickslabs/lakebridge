@@ -49,6 +49,16 @@ def python_failure_config():
     return config
 
 
+@pytest.fixture(scope="module")
+def empty_result_config():
+    prefix = Path(__file__).parent
+    config_path = f"{prefix}/../../resources/assessments/pipeline_config_empty_result.yml"
+    config = PipelineClass.load_config_from_yaml(config_path)
+    for step in config.steps:
+        step.extract_source = f"{prefix}/../../{step.extract_source}"
+    return config
+
+
 def test_run_pipeline(sandbox_sqlserver, pipeline_config, get_logger):
     pipeline = PipelineClass(config=pipeline_config, executor=sandbox_sqlserver)
     results = pipeline.execute()
@@ -160,3 +170,23 @@ def test_pipeline_step_comments():
     )
     assert step_w_comment.comment == "This is a step comment."
     assert step_wo_comment.comment is None
+
+
+def test_run_empty_result_pipeline(sandbox_sqlserver, empty_result_config, get_logger):
+    pipeline = PipelineClass(config=empty_result_config, executor=sandbox_sqlserver)
+    results = pipeline.execute()
+
+    # Verify step completed successfully despite empty results
+    assert len(results) == 1
+    assert results[0].status == StepExecutionStatus.COMPLETE
+    assert results[0].step_name == "empty_result_step"
+
+    # Verify that no table was created (processing was skipped for empty resultset)
+    conn = duckdb.connect(str(Path(empty_result_config.extract_folder)) + "/" + DB_NAME)
+    tables = conn.execute("SHOW TABLES").fetchall()
+    table_names = [table[0] for table in tables]
+
+    # Table should NOT be created when resultset is empty
+    assert "empty_result_step" not in table_names, "Empty resultset should skip table creation"
+
+    conn.close()
