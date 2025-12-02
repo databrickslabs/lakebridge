@@ -210,9 +210,16 @@ class TranspileConfig:
 @dataclass
 class TableRecon:
     __file__ = "recon_config.yml"
-    __version__ = 1
+    __version__ = 2
 
     tables: list[Table]
+
+    @classmethod
+    def v1_migrate(cls, raw: dict[str, Any]) -> dict[str, Any]:
+        old_keys = ["source_catalog", "source_schema", "target_catalog", "target_schema"]
+        [raw.pop(key) for key in old_keys if key in raw]
+        raw["version"] = 2
+        return raw
 
 
 @dataclass
