@@ -1,6 +1,7 @@
 import re
 import logging
 from datetime import datetime
+from collections.abc import Mapping
 
 from pyspark.errors import PySparkException
 from pyspark.sql import DataFrame, DataFrameReader, SparkSession
@@ -124,18 +125,21 @@ class TSQLServerDataSource(DataSource, SecretsMixin, JDBCReaderMixin):
         try:
             logger.debug(f"Fetching schema using query: \n`{schema_query}`")
             logger.info(f"Fetching Schema: Started at: {datetime.now()}")
-            df = self.reader(schema_query, {}).load()
+            df = self.reader(schema_query).load()
             schema_metadata = df.select([col(c).alias(c.lower()) for c in df.columns]).collect()
             logger.info(f"Schema fetched successfully. Completed at: {datetime.now()}")
             return [self._map_meta_column(field, normalize) for field in schema_metadata]
         except (RuntimeError, PySparkException) as e:
             return self.log_and_throw_exception(e, "schema", schema_query)
 
-    def reader(self, query: str, options: dict) -> DataFrameReader:
+    def reader(self, query: str, options: Mapping[str, object] | None = None) -> DataFrameReader:
+        if options is None:
+            options = {}
+
         creds = self._get_user_password()
         return self._get_jdbc_reader(query, self.get_jdbc_url, self._DRIVER, {**options, **creds})
 
-    def _get_user_password(self) -> dict:
+    def _get_user_password(self) -> Mapping[str, str]:
         return {
             "user": self._get_secret("user"),
             "password": self._get_secret("password"),

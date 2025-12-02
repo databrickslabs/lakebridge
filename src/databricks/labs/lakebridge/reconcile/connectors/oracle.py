@@ -1,5 +1,6 @@
 import re
 import logging
+from collections.abc import Mapping
 from datetime import datetime
 
 from pyspark.errors import PySparkException
@@ -107,7 +108,7 @@ class OracleDataSource(DataSource, SecretsMixin, JDBCReaderMixin):
             "HH24:MI:SS''');END;",
         }
 
-    def reader(self, query: str, options: dict | None = None) -> DataFrameReader:
+    def reader(self, query: str, options: Mapping[str, object] | None = None) -> DataFrameReader:
         if options is None:
             options = {}
         user = self._get_secret('user')

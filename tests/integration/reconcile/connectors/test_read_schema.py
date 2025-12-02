@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 from unittest.mock import create_autospec
 
 import pytest
@@ -39,7 +40,7 @@ class OracleDataSourceUnderTest(OracleDataSource):
     def get_jdbc_url(self) -> str:
         return self._test_env.get("TEST_ORACLE_JDBC")
 
-    def reader(self, query: str, options: dict | None = None) -> DataFrameReader:
+    def reader(self, query: str, options: Mapping[str, object] | None = None) -> DataFrameReader:
         if options is None:
             options = {}
         user = self._test_env.get("TEST_ORACLE_USER")
