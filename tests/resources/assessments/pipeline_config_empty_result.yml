@@ -1,0 +1,10 @@
+name: test_empty_result_pipeline
+version: 1.0
+extract_folder: /tmp/lakebridge_test_empty_result
+steps:
+  - name: empty_result_step
+    type: sql
+    extract_source: resources/assessments/empty_resultset.sql
+    mode: overwrite
+    frequency: once
+    flag: active
