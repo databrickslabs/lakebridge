@@ -237,12 +237,6 @@ class ValidationResult:
 
 
 @dataclass
-class ReconcileTablesConfig:
-    filter_type: str  # all/include/exclude
-    tables_list: list[str]  # [*, table1, table2]
-
-
-@dataclass
 class ReconcileMetadataConfig:
     catalog: str = "remorph"
     schema: str = "reconcile"
