@@ -778,6 +778,87 @@ def test_configure_reconcile_no_existing_installation(ws: WorkspaceClient) -> No
     )
 
 
+@patch("webbrowser.open")
+def test_configure_reconcile_databricks_no_existing_installation(ws: WorkspaceClient) -> None:
+    prompts = MockPrompts(
+        {
+            r"Select the Data Source": str(RECONCILE_DATA_SOURCES.index("databricks")),
+            r"Enter Secret scope name to store .* connection details / secrets": "remorph_databricks",
+            r"Select the report type": str(RECONCILE_REPORT_TYPES.index("all")),
+            r"Enter source catalog name for .*": "databricks_catalog",
+            r"Enter source schema name for .*": "some_schema",
+            r"Enter target catalog name for Databricks": "tpch",
+            r"Enter target schema name for Databricks": "1000gb",
+            r"Open .* in the browser?": "yes",
+        }
+    )
+    installation = MockInstallation()
+    resource_configurator = create_autospec(ResourceConfigurator)
+    resource_configurator.prompt_for_catalog_setup.return_value = "remorph"
+    resource_configurator.prompt_for_schema_setup.return_value = "reconcile"
+    resource_configurator.prompt_for_volume_setup.return_value = "reconcile_volume"
+
+    ctx = ApplicationContext(ws)
+    ctx.replace(
+        prompts=prompts,
+        installation=installation,
+        resource_configurator=resource_configurator,
+        workspace_installation=create_autospec(WorkspaceInstallation),
+    )
+
+    workspace_installer = WorkspaceInstaller(
+        ctx.workspace_client,
+        ctx.prompts,
+        ctx.installation,
+        ctx.install_state,
+        ctx.product_info,
+        ctx.resource_configurator,
+        ctx.workspace_installation,
+    )
+    config = workspace_installer.configure(module="reconcile")
+
+    expected_config = LakebridgeConfiguration(
+        reconcile=ReconcileConfig(
+            data_source="databricks",
+            report_type="all",
+            secret_scope="remorph_databricks",
+            database_config=DatabaseConfig(
+                source_schema="some_schema",
+                target_catalog="tpch",
+                target_schema="1000gb",
+                source_catalog="databricks_catalog",
+            ),
+            metadata_config=ReconcileMetadataConfig(
+                catalog="remorph",
+                schema="reconcile",
+                volume="reconcile_volume",
+            ),
+        ),
+        transpile=None,
+    )
+    assert config == expected_config
+    installation.assert_file_written(
+        "reconcile.yml",
+        {
+            "data_source": "databricks",
+            "report_type": "all",
+            "secret_scope": "remorph_databricks",
+            "database_config": {
+                "source_catalog": "databricks_catalog",
+                "source_schema": "some_schema",
+                "target_catalog": "tpch",
+                "target_schema": "1000gb",
+            },
+            "metadata_config": {
+                "catalog": "remorph",
+                "schema": "reconcile",
+                "volume": "reconcile_volume",
+            },
+            "version": 1,
+        },
+    )
+
+
 def test_configure_all_override_installation(
     ws_installer: Callable[..., WorkspaceInstaller],
     ws: WorkspaceClient,
