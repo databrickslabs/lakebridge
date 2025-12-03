@@ -330,9 +330,9 @@ flowchart TD
         convert -->|if SDP| validate_sdp[validate_sdp]
         convert e3@==>|if NOT SDP| validate_nb[validate_python_notebook]
 
-        %% Downstream connections
+        %% Downstream connections - both validations flow to fix_syntax
         validate_nb e4@==> fix[fix_syntax_with_llm]
-        validate_sdp ----> fix  %% both validations flow to fix_syntax
+        validate_sdp ----> fix
 
         fix e5@==> split[split_code_into_cells]
         split e6@==> export[export_to_notebook]
