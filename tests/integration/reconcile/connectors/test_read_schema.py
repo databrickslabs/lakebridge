@@ -9,6 +9,7 @@ from databricks.labs.lakebridge.reconcile.connectors.databricks import Databrick
 from databricks.labs.lakebridge.reconcile.connectors.oracle import OracleDataSource
 from databricks.labs.lakebridge.reconcile.connectors.snowflake import SnowflakeDataSource
 from databricks.labs.lakebridge.reconcile.connectors.tsql import TSQLServerDataSource
+from databricks.labs.lakebridge.reconcile.recon_config import OptionalPrimitiveType
 from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
 
 from databricks.sdk import WorkspaceClient
@@ -40,7 +41,7 @@ class OracleDataSourceUnderTest(OracleDataSource):
     def get_jdbc_url(self) -> str:
         return self._test_env.get("TEST_ORACLE_JDBC")
 
-    def reader(self, query: str, options: Mapping[str, object] | None = None) -> DataFrameReader:
+    def reader(self, query: str, options: Mapping[str, OptionalPrimitiveType] | None = None) -> DataFrameReader:
         if options is None:
             options = {}
         user = self._test_env.get("TEST_ORACLE_USER")

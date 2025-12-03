@@ -13,7 +13,7 @@ from databricks.labs.lakebridge.reconcile.connectors.jdbc_reader import JDBCRead
 from databricks.labs.lakebridge.reconcile.connectors.models import NormalizedIdentifier
 from databricks.labs.lakebridge.reconcile.connectors.secrets import SecretsMixin
 from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import DialectUtils
-from databricks.labs.lakebridge.reconcile.recon_config import JdbcReaderOptions, Schema
+from databricks.labs.lakebridge.reconcile.recon_config import JdbcReaderOptions, Schema, OptionalPrimitiveType
 from databricks.sdk import WorkspaceClient
 
 logger = logging.getLogger(__name__)
@@ -108,7 +108,7 @@ class OracleDataSource(DataSource, SecretsMixin, JDBCReaderMixin):
             "HH24:MI:SS''');END;",
         }
 
-    def reader(self, query: str, options: Mapping[str, object] | None = None) -> DataFrameReader:
+    def reader(self, query: str, options: Mapping[str, OptionalPrimitiveType] | None = None) -> DataFrameReader:
         if options is None:
             options = {}
         user = self._get_secret('user')
