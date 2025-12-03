@@ -208,8 +208,8 @@ Additional conversion parameters are managed in the Switch configuration file. Y
 | `output_extension` | File extension for output files when `target_type=file`. Required for non-notebook output formats like YAML workflows or JSON configurations. See [File Conversion Flow](#file-conversion-flow) for usage examples. | `null` | Any extension (e.g., `.yml`, `.json`) |
 | `sql_output_dir` | (Experimental) When specified, triggers additional conversion of Python notebooks to SQL notebook format. This optional post-processing step may lose some Python-specific logic. See [convert_notebook_to_sql](#convert_notebook_to_sql-optional) for details on the SQL conversion process. | `null` | Full workspace path |
 | `request_params` | Additional request parameters passed to the model serving endpoint. Use for advanced configurations like extended thinking mode or custom token limits. See [LLM Configuration](/docs/transpile/pluggable_transpilers/switch/customizing_switch#llm-configuration) for configuration examples including Claude's extended thinking mode. | `null` | JSON format string (e.g., `{"max_tokens": 64000}`) |
-| `output_sdp` | Optional boolean parameter to enable conversion to SDP notebooks. |
-| `sdp_language` | Control the language of converted SDP code, can only be "python" or "sql". |
+| `output_sdp` | Optional boolean parameter to enable conversion to SDP notebooks. | `false` | `true`, `false` |
+| `sdp_language` | Control the language of converted SDP code, can only be "python" or "sql". | `python` | `python`, `sql` |
 
 ---
 
@@ -353,7 +353,8 @@ flowchart TD
     end
 
     %% SDP validation pipeline operations 
-    validate_sdp -.-> create_pipeline[create pipeline]
+    validate_sdp -.-> export_notebook [export notebook]
+    export_notebook -.-> create_pipeline[create pipeline]
     create_pipeline -.-> update_pipeline[update pipeline for validation]
     update_pipeline -.-> delete_pipeline[delete pipeline]
 
