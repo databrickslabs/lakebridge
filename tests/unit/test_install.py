@@ -830,7 +830,6 @@ def test_configure_reconcile_databricks_no_existing_installation(ws: WorkspaceCl
         reconcile=ReconcileConfig(
             data_source="databricks",
             report_type="all",
-            secret_scope="remorph_databricks",
             database_config=DatabaseConfig(
                 source_schema="some_schema",
                 target_catalog="tpch",
@@ -841,6 +840,9 @@ def test_configure_reconcile_databricks_no_existing_installation(ws: WorkspaceCl
                 catalog="remorph",
                 schema="reconcile",
                 volume="reconcile_volume",
+            ),
+            creds=ReconcileCredentialConfig(
+                vault_type="databricks", source_creds={"__secret_scope": "remorph_databricks"}
             ),
         ),
         transpile=None,

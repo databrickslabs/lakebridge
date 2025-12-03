@@ -54,13 +54,14 @@ class DatabricksSecretProvider(SecretProvider):
             The decoded UTF-8 secret value.
 
         Raises:
-          NotFound: The secret could not be found.
+          ValueError: The secret key must be in the format 'scope/secret'.
+          KeyError: The secret could not be found.
           UnicodeDecodeError: The secret value was not Base64-encoded UTF-8.
         """
         match key.split(sep="/", maxsplit=3):
-            case scope, key_only:
-                scope = scope
-                key_only = key_only
+            case _scope, _key_only:
+                scope = _scope
+                key_only = _key_only
             case _:
                 msg = f"Secret key must be in the format 'scope/secret': {key}"
                 raise ValueError(msg)
