@@ -284,7 +284,7 @@ def test_llm_transpile_with_output_sdp_flag(
         )
 
     # Verify that the job was called with the correct parameters including output_sdp
-    mock_ws.jobs.run_now.assert_called_once()
+    mock_ws.jobs.run_now.assert_called_once()  # type: ignore[attr-defined]
     call_args = mock_ws.jobs.run_now.call_args
     job_params = call_args.kwargs["job_parameters"]
 
@@ -342,7 +342,7 @@ def test_llm_transpile_without_output_sdp_flag(
         )
 
     # Verify that the job was called
-    mock_ws.jobs.run_now.assert_called_once()
+    mock_ws.jobs.run_now.assert_called_once()  # type: ignore[attr-defined]
     call_args = mock_ws.jobs.run_now.call_args
     job_params = call_args.kwargs["job_parameters"]
 
