@@ -1,5 +1,3 @@
-from collections.abc import Callable
-from functools import partial
 from pathlib import Path
 import logging
 from typing import Protocol
@@ -42,9 +40,6 @@ class DatabricksSecretProvider(SecretProvider):
     def __init__(self, ws: WorkspaceClient):
         self._ws = ws
 
-    def get_databricks_secret(self, scope: str, key: str) -> str:
-        return self.get_secret(f"{scope}/{key}")
-
     def get_secret(self, key: str) -> str:
         """Get the secret value given a secret scope & secret key.
 
@@ -83,15 +78,10 @@ class DatabricksSecretProvider(SecretProvider):
 
 
 class CredentialManager:
-    SecretProviderFactory = Callable[[], SecretProvider]
-
-    def __init__(self, credentials: dict, secret_providers: dict[str, SecretProviderFactory]):
+    def __init__(self, credentials: dict, secret_providers: dict[str, SecretProvider]):
         self._credentials = credentials
         self._default_vault = self._credentials.get('secret_vault_type', 'local').lower()
-        provider_factory = secret_providers.get(self._default_vault)
-        if not provider_factory:
-            raise ValueError(f"Unsupported secret vault type: {self._default_vault}")
-        self._provider = provider_factory()
+        self._provider = secret_providers.get(self._default_vault)
 
     def get_credentials(self, source: str) -> dict:
         if source not in self._credentials:
@@ -134,13 +124,12 @@ def create_credential_manager(creds_or_path: dict | Path, ws: WorkspaceClient | 
     else:
         creds = creds_or_path
 
-    # Lazily initialize secret providers
-    secret_providers: dict[str, CredentialManager.SecretProviderFactory] = {
-        'local': LocalSecretProvider,
-        'env': partial(EnvSecretProvider, EnvGetter()),
+    secret_providers: dict[str, SecretProvider] = {
+        'local': LocalSecretProvider(),
+        'env': EnvSecretProvider(EnvGetter()),
     }
 
     if ws:
-        secret_providers['databricks'] = partial(create_databricks_secret_provider, ws)
+        secret_providers['databricks'] = create_databricks_secret_provider(ws)
 
     return CredentialManager(creds, secret_providers)
