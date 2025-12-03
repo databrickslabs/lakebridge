@@ -352,12 +352,6 @@ flowchart TD
         export -.-> sqlExport["convert_notebook_to_sql<br>(Optional)"]
     end
 
-    %% SDP validation pipeline operations 
-    validate_sdp -.-> export_notebook[export notebook]
-    export_notebook -.-> create_pipeline[create pipeline]
-    create_pipeline -.-> update_pipeline[update pipeline for validation]
-    update_pipeline -.-> delete_pipeline[delete pipeline]
-
     processing <-->|Read & Write| table[Conversion Result Table]
 
     convert -.->|Uses| endpoint[Model Serving Endpoint]
@@ -366,6 +360,13 @@ flowchart TD
 
     export e7@==> notebooks[Python Notebooks]
     sqlExport -.-> sqlNotebooks["SQL Notebooks<br>(Optional Output)"]
+
+    %% SDP validation pipeline operations 
+    validate_sdp -.-> export_notebook[export notebook]
+    export_notebook -.-> create_pipeline[create pipeline]
+    create_pipeline -.-> update_pipeline[update pipeline for validation]
+    update_pipeline -.-> delete_pipeline[delete pipeline]
+    
     e1@{ animate: true }
     e2@{ animate: true }
     e3@{ animate: true }
