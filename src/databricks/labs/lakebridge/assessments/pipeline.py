@@ -237,13 +237,13 @@ class PipelineClass:
         db_path = str(self.db_path_prefix / DB_NAME)
 
         # Check row count and log appropriately and skip data insertion if 0 rows
-        row_count = len(result.rows)
-        if row_count == 0:
+        if not result.rows == 0:
             logging.warning(
                 f"Query for step '{step_name}' returned 0 rows. Skipping table creation and data insertion."
             )
             return
 
+        row_count = len(result.rows)
         logging.info(f"Query for step '{step_name}' returned {row_count} rows.")
 
         with duckdb.connect(db_path) as conn:

@@ -1,14 +1,21 @@
 from pathlib import Path
+from logging import Logger
+
 import duckdb
 import pytest
 
-from databricks.labs.lakebridge.assessments.pipeline import PipelineClass, DB_NAME, StepExecutionStatus
-
+from databricks.labs.lakebridge.assessments.pipeline import (
+    PipelineClass,
+    DB_NAME,
+    StepExecutionStatus,
+    StepExecutionResult,
+)
 from databricks.labs.lakebridge.assessments.profiler_config import Step, PipelineConfig
+from databricks.labs.lakebridge.connections.database_manager import DatabaseManager
 
 
 @pytest.fixture(scope="module")
-def pipeline_config():
+def pipeline_config() -> PipelineConfig:
     prefix = Path(__file__).parent
     config_path = f"{prefix}/../../resources/assessments/pipeline_config.yml"
     config = PipelineClass.load_config_from_yaml(config_path)
@@ -19,7 +26,7 @@ def pipeline_config():
 
 
 @pytest.fixture(scope="module")
-def pipeline_dep_failure_config():
+def pipeline_dep_failure_config() -> PipelineConfig:
     prefix = Path(__file__).parent
     config_path = f"{prefix}/../../resources/assessments/pipeline_config_failure_dependency.yml"
     config = PipelineClass.load_config_from_yaml(config_path)
@@ -30,7 +37,7 @@ def pipeline_dep_failure_config():
 
 
 @pytest.fixture(scope="module")
-def sql_failure_config():
+def sql_failure_config() -> PipelineConfig:
     prefix = Path(__file__).parent
     config_path = f"{prefix}/../../resources/assessments/pipeline_config_sql_failure.yml"
     config = PipelineClass.load_config_from_yaml(config_path)
@@ -40,7 +47,7 @@ def sql_failure_config():
 
 
 @pytest.fixture(scope="module")
-def python_failure_config():
+def python_failure_config() -> PipelineConfig:
     prefix = Path(__file__).parent
     config_path = f"{prefix}/../../resources/assessments/pipeline_config_python_failure.yml"
     config = PipelineClass.load_config_from_yaml(config_path)
@@ -50,7 +57,7 @@ def python_failure_config():
 
 
 @pytest.fixture(scope="module")
-def empty_result_config():
+def empty_result_config() -> PipelineConfig:
     prefix = Path(__file__).parent
     config_path = f"{prefix}/../../resources/assessments/pipeline_config_empty_result.yml"
     config = PipelineClass.load_config_from_yaml(config_path)
@@ -59,7 +66,11 @@ def empty_result_config():
     return config
 
 
-def test_run_pipeline(sandbox_sqlserver, pipeline_config, get_logger):
+def test_run_pipeline(
+    sandbox_sqlserver: DatabaseManager,
+    pipeline_config: PipelineConfig,
+    get_logger: Logger,
+) -> None:
     pipeline = PipelineClass(config=pipeline_config, executor=sandbox_sqlserver)
     results = pipeline.execute()
 
@@ -73,7 +84,11 @@ def test_run_pipeline(sandbox_sqlserver, pipeline_config, get_logger):
     assert verify_output(get_logger, pipeline_config.extract_folder)
 
 
-def test_run_sql_failure_pipeline(sandbox_sqlserver, sql_failure_config, get_logger):
+def test_run_sql_failure_pipeline(
+    sandbox_sqlserver: DatabaseManager,
+    sql_failure_config: PipelineConfig,
+    get_logger: Logger,
+) -> None:
     pipeline = PipelineClass(config=sql_failure_config, executor=sandbox_sqlserver)
     with pytest.raises(RuntimeError) as e:
         pipeline.execute()
@@ -82,7 +97,11 @@ def test_run_sql_failure_pipeline(sandbox_sqlserver, sql_failure_config, get_log
     assert "Pipeline execution failed due to errors in steps: invalid_sql_step" in str(e.value)
 
 
-def test_run_python_failure_pipeline(sandbox_sqlserver, python_failure_config, get_logger):
+def test_run_python_failure_pipeline(
+    sandbox_sqlserver: DatabaseManager,
+    python_failure_config: PipelineConfig,
+    get_logger: Logger,
+) -> None:
     pipeline = PipelineClass(config=python_failure_config, executor=sandbox_sqlserver)
     with pytest.raises(RuntimeError) as e:
         pipeline.execute()
@@ -91,7 +110,9 @@ def test_run_python_failure_pipeline(sandbox_sqlserver, python_failure_config, g
     assert "Pipeline execution failed due to errors in steps: invalid_python_step" in str(e.value)
 
 
-def test_run_python_dep_failure_pipeline(sandbox_sqlserver, pipeline_dep_failure_config, get_logger):
+def test_run_python_dep_failure_pipeline(
+    sandbox_sqlserver: DatabaseManager, pipeline_dep_failure_config: PipelineConfig, get_logger
+):
     pipeline = PipelineClass(config=pipeline_dep_failure_config, executor=sandbox_sqlserver)
     with pytest.raises(RuntimeError) as e:
         pipeline.execute()
@@ -100,7 +121,11 @@ def test_run_python_dep_failure_pipeline(sandbox_sqlserver, pipeline_dep_failure
     assert "Pipeline execution failed due to errors in steps: package_status" in str(e.value)
 
 
-def test_skipped_steps(sandbox_sqlserver, pipeline_config, get_logger):
+def test_skipped_steps(
+    sandbox_sqlserver: DatabaseManager,
+    pipeline_config: PipelineConfig,
+    get_logger: Logger,
+) -> None:
     # Modify config to have some inactive steps
     for step in pipeline_config.steps:
         step.flag = "inactive"
@@ -136,7 +161,7 @@ def verify_output(get_logger, path):
     return True
 
 
-def test_pipeline_config_comments():
+def test_pipeline_config_comments() -> None:
     pipeline_w_comments = PipelineConfig(
         name="warehouse_profiler",
         version="1.0",
@@ -150,7 +175,7 @@ def test_pipeline_config_comments():
     assert pipeline_wo_comments.comment is None
 
 
-def test_pipeline_step_comments():
+def test_pipeline_step_comments() -> None:
     step_w_comment = Step(
         name="step_w_comment",
         type="sql",
@@ -172,21 +197,24 @@ def test_pipeline_step_comments():
     assert step_wo_comment.comment is None
 
 
-def test_run_empty_result_pipeline(sandbox_sqlserver, empty_result_config, get_logger):
+def test_run_empty_result_pipeline(
+    sandbox_sqlserver: DatabaseManager,
+    empty_result_config: PipelineConfig,
+    get_logger: Logger,
+) -> None:
     pipeline = PipelineClass(config=empty_result_config, executor=sandbox_sqlserver)
     results = pipeline.execute()
 
     # Verify step completed successfully despite empty results
     assert len(results) == 1
-    assert results[0].status == StepExecutionStatus.COMPLETE
-    assert results[0].step_name == "empty_result_step"
+    assert results == [
+        StepExecutionResult(step_name="empty_result_step", status=StepExecutionStatus.COMPLETE, error_message=None)
+    ]
 
     # Verify that no table was created (processing was skipped for empty resultset)
-    conn = duckdb.connect(str(Path(empty_result_config.extract_folder)) + "/" + DB_NAME)
-    tables = conn.execute("SHOW TABLES").fetchall()
-    table_names = [table[0] for table in tables]
+    with duckdb.connect(str(Path(empty_result_config.extract_folder)) + "/" + DB_NAME) as conn:
+        tables = conn.execute("SHOW TABLES").fetchall()
+        table_names = [table[0] for table in tables]
 
     # Table should NOT be created when resultset is empty
     assert "empty_result_step" not in table_names, "Empty resultset should skip table creation"
-
-    conn.close()
