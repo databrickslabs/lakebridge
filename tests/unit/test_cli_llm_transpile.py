@@ -1,6 +1,6 @@
 import logging
 from pathlib import Path
-from unittest.mock import create_autospec
+from unittest.mock import create_autospec, MagicMock
 from typing import cast
 
 import pytest
@@ -284,8 +284,9 @@ def test_llm_transpile_with_output_sdp_flag(
         )
 
     # Verify that the job was called with the correct parameters including output_sdp
-    mock_ws.jobs.run_now.assert_called_once()  # type: ignore[attr-defined]
-    call_args = mock_ws.jobs.run_now.call_args
+    run_now_mock = cast(MagicMock, mock_ws.jobs.run_now)
+    run_now_mock.assert_called_once()
+    call_args = run_now_mock.call_args
     job_params = call_args.kwargs["job_parameters"]
 
     # Verify output_sdp is in the job parameters
@@ -342,8 +343,9 @@ def test_llm_transpile_without_output_sdp_flag(
         )
 
     # Verify that the job was called
-    mock_ws.jobs.run_now.assert_called_once()  # type: ignore[attr-defined]
-    call_args = mock_ws.jobs.run_now.call_args
+    run_now_mock = cast(MagicMock, mock_ws.jobs.run_now)
+    run_now_mock.assert_called_once()
+    call_args = run_now_mock.call_args
     job_params = call_args.kwargs["job_parameters"]
 
     # Verify output_sdp is NOT in the job parameters when flag is False
