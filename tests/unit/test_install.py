@@ -853,7 +853,10 @@ def test_configure_reconcile_databricks_no_existing_installation(ws: WorkspaceCl
         {
             "data_source": "databricks",
             "report_type": "all",
-            "secret_scope": "remorph_databricks",
+            "creds": {
+                "vault_type": "databricks",
+                "source_creds": {"__secret_scope": "remorph_databricks"},
+            },
             "database_config": {
                 "source_catalog": "databricks_catalog",
                 "source_schema": "some_schema",
@@ -865,7 +868,7 @@ def test_configure_reconcile_databricks_no_existing_installation(ws: WorkspaceCl
                 "schema": "reconcile",
                 "volume": "reconcile_volume",
             },
-            "version": 1,
+            "version": 2,
         },
     )
 
