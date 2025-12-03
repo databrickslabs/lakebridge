@@ -353,7 +353,7 @@ flowchart TD
     end
 
     %% SDP validation pipeline operations 
-    validate_sdp -.-> export_notebook [export notebook]
+    validate_sdp -.-> export_notebook[export notebook]
     export_notebook -.-> create_pipeline[create pipeline]
     create_pipeline -.-> update_pipeline[update pipeline for validation]
     update_pipeline -.-> delete_pipeline[delete pipeline]
