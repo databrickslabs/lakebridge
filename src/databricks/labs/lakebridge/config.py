@@ -279,7 +279,7 @@ class ReconcileConfig:
     tables: ReconcileTablesConfig | None = None
 
     @classmethod
-    def v1_migrate(cls, raw: dict[str, Any]) -> dict[str, Any]:
+    def v1_migrate(cls, raw: dict[str, JsonValue]) -> dict[str, JsonValue]:
         secret_scope = raw.pop("secret_scope")
         raw["version"] = 2
         raw["creds"] = {"vault_type": "databricks", "source_creds": {"__secret_scope": secret_scope}}

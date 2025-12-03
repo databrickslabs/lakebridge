@@ -48,16 +48,22 @@ class DatabricksSecretProvider(SecretProvider):
     def get_secret(self, key: str) -> str:
         """Get the secret value given a secret scope & secret key.
 
-        :param key: key in the format 'scope/secret'
-        :return: The decoded UTF-8 secret value.
+        Args:
+            key: key in the format 'scope/secret'
+        Returns:
+            The decoded UTF-8 secret value.
 
         Raises:
           NotFound: The secret could not be found.
           UnicodeDecodeError: The secret value was not Base64-encoded UTF-8.
         """
-        key_parts = key.split(sep="/")
-        assert len(key_parts) == 2, "Secret name must be in the format 'scope/secret'"
-        scope, key_only = key_parts[0], key_parts[1]
+        match key.split(sep="/", maxsplit=3):
+            case scope, key_only:
+                scope = scope
+                key_only = key_only
+            case _:
+                msg = f"Secret key must be in the format 'scope/secret': {key}"
+                raise ValueError(msg)
 
         try:
             secret = self._ws.secrets.get_secret(scope, key_only)
@@ -117,7 +123,7 @@ def _load_credentials(path: Path) -> dict:
         raise FileNotFoundError(f"Credentials file not found at {path}") from e
 
 
-def create_databricks_secret_provider(ws) -> DatabricksSecretProvider:
+def create_databricks_secret_provider(ws: WorkspaceClient) -> DatabricksSecretProvider:
     return DatabricksSecretProvider(ws)
 
 
