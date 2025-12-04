@@ -58,7 +58,7 @@ class DatabricksSecretProvider(SecretProvider):
                 scope = _scope
                 key_only = _key_only
             case _:
-                msg = f"Secret key must be in the format 'scope/secret': {key}"
+                msg = f"Secret key must be in the format 'scope/secret': Got {key}"
                 raise ValueError(msg)
 
         try:
@@ -66,7 +66,7 @@ class DatabricksSecretProvider(SecretProvider):
             assert secret.value is not None
             return base64.b64decode(secret.value).decode("utf-8")
         except NotFound as e:
-            raise KeyError(f'Secret does not exist with scope: {scope} and key: {key_only} : {e}') from e
+            raise KeyError(f'Secret does not exist with scope: {scope} and key: {key_only}') from e
         except UnicodeDecodeError as e:
             raise UnicodeDecodeError(
                 "utf-8",
