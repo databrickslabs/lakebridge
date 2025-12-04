@@ -331,7 +331,7 @@ class _LanguageClient(BaseLanguageClient):
             # Although information may arrive via stderr, it's generally informational in nature and doesn't
             # necessarily represent an error
             # TODO: analyze message and log it accordingly (info/war/error...).
-            logger.info(message)
+            logger.debug(message)
             if not data.endswith(b"\n"):
                 break
 
