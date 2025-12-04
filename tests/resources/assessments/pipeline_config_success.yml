@@ -1,6 +1,6 @@
 name: ExamplePipeline
 version: "1.0"
-extract_folder: /tmp/extracts/
+extract_folder: /tmp/extracts_success/
 steps:
   - name: inventory
     type: sql
