@@ -8,9 +8,6 @@ from databricks.sdk.errors import NotFound
 from databricks.sdk.service.workspace import GetSecretResponse
 
 
-product_name = "remorph"
-
-
 @pytest.fixture
 def local_credentials():
     return {
@@ -52,7 +49,17 @@ def databricks_credentials():
     }
 
 
-def test_local_credentials(local_credentials):
+@pytest.fixture
+def databricks_invalid_key():
+    return {
+        'secret_vault_type': 'databricks',
+        'mssql': {
+            'database': 'without_scope',
+        },
+    }
+
+
+def test_local_credentials(local_credentials: dict[str, str]) -> None:
     credentials = create_credential_manager(local_credentials)
     creds = credentials.get_credentials('mssql')
     assert creds['user'] == 'local_user'
@@ -60,14 +67,14 @@ def test_local_credentials(local_credentials):
 
 
 @patch.dict('os.environ', {'MSSQL_USER_ENV': 'env_user', 'MSSQL_PASSWORD_ENV': 'env_password'})
-def test_env_credentials(env_credentials):
+def test_env_credentials(env_credentials: dict[str, str]) -> None:
     credentials = create_credential_manager(env_credentials)
     creds = credentials.get_credentials('mssql')
     assert creds['user'] == 'env_user'
     assert creds['password'] == 'env_password'
 
 
-def test_databricks_credentials(databricks_credentials, mock_workspace_client):
+def test_databricks_credentials(databricks_credentials: dict[str, str], mock_workspace_client) -> None:
     mock_workspace_client.secrets.get_secret.return_value = GetSecretResponse(
         key='some_key', value=base64.b64encode(bytes('some_secret', 'utf-8')).decode('utf-8')
     )
@@ -77,9 +84,16 @@ def test_databricks_credentials(databricks_credentials, mock_workspace_client):
     assert creds['password'] == 'some_secret'
 
 
-def test_databricks_credentials_not_found(databricks_credentials, mock_workspace_client):
+def test_databricks_credentials_not_found(databricks_credentials: dict[str, str], mock_workspace_client) -> None:
     mock_workspace_client.secrets.get_secret.side_effect = NotFound("Test Exception")
     credentials = create_credential_manager(databricks_credentials, mock_workspace_client)
 
-    with pytest.raises(KeyError, match="Source system: unknown credentials not found"):
-        credentials.get_credentials("unknown")
+    with pytest.raises(KeyError, match="Secret does not exist with scope: databricks_vault_name and key: db_key"):
+        credentials.get_credentials("mssql")
+
+
+def test_databricks_invalid_key(databricks_invalid_key: dict[str, str], mock_workspace_client) -> None:
+    credentials = create_credential_manager(databricks_invalid_key, mock_workspace_client)
+
+    with pytest.raises(ValueError, match="Secret key must be in the format 'scope/secret': Got without_scope"):
+        credentials.get_credentials("mssql")

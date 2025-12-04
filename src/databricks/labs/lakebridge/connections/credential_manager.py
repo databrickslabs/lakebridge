@@ -1,5 +1,3 @@
-from collections.abc import Callable
-from functools import partial
 from pathlib import Path
 import logging
 from typing import Protocol
@@ -42,29 +40,33 @@ class DatabricksSecretProvider(SecretProvider):
     def __init__(self, ws: WorkspaceClient):
         self._ws = ws
 
-    def get_databricks_secret(self, scope: str, key: str) -> str:
-        return self.get_secret(f"{scope}/{key}")
-
     def get_secret(self, key: str) -> str:
         """Get the secret value given a secret scope & secret key.
 
-        :param key: key in the format 'scope/secret'
-        :return: The decoded UTF-8 secret value.
+        Args:
+            key: key in the format 'scope/secret'
+        Returns:
+            The decoded UTF-8 secret value.
 
         Raises:
-          NotFound: The secret could not be found.
+          ValueError: The secret key must be in the format 'scope/secret'.
+          KeyError: The secret could not be found.
           UnicodeDecodeError: The secret value was not Base64-encoded UTF-8.
         """
-        key_parts = key.split(sep="/")
-        assert len(key_parts) == 2, "Secret name must be in the format 'scope/secret'"
-        scope, key_only = key_parts[0], key_parts[1]
+        match key.split(sep="/", maxsplit=3):
+            case _scope, _key_only:
+                scope = _scope
+                key_only = _key_only
+            case _:
+                msg = f"Secret key must be in the format 'scope/secret': Got {key}"
+                raise ValueError(msg)
 
         try:
             secret = self._ws.secrets.get_secret(scope, key_only)
             assert secret.value is not None
             return base64.b64decode(secret.value).decode("utf-8")
         except NotFound as e:
-            raise KeyError(f'Secret does not exist with scope: {scope} and key: {key_only} : {e}') from e
+            raise KeyError(f'Secret does not exist with scope: {scope} and key: {key_only}') from e
         except UnicodeDecodeError as e:
             raise UnicodeDecodeError(
                 "utf-8",
@@ -76,15 +78,10 @@ class DatabricksSecretProvider(SecretProvider):
 
 
 class CredentialManager:
-    SecretProviderFactory = Callable[[], SecretProvider]
-
-    def __init__(self, credentials: dict, secret_providers: dict[str, SecretProviderFactory]):
+    def __init__(self, credentials: dict, secret_providers: dict[str, SecretProvider]):
         self._credentials = credentials
         self._default_vault = self._credentials.get('secret_vault_type', 'local').lower()
-        provider_factory = secret_providers.get(self._default_vault)
-        if not provider_factory:
-            raise ValueError(f"Unsupported secret vault type: {self._default_vault}")
-        self._provider = provider_factory()
+        self._provider = secret_providers.get(self._default_vault)
 
     def get_credentials(self, source: str) -> dict:
         if source not in self._credentials:
@@ -134,7 +131,7 @@ def _load_credentials(path: Path) -> dict:
         raise FileNotFoundError(f"Credentials file not found at {path}") from e
 
 
-def create_databricks_secret_provider(ws) -> DatabricksSecretProvider:
+def create_databricks_secret_provider(ws: WorkspaceClient) -> DatabricksSecretProvider:
     return DatabricksSecretProvider(ws)
 
 
@@ -144,13 +141,12 @@ def create_credential_manager(creds_or_path: dict | Path, ws: WorkspaceClient | 
     else:
         creds = creds_or_path
 
-    # Lazily initialize secret providers
-    secret_providers: dict[str, CredentialManager.SecretProviderFactory] = {
-        'local': LocalSecretProvider,
-        'env': partial(EnvSecretProvider, EnvGetter()),
+    secret_providers: dict[str, SecretProvider] = {
+        'local': LocalSecretProvider(),
+        'env': EnvSecretProvider(EnvGetter()),
     }
 
     if ws:
-        secret_providers['databricks'] = partial(create_databricks_secret_provider, ws)
+        secret_providers['databricks'] = create_databricks_secret_provider(ws)
 
     return CredentialManager(creds, secret_providers)
