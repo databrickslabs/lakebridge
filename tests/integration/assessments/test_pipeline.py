@@ -15,9 +15,9 @@ from databricks.labs.lakebridge.connections.database_manager import DatabaseMana
 
 
 @pytest.fixture(scope="module")
-def pipeline_config() -> PipelineConfig:
+def pipeline_config_success() -> PipelineConfig:
     prefix = Path(__file__).parent
-    config_path = f"{prefix}/../../resources/assessments/pipeline_config.yml"
+    config_path = f"{prefix}/../../resources/assessments/pipeline_config_success.yml"
     config = PipelineClass.load_config_from_yaml(config_path)
 
     for step in config.steps:
@@ -68,10 +68,10 @@ def empty_result_config() -> PipelineConfig:
 
 def test_run_pipeline(
     sandbox_sqlserver: DatabaseManager,
-    pipeline_config: PipelineConfig,
+    pipeline_config_success: PipelineConfig,
     get_logger: Logger,
 ) -> None:
-    pipeline = PipelineClass(config=pipeline_config, executor=sandbox_sqlserver)
+    pipeline = PipelineClass(config=pipeline_config_success, executor=sandbox_sqlserver)
     results = pipeline.execute()
 
     # Verify all steps completed successfully
@@ -81,7 +81,7 @@ def test_run_pipeline(
             StepExecutionStatus.SKIPPED,
         ), f"Step {result.step_name} failed with status {result.status}"
 
-    assert verify_output(get_logger, pipeline_config.extract_folder)
+    assert verify_output(get_logger, pipeline_config_success.extract_folder)
 
 
 def test_run_sql_failure_pipeline(
