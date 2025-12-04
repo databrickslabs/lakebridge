@@ -173,8 +173,8 @@ table_definitions = {
 }
 
 
-def build_mock_synapse_extract(extract_db_name: str) -> str:
-    synapse_extract_path = "/tmp/data/synapse_assessment"
+def build_mock_synapse_extract(extract_db_name: str, path_prefix: str = "/tmp/data/synapse_assessment") -> str:
+    synapse_extract_path = path_prefix
     os.makedirs(synapse_extract_path, exist_ok=True)
     full_synapse_extract_path = f"{synapse_extract_path}/{extract_db_name}.db"
     builder = SynapseProfilerBuilder(table_definitions, full_synapse_extract_path)

@@ -29,8 +29,10 @@ def failure_pipeline_config_path():
 
 
 @pytest.fixture(scope="module")
-def mock_synapse_profiler_extract():
-    synapse_extract_path = build_mock_synapse_extract("mock_profiler_extract")
+def mock_synapse_profiler_extract(tmp_path):
+    # Use pytest's tmp_path to create unique temp directory per test
+    extract_dir = tmp_path / "synapse_assessment"
+    synapse_extract_path = build_mock_synapse_extract("mock_profiler_extract", path_prefix=str(extract_dir))
     return synapse_extract_path
 
 
