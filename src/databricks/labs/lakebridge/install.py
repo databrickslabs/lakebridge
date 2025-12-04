@@ -333,7 +333,7 @@ class WorkspaceInstaller:
             vault, credentials = self._recon_creds_prompts.prompt_recon_creds(data_source)
             creds = ReconcileCredentialConfig(vault, credentials)
         else:
-            creds = ReconcileCredentialConfig("n/a", {})
+            creds = ReconcileCredentialConfig("databricks", {})
 
         db_config = self._prompt_for_reconcile_database_config(data_source)
         metadata_config = self._prompt_for_reconcile_metadata_config()

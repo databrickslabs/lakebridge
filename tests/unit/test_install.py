@@ -803,7 +803,6 @@ def test_configure_reconcile_databricks_no_existing_installation(ws: WorkspaceCl
     prompts = MockPrompts(
         {
             r"Select the Data Source": str(RECONCILE_DATA_SOURCES.index("databricks")),
-            r"Enter Secret scope name to store .* connection details / secrets": "remorph_databricks",
             r"Select the report type": str(RECONCILE_REPORT_TYPES.index("all")),
             r"Enter source catalog name for .*": "databricks_catalog",
             r"Enter source schema name for .*": "some_schema",
@@ -826,6 +825,7 @@ def test_configure_reconcile_databricks_no_existing_installation(ws: WorkspaceCl
         workspace_installation=create_autospec(WorkspaceInstallation),
     )
 
+    creds_mock = MagicMock(ReconConfigPrompts)  # user not prompted if databricks source
     workspace_installer = WorkspaceInstaller(
         ctx.workspace_client,
         ctx.prompts,
@@ -833,6 +833,7 @@ def test_configure_reconcile_databricks_no_existing_installation(ws: WorkspaceCl
         ctx.install_state,
         ctx.product_info,
         ctx.resource_configurator,
+        creds_mock,
         ctx.workspace_installation,
     )
     config = workspace_installer.configure(module="reconcile")
@@ -853,7 +854,8 @@ def test_configure_reconcile_databricks_no_existing_installation(ws: WorkspaceCl
                 volume="reconcile_volume",
             ),
             creds=ReconcileCredentialConfig(
-                vault_type="databricks", source_creds={"__secret_scope": "remorph_databricks"}
+                vault_type="databricks",
+                source_creds={},
             ),
         ),
         transpile=None,
@@ -866,7 +868,6 @@ def test_configure_reconcile_databricks_no_existing_installation(ws: WorkspaceCl
             "report_type": "all",
             "creds": {
                 "vault_type": "databricks",
-                "source_creds": {"__secret_scope": "remorph_databricks"},
             },
             "database_config": {
                 "source_catalog": "databricks_catalog",
