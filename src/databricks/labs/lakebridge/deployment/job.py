@@ -1,5 +1,4 @@
 import logging
-from datetime import datetime, timezone, timedelta
 from typing import Any
 
 from databricks.labs.blueprint.installation import Installation
@@ -16,15 +15,15 @@ from databricks.sdk.service.jobs import (
     JobParameterDefinition,
 )
 from databricks.labs.lakebridge.config import ReconcileConfig
-from databricks.labs.lakebridge.connections.debug_envgetter import TestEnvGetter
 from databricks.labs.lakebridge.reconcile.constants import ReconSourceType
 
 logger = logging.getLogger(__name__)
 
-_TEST_JOBS_PURGE_TIMEOUT = timedelta(hours=1, minutes=15)
-
 
 class JobDeployment:
+
+    DEFAULT_CLUSTER_NAME = "Remorph_Reconciliation_Cluster"
+
     def __init__(
         self,
         ws: WorkspaceClient,
@@ -36,8 +35,6 @@ class JobDeployment:
         self._installation = installation
         self._install_state = install_state
         self._product_info = product_info
-        if self._is_testing():
-            self._test_env = TestEnvGetter()
 
     def deploy_recon_job(self, name, recon_config: ReconcileConfig, lakebridge_wheel_path: str):
         logger.info("Deploying reconciliation job.")
@@ -76,34 +73,17 @@ class JobDeployment:
         recon_config: ReconcileConfig,
         lakebridge_wheel_path: str,
     ) -> dict[str, Any]:
-        latest_lts_spark = self._ws.clusters.select_spark_version(latest=True, long_term_support=True)
         version = self._product_info.version()
         version = version if not self._ws.config.is_gcp else version.replace("+", "-")
         tags = {"version": f"v{version}"}
-        if self._is_testing():
-            # Add RemoveAfter tag for test job cleanup
-            date_to_remove = self._get_test_purge_time()
-            tags.update({"RemoveAfter": date_to_remove})
+        if recon_config.deployment_overrides:
+            logger.debug(f"Applying deployment overrides: {recon_config.deployment_overrides}")
+            tags.update(recon_config.deployment_overrides.tags)
 
         return {
             "name": self._name_with_prefix(job_name),
             "tags": tags,
-            "job_clusters": (
-                []
-                if self._is_testing()
-                else [
-                    JobCluster(
-                        job_cluster_key="Remorph_Reconciliation_Cluster",
-                        new_cluster=compute.ClusterSpec(
-                            data_security_mode=compute.DataSecurityMode.USER_ISOLATION,
-                            spark_conf={},
-                            node_type_id=self._get_default_node_type_id(),
-                            autoscale=compute.AutoScale(min_workers=2, max_workers=10),
-                            spark_version=latest_lts_spark,
-                        ),
-                    )
-                ]
-            ),
+            "job_clusters": [] if recon_config.deployment_overrides else [self._default_job_cluster()],
             "tasks": [
                 self._job_recon_task(
                     task_key,
@@ -132,11 +112,13 @@ class JobDeployment:
                 ),
             )
 
-        return Task(
+        task = Task(
             task_key=task_key,
             description=description,
-            job_cluster_key=None if self._is_testing() else "Remorph_Reconciliation_Cluster",
-            existing_cluster_id=self._test_cluster_id() if self._is_testing() else None,
+            job_cluster_key=None if recon_config.deployment_overrides else self.DEFAULT_CLUSTER_NAME,
+            existing_cluster_id=(
+                recon_config.deployment_overrides.existing_cluster_id if recon_config.deployment_overrides else None
+            ),
             libraries=libraries,
             python_wheel_task=PythonWheelTask(
                 package_name=self.parse_package_name(lakebridge_wheel_path),
@@ -144,18 +126,21 @@ class JobDeployment:
                 parameters=["{{job.parameters.[operation_name]}}"],
             ),
         )
+        logger.debug(f"Reconciliation job task cluster: existing: {task.existing_cluster_id} or name: {task.job_cluster_key}")
+        return task
 
-    # TODO: DRY: delete as it is already implemented in install.py
-    def _is_testing(self):
-        return self._product_info.product_name() != "lakebridge"
-
-    def _test_cluster_id(self):
-        assert self._test_env, "Test environment not initialized because this is not a testing deployment."
-        return self._test_env.get("TEST_DEFAULT_CLUSTER_ID")
-
-    @staticmethod
-    def _get_test_purge_time() -> str:
-        return (datetime.now(timezone.utc) + _TEST_JOBS_PURGE_TIMEOUT).strftime("%Y%m%d%H")
+    def _default_job_cluster(self) -> JobCluster:
+        latest_lts_spark = self._ws.clusters.select_spark_version(latest=True, long_term_support=True)
+        return JobCluster(
+            job_cluster_key=self.DEFAULT_CLUSTER_NAME,
+            new_cluster=compute.ClusterSpec(
+                data_security_mode=compute.DataSecurityMode.USER_ISOLATION,
+                spark_conf={},
+                node_type_id=self._get_default_node_type_id(),
+                autoscale=compute.AutoScale(min_workers=2, max_workers=10),
+                spark_version=latest_lts_spark,
+            ),
+        )
 
     def _get_default_node_type_id(self) -> str:
         return self._ws.clusters.select_node_type(local_disk=True, min_memory_gb=16)
@@ -242,10 +227,6 @@ class JobDeployment:
         version = self._product_info.version()
         version = version if not self._ws.config.is_gcp else version.replace("+", "-")
         tags = {"version": f"v{version}"}
-        if self._is_testing():
-            # Add RemoveAfter tag for test job cleanup
-            date_to_remove = self._get_test_purge_time()
-            tags.update({"RemoveAfter": date_to_remove})
 
         return {
             "name": self._name_with_prefix(job_name),
