@@ -12,7 +12,7 @@ from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dial
 
 from databricks.sdk import WorkspaceClient
 
-from databricks.labs.lakebridge.connections.debug_envgetter import TestEnvGetter, parse_snowflake_jdbc_url
+from tests.integration.debug_envgetter import TestEnvGetter, parse_snowflake_jdbc_url
 
 
 class TSQLServerDataSourceUnderTest(TSQLServerDataSource):
