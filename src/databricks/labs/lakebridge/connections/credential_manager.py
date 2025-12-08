@@ -68,13 +68,8 @@ class DatabricksSecretProvider(SecretProvider):
         except NotFound as e:
             raise KeyError(f'Secret does not exist with scope: {scope} and key: {key_only}') from e
         except UnicodeDecodeError as e:
-            raise UnicodeDecodeError(
-                "utf-8",
-                key_only.encode(),
-                0,
-                1,
-                f"Secret {key} has Base64 bytes that cannot be decoded to utf-8 string: {e}.",
-            ) from e
+            msg = f"Secret {key} has Base64 bytes that cannot be decoded to UTF-8 string"
+            raise ValueError(msg) from e
 
 
 class CredentialManager:
@@ -114,10 +109,6 @@ def _load_credentials(path: Path) -> dict:
         raise FileNotFoundError(f"Credentials file not found at {path}") from e
 
 
-def create_databricks_secret_provider(ws: WorkspaceClient) -> DatabricksSecretProvider:
-    return DatabricksSecretProvider(ws)
-
-
 def create_credential_manager(creds_or_path: dict | Path, ws: WorkspaceClient | None = None) -> CredentialManager:
     if isinstance(creds_or_path, Path):
         creds = _load_credentials(creds_or_path)
@@ -130,6 +121,6 @@ def create_credential_manager(creds_or_path: dict | Path, ws: WorkspaceClient | 
     }
 
     if ws:
-        secret_providers['databricks'] = create_databricks_secret_provider(ws)
+        secret_providers['databricks'] = DatabricksSecretProvider(ws)
 
     return CredentialManager(creds, secret_providers)
