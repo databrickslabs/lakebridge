@@ -68,13 +68,8 @@ class DatabricksSecretProvider(SecretProvider):
         except NotFound as e:
             raise KeyError(f'Secret does not exist with scope: {scope} and key: {key_only}') from e
         except UnicodeDecodeError as e:
-            raise UnicodeDecodeError(
-                "utf-8",
-                key_only.encode(),
-                0,
-                1,
-                f"Secret {key} has Base64 bytes that cannot be decoded to utf-8 string: {e}.",
-            ) from e
+            msg = f"Secret {key} has Base64 bytes that cannot be decoded to UTF-8 string"
+            raise ValueError(msg) from e
 
 
 class CredentialManager:

@@ -88,9 +88,7 @@ def test_read_data_with_options():
     )
     spark.read.format().option().option.assert_called_with("driver", "oracle.jdbc.OracleDriver")
     spark.read.format().option().option().option.assert_called_with("dbtable", "(select 1 from data.employee) tmp")
-    spark.read.format().option().option().option().option.assert_called_with("user", "my_user")
-    spark.read.format().option().option().option().option().option.assert_called_with("password", "my_password")
-    jdbc_actual_args = spark.read.format().option().option().option().option().option().options.call_args.kwargs
+    jdbc_actual_args = spark.read.format().option().option().option().options.call_args.kwargs
     jdbc_expected_args = {
         "numPartitions": 50,
         "partitionColumn": "s_nationkey",
@@ -101,9 +99,11 @@ def test_read_data_with_options():
         "sessionInitStatement": r"BEGIN dbms_session.set_nls('nls_date_format', "
         r"'''YYYY-MM-DD''');dbms_session.set_nls('nls_timestamp_format', '''YYYY-MM-DD "
         r"HH24:MI:SS''');END;",
+        "user": "my_user",
+        "password": "my_password",
     }
     assert jdbc_actual_args == jdbc_expected_args
-    spark.read.format().option().option().option().option().option().options().load.assert_called_once()
+    spark.read.format().option().option().option().options().load.assert_called_once()
 
 
 def test_get_schema():
@@ -157,9 +157,7 @@ def test_read_data_exception_handling():
         filters=None,
     )
 
-    spark.read.format().option().option().option().option().option().options().load.side_effect = RuntimeError(
-        "Test Exception"
-    )
+    spark.read.format().option().option().option().options().load.side_effect = RuntimeError("Test Exception")
 
     # Call the read_data method with the Tables configuration and assert that a PySparkException is raised
     with pytest.raises(
@@ -174,7 +172,7 @@ def test_get_schema_exception_handling():
     engine, spark, ws, _ = initial_setup()
     ords = OracleDataSource(engine, spark, ws)
     ords.load_credentials(ReconcileCredentialConfig("databricks", oracle_creds("scope")))
-    spark.read.format().option().option().option().option().option().load.side_effect = RuntimeError("Test Exception")
+    spark.read.format().option().option().option().options().load.side_effect = RuntimeError("Test Exception")
 
     # Call the get_schema method with predefined table, schema, and catalog names and assert that a PySparkException
     # is raised

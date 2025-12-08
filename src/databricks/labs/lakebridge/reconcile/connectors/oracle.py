@@ -1,5 +1,6 @@
 import re
 import logging
+from collections.abc import Mapping
 from datetime import datetime
 
 from pyspark.errors import PySparkException
@@ -12,7 +13,7 @@ from databricks.labs.lakebridge.connections.credential_manager import create_cre
 from databricks.labs.lakebridge.reconcile.connectors.data_source import DataSource
 from databricks.labs.lakebridge.reconcile.connectors.jdbc_reader import JDBCReaderMixin
 from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import DialectUtils, NormalizedIdentifier
-from databricks.labs.lakebridge.reconcile.recon_config import JdbcReaderOptions, Schema
+from databricks.labs.lakebridge.reconcile.recon_config import JdbcReaderOptions, Schema, OptionalPrimitiveType
 from databricks.sdk import WorkspaceClient
 
 logger = logging.getLogger(__name__)
@@ -64,9 +65,9 @@ class OracleDataSource(DataSource, JDBCReaderMixin):
         table_query = query.replace(":tbl", f"{schema}.{table}")
         try:
             if options is None:
-                return self.reader(table_query).options(**self._get_timestamp_options()).load()
+                return self.reader(table_query, self._get_timestamp_options()).load()
             reader_options = self._get_jdbc_reader_options(options) | self._get_timestamp_options()
-            df = self.reader(table_query).options(**reader_options).load()
+            df = self.reader(table_query, reader_options).load()
             logger.warning(f"Fetching data using query: \n`{table_query}`")
 
             # Convert all column names to lower case
@@ -107,12 +108,14 @@ class OracleDataSource(DataSource, JDBCReaderMixin):
             "HH24:MI:SS''');END;",
         }
 
-    def reader(self, query: str) -> DataFrameReader:
+    def reader(self, query: str, options: Mapping[str, OptionalPrimitiveType] | None = None) -> DataFrameReader:
+        if options is None:
+            options = {}
         user = self._creds.get('user')
         password = self._creds.get('password')
         logger.debug(f"Using user: {user} to connect to Oracle")
         return self._get_jdbc_reader(
-            query, self.get_jdbc_url, OracleDataSource._DRIVER, {"user": user, "password": password}
+            query, self.get_jdbc_url, OracleDataSource._DRIVER, {**options, "user": user, "password": password}
         )
 
     def load_credentials(self, creds: ReconcileCredentialConfig) -> "OracleDataSource":

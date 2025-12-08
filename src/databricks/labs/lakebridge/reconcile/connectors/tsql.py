@@ -1,6 +1,7 @@
 import re
 import logging
 from datetime import datetime
+from collections.abc import Mapping
 
 from pyspark.errors import PySparkException
 from pyspark.sql import DataFrame, DataFrameReader, SparkSession
@@ -12,7 +13,7 @@ from databricks.labs.lakebridge.connections.credential_manager import create_cre
 from databricks.labs.lakebridge.reconcile.connectors.data_source import DataSource
 from databricks.labs.lakebridge.reconcile.connectors.jdbc_reader import JDBCReaderMixin
 from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import DialectUtils, NormalizedIdentifier
-from databricks.labs.lakebridge.reconcile.recon_config import JdbcReaderOptions, Schema
+from databricks.labs.lakebridge.reconcile.recon_config import JdbcReaderOptions, Schema, OptionalPrimitiveType
 from databricks.sdk import WorkspaceClient
 
 logger = logging.getLogger(__name__)
@@ -76,8 +77,6 @@ class TSQLServerDataSource(DataSource, JDBCReaderMixin):
         return (
             f"jdbc:{self._DRIVER}://{self._creds.get('host')}:{self._creds.get('port')};"
             f"databaseName={self._creds.get('database')};"
-            f"user={self._creds.get('user')};"
-            f"password={self._creds.get('password')};"
             f"encrypt={self._creds.get('encrypt')};"
             f"trustServerCertificate={self._creds.get('trustServerCertificate')};"
         )
@@ -101,10 +100,10 @@ class TSQLServerDataSource(DataSource, JDBCReaderMixin):
             prepare_query_string = ""
         try:
             if options is None:
-                df = self.reader(query, prepare_query_string).load()
+                df = self.reader(query, {"prepareQuery": prepare_query_string}).load()
             else:
-                options = self._get_jdbc_reader_options(options)
-                df = self._get_jdbc_reader(table_query, self.get_jdbc_url, self._DRIVER).options(**options).load()
+                spark_options = self._get_jdbc_reader_options(options)
+                df = self.reader(table_query, spark_options).load()
             return df.select([col(column).alias(column.lower()) for column in df.columns])
         except (RuntimeError, PySparkException) as e:
             return self.log_and_throw_exception(e, "data", table_query)
@@ -168,8 +167,18 @@ class TSQLServerDataSource(DataSource, JDBCReaderMixin):
         except (RuntimeError, PySparkException) as e:
             return self.log_and_throw_exception(e, "schema", schema_query)
 
-    def reader(self, query: str, prepare_query_str="") -> DataFrameReader:
-        return self._get_jdbc_reader(query, self.get_jdbc_url, self._DRIVER, {"prepareQuery": prepare_query_str})
+    def reader(self, query: str, options: Mapping[str, OptionalPrimitiveType] | None = None) -> DataFrameReader:
+        if options is None:
+            options = {}
+
+        creds = self._get_user_password()
+        return self._get_jdbc_reader(query, self.get_jdbc_url, self._DRIVER, {**options, **creds})
+
+    def _get_user_password(self) -> Mapping[str, str]:
+        return {
+            "user": self._creds.get("user"),
+            "password": self._creds.get("password"),
+        }
 
     def normalize_identifier(self, identifier: str) -> NormalizedIdentifier:
         return DialectUtils.normalize_identifier(
