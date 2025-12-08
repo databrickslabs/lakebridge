@@ -51,7 +51,7 @@ def test_oracle_db_reconcile(mock_spark, mock_workspace_client, tmp_path):
     reconcile_config = ReconcileConfig(
         data_source="oracle",
         report_type=report,
-        creds=ReconcileCredentialConfig(vault_type="local", source_creds={"fake": "fake"}),
+        creds=ReconcileCredentialConfig(vault_type="databricks", source_creds={"__secret_scope": "fake"}),
         database_config=db_config,
         metadata_config=ReconcileMetadataConfig(catalog="tmp", schema="reconcile"),
     )

@@ -257,7 +257,7 @@ class ReconcileCredentialConfig:
     source_creds: dict[str, str]
 
     def __post_init__(self):
-        if self.vault_type not in {"local", "env", "databricks"}:
+        if self.vault_type != "databricks":
             raise ValueError(f"Unsupported vault_type: {self.vault_type}")
 
 
