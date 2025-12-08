@@ -4,7 +4,6 @@ import logging
 
 from dataclasses import dataclass
 from collections.abc import Callable
-
 from sqlglot import expressions as exp
 
 from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import DialectUtils
@@ -27,6 +26,9 @@ _SUPPORTED_AGG_TYPES: set[str] = {
 
 RECONCILE_OPERATION_NAME = "reconcile"
 AGG_RECONCILE_OPERATION_NAME = "aggregates-reconcile"
+
+PrimitiveType = bool | int | float | str
+OptionalPrimitiveType = PrimitiveType | None
 
 
 class TableThresholdBoundsException(ValueError):

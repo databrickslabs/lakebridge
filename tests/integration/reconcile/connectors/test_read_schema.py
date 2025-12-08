@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 from unittest.mock import create_autospec
 
 import pytest
@@ -8,6 +9,7 @@ from databricks.labs.lakebridge.reconcile.connectors.databricks import Databrick
 from databricks.labs.lakebridge.reconcile.connectors.oracle import OracleDataSource
 from databricks.labs.lakebridge.reconcile.connectors.snowflake import SnowflakeDataSource
 from databricks.labs.lakebridge.reconcile.connectors.tsql import TSQLServerDataSource
+from databricks.labs.lakebridge.reconcile.recon_config import OptionalPrimitiveType
 from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
 
 from databricks.sdk import WorkspaceClient
@@ -22,11 +24,12 @@ class TSQLServerDataSourceUnderTest(TSQLServerDataSource):
 
     @property
     def get_jdbc_url(self) -> str:
-        return (
-            self._test_env.get("TEST_TSQL_JDBC")
-            + f"user={self._test_env.get('TEST_TSQL_USER')};"
-            + f"password={self._test_env.get('TEST_TSQL_PASS')};"
-        )
+        return self._test_env.get("TEST_TSQL_JDBC")
+
+    def _get_user_password(self) -> dict:
+        user = self._test_env.get("TEST_TSQL_USER")
+        password = self._test_env.get("TEST_TSQL_PASS")
+        return {"user": user, "password": password}
 
 
 class OracleDataSourceUnderTest(OracleDataSource):
@@ -38,11 +41,13 @@ class OracleDataSourceUnderTest(OracleDataSource):
     def get_jdbc_url(self) -> str:
         return self._test_env.get("TEST_ORACLE_JDBC")
 
-    def reader(self, query: str) -> DataFrameReader:
+    def reader(self, query: str, options: Mapping[str, OptionalPrimitiveType] | None = None) -> DataFrameReader:
+        if options is None:
+            options = {}
         user = self._test_env.get("TEST_ORACLE_USER")
         password = self._test_env.get("TEST_ORACLE_PASSWORD")
         return self._get_jdbc_reader(
-            query, self.get_jdbc_url, OracleDataSource._DRIVER, {"user": user, "password": password}
+            query, self.get_jdbc_url, OracleDataSource._DRIVER, {**options, "user": user, "password": password}
         )
 
 
@@ -75,12 +80,12 @@ class SnowflakeDataSourceUnderTest(SnowflakeDataSource):
         return opts
 
 
-@pytest.mark.skip(reason="Add the creds to Github secrets and populate the actions' env to enable this test")
+@pytest.mark.skip(reason="Run in acceptance environment only")
 def test_sql_server_read_schema_happy(mock_spark):
     mock_ws = create_autospec(WorkspaceClient)
     connector = TSQLServerDataSourceUnderTest(mock_spark, mock_ws)
 
-    columns = connector.get_schema("labs_azure_sandbox_remorph", "dbo", "Employees")
+    columns = connector.get_schema("labs_azure_sandbox_remorph", "dbo", "reconcile_in")
     assert columns
 
 
