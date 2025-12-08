@@ -21,27 +21,27 @@ class ReconConfigPrompts:
             f"Please answer a couple of questions to configure `{ReconSourceType.SNOWFLAKE.value}` Connection profile"
         )
 
-        sf_url = self._prompts.question("Enter Snowflake URL Secret")
-        sf_user = self._prompts.question("Enter User Secret")
+        sf_url = self._prompts.question("Enter Snowflake URL Secret Name")
+        sf_user = self._prompts.question("Enter User Secret Name")
         password_dict = {}
         sf_password = self._prompts.question(
-            "Enter Password Secret or use `None` to use key-based auth", default="None"
+            "Enter Password Secret Name or use `None` to use key-based auth", default="None"
         )
         if sf_password.lower() == "none":
             logger.info("Proceeding with PEM Private Key authentication...")
-            sf_pem_key = self._prompts.question("Enter PEM Private Key Secret")
+            sf_pem_key = self._prompts.question("Enter PEM Private Key Secret Name")
             password_dict["pem_private_key"] = sf_pem_key
             sf_pem_key_password = self._prompts.question(
-                "Enter PEM Private Key Password Secret or use `None`", default="None"
+                "Enter PEM Private Key Password Secret Name or use `None`", default="None"
             )
             if sf_pem_key_password.lower() == "none":
                 password_dict["pem_private_key_password"] = sf_pem_key_password
         else:
             password_dict["sfPassword"] = sf_password
-        sf_db = self._prompts.question("Enter Database Secret")
-        sf_schema = self._prompts.question("Enter Schema Secret")
-        sf_warehouse = self._prompts.question("Enter Snowflake Warehouse Secret")
-        sf_role = self._prompts.question("Enter Role Secret")
+        sf_db = self._prompts.question("Enter Database Secret Name")
+        sf_schema = self._prompts.question("Enter Schema Secret Name")
+        sf_warehouse = self._prompts.question("Enter Snowflake Warehouse Secret Name")
+        sf_role = self._prompts.question("Enter Role Secret Name")
 
         sf_conn_details = {
             "sfUrl": sf_url,
@@ -62,11 +62,11 @@ class ReconConfigPrompts:
         logger.info(
             f"Please answer a couple of questions to configure `{ReconSourceType.ORACLE.value}` Connection profile"
         )
-        user = self._prompts.question("Enter User Secret")
-        password = self._prompts.question("Enter Password Secret")
-        host = self._prompts.question("Enter host Secret")
-        port = self._prompts.question("Enter port Secret")
-        database = self._prompts.question("Enter database/SID Secret")
+        user = self._prompts.question("Enter User Secret Name")
+        password = self._prompts.question("Enter Password Secret Name")
+        host = self._prompts.question("Enter host Secret Name")
+        port = self._prompts.question("Enter port Secret Name")
+        database = self._prompts.question("Enter database/SID Secret Name")
 
         oracle_conn_details = {"user": user, "password": password, "host": host, "port": port, "database": database}
 
@@ -80,13 +80,13 @@ class ReconConfigPrompts:
         logger.info(
             f"Please answer a couple of questions to configure `{ReconSourceType.MSSQL.value}`/`{ReconSourceType.SYNAPSE.value}` Connection profile"
         )
-        user = self._prompts.question("Enter User Secret")
-        password = self._prompts.question("Enter Password Secret")
-        host = self._prompts.question("Enter host Secret")
-        port = self._prompts.question("Enter port Secret")
-        database = self._prompts.question("Enter database Secret")
-        encrypt = self._prompts.question("Enter Encrypt Secret")
-        trust_server_certificate = self._prompts.question("Enter Trust Server Certificate Secret")
+        user = self._prompts.question("Enter User Secret Name")
+        password = self._prompts.question("Enter Password Secret Name")
+        host = self._prompts.question("Enter host Secret Name")
+        port = self._prompts.question("Enter port Secret Name")
+        database = self._prompts.question("Enter database Secret Name")
+        encrypt = self._prompts.question("Enter Encrypt Secret Name")
+        trust_server_certificate = self._prompts.question("Enter Trust Server Certificate Secret Name")
 
         tsql_conn_details = {
             "user": user,
@@ -111,18 +111,6 @@ class ReconConfigPrompts:
                 return self._prompt_mssql_connection_details()
 
     def prompt_recon_creds(self, source: str) -> tuple[str, dict[str, str]]:
-        logger.info(
-            "\nChoose vault type (local | env | databricks) \nlocal means values are read as plain text \nenv means values are read "
-            "from environment variables fall back to plain text if not variable is not found\ndatabricks means values are read from Databricks Secrets\n",
-        )
-        secret_vault_type = str(
-            self._prompts.choice("Enter secret vault type (local | env | databricks)", ["local", "env", "databricks"])
-        ).lower()
-
-        if secret_vault_type == "databricks":
-            logger.info(
-                "Since you have chosen `databricks` as secret vault type, you need to provide secret names in the following steps in the format <secret_scope>/<secret_key>"
-            )
-
+        logger.info("Please provide secret names in the following steps in the format <secret_scope>/<secret_key>")
         connection_details = self._connection_details(source)
-        return secret_vault_type, connection_details
+        return "databricks", connection_details
