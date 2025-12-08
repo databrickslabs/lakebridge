@@ -8,7 +8,7 @@ from databricks.labs.blueprint.tui import Prompts
 
 from databricks.labs.lakebridge.connections.credential_manager import (
     cred_file as creds,
-    create_credential_manager,
+    CredentialManager,
 )
 from databricks.labs.lakebridge.connections.database_manager import DatabaseManager
 from databricks.labs.lakebridge.assessments import CONNECTOR_REQUIRED
@@ -43,7 +43,7 @@ class AssessmentConfigurator(ABC):
         pass
 
     def _test_connection(self, source: str):
-        cred_manager = create_credential_manager(self._credential_file)
+        cred_manager = CredentialManager.from_file(self._credential_file)
         config = cred_manager.get_credentials(source)
 
         try:
