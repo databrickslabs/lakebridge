@@ -671,10 +671,6 @@ def mock_for_report_type_data(
     normalized_table_conf_with_opts.drop_columns = ["`s_acctbal`"]
     normalized_table_conf_with_opts.column_thresholds = None
     table_recon = TableRecon(
-        source_catalog="org",
-        source_schema="data",
-        target_catalog="org",
-        target_schema="data",
         tables=[normalized_table_conf_with_opts],
     )
     src_schema, tgt_schema = table_schema_ansi_ansi
@@ -882,10 +878,6 @@ def mock_for_report_type_schema(
     normalized_table_conf_with_opts, table_schema_ansi_ansi, query_store, mock_spark, setup_metadata_table
 ):
     table_recon = TableRecon(
-        source_catalog="org",
-        source_schema="data",
-        target_catalog="org",
-        target_schema="data",
         tables=[normalized_table_conf_with_opts],
     )
     src_schema, tgt_schema = table_schema_ansi_ansi
@@ -1082,10 +1074,6 @@ def mock_for_report_type_all(
     normalized_table_conf_with_opts.drop_columns = ["`s_acctbal`"]
     normalized_table_conf_with_opts.column_thresholds = None
     table_recon = TableRecon(
-        source_catalog="org",
-        source_schema="data",
-        target_catalog="org",
-        target_schema="data",
         tables=[normalized_table_conf_with_opts],
     )
     src_schema, tgt_schema = table_schema_oracle_ansi
@@ -1346,10 +1334,6 @@ def mock_for_report_type_row(
     normalized_table_conf_with_opts.drop_columns = ["`s_acctbal`"]
     normalized_table_conf_with_opts.column_thresholds = None
     table_recon = TableRecon(
-        source_catalog="org",
-        source_schema="data",
-        target_catalog="org",
-        target_schema="data",
         tables=[normalized_table_conf_with_opts],
     )
     src_schema, tgt_schema = table_schema_ansi_ansi
@@ -1575,10 +1559,6 @@ def mock_for_recon_exception(normalized_table_conf_with_opts, setup_metadata_tab
     normalized_table_conf_with_opts.column_thresholds = None
     normalized_table_conf_with_opts.join_columns = None
     table_recon = TableRecon(
-        source_catalog="org",
-        source_schema="data",
-        target_catalog="org",
-        target_schema="data",
         tables=[normalized_table_conf_with_opts],
     )
     source = MockDataSource({}, {})
