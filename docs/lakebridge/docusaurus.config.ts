@@ -21,7 +21,6 @@ const config: Config = {
   projectName: 'Lakebridge', // Usually your repo name.
 
   onBrokenLinks: 'throw',
-  onBrokenMarkdownLinks: 'throw',
   onDuplicateRoutes: 'throw',
   onBrokenAnchors: 'throw',
 
@@ -32,7 +31,12 @@ const config: Config = {
     defaultLocale: 'en',
     locales: ['en'],
   },
-  markdown: { mermaid: true },
+  markdown: {
+    mermaid: true,
+    hooks: {
+      onBrokenMarkdownLinks: 'throw',
+    },
+  },
   themes: ['@docusaurus/theme-mermaid'],
 
   plugins: [
