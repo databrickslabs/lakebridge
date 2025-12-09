@@ -12,6 +12,7 @@ import venv
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from types import MethodType
 from typing import Any, ClassVar, Literal, TypeVar, cast
 
 import attrs
@@ -260,29 +261,39 @@ def lsp_feature(feature_name: str, options: Any | None = None) -> Callable[[Call
 
 
 class ExtendableLanguageClient(LanguageClient):
-    # Name of the attribute we set on functions to mark them as LSP feature callbacks.
-    # The attribute holds a list of [name, options] tuples representing the feature name and options to provide to
-    # the callback.
-    _feature_marker_attribute: ClassVar[str] = "_lsp_features"
-
     @classmethod
     def mark_feature_callback(cls, feature: str, func: Callable, options: Any) -> None:
         # Mark a function by adding the feature to its list of features.
-        prior_feature_list = getattr(func, cls._feature_marker_attribute, [])
+        prior_feature_list = getattr(func, cls._MarkedMethod.feature_marker_attribute, [])
         feature_list = [*prior_feature_list, (feature, options)]
-        setattr(func, cls._feature_marker_attribute, feature_list)
+        setattr(func, cls._MarkedMethod.feature_marker_attribute, feature_list)
+
+    @dataclass(frozen=True)
+    class _MarkedMethod:
+        name: str
+        method: MethodType
+        # Features names, and corresponding options for the callback.
+        lsp_features: Sequence[tuple[str, Any]]
+
+        # Name of the attribute we set on functions to mark them as LSP feature callbacks.
+        # The attribute holds a list of [name, options] tuples representing the feature name and options to provide to
+        # the callback.
+        feature_marker_attribute: ClassVar[str] = "_lsp_features"
+
+        @classmethod
+        def from_method(cls, name: str, method: MethodType) -> ExtendableLanguageClient._MarkedMethod | None:
+            func = method.__func__
+            feature_markers = getattr(func, cls.feature_marker_attribute, None)
+            return cls(name, method, feature_markers) if feature_markers is not None else None
 
     @classmethod
-    def _fetch_feature_callbacks(cls: type[ELC], instance: ELC) -> Sequence[tuple[str, str, Callable, Any]]:
+    def _fetch_feature_callbacks(cls: type[ELC], instance: ELC) -> Sequence[_MarkedMethod]:
         # Iterate over the methods, looking for those marked as feature callbacks.
-        callbacks: list[tuple[str, str, Callable, Any]] = []
-        for method_name, method in inspect.getmembers(instance, predicate=inspect.ismethod):
-            func = method.__func__
-            feature_markers: list[tuple[str, Any]] = getattr(func, cls._feature_marker_attribute, [])
-            for feature_mark in feature_markers:
-                feature_name, options = feature_mark
-                callbacks.append((feature_name, method_name, method, options))
-        return callbacks
+        return [
+            marked_method
+            for name, method in inspect.getmembers(instance, predicate=inspect.ismethod)
+            if (marked_method := cls._MarkedMethod.from_method(name, method)) is not None
+        ]
 
     @classmethod
     def _wrap_method_as_function(cls, method: Callable) -> Callable:
@@ -304,11 +315,13 @@ class ExtendableLanguageClient(LanguageClient):
 
     def _register_lsp_callbacks(self) -> None:
         # Locate all feature callbacks on this instance and ensure they are registered.
-        for feature_name, method_name, method, options in self._fetch_feature_callbacks(self):
-            decorator = self.protocol.fm.feature(feature_name, options)
-            wrapped_method = self._wrap_method_as_function(method)
+        for marked_method in self._fetch_feature_callbacks(self):
+            wrapped_method = self._wrap_method_as_function(marked_method.method)
+            for feature_name, options in marked_method.lsp_features:
+                decorator = self.protocol.fm.feature(feature_name, options)
+                wrapped_method = decorator(wrapped_method)
             # Replace the method on this instance with its decorated version.
-            setattr(self, method_name, decorator(wrapped_method))
+            setattr(self, marked_method.name, wrapped_method)
 
     def __init__(self, name: str, version: str) -> None:
         super().__init__(name, version)
