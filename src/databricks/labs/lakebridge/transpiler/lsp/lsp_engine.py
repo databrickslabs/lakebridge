@@ -330,7 +330,7 @@ class LakebridgeLanguageClient(ExtendableLanguageClient):
         return self._transpile_to_databricks_capability
 
     @lsp_feature(CLIENT_REGISTER_CAPABILITY)
-    def register_capabilities(self, params: RegistrationParams) -> None:
+    async def register_capabilities(self, params: RegistrationParams) -> None:
         for registration in params.registrations:
             if registration.method == TRANSPILE_TO_DATABRICKS_METHOD:
                 logger.debug(f"Registered capability: {registration.method}")
