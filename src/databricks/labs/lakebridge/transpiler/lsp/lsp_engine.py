@@ -598,13 +598,15 @@ class LSPEngine(TranspileEngine):
             executable, additional_path = self._activate_venv(venv_path, executable)
             # Ensure PATH is in sync with the search path we will use to locate the LSP server executable.
             env["PATH"] = path = f"{additional_path}{os.pathsep}{path}"
-            logger.debug(f"Using PATH for launching LSP server: {path}")
+            logger.debug(f"Using modified PATH for launching LSP server: {path}")
         elif os.path.normcase(executable) in {"python", "python3"}:
             # If Python is requested without a dedicated venv, use the current interpreter rather than searching PATH.
             # (Searching PATH might find an unexpected system python, which is unlikely to have the required packages
             # installed.)
             executable = sys.executable
             logger.debug(f"No dedicated virtual environment, using current interpreter for LSP server: {executable}")
+        else:
+            logger.debug(f"Using PATH for launching LSP server: {path}")
 
         # Locate the LSP server executable in a platform-independent way.
         # Reference: https://docs.python.org/3/library/subprocess.html#popen-constructor
