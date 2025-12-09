@@ -304,8 +304,8 @@ class ExtendableLanguageClient(LanguageClient):
 
     def _register_lsp_callbacks(self) -> None:
         # Locate all feature callbacks on this instance and ensure they are registered.
-        for feature_names, method_name, method, options in self._fetch_feature_callbacks(self):
-            decorator = self.protocol.fm.feature(feature_names, options)
+        for feature_name, method_name, method, options in self._fetch_feature_callbacks(self):
+            decorator = self.protocol.fm.feature(feature_name, options)
             wrapped_method = self._wrap_method_as_function(method)
             # Replace the method on this instance with its decorated version.
             setattr(self, method_name, decorator(wrapped_method))
