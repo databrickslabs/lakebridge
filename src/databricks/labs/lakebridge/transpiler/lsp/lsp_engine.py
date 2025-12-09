@@ -588,7 +588,15 @@ class LSPEngine(TranspileEngine):
 
         # Locate the LSP server executable in a platform-independent way.
         # Reference: https://docs.python.org/3/library/subprocess.html#popen-constructor
-        executable = shutil.which(executable, path=path) or executable
+        match shutil.which(executable, path=path):
+            case None if executable == "python":
+                # Unusual case: no dedicated venv, and if we are running in a venv it's not activated.
+                # (This can happen when launched via a venv binary without the venv being activated. IDEs often do this.)
+                executable = sys.executable
+            case None:
+                raise ValueError(f"Could not locate LSP server executable: {executable}")
+            case resolved_executable:
+                executable = resolved_executable
 
         await self._launch_executable(executable, args, env)
 
