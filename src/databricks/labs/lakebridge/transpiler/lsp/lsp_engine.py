@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import abc
 import asyncio
+import functools
+import inspect
 import logging
 import os
 import shutil
@@ -10,7 +12,7 @@ import venv
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Literal, ClassVar, cast
+from typing import Any, ClassVar, Literal, TypeVar, cast
 
 import attrs
 import yaml
@@ -184,16 +186,6 @@ class LSPConfig:
             return {}
 
 
-def lsp_feature(name: str, options: Any | None = None):
-    def wrapped(func: Callable):
-        _LSP_FEATURES.append((name, options, func))
-        return func
-
-    return wrapped
-
-
-_LSP_FEATURES: list[tuple[str, Any | None, Callable]] = []
-
 # the below code also exists in lsp_server.py
 # it will be factorized as part of https://github.com/databrickslabs/remorph/issues/1304
 TRANSPILE_TO_DATABRICKS_METHOD = "document/transpileToDatabricks"
@@ -253,12 +245,81 @@ METHOD_TO_TYPES[TRANSPILE_TO_DATABRICKS_METHOD] = (
 )
 
 
-class LakebridgeLanguageClient(LanguageClient):
+ELC = TypeVar("ELC", bound="ExtendableLanguageClient")
+
+
+def lsp_feature(feature_name: str, options: Any | None = None) -> Callable[[Callable], Callable]:
+    """Decorator to mark a function as a callback for a server-to-client request/notification."""
+
+    # Decoration marks the function, but does not register it yet.
+    def wrap(func: Callable) -> Callable:
+        ExtendableLanguageClient.mark_feature_callback(feature_name, func, options)
+        return func
+
+    return wrap
+
+
+class ExtendableLanguageClient(LanguageClient):
+    # Name of the attribute we set on functions to mark them as LSP feature callbacks.
+    # The atribute holds a list of [name, options] tuples representing the feature name and options to provide to
+    # the callback.
+    _feature_marker_attribute: ClassVar[str] = "_lsp_features"
+
+    @classmethod
+    def mark_feature_callback(cls, feature: str, func: Callable, options: Any) -> None:
+        # Mark a function by adding the feature to its list of features.
+        prior_feature_list = getattr(func, cls._feature_marker_attribute, [])
+        feature_list = [*prior_feature_list, (feature, options)]
+        setattr(func, cls._feature_marker_attribute, feature_list)
+
+    @classmethod
+    def _fetch_feature_callbacks(cls: type[ELC], instance: ELC) -> Sequence[tuple[str, str, Callable, Any]]:
+        # Iterate over the methods, looking for those marked as feature callbacks.
+        callbacks: list[tuple[str, str, Callable, Any]] = []
+        for method_name, method in inspect.getmembers(instance, predicate=inspect.ismethod):
+            func = method.__func__
+            feature_markers: list[tuple[str, Any]] = getattr(func, cls._feature_marker_attribute, [])
+            for feature_mark in feature_markers:
+                feature_name, options = feature_mark
+                callbacks.append((feature_name, method_name, method, options))
+        return callbacks
+
+    @classmethod
+    def _wrap_method_as_function(cls, method: Callable) -> Callable:
+        # A quirk of python is that methods (=bound functions) can't have properties set, but functions can.
+        # PyGLS relies on setting properties on the callback, so we need to give it a function rather than a method.
+        if inspect.iscoroutinefunction(method):
+
+            @functools.wraps(method)
+            async def wrapper(*args, **kwargs):
+                return await method(*args, **kwargs)
+
+        else:
+
+            @functools.wraps(method)
+            def wrapper(*args, **kwargs):
+                return method(*args, **kwargs)
+
+        return wrapper
+
+    def _register_lsp_callbacks(self) -> None:
+        # Locate all feature callbacks on this instance and ensure they are registered.
+        for feature_names, method_name, method, options in self._fetch_feature_callbacks(self):
+            decorator = self.protocol.fm.feature(feature_names, options)
+            wrapped_method = self._wrap_method_as_function(method)
+            # Replace the method on this instance with its decorated version.
+            setattr(self, method_name, decorator(wrapped_method))
+
+    def __init__(self, name: str, version: str) -> None:
+        super().__init__(name, version)
+        self._register_lsp_callbacks()
+
+
+class LakebridgeLanguageClient(ExtendableLanguageClient):
 
     def __init__(self, name: str, version: str) -> None:
         super().__init__(name, version)
         self._transpile_to_databricks_capability: Registration | None = None
-        self._register_lsp_features()
 
     @property
     def is_alive(self):
@@ -295,19 +356,6 @@ class LakebridgeLanguageClient(LanguageClient):
         if not self.transpile_to_databricks_capability:
             raise IllegalStateException("Client has not yet registered its transpile capability.")
         return await self.protocol.send_request_async(TRANSPILE_TO_DATABRICKS_METHOD, params)
-
-    # can't use @client.feature because it requires a global instance
-    def _register_lsp_features(self):
-        for name, options, func in _LSP_FEATURES:
-            decorator = self.protocol.fm.feature(name, options)
-            wrapper = self._wrapper_for_lsp_feature(func)
-            decorator(wrapper)
-
-    def _wrapper_for_lsp_feature(self, func):
-        def wrapper(params):
-            return func(self, params)
-
-        return wrapper
 
     _DEFAULT_LIMIT: ClassVar[int] = 64 * 1024
 
