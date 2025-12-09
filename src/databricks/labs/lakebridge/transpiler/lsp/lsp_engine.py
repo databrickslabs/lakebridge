@@ -261,7 +261,7 @@ def lsp_feature(feature_name: str, options: Any | None = None) -> Callable[[Call
 
 class ExtendableLanguageClient(LanguageClient):
     # Name of the attribute we set on functions to mark them as LSP feature callbacks.
-    # The atribute holds a list of [name, options] tuples representing the feature name and options to provide to
+    # The attribute holds a list of [name, options] tuples representing the feature name and options to provide to
     # the callback.
     _feature_marker_attribute: ClassVar[str] = "_lsp_features"
 
