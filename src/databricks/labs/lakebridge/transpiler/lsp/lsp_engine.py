@@ -32,7 +32,7 @@ from lsprotocol.types import Position as LSPPosition
 from lsprotocol.types import Range as LSPRange
 from lsprotocol.types import Registration, RegistrationParams, TextDocumentIdentifier, TextDocumentItem, TextEdit
 from pygls.exceptions import FeatureRequestError
-from pygls.lsp.client import BaseLanguageClient
+from pygls.lsp.client import LanguageClient
 
 from databricks.labs.blueprint.installation import JsonValue, RootJsonValue
 from databricks.labs.blueprint.wheels import ProductInfo
@@ -253,8 +253,7 @@ METHOD_TO_TYPES[TRANSPILE_TO_DATABRICKS_METHOD] = (
 )
 
 
-# subclass BaseLanguageClient so we can override stuff when required
-class LanguageClient(BaseLanguageClient):
+class LakebridgeLanguageClient(LanguageClient):
 
     def __init__(self, name: str, version: str) -> None:
         super().__init__(name, version)
@@ -524,7 +523,7 @@ class LSPEngine(TranspileEngine):
         self._workdir = workdir
         self._config = config
         name, version = self.client_metadata()
-        self._client = LanguageClient(name, version)
+        self._client = LakebridgeLanguageClient(name, version)
         self._init_response: InitializeResult | None = None
 
     @property

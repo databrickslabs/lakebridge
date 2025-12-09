@@ -9,7 +9,11 @@ from typing import ClassVar, final
 import pytest
 
 from databricks.labs.lakebridge.config import TranspileConfig
-from databricks.labs.lakebridge.transpiler.lsp.lsp_engine import LSPEngine, LanguageClient, logger as lsp_logger
+from databricks.labs.lakebridge.transpiler.lsp.lsp_engine import (
+    LSPEngine,
+    LakebridgeLanguageClient,
+    logger as lsp_logger,
+)
 
 
 @final
@@ -165,7 +169,7 @@ async def assert_pipe_stream_chunks_produce_logs(
 ) -> None:
     stream = MockStreamReader(data_chunks)
     with caplog.at_level(LSPServerLogs.stderr_log_level):
-        await LanguageClient.pipe_stream(stream=stream, limit=limit)
+        await LakebridgeLanguageClient.pipe_stream(stream=stream, limit=limit)
 
     messages = tuple(LSPServerLogs.get_pipe_stream_logs(caplog))
     assert messages == expected_messages
