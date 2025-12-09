@@ -576,8 +576,8 @@ class LSPEngine(TranspileEngine):
           - If the working directory contains a ".venv" subdirectory, it is treated as a virtual environment and
             activated for the purpose of locating the LSP server executable: the virtual environment's bin/script
             directory is prepended to the PATH environment variable.
-          - If the executable is "python" or "python3" and it cannot be located via the above virtual environment, the
-            current python interpreter is used.
+          - If the executable is "python" or "python3" and the above virtual environment is missing, the current python
+            interpreter is used.
           - Otherwise, the executable is located via the system PATH.
 
         Raises:
@@ -598,21 +598,20 @@ class LSPEngine(TranspileEngine):
             executable, additional_path = self._activate_venv(venv_path, executable)
             # Ensure PATH is in sync with the search path we will use to locate the LSP server executable.
             env["PATH"] = path = f"{additional_path}{os.pathsep}{path}"
-        logger.debug(f"Using PATH for launching LSP server: {path}")
+            logger.debug(f"Using PATH for launching LSP server: {path}")
+        elif os.path.normcase(executable) in {"python", "python3"}:
+            # If Python is requested without a dedicated venv, use the current interpreter rather than searching PATH.
+            # (Searching PATH might find an unexpected system python, which is unlikely to have the required packages
+            # installed.)
+            executable = sys.executable
+            logger.debug(f"No dedicated virtual environment, using current interpreter for LSP server: {executable}")
 
         # Locate the LSP server executable in a platform-independent way.
         # Reference: https://docs.python.org/3/library/subprocess.html#popen-constructor
-        match shutil.which(executable, path=path):
-            case None if os.path.normcase(executable) in {"python", "python3"}:
-                # Unusual case: no dedicated venv, and if we are running in a venv it's not activated.
-                # (This can happen when launched via a venv binary without the venv being activated. IDEs often do this.)
-                executable = sys.executable
-            case None:
-                raise ValueError(f"Could not locate LSP server executable: {executable}")
-            case resolved_executable:
-                executable = resolved_executable
+        if (resolved_executable := shutil.which(executable, path=path)) is None:
+            raise ValueError(f"Could not locate LSP server executable: {executable}")
 
-        await self._launch_executable(executable, args, env)
+        await self._launch_executable(resolved_executable, args, env)
 
     @staticmethod
     def _activate_venv(venv_path: Path, executable: str) -> tuple[str, Path]:
