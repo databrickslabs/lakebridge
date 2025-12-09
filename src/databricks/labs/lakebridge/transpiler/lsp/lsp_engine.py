@@ -569,6 +569,20 @@ class LSPEngine(TranspileEngine):
         self._init_response = await self._client.initialize_async(params)
 
     async def _start_server(self) -> None:
+        """Start the LSP server process, using the command-line from the configuration.
+
+        If the executable in the command-line is not an absolute path, it is resolved in a platform-independent way
+        with special handling for virtual environments and python. Specifically:
+          - If the working directory contains a ".venv" subdirectory, it is treated as a virtual environment and
+            activated for the purpose of locating the LSP server executable: the virtual environment's bin/script
+            directory is prepended to the PATH environment variable.
+          - If the executable is "python" or "python3" and it cannot be located via the above virtual environment, the
+            current python interpreter is used.
+          - Otherwise, the executable is located via the system PATH.
+
+        Raises:
+            ValueError: If the command-line is missing from the configuration or the executable cannot be located.
+        """
         # Sanity-check and split the command-line into components.
         if not (command_line := self._config.remorph.command_line):
             raise ValueError(f"Missing command line for LSP server: {self._config.path}")
