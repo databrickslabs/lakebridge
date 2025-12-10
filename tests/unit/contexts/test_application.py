@@ -72,6 +72,7 @@ def test_workspace_context_attributes_not_none(ws):
                         "schema": "reconcile",
                         "volume": "reconcile_volume",
                     },
+                    "job_id": "12345",  # removed as it was never used
                     "version": 1,
                 },
                 "state.json": {

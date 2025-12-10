@@ -210,19 +210,17 @@ class TranspileConfig:
 @dataclass
 class TableRecon:
     __file__ = "recon_config.yml"
-    __version__ = 1
+    __version__ = 2
 
-    source_schema: str
-    target_catalog: str
-    target_schema: str
     tables: list[Table]
-    source_catalog: str | None = None
 
-    def __post_init__(self):
-        self.source_schema = self.source_schema.lower()
-        self.target_schema = self.target_schema.lower()
-        self.target_catalog = self.target_catalog.lower()
-        self.source_catalog = self.source_catalog.lower() if self.source_catalog else self.source_catalog
+    @classmethod
+    def v1_migrate(cls, raw: dict[str, Any]) -> dict[str, Any]:
+        old_keys = ["source_catalog", "source_schema", "target_catalog", "target_schema"]
+        for key in old_keys:
+            raw.pop(key, None)
+        raw["version"] = 2
+        return raw
 
 
 @dataclass
@@ -247,12 +245,6 @@ class ValidationResult:
 
 
 @dataclass
-class ReconcileTablesConfig:
-    filter_type: str  # all/include/exclude
-    tables_list: list[str]  # [*, table1, table2]
-
-
-@dataclass
 class ReconcileMetadataConfig:
     catalog: str = "remorph"
     schema: str = "reconcile"
@@ -269,8 +261,6 @@ class ReconcileConfig:
     secret_scope: str
     database_config: DatabaseConfig
     metadata_config: ReconcileMetadataConfig
-    job_id: str | None = None
-    tables: ReconcileTablesConfig | None = None
 
 
 @dataclass
