@@ -134,14 +134,18 @@ class TestLspServer(LanguageServer):
         document = self.workspace.get_text_document(params.uri)
         line_count = len(document.lines)
         source_sql = document.source
-        range = Range(start=Position(0, 0), end=Position(line_count, 0))
-        transpiled_sql, diagnostics = self._transpile(Path(params.uri).name, range, source_sql)
-        changes = [TextEdit(range=range, new_text=transpiled_sql)]
+        logger.debug(f"Transpiling {params.uri} [{len(source_sql)} chars]: {source_sql!r}")
+        whole_file = Range(start=Position(0, 0), end=Position(line_count, 0))
+        transpiled_sql, diagnostics = self._transpile(Path(params.uri).name, source_sql, lsp_range=whole_file)
+        logger.info(f"Transpiled {params.uri} ({len(diagnostics)} diagnostics)")
+        logger.debug(f"Transpiled {params.uri} to [{len(transpiled_sql)} chars]: {transpiled_sql!r}")
+        logger.debug(f"Diagnostics for {params.uri}: {diagnostics}")
+        changes = [TextEdit(range=whole_file, new_text=transpiled_sql)]
         return TranspileDocumentResult(
             uri=params.uri, language_id=LanguageKind.Sql, changes=changes, diagnostics=diagnostics
         )
 
-    def _transpile(self, file_name: str, lsp_range: Range, source_sql: str) -> tuple[str, list[Diagnostic]]:
+    def _transpile(self, file_name: str, source_sql: str, lsp_range: Range) -> tuple[str, list[Diagnostic]]:
         if file_name == "no_transpile.sql":
             diagnostic = Diagnostic(
                 range=lsp_range,
@@ -204,6 +208,10 @@ if __name__ == "__main__":
     sys.stderr.flush()
     sys.stderr.buffer.write(b"Some bytes that are invalid UTF-8: [\xc0\xc0]\n")
     sys.stderr.buffer.flush()
+
+    # TODO: Revisit the logger setup to avoid duplicate logs, and honour DATABRICKS_LAKEBRIDGE_LOG_LEVEL.
+    logging.root.addHandler(logging.StreamHandler(sys.stderr))
+
     logger.debug(f"SOME_ENV={os.getenv('SOME_ENV')}")
     logger.debug(f"sys.args={sys.argv}")
     # Verifying only that the log-level is provided; we don't actually use it in this test server.
