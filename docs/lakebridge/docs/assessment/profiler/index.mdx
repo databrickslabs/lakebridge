@@ -2,11 +2,169 @@
 sidebar_position: 1
 title: Profiler Guide
 ---
-
-# Profiler
-
 import Admonition from '@theme/Admonition';
 
-<Admonition type="info" title="Coming Soon">
-  Profiler is coming soon! Stay tuned for updates.
+# Profiler Guide
+
+:::warning Attention:
+The Profiler is currently an Experimental feature in Lakebridge. For any feedback and/or issues, feel free to reach out
+via Github issues.
+:::
+
+## Overview
+
+<p>
+The **Lakebridge Profiler** is designed to extract and analyze metadata from database systems, providing insights into your source environment.
+The profiler helps you understand system configurations, resource utilization, query patterns, and performance metrics to aid in migration planning.
+</p>
+
+Key capabilities:
+- **Database Metadata Extraction**: Captures schema information, table structures, and object definitions
+- **Performance Analytics**: Collects query execution metrics and resource utilization data
+- **Workload Analysis**: Profiles active queries and identifies optimization opportunities
+
+<Admonition type="info" title="Prerequisites">
+    Each system will have different prerequisites either for connection, or metrics collected. Please refer to the details
+    for each system following the links below.
 </Admonition>
+
+## Supported Source Systems
+
+| Source Platform | Configuration Status |
+|:---------------:|:-------------------:|
+| <a href="./synapse" style={{ fontWeight: 'bold', color: '#1976d2', textDecoration: 'underline' }}>Azure Synapse</a> | &#x2705; |
+
+
+## Configure Profiler
+
+Before running the profiler, you need to configure the connection details for your source system.
+
+Execute the following command to configure the profiler, which will prompt you to select the source system and provide
+connection details specific to that source:
+
+```bash
+databricks labs lakebridge configure-database-profiler
+```
+
+## Execute Profiler
+
+Once configured, run the profiler to extract metadata and performance metrics from your source system:
+
+```bash
+databricks labs lakebridge execute-database-profiler --help
+```
+
+output:
+
+```console
+Profile the source system database
+
+Usage:
+  databricks labs lakebridge execute-database-profiler [flags]
+
+Flags:
+  -h, --help                 help for execute-database-profiler
+      --source-tech string   (Optional) The technology/platform of the sources to Profile
+
+Global Flags:
+      --debug            enable debug logging
+  -o, --output type      output type: text or json (default text)
+  -p, --profile string   ~/.databrickscfg profile
+  -t, --target string    bundle target to use (if applicable)
+```
+
+The profiler will:
+1. Connect to your source system using the configured credentials
+2. Execute the profiling pipeline to extract metadata and metrics
+3. Store the results in the configured output location
+4. Generate a summary report of the profiling execution
+
+:::tip
+The profiler can be run multiple times to capture different time periods or updated configurations.
+Each execution will create a timestamped snapshot of your source environment.
+:::
+
+## Publish Profiler Summary Dashboard
+
+Upload a summary of a profiler run as a dashboard to your local Databricks workspace using the `create-profiler-dashboard`.
+
+### Description
+
+`create-profiler-dashboard` command converts a profiler extract file to a dashboard and deploys it to a Databricks workspace.
+This helps users quickly visualize and explore profiler results without additional setup in a SQL or BI tool.
+
+**Note:** This command is part of the experimental profiler workflow and is subject to change in future versions.
+
+### Syntax
+
+```bash
+databricks labs lakebridge create-profiler-dashboard \
+  --extract-file <path-to-local-extract-file> \
+  --source-tech <source-system-name> \
+  --uc-volume <uc-volume-path> \
+  [--catalog-name <uc-catalog-name>] \
+  [--schema-name <uc-schema-name>]
+```
+
+### Options
+
+#### `--extract-file` (example: ```--extract-file ./output/profiler_results.db ```)
+
+**Description:**
+Specifies the local file path to an extract file containing the profiler results.
+This file is automatically output after the successful execution of a profiler run using
+`databricks labs lakebridge execute-database-profiler`.
+
+#### `--source-tech` (example: ```--source-tech synapse ```)
+
+**Description:**
+Specifies the name of the source system technology that was profiled.
+This value is used to load the profiler dashboard template.
+
+#### `--uc-volume` (example: ```--uc-volume /Volumes/lakebridge_profiler/profiler_runs```)
+
+**Description:**
+The name of the Unity Catalog (UC) volume where the extract file will be uploaded.
+
+#### `--catalog-name` (example: ```--catalog-name lakebridge_profiler```)
+
+**Description:**
+
+[OPTIONAL] The name of the catalog where the extract data will be uploaded to as Delta tables.
+If not provided, the command uses the default catalog `lakebridge_profiler`.
+
+#### `--schema-name` (example: ```--schema-name profiler_runs```)
+
+**Description:**
+
+[OPTIONAL] The name of the schema where extract data will be uploaded as Delta tables.
+If not provided, the command uses the default schema `profiler_runs`.
+
+### Example
+
+The following example deploys a profiler summary dashboard for an Azure Synapse profiler run:
+
+```bash
+databricks labs lakebridge create-profiler-dashboard \
+  --extract-file ./output/profile_output.db \
+  --source-tech synapse \
+  --uc-volume /Volumes/lakebridge_profiler/profiler_runs \
+  --catalog-name lakebridge_profiler \
+  --schema-name profiler_runs
+```
+
+#### Result:
+
+```bash
+Profiler extract file was uploaded successfully.
+Dashboard created at: https://<databricks-workspace-url>/sql/dashboards/<dashboard-id>
+```
+### Output
+
+When the command executes, the following actions will take place:
+
+1. The profiler extract file is uploaded to the specified UC volume.
+2. A Databricks job for ingesting the extract file is deployed to the Databricks workspace and immediately executed.
+3. The profiler extract results are converted to Delta tables in the workspace catalog and schema.
+4. A Databricks dashboard summarizing the profiler results is deployed to the workspace.
+5. A workspace URL for accessing the dashboard is returned.

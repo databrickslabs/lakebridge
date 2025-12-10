@@ -345,6 +345,10 @@ class WorkspaceInstaller:
         source_catalog = None
         if source == ReconSourceType.SNOWFLAKE.value:
             source_catalog = self._prompts.question(f"Enter source catalog name for `{source.capitalize()}`")
+        if source == ReconSourceType.DATABRICKS.value:
+            source_catalog = self._prompts.question(
+                f"Enter source catalog name for `{source.capitalize()}`", default="hive_metastore"
+            )
 
         schema_prompt = f"Enter source schema name for `{source.capitalize()}`"
         if source in {ReconSourceType.ORACLE.value}:

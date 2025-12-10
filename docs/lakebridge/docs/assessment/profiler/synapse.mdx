@@ -1,0 +1,146 @@
+---
+sidebar_position: 1
+title: Synapse Profiler Details
+---
+import Admonition from '@theme/Admonition';
+
+# Synapse Profiler Details
+
+- [Prerequisites](#prerequisites)
+- [Configure Connection to Synapse](#configure-connection-to-synapse)
+
+## Prerequisites
+
+### 1. Download
+- Azure CLI (https://learn.microsoft.com/en-us/cli/azure/install-azure-cli)
+- ODBC driver for SQL Server (https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server?view=sql-server-ver17)
+- (Windows only) Visual C++ (https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170)
+
+### 2. Authenticate to Azure using Azure CLI
+```bash
+az login
+```
+### 3. Required Access to Synapse Workspace
+
+:::warning Attention:
+Skip this prerequisite if you are using a standalone SQL Dedicated Pool (formerly Azure SQL DW) and  NOT a Synapse Workspace
+:::
+
+- Profiler uses the Python version of Azure SDK libraries to extract information about target Synapse Workspace.
+- For making the Azure API calls using Azure SDK you need an Azure Service Principal with the following role assignments.
+Just giving the Synapse Administrator role is not enough. The below roles must be explicitly assigned.
+    - Synapse Artifact User.
+        - Assign from Synapse Workspace → Manage Access → Access Control [Refer to Azure documentation](https://learn.microsoft.com/en-us/azure/synapse-analytics/security/how-to-manage-synapse-rbac-role-assignments)
+    - Monitoring Reader
+        - Assign from Synapse Workspace → IAM
+
+### 4. Setup user_id/password for ODBC connectivity
+Create/Use a user with access to query the following tables in Synapse.
+
+:::warning Attention:
+The user should not have Multi-factor Authentication (MFA) enabled as ODBC does not support MFA
+:::
+
+This user id needs to have read access (`SELECT grants`) on the following tables. The permissions `VIEW DATABASE STATE`
+and `VIEW DEFINITION` grants are required for Dynamic Management Views (DMVs)
+
+```sql
+GRANT VIEW DATABASE STATE TO <user_id>
+GRANT VIEW DEFINITION TO <user_id>
+```
+
+<table>
+  <thead>
+    <tr>
+      <th>Pool Type</th>
+      <th>Category</th>
+      <th>Objects</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td rowspan="2">Dedicated SQL Pool</td>
+      <td>Tables</td>
+      <td>
+        sys.databases <br/>
+        information_schema.tables <br/>
+        information_schema.columns <br/>
+        information_schema.views <br/>
+        information_schema.routines
+      </td>
+    </tr>
+    <tr>
+      <td>DMVs</td>
+      <td>
+        sys.dm_pdw_exec_sessions <br/>
+        sys.dm_pdw_exec_requests <br/>
+        sys.dm_pdw_nodes_db_partition_stats <br/>
+        sys.dm_pdw_nodes_exec_query_stats
+      </td>
+    </tr>
+    <tr>
+      <td rowspan="2">Serverless SQL Pool</td>
+      <td>Tables</td>
+      <td>
+        sys.databases <br/>
+        information_schema.tables <br/>
+        information_schema.columns <br/>
+        information_schema.views <br/>
+        information_schema.routines
+      </td>
+    </tr>
+    <tr>
+      <td>DMVs</td>
+      <td>
+        sys.dm_exec_sessions <br/>
+        sys.dm_exec_requests <br/>
+        sys.dm_exec_query_stats <br/>
+        sys.dm_exec_sql_text <br/>
+        sys.dm_exec_requests_history <br/>
+        sys.dm_external_data_processed
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Configure Connection to Synapse
+
+```console
+databricks labs lakebridge configure-database-profiler
+
+Please select the source system you want to configure
+[0] synapse
+Enter a number between 0 and 0: 0
+
+(local | env)
+local means values are read as plain text
+env means values are read from environment variables, and fall back to plain text if not variable is not found
+
+Enter secret vault type (local | env)
+[0] env
+[1] local
+Enter a number between 0 and 1: 1
+Please provide Synapse Workspace settings:
+Enter Synapse workspace name: synapse
+Enter SQL user: user
+Enter SQL password:
+Enter timezone (e.g. America/New_York) (default: UTC):
+Enter the ODBC driver installed locally (default: ODBC Driver 18 for SQL Server):
+Please provide Azure access settings:
+Enter development endpoint: synapse.endpoint
+Please select JDBC authentication type:
+Select authentication type
+[0] ad_passwd_authentication
+[1] spn_authentication
+[2] sql_authentication
+Enter a number between 0 and 2: 2
+Enter fetch size (default: 1000):
+Enter login timeout (seconds) (default: 30):
+Exclude serverless SQL pool from profiling? (default: no):
+Exclude dedicated SQL pools from profiling? (default: no):
+Exclude Spark pools from profiling? (default: no):
+Exclude monitoring metrics from profiling? (default: no):
+Redact SQL pools SQL text? (default: no):
+```
+
+[Back to Configure Profiler](../#configure-profiler)

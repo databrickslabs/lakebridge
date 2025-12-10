@@ -55,20 +55,7 @@ def test_get_jdbc_url_happy():
     url = data_source.get_jdbc_url
     # Assert that the URL is generated correctly
     assert url == (
-        """jdbc:sqlserver://my_host:777;databaseName=my_database;user=my_user;password=my_password;encrypt=true;trustServerCertificate=true;"""
-    )
-
-
-def test_get_jdbc_url_fail():
-    # initial setup
-    engine, spark, ws, scope = initial_setup()
-    ws.secrets.get_secret.side_effect = mock_secret
-    # create object for TSQLServerDataSource
-    data_source = TSQLServerDataSource(engine, spark, ws, scope)
-    url = data_source.get_jdbc_url
-    # Assert that the URL is generated correctly
-    assert url == (
-        """jdbc:sqlserver://my_host:777;databaseName=my_database;user=my_user;password=my_password;encrypt=true;trustServerCertificate=true;"""
+        """jdbc:sqlserver://my_host:777;databaseName=my_database;encrypt=true;trustServerCertificate=true;"""
     )
 
 
@@ -96,7 +83,7 @@ def test_read_data_with_options():
     spark.read.format.assert_called_with("jdbc")
     spark.read.format().option.assert_called_with(
         "url",
-        "jdbc:sqlserver://my_host:777;databaseName=my_database;user=my_user;password=my_password;encrypt=true;trustServerCertificate=true;",
+        "jdbc:sqlserver://my_host:777;databaseName=my_database;encrypt=true;trustServerCertificate=true;",
     )
     spark.read.format().option().option.assert_called_with("driver", "com.microsoft.sqlserver.jdbc.SQLServerDriver")
     spark.read.format().option().option().option.assert_called_with(
@@ -109,6 +96,8 @@ def test_read_data_with_options():
         "lowerBound": '0',
         "upperBound": "100",
         "fetchsize": 100,
+        "user": "my_user",
+        "password": "my_password",
     }
     assert actual_args == expected_args
     spark.read.format().option().option().option().options().load.assert_called_once()
@@ -166,7 +155,7 @@ def test_get_schema_exception_handling():
     engine, spark, ws, scope = initial_setup()
     data_source = TSQLServerDataSource(engine, spark, ws, scope)
 
-    spark.read.format().option().option().option().option().load.side_effect = RuntimeError("Test Exception")
+    spark.read.format().option().option().option().options().load.side_effect = RuntimeError("Test Exception")
 
     # Call the get_schema method with predefined table, schema, and catalog names and assert that a PySparkException
     # is raised

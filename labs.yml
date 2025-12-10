@@ -46,6 +46,26 @@ commands:
       {{range .}}{{.total_files_processed}}\t{{.total_queries_processed}}\t{{.analysis_error_count}}\t{{.parsing_error_count}}\t{{.validation_error_count}}\t{{.generation_error_count}}\t{{.error_log_file}}
       {{end}}
 
+  - name: llm-transpile
+    description: Transpile SQL/ETL sources to Databricks using LLM-based conversion (EXPERIMENTAL)
+    flags:
+      - name: accept-terms
+        description: Whether to accept the terms for using LLM-based transpilation (`true|false`).
+      - name: input-source
+        description: Local `path` of the sources to be convert
+      - name: output-ws-folder
+        description: Output `path` where converted code will be written in the workspace. (Must start with '/Workspace/'.)
+      - name: source-dialect
+        description: The source dialect to use when performing conversion
+      - name: catalog-name
+        description: Databricks Catalog `name` to use. (Must already exist and have permissions.)
+      - name: schema-name
+        description: Databricks Schema `name` to use. (Must already exist and have permissions.)
+      - name: volume
+        description: Databricks UC Volume `name` for staging sources to convert. (Must already exist and have permissions.)
+      - name: foundation-model
+        description: The Foundation Model to use for conversion. (Must be available via the Databricks Model Serving Endpoint.)
+
   - name: reconcile
     description: Reconcile source and target data residing on Databricks
 
@@ -53,7 +73,21 @@ commands:
     description: Reconcile source and target data residing on Databricks using aggregated metrics
 
   - name: configure-database-profiler
-    description: Configure database profiler
+    description: (Experimental) Configure database profiler
+
+  - name: create-profiler-dashboard
+    description: (Experimental) Upload the profiler results as a Databricks dashboard.
+    flags:
+      - name: extract-file
+        description: Path Location of the Profiler Extract File
+      - name: source-tech
+        description: Name of the Source System Technology that was Profiled
+      - name: volume-path
+        description: Unity Catalog Volume to upload the profiler extract
+      - name: catalog-name
+        description: (Optional) Name of the Catalog that extract data will be uploaded to
+      - name: schema-name
+        description: (Optional) Name of the Schema that the extract tables will be uploaded to
 
   - name: install-transpile
     description: Install & optionally configure 'transpile' dependencies
@@ -81,3 +115,9 @@ commands:
 
   - name: configure-reconcile
     description: Configure 'reconcile' dependencies
+
+  - name: execute-database-profiler
+    description: (Experimental) Profile the source system database
+    flags:
+      - name: source-tech
+        description: (Optional) The technology/platform of the sources to Profile

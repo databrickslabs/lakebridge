@@ -1,5 +1,122 @@
 # Version changelog
 
+## # Lakebridge v0.11.1  Release Notes
+
+## Analyzer
+
+No updates in this release.
+
+## Converters
+
+## General
+
+- Improved end-to-end migration behavior through tighter integration with the centralized Morpheus function mapping layer and expanded cross-dialect coverage
+
+## Morpheus
+
+**Snowflake**
+
+- Centralized SQL function mappings and expanded cross-dialect coverage, improving Snowflake-to-Databricks SQL conversions and reducing noisy, non-actionable warnings.
+- Added full translation support for Snowflake exception blocks, enabling richer error-handling logic to be preserved when converting to Databricks SQL.
+    
+
+**TSQL / SQL Server**
+
+- Reworked SQL function handling so most mappings are centralized, making TSQL-to-Databricks SQL conversions more accurate and easier to extend for future Lakebridge-based migrations.
+- Implemented full support for TSQL TRY/CATCH constructs, including THROW/RAISERROR-style logic and helper-based error handling, improving the fidelity of translated control-flow and error semantics.
+    
+
+## BladeBridge
+
+**TSQL / SQL Server**
+
+- Fixed handling of T-SQL column alias syntax in SELECT statements so aliases are no longer mistaken for variable assignments, and removed a deprecated alias-normalization method to improve translation accuracy.
+- Resolved failures caused by nested comments, improved post-conversion handling for shell and Python wrapper scripts, and ensured labeled UPDATE/DELETE statements that translate to MERGE remain correctly embedded in SQL.
+- Corrected processing of SELECT statements without a FROM clause when assigning to variables, so expressions like variable increments and severity mappings are handled reliably during migration.
+- Improved “delete by source” MERGE translations so separators and DELETE placement are preserved, and fixed static string handling so T-SQL patterns that use square brackets are not misinterpreted as identifier quoting or ranges.
+    
+
+## Reconcile
+
+No updates in this release
+
+## Documentation
+
+- Clarified that Python 3.14 is not yet supported and updated macOS instructions to recommend Python 3.13 as the latest supported version
+- Expanded installation prerequisites with detailed Databricks workspace requirements, authentication options, network and repository access expectations, and a comprehensive pre-installation checklist aimed at enterprise and security-restricted environments    
+
+## General
+
+- Increased the maximum stderr line size accepted from LSP servers during transpilation to prevent crashes or hangs when converters emit very large log lines
+- Reduced noise from LSP integrations by lowering stderr mirroring from INFO to DEBUG level, ensuring detailed logs remain available for troubleshooting without cluttering normal operation logs
+
+## # Lakebridge v0.11.0 Release Notes
+
+## 🎉 New Features
+
+This release introduces **two exciting new capabilities** to Lakebridge:
+
+### Synapse Profiler
+A powerful new Synapse Profiler feature is now available to help you analyze and profile your Synapse data. Refer to the documentation for usage details and examples.
+
+### Switch LLM Converter
+Introducing the new Switch LLM converter, expanding Lakebridge's conversion capabilities. Refer to the documentation for usage details and examples.
+
+---
+## Other updates
+## Converters
+
+### General
+
+**Conversion Output Fix**
+Fixed a bug where files nested 2 or more directories deep within the input directory could fail to be written out after conversion when the directory structure wasn't already in place.
+
+### Morpheus
+**Code Formatting Improvements**
+Refactored code formatting logic by introducing a tree-like structure in `CodeBlock` and a new `CodeBlockRenderer` to handle whitespace, comments, and error positioning, making the formatting system more maintainable and accurate.
+#### TSQL
+Added support for translating TSQL join hints (like `REPLICATE` and `MERGE`) to their Databricks SQL equivalents by transforming them into special `/*+ ... */` comments after the `SELECT` keyword, while unsupported hints are flagged as annotated errors.
+
+### BladeBridge
+
+#### SQL Server
+- Fixed SELECT INTO real table syntax, corrected LIKE pattern handling, and mapped unsupported FUNC_ROW_NUMBER function while removing ANON_NOLOCK.
+- Resolved an issue where CASE WHEN expressions as the last statement in a file generated incorrect semicolon placement in SQL scripts.
+- Added fragment breaker before GO keyword and removed unsupported COMMIT TRANSACTION and CREATE INDEX constraints.
+- Fixed T-SQL UPDATE statements that were not correctly converted to MERGE operations in specific cases.
+- Corrected fragment handling around SELECT and UNION statements, and fixed issues with IF condition blocks and error handling blocks being mixed up.
+- Removed SET IDENTITY_INSERT and BEGIN/COMMIT TRANSACTION statements, and changed INT GENERATED ALWAYS AS IDENTITY to BIGINT GENERATED ALWAYS AS IDENTITY.
+- Added validation check for converted MERGE statements, implemented global variable reset in init_hook subroutine, and performed code refactoring.
+- Fixed T-SQL DELETE statements that were not correctly converted to MERGE operations and added corresponding test cases.
+
+## Reconcile
+
+### Oracle
+Improved Oracle support with the following enhancements:
+- Fixed Oracle JDBC URL by moving credentials out of URL into options and correcting thin syntax
+- Updated hashing/expression pipeline to replace `RAWTOHEX(...), 2` with `UTL_I18N.STRING_TO_RAW(...,'AL32UTF8'), 4` (SHA-256)
+- Fixed schema comparison for Oracle
+- Tweaked datatype parsing in default transformations for Oracle compatibility
+- Added Oracle jars in setup script
+- Extended integration scaffolding and added end-to-end tests
+
+### Snowflake
+- Fixed schema comparison for Snowflake
+- Adjusted log levels by demoting noisy warnings to debug/info
+- Added Snowflake jars in setup script
+- Extended integration scaffolding
+
+## Documentation
+
+Added documentation for deploying reconciliation dashboards and updated documentation notebooks.
+
+Dependency updates:
+* Bump actions/setup-node from 5 to 6 by @dependabot[bot] in https://github.com/databrickslabs/lakebridge/pull/2094
+
+## New Contributors
+* @hiroyukinakazato-db made their first contribution in https://github.com/databrickslabs/lakebridge/pull/2066
+
+**Full Changelog**: https://github.com/databrickslabs/lakebridge/compare/v0.10.13...v0.11.0
 ## 0.10.13
 
 ## Analyzer
