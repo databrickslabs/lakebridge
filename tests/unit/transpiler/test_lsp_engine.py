@@ -4,6 +4,7 @@ import logging
 import os
 from pathlib import Path
 from tempfile import TemporaryDirectory
+
 import pytest
 
 from lsprotocol.types import TextEdit, Range, Position
@@ -41,7 +42,7 @@ async def test_shuts_lsp_server_down(lsp_engine, transpile_config):
     assert not lsp_engine.is_alive
 
 
-async def test_sets_env_variables(lsp_engine, transpile_config):
+async def test_sets_env_variables(lsp_engine: LSPEngine, transpile_config: TranspileConfig) -> None:
     await lsp_engine.initialize(transpile_config)
     log = Path(path_to_resource("lsp_transpiler", "test-lsp-server.log")).read_text("utf-8")
     assert "SOME_ENV=abc" in log  # see environment in lsp_transpiler/config.yml

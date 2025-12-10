@@ -1,6 +1,7 @@
 from databricks.labs.blueprint.installation import MockInstallation
 
-from databricks.labs.lakebridge.config import TranspileConfig
+from databricks.labs.lakebridge.config import TranspileConfig, TableRecon
+from databricks.labs.lakebridge.reconcile.recon_config import Table
 
 
 def test_transpiler_config_default_serialization() -> None:
@@ -69,3 +70,28 @@ def test_complete_transpiler_config() -> None:
 
     loaded = installation.load(TranspileConfig)
     assert loaded == config
+
+
+def test_reconcile_table_config_default_serialization() -> None:
+    """Verify that older config that had extra keys still works"""
+    config = TableRecon([Table(source_name="source1", target_name="target1")])
+    installation = MockInstallation(
+        {
+            "recon_config.yml": {
+                "source_schema": "schema1",
+                "target_schema": "schema2",
+                "source_catalog": "catalog1",
+                "target_catalog": "catalog2",
+                "tables": [
+                    {
+                        "source_name": "source1",
+                        "target_name": "target1",
+                    }
+                ],
+                "version": 1,
+            },
+        }
+    )
+
+    loaded = installation.load(TableRecon)
+    assert loaded.tables == config.tables

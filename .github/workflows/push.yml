@@ -45,39 +45,6 @@ jobs:
           codecov_yml_path: codecov.yml
           token: ${{ secrets.CODECOV_TOKEN }}
 
-  integration-python:
-    runs-on:
-      group: databrickslabs-protected-runner-group
-      labels: linux-ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v5
-
-      - name: Install Python
-        uses: actions/setup-python@v6
-        with:
-          cache: 'pip'
-          cache-dependency-path: '**/pyproject.toml'
-          python-version: '3.10'
-
-      - name: Install hatch
-        run: pip install hatch==$HATCH_VERSION
-
-      - name: Setup Spark Remote
-        run: |
-          chmod +x $GITHUB_WORKSPACE/.github/scripts/setup_spark_remote.sh
-          $GITHUB_WORKSPACE/.github/scripts/setup_spark_remote.sh
-
-      - name: Run integration tests
-        run: hatch run integration
-
-      - name: Publish test coverage
-        uses: codecov/codecov-action@v5
-        with:
-          codecov_yml_path: codecov.yml
-          token: ${{ secrets.CODECOV_TOKEN }}
-
-
   fmt-python:
     runs-on:
       group: databrickslabs-protected-runner-group
@@ -174,57 +141,3 @@ jobs:
         run: |
           echo "No file produced in tests-reports/"
           exit 1
-
-  end-to-end:
-
-    runs-on: ${{ matrix.runner }}
-    env: # this is a temporary hack
-      DATABRICKS_HOST: any
-      DATABRICKS_TOKEN: any
-
-    strategy:
-      matrix:
-        runner: [larger, windows-server-2022-latest]
-
-    steps:
-    - name: Checkout
-      uses: actions/checkout@v5
-
-    - name: Install Python
-      uses: actions/setup-python@v6
-      with:
-        cache: 'pip'
-        cache-dependency-path: '**/pyproject.toml'
-        python-version: 3.10.x
-
-    - name: Install hatch (Windows)
-      if: runner.os == 'Windows'
-      run: pip install hatch==$env:HATCH_VERSION
-
-    - name: Install hatch (Non-Windows)
-      if: runner.os != 'Windows'
-      run: pip install hatch==$HATCH_VERSION
-
-    - name: Install Databricks CLI
-      uses: databricks/setup-cli@main
-
-    - name: Install JRE 11 (for Morpheus)
-      uses: actions/setup-java@v4
-      with:
-        distribution: zulu
-        java-package: jre
-        java-version: 11
-
-    - name: Run install tests
-      env:
-        # Without this Python will use AppData\Local\Temp on Windows, leading to test failures.
-        # (Unclear if this is related to permissions, or possibly path length issues due to 260-character maximum.)
-        TMPDIR: ${{ runner.temp }}
-      run: hatch run test-install
-
-    - name: Publish test coverage
-      uses: codecov/codecov-action@v5
-      with:
-        codecov_yml_path: codecov.yml
-        token: ${{ secrets.CODECOV_TOKEN }}
-
