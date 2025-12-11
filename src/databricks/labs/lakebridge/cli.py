@@ -26,7 +26,9 @@ from databricks.labs.lakebridge.assessments.profiler import Profiler
 
 from databricks.labs.lakebridge.config import TranspileConfig, LSPConfigOptionV1
 from databricks.labs.lakebridge.contexts.application import ApplicationContext
-from databricks.labs.lakebridge.connections.credential_manager import cred_file
+from databricks.labs.lakebridge.connections.credential_manager import cred_file, create_credential_manager
+from databricks.labs.lakebridge.connections.database_manager import DatabaseManager
+from databricks.labs.lakebridge.connections.env_getter import EnvGetter
 from databricks.labs.lakebridge.helpers.recon_config_utils import ReconConfigPrompts
 from databricks.labs.lakebridge.helpers.telemetry_utils import make_alphanum_or_semver
 from databricks.labs.lakebridge.install import installer
@@ -1026,9 +1028,40 @@ def test_profiler_connection(w: WorkspaceClient, source_tech: str | None = None)
     user = ctx.current_user
     logger.debug(f"User: {user}")
 
-    # TODO: Implement connection testing logic
+    # Check if credential file exists
+    file = cred_file(PRODUCT_NAME)
+    if not file.exists():
+        raise_validation_exception(
+            f"Connection details not found. Please run `databricks labs lakebridge configure-database-profiler` "
+            f"to set up connection details for {source_tech}."
+        )
+
     logger.info(f"Testing connection for source technology: {source_tech}")
-    logger.info("Connection test logic to be implemented")
+
+    try:
+        # Create credential manager and get credentials
+        cred_manager = create_credential_manager(PRODUCT_NAME, EnvGetter())
+        config = cred_manager.get_credentials(source_tech)
+
+        # Create database manager and test connection
+        db_manager = DatabaseManager(source_tech, config)
+        if db_manager.check_connection():
+            logger.info("Connection to the source system successful")
+        else:
+            logger.error("Connection to the source system failed, check logs in debug mode")
+            raise_validation_exception("Connection validation failed")
+
+    except ConnectionError as e:
+        logger.error(f"Failed to connect to the source system: {e}")
+        raise SystemExit("Connection validation failed. Exiting...") from e
+    except KeyError as e:
+        logger.error(f"Credential configuration error: {e}")
+        raise SystemExit(
+            f"Invalid credentials for {source_tech}. Please run `databricks labs lakebridge configure-database-profiler`. Exiting..."
+        ) from e
+    except Exception as e:
+        logger.error(f"Unexpected error during connection test: {e}")
+        raise SystemExit("Connection test failed. Exiting...") from e
 
 
 if __name__ == "__main__":
