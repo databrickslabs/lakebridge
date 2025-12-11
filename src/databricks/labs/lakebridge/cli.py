@@ -1008,6 +1008,29 @@ def create_profiler_dashboard(
     ctx.dashboard_manager.create_profiler_summary_dashboard(source_tech, catalog_name, schema_name)
 
 
+@lakebridge.command()
+def test_profiler_connection(w: WorkspaceClient, source_tech: str | None = None) -> None:
+    """[Internal] Test the connection to the source database for profiling"""
+    ctx = ApplicationContext(w)
+    ctx.add_user_agent_extra("cmd", "test-profiler-connection")
+    prompts = ctx.prompts
+    if source_tech is None:
+        source_tech = prompts.choice("Select the source technology", PROFILER_SOURCE_SYSTEM)
+    source_tech = source_tech.lower()
+
+    if source_tech not in PROFILER_SOURCE_SYSTEM:
+        logger.error(f"Only the following source systems are supported: {PROFILER_SOURCE_SYSTEM}")
+        raise_validation_exception(f"Invalid source technology {source_tech}")
+
+    ctx.add_user_agent_extra("profiler_source_tech", make_alphanum_or_semver(source_tech))
+    user = ctx.current_user
+    logger.debug(f"User: {user}")
+
+    # TODO: Implement connection testing logic
+    logger.info(f"Testing connection for source technology: {source_tech}")
+    logger.info("Connection test logic to be implemented")
+
+
 if __name__ == "__main__":
     app = lakebridge
     logger = app.get_logger()
