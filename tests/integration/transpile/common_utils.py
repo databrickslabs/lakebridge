@@ -9,12 +9,14 @@ def assert_sql_match(actual: str, expected: str, label: str = "SQL") -> None:
     Assert that two SQL strings match using difflib for comparison.
     Shows unified diff if there are any differences.
     """
-    diff = list(difflib.unified_diff(
-        expected.strip().splitlines(keepends=True),
-        actual.strip().splitlines(keepends=True),
-        fromfile='expected',
-        tofile='actual',
-    ))
+    diff = list(
+        difflib.unified_diff(
+            expected.strip().splitlines(keepends=True),
+            actual.strip().splitlines(keepends=True),
+            fromfile='expected',
+            tofile='actual',
+        )
+    )
 
     if diff:
         diff_text = ''.join(diff)
