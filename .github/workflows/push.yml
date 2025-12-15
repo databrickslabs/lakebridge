@@ -63,6 +63,9 @@ jobs:
       - name: Install hatch
         run: pip install hatch==$HATCH_VERSION
 
+      - name: Generate pytest fixtures (for pylint-pytest)
+        run: hatch run pytest --fixtures --collect-only
+
       - name: Reformat code
         run: make fmt
 
