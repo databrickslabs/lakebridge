@@ -7,7 +7,7 @@ from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql.functions import col
 from sqlglot import Dialect
 
-from databricks.labs.lakebridge.config import ReconcileCredentialConfig
+from databricks.labs.lakebridge.config import ReconcileCredentialsConfig
 from databricks.labs.lakebridge.reconcile.connectors.data_source import DataSource
 from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import DialectUtils, NormalizedIdentifier
 from databricks.labs.lakebridge.reconcile.recon_config import JdbcReaderOptions, Schema
@@ -93,7 +93,7 @@ class DatabricksDataSource(DataSource):
         except (RuntimeError, PySparkException) as e:
             return self.log_and_throw_exception(e, "schema", schema_query)
 
-    def load_credentials(self, creds: ReconcileCredentialConfig) -> "DatabricksDataSource":
+    def load_credentials(self, creds: ReconcileCredentialsConfig) -> "DatabricksDataSource":
         return self
 
     def normalize_identifier(self, identifier: str) -> NormalizedIdentifier:

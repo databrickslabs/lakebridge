@@ -16,7 +16,7 @@ from databricks.labs.lakebridge.config import (
     ReconcileConfig,
     DatabaseConfig,
     ReconcileMetadataConfig,
-    ReconcileCredentialConfig,
+    ReconcileCredentialsConfig,
 )
 from databricks.labs.lakebridge.deployment.installation import WorkspaceInstallation
 from databricks.labs.lakebridge.deployment.recon import ReconDeployment
@@ -56,7 +56,7 @@ def test_install_all(ws):
     reconcile_config = ReconcileConfig(
         data_source="oracle",
         report_type="all",
-        creds=ReconcileCredentialConfig(vault_type="local", source_creds={"fake": "fake"}),
+        creds=ReconcileCredentialsConfig(vault_type="databricks", vault_secret_names={"__secret_scope": "fake"}),
         database_config=DatabaseConfig(
             source_schema="tpch_sf10006",
             target_catalog="tpch6",
@@ -111,7 +111,7 @@ def test_recon_component_installation(ws):
     reconcile_config = ReconcileConfig(
         data_source="oracle",
         report_type="all",
-        creds=ReconcileCredentialConfig(vault_type="local", source_creds={"fake": "fake"}),
+        creds=ReconcileCredentialsConfig(vault_type="databricks", vault_secret_names={"__secret_scope": "fake"}),
         database_config=DatabaseConfig(
             source_schema="tpch_sf10008",
             target_catalog="tpch8",
@@ -194,7 +194,7 @@ def test_uninstall_configs_exist(ws):
     reconcile_config = ReconcileConfig(
         data_source="snowflake",
         report_type="all",
-        creds=ReconcileCredentialConfig(vault_type="local", source_creds={"fake": "fake"}),
+        creds=ReconcileCredentialsConfig(vault_type="databricks", vault_secret_names={"__secret_scope": "fake"}),
         database_config=DatabaseConfig(
             source_catalog="snowflake_sample_data1",
             source_schema="tpch_sf10001",

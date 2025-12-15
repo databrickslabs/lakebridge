@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 
 from pyspark.sql import DataFrame
 
-from databricks.labs.lakebridge.config import ReconcileCredentialConfig
+from databricks.labs.lakebridge.config import ReconcileCredentialsConfig
 from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import DialectUtils, NormalizedIdentifier
 from databricks.labs.lakebridge.reconcile.exception import DataSourceRuntimeException
 from databricks.labs.lakebridge.reconcile.recon_config import JdbcReaderOptions, Schema
@@ -36,7 +36,7 @@ class DataSource(ABC):
         return NotImplemented
 
     @abstractmethod
-    def load_credentials(self, creds: ReconcileCredentialConfig) -> "DataSource":
+    def load_credentials(self, creds: ReconcileCredentialsConfig) -> "DataSource":
         return NotImplemented
 
     @abstractmethod
@@ -99,7 +99,7 @@ class MockDataSource(DataSource):
             return self.log_and_throw_exception(self._exception, "schema", f"({catalog}, {schema}, {table})")
         return mock_schema
 
-    def load_credentials(self, creds: ReconcileCredentialConfig) -> "MockDataSource":
+    def load_credentials(self, creds: ReconcileCredentialsConfig) -> "MockDataSource":
         return self
 
     def normalize_identifier(self, identifier: str) -> NormalizedIdentifier:

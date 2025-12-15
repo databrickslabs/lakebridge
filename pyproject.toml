@@ -98,9 +98,8 @@ profiler_dashboards = "databricks.labs.lakebridge.assessments.dashboards.execute
 
 [tool.hatch.envs.default.scripts]
 test         = "pytest --cov src --cov-report=xml tests/unit"
-test-install = "pytest --cov src --cov-report=xml tests/integration/install"
 coverage     = "pytest --cov src tests --cov-report=html --ignore=tests/integration/install --ignore=tests/integration/connections --ignore=tests/integration/assessments"
-integration  = "pytest --cov src tests/integration/reconcile --durations 20"
+integration  = "pytest --cov src tests/integration --durations 20"
 fmt          = ["black .",
                    "ruff  check . --fix",
                    "mypy --disable-error-code 'annotation-unchecked' .",

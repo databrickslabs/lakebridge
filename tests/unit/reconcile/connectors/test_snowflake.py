@@ -6,7 +6,7 @@ import pytest
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives import serialization
 
-from databricks.labs.lakebridge.config import ReconcileCredentialConfig
+from databricks.labs.lakebridge.config import ReconcileCredentialsConfig
 from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import NormalizedIdentifier
 from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
 from databricks.labs.lakebridge.reconcile.connectors.snowflake import SnowflakeDataSource
@@ -120,7 +120,7 @@ def test_get_jdbc_url_happy(snowflake_creds):
     engine, spark, ws, scope = initial_setup()
     # create object for SnowflakeDataSource
     dfds = SnowflakeDataSource(engine, spark, ws)
-    dfds.load_credentials(ReconcileCredentialConfig("databricks", snowflake_creds(scope)))
+    dfds.load_credentials(ReconcileCredentialsConfig("databricks", snowflake_creds(scope)))
     url = dfds.get_jdbc_url
     # Assert that the URL is generated correctly
     assert url == (
@@ -137,7 +137,7 @@ def test_read_data_with_out_options(snowflake_creds):
 
     # create object for SnowflakeDataSource
     dfds = SnowflakeDataSource(engine, spark, ws)
-    dfds.load_credentials(ReconcileCredentialConfig("databricks", snowflake_creds(scope)))
+    dfds.load_credentials(ReconcileCredentialsConfig("databricks", snowflake_creds(scope)))
     # Create a Tables configuration object with no JDBC reader options
     table_conf = Table(
         source_name="supplier",
@@ -168,7 +168,7 @@ def test_read_data_with_options(snowflake_creds):
 
     # create object for SnowflakeDataSource
     dfds = SnowflakeDataSource(engine, spark, ws)
-    dfds.load_credentials(ReconcileCredentialConfig("databricks", snowflake_creds(scope)))
+    dfds.load_credentials(ReconcileCredentialsConfig("databricks", snowflake_creds(scope)))
     # Create a Tables configuration object with JDBC reader options
     table_conf = Table(
         source_name="supplier",
@@ -209,7 +209,7 @@ def test_get_schema(snowflake_creds):
     # Mocking get secret method to return the required values
     # create object for SnowflakeDataSource
     dfds = SnowflakeDataSource(engine, spark, ws)
-    dfds.load_credentials(ReconcileCredentialConfig("databricks", snowflake_creds(scope)))
+    dfds.load_credentials(ReconcileCredentialsConfig("databricks", snowflake_creds(scope)))
     # call test method
     dfds.get_schema("catalog", "schema", "supplier")
     # spark assertions
@@ -242,7 +242,7 @@ def test_read_data_exception_handling(snowflake_creds):
     # initial setup
     engine, spark, ws, scope = initial_setup()
     dfds = SnowflakeDataSource(engine, spark, ws)
-    dfds.load_credentials(ReconcileCredentialConfig("databricks", snowflake_creds(scope)))
+    dfds.load_credentials(ReconcileCredentialsConfig("databricks", snowflake_creds(scope)))
     # Create a Tables configuration object
     table_conf = Table(
         source_name="supplier",
@@ -272,7 +272,7 @@ def test_get_schema_exception_handling(snowflake_creds):
     engine, spark, ws, scope = initial_setup()
 
     dfds = SnowflakeDataSource(engine, spark, ws)
-    dfds.load_credentials(ReconcileCredentialConfig("databricks", snowflake_creds(scope)))
+    dfds.load_credentials(ReconcileCredentialsConfig("databricks", snowflake_creds(scope)))
 
     spark.read.format().option().options().load.side_effect = RuntimeError("Test Exception")
 
@@ -294,7 +294,7 @@ def test_read_data_without_options_private_key(snowflake_creds):
     engine, spark, ws, scope = initial_setup()
     ws.secrets.get_secret.side_effect = mock_private_key_secret
     dfds = SnowflakeDataSource(engine, spark, ws)
-    dfds.load_credentials(ReconcileCredentialConfig("databricks", snowflake_creds(scope, use_private_key=True)))
+    dfds.load_credentials(ReconcileCredentialsConfig("databricks", snowflake_creds(scope, use_private_key=True)))
     table_conf = Table(source_name="supplier", target_name="supplier")
     dfds.read_data("org", "data", "employee", "select 1 from :tbl", table_conf.jdbc_reader_options)
     spark.read.format.assert_called_with("snowflake")
@@ -319,7 +319,7 @@ def test_read_data_without_options_malformed_private_key(snowflake_creds):
     dfds = SnowflakeDataSource(engine, spark, ws)
 
     with pytest.raises(InvalidSnowflakePemPrivateKey, match="Failed to load or process the provided PEM private key."):
-        dfds.load_credentials(ReconcileCredentialConfig("databricks", snowflake_creds(scope, use_private_key=True)))
+        dfds.load_credentials(ReconcileCredentialsConfig("databricks", snowflake_creds(scope, use_private_key=True)))
 
 
 def test_read_data_without_any_auth(snowflake_creds):
@@ -330,7 +330,7 @@ def test_read_data_without_any_auth(snowflake_creds):
     creds.pop('sfPassword')
 
     with pytest.raises(AssertionError, match='Missing Snowflake credentials. Please configure any of .*'):
-        dfds.load_credentials(ReconcileCredentialConfig("databricks", creds))
+        dfds.load_credentials(ReconcileCredentialsConfig("databricks", creds))
 
 
 def test_credentials_not_loaded_fails():

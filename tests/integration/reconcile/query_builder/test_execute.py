@@ -17,7 +17,7 @@ from databricks.labs.lakebridge.config import (
     TableRecon,
     ReconcileMetadataConfig,
     ReconcileConfig,
-    ReconcileCredentialConfig,
+    ReconcileCredentialsConfig,
 )
 from databricks.labs.lakebridge.reconcile.reconciliation import Reconciliation
 from databricks.labs.lakebridge.reconcile.trigger_recon_service import TriggerReconService
@@ -736,7 +736,7 @@ def mock_for_report_type_data(
     reconcile_config_data = ReconcileConfig(
         data_source="databricks",
         report_type="data",
-        creds=ReconcileCredentialConfig(vault_type="databricks", source_creds={"__secret_scope": "fake"}),
+        creds=ReconcileCredentialsConfig(vault_type="databricks", vault_secret_names={"__secret_scope": "fake"}),
         database_config=DatabaseConfig(
             source_catalog=CATALOG,
             source_schema=SCHEMA,
@@ -933,7 +933,7 @@ def mock_for_report_type_schema(
     reconcile_config_schema = ReconcileConfig(
         data_source="databricks",
         report_type="schema",
-        creds=ReconcileCredentialConfig(vault_type="databricks", source_creds={"__secret_scope": "fake"}),
+        creds=ReconcileCredentialsConfig(vault_type="databricks", vault_secret_names={"__secret_scope": "fake"}),
         database_config=DatabaseConfig(
             source_catalog=CATALOG,
             source_schema=SCHEMA,
@@ -1145,7 +1145,7 @@ def mock_for_report_type_all(
     reconcile_config_all = ReconcileConfig(
         data_source="snowflake",
         report_type="all",
-        creds=ReconcileCredentialConfig(vault_type="local", source_creds={"fake": "fake"}),
+        creds=ReconcileCredentialsConfig(vault_type="databricks", vault_secret_names={"__secret_scope": "fake"}),
         database_config=DatabaseConfig(
             source_catalog=CATALOG,
             source_schema=SCHEMA,
@@ -1420,7 +1420,7 @@ def mock_for_report_type_row(
     reconcile_config_row = ReconcileConfig(
         data_source="snowflake",
         report_type="row",
-        creds=ReconcileCredentialConfig(vault_type="local", source_creds={"fake": "fake"}),
+        creds=ReconcileCredentialsConfig(vault_type="databricks", vault_secret_names={"__secret_scope": "fake"}),
         database_config=DatabaseConfig(
             source_catalog=CATALOG,
             source_schema=SCHEMA,
@@ -1566,7 +1566,7 @@ def mock_for_recon_exception(normalized_table_conf_with_opts, setup_metadata_tab
     reconcile_config_exception = ReconcileConfig(
         data_source="snowflake",
         report_type="all",
-        creds=ReconcileCredentialConfig(vault_type="databricks", source_creds={"__secret_scope": "fake"}),
+        creds=ReconcileCredentialsConfig(vault_type="databricks", vault_secret_names={"__secret_scope": "fake"}),
         database_config=DatabaseConfig(
             source_catalog=CATALOG,
             source_schema=SCHEMA,
@@ -1897,7 +1897,7 @@ def test_initialise_data_source(mock_workspace_client, mock_spark):
         "sfRole": "role",
     }
     source, target = initialise_data_source(
-        mock_workspace_client, mock_spark, "snowflake", ReconcileCredentialConfig("local", sf_creds)
+        mock_workspace_client, mock_spark, "snowflake", ReconcileCredentialsConfig("local", sf_creds)
     )
 
     snowflake_data_source = SnowflakeDataSource(src_engine, mock_spark, mock_workspace_client).__class__
@@ -2039,7 +2039,7 @@ def test_recon_output_without_exception(mock_gen_final_recon_output):
     reconcile_config = ReconcileConfig(
         data_source="snowflake",
         report_type="all",
-        creds=ReconcileCredentialConfig(vault_type="databricks", source_creds={"__secret_scope": "fake"}),
+        creds=ReconcileCredentialsConfig(vault_type="databricks", vault_secret_names={"__secret_scope": "fake"}),
         database_config=DatabaseConfig(
             source_catalog=CATALOG,
             source_schema=SCHEMA,

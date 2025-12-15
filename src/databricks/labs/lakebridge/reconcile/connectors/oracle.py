@@ -8,8 +8,8 @@ from pyspark.sql import DataFrame, DataFrameReader, SparkSession
 from pyspark.sql.functions import col
 from sqlglot import Dialect
 
-from databricks.labs.lakebridge.config import ReconcileCredentialConfig
-from databricks.labs.lakebridge.connections.credential_manager import create_credential_manager, build_credentials
+from databricks.labs.lakebridge.config import ReconcileCredentialsConfig
+from databricks.labs.lakebridge.connections.credential_manager import build_credentials, CredentialManager
 from databricks.labs.lakebridge.reconcile.connectors.data_source import DataSource
 from databricks.labs.lakebridge.reconcile.connectors.jdbc_reader import JDBCReaderMixin
 from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import DialectUtils, NormalizedIdentifier
@@ -118,7 +118,7 @@ class OracleDataSource(DataSource, JDBCReaderMixin):
             query, self.get_jdbc_url, OracleDataSource._DRIVER, {**options, "user": user, "password": password}
         )
 
-    def load_credentials(self, creds: ReconcileCredentialConfig) -> "OracleDataSource":
+    def load_credentials(self, creds: ReconcileCredentialsConfig) -> "OracleDataSource":
         connector_creds = [
             "host",
             "port",
@@ -127,19 +127,19 @@ class OracleDataSource(DataSource, JDBCReaderMixin):
             "password",
         ]
 
-        use_scope = creds.source_creds.get("__secret_scope")
+        use_scope = creds.vault_secret_names.get("__secret_scope")
         if use_scope:
-            source_creds = {key: f"{use_scope}/{key}" for key in connector_creds}
+            vault_secret_names = {key: f"{use_scope}/{key}" for key in connector_creds}
             logger.warning(
                 f"Secret scope configuration is deprecated. Please refer to the docs {self._DOCS_URL} to update."
             )
 
             assert creds.vault_type == "databricks", "Secret scope provided, vault_type must be 'databricks'"
-            parsed_creds = build_credentials(creds.vault_type, "oracle", source_creds)
+            parsed_creds = build_credentials(creds.vault_type, "oracle", vault_secret_names)
         else:
-            parsed_creds = build_credentials(creds.vault_type, "oracle", creds.source_creds)
+            parsed_creds = build_credentials(creds.vault_type, "oracle", creds.vault_secret_names)
 
-        self._creds_or_empty = create_credential_manager(parsed_creds, self._ws).get_credentials("oracle")
+        self._creds_or_empty = CredentialManager.from_credentials(parsed_creds, self._ws).get_credentials("oracle")
         assert all(
             self._creds.get(k) for k in connector_creds
         ), f"Missing mandatory Oracle credentials. Please configure all of {connector_creds}."

@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, create_autospec
 
 import pytest
 
-from databricks.labs.lakebridge.config import ReconcileCredentialConfig
+from databricks.labs.lakebridge.config import ReconcileCredentialsConfig
 from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import NormalizedIdentifier
 from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
 from databricks.labs.lakebridge.reconcile.connectors.tsql import TSQLServerDataSource
@@ -65,7 +65,7 @@ def test_get_jdbc_url_happy():
     engine, spark, ws, scope = initial_setup()
     # create object for TSQLServerDataSource
     data_source = TSQLServerDataSource(engine, spark, ws)
-    data_source.load_credentials(ReconcileCredentialConfig("databricks", mssql_creds(scope)))
+    data_source.load_credentials(ReconcileCredentialsConfig("databricks", mssql_creds(scope)))
     url = data_source.get_jdbc_url
     # Assert that the URL is generated correctly
     assert url == (
@@ -79,7 +79,7 @@ def test_read_data_with_options():
 
     # create object for MSSQLServerDataSource
     data_source = TSQLServerDataSource(engine, spark, ws)
-    data_source.load_credentials(ReconcileCredentialConfig("databricks", mssql_creds(scope)))
+    data_source.load_credentials(ReconcileCredentialsConfig("databricks", mssql_creds(scope)))
     # Create a Tables configuration object with JDBC reader options
     table_conf = Table(
         source_name="src_supplier",
@@ -121,7 +121,7 @@ def test_read_data_with_options():
 def test_get_schema():
     engine, spark, ws, _ = initial_setup()
     data_source = TSQLServerDataSource(engine, spark, ws)
-    data_source.load_credentials(ReconcileCredentialConfig("databricks", mssql_creds("scope")))
+    data_source.load_credentials(ReconcileCredentialsConfig("databricks", mssql_creds("scope")))
 
     data_source.get_schema("org", "schema", "supplier")
 
@@ -167,7 +167,7 @@ def test_get_schema():
 def test_get_schema_exception_handling():
     engine, spark, ws, _ = initial_setup()
     data_source = TSQLServerDataSource(engine, spark, ws)
-    data_source.load_credentials(ReconcileCredentialConfig("databricks", mssql_creds("scope")))
+    data_source.load_credentials(ReconcileCredentialsConfig("databricks", mssql_creds("scope")))
 
     spark.read.format().option().option().option().options().load.side_effect = RuntimeError("Test Exception")
 

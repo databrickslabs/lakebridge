@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, create_autospec
 
 import pytest
 
-from databricks.labs.lakebridge.config import ReconcileCredentialConfig
+from databricks.labs.lakebridge.config import ReconcileCredentialsConfig
 from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import NormalizedIdentifier
 from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
 from databricks.labs.lakebridge.reconcile.connectors.oracle import OracleDataSource
@@ -60,7 +60,7 @@ def test_read_data_with_options():
 
     # create object for OracleDataSource
     ords = OracleDataSource(engine, spark, ws)
-    ords.load_credentials(ReconcileCredentialConfig("databricks", oracle_creds(scope)))
+    ords.load_credentials(ReconcileCredentialsConfig("databricks", oracle_creds(scope)))
     # Create a Tables configuration object with JDBC reader options
     table_conf = Table(
         source_name="supplier",
@@ -112,7 +112,7 @@ def test_get_schema():
 
     # create object for OracleDataSource
     ords = OracleDataSource(engine, spark, ws)
-    ords.load_credentials(ReconcileCredentialConfig("databricks", oracle_creds("scope")))
+    ords.load_credentials(ReconcileCredentialsConfig("databricks", oracle_creds("scope")))
     # call test method
     ords.get_schema(None, "data", "employee")
     # spark assertions
@@ -142,7 +142,7 @@ def test_read_data_exception_handling():
     # initial setup
     engine, spark, ws, _ = initial_setup()
     ords = OracleDataSource(engine, spark, ws)
-    ords.load_credentials(ReconcileCredentialConfig("databricks", oracle_creds("scope")))
+    ords.load_credentials(ReconcileCredentialsConfig("databricks", oracle_creds("scope")))
     # Create a Tables configuration object
     table_conf = Table(
         source_name="supplier",
@@ -171,7 +171,7 @@ def test_get_schema_exception_handling():
     # initial setup
     engine, spark, ws, _ = initial_setup()
     ords = OracleDataSource(engine, spark, ws)
-    ords.load_credentials(ReconcileCredentialConfig("databricks", oracle_creds("scope")))
+    ords.load_credentials(ReconcileCredentialsConfig("databricks", oracle_creds("scope")))
     spark.read.format().option().option().option().options().load.side_effect = RuntimeError("Test Exception")
 
     # Call the get_schema method with predefined table, schema, and catalog names and assert that a PySparkException

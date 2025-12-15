@@ -9,8 +9,8 @@ from sqlglot import Dialect
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
 
-from databricks.labs.lakebridge.config import ReconcileCredentialConfig
-from databricks.labs.lakebridge.connections.credential_manager import create_credential_manager, build_credentials
+from databricks.labs.lakebridge.config import ReconcileCredentialsConfig
+from databricks.labs.lakebridge.connections.credential_manager import build_credentials, CredentialManager
 from databricks.labs.lakebridge.reconcile.connectors.data_source import DataSource
 from databricks.labs.lakebridge.reconcile.connectors.jdbc_reader import JDBCReaderMixin
 from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import DialectUtils, NormalizedIdentifier
@@ -62,7 +62,7 @@ class SnowflakeDataSource(DataSource, JDBCReaderMixin):
             return self._creds_or_empty
         raise RuntimeError("Snowflake credentials have not been loaded. Please call load_credentials() first.")
 
-    def load_credentials(self, creds: ReconcileCredentialConfig) -> "SnowflakeDataSource":
+    def load_credentials(self, creds: ReconcileCredentialsConfig) -> "SnowflakeDataSource":
         connector_creds = [
             "sfUser",
             "sfUrl",
@@ -72,21 +72,21 @@ class SnowflakeDataSource(DataSource, JDBCReaderMixin):
             "sfRole",
         ]
 
-        use_scope = creds.source_creds.get("__secret_scope")
+        use_scope = creds.vault_secret_names.get("__secret_scope")
         if use_scope:
-            # to use pem key and/or pem password, migrate to source_creds approach
+            # to use pem key and/or pem password, migrate to vault_secret_names approach
             logger.warning(
                 f"Secret scope configuration is deprecated. Using secret scopes supports password authentication only. Please refer to the docs {self._DOCS_URL} to update and to access full features."
             )
             connector_creds += ["sfPassword"]
-            source_creds = {key: f"{use_scope}/{key}" for key in connector_creds}
+            vault_secret_names = {key: f"{use_scope}/{key}" for key in connector_creds}
 
             assert creds.vault_type == "databricks", "Secret scope provided, vault_type must be 'databricks'"
-            parsed_creds = build_credentials(creds.vault_type, "snowflake", source_creds)
+            parsed_creds = build_credentials(creds.vault_type, "snowflake", vault_secret_names)
         else:
-            parsed_creds = build_credentials(creds.vault_type, "snowflake", creds.source_creds)
+            parsed_creds = build_credentials(creds.vault_type, "snowflake", creds.vault_secret_names)
 
-        self._creds_or_empty = create_credential_manager(parsed_creds, self._ws).get_credentials("snowflake")
+        self._creds_or_empty = CredentialManager.from_credentials(parsed_creds, self._ws).get_credentials("snowflake")
         assert all(
             self._creds.get(k) for k in connector_creds
         ), f"Missing mandatory Snowflake credentials. Please configure all of {connector_creds}."
@@ -105,7 +105,7 @@ class SnowflakeDataSource(DataSource, JDBCReaderMixin):
     @property
     def get_jdbc_url(self) -> str:
         if not self._creds:
-            raise RuntimeError("Credentials not loaded. Please call `load_credentials(ReconcileCredentialConfig)`.")
+            raise RuntimeError("Credentials not loaded. Please call `load_credentials(ReconcileCredentialsConfig)`.")
 
         return (
             f"jdbc:{SnowflakeDataSource._DRIVER}://{self._creds['sfUrl']}"
@@ -168,7 +168,7 @@ class SnowflakeDataSource(DataSource, JDBCReaderMixin):
 
     def reader(self, query: str) -> DataFrameReader:
         if not self._creds:
-            raise RuntimeError("Credentials not loaded. Please call `load_credentials(ReconcileCredentialConfig)`.")
+            raise RuntimeError("Credentials not loaded. Please call `load_credentials(ReconcileCredentialsConfig)`.")
 
         return self._spark.read.format("snowflake").option("dbtable", f"({query}) as tmp").options(**self._creds)
 

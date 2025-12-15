@@ -252,13 +252,17 @@ class ReconcileMetadataConfig:
 
 
 @dataclass
-class ReconcileCredentialConfig:
+class ReconcileCredentialsConfig:
     vault_type: str
-    source_creds: dict[str, str]
+    vault_secret_names: dict[str, str]
 
     def __post_init__(self):
-        if self.vault_type not in {"local", "env", "databricks"}:
+        if self.vault_type != "databricks":
             raise ValueError(f"Unsupported vault_type: {self.vault_type}")
+
+    def get_databricks_secret_scope(self) -> str:
+        """Utility to support older installations that only allowed secret scopes."""
+        return self.vault_secret_names["__secret_scope"]
 
 
 @dataclass
@@ -268,7 +272,7 @@ class ReconcileConfig:
 
     data_source: str
     report_type: str
-    creds: ReconcileCredentialConfig
+    creds: ReconcileCredentialsConfig
     database_config: DatabaseConfig
     metadata_config: ReconcileMetadataConfig
 
@@ -276,7 +280,7 @@ class ReconcileConfig:
     def v1_migrate(cls, raw: dict[str, JsonValue]) -> dict[str, JsonValue]:
         secret_scope = raw.pop("secret_scope")
         raw["version"] = 2
-        raw["creds"] = {"vault_type": "databricks", "source_creds": {"__secret_scope": secret_scope}}
+        raw["creds"] = {"vault_type": "databricks", "vault_secret_names": {"__secret_scope": secret_scope}}
         return raw
 
 
