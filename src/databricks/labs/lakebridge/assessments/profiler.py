@@ -5,8 +5,7 @@ from databricks.labs.lakebridge.assessments.pipeline import PipelineClass
 from databricks.labs.lakebridge.assessments.profiler_config import PipelineConfig
 from databricks.labs.lakebridge.connections.database_manager import DatabaseManager
 from databricks.labs.lakebridge.connections.credential_manager import (
-    create_credential_manager,
-    cred_file,
+    CredentialManager,
 )
 from databricks.labs.lakebridge.assessments import (
     PRODUCT_NAME,
@@ -62,7 +61,7 @@ class Profiler:
     def _setup_extractor(platform: str) -> DatabaseManager | None:
         if not CONNECTOR_REQUIRED[platform]:
             return None
-        cred_manager = create_credential_manager(cred_file(PRODUCT_NAME))
+        cred_manager = CredentialManager.from_product_name(PRODUCT_NAME)
         connect_config = cred_manager.get_credentials(platform)
         return DatabaseManager(platform, connect_config)
 

@@ -78,6 +78,28 @@ class CredentialManager:
         self._default_vault = self._credentials.get('secret_vault_type', 'local').lower()
         self._provider = secret_providers.get(self._default_vault)
 
+    @classmethod
+    def from_product_name(cls, product_name: str, ws: WorkspaceClient | None = None) -> "CredentialManager":
+        path = cred_file(product_name)
+        credentials = _load_credentials(path)
+        return cls.from_credentials(credentials, ws)
+
+    @classmethod
+    def from_file(cls, path: Path, ws: WorkspaceClient | None = None) -> "CredentialManager":
+        credentials = _load_credentials(path)
+        return cls.from_credentials(credentials, ws)
+
+    @classmethod
+    def from_credentials(cls, credentials: dict, ws: WorkspaceClient | None = None) -> "CredentialManager":
+        secret_providers: dict[str, SecretProvider] = {
+            'local': LocalSecretProvider(),
+            'env': EnvSecretProvider(EnvGetter()),
+        }
+
+        if ws:
+            secret_providers['databricks'] = DatabricksSecretProvider(ws)
+        return cls(credentials, secret_providers)
+
     def get_credentials(self, source: str) -> dict:
         if source not in self._credentials:
             raise KeyError(f"Source system: {source} credentials not found")
@@ -107,20 +129,3 @@ def _load_credentials(path: Path) -> dict:
             return yaml.safe_load(f)
     except FileNotFoundError as e:
         raise FileNotFoundError(f"Credentials file not found at {path}") from e
-
-
-def create_credential_manager(creds_or_path: dict | Path, ws: WorkspaceClient | None = None) -> CredentialManager:
-    if isinstance(creds_or_path, Path):
-        creds = _load_credentials(creds_or_path)
-    else:
-        creds = creds_or_path
-
-    secret_providers: dict[str, SecretProvider] = {
-        'local': LocalSecretProvider(),
-        'env': EnvSecretProvider(EnvGetter()),
-    }
-
-    if ws:
-        secret_providers['databricks'] = DatabricksSecretProvider(ws)
-
-    return CredentialManager(creds, secret_providers)

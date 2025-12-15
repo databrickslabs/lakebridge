@@ -1141,7 +1141,7 @@ def mock_for_report_type_all(
     reconcile_config_all = ReconcileConfig(
         data_source="snowflake",
         report_type="all",
-        creds=ReconcileCredentialsConfig(vault_type="local", vault_secret_names={"fake": "fake"}),
+        creds=ReconcileCredentialsConfig(vault_type="databricks", vault_secret_names={"fake": "fake"}),
         database_config=DatabaseConfig(
             source_catalog=CATALOG,
             source_schema=SCHEMA,
@@ -1416,7 +1416,7 @@ def mock_for_report_type_row(
     reconcile_config_row = ReconcileConfig(
         data_source="snowflake",
         report_type="row",
-        creds=ReconcileCredentialsConfig(vault_type="local", vault_secret_names={"fake": "fake"}),
+        creds=ReconcileCredentialsConfig(vault_type="databricks", vault_secret_names={"fake": "fake"}),
         database_config=DatabaseConfig(
             source_catalog=CATALOG,
             source_schema=SCHEMA,

@@ -660,7 +660,7 @@ def test_configure_reconcile_installation_config_error_continue_install(ws: Work
     )
 
     creds_mock = MagicMock(ReconConfigPrompts)
-    creds_sample = ReconcileCredentialsConfig("local", {"test_secret": "dummy"})
+    creds_sample = ReconcileCredentialsConfig("databricks", {"test_secret": "dummy"})
     creds_mock.prompt_recon_creds.return_value = (creds_sample.vault_type, creds_sample.vault_secret_names)
     workspace_installer = WorkspaceInstaller(
         ctx.workspace_client,
@@ -678,7 +678,7 @@ def test_configure_reconcile_installation_config_error_continue_install(ws: Work
         reconcile=ReconcileConfig(
             data_source="oracle",
             report_type="all",
-            creds=ReconcileCredentialsConfig(vault_type="local", vault_secret_names={"test_secret": "dummy"}),
+            creds=ReconcileCredentialsConfig(vault_type="databricks", vault_secret_names={"test_secret": "dummy"}),
             database_config=DatabaseConfig(
                 source_schema="tpch_sf1000",
                 target_catalog="tpch",
@@ -698,7 +698,7 @@ def test_configure_reconcile_installation_config_error_continue_install(ws: Work
         {
             "data_source": "oracle",
             "report_type": "all",
-            "creds": {"vault_type": "local", "vault_secret_names": {"test_secret": "dummy"}},
+            "creds": {"vault_type": "databricks", "vault_secret_names": {"test_secret": "dummy"}},
             "database_config": {
                 "source_schema": "tpch_sf1000",
                 "target_catalog": "tpch",
@@ -742,7 +742,7 @@ def test_configure_reconcile_no_existing_installation(ws: WorkspaceClient) -> No
     )
 
     creds_mock = MagicMock(ReconConfigPrompts)
-    creds_sample = ReconcileCredentialsConfig("local", {"test_secret": "dummy"})
+    creds_sample = ReconcileCredentialsConfig("databricks", {"test_secret": "dummy"})
     creds_mock.prompt_recon_creds.return_value = (creds_sample.vault_type, creds_sample.vault_secret_names)
     workspace_installer = WorkspaceInstaller(
         ctx.workspace_client,
@@ -760,7 +760,7 @@ def test_configure_reconcile_no_existing_installation(ws: WorkspaceClient) -> No
         reconcile=ReconcileConfig(
             data_source="snowflake",
             report_type="all",
-            creds=ReconcileCredentialsConfig(vault_type="local", vault_secret_names={"test_secret": "dummy"}),
+            creds=ReconcileCredentialsConfig(vault_type="databricks", vault_secret_names={"test_secret": "dummy"}),
             database_config=DatabaseConfig(
                 source_schema="tpch_sf1000",
                 target_catalog="tpch",
@@ -781,7 +781,7 @@ def test_configure_reconcile_no_existing_installation(ws: WorkspaceClient) -> No
         {
             "data_source": "snowflake",
             "report_type": "all",
-            "creds": {"vault_type": "local", "vault_secret_names": {"test_secret": "dummy"}},
+            "creds": {"vault_type": "databricks", "vault_secret_names": {"test_secret": "dummy"}},
             "database_config": {
                 "source_catalog": "snowflake_sample_data",
                 "source_schema": "tpch_sf1000",
@@ -956,7 +956,7 @@ def test_configure_all_override_installation(
     )
 
     creds_mock = MagicMock(ReconConfigPrompts)
-    creds_sample = ReconcileCredentialsConfig("local", {"test_secret": "dummy"})
+    creds_sample = ReconcileCredentialsConfig("databricks", {"test_secret": "dummy"})
     creds_mock.prompt_recon_creds.return_value = (creds_sample.vault_type, creds_sample.vault_secret_names)
     workspace_installer = ws_installer(
         ctx.workspace_client,
@@ -986,7 +986,7 @@ def test_configure_all_override_installation(
     expected_reconcile_config = ReconcileConfig(
         data_source="snowflake",
         report_type="all",
-        creds=ReconcileCredentialsConfig(vault_type="local", vault_secret_names={"test_secret": "dummy"}),
+        creds=ReconcileCredentialsConfig(vault_type="databricks", vault_secret_names={"test_secret": "dummy"}),
         database_config=DatabaseConfig(
             source_schema="tpch_sf1000",
             target_catalog="tpch",
@@ -1021,7 +1021,7 @@ def test_configure_all_override_installation(
         {
             "data_source": "snowflake",
             "report_type": "all",
-            "creds": {"vault_type": "local", "vault_secret_names": {"test_secret": "dummy"}},
+            "creds": {"vault_type": "databricks", "vault_secret_names": {"test_secret": "dummy"}},
             "database_config": {
                 "source_catalog": "snowflake_sample_data",
                 "source_schema": "tpch_sf1000",

@@ -38,12 +38,11 @@ Refer to [Reconcile Configuration Guide](reconcile_configuration) for detailed i
 
 > 2. Setup the connection properties
 
-#### Option A: Using Lakebridge credentials mechanism
 Reconcile connection properties are configured through a dynamic mapping from connection property to value.
 The values can be loaded from databricks, env vars or used directly. It depends on the config in `reconcile.yml`
 ```yaml
 ...
-creds_or_secret_scope:
+creds:
     vault_type: local
     vault_secret_names:
       <mappings of connection properties to values>
@@ -51,7 +50,7 @@ creds_or_secret_scope:
 or to use databricks secrets. And the value has to be in the form of `<scope_name>/<secret_key>`
 ```yaml
 ...
-creds_or_secret_scope:
+creds:
     vault_type: databricks
     vault_secret_names:
       some_property = <scope_name>/<secret_key>
@@ -100,67 +99,6 @@ The expected connection properties under `vault_secret_names` per data source ar
         database = [local_or_databricks_mapping]
         encrypt = [local_or_databricks_mapping]
         trustServerCertificate = [local_or_databricks_mapping]
-        ```
-    </TabItem>
-</Tabs>
-#### Option B: Using secret scopes
-:::warning
-Deprecated in favor of Lakebridge credentials mechanism
-:::
-
-Lakebridge-Reconcile manages connection properties by utilizing secrets stored in the Databricks workspace.
-Below is the default secret naming convention for managing connection properties.
-
-**Note: When both the source and target are Databricks, a secret scope is not required.**
-
-**Default Secret Scope:** lakebridge_data_source
-
-| source        | scope                 |
-|---------------|-----------------------|
-| snowflake     | lakebridge_snowflake  |
-| oracle        | lakebridge_oracle     |
-| databricks    | lakebridge_databricks |
-| mssql         | lakebridge_mssql      |
-| synapse       | lakebridge_synapse    |
-
-Below are the connection properties required for each source:
-
-<Tabs>
-    <TabItem value="snowflake" label="Snowflake">
-        ```yaml
-        sfUrl = https://[acount_name].snowflakecomputing.com
-        account = [acount_name]
-        sfUser = [user]
-        sfPassword = [password]
-        sfDatabase = [database]
-        sfSchema = [schema]
-        sfWarehouse = [warehouse_name]
-        sfRole = [role_name]
-        ```
-
-        :::note
-        For Snowflake authentication, sfPassword is required. To use pem_private_key,
-        and optionally pem_private_key_password, please use the Lakebridge credentials mechanism.
-        :::
-    </TabItem>
-    <TabItem value="oracle" label="Oracle">
-        ```yaml
-        user = [user]
-        password = [password]
-        host = [host]
-        port = [port]
-        database = [database/SID]
-        ```
-    </TabItem>
-    <TabItem value="mssql" label="MS SQL Server (incl. Synapse)">
-        ```yaml
-        user = [user]
-        password = [password]
-        host = [host]
-        port = [port]
-        database = [database/SID]
-        encrypt = [true/false]
-        trustServerCertificate = [true/false]
         ```
     </TabItem>
 </Tabs>

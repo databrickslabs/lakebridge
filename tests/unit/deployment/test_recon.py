@@ -57,7 +57,7 @@ def test_install(ws):
     reconcile_config = ReconcileConfig(
         data_source="snowflake",
         report_type="all",
-        creds=ReconcileCredentialsConfig(vault_type="local", vault_secret_names={"fake": "fake"}),
+        creds=ReconcileCredentialsConfig(vault_type="databricks", vault_secret_names={"fake": "fake"}),
         database_config=DatabaseConfig(
             source_catalog="snowflake_sample_data4",
             source_schema="tpch_sf10004",
@@ -150,7 +150,7 @@ def test_uninstall(ws):
     recon_config = ReconcileConfig(
         data_source="snowflake",
         report_type="all",
-        creds=ReconcileCredentialsConfig(vault_type="local", vault_secret_names={"fake": "fake"}),
+        creds=ReconcileCredentialsConfig(vault_type="databricks", vault_secret_names={"fake": "fake"}),
         database_config=DatabaseConfig(
             source_catalog="snowflake_sample_data5",
             source_schema="tpch_sf10005",
