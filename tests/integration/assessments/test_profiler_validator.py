@@ -38,8 +38,8 @@ def mock_synapse_profiler_extract() -> Generator[str, None, None]:
     extract_dir = Path(temp_dir) / "synapse_assessment"
     synapse_extract_path = build_mock_synapse_extract("mock_profiler_extract", path_prefix=extract_dir)
     yield synapse_extract_path
-    # Cleanup after all tests complete
-    shutil.rmtree(temp_dir, ignore_errors=True)
+    # Cleanup after all tests complete in case non tmp_dir was used
+    # shutil.rmtree(temp_dir, ignore_errors=True)
 
 
 def test_get_profiler_extract_path(pipeline_config_path, failure_pipeline_config_path):
