@@ -1,4 +1,7 @@
 from pathlib import Path
+import tempfile
+import shutil
+from collections.abc import Generator
 import pytest
 import duckdb
 
@@ -28,12 +31,15 @@ def failure_pipeline_config_path():
     return config_path
 
 
-@pytest.fixture(scope="function")
-def mock_synapse_profiler_extract(tmp_path):
-    # Use pytest's tmp_path to create unique temp directory per test
-    extract_dir = tmp_path / "synapse_assessment"
-    synapse_extract_path = build_mock_synapse_extract("mock_profiler_extract", path_prefix=str(extract_dir))
-    return synapse_extract_path
+@pytest.fixture(scope="session")
+def mock_synapse_profiler_extract() -> Generator[str, None, None]:
+    # Manually create temporary directory for session scope
+    temp_dir = tempfile.mkdtemp(prefix="lakebridge_test_")
+    extract_dir = Path(temp_dir) / "synapse_assessment"
+    synapse_extract_path = build_mock_synapse_extract("mock_profiler_extract", path_prefix=extract_dir)
+    yield synapse_extract_path
+    # Cleanup after all tests complete
+    shutil.rmtree(temp_dir, ignore_errors=True)
 
 
 def test_get_profiler_extract_path(pipeline_config_path, failure_pipeline_config_path):
