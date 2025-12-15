@@ -13,7 +13,7 @@ from databricks.labs.lakebridge.config import (
     ReconcileConfig,
     DatabaseConfig,
     ReconcileMetadataConfig,
-    ReconcileCredentialConfig,
+    ReconcileCredentialsConfig,
 )
 from databricks.labs.lakebridge.deployment.job import JobDeployment
 
@@ -23,7 +23,7 @@ def oracle_recon_config() -> ReconcileConfig:
     return ReconcileConfig(
         data_source="oracle",
         report_type="all",
-        creds=ReconcileCredentialConfig(vault_type="databricks", source_creds={"__secret_scope": "fake"}),
+        creds=ReconcileCredentialsConfig(vault_type="databricks", vault_secret_names={"__secret_scope": "fake"}),
         database_config=DatabaseConfig(
             source_schema="tpch_sf10009",
             target_catalog="tpch9",
@@ -42,7 +42,7 @@ def snowflake_recon_config() -> ReconcileConfig:
     return ReconcileConfig(
         data_source="snowflake",
         report_type="all",
-        creds=ReconcileCredentialConfig(vault_type="databricks", source_creds={"__secret_scope": "fake"}),
+        creds=ReconcileCredentialsConfig(vault_type="databricks", vault_secret_names={"__secret_scope": "fake"}),
         database_config=DatabaseConfig(
             source_schema="tpch_sf10009",
             target_catalog="tpch9",
