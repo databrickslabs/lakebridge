@@ -14,13 +14,13 @@ from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dial
 
 from databricks.sdk import WorkspaceClient
 
-from tests.integration.debug_envgetter import DebugEnvGetter, parse_snowflake_jdbc_url
+from tests.integration.debug_envgetter import TestEnvGetter, parse_snowflake_jdbc_url
 
 
 class TSQLServerDataSourceUnderTest(TSQLServerDataSource):
     def __init__(self, spark, ws):
         super().__init__(get_dialect("tsql"), spark, ws, "secret_scope")
-        self._test_env = DebugEnvGetter(True)
+        self._test_env = TestEnvGetter(True)
 
     @property
     def get_jdbc_url(self) -> str:
@@ -35,7 +35,7 @@ class TSQLServerDataSourceUnderTest(TSQLServerDataSource):
 class OracleDataSourceUnderTest(OracleDataSource):
     def __init__(self, spark, ws):
         super().__init__(get_dialect("oracle"), spark, ws, "secret_scope")
-        self._test_env = DebugEnvGetter(False)
+        self._test_env = TestEnvGetter(False)
 
     @property
     def get_jdbc_url(self) -> str:
@@ -54,7 +54,7 @@ class OracleDataSourceUnderTest(OracleDataSource):
 class SnowflakeDataSourceUnderTest(SnowflakeDataSource):
     def __init__(self, spark, ws):
         super().__init__(get_dialect("snowflake"), spark, ws, "secret_scope")
-        self._test_env = DebugEnvGetter(True)
+        self._test_env = TestEnvGetter(True)
 
     @property
     def get_jdbc_url(self) -> str:

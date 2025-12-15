@@ -1,4 +1,5 @@
 from datetime import datetime, timezone, timedelta
+import pytest
 
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.service.jobs import TerminationTypeType
@@ -15,7 +16,7 @@ from databricks.labs.lakebridge.reconcile.recon_config import RECONCILE_OPERATIO
 from databricks.labs.lakebridge.reconcile.runner import ReconcileRunner
 from databricks.labs.blueprint.wheels import ProductInfo
 
-from tests.integration.debug_envgetter import DebugEnvGetter
+from tests.integration.debug_envgetter import TestEnvGetter
 
 TEST_JOBS_PURGE_TIMEOUT = timedelta(hours=1, minutes=15)
 
@@ -39,37 +40,47 @@ TABLE_RECON_JSON = """
 }
 """
 
-test_env = DebugEnvGetter(True)
-cluster = test_env.get("TEST_DEFAULT_CLUSTER_ID")
-date_to_remove = get_test_purge_time()
-tags = {"RemoveAfter": date_to_remove}
-deployment_overrides = DeployReconcileConfig(existing_cluster_id=cluster, tags=tags)
 
-recon_config = ReconcileConfig(
-    data_source="databricks",
-    report_type="all",
-    secret_scope="NOT_NEEDED",
-    database_config=DatabaseConfig(
-        source_catalog="sandbox", source_schema="test_source", target_catalog="sandbox", target_schema="test_target"
-    ),
-    metadata_config=ReconcileMetadataConfig(catalog="sandbox", schema="reconcile"),
-    deployment_overrides=deployment_overrides,
-)
-config = LakebridgeConfiguration(None, recon_config)
-source_catalog_or_schema = (
-    recon_config.database_config.source_catalog
-    if recon_config.database_config.source_catalog
-    else recon_config.database_config.source_schema
-)
-filename = f"recon_config_{recon_config.data_source}_{source_catalog_or_schema}_{recon_config.report_type}.json"
+@pytest.fixture
+def recon_config() -> ReconcileConfig:
+    test_env = TestEnvGetter(True)
+    cluster = test_env.get("TEST_DEFAULT_CLUSTER_ID")
+    date_to_remove = get_test_purge_time()
+    tags = {"RemoveAfter": date_to_remove}
+    deployment_overrides = DeployReconcileConfig(existing_cluster_id=cluster, tags=tags)
+
+    conf = ReconcileConfig(
+        data_source="databricks",
+        report_type="all",
+        secret_scope="NOT_NEEDED",
+        database_config=DatabaseConfig(
+            source_catalog="sandbox", source_schema="test_source", target_catalog="sandbox", target_schema="test_target"
+        ),
+        metadata_config=ReconcileMetadataConfig(catalog="sandbox", schema="reconcile"),
+        deployment_overrides=deployment_overrides,
+    )
+    return conf
 
 
-def test_recon_databricks_job_succeeds(ws: WorkspaceClient) -> None:
+@pytest.fixture
+def recon_config_filename(recon_config: ReconcileConfig) -> str:
+    source_catalog_or_schema = (
+        recon_config.database_config.source_catalog
+        if recon_config.database_config.source_catalog
+        else recon_config.database_config.source_schema
+    )
+    filename = f"recon_config_{recon_config.data_source}_{source_catalog_or_schema}_{recon_config.report_type}.json"
+    return filename
+
+
+def test_recon_databricks_job_succeeds(
+    ws: WorkspaceClient, recon_config: ReconcileConfig, recon_config_filename: str
+) -> None:
     ctx = ApplicationContext(ws)
     ctx.replace(product_info=ProductInfo.for_testing(LakebridgeConfiguration))
     ctx.installation.save(recon_config)
-    ctx.installation.upload(filename, TABLE_RECON_JSON.encode())
-    ctx.workspace_installation.install(config)
+    ctx.installation.upload(recon_config_filename, TABLE_RECON_JSON.encode())
+    ctx.workspace_installation.install(LakebridgeConfiguration(None, recon_config))
 
     recon_runner = ReconcileRunner(
         ctx.workspace_client,

@@ -64,9 +64,7 @@ jobs:
         run: pip install hatch==$HATCH_VERSION
 
       - name: Reformat code
-        run: |
-          hatch run pytest --fixtures --collect-only tests/integration/reconcile/test_recon_databricks.py
-          make fmt
+        run: make fmt
 
       - name: Fail on differences
         run: |

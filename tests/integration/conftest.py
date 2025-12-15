@@ -7,7 +7,7 @@ from pyspark.sql import SparkSession
 
 from databricks.labs.lakebridge.__about__ import __version__
 from databricks.labs.lakebridge.connections.database_manager import DatabaseManager
-from tests.integration.debug_envgetter import DebugEnvGetter
+from tests.integration.debug_envgetter import TestEnvGetter
 
 logging.getLogger("tests").setLevel("DEBUG")
 logging.getLogger("databricks.labs.lakebridge").setLevel("DEBUG")
@@ -57,7 +57,7 @@ def mock_spark() -> SparkSession:
 
 @pytest.fixture()
 def sandbox_sqlserver_config() -> dict:
-    env = DebugEnvGetter(True)
+    env = TestEnvGetter(True)
     db_url = env.get("TEST_TSQL_JDBC").removeprefix("jdbc:")
     base_url, params = db_url.split(";", 1)
     url_parts = urlparse(base_url)
