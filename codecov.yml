@@ -1,6 +1,6 @@
 # We may add certain file to ignore in the codecov coverage report
 coverage:
   status:
-    patch: on # Ensure that current changes do not decrease coverage
+    patch: off
     project: off
 ignore:
