@@ -15,7 +15,7 @@ from databricks.labs.lakebridge.reconcile.recon_config import RECONCILE_OPERATIO
 from databricks.labs.lakebridge.reconcile.runner import ReconcileRunner
 from databricks.labs.blueprint.wheels import ProductInfo
 
-from tests.integration.debug_envgetter import TestEnvGetter
+from tests.integration.debug_envgetter import DebugEnvGetter
 
 TEST_JOBS_PURGE_TIMEOUT = timedelta(hours=1, minutes=15)
 
@@ -39,7 +39,7 @@ TABLE_RECON_JSON = """
 }
 """
 
-test_env = TestEnvGetter(True)
+test_env = DebugEnvGetter(True)
 cluster = test_env.get("TEST_DEFAULT_CLUSTER_ID")
 date_to_remove = get_test_purge_time()
 tags = {"RemoveAfter": date_to_remove}

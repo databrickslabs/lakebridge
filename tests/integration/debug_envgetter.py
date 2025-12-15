@@ -6,7 +6,7 @@ from urllib.parse import urlparse
 from databricks.labs.lakebridge.connections.env_getter import EnvGetter
 
 
-class TestEnvGetter(EnvGetter):
+class DebugEnvGetter(EnvGetter):
     def __init__(self, is_debug: bool = True):
         super().__init__()
         self.is_debug = is_debug
