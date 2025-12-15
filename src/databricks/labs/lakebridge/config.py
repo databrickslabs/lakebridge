@@ -260,6 +260,10 @@ class ReconcileCredentialsConfig:
         if self.vault_type != "databricks":
             raise ValueError(f"Unsupported vault_type: {self.vault_type}")
 
+    def get_databricks_secret_scope(self) -> str:
+        """Utility to support older installations that only allowed secret scopes."""
+        return self.vault_secret_names["__secret_scope"]
+
 
 @dataclass
 class ReconcileConfig:
