@@ -45,7 +45,7 @@ The values can be loaded from databricks, env vars or used directly. It depends 
 ...
 creds_or_secret_scope:
     vault_type: local
-    source_creds:
+    vault_secret_names:
       <mappings of connection properties to values>
 ```
 or to use databricks secrets. And the value has to be in the form of `<scope_name>/<secret_key>`
@@ -53,11 +53,11 @@ or to use databricks secrets. And the value has to be in the form of `<scope_nam
 ...
 creds_or_secret_scope:
     vault_type: databricks
-    source_creds:
+    vault_secret_names:
       some_property = <scope_name>/<secret_key>
       ...
 ```
-The expected connection properties under `source_creds` per data source are:
+The expected connection properties under `vault_secret_names` per data source are:
 <Tabs>
     <TabItem value="snowflake" label="Snowflake">
         ```yaml

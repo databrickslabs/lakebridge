@@ -72,7 +72,7 @@ class ReconcileConfig:
     secret_scope: str
     database_config: DatabaseConfig
     metadata_config: ReconcileMetadataConfig
-    creds_or_secret_scope: ReconcileCredentialConfig | str | None = None
+    creds_or_secret_scope: ReconcileCredentialsConfig | str | None = None
 ```
 Parameters:
 
@@ -108,12 +108,12 @@ of Lakebridge.
 - `creds_or_secret_scope`: The credentials to use to connect to the data source. Made optional for backwards compatibility.
 Can also be a string having value of secret scope to mimic old behavior of credentials. If used, `secret_scope` will be ignored.
     - `vault_type`: Can be local to use the values directly, env to load from env variables or databricks to load from databricks secrets.
-    - `source_creds`: A mapping of reconcile credentials keys to the values that will be resolved depending on vault type.
+    - `vault_secret_names`: A mapping of reconcile credentials keys to the values that will be resolved depending on vault type.
 ```python
 @dataclass
-class ReconcileCredentialConfig:
+class ReconcileCredentialsConfig:
     vault_type: str
-    source_creds: dict[str, str]
+    vault_secret_names: dict[str, str]
 ```
 
 An Example of configuring the Reconcile properties:
@@ -123,7 +123,7 @@ from databricks.labs.lakebridge.config import (
     DatabaseConfig,
     ReconcileConfig,
     ReconcileMetadataConfig,
-    ReconcileCredentialConfig
+    ReconcileCredentialsConfig
 )
 
 reconcile_config = ReconcileConfig(
@@ -139,9 +139,9 @@ reconcile_config = ReconcileConfig(
               catalog = "lakebridge_metadata",
               schema= "reconcile"
          ),
-        creds_or_secret_scope=ReconcileCredentialConfig(
+        creds_or_secret_scope=ReconcileCredentialsConfig(
             vault_type="local",
-            source_creds={"sfUrl": "xxx@snowflakecomputing.com", "sfUser": "app", "sfPassword": "the P@asswort", "sfRole": "app"}
+            vault_secret_names={"sfUrl": "xxx@snowflakecomputing.com", "sfUser": "app", "sfPassword": "the P@asswort", "sfRole": "app"}
         )
     )
 ```
@@ -149,9 +149,9 @@ An Example of using databricks secrets for the source credentials:
 ```python
 reconcile_config = ReconcileConfig(
     ...,
-    creds_or_secret_scope=ReconcileCredentialConfig(
+    creds_or_secret_scope=ReconcileCredentialsConfig(
         vault_type="databricks",
-        source_creds={"sfUrl": "some_secret_scope/some_key", "sfUser": "another_secret_scope/user_key", "sfPassword": "scope/key", "sfRole": "scope/key"}
+        vault_secret_names={"sfUrl": "some_secret_scope/some_key", "sfUser": "another_secret_scope/user_key", "sfPassword": "scope/key", "sfRole": "scope/key"}
     )
 )
 
