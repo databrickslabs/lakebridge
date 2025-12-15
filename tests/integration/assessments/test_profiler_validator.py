@@ -1,6 +1,5 @@
 from pathlib import Path
 import tempfile
-import shutil
 from collections.abc import Generator
 import pytest
 import duckdb
