@@ -33,11 +33,8 @@ setup_spark_remote:
 test:
 	hatch run test
 
-test-install:
-	hatch run test-install
-
-test-reconcile: setup_spark_remote
-	hatch run test-reconcile
+integration: setup_spark_remote
+	hatch run integration
 
 coverage:
 	hatch run coverage && open htmlcov/index.html

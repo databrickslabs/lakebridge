@@ -22,8 +22,7 @@ class JDBCReaderMixin:
             .option("dbtable", f"({query}) tmp")
         )
         if isinstance(additional_options, dict):
-            for key, value in additional_options.items():
-                reader = reader.option(key, value)
+            reader = reader.options(**additional_options)
         return reader
 
     @staticmethod

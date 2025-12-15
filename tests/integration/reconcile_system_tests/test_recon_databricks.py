@@ -1,7 +1,7 @@
 from datetime import datetime, timezone, timedelta
 
 from databricks.sdk import WorkspaceClient
-from databricks.sdk.service.jobs import Run, TerminationTypeType
+from databricks.sdk.service.jobs import TerminationTypeType
 
 from databricks.labs.lakebridge.config import (
     ReconcileConfig,
@@ -73,12 +73,12 @@ def test_recon_databricks_job_succeeds(ws: WorkspaceClient) -> None:
 
     recon_runner = ReconcileRunner(
         ctx.workspace_client,
-        ctx.installation,
         ctx.install_state,
     )
     run, _ = recon_runner.run(operation_name=RECONCILE_OPERATION_NAME)
     result = run.result()
 
+    assert result.status
     assert result.status.termination_details
     assert result.status.termination_details.type
     assert result.status.termination_details.type.value == TerminationTypeType.SUCCESS.value

@@ -126,7 +126,9 @@ class JobDeployment:
                 parameters=["{{job.parameters.[operation_name]}}"],
             ),
         )
-        logger.debug(f"Reconciliation job task cluster: existing: {task.existing_cluster_id} or name: {task.job_cluster_key}")
+        logger.debug(
+            f"Reconciliation job task cluster: existing: {task.existing_cluster_id} or name: {task.job_cluster_key}"
+        )
         return task
 
     def _default_job_cluster(self) -> JobCluster:

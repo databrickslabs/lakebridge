@@ -653,7 +653,6 @@ def reconcile(
     logger.debug(f"User: {user}")
     recon_runner = ReconcileRunner(
         ctx.workspace_client,
-        ctx.installation,
         ctx.install_state,
     )
 
@@ -673,7 +672,6 @@ def aggregates_reconcile(
     logger.debug(f"User: {user}")
     recon_runner = ReconcileRunner(
         ctx.workspace_client,
-        ctx.installation,
         ctx.install_state,
     )
 

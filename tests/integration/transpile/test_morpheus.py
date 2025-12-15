@@ -64,25 +64,24 @@ async def _transpile_sql_file(
     config_path, lsp_engine = _install_morpheus(transpiler_repository)
     input_source = Path(__file__).parent.parent.parent / "resources" / "functional" / "snowflake" / "integration"
     # The expected SQL Block is custom formatted to match the output of Morpheus exactly.
-    expected_sql = """CREATE TABLE employee (
-  employee_id DECIMAL(38, 0),
-  first_name VARCHAR(50) NOT NULL,
-  last_name VARCHAR(50) NOT NULL,
-  birth_date DATE,
-  hire_date DATE,
-  salary DECIMAL(10, 2),
-  department_id DECIMAL(38, 0),
-  remarks VARIANT
-);"""
+    expected_sql = """CREATE
+    TABLE employee
+    (
+        employee_id DECIMAL(38, 0),
+        first_name VARCHAR(50) NOT NULL,
+        last_name VARCHAR(50) NOT NULL,
+        birth_date DATE,
+        hire_date DATE,
+        salary DECIMAL(10, 2),
+        department_id DECIMAL(38, 0),
+        remarks VARIANT
+    );"""
     # The expected SQL Block is custom formatted to match the output of Morpheus exactly.
     expected_failure_sql = """-------------- Exception Start-------------------
 /*
 [UNRESOLVED_ROUTINE] Cannot resolve routine `COLE` on search path [`system`.`builtin`, `system`.`session`, `catalog`.`schema`].
 */
-SELECT
-  COLE(hello) AS world
-FROM
-  table;
+SELECT COLE(hello) AS world FROM table;
  ---------------Exception End --------------------"""
 
     # TODO: Load the engine here, via the validation path.

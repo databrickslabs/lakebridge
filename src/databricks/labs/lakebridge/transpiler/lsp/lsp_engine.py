@@ -10,7 +10,7 @@ import venv
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Literal, cast
+from typing import Any, Literal, ClassVar, cast
 
 import attrs
 import yaml
@@ -254,7 +254,7 @@ METHOD_TO_TYPES[TRANSPILE_TO_DATABRICKS_METHOD] = (
 
 
 # subclass BaseLanguageClient so we can override stuff when required
-class _LanguageClient(BaseLanguageClient):
+class LanguageClient(BaseLanguageClient):
 
     def __init__(self, name: str, version: str) -> None:
         super().__init__(name, version)
@@ -310,30 +310,92 @@ class _LanguageClient(BaseLanguageClient):
 
         return wrapper
 
-    async def start_io(self, cmd: str, *args, **kwargs):
-        await super().start_io(cmd, *args, **kwargs)
+    _DEFAULT_LIMIT: ClassVar[int] = 64 * 1024
+
+    async def start_io(self, cmd: str, *args, limit: int = _DEFAULT_LIMIT, **kwargs):
+        await super().start_io(cmd, *args, limit=limit, **kwargs)
         # forward stderr
-        task = asyncio.create_task(self.pipe_stderr())
+        task = asyncio.create_task(self.pipe_stderr(limit=limit), name="pipe-lsp-stderr")
+        task.add_done_callback(self._detect_pipe_stderr_exception)
         self._async_tasks.append(task)
 
-    async def pipe_stderr(self) -> None:
-        server = self._server
-        assert server is not None
-        stderr = server.stderr
-        assert stderr is not None
-        while not self._stop_event.is_set():
-            data: bytes = await stderr.readline()
-            if not data:
-                return
-            # Invalid UTF-8 isn't great, but we can at least log it with the replacement character rather
-            # than dropping it silently or triggering an exception.
-            message = data.decode("utf-8", errors="replace").strip()
-            # Although information may arrive via stderr, it's generally informational in nature and doesn't
-            # necessarily represent an error
-            # TODO: analyze message and log it accordingly (info/war/error...).
-            logger.debug(message)
-            if not data.endswith(b"\n"):
-                break
+    async def pipe_stderr(self, *, limit: int = _DEFAULT_LIMIT) -> None:
+        assert (server := self._server) is not None
+        assert (stderr := server.stderr) is not None
+
+        return await self.pipe_stream(stream=stderr, limit=limit)
+
+    @staticmethod
+    async def pipe_stream(*, stream: asyncio.StreamReader, limit: int) -> None:
+        """Read lines from the LSP server's stderr and log them.
+
+        The lines will be logged in real-time as they arrive, once the newline character is seen. Trailing whitespace
+        is stripped from each line before logging, and empty lines are ignored.
+
+        On EOF any pending line will be logged, even if it is incomplete (i.e. does not end with a newline).
+
+        Logs are treated as UTF-8, with invalid byte sequences replaced with the Unicode replacement character.
+
+        Long lines will be split into chunks with a maximum length of the limit. If the split falls in the middle of a
+        multi-byte UTF-8 character, the bytes on either side of the boundary will likely be invalid and logged as such.
+
+        Args:
+              stream: The stream to mirror as logger output.
+              limit: The maximum number of bytes for a line to be logged as a single line. Longer lines will be split
+                into chunks and logged as each chunk arrives.
+        """
+        # Maximum size of pending buffer is the limit argument.
+        pending_buffer = bytearray()
+
+        # Loop, reading whatever data is available as it arrives.
+        while chunk := await stream.read(limit - len(pending_buffer)):
+            # Process the chunk we've read, line by line.
+            line_from = 0
+            while -1 != (idx := chunk.find(b"\n", line_from)):
+                # Figure out the slice corresponding to this line, accounting for any pending data the last read.
+                line_chunk = memoryview(chunk)[line_from:idx]
+                line_bytes: bytearray | bytes
+                if pending_buffer:
+                    pending_buffer.extend(line_chunk)
+                    line_bytes = pending_buffer
+                else:
+                    line_bytes = bytes(line_chunk)
+                del line_chunk
+
+                # Invalid UTF-8 isn't great, but we can at least log it with the replacement character rather than
+                # dropping it silently or triggering an exception.
+                message = line_bytes.decode("utf-8", errors="replace").rstrip()
+                if message:
+                    logger.debug(message)
+                del line_bytes, message
+
+                # Set up for handling the next line of this chunk.
+                pending_buffer.clear()
+                line_from = idx + 1
+            # Anything remaining in this chunk is pending data for the next read.
+            if remaining := memoryview(chunk)[line_from:]:
+                pending_buffer.extend(remaining)
+                if len(pending_buffer) >= limit:
+                    # Line too long, log what we have and reset.
+                    log_now = pending_buffer[:limit]
+                    message = log_now.decode("utf-8", errors="replace").rstrip()
+                    if message:
+                        # Note: the very next character might be a '\n', but we don't know that yet. So might be more
+                        # for this line, might not be.
+                        logger.debug(f"{message}[..?]")
+                    del log_now, message, pending_buffer[:limit]
+            del remaining
+        if pending_buffer:
+            # Here we've hit EOF but have an incomplete line pending. Log it anyway.
+            message = pending_buffer.decode("utf-8", errors="replace").rstrip()
+            if message:
+                logger.debug(f"{message} <missing EOL at EOF>")
+
+    def _detect_pipe_stderr_exception(self, task: asyncio.Task) -> None:
+        if (err := task.exception()) is not None:
+            logger.critical("An error occurred while processing LSP server output", exc_info=err)
+        elif not self._stop_event.is_set():
+            logger.warning("LSP server stderr closed prematurely, no more output will be logged.")
 
 
 class ChangeManager(abc.ABC):
@@ -462,7 +524,7 @@ class LSPEngine(TranspileEngine):
         self._workdir = workdir
         self._config = config
         name, version = self.client_metadata()
-        self._client = _LanguageClient(name, version)
+        self._client = LanguageClient(name, version)
         self._init_response: InitializeResult | None = None
 
     @property
@@ -551,8 +613,7 @@ class LSPEngine(TranspileEngine):
         args = [*args, f"--log_level={log_level}"]
         env = {**env, "DATABRICKS_LAKEBRIDGE_LOG_LEVEL": log_level}
         logger.debug(f"Starting LSP engine: {executable} {args} (cwd={self._workdir})")
-        # Increase limit to 64MiB to handle large lines on stderr from LSP servers
-        await self._client.start_io(executable, *args, env=env, cwd=self._workdir, limit=64 * 1024 * 1024)
+        await self._client.start_io(executable, *args, env=env, cwd=self._workdir)
 
     def _client_capabilities(self):
         return ClientCapabilities()  # TODO do we need to refine this ?
