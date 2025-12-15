@@ -1,5 +1,6 @@
 from datetime import datetime, timezone, timedelta
 
+from databricks.sdk import WorkspaceClient
 from databricks.sdk.service.jobs import TerminationTypeType
 
 from databricks.labs.lakebridge.config import (
@@ -63,7 +64,7 @@ source_catalog_or_schema = (
 filename = f"recon_config_{recon_config.data_source}_{source_catalog_or_schema}_{recon_config.report_type}.json"
 
 
-def test_recon_databricks_job_succeeds(ws) -> None:
+def test_recon_databricks_job_succeeds(ws: WorkspaceClient) -> None:
     ctx = ApplicationContext(ws)
     ctx.replace(product_info=ProductInfo.for_testing(LakebridgeConfiguration))
     ctx.installation.save(recon_config)
