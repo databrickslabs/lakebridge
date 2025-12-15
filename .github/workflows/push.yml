@@ -63,11 +63,10 @@ jobs:
       - name: Install hatch
         run: pip install hatch==$HATCH_VERSION
 
-      - name: Generate pytest fixtures (for pylint-pytest)
-        run: hatch run pytest --fixtures --collect-only
-
       - name: Reformat code
-        run: make fmt
+        run: |
+          hatch run pytest --fixtures --collect-only tests/integration/reconcile/test_recon_databricks.py
+          make fmt
 
       - name: Fail on differences
         run: |
