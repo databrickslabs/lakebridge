@@ -58,7 +58,6 @@ class HashQueryBuilder(QueryBuilder):
         ]
         # Sort by unnormalized column name (case-insensitive) to ensure deterministic ordering across all dialects
         sorted_hash_cols_with_alias = sorted(hash_cols_with_alias, key=lambda column: column["sort_key"].lower())
-        # sorted_hash_cols_with_alias = sorted(hash_cols_with_alias, key=lambda column: column["alias"])
         hashcols_sorted_as_src_seq = [column["this"] for column in sorted_hash_cols_with_alias]
 
         key_cols_with_transform = (
