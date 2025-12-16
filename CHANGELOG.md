@@ -1,5 +1,66 @@
 # Version changelog
 
+## 0.11.2
+
+# Analyzer
+
+- Normalized complexity categories in the analyzer from “COMPLEX/VERY_COMPLEX” to “HIGH/VERY_HIGH” for clearer reports.
+# Converters
+
+## Morpheus
+### Snowflake
+
+- Implemented full support for `DECLARE`, `LET`, and assignment statements to better handle procedural Snowflake scripts.
+- Added support for `DROP PROCEDURE` statements, improving Snowflake DDL coverage.
+    
+### TSQL/Synapse
+
+- Cleaned up grammar by removing duplicate and unsupported rules for TSQL special functions, reducing ambiguity and improving parser stability.
+- Implemented full support for `DECLARE`, `LET`, and assignment statements in TSQL, enabling richer stored procedure conversion.
+- Added support for TSQL `DROP PROCEDURE` statements to improve parity with source DDL.
+- Updated handling of options such as `ANSI_NULLS` and `QUOTED_IDENTIFIER` to emit informative comments instead of errors when they do not apply to Databricks SQL.
+- Enhanced handling of `SET NOCOUNT` by emitting comments explaining its behavior in Databricks SQL and warning when `NOCOUNT OFF` is used.
+- Allowed `PRECISION` to be used as an identifier (for example, `c.precision`), fixing parsing issues with such column names.
+- Improved handling of `EXEC` statements by detecting well‑known stored procedures like `sp_executesql` and issuing more specific diagnostics.
+- Added translation of `OBJECT_ID()` checks into `EXISTS` queries against catalog metadata to preserve control flow in procedural TSQL.
+- Added warnings for unsupported `PRINT` statements by generating explanatory comments rather than hard errors.
+- Added parsing support for the Synapse `RENAME OBJECT` syntax, currently surfaced as an unsupported but recognized construct.
+    
+### Generic Morpheus engine
+
+- Enabled attaching comments and error markers to empty code blocks so that diagnostics are preserved in rendered SQL.
+- Prevented semicolons from being printed after empty statements to keep output formatting consistent.
+- Bundled multiple column-level primary keys into composite table constraints to produce more correct DDL.
+- Allowed the identifier `PRECISION` in general parsing contexts, improving compatibility with more schemas.
+    
+## BladeBridge
+
+### MSSQL / TSQL
+
+- Improved handling of `MERGE` statements, including insertion of semicolons before `MERGE` in statement breaking and correct ordering of `MATCHED` and `NOT MATCHED` clauses.
+- Fixed issues when converting updates on temporary tables into `MERGE` statements and added tests to guard the behavior.
+- Improved statement categorization by stripping comments before categorization and simplifying legacy comment-key handling.
+- Added a new handler for nested static strings and inline comments, improving function substitution and parser robustness.
+    
+### Generic BladeBridge engine
+
+- Enhanced logging configuration to produce clearer diagnostics while keeping noise manageable.    
+
+## Reconcile
+
+- Added support for specifying a catalog for Databricks sources in Reconcile and prompting for the source catalog when necessary.
+- Removed redundant Reconcile configuration parameters to simplify setup.
+
+## General
+
+- Improved handling of output from LSP servers by safely chunking very long stderr lines and logging critical processing errors, preventing hangs and unbounded memory use.
+- Adjusted JDBC handling to accept usernames and passwords via Spark options instead of embedding credentials in the JDBC URL, improving support for special characters in passwords.
+- Consolidated the automated test suite to keep only unit and integration scopes, simplifying test configuration.
+
+## Dependency Updates
+* Dependencies: update documentation (yarn) packages by @asnare in https://github.com/databrickslabs/lakebridge/pull/2178
+* 
+**Full Changelog**: https://github.com/databrickslabs/lakebridge/compare/v0.11.1...v0.11.2
 ## # Lakebridge v0.11.1  Release Notes
 
 ## Analyzer
