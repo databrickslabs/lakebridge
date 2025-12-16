@@ -197,7 +197,7 @@ Additional conversion parameters are managed in the Switch configuration file. Y
 
 | Parameter | Description | Default Value | Available Options |
 |-----------|-------------|---------------|-------------------|
-| `target_type` | Output format type. `notebook` for Python notebooks with validation and error fixing, `file` for generic file formats. See [Conversion Flow Overview](#conversion-flow-overview) for processing differences. | `notebook` | `notebook`, `file` |
+| `target_type` | Output format type. `notebook` for Python notebooks with validation and error fixing, `file` for generic file formats, `sdp` for conversion from etl workloads to Spark Declarative Pipeline (SDP). See [Conversion Flow Overview](#conversion-flow-overview) for processing differences. | `notebook` | `notebook`, `file`, `sdp` |
 | `source_format` | Source file format type. `sql` performs SQL comment removal and whitespace compression preprocessing before conversion. `generic` processes files as-is without preprocessing. Preprocessing affects token counting and conversion quality. See [analyze_input_files](#analyze_input_files) for preprocessing details. | `sql` | `sql`, `generic` |
 | `comment_lang` | Language for generated comments. | `English` | `English`, `Japanese`, `Chinese`, `French`, `German`, `Italian`, `Korean`, `Portuguese`, `Spanish` |
 | `log_level` | Logging verbosity level. | `INFO` | `DEBUG`, `INFO`, `WARNING`, `ERROR` |
@@ -208,7 +208,6 @@ Additional conversion parameters are managed in the Switch configuration file. Y
 | `output_extension` | File extension for output files when `target_type=file`. Required for non-notebook output formats like YAML workflows or JSON configurations. See [File Conversion Flow](#file-conversion-flow) for usage examples. | `null` | Any extension (e.g., `.yml`, `.json`) |
 | `sql_output_dir` | (Experimental) When specified, triggers additional conversion of Python notebooks to SQL notebook format. This optional post-processing step may lose some Python-specific logic. See [convert_notebook_to_sql](#convert_notebook_to_sql-optional) for details on the SQL conversion process. | `null` | Full workspace path |
 | `request_params` | Additional request parameters passed to the model serving endpoint. Use for advanced configurations like extended thinking mode or custom token limits. See [LLM Configuration](/docs/transpile/pluggable_transpilers/switch/customizing_switch#llm-configuration) for configuration examples including Claude's extended thinking mode. | `null` | JSON format string (e.g., `{"max_tokens": 64000}`) |
-| `output_sdp` | Optional boolean parameter to enable conversion to SDP notebooks. | `false` | `true`, `false` |
 | `sdp_language` | Control the language of converted SDP code, can only be "python" or "sql". | `python` | `python`, `sql` |
 
 ---
