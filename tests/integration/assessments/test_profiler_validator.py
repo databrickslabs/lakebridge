@@ -32,13 +32,11 @@ def failure_pipeline_config_path():
 
 @pytest.fixture(scope="session")
 def mock_synapse_profiler_extract() -> Generator[str, None, None]:
-    # Manually create temporary directory for session scope
-    temp_dir = tempfile.mkdtemp(prefix="lakebridge_test_")
-    extract_dir = Path(temp_dir) / "synapse_assessment"
-    synapse_extract_path = build_mock_synapse_extract("mock_profiler_extract", path_prefix=extract_dir)
-    yield synapse_extract_path
-    # Cleanup after all tests complete in case non tmp_dir was used
-    # shutil.rmtree(temp_dir, ignore_errors=True)
+    # Use context manager for automatic cleanup
+    with tempfile.TemporaryDirectory(prefix="lakebridge_test_") as temp_dir:
+        extract_dir = Path(temp_dir) / "synapse_assessment"
+        synapse_extract_path = build_mock_synapse_extract("mock_profiler_extract", path_prefix=extract_dir)
+        yield synapse_extract_path
 
 
 def test_get_profiler_extract_path(pipeline_config_path, failure_pipeline_config_path):
