@@ -560,6 +560,7 @@ def test_rename_file_rejection(tmp_path: Path) -> None:
     assert not result.applied
     assert result.failure_reason == f"Renaming files is not supported: {old_name.as_uri()} -> {new_name.as_uri()}"
 
+
 def test_delete_file_rejection(tmp_path: Path) -> None:
     """Verify that attempts to rename a file are rejected."""
     a_file = tmp_path / "a_file.txt"
