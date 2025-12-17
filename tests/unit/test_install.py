@@ -552,7 +552,7 @@ def test_configure_transpile_installation_with_validation_and_warehouse_id_from_
         },
     )
 
-
+@pytest.mark.parametrize("datasource", ["snowflake"])
 def test_configure_reconcile_installation_no_override(ws: WorkspaceClient, reconcile_config_v1_yml: dict) -> None:
     prompts = MockPrompts(
         {
@@ -692,7 +692,7 @@ def test_configure_reconcile_no_existing_installation(
     assert config == expected_config
     installation.assert_file_written("reconcile.yml", reconcile_config_v2_yml)
 
-
+@pytest.mark.parametrize("datasource", ["snowflake"])
 def test_configure_all_override_installation(
     ws_installer: Callable[..., WorkspaceInstaller],
     ws: WorkspaceClient,
