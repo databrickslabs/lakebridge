@@ -17,6 +17,12 @@ from pyspark.sql.types import (
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.service import iam
 
+from databricks.labs.lakebridge.config import (
+    ReconcileConfig,
+    ReconcileCredentialsConfig,
+    DatabaseConfig,
+    ReconcileMetadataConfig,
+)
 from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import DialectUtils
 from databricks.labs.lakebridge.reconcile.connectors.models import NormalizedIdentifier
 from databricks.labs.lakebridge.reconcile.connectors.data_source import DataSource, MockDataSource
@@ -420,3 +426,72 @@ def table_schema_tsql_ansi(table_schema):
     src_schema = [tsql_schema_fixture_factory(s.column_name, s.data_type) for s in src_schema]
     tgt_schema = [ansi_schema_fixture_factory(s.column_name, s.data_type) for s in tgt_schema]
     return src_schema, tgt_schema
+
+
+@pytest.fixture
+def reconcile_config(datasource: str) -> ReconcileConfig:
+    return ReconcileConfig(
+        data_source=datasource,
+        report_type="all",
+        creds=ReconcileCredentialsConfig(
+            vault_type="databricks", vault_secret_names={"__secret_scope": f"remorph_{datasource}"}
+        ),
+        database_config=DatabaseConfig(
+            source_schema="tpch_sf1000",
+            target_catalog="tpch",
+            target_schema="1000gb",
+            source_catalog=f"{datasource}_sample_data",
+        ),
+        metadata_config=ReconcileMetadataConfig(
+            catalog="remorph",
+            schema="reconcile",
+            volume="reconcile_volume",
+        ),
+    )
+
+
+@pytest.fixture
+def reconcile_config_v1_yml(datasource: str) -> dict:
+    return {
+        "reconcile.yml": {
+            "data_source": datasource,
+            "report_type": "all",
+            "secret_scope": f"remorph_{datasource}",  # v1
+            "database_config": {
+                "source_catalog": f"{datasource}_sample_data",
+                "source_schema": "tpch_sf1000",
+                "target_catalog": "tpch",
+                "target_schema": "1000gb",
+            },
+            "metadata_config": {
+                "catalog": "remorph",
+                "schema": "reconcile",
+                "volume": "reconcile_volume",
+            },
+            "version": 1,
+        },
+    }
+
+
+@pytest.fixture
+def reconcile_config_v2_yml(datasource: str) -> dict:
+    return {
+        "data_source": datasource,
+        "report_type": "all",
+        "creds": {
+            "vault_type": "databricks",
+            "vault_secret_names": {"__secret_scope": f"remorph_{datasource}"},
+        },
+        "database_config": {
+            "source_catalog": f"{datasource}_sample_data",
+            "source_schema": "tpch_sf1000",
+            "target_catalog": "tpch",
+            "target_schema": "1000gb",
+        },
+        "metadata_config": {
+            "catalog": "remorph",
+            "schema": "reconcile",
+            "volume": "reconcile_volume",
+        },
+        "version": 2,
+    }
