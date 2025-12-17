@@ -46,12 +46,11 @@ class DatabricksSecretProvider(SecretProvider):
         Args:
             key: key in the format 'scope/secret'
         Returns:
-            The decoded UTF-8 secret value.
+            The secret value.
 
         Raises:
           ValueError: The secret key must be in the format 'scope/secret'.
           KeyError: The secret could not be found.
-          UnicodeDecodeError: The secret value was not Base64-encoded UTF-8.
         """
         match key.split(sep="/", maxsplit=3):
             case _scope, _key_only:
@@ -66,6 +65,7 @@ class DatabricksSecretProvider(SecretProvider):
             assert secret.value is not None
             return base64.b64decode(secret.value).decode("utf-8")
         except NotFound as e:
+            # TODO do not raise KeyError and standardize across all secret providers. Caller should handle missing secrets.
             raise KeyError(f'Secret does not exist with scope: {scope} and key: {key_only}') from e
         except UnicodeDecodeError as e:
             msg = f"Secret {key} has Base64 bytes that cannot be decoded to UTF-8 string"
