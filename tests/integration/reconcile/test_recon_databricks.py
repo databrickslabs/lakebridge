@@ -1,3 +1,6 @@
+import logging
+from string import Template
+
 import pytest
 
 from databricks.sdk import WorkspaceClient
@@ -14,41 +17,103 @@ from databricks.labs.lakebridge.contexts.application import ApplicationContext
 from databricks.labs.lakebridge.reconcile.recon_config import RECONCILE_OPERATION_NAME
 from databricks.labs.lakebridge.reconcile.runner import ReconcileRunner
 from databricks.labs.blueprint.wheels import ProductInfo
-
+from databricks.sdk.service.catalog import TableInfo, SchemaInfo
 from tests.integration.debug_envgetter import TestEnvGetter
 
+logger = logging.getLogger(__name__)
 
-TABLE_RECON_JSON = """
-{
-  "source_schema": "test_source",
-  "target_catalog": "sandbox",
-  "target_schema": "test_target",
-  "tables": [
-    {
-      "source_name": "diamonds",
-      "target_name": "diamonds",
-      "join_columns": ["color", "clarity"]
-    }
-  ]
-}
+DIAMONDS_ROWS_SQL = """
+INSERT INTO {catalog}.{schema}.{table} (carat, cut, color, clarity) VALUES
+    (0.23, 'Ideal', 'E', 'SI2'),
+    (0.21, 'Premium', 'E', 'SI1'),
+    (0.23, 'Good', 'E', 'VS1'),
+    (0.29, 'Premium', 'I', 'VS2'),
+    (0.29, 'Gold', 'Invariant', 'VS22'),
+    (0.31, 'Good', 'J', 'SI2');
 """
 
 
 @pytest.fixture
-def recon_config(watchdog_remove_after: str) -> ReconcileConfig:
+def recon_schema(make_schema) -> SchemaInfo:
+    catalog = "sandbox"
+    from_schema = make_schema(catalog_name=catalog)
+
+    return from_schema
+
+
+@pytest.fixture
+def recon_tables(ws: WorkspaceClient, recon_schema: SchemaInfo, make_table) -> tuple[TableInfo, TableInfo]:
+    src_table = make_table(catalog_name=recon_schema.catalog_name, schema_name=recon_schema.name)
+    tgt_table = make_table(catalog_name=recon_schema.catalog_name, schema_name=recon_schema.name)
+
+    test_env = TestEnvGetter(True)
+    warehouse = test_env.get("TEST_DEFAULT_WAREHOUSE_ID")
+
+    for tbl in (src_table, tgt_table):
+        sql = DIAMONDS_ROWS_SQL.format(
+            catalog=recon_schema.catalog_name,
+            schema=recon_schema.name,
+            table=tbl.name,
+        )
+        ws.statement_execution.execute_statement(
+            warehouse_id=warehouse,
+            catalog=recon_schema.catalog_name,
+            schema=recon_schema.name,
+            statement=sql,
+        )
+
+    return src_table, tgt_table
+
+
+@pytest.fixture
+def recon_table_config(recon_schema: SchemaInfo, recon_tables: tuple[TableInfo, TableInfo]) -> str:
+    (src_table, tgt_table) = recon_tables
+    template = Template(
+        """
+    {
+      "source_schema": "$schema",
+      "target_catalog": "$catalog",
+      "target_schema": "$schema",
+      "tables": [
+        {
+          "source_name": "$src",
+          "target_name": "$tgt",
+          "join_columns": ["color", "clarity"]
+        }
+      ]
+    }
+    """
+    )
+
+    return template.substitute(
+        schema=recon_schema.name, catalog=recon_schema.catalog_name, src=src_table.name, tgt=tgt_table.name
+    )
+
+
+@pytest.fixture
+def recon_config(watchdog_remove_after: str, recon_schema: SchemaInfo, make_volume) -> ReconcileConfig:
+    volume = make_volume(catalog_name=recon_schema.catalog_name, schema_name=recon_schema.name, name=recon_schema.name)
+
     test_env = TestEnvGetter(True)
     cluster = test_env.get("TEST_DEFAULT_CLUSTER_ID")
     tags = {"RemoveAfter": watchdog_remove_after}
     deployment_overrides = DeployReconcileConfig(existing_cluster_id=cluster, tags=tags)
 
+    assert recon_schema.catalog_name
+    assert recon_schema.name
     conf = ReconcileConfig(
         data_source="databricks",
         report_type="all",
         secret_scope="NOT_NEEDED",
         database_config=DatabaseConfig(
-            source_catalog="sandbox", source_schema="test_source", target_catalog="sandbox", target_schema="test_target"
+            source_catalog=recon_schema.catalog_name,
+            source_schema=recon_schema.name,
+            target_catalog=recon_schema.catalog_name,
+            target_schema=recon_schema.name,
         ),
-        metadata_config=ReconcileMetadataConfig(catalog="sandbox", schema="reconcile"),
+        metadata_config=ReconcileMetadataConfig(
+            catalog=recon_schema.catalog_name, schema=recon_schema.name, volume=volume.name
+        ),
         deployment_overrides=deployment_overrides,
     )
     return conf
@@ -65,17 +130,31 @@ def recon_config_filename(recon_config: ReconcileConfig) -> str:
     return filename
 
 
-def test_recon_databricks_job_succeeds(
-    ws: WorkspaceClient, recon_config: ReconcileConfig, recon_config_filename: str
-) -> None:
-    ctx = ApplicationContext(ws).replace(product_info=ProductInfo.for_testing(LakebridgeConfiguration))
-    ctx.installation.save(recon_config)
-    ctx.installation.upload(recon_config_filename, TABLE_RECON_JSON.encode())
-    ctx.workspace_installation.install(LakebridgeConfiguration(None, recon_config))
+@pytest.fixture
+def application_context(
+    ws: WorkspaceClient, recon_config: ReconcileConfig, recon_config_filename: str, recon_table_config
+):
+    logger.info("Setting up application context for recon tests")
+    config = LakebridgeConfiguration(None, recon_config)
+    ctx = ApplicationContext(ws).replace(product_info=ProductInfo.for_testing(type(config)))
 
+    logger.info("Installing app and recon configuration into workspace")
+    ctx.installation.save(recon_config)
+    ctx.installation.upload(recon_config_filename, recon_table_config.encode())
+    ctx.workspace_installation.install(config)
+
+    logger.info("Application context setup complete for recon tests")
+    yield ctx
+
+    logger.info("Tearing down application context for recon tests")
+    ctx.workspace_installation.uninstall(config)
+    logger.info("Application context teardown complete for recon tests")
+
+
+def test_recon_databricks_job_succeeds(application_context: ApplicationContext) -> None:
     recon_runner = ReconcileRunner(
-        ctx.workspace_client,
-        ctx.install_state,
+        application_context.workspace_client,
+        application_context.install_state,
     )
     run, _ = recon_runner.run(operation_name=RECONCILE_OPERATION_NAME)
     result = run.result()
