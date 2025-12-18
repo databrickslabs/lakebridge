@@ -1,4 +1,3 @@
-from datetime import datetime, timezone, timedelta
 import pytest
 
 from databricks.sdk import WorkspaceClient
@@ -18,12 +17,6 @@ from databricks.labs.blueprint.wheels import ProductInfo
 
 from tests.integration.debug_envgetter import TestEnvGetter
 
-TEST_JOBS_PURGE_TIMEOUT = timedelta(hours=1, minutes=15)
-
-
-def get_test_purge_time() -> str:
-    return (datetime.now(timezone.utc) + TEST_JOBS_PURGE_TIMEOUT).strftime("%Y%m%d%H")
-
 
 TABLE_RECON_JSON = """
 {
@@ -42,11 +35,10 @@ TABLE_RECON_JSON = """
 
 
 @pytest.fixture
-def recon_config() -> ReconcileConfig:
+def recon_config(watchdog_remove_after: str) -> ReconcileConfig:
     test_env = TestEnvGetter(True)
     cluster = test_env.get("TEST_DEFAULT_CLUSTER_ID")
-    date_to_remove = get_test_purge_time()
-    tags = {"RemoveAfter": date_to_remove}
+    tags = {"RemoveAfter": watchdog_remove_after}
     deployment_overrides = DeployReconcileConfig(existing_cluster_id=cluster, tags=tags)
 
     conf = ReconcileConfig(
@@ -76,8 +68,7 @@ def recon_config_filename(recon_config: ReconcileConfig) -> str:
 def test_recon_databricks_job_succeeds(
     ws: WorkspaceClient, recon_config: ReconcileConfig, recon_config_filename: str
 ) -> None:
-    ctx = ApplicationContext(ws)
-    ctx.replace(product_info=ProductInfo.for_testing(LakebridgeConfiguration))
+    ctx = ApplicationContext(ws).replace(product_info=ProductInfo.for_testing(LakebridgeConfiguration))
     ctx.installation.save(recon_config)
     ctx.installation.upload(recon_config_filename, TABLE_RECON_JSON.encode())
     ctx.workspace_installation.install(LakebridgeConfiguration(None, recon_config))

@@ -3,7 +3,7 @@ from unittest.mock import create_autospec
 
 import pytest
 
-from pyspark.sql import DataFrameReader
+from pyspark.sql import DataFrameReader, SparkSession
 
 from databricks.labs.lakebridge.reconcile.connectors.databricks import DatabricksDataSource
 from databricks.labs.lakebridge.reconcile.connectors.oracle import OracleDataSource
@@ -80,7 +80,7 @@ class SnowflakeDataSourceUnderTest(SnowflakeDataSource):
         return opts
 
 
-def test_sql_server_read_schema_happy(mock_spark):
+def test_sql_server_read_schema_happy(mock_spark: SparkSession) -> None:
     mock_ws = create_autospec(WorkspaceClient)
     connector = TSQLServerDataSourceUnderTest(mock_spark, mock_ws)
 
@@ -88,7 +88,7 @@ def test_sql_server_read_schema_happy(mock_spark):
     assert columns
 
 
-def test_databricks_read_schema_happy(mock_spark):
+def test_databricks_read_schema_happy(mock_spark: SparkSession) -> None:
     mock_ws = create_autospec(WorkspaceClient)
     connector = DatabricksDataSource(get_dialect("databricks"), mock_spark, mock_ws, "my_secret")
 
@@ -100,7 +100,7 @@ def test_databricks_read_schema_happy(mock_spark):
     assert columns
 
 
-def test_databricks_read_schema_happy_sandbox(spark, ws):
+def test_databricks_read_schema_happy_sandbox(spark: SparkSession, ws: WorkspaceClient) -> None:
     connector = DatabricksDataSource(get_dialect("databricks"), spark, ws, "my_secret")
 
     columns = connector.get_schema("main", "lakebridge", "diamonds")
@@ -111,7 +111,7 @@ def test_databricks_read_schema_happy_sandbox(spark, ws):
 # 1. Deploy Oracle Free
 # 2. Add credentials to the test env getter
 @pytest.mark.skip(reason="Not Ready! Deploy Infra")
-def test_oracle_read_schema_happy(mock_spark):
+def test_oracle_read_schema_happy(mock_spark: SparkSession) -> None:
     mock_ws = create_autospec(WorkspaceClient)
     connector = OracleDataSourceUnderTest(mock_spark, mock_ws)
 
@@ -123,7 +123,7 @@ def test_oracle_read_schema_happy(mock_spark):
 #  1. the test pem key does not have access to LABS schema as it should
 #  2. complete jdbc url
 @pytest.mark.skip(reason="Missing Access to LABS schema")
-def test_snowflake_read_schema_happy(mock_spark):
+def test_snowflake_read_schema_happy(mock_spark: SparkSession) -> None:
     mock_ws = create_autospec(WorkspaceClient)
     connector = SnowflakeDataSourceUnderTest(mock_spark, mock_ws)
 
