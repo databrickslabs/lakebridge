@@ -1,6 +1,6 @@
 from collections.abc import Mapping
 from unittest.mock import create_autospec
-
+import uuid
 import pytest
 
 from pyspark.sql import DataFrameReader, SparkSession
@@ -95,9 +95,12 @@ def test_databricks_read_schema_happy(mock_spark: SparkSession) -> None:
     mock_spark.sql("CREATE DATABASE IF NOT EXISTS my_test_db")
     mock_spark.sql("CREATE TABLE IF NOT EXISTS my_test_db.my_test_table (id INT, name STRING) USING parquet")
     df = mock_spark.sql("SELECT * FROM my_test_db.my_test_table")
-    df.createGlobalTempView("my_global_test_view")
-    columns = connector.get_schema(None, "global_temp", "my_global_test_view")
+    random_view = f"test_view_{uuid.uuid4().hex}"
+    df.createGlobalTempView(random_view)
+    columns = connector.get_schema(None, "global_temp", random_view)
+
     assert columns
+    assert mock_spark.catalog.dropGlobalTempView(random_view)
 
 
 def test_databricks_read_schema_happy_sandbox(spark: SparkSession, ws: WorkspaceClient) -> None:
