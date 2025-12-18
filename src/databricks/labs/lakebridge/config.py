@@ -252,7 +252,7 @@ class ReconcileMetadataConfig:
 
 
 @dataclass
-class DeployReconcileConfig:
+class ReconcileJobConfig:
     existing_cluster_id: str
     tags: dict[str, str]
 
@@ -267,7 +267,7 @@ class ReconcileConfig:
     secret_scope: str
     database_config: DatabaseConfig
     metadata_config: ReconcileMetadataConfig
-    deployment_overrides: DeployReconcileConfig | None = None
+    job_overrides: ReconcileJobConfig | None = None
 
 
 @dataclass

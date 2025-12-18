@@ -11,7 +11,7 @@ from databricks.labs.lakebridge.config import (
     DatabaseConfig,
     ReconcileMetadataConfig,
     LakebridgeConfiguration,
-    DeployReconcileConfig,
+    ReconcileJobConfig,
 )
 from databricks.labs.lakebridge.contexts.application import ApplicationContext
 from databricks.labs.lakebridge.reconcile.recon_config import RECONCILE_OPERATION_NAME
@@ -97,7 +97,7 @@ def recon_config(watchdog_remove_after: str, recon_schema: SchemaInfo, make_volu
     test_env = TestEnvGetter(True)
     cluster = test_env.get("TEST_DEFAULT_CLUSTER_ID")
     tags = {"RemoveAfter": watchdog_remove_after}
-    deployment_overrides = DeployReconcileConfig(existing_cluster_id=cluster, tags=tags)
+    deployment_overrides = ReconcileJobConfig(existing_cluster_id=cluster, tags=tags)
 
     assert recon_schema.catalog_name
     assert recon_schema.name
@@ -114,7 +114,7 @@ def recon_config(watchdog_remove_after: str, recon_schema: SchemaInfo, make_volu
         metadata_config=ReconcileMetadataConfig(
             catalog=recon_schema.catalog_name, schema=recon_schema.name, volume=volume.name
         ),
-        deployment_overrides=deployment_overrides,
+        job_overrides=deployment_overrides,
     )
     return conf
 

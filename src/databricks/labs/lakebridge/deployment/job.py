@@ -76,14 +76,14 @@ class JobDeployment:
         version = self._product_info.version()
         version = version if not self._ws.config.is_gcp else version.replace("+", "-")
         tags = {"version": f"v{version}"}
-        if recon_config.deployment_overrides:
-            logger.debug(f"Applying deployment overrides: {recon_config.deployment_overrides}")
-            tags.update(recon_config.deployment_overrides.tags)
+        if recon_config.job_overrides:
+            logger.debug(f"Applying deployment overrides: {recon_config.job_overrides}")
+            tags.update(recon_config.job_overrides.tags)
 
         return {
             "name": self._name_with_prefix(job_name),
             "tags": tags,
-            "job_clusters": [] if recon_config.deployment_overrides else [self._default_job_cluster()],
+            "job_clusters": [] if recon_config.job_overrides else [self._default_job_cluster()],
             "tasks": [
                 self._job_recon_task(
                     task_key,
@@ -115,9 +115,9 @@ class JobDeployment:
         task = Task(
             task_key=task_key,
             description=description,
-            job_cluster_key=None if recon_config.deployment_overrides else self.DEFAULT_CLUSTER_NAME,
+            job_cluster_key=None if recon_config.job_overrides else self.DEFAULT_CLUSTER_NAME,
             existing_cluster_id=(
-                recon_config.deployment_overrides.existing_cluster_id if recon_config.deployment_overrides else None
+                recon_config.job_overrides.existing_cluster_id if recon_config.job_overrides else None
             ),
             libraries=libraries,
             python_wheel_task=PythonWheelTask(
