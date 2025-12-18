@@ -3,7 +3,6 @@ from ast import literal_eval
 from pathlib import Path
 
 from databricks.labs.blueprint.installation import Installation
-from databricks.labs.blueprint.tui import Prompts
 from databricks.labs.blueprint.upgrades import Upgrades
 from databricks.labs.blueprint.wheels import ProductInfo, Version
 from databricks.sdk import WorkspaceClient
@@ -22,7 +21,6 @@ class WorkspaceInstallation:
     def __init__(
         self,
         ws: WorkspaceClient,
-        prompts: Prompts,
         installation: Installation,
         recon_deployment: ReconDeployment,
         switch_deployment: SwitchDeployment,
@@ -30,7 +28,6 @@ class WorkspaceInstallation:
         upgrades: Upgrades,
     ):
         self._ws = ws
-        self._prompts = prompts
         self._installation = installation
         self._recon_deployment = recon_deployment
         self._switch_deployment = switch_deployment
@@ -105,11 +102,6 @@ class WorkspaceInstallation:
 
     def uninstall(self, config: LakebridgeConfiguration):
         # This will remove all the Lakebridge modules
-        if not self._prompts.confirm(
-            "Do you want to uninstall Lakebridge from the workspace too, this would "
-            "remove Lakebridge project folder, jobs, metadata and dashboards"
-        ):
-            return
         logger.info(f"Uninstalling Lakebridge from {self._ws.config.host}.")
         try:
             self._installation.files()
