@@ -1,3 +1,6 @@
+import logging
+import os
+from logging import LogRecord
 from pathlib import Path
 from typing import Sequence
 from unittest.mock import Mock, DEFAULT
@@ -19,7 +22,7 @@ from lsprotocol.types import (
     ApplyWorkspaceEditResult,
 )
 
-from databricks.labs.lakebridge.transpiler.lsp.editing import BaseEditor, LakebridgeEditor
+from databricks.labs.lakebridge.transpiler.lsp.editing import BaseEditor, LakebridgeEditor, logger as editing_logger
 
 
 LSP_ORIGIN = Range(start=Position(0, 0), end=Position(0, 0))
@@ -482,7 +485,7 @@ def test_edit_without_create_fails(tmp_path: Path) -> None:
     assert all(not result.applied for result in results)
     assert all(
         result.failure_reason is not None
-        and result.failure_reason.startswith("Cannot edit a text document that is not newly created")
+        and result.failure_reason.startswith("Cannot modify a text document that is not newly created")
         for result in results
     )
 
@@ -572,3 +575,124 @@ def test_delete_file_rejection(tmp_path: Path) -> None:
 
     assert not result.applied
     assert result.failure_reason == f"Deleting files is not supported: {a_file.as_uri()}"
+
+
+def _apply_failing_document_change(change: CreateFile, caplog: pytest.LogCaptureFixture) -> tuple[str, Sequence[str]]:
+    """Apply a change to create a file that will fail, returning the failure reason and log warnings."""
+    edit = WorkspaceEdit(document_changes=(change,))
+
+    editor = LakebridgeEditor()
+    with caplog.at_level(logging.WARNING):
+        result = editor.apply(edit)
+
+    assert not result.applied and result.failure_reason is not None
+    editor_warning_messages = [
+        record.message
+        for record in caplog.records
+        if record.levelno == logging.WARNING and record.name == editing_logger.name
+    ]
+    return result.failure_reason, editor_warning_messages
+
+
+def test_create_file_mkdir_io_error(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+    """Verify error handling if a mkdir() error occurs while creating/truncating a file."""
+    # We can trigger a mkdir() failure by placing a file with the name of a parent directory.
+    blocking_file = tmp_path / "blocking_file"
+    blocking_file.touch()
+    will_fail = blocking_file / "parent_cannot_be_created.txt"
+
+    failure_reason, editor_warning_messages = _apply_failing_document_change(CreateFile(uri=will_fail.as_uri()), caplog)
+
+    assert "parent directory could not be created" in failure_reason
+    assert any(w.startswith("Cannot create/truncate file") for w in editor_warning_messages)
+
+
+def test_create_file_open_io_error(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+    """Verify error handling if an error occurs while opening a file to create/truncate it."""
+    # We can trigger a failure in .open() by having the file already exist as a directory.
+    blocking_directory = tmp_path / "blocking_dir"
+    blocking_directory.mkdir()
+    will_fail = blocking_directory
+    change = CreateFile(uri=will_fail.as_uri(), options=CreateFileOptions(overwrite=True))
+
+    failure_reason, editor_warning_messages = _apply_failing_document_change(change, caplog)
+
+    assert failure_reason.startswith("Cannot create/truncate file")
+    assert any(w.startswith("Cannot create/truncate file") for w in editor_warning_messages)
+
+
+class LakebridgeEditorFriend(LakebridgeEditor):
+    def __init__(self, *, write_buffering: int) -> None:
+        super().__init__(write_buffering=write_buffering)
+
+    def force_close(self, path: Path) -> None:
+        """Force a close of the underlying file, without python being aware.
+
+        Subsequent operations will fail with OS errors."""
+        fd = self._open_files[path].fileno()
+        os.close(fd)
+
+
+def test_edit_file_write_io_error(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+    """Verify error handling if an error occurs while writing the content to a file."""
+    # To trigger this, we:
+    #  - Invalidate the underlying file descriptor, which will trigger an error when writing to it.
+    #  - Ensure we write more content than fits in Python's write buffer.
+    # This ensures we get an OS error during the .write() call.
+    buffer_size = 4096  # Needs to be large-ish, otherwise the python subsystem effectively ignores it.
+    content_size = 2 * buffer_size
+
+    only_log = _apply_failing_document_write(tmp_path, buffer_size, content_size, caplog)
+    assert only_log.exc_text is not None
+    # Sanity checks, based on the traceback text:
+    #   - Should be a line indicating it came from the .write() call.
+    assert "open_file.write(normalized_text)" in only_log.exc_text, "Error not handled due to .write() failure."
+
+
+def test_edit_file_close_io_error(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+    """Verify error handling if an error occurs while closing() the file."""
+    # To trigger this, we:
+    #  - Invalidate the underlying file descriptor, which will trigger an error when writing to it.
+    #  - Ensure we write less content than fits in Python's write buffer: writing will be deferred until during .close()
+    # This ensures we get an OS error during the .close() call.
+    buffer_size = 4096
+    content_size = buffer_size // 2
+
+    only_log = _apply_failing_document_write(tmp_path, buffer_size, content_size, caplog)
+    assert only_log.exc_text is not None
+    # Sanity checks, based on the traceback text:
+    #   - Should be a line showing it came from the with clause.
+    #   - Should _not_ be a line indicating it came from the .write() call.
+    assert "self._open_files.pop(path) as open_file" in only_log.exc_text, "Error not handled due to .close() failure."
+    assert "open_file.write(normalized_text)" not in only_log.exc_text, "Error not handled due to .close() failure."
+
+
+def _apply_failing_document_write(
+    tmp_path: Path,
+    buffer_size: int,
+    content_size: int,
+    caplog: pytest.LogCaptureFixture,
+) -> LogRecord:
+    """Apply a failing document write, returning the log warning generated."""
+    the_file = tmp_path / "the_file.txt"
+    create_change, write_change = new_file(the_file, 'x' * content_size)
+
+    # Set up the editor for the failure to occur: we've closed the underlying file from underneath Python.
+    editor = LakebridgeEditorFriend(write_buffering=buffer_size)
+    assert editor.apply(WorkspaceEdit(document_changes=[create_change])).applied
+    editor.force_close(the_file)
+
+    # Perform the actual test.
+    with caplog.at_level(logging.WARNING):
+        result = editor.apply(WorkspaceEdit(document_changes=[write_change]))
+
+    assert not result.applied and result.failure_reason is not None
+    assert result.failure_reason.startswith("Cannot modify file")
+
+    # Find the warning associated with the failure.
+    editor_warning_logs = [
+        record for record in caplog.records if record.levelno == logging.WARNING and record.name == editing_logger.name
+    ]
+    expected_message = f"Cannot modify file due to error: {the_file.as_uri()}"
+    [only_log] = [record for record in editor_warning_logs if record.msg == expected_message]
+    return only_log

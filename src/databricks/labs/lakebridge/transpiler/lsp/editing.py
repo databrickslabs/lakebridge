@@ -154,12 +154,16 @@ class LakebridgeEditor(BaseEditor):
     _open_files: dict[Path, IO[str]]
     """Open files that have been created (if necessary) and are empty awaiting an edit to insert their content."""
 
+    _write_buffering: int
+    """The buffering argument to use for open() when writing to a file."""
+
     @classmethod
     def supported_resource_operations(cls) -> frozenset[ResourceOperationKind]:
         return frozenset({ResourceOperationKind.Create})
 
-    def __init__(self) -> None:
+    def __init__(self, *, write_buffering: int = -1) -> None:
         self._open_files = {}
+        self._write_buffering = write_buffering
 
     def _apply_text_edits(self, uri: str, text_edits: Sequence[TextEdit]) -> ApplyWorkspaceEditResult:
         reason = f"Text edits are not supported, use document changes instead: {uri}"
@@ -183,19 +187,28 @@ class LakebridgeEditor(BaseEditor):
         options = edit.options
         open_mode = "w" if options and options.overwrite else "x"
 
-        # TODO: Handle errors during mkdir() or open().
-
         # Ensure the parent directory of the path exists.
-        path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+        except OSError as e:
+            logger.warning(f"Cannot create/truncate file, parent directory could not be created: {uri}", exc_info=e)
+            reason = f"Cannot create/truncate file ({uri}), parent directory could not be created: {e}"
+            return ApplyWorkspaceEditResult(applied=False, failure_reason=reason)
 
         # Attempt to open the file for writing.
+        buffering = self._write_buffering
         try:
-            file = open(path, open_mode, encoding="utf-8")  # pylint: disable=consider-using-with
-        except FileExistsError:
+            file = open(path, open_mode, encoding="utf-8", buffering=buffering)  # pylint: disable=consider-using-with
+        except FileExistsError as e:
             if options and options.ignore_if_exists:
                 return ApplyWorkspaceEditResult(applied=True)
-            reason = f"Cannot create file, already exists: {uri}"
-            return ApplyWorkspaceEditResult(applied=False, failure_reason=reason)
+            msg = f"Cannot create file, already exists: {uri}"
+            logger.warning(msg, exc_info=e)
+            return ApplyWorkspaceEditResult(applied=False, failure_reason=msg)
+        except OSError as e:
+            logger.warning(f"Cannot create/truncate file: {uri}", exc_info=e)
+            msg = f"Cannot create/truncate file ({uri}) due to error: {e}"
+            return ApplyWorkspaceEditResult(applied=False, failure_reason=msg)
 
         # Store the open (and empty) file, so a subsequent edit can insert the content.
         self._open_files[path] = file
@@ -212,7 +225,6 @@ class LakebridgeEditor(BaseEditor):
         path = Path(real_path)
 
         # We must already have an open file ready for the content. It's empty.
-        # TODO: Handle errors during .write() or .close()
         try:
             with self._open_files.pop(path) as open_file:
                 match edit.edits:
@@ -223,7 +235,11 @@ class LakebridgeEditor(BaseEditor):
                         reason = f"Unsupported document edit(s) for {uri}, only a single insert at the start of the file is supported: {edit.edits}"
                         return ApplyWorkspaceEditResult(applied=False, failure_reason=reason)
         except KeyError:
-            reason = f"Cannot edit a text document that is not newly created: {uri}"
+            reason = f"Cannot modify a text document that is not newly created: {uri}"
+            return ApplyWorkspaceEditResult(applied=False, failure_reason=reason)
+        except OSError as e:
+            logger.warning(f"Cannot modify file due to error: {uri}", exc_info=e)
+            reason = f"Cannot modify file ({uri}) due to error: {e}"
             return ApplyWorkspaceEditResult(applied=False, failure_reason=reason)
         return ApplyWorkspaceEditResult(applied=True)
 
