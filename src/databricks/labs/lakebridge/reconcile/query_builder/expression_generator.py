@@ -281,10 +281,7 @@ Dialect_hash_algo_mapping: dict[Dialect, HashAlgoMapping] = {
     ),
     get_dialect("oracle"): HashAlgoMapping(
         source=partial(
-            anonymous,
-            func="DBMS_CRYPTO.HASH(UTL_I18N.STRING_TO_RAW({}, 'AL32UTF8'), 4)",
-            is_expr=True,
-            dialect=get_dialect("oracle"),
+            anonymous, func="DBMS_CRYPTO.HASH(RAWTOHEX({}), 2)", is_expr=True, dialect=get_dialect("oracle")
         ),
         target=md5_partial,
     ),

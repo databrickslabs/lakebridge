@@ -80,6 +80,8 @@ class HashQueryBuilder(QueryBuilder):
         if self.engine == "oracle":
             concat_expr = reduce(lambda x, y: exp.DPipe(this=x, expression=y), concat_expr.expressions)
 
-        hash_expr = concat_expr.transform(_hash_transform, self.engine, self.layer).transform(lower, is_expr=True)
+        hash_expr = concat_expr.transform(_hash_transform, self._source_engine, self.layer).transform(
+            lower, is_expr=True
+        )
 
         return build_column(hash_expr, alias=column_alias)
