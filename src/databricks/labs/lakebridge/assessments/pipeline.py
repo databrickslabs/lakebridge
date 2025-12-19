@@ -248,7 +248,6 @@ class PipelineClass:
         _result_frame = result.to_df().astype(str)
 
         with duckdb.connect(db_path) as conn:
-
             # DuckDB can access _result_frame from the local scope automatically.
             if mode == 'overwrite':
                 statement = f"CREATE OR REPLACE TABLE {step_name} AS SELECT * FROM _result_frame"
