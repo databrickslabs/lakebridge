@@ -4,6 +4,8 @@ from abc import ABC, abstractmethod
 from typing import Any
 from collections.abc import Sequence, Set
 
+import pandas as pd
+
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine, URL
 from sqlalchemy.engine.row import Row
@@ -19,6 +21,12 @@ logger.setLevel("INFO")
 class FetchResult:
     columns: Set[str]
     rows: Sequence[Row[Any]]
+
+    def to_df(self) -> pd.DataFrame:
+        """Create a pandas dataframe based on these results."""
+        # Because columns aren't necessarily in the same order as the row values, we have to do this the hard way.
+        rows = [row.as_dict() for row in self.rows]
+        return pd.DataFrame(data=rows, columns=list(self.columns))
 
 
 class DatabaseConnector(ABC):
