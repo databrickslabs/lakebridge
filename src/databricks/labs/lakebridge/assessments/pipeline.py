@@ -1,20 +1,19 @@
-from pathlib import Path
-from subprocess import run, CalledProcessError, Popen, PIPE, STDOUT, DEVNULL
-from dataclasses import dataclass
-from enum import Enum
-
-import sys
-import os
-import venv
-import tempfile
 import json
 import logging
-import yaml
-import duckdb
+import os
+import sys
+import venv
+import tempfile
+from dataclasses import dataclass
+from enum import Enum
+from pathlib import Path
+from subprocess import CalledProcessError, DEVNULL, PIPE, Popen, STDOUT, run
 
-from databricks.labs.lakebridge.connections.credential_manager import cred_file
+import duckdb
+import yaml
 
 from databricks.labs.lakebridge.assessments.profiler_config import PipelineConfig, Step
+from databricks.labs.lakebridge.connections.credential_manager import cred_file
 from databricks.labs.lakebridge.connections.database_manager import DatabaseManager, FetchResult
 
 logger = logging.getLogger(__name__)
@@ -245,20 +244,20 @@ class PipelineClass:
 
         row_count = len(result.rows)
         logging.info(f"Query for step '{step_name}' returned {row_count} rows.")
+        # TODO: Add support for figuring out data types from SQLALCHEMY result object result.cursor.description is not reliable
+        _result_frame = result.to_df().astype(str)
 
         with duckdb.connect(db_path) as conn:
-            # TODO: Add support for figuring out data types from SQLALCHEMY result object result.cursor.description is not reliable
-            schema = ', '.join(f"{col} STRING" for col in result.columns)
-
-            # Handle write modes
+            # DuckDB can access _result_frame from the local scope automatically.
             if mode == 'overwrite':
-                conn.execute(f"CREATE OR REPLACE TABLE {step_name} ({schema})")
+                statement = f"CREATE OR REPLACE TABLE {step_name} AS SELECT * FROM _result_frame"
             elif mode == 'append' and step_name not in conn.get_table_names(""):
-                conn.execute(f"CREATE TABLE {step_name} ({schema})")
-
-            placeholders = ', '.join(['?'] * len(result.columns))
-            conn.executemany(f"INSERT INTO {step_name} VALUES ({placeholders})", result.rows)
-            logging.info(f"Successfully inserted {row_count} rows into table '{step_name}'.")
+                statement = f"CREATE TABLE {step_name} AS SELECT * FROM _result_frame"
+            else:
+                statement = f"INSERT INTO {step_name} SELECT * FROM _result_frame"
+            logging.debug(f"Inserting {row_count} rows: {statement}")
+            conn.execute(statement)
+        logging.info(f"Successfully inserted {row_count} rows into table '{step_name}'.")
 
     @staticmethod
     def _create_dir(dir_path: Path):
