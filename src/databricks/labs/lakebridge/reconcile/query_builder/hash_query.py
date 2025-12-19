@@ -13,7 +13,6 @@ from databricks.labs.lakebridge.reconcile.query_builder.expression_generator imp
     transform_expression,
     build_column_no_alias,
 )
-from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import DialectUtils
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +51,7 @@ class HashQueryBuilder(QueryBuilder):
             {
                 "this": self._build_column_name_source_normalized(col),
                 "alias": self._build_alias_source_normalized(col),
-                "sort_key": DialectUtils.unnormalize_identifier(self._build_alias_source_normalized(col)),
+                "sort_key": self._unnormalize_identifier(col),
             }
             for col in hash_cols
         ]
