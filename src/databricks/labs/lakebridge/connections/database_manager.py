@@ -24,9 +24,9 @@ class FetchResult:
 
     def to_df(self) -> pd.DataFrame:
         """Create a pandas dataframe based on these results."""
-        # Because columns aren't necessarily in the same order as the row values, we have to do this the hard way.
-        rows = [row.as_dict() for row in self.rows]
-        return pd.DataFrame(data=rows, columns=list(self.columns))
+        # Row emulates a named tuple, which Pandas understands natively. So the columns are safely inferred unless
+        # we have an empty result-set.
+        return pd.DataFrame(data=self.rows) if self.rows else pd.DataFrame(columns=list(self.columns))
 
 
 class DatabaseConnector(ABC):
