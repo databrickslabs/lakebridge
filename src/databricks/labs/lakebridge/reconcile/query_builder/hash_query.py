@@ -44,12 +44,19 @@ class HashQueryBuilder(QueryBuilder):
         cols_with_alias = [self._build_column_with_alias(col) for col in key_cols]
 
         # in case if we have column mapping, we need to sort the target columns in the order of source columns to get
-        # same hash value
+        # same hash value. We sort by the unnormalized column name (without delimiters) to ensure consistent
+        # ordering across all dialects, regardless of their delimiter characters ([], "", ``, etc.)
+        # Fix for https://github.com/databrickslabs/lakebridge/issues/2195
         hash_cols_with_alias = [
-            {"this": self._build_column_name_source_normalized(col), "alias": self._build_alias_source_normalized(col)}
+            {
+                "this": self._build_column_name_source_normalized(col),
+                "alias": self._build_alias_source_normalized(col),
+                "sort_key": self._unnormalize_identifier(col),
+            }
             for col in hash_cols
         ]
-        sorted_hash_cols_with_alias = sorted(hash_cols_with_alias, key=lambda column: column["alias"])
+        # Sort by unnormalized column name (case-insensitive) to ensure deterministic ordering across all dialects
+        sorted_hash_cols_with_alias = sorted(hash_cols_with_alias, key=lambda column: column["sort_key"].lower())
         hashcols_sorted_as_src_seq = [column["this"] for column in sorted_hash_cols_with_alias]
 
         key_cols_with_transform = (
