@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, create_autospec
 
 import pytest
 
-from databricks.labs.lakebridge.config import ReconcileCredentialsConfig
+from databricks.labs.lakebridge.reconcile.connectors.credentials import ReconcileCredentialsConfig
 from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import NormalizedIdentifier
 from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
 from databricks.labs.lakebridge.reconcile.connectors.oracle import OracleDataSource

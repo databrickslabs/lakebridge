@@ -9,8 +9,10 @@ from sqlglot import Dialect
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
 
-from databricks.labs.lakebridge.config import ReconcileCredentialsConfig
-from databricks.labs.lakebridge.connections.credential_manager import build_credentials, CredentialManager
+from databricks.labs.lakebridge.reconcile.connectors.credentials import (
+    load_and_validate_credentials,
+    ReconcileCredentialsConfig,
+)
 from databricks.labs.lakebridge.reconcile.connectors.data_source import DataSource
 from databricks.labs.lakebridge.reconcile.connectors.jdbc_reader import JDBCReaderMixin
 from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import DialectUtils, NormalizedIdentifier
@@ -63,37 +65,14 @@ class SnowflakeDataSource(DataSource, JDBCReaderMixin):
         raise RuntimeError("Snowflake credentials have not been loaded. Please call load_credentials() first.")
 
     def load_credentials(self, creds: ReconcileCredentialsConfig) -> "SnowflakeDataSource":
-        connector_creds = [
-            "sfUser",
-            "sfUrl",
-            "sfDatabase",
-            "sfSchema",
-            "sfWarehouse",
-            "sfRole",
-        ]
+        self._creds_or_empty = load_and_validate_credentials(creds, self._ws, "snowflake")
 
-        use_scope = creds.vault_secret_names.get("__secret_scope")
-        if use_scope:
-            # to use pem key and/or pem password, migrate to vault_secret_names approach
-            logger.warning(
-                f"Secret scope configuration is deprecated. Using secret scopes supports password authentication only. Please refer to the docs {self._DOCS_URL} to update and to access full features."
-            )
-            connector_creds += ["sfPassword"]
-            vault_secret_names = {key: f"{use_scope}/{key}" for key in connector_creds}
-
-            assert creds.vault_type == "databricks", "Secret scope provided, vault_type must be 'databricks'"
-            parsed_creds = build_credentials(creds.vault_type, "snowflake", vault_secret_names)
-        else:
-            parsed_creds = build_credentials(creds.vault_type, "snowflake", creds.vault_secret_names)
-
-        self._creds_or_empty = CredentialManager.from_credentials(parsed_creds, self._ws).get_credentials("snowflake")
-        assert all(
-            self._creds.get(k) for k in connector_creds
-        ), f"Missing mandatory Snowflake credentials. Please configure all of {connector_creds}."
+        # Ensure at least one authentication method is provided
         assert any(
             self._creds.get(k) for k in ("sfPassword", "pem_private_key")
         ), "Missing Snowflake credentials. Please configure any of [sfPassword, pem_private_key]."
 
+        # Process PEM private key if provided
         if self._creds.get("pem_private_key"):
             self._creds["pem_private_key"] = SnowflakeDataSource._get_private_key(
                 self._creds["pem_private_key"],

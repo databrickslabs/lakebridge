@@ -7,7 +7,7 @@ from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql.functions import col
 from sqlglot import Dialect
 
-from databricks.labs.lakebridge.config import ReconcileCredentialsConfig
+from databricks.labs.lakebridge.reconcile.connectors.credentials import ReconcileCredentialsConfig
 from databricks.labs.lakebridge.reconcile.connectors.data_source import DataSource
 from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import DialectUtils, NormalizedIdentifier
 from databricks.labs.lakebridge.reconcile.recon_config import JdbcReaderOptions, Schema

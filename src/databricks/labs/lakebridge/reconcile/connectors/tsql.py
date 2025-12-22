@@ -8,8 +8,10 @@ from pyspark.sql import DataFrame, DataFrameReader, SparkSession
 from pyspark.sql.functions import col
 from sqlglot import Dialect
 
-from databricks.labs.lakebridge.config import ReconcileCredentialsConfig
-from databricks.labs.lakebridge.connections.credential_manager import build_credentials, CredentialManager
+from databricks.labs.lakebridge.reconcile.connectors.credentials import (
+    load_and_validate_credentials,
+    ReconcileCredentialsConfig,
+)
 from databricks.labs.lakebridge.reconcile.connectors.data_source import DataSource
 from databricks.labs.lakebridge.reconcile.connectors.jdbc_reader import JDBCReaderMixin
 from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import DialectUtils, NormalizedIdentifier
@@ -109,32 +111,7 @@ class TSQLServerDataSource(DataSource, JDBCReaderMixin):
             return self.log_and_throw_exception(e, "data", table_query)
 
     def load_credentials(self, creds: ReconcileCredentialsConfig) -> "TSQLServerDataSource":
-        connector_creds = [
-            "host",
-            "port",
-            "database",
-            "user",
-            "password",
-            "encrypt",
-            "trustServerCertificate",
-        ]
-
-        use_scope = creds.vault_secret_names.get("__secret_scope")
-        if use_scope:
-            logger.warning(
-                f"Secret scope configuration is deprecated. Please refer to the docs {self._DOCS_URL} to update."
-            )
-            vault_secret_names = {key: f"{use_scope}/{key}" for key in connector_creds}
-
-            assert creds.vault_type == "databricks", "Secret scope provided, vault_type must be 'databricks'"
-            parsed_creds = build_credentials(creds.vault_type, "mssql", vault_secret_names)
-        else:
-            parsed_creds = build_credentials(creds.vault_type, "mssql", creds.vault_secret_names)
-
-        self._creds_or_empty = CredentialManager.from_credentials(parsed_creds, self._ws).get_credentials("mssql")
-        assert all(
-            self._creds.get(k) for k in connector_creds
-        ), f"Missing mandatory MS SQL credentials. Please configure all of {connector_creds}."
+        self._creds_or_empty = load_and_validate_credentials(creds, self._ws, "tsql")
 
         return self
 

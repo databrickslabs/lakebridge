@@ -7,6 +7,8 @@ from typing import Any, Literal, TypeVar, cast
 
 from databricks.labs.blueprint.installation import JsonValue
 from databricks.labs.blueprint.tui import Prompts
+
+from databricks.labs.lakebridge.reconcile.connectors.credentials import build_source_creds, ReconcileCredentialsConfig
 from databricks.labs.lakebridge.transpiler.transpile_status import TranspileError
 from databricks.labs.lakebridge.reconcile.recon_config import Table
 
@@ -252,20 +254,6 @@ class ReconcileMetadataConfig:
 
 
 @dataclass
-class ReconcileCredentialsConfig:
-    vault_type: str
-    vault_secret_names: dict[str, str]
-
-    def __post_init__(self):
-        if self.vault_type != "databricks":
-            raise ValueError(f"Unsupported vault_type: {self.vault_type}")
-
-    def get_databricks_secret_scope(self) -> str:
-        """Utility to support older installations that only allowed secret scopes."""
-        return self.vault_secret_names["__secret_scope"]
-
-
-@dataclass
 class ReconcileConfig:
     __file__ = "reconcile.yml"
     __version__ = 2
@@ -278,9 +266,13 @@ class ReconcileConfig:
 
     @classmethod
     def v1_migrate(cls, raw: dict[str, JsonValue]) -> dict[str, JsonValue]:
-        secret_scope = raw.pop("secret_scope")
+        secret_scope = str(raw.pop("secret_scope"))
+        data_source = str(raw["data_source"])
         raw["version"] = 2
-        raw["creds"] = {"vault_type": "databricks", "vault_secret_names": {"__secret_scope": secret_scope}}
+        raw["creds"] = {
+            "vault_type": "databricks",
+            "vault_secret_names": build_source_creds(data_source, secret_scope),
+        }
         return raw
 
 
