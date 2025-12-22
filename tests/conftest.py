@@ -23,6 +23,7 @@ from databricks.labs.lakebridge.config import (
     DatabaseConfig,
     ReconcileMetadataConfig,
 )
+from databricks.labs.lakebridge.reconcile.connectors.credentials import build_recon_creds
 from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import DialectUtils, NormalizedIdentifier
 from databricks.labs.lakebridge.reconcile.connectors.data_source import DataSource, MockDataSource
 from databricks.labs.lakebridge.reconcile.recon_config import (
@@ -431,23 +432,17 @@ def table_schema_tsql_ansi(table_schema):
 
 
 @pytest.fixture
-def reconcile_config(datasource: str) -> ReconcileConfig:
+def secret_scope(datasource: str) -> str:
+    return f"remorph_{datasource}"
+
+
+@pytest.fixture
+def reconcile_config(datasource: str, secret_scope: str) -> ReconcileConfig:
 
     return ReconcileConfig(
         data_source=datasource,
         report_type="all",
-        creds=ReconcileCredentialsConfig(
-            vault_type="databricks",
-            vault_secret_names={
-                "sfDatabase": "remorph_snowflake/sfDatabase",
-                "sfPassword": "remorph_snowflake/sfPassword",
-                "sfRole": "remorph_snowflake/sfRole",
-                "sfSchema": "remorph_snowflake/sfSchema",
-                "sfUrl": "remorph_snowflake/sfUrl",
-                "sfUser": "remorph_snowflake/sfUser",
-                "sfWarehouse": "remorph_snowflake/sfWarehouse",
-            },
-        ),
+        creds=build_recon_creds(datasource, secret_scope),
         database_config=DatabaseConfig(
             source_schema="tpch_sf1000",
             target_catalog="tpch",
@@ -463,12 +458,12 @@ def reconcile_config(datasource: str) -> ReconcileConfig:
 
 
 @pytest.fixture
-def reconcile_config_v1_yml(datasource: str) -> dict:
+def reconcile_config_v1_yml(datasource: str, secret_scope: str) -> dict:
     return {
         "reconcile.yml": {
             "data_source": datasource,
             "report_type": "all",
-            "secret_scope": f"remorph_{datasource}",  # v1
+            "secret_scope": secret_scope,  # v1
             "database_config": {
                 "source_catalog": f"{datasource}_sample_data",
                 "source_schema": "tpch_sf1000",
@@ -486,14 +481,10 @@ def reconcile_config_v1_yml(datasource: str) -> dict:
 
 
 @pytest.fixture
-def reconcile_config_v2_yml(datasource: str) -> dict:
-    return {
+def reconcile_config_v2_yml(datasource: str, secret_scope: str) -> dict:
+    yml = {
         "data_source": datasource,
         "report_type": "all",
-        "creds": {
-            "vault_type": "databricks",
-            "vault_secret_names": {"__secret_scope": f"remorph_{datasource}"},
-        },
         "database_config": {
             "source_catalog": f"{datasource}_sample_data",
             "source_schema": "tpch_sf1000",
@@ -507,3 +498,12 @@ def reconcile_config_v2_yml(datasource: str) -> dict:
         },
         "version": 2,
     }
+
+    maybe_creds = build_recon_creds(datasource, secret_scope)
+    if maybe_creds:
+        yml["creds"] = {
+            "vault_secret_names": dict(maybe_creds.vault_secret_names),
+            "vault_type": maybe_creds.vault_type,
+        }
+
+    return yml

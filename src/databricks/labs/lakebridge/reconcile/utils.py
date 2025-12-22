@@ -17,12 +17,13 @@ def initialise_data_source(
     ws: WorkspaceClient,
     spark: SparkSession,
     engine: str,
-    creds: ReconcileCredentialsConfig,
+    creds: ReconcileCredentialsConfig | None,
 ):
     source = create_adapter(engine=get_dialect(engine), spark=spark, ws=ws)
     target = create_adapter(engine=get_dialect("databricks"), spark=spark, ws=ws)
-    source.load_credentials(creds)
-    target.load_credentials(creds)
+    if engine != "databricks":
+        assert creds, "Credentials must be provided for non-Databricks sources"
+        source.load_credentials(creds)
 
     return source, target
 

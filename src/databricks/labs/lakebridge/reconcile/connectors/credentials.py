@@ -49,16 +49,21 @@ _SOURCE_CREDENTIALS_MAP = {
 }
 
 
-def build_source_creds(source: str, secret_scope: str) -> dict:
+def build_recon_creds(source: str, secret_scope: str) -> ReconcileCredentialsConfig | None:
+    if source == "databricks":
+        return None
+
     keys = _SOURCE_CREDENTIALS_MAP.get(source)
     if not keys:
         raise ValueError(f"Unsupported source system: {source}")
     parsed = {key: f"{secret_scope}/{key}" for key in keys}
+
     if source == "snowflake":
         logger.warning("Please specify the Snowflake authentication method in the credentials config.")
         parsed["pem_private_key"] = f"{secret_scope}/pem_private_key"
         parsed["sfPassword"] = f"{secret_scope}/sfPassword"
-    return parsed
+
+    return ReconcileCredentialsConfig("databricks", parsed)
 
 
 def validate_creds(creds: ReconcileCredentialsConfig, source: str) -> None:

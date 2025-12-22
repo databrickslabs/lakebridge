@@ -60,10 +60,11 @@ class ReconDeployment:
             f"Won't remove reconcile metadata schema `{recon_config.metadata_config.schema}` "
             f"from catalog `{recon_config.metadata_config.catalog}`. Please remove it and the tables inside manually."
         )
-        logging.info(
-            f"Won't remove configured reconcile credentials from `{recon_config.creds.vault_type}`. "
-            f"Please remove it manually."
-        )
+        if recon_config.creds:
+            logging.info(
+                f"Won't remove configured reconcile credentials from `{recon_config.creds.vault_type}`. "
+                f"Please remove it manually."
+            )
 
     def _deploy_tables(self, recon_config: ReconcileConfig):
         logger.info("Deploying reconciliation metadata tables.")

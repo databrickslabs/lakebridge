@@ -20,11 +20,11 @@ from databricks.labs.lakebridge.config import (
     LakebridgeConfiguration,
     ReconcileMetadataConfig,
     TranspileConfig,
-    ReconcileCredentialsConfig,
 )
 from databricks.labs.lakebridge.contexts.application import ApplicationContext
 from databricks.labs.lakebridge.deployment.configurator import ResourceConfigurator
 from databricks.labs.lakebridge.deployment.installation import WorkspaceInstallation
+from databricks.labs.lakebridge.reconcile.connectors.credentials import build_recon_creds
 from databricks.labs.lakebridge.reconcile.constants import ReconReportType, ReconSourceType
 from databricks.labs.lakebridge.transpiler.installers import (
     BladebridgeInstaller,
@@ -330,6 +330,7 @@ class WorkspaceInstaller:
             f"Enter Secret scope name to store `{data_source.capitalize()}` connection details / secrets",
             default=f"remorph_{data_source}",
         )
+        creds = build_recon_creds(data_source, scope_name)
 
         db_config = self._prompt_for_reconcile_database_config(data_source)
         metadata_config = self._prompt_for_reconcile_metadata_config()
@@ -337,9 +338,7 @@ class WorkspaceInstaller:
         return ReconcileConfig(
             data_source=data_source,
             report_type=report_type,
-            creds=ReconcileCredentialsConfig(
-                vault_type="databricks", vault_secret_names={"__secret_scope": scope_name}
-            ),
+            creds=creds,
             database_config=db_config,
             metadata_config=metadata_config,
         )

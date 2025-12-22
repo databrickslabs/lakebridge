@@ -8,7 +8,7 @@ from typing import Any, Literal, TypeVar, cast
 from databricks.labs.blueprint.installation import JsonValue
 from databricks.labs.blueprint.tui import Prompts
 
-from databricks.labs.lakebridge.reconcile.connectors.credentials import build_source_creds, ReconcileCredentialsConfig
+from databricks.labs.lakebridge.reconcile.connectors.credentials import build_recon_creds, ReconcileCredentialsConfig
 from databricks.labs.lakebridge.transpiler.transpile_status import TranspileError
 from databricks.labs.lakebridge.reconcile.recon_config import Table
 
@@ -260,19 +260,22 @@ class ReconcileConfig:
 
     data_source: str
     report_type: str
-    creds: ReconcileCredentialsConfig
     database_config: DatabaseConfig
     metadata_config: ReconcileMetadataConfig
+    creds: ReconcileCredentialsConfig | None
+    # databricks does not require creds
 
     @classmethod
     def v1_migrate(cls, raw: dict[str, JsonValue]) -> dict[str, JsonValue]:
         secret_scope = str(raw.pop("secret_scope"))
         data_source = str(raw["data_source"])
+        maybe_creds = build_recon_creds(data_source, secret_scope)
+        if maybe_creds:
+            raw["creds"] = {
+                "vault_secret_names": dict(maybe_creds.vault_secret_names),
+                "vault_type": maybe_creds.vault_type,
+            }
         raw["version"] = 2
-        raw["creds"] = {
-            "vault_type": "databricks",
-            "vault_secret_names": build_source_creds(data_source, secret_scope),
-        }
         return raw
 
 
