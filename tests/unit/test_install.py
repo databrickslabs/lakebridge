@@ -9,15 +9,13 @@ from databricks.sdk import WorkspaceClient
 from databricks.sdk.service import iam
 from databricks.labs.blueprint.tui import MockPrompts
 from databricks.labs.blueprint.wheels import ProductInfo, WheelsV2
+
 from databricks.labs.lakebridge.config import (
-    DatabaseConfig,
     LSPConfigOptionV1,
     LSPPromptMethod,
     LakebridgeConfiguration,
     ReconcileConfig,
-    ReconcileMetadataConfig,
     TranspileConfig,
-    ReconcileCredentialsConfig,
 )
 from databricks.labs.lakebridge.contexts.application import ApplicationContext
 from databricks.labs.lakebridge.deployment.configurator import ResourceConfigurator
@@ -555,7 +553,8 @@ def test_configure_transpile_installation_with_validation_and_warehouse_id_from_
     )
 
 
-def test_configure_reconcile_installation_no_override(ws: WorkspaceClient) -> None:
+@pytest.mark.parametrize("datasource", ["snowflake"])
+def test_configure_reconcile_installation_no_override(ws: WorkspaceClient, reconcile_config_v1_yml: dict) -> None:
     prompts = MockPrompts(
         {
             r"Do you want to override the existing installation?": "no",
@@ -566,27 +565,7 @@ def test_configure_reconcile_installation_no_override(ws: WorkspaceClient) -> No
         prompts=prompts,
         resource_configurator=create_autospec(ResourceConfigurator),
         workspace_installation=create_autospec(WorkspaceInstallation),
-        installation=MockInstallation(
-            {
-                "reconcile.yml": {
-                    "data_source": "snowflake",
-                    "report_type": "all",
-                    "secret_scope": "remorph_snowflake",
-                    "database_config": {
-                        "source_catalog": "snowflake_sample_data",
-                        "source_schema": "tpch_sf1000",
-                        "target_catalog": "tpch",
-                        "target_schema": "1000gb",
-                    },
-                    "metadata_config": {
-                        "catalog": "remorph",
-                        "schema": "reconcile",
-                        "volume": "reconcile_volume",
-                    },
-                    "version": 1,
-                }
-            }
-        ),
+        installation=MockInstallation(reconcile_config_v1_yml),
     )
     workspace_installer = WorkspaceInstaller(
         ctx.workspace_client,
@@ -601,12 +580,19 @@ def test_configure_reconcile_installation_no_override(ws: WorkspaceClient) -> No
         workspace_installer.configure(module="reconcile")
 
 
-def test_configure_reconcile_installation_config_error_continue_install(ws: WorkspaceClient) -> None:
+@pytest.mark.parametrize("datasource", ["oracle"])
+def test_configure_reconcile_installation_config_error_continue_install(
+    datasource: str,
+    ws: WorkspaceClient,
+    reconcile_config: ReconcileConfig,
+    reconcile_config_v2_yml: dict,
+    reconcile_config_v1_yml: dict,
+) -> None:
     prompts = MockPrompts(
         {
-            r"Select the Data Source": str(RECONCILE_DATA_SOURCES.index("oracle")),
+            r"Select the Data Source": str(RECONCILE_DATA_SOURCES.index(datasource)),
             r"Select the report type": str(RECONCILE_REPORT_TYPES.index("all")),
-            r"Enter Secret scope name to store .* connection details / secrets": "remorph_oracle",
+            r"Enter Secret scope name to store .* connection details / secrets": f"remorph_{datasource}",
             r"Enter source database name for .*": "tpch_sf1000",
             r"Enter target catalog name for Databricks": "tpch",
             r"Enter target schema name for Databricks": "1000gb",
@@ -617,20 +603,8 @@ def test_configure_reconcile_installation_config_error_continue_install(ws: Work
         {
             "reconcile.yml": {
                 "source_dialect": "oracle",  # Invalid key
-                "report_type": "all",
-                "secret_scope": "remorph_oracle",  # version 1
-                "database_config": {
-                    "source_schema": "tpch_sf1000",
-                    "target_catalog": "tpch",
-                    "target_schema": "1000gb",
-                },
-                "metadata_config": {
-                    "catalog": "remorph",
-                    "schema": "reconcile",
-                    "volume": "reconcile_volume",
-                },
-                "version": 1,
-            }
+                **reconcile_config_v1_yml["reconcile.yml"],
+            },
         }
     )
 
@@ -658,59 +632,29 @@ def test_configure_reconcile_installation_config_error_continue_install(ws: Work
     )
     config = workspace_installer.configure(module="reconcile")
 
+    reconcile_config.database_config.source_catalog = None
     expected_config = LakebridgeConfiguration(
-        reconcile=ReconcileConfig(
-            data_source="oracle",
-            report_type="all",
-            creds=ReconcileCredentialsConfig(
-                vault_type="databricks", vault_secret_names={"__secret_scope": "remorph_oracle"}
-            ),
-            database_config=DatabaseConfig(
-                source_schema="tpch_sf1000",
-                target_catalog="tpch",
-                target_schema="1000gb",
-            ),
-            metadata_config=ReconcileMetadataConfig(
-                catalog="remorph",
-                schema="reconcile",
-                volume="reconcile_volume",
-            ),
-        ),
+        reconcile=reconcile_config,
         transpile=None,
     )
     assert config == expected_config
-    installation.assert_file_written(
-        "reconcile.yml",
-        {
-            "data_source": "oracle",
-            "report_type": "all",
-            "creds": {
-                "vault_type": "databricks",
-                "vault_secret_names": {"__secret_scope": "remorph_oracle"},
-            },
-            "database_config": {
-                "source_schema": "tpch_sf1000",
-                "target_catalog": "tpch",
-                "target_schema": "1000gb",
-            },
-            "metadata_config": {
-                "catalog": "remorph",
-                "schema": "reconcile",
-                "volume": "reconcile_volume",
-            },
-            "version": 2,
-        },
-    )
+    dbc = reconcile_config_v2_yml["database_config"]
+    dbc.pop("source_catalog")
+    reconcile_config_v2_yml["database_config"] = dbc
+    installation.assert_file_written("reconcile.yml", reconcile_config_v2_yml)
 
 
+@pytest.mark.parametrize("datasource", ["snowflake", "databricks"])
 @patch("webbrowser.open")
-def test_configure_reconcile_no_existing_installation(ws: WorkspaceClient) -> None:
+def test_configure_reconcile_no_existing_installation(
+    _, datasource: str, ws: WorkspaceClient, reconcile_config: ReconcileConfig, reconcile_config_v2_yml: dict
+) -> None:
     prompts = MockPrompts(
         {
-            r"Select the Data Source": str(RECONCILE_DATA_SOURCES.index("snowflake")),
+            r"Select the Data Source": str(RECONCILE_DATA_SOURCES.index(datasource)),
             r"Select the report type": str(RECONCILE_REPORT_TYPES.index("all")),
-            r"Enter Secret scope name to store .* connection details / secrets": "remorph_snowflake",
-            r"Enter source catalog name for .*": "snowflake_sample_data",
+            r"Enter Secret scope name to store .* connection details / secrets": f"remorph_{datasource}",
+            r"Enter source catalog name for .*": f"{datasource}_sample_data",
             r"Enter source schema name for .*": "tpch_sf1000",
             r"Enter target catalog name for Databricks": "tpch",
             r"Enter target schema name for Databricks": "1000gb",
@@ -743,141 +687,20 @@ def test_configure_reconcile_no_existing_installation(ws: WorkspaceClient) -> No
     config = workspace_installer.configure(module="reconcile")
 
     expected_config = LakebridgeConfiguration(
-        reconcile=ReconcileConfig(
-            data_source="snowflake",
-            report_type="all",
-            creds=ReconcileCredentialsConfig(
-                vault_type="databricks", vault_secret_names={"__secret_scope": "remorph_snowflake"}
-            ),
-            database_config=DatabaseConfig(
-                source_schema="tpch_sf1000",
-                target_catalog="tpch",
-                target_schema="1000gb",
-                source_catalog="snowflake_sample_data",
-            ),
-            metadata_config=ReconcileMetadataConfig(
-                catalog="remorph",
-                schema="reconcile",
-                volume="reconcile_volume",
-            ),
-        ),
+        reconcile=reconcile_config,
         transpile=None,
     )
     assert config == expected_config
-    installation.assert_file_written(
-        "reconcile.yml",
-        {
-            "data_source": "snowflake",
-            "report_type": "all",
-            "creds": {
-                "vault_type": "databricks",
-                "vault_secret_names": {"__secret_scope": "remorph_snowflake"},
-            },
-            "database_config": {
-                "source_catalog": "snowflake_sample_data",
-                "source_schema": "tpch_sf1000",
-                "target_catalog": "tpch",
-                "target_schema": "1000gb",
-            },
-            "metadata_config": {
-                "catalog": "remorph",
-                "schema": "reconcile",
-                "volume": "reconcile_volume",
-            },
-            "version": 2,
-        },
-    )
+    installation.assert_file_written("reconcile.yml", reconcile_config_v2_yml)
 
 
-@patch("webbrowser.open")
-def test_configure_reconcile_databricks_no_existing_installation(ws: WorkspaceClient) -> None:
-    prompts = MockPrompts(
-        {
-            r"Select the Data Source": str(RECONCILE_DATA_SOURCES.index("databricks")),
-            r"Enter Secret scope name to store .* connection details / secrets": "remorph_databricks",
-            r"Select the report type": str(RECONCILE_REPORT_TYPES.index("all")),
-            r"Enter source catalog name for .*": "databricks_catalog",
-            r"Enter source schema name for .*": "some_schema",
-            r"Enter target catalog name for Databricks": "tpch",
-            r"Enter target schema name for Databricks": "1000gb",
-            r"Open .* in the browser?": "yes",
-        }
-    )
-    installation = MockInstallation()
-    resource_configurator = create_autospec(ResourceConfigurator)
-    resource_configurator.prompt_for_catalog_setup.return_value = "remorph"
-    resource_configurator.prompt_for_schema_setup.return_value = "reconcile"
-    resource_configurator.prompt_for_volume_setup.return_value = "reconcile_volume"
-
-    ctx = ApplicationContext(ws)
-    ctx.replace(
-        prompts=prompts,
-        installation=installation,
-        resource_configurator=resource_configurator,
-        workspace_installation=create_autospec(WorkspaceInstallation),
-    )
-
-    workspace_installer = WorkspaceInstaller(
-        ctx.workspace_client,
-        ctx.prompts,
-        ctx.installation,
-        ctx.install_state,
-        ctx.product_info,
-        ctx.resource_configurator,
-        ctx.workspace_installation,
-    )
-    config = workspace_installer.configure(module="reconcile")
-
-    expected_config = LakebridgeConfiguration(
-        reconcile=ReconcileConfig(
-            data_source="databricks",
-            report_type="all",
-            database_config=DatabaseConfig(
-                source_schema="some_schema",
-                target_catalog="tpch",
-                target_schema="1000gb",
-                source_catalog="databricks_catalog",
-            ),
-            metadata_config=ReconcileMetadataConfig(
-                catalog="remorph",
-                schema="reconcile",
-                volume="reconcile_volume",
-            ),
-            creds=ReconcileCredentialsConfig(
-                vault_type="databricks", vault_secret_names={"__secret_scope": "remorph_databricks"}
-            ),
-        ),
-        transpile=None,
-    )
-    assert config == expected_config
-    installation.assert_file_written(
-        "reconcile.yml",
-        {
-            "data_source": "databricks",
-            "report_type": "all",
-            "creds": {
-                "vault_type": "databricks",
-                "vault_secret_names": {"__secret_scope": "remorph_databricks"},
-            },
-            "database_config": {
-                "source_catalog": "databricks_catalog",
-                "source_schema": "some_schema",
-                "target_catalog": "tpch",
-                "target_schema": "1000gb",
-            },
-            "metadata_config": {
-                "catalog": "remorph",
-                "schema": "reconcile",
-                "volume": "reconcile_volume",
-            },
-            "version": 2,
-        },
-    )
-
-
+@pytest.mark.parametrize("datasource", ["snowflake"])
 def test_configure_all_override_installation(
     ws_installer: Callable[..., WorkspaceInstaller],
     ws: WorkspaceClient,
+    reconcile_config: ReconcileConfig,
+    reconcile_config_v1_yml: dict,
+    reconcile_config_v2_yml: dict,
 ) -> None:
     prompts = MockPrompts(
         {
@@ -913,23 +736,7 @@ def test_configure_all_override_installation(
                 },
                 "version": 3,
             },
-            "reconcile.yml": {
-                "data_source": "snowflake",
-                "report_type": "all",
-                "secret_scope": "remorph_snowflake",  # v1
-                "database_config": {
-                    "source_catalog": "snowflake_sample_data",
-                    "source_schema": "tpch_sf1000",
-                    "target_catalog": "tpch",
-                    "target_schema": "1000gb",
-                },
-                "metadata_config": {
-                    "catalog": "remorph",
-                    "schema": "reconcile",
-                    "volume": "reconcile_volume",
-                },
-                "version": 1,
-            },
+            **reconcile_config_v1_yml,
         }
     )
 
@@ -970,25 +777,7 @@ def test_configure_all_override_installation(
         schema_name="transpiler",
     )
 
-    expected_reconcile_config = ReconcileConfig(
-        data_source="snowflake",
-        report_type="all",
-        creds=ReconcileCredentialsConfig(
-            vault_type="databricks", vault_secret_names={"__secret_scope": "remorph_snowflake"}
-        ),
-        database_config=DatabaseConfig(
-            source_schema="tpch_sf1000",
-            target_catalog="tpch",
-            target_schema="1000gb",
-            source_catalog="snowflake_sample_data",
-        ),
-        metadata_config=ReconcileMetadataConfig(
-            catalog="remorph",
-            schema="reconcile",
-            volume="reconcile_volume",
-        ),
-    )
-    expected_config = LakebridgeConfiguration(transpile=expected_transpile_config, reconcile=expected_reconcile_config)
+    expected_config = LakebridgeConfiguration(transpile=expected_transpile_config, reconcile=reconcile_config)
     assert config == expected_config
     installation.assert_file_written(
         "config.yml",
@@ -1005,29 +794,7 @@ def test_configure_all_override_installation(
         },
     )
 
-    installation.assert_file_written(
-        "reconcile.yml",
-        {
-            "data_source": "snowflake",
-            "report_type": "all",
-            "creds": {
-                "vault_type": "databricks",
-                "vault_secret_names": {"__secret_scope": "remorph_snowflake"},
-            },
-            "database_config": {
-                "source_catalog": "snowflake_sample_data",
-                "source_schema": "tpch_sf1000",
-                "target_catalog": "tpch",
-                "target_schema": "1000gb",
-            },
-            "metadata_config": {
-                "catalog": "remorph",
-                "schema": "reconcile",
-                "volume": "reconcile_volume",
-            },
-            "version": 2,
-        },
-    )
+    installation.assert_file_written("reconcile.yml", reconcile_config_v2_yml)
 
 
 def test_runs_upgrades_on_more_recent_version(
