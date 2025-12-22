@@ -1,8 +1,11 @@
+import logging
 from dataclasses import dataclass
 
 from databricks.sdk import WorkspaceClient
 
 from databricks.labs.lakebridge.connections.credential_manager import build_credentials, CredentialManager
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -34,7 +37,7 @@ _SNOWFLAKE_REQUIRED_CREDS = [
     "sfSchema",
     "sfWarehouse",
     "sfRole",
-    "sfPassword",
+    # sfPassword is not required here; auth is validated separately
 ]
 
 _SOURCE_CREDENTIALS_MAP = {
@@ -50,7 +53,12 @@ def build_source_creds(source: str, secret_scope: str) -> dict:
     keys = _SOURCE_CREDENTIALS_MAP.get(source)
     if not keys:
         raise ValueError(f"Unsupported source system: {source}")
-    return {key: f"{secret_scope}/{key}" for key in keys}
+    parsed = {key: f"{secret_scope}/{key}" for key in keys}
+    if source == "snowflake":
+        logger.warning("Please specify the Snowflake authentication method in the credentials config.")
+        parsed["pem_private_key"] = f"{secret_scope}/pem_private_key"
+        parsed["sfPassword"] = f"{secret_scope}/sfPassword"
+    return parsed
 
 
 def validate_creds(creds: ReconcileCredentialsConfig, source: str) -> None:

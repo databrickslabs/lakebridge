@@ -432,11 +432,21 @@ def table_schema_tsql_ansi(table_schema):
 
 @pytest.fixture
 def reconcile_config(datasource: str) -> ReconcileConfig:
+
     return ReconcileConfig(
         data_source=datasource,
         report_type="all",
         creds=ReconcileCredentialsConfig(
-            vault_type="databricks", vault_secret_names={"__secret_scope": f"remorph_{datasource}"}
+            vault_type="databricks",
+            vault_secret_names={
+                "sfDatabase": "remorph_snowflake/sfDatabase",
+                "sfPassword": "remorph_snowflake/sfPassword",
+                "sfRole": "remorph_snowflake/sfRole",
+                "sfSchema": "remorph_snowflake/sfSchema",
+                "sfUrl": "remorph_snowflake/sfUrl",
+                "sfUser": "remorph_snowflake/sfUser",
+                "sfWarehouse": "remorph_snowflake/sfWarehouse",
+            },
         ),
         database_config=DatabaseConfig(
             source_schema="tpch_sf1000",

@@ -65,6 +65,14 @@ class SnowflakeDataSource(DataSource, JDBCReaderMixin):
         raise RuntimeError("Snowflake credentials have not been loaded. Please call load_credentials() first.")
 
     def load_credentials(self, creds: ReconcileCredentialsConfig) -> "SnowflakeDataSource":
+        password = creds.vault_secret_names.pop("sfPassword", None)
+        pem_key = creds.vault_secret_names.pop("pem_private_key", None)
+        if password and pem_key:  # user did not specify auth method after migrating from secret scope
+            logger.warning(
+                f"Snowflake auth not specified after migrating from secret scope so defaulting to sfPassword. "
+                f"Please update the creds config and include the necessary keys. Docs: {self._DOCS_URL}."
+            )
+            creds.vault_secret_names["sfPassword"] = password
         self._creds_or_empty = load_and_validate_credentials(creds, self._ws, "snowflake")
 
         # Ensure at least one authentication method is provided
