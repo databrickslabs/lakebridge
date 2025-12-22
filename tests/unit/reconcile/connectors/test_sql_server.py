@@ -4,7 +4,8 @@ from unittest.mock import MagicMock, create_autospec
 
 import pytest
 
-from databricks.labs.lakebridge.reconcile.connectors.models import NormalizedIdentifier
+from databricks.labs.lakebridge.config import ReconcileCredentialsConfig
+from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import NormalizedIdentifier
 from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
 from databricks.labs.lakebridge.reconcile.connectors.tsql import TSQLServerDataSource
 from databricks.labs.lakebridge.reconcile.exception import DataSourceRuntimeException
@@ -35,6 +36,18 @@ def mock_secret(scope, key):
     return scope_secret_mock[scope][key]
 
 
+def mssql_creds(scope):
+    return {
+        "host": f"{scope}/host",
+        "port": f"{scope}/port",
+        "database": f"{scope}/database",
+        "user": f"{scope}/user",
+        "password": f"{scope}/password",
+        "encrypt": f"{scope}/encrypt",
+        "trustServerCertificate": f"{scope}/trustServerCertificate",
+    }
+
+
 def initial_setup():
     pyspark_sql_session = MagicMock()
     spark = pyspark_sql_session.SparkSession.builder.getOrCreate()
@@ -51,7 +64,8 @@ def test_get_jdbc_url_happy():
     # initial setup
     engine, spark, ws, scope = initial_setup()
     # create object for TSQLServerDataSource
-    data_source = TSQLServerDataSource(engine, spark, ws, scope)
+    data_source = TSQLServerDataSource(engine, spark, ws)
+    data_source.load_credentials(ReconcileCredentialsConfig("databricks", mssql_creds(scope)))
     url = data_source.get_jdbc_url
     # Assert that the URL is generated correctly
     assert url == (
@@ -64,7 +78,8 @@ def test_read_data_with_options():
     engine, spark, ws, scope = initial_setup()
 
     # create object for MSSQLServerDataSource
-    data_source = TSQLServerDataSource(engine, spark, ws, scope)
+    data_source = TSQLServerDataSource(engine, spark, ws)
+    data_source.load_credentials(ReconcileCredentialsConfig("databricks", mssql_creds(scope)))
     # Create a Tables configuration object with JDBC reader options
     table_conf = Table(
         source_name="src_supplier",
@@ -104,13 +119,12 @@ def test_read_data_with_options():
 
 
 def test_get_schema():
-    # initial setup
-    engine, spark, ws, scope = initial_setup()
-    # Mocking get secret method to return the required values
-    data_source = TSQLServerDataSource(engine, spark, ws, scope)
-    # call test method
+    engine, spark, ws, _ = initial_setup()
+    data_source = TSQLServerDataSource(engine, spark, ws)
+    data_source.load_credentials(ReconcileCredentialsConfig("databricks", mssql_creds("scope")))
+
     data_source.get_schema("org", "schema", "supplier")
-    # spark assertions
+
     spark.read.format.assert_called_with("jdbc")
     spark.read.format().option().option().option.assert_called_with(
         "dbtable",
@@ -151,9 +165,9 @@ def test_get_schema():
 
 
 def test_get_schema_exception_handling():
-    # initial setup
-    engine, spark, ws, scope = initial_setup()
-    data_source = TSQLServerDataSource(engine, spark, ws, scope)
+    engine, spark, ws, _ = initial_setup()
+    data_source = TSQLServerDataSource(engine, spark, ws)
+    data_source.load_credentials(ReconcileCredentialsConfig("databricks", mssql_creds("scope")))
 
     spark.read.format().option().option().option().options().load.side_effect = RuntimeError("Test Exception")
 
@@ -168,9 +182,22 @@ def test_get_schema_exception_handling():
         data_source.get_schema("org", "schema", "supplier")
 
 
+def test_credentials_not_loaded_fails():
+    engine, spark, ws, _ = initial_setup()
+    data_source = TSQLServerDataSource(engine, spark, ws)
+
+    # Call the get_schema method with predefined table, schema, and catalog names and assert that a PySparkException
+    # is raised
+    with pytest.raises(
+        DataSourceRuntimeException,
+        match=re.escape("MS SQL/Synapse credentials have not been loaded. Please call load_credentials() first."),
+    ):
+        data_source.get_schema("org", "schema", "supplier")
+
+
 def test_normalize_identifier():
-    engine, spark, ws, scope = initial_setup()
-    data_source = TSQLServerDataSource(engine, spark, ws, scope)
+    engine, spark, ws, _ = initial_setup()
+    data_source = TSQLServerDataSource(engine, spark, ws)
 
     assert data_source.normalize_identifier("a") == NormalizedIdentifier("`a`", "[a]")
     assert data_source.normalize_identifier('"b"') == NormalizedIdentifier("`b`", "[b]")

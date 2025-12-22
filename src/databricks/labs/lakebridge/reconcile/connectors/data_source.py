@@ -3,8 +3,8 @@ from abc import ABC, abstractmethod
 
 from pyspark.sql import DataFrame
 
-from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import DialectUtils
-from databricks.labs.lakebridge.reconcile.connectors.models import NormalizedIdentifier
+from databricks.labs.lakebridge.config import ReconcileCredentialsConfig
+from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import DialectUtils, NormalizedIdentifier
 from databricks.labs.lakebridge.reconcile.exception import DataSourceRuntimeException
 from databricks.labs.lakebridge.reconcile.recon_config import JdbcReaderOptions, Schema
 
@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 class DataSource(ABC):
+    _DOCS_URL = "https://databrickslabs.github.io/lakebridge/docs/reconcile/"
 
     @abstractmethod
     def read_data(
@@ -32,6 +33,10 @@ class DataSource(ABC):
         table: str,
         normalize: bool = True,
     ) -> list[Schema]:
+        return NotImplemented
+
+    @abstractmethod
+    def load_credentials(self, creds: ReconcileCredentialsConfig) -> "DataSource":
         return NotImplemented
 
     @abstractmethod
@@ -93,6 +98,9 @@ class MockDataSource(DataSource):
         if not mock_schema:
             return self.log_and_throw_exception(self._exception, "schema", f"({catalog}, {schema}, {table})")
         return mock_schema
+
+    def load_credentials(self, creds: ReconcileCredentialsConfig) -> "MockDataSource":
+        return self
 
     def normalize_identifier(self, identifier: str) -> NormalizedIdentifier:
         return DialectUtils.normalize_identifier(identifier, self._delimiter, self._delimiter)
