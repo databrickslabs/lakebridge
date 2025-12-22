@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import abc
 import asyncio
+import functools
+import inspect
 import logging
 import os
 import shutil
@@ -10,7 +12,8 @@ import venv
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Literal, ClassVar, cast
+from types import MethodType
+from typing import Any, ClassVar, Literal, TypeVar, cast
 
 import attrs
 import yaml
@@ -32,7 +35,7 @@ from lsprotocol.types import Position as LSPPosition
 from lsprotocol.types import Range as LSPRange
 from lsprotocol.types import Registration, RegistrationParams, TextDocumentIdentifier, TextDocumentItem, TextEdit
 from pygls.exceptions import FeatureRequestError
-from pygls.lsp.client import BaseLanguageClient
+from pygls.lsp.client import LanguageClient
 
 from databricks.labs.blueprint.installation import JsonValue, RootJsonValue
 from databricks.labs.blueprint.wheels import ProductInfo
@@ -184,16 +187,6 @@ class LSPConfig:
             return {}
 
 
-def lsp_feature(name: str, options: Any | None = None):
-    def wrapped(func: Callable):
-        _LSP_FEATURES.append((name, options, func))
-        return func
-
-    return wrapped
-
-
-_LSP_FEATURES: list[tuple[str, Any | None, Callable]] = []
-
 # the below code also exists in lsp_server.py
 # it will be factorized as part of https://github.com/databrickslabs/remorph/issues/1304
 TRANSPILE_TO_DATABRICKS_METHOD = "document/transpileToDatabricks"
@@ -253,13 +246,93 @@ METHOD_TO_TYPES[TRANSPILE_TO_DATABRICKS_METHOD] = (
 )
 
 
-# subclass BaseLanguageClient so we can override stuff when required
-class LanguageClient(BaseLanguageClient):
+ELC = TypeVar("ELC", bound="ExtendableLanguageClient")
+
+
+def lsp_feature(feature_name: str, options: Any | None = None) -> Callable[[Callable], Callable]:
+    """Decorator to mark a function as a callback for a server-to-client request/notification."""
+
+    # Decoration marks the function, but does not register it yet.
+    def wrap(func: Callable) -> Callable:
+        ExtendableLanguageClient.mark_feature_callback(feature_name, func, options)
+        return func
+
+    return wrap
+
+
+class ExtendableLanguageClient(LanguageClient):
+    @classmethod
+    def mark_feature_callback(cls, feature: str, func: Callable, options: Any) -> None:
+        # Mark a function by adding the feature to its list of features.
+        prior_feature_list = getattr(func, cls._MarkedMethod.feature_marker_attribute, [])
+        feature_list = [*prior_feature_list, (feature, options)]
+        setattr(func, cls._MarkedMethod.feature_marker_attribute, feature_list)
+
+    @dataclass(frozen=True)
+    class _MarkedMethod:
+        name: str
+        method: MethodType
+        # Features names, and corresponding options for the callback.
+        lsp_features: Sequence[tuple[str, Any]]
+
+        # Name of the attribute we set on functions to mark them as LSP feature callbacks.
+        # The attribute holds a list of [name, options] tuples representing the feature name and options to provide to
+        # the callback.
+        feature_marker_attribute: ClassVar[str] = "_lsp_features"
+
+        @classmethod
+        def from_method(cls, name: str, method: MethodType) -> ExtendableLanguageClient._MarkedMethod | None:
+            func = method.__func__
+            feature_markers = getattr(func, cls.feature_marker_attribute, None)
+            return cls(name, method, feature_markers) if feature_markers is not None else None
+
+    @classmethod
+    def _fetch_feature_callbacks(cls: type[ELC], instance: ELC) -> Sequence[_MarkedMethod]:
+        # Iterate over the methods, looking for those marked as feature callbacks.
+        return [
+            marked_method
+            for name, method in inspect.getmembers(instance, predicate=inspect.ismethod)
+            if (marked_method := cls._MarkedMethod.from_method(name, method)) is not None
+        ]
+
+    @classmethod
+    def _wrap_method_as_function(cls, method: Callable) -> Callable:
+        # A quirk of python is that methods (=bound functions) can't have properties set, but functions can.
+        # PyGLS relies on setting properties on the callback, so we need to give it a function rather than a method.
+        if inspect.iscoroutinefunction(method):
+
+            @functools.wraps(method)
+            async def wrapper(*args, **kwargs):
+                return await method(*args, **kwargs)
+
+        else:
+
+            @functools.wraps(method)
+            def wrapper(*args, **kwargs):
+                return method(*args, **kwargs)
+
+        return wrapper
+
+    def _register_lsp_callbacks(self) -> None:
+        # Locate all feature callbacks on this instance and ensure they are registered.
+        for marked_method in self._fetch_feature_callbacks(self):
+            wrapped_method = self._wrap_method_as_function(marked_method.method)
+            for feature_name, options in marked_method.lsp_features:
+                decorator = self.protocol.fm.feature(feature_name, options)
+                wrapped_method = decorator(wrapped_method)
+            # Replace the method on this instance with its decorated version.
+            setattr(self, marked_method.name, wrapped_method)
+
+    def __init__(self, name: str, version: str) -> None:
+        super().__init__(name, version)
+        self._register_lsp_callbacks()
+
+
+class LakebridgeLanguageClient(ExtendableLanguageClient):
 
     def __init__(self, name: str, version: str) -> None:
         super().__init__(name, version)
         self._transpile_to_databricks_capability: Registration | None = None
-        self._register_lsp_features()
 
     @property
     def is_alive(self):
@@ -270,7 +343,7 @@ class LanguageClient(BaseLanguageClient):
         return self._transpile_to_databricks_capability
 
     @lsp_feature(CLIENT_REGISTER_CAPABILITY)
-    def register_capabilities(self, params: RegistrationParams) -> None:
+    async def register_capabilities(self, params: RegistrationParams) -> None:
         for registration in params.registrations:
             if registration.method == TRANSPILE_TO_DATABRICKS_METHOD:
                 logger.debug(f"Registered capability: {registration.method}")
@@ -296,19 +369,6 @@ class LanguageClient(BaseLanguageClient):
         if not self.transpile_to_databricks_capability:
             raise IllegalStateException("Client has not yet registered its transpile capability.")
         return await self.protocol.send_request_async(TRANSPILE_TO_DATABRICKS_METHOD, params)
-
-    # can't use @client.feature because it requires a global instance
-    def _register_lsp_features(self):
-        for name, options, func in _LSP_FEATURES:
-            decorator = self.protocol.fm.feature(name, options)
-            wrapper = self._wrapper_for_lsp_feature(func)
-            decorator(wrapper)
-
-    def _wrapper_for_lsp_feature(self, func):
-        def wrapper(params):
-            return func(self, params)
-
-        return wrapper
 
     _DEFAULT_LIMIT: ClassVar[int] = 64 * 1024
 
@@ -524,7 +584,7 @@ class LSPEngine(TranspileEngine):
         self._workdir = workdir
         self._config = config
         name, version = self.client_metadata()
-        self._client = LanguageClient(name, version)
+        self._client = LakebridgeLanguageClient(name, version)
         self._init_response: InitializeResult | None = None
 
     @property
@@ -569,6 +629,20 @@ class LSPEngine(TranspileEngine):
         self._init_response = await self._client.initialize_async(params)
 
     async def _start_server(self) -> None:
+        """Start the LSP server process, using the command-line from the configuration.
+
+        If the executable in the command-line is not an absolute path, it is resolved in a platform-independent way
+        with special handling for virtual environments and python. Specifically:
+          - If the working directory contains a ".venv" subdirectory, it is treated as a virtual environment and
+            activated for the purpose of locating the LSP server executable: the virtual environment's bin/script
+            directory is prepended to the PATH environment variable.
+          - If the executable is "python" or "python3" and the above virtual environment is missing, the current python
+            interpreter is used.
+          - Otherwise, the executable is located via the system PATH.
+
+        Raises:
+            ValueError: If the command-line is missing from the configuration or the executable cannot be located.
+        """
         # Sanity-check and split the command-line into components.
         if not (command_line := self._config.remorph.command_line):
             raise ValueError(f"Missing command line for LSP server: {self._config.path}")
@@ -584,13 +658,22 @@ class LSPEngine(TranspileEngine):
             executable, additional_path = self._activate_venv(venv_path, executable)
             # Ensure PATH is in sync with the search path we will use to locate the LSP server executable.
             env["PATH"] = path = f"{additional_path}{os.pathsep}{path}"
-        logger.debug(f"Using PATH for launching LSP server: {path}")
+            logger.debug(f"Using modified PATH for launching LSP server: {path}")
+        elif os.path.normcase(executable) in {"python", "python3"}:
+            # If Python is requested without a dedicated venv, use the current interpreter rather than searching PATH.
+            # (Searching PATH might find an unexpected system python, which is unlikely to have the required packages
+            # installed.)
+            executable = sys.executable
+            logger.debug(f"No dedicated virtual environment, using current interpreter for LSP server: {executable}")
+        else:
+            logger.debug(f"Using PATH for launching LSP server: {path}")
 
         # Locate the LSP server executable in a platform-independent way.
         # Reference: https://docs.python.org/3/library/subprocess.html#popen-constructor
-        executable = shutil.which(executable, path=path) or executable
+        if (resolved_executable := shutil.which(executable, path=path)) is None:
+            raise ValueError(f"Could not locate LSP server executable: {executable}")
 
-        await self._launch_executable(executable, args, env)
+        await self._launch_executable(resolved_executable, args, env)
 
     @staticmethod
     def _activate_venv(venv_path: Path, executable: str) -> tuple[str, Path]:
