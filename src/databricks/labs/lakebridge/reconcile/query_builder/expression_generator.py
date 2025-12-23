@@ -24,7 +24,10 @@ def _apply_func_expr(expr: exp.Expression, expr_func: Callable, **kwargs) -> exp
 
 
 def concat(expr: list[exp.Expression]) -> exp.Expression:
-    return exp.Concat(expressions=expr, safe=True)
+    # Use Anonymous to force CONCAT() function syntax for hash determinism.
+    # sqlglot 28.5.0+ uses dialect-native syntax (T-SQL: +) which could affect
+    # hash consistency. Oracle is handled separately in hash_query.py (converted to ||).
+    return exp.Anonymous(this="CONCAT", expressions=expr)
 
 
 def sha2(expr: exp.Expression, num_bits: str, is_expr: bool = False) -> exp.Expression:
