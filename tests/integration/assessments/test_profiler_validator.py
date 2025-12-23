@@ -1,6 +1,9 @@
+import tempfile
+from collections.abc import Generator
 from pathlib import Path
-import pytest
+
 import duckdb
+import pytest
 
 from databricks.labs.lakebridge.assessments.profiler_validator import (
     get_profiler_extract_path,
@@ -28,12 +31,14 @@ def failure_pipeline_config_path():
     return config_path
 
 
-@pytest.fixture(scope="function")
-def mock_synapse_profiler_extract(tmp_path: Path) -> Path:
-    # Use pytest's tmp_path to create unique temp directory per test
-    extract_dir = tmp_path / "synapse_assessment"
-    synapse_extract_path = build_mock_synapse_extract("mock_profiler_extract", path_prefix=extract_dir)
-    return synapse_extract_path
+@pytest.fixture(scope="session")
+def mock_synapse_profiler_extract() -> Generator[Path]:
+    # We don't use tmp_path because this is quite expensive to set up.
+    # Use context manager for automatic cleanup
+    with tempfile.TemporaryDirectory(prefix="lakebridge_test_") as temp_dir:
+        extract_dir = Path(temp_dir) / "synapse_assessment"
+        synapse_extract_path = build_mock_synapse_extract("mock_profiler_extract", path_prefix=extract_dir)
+        yield synapse_extract_path
 
 
 def test_get_profiler_extract_path(pipeline_config_path, failure_pipeline_config_path):
