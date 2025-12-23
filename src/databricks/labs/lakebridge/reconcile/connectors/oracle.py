@@ -94,7 +94,7 @@ class OracleDataSource(DataSource, SecretsMixin, JDBCReaderMixin):
             df = self.reader(schema_query).load()
             schema_metadata = df.select([col(c).alias(c.lower()) for c in df.columns]).collect()
             logger.info(f"Schema fetched successfully. Completed at: {datetime.now()}")
-            logger.debug(f"schema_metadata: ${schema_metadata}")
+            logger.debug(f"schema_metadata: {schema_metadata}")
             return [self._map_meta_column(field, normalize) for field in schema_metadata]
         except (RuntimeError, PySparkException) as e:
             return self.log_and_throw_exception(e, "schema", schema_query)
