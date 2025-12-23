@@ -11,14 +11,14 @@ from databricks.labs.bladespector.analyzer import Analyzer
 # TODO: These should be moved to the integration tests.
 
 
-def test_analyze_arguments(mock_workspace_client, tmp_path: Path):
+def test_analyze_arguments(mock_workspace_client: WorkspaceClient, tmp_path: Path) -> None:
     input_path = str(Path(__file__).parent.parent / "resources" / "functional" / "informatica")
     cli.analyze(
         w=mock_workspace_client, source_directory=input_path, report_file="/tmp/sample", source_tech="Informatica - PC"
     )
 
 
-def test_analyze_arguments_wrong_tech(mock_workspace_client, tmp_path: Path):
+def test_analyze_arguments_wrong_tech(mock_workspace_client: WorkspaceClient, tmp_path: Path) -> None:
 
     supported_tech = sorted(Analyzer.supported_source_technologies(), key=str.casefold)
     tech_enum = next((i for i, tech in enumerate(supported_tech) if tech == "Informatica - PC"), 12)
@@ -39,7 +39,7 @@ def test_analyze_arguments_wrong_tech(mock_workspace_client, tmp_path: Path):
         )
 
 
-def test_analyze_prompts(mock_workspace_client, tmp_path: Path):
+def test_analyze_prompts(mock_workspace_client: WorkspaceClient, tmp_path: Path) -> None:
 
     supported_tech = sorted(Analyzer.supported_source_technologies(), key=str.casefold)
     tech_enum = next((i for i, tech in enumerate(supported_tech) if tech == "Informatica - PC"), 12)
