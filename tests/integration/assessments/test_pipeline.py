@@ -7,43 +7,47 @@ from databricks.labs.lakebridge.assessments.pipeline import PipelineClass, DB_NA
 from databricks.labs.lakebridge.assessments.profiler_config import Step, PipelineConfig
 
 
-@pytest.fixture(scope="module")
-def pipeline_config():
+@pytest.fixture
+def pipeline_config(tmp_path: Path) -> PipelineConfig:
     prefix = Path(__file__).parent
     config_path = f"{prefix}/../../resources/assessments/pipeline_config.yml"
     config = PipelineClass.load_config_from_yaml(config_path)
+    config.extract_folder = str(tmp_path / "pipeline_output")
 
     for step in config.steps:
         step.extract_source = f"{prefix}/../../{step.extract_source}"
     return config
 
 
-@pytest.fixture(scope="module")
-def pipeline_dep_failure_config():
+@pytest.fixture
+def pipeline_dep_failure_config(tmp_path: Path) -> PipelineConfig:
     prefix = Path(__file__).parent
     config_path = f"{prefix}/../../resources/assessments/pipeline_config_failure_dependency.yml"
     config = PipelineClass.load_config_from_yaml(config_path)
+    config.extract_folder = str(tmp_path / "pipeline_output")
 
     for step in config.steps:
         step.extract_source = f"{prefix}/../../{step.extract_source}"
     return config
 
 
-@pytest.fixture(scope="module")
-def sql_failure_config():
+@pytest.fixture
+def sql_failure_config(tmp_path: Path) -> PipelineConfig:
     prefix = Path(__file__).parent
     config_path = f"{prefix}/../../resources/assessments/pipeline_config_sql_failure.yml"
     config = PipelineClass.load_config_from_yaml(config_path)
+    config.extract_folder = str(tmp_path / "pipeline_output")
     for step in config.steps:
         step.extract_source = f"{prefix}/../../{step.extract_source}"
     return config
 
 
-@pytest.fixture(scope="module")
-def python_failure_config():
+@pytest.fixture
+def python_failure_config(tmp_path: Path) -> PipelineConfig:
     prefix = Path(__file__).parent
     config_path = f"{prefix}/../../resources/assessments/pipeline_config_python_failure.yml"
     config = PipelineClass.load_config_from_yaml(config_path)
+    config.extract_folder = str(tmp_path / "pipeline_output")
     for step in config.steps:
         step.extract_source = f"{prefix}/../../{step.extract_source}"
     return config
@@ -130,11 +134,11 @@ def test_pipeline_config_comments():
     pipeline_w_comments = PipelineConfig(
         name="warehouse_profiler",
         version="1.0",
-        extract_folder="/tmp/extracts",
+        extract_folder="/the/output/path",
         comment="A pipeline for extracting warehouse usage.",
     )
     pipeline_wo_comments = PipelineConfig(
-        name="another_warehouse_profiler", version="1.0", extract_folder="/tmp/extracts"
+        name="another_warehouse_profiler", version="1.0", extract_folder="/the/output/path"
     )
     assert pipeline_w_comments.comment == "A pipeline for extracting warehouse usage."
     assert pipeline_wo_comments.comment is None

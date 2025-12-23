@@ -14,7 +14,6 @@ from databricks.labs.blueprint.installer import InstallState
 from databricks.labs.lakebridge.assessments.dashboards.dashboard_manager import DashboardManager
 
 
-
 @pytest.fixture
 def mocked_workspace_client() -> WorkspaceClient:
     ws: Any = create_autospec(WorkspaceClient, instance=True)

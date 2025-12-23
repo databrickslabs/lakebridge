@@ -2,6 +2,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from databricks.labs.blueprint.tui import MockPrompts
+from databricks.sdk import WorkspaceClient
 
 from databricks.labs.lakebridge import cli
 from databricks.labs.lakebridge.contexts.application import ApplicationContext
@@ -14,7 +15,10 @@ from databricks.labs.bladespector.analyzer import Analyzer
 def test_analyze_arguments(mock_workspace_client: WorkspaceClient, tmp_path: Path) -> None:
     input_path = str(Path(__file__).parent.parent / "resources" / "functional" / "informatica")
     cli.analyze(
-        w=mock_workspace_client, source_directory=input_path, report_file="/tmp/sample", source_tech="Informatica - PC"
+        w=mock_workspace_client,
+        source_directory=input_path,
+        report_file=str(tmp_path / "sample"),
+        source_tech="Informatica - PC",
     )
 
 
@@ -34,7 +38,7 @@ def test_analyze_arguments_wrong_tech(mock_workspace_client: WorkspaceClient, tm
         cli.analyze(
             w=mock_workspace_client,
             source_directory=input_path,
-            report_file="/tmp/sample.xlsx",
+            report_file=str(tmp_path / "sample.xlsx"),
             source_tech="Informatica",
         )
 
