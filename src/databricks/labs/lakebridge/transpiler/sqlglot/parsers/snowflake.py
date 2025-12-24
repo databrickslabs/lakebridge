@@ -6,7 +6,7 @@ from sqlglot.dialects.dialect import build_date_delta as parse_date_delta, build
 from sqlglot.dialects.snowflake import Snowflake as SqlglotSnowflake
 from sqlglot.errors import TokenError, ParseError
 from sqlglot.helper import is_int, seq_get
-from sqlglot.optimizer.simplify import simplify_literals
+from sqlglot.optimizer.simplify import simplify
 from sqlglot.parser import build_var_map as parse_var_map
 from sqlglot.tokens import Token, TokenType
 from sqlglot.trie import new_trie
@@ -69,9 +69,9 @@ def _parse_to_timestamp(args: list) -> exp.StrToTime | exp.UnixToTime | exp.Time
         return exp.UnixToTime(this=first_arg, scale=second_arg)
 
     # The first argument might be an expression like 40 * 365 * 86400, so we try to
-    # reduce it using `simplify_literals` first and then check if it's a Literal.
+    # reduce it using `simplify` first and then check if it's a Literal.
     first_arg = seq_get(args, 0)
-    if not isinstance(simplify_literals(first_arg, root=True), exp.Literal):
+    if first_arg is None or not isinstance(simplify(first_arg), exp.Literal):
         # case: <variant_expr> or other expressions such as columns
         return exp.TimeStrToTime.from_arg_list(args)
 
@@ -445,7 +445,6 @@ class Snowflake(SqlglotSnowflake):
 
         FUNCTION_PARSERS = {
             **SqlglotSnowflake.Parser.FUNCTION_PARSERS,
-            "LISTAGG": lambda self: self._parse_list_agg(),
         }
 
         PLACEHOLDER_PARSERS = {
@@ -466,16 +465,6 @@ class Snowflake(SqlglotSnowflake):
         }
 
         ALTER_PARSERS = {**SqlglotSnowflake.Parser.ALTER_PARSERS}
-
-        def _parse_list_agg(self) -> exp.GroupConcat:
-            if self._match(TokenType.DISTINCT):
-                args: list[exp.Expression] = [self.expression(exp.Distinct, expressions=[self._parse_conjunction()])]
-                if self._match(TokenType.COMMA):
-                    args.extend(self._parse_csv(self._parse_conjunction))
-            else:
-                args = self._parse_csv(self._parse_conjunction)
-
-            return self.expression(exp.GroupConcat, this=args[0], separator=seq_get(args, 1))
 
         def _parse_types(
             self, check_func: bool = False, schema: bool = False, allow_identifiers: bool = True
@@ -513,23 +502,3 @@ class Snowflake(SqlglotSnowflake):
                     end_side="FOLLOWING",
                 )
             return window
-
-        def _parse_alter_table_add(self) -> list[exp.Expression]:
-            index = self._index - 1
-            if self._match_set(self.ADD_CONSTRAINT_TOKENS, advance=False):
-                return self._parse_csv(
-                    lambda: self.expression(exp.AddConstraint, expressions=self._parse_csv(self._parse_constraint))
-                )
-
-            self._retreat(index)
-            if not self.ALTER_TABLE_ADD_REQUIRED_FOR_EACH_COLUMN and self._match_text_seq("ADD"):
-                return self._parse_wrapped_csv(self._parse_field_def, optional=True)
-
-            if self._match_text_seq("ADD", "COLUMN"):
-                schema = self._parse_schema()
-                if schema:
-                    return [schema]
-                # return self._parse_csv in case of COLUMNS are not enclosed in brackets ()
-                return self._parse_csv(self._parse_field_def)
-
-            return self._parse_wrapped_csv(self._parse_add_column, optional=True)
