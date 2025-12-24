@@ -1,12 +1,16 @@
+import base64
 from pathlib import Path
 from dataclasses import dataclass
 from datetime import datetime
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, create_autospec
 
 import pytest
 from pyspark import Row
 from pyspark.errors import PySparkException
 from pyspark.testing import assertDataFrameEqual
+
+from databricks.sdk import WorkspaceClient
+from databricks.sdk.service.workspace import GetSecretResponse
 
 from databricks.labs.lakebridge.config import (
     DatabaseConfig,
@@ -1882,12 +1886,22 @@ def test_data_recon_with_source_exception(
 
 def test_initialise_data_source(mock_workspace_client, mock_spark):
     src_engine = get_dialect("snowflake")
-    secret_scope = "test"
 
-    source, target = initialise_data_source(mock_workspace_client, mock_spark, src_engine, secret_scope)
+    sf_creds = {
+        "sfUser": "user",
+        "sfPassword": "password",
+        "sfUrl": "account.snowflakecomputing.com",
+        "sfDatabase": "database",
+        "sfSchema": "schema",
+        "sfWarehouse": "warehouse",
+        "sfRole": "role",
+    }
+    source, target = initialise_data_source(
+        mock_workspace_client, mock_spark, "snowflake", ReconcileCredentialsConfig("local", sf_creds)
+    )
 
-    snowflake_data_source = SnowflakeDataSource(src_engine, mock_spark, mock_workspace_client, secret_scope).__class__
-    databricks_data_source = DatabricksDataSource(src_engine, mock_spark, mock_workspace_client, secret_scope).__class__
+    snowflake_data_source = SnowflakeDataSource(src_engine, mock_spark, mock_workspace_client).__class__
+    databricks_data_source = DatabricksDataSource(src_engine, mock_spark, mock_workspace_client).__class__
 
     assert isinstance(source, snowflake_data_source)
     assert isinstance(target, databricks_data_source)
@@ -2001,7 +2015,10 @@ def test_reconcile_data_with_threshold_and_row_report_type(
 
 @patch('databricks.labs.lakebridge.reconcile.recon_capture.generate_final_reconcile_output')
 def test_recon_output_without_exception(mock_gen_final_recon_output):
-    mock_workspace_client = MagicMock()
+    mock_workspace_client = create_autospec(WorkspaceClient)
+    mock_workspace_client.secrets.get_secret.return_value = GetSecretResponse(
+        key="key", value=base64.b64encode(bytes('value', 'utf-8')).decode('utf-8')
+    )
     mock_spark = MagicMock()
     mock_table_recon = MagicMock()
     mock_gen_final_recon_output.return_value = ReconcileOutput(

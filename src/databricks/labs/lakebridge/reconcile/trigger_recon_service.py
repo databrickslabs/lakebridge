@@ -74,7 +74,7 @@ class TriggerReconService:
             engine=reconcile_config.data_source,
             spark=spark,
             ws=ws_client,
-            secret_scope=reconcile_config.creds.get_databricks_secret_scope(),
+            creds=reconcile_config.creds,
         )
 
         recon_id = str(uuid4())

@@ -1,5 +1,6 @@
 from pathlib import Path
 from unittest.mock import create_autospec
+from dataclasses import asdict
 
 import pytest
 from pyspark.sql import DataFrame
@@ -17,8 +18,14 @@ from pyspark.sql.types import (
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.service import iam
 
-from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import DialectUtils
-from databricks.labs.lakebridge.reconcile.connectors.models import NormalizedIdentifier
+from databricks.labs.lakebridge.config import (
+    ReconcileConfig,
+    ReconcileCredentialsConfig,
+    DatabaseConfig,
+    ReconcileMetadataConfig,
+)
+from databricks.labs.lakebridge.reconcile.connectors.credentials import build_recon_creds
+from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import DialectUtils, NormalizedIdentifier
 from databricks.labs.lakebridge.reconcile.connectors.data_source import DataSource, MockDataSource
 from databricks.labs.lakebridge.reconcile.recon_config import (
     Table,
@@ -312,21 +319,6 @@ def morpheus_artifact() -> Path:
     return artifact
 
 
-@pytest.fixture
-def switch_artifact() -> Path:
-    """Get Switch wheel for testing."""
-    artifact = (
-        Path(__file__).parent
-        / "resources"
-        / "transpiler_configs"
-        / "switch"
-        / "wheel"
-        / "databricks_switch_plugin-0.1.2-py3-none-any.whl"
-    )
-    assert artifact.exists(), f"Switch artifact not found: {artifact}"
-    return artifact
-
-
 class FakeDataSource(DataSource):
 
     def __init__(self, start_delimiter: str, end_delimiter: str):
@@ -342,6 +334,9 @@ class FakeDataSource(DataSource):
     def read_data(
         self, catalog: str | None, schema: str, table: str, query: str, options: JdbcReaderOptions | None
     ) -> DataFrame:
+        raise RuntimeError("Not implemented")
+
+    def load_credentials(self, creds: ReconcileCredentialsConfig) -> "FakeDataSource":
         raise RuntimeError("Not implemented")
 
 
@@ -420,3 +415,78 @@ def table_schema_tsql_ansi(table_schema):
     src_schema = [tsql_schema_fixture_factory(s.column_name, s.data_type) for s in src_schema]
     tgt_schema = [ansi_schema_fixture_factory(s.column_name, s.data_type) for s in tgt_schema]
     return src_schema, tgt_schema
+
+
+@pytest.fixture
+def secret_scope(datasource: str) -> str:
+    return f"remorph_{datasource}"
+
+
+@pytest.fixture
+def reconcile_config(datasource: str, secret_scope: str) -> ReconcileConfig:
+
+    return ReconcileConfig(
+        data_source=datasource,
+        report_type="all",
+        creds=build_recon_creds(datasource, secret_scope),
+        database_config=DatabaseConfig(
+            source_schema="tpch_sf1000",
+            target_catalog="tpch",
+            target_schema="1000gb",
+            source_catalog=f"{datasource}_sample_data",
+        ),
+        metadata_config=ReconcileMetadataConfig(
+            catalog="remorph",
+            schema="reconcile",
+            volume="reconcile_volume",
+        ),
+    )
+
+
+@pytest.fixture
+def reconcile_config_v1_yml(datasource: str, secret_scope: str) -> dict:
+    return {
+        "reconcile.yml": {
+            "data_source": datasource,
+            "report_type": "all",
+            "secret_scope": secret_scope,
+            "database_config": {
+                "source_catalog": f"{datasource}_sample_data",
+                "source_schema": "tpch_sf1000",
+                "target_catalog": "tpch",
+                "target_schema": "1000gb",
+            },
+            "metadata_config": {
+                "catalog": "remorph",
+                "schema": "reconcile",
+                "volume": "reconcile_volume",
+            },
+            "version": 1,
+        },
+    }
+
+
+@pytest.fixture
+def reconcile_config_v2_yml(datasource: str, secret_scope: str) -> dict:
+    yml = {
+        "data_source": datasource,
+        "report_type": "all",
+        "database_config": {
+            "source_catalog": f"{datasource}_sample_data",
+            "source_schema": "tpch_sf1000",
+            "target_catalog": "tpch",
+            "target_schema": "1000gb",
+        },
+        "metadata_config": {
+            "catalog": "remorph",
+            "schema": "reconcile",
+            "volume": "reconcile_volume",
+        },
+        "version": 2,
+    }
+
+    maybe_creds = build_recon_creds(datasource, secret_scope)
+    if maybe_creds:
+        yml["creds"] = asdict(maybe_creds)
+
+    return yml

@@ -4,7 +4,7 @@ from pyspark.sql import SparkSession
 
 from databricks.sdk import WorkspaceClient
 
-from databricks.labs.lakebridge.config import ReconcileMetadataConfig
+from databricks.labs.lakebridge.config import ReconcileMetadataConfig, ReconcileCredentialsConfig
 from databricks.labs.lakebridge.reconcile.connectors.source_adapter import create_adapter
 from databricks.labs.lakebridge.reconcile.exception import InvalidInputException
 from databricks.labs.lakebridge.reconcile.recon_config import Table
@@ -17,10 +17,13 @@ def initialise_data_source(
     ws: WorkspaceClient,
     spark: SparkSession,
     engine: str,
-    secret_scope: str,
+    creds: ReconcileCredentialsConfig | None,
 ):
-    source = create_adapter(engine=get_dialect(engine), spark=spark, ws=ws, secret_scope=secret_scope)
-    target = create_adapter(engine=get_dialect("databricks"), spark=spark, ws=ws, secret_scope=secret_scope)
+    source = create_adapter(engine=get_dialect(engine), spark=spark, ws=ws)
+    target = create_adapter(engine=get_dialect("databricks"), spark=spark, ws=ws)
+    if engine != "databricks":
+        assert creds, "Credentials must be provided for non-Databricks sources"
+        source.load_credentials(creds)
 
     return source, target
 

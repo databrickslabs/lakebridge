@@ -62,7 +62,7 @@ def test_workspace_context_attributes_not_none(ws):
                         "target_schema": "1000gb",
                     },
                     "report_type": "all",
-                    "secret_scope": "remorph_snowflake",
+                    "secret_scope": "remorph_snowflake",  # v1
                     "tables": {
                         "filter_type": "exclude",
                         "tables_list": ["ORDERS", "PART"],
@@ -72,7 +72,6 @@ def test_workspace_context_attributes_not_none(ws):
                         "schema": "reconcile",
                         "volume": "reconcile_volume",
                     },
-                    "job_id": "12345",  # removed as it was never used
                     "version": 1,
                 },
                 "state.json": {

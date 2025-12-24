@@ -61,7 +61,7 @@ def test_parse_query(transpiler, transpile_config):
     for exp in parsed_query:
         if exp:
             assert repr(exp.args["expressions"]) == repr(expected_result)
-            assert repr(exp.args["from"]) == repr(expected_from_result)
+            assert repr(exp.args["from_"]) == repr(expected_from_result)
 
 
 def test_parse_invalid_query(transpiler):
@@ -115,7 +115,7 @@ def test_safe_parse(transpiler, transpile_config):
     for exp in result:
         if exp.parsed_expression:
             assert repr(exp.parsed_expression.args["expressions"]) == repr(expected_result)
-            assert repr(exp.parsed_expression.args["from"]) == repr(expected_from_result)
+            assert repr(exp.parsed_expression.args["from_"]) == repr(expected_from_result)
     assert error[0].transpile_error.code == "PARSE_ERROR"
 
 
@@ -143,6 +143,6 @@ def test_safe_parse_with_semicolon(transpiler, transpile_config):
     for exp in result:
         if exp.parsed_expression:
             assert repr(exp.parsed_expression.args["expressions"]) == repr(expected_result)
-            assert repr(exp.parsed_expression.args["from"]) == repr(expected_from_result)
+            assert repr(exp.parsed_expression.args["from_"]) == repr(expected_from_result)
             assert repr(exp.parsed_expression.args["where"]) == repr(expected_where_result)
     assert len(error) == 0

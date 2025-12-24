@@ -20,12 +20,12 @@ from databricks.labs.lakebridge.config import (
     LakebridgeConfiguration,
     ReconcileMetadataConfig,
     TranspileConfig,
-    ReconcileCredentialsConfig,
 )
 from databricks.labs.lakebridge.contexts.application import ApplicationContext
 from databricks.labs.lakebridge.deployment.configurator import ResourceConfigurator
 from databricks.labs.lakebridge.deployment.installation import WorkspaceInstallation
 from databricks.labs.lakebridge.helpers.recon_config_utils import ReconConfigPrompts
+from databricks.labs.lakebridge.reconcile.connectors.credentials import ReconcileCredentialsConfig
 from databricks.labs.lakebridge.reconcile.constants import ReconReportType, ReconSourceType
 from databricks.labs.lakebridge.transpiler.installers import (
     BladebridgeInstaller,
@@ -333,7 +333,7 @@ class WorkspaceInstaller:
             vault, credentials = self._recon_creds_prompts.prompt_recon_creds(data_source)
             creds = ReconcileCredentialsConfig(vault, credentials)
         else:
-            creds = ReconcileCredentialsConfig("databricks", {})
+            creds = None
 
         db_config = self._prompt_for_reconcile_database_config(data_source)
         metadata_config = self._prompt_for_reconcile_metadata_config()

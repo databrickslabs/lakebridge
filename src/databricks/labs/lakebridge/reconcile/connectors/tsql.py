@@ -8,11 +8,13 @@ from pyspark.sql import DataFrame, DataFrameReader, SparkSession
 from pyspark.sql.functions import col
 from sqlglot import Dialect
 
+from databricks.labs.lakebridge.reconcile.connectors.credentials import (
+    load_and_validate_credentials,
+    ReconcileCredentialsConfig,
+)
 from databricks.labs.lakebridge.reconcile.connectors.data_source import DataSource
 from databricks.labs.lakebridge.reconcile.connectors.jdbc_reader import JDBCReaderMixin
-from databricks.labs.lakebridge.reconcile.connectors.models import NormalizedIdentifier
-from databricks.labs.lakebridge.reconcile.connectors.secrets import SecretsMixin
-from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import DialectUtils
+from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import DialectUtils, NormalizedIdentifier
 from databricks.labs.lakebridge.reconcile.recon_config import JdbcReaderOptions, Schema, OptionalPrimitiveType
 from databricks.sdk import WorkspaceClient
 
@@ -50,7 +52,7 @@ _SCHEMA_QUERY = """SELECT
               """
 
 
-class TSQLServerDataSource(DataSource, SecretsMixin, JDBCReaderMixin):
+class TSQLServerDataSource(DataSource, JDBCReaderMixin):
     _DRIVER = "sqlserver"
     _IDENTIFIER_DELIMITER = {"prefix": "[", "suffix": "]"}
 
@@ -59,21 +61,26 @@ class TSQLServerDataSource(DataSource, SecretsMixin, JDBCReaderMixin):
         engine: Dialect,
         spark: SparkSession,
         ws: WorkspaceClient,
-        secret_scope: str,
     ):
         self._engine = engine
         self._spark = spark
         self._ws = ws
-        self._secret_scope = secret_scope
+        self._creds_or_empty: dict[str, str] = {}
+
+    @property
+    def _creds(self):
+        if self._creds_or_empty:
+            return self._creds_or_empty
+        raise RuntimeError("MS SQL/Synapse credentials have not been loaded. Please call load_credentials() first.")
 
     @property
     def get_jdbc_url(self) -> str:
         # Construct the JDBC URL
         return (
-            f"jdbc:{self._DRIVER}://{self._get_secret('host')}:{self._get_secret('port')};"
-            f"databaseName={self._get_secret('database')};"
-            f"encrypt={self._get_secret('encrypt')};"
-            f"trustServerCertificate={self._get_secret('trustServerCertificate')};"
+            f"jdbc:{self._DRIVER}://{self._creds.get('host')}:{self._creds.get('port')};"
+            f"databaseName={self._creds.get('database')};"
+            f"encrypt={self._creds.get('encrypt')};"
+            f"trustServerCertificate={self._creds.get('trustServerCertificate')};"
         )
 
     def read_data(
@@ -102,6 +109,11 @@ class TSQLServerDataSource(DataSource, SecretsMixin, JDBCReaderMixin):
             return df.select([col(column).alias(column.lower()) for column in df.columns])
         except (RuntimeError, PySparkException) as e:
             return self.log_and_throw_exception(e, "data", table_query)
+
+    def load_credentials(self, creds: ReconcileCredentialsConfig) -> "TSQLServerDataSource":
+        self._creds_or_empty = load_and_validate_credentials(creds, self._ws, "mssql")
+
+        return self
 
     def get_schema(
         self,
@@ -141,8 +153,8 @@ class TSQLServerDataSource(DataSource, SecretsMixin, JDBCReaderMixin):
 
     def _get_user_password(self) -> Mapping[str, str]:
         return {
-            "user": self._get_secret("user"),
-            "password": self._get_secret("password"),
+            "user": self._creds.get("user"),
+            "password": self._creds.get("password"),
         }
 
     def normalize_identifier(self, identifier: str) -> NormalizedIdentifier:
