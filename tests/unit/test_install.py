@@ -585,7 +585,7 @@ def test_configure_reconcile_installation_config_error_continue_install(
     datasource: str,
     ws: WorkspaceClient,
     reconcile_config: ReconcileConfig,
-    reconcile_config_v2_yml: dict,
+    oracle_reconcile_config_v2_yml: dict,
     reconcile_config_v1_yml: dict,
 ) -> None:
     prompts = MockPrompts(
@@ -638,10 +638,7 @@ def test_configure_reconcile_installation_config_error_continue_install(
         transpile=None,
     )
     assert config == expected_config
-    dbc = reconcile_config_v2_yml["database_config"]
-    dbc.pop("source_catalog")
-    reconcile_config_v2_yml["database_config"] = dbc
-    installation.assert_file_written("reconcile.yml", reconcile_config_v2_yml)
+    installation.assert_file_written("reconcile.yml", oracle_reconcile_config_v2_yml)
 
 
 @pytest.mark.parametrize("datasource", ["snowflake", "databricks"])
