@@ -281,7 +281,12 @@ Dialect_hash_algo_mapping: dict[Dialect, HashAlgoMapping] = {
     ),
     get_dialect("oracle"): HashAlgoMapping(
         source=partial(
-            anonymous, func="DBMS_CRYPTO.HASH(RAWTOHEX({}), 2)", is_expr=True, dialect=get_dialect("oracle")
+            # Hashing with MD5 to support Oracle 11; modern hashes aren't available.
+            # (This hashing function does not serve a security purpose: MD5 is fine in this situation.)
+            anonymous,
+            func="DBMS_CRYPTO.HASH(RAWTOHEX({}), 2)",
+            is_expr=True,
+            dialect=get_dialect("oracle"),
         ),
         target=md5_partial,
     ),
