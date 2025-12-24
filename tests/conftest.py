@@ -490,3 +490,12 @@ def reconcile_config_v2_yml(datasource: str, secret_scope: str) -> dict:
         yml["creds"] = asdict(maybe_creds)
 
     return yml
+
+
+@pytest.fixture
+def oracle_reconcile_config_v2_yml(reconcile_config_v2_yml: dict) -> dict:
+    dbc = reconcile_config_v2_yml["database_config"]
+    dbc.pop("source_catalog")
+    reconcile_config_v2_yml["database_config"] = dbc
+
+    return reconcile_config_v2_yml
