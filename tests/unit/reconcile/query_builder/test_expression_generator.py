@@ -46,7 +46,7 @@ def test_json_format():
 
     assert json_format(expr).sql() == "SELECT JSON_FORMAT(col1) FROM DUAL"
     assert json_format(expr).sql(dialect="databricks") == "SELECT TO_JSON(col1) FROM DUAL"
-    assert json_format(expr).sql(dialect="snowflake") == "SELECT JSON_FORMAT(col1) FROM DUAL"
+    assert json_format(expr).sql(dialect="snowflake") == "SELECT TO_JSON(col1) FROM DUAL"
 
 
 def test_sort_array(expr):
@@ -117,9 +117,10 @@ def test_md5(expr):
 
 def test_concat():
     exprs = [exp.Expression(this="col1"), exp.Expression(this="col2")]
-    assert concat(exprs) == exp.Concat(
-        expressions=[exp.Expression(this="col1"), exp.Expression(this="col2")], safe=True
-    )
+    result = concat(exprs)
+    # concat() now returns exp.DPipe to use dialect-native concatenation (|| or +)
+    expected = exp.DPipe(this=exp.Expression(this="col1"), expression=exp.Expression(this="col2"))
+    assert result == expected
 
 
 def test_lower(expr):

@@ -32,7 +32,7 @@ dependencies = [
   "databricks-sdk~=0.67.0",
   "standard-distutils~=3.11.9; python_version>='3.11'",
   "databricks-bb-analyzer~=0.1.9",
-  "sqlglot==26.1.3",
+  "sqlglot==28.5.0",
   "databricks-labs-blueprint[yaml]@git+https://github.com/databrickslabs/blueprint.git@main",
   #"databricks-labs-blueprint[yaml]>=0.11.7,<0.12.0",
   "databricks-labs-lsql==0.16.0",

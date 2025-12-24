@@ -1,6 +1,5 @@
 from pyspark.sql import SparkSession
 from sqlglot import Dialect
-from sqlglot.dialects import TSQL
 
 from databricks.labs.lakebridge.reconcile.connectors.data_source import DataSource
 from databricks.labs.lakebridge.reconcile.connectors.databricks import DatabricksDataSource
@@ -10,6 +9,7 @@ from databricks.labs.lakebridge.reconcile.connectors.tsql import TSQLServerDataS
 from databricks.labs.lakebridge.transpiler.sqlglot.generator.databricks import Databricks
 from databricks.labs.lakebridge.transpiler.sqlglot.parsers.oracle import Oracle
 from databricks.labs.lakebridge.transpiler.sqlglot.parsers.snowflake import Snowflake
+from databricks.labs.lakebridge.transpiler.sqlglot.parsers.tsql import Tsql
 from databricks.sdk import WorkspaceClient
 
 
@@ -25,6 +25,6 @@ def create_adapter(
         return OracleDataSource(engine, spark, ws, secret_scope)
     if isinstance(engine, Databricks):
         return DatabricksDataSource(engine, spark, ws, secret_scope)
-    if isinstance(engine, TSQL):
+    if isinstance(engine, Tsql):
         return TSQLServerDataSource(engine, spark, ws, secret_scope)
     raise ValueError(f"Unsupported source type --> {engine}")
