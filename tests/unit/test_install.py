@@ -553,7 +553,7 @@ def test_configure_transpile_installation_with_validation_and_warehouse_id_from_
     )
 
 
-@pytest.mark.parametrize("datasource", ["snowflake"])
+@pytest.mark.parametrize("datasource", [source.value for source in ReconSourceType])
 def test_configure_reconcile_installation_no_override(ws: WorkspaceClient, reconcile_config_v1_yml: dict) -> None:
     prompts = MockPrompts(
         {

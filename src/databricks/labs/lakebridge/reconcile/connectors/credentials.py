@@ -44,7 +44,7 @@ _SOURCE_CREDENTIALS_MAP = {
     "databricks": [],
     "snowflake": _SNOWFLAKE_REQUIRED_CREDS,
     "oracle": _ORACLE_REQUIRED_CREDS,
-    "tsql": _TSQL_REQUIRED_CREDS,
+    "mssql": _TSQL_REQUIRED_CREDS,
     "synapse": _TSQL_REQUIRED_CREDS,
 }
 

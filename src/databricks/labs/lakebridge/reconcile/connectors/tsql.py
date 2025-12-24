@@ -111,7 +111,7 @@ class TSQLServerDataSource(DataSource, JDBCReaderMixin):
             return self.log_and_throw_exception(e, "data", table_query)
 
     def load_credentials(self, creds: ReconcileCredentialsConfig) -> "TSQLServerDataSource":
-        self._creds_or_empty = load_and_validate_credentials(creds, self._ws, "tsql")
+        self._creds_or_empty = load_and_validate_credentials(creds, self._ws, "mssql")
 
         return self
 

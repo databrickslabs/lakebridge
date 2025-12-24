@@ -7,6 +7,7 @@ from databricks.labs.lakebridge.config import (
     TableRecon,
     ReconcileConfig,
 )
+from databricks.labs.lakebridge.reconcile.constants import ReconSourceType
 from databricks.labs.lakebridge.reconcile.recon_config import Table
 
 
@@ -103,7 +104,7 @@ def test_reconcile_table_config_default_serialization() -> None:
     assert loaded.tables == config.tables
 
 
-@pytest.mark.parametrize("datasource", ["snowflake"])
+@pytest.mark.parametrize("datasource", [source.value for source in ReconSourceType])
 def test_reconcile_config_default_serialization(
     datasource, reconcile_config: ReconcileConfig, reconcile_config_v1_yml: dict
 ) -> None:

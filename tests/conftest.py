@@ -1,5 +1,6 @@
 from pathlib import Path
 from unittest.mock import create_autospec
+from dataclasses import asdict
 
 import pytest
 from pyspark.sql import DataFrame
@@ -463,7 +464,7 @@ def reconcile_config_v1_yml(datasource: str, secret_scope: str) -> dict:
         "reconcile.yml": {
             "data_source": datasource,
             "report_type": "all",
-            "secret_scope": secret_scope,  # v1
+            "secret_scope": secret_scope,
             "database_config": {
                 "source_catalog": f"{datasource}_sample_data",
                 "source_schema": "tpch_sf1000",
@@ -501,9 +502,6 @@ def reconcile_config_v2_yml(datasource: str, secret_scope: str) -> dict:
 
     maybe_creds = build_recon_creds(datasource, secret_scope)
     if maybe_creds:
-        yml["creds"] = {
-            "vault_secret_names": dict(maybe_creds.vault_secret_names),
-            "vault_type": maybe_creds.vault_type,
-        }
+        yml["creds"] = asdict(maybe_creds)
 
     return yml

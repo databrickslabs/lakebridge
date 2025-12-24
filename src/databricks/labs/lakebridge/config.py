@@ -1,6 +1,6 @@
 import logging
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 from enum import Enum, auto
 from pathlib import Path
 from typing import Any, Literal, TypeVar, cast
@@ -262,7 +262,7 @@ class ReconcileConfig:
     report_type: str
     database_config: DatabaseConfig
     metadata_config: ReconcileMetadataConfig
-    creds: ReconcileCredentialsConfig | None
+    creds: ReconcileCredentialsConfig | None = None
     # databricks does not require creds
 
     @classmethod
@@ -271,10 +271,7 @@ class ReconcileConfig:
         data_source = str(raw["data_source"])
         maybe_creds = build_recon_creds(data_source, secret_scope)
         if maybe_creds:
-            raw["creds"] = {
-                "vault_secret_names": dict(maybe_creds.vault_secret_names),
-                "vault_type": maybe_creds.vault_type,
-            }
+            raw["creds"] = asdict(maybe_creds)
         raw["version"] = 2
         return raw
 
