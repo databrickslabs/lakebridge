@@ -1,6 +1,5 @@
 import logging
 
-from functools import reduce
 import sqlglot.expressions as exp
 from sqlglot import Dialect
 
@@ -82,10 +81,8 @@ class HashQueryBuilder(QueryBuilder):
         cols_no_alias = [build_column_no_alias(this=col) for col in cols]
         cols_with_transform = self.add_transformations(cols_no_alias, self.engine)
         col_exprs = exp.select(*cols_with_transform).iter_expressions()
-        concat_expr = concat(list(col_exprs))
-
-        if self.engine == "oracle":
-            concat_expr = reduce(lambda x, y: exp.DPipe(this=x, expression=y), concat_expr.expressions)
+        # We now use exp.Dpipe to force the use of CONCAT() function across all dialects to be dialect specific || or + in TSQL
+        concat_expr = concat(col_exprs)
 
         hash_expr = concat_expr.transform(_hash_transform, self.engine, self.layer).transform(lower, is_expr=True)
 

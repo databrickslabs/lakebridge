@@ -118,8 +118,8 @@ def test_md5(expr):
 def test_concat():
     exprs = [exp.Expression(this="col1"), exp.Expression(this="col2")]
     result = concat(exprs)
-    # concat() now returns exp.Anonymous to force CONCAT() syntax across all dialects
-    expected = exp.Anonymous(this="CONCAT", expressions=exprs)
+    # concat() now returns exp.DPipe to use dialect-native concatenation (|| or +)
+    expected = exp.DPipe(this=exp.Expression(this="col1"), expression=exp.Expression(this="col2"))
     assert result == expected
 
 

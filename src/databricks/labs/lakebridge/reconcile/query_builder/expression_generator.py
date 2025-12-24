@@ -1,5 +1,5 @@
-from collections.abc import Callable
-from functools import partial
+from collections.abc import Callable, Iterable
+from functools import partial, reduce
 
 from pyspark.sql.types import DataType, NumericType
 from sqlglot import Dialect
@@ -23,11 +23,9 @@ def _apply_func_expr(expr: exp.Expression, expr_func: Callable, **kwargs) -> exp
     return new_expr
 
 
-def concat(expr: list[exp.Expression]) -> exp.Expression:
-    # Use Anonymous to force CONCAT() function syntax for hash determinism.
-    # sqlglot 28.5.0+ uses dialect-native syntax (T-SQL: +) which could affect
-    # hash consistency. Oracle is handled separately in hash_query.py (converted to ||).
-    return exp.Anonymous(this="CONCAT", expressions=expr)
+def concat(expr: Iterable[exp.Expression]) -> exp.Expression:
+    # sqlglot 28.5.0+ uses dialect-native syntax (T-SQL: +) so we modified to use DPipe for concat for consistency
+    return reduce(lambda a, b: exp.DPipe(this=a, expression=b), expr)
 
 
 def sha2(expr: exp.Expression, num_bits: str, is_expr: bool = False) -> exp.Expression:

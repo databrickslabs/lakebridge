@@ -502,7 +502,3 @@ class Snowflake(SqlglotSnowflake):
                     end_side="FOLLOWING",
                 )
             return window
-
-        # Note: Removed custom _parse_alter_table_add override (lines 506-525).
-        # sqlglot 28.5.0+ parent class implementation correctly handles ALTER TABLE ADD COLUMN
-        # using self.dialect.ALTER_TABLE_ADD_REQUIRED_FOR_EACH_COLUMN
