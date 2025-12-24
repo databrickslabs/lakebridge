@@ -25,7 +25,6 @@ from databricks.labs.lakebridge.contexts.application import ApplicationContext
 from databricks.labs.lakebridge.deployment.configurator import ResourceConfigurator
 from databricks.labs.lakebridge.deployment.installation import WorkspaceInstallation
 from databricks.labs.lakebridge.helpers.recon_config_utils import ReconConfigPrompts
-from databricks.labs.lakebridge.reconcile.connectors.credentials import ReconcileCredentialsConfig
 from databricks.labs.lakebridge.reconcile.constants import ReconReportType, ReconSourceType
 from databricks.labs.lakebridge.transpiler.installers import (
     BladebridgeInstaller,
@@ -330,8 +329,7 @@ class WorkspaceInstaller:
             "Select the report type:", [report_type.value for report_type in ReconReportType]
         )
         if data_source != ReconSourceType.DATABRICKS.value:
-            vault, credentials = self._recon_creds_prompts.prompt_recon_creds(data_source)
-            creds = ReconcileCredentialsConfig(vault, credentials)
+            creds = self._recon_creds_prompts.prompt_recon_creds(data_source)
         else:
             creds = None
 

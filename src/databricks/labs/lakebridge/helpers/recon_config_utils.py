@@ -1,6 +1,8 @@
 import logging
 
 from databricks.labs.blueprint.tui import Prompts
+
+from databricks.labs.lakebridge.reconcile.connectors.credentials import ReconcileCredentialsConfig
 from databricks.labs.lakebridge.reconcile.constants import ReconSourceType
 from databricks.sdk import WorkspaceClient
 
@@ -110,7 +112,10 @@ class ReconConfigPrompts:
             case ReconSourceType.MSSQL.value | ReconSourceType.SYNAPSE.value:
                 return self._prompt_mssql_connection_details()
 
-    def prompt_recon_creds(self, source: str) -> tuple[str, dict[str, str]]:
+    def prompt_recon_creds(self, source: str) -> ReconcileCredentialsConfig:
         logger.info("Please provide secret names in the following steps in the format <secret_scope>/<secret_key>")
         connection_details = self._connection_details(source)
-        return "databricks", connection_details
+        return ReconcileCredentialsConfig(
+            vault_type="databricks",
+            vault_secret_names=connection_details,
+        )

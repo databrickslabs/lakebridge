@@ -22,7 +22,7 @@ from databricks.labs.lakebridge.deployment.configurator import ResourceConfigura
 from databricks.labs.lakebridge.deployment.installation import WorkspaceInstallation
 from databricks.labs.lakebridge.helpers.recon_config_utils import ReconConfigPrompts
 from databricks.labs.lakebridge.install import WorkspaceInstaller
-from databricks.labs.lakebridge.reconcile.connectors.credentials import ReconcileCredentialsConfig
+from databricks.labs.lakebridge.reconcile.connectors.credentials import build_recon_creds
 from databricks.labs.lakebridge.reconcile.constants import ReconSourceType, ReconReportType
 from databricks.labs.lakebridge.transpiler.installers import (
     TranspilerInstaller,
@@ -596,6 +596,7 @@ def test_configure_reconcile_installation_no_override(ws: WorkspaceClient, recon
 @pytest.mark.parametrize("datasource", ["oracle"])
 def test_configure_reconcile_installation_config_error_continue_install(
     datasource: str,
+    secret_scope: str,
     ws: WorkspaceClient,
     reconcile_config: ReconcileConfig,
     reconcile_config_v2_yml: dict,
@@ -635,8 +636,7 @@ def test_configure_reconcile_installation_config_error_continue_install(
     )
 
     creds_mock = MagicMock(ReconConfigPrompts)
-    creds_sample = ReconcileCredentialsConfig("databricks", {"test_secret": "dummy"})
-    creds_mock.prompt_recon_creds.return_value = (creds_sample.vault_type, creds_sample.vault_secret_names)
+    creds_mock.prompt_recon_creds.return_value = build_recon_creds(datasource, secret_scope)
     workspace_installer = WorkspaceInstaller(
         ctx.workspace_client,
         ctx.prompts,
@@ -664,7 +664,12 @@ def test_configure_reconcile_installation_config_error_continue_install(
 @pytest.mark.parametrize("datasource", ["snowflake", "databricks"])
 @patch("webbrowser.open")
 def test_configure_reconcile_no_existing_installation(
-    _, datasource: str, ws: WorkspaceClient, reconcile_config: ReconcileConfig, reconcile_config_v2_yml: dict
+    _,
+    datasource: str,
+    secret_scope: str,
+    ws: WorkspaceClient,
+    reconcile_config: ReconcileConfig,
+    reconcile_config_v2_yml: dict,
 ) -> None:
     prompts = MockPrompts(
         {
@@ -692,8 +697,7 @@ def test_configure_reconcile_no_existing_installation(
     )
 
     creds_mock = MagicMock(ReconConfigPrompts)
-    creds_sample = ReconcileCredentialsConfig("databricks", {"test_secret": "dummy"})
-    creds_mock.prompt_recon_creds.return_value = (creds_sample.vault_type, creds_sample.vault_secret_names)
+    creds_mock.prompt_recon_creds.return_value = build_recon_creds(datasource, secret_scope)
     workspace_installer = WorkspaceInstaller(
         ctx.workspace_client,
         ctx.prompts,
@@ -716,6 +720,8 @@ def test_configure_reconcile_no_existing_installation(
 
 @pytest.mark.parametrize("datasource", ["snowflake"])
 def test_configure_all_override_installation(
+    datasource: str,
+    secret_scope: str,
     ws_installer: Callable[..., WorkspaceInstaller],
     ws: WorkspaceClient,
     reconcile_config: ReconcileConfig,
@@ -773,8 +779,7 @@ def test_configure_all_override_installation(
     )
 
     creds_mock = MagicMock(ReconConfigPrompts)
-    creds_sample = ReconcileCredentialsConfig("databricks", {"test_secret": "dummy"})
-    creds_mock.prompt_recon_creds.return_value = (creds_sample.vault_type, creds_sample.vault_secret_names)
+    creds_mock.prompt_recon_creds.return_value = build_recon_creds(datasource, secret_scope)
     workspace_installer = ws_installer(
         ctx.workspace_client,
         ctx.prompts,
