@@ -606,7 +606,6 @@ def test_configure_reconcile_installation_config_error_continue_install(
         {
             r"Select the Data Source": str(RECONCILE_DATA_SOURCES.index(datasource)),
             r"Select the report type": str(RECONCILE_REPORT_TYPES.index("all")),
-            r"Enter Secret scope name to store .* connection details / secrets": f"remorph_{datasource}",
             r"Enter source database name for .*": "tpch_sf1000",
             r"Enter target catalog name for Databricks": "tpch",
             r"Enter target schema name for Databricks": "1000gb",
@@ -675,7 +674,7 @@ def test_configure_reconcile_no_existing_installation(
         {
             r"Select the Data Source": str(RECONCILE_DATA_SOURCES.index(datasource)),
             r"Select the report type": str(RECONCILE_REPORT_TYPES.index("all")),
-            r"Enter source catalog name for .*": "snowflake_sample_data",
+            r"Enter source catalog name for .*": f"{datasource}_sample_data",
             r"Enter source schema name for .*": "tpch_sf1000",
             r"Enter target catalog name for Databricks": "tpch",
             r"Enter target schema name for Databricks": "1000gb",
@@ -740,7 +739,7 @@ def test_configure_all_override_installation(
             r"Open .* in the browser?": "no",
             r"Select the Data Source": str(RECONCILE_DATA_SOURCES.index("snowflake")),
             r"Select the report type": str(RECONCILE_REPORT_TYPES.index("all")),
-            r"Enter source catalog name for .*": "snowflake_sample_data",
+            r"Enter source catalog name for .*": f"{datasource}_sample_data",
             r"Enter source schema name for .*": "tpch_sf1000",
             r"Enter target catalog name for Databricks": "tpch",
             r"Enter target schema name for Databricks": "1000gb",
