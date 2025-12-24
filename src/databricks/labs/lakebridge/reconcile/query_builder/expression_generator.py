@@ -1,5 +1,5 @@
-from collections.abc import Callable
-from functools import partial
+from collections.abc import Callable, Iterable
+from functools import partial, reduce
 
 from pyspark.sql.types import DataType, NumericType
 from sqlglot import Dialect
@@ -23,8 +23,9 @@ def _apply_func_expr(expr: exp.Expression, expr_func: Callable, **kwargs) -> exp
     return new_expr
 
 
-def concat(expr: list[exp.Expression]) -> exp.Expression:
-    return exp.Concat(expressions=expr, safe=True)
+def concat(expr: Iterable[exp.Expression]) -> exp.Expression:
+    # sqlglot 28.5.0+ uses dialect-native syntax (T-SQL: +) so we modified to use DPipe for concat for consistency
+    return reduce(lambda a, b: exp.DPipe(this=a, expression=b), expr)
 
 
 def sha2(expr: exp.Expression, num_bits: str, is_expr: bool = False) -> exp.Expression:
@@ -281,8 +282,10 @@ Dialect_hash_algo_mapping: dict[Dialect, HashAlgoMapping] = {
     ),
     get_dialect("oracle"): HashAlgoMapping(
         source=partial(
+            # Hashing with MD5 to support Oracle 11; modern hashes aren't available.
+            # (This hashing function does not serve a security purpose: MD5 is fine in this situation.)
             anonymous,
-            func="DBMS_CRYPTO.HASH(UTL_I18N.STRING_TO_RAW({}, 'AL32UTF8'), 4)",
+            func="DBMS_CRYPTO.HASH(RAWTOHEX({}), 2)",
             is_expr=True,
             dialect=get_dialect("oracle"),
         ),
