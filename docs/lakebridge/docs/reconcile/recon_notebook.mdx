@@ -69,9 +69,9 @@ We use the class `ReconcileConfig` to configure the properties required for reco
 class ReconcileConfig:
     data_source: str
     report_type: str
-    creds: ReconcileCredentialsConfig | str | None = None
     database_config: DatabaseConfig
     metadata_config: ReconcileMetadataConfig
+    creds: ReconcileCredentialsConfig | None = None
 ```
 Parameters:
 
