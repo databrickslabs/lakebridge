@@ -5,6 +5,7 @@ import pytest
 
 from pyspark.sql import DataFrameReader, SparkSession
 
+from databricks.sdk.service.catalog import TableInfo
 from databricks.labs.lakebridge.reconcile.connectors.databricks import DatabricksDataSource
 from databricks.labs.lakebridge.reconcile.connectors.oracle import OracleDataSource
 from databricks.labs.lakebridge.reconcile.connectors.snowflake import SnowflakeDataSource
@@ -103,10 +104,17 @@ def test_databricks_read_schema_happy(mock_spark: SparkSession) -> None:
     assert mock_spark.catalog.dropGlobalTempView(random_view)
 
 
-def test_databricks_read_schema_happy_sandbox(spark: SparkSession, ws: WorkspaceClient) -> None:
+def test_databricks_read_schema_happy_sandbox(
+    spark: SparkSession, ws: WorkspaceClient, recon_tables: tuple[TableInfo, TableInfo]
+) -> None:
+    test_table, _ = recon_tables
     connector = DatabricksDataSource(get_dialect("databricks"), spark, ws, "my_secret")
 
-    columns = connector.get_schema("main", "lakebridge", "diamonds")
+    assert test_table.catalog_name
+    assert test_table.schema_name
+    assert test_table.name
+
+    columns = connector.get_schema(test_table.catalog_name, test_table.schema_name, test_table.name)
     assert columns
 
 
