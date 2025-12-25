@@ -162,6 +162,48 @@ def test_read_data_with_out_options(snowflake_creds):
     spark.read.format().option().options().load.assert_called_once()
 
 
+def test_read_data_with_out_options_both_password_and_pemkey_exist(snowflake_creds, caplog):
+    # initial setup
+    engine, spark, ws, scope = initial_setup()
+
+    # create object for SnowflakeDataSource
+    dfds = SnowflakeDataSource(engine, spark, ws)
+    creds = snowflake_creds(scope)
+    creds['pem_private_key'] = f'{scope}/pem_private_key'  # both exist
+    # Create a Tables configuration object with no JDBC reader options
+    table_conf = Table(
+        source_name="supplier",
+        target_name="supplier",
+    )
+
+    with caplog.at_level("WARNING", logger="databricks.labs.lakebridge.reconcile.connectors.snowflake"):
+        dfds.load_credentials(ReconcileCredentialsConfig("databricks", creds))
+
+    assert any(
+        "Snowflake auth not specified after migrating from secret scope so defaulting to sfPassword." in record.message
+        for record in caplog.records
+    )
+
+    # Call the read_data method with the Tables configuration
+    dfds.read_data("org", "data", "employee", "select 1 from :tbl", table_conf.jdbc_reader_options)
+
+    # Check that the warning was logged
+
+    # spark assertions
+    spark.read.format.assert_called_with("snowflake")
+    spark.read.format().option.assert_called_with("dbtable", "(select 1 from org.data.employee) as tmp")
+    spark.read.format().option().options.assert_called_with(
+        sfUrl="my_account.snowflakecomputing.com",
+        sfUser="my_user",
+        sfPassword="my_password",
+        sfDatabase="my_database",
+        sfSchema="my_schema",
+        sfWarehouse="my_warehouse",
+        sfRole="my_role",
+    )
+    spark.read.format().option().options().load.assert_called_once()
+
+
 def test_read_data_with_options(snowflake_creds):
     # initial setup
     engine, spark, ws, scope = initial_setup()
