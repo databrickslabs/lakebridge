@@ -644,10 +644,10 @@ def _override_workspace_client_config(ctx: ApplicationContext, overrides: dict[s
 
 @lakebridge.command
 def reconcile(
-    *, w: WorkspaceClient, application_ctx_factory: Callable[[WorkspaceClient], ApplicationContext] = ApplicationContext
+    *, w: WorkspaceClient, ctx_factory: Callable[[WorkspaceClient], ApplicationContext] = ApplicationContext
 ) -> None:
     """[EXPERIMENTAL] Reconciles source to Databricks datasets"""
-    ctx = application_ctx_factory(w)
+    ctx = ctx_factory(w)
     ctx.add_user_agent_extra("cmd", "execute-reconcile")
     user = ctx.current_user
     logger.debug(f"User: {user}")
@@ -663,10 +663,10 @@ def reconcile(
 
 @lakebridge.command
 def aggregates_reconcile(
-    *, w: WorkspaceClient, application_ctx_factory: Callable[[WorkspaceClient], ApplicationContext] = ApplicationContext
+    *, w: WorkspaceClient, ctx_factory: Callable[[WorkspaceClient], ApplicationContext] = ApplicationContext
 ) -> None:
     """[EXPERIMENTAL] Reconciles Aggregated source to Databricks datasets"""
-    ctx = application_ctx_factory(w)
+    ctx = ctx_factory(w)
     ctx.add_user_agent_extra("cmd", "execute-aggregates-reconcile")
     user = ctx.current_user
     logger.debug(f"User: {user}")

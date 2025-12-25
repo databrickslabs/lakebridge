@@ -83,12 +83,12 @@ def app_factory(w: WorkspaceClient) -> ApplicationContext:
 
 def test_cli_reconcile(mock_workspace_client):
     with patch("databricks.labs.lakebridge.reconcile.runner.ReconcileRunner.run", return_value=(MagicMock(), "link1")):
-        cli.reconcile(w=mock_workspace_client, application_ctx_factory=app_factory)
+        cli.reconcile(w=mock_workspace_client, ctx_factory=app_factory)
 
 
 def test_cli_aggregates_reconcile(mock_workspace_client):
     with patch("databricks.labs.lakebridge.reconcile.runner.ReconcileRunner.run", return_value=(MagicMock(), "link1")):
-        cli.aggregates_reconcile(w=mock_workspace_client, application_ctx_factory=app_factory)
+        cli.aggregates_reconcile(w=mock_workspace_client, ctx_factory=app_factory)
 
 
 def test_prompts_question():
