@@ -12,6 +12,7 @@ from databricks.labs.lakebridge.reconcile.reconciliation import Reconciliation
 from databricks.labs.lakebridge.reconcile.schema_compare import SchemaCompare
 from databricks.labs.lakebridge.reconcile.trigger_recon_service import TriggerReconService
 from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
+from tests.integration.debug_envgetter import TestEnvGetter
 from tests.integration.reconcile.connectors.test_read_schema import OracleDataSourceUnderTest
 
 
@@ -34,7 +35,10 @@ class DatabricksDataSourceUnderTest(DatabricksDataSource):
 
 @pytest.mark.skip(reason="Requires Oracle DB running locally and a databricks cluster to connect to.")
 def test_oracle_db_reconcile(mock_spark, mock_workspace_client, tmp_path):
-    databricks = DatabricksSession.builder.getOrCreate()
+    test_env = TestEnvGetter(True)
+    cluster = test_env.get("TEST_USER_ISOLATION_CLUSTER_ID")
+    host = test_env.get("DATABRICKS_HOST")
+    databricks = DatabricksSession.builder.host(host).clusterId(cluster).getOrCreate()
     databricks_data_source = DatabricksDataSourceUnderTest(databricks, mock_workspace_client, mock_spark)
     oracle_data_source = OracleDataSourceUnderTest(mock_spark, mock_workspace_client)
     report = "row"

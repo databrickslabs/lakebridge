@@ -4,4 +4,4 @@ select charindex('an', 'banana', 3),
                 charindex('ab', 'abababab'), n, h, CHARINDEX(n, h) FROM pos;
 
 -- databricks sql:
-SELECT CHARINDEX('an', 'banana', 3), CHARINDEX('ab', 'abababab'), n, h, CHARINDEX(n, h) FROM pos;
+SELECT LOCATE('an', 'banana', 3), LOCATE('ab', 'abababab'), n, h, LOCATE(n, h) FROM pos;
