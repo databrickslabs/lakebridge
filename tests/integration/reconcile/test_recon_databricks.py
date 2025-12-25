@@ -1,9 +1,11 @@
+import json
 import logging
-from string import Template
+from dataclasses import asdict
 
 import pytest
 
 from databricks.sdk import WorkspaceClient
+from databricks.sdk.errors.platform import PermissionDenied
 from databricks.sdk.service.jobs import TerminationTypeType
 
 from databricks.labs.lakebridge.config import (
@@ -12,9 +14,10 @@ from databricks.labs.lakebridge.config import (
     ReconcileMetadataConfig,
     LakebridgeConfiguration,
     ReconcileJobConfig,
+    TableRecon,
 )
 from databricks.labs.lakebridge.contexts.application import ApplicationContext
-from databricks.labs.lakebridge.reconcile.recon_config import RECONCILE_OPERATION_NAME
+from databricks.labs.lakebridge.reconcile.recon_config import RECONCILE_OPERATION_NAME, Table
 from databricks.labs.lakebridge.reconcile.runner import ReconcileRunner
 from databricks.labs.blueprint.wheels import ProductInfo
 from databricks.sdk.service.catalog import TableInfo, SchemaInfo
@@ -34,9 +37,19 @@ INSERT INTO {catalog}.{schema}.{table} (carat, cut, color, clarity) VALUES
 
 
 @pytest.fixture
-def recon_schema(make_schema) -> SchemaInfo:
-    catalog = "sandbox"
-    from_schema = make_schema(catalog_name=catalog)
+def recon_catalog(make_catalog) -> str:
+    try:
+        catalog = make_catalog().name
+    except PermissionDenied as e:
+        logger.warning("Could not create catalog for recon tests, using 'sandbox' instead", exc_info=e)
+        catalog = "sandbox"
+
+    return catalog
+
+
+@pytest.fixture
+def recon_schema(recon_catalog, make_schema) -> SchemaInfo:
+    from_schema = make_schema(catalog_name=recon_catalog)
 
     return from_schema
 
@@ -66,27 +79,19 @@ def recon_tables(ws: WorkspaceClient, recon_schema: SchemaInfo, make_table) -> t
 
 
 @pytest.fixture
-def recon_table_config(recon_schema: SchemaInfo, recon_tables: tuple[TableInfo, TableInfo]) -> str:
+def recon_table_config(recon_schema: SchemaInfo, recon_tables: tuple[TableInfo, TableInfo]) -> TableRecon:
     (src_table, tgt_table) = recon_tables
-    template = Template(
-        """
-    {
-      "source_schema": "$schema",
-      "target_catalog": "$catalog",
-      "target_schema": "$schema",
-      "tables": [
-        {
-          "source_name": "$src",
-          "target_name": "$tgt",
-          "join_columns": ["color", "clarity"]
-        }
-      ]
-    }
-    """
-    )
+    assert src_table.name
+    assert tgt_table.name
 
-    return template.substitute(
-        schema=recon_schema.name, catalog=recon_schema.catalog_name, src=src_table.name, tgt=tgt_table.name
+    return TableRecon(
+        [
+            Table(
+                source_name=src_table.name,
+                target_name=tgt_table.name,
+                join_columns=["color", "clarity"],
+            )
+        ]
     )
 
 
@@ -140,7 +145,7 @@ def application_context(
 
     logger.info("Installing app and recon configuration into workspace")
     ctx.installation.save(recon_config)
-    ctx.installation.upload(recon_config_filename, recon_table_config.encode())
+    ctx.installation.upload(recon_config_filename, json.dumps(asdict(recon_table_config)).encode())
     ctx.workspace_installation.install(config)
 
     logger.info("Application context setup complete for recon tests")
