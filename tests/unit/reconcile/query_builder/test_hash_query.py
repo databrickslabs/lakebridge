@@ -1,6 +1,8 @@
 from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
 from databricks.labs.lakebridge.reconcile.query_builder.hash_query import HashQueryBuilder
-from databricks.labs.lakebridge.reconcile.recon_config import Filters, ColumnMapping, Transformation
+from databricks.labs.lakebridge.reconcile.recon_config import Filters, ColumnMapping, Transformation, Table
+from databricks.labs.lakebridge.reconcile.normalize_recon_config_service import NormalizeReconConfigService
+from tests.conftest import tsql_schema_fixture_factory, ansi_schema_fixture_factory
 
 
 def test_hash_query_builder_for_snowflake_src(
@@ -18,8 +20,8 @@ def test_hash_query_builder_for_snowflake_src(
         fake_oracle_datasource,
     ).build_query(report_type="data")
     src_expected = (
-        "SELECT LOWER(SHA2(CONCAT(TRIM(\"s_address\"), TRIM(\"s_name\"), COALESCE(TRIM(\"s_nationkey\"), '_null_recon_'), "
-        "TRIM(\"s_phone\"), COALESCE(TRIM(\"s_suppkey\"), '_null_recon_')), 256)) AS hash_value_recon, \"s_nationkey\" AS "
+        "SELECT LOWER(SHA2(TRIM(\"s_address\") || TRIM(\"s_name\") || COALESCE(TRIM(\"s_nationkey\"), '_null_recon_') || "
+        "TRIM(\"s_phone\") || COALESCE(TRIM(\"s_suppkey\"), '_null_recon_'), 256)) AS hash_value_recon, \"s_nationkey\" AS "
         "\"s_nationkey\", "
         "\"s_suppkey\" AS \"s_suppkey\" FROM :tbl WHERE \"s_name\" = 't' AND \"s_address\" = 'a'"
     )
@@ -32,8 +34,8 @@ def test_hash_query_builder_for_snowflake_src(
         fake_databricks_datasource,
     ).build_query(report_type="data")
     tgt_expected = (
-        "SELECT LOWER(SHA2(CONCAT(TRIM(`s_address_t`), TRIM(`s_name`), COALESCE(TRIM(`s_nationkey_t`), '_null_recon_'), "
-        "TRIM(`s_phone_t`), COALESCE(TRIM(`s_suppkey_t`), '_null_recon_')), 256)) AS hash_value_recon, `s_nationkey_t` AS "
+        "SELECT LOWER(SHA2(TRIM(`s_address_t`) || TRIM(`s_name`) || COALESCE(TRIM(`s_nationkey_t`), '_null_recon_') || "
+        "TRIM(`s_phone_t`) || COALESCE(TRIM(`s_suppkey_t`), '_null_recon_'), 256)) AS hash_value_recon, `s_nationkey_t` AS "
         "`s_nationkey`, "
         "`s_suppkey_t` AS `s_suppkey` FROM :tbl WHERE s_name = 't' AND s_address_t = 'a'"
     )
@@ -55,11 +57,11 @@ def test_hash_query_builder_for_oracle_src(
         table_conf, schema, "source", get_dialect("oracle"), fake_oracle_datasource
     ).build_query(report_type="all")
     src_expected = (
-        "SELECT LOWER(DBMS_CRYPTO.HASH(UTL_I18N.STRING_TO_RAW(COALESCE(TRIM(\"s_acctbal\"), '_null_recon_') || COALESCE(TRIM("
+        "SELECT LOWER(DBMS_CRYPTO.HASH(RAWTOHEX(COALESCE(TRIM(\"s_acctbal\"), '_null_recon_') || COALESCE(TRIM("
         "\"s_address\"), '_null_recon_') || "
         "COALESCE(TRIM(\"s_comment\"), '_null_recon_') || COALESCE(TRIM(\"s_name\"), '_null_recon_') || COALESCE(TRIM("
         "\"s_nationkey\"), '_null_recon_') || COALESCE(TRIM(\"s_phone\"), '_null_recon_') || COALESCE(TRIM(\"s_suppkey\"), "
-        "'_null_recon_'), 'AL32UTF8'), 4)) AS hash_value_recon, \"s_nationkey\" AS \"s_nationkey\", "
+        "'_null_recon_')), 2)) AS hash_value_recon, \"s_nationkey\" AS \"s_nationkey\", "
         "\"s_suppkey\" AS \"s_suppkey\" FROM :tbl WHERE \"s_nationkey\" = 1"
     )
 
@@ -67,11 +69,11 @@ def test_hash_query_builder_for_oracle_src(
         table_conf, schema, "target", get_dialect("databricks"), fake_databricks_datasource
     ).build_query(report_type="all")
     tgt_expected = (
-        "SELECT LOWER(SHA2(CONCAT(COALESCE(TRIM(`s_acctbal`), '_null_recon_'), COALESCE(TRIM(`s_address`), "
-        "'_null_recon_'), COALESCE(TRIM("
-        "`s_comment`), '_null_recon_'), COALESCE(TRIM(`s_name`), '_null_recon_'), COALESCE(TRIM(`s_nationkey`), "
-        "'_null_recon_'), COALESCE(TRIM(`s_phone`), "
-        "'_null_recon_'), COALESCE(TRIM(`s_suppkey`), '_null_recon_')), 256)) AS hash_value_recon, `s_nationkey` AS "
+        "SELECT LOWER(SHA2(COALESCE(TRIM(`s_acctbal`), '_null_recon_') || COALESCE(TRIM(`s_address`), "
+        "'_null_recon_') || COALESCE(TRIM("
+        "`s_comment`), '_null_recon_') || COALESCE(TRIM(`s_name`), '_null_recon_') || COALESCE(TRIM(`s_nationkey`), "
+        "'_null_recon_') || COALESCE(TRIM(`s_phone`), "
+        "'_null_recon_') || COALESCE(TRIM(`s_suppkey`), '_null_recon_'), 256)) AS hash_value_recon, `s_nationkey` AS "
         "`s_nationkey`, `s_suppkey` "
         "AS `s_suppkey` FROM :tbl"
     )
@@ -93,10 +95,10 @@ def test_hash_query_builder_for_databricks_src(
         table_conf, sch, "source", get_dialect("databricks"), fake_databricks_datasource
     ).build_query(report_type="data")
     src_expected = (
-        "SELECT LOWER(SHA2(CONCAT(COALESCE(TRIM(`s_acctbal`), '_null_recon_'), COALESCE(TRIM(`s_address`), '_null_recon_'), "
-        "COALESCE(TRIM(`s_comment`), '_null_recon_'), COALESCE(TRIM(`s_name`), '_null_recon_'), COALESCE(TRIM("
-        "`s_nationkey`), '_null_recon_'), COALESCE(TRIM("
-        "`s_phone`), '_null_recon_'), COALESCE(TRIM(`s_suppkey`), '_null_recon_')), 256)) AS hash_value_recon, `s_suppkey` "
+        "SELECT LOWER(SHA2(COALESCE(TRIM(`s_acctbal`), '_null_recon_') || COALESCE(TRIM(`s_address`), '_null_recon_') || "
+        "COALESCE(TRIM(`s_comment`), '_null_recon_') || COALESCE(TRIM(`s_name`), '_null_recon_') || COALESCE(TRIM("
+        "`s_nationkey`), '_null_recon_') || COALESCE(TRIM("
+        "`s_phone`), '_null_recon_') || COALESCE(TRIM(`s_suppkey`), '_null_recon_'), 256)) AS hash_value_recon, `s_suppkey` "
         "AS `s_suppkey` FROM :tbl"
     )
 
@@ -104,11 +106,11 @@ def test_hash_query_builder_for_databricks_src(
         table_conf, sch_with_alias, "target", get_dialect("databricks"), fake_databricks_datasource
     ).build_query(report_type="data")
     tgt_expected = (
-        "SELECT LOWER(SHA2(CONCAT(COALESCE(TRIM(`s_acctbal_t`), '_null_recon_'), COALESCE(TRIM(`s_address_t`), "
-        "'_null_recon_'), COALESCE(TRIM("
-        "`s_comment_t`), '_null_recon_'), COALESCE(TRIM(`s_name`), '_null_recon_'), COALESCE(TRIM(`s_nationkey_t`), "
-        "'_null_recon_'), COALESCE(TRIM(`s_phone_t`), "
-        "'_null_recon_'), COALESCE(TRIM(`s_suppkey_t`), '_null_recon_')), 256)) AS hash_value_recon, `s_suppkey_t` AS "
+        "SELECT LOWER(SHA2(COALESCE(TRIM(`s_acctbal_t`), '_null_recon_') || COALESCE(TRIM(`s_address_t`), "
+        "'_null_recon_') || COALESCE(TRIM("
+        "`s_comment_t`), '_null_recon_') || COALESCE(TRIM(`s_name`), '_null_recon_') || COALESCE(TRIM(`s_nationkey_t`), "
+        "'_null_recon_') || COALESCE(TRIM(`s_phone_t`), "
+        "'_null_recon_') || COALESCE(TRIM(`s_suppkey_t`), '_null_recon_'), 256)) AS hash_value_recon, `s_suppkey_t` AS "
         "`s_suppkey` FROM :tbl WHERE "
         "`s_nationkey_t` = 1"
     )
@@ -133,10 +135,10 @@ def test_hash_query_builder_for_tsql_src(
     ).build_query(report_type="data")
     src_expected = (
         "SELECT LOWER(CONVERT(VARCHAR(256), HASHBYTES('SHA2_256', "
-        'CONVERT(VARCHAR(256),CONCAT(SUBSTRING([s_address], 1, 11), UPPER([s_name]), '
-        "COALESCE(TRIM(CAST([s_nationkey] AS VARCHAR(256))), '_null_recon_'), "
-        "COALESCE(TRIM(CAST([s_phone] AS VARCHAR(256))), '_null_recon_'), "
-        "COALESCE(TRIM(CAST([s_suppkey] AS VARCHAR(256))), '_null_recon_')))), 2)) AS "
+        'CONVERT(VARCHAR(256),SUBSTRING([s_address], 1, 11) + UPPER([s_name]) + '
+        "COALESCE(TRIM(CAST([s_nationkey] AS VARCHAR(256))), '_null_recon_') + "
+        "COALESCE(TRIM(CAST([s_phone] AS VARCHAR(256))), '_null_recon_') + "
+        "COALESCE(TRIM(CAST([s_suppkey] AS VARCHAR(256))), '_null_recon_'))), 2)) AS "
         'hash_value_recon, [s_nationkey] AS [s_nationkey], [s_suppkey] AS [s_suppkey] '
         "FROM :tbl WHERE [s_name] = 't' AND [s_address] = 'a'"
     )
@@ -150,9 +152,9 @@ def test_hash_query_builder_for_tsql_src(
     ).build_query(report_type="data")
     print(tgt_actual)
     tgt_expected = (
-        'SELECT LOWER(SHA2(CONCAT(SUBSTRING(`s_address_t`, 1, 11), UPPER(`s_name`), '
-        "COALESCE(TRIM(`s_nationkey_t`), '_null_recon_'), COALESCE(TRIM(`s_phone_t`), "
-        "'_null_recon_'), COALESCE(TRIM(`s_suppkey_t`), '_null_recon_')), 256)) AS "
+        'SELECT LOWER(SHA2(SUBSTRING(`s_address_t`, 1, 11) || UPPER(`s_name`) || '
+        "COALESCE(TRIM(`s_nationkey_t`), '_null_recon_') || COALESCE(TRIM(`s_phone_t`), "
+        "'_null_recon_') || COALESCE(TRIM(`s_suppkey_t`), '_null_recon_'), 256)) AS "
         'hash_value_recon, `s_nationkey_t` AS `s_nationkey`, `s_suppkey_t` AS '
         "`s_suppkey` FROM :tbl WHERE s_name = 't' AND s_address_t = 'a'"
     )
@@ -171,10 +173,10 @@ def test_hash_query_builder_without_column_mapping(table_conf, table_schema_orac
         table_conf, sch, "source", get_dialect("databricks"), fake_databricks_datasource
     ).build_query(report_type="data")
     src_expected = (
-        "SELECT LOWER(SHA2(CONCAT(COALESCE(TRIM(`s_acctbal`), '_null_recon_'), COALESCE(TRIM(`s_address`), '_null_recon_'),"
-        " COALESCE(TRIM(`s_comment`), '_null_recon_'), COALESCE(TRIM(`s_name`), '_null_recon_'), COALESCE(TRIM("
-        "`s_nationkey`), '_null_recon_'), COALESCE(TRIM("
-        "`s_phone`), '_null_recon_'), COALESCE(TRIM(`s_suppkey`), '_null_recon_')), 256)) AS hash_value_recon, `s_suppkey` "
+        "SELECT LOWER(SHA2(COALESCE(TRIM(`s_acctbal`), '_null_recon_') || COALESCE(TRIM(`s_address`), '_null_recon_') ||"
+        " COALESCE(TRIM(`s_comment`), '_null_recon_') || COALESCE(TRIM(`s_name`), '_null_recon_') || COALESCE(TRIM("
+        "`s_nationkey`), '_null_recon_') || COALESCE(TRIM("
+        "`s_phone`), '_null_recon_') || COALESCE(TRIM(`s_suppkey`), '_null_recon_'), 256)) AS hash_value_recon, `s_suppkey` "
         "AS `s_suppkey` FROM :tbl"
     )
 
@@ -182,11 +184,11 @@ def test_hash_query_builder_without_column_mapping(table_conf, table_schema_orac
         table_conf, sch, "target", get_dialect("databricks"), fake_databricks_datasource
     ).build_query(report_type="data")
     tgt_expected = (
-        "SELECT LOWER(SHA2(CONCAT(COALESCE(TRIM(`s_acctbal`), '_null_recon_'), COALESCE(TRIM(`s_address`), "
-        "'_null_recon_'), COALESCE(TRIM("
-        "`s_comment`), '_null_recon_'), COALESCE(TRIM(`s_name`), '_null_recon_'), COALESCE(TRIM(`s_nationkey`), "
-        "'_null_recon_'), COALESCE(TRIM(`s_phone`), "
-        "'_null_recon_'), COALESCE(TRIM(`s_suppkey`), '_null_recon_')), 256)) AS hash_value_recon, `s_suppkey` AS "
+        "SELECT LOWER(SHA2(COALESCE(TRIM(`s_acctbal`), '_null_recon_') || COALESCE(TRIM(`s_address`), "
+        "'_null_recon_') || COALESCE(TRIM("
+        "`s_comment`), '_null_recon_') || COALESCE(TRIM(`s_name`), '_null_recon_') || COALESCE(TRIM(`s_nationkey`), "
+        "'_null_recon_') || COALESCE(TRIM(`s_phone`), "
+        "'_null_recon_') || COALESCE(TRIM(`s_suppkey`), '_null_recon_'), 256)) AS hash_value_recon, `s_suppkey` AS "
         "`s_suppkey` FROM :tbl WHERE "
         "`s_nationkey` = 1"
     )
@@ -213,20 +215,20 @@ def test_hash_query_builder_without_transformation(
         table_conf, sch, "source", get_dialect("databricks"), fake_databricks_datasource
     ).build_query(report_type="data")
     src_expected = (
-        "SELECT LOWER(SHA2(CONCAT(COALESCE(TRIM(`s_acctbal`), '_null_recon_'), `s_address`, "
-        "COALESCE(TRIM(`s_comment`), '_null_recon_'), TRIM(s_name), COALESCE(TRIM(`s_nationkey`), '_null_recon_'), "
+        "SELECT LOWER(SHA2(COALESCE(TRIM(`s_acctbal`), '_null_recon_') || `s_address` || "
+        "COALESCE(TRIM(`s_comment`), '_null_recon_') || TRIM(s_name) || COALESCE(TRIM(`s_nationkey`), '_null_recon_') || "
         "COALESCE(TRIM("
-        "`s_phone`), '_null_recon_'), TRIM(s_suppkey)), 256)) AS hash_value_recon, TRIM(s_suppkey) AS `s_suppkey` FROM :tbl"
+        "`s_phone`), '_null_recon_') || TRIM(s_suppkey), 256)) AS hash_value_recon, TRIM(s_suppkey) AS `s_suppkey` FROM :tbl"
     )
 
     tgt_actual = HashQueryBuilder(
         table_conf, tgt_sch, "target", get_dialect("databricks"), fake_databricks_datasource
     ).build_query(report_type="data")
     tgt_expected = (
-        "SELECT LOWER(SHA2(CONCAT(COALESCE(TRIM(`s_acctbal_t`), '_null_recon_'), TRIM(`s_address_t`), COALESCE(TRIM("
-        "`s_comment_t`), '_null_recon_'), `s_name`, COALESCE(TRIM(`s_nationkey_t`), '_null_recon_'), COALESCE(TRIM("
+        "SELECT LOWER(SHA2(COALESCE(TRIM(`s_acctbal_t`), '_null_recon_') || TRIM(`s_address_t`) || COALESCE(TRIM("
+        "`s_comment_t`), '_null_recon_') || `s_name` || COALESCE(TRIM(`s_nationkey_t`), '_null_recon_') || COALESCE(TRIM("
         "`s_phone_t`), "
-        "'_null_recon_'), `s_suppkey_t`), 256)) AS hash_value_recon, `s_suppkey_t` AS `s_suppkey` FROM :tbl WHERE "
+        "'_null_recon_') || `s_suppkey_t`, 256)) AS hash_value_recon, `s_suppkey_t` AS `s_suppkey` FROM :tbl WHERE "
         "s_nationkey_t = 1"
     )
 
@@ -242,8 +244,8 @@ def test_hash_query_builder_for_report_type_is_row(
         normalized_table_conf_with_opts, sch, "source", get_dialect("databricks"), fake_databricks_datasource
     ).build_query(report_type="row")
     src_expected = (
-        "SELECT LOWER(SHA2(CONCAT(TRIM(s_address), TRIM(s_name), COALESCE(TRIM(`s_nationkey`), '_null_recon_'), "
-        "TRIM(s_phone), COALESCE(TRIM(`s_suppkey`), '_null_recon_')), 256)) AS hash_value_recon, TRIM(s_address) AS "
+        "SELECT LOWER(SHA2(TRIM(s_address) || TRIM(s_name) || COALESCE(TRIM(`s_nationkey`), '_null_recon_') || "
+        "TRIM(s_phone) || COALESCE(TRIM(`s_suppkey`), '_null_recon_'), 256)) AS hash_value_recon, TRIM(s_address) AS "
         "`s_address`, TRIM(s_name) AS `s_name`, `s_nationkey` AS `s_nationkey`, TRIM(s_phone) "
         "AS `s_phone`, `s_suppkey` AS `s_suppkey` FROM :tbl WHERE s_name = 't' AND "
         "s_address = 'a'"
@@ -253,8 +255,8 @@ def test_hash_query_builder_for_report_type_is_row(
         normalized_table_conf_with_opts, sch_with_alias, "target", get_dialect("databricks"), fake_databricks_datasource
     ).build_query(report_type="row")
     tgt_expected = (
-        "SELECT LOWER(SHA2(CONCAT(TRIM(s_address_t), TRIM(s_name), COALESCE(TRIM(`s_nationkey_t`), '_null_recon_'), "
-        "TRIM(s_phone_t), COALESCE(TRIM(`s_suppkey_t`), '_null_recon_')), 256)) AS hash_value_recon, TRIM(s_address_t) "
+        "SELECT LOWER(SHA2(TRIM(s_address_t) || TRIM(s_name) || COALESCE(TRIM(`s_nationkey_t`), '_null_recon_') || "
+        "TRIM(s_phone_t) || COALESCE(TRIM(`s_suppkey_t`), '_null_recon_'), 256)) AS hash_value_recon, TRIM(s_address_t) "
         "AS `s_address`, TRIM(s_name) AS `s_name`, `s_nationkey_t` AS `s_nationkey`, "
         "TRIM(s_phone_t) AS `s_phone`, `s_suppkey_t` AS `s_suppkey` FROM :tbl WHERE s_name "
         "= 't' AND s_address_t = 'a'"
@@ -284,20 +286,95 @@ def test_config_case_sensitivity(
         table_conf, sch, "source", get_dialect("databricks"), fake_databricks_datasource
     ).build_query(report_type="data")
     src_expected = (
-        "SELECT LOWER(SHA2(CONCAT(COALESCE(TRIM(`s_acctbal`), '_null_recon_'), `s_address`, "
-        "TRIM(`s_name`), COALESCE(TRIM(`s_nationkey`), '_null_recon_'), COALESCE(TRIM("
-        "`s_phone`), '_null_recon_'), TRIM(`s_suppkey`)), 256)) AS hash_value_recon, TRIM(`s_suppkey`) AS `s_suppkey` FROM :tbl"
+        "SELECT LOWER(SHA2(COALESCE(TRIM(`s_acctbal`), '_null_recon_') || `s_address` || "
+        "TRIM(`s_name`) || COALESCE(TRIM(`s_nationkey`), '_null_recon_') || COALESCE(TRIM("
+        "`s_phone`), '_null_recon_') || TRIM(`s_suppkey`), 256)) AS hash_value_recon, TRIM(`s_suppkey`) AS `s_suppkey` FROM :tbl"
     )
 
     tgt_actual = HashQueryBuilder(
         table_conf, tgt_sch, "target", get_dialect("databricks"), fake_databricks_datasource
     ).build_query(report_type="data")
     tgt_expected = (
-        "SELECT LOWER(SHA2(CONCAT(COALESCE(TRIM(`s_acctbal_t`), '_null_recon_'), TRIM(`s_address_t`), `s_name`, "
+        "SELECT LOWER(SHA2(COALESCE(TRIM(`s_acctbal_t`), '_null_recon_') || TRIM(`s_address_t`) || `s_name` || "
         "COALESCE(TRIM("
-        "`s_nationkey_t`), '_null_recon_'), COALESCE(TRIM(`s_phone_t`), '_null_recon_'), `s_suppkey_t`), "
+        "`s_nationkey_t`), '_null_recon_') || COALESCE(TRIM(`s_phone_t`), '_null_recon_') || `s_suppkey_t`, "
         "256)) AS hash_value_recon, `s_suppkey_t` AS "
         "`s_suppkey` FROM :tbl WHERE s_nationkey_t = 1"
+    )
+
+    assert src_actual == src_expected
+    assert tgt_actual == tgt_expected
+
+
+def test_hash_query_builder_sort_column(
+    fake_tsql_datasource,
+    fake_databricks_datasource,
+):
+    """Test column ordering for T-SQL when month and month_num columns are present."""
+    src_schema = [
+        tsql_schema_fixture_factory("id", "number"),
+        tsql_schema_fixture_factory("month_num", "number"),
+        tsql_schema_fixture_factory("month", "number"),
+        tsql_schema_fixture_factory("year", "number"),
+        tsql_schema_fixture_factory("revenue", "number"),
+    ]
+
+    tgt_schema = [
+        ansi_schema_fixture_factory("id", "number"),
+        ansi_schema_fixture_factory("month", "number"),
+        ansi_schema_fixture_factory("month_num", "number"),
+        ansi_schema_fixture_factory("year", "number"),
+        ansi_schema_fixture_factory("revenue", "number"),
+    ]
+
+    # Create table configuration
+    table_conf = Table(
+        source_name="sales_report",
+        target_name="sales_report",
+        join_columns=["id"],
+        select_columns=["id", "month", "month_num", "year", "revenue"],
+    )
+
+    # Normalize the configuration
+    normalize_service = NormalizeReconConfigService(fake_tsql_datasource, fake_databricks_datasource)
+    normalized_conf = normalize_service.normalize_recon_table_config(table_conf)
+
+    # Build source query (T-SQL)
+    src_actual = HashQueryBuilder(
+        normalized_conf,
+        src_schema,
+        "source",
+        get_dialect("tsql"),
+        fake_tsql_datasource,
+    ).build_query(report_type="data")
+
+    # Build target query (Databricks)
+    tgt_actual = HashQueryBuilder(
+        normalized_conf,
+        tgt_schema,
+        "target",
+        get_dialect("databricks"),
+        fake_databricks_datasource,
+    ).build_query(report_type="data")
+
+    # Verify columns are in alphabetical order: id, month, month_num, revenue, year
+    src_expected = (
+        "SELECT LOWER(CONVERT(VARCHAR(256), HASHBYTES('SHA2_256', "
+        "CONVERT(VARCHAR(256),COALESCE(TRIM(CAST([id] AS VARCHAR(256))), '_null_recon_') + "
+        "COALESCE(TRIM(CAST([month] AS VARCHAR(256))), '_null_recon_') + "
+        "COALESCE(TRIM(CAST([month_num] AS VARCHAR(256))), '_null_recon_') + "
+        "COALESCE(TRIM(CAST([revenue] AS VARCHAR(256))), '_null_recon_') + "
+        "COALESCE(TRIM(CAST([year] AS VARCHAR(256))), '_null_recon_'))), 2)) AS "
+        "hash_value_recon, [id] AS [id] FROM :tbl"
+    )
+
+    tgt_expected = (
+        "SELECT LOWER(SHA2(COALESCE(TRIM(`id`), '_null_recon_') || "
+        "COALESCE(TRIM(`month`), '_null_recon_') || "
+        "COALESCE(TRIM(`month_num`), '_null_recon_') || "
+        "COALESCE(TRIM(`revenue`), '_null_recon_') || "
+        "COALESCE(TRIM(`year`), '_null_recon_'), 256)) AS "
+        "hash_value_recon, `id` AS `id` FROM :tbl"
     )
 
     assert src_actual == src_expected

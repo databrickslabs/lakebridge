@@ -22,16 +22,18 @@ logger = logging.getLogger(__name__)
 
 
 class QueryBuilder(ABC):
-    def __init__(self, table_conf: Table, schema: list[Schema], layer: str, engine: Dialect, data_source: DataSource):
+    def __init__(
+        self, table_conf: Table, schema: list[Schema], layer: str, source_engine: Dialect, data_source: DataSource
+    ):
         self._table_conf = table_conf
         self._schema = schema
         self._layer = layer
-        self._engine = engine
+        self._source_engine = source_engine
         self._data_source = data_source
 
     @property
     def engine(self) -> Dialect:
-        return self._engine if self.layer == "source" else get_dialect("databricks")
+        return self._source_engine if self.layer == "source" else get_dialect("databricks")
 
     @property
     def layer(self) -> str:
