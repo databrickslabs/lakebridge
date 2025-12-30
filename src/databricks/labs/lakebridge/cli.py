@@ -29,6 +29,7 @@ from databricks.labs.lakebridge.contexts.application import ApplicationContext
 from databricks.labs.lakebridge.connections.credential_manager import cred_file, create_credential_manager
 from databricks.labs.lakebridge.connections.database_manager import DatabaseManager
 from databricks.labs.lakebridge.connections.env_getter import EnvGetter
+from databricks.labs.lakebridge.connections.synapse_helpers import validate_synapse_pools
 from databricks.labs.lakebridge.helpers.recon_config_utils import ReconConfigPrompts
 from databricks.labs.lakebridge.helpers.telemetry_utils import make_alphanum_or_semver
 from databricks.labs.lakebridge.install import installer
@@ -1010,6 +1011,21 @@ def create_profiler_dashboard(
     ctx.dashboard_manager.create_profiler_summary_dashboard(source_tech, catalog_name, schema_name)
 
 
+def _transform_profiler_credentials(source_tech: str, raw_config: dict) -> dict:
+    """Transform source-specific credential structures to flat connection config."""
+    if source_tech == "synapse":
+        # Synapse has nested structure: extract workspace config and add database
+        workspace_config = raw_config.get("workspace", {})
+        jdbc_config = raw_config.get("jdbc", {})
+
+        return {
+            **workspace_config,
+            "database": "master",  # Use master database for connection test
+            "auth_type": jdbc_config.get("auth_type", "sql_authentication"),
+        }
+    return raw_config
+
+
 @lakebridge.command()
 def test_profiler_connection(w: WorkspaceClient, source_tech: str | None = None) -> None:
     """[Internal] Test the connection to the source database for profiling"""
@@ -1041,15 +1057,20 @@ def test_profiler_connection(w: WorkspaceClient, source_tech: str | None = None)
     try:
         # Create credential manager and get credentials
         cred_manager = create_credential_manager(PRODUCT_NAME, EnvGetter())
-        config = cred_manager.get_credentials(source_tech)
+        raw_config = cred_manager.get_credentials(source_tech)
 
-        # Create database manager and test connection
-        db_manager = DatabaseManager(source_tech, config)
-        if db_manager.check_connection():
-            logger.info("Connection to the source system successful")
+        # Handle source-specific connection testing
+        if source_tech == "synapse":
+            validate_synapse_pools(raw_config)
         else:
-            logger.error("Connection to the source system failed, check logs in debug mode")
-            raise_validation_exception("Connection validation failed")
+            # Other sources use flat config structure
+            config = _transform_profiler_credentials(source_tech, raw_config)
+            db_manager = DatabaseManager(source_tech, config)
+            if db_manager.check_connection():
+                logger.info("Connection to the source system successful")
+            else:
+                logger.error("Connection to the source system failed, check logs in debug mode")
+                raise_validation_exception("Connection validation failed")
 
     except ConnectionError as e:
         logger.error(f"Failed to connect to the source system: {e}")
