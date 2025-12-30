@@ -6,19 +6,11 @@ class Step:
     name: str
     type: str | None
     extract_source: str
-    mode: str | None
-    frequency: str | None
-    flag: str | None
+    mode: str = "append"
+    frequency: str = "once"
+    flag: str = "active"
     dependencies: list[str] = field(default_factory=list)
     comment: str | None = None
-
-    def __post_init__(self):
-        if self.frequency is None:
-            self.frequency = "once"
-        if self.flag is None:
-            self.flag = "active"
-        if self.mode is None:
-            self.mode = "append"
 
 
 @dataclass
