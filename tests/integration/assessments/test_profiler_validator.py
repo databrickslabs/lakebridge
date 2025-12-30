@@ -17,17 +17,13 @@ from tests.utils.profiler_extract_utils import build_mock_synapse_extract
 
 
 @pytest.fixture(scope="module")
-def pipeline_config_path():
-    prefix = Path(__file__).parent
-    config_path = f"{prefix}/../../resources/assessments/pipeline_config.yml"
-    return config_path
+def pipeline_config_path(test_resources: Path) -> Path:
+    return test_resources / "assessments" / "pipeline_config.yml"
 
 
 @pytest.fixture(scope="module")
-def failure_pipeline_config_path():
-    prefix = Path(__file__).parent
-    config_path = f"{prefix}/../../resources/assessments/pipeline_config_python_failure.yml"
-    return config_path
+def failure_pipeline_config_path(test_resources: Path) -> Path:
+    return test_resources / "assessments" / "pipeline_config_python_failure.yml"
 
 
 @pytest.fixture(scope="session")
@@ -39,14 +35,14 @@ def mock_synapse_profiler_extract() -> Generator[str, None, None]:
         yield synapse_extract_path
 
 
-def test_get_profiler_extract_path(pipeline_config_path, failure_pipeline_config_path):
+def test_get_profiler_extract_path(pipeline_config_path: Path, failure_pipeline_config_path: Path) -> None:
     # Parse `extract_folder` **with** a trailing "/" character
-    expected_db_path = "/tmp/extracts/profiler_extract.db"
+    expected_db_path = Path("/tmp/extracts/profiler_extract.db")
     profiler_db_path = get_profiler_extract_path(pipeline_config_path)
     assert profiler_db_path == expected_db_path
 
     # Parse `extract_folder` **without** a trailing "/" character
-    expected_db_path = "tests/resources/assessments/profiler_extract.db"
+    expected_db_path = Path("tests/resources/assessments/profiler_extract.db")
     profiler_db_path = get_profiler_extract_path(failure_pipeline_config_path)
     assert profiler_db_path == expected_db_path
 
@@ -87,18 +83,17 @@ def test_validate_mixed_checks(mock_synapse_profiler_extract):
         assert num_passing == 4
 
 
-def test_validate_invalid_schema_path(mock_synapse_profiler_extract):
+def test_validate_invalid_schema_path(mock_synapse_profiler_extract: str, test_resources: Path) -> None:
     with duckdb.connect(database=mock_synapse_profiler_extract) as duck_conn:
         validation_checks = []
         # Build a schema check with an invalid schema def path
-        prefix = Path(__file__).parent
-        schema_def_path = f"{prefix}/../../resources/assessments/synapse_scheme_def_nonexists.yml"
+        schema_def_path = test_resources / "assessments" / "synapse_scheme_def_nonexists.yml"
         schema_check = ExtractSchemaValidationCheck(
             "main",
             "dedicated_routines",
             source_tech="synapse",
             extract_path=mock_synapse_profiler_extract,
-            schema_path=schema_def_path,
+            schema_path=str(schema_def_path),
         )
         validation_checks.append(schema_check)
 
@@ -110,18 +105,17 @@ def test_validate_invalid_schema_path(mock_synapse_profiler_extract):
         assert "Schema definition file not found:" in str(exec_info.value)
 
 
-def test_validate_invalid_source_tech(mock_synapse_profiler_extract):
+def test_validate_invalid_source_tech(mock_synapse_profiler_extract: str, test_resources: Path) -> None:
     with duckdb.connect(database=mock_synapse_profiler_extract) as duck_conn:
         validation_checks = []
-        prefix = Path(__file__).parent
-        schema_def_path = f"{prefix}/../../resources/assessments/synapse_schema_def.yml"
+        schema_def_path = test_resources / "assessments" / "synapse_schema_def.yml"
         # Provide a mismatched source tech with schema definition
         schema_check = ExtractSchemaValidationCheck(
             "main",
             "dedicated_routines",
             source_tech="oracle",
             extract_path=mock_synapse_profiler_extract,
-            schema_path=schema_def_path,
+            schema_path=str(schema_def_path),
         )
         validation_checks.append(schema_check)
 
@@ -133,18 +127,17 @@ def test_validate_invalid_source_tech(mock_synapse_profiler_extract):
         assert "Incorrect schema definition type for source tech" in str(exec_info.value)
 
 
-def test_validate_table_not_found(mock_synapse_profiler_extract):
+def test_validate_table_not_found(mock_synapse_profiler_extract: str, test_resources: Path) -> None:
     with duckdb.connect(database=mock_synapse_profiler_extract) as duck_conn:
         validation_checks = []
-        prefix = Path(__file__).parent
-        schema_def_path = f"{prefix}/../../resources/assessments/synapse_schema_def.yml"
+        schema_def_path = test_resources / "assessments" / "synapse_schema_def.yml"
         # Provide a table not in the profiler extract
         schema_check = ExtractSchemaValidationCheck(
             "main",
             "table_does_not_exist",
             source_tech="synapse",
             extract_path=mock_synapse_profiler_extract,
-            schema_path=schema_def_path,
+            schema_path=str(schema_def_path),
         )
         validation_checks.append(schema_check)
 
@@ -156,11 +149,10 @@ def test_validate_table_not_found(mock_synapse_profiler_extract):
         assert "could not be found" in str(exec_info.value)
 
 
-def test_validate_successful_schema_check(mock_synapse_profiler_extract):
+def test_validate_successful_schema_check(mock_synapse_profiler_extract: str, test_resources: Path) -> None:
     with duckdb.connect(database=mock_synapse_profiler_extract) as duck_conn:
         validation_checks = []
-        prefix = Path(__file__).parent
-        schema_def_path = f"{prefix}/../../resources/assessments/synapse_schema_def.yml"
+        schema_def_path = test_resources / "assessments" / "synapse_schema_def.yml"
 
         # Validate SQL Pool metrics
         schema_check = ExtractSchemaValidationCheck(
@@ -168,7 +160,7 @@ def test_validate_successful_schema_check(mock_synapse_profiler_extract):
             "dedicated_sql_pool_metrics",
             source_tech="synapse",
             extract_path=mock_synapse_profiler_extract,
-            schema_path=schema_def_path,
+            schema_path=str(schema_def_path),
         )
         validation_checks.append(schema_check)
 
@@ -181,11 +173,10 @@ def test_validate_successful_schema_check(mock_synapse_profiler_extract):
         assert num_passing == 1
 
 
-def test_validate_invalid_schema_check(mock_synapse_profiler_extract):
+def test_validate_invalid_schema_check(mock_synapse_profiler_extract: str, test_resources: Path) -> None:
     with duckdb.connect(database=mock_synapse_profiler_extract) as duck_conn:
         validation_checks = []
-        prefix = Path(__file__).parent
-        schema_def_path = f"{prefix}/../../resources/assessments/synapse_schema_def.yml"
+        schema_def_path = test_resources / "assessments" / "synapse_schema_def.yml"
 
         # Validate SQL Pool metrics
         schema_check = ExtractSchemaValidationCheck(
@@ -193,7 +184,7 @@ def test_validate_invalid_schema_check(mock_synapse_profiler_extract):
             "dedicated_storage_info",
             source_tech="synapse",
             extract_path=mock_synapse_profiler_extract,
-            schema_path=schema_def_path,
+            schema_path=str(schema_def_path),
         )
         validation_checks.append(schema_check)
 
