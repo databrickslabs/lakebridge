@@ -1,7 +1,8 @@
+import dataclasses
 from dataclasses import dataclass, field
 
 
-@dataclass
+@dataclass(frozen=True)
 class Step:
     name: str
     type: str | None
@@ -12,11 +13,17 @@ class Step:
     dependencies: list[str] = field(default_factory=list)
     comment: str | None = None
 
+    def copy(self, /, **changes) -> "Step":
+        return dataclasses.replace(self, **changes)
 
-@dataclass
+
+@dataclass(frozen=True)
 class PipelineConfig:
     name: str
     version: str
     extract_folder: str
     comment: str | None = None
     steps: list[Step] = field(default_factory=list)
+
+    def copy(self, /, **changes) -> "PipelineConfig":
+        return dataclasses.replace(self, **changes)
