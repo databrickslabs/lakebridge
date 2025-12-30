@@ -65,7 +65,7 @@ def _get_home() -> Path:
 
 
 def cred_file(product_name) -> Path:
-    return Path(f"{_get_home()}/.databricks/labs/{product_name}/.credentials.yml")
+    return _get_home() / ".databricks" / "labs" / product_name / ".credentials.yml"
 
 
 def _load_credentials(path: Path) -> dict:
