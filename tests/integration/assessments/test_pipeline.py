@@ -5,6 +5,7 @@ import pytest
 from databricks.labs.lakebridge.assessments.pipeline import PipelineClass, DB_NAME, StepExecutionStatus
 
 from databricks.labs.lakebridge.assessments.profiler_config import Step, PipelineConfig
+from databricks.labs.lakebridge.connections.database_manager import DatabaseManager
 
 
 @pytest.fixture(scope="module")
