@@ -61,7 +61,7 @@ class CredentialManager:
 
 
 def _get_home() -> Path:
-    return Path(__file__).home()
+    return Path.home()
 
 
 def cred_file(product_name) -> Path:
