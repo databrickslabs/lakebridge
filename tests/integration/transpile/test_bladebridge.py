@@ -99,7 +99,7 @@ def test_transpiles_informatica_to_sparksql(
     repository_with_bladebridge: TranspilerRepository,
     errors_path: Path,
     tmp_path: Path,
-    capsys,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     """Check that 'transpile' can convert an Informatica (ETL) mapping to SparkSQL using Bladebridge."""
     # Prepare the application context with a configuration for converting Informatica (ETL)
@@ -156,7 +156,7 @@ def test_transpiles_informatica_to_sparksql_non_interactive(
     repository_with_bladebridge: TranspilerRepository,
     errors_path: Path,
     tmp_path: Path,
-    capsys,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     """Check that 'transpile' can non-interactively convert an Informatica (ETL) mapping to SparkSQL using Bladebridge."""
     # Prepare the application context as if it were non-interactive (no config.yml file).
@@ -220,7 +220,7 @@ def test_transpile_teradata_sql(
     repository_with_bladebridge: TranspilerRepository,
     errors_path: Path,
     tmp_path: Path,
-    capsys,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     """Check that 'transpile' can convert a Teradata (SQL) to DBSQL using Bladebridge, and then validate the output."""
     # Prepare the application context with a configuration for converting Teradata (SQL)
@@ -256,7 +256,7 @@ def test_transpile_teradata_sql_non_interactive(
     repository_with_bladebridge: TranspilerRepository,
     errors_path: Path,
     tmp_path: Path,
-    capsys,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     """Check that 'transpile' can non-interactively convert a Teradata (SQL) to DBSQL using Bladebridge, and then validate the output."""
     # Prepare the application context as if it were non-interactive (no config.yml file).

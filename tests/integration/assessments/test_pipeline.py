@@ -90,7 +90,7 @@ def test_run_python_dep_failure_pipeline(sandbox_sqlserver, pipeline_dep_failure
     assert "Pipeline execution failed due to errors in steps: package_status" in str(e.value)
 
 
-def test_skipped_steps(sandbox_sqlserver, pipeline_config, get_logger):
+def test_skipped_steps(sandbox_sqlserver: DatabaseManager, pipeline_config: PipelineConfig) -> None:
     # Modify config to have some inactive steps
     for step in pipeline_config.steps:
         step.flag = "inactive"
