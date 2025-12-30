@@ -199,6 +199,7 @@ def parse_sql_files(input_dir: Path, source: str, target: str, is_expected_excep
                 suite.append(FunctionalTestFile(target_sql, source_sql, test_name, target))
     return suite
 
+
 def get_functional_test_files(
     project_dir: Path,
     suite: str,
@@ -209,6 +210,7 @@ def get_functional_test_files(
     test_resources = project_dir / "tests" / "resources"
     input_dir = test_resources / "functional" / suite
     return parse_sql_files(input_dir, source, "databricks", is_expected_exception)
+
 
 @pytest.fixture
 def expr():
