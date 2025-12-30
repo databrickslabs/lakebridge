@@ -210,14 +210,6 @@ def get_functional_test_files(
     input_dir = test_resources / "functional" / suite
     return parse_sql_files(input_dir, source, "databricks", is_expected_exception)
 
-def get_functional_test_files_from_directory(
-    input_dir: Path, source: str, target: str, is_expected_exception=False
-) -> Sequence[FunctionalTestFileWithExpectedException]:
-    """Get all functional tests in the input_dir."""
-    suite = parse_sql_files(input_dir, source, target, is_expected_exception)
-    return suite
-
-
 @pytest.fixture
 def expr():
     return parse_one("SELECT col1 FROM DUAL")
