@@ -18,8 +18,6 @@ from databricks.labs.lakebridge.contexts.application import ApplicationContext
 from databricks.labs.lakebridge.transpiler.repository import TranspilerRepository
 from tests.unit.conftest import path_to_resource
 
-TRANSPILERS_PATH = Path(__file__).parent.parent / "resources" / "transpiler_configs"
-
 
 @pytest.fixture()
 def transpiler_repository(tmp_path: Path) -> TranspilerRepository:
