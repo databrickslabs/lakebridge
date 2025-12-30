@@ -216,6 +216,7 @@ def expr():
 
 
 def path_to_resource(*args: str) -> str:
+    # TODO: Figure out how to extract this.
     resource_path = Path(__file__).parent.parent / "resources"
     for arg in args:
         resource_path = resource_path / arg
