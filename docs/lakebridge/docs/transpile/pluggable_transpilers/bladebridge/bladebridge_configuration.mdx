@@ -4,6 +4,7 @@ sidebar_position: 4
 ---
 
 import CodeBlock from '@theme/CodeBlock';
+import Admonition from '@theme/Admonition';
 
 
 ## Overview
@@ -71,6 +72,67 @@ with the full path. Otherwise, the converter will look for the file in the same 
       - TERADATA "base_teradata2databricks_sql.json"
 ```
 
+### Practical Example: Renaming Tables and Schema Mapping
+
+For scenarios where you need to rename tables or ensure they follow the UC three-level namespace paradigm, you can configure the converter as follows:
+
+First, we need to add inheritance in our custom configuration file to build on top of the base configuration:
+
+```json
+"inherit_from": [
+  "/Users/user.name/.databricks/labs/remorph-transpilers/bladebridge/lib/.venv/lib/python3.10/site-packages/databricks/labs/bladebridge/Converter/Configs/base_mssql2databricks_sql.json"
+]
+```
+
+> 💡 **Tip:** Make sure to provide the correct file path to your local environment.
+
+Next, we should add the `target_sql_file_header` attribute in the custom configuration to define the catalog:
+
+```json
+"target_sql_file_header": "USE CATALOG catalog01;"
+```
+
+Finally, we need to add a `line_subst` section for schema replacement, mapping original schemas to new ones:
+
+```json
+"line_subst": [
+  { "from": "\\bschema01\\b\\.", "to": "gold." },
+  { "from": "\\bschema02\\b\\.", "to": "silver." }
+]
+```
+
+With this configuration:
+- Any reference to `schema01.` will be replaced with `gold.`
+- Any reference to `schema02.` will be replaced with `silver.`
+- The generated SQL files will automatically include a catalog declaration at the top.
+
+
+### Putting it all together
+
+1. Create a file: my_custom_config.json with the following contents:
+``` json
+{
+    "inherit_from": [
+      "/Users/user.name/.databricks/labs/remorph-transpilers/bladebridge/lib/.venv/lib/python3.10/site-packages/databricks/labs/bladebridge/Converter/Configs/base_mssql2databricks_sql.json"
+    ],
+    "target_sql_file_header": "USE CATALOG catalog01;",
+    "line_subst": [
+      { "from": "\\bschema01\\b\\.", "to": "gold." },
+      { "from": "\\bschema02\\b\\.", "to": "silver." }
+    ]
+}
+```
+
+2. Now you can use this file for transpiling your code as follows:
+```
+databricks labs lakebridge install-transpile
+Do you want to override the existing installation? (default: no): yes
+Specify the config file to override the default[Bladebridge] config - press <enter> for none (default: <none>):
+my_custom_config.json
+```
+
+
+---
 
 ## Basic Converter Rules
 
@@ -419,6 +481,7 @@ Specifies the subroutine to be used when `preprocess_file` is enabled.
 ```json
 "preprocess_routine": "::mssql_preprocess"
 ```
+---
 
 ## ETL Configuration Files
 
