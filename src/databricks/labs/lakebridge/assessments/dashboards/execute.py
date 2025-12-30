@@ -49,7 +49,7 @@ def _get_extract_tables(schema_def_path: str) -> list:
         raise FileNotFoundError(f"Schema definition not found: {schema_def_path}") from e
     # Iterate through the defined schemas and build a list of
     # table info tuples: (schema_name, table_name, fully_qualified_name)
-    extracted_tables = []
+    extracted_tables: list[tuple[str, str, str]] = []
     for schema_name, schema_def in data.get("schemas", {}).items():
         tables = schema_def.get("tables", {})
         for table_name in tables.keys():
