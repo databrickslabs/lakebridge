@@ -1073,7 +1073,19 @@ def test_profiler_connection(w: WorkspaceClient, source_tech: str | None = None)
                 raise_validation_exception("Connection validation failed")
 
     except ConnectionError as e:
-        logger.error(f"Failed to connect to the source system: {e}")
+        error_msg = str(e)
+        logger.error(f"Failed to connect to the source system: {error_msg}")
+
+        # Provide helpful hints for common errors
+        if "ODBC Driver" in error_msg or "IM002" in error_msg or "Data source name not found" in error_msg:
+            logger.error(
+                "ODBC driver not found. Please install the required ODBC driver (e.g., 'ODBC Driver 18 for SQL Server')."
+            )
+        elif "login" in error_msg.lower() or "authentication" in error_msg.lower():
+            logger.error("Authentication failed. Please check username and password.")
+        elif "timeout" in error_msg.lower():
+            logger.error("Connection timeout. Please check network connectivity and server availability.")
+
         raise SystemExit("Connection validation failed. Exiting...") from e
     except KeyError as e:
         logger.error(f"Credential configuration error: {e}")

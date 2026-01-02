@@ -4,8 +4,12 @@ from databricks.labs.lakebridge.connections.database_manager import DatabaseMana
 logger = logging.getLogger(__name__)
 
 
-def _test_pool_connection(pool_name: str, base_config: dict, endpoint_key: str) -> bool:
-    """Test connection to a single Synapse SQL pool with proper resource cleanup."""
+def _test_pool_connection(pool_name: str, base_config: dict, endpoint_key: str) -> tuple[bool, str | None]:
+    """Test connection to a single Synapse SQL pool with proper resource cleanup.
+
+    Returns:
+        Tuple of (success, error_message). error_message is None if successful.
+    """
     logger.info(f"Testing connection to {pool_name} SQL pool...")
     pool_config = {**base_config, "endpoint_key": endpoint_key}
     db_manager = None
@@ -14,13 +18,14 @@ def _test_pool_connection(pool_name: str, base_config: dict, endpoint_key: str) 
         db_manager = DatabaseManager("synapse", pool_config)
         if db_manager.check_connection():
             logger.info(f"✓ {pool_name.capitalize()} SQL pool connection successful")
-            return True
+            return True, None
         logger.error(f"✗ {pool_name.capitalize()} SQL pool connection failed")
-        return False
+        return False, f"{pool_name.capitalize()} SQL pool connection check failed"
     except Exception as e:  # pylint: disable=broad-exception-caught
         # Catch all exceptions to gracefully handle any connection failure (network, auth, config, etc.)
-        logger.error(f"✗ Failed to connect to {pool_name} SQL pool: {e}")
-        return False
+        error_msg = f"Failed to connect to {pool_name} SQL pool: {e}"
+        logger.error(f"✗ {error_msg}")
+        return False, error_msg
     finally:
         # Clean up database engine resources
         if db_manager and hasattr(db_manager, 'connector') and hasattr(db_manager.connector, 'engine'):
@@ -69,17 +74,25 @@ def validate_synapse_pools(raw_config: dict) -> None:
         logger.warning("Both dedicated and serverless SQL pools are excluded in profiler configuration")
         raise ValueError("No SQL pools enabled for testing")
 
-    # Track results
+    # Track results and error messages
     results = {}
+    error_messages = {}
 
     # Test enabled pools sequentially
     if test_dedicated:
-        results["dedicated"] = _test_pool_connection("dedicated", base_config, "dedicated_sql_endpoint")
+        success, error_msg = _test_pool_connection("dedicated", base_config, "dedicated_sql_endpoint")
+        results["dedicated"] = success
+        if error_msg:
+            error_messages["dedicated"] = error_msg
 
     if test_serverless:
-        results["serverless"] = _test_pool_connection("serverless", base_config, "serverless_sql_endpoint")
+        success, error_msg = _test_pool_connection("serverless", base_config, "serverless_sql_endpoint")
+        results["serverless"] = success
+        if error_msg:
+            error_messages["serverless"] = error_msg
 
     # Check if any pools failed
     if not all(results.values()):
         failed_pools = [pool for pool, success in results.items() if not success]
-        raise ValueError(f"Connection failed for SQL pools: {', '.join(failed_pools)}")
+        error_details = "; ".join([f"{pool}: {error_messages.get(pool, 'Unknown error')}" for pool in failed_pools])
+        raise ConnectionError(f"Connection failed for SQL pools - {error_details}")

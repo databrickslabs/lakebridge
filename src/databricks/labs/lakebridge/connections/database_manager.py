@@ -138,9 +138,10 @@ class DatabaseManager:
     def fetch(self, query: str) -> FetchResult:
         try:
             return self.connector.fetch(query)
-        except OperationalError:
-            logger.error("Error connecting to the database check credentials")
-            raise ConnectionError("Error connecting to the database check credentials") from None
+        except OperationalError as e:
+            error_msg = f"Error connecting to the database: {e}"
+            logger.error(error_msg)
+            raise ConnectionError(error_msg) from e
 
     def check_connection(self) -> bool:
         query = "SELECT 101 AS test_column"
