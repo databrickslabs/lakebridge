@@ -92,16 +92,18 @@ def test_sql_server_read_schema_happy(mock_spark: SparkSession) -> None:
 def test_databricks_read_schema_happy(mock_spark: SparkSession) -> None:
     mock_ws = create_autospec(WorkspaceClient)
     connector = DatabricksDataSource(get_dialect("databricks"), mock_spark, mock_ws, "my_secret")
-
-    mock_spark.sql("CREATE DATABASE IF NOT EXISTS my_test_db")
-    mock_spark.sql("CREATE TABLE IF NOT EXISTS my_test_db.my_test_table (id INT, name STRING) USING parquet")
-    df = mock_spark.sql("SELECT * FROM my_test_db.my_test_table")
     random_view = f"test_view_{uuid.uuid4().hex}"
-    df.createGlobalTempView(random_view)
-    columns = connector.get_schema(None, "global_temp", random_view)
 
-    assert columns
-    assert mock_spark.catalog.dropGlobalTempView(random_view)
+    try:
+        mock_spark.sql("CREATE DATABASE IF NOT EXISTS my_test_db")
+        mock_spark.sql("CREATE TABLE IF NOT EXISTS my_test_db.my_test_table (id INT, name STRING) USING parquet")
+        df = mock_spark.sql("SELECT * FROM my_test_db.my_test_table")
+        df.createGlobalTempView(random_view)
+        columns = connector.get_schema(None, "global_temp", random_view)
+
+        assert columns
+    finally:
+        assert mock_spark.catalog.dropGlobalTempView(random_view)
 
 
 def test_databricks_read_schema_happy_sandbox(
