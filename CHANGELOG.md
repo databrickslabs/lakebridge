@@ -1,5 +1,61 @@
 # Version changelog
 
+## 0.11.3
+
+## Analyzer
+
+- Optimized SAS Analyzer performance by consolidating regex operations, delivering roughly a 7x speed improvement for large-scale SAS analysis workloads.
+- Added support for new SSIS components Microsoft.Pivot, Microsoft.UnPivot, and ExtensibleFileTask, broadening coverage for SSIS package migrations analysis.
+    
+## Converters – Morpheus
+- Core
+	- Significantly improved ANTLR parsing performance by merging grammars, refactoring ambiguous rules, and updating the Scala integration and build pipeline for the new grammar workflow.
+	- Allowed the STREAMS token to be used as an identifier so patterns like SELECT * FROM streams.foo.bar now parse correctly in Snowflake-oriented SQL.
+	- Updated the error reporting to align to the following:
+		- - `Info`: no error, the input was fully translated
+		- `Hint`: the input was fully translated but some irrelevant bits have been elided
+		- `Warning`: the input was translated but with unsupported bits
+		- `Error`: the input couldn't be translated
+
+- MSSQL / T-SQL / SQL Server
+    
+    - Added full support for SQL Server T-SQL CREATE INDEX and table-level index directives, parsing them into a new index IR and translating to CLUSTER BY AUTO in Databricks SQL so index statements are no longer rejected.
+        
+    - Extended grammar and parsing to handle T-SQL computed columns, QUOTENAME calls, GROUP options in query hints, DROP INDEX statements, and additional keywords like PARAMETERS, STREAMS, PROCEDURES, and VIEWS, improving coverage of real-world T-SQL workloads.
+        
+    - Improved DML parsing so INSERT targets use proper dot identifiers instead of expression-like forms, preventing misinterpretation as function calls and preserving case sensitivity where required.
+        
+    - Re-enabled and migrated T-SQL functional tests to a YAML-based format, expanding automated coverage and keeping still-failing cases isolated for follow-up.
+        
+
+## Converters – BladeBridge
+
+- MSSQL / SSIS / T-SQL
+    
+    - Resolved issues with column names containing single quotes and standardized DATEADD and DATEDIFF function patterns to improve compatibility across target SQL dialects.
+        
+- DataStage
+    
+    - Implemented mapping for the JulianDayFromDate function with corresponding tests, extending DataStage function coverage in the converter.
+        
+    - Enhanced DataStage Spark and workflow handling by adding Databricks cluster sections, improving widget default handling, and mapping TransformStringToDate and spark.sqltemplate attributes for smoother Spark migrations.
+        
+
+## Reconcile
+
+- Improved reconciliation hash query generation to guarantee consistent column ordering across SQL dialects, preventing false hash mismatches when column names are substrings of each other.
+    
+- Reverted the Oracle reconcile implementation to use MD5 via DBMS_CRYPTO.HASH with RAWTOHEX, restoring compatibility with Oracle 11 while keeping the updated QueryBuilder engine handling..
+    
+## Documentation
+
+- Added practical details about how to extend BladeBridge configurations
+
+
+Dependency updates:
+
+ * Bump actions/checkout from 5 to 6 ([#2158](https://github.com/databrickslabs/lakebridge/pull/2158)).
+
 ## 0.11.2
 
 # Analyzer
