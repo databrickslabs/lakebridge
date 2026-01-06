@@ -1,19 +1,23 @@
 import dataclasses
 import logging
 import os
+import sys
 import webbrowser
 from collections.abc import Callable, Sequence, Set
 from pathlib import Path
 from typing import Any
 
+from databricks.labs.blueprint.entrypoint import get_logger, is_in_debug
 from databricks.labs.blueprint.installation import Installation, JsonValue, SerdeError
 from databricks.labs.blueprint.installer import InstallState
 from databricks.labs.blueprint.tui import Prompts
 from databricks.labs.blueprint.wheels import ProductInfo
 from databricks.sdk import WorkspaceClient
+from databricks.sdk.core import with_user_agent_extra
 from databricks.sdk.errors import NotFound, PermissionDenied
 
 from databricks.labs.lakebridge.__about__ import __version__
+from databricks.labs.lakebridge.cli import lakebridge
 from databricks.labs.lakebridge.config import (
     DatabaseConfig,
     ReconcileConfig,
@@ -430,3 +434,33 @@ def _verify_workspace_client(ws: WorkspaceClient) -> WorkspaceClient:
         setattr(ws.config, '_product_info', ('lakebridge', __version__))
 
     return ws
+
+
+def initialize_logging() -> None:
+    """Common logging initialisation during install and uninstall."""
+    # This is intended to emulate the behaviour of the blueprint App() initialisation, except that we don't have
+    # handoff from the Databricks CLI. As such the policy is:
+    #   - The root (and logging system in general) is left alone.
+    #   - If running in the IDE debugger, databricks.* will be set to DEBUG.
+    #   - Otherwise, databricks.* will be set to INFO.
+    databricks_log_level = logging.DEBUG if is_in_debug() else logging.INFO
+    logging.getLogger("databricks").setLevel(databricks_log_level)
+
+
+if __name__ == "__main__":
+    with_user_agent_extra("cmd", "install")
+    initialize_logging()
+
+    # Warning: ensures logger for this file is not __main__.
+    logger = get_logger(__file__)
+
+    app_installer = installer(
+        ws=lakebridge.create_workspace_client(),
+        transpiler_repository=TranspilerRepository.user_home(),
+        is_interactive=sys.stdin.isatty(),
+    )
+    if not app_installer.upgrade_installed_transpilers():
+        logger.debug("No existing Lakebridge transpilers detected; assuming fresh installation.")
+
+    logger.info("Successfully Setup Lakebridge Components Locally")
+    logger.info("For more information, please visit https://databrickslabs.github.io/lakebridge/")
