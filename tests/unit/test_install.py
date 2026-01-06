@@ -28,7 +28,6 @@ from databricks.labs.lakebridge.transpiler.installers import (
 )
 from databricks.labs.lakebridge.transpiler.repository import TranspilerRepository
 
-from tests.unit.conftest import path_to_resource
 
 RECONCILE_DATA_SOURCES = sorted([source_type.value for source_type in ReconSourceType])
 RECONCILE_REPORT_TYPES = sorted([report_type.value for report_type in ReconReportType])
@@ -1097,6 +1096,7 @@ def test_runs_and_stores_confirm_config_option(
     ws_installer: Callable[..., WorkspaceInstaller],
     ws: WorkspaceClient,
     tmp_path: Path,
+    test_resources: Path,
 ) -> None:
     prompts = MockPrompts(
         {
@@ -1128,7 +1128,7 @@ def test_runs_and_stores_confirm_config_option(
     class _TranspilerRepository(TranspilerRepository):
         def __init__(self) -> None:
             super().__init__(tmp_path / "labs")
-            self._transpilers_path = Path(path_to_resource("transpiler_configs"))
+            self._transpilers_path = test_resources / "transpiler_configs"
 
         def transpilers_path(self) -> Path:
             return self._transpilers_path

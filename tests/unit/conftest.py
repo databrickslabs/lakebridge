@@ -217,14 +217,6 @@ def expr():
     return parse_one("SELECT col1 FROM DUAL")
 
 
-def path_to_resource(*args: str) -> str:
-    # TODO: Figure out how to extract this.
-    resource_path = Path(__file__).parent.parent / "resources"
-    for arg in args:
-        resource_path = resource_path / arg
-    return str(resource_path)
-
-
 @pytest.fixture
 def mock_workspace_client() -> WorkspaceClient:
     state = {
@@ -435,8 +427,8 @@ def error_file(tmp_path: Path) -> Generator[Path, None, None]:
 
 
 @pytest.fixture
-async def lsp_engine() -> AsyncGenerator[LSPEngine, None]:
-    config_path = path_to_resource("lsp_transpiler", "lsp_config.yml")
+async def lsp_engine(test_resources: Path) -> AsyncGenerator[LSPEngine, None]:
+    config_path = test_resources / "lsp_transpiler" / "lsp_config.yml"
     engine = LSPEngine.from_config_path(Path(config_path))
     yield engine
     if engine.is_alive:
