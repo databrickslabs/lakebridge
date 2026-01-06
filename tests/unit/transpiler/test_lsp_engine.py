@@ -60,18 +60,37 @@ async def test_passes_extra_args(lsp_engine, transpile_config):
     assert "--stuff=12" in log  # see command_line in lsp_transpiler/config.yml
 
 
-async def test_passes_log_level_deprecated(lsp_engine, transpile_config):
-    logging.getLogger("databricks").setLevel(logging.INFO)
-    await lsp_engine.initialize(transpile_config)
-    log = Path(path_to_resource("lsp_transpiler", "test-lsp-server.log")).read_text("utf-8")
-    assert "--log_level=INFO" in log
+@pytest.fixture
+def non_default_log_level() -> int:
+    use_level = logging.ERROR
+    assert use_level != logging.getLogger("databricks").getEffectiveLevel(), "Test needs to use non-default log-level."
+    return use_level
 
 
-async def test_passes_log_level(lsp_engine, transpile_config):
-    logging.getLogger("databricks").setLevel(logging.INFO)
-    await lsp_engine.initialize(transpile_config)
+async def test_passes_log_level_deprecated(
+    lsp_engine: LSPEngine,
+    transpile_config: TranspileConfig,
+    non_default_log_level: int,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level(non_default_log_level, "databricks"):
+        await lsp_engine.initialize(transpile_config)
+
     log = Path(path_to_resource("lsp_transpiler", "test-lsp-server.log")).read_text("utf-8")
-    assert "Requested log level: INFO" in log
+    assert f"--log_level={logging.getLevelName(non_default_log_level)}" in log
+
+
+async def test_passes_log_level(
+    lsp_engine: LSPEngine,
+    transpile_config: TranspileConfig,
+    non_default_log_level: int,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level(non_default_log_level, "databricks"):
+        await lsp_engine.initialize(transpile_config)
+
+    log = Path(path_to_resource("lsp_transpiler", "test-lsp-server.log")).read_text("utf-8")
+    assert f"Requested log level: {logging.getLevelName(non_default_log_level)}" in log
 
 
 async def test_receives_config(lsp_engine, transpile_config):
