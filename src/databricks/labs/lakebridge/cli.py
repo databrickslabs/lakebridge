@@ -1065,17 +1065,16 @@ def test_profiler_connection(w: WorkspaceClient, source_tech: str | None = None)
             f"Invalid credentials for {source_tech}. Please run `databricks labs lakebridge configure-database-profiler`. Exiting..."
         ) from e
 
-    # Handle synapse-specific validation
-    if source_tech == "synapse":
-        validate_synapse_pools(raw_config)
-        logger.info("Connection to the source system successful")
-        return
-
     # Validate connection for other source technologies
     config = _transform_profiler_credentials(source_tech, raw_config)
     db_manager = DatabaseManager(source_tech, config)
 
     try:
+        # Handle synapse-specific validation
+        if source_tech == "synapse":
+            validate_synapse_pools(raw_config)
+            logger.info("Connection to the source system successful")
+            return
         response = db_manager.check_connection()
         logger.debug(f"Connection response: {response}")
         logger.info("Connection to the source system successful")
