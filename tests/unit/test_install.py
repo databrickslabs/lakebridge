@@ -1640,8 +1640,6 @@ def test_no_reconfigure_if_noninteractive(
         ),
     )
 
-    logging.getLogger("databricks.labs.lakebridge").setLevel(logging.DEBUG)
-
     installer = ws_installer(
         ctx.workspace_client,
         ctx.prompts,
