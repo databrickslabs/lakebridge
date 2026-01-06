@@ -1033,7 +1033,11 @@ def test_profiler_connection(w: WorkspaceClient, source_tech: str | None = None)
     ctx.add_user_agent_extra("cmd", "test-profiler-connection")
     prompts = ctx.prompts
 
-    source_tech = source_tech.lower() if source_tech else prompts.choice("Select the source technology", PROFILER_SOURCE_SYSTEM).lower()
+    source_tech = (
+        source_tech.lower()
+        if source_tech
+        else prompts.choice("Select the source technology", PROFILER_SOURCE_SYSTEM).lower()
+    )
 
     if source_tech not in PROFILER_SOURCE_SYSTEM:
         logger.error(f"Only the following source systems are supported: {PROFILER_SOURCE_SYSTEM}")
@@ -1051,34 +1055,37 @@ def test_profiler_connection(w: WorkspaceClient, source_tech: str | None = None)
 
     logger.info(f"Testing connection for source technology: {source_tech}")
 
+    cred_manager = create_credential_manager(PRODUCT_NAME, EnvGetter())
+
     try:
-        cred_manager = create_credential_manager(PRODUCT_NAME, EnvGetter())
         raw_config = cred_manager.get_credentials(source_tech)
+    except KeyError as e:
+        logger.error(f"Credential configuration error: {e}")
+        raise SystemExit(
+            f"Invalid credentials for {source_tech}. Please run `databricks labs lakebridge configure-database-profiler`. Exiting..."
+        ) from e
 
-        if source_tech == "synapse":
-            validate_synapse_pools(raw_config)
-            logger.info("Connection to the source system successful")
-            return
-
-        config = _transform_profiler_credentials(source_tech, raw_config)
-        db_manager = DatabaseManager(source_tech, config)
-        if not db_manager.check_connection():
-            logger.error("Connection to the source system failed, check logs in debug mode")
-            raise_validation_exception("Connection validation failed")
+    # Handle synapse-specific validation
+    if source_tech == "synapse":
+        validate_synapse_pools(raw_config)
         logger.info("Connection to the source system successful")
+        return
 
+    # Validate connection for other source technologies
+    config = _transform_profiler_credentials(source_tech, raw_config)
+    db_manager = DatabaseManager(source_tech, config)
+
+    try:
+        db_manager.check_connection()
+        logger.info("Connection to the source system successful")
     except ConnectionError as e:
         logger.error(f"Failed to connect to the source system: {e}")
-        error_msg = str(e)
-        if "IM002" in error_msg or "ODBC driver not found" in error_msg:
-            logger.error("ODBC driver not found. Please install the required ODBC driver (e.g., 'ODBC Driver 18 for SQL Server').")
+        if "IM002" in str(e) or "ODBC driver not found" in str(e):
             raise SystemExit("Missing ODBC driver, Please install pre-req. Exiting...") from e
         raise SystemExit("Connection validation failed. Exiting...") from e
-    except (KeyError, Exception) as e:
-        error_type = "Credential configuration error" if isinstance(e, KeyError) else "Unexpected error during connection test"
-        logger.error(f"{error_type}: {e}")
-        exit_msg = f"Invalid credentials for {source_tech}. Please run `databricks labs lakebridge configure-database-profiler`. Exiting..." if isinstance(e, KeyError) else "Connection test failed. Exiting..."
-        raise SystemExit(exit_msg) from e
+    except Exception as e:
+        logger.error(f"Unexpected error during connection test: {e}")
+        raise SystemExit("Connection test failed. Exiting...") from e
 
 
 if __name__ == "__main__":
