@@ -2,6 +2,8 @@ from databricks.sdk.core import with_user_agent_extra, with_product
 from databricks.labs.blueprint.logger import install_logger
 from databricks.labs.lakebridge.__about__ import __version__
 
+# Ensure that anything that imports this (or lower) submodules triggers setup of the blueprint
+# logging.
 install_logger()
 
 # Add lakebridge/<version> for projects depending on lakebridge as a library
