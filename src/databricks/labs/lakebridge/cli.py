@@ -1076,7 +1076,8 @@ def test_profiler_connection(w: WorkspaceClient, source_tech: str | None = None)
     db_manager = DatabaseManager(source_tech, config)
 
     try:
-        db_manager.check_connection()
+        response = db_manager.check_connection()
+        logger.debug(f"Connection response: {response}")
         logger.info("Connection to the source system successful")
     except ConnectionError as e:
         logger.error(f"Failed to connect to the source system: {e}")
