@@ -746,7 +746,7 @@ def install_transpile(
 ) -> None:
     """Install or upgrade the Lakebridge transpilers."""
     # Avoid circular imports.
-    from databricks.labs.lakebridge.install import installer  # pylint: disable=import-outside-toplevel
+    from databricks.labs.lakebridge.install import installer  # pylint: disable=cyclic-import, import-outside-toplevel
 
     is_interactive = interactive_mode(interactive)
     ctx = ApplicationContext(w)
@@ -808,7 +808,7 @@ def configure_reconcile(
 ) -> None:
     """Configure the Lakebridge reconciliation module"""
     # Avoid circular imports.
-    from databricks.labs.lakebridge.install import installer  # pylint: disable=import-outside-toplevel
+    from databricks.labs.lakebridge.install import installer  # pylint: disable=cyclic-import, import-outside-toplevel
 
     ctx = ApplicationContext(w)
     ctx.add_user_agent_extra("cmd", "configure-reconcile")
