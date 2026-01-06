@@ -1,5 +1,6 @@
 from collections.abc import Callable
 from pathlib import Path
+from typing import TypeAlias
 import duckdb
 import pytest
 
@@ -10,8 +11,11 @@ from databricks.labs.lakebridge.assessments.profiler_config import Step, Pipelin
 from databricks.labs.lakebridge.connections.database_manager import DatabaseManager
 
 
+_Loader: TypeAlias = Callable[[Path], PipelineConfig]
+
+
 @pytest.fixture
-def pipeline_configuration_loader(test_resources: Path, project_path: Path) -> Callable[[Path], PipelineConfig]:
+def pipeline_configuration_loader(test_resources: Path, project_path: Path) -> _Loader:
     def _load(resource_name: Path) -> PipelineConfig:
         config_path = test_resources / "assessments" / resource_name
         return Profiler.path_modifier(config_file=config_path, path_prefix=test_resources)
@@ -20,22 +24,22 @@ def pipeline_configuration_loader(test_resources: Path, project_path: Path) -> C
 
 
 @pytest.fixture
-def pipeline_config(pipeline_configuration_loader) -> PipelineConfig:
+def pipeline_config(pipeline_configuration_loader: _Loader) -> PipelineConfig:
     return pipeline_configuration_loader(Path("pipeline_config.yml"))
 
 
 @pytest.fixture
-def pipeline_dep_failure_config(pipeline_configuration_loader) -> PipelineConfig:
+def pipeline_dep_failure_config(pipeline_configuration_loader: _Loader) -> PipelineConfig:
     return pipeline_configuration_loader(Path("pipeline_config_failure_dependency.yml"))
 
 
 @pytest.fixture
-def sql_failure_config(pipeline_configuration_loader) -> PipelineConfig:
+def sql_failure_config(pipeline_configuration_loader: _Loader) -> PipelineConfig:
     return pipeline_configuration_loader(Path("pipeline_config_sql_failure.yml"))
 
 
 @pytest.fixture
-def python_failure_config(pipeline_configuration_loader) -> PipelineConfig:
+def python_failure_config(pipeline_configuration_loader: _Loader) -> PipelineConfig:
     return pipeline_configuration_loader(Path("pipeline_config_python_failure.yml"))
 
 
