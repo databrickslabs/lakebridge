@@ -10,20 +10,6 @@ def get_sqlpool_reader(
 ) -> DatabaseManager:
     """
     Create Synapse SQL pool reader.
-
-    Args:
-        input_cred: Synapse workspace credentials with keys:
-            - dedicated_sql_endpoint or serverless_sql_endpoint: SQL endpoint
-            - sql_user: SQL username
-            - sql_password: SQL password
-            - driver: ODBC driver name (e.g., "ODBC Driver 18 for SQL Server")
-            - port (optional): Port number, defaults to 1433
-        db_name: SQL pool database name
-        endpoint_key: 'dedicated_sql_endpoint' or 'serverless_sql_endpoint'
-        auth_type: Authentication type (sql_authentication, ad_passwd_authentication, etc.)
-
-    Returns:
-        DatabaseManager instance configured for Synapse SQL pool
     """
     config = {
         "endpoint_key": endpoint_key,

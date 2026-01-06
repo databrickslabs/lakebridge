@@ -36,7 +36,6 @@ def _test_pool_connection(pool_name: str, base_config: dict, endpoint_key: str) 
 def validate_synapse_pools(raw_config: dict) -> None:
     """
     Validate connections to enabled Synapse SQL pools based on profiler configuration.
-
     Each connection is properly cleaned up after testing to prevent resource leaks.
 
     Example:
