@@ -39,7 +39,7 @@ class Profiler:
 
     @staticmethod
     def path_modifier(*, config_file: str | Path, path_prefix: Path = PRODUCT_PATH_PREFIX) -> PipelineConfig:
-        # TODO: Make this work install during developer mode
+        # TODO: Choose a better name for this.
         config = PipelineClass.load_config_from_yaml(config_file)
         new_steps = [step.copy(extract_source=str(path_prefix / step.extract_source)) for step in config.steps]
         return config.copy(steps=new_steps)
