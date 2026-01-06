@@ -1,11 +1,6 @@
-import logging
-
-from databricks.labs.blueprint.entrypoint import is_in_debug
-
 from databricks.labs.lakebridge.cli import lakebridge
 from databricks.labs.lakebridge.contexts.application import ApplicationContext
-
-logger = logging.getLogger("databricks.labs.lakebridge.install")
+from databricks.labs.lakebridge.install import initialize_logging
 
 
 def run(context: ApplicationContext):
@@ -13,8 +8,6 @@ def run(context: ApplicationContext):
 
 
 if __name__ == "__main__":
-    logger.setLevel("INFO")
-    if is_in_debug():
-        logging.getLogger("databricks").setLevel(logging.DEBUG)
+    initialize_logging()
 
     run(ApplicationContext(ws=lakebridge.create_workspace_client()))
