@@ -76,29 +76,41 @@ class Reconciliation:
         """
         Detect if running on serverless compute.
 
+        Serverless compute doesn't support .cache() operations, so we detect it by:
+        1. Checking if cluster config tags are available (classic) or not (serverless)
+        2. Inspecting error messages for CONFIG_NOT_AVAILABLE
+
         Returns:
             True if serverless, False if classic/all-purpose cluster
         """
+        # First, try a simple test: check if we can access cluster ID
+        # Serverless doesn't expose cluster-specific configs
         try:
-            # Try to get compute type from Spark conf
-            # Classic clusters: returns value like "all_purpose", "job_compute", etc.
-            # Serverless: throws CONFIG_NOT_AVAILABLE error
+            cluster_id = self._spark.conf.get("spark.databricks.clusterUsageTags.clusterId", None)
+            if cluster_id:
+                # If cluster ID exists, it's a classic cluster
+                logger.debug(f"Detected classic cluster with ID: {cluster_id}")
+                return False
+        except (AttributeError, KeyError, RuntimeError):
+            # Config access failed - likely serverless
+            pass
+
+        # Try to get compute type from Spark conf
+        try:
             compute_type = self._spark.conf.get("spark.databricks.clusterUsageTags.clusterType", "")
             if compute_type is None:
                 compute_type = ""
             is_serverless = "serverless" in compute_type.lower()
             logger.debug(f"Detected compute type: {compute_type}, serverless: {is_serverless}")
             return is_serverless
-        except Exception as e:  # pylint: disable=broad-exception-caught
-            # Broad exception is intentional: Spark can throw various exception types
-            # including CONFIG_NOT_AVAILABLE, and we want to detect serverless in all cases
+        except (AttributeError, KeyError, RuntimeError) as e:
+            # Standard Python exceptions from config access issues
             error_msg = str(e)
             if "CONFIG_NOT_AVAILABLE" in error_msg or "clusterUsageTags" in error_msg:
-                # Config unavailable is expected on serverless - cluster tags don't exist
+                # Config unavailable is typical for serverless
                 logger.info("Cluster config not available - detected serverless compute")
                 return True
-            # For other unexpected errors, assume serverless for safety
-            logger.warning(f"Unable to detect compute type: {e}. Assuming serverless mode")
+            logger.warning(f"Config access failed: {e}. Assuming serverless for safety")
             return True
 
     def _persist_dataframe(self, df: DataFrame, name: str, volume_path: str) -> DataFrame:
