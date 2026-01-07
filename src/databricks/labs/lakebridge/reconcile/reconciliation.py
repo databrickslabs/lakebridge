@@ -74,45 +74,17 @@ class Reconciliation:
         self._use_serverless = self._is_serverless()
 
     def _is_serverless(self) -> bool:
-        """
-        Detect if running on serverless compute.
-
-        Serverless compute doesn't support .cache() operations. We detect it by:
-        - Checking if cluster-specific configs are available (classic has them, serverless doesn't)
-        - Using getAll() to avoid CONFIG_NOT_AVAILABLE exceptions
-
-        Returns:
-            True if serverless, False if classic/all-purpose cluster
-        """
+        """Detect if running on serverless compute"""
         try:
-            # Get all Spark configurations as a dict (getAll is a property, not a method)
-            # This avoids CONFIG_NOT_AVAILABLE exceptions that occur with individual conf.get() calls
-            config_dict: dict[str, str] = self._spark.conf.getAll  # type: ignore[assignment]
-        except (AnalysisException, AttributeError, KeyError, RuntimeError) as e:
-            # AnalysisException with CONFIG_NOT_AVAILABLE is expected on serverless
-            # Serverless doesn't expose cluster-specific configs
-            logger.info(f"Spark config access failed (likely serverless): {e}")
+            # Try to get compute type from Spark conf
+            compute_type = self._spark.conf.get("spark.databricks.clusterUsageTags.clusterType", "")
+            if compute_type is None:
+                compute_type = ""
+            return "serverless" in compute_type.lower()
+        except (AnalysisException, AttributeError, KeyError, RuntimeError):
+            # If detection fails (Spark config unavailable or invalid), assume serverless for safety
+            logger.warning("Unable to detect compute type, assuming serverless mode")
             return True
-
-        # Check for cluster-specific config keys
-        # Classic clusters have clusterUsageTags, serverless doesn't
-        cluster_type = config_dict.get("spark.databricks.clusterUsageTags.clusterType", "")
-        cluster_id = config_dict.get("spark.databricks.clusterUsageTags.clusterId", "")
-
-        if cluster_id:
-            # Cluster ID exists = classic cluster
-            logger.debug(f"Detected classic cluster with ID: {cluster_id}")
-            return False
-
-        if cluster_type:
-            # Check if explicitly marked as serverless
-            is_serverless = "serverless" in cluster_type.lower()
-            logger.debug(f"Detected compute type: {cluster_type}, serverless: {is_serverless}")
-            return is_serverless
-
-        # No cluster tags found = serverless
-        logger.info("No cluster usage tags found - detected serverless compute")
-        return True
 
     def _persist_dataframe(self, df: DataFrame, name: str, volume_path: str) -> DataFrame:
         """
