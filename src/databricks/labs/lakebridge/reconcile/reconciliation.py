@@ -73,16 +73,32 @@ class Reconciliation:
         self._use_serverless = self._is_serverless()
 
     def _is_serverless(self) -> bool:
-        """Detect if running on serverless compute"""
+        """
+        Detect if running on serverless compute.
+
+        Returns:
+            True if serverless, False if classic/all-purpose cluster
+        """
         try:
             # Try to get compute type from Spark conf
+            # Classic clusters: returns value like "all_purpose", "job_compute", etc.
+            # Serverless: throws CONFIG_NOT_AVAILABLE error
             compute_type = self._spark.conf.get("spark.databricks.clusterUsageTags.clusterType", "")
             if compute_type is None:
                 compute_type = ""
-            return "serverless" in compute_type.lower()
-        except (AttributeError, KeyError, RuntimeError):
-            # If detection fails (Spark config unavailable or invalid), assume serverless for safety
-            logger.warning("Unable to detect compute type, assuming serverless mode")
+            is_serverless = "serverless" in compute_type.lower()
+            logger.debug(f"Detected compute type: {compute_type}, serverless: {is_serverless}")
+            return is_serverless
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            # Broad exception is intentional: Spark can throw various exception types
+            # including CONFIG_NOT_AVAILABLE, and we want to detect serverless in all cases
+            error_msg = str(e)
+            if "CONFIG_NOT_AVAILABLE" in error_msg or "clusterUsageTags" in error_msg:
+                # Config unavailable is expected on serverless - cluster tags don't exist
+                logger.info("Cluster config not available - detected serverless compute")
+                return True
+            # For other unexpected errors, assume serverless for safety
+            logger.warning(f"Unable to detect compute type: {e}. Assuming serverless mode")
             return True
 
     def _persist_dataframe(self, df: DataFrame, name: str, volume_path: str) -> DataFrame:
