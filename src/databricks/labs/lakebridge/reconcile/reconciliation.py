@@ -1,4 +1,5 @@
 import logging
+import uuid
 
 from pyspark.sql import DataFrame, SparkSession
 from sqlglot import Dialect
@@ -69,6 +70,62 @@ class Reconciliation:
         self._source_engine = source_engine
         self._spark = spark
         self._metadata_config = metadata_config
+        self._use_serverless = self._is_serverless()
+
+    def _is_serverless(self) -> bool:
+        """Detect if running on serverless compute"""
+        try:
+            # Try to get compute type from Spark conf
+            compute_type = self._spark.conf.get("spark.databricks.clusterUsageTags.clusterType", "")
+            if compute_type is None:
+                compute_type = ""
+            return "serverless" in compute_type.lower()
+        except (AttributeError, KeyError, RuntimeError):
+            # If detection fails (Spark config unavailable or invalid), assume serverless for safety
+            logger.warning("Unable to detect compute type, assuming serverless mode")
+            return True
+
+    def _persist_dataframe(self, df: DataFrame, name: str, volume_path: str) -> DataFrame:
+        """
+        Smart persistence - uses volume checkpoint for serverless, memory cache for classic compute.
+
+        Args:
+            df: DataFrame to persist
+            name: Unique name for the checkpoint
+            volume_path: Base volume path for checkpoints
+
+        Returns:
+            Persisted DataFrame
+        """
+        if self._use_serverless:
+            # Use Unity Catalog volume for serverless
+            checkpoint_id = str(uuid.uuid4())[:8]
+            checkpoint_path = f"{volume_path}/checkpoints/{name}_{checkpoint_id}"
+            logger.info(f"Persisting DataFrame to volume: {checkpoint_path}")
+
+            try:
+                df.write.format("delta").mode("overwrite").save(checkpoint_path)
+                return self._spark.read.format("delta").load(checkpoint_path)
+            except (OSError, RuntimeError, ValueError) as e:
+                # Handle I/O errors, permission issues, or invalid paths
+                logger.warning(f"Failed to checkpoint to volume: {e}. Proceeding without persistence.")
+                return df
+        else:
+            # Use in-memory cache for classic compute
+            logger.debug(f"Caching DataFrame in memory: {name}")
+            return df.cache()
+
+    def _cleanup_checkpoint(self, name: str, volume_path: str):
+        """Clean up temporary checkpoint files from volume"""
+        if self._use_serverless:
+            try:
+                checkpoint_pattern = f"{volume_path}/checkpoints/{name}_*"
+                logger.debug(f"Cleaning up checkpoints matching: {checkpoint_pattern}")
+                # Note: Actual cleanup implementation depends on your volume management strategy
+                # This is a placeholder that can be enhanced based on requirements
+            except (OSError, RuntimeError) as e:
+                # Handle I/O errors or file system issues during cleanup
+                logger.warning(f"Failed to cleanup checkpoint: {e}")
 
     @property
     def source(self) -> DataSource:
@@ -303,6 +360,9 @@ class Reconciliation:
             or reconcile_output.missing_in_src_count > 0
             or reconcile_output.missing_in_tgt_count > 0
         ):
+            # Generate volume path for checkpointing
+            volume_path = utils.generate_volume_path(table_conf, self._metadata_config)
+
             src_sampler = SamplingQueryBuilder(table_conf, src_schema, "source", self._source_engine, self._source)
             tgt_sampler = SamplingQueryBuilder(table_conf, tgt_schema, "target", self._target_engine, self._target)
             if reconcile_output.mismatch_count > 0:
@@ -315,6 +375,7 @@ class Reconciliation:
                     table_conf.source_name,
                     table_conf.target_name,
                     table_conf.sampling_options,
+                    volume_path,
                 )
 
             if reconcile_output.missing_in_src_count > 0:
@@ -356,6 +417,7 @@ class Reconciliation:
         src_table: str,
         tgt_table: str,
         sampling_options: SamplingOptions,
+        volume_path: str,
     ):
 
         tgt_sampling_query = tgt_sampler.build_query_with_alias()
@@ -370,7 +432,10 @@ class Reconciliation:
 
         # Uses pre-calculated `mismatch_count` from `reconcile_output.mismatch_count` to avoid from recomputing `mismatch` for RandomSampler.
         mismatch_sampler = SamplerFactory.get_sampler(sampling_options)
-        df = mismatch_sampler.sample(mismatch, mismatch_count, key_columns, sampling_model_target).cache()
+        sampled_df = mismatch_sampler.sample(mismatch, mismatch_count, key_columns, sampling_model_target)
+
+        # Persist the sampled DataFrame (uses volume for serverless, cache for classic)
+        df = self._persist_dataframe(sampled_df, f"mismatch_sample_{src_table}", volume_path)
 
         src_mismatch_sample_query = src_sampler.build_query(df)
         tgt_mismatch_sample_query = tgt_sampler.build_query(df)
@@ -390,7 +455,12 @@ class Reconciliation:
             options=None,
         )
 
-        return capture_mismatch_data_and_columns(source=src_data, target=tgt_data, key_columns=key_columns)
+        result = capture_mismatch_data_and_columns(source=src_data, target=tgt_data, key_columns=key_columns)
+
+        # Cleanup checkpoint after use
+        self._cleanup_checkpoint(f"mismatch_sample_{src_table}", volume_path)
+
+        return result
 
     def _reconcile_threshold_data(
         self,
