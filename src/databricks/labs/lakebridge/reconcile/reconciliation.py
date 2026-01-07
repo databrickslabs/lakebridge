@@ -84,11 +84,10 @@ class Reconciliation:
             True if serverless, False if classic/all-purpose cluster
         """
         try:
-            # Get all Spark configurations as a list of tuples
-            # PySpark type stubs incorrectly type getAll() as returning dict instead of list of tuples
-            all_configs: list[tuple[str, str]] = self._spark.conf.getAll()  # type: ignore[assignment,operator]
-            # Build dict for easy lookup without throwing CONFIG_NOT_AVAILABLE exceptions
-            config_dict = dict(all_configs)
+            # Get all Spark configurations as a dict
+            # This avoids CONFIG_NOT_AVAILABLE exceptions that occur with individual conf.get() calls
+            # Type ignore needed due to inconsistent PySpark type stubs
+            config_dict: dict[str, str] = self._spark.conf.getAll()  # type: ignore[operator]
         except (AttributeError, KeyError, RuntimeError) as e:
             # If we can't read configs at all, assume serverless for safety
             logger.warning(f"Unable to read Spark configs: {e}. Assuming serverless mode")
