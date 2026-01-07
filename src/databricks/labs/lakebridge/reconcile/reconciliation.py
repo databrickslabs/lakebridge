@@ -2,6 +2,7 @@ import logging
 import uuid
 
 from pyspark.sql import DataFrame, SparkSession
+from pyspark.sql.utils import AnalysisException
 from sqlglot import Dialect
 
 from databricks.labs.lakebridge.config import (
@@ -87,9 +88,10 @@ class Reconciliation:
             # Get all Spark configurations as a dict (getAll is a property, not a method)
             # This avoids CONFIG_NOT_AVAILABLE exceptions that occur with individual conf.get() calls
             config_dict: dict[str, str] = self._spark.conf.getAll  # type: ignore[assignment]
-        except (AttributeError, KeyError, RuntimeError) as e:
-            # If we can't read configs at all, assume serverless for safety
-            logger.warning(f"Unable to read Spark configs: {e}. Assuming serverless mode")
+        except (AnalysisException, AttributeError, KeyError, RuntimeError) as e:
+            # AnalysisException with CONFIG_NOT_AVAILABLE is expected on serverless
+            # Serverless doesn't expose cluster-specific configs
+            logger.info(f"Spark config access failed (likely serverless): {e}")
             return True
 
         # Check for cluster-specific config keys
