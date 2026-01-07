@@ -76,42 +76,43 @@ class Reconciliation:
         """
         Detect if running on serverless compute.
 
-        Serverless compute doesn't support .cache() operations, so we detect it by:
-        1. Checking if cluster config tags are available (classic) or not (serverless)
-        2. Inspecting error messages for CONFIG_NOT_AVAILABLE
+        Serverless compute doesn't support .cache() operations. We detect it by:
+        - Checking if cluster-specific configs are available (classic has them, serverless doesn't)
+        - Using getAll() to avoid CONFIG_NOT_AVAILABLE exceptions
 
         Returns:
             True if serverless, False if classic/all-purpose cluster
         """
-        # First, try a simple test: check if we can access cluster ID
-        # Serverless doesn't expose cluster-specific configs
         try:
-            cluster_id = self._spark.conf.get("spark.databricks.clusterUsageTags.clusterId", None)
-            if cluster_id:
-                # If cluster ID exists, it's a classic cluster
-                logger.debug(f"Detected classic cluster with ID: {cluster_id}")
-                return False
-        except (AttributeError, KeyError, RuntimeError):
-            # Config access failed - likely serverless
-            pass
-
-        # Try to get compute type from Spark conf
-        try:
-            compute_type = self._spark.conf.get("spark.databricks.clusterUsageTags.clusterType", "")
-            if compute_type is None:
-                compute_type = ""
-            is_serverless = "serverless" in compute_type.lower()
-            logger.debug(f"Detected compute type: {compute_type}, serverless: {is_serverless}")
-            return is_serverless
+            # Get all Spark configurations as a list of tuples
+            # PySpark type stubs incorrectly type getAll() as returning dict instead of list of tuples
+            all_configs: list[tuple[str, str]] = self._spark.conf.getAll()  # type: ignore[assignment,operator]
+            # Build dict for easy lookup without throwing CONFIG_NOT_AVAILABLE exceptions
+            config_dict = dict(all_configs)
         except (AttributeError, KeyError, RuntimeError) as e:
-            # Standard Python exceptions from config access issues
-            error_msg = str(e)
-            if "CONFIG_NOT_AVAILABLE" in error_msg or "clusterUsageTags" in error_msg:
-                # Config unavailable is typical for serverless
-                logger.info("Cluster config not available - detected serverless compute")
-                return True
-            logger.warning(f"Config access failed: {e}. Assuming serverless for safety")
+            # If we can't read configs at all, assume serverless for safety
+            logger.warning(f"Unable to read Spark configs: {e}. Assuming serverless mode")
             return True
+
+        # Check for cluster-specific config keys
+        # Classic clusters have clusterUsageTags, serverless doesn't
+        cluster_type = config_dict.get("spark.databricks.clusterUsageTags.clusterType", "")
+        cluster_id = config_dict.get("spark.databricks.clusterUsageTags.clusterId", "")
+
+        if cluster_id:
+            # Cluster ID exists = classic cluster
+            logger.debug(f"Detected classic cluster with ID: {cluster_id}")
+            return False
+
+        if cluster_type:
+            # Check if explicitly marked as serverless
+            is_serverless = "serverless" in cluster_type.lower()
+            logger.debug(f"Detected compute type: {cluster_type}, serverless: {is_serverless}")
+            return is_serverless
+
+        # No cluster tags found = serverless
+        logger.info("No cluster usage tags found - detected serverless compute")
+        return True
 
     def _persist_dataframe(self, df: DataFrame, name: str, volume_path: str) -> DataFrame:
         """
