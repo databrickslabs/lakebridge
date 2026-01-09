@@ -252,6 +252,12 @@ class ReconcileMetadataConfig:
 
 
 @dataclass
+class ReconcileJobConfig:
+    existing_cluster_id: str
+    tags: dict[str, str]
+
+
+@dataclass
 class ReconcileConfig:
     __file__ = "reconcile.yml"
     __version__ = 1
@@ -261,6 +267,7 @@ class ReconcileConfig:
     secret_scope: str
     database_config: DatabaseConfig
     metadata_config: ReconcileMetadataConfig
+    job_overrides: ReconcileJobConfig | None = None
 
 
 @dataclass
