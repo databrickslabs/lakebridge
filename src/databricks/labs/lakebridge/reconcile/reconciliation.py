@@ -74,16 +74,27 @@ class Reconciliation:
         self._use_serverless = self._is_serverless()
 
     def _is_serverless(self) -> bool:
-        """Detect if running on serverless compute"""
+        """
+        Detect if running on serverless compute.
+
+        Serverless (Spark Connect) does not expose clusterNodeType config,
+        while classic clusters do. This is a reliable detection method.
+
+        Returns:
+            True if serverless, False if classic cluster
+        """
         try:
-            # Try to get compute type from Spark conf
-            compute_type = self._spark.conf.get("spark.databricks.clusterUsageTags.clusterType", "")
-            if compute_type is None:
-                compute_type = ""
-            return "serverless" in compute_type.lower()
-        except (AnalysisException, AttributeError, KeyError, RuntimeError):
-            # If detection fails (Spark config unavailable or invalid), assume serverless for safety
-            logger.warning("Unable to detect compute type, assuming serverless mode")
+            # Try to get cluster node type - only exists on classic clusters
+            node_type = self._spark.conf.get("spark.databricks.clusterUsageTags.clusterNodeType")
+            logger.info(f"Detected classic cluster (node type: {node_type})")
+            return False
+        except AnalysisException:
+            # CONFIG_NOT_AVAILABLE on serverless
+            logger.info("Detected serverless compute (clusterNodeType not available)")
+            return True
+        except AttributeError as e:
+            # Spark context not available - assume serverless for safety
+            logger.warning(f"Unable to detect compute type: {e}. Defaulting to serverless mode")
             return True
 
     def _persist_dataframe(self, df: DataFrame, name: str, volume_path: str) -> DataFrame:
