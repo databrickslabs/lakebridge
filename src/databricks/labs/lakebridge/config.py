@@ -254,6 +254,12 @@ class ReconcileMetadataConfig:
 
 
 @dataclass
+class ReconcileJobConfig:
+    existing_cluster_id: str
+    tags: dict[str, str]
+
+
+@dataclass
 class ReconcileConfig:
     __file__ = "reconcile.yml"
     __version__ = 2
@@ -262,6 +268,7 @@ class ReconcileConfig:
     report_type: str
     database_config: DatabaseConfig
     metadata_config: ReconcileMetadataConfig
+    job_overrides: ReconcileJobConfig | None = None
     creds: ReconcileCredentialsConfig | None = None
     # databricks does not require creds
 
