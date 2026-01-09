@@ -7,7 +7,8 @@ import os
 import re
 import sys
 import time
-from collections.abc import Mapping
+import webbrowser
+from collections.abc import Mapping, Callable
 from pathlib import Path
 from typing import NoReturn, TextIO
 
@@ -642,34 +643,41 @@ def _override_workspace_client_config(ctx: ApplicationContext, overrides: dict[s
 
 
 @lakebridge.command
-def reconcile(*, w: WorkspaceClient) -> None:
+def reconcile(
+    *, w: WorkspaceClient, ctx_factory: Callable[[WorkspaceClient], ApplicationContext] = ApplicationContext
+) -> None:
     """[EXPERIMENTAL] Reconciles source to Databricks datasets"""
-    ctx = ApplicationContext(w)
+    ctx = ctx_factory(w)
     ctx.add_user_agent_extra("cmd", "execute-reconcile")
     user = ctx.current_user
     logger.debug(f"User: {user}")
     recon_runner = ReconcileRunner(
         ctx.workspace_client,
         ctx.install_state,
-        ctx.prompts,
     )
-    recon_runner.run(operation_name=RECONCILE_OPERATION_NAME)
+
+    _, job_run_url = recon_runner.run(operation_name=RECONCILE_OPERATION_NAME)
+    if ctx.prompts.confirm(f"Would you like to open the job run URL `{job_run_url}` in the browser?"):
+        webbrowser.open(job_run_url)
 
 
 @lakebridge.command
-def aggregates_reconcile(*, w: WorkspaceClient) -> None:
+def aggregates_reconcile(
+    *, w: WorkspaceClient, ctx_factory: Callable[[WorkspaceClient], ApplicationContext] = ApplicationContext
+) -> None:
     """[EXPERIMENTAL] Reconciles Aggregated source to Databricks datasets"""
-    ctx = ApplicationContext(w)
+    ctx = ctx_factory(w)
     ctx.add_user_agent_extra("cmd", "execute-aggregates-reconcile")
     user = ctx.current_user
     logger.debug(f"User: {user}")
     recon_runner = ReconcileRunner(
         ctx.workspace_client,
         ctx.install_state,
-        ctx.prompts,
     )
 
-    recon_runner.run(operation_name=AGG_RECONCILE_OPERATION_NAME)
+    _, job_run_url = recon_runner.run(operation_name=AGG_RECONCILE_OPERATION_NAME)
+    if ctx.prompts.confirm(f"Would you like to open the job run URL `{job_run_url}` in the browser?"):
+        webbrowser.open(job_run_url)
 
 
 @lakebridge.command

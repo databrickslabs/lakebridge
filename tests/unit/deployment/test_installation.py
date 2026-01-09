@@ -2,7 +2,6 @@ from unittest.mock import create_autospec
 
 import pytest
 from databricks.labs.blueprint.installation import MockInstallation, Installation
-from databricks.labs.blueprint.tui import MockPrompts
 from databricks.labs.blueprint.wheels import WheelsV2, ProductInfo
 from databricks.labs.blueprint.upgrades import Upgrades
 
@@ -32,11 +31,6 @@ def ws():
 
 
 def test_install_all(ws):
-    prompts = MockPrompts(
-        {
-            r"Enter catalog name": "remorph",
-        }
-    )
     recon_deployment = create_autospec(ReconDeployment)
     switch_deployment = create_autospec(SwitchDeployment)
     installation = create_autospec(Installation)
@@ -68,14 +62,11 @@ def test_install_all(ws):
         ),
     )
     config = LakebridgeConfiguration(transpile=transpile_config, reconcile=reconcile_config)
-    installation = WorkspaceInstallation(
-        ws, prompts, installation, recon_deployment, switch_deployment, product_info, upgrades
-    )
+    installation = WorkspaceInstallation(ws, installation, recon_deployment, switch_deployment, product_info, upgrades)
     installation.install(config)
 
 
 def test_no_recon_component_installation(ws):
-    prompts = MockPrompts({})
     recon_deployment = create_autospec(ReconDeployment)
     switch_deployment = create_autospec(SwitchDeployment)
     installation = create_autospec(Installation)
@@ -92,9 +83,7 @@ def test_no_recon_component_installation(ws):
         schema_name="transpiler7",
     )
     config = LakebridgeConfiguration(transpile=transpile_config, reconcile=None)
-    installation = WorkspaceInstallation(
-        ws, prompts, installation, recon_deployment, switch_deployment, product_info, upgrades
-    )
+    installation = WorkspaceInstallation(ws, installation, recon_deployment, switch_deployment, product_info, upgrades)
     installation.install(config)
     recon_deployment.install.assert_not_called()
 
@@ -103,7 +92,6 @@ def test_recon_component_installation(ws):
     recon_deployment = create_autospec(ReconDeployment)
     switch_deployment = create_autospec(SwitchDeployment)
     installation = create_autospec(Installation)
-    prompts = MockPrompts({})
     product_info = create_autospec(ProductInfo)
     upgrades = create_autospec(Upgrades)
 
@@ -123,39 +111,12 @@ def test_recon_component_installation(ws):
         ),
     )
     config = LakebridgeConfiguration(reconcile=reconcile_config, transpile=None)
-    installation = WorkspaceInstallation(
-        ws, prompts, installation, recon_deployment, switch_deployment, product_info, upgrades
-    )
+    installation = WorkspaceInstallation(ws, installation, recon_deployment, switch_deployment, product_info, upgrades)
     installation.install(config)
     recon_deployment.install.assert_called()
 
 
-def test_negative_uninstall_confirmation(ws):
-    prompts = MockPrompts(
-        {
-            r"Do you want to uninstall Lakebridge .*": "no",
-        }
-    )
-    installation = create_autospec(Installation)
-    recon_deployment = create_autospec(ReconDeployment)
-    switch_deployment = create_autospec(SwitchDeployment)
-    wheels = create_autospec(WheelsV2)
-    upgrades = create_autospec(Upgrades)
-
-    ws_installation = WorkspaceInstallation(
-        ws, prompts, installation, recon_deployment, switch_deployment, wheels, upgrades
-    )
-    config = LakebridgeConfiguration(transpile=None, reconcile=None)
-    ws_installation.uninstall(config)
-    installation.remove.assert_not_called()
-
-
 def test_missing_installation(ws):
-    prompts = MockPrompts(
-        {
-            r"Do you want to uninstall Lakebridge .*": "yes",
-        }
-    )
     installation = create_autospec(Installation)
     installation.files.side_effect = NotFound("Installation not found")
     installation.install_folder.return_value = "~/mock"
@@ -164,21 +125,13 @@ def test_missing_installation(ws):
     wheels = create_autospec(WheelsV2)
     upgrades = create_autospec(Upgrades)
 
-    ws_installation = WorkspaceInstallation(
-        ws, prompts, installation, recon_deployment, switch_deployment, wheels, upgrades
-    )
+    ws_installation = WorkspaceInstallation(ws, installation, recon_deployment, switch_deployment, wheels, upgrades)
     config = LakebridgeConfiguration(transpile=None, reconcile=None)
     ws_installation.uninstall(config)
     installation.remove.assert_not_called()
 
 
 def test_uninstall_configs_exist(ws):
-    prompts = MockPrompts(
-        {
-            r"Do you want to uninstall Lakebridge .*": "yes",
-        }
-    )
-
     transpile_config = TranspileConfig(
         transpiler_config_path="sqlglot",
         source_dialect="snowflake",
@@ -213,29 +166,20 @@ def test_uninstall_configs_exist(ws):
     wheels = create_autospec(WheelsV2)
     upgrades = create_autospec(Upgrades)
 
-    ws_installation = WorkspaceInstallation(
-        ws, prompts, installation, recon_deployment, switch_deployment, wheels, upgrades
-    )
+    ws_installation = WorkspaceInstallation(ws, installation, recon_deployment, switch_deployment, wheels, upgrades)
     ws_installation.uninstall(config)
     recon_deployment.uninstall.assert_called()
     installation.assert_removed()
 
 
 def test_uninstall_configs_missing(ws):
-    prompts = MockPrompts(
-        {
-            r"Do you want to uninstall Lakebridge .*": "yes",
-        }
-    )
     installation = MockInstallation()
     recon_deployment = create_autospec(ReconDeployment)
     switch_deployment = create_autospec(SwitchDeployment)
     wheels = create_autospec(WheelsV2)
     upgrades = create_autospec(Upgrades)
 
-    ws_installation = WorkspaceInstallation(
-        ws, prompts, installation, recon_deployment, switch_deployment, wheels, upgrades
-    )
+    ws_installation = WorkspaceInstallation(ws, installation, recon_deployment, switch_deployment, wheels, upgrades)
     config = LakebridgeConfiguration(transpile=None, reconcile=None)
     ws_installation.uninstall(config)
     recon_deployment.uninstall.assert_not_called()
@@ -246,7 +190,6 @@ class TestSwitchInstallation:
     """Tests for Switch transpiler installation."""
 
     def test_switch_install_uses_configured_resources(self, ws):
-        prompts = MockPrompts({})
         recon_deployment = create_autospec(ReconDeployment)
         switch_deployment = create_autospec(SwitchDeployment)
         installation = create_autospec(Installation)
@@ -256,7 +199,7 @@ class TestSwitchInstallation:
         config = LakebridgeConfiguration(transpile=TranspileConfig(), reconcile=None, include_switch=True)
 
         ws_installation = WorkspaceInstallation(
-            ws, prompts, installation, recon_deployment, switch_deployment, product_info, upgrades
+            ws, installation, recon_deployment, switch_deployment, product_info, upgrades
         )
 
         ws_installation.install(config)
