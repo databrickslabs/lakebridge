@@ -139,7 +139,6 @@ class ApplicationContext:
     def workspace_installation(self) -> WorkspaceInstallation:
         return WorkspaceInstallation(
             self.workspace_client,
-            self.prompts,
             self.installation,
             self.recon_deployment,
             self.switch_deployment,
