@@ -750,16 +750,28 @@ def install_transpile(
     ctx.add_user_agent_extra("cmd", "install-transpile")
     if artifact:
         ctx.add_user_agent_extra("artifact-overload", Path(artifact).name)
+    switch_use_serverless = True
     if include_llm_transpiler:
         ctx.add_user_agent_extra("include-llm-transpiler", "true")
-        # Decision was made not to prompt when include_llm_transpiler is set, and we expect users to use llm-transpile
-        # and pass all the arguments.
-        logger.info("Including LLM transpiler as part of install, interactive mode disabled: will skip questionnaire.")
+
+        # Compute selection prompt (TTY only)
+        if interactive_mode(interactive):
+            switch_use_serverless = ctx.prompts.confirm(
+                "Use serverless compute for Switch job? (No = use classic job cluster)"
+            )
+
+        # Skip transpile configuration prompts
+        logger.info("Skipping transpile configuration prompts for LLM transpiler installation.")
         is_interactive = False
+
     user = w.current_user
     logger.debug(f"User: {user}")
     transpile_installer = installer(
-        w, transpiler_repository, is_interactive=is_interactive, include_llm=include_llm_transpiler
+        w,
+        transpiler_repository,
+        is_interactive=is_interactive,
+        include_llm=include_llm_transpiler,
+        switch_use_serverless=switch_use_serverless,
     )
     transpile_installer.run(module="transpile", artifact=artifact)
 

@@ -276,3 +276,5 @@ class LakebridgeConfiguration:
     reconcile: ReconcileConfig | None
     # Temporary flag, indicating whether to include the LLM-based Switch transpiler.
     include_switch: bool = False
+    # Use serverless compute for Switch job (False = use classic job cluster).
+    switch_use_serverless: bool = True
