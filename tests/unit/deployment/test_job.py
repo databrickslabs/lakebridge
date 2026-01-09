@@ -56,20 +56,6 @@ def snowflake_recon_config() -> ReconcileConfig:
     )
 
 
-def test_deploy_new_job(oracle_recon_config):
-    workspace_client = create_autospec(WorkspaceClient)
-    job = Job(job_id=1234)
-    workspace_client.jobs.create.return_value = job
-    installation = MockInstallation(is_global=False)
-    install_state = InstallState.from_installation(installation)
-    product_info = ProductInfo.from_class(LakebridgeConfiguration)
-    name = "Recon Job"
-    job_deployer = JobDeployment(workspace_client, installation, install_state, product_info)
-    job_deployer.deploy_recon_job(name, oracle_recon_config, "lakebridge-x.y.z-py3-none-any.whl")
-    workspace_client.jobs.create.assert_called_once()
-    assert install_state.jobs[name] == str(job.job_id)
-
-
 def test_deploy_existing_job(snowflake_recon_config):
     workspace_client = create_autospec(WorkspaceClient)
     workspace_client.config.is_gcp = True
@@ -97,6 +83,20 @@ def test_deploy_missing_job(snowflake_recon_config):
     product_info = ProductInfo.for_testing(LakebridgeConfiguration)
     job_deployer = JobDeployment(workspace_client, installation, install_state, product_info)
     job_deployer.deploy_recon_job(name, snowflake_recon_config, "lakebridge-x.y.z-py3-none-any.whl")
+    workspace_client.jobs.create.assert_called_once()
+    assert install_state.jobs[name] == str(job.job_id)
+
+
+def test_deploy_new_job(oracle_recon_config):
+    workspace_client = create_autospec(WorkspaceClient)
+    job = Job(job_id=1234)
+    workspace_client.jobs.create.return_value = job
+    installation = MockInstallation(is_global=False)
+    install_state = InstallState.from_installation(installation)
+    product_info = ProductInfo.from_class(LakebridgeConfiguration)
+    name = "Recon Job"
+    job_deployer = JobDeployment(workspace_client, installation, install_state, product_info)
+    job_deployer.deploy_recon_job(name, oracle_recon_config, "lakebridge-x.y.z-py3-none-any.whl")
     workspace_client.jobs.create.assert_called_once()
     assert install_state.jobs[name] == str(job.job_id)
 
