@@ -51,7 +51,7 @@ jobs:
           $GITHUB_WORKSPACE/.github/scripts/setup_spark_remote.sh
 
       - name: Run integration tests
-        uses: databrickslabs/sandbox/acceptance@acceptance/v0.4.4
+        uses: databrickslabs/sandbox/acceptance@acceptance/v0.4.2
         with:
           vault_uri: ${{ secrets.VAULT_URI }}
           directory: ${{ github.workspace }}
