@@ -110,7 +110,7 @@ def test_databricks_read_schema_happy_sandbox(
     spark: SparkSession, ws: WorkspaceClient, recon_tables: tuple[TableInfo, TableInfo]
 ) -> None:
     test_table, _ = recon_tables
-    connector = DatabricksDataSource(get_dialect("databricks"), spark, ws, "my_secret")
+    connector = DatabricksDataSource(get_dialect("databricks"), spark, ws)
 
     assert test_table.catalog_name
     assert test_table.schema_name

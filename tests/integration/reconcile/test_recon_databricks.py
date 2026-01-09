@@ -56,7 +56,6 @@ def recon_config(watchdog_remove_after: str, recon_schema: SchemaInfo, make_volu
     conf = ReconcileConfig(
         data_source="databricks",
         report_type="all",
-        secret_scope="NOT_NEEDED",
         database_config=DatabaseConfig(
             source_catalog=recon_schema.catalog_name,
             source_schema=recon_schema.name,
