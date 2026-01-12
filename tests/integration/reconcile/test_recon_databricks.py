@@ -1,6 +1,5 @@
 import json
 import logging
-from collections.abc import Mapping
 from dataclasses import asdict
 
 import pytest
@@ -104,9 +103,7 @@ def application_context(
     logger.info("Application context teardown complete for recon tests")
 
 
-def test_recon_databricks_job_succeeds(application_context: ApplicationContext, debug_env: Mapping) -> None:
-    assert debug_env  # load env with test vars
-
+def test_recon_databricks_job_succeeds(application_context: ApplicationContext) -> None:
     recon_runner = ReconcileRunner(
         application_context.workspace_client,
         application_context.install_state,

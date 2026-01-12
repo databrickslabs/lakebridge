@@ -1,5 +1,3 @@
-from collections.abc import Mapping
-
 from databricks.sdk import WorkspaceClient
 
 from databricks.labs.blueprint.tui import MockPrompts
@@ -14,9 +12,7 @@ class _WorkspaceInstaller(WorkspaceInstaller):
         self._save_config(config)
 
 
-def test_stores_and_fetches_config(ws: WorkspaceClient, debug_env: Mapping) -> None:
-    assert debug_env
-
+def test_stores_and_fetches_config(ws: WorkspaceClient) -> None:
     prompts = MockPrompts(
         {
             r"Open .* in the browser?": "no",
