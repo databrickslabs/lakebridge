@@ -2,12 +2,12 @@ import logging
 import os
 import sys
 from pathlib import Path
-import yaml
-from yaml.parser import ParserError
-from yaml.scanner import ScannerError
 
 import duckdb
 from pyspark.sql import SparkSession
+import yaml
+from yaml.parser import ParserError
+from yaml.scanner import ScannerError
 
 from databricks.labs.lakebridge.assessments.profiler_validator import (
     EmptyTableValidationCheck,
@@ -15,11 +15,15 @@ from databricks.labs.lakebridge.assessments.profiler_validator import (
     ExtractSchemaValidationCheck,
     build_validation_report_dataframe,
 )
+from databricks.labs.lakebridge.install import initialize_logging
 
 logger = logging.getLogger(__name__)
 
 
-def main(*argv) -> None:
+def main(*argv: str) -> None:
+    """Lakeview Jobs task entry point: profiler_dashboards"""
+    initialize_logging()
+
     logger.debug(f"Arguments received: {argv}")
     assert len(sys.argv) == 4, f"Invalid number of arguments: {len(sys.argv)}"
     catalog_name = sys.argv[0]
