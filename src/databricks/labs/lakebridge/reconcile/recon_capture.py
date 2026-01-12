@@ -237,7 +237,9 @@ class ReconCapture:
         self.source_dialect = source_dialect
         self.ws = ws
         self.spark = spark
-        self._db_prefix = "default" if local_test_run else f"{metadata_config.catalog}.{metadata_config.schema}"
+        self._db_prefix = (
+            metadata_config.schema if local_test_run else f"{metadata_config.catalog}.{metadata_config.schema}"
+        )
 
     def _generate_recon_main_id(
         self,

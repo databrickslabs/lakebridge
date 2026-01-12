@@ -1,10 +1,13 @@
 import logging
+import uuid
 
 import pytest
 
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.errors.platform import PermissionDenied
 from databricks.sdk.service.catalog import TableInfo, SchemaInfo
+
+from databricks.labs.lakebridge.config import ReconcileMetadataConfig
 from tests.integration.debug_envgetter import TestEnvGetter
 
 logger = logging.getLogger(__name__)
@@ -60,3 +63,21 @@ def recon_tables(ws: WorkspaceClient, recon_schema: SchemaInfo, make_table) -> t
         )
 
     return src_table, tgt_table
+
+
+@pytest.fixture
+def recon_metadata(mock_spark, report_tables_schema):
+    rand = uuid.uuid4().hex
+    schema = f"recon_schema_{rand}"
+    mock_spark.sql(f"CREATE SCHEMA {schema}")
+    main_schema, metrics_schema, details_schema = report_tables_schema
+    mode = "overwrite"
+    mock_spark.createDataFrame(data=[], schema=main_schema).write.mode(mode).saveAsTable(f"{schema}.MAIN")
+    mock_spark.createDataFrame(data=[], schema=metrics_schema).write.mode(mode).saveAsTable(f"{schema}.METRICS")
+    mock_spark.createDataFrame(data=[], schema=details_schema).write.mode(mode).saveAsTable(f"{schema}.DETAILS")
+
+    return ReconcileMetadataConfig(
+        catalog=f"recon_catalog_{rand}",
+        schema=schema,
+        volume=f"recon_volume_{rand}",
+    )
