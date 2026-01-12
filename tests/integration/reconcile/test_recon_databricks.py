@@ -1,4 +1,5 @@
 import json
+import os
 import logging
 from dataclasses import asdict
 
@@ -86,6 +87,9 @@ def recon_config_filename(recon_config: ReconcileConfig) -> str:
 def application_context(
     ws: WorkspaceClient, recon_config: ReconcileConfig, recon_config_filename: str, recon_table_config
 ):
+    os.environ["DATABRICKS_HOST"] = ws.config.host
+    # This should be set in the acceptance CI, but it is not
+
     logger.info("Setting up application context for recon tests")
     config = LakebridgeConfiguration(None, recon_config)
     ctx = ApplicationContext(ws).replace(product_info=ProductInfo.for_testing(type(config)))
