@@ -10,7 +10,11 @@ logger = logging.getLogger("databricks.labs.lakebridge.install")
 
 
 def run(context: ApplicationContext):
-    context.workspace_installation.uninstall(context.remorph_config)
+    if context.prompts.confirm(
+        "Do you want to uninstall Lakebridge from the workspace too, this would "
+        "remove Lakebridge project folder, jobs, metadata and dashboards"
+    ):
+        context.workspace_installation.uninstall(context.remorph_config)
 
 
 if __name__ == "__main__":
