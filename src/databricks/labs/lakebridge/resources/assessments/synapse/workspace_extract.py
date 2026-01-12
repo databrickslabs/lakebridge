@@ -6,9 +6,9 @@ from datetime import date, timedelta
 import pandas as pd
 from databricks.labs.blueprint.entrypoint import get_logger
 
+from databricks.labs.lakebridge import initialize_logging
 from databricks.labs.lakebridge.assessments import PRODUCT_NAME
 from databricks.labs.lakebridge.connections.credential_manager import create_credential_manager
-from databricks.labs.lakebridge.install import initialize_logging
 from databricks.labs.lakebridge.resources.assessments.synapse.common.duckdb_helpers import insert_df_to_duckdb
 from databricks.labs.lakebridge.resources.assessments.synapse.common.functions import (
     arguments_loader,

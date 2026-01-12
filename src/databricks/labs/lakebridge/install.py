@@ -7,7 +7,7 @@ from collections.abc import Callable, Sequence, Set
 from pathlib import Path
 from typing import Any
 
-from databricks.labs.blueprint.entrypoint import get_logger, is_in_debug
+from databricks.labs.blueprint.entrypoint import get_logger
 from databricks.labs.blueprint.installation import Installation, JsonValue, SerdeError
 from databricks.labs.blueprint.installer import InstallState
 from databricks.labs.blueprint.tui import Prompts
@@ -16,6 +16,7 @@ from databricks.sdk import WorkspaceClient
 from databricks.sdk.core import with_user_agent_extra
 from databricks.sdk.errors import NotFound, PermissionDenied
 
+from databricks.labs.lakebridge import initialize_logging
 from databricks.labs.lakebridge.__about__ import __version__
 from databricks.labs.lakebridge.cli import lakebridge
 from databricks.labs.lakebridge.config import (
@@ -434,17 +435,6 @@ def _verify_workspace_client(ws: WorkspaceClient) -> WorkspaceClient:
         setattr(ws.config, '_product_info', ('lakebridge', __version__))
 
     return ws
-
-
-def initialize_logging() -> None:
-    """Common logging initialisation during install and uninstall."""
-    # This is intended to emulate the behaviour of the blueprint App() initialisation, except that we don't have
-    # handoff from the Databricks CLI. As such the policy is:
-    #   - The root (and logging system in general) is left alone.
-    #   - If running in the IDE debugger, databricks.* will be set to DEBUG.
-    #   - Otherwise, databricks.* will be set to INFO.
-    databricks_log_level = logging.DEBUG if is_in_debug() else logging.INFO
-    logging.getLogger("databricks").setLevel(databricks_log_level)
 
 
 if __name__ == "__main__":

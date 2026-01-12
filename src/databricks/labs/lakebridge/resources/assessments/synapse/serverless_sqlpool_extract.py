@@ -4,9 +4,9 @@ import sys
 import duckdb
 from databricks.labs.blueprint.entrypoint import get_logger
 
+from databricks.labs.lakebridge import initialize_logging
 from databricks.labs.lakebridge.assessments import PRODUCT_NAME
 from databricks.labs.lakebridge.connections.credential_manager import create_credential_manager
-from databricks.labs.lakebridge.install import initialize_logging
 from databricks.labs.lakebridge.resources.assessments.synapse.common.duckdb_helpers import (
     save_resultset_to_db,
     get_max_column_value_duckdb,

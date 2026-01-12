@@ -15,7 +15,7 @@ from databricks.labs.lakebridge.assessments.profiler_validator import (
     ExtractSchemaValidationCheck,
     build_validation_report_dataframe,
 )
-from databricks.labs.lakebridge.install import initialize_logging
+from databricks.labs.lakebridge import initialize_logging
 
 logger = logging.getLogger(__name__)
 

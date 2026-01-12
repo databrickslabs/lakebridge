@@ -6,7 +6,7 @@ from databricks.connect import DatabricksSession
 from databricks.labs.blueprint.installation import Installation
 from databricks.sdk import WorkspaceClient
 
-from databricks.labs.lakebridge.install import initialize_logging
+from databricks.labs.lakebridge import initialize_logging
 from databricks.labs.lakebridge.config import ReconcileConfig, TableRecon
 from databricks.labs.lakebridge.reconcile.exception import ReconciliationException
 from databricks.labs.lakebridge.reconcile.recon_config import AGG_RECONCILE_OPERATION_NAME, RECONCILE_OPERATION_NAME

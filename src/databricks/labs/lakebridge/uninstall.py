@@ -2,7 +2,7 @@ from databricks.sdk.core import with_user_agent_extra
 
 from databricks.labs.lakebridge.cli import lakebridge
 from databricks.labs.lakebridge.contexts.application import ApplicationContext
-from databricks.labs.lakebridge.install import initialize_logging
+from databricks.labs.lakebridge import initialize_logging
 
 
 def run(context: ApplicationContext):
