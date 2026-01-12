@@ -369,7 +369,7 @@ def test_recon_capture_start_oracle_with_exception(mock_workspace_client, mock_s
         source_type,
         ws,
         spark,
-        metadata_config=ReconcileMetadataConfig(schema="default"),
+        metadata_config=recon_metadata,
         local_test_run=True,
     )
     reconcile_output, schema_output, table_conf, reconcile_process, row_count = data_prep(spark)

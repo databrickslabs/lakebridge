@@ -71,10 +71,10 @@ def recon_metadata(mock_spark, report_tables_schema):
     schema = f"recon_schema_{rand}"
     mock_spark.sql(f"CREATE SCHEMA {schema}")
     main_schema, metrics_schema, details_schema = report_tables_schema
-    mode = "overwrite"
-    mock_spark.createDataFrame(data=[], schema=main_schema).write.mode(mode).saveAsTable(f"{schema}.MAIN")
-    mock_spark.createDataFrame(data=[], schema=metrics_schema).write.mode(mode).saveAsTable(f"{schema}.METRICS")
-    mock_spark.createDataFrame(data=[], schema=details_schema).write.mode(mode).saveAsTable(f"{schema}.DETAILS")
+
+    mock_spark.createDataFrame(data=[], schema=main_schema).write.saveAsTable(f"{schema}.MAIN")
+    mock_spark.createDataFrame(data=[], schema=metrics_schema).write.saveAsTable(f"{schema}.METRICS")
+    mock_spark.createDataFrame(data=[], schema=details_schema).write.saveAsTable(f"{schema}.DETAILS")
 
     return ReconcileMetadataConfig(
         catalog=f"recon_catalog_{rand}",
