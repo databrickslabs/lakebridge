@@ -1,5 +1,6 @@
 import logging
 import uuid
+from collections.abc import Generator
 
 import pytest
 
@@ -66,7 +67,7 @@ def recon_tables(ws: WorkspaceClient, recon_schema: SchemaInfo, make_table) -> t
 
 
 @pytest.fixture
-def recon_metadata(mock_spark, report_tables_schema):
+def recon_metadata(mock_spark, report_tables_schema) -> Generator[ReconcileMetadataConfig, None, None]:
     rand = uuid.uuid4().hex
     schema = f"recon_schema_{rand}"
     mock_spark.sql(f"CREATE SCHEMA {schema}")
@@ -76,8 +77,10 @@ def recon_metadata(mock_spark, report_tables_schema):
     mock_spark.createDataFrame(data=[], schema=metrics_schema).write.saveAsTable(f"{schema}.METRICS")
     mock_spark.createDataFrame(data=[], schema=details_schema).write.saveAsTable(f"{schema}.DETAILS")
 
-    return ReconcileMetadataConfig(
+    yield ReconcileMetadataConfig(
         catalog=f"recon_catalog_{rand}",
         schema=schema,
         volume=f"recon_volume_{rand}",
     )
+
+    mock_spark.sql(f"DROP SCHEMA {schema} CASCADE")
