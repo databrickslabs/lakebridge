@@ -1,6 +1,4 @@
 import logging
-import os
-import shutil
 
 import pytest
 
@@ -62,19 +60,3 @@ def recon_tables(ws: WorkspaceClient, recon_schema: SchemaInfo, make_table) -> t
         )
 
     return src_table, tgt_table
-
-
-# Cleanup Spark warehouse directories before each test
-@pytest.fixture(autouse=True)
-def run_before_and_after_spark_test():
-    home = os.path.expanduser("~")
-    spark_root = os.path.join(home, "spark")
-
-    if os.path.isdir(spark_root):
-        for entry in os.listdir(spark_root):
-            path = os.path.join(spark_root, entry, "spark-warehouse")
-            if os.path.isdir(path):
-                logger.info(f"Clearing spark warehouse dir: {path}")
-                shutil.rmtree(path)
-
-    yield
