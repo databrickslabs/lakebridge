@@ -40,8 +40,8 @@ def test_install_all(ws):
     transpile_config = TranspileConfig(
         transpiler_config_path="sqlglot",
         source_dialect="snowflake",
-        input_source="/tmp/queries/snow6",
-        output_folder="/tmp/queries/databricks6",
+        input_source="/the/queries/snow6",
+        output_folder="/the/queries/databricks6",
         skip_validation=True,
         catalog_name="remorph6",
         schema_name="transpiler6",
@@ -76,8 +76,8 @@ def test_no_recon_component_installation(ws):
     transpile_config = TranspileConfig(
         transpiler_config_path="sqlglot",
         source_dialect="snowflake",
-        input_source="/tmp/queries/snow7",
-        output_folder="/tmp/queries/databricks7",
+        input_source="/the/queries/snow7",
+        output_folder="/the/queries/databricks7",
         skip_validation=True,
         catalog_name="remorph7",
         schema_name="transpiler7",
