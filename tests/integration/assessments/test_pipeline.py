@@ -15,10 +15,12 @@ _Loader: TypeAlias = Callable[[Path], PipelineConfig]
 
 
 @pytest.fixture
-def pipeline_configuration_loader(test_resources: Path, project_path: Path) -> _Loader:
+def pipeline_configuration_loader(test_resources: Path, project_path: Path, tmp_path: Path) -> _Loader:
     def _load(resource_name: Path) -> PipelineConfig:
         config_path = test_resources / "assessments" / resource_name
-        return Profiler.path_modifier(config_file=config_path, path_prefix=test_resources)
+        return Profiler.path_modifier(config_file=config_path, path_prefix=test_resources).copy(
+            extract_folder=str(tmp_path / "pipeline_output")
+        )
 
     return _load
 
@@ -124,11 +126,11 @@ def test_pipeline_config_comments():
     pipeline_w_comments = PipelineConfig(
         name="warehouse_profiler",
         version="1.0",
-        extract_folder="/tmp/extracts",
+        extract_folder="/the/output/path",
         comment="A pipeline for extracting warehouse usage.",
     )
     pipeline_wo_comments = PipelineConfig(
-        name="another_warehouse_profiler", version="1.0", extract_folder="/tmp/extracts"
+        name="another_warehouse_profiler", version="1.0", extract_folder="/the/output/path"
     )
     assert pipeline_w_comments.comment == "A pipeline for extracting warehouse usage."
     assert pipeline_wo_comments.comment is None

@@ -1,5 +1,6 @@
 name: synapse_assessment
 version: "1.0"
+# TODO: This needs to be removed.
 extract_folder: "/tmp/data/synapse_assessment"
 steps:
   - name: workspace_info

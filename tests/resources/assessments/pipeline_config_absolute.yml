@@ -1,6 +1,7 @@
 name: ExamplePipeline
 version: "1.0"
-extract_folder: /tmp/profiler_absolute/
+# Value replaced prior to actual use:
+extract_folder: /replaced/after/loading/
 steps:
   - name: random_data
     type: python

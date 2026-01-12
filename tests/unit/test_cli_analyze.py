@@ -17,12 +17,16 @@ def test_analyze_arguments(mock_workspace_client: WorkspaceClient, test_resource
     cli.analyze(
         w=mock_workspace_client,
         source_directory=str(input_path),
-        report_file="/tmp/sample",
+        report_file=str(tmp_path / "sample"),
         source_tech="Informatica - PC",
     )
 
 
-def test_analyze_arguments_wrong_tech(mock_workspace_client, test_resources: Path, tmp_path: Path) -> None:
+def test_analyze_arguments_wrong_tech(
+    mock_workspace_client: WorkspaceClient,
+    test_resources: Path,
+    tmp_path: Path,
+) -> None:
 
     supported_tech = sorted(Analyzer.supported_source_technologies(), key=str.casefold)
     tech_enum = next((i for i, tech in enumerate(supported_tech) if tech == "Informatica - PC"), 12)
@@ -38,12 +42,12 @@ def test_analyze_arguments_wrong_tech(mock_workspace_client, test_resources: Pat
         cli.analyze(
             w=mock_workspace_client,
             source_directory=str(input_path),
-            report_file="/tmp/sample.xlsx",
+            report_file=str(tmp_path / "sample.xlsx"),
             source_tech="Informatica",
         )
 
 
-def test_analyze_prompts(mock_workspace_client, test_resources: Path, tmp_path: Path):
+def test_analyze_prompts(mock_workspace_client: WorkspaceClient, test_resources: Path, tmp_path: Path) -> None:
 
     supported_tech = sorted(Analyzer.supported_source_technologies(), key=str.casefold)
     tech_enum = next((i for i, tech in enumerate(supported_tech) if tech == "Informatica - PC"), 12)
