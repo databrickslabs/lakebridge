@@ -1,3 +1,5 @@
+from collections.abc import Mapping
+
 import pytest
 from databricks.sdk import WorkspaceClient
 
@@ -6,7 +8,8 @@ from databricks.sdk.service.catalog import SecurableType, Privilege
 
 
 @pytest.fixture
-def catalog_ops(ws: WorkspaceClient):
+def catalog_ops(ws: WorkspaceClient, debug_env: Mapping):
+    assert debug_env
     return CatalogOperations(ws)
 
 

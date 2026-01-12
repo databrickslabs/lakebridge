@@ -120,3 +120,6 @@ if [ "$result" -ne 0 ]; then
     fi
 fi
 echo "Started the Server"
+
+rm -rf "${HOME}"/spark/"${spark}"/spark-warehouse
+echo "Cleared spark warehouse directory"
