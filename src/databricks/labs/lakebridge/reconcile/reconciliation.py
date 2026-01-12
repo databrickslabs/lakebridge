@@ -85,11 +85,11 @@ class Reconciliation:
         try:
             # Try to get cluster node type - only exists on classic clusters
             node_type = self._spark.conf.get("spark.databricks.clusterUsageTags.clusterNodeType")
-            logger.info(f"Detected classic cluster (node type: {node_type})")
+            logger.debug(f"Detected classic cluster (node type: {node_type})")
             return False
         except AnalysisException:
             # CONFIG_NOT_AVAILABLE on serverless
-            logger.info("Detected serverless compute (clusterNodeType not available)")
+            logger.debug("Detected serverless compute (clusterNodeType not available)")
             return True
         except AttributeError as e:
             # Spark context not available - assume serverless for safety
