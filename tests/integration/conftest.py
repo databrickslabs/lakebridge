@@ -30,22 +30,6 @@ def get_logger():
     return logger
 
 
-def pytest_collection_modifyitems(config, items):
-    if os.getenv('TEST_ENV') != 'ACCEPTANCE':
-        return
-    selected_items = []
-    deselected_items = []
-    # Add only specific tests to run from acceptance.yml
-    inclusions = {'assessments', 'connections', 'config', 'discovery', 'helpers', 'transpile'}
-    for item in items:
-        if any(f"tests/integration/{inclusion}" in str(item.fspath) for inclusion in inclusions):
-            selected_items.append(item)
-        else:
-            deselected_items.append(item)
-    items[:] = selected_items
-    config.hook.pytest_deselected(items=deselected_items)
-
-
 @pytest.fixture(scope="session")
 def mock_spark() -> SparkSession:
     """

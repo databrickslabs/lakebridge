@@ -34,7 +34,7 @@ test:
 	hatch run test
 
 integration: setup_spark_remote
-	hatch run integration
+	TEST_ENV=LOCAL hatch run integration
 
 coverage:
 	hatch run coverage && open htmlcov/index.html
