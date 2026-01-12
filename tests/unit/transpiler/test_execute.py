@@ -604,21 +604,21 @@ def test_encoding_error_continues_with_other_files(
 
 
 def test_make_header_with_no_diagnostics():
-    path = Path("/tmp/path/to/input")
+    path = Path("/some/path/to/input")
     diagnostics = []
     header = make_header(path, diagnostics)
 
     assert (
         header
         == """/*
-    Successfully transpiled from /tmp/path/to/input
+    Successfully transpiled from /some/path/to/input
 */
 """
     )
 
 
 def test_make_header_with_one_error():
-    path = Path("/tmp/path/to/input")
+    path = Path("/some/path/to/input")
     diagnostics = [
         TranspileError(
             None,
@@ -634,7 +634,7 @@ def test_make_header_with_one_error():
     assert (
         header
         == """/*
-    Failed transpilation of /tmp/path/to/input
+    Failed transpilation of /some/path/to/input
 
     The following errors were found while transpiling:
       - [7:1] this is an error message
@@ -644,7 +644,7 @@ def test_make_header_with_one_error():
 
 
 def test_make_header_with_one_warning():
-    path = Path("/tmp/path/to/input")
+    path = Path("/some/path/to/input")
     diagnostics = [
         TranspileError(
             None,
@@ -660,7 +660,7 @@ def test_make_header_with_one_warning():
     assert (
         header
         == """/*
-    Successfully transpiled from /tmp/path/to/input
+    Successfully transpiled from /some/path/to/input
 
     The following warnings were found while transpiling:
       - [7:1] this is a warning
@@ -670,7 +670,7 @@ def test_make_header_with_one_warning():
 
 
 def test_make_header_with_one_repeated_error():
-    path = Path("/tmp/path/to/input")
+    path = Path("/some/path/to/input")
     diagnostics = [
         TranspileError(
             None,
@@ -702,7 +702,7 @@ def test_make_header_with_one_repeated_error():
     assert (
         header
         == """/*
-    Failed transpilation of /tmp/path/to/input
+    Failed transpilation of /some/path/to/input
 
     The following errors were found while transpiling:
       - this is an error message
@@ -713,7 +713,7 @@ def test_make_header_with_one_repeated_error():
 
 
 def test_make_header_with_one_repeated_warning():
-    path = Path("/tmp/path/to/input")
+    path = Path("/some/path/to/input")
     diagnostics = [
         TranspileError(
             None,
@@ -745,7 +745,7 @@ def test_make_header_with_one_repeated_warning():
     assert (
         header
         == """/*
-    Successfully transpiled from /tmp/path/to/input
+    Successfully transpiled from /some/path/to/input
 
     The following warnings were found while transpiling:
       - this is a warning

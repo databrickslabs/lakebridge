@@ -1,6 +1,8 @@
 name: "Python Failure Pipeline"
 version: "1.0"
-extract_folder: "tests/resources/assessments"
+# Value replaced prior to actual use.
+# Note: test_get_profiler_extract_path() requires _no_ trailing '/'.
+extract_folder: /replaced/after/loading
 steps:
   - name: invalid_python_step
     type: python

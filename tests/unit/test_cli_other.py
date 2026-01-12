@@ -1,11 +1,14 @@
 import io
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, patch, MagicMock, create_autospec, PropertyMock
 
 import pytest
+
+from databricks.sdk import WorkspaceClient
 
 from databricks.labs.blueprint.tui import MockPrompts
 from databricks.labs.lakebridge import cli
 from databricks.labs.lakebridge.config import LSPConfigOptionV1, LSPPromptMethod
+from databricks.labs.lakebridge.contexts.application import ApplicationContext
 from databricks.labs.lakebridge.helpers.recon_config_utils import ReconConfigPrompts
 
 
@@ -66,14 +69,26 @@ def test_cli_configure_secrets_config(mock_workspace_client):
         mock_recon_config.assert_called_once_with(mock_workspace_client)
 
 
+def app_factory(w: WorkspaceClient) -> ApplicationContext:
+    ctx_mock = create_autospec(spec=ApplicationContext, spec_set=True)
+    type(ctx_mock).workspace_client = PropertyMock(return_value=w)
+    prompts = MockPrompts(
+        {
+            r"Would you like to open the job run URL .*": "no",
+        }
+    )
+    ctx_mock.prompts = prompts
+    return ctx_mock
+
+
 def test_cli_reconcile(mock_workspace_client):
-    with patch("databricks.labs.lakebridge.reconcile.runner.ReconcileRunner.run", return_value=True):
-        cli.reconcile(w=mock_workspace_client)
+    with patch("databricks.labs.lakebridge.reconcile.runner.ReconcileRunner.run", return_value=(MagicMock(), "link1")):
+        cli.reconcile(w=mock_workspace_client, ctx_factory=app_factory)
 
 
 def test_cli_aggregates_reconcile(mock_workspace_client):
-    with patch("databricks.labs.lakebridge.reconcile.runner.ReconcileRunner.run", return_value=True):
-        cli.aggregates_reconcile(w=mock_workspace_client)
+    with patch("databricks.labs.lakebridge.reconcile.runner.ReconcileRunner.run", return_value=(MagicMock(), "link1")):
+        cli.aggregates_reconcile(w=mock_workspace_client, ctx_factory=app_factory)
 
 
 def test_prompts_question():

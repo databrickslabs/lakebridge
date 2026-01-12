@@ -1,5 +1,172 @@
 # Version changelog
 
+## 0.11.3
+
+## Analyzer
+
+- Optimized SAS Analyzer performance by consolidating regex operations, delivering roughly a 7x speed improvement for large-scale SAS analysis workloads.
+- Added support for new SSIS components Microsoft.Pivot, Microsoft.UnPivot, and ExtensibleFileTask, broadening coverage for SSIS package migrations analysis.
+    
+## Converters – Morpheus
+- Core
+	- Significantly improved ANTLR parsing performance by merging grammars, refactoring ambiguous rules, and updating the Scala integration and build pipeline for the new grammar workflow.
+	- Allowed the STREAMS token to be used as an identifier so patterns like SELECT * FROM streams.foo.bar now parse correctly in Snowflake-oriented SQL.
+	- Updated the error reporting to align to the following:
+		- - `Info`: no error, the input was fully translated
+		- `Hint`: the input was fully translated but some irrelevant bits have been elided
+		- `Warning`: the input was translated but with unsupported bits
+		- `Error`: the input couldn't be translated
+
+- MSSQL / T-SQL / SQL Server
+    
+    - Added full support for SQL Server T-SQL CREATE INDEX and table-level index directives, parsing them into a new index IR and translating to CLUSTER BY AUTO in Databricks SQL so index statements are no longer rejected.
+        
+    - Extended grammar and parsing to handle T-SQL computed columns, QUOTENAME calls, GROUP options in query hints, DROP INDEX statements, and additional keywords like PARAMETERS, STREAMS, PROCEDURES, and VIEWS, improving coverage of real-world T-SQL workloads.
+        
+    - Improved DML parsing so INSERT targets use proper dot identifiers instead of expression-like forms, preventing misinterpretation as function calls and preserving case sensitivity where required.
+        
+    - Re-enabled and migrated T-SQL functional tests to a YAML-based format, expanding automated coverage and keeping still-failing cases isolated for follow-up.
+        
+
+## Converters – BladeBridge
+
+- MSSQL / SSIS / T-SQL
+    
+    - Resolved issues with column names containing single quotes and standardized DATEADD and DATEDIFF function patterns to improve compatibility across target SQL dialects.
+        
+- DataStage
+    
+    - Implemented mapping for the JulianDayFromDate function with corresponding tests, extending DataStage function coverage in the converter.
+        
+    - Enhanced DataStage Spark and workflow handling by adding Databricks cluster sections, improving widget default handling, and mapping TransformStringToDate and spark.sqltemplate attributes for smoother Spark migrations.
+        
+
+## Reconcile
+
+- Improved reconciliation hash query generation to guarantee consistent column ordering across SQL dialects, preventing false hash mismatches when column names are substrings of each other.
+    
+- Reverted the Oracle reconcile implementation to use MD5 via DBMS_CRYPTO.HASH with RAWTOHEX, restoring compatibility with Oracle 11 while keeping the updated QueryBuilder engine handling..
+    
+## Documentation
+
+- Added practical details about how to extend BladeBridge configurations
+
+
+Dependency updates:
+
+ * Bump actions/checkout from 5 to 6 ([#2158](https://github.com/databrickslabs/lakebridge/pull/2158)).
+
+## 0.11.2
+
+# Analyzer
+
+- Normalized complexity categories in the analyzer from “COMPLEX/VERY_COMPLEX” to “HIGH/VERY_HIGH” for clearer reports.
+# Converters
+
+## Morpheus
+### Snowflake
+
+- Implemented full support for `DECLARE`, `LET`, and assignment statements to better handle procedural Snowflake scripts.
+- Added support for `DROP PROCEDURE` statements, improving Snowflake DDL coverage.
+    
+### TSQL/Synapse
+
+- Cleaned up grammar by removing duplicate and unsupported rules for TSQL special functions, reducing ambiguity and improving parser stability.
+- Implemented full support for `DECLARE`, `LET`, and assignment statements in TSQL, enabling richer stored procedure conversion.
+- Added support for TSQL `DROP PROCEDURE` statements to improve parity with source DDL.
+- Updated handling of options such as `ANSI_NULLS` and `QUOTED_IDENTIFIER` to emit informative comments instead of errors when they do not apply to Databricks SQL.
+- Enhanced handling of `SET NOCOUNT` by emitting comments explaining its behavior in Databricks SQL and warning when `NOCOUNT OFF` is used.
+- Allowed `PRECISION` to be used as an identifier (for example, `c.precision`), fixing parsing issues with such column names.
+- Improved handling of `EXEC` statements by detecting well‑known stored procedures like `sp_executesql` and issuing more specific diagnostics.
+- Added translation of `OBJECT_ID()` checks into `EXISTS` queries against catalog metadata to preserve control flow in procedural TSQL.
+- Added warnings for unsupported `PRINT` statements by generating explanatory comments rather than hard errors.
+- Added parsing support for the Synapse `RENAME OBJECT` syntax, currently surfaced as an unsupported but recognized construct.
+    
+### Generic Morpheus engine
+
+- Enabled attaching comments and error markers to empty code blocks so that diagnostics are preserved in rendered SQL.
+- Prevented semicolons from being printed after empty statements to keep output formatting consistent.
+- Bundled multiple column-level primary keys into composite table constraints to produce more correct DDL.
+- Allowed the identifier `PRECISION` in general parsing contexts, improving compatibility with more schemas.
+    
+## BladeBridge
+
+### MSSQL / TSQL
+
+- Improved handling of `MERGE` statements, including insertion of semicolons before `MERGE` in statement breaking and correct ordering of `MATCHED` and `NOT MATCHED` clauses.
+- Fixed issues when converting updates on temporary tables into `MERGE` statements and added tests to guard the behavior.
+- Improved statement categorization by stripping comments before categorization and simplifying legacy comment-key handling.
+- Added a new handler for nested static strings and inline comments, improving function substitution and parser robustness.
+    
+### Generic BladeBridge engine
+
+- Enhanced logging configuration to produce clearer diagnostics while keeping noise manageable.    
+
+## Reconcile
+
+- Added support for specifying a catalog for Databricks sources in Reconcile and prompting for the source catalog when necessary.
+- Removed redundant Reconcile configuration parameters to simplify setup.
+
+## General
+
+- Improved handling of output from LSP servers by safely chunking very long stderr lines and logging critical processing errors, preventing hangs and unbounded memory use.
+- Adjusted JDBC handling to accept usernames and passwords via Spark options instead of embedding credentials in the JDBC URL, improving support for special characters in passwords.
+- Consolidated the automated test suite to keep only unit and integration scopes, simplifying test configuration.
+
+## Dependency Updates
+* Dependencies: update documentation (yarn) packages by @asnare in https://github.com/databrickslabs/lakebridge/pull/2178
+* 
+**Full Changelog**: https://github.com/databrickslabs/lakebridge/compare/v0.11.1...v0.11.2
+## # Lakebridge v0.11.1  Release Notes
+
+## Analyzer
+
+No updates in this release.
+
+## Converters
+
+## General
+
+- Improved end-to-end migration behavior through tighter integration with the centralized Morpheus function mapping layer and expanded cross-dialect coverage
+
+## Morpheus
+
+**Snowflake**
+
+- Centralized SQL function mappings and expanded cross-dialect coverage, improving Snowflake-to-Databricks SQL conversions and reducing noisy, non-actionable warnings.
+- Added full translation support for Snowflake exception blocks, enabling richer error-handling logic to be preserved when converting to Databricks SQL.
+    
+
+**TSQL / SQL Server**
+
+- Reworked SQL function handling so most mappings are centralized, making TSQL-to-Databricks SQL conversions more accurate and easier to extend for future Lakebridge-based migrations.
+- Implemented full support for TSQL TRY/CATCH constructs, including THROW/RAISERROR-style logic and helper-based error handling, improving the fidelity of translated control-flow and error semantics.
+    
+
+## BladeBridge
+
+**TSQL / SQL Server**
+
+- Fixed handling of T-SQL column alias syntax in SELECT statements so aliases are no longer mistaken for variable assignments, and removed a deprecated alias-normalization method to improve translation accuracy.
+- Resolved failures caused by nested comments, improved post-conversion handling for shell and Python wrapper scripts, and ensured labeled UPDATE/DELETE statements that translate to MERGE remain correctly embedded in SQL.
+- Corrected processing of SELECT statements without a FROM clause when assigning to variables, so expressions like variable increments and severity mappings are handled reliably during migration.
+- Improved “delete by source” MERGE translations so separators and DELETE placement are preserved, and fixed static string handling so T-SQL patterns that use square brackets are not misinterpreted as identifier quoting or ranges.
+    
+
+## Reconcile
+
+No updates in this release
+
+## Documentation
+
+- Clarified that Python 3.14 is not yet supported and updated macOS instructions to recommend Python 3.13 as the latest supported version
+- Expanded installation prerequisites with detailed Databricks workspace requirements, authentication options, network and repository access expectations, and a comprehensive pre-installation checklist aimed at enterprise and security-restricted environments    
+
+## General
+
+- Increased the maximum stderr line size accepted from LSP servers during transpilation to prevent crashes or hangs when converters emit very large log lines
+- Reduced noise from LSP integrations by lowering stderr mirroring from INFO to DEBUG level, ensuring detailed logs remain available for troubleshooting without cluttering normal operation logs
+
 ## # Lakebridge v0.11.0 Release Notes
 
 ## 🎉 New Features

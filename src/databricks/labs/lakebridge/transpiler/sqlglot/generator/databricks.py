@@ -4,15 +4,13 @@ import re
 from sqlglot import expressions as exp
 from sqlglot.dialects.databricks import Databricks as SqlglotDatabricks
 from sqlglot.dialects.hive import Hive
-from sqlglot.dialects.dialect import if_sql
-from sqlglot.dialects.dialect import rename_func
+from sqlglot.dialects.dialect import if_sql, rename_func, groupconcat_sql
 from sqlglot.errors import UnsupportedError
 from sqlglot.helper import apply_index_offset, csv
 
 from databricks.labs.lakebridge.transpiler.sqlglot import local_expression
 from databricks.labs.lakebridge.transpiler.sqlglot.lca_utils import unalias_lca_in_select
 
-# pylint: disable=too-many-public-methods
 
 logger = logging.getLogger(__name__)
 
@@ -397,6 +395,11 @@ def to_array(self, expression: exp.ToArray) -> str:
     return f"IF({self.sql(expression.this)} IS NULL, NULL, {self.func('ARRAY', expression.this)})"
 
 
+def groupconcat_sql_databricks(self, expression: exp.GroupConcat) -> str:
+    """Custom GroupConcat SQL generator that uses the parent's method with empty separator."""
+    return groupconcat_sql(self, expression, sep="")
+
+
 class Databricks(SqlglotDatabricks):  #
     # Instantiate Databricks Dialect
     databricks = SqlglotDatabricks()
@@ -465,6 +468,8 @@ class Databricks(SqlglotDatabricks):  #
             exp.Not: _not_sql,
             local_expression.ToArray: to_array,
             local_expression.ArrayExists: rename_func("EXISTS"),
+            exp.GroupConcat: groupconcat_sql_databricks,
+            exp.GetExtract: rename_func("GET"),
         }
 
         def preprocess(self, expression: exp.Expression) -> exp.Expression:
@@ -541,18 +546,6 @@ class Databricks(SqlglotDatabricks):  #
             )
             return self.func("TRANSFORM", array_sort, "s -> s.value")
 
-        def groupconcat_sql(self, expr: exp.GroupConcat) -> str:
-            arr_agg = exp.ArrayAgg(this=expr.this)
-            within_group = expr.parent.copy() if isinstance(expr.parent, exp.WithinGroup) else None
-            if within_group:
-                arr_agg.parent = within_group
-
-            return self.func(
-                "ARRAY_JOIN",
-                arr_agg,
-                expr.args.get("separator") or exp.Literal(this="", is_string=True),
-            )
-
         def withingroup_sql(self, expression: exp.WithinGroup) -> str:
             agg_expr = expression.this
             if isinstance(agg_expr, (exp.ArrayAgg, exp.GroupConcat)):
@@ -579,7 +572,12 @@ class Databricks(SqlglotDatabricks):  #
 
         def delete_sql(self, expression: exp.Delete) -> str:
             this = self.sql(expression, "this")
-            using = self.sql(expression, "using")
+            # In sqlglot 28.5.0+, 'using' is a list of tables
+            using_tables = expression.args.get("using")
+            if using_tables:
+                using = ", ".join(self.sql(table) for table in using_tables)
+            else:
+                using = ""
             where = self.sql(expression, "where")
             returning = self.sql(expression, "returning")
             limit = self.sql(expression, "limit")
@@ -708,7 +706,7 @@ class Databricks(SqlglotDatabricks):  #
         def update_sql(self, expression: exp.Update) -> str:
             this = self.sql(expression, "this")
             set_sql = self.expressions(expression, flat=True)
-            from_sql = self.sql(expression, "from")
+            from_sql = self.sql(expression, "from_")
             where_sql = self.sql(expression, "where")
             returning = self.sql(expression, "returning")
             order = self.sql(expression, "order")
@@ -764,8 +762,23 @@ class Databricks(SqlglotDatabricks):  #
                         ordered_expression.args['desc'] = False
             return super().order_sql(expression, flat)
 
-        def add_column_sql(self, expression: exp.Alter) -> str:
-            # Final output contains ADD COLUMN before each column
-            # This function will handle this issue and return the final output
-            columns = self.expressions(expression, key="actions", flat=True)
-            return f"ADD COLUMN {columns}"
+        def alter_sql(self, expression: exp.Alter) -> str:
+            """
+            Custom ALTER TABLE handler to properly format multiple ADD COLUMN operations.
+            Databricks supports: ALTER TABLE ... ADD COLUMN col1 TYPE1, col2 TYPE2, col3 TYPE3
+            """
+            actions = expression.args.get("actions")
+
+            # Check if all actions are ColumnDef (ADD COLUMN operations)
+            if actions and all(isinstance(action, exp.ColumnDef) for action in actions):
+                this = self.sql(expression, "this")
+                exists_sql = " IF EXISTS" if expression.args.get("exists") else ""
+                only_sql = "ONLY " if expression.args.get("only") else ""
+
+                # Generate column definitions
+                columns = ", ".join(self.sql(col) for col in actions)
+
+                return f"ALTER TABLE{exists_sql} {only_sql}{this} ADD COLUMN {columns}"
+
+            # Fall back to parent implementation for other ALTER operations
+            return super().alter_sql(expression)
