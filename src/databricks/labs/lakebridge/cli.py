@@ -756,9 +756,12 @@ def install_transpile(
 
         # Compute selection prompt (TTY only)
         if interactive_mode(interactive):
-            switch_use_serverless = ctx.prompts.confirm(
-                "Use serverless compute for Switch job? (No = use classic job cluster)"
+            answer = ctx.prompts.question(
+                "Use serverless compute for Switch job? (no = use classic job compute instead)",
+                default="yes",
+                valid_regex=r"(?i)^(yes|no|y|n)$",
             )
+            switch_use_serverless = answer.lower() in {"yes", "y"}
 
         # Skip transpile configuration prompts
         logger.info("Skipping transpile configuration prompts for LLM transpiler installation.")
