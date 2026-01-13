@@ -6,6 +6,7 @@ import pytest
 
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.service.jobs import TerminationTypeType
+from databricks.sdk.core import DatabricksError
 
 from databricks.labs.lakebridge.config import (
     ReconcileConfig,
@@ -110,14 +111,22 @@ def test_recon_databricks_job_succeeds(application_context: ApplicationContext) 
         application_context.install_state,
     )
 
+    run = None
     try:
         run, _ = recon_runner.run(operation_name=RECONCILE_OPERATION_NAME)
         result = run.result()
-        logger.info(f"Reconcile job run result: {result.status}")
-        assert result.status
-        assert result.status.termination_details
-        assert result.status.termination_details.type
-        assert result.status.termination_details.type.value == TerminationTypeType.SUCCESS.value
-    except Exception as e:
-        logger.error("Reconcile job run failed", exc_info=e)
+    except Exception:
+        try:
+            if run:
+                run_id = run.run_id
+                output = application_context.workspace_client.jobs.get_run_output(run_id)
+                logger.info(f"Databricks run output: {output}")
+        except DatabricksError:
+            logger.exception("Failed to fetch run output")
         raise
+
+    logger.info(f"Reconcile job run result: {result.status}")
+    assert result.status
+    assert result.status.termination_details
+    assert result.status.termination_details.type
+    assert result.status.termination_details.type.value == TerminationTypeType.SUCCESS.value
