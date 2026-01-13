@@ -20,7 +20,6 @@ from databricks.labs.lakebridge.config import (
 from databricks.labs.lakebridge.contexts.application import ApplicationContext
 from databricks.labs.lakebridge.reconcile.recon_config import RECONCILE_OPERATION_NAME, Table
 from databricks.labs.lakebridge.reconcile.runner import ReconcileRunner
-from databricks.labs.blueprint.wheels import ProductInfo
 from databricks.sdk.service.catalog import TableInfo, SchemaInfo
 from tests.integration.debug_envgetter import TestEnvGetter
 
@@ -91,7 +90,7 @@ def application_context(
 ):
     logger.info("Setting up application context for recon tests")
     config = LakebridgeConfiguration(None, recon_config)
-    ctx = ApplicationContext(ws).replace(product_info=ProductInfo.for_testing(type(config)))
+    ctx = ApplicationContext(ws)
 
     logger.info("Installing app and recon configuration into workspace")
     ctx.installation.save(recon_config)
