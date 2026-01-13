@@ -1,5 +1,4 @@
 import json
-import os
 import logging
 from dataclasses import asdict
 
@@ -48,9 +47,10 @@ def recon_config(watchdog_remove_after: str, recon_schema: SchemaInfo, make_volu
     volume = make_volume(catalog_name=recon_schema.catalog_name, schema_name=recon_schema.name, name=recon_schema.name)
 
     test_env = TestEnvGetter(True)
-    cluster = test_env.get("TEST_DEFAULT_CLUSTER_ID")
+    cluster = test_env.get("DATABRICKS_CLUSTER_ID")
     tags = {"RemoveAfter": watchdog_remove_after}
     deployment_overrides = ReconcileJobConfig(existing_cluster_id=cluster, tags=tags)
+    logger.info(f"Using recon job overrides: {deployment_overrides}")
 
     assert recon_schema.catalog_name
     assert recon_schema.name
@@ -87,14 +87,6 @@ def recon_config_filename(recon_config: ReconcileConfig) -> str:
 def application_context(
     ws: WorkspaceClient, recon_config: ReconcileConfig, recon_config_filename: str, recon_table_config
 ):
-    logger.info(f"Found env host {os.getenv('DATABRICKS_HOST')} and pytester host {ws.config.host}")
-
-    test_env = TestEnvGetter(True)
-    host = test_env.get("DATABRICKS_HOST")  # This should be set in the acceptance CI, but it is not
-    os.environ["DATABRICKS_HOST"] = host
-    ws.config.host = host
-    ws.config.init_auth()
-
     logger.info("Setting up application context for recon tests")
     config = LakebridgeConfiguration(None, recon_config)
     ctx = ApplicationContext(ws).replace(product_info=ProductInfo.for_testing(type(config)))
