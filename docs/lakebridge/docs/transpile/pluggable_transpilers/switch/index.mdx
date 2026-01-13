@@ -114,17 +114,13 @@ Install Switch using the `install-transpile` command with the `--include-llm-tra
 databricks labs lakebridge install-transpile --include-llm-transpiler true --profile profile_name
 ```
 
-During installation, you'll be prompted:
-```
-Use serverless compute for Switch job? (no = use classic job compute instead) (default: yes):
-```
-- **yes (default)**: Uses serverless job compute
-- **no**: Uses classic job compute with LTS Spark version and USER_ISOLATION mode
+You'll be prompted to choose your compute type:
+- **yes (default)**: Serverless job compute
+- **no**: Classic job compute with LTS Spark version and USER_ISOLATION mode
 
-The installation automatically:
-
-1. **Uploads Notebooks**: Switch processing notebooks to workspace
-2. **Creates Databricks Job**: Configured job with your selected compute type
+The installation then:
+1. Uploads Switch processing notebooks to workspace
+2. Creates the Databricks Job with your selected compute type
 
 ---
 
