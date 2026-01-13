@@ -32,19 +32,12 @@ def get_logger():
 
 
 @pytest.fixture(scope="session")
-def mock_spark(tmp_path_factory) -> Generator[SparkSession, None, None]:
+def mock_spark() -> SparkSession:
     """
     Method helps to create spark session
     :return: returns the spark session
     """
-    temp_dir = tmp_path_factory.mktemp("spark-warehouse", numbered=True)
-    yield (
-        SparkSession.builder.appName("Remorph Reconcile Test")
-        .remote("sc://localhost")
-        .config("spark.sql.warehouse.dir", str(temp_dir))
-        .getOrCreate()
-    )
-    shutil.rmtree(str(temp_dir), ignore_errors=True)
+    return SparkSession.builder.appName("Remorph Reconcile Test").remote("sc://localhost").getOrCreate()
 
 
 @pytest.fixture()
