@@ -151,7 +151,7 @@ class PipelineClass:
         logging.info(f"Installing dependencies: {', '.join(dependencies)}")
         try:
             logging.debug("Upgrading local pip")
-            run(
+            result = run(
                 [
                     venv_exec_cmd,
                     "-m",
@@ -160,15 +160,17 @@ class PipelineClass:
                     "--upgrade",
                     "pip",
                     "--require-virtualenv",
-                    "--quiet",
                     "--no-input",
                     "--disable-pip-version-check",
                 ],
                 check=True,
-                stdout=DEVNULL,
-                stderr=DEVNULL,
+                capture_output=True,
+                text=True,
             )
-            run(
+            if result.stdout:
+                logging.debug(f"Pip upgrade output: {result.stdout}")
+            
+            result = run(
                 [
                     venv_exec_cmd,
                     "-m",
@@ -176,17 +178,19 @@ class PipelineClass:
                     "install",
                     *dependencies,
                     "--require-virtualenv",
-                    "--quiet",
                     "--no-input",
                     "--disable-pip-version-check",
                 ],
                 check=True,
-                stdout=DEVNULL,
-                stderr=DEVNULL,
+                capture_output=True,
+                text=True,
             )
+            if result.stdout:
+                logging.info(f"Dependency installation output: {result.stdout}")
         except CalledProcessError as e:
-            logging.error(f"Failed to install dependencies: {e.stderr}")
-            raise RuntimeError(f"Failed to install dependencies: {e.stderr}") from e
+            error_details = f"stdout: {e.stdout}\nstderr: {e.stderr}" if e.stderr or e.stdout else "No output captured"
+            logging.error(f"Failed to install dependencies: {error_details}")
+            raise RuntimeError(f"Failed to install dependencies: {error_details}") from e
 
     @staticmethod
     def _run_python_script(venv_exec_cmd, script_path, db_path, credential_config):
