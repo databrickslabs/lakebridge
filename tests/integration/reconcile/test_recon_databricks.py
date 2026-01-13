@@ -109,11 +109,15 @@ def test_recon_databricks_job_succeeds(application_context: ApplicationContext) 
         application_context.workspace_client,
         application_context.install_state,
     )
-    run, _ = recon_runner.run(operation_name=RECONCILE_OPERATION_NAME)
-    result = run.result()
-    logger.info(f"Reconcile job run result: {result.status}")
 
-    assert result.status
-    assert result.status.termination_details
-    assert result.status.termination_details.type
-    assert result.status.termination_details.type.value == TerminationTypeType.SUCCESS.value
+    try:
+        run, _ = recon_runner.run(operation_name=RECONCILE_OPERATION_NAME)
+        result = run.result()
+        logger.info(f"Reconcile job run result: {result.status}")
+        assert result.status
+        assert result.status.termination_details
+        assert result.status.termination_details.type
+        assert result.status.termination_details.type.value == TerminationTypeType.SUCCESS.value
+    except Exception as e:
+        logger.error("Reconcile job run failed", exc_info=e)
+        raise
