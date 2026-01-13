@@ -99,6 +99,10 @@ def application_context(
     logger.info("Application context setup complete for recon tests")
     yield ctx
 
+    logger.info("Tearing down application context for recon tests")
+    ctx.workspace_installation.uninstall(config)
+    logger.info("Application context teardown complete for recon tests")
+
 
 def test_recon_databricks_job_succeeds(application_context: ApplicationContext) -> None:
     recon_runner = ReconcileRunner(
