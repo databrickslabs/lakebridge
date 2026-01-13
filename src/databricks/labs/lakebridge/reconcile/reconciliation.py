@@ -70,9 +70,10 @@ class Reconciliation:
         self._source_engine = source_engine
         self._spark = spark
         self._metadata_config = metadata_config
-        self._use_serverless = self._is_serverless()
+        self._use_serverless = self.is_serverless
 
-    def _is_serverless(self) -> bool:
+    @property
+    def is_serverless(self) -> bool:
         """
         Detect if running on serverless compute.
 
@@ -397,12 +398,10 @@ class Reconciliation:
 
         # Uses pre-calculated `mismatch_count` from `reconcile_output.mismatch_count` to avoid from recomputing `mismatch` for RandomSampler.
         mismatch_sampler = SamplerFactory.get_sampler(sampling_options)
-        sampled_df = mismatch_sampler.sample(mismatch, mismatch_count, key_columns, sampling_model_target)
+        df = mismatch_sampler.sample(mismatch, mismatch_count, key_columns, sampling_model_target)
 
-        if self._use_serverless:
-            df = sampled_df
-        else:
-            df = sampled_df.cache()
+        if not self._use_serverless:
+            df = df.cache()
 
         src_mismatch_sample_query = src_sampler.build_query(df)
         tgt_mismatch_sample_query = tgt_sampler.build_query(df)
