@@ -37,6 +37,7 @@ def recon_table_config(recon_schema: SchemaInfo, recon_tables: tuple[TableInfo, 
             Table(
                 source_name=src_table.name,
                 target_name=tgt_table.name,
+                select_columns=["carat", "cut", "color", "clarity"],
                 join_columns=["color", "clarity"],
             )
         ]
