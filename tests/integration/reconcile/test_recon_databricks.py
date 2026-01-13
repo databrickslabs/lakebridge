@@ -1,4 +1,5 @@
 import json
+import re
 import logging
 from dataclasses import asdict
 
@@ -106,6 +107,12 @@ def application_context(
 
 
 def debug_run_output(ctx: ApplicationContext, run_id: int) -> None:
+    _ansi_escape = re.compile(r"\x1B\[[0-?]*[ -/]*[@-~]")
+
+    def strip_ansi(unescaped: str) -> str:
+        return _ansi_escape.sub("", unescaped)
+
+    # pylint: disable = too-many-try-statements
     try:
         run_info = ctx.workspace_client.jobs.get_run(run_id)
         tasks = run_info.tasks if run_info.tasks else []
@@ -113,7 +120,9 @@ def debug_run_output(ctx: ApplicationContext, run_id: int) -> None:
         for task in tasks:
             if task.run_id:
                 task_output = ctx.workspace_client.jobs.get_run_output(task.run_id)
-                logger.info(f"Task {task.task_key} has output: {task_output}")
+                logger.info(f"Task {task.task_key} has error message: {task_output.error}")
+                if task_output.error_trace:
+                    logger.info(f"Task {task.task_key} has error trace:\n{strip_ansi(task_output.error_trace)}")
             else:
                 logger.warning(f"Task {task.task_key} has no run_id")
     except DatabricksError:
