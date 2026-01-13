@@ -50,8 +50,8 @@ Before installing Switch, ensure your Databricks environment meets the following
 
 ### Workspace Resources
 
-- **Serverless job compute** (used by default for Switch job execution)
-  - If unavailable: Manually configure the Switch job to use classic job compute with DBR 14.3 LTS or higher
+- **Serverless job compute** (default) or **Classic job compute** (optional)
+  - During installation, you'll be prompted to choose between serverless (default) and classic job compute
 - **Foundation Model API** enabled
 
 ### Unity Catalog Resources
@@ -114,10 +114,17 @@ Install Switch using the `install-transpile` command with the `--include-llm-tra
 databricks labs lakebridge install-transpile --include-llm-transpiler true --profile profile_name
 ```
 
+During installation, you'll be prompted:
+```
+Use serverless compute for Switch job? (no = use classic job compute instead) (default: yes):
+```
+- **yes (default)**: Uses serverless job compute
+- **no**: Uses classic job compute with LTS Spark version and USER_ISOLATION mode
+
 The installation automatically:
 
 1. **Uploads Notebooks**: Switch processing notebooks to workspace
-2. **Creates Databricks Job**: Configured job in your workspace for running conversions
+2. **Creates Databricks Job**: Configured job with your selected compute type
 
 ---
 
