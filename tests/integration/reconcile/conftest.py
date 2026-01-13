@@ -13,7 +13,12 @@ from tests.integration.debug_envgetter import TestEnvGetter
 
 logger = logging.getLogger(__name__)
 
-DIAMONDS_COLUMNS = ["carat", "cut", "color", "clarity"]
+DIAMONDS_COLUMNS = [
+    ("carat", "DOUBLE"),
+    ("cut", "STRING"),
+    ("color", "STRING"),
+    ("clarity", "STRING"),
+]
 DIAMONDS_ROWS_SQL = """
                     INSERT INTO {catalog}.{schema}.{table} (carat, cut, color, clarity) VALUES
                         (0.23, 'Ideal', 'E', 'SI2'),
