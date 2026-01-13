@@ -111,6 +111,7 @@ def test_recon_databricks_job_succeeds(application_context: ApplicationContext) 
     )
     run, _ = recon_runner.run(operation_name=RECONCILE_OPERATION_NAME)
     result = run.result()
+    logger.info(f"Reconcile job run result: {result.status}")
 
     assert result.status
     assert result.status.termination_details
