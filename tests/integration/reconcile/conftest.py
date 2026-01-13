@@ -13,6 +13,12 @@ from tests.integration.debug_envgetter import TestEnvGetter
 
 logger = logging.getLogger(__name__)
 
+DIAMONDS_COLUMNS = [
+    {"name": "carat", "type_text": "DOUBLE"},
+    {"name": "cut", "type_text": "STRING"},
+    {"name": "color", "type_text": "STRING"},
+    {"name": "clarity", "type_text": "STRING"},
+]
 DIAMONDS_ROWS_SQL = """
                     INSERT INTO {catalog}.{schema}.{table} (carat, cut, color, clarity) VALUES
                         (0.23, 'Ideal', 'E', 'SI2'),
@@ -46,8 +52,12 @@ def recon_schema(recon_catalog, make_schema) -> SchemaInfo:
 
 @pytest.fixture
 def recon_tables(ws: WorkspaceClient, recon_schema: SchemaInfo, make_table) -> tuple[TableInfo, TableInfo]:
-    src_table = make_table(catalog_name=recon_schema.catalog_name, schema_name=recon_schema.name)
-    tgt_table = make_table(catalog_name=recon_schema.catalog_name, schema_name=recon_schema.name)
+    src_table = make_table(
+        catalog_name=recon_schema.catalog_name, schema_name=recon_schema.name, columns=DIAMONDS_COLUMNS
+    )
+    tgt_table = make_table(
+        catalog_name=recon_schema.catalog_name, schema_name=recon_schema.name, columns=DIAMONDS_COLUMNS
+    )
     logger.info(f"Created recon tables {src_table.name}, {tgt_table.name} in schema {recon_schema.name}")
 
     test_env = TestEnvGetter(True)
