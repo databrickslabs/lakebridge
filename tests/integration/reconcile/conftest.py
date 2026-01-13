@@ -13,12 +13,7 @@ from tests.integration.debug_envgetter import TestEnvGetter
 
 logger = logging.getLogger(__name__)
 
-DIAMONDS_COLUMNS = [
-    {"name": "carat", "type_text": "DOUBLE"},
-    {"name": "cut", "type_text": "STRING"},
-    {"name": "color", "type_text": "STRING"},
-    {"name": "clarity", "type_text": "STRING"},
-]
+DIAMONDS_COLUMNS = ["carat", "cut", "color", "clarity"]
 DIAMONDS_ROWS_SQL = """
                     INSERT INTO {catalog}.{schema}.{table} (carat, cut, color, clarity) VALUES
                         (0.23, 'Ideal', 'E', 'SI2'),
@@ -69,13 +64,13 @@ def recon_tables(ws: WorkspaceClient, recon_schema: SchemaInfo, make_table) -> t
             schema=recon_schema.name,
             table=tbl.name,
         )
-        ws.statement_execution.execute_statement(
+        exc_response = ws.statement_execution.execute_statement(
             warehouse_id=warehouse,
             catalog=recon_schema.catalog_name,
             schema=recon_schema.name,
             statement=sql,
         )
-        logger.info(f"Inserted data into table {tbl.name}")
+        logger.info(f"Inserted data into table {tbl.name} and got response {exc_response.status}")
 
     return src_table, tgt_table
 
