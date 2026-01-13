@@ -13,8 +13,6 @@ from databricks.labs.blueprint.installation import MockInstallation
 from databricks.labs.blueprint.installer import InstallState
 from databricks.labs.lakebridge.assessments.dashboards.dashboard_manager import DashboardManager
 
-from tests.utils.profiler_extract_utils import build_mock_synapse_extract
-
 
 @pytest.fixture
 def mocked_workspace_client() -> WorkspaceClient:
@@ -35,12 +33,6 @@ def dashboard_manager(mocked_workspace_client: WorkspaceClient):
     installation = MockInstallation(is_global=False)
     install_state = InstallState.from_installation(installation)
     return DashboardManager(workspace_client, installation, install_state, is_debug=True)
-
-
-@pytest.fixture(scope="module")
-def mock_synapse_profiler_extract():
-    synapse_extract_path = build_mock_synapse_extract("mock_profiler_extract")
-    return synapse_extract_path
 
 
 def test_upload_duckdb_to_uc_volume_file_not_found(
