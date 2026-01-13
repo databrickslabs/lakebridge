@@ -772,9 +772,12 @@ def test_recon_for_report_type_is_data(
     ):
         mock_datetime.now.return_value = datetime(2024, 5, 23, 9, 21, 25, 122185)
         recon_datetime.now.return_value = datetime(2024, 5, 23, 9, 21, 25, 122185)
-        TriggerReconService.trigger_recon(
-            mock_workspace_client, mock_spark, table_recon, reconcile_config_data, local_test_run=True
-        )
+        with pytest.raises(ReconciliationException) as exc_info:
+            TriggerReconService.trigger_recon(
+                mock_workspace_client, mock_spark, table_recon, reconcile_config_data, local_test_run=True
+            )
+        if exc_info.value.reconcile_output is not None:
+            assert exc_info.value.reconcile_output.recon_id == "00112233-4455-6677-8899-aabbccddeeff"
 
     expected_remorph_recon = mock_spark.createDataFrame(
         data=[
@@ -1606,6 +1609,7 @@ def test_schema_recon_with_data_source_exception(
             return_value=33333,
         ),
         patch("databricks.labs.lakebridge.reconcile.utils.generate_volume_path", return_value=str(tmp_path)),
+        pytest.raises(ReconciliationException, match="00112233-4455-6677-8899-aabbccddeeff"),
     ):
         mock_datetime.now.return_value = datetime(2024, 5, 23, 9, 21, 25, 122185)
         recon_datetime.now.return_value = datetime(2024, 5, 23, 9, 21, 25, 122185)
@@ -1683,6 +1687,7 @@ def test_schema_recon_with_general_exception(
             "databricks.labs.lakebridge.reconcile.reconciliation.Reconciliation.reconcile_schema"
         ) as schema_source_mock,
         patch("databricks.labs.lakebridge.reconcile.utils.generate_volume_path", return_value=str(tmp_path)),
+        pytest.raises(ReconciliationException, match="00112233-4455-6677-8899-aabbccddeeff"),
     ):
         schema_source_mock.side_effect = PySparkException("Unknown Error")
         mock_datetime.now.return_value = datetime(2024, 5, 23, 9, 21, 25, 122185)
@@ -1760,6 +1765,7 @@ def test_data_recon_with_general_exception(
         ),
         patch("databricks.labs.lakebridge.reconcile.reconciliation.Reconciliation.reconcile_data") as data_source_mock,
         patch("databricks.labs.lakebridge.reconcile.utils.generate_volume_path", return_value=str(tmp_path)),
+        pytest.raises(ReconciliationException, match="00112233-4455-6677-8899-aabbccddeeff"),
     ):
         data_source_mock.side_effect = DataSourceRuntimeException("Unknown Error")
         mock_datetime.now.return_value = datetime(2024, 5, 23, 9, 21, 25, 122185)
@@ -1837,6 +1843,7 @@ def test_data_recon_with_source_exception(
         ),
         patch("databricks.labs.lakebridge.reconcile.reconciliation.Reconciliation.reconcile_data") as data_source_mock,
         patch("databricks.labs.lakebridge.reconcile.utils.generate_volume_path", return_value=str(tmp_path)),
+        pytest.raises(ReconciliationException, match="00112233-4455-6677-8899-aabbccddeeff"),
     ):
         data_source_mock.side_effect = DataSourceRuntimeException("Source Runtime Error")
         mock_datetime.now.return_value = datetime(2024, 5, 23, 9, 21, 25, 122185)
