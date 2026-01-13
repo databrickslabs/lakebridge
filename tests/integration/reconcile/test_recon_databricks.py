@@ -14,7 +14,6 @@ from databricks.labs.lakebridge.config import (
     DatabaseConfig,
     ReconcileMetadataConfig,
     LakebridgeConfiguration,
-    ReconcileJobConfig,
     TableRecon,
 )
 from databricks.labs.lakebridge.contexts.application import ApplicationContext
@@ -22,7 +21,6 @@ from databricks.labs.lakebridge.reconcile.recon_config import RECONCILE_OPERATIO
 from databricks.labs.lakebridge.reconcile.runner import ReconcileRunner
 from databricks.labs.blueprint.wheels import ProductInfo
 from databricks.sdk.service.catalog import TableInfo, SchemaInfo
-from tests.integration.debug_envgetter import TestEnvGetter
 
 logger = logging.getLogger(__name__)
 
@@ -45,14 +43,8 @@ def recon_table_config(recon_schema: SchemaInfo, recon_tables: tuple[TableInfo, 
 
 
 @pytest.fixture
-def recon_config(watchdog_remove_after: str, recon_schema: SchemaInfo, make_volume) -> ReconcileConfig:
+def recon_config(recon_schema: SchemaInfo, make_volume) -> ReconcileConfig:
     volume = make_volume(catalog_name=recon_schema.catalog_name, schema_name=recon_schema.name, name=recon_schema.name)
-
-    test_env = TestEnvGetter(True)
-    cluster = test_env.get("DATABRICKS_CLUSTER_ID")
-    tags = {"RemoveAfter": watchdog_remove_after}
-    deployment_overrides = ReconcileJobConfig(existing_cluster_id=cluster, tags=tags)
-    logger.info(f"Using recon job overrides: {deployment_overrides}")
 
     assert recon_schema.catalog_name
     assert recon_schema.name
@@ -69,7 +61,6 @@ def recon_config(watchdog_remove_after: str, recon_schema: SchemaInfo, make_volu
         metadata_config=ReconcileMetadataConfig(
             catalog=recon_schema.catalog_name, schema=recon_schema.name, volume=volume.name
         ),
-        job_overrides=deployment_overrides,
     )
     return conf
 
