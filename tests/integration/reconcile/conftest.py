@@ -28,6 +28,7 @@ DIAMONDS_ROWS_SQL = """
 def recon_catalog(make_catalog) -> str:
     try:
         catalog = make_catalog().name
+        logger.info(f"Created catalog {catalog} for recon tests")
     except PermissionDenied as e:
         logger.warning("Could not create catalog for recon tests, using 'sandbox' instead", exc_info=e)
         catalog = "sandbox"
@@ -38,6 +39,7 @@ def recon_catalog(make_catalog) -> str:
 @pytest.fixture
 def recon_schema(recon_catalog, make_schema) -> SchemaInfo:
     from_schema = make_schema(catalog_name=recon_catalog)
+    logger.info(f"Created schema {from_schema.name} in catalog {recon_catalog} for recon tests")
 
     return from_schema
 
@@ -46,6 +48,7 @@ def recon_schema(recon_catalog, make_schema) -> SchemaInfo:
 def recon_tables(ws: WorkspaceClient, recon_schema: SchemaInfo, make_table) -> tuple[TableInfo, TableInfo]:
     src_table = make_table(catalog_name=recon_schema.catalog_name, schema_name=recon_schema.name)
     tgt_table = make_table(catalog_name=recon_schema.catalog_name, schema_name=recon_schema.name)
+    logger.info(f"Created recon tables {src_table.name}, {tgt_table.name} in schema {recon_schema.name}")
 
     test_env = TestEnvGetter(True)
     warehouse = test_env.get("TEST_DEFAULT_WAREHOUSE_ID")
@@ -62,6 +65,7 @@ def recon_tables(ws: WorkspaceClient, recon_schema: SchemaInfo, make_table) -> t
             schema=recon_schema.name,
             statement=sql,
         )
+        logger.info(f"Inserted data into table {tbl.name}")
 
     return src_table, tgt_table
 

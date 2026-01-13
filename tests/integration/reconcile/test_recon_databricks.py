@@ -87,8 +87,13 @@ def recon_config_filename(recon_config: ReconcileConfig) -> str:
 def application_context(
     ws: WorkspaceClient, recon_config: ReconcileConfig, recon_config_filename: str, recon_table_config
 ):
-    os.environ["DATABRICKS_HOST"] = ws.config.host
-    # This should be set in the acceptance CI, but it is not
+    logger.info(f"Found env host {os.getenv('DATABRICKS_HOST')} and pytester host {ws.config.host}")
+
+    test_env = TestEnvGetter(True)
+    host = test_env.get("DATABRICKS_HOST")  # This should be set in the acceptance CI, but it is not
+    os.environ["DATABRICKS_HOST"] = host
+    ws.config.host = host
+    ws.config.init_auth()
 
     logger.info("Setting up application context for recon tests")
     config = LakebridgeConfiguration(None, recon_config)
