@@ -1,6 +1,4 @@
 import logging
-import shutil
-from collections.abc import Generator
 from urllib.parse import urlparse
 
 import pytest
