@@ -1,8 +1,7 @@
-import os
-from pathlib import Path
-from datetime import datetime
-from dataclasses import dataclass
 from collections.abc import Callable
+from dataclasses import dataclass
+from datetime import datetime
+from pathlib import Path
 
 import duckdb
 from faker import Faker
@@ -174,11 +173,11 @@ table_definitions = {
 }
 
 
-def build_mock_synapse_extract(extract_db_name: str, path_prefix: Path = Path("/tmp/data/synapse_assessment")) -> str:
+def build_mock_synapse_extract(extract_db_name: str, path_prefix: Path) -> Path:
     synapse_extract_path = path_prefix
-    os.makedirs(synapse_extract_path, exist_ok=True)
-    full_synapse_extract_path = f"{synapse_extract_path}/{extract_db_name}.db"
-    builder = SynapseProfilerBuilder(table_definitions, full_synapse_extract_path)
+    synapse_extract_path.mkdir(parents=True, exist_ok=False)
+    full_synapse_extract_path = synapse_extract_path / f"{extract_db_name}.db"
+    builder = SynapseProfilerBuilder(table_definitions, db_path=str(full_synapse_extract_path))
     builder.create_sample_data()
     builder.shutdown()
     return full_synapse_extract_path
