@@ -72,6 +72,7 @@ def reconcile_data(
             *[f'{_build_column_selector(target_alias, col_name)}' for col_name in target.columns],
         )
     )
+    df = df.checkpoint(eager=True)
 
     mismatch = _get_mismatch_data(df, source_alias, target_alias) if report_type in {"all", "data"} else None
 
