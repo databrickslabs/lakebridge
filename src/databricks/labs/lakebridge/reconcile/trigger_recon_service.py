@@ -232,10 +232,6 @@ class TriggerReconService:
             recon_process_duration=recon_process_duration,
             record_count=reconciler.get_record_count(table_conf, reconciler.report_type),
         )
-        if reconciler.report_type != "schema":
-            ReconIntermediatePersist(
-                spark=spark, path=utils.generate_volume_path(table_conf, reconcile_config.metadata_config)
-            ).clean_unmatched_df_from_volume()
 
     @staticmethod
     def verify_successful_reconciliation(

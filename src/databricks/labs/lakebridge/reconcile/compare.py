@@ -78,10 +78,6 @@ def reconcile_data(
         )
     )
 
-    # Write unmatched df to volume
-    df = ReconIntermediatePersist(spark, path).write_and_read_unmatched_df_with_volumes(df)
-    logger.debug(f"Unmatched data was written to {path} successfully")
-
     mismatch = _get_mismatch_data(df, source_alias, target_alias) if report_type in {"all", "data"} else None
 
     missing_in_src = (
@@ -450,9 +446,4 @@ def join_aggregate_data(
     joined_cols = source.columns + target.columns
     normalized_joined_cols = [DialectUtils.ansi_normalize_identifier(col) for col in joined_cols]
     joined_df = df.select(*normalized_joined_cols)
-
-    # Write the joined df to volume path
-    joined_volume_df = ReconIntermediatePersist(spark, path).write_and_read_unmatched_df_with_volumes(joined_df).cache()
-    logger.warning(f"Unmatched data is written to {path} successfully")
-
-    return joined_volume_df
+    return joined_df

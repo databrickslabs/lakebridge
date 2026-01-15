@@ -67,13 +67,6 @@ class TriggerReconAggregateService:
                 recon_process_duration=recon_process_duration,
             )
 
-            (
-                ReconIntermediatePersist(
-                    spark=spark,
-                    path=utils.generate_volume_path(normalized_table_conf, reconcile_config.metadata_config),
-                ).clean_unmatched_df_from_volume()
-            )
-
         return TriggerReconService.verify_successful_reconciliation(
             generate_final_reconcile_aggregate_output(
                 recon_id=recon_capture.recon_id,
