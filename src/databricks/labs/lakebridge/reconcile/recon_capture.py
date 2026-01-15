@@ -38,47 +38,6 @@ _RECON_AGGREGATE_METRICS_TABLE_NAME = "aggregate_metrics"
 _RECON_AGGREGATE_DETAILS_TABLE_NAME = "aggregate_details"
 
 
-class ReconIntermediatePersist:
-
-    def __init__(self, spark: SparkSession, path: str):
-        self.spark = spark
-        self.path = path
-
-    def _write_unmatched_df_to_volumes(
-        self,
-        unmatched_df: DataFrame,
-    ) -> None:
-        unmatched_df.write.format("parquet").mode("overwrite").save(self.path)
-
-    def _read_unmatched_df_from_volumes(self) -> DataFrame:
-        return self.spark.read.format("parquet").load(self.path)
-
-    def clean_unmatched_df_from_volume(self):
-        try:
-            # TODO: for now we are overwriting the intermediate cache path. We should delete the volume in future
-            # workspace_client.dbfs.get_status(path)
-            # workspace_client.dbfs.delete(path, recursive=True)
-            empty_df = self.spark.createDataFrame([], schema=StructType([StructField("empty", StringType(), True)]))
-            empty_df.write.format("parquet").mode("overwrite").save(self.path)
-            logger.debug(f"Unmatched DF cleaned up from {self.path} successfully.")
-        except PySparkException as e:
-            message = f"Error cleaning up unmatched DF from {self.path} volumes --> {e}"
-            logger.error(message)
-            raise CleanFromVolumeException(message) from e
-
-    def write_and_read_unmatched_df_with_volumes(
-        self,
-        unmatched_df: DataFrame,
-    ) -> DataFrame:
-        try:
-            self._write_unmatched_df_to_volumes(unmatched_df)
-            return self._read_unmatched_df_from_volumes()
-        except PySparkException as e:
-            message = f"Exception in reading or writing unmatched DF with volumes {self.path} --> {e}"
-            logger.error(message)
-            raise ReadAndWriteWithVolumeException(message) from e
-
-
 def _write_df_to_delta(df: DataFrame, table_name: str, mode="append"):
     try:
         df.write.mode(mode).saveAsTable(table_name)

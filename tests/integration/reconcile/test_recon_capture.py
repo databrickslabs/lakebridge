@@ -13,7 +13,6 @@ from databricks.labs.lakebridge.reconcile.exception import WriteToTableException
 from databricks.labs.lakebridge.reconcile.recon_capture import (
     ReconCapture,
     generate_final_reconcile_output,
-    ReconIntermediatePersist,
 )
 from databricks.labs.lakebridge.reconcile.recon_output_config import (
     DataReconcileOutput,
@@ -670,25 +669,6 @@ def test_generate_final_reconcile_output_exception(mock_workspace_client, mock_s
             )
         ],
     )
-
-
-def test_write_and_read_unmatched_df_with_volumes_with_exception(tmp_path: Path, mock_spark, mock_workspace_client):
-    data = [Row(id=1, name='John', sal=5000), Row(id=2, name='Jane', sal=6000), Row(id=3, name='Doe', sal=7000)]
-    df = mock_spark.createDataFrame(data)
-
-    path = str(tmp_path)
-    df = ReconIntermediatePersist(mock_spark, path).write_and_read_unmatched_df_with_volumes(df)
-    assert df.count() == 3
-
-    path = "/path/that/does/not/exist"
-    with pytest.raises(ReadAndWriteWithVolumeException):
-        ReconIntermediatePersist(mock_spark, path).write_and_read_unmatched_df_with_volumes(df)
-
-
-def test_clean_unmatched_df_from_volume_with_exception(mock_spark):
-    path = "/path/that/does/not/exist"
-    with pytest.raises(Exception):
-        ReconIntermediatePersist(mock_spark, path).clean_unmatched_df_from_volume()
 
 
 def test_apply_threshold_for_mismatch_with_true_absolute(mock_workspace_client, mock_spark, recon_metadata):
