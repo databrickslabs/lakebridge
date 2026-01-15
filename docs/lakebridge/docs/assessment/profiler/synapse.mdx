@@ -20,6 +20,21 @@ import Admonition from '@theme/Admonition';
 ```bash
 az login
 ```
+
+The profiler uses Azure SDK's `DefaultAzureCredential` which attempts authentication in this order:
+1. **Environment Variables** (Service Principal):
+   - `AZURE_TENANT_ID`
+   - `AZURE_CLIENT_ID`
+   - `AZURE_CLIENT_SECRET`
+2. **Managed Identity** (if running on Azure VM/App Service)
+3. **Azure CLI** (from `az login`)
+4. **Visual Studio Code**
+5. **Azure PowerShell**
+
+**For local development**: Using `az login` (option 3) is recommended. Ensure your user account has the required roles listed below.
+
+**For automated/CI environments**: Set the three environment variables with a service principal that has the required roles.
+
 ### 3. Required Access to Synapse Workspace
 
 :::warning Attention:
@@ -27,7 +42,7 @@ Skip this prerequisite if you are using a standalone SQL Dedicated Pool (formerl
 :::
 
 - Profiler uses the Python version of Azure SDK libraries to extract information about target Synapse Workspace.
-- For making the Azure API calls using Azure SDK you need an Azure Service Principal with the following role assignments.
+- For making the Azure API calls using Azure SDK, the authenticated identity (user or service principal) needs the following role assignments.
 Just giving the Synapse Administrator role is not enough. The below roles must be explicitly assigned.
     - Synapse Artifact User.
         - Assign from Synapse Workspace → Manage Access → Access Control [Refer to Azure documentation](https://learn.microsoft.com/en-us/azure/synapse-analytics/security/how-to-manage-synapse-rbac-role-assignments)
