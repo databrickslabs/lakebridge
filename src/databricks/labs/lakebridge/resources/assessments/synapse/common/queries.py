@@ -105,6 +105,30 @@ class SynapseQueries:
                    """
 
     @staticmethod
+    def list_serverless_routines(pool_name, redact_sql_text: bool = False) -> str:
+        """Get list of routines for serverless pools using sys views (information_schema.routines not supported)"""
+        return f"""
+               SELECT
+                   SCHEMA_NAME(o.schema_id) as ROUTINE_SCHEMA,
+                   o.name as ROUTINE_NAME,
+                   CASE o.type
+                       WHEN 'P' THEN 'PROCEDURE'
+                       WHEN 'FN' THEN 'FUNCTION'
+                       WHEN 'IF' THEN 'FUNCTION'
+                       WHEN 'TF' THEN 'FUNCTION'
+                       WHEN 'PC' THEN 'PROCEDURE'
+                       ELSE o.type_desc
+                   END as ROUTINE_TYPE,
+                   o.create_date as CREATED,
+                   o.modify_date as LAST_ALTERED,
+                   '[REDACTED]' as ROUTINE_DEFINITION,
+                   '{pool_name}' as POOL_NAME
+               FROM sys.objects o
+               WHERE o.type IN ('P', 'FN', 'IF', 'TF', 'PC')
+                   AND o.is_ms_shipped = 0
+               """
+
+    @staticmethod
     def list_dedicated_sessions(pool_name: str, last_login_time: str | None = None) -> str:
         """Get session list with transformed login names and client IDs"""
         cond = "AND login_time > '" + last_login_time + "'" if last_login_time else ""

@@ -111,7 +111,7 @@ def execute():
 
                     # Routines
                     table_name = "serverless_routines"
-                    view_query = SynapseQueries.list_routines(db_name, True)
+                    view_query = SynapseQueries.list_serverless_routines(db_name, True)
                     logger.info(f"Loading '{table_name}' for pool: %s", db_name)
                     result = connection.fetch(view_query)
                     save_resultset_to_db(result, table_name, db_path, mode=mode)
