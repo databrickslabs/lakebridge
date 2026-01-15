@@ -28,7 +28,7 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v6
         with:
-          fetch-depth: 0
+          fetch-depth: 1
 
       - name: Install Python
         uses: actions/setup-python@v6
@@ -44,6 +44,12 @@ jobs:
         run: |
           chmod +x $GITHUB_WORKSPACE/.github/scripts/setup_mssql_odbc.sh
           $GITHUB_WORKSPACE/.github/scripts/setup_mssql_odbc.sh
+
+      # TODO: Migrate tests to use Databricks clusters instead of Spark local mode
+      - name: Setup spark
+        run: |
+          chmod +x $GITHUB_WORKSPACE/.github/scripts/setup_spark_remote.sh
+          $GITHUB_WORKSPACE/.github/scripts/setup_spark_remote.sh
 
       - name: Run integration tests
         uses: databrickslabs/sandbox/acceptance@acceptance/v0.4.4

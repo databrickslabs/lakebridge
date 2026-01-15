@@ -1,7 +1,6 @@
 from pathlib import Path
 
 import shutil
-import tempfile
 import yaml
 import pytest
 
@@ -24,14 +23,16 @@ def test_profile_missing_platform_config() -> None:
         profiler.profile()
 
 
-def test_profile_execution() -> None:
+def test_profile_execution(tmp_path: Path) -> None:
     """Test successful profiling execution using actual pipeline configuration"""
     profiler = Profiler("synapse")
     path_prefix = Path(__file__).parent / "../../../"
+    extract_folder = tmp_path / "profiler_main"
     config_file = path_prefix / "tests/resources/assessments/pipeline_config_main.yml"
     config = profiler.path_modifier(config_file=config_file, path_prefix=path_prefix)
+    config.extract_folder = str(extract_folder)
     profiler.profile(pipeline_config=config)
-    assert Path("/tmp/profiler_main/profiler_extract.db").exists(), "Profiler extract database should be created"
+    assert (extract_folder / "profiler_extract.db").exists(), "Profiler extract database should be created"
 
 
 def test_profile_execution_with_invalid_config() -> None:
@@ -47,27 +48,28 @@ def test_profile_execution_with_invalid_config() -> None:
         profiler.profile(pipeline_config=pipeline_config)
 
 
-def test_profile_execution_config_override() -> None:
+def test_profile_execution_config_override(tmp_path: Path) -> None:
     """Test successful profiling execution using actual pipeline configuration with config file override"""
-    with tempfile.TemporaryDirectory() as temp_dir:
-        # Copy the YAML file and Python script to the temp directory
-        prefix = Path(__file__).parent / ".." / ".."
-        config_file_src = prefix / Path("resources/assessments/pipeline_config_absolute.yml")
-        config_file_dest = Path(temp_dir) / config_file_src.name
-        script_src = prefix / Path("resources/assessments/db_extract.py")
-        script_dest = Path(temp_dir) / script_src.name
-        shutil.copy(script_src, script_dest)
+    config_dir = tmp_path / "config_dir"
+    config_dir.mkdir()
+    extract_folder = tmp_path / "profiler_absolute"
+    # Copy the YAML file and Python script to the temp directory
+    prefix = Path(__file__).parent / ".." / ".."
+    config_file_src = prefix / Path("resources/assessments/pipeline_config_absolute.yml")
+    config_file_dest = config_dir / config_file_src.name
+    script_src = prefix / Path("resources/assessments/db_extract.py")
+    script_dest = config_dir / script_src.name
+    shutil.copy(script_src, script_dest)
 
-        with open(config_file_src, 'r', encoding="utf-8") as file:
-            config_data = yaml.safe_load(file)
-            for step in config_data['steps']:
-                step['extract_source'] = str(script_dest)
-        with open(config_file_dest, 'w', encoding="utf-8") as file:
-            yaml.safe_dump(config_data, file)
+    with open(config_file_src, 'r', encoding="utf-8") as file:
+        config_data = yaml.safe_load(file)
+    config_data['extract_folder'] = str(extract_folder)
+    for step in config_data['steps']:
+        step['extract_source'] = str(script_dest)
+    with open(config_file_dest, 'w', encoding="utf-8") as file:
+        yaml.safe_dump(config_data, file)
 
-        profiler = Profiler("synapse")
-        pipeline_config = PipelineClass.load_config_from_yaml(config_file_dest)
-        profiler.profile(pipeline_config=pipeline_config)
-        assert Path(
-            "/tmp/profiler_absolute/profiler_extract.db"
-        ).exists(), "Profiler extract database should be created"
+    profiler = Profiler("synapse")
+    pipeline_config = PipelineClass.load_config_from_yaml(config_file_dest)
+    profiler.profile(pipeline_config=pipeline_config)
+    assert (extract_folder / "profiler_extract.db").exists(), "Profiler extract database should be created"
