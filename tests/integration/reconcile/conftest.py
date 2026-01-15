@@ -9,6 +9,7 @@ from databricks.sdk.errors.platform import PermissionDenied
 from databricks.sdk.service.catalog import TableInfo, SchemaInfo
 
 from databricks.labs.lakebridge.config import ReconcileMetadataConfig
+from databricks.labs.lakebridge.reconcile.connectors.credentials import ReconcileCredentialsConfig
 from tests.integration.debug_envgetter import TestEnvGetter
 
 logger = logging.getLogger(__name__)
@@ -98,3 +99,18 @@ def recon_metadata(mock_spark, report_tables_schema) -> Generator[ReconcileMetad
     )
 
     mock_spark.sql(f"DROP SCHEMA {schema} CASCADE")
+
+
+@pytest.fixture()
+def snowflake_creds() -> ReconcileCredentialsConfig:
+    scope = "test-scope"
+    sf_creds = {
+        "sfUser": f"{scope}/user",
+        "sfPassword": f"{scope}/password",
+        "sfUrl": f"{scope}/account.snowflakecomputing.com",
+        "sfDatabase": f"{scope}/database",
+        "sfSchema": f"{scope}/schema",
+        "sfWarehouse": f"{scope}/warehouse",
+        "sfRole": f"{scope}/role",
+    }
+    return ReconcileCredentialsConfig(vault_type="databricks", vault_secret_names=sf_creds)
