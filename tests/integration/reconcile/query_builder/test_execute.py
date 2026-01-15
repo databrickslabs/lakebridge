@@ -17,7 +17,6 @@ from databricks.labs.lakebridge.config import (
     TableRecon,
     ReconcileMetadataConfig,
     ReconcileConfig,
-    ReconcileCredentialsConfig,
 )
 from databricks.labs.lakebridge.reconcile.reconciliation import Reconciliation
 from databricks.labs.lakebridge.reconcile.trigger_recon_service import TriggerReconService
@@ -1894,21 +1893,14 @@ def test_data_recon_with_source_exception(
     )
 
 
-def test_initialise_data_source(mock_workspace_client, mock_spark):
+def test_initialise_data_source(mock_workspace_client, mock_spark, snowflake_creds):
     src_engine = get_dialect("snowflake")
 
-    sf_creds = {
-        "sfUser": "user",
-        "sfPassword": "password",
-        "sfUrl": "account.snowflakecomputing.com",
-        "sfDatabase": "database",
-        "sfSchema": "schema",
-        "sfWarehouse": "warehouse",
-        "sfRole": "role",
-    }
-    source, target = initialise_data_source(
-        mock_workspace_client, mock_spark, "snowflake", ReconcileCredentialsConfig("databricks", sf_creds)
-    )
+    with patch(
+        "databricks.labs.lakebridge.connections.credential_manager.DatabricksSecretProvider.get_secret",
+        return_value="dummy",
+    ):
+        source, target = initialise_data_source(mock_workspace_client, mock_spark, "snowflake", snowflake_creds)
 
     snowflake_data_source = SnowflakeDataSource(src_engine, mock_spark, mock_workspace_client).__class__
     databricks_data_source = DatabricksDataSource(src_engine, mock_spark, mock_workspace_client).__class__
@@ -2020,7 +2012,7 @@ def test_reconcile_data_with_threshold_and_row_report_type(
 
 
 @patch('databricks.labs.lakebridge.reconcile.recon_capture.generate_final_reconcile_output')
-def test_recon_output_without_exception(mock_gen_final_recon_output):
+def test_recon_output_without_exception(mock_gen_final_recon_output, snowflake_creds):
     mock_workspace_client = create_autospec(WorkspaceClient)
     mock_workspace_client.secrets.get_secret.return_value = GetSecretResponse(
         key="key", value=base64.b64encode(bytes('value', 'utf-8')).decode('utf-8')
@@ -2045,6 +2037,7 @@ def test_recon_output_without_exception(mock_gen_final_recon_output):
     reconcile_config = ReconcileConfig(
         data_source="snowflake",
         report_type="all",
+        creds=snowflake_creds,
         database_config=DatabaseConfig(
             source_catalog=CATALOG,
             source_schema=SCHEMA,
