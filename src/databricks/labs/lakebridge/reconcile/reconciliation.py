@@ -7,7 +7,6 @@ from databricks.labs.lakebridge.config import (
     DatabaseConfig,
     ReconcileMetadataConfig,
 )
-from databricks.labs.lakebridge.reconcile import utils
 from databricks.labs.lakebridge.reconcile.compare import (
     capture_mismatch_data_and_columns,
     reconcile_data,
@@ -143,14 +142,11 @@ class Reconciliation:
             options=table_conf.jdbc_reader_options,
         )
 
-        volume_path = utils.generate_volume_path(table_conf, self._metadata_config)
         return reconcile_data(
             source=src_data,
             target=tgt_data,
             key_columns=table_conf.join_columns,
             report_type=self._report_type,
-            spark=self._spark,
-            path=volume_path,
         )
 
     def _get_reconcile_aggregate_output(
@@ -230,8 +226,6 @@ class Reconciliation:
             self._target,
         ).build_queries()
 
-        volume_path = utils.generate_volume_path(table_conf, self._metadata_config)
-
         table_agg_output: list[AggregateQueryOutput] = []
 
         # Iterate over the grouped aggregates and reconcile the data
@@ -266,8 +260,6 @@ class Reconciliation:
                     source=src_data,
                     target=tgt_data,
                     key_columns=src_query_with_rules.group_by_columns,
-                    spark=self._spark,
-                    path=f"{volume_path}{src_query_with_rules.group_by_columns_as_str}",
                 )
             except DataSourceRuntimeException as e:
                 data_source_exception = e

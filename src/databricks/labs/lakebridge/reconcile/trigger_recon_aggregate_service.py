@@ -4,11 +4,9 @@ from pyspark.sql import SparkSession
 from databricks.sdk import WorkspaceClient
 
 from databricks.labs.lakebridge.config import ReconcileConfig, TableRecon
-from databricks.labs.lakebridge.reconcile import utils
 from databricks.labs.lakebridge.reconcile.exception import DataSourceRuntimeException, ReconciliationException
 from databricks.labs.lakebridge.reconcile.normalize_recon_config_service import NormalizeReconConfigService
 from databricks.labs.lakebridge.reconcile.recon_capture import (
-    ReconIntermediatePersist,
     generate_final_reconcile_aggregate_output,
 )
 from databricks.labs.lakebridge.reconcile.recon_config import AGG_RECONCILE_OPERATION_NAME

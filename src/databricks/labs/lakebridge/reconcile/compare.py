@@ -1,13 +1,10 @@
 import logging
 from functools import reduce
-from pyspark.sql import DataFrame, SparkSession
+from pyspark.sql import DataFrame
 from pyspark.sql.functions import col, expr, lit
 
 from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import DialectUtils
 from databricks.labs.lakebridge.reconcile.exception import ColumnMismatchException
-from databricks.labs.lakebridge.reconcile.recon_capture import (
-    ReconIntermediatePersist,
-)
 from databricks.labs.lakebridge.reconcile.recon_output_config import (
     DataReconcileOutput,
     MismatchOutput,
@@ -58,8 +55,6 @@ def reconcile_data(
     target: DataFrame,
     key_columns: list[str],
     report_type: str,
-    spark: SparkSession,
-    path: str,
 ) -> DataReconcileOutput:
     source_alias = "src"
     target_alias = "tgt"
@@ -414,13 +409,7 @@ def reconcile_agg_data_per_rule(
     return rule_reconcile_output
 
 
-def join_aggregate_data(
-    source: DataFrame,
-    target: DataFrame,
-    key_columns: list[str] | None,
-    spark: SparkSession,
-    path: str,
-) -> DataFrame:
+def join_aggregate_data(source: DataFrame, target: DataFrame, key_columns: list[str] | None) -> DataFrame:
     # TODO:  Integrate with reconcile_data function
 
     source_alias = "src"

@@ -76,7 +76,6 @@ def test_oracle_db_reconcile(mock_spark, mock_workspace_client, tmp_path):
     )
     with patch("databricks.labs.lakebridge.reconcile.utils.generate_volume_path", return_value=str(tmp_path)):
         _, data_reconcile_output = TriggerReconService.recon_one(
-            spark=mock_spark,
             reconciler=recon,
             recon_capture=recon_capture,
             reconcile_config=reconcile_config,

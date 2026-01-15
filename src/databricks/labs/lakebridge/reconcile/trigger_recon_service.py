@@ -13,7 +13,6 @@ from databricks.labs.lakebridge.reconcile.connectors.data_source import DataSour
 from databricks.labs.lakebridge.reconcile.exception import DataSourceRuntimeException, ReconciliationException
 from databricks.labs.lakebridge.reconcile.recon_capture import (
     ReconCapture,
-    ReconIntermediatePersist,
     generate_final_reconcile_output,
 )
 from databricks.labs.lakebridge.reconcile.recon_config import Table, Schema
@@ -48,7 +47,7 @@ class TriggerReconService:
         )
 
         for table_conf in table_recon.tables:
-            TriggerReconService.recon_one(spark, reconciler, recon_capture, reconcile_config, table_conf)
+            TriggerReconService.recon_one(reconciler, recon_capture, reconcile_config, table_conf)
 
         return TriggerReconService.verify_successful_reconciliation(
             generate_final_reconcile_output(
@@ -105,7 +104,6 @@ class TriggerReconService:
 
     @staticmethod
     def recon_one(
-        spark: SparkSession,
         reconciler: Reconciliation,
         recon_capture: ReconCapture,
         reconcile_config: ReconcileConfig,
@@ -119,15 +117,12 @@ class TriggerReconService:
             reconciler, reconcile_config, normalized_table_conf
         )
 
-        TriggerReconService.persist_delta_table(
-            spark,
-            reconciler,
-            recon_capture,
-            schema_reconcile_output,
-            data_reconcile_output,
-            reconcile_config,
-            normalized_table_conf,
-            recon_process_duration,
+        recon_capture.start(
+            data_reconcile_output=data_reconcile_output,
+            schema_reconcile_output=schema_reconcile_output,
+            table_conf=table_conf,
+            recon_process_duration=recon_process_duration,
+            record_count=reconciler.get_record_count(table_conf, reconciler.report_type),
         )
 
         return schema_reconcile_output, data_reconcile_output
@@ -213,25 +208,6 @@ class TriggerReconService:
             return reconciler.reconcile_data(table_conf=table_conf, src_schema=src_schema, tgt_schema=tgt_schema)
         except DataSourceRuntimeException as e:
             return DataReconcileOutput(exception=str(e))
-
-    @staticmethod
-    def persist_delta_table(
-        spark: SparkSession,
-        reconciler: Reconciliation,
-        recon_capture: ReconCapture,
-        schema_reconcile_output: SchemaReconcileOutput,
-        data_reconcile_output: DataReconcileOutput,
-        reconcile_config: ReconcileConfig,
-        table_conf: Table,
-        recon_process_duration: ReconcileProcessDuration,
-    ):
-        recon_capture.start(
-            data_reconcile_output=data_reconcile_output,
-            schema_reconcile_output=schema_reconcile_output,
-            table_conf=table_conf,
-            recon_process_duration=recon_process_duration,
-            record_count=reconciler.get_record_count(table_conf, reconciler.report_type),
-        )
 
     @staticmethod
     def verify_successful_reconciliation(
