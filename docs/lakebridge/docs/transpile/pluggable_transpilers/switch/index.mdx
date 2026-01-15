@@ -287,6 +287,26 @@ databricks labs lakebridge llm-transpile \
   --accept-terms true
 ```
 
+### Example 5: PySpark ETL to Databricks SDP in SQL 
+
+Convert PySpark ETL workload to Databricks Spark Declarative Pipeline in SQL:
+
+First, edit `switch_config.yml` (leave other parameters unchanged):
+```yaml
+target_type: "sdp"
+sdp_language: "sql"
+```
+
+Then run:
+```bash
+databricks labs lakebridge llm-transpile \
+  --input-source /local/path/to/input \
+  --output-ws-folder /Workspace/path/to/output \
+  --source-dialect pyspark \
+  --profile profile_name \
+  --accept-terms true
+```
+
 ---
 ## Databricks Implementation Details
 
