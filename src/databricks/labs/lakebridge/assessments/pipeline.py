@@ -45,6 +45,11 @@ class PipelineClass:
 
     def execute(self) -> list[StepExecutionResult]:
         logging.info(f"Pipeline initialized with config: {self.config.name}, version: {self.config.version}")
+        
+        # Validate Azure authentication once at the start for Synapse profilers
+        if "synapse" in self.config.name.lower():
+            self._validate_azure_authentication()
+        
         execution_results: list[StepExecutionResult] = []
         error_flag = False
         for step in self.config.steps:
@@ -70,6 +75,32 @@ class PipelineClass:
             logger.error(error_msg)
             raise RuntimeError(error_msg)
         return execution_results
+
+    def _validate_azure_authentication(self):
+        """Validates Azure authentication for Synapse profilers"""
+        try:
+            from azure.identity import DefaultAzureCredential
+            
+            logger.info("Validating Azure authentication...")
+            credential = DefaultAzureCredential()
+            # Force authentication by requesting a token
+            token = credential.get_token("https://management.azure.com/.default")
+            if not token or not token.token:
+                raise ValueError("Failed to obtain Azure authentication token")
+            logger.info("Azure authentication validated successfully")
+        except Exception as e:
+            error_msg = (
+                f"Azure authentication failed: {str(e)}\n\n"
+                "Please ensure you are authenticated to Azure using one of these methods:\n"
+                "  1. Run 'az login' (for local development)\n"
+                "  2. Set environment variables (for CI/automation):\n"
+                "     - AZURE_TENANT_ID\n"
+                "     - AZURE_CLIENT_ID\n"
+                "     - AZURE_CLIENT_SECRET\n"
+                "  3. Use Managed Identity (if running on Azure VM/App Service)\n\n"
+            )
+            logger.error(error_msg)
+            raise RuntimeError(error_msg) from e
 
     def _process_step(self, step: Step) -> StepExecutionResult:
         if step.flag != "active":
