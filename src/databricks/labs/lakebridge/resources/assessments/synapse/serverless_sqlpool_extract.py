@@ -118,8 +118,16 @@ def execute():
 
                     mode = "append"
 
+            # Reconnect to master for server-level DMVs
+            connection = get_sqlpool_reader(
+                config,
+                'master',
+                endpoint_key='serverless_sql_endpoint',
+                auth_type=auth_type,
+            )
+
             pool_name = "serverless"
-            # Data Processed
+            # Data Processed - server-level DMV, must be queried from master database
             table_name = "serverless_data_processed"
             logger.info(f"Loading '{table_name}' for pool: %s", pool_name)
             data_processed_query = SynapseQueries.data_processed(pool_name)
