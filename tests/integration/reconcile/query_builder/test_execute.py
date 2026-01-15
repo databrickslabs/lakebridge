@@ -101,18 +101,9 @@ class QueryStore:
 
 
 @pytest.fixture
-def setup_metadata_table(mock_spark, report_tables_schema):
-    recon_schema, metrics_schema, details_schema = report_tables_schema
-    mode = "overwrite"
-    mock_spark.createDataFrame(data=[], schema=recon_schema).write.mode(mode).saveAsTable("DEFAULT.MAIN")
-    mock_spark.createDataFrame(data=[], schema=metrics_schema).write.mode(mode).saveAsTable("DEFAULT.METRICS")
-    mock_spark.createDataFrame(data=[], schema=details_schema).write.mode(mode).saveAsTable("DEFAULT.DETAILS")
-
-
-@pytest.fixture
 def query_store(mock_spark):
-    source_hash_query = "SELECT LOWER(SHA2(CONCAT(TRIM(s_address), TRIM(s_name), COALESCE(TRIM(`s_nationkey`), '_null_recon_'), TRIM(s_phone), COALESCE(TRIM(`s_suppkey`), '_null_recon_')), 256)) AS hash_value_recon, `s_nationkey` AS `s_nationkey`, `s_suppkey` AS `s_suppkey` FROM :tbl WHERE s_name = 't' AND s_address = 'a'"
-    target_hash_query = "SELECT LOWER(SHA2(CONCAT(TRIM(s_address_t), TRIM(s_name), COALESCE(TRIM(`s_nationkey_t`), '_null_recon_'), TRIM(s_phone_t), COALESCE(TRIM(`s_suppkey_t`), '_null_recon_')), 256)) AS hash_value_recon, `s_nationkey_t` AS `s_nationkey`, `s_suppkey_t` AS `s_suppkey` FROM :tbl WHERE s_name = 't' AND s_address_t = 'a'"
+    source_hash_query = "SELECT LOWER(SHA2(TRIM(s_address) || TRIM(s_name) || COALESCE(TRIM(`s_nationkey`), '_null_recon_') || TRIM(s_phone) || COALESCE(TRIM(`s_suppkey`), '_null_recon_'), 256)) AS hash_value_recon, `s_nationkey` AS `s_nationkey`, `s_suppkey` AS `s_suppkey` FROM :tbl WHERE s_name = 't' AND s_address = 'a'"
+    target_hash_query = "SELECT LOWER(SHA2(TRIM(s_address_t) || TRIM(s_name) || COALESCE(TRIM(`s_nationkey_t`), '_null_recon_') || TRIM(s_phone_t) || COALESCE(TRIM(`s_suppkey_t`), '_null_recon_'), 256)) AS hash_value_recon, `s_nationkey_t` AS `s_nationkey`, `s_suppkey_t` AS `s_suppkey` FROM :tbl WHERE s_name = 't' AND s_address_t = 'a'"
     source_mismatch_query = "WITH recon AS (SELECT CAST(22 AS number) AS `s_nationkey`, CAST(2 AS number) AS `s_suppkey`), src AS (SELECT TRIM(s_address) AS `s_address`, TRIM(s_name) AS `s_name`, COALESCE(TRIM(`s_nationkey`), '_null_recon_') AS `s_nationkey`, TRIM(s_phone) AS `s_phone`, COALESCE(TRIM(`s_suppkey`), '_null_recon_') AS `s_suppkey` FROM :tbl WHERE s_name = 't' AND s_address = 'a') SELECT src.`s_address`, src.`s_name`, src.`s_nationkey`, src.`s_phone`, src.`s_suppkey` FROM src INNER JOIN recon AS recon ON src.`s_nationkey` = recon.`s_nationkey` AND src.`s_suppkey` = recon.`s_suppkey`"
     target_mismatch_query = "WITH recon AS (SELECT 22 AS `s_nationkey`, 2 AS `s_suppkey`), src AS (SELECT TRIM(s_address_t) AS `s_address`, TRIM(s_name) AS `s_name`, COALESCE(TRIM(`s_nationkey_t`), '_null_recon_') AS `s_nationkey`, TRIM(s_phone_t) AS `s_phone`, COALESCE(TRIM(`s_suppkey_t`), '_null_recon_') AS `s_suppkey` FROM :tbl WHERE s_name = 't' AND s_address_t = 'a') SELECT src.`s_address`, src.`s_name`, src.`s_nationkey`, src.`s_phone`, src.`s_suppkey` FROM src INNER JOIN recon AS recon ON src.`s_nationkey` = recon.`s_nationkey` AND src.`s_suppkey` = recon.`s_suppkey`"
     source_missing_query = "WITH recon AS (SELECT 44 AS `s_nationkey`, 4 AS `s_suppkey`), src AS (SELECT TRIM(s_address_t) AS `s_address`, TRIM(s_name) AS `s_name`, COALESCE(TRIM(`s_nationkey_t`), '_null_recon_') AS `s_nationkey`, TRIM(s_phone_t) AS `s_phone`, COALESCE(TRIM(`s_suppkey_t`), '_null_recon_') AS `s_suppkey` FROM :tbl WHERE s_name = 't' AND s_address_t = 'a') SELECT src.`s_address`, src.`s_name`, src.`s_nationkey`, src.`s_phone`, src.`s_suppkey` FROM src INNER JOIN recon AS recon ON src.`s_nationkey` = recon.`s_nationkey` AND src.`s_suppkey` = recon.`s_suppkey`"
@@ -120,8 +111,8 @@ def query_store(mock_spark):
     source_threshold_query = "SELECT `s_nationkey` AS `s_nationkey`, `s_suppkey` AS `s_suppkey`, `s_acctbal` AS `s_acctbal` FROM :tbl WHERE s_name = 't' AND s_address = 'a'"
     target_threshold_query = "SELECT `s_nationkey_t` AS `s_nationkey`, `s_suppkey_t` AS `s_suppkey`, `s_acctbal_t` AS `s_acctbal` FROM :tbl WHERE s_name = 't' AND s_address_t = 'a'"
     threshold_comparison_query = "SELECT COALESCE(source.`s_acctbal`, 0) AS `s_acctbal_source`, COALESCE(databricks.`s_acctbal`, 0) AS `s_acctbal_databricks`, CASE WHEN (COALESCE(source.`s_acctbal`, 0) - COALESCE(databricks.`s_acctbal`, 0)) = 0 THEN 'Match' WHEN (COALESCE(source.`s_acctbal`, 0) - COALESCE(databricks.`s_acctbal`, 0)) BETWEEN 0 AND 100 THEN 'Warning' ELSE 'Failed' END AS `s_acctbal_match`, source.`s_nationkey` AS `s_nationkey_source`, source.`s_suppkey` AS `s_suppkey_source` FROM source_supplier_df_threshold_vw AS source INNER JOIN target_target_supplier_df_threshold_vw AS databricks ON source.`s_nationkey` <=> databricks.`s_nationkey` AND source.`s_suppkey` <=> databricks.`s_suppkey` WHERE (1 = 1 OR 1 = 1) OR (COALESCE(source.`s_acctbal`, 0) - COALESCE(databricks.`s_acctbal`, 0)) <> 0"
-    source_row_query = "SELECT LOWER(SHA2(CONCAT(TRIM(s_address), TRIM(s_name), COALESCE(TRIM(`s_nationkey`), '_null_recon_'), TRIM(s_phone), COALESCE(TRIM(`s_suppkey`), '_null_recon_')), 256)) AS hash_value_recon, TRIM(s_address) AS `s_address`, TRIM(s_name) AS `s_name`, `s_nationkey` AS `s_nationkey`, TRIM(s_phone) AS `s_phone`, `s_suppkey` AS `s_suppkey` FROM :tbl WHERE s_name = 't' AND s_address = 'a'"
-    target_row_query = "SELECT LOWER(SHA2(CONCAT(TRIM(s_address_t), TRIM(s_name), COALESCE(TRIM(`s_nationkey_t`), '_null_recon_'), TRIM(s_phone_t), COALESCE(TRIM(`s_suppkey_t`), '_null_recon_')), 256)) AS hash_value_recon, TRIM(s_address_t) AS `s_address`, TRIM(s_name) AS `s_name`, `s_nationkey_t` AS `s_nationkey`, TRIM(s_phone_t) AS `s_phone`, `s_suppkey_t` AS `s_suppkey` FROM :tbl WHERE s_name = 't' AND s_address_t = 'a'"
+    source_row_query = "SELECT LOWER(SHA2(TRIM(s_address) || TRIM(s_name) || COALESCE(TRIM(`s_nationkey`), '_null_recon_') || TRIM(s_phone) || COALESCE(TRIM(`s_suppkey`), '_null_recon_'), 256)) AS hash_value_recon, TRIM(s_address) AS `s_address`, TRIM(s_name) AS `s_name`, `s_nationkey` AS `s_nationkey`, TRIM(s_phone) AS `s_phone`, `s_suppkey` AS `s_suppkey` FROM :tbl WHERE s_name = 't' AND s_address = 'a'"
+    target_row_query = "SELECT LOWER(SHA2(TRIM(s_address_t) || TRIM(s_name) || COALESCE(TRIM(`s_nationkey_t`), '_null_recon_') || TRIM(s_phone_t) || COALESCE(TRIM(`s_suppkey_t`), '_null_recon_'), 256)) AS hash_value_recon, TRIM(s_address_t) AS `s_address`, TRIM(s_name) AS `s_name`, `s_nationkey_t` AS `s_nationkey`, TRIM(s_phone_t) AS `s_phone`, `s_suppkey_t` AS `s_suppkey` FROM :tbl WHERE s_name = 't' AND s_address_t = 'a'"
     hash_queries = HashQueries(
         source_hash_query=source_hash_query,
         target_hash_query=target_hash_query,
@@ -163,7 +154,12 @@ def query_store(mock_spark):
 
 
 def test_reconcile_data_with_mismatches_and_missing(
-    mock_spark, normalized_table_conf_with_opts, table_schema_ansi_ansi, query_store, tmp_path: Path
+    mock_spark,
+    normalized_table_conf_with_opts,
+    table_schema_ansi_ansi,
+    query_store,
+    tmp_path: Path,
+    recon_metadata: ReconcileMetadataConfig,
 ):
     src_schema, tgt_schema = table_schema_ansi_ansi
     source_dataframe_repository = {
@@ -252,7 +248,7 @@ def test_reconcile_data_with_mismatches_and_missing(
             schema_comparator,
             get_dialect("databricks"),
             mock_spark,
-            ReconcileMetadataConfig(),
+            recon_metadata,
         ).reconcile_data(normalized_table_conf_with_opts, src_schema, tgt_schema)
     expected_data_reconcile = DataReconcileOutput(
         mismatch_count=1,
@@ -321,7 +317,7 @@ def test_reconcile_data_with_mismatches_and_missing(
         schema_comparator,
         get_dialect("databricks"),
         mock_spark,
-        ReconcileMetadataConfig(),
+        recon_metadata,
     ).reconcile_schema(src_schema, tgt_schema, normalized_table_conf_with_opts)
     expected_schema_reconcile = mock_spark.createDataFrame(
         [
@@ -395,6 +391,7 @@ def test_reconcile_data_without_mismatches_and_missing(
     table_schema_ansi_ansi,
     query_store,
     tmp_path: Path,
+    recon_metadata: ReconcileMetadataConfig,
 ):
     src_schema, tgt_schema = table_schema_ansi_ansi
     source_dataframe_repository = {
@@ -458,7 +455,7 @@ def test_reconcile_data_without_mismatches_and_missing(
             schema_comparator,
             get_dialect("databricks"),
             mock_spark,
-            ReconcileMetadataConfig(),
+            recon_metadata,
         ).reconcile_data(normalized_table_conf_with_opts, src_schema, tgt_schema)
     assert actual.mismatch_count == 0
     assert actual.missing_in_src_count == 0
@@ -471,7 +468,12 @@ def test_reconcile_data_without_mismatches_and_missing(
 
 
 def test_reconcile_data_with_mismatch_and_no_missing(
-    mock_spark, normalized_table_conf_with_opts, table_schema_ansi_ansi, query_store, tmp_path: Path
+    mock_spark,
+    normalized_table_conf_with_opts,
+    table_schema_ansi_ansi,
+    query_store,
+    tmp_path: Path,
+    recon_metadata: ReconcileMetadataConfig,
 ):
     src_schema, tgt_schema = table_schema_ansi_ansi
     normalized_table_conf_with_opts.drop_columns = ["`s_acctbal`"]
@@ -536,7 +538,7 @@ def test_reconcile_data_with_mismatch_and_no_missing(
             schema_comparator,
             get_dialect("databricks"),
             mock_spark,
-            ReconcileMetadataConfig(),
+            recon_metadata,
         ).reconcile_data(normalized_table_conf_with_opts, src_schema, tgt_schema)
     expected = DataReconcileOutput(
         mismatch_count=1,
@@ -582,6 +584,7 @@ def test_reconcile_data_missing_and_no_mismatch(
     table_schema_ansi_ansi,
     query_store,
     tmp_path: Path,
+    recon_metadata: ReconcileMetadataConfig,
 ):
     src_schema, tgt_schema = table_schema_ansi_ansi
     normalized_table_conf_with_opts.drop_columns = ["`s_acctbal`"]
@@ -638,7 +641,7 @@ def test_reconcile_data_missing_and_no_mismatch(
             schema_comparator,
             get_dialect("databricks"),
             mock_spark,
-            ReconcileMetadataConfig(),
+            recon_metadata,
         ).reconcile_data(normalized_table_conf_with_opts, src_schema, tgt_schema)
     expected = DataReconcileOutput(
         mismatch_count=0,
@@ -665,7 +668,7 @@ def mock_for_report_type_data(
     normalized_table_conf_with_opts,
     table_schema_ansi_ansi,
     query_store,
-    setup_metadata_table,
+    recon_metadata,
     mock_spark,
 ):
     normalized_table_conf_with_opts.drop_columns = ["`s_acctbal`"]
@@ -736,14 +739,13 @@ def mock_for_report_type_data(
     reconcile_config_data = ReconcileConfig(
         data_source="databricks",
         report_type="data",
-        creds=ReconcileCredentialsConfig(vault_type="databricks", vault_secret_names={"__secret_scope": "fake"}),
         database_config=DatabaseConfig(
             source_catalog=CATALOG,
             source_schema=SCHEMA,
             target_catalog=CATALOG,
             target_schema=SCHEMA,
         ),
-        metadata_config=ReconcileMetadataConfig(schema="default"),
+        metadata_config=recon_metadata,
     )
     return table_recon, source, target, reconcile_config_data
 
@@ -757,6 +759,7 @@ def test_recon_for_report_type_is_data(
 ):
     recon_schema, metrics_schema, details_schema = report_tables_schema
     table_recon, source, target, reconcile_config_data = mock_for_report_type_data
+    schema = reconcile_config_data.metadata_config.schema
     with (
         patch("databricks.labs.lakebridge.reconcile.trigger_recon_service.datetime") as mock_datetime,
         patch("databricks.labs.lakebridge.reconcile.recon_capture.datetime") as recon_datetime,
@@ -864,18 +867,22 @@ def test_recon_for_report_type_is_data(
         schema=details_schema,
     )
 
-    assertDataFrameEqual(mock_spark.sql("SELECT * FROM DEFAULT.MAIN"), expected_remorph_recon, ignoreNullable=True)
+    assertDataFrameEqual(mock_spark.sql(f"SELECT * FROM {schema}.MAIN"), expected_remorph_recon, ignoreNullable=True)
     assertDataFrameEqual(
-        mock_spark.sql("SELECT * FROM DEFAULT.METRICS"), expected_remorph_recon_metrics, ignoreNullable=True
+        mock_spark.sql(f"SELECT * FROM {schema}.METRICS"), expected_remorph_recon_metrics, ignoreNullable=True
     )
     assertDataFrameEqual(
-        mock_spark.sql("SELECT * FROM DEFAULT.DETAILS"), expected_remorph_recon_details, ignoreNullable=True
+        mock_spark.sql(f"SELECT * FROM {schema}.DETAILS"), expected_remorph_recon_details, ignoreNullable=True
     )
 
 
 @pytest.fixture
 def mock_for_report_type_schema(
-    normalized_table_conf_with_opts, table_schema_ansi_ansi, query_store, mock_spark, setup_metadata_table
+    normalized_table_conf_with_opts,
+    table_schema_ansi_ansi,
+    query_store,
+    mock_spark,
+    recon_metadata: ReconcileMetadataConfig,
 ):
     table_recon = TableRecon(
         tables=[normalized_table_conf_with_opts],
@@ -933,14 +940,13 @@ def mock_for_report_type_schema(
     reconcile_config_schema = ReconcileConfig(
         data_source="databricks",
         report_type="schema",
-        creds=ReconcileCredentialsConfig(vault_type="databricks", vault_secret_names={"__secret_scope": "fake"}),
         database_config=DatabaseConfig(
             source_catalog=CATALOG,
             source_schema=SCHEMA,
             target_catalog=CATALOG,
             target_schema=SCHEMA,
         ),
-        metadata_config=ReconcileMetadataConfig(schema="default"),
+        metadata_config=recon_metadata,
     )
     return table_recon, source, target, reconcile_config_schema
 
@@ -954,6 +960,7 @@ def test_recon_for_report_type_schema(
 ):
     recon_schema, metrics_schema, details_schema = report_tables_schema
     table_recon, source, target, reconcile_config_schema = mock_for_report_type_schema
+    schema = reconcile_config_schema.metadata_config.schema
     with (
         patch("databricks.labs.lakebridge.reconcile.trigger_recon_service.datetime") as mock_datetime,
         patch("databricks.labs.lakebridge.reconcile.recon_capture.datetime") as recon_datetime,
@@ -1050,12 +1057,12 @@ def test_recon_for_report_type_schema(
         schema=details_schema,
     )
 
-    assertDataFrameEqual(mock_spark.sql("SELECT * FROM DEFAULT.MAIN"), expected_remorph_recon, ignoreNullable=True)
+    assertDataFrameEqual(mock_spark.sql(f"SELECT * FROM {schema}.MAIN"), expected_remorph_recon, ignoreNullable=True)
     assertDataFrameEqual(
-        mock_spark.sql("SELECT * FROM DEFAULT.METRICS"), expected_remorph_recon_metrics, ignoreNullable=True
+        mock_spark.sql(f"SELECT * FROM {schema}.METRICS"), expected_remorph_recon_metrics, ignoreNullable=True
     )
     assertDataFrameEqual(
-        mock_spark.sql("SELECT * FROM DEFAULT.DETAILS"), expected_remorph_recon_details, ignoreNullable=True
+        mock_spark.sql(f"SELECT * FROM {schema}.DETAILS"), expected_remorph_recon_details, ignoreNullable=True
     )
 
     assert final_reconcile_output.recon_id == "00112233-4455-6677-8899-aabbccddeeff"
@@ -1068,7 +1075,7 @@ def mock_for_report_type_all(
     table_schema_oracle_ansi,
     mock_spark,
     query_store,
-    setup_metadata_table,
+    recon_metadata,
 ):
     snowflake_query_store = query_store  # TODO: Implement snowflake query store
     normalized_table_conf_with_opts.drop_columns = ["`s_acctbal`"]
@@ -1145,14 +1152,13 @@ def mock_for_report_type_all(
     reconcile_config_all = ReconcileConfig(
         data_source="snowflake",
         report_type="all",
-        creds=ReconcileCredentialsConfig(vault_type="databricks", vault_secret_names={"fake": "fake"}),
         database_config=DatabaseConfig(
             source_catalog=CATALOG,
             source_schema=SCHEMA,
             target_catalog=CATALOG,
             target_schema=SCHEMA,
         ),
-        metadata_config=ReconcileMetadataConfig(),
+        metadata_config=recon_metadata,
     )
     return table_recon, source, target, reconcile_config_all
 
@@ -1167,6 +1173,7 @@ def test_recon_for_report_type_all(
 ):
     recon_schema, metrics_schema, details_schema = report_tables_schema
     table_recon, source, target, reconcile_config_all = mock_for_report_type_all
+    schema = reconcile_config_all.metadata_config.schema
 
     with (
         patch("databricks.labs.lakebridge.reconcile.trigger_recon_service.datetime") as mock_datetime,
@@ -1318,18 +1325,18 @@ def test_recon_for_report_type_all(
         schema=details_schema,
     )
 
-    assertDataFrameEqual(mock_spark.sql("SELECT * FROM DEFAULT.MAIN"), expected_remorph_recon, ignoreNullable=True)
+    assertDataFrameEqual(mock_spark.sql(f"SELECT * FROM {schema}.MAIN"), expected_remorph_recon, ignoreNullable=True)
     assertDataFrameEqual(
-        mock_spark.sql("SELECT * FROM DEFAULT.METRICS"), expected_remorph_recon_metrics, ignoreNullable=True
+        mock_spark.sql(f"SELECT * FROM {schema}.METRICS"), expected_remorph_recon_metrics, ignoreNullable=True
     )
     assertDataFrameEqual(
-        mock_spark.sql("SELECT * FROM DEFAULT.DETAILS"), expected_remorph_recon_details, ignoreNullable=True
+        mock_spark.sql(f"SELECT * FROM {schema}.DETAILS"), expected_remorph_recon_details, ignoreNullable=True
     )
 
 
 @pytest.fixture
 def mock_for_report_type_row(
-    normalized_table_conf_with_opts, table_schema_ansi_ansi, mock_spark, query_store, setup_metadata_table
+    normalized_table_conf_with_opts, table_schema_ansi_ansi, mock_spark, query_store, recon_metadata
 ):
     normalized_table_conf_with_opts.drop_columns = ["`s_acctbal`"]
     normalized_table_conf_with_opts.column_thresholds = None
@@ -1420,14 +1427,13 @@ def mock_for_report_type_row(
     reconcile_config_row = ReconcileConfig(
         data_source="snowflake",
         report_type="row",
-        creds=ReconcileCredentialsConfig(vault_type="databricks", vault_secret_names={"fake": "fake"}),
         database_config=DatabaseConfig(
             source_catalog=CATALOG,
             source_schema=SCHEMA,
             target_catalog=CATALOG,
             target_schema=SCHEMA,
         ),
-        metadata_config=ReconcileMetadataConfig(),
+        metadata_config=recon_metadata,
     )
 
     return source, target, table_recon, reconcile_config_row
@@ -1443,6 +1449,7 @@ def test_recon_for_report_type_is_row(
 ):
     recon_schema, metrics_schema, details_schema = report_tables_schema
     source, target, table_recon, reconcile_config_row = mock_for_report_type_row
+    schema = reconcile_config_row.metadata_config.schema
     with (
         patch("databricks.labs.lakebridge.reconcile.trigger_recon_service.datetime") as mock_datetime,
         patch("databricks.labs.lakebridge.reconcile.recon_capture.datetime") as recon_datetime,
@@ -1544,17 +1551,17 @@ def test_recon_for_report_type_is_row(
         schema=details_schema,
     )
 
-    assertDataFrameEqual(mock_spark.sql("SELECT * FROM DEFAULT.MAIN"), expected_remorph_recon, ignoreNullable=True)
+    assertDataFrameEqual(mock_spark.sql(f"SELECT * FROM {schema}.MAIN"), expected_remorph_recon, ignoreNullable=True)
     assertDataFrameEqual(
-        mock_spark.sql("SELECT * FROM DEFAULT.METRICS"), expected_remorph_recon_metrics, ignoreNullable=True
+        mock_spark.sql(f"SELECT * FROM {schema}.METRICS"), expected_remorph_recon_metrics, ignoreNullable=True
     )
     assertDataFrameEqual(
-        mock_spark.sql("SELECT * FROM DEFAULT.DETAILS"), expected_remorph_recon_details, ignoreNullable=True
+        mock_spark.sql(f"SELECT * FROM {schema}.DETAILS"), expected_remorph_recon_details, ignoreNullable=True
     )
 
 
 @pytest.fixture
-def mock_for_recon_exception(normalized_table_conf_with_opts, setup_metadata_table):
+def mock_for_recon_exception(normalized_table_conf_with_opts, recon_metadata):
     normalized_table_conf_with_opts.drop_columns = ["s_acctbal"]
     normalized_table_conf_with_opts.column_thresholds = None
     normalized_table_conf_with_opts.join_columns = None
@@ -1566,14 +1573,13 @@ def mock_for_recon_exception(normalized_table_conf_with_opts, setup_metadata_tab
     reconcile_config_exception = ReconcileConfig(
         data_source="snowflake",
         report_type="all",
-        creds=ReconcileCredentialsConfig(vault_type="databricks", vault_secret_names={"__secret_scope": "fake"}),
         database_config=DatabaseConfig(
             source_catalog=CATALOG,
             source_schema=SCHEMA,
             target_catalog=CATALOG,
             target_schema=SCHEMA,
         ),
-        metadata_config=ReconcileMetadataConfig(),
+        metadata_config=recon_metadata,
     )
 
     return table_recon, source, target, reconcile_config_exception
@@ -1588,6 +1594,7 @@ def test_schema_recon_with_data_source_exception(
 ):
     recon_schema, metrics_schema, details_schema = report_tables_schema
     table_recon, source, target, reconcile_config_exception = mock_for_recon_exception
+    schema = reconcile_config_exception.metadata_config.schema
     reconcile_config_exception.report_type = "schema"
     with (
         patch("databricks.labs.lakebridge.reconcile.trigger_recon_service.datetime") as mock_datetime,
@@ -1643,12 +1650,12 @@ def test_schema_recon_with_data_source_exception(
     )
     expected_remorph_recon_details = mock_spark.createDataFrame(data=[], schema=details_schema)
 
-    assertDataFrameEqual(mock_spark.sql("SELECT * FROM DEFAULT.MAIN"), expected_remorph_recon, ignoreNullable=True)
+    assertDataFrameEqual(mock_spark.sql(f"SELECT * FROM {schema}.MAIN"), expected_remorph_recon, ignoreNullable=True)
     assertDataFrameEqual(
-        mock_spark.sql("SELECT * FROM DEFAULT.METRICS"), expected_remorph_recon_metrics, ignoreNullable=True
+        mock_spark.sql(f"SELECT * FROM {schema}.METRICS"), expected_remorph_recon_metrics, ignoreNullable=True
     )
     assertDataFrameEqual(
-        mock_spark.sql("SELECT * FROM DEFAULT.DETAILS"), expected_remorph_recon_details, ignoreNullable=True
+        mock_spark.sql(f"SELECT * FROM {schema}.DETAILS"), expected_remorph_recon_details, ignoreNullable=True
     )
 
 
@@ -1663,6 +1670,7 @@ def test_schema_recon_with_general_exception(
     table_recon, source, target, reconcile_config_schema = mock_for_report_type_schema
     reconcile_config_schema.data_source = "snowflake"
     reconcile_config_schema.secret_scope = "remorph_snowflake"
+    schema = reconcile_config_schema.metadata_config.schema
     with (
         patch("databricks.labs.lakebridge.reconcile.trigger_recon_service.datetime") as mock_datetime,
         patch("databricks.labs.lakebridge.reconcile.recon_capture.datetime") as recon_datetime,
@@ -1721,12 +1729,12 @@ def test_schema_recon_with_general_exception(
     )
     expected_remorph_recon_details = mock_spark.createDataFrame(data=[], schema=details_schema)
 
-    assertDataFrameEqual(mock_spark.sql("SELECT * FROM DEFAULT.MAIN"), expected_remorph_recon, ignoreNullable=True)
+    assertDataFrameEqual(mock_spark.sql(f"SELECT * FROM {schema}.MAIN"), expected_remorph_recon, ignoreNullable=True)
     assertDataFrameEqual(
-        mock_spark.sql("SELECT * FROM DEFAULT.METRICS"), expected_remorph_recon_metrics, ignoreNullable=True
+        mock_spark.sql(f"SELECT * FROM {schema}.METRICS"), expected_remorph_recon_metrics, ignoreNullable=True
     )
     assertDataFrameEqual(
-        mock_spark.sql("SELECT * FROM DEFAULT.DETAILS"), expected_remorph_recon_details, ignoreNullable=True
+        mock_spark.sql(f"SELECT * FROM {schema}.DETAILS"), expected_remorph_recon_details, ignoreNullable=True
     )
 
 
@@ -1739,6 +1747,7 @@ def test_data_recon_with_general_exception(
 ):
     recon_schema, metrics_schema, details_schema = report_tables_schema
     table_recon, source, target, reconcile_config = mock_for_report_type_schema
+    schema = reconcile_config.metadata_config.schema
     reconcile_config.data_source = "snowflake"
     reconcile_config.secret_scope = "remorph_snowflake"
     reconcile_config.report_type = "data"
@@ -1798,12 +1807,12 @@ def test_data_recon_with_general_exception(
     )
     expected_remorph_recon_details = mock_spark.createDataFrame(data=[], schema=details_schema)
 
-    assertDataFrameEqual(mock_spark.sql("SELECT * FROM DEFAULT.MAIN"), expected_remorph_recon, ignoreNullable=True)
+    assertDataFrameEqual(mock_spark.sql(f"SELECT * FROM {schema}.MAIN"), expected_remorph_recon, ignoreNullable=True)
     assertDataFrameEqual(
-        mock_spark.sql("SELECT * FROM DEFAULT.METRICS"), expected_remorph_recon_metrics, ignoreNullable=True
+        mock_spark.sql(f"SELECT * FROM {schema}.METRICS"), expected_remorph_recon_metrics, ignoreNullable=True
     )
     assertDataFrameEqual(
-        mock_spark.sql("SELECT * FROM DEFAULT.DETAILS"), expected_remorph_recon_details, ignoreNullable=True
+        mock_spark.sql(f"SELECT * FROM {schema}.DETAILS"), expected_remorph_recon_details, ignoreNullable=True
     )
 
 
@@ -1816,6 +1825,7 @@ def test_data_recon_with_source_exception(
 ):
     recon_schema, metrics_schema, details_schema = report_tables_schema
     table_recon, source, target, reconcile_config = mock_for_report_type_schema
+    schema = reconcile_config.metadata_config.schema
     reconcile_config.data_source = "snowflake"
     reconcile_config.secret_scope = "remorph_snowflake"
     reconcile_config.report_type = "data"
@@ -1875,12 +1885,12 @@ def test_data_recon_with_source_exception(
     )
     expected_remorph_recon_details = mock_spark.createDataFrame(data=[], schema=details_schema)
 
-    assertDataFrameEqual(mock_spark.sql("SELECT * FROM DEFAULT.MAIN"), expected_remorph_recon, ignoreNullable=True)
+    assertDataFrameEqual(mock_spark.sql(f"SELECT * FROM {schema}.MAIN"), expected_remorph_recon, ignoreNullable=True)
     assertDataFrameEqual(
-        mock_spark.sql("SELECT * FROM DEFAULT.METRICS"), expected_remorph_recon_metrics, ignoreNullable=True
+        mock_spark.sql(f"SELECT * FROM {schema}.METRICS"), expected_remorph_recon_metrics, ignoreNullable=True
     )
     assertDataFrameEqual(
-        mock_spark.sql("SELECT * FROM DEFAULT.DETAILS"), expected_remorph_recon_details, ignoreNullable=True
+        mock_spark.sql(f"SELECT * FROM {schema}.DETAILS"), expected_remorph_recon_details, ignoreNullable=True
     )
 
 
@@ -1897,7 +1907,7 @@ def test_initialise_data_source(mock_workspace_client, mock_spark):
         "sfRole": "role",
     }
     source, target = initialise_data_source(
-        mock_workspace_client, mock_spark, "snowflake", ReconcileCredentialsConfig("local", sf_creds)
+        mock_workspace_client, mock_spark, "snowflake", ReconcileCredentialsConfig("databricks", sf_creds)
     )
 
     snowflake_data_source = SnowflakeDataSource(src_engine, mock_spark, mock_workspace_client).__class__
@@ -1932,11 +1942,7 @@ def test_recon_for_wrong_report_type(mock_workspace_client, mock_spark, mock_for
 
 
 def test_reconcile_data_with_threshold_and_row_report_type(
-    mock_spark,
-    normalized_table_conf_with_opts,
-    table_schema_ansi_ansi,
-    query_store,
-    tmp_path: Path,
+    mock_spark, normalized_table_conf_with_opts, table_schema_ansi_ansi, query_store, tmp_path: Path
 ):
     src_schema, tgt_schema = table_schema_ansi_ansi
     source_dataframe_repository = {
@@ -2039,7 +2045,6 @@ def test_recon_output_without_exception(mock_gen_final_recon_output):
     reconcile_config = ReconcileConfig(
         data_source="snowflake",
         report_type="all",
-        creds=ReconcileCredentialsConfig(vault_type="databricks", vault_secret_names={"__secret_scope": "fake"}),
         database_config=DatabaseConfig(
             source_catalog=CATALOG,
             source_schema=SCHEMA,
