@@ -126,19 +126,22 @@ def execute():
             table_name = "workspace_pipeline_runs"
             logger.info(f"Extraction started for {table_name} for date: {days}")
             last_upd = today + timedelta(days=-days)
-            pipeline_runs = workspace.list_pipeline_runs(last_upd)
-            if not pipeline_runs:
+            
+            # list_pipeline_runs yields BATCHES (lists) of runs
+            pipeline_runs_batches = workspace.list_pipeline_runs(last_upd)
+            
+            has_runs = False
+            for batch in pipeline_runs_batches:
+                # Each batch is a list of dictionaries
+                has_runs = True
+                for run in batch:
+                    run['last_upd'] = last_upd
+                    pipeline_runs_list.append(run)
+            
+            if not has_runs:
                 logger.warning(f"No pipeline runs found for {last_upd}")
-                continue
-            if not all(isinstance(run, dict) for run in pipeline_runs):
-                logger.error(f"Unexpected data export in {table_name}: {pipeline_runs}")
-                raise ValueError(f"Invalid data export in {table_name}")
-            for run in pipeline_runs:
-                run['last_upd'] = last_upd
-                pipeline_runs_list.append(run)
 
         pipeline_runs_df = pd.json_normalize(pipeline_runs_list)
-
         insert_df_to_duckdb(pipeline_runs_df, db_path, table_name)
 
         # Extract Trigger Runs (last 60 days)
@@ -147,16 +150,21 @@ def execute():
             table_name = "workspace_trigger_runs"
             logger.info(f"Extraction started for {table_name} for date: {days}")
             last_upd = today + timedelta(days=-days)
-            trigger_runs = workspace.list_trigger_runs(last_upd)
-            if not trigger_runs:
+            
+            # list_trigger_runs yields BATCHES (lists) of runs
+            trigger_runs_batches = workspace.list_trigger_runs(last_upd)
+            
+            has_runs = False
+            for batch in trigger_runs_batches:
+                # Each batch is a list of dictionaries
+                has_runs = True
+                for run in batch:
+                    run['last_upd'] = last_upd
+                    trigger_runs_list.append(run)
+            
+            if not has_runs:
                 logger.warning(f"No trigger runs found for {last_upd}")
-                continue
-            if not all(isinstance(run, dict) for run in trigger_runs):
-                logger.error(f"Unexpected data export in {table_name}: {trigger_runs}")
-                raise ValueError(f"Invalid data export in {table_name}")
-            for run in trigger_runs:
-                run['last_upd'] = last_upd
-                trigger_runs_list.append(run)
+        
         trigger_runs_df = pd.json_normalize(trigger_runs_list)
         insert_df_to_duckdb(trigger_runs_df, db_path, table_name)
 
