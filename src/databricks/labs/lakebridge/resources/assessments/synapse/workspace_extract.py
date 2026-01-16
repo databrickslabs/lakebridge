@@ -23,7 +23,7 @@ def execute():
 
     cred_manager = create_credential_manager(PRODUCT_NAME, creds_file)
     synapse_workspace_settings = cred_manager.get_credentials("synapse")
-    tz_info = synapse_workspace_settings["workspace"]["tz_info"]
+    tz_info = synapse_workspace_settings["workspace"]["tz_info"].strip()
     workspace_tz = zoneinfo.ZoneInfo(tz_info)
     workspace_name = synapse_workspace_settings["workspace"]["name"]
 

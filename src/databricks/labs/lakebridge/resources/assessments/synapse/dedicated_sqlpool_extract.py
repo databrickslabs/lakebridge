@@ -29,7 +29,7 @@ def execute():
     auth_type = synapse_workspace_settings["jdbc"].get("auth_type", "sql_authentication")
     synapse_profiler_settings = synapse_workspace_settings["profiler"]
 
-    tz_info = synapse_workspace_settings["workspace"]["tz_info"]
+    tz_info = synapse_workspace_settings["workspace"]["tz_info"].strip()
     workspace_tz = zoneinfo.ZoneInfo(tz_info)
     exclude_dedicated_sql_pools = synapse_profiler_settings.get("exclude_dedicated_sql_pools", None)
     dedicated_sql_pools_profiling_list = synapse_profiler_settings.get("dedicated_sql_pools_profiling_list", None)

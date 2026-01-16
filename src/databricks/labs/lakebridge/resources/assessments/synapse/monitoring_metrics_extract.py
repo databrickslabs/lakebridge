@@ -27,7 +27,7 @@ def execute():
     synapse_workspace_settings = cred_manager.get_credentials("synapse")
     synapse_profiler_settings = synapse_workspace_settings["profiler"]
 
-    tz_info = synapse_workspace_settings["workspace"]["tz_info"]
+    tz_info = synapse_workspace_settings["workspace"]["tz_info"].strip()
     workspace_tz = zoneinfo.ZoneInfo(tz_info)
     workspace_name = synapse_workspace_settings["workspace"]["name"]
     logger.info(f"workspace_name: {workspace_name}")
@@ -89,7 +89,7 @@ def execute():
                 if idx == 0:
                     pools_df = pool_metrics_df
                 else:
-                    pools_df = pools_df.union(pool_metrics_df)
+                    pools_df = pd.concat([pools_df, pool_metrics_df], ignore_index=True)
 
             # Insert the combined metrics into DuckDB
             step_name = "metrics_dedicated_pool_metrics"
@@ -122,6 +122,7 @@ def execute():
             print(f" Pool names to extract metrics: {[entry['name'] for entry in spark_pools_to_profile]}")
 
             spark_pools_df = pd.DataFrame()
+            step_name = "metrics_spark_pool_metrics"
             for idx, pool in enumerate(spark_pools_to_profile):
                 pool_name = pool['name']
                 pool_resoure_id = pool['id']
@@ -130,13 +131,11 @@ def execute():
                 logger.info(f"{idx+1}) Pool Name: {pool_name}")
                 logger.info(f"   Resource id: {pool_resoure_id}")
 
-                step_name = "metrics_spark_pool_metrics"
-
                 spark_pool_metrics_df = synapse_metrics.get_spark_pool_metrics(pool_resoure_id)
                 if idx == 0:
                     spark_pools_df = spark_pool_metrics_df
                 else:
-                    spark_pools_df = spark_pools_df.union(spark_pool_metrics_df)
+                    spark_pools_df = pd.concat([spark_pools_df, spark_pool_metrics_df], ignore_index=True)
 
             # Insert the combined metrics into DuckDB
             insert_df_to_duckdb(spark_pools_df, db_path, step_name)
