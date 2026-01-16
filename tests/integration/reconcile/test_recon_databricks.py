@@ -1,4 +1,5 @@
 import json
+import re
 import logging
 from dataclasses import asdict
 
@@ -6,6 +7,7 @@ import pytest
 
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.service.jobs import TerminationTypeType
+from databricks.sdk.core import DatabricksError
 
 from databricks.labs.lakebridge.config import (
     ReconcileConfig,
@@ -18,7 +20,6 @@ from databricks.labs.lakebridge.config import (
 from databricks.labs.lakebridge.contexts.application import ApplicationContext
 from databricks.labs.lakebridge.reconcile.recon_config import RECONCILE_OPERATION_NAME, Table
 from databricks.labs.lakebridge.reconcile.runner import ReconcileRunner
-from databricks.labs.blueprint.wheels import ProductInfo
 from databricks.sdk.service.catalog import TableInfo, SchemaInfo
 from tests.integration.debug_envgetter import TestEnvGetter
 
@@ -47,9 +48,10 @@ def recon_config(watchdog_remove_after: str, recon_schema: SchemaInfo, make_volu
     volume = make_volume(catalog_name=recon_schema.catalog_name, schema_name=recon_schema.name, name=recon_schema.name)
 
     test_env = TestEnvGetter(True)
-    cluster = test_env.get("TEST_DEFAULT_CLUSTER_ID")
+    cluster = test_env.get("DATABRICKS_CLUSTER_ID")
     tags = {"RemoveAfter": watchdog_remove_after}
     deployment_overrides = ReconcileJobConfig(existing_cluster_id=cluster, tags=tags)
+    logger.info(f"Using recon job overrides: {deployment_overrides}")
 
     assert recon_schema.catalog_name
     assert recon_schema.name
@@ -88,7 +90,7 @@ def application_context(
 ):
     logger.info("Setting up application context for recon tests")
     config = LakebridgeConfiguration(None, recon_config)
-    ctx = ApplicationContext(ws).replace(product_info=ProductInfo.for_testing(type(config)))
+    ctx = ApplicationContext(ws)
 
     logger.info("Installing app and recon configuration into workspace")
     ctx.installation.save(recon_config)
@@ -103,14 +105,45 @@ def application_context(
     logger.info("Application context teardown complete for recon tests")
 
 
+def debug_run_output(ctx: ApplicationContext, run_id: int) -> None:
+    _ansi_escape = re.compile(r"\x1B\[[0-?]*[ -/]*[@-~]")
+
+    def strip_ansi(unescaped: str) -> str:
+        return _ansi_escape.sub("", unescaped)
+
+    # pylint: disable = too-many-try-statements
+    try:
+        run_info = ctx.workspace_client.jobs.get_run(run_id)
+        tasks = run_info.tasks if run_info.tasks else []
+        logger.info(f"Reconcile job run had {len(tasks)} tasks")
+        for task in tasks:
+            if task.run_id:
+                task_output = ctx.workspace_client.jobs.get_run_output(task.run_id)
+                logger.info(f"Task {task.task_key} has error message: {task_output.error}")
+                if task_output.error_trace:
+                    logger.info(f"Task {task.task_key} has error trace:\n{strip_ansi(task_output.error_trace)}")
+            else:
+                logger.warning(f"Task {task.task_key} has no run_id")
+    except DatabricksError:
+        logger.exception("Failed to fetch run output")
+
+
 def test_recon_databricks_job_succeeds(application_context: ApplicationContext) -> None:
     recon_runner = ReconcileRunner(
         application_context.workspace_client,
         application_context.install_state,
     )
-    run, _ = recon_runner.run(operation_name=RECONCILE_OPERATION_NAME)
-    result = run.result()
 
+    run = None
+    try:
+        run, _ = recon_runner.run(operation_name=RECONCILE_OPERATION_NAME)
+        result = run.result()
+    except Exception:
+        if run:
+            debug_run_output(application_context, run.run_id)
+        raise
+
+    logger.info(f"Reconcile job run result: {result.status}")
     assert result.status
     assert result.status.termination_details
     assert result.status.termination_details.type
