@@ -1,7 +1,6 @@
 import logging
 
 from pyspark.sql import DataFrame, SparkSession
-from pyspark.sql.utils import AnalysisException
 from sqlglot import Dialect
 
 from databricks.labs.lakebridge.config import (

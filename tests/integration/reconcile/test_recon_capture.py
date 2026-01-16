@@ -13,7 +13,8 @@ from databricks.labs.lakebridge.reconcile.exception import WriteToTableException
 from databricks.labs.lakebridge.reconcile.recon_capture import (
     ReconCapture,
     generate_final_reconcile_output,
-    ReconIntermediatePersist, classify_spark_runtime,
+    ReconIntermediatePersist,
+    classify_spark_runtime,
 )
 from databricks.labs.lakebridge.reconcile.recon_output_config import (
     DataReconcileOutput,
@@ -1017,4 +1018,4 @@ def test_apply_threshold_for_only_threshold_mismatch_with_true_absolute(mock_wor
 
 
 def test_classify_spark_runtime(spark):
-    assert classify_spark_runtime(spark) is not "DATABRICKS_SERVERLESS"
+    assert classify_spark_runtime(spark) != "DATABRICKS_SERVERLESS"

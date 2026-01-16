@@ -94,6 +94,7 @@ def classify_spark_runtime(spark):
 
         return "NO_JVM_UNKNOWN"
 
+
 def _write_df_to_delta(df: DataFrame, table_name: str, mode="append"):
     try:
         df.write.mode(mode).saveAsTable(table_name)
