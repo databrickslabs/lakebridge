@@ -750,19 +750,10 @@ def install_transpile(
     ctx.add_user_agent_extra("cmd", "install-transpile")
     if artifact:
         ctx.add_user_agent_extra("artifact-overload", Path(artifact).name)
-    switch_use_serverless = True
+    # Internal: use LAKEBRIDGE_CLUSTER_TYPE=CLASSIC env var to use classic job cluster
+    switch_use_serverless = os.environ.get("LAKEBRIDGE_CLUSTER_TYPE", "").upper() != "CLASSIC"
     if include_llm_transpiler:
         ctx.add_user_agent_extra("include-llm-transpiler", "true")
-
-        # Compute selection prompt (TTY only)
-        if interactive_mode(interactive):
-            answer = ctx.prompts.question(
-                "Use serverless compute for Switch job? (no = use classic job compute instead)",
-                default="yes",
-                valid_regex=r"(?i)^(yes|no|y|n)$",
-            )
-            switch_use_serverless = answer.lower() in {"yes", "y"}
-
         # Skip transpile configuration prompts
         logger.info("Skipping transpile configuration prompts for LLM transpiler installation.")
         is_interactive = False
