@@ -186,11 +186,15 @@ class PipelineClass:
                 text=True,
             )
             if result.stdout:
-                logging.info(f"Dependency installation output: {result.stdout}")
+                logging.debug(f"Dependency installation output: {result.stdout}")
         except CalledProcessError as e:
-            error_details = f"stdout: {e.stdout}\nstderr: {e.stderr}" if e.stderr or e.stdout else "No output captured"
-            logging.error(f"Failed to install dependencies: {error_details}")
-            raise RuntimeError(f"Failed to install dependencies: {error_details}") from e
+            # Log detailed output at debug level for troubleshooting
+            logging.debug(
+                f"Failed to install dependencies (exit code {e.returncode})\n"
+                f"stdout: {e.stdout}\nstderr: {e.stderr}"
+            )
+            logging.error(f"Failed to install dependencies: {e.stderr}")
+            raise RuntimeError(f"Failed to install dependencies: {e.stderr}") from e
 
     @staticmethod
     def _run_python_script(venv_exec_cmd, script_path, db_path, credential_config):
