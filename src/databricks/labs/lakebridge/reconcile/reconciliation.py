@@ -366,7 +366,7 @@ class Reconciliation:
 
         # Uses pre-calculated `mismatch_count` from `reconcile_output.mismatch_count` to avoid from recomputing `mismatch` for RandomSampler.
         mismatch_sampler = SamplerFactory.get_sampler(sampling_options)
-        df = mismatch_sampler.sample(mismatch, mismatch_count, key_columns, sampling_model_target).cache()
+        df = mismatch_sampler.sample(mismatch, mismatch_count, key_columns, sampling_model_target)
 
         src_mismatch_sample_query = src_sampler.build_query(df)
         tgt_mismatch_sample_query = tgt_sampler.build_query(df)
