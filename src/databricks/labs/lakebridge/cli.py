@@ -754,8 +754,9 @@ def install_transpile(
     switch_use_serverless = os.environ.get("LAKEBRIDGE_CLUSTER_TYPE", "").upper() != "CLASSIC"
     if include_llm_transpiler:
         ctx.add_user_agent_extra("include-llm-transpiler", "true")
-        # Skip transpile configuration prompts
-        logger.info("Skipping transpile configuration prompts for LLM transpiler installation.")
+        # Decision was made not to prompt when include_llm_transpiler is set, and we expect users to use llm-transpile
+        # and pass all the arguments.
+        logger.info("Including LLM transpiler as part of install, interactive mode disabled: will skip questionnaire.")
         is_interactive = False
 
     user = w.current_user
