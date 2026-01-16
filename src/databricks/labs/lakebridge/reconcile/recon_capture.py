@@ -5,7 +5,7 @@ from functools import reduce
 from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql.functions import col, collect_list, create_map, lit
 from pyspark.sql.types import StringType, StructField, StructType
-from pyspark.errors import PySparkException
+from pyspark.errors import PySparkException, PySparkAttributeError
 from sqlglot import Dialect
 
 from databricks.labs.lakebridge.config import DatabaseConfig, Table, ReconcileMetadataConfig
@@ -78,6 +78,21 @@ class ReconIntermediatePersist:
             logger.error(message)
             raise ReadAndWriteWithVolumeException(message) from e
 
+
+def classify_spark_runtime(spark):
+    try:
+        _ = spark.sparkContext
+        return "CLASSIC"
+    except PySparkAttributeError as e:
+        msg = str(e).lower()
+
+        if "serverless" in msg:
+            return "DATABRICKS_SERVERLESS"
+
+        if "spark connect" in msg:
+            return "SPARK_CONNECT"
+
+        return "NO_JVM_UNKNOWN"
 
 def _write_df_to_delta(df: DataFrame, table_name: str, mode="append"):
     try:

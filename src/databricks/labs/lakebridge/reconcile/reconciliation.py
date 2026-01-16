@@ -29,6 +29,7 @@ from databricks.labs.lakebridge.reconcile.query_builder.sampling_query import (
 from databricks.labs.lakebridge.reconcile.query_builder.threshold_query import (
     ThresholdQueryBuilder,
 )
+from databricks.labs.lakebridge.reconcile.recon_capture import classify_spark_runtime
 from databricks.labs.lakebridge.reconcile.recon_config import (
     Schema,
     Table,
@@ -70,32 +71,6 @@ class Reconciliation:
         self._source_engine = source_engine
         self._spark = spark
         self._metadata_config = metadata_config
-        self._use_serverless = self.is_serverless
-
-    @property
-    def is_serverless(self) -> bool:
-        """
-        Detect if running on serverless compute.
-
-        Serverless (Spark Connect) does not expose clusterNodeType config,
-        while classic clusters do. This is a reliable detection method.
-
-        Returns:
-            True if serverless, False if classic cluster
-        """
-        try:
-            # Try to get cluster node type - only exists on classic clusters
-            node_type = self._spark.conf.get("spark.databricks.clusterUsageTags.clusterNodeType")
-            logger.debug(f"Detected classic cluster (node type: {node_type})")
-            return False
-        except AnalysisException:
-            # CONFIG_NOT_AVAILABLE on serverless
-            logger.debug("Detected serverless compute (clusterNodeType not available)")
-            return True
-        except AttributeError as e:
-            # Spark context not available - assume serverless for safety
-            logger.warning(f"Unable to detect compute type: {e}. Defaulting to serverless mode")
-            return True
 
     @property
     def source(self) -> DataSource:
@@ -399,8 +374,8 @@ class Reconciliation:
         # Uses pre-calculated `mismatch_count` from `reconcile_output.mismatch_count` to avoid from recomputing `mismatch` for RandomSampler.
         mismatch_sampler = SamplerFactory.get_sampler(sampling_options)
         df = mismatch_sampler.sample(mismatch, mismatch_count, key_columns, sampling_model_target)
-
-        if not self._use_serverless:
+        cluster_type = classify_spark_runtime(self._spark)
+        if cluster_type != "DATABRICKS_SERVERLESS":
             df = df.cache()
 
         src_mismatch_sample_query = src_sampler.build_query(df)
