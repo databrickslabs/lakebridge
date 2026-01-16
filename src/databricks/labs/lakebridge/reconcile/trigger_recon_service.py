@@ -76,7 +76,7 @@ class TriggerReconService:
             secret_scope=reconcile_config.secret_scope,
         )
 
-        recon_id = str(uuid4())
+        recon_id = uuid4().hex
         # initialise the Reconciliation
         reconciler = Reconciliation(
             source,

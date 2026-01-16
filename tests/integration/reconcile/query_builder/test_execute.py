@@ -2054,9 +2054,6 @@ def test_recon_output_without_exception(mock_gen_final_recon_output):
         pytest.fail(msg)
 
 
-def test_generate_volume_path(normalized_table_conf_with_opts):
-    volume_path = generate_volume_path(normalized_table_conf_with_opts, ReconcileMetadataConfig())
-    assert (
-        volume_path
-        == f"/Volumes/remorph/reconcile/reconcile_volume/{normalized_table_conf_with_opts.source_name}_{normalized_table_conf_with_opts.target_name}/"
-    )
+def test_generate_volume_path():
+    volume_path = generate_volume_path("123", ReconcileMetadataConfig())
+    assert volume_path == "/Volumes/remorph/reconcile/reconcile_volume/recon_123/"
