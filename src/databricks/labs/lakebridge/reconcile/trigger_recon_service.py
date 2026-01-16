@@ -14,6 +14,7 @@ from databricks.labs.lakebridge.reconcile.exception import DataSourceRuntimeExce
 from databricks.labs.lakebridge.reconcile.recon_capture import (
     ReconCapture,
     generate_final_reconcile_output,
+    ReconIntermediatePersist,
 )
 from databricks.labs.lakebridge.reconcile.recon_config import Table, Schema
 from databricks.labs.lakebridge.reconcile.recon_output_config import (
@@ -46,17 +47,20 @@ class TriggerReconService:
             ws, spark, reconcile_config, local_test_run
         )
 
-        for table_conf in table_recon.tables:
-            TriggerReconService.recon_one(reconciler, recon_capture, reconcile_config, table_conf)
+        try:
+            for table_conf in table_recon.tables:
+                TriggerReconService.recon_one(reconciler, recon_capture, reconcile_config, table_conf)
 
-        return TriggerReconService.verify_successful_reconciliation(
-            generate_final_reconcile_output(
-                recon_id=recon_capture.recon_id,
-                spark=spark,
-                metadata_config=reconcile_config.metadata_config,
-                local_test_run=local_test_run,
+            return TriggerReconService.verify_successful_reconciliation(
+                generate_final_reconcile_output(
+                    recon_id=recon_capture.recon_id,
+                    spark=spark,
+                    metadata_config=reconcile_config.metadata_config,
+                    local_test_run=local_test_run,
+                )
             )
-        )
+        finally:
+            ws.dbfs.delete(str(reconciler.intermediate_persist.base_dir), recursive=True)
 
     @staticmethod
     def create_recon_dependencies(
@@ -87,6 +91,7 @@ class TriggerReconService:
             get_dialect(reconcile_config.data_source),
             spark,
             metadata_config=reconcile_config.metadata_config,
+            intermediate_persist=ReconIntermediatePersist(spark, reconcile_config.metadata_config),
         )
 
         recon_capture = ReconCapture(

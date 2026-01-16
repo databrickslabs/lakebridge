@@ -1,10 +1,12 @@
 import logging
+import tempfile
+import uuid
 from datetime import datetime
-from functools import reduce
+from functools import reduce, cached_property
+from pathlib import Path
 
 from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql.functions import col, collect_list, create_map, lit
-from pyspark.sql.types import StringType, StructField, StructType
 from pyspark.errors import PySparkException
 from sqlglot import Dialect
 
@@ -14,7 +16,6 @@ from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_key_
 from databricks.labs.lakebridge.reconcile.exception import (
     WriteToTableException,
     ReadAndWriteWithVolumeException,
-    CleanFromVolumeException,
 )
 from databricks.labs.lakebridge.reconcile.recon_output_config import (
     DataReconcileOutput,
@@ -36,6 +37,58 @@ _RECON_DETAILS_TABLE_NAME = "details"
 _RECON_AGGREGATE_RULES_TABLE_NAME = "aggregate_rules"
 _RECON_AGGREGATE_METRICS_TABLE_NAME = "aggregate_metrics"
 _RECON_AGGREGATE_DETAILS_TABLE_NAME = "aggregate_details"
+
+
+class AbstractReconIntermediatePersist:
+    @property
+    def base_dir(self) -> Path:
+        raise NotImplementedError
+
+    def write_and_read_df_with_volumes(
+        self,
+        df: DataFrame,
+    ) -> DataFrame:
+        raise NotImplementedError
+
+
+class ReconIntermediatePersist(AbstractReconIntermediatePersist):
+    def __init__(self, spark: SparkSession, metadata_config: ReconcileMetadataConfig):
+        self._spark = spark
+        self._format = "delta" if self._is_databricks else "parquet"
+        self._base_dir = self._get_uc_volume_path(metadata_config) if self._is_databricks else tempfile.gettempdir()
+
+    @cached_property
+    def _is_databricks(self) -> bool:
+        return any(k.startswith("spark.databricks") for k in self._spark.conf.getAll.keys())
+
+    @property
+    def base_dir(self) -> Path:
+        return Path(self._base_dir)
+
+    @classmethod
+    def _get_uc_volume_path(cls, metadata_config: ReconcileMetadataConfig):
+        catalog = metadata_config.catalog
+        schema = metadata_config.schema
+        return f"/Volumes/{catalog}/{schema}/{metadata_config.volume}"
+
+    def _write_df_to_volumes(self, df: DataFrame, path: str) -> None:
+        df.write.format(self._format).save(path)
+
+    def _read_df_from_volumes(self, path) -> DataFrame:
+        return self._spark.read.format(self._format).load(path)
+
+    def write_and_read_df_with_volumes(
+        self,
+        df: DataFrame,
+    ) -> DataFrame:
+        path = str(self.base_dir / uuid.uuid4().hex)
+        try:
+            self._write_df_to_volumes(df, path)
+            return self._read_df_from_volumes(path)
+        except PySparkException as e:
+            message = f"Exception in reading or writing DF at: {path}"
+            logger.exception(message)
+            raise ReadAndWriteWithVolumeException(message) from e
 
 
 def _write_df_to_delta(df: DataFrame, table_name: str, mode="append"):

@@ -9,6 +9,7 @@ import pytest
 from pyspark.testing import assertDataFrameEqual
 from pyspark.sql import Row
 
+from tests.integration.reconcile.conftest import FakeReconIntermediatePersist
 from tests.conftest import ansi_schema_fixture_factory
 from databricks.labs.lakebridge.config import DatabaseConfig, ReconcileMetadataConfig
 from databricks.labs.lakebridge.reconcile.reconciliation import Reconciliation
@@ -123,6 +124,7 @@ def test_reconcile_aggregate_data_missing_records(
             get_dialect("databricks"),
             mock_spark,
             ReconcileMetadataConfig(),
+            FakeReconIntermediatePersist(),
         ).reconcile_aggregates(normalized_table_conf_with_opts, src_schema, tgt_schema)
 
         assert len(actual) == 1
@@ -366,6 +368,7 @@ def test_reconcile_aggregate_data_mismatch_and_missing_records(
             get_dialect("snowflake"),
             mock_spark,
             ReconcileMetadataConfig(),
+            FakeReconIntermediatePersist(),
         ).reconcile_aggregates(normalized_table_conf_with_opts, src_schema, tgt_schema)
 
         assert len(actual_list) == 4

@@ -27,6 +27,7 @@ from databricks.labs.lakebridge.reconcile.query_builder.sampling_query import (
 from databricks.labs.lakebridge.reconcile.query_builder.threshold_query import (
     ThresholdQueryBuilder,
 )
+from databricks.labs.lakebridge.reconcile.recon_capture import AbstractReconIntermediatePersist
 from databricks.labs.lakebridge.reconcile.recon_config import (
     Schema,
     Table,
@@ -58,6 +59,7 @@ class Reconciliation:
         source_engine: Dialect,
         spark: SparkSession,
         metadata_config: ReconcileMetadataConfig,
+        intermediate_persist: AbstractReconIntermediatePersist,
     ):
         self._source = source
         self._target = target
@@ -68,6 +70,7 @@ class Reconciliation:
         self._source_engine = source_engine
         self._spark = spark
         self._metadata_config = metadata_config
+        self.intermediate_persist = intermediate_persist
 
     @property
     def source(self) -> DataSource:
@@ -147,6 +150,7 @@ class Reconciliation:
             target=tgt_data,
             key_columns=table_conf.join_columns,
             report_type=self._report_type,
+            inter_persist=self.intermediate_persist,
         )
 
     def _get_reconcile_aggregate_output(
