@@ -95,7 +95,7 @@ def generate_final_reconcile_output(
     metadata_config: ReconcileMetadataConfig = ReconcileMetadataConfig(),
     local_test_run: bool = False,
 ) -> ReconcileOutput:
-    _db_prefix = "default" if local_test_run else f"{metadata_config.catalog}.{metadata_config.schema}"
+    _db_prefix = metadata_config.schema if local_test_run else f"{metadata_config.catalog}.{metadata_config.schema}"
     recon_df = spark.sql(
         f"""
     SELECT
@@ -237,7 +237,9 @@ class ReconCapture:
         self.source_dialect = source_dialect
         self.ws = ws
         self.spark = spark
-        self._db_prefix = "default" if local_test_run else f"{metadata_config.catalog}.{metadata_config.schema}"
+        self._db_prefix = (
+            metadata_config.schema if local_test_run else f"{metadata_config.catalog}.{metadata_config.schema}"
+        )
 
     def _generate_recon_main_id(
         self,
