@@ -54,8 +54,9 @@ class AbstractReconIntermediatePersist:
 class ReconIntermediatePersist(AbstractReconIntermediatePersist):
     def __init__(self, spark: SparkSession, metadata_config: ReconcileMetadataConfig):
         self._spark = spark
+        self._metadata_config = metadata_config
         self._format = "delta" if self._is_databricks else "parquet"
-        self._base_dir = self._get_uc_volume_path(metadata_config) if self._is_databricks else tempfile.gettempdir()
+        self._base_dir = self._get_uc_volume_path if self._is_databricks else tempfile.gettempdir()
 
     @cached_property
     def _is_databricks(self) -> bool:
@@ -65,11 +66,14 @@ class ReconIntermediatePersist(AbstractReconIntermediatePersist):
     def base_dir(self) -> Path:
         return Path(self._base_dir)
 
-    @classmethod
-    def _get_uc_volume_path(cls, metadata_config: ReconcileMetadataConfig):
-        catalog = metadata_config.catalog
-        schema = metadata_config.schema
-        return f"/Volumes/{catalog}/{schema}/{metadata_config.volume}"
+    @property
+    def _get_uc_volume_path(self):
+        return (
+            f"/Volumes/"
+            f"{self._metadata_config.catalog}/"
+            f"{self._metadata_config.schema}/"
+            f"{self._metadata_config.volume}"
+        )
 
     def _write_df_to_volumes(self, df: DataFrame, path: str) -> None:
         df.write.format(self._format).save(path)

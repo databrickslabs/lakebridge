@@ -12,6 +12,7 @@ from databricks.labs.lakebridge.reconcile.exception import WriteToTableException
 from databricks.labs.lakebridge.reconcile.recon_capture import (
     ReconCapture,
     generate_final_reconcile_output,
+    ReconIntermediatePersist,
 )
 from databricks.labs.lakebridge.reconcile.recon_output_config import (
     DataReconcileOutput,
@@ -990,3 +991,55 @@ def test_apply_threshold_for_only_threshold_mismatch_with_true_absolute(
     remorph_recon_metrics_df = spark.sql(f"select * from {recon_metadata.schema}.metrics")
     row = remorph_recon_metrics_df.collect()[0]
     assert row.run_metrics.status is True
+
+
+class ReconIntermediatePersistUnderTest(ReconIntermediatePersist):
+    @property
+    def is_databricks(self) -> bool:
+        return self._is_databricks
+
+    @property
+    def format(self):
+        return self._format
+
+
+def test_is_databricks_false(mock_spark):
+    conf = ReconcileMetadataConfig()
+    persist = ReconIntermediatePersistUnderTest(mock_spark, conf)
+
+    assert persist.is_databricks is False
+
+
+def test_is_databricks_true(spark):
+    conf = ReconcileMetadataConfig()
+    persist = ReconIntermediatePersistUnderTest(spark, conf)
+
+    assert persist.is_databricks is True
+
+
+def test_dir_uses_tempfile(mock_spark):
+    conf = ReconcileMetadataConfig()
+    persist = ReconIntermediatePersistUnderTest(mock_spark, conf)
+
+    assert str(persist.base_dir).startswith("/tmp/")
+
+
+def test_format_uses_uc(spark):
+    conf = ReconcileMetadataConfig()
+    persist = ReconIntermediatePersistUnderTest(spark, conf)
+
+    assert str(persist.base_dir).startswith("/Volumes/")
+
+
+def test_format_uses_parquet(mock_spark):
+    conf = ReconcileMetadataConfig()
+    persist = ReconIntermediatePersistUnderTest(mock_spark, conf)
+
+    assert persist.format == "parquet"
+
+
+def test_format_uses_delta(spark):
+    conf = ReconcileMetadataConfig()
+    persist = ReconIntermediatePersistUnderTest(spark, conf)
+
+    assert persist.format == "delta"
