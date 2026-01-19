@@ -1,5 +1,6 @@
 import datetime
 import json
+import tempfile
 
 import pytest
 from pyspark.sql import Row, SparkSession
@@ -1020,8 +1021,9 @@ def test_is_databricks_true(spark):
 def test_dir_uses_tempfile(mock_spark):
     conf = ReconcileMetadataConfig()
     persist = ReconIntermediatePersistUnderTest(mock_spark, conf)
+    expected = tempfile.gettempdir()
 
-    assert str(persist.base_dir).startswith("/tmp/")
+    assert str(persist.base_dir).startswith(expected)
 
 
 def test_format_uses_uc(spark):
