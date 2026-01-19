@@ -150,7 +150,7 @@ class Reconciliation:
             target=tgt_data,
             key_columns=table_conf.join_columns,
             report_type=self._report_type,
-            inter_persist=self.intermediate_persist,
+            persistence=self.intermediate_persist,
         )
 
     def _get_reconcile_aggregate_output(
@@ -264,6 +264,7 @@ class Reconciliation:
                     source=src_data,
                     target=tgt_data,
                     key_columns=src_query_with_rules.group_by_columns,
+                    persistence=self.intermediate_persist,
                 )
             except DataSourceRuntimeException as e:
                 data_source_exception = e

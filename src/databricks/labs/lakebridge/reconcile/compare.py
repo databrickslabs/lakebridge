@@ -5,7 +5,9 @@ from pyspark.sql.functions import col, expr, lit
 
 from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import DialectUtils
 from databricks.labs.lakebridge.reconcile.exception import ColumnMismatchException
-from databricks.labs.lakebridge.reconcile.recon_capture import AbstractReconIntermediatePersist
+from databricks.labs.lakebridge.reconcile.recon_capture import (
+    AbstractReconIntermediatePersist,
+)
 from databricks.labs.lakebridge.reconcile.recon_output_config import (
     DataReconcileOutput,
     MismatchOutput,
@@ -56,7 +58,7 @@ def reconcile_data(
     target: DataFrame,
     key_columns: list[str],
     report_type: str,
-    inter_persist: AbstractReconIntermediatePersist,
+    persistence: AbstractReconIntermediatePersist,
 ) -> DataReconcileOutput:
     source_alias = "src"
     target_alias = "tgt"
@@ -75,7 +77,7 @@ def reconcile_data(
         )
     )
 
-    df = inter_persist.write_and_read_df_with_volumes(df)
+    df = persistence.write_and_read_df_with_volumes(df)
     # Checkpoint after joining source and target to backpressure
 
     mismatch = _get_mismatch_data(df, source_alias, target_alias) if report_type in {"all", "data"} else None
@@ -414,7 +416,12 @@ def reconcile_agg_data_per_rule(
     return rule_reconcile_output
 
 
-def join_aggregate_data(source: DataFrame, target: DataFrame, key_columns: list[str] | None) -> DataFrame:
+def join_aggregate_data(
+    source: DataFrame,
+    target: DataFrame,
+    key_columns: list[str] | None,
+    persistence: AbstractReconIntermediatePersist,
+) -> DataFrame:
     # TODO:  Integrate with reconcile_data function
 
     source_alias = "src"
@@ -439,5 +446,5 @@ def join_aggregate_data(source: DataFrame, target: DataFrame, key_columns: list[
 
     joined_cols = source.columns + target.columns
     normalized_joined_cols = [DialectUtils.ansi_normalize_identifier(col) for col in joined_cols]
-    joined_df = df.select(*normalized_joined_cols)
+    joined_df = persistence.write_and_read_df_with_volumes(df.select(*normalized_joined_cols))
     return joined_df
