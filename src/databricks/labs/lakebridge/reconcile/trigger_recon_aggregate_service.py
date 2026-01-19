@@ -4,17 +4,19 @@ from pyspark.sql import SparkSession
 from databricks.sdk import WorkspaceClient
 
 from databricks.labs.lakebridge.config import ReconcileConfig, TableRecon
-from databricks.labs.lakebridge.reconcile.exception import DataSourceRuntimeException, ReconciliationException
+from databricks.labs.lakebridge.reconcile.exception import DataSourceRuntimeException
 from databricks.labs.lakebridge.reconcile.normalize_recon_config_service import NormalizeReconConfigService
 from databricks.labs.lakebridge.reconcile.recon_capture import (
     generate_final_reconcile_aggregate_output,
+    ReconCapture,
 )
-from databricks.labs.lakebridge.reconcile.recon_config import AGG_RECONCILE_OPERATION_NAME
+from databricks.labs.lakebridge.reconcile.recon_config import AGG_RECONCILE_OPERATION_NAME, Table
 from databricks.labs.lakebridge.reconcile.recon_output_config import (
     ReconcileProcessDuration,
     AggregateQueryOutput,
     DataReconcileOutput,
 )
+from databricks.labs.lakebridge.reconcile.reconciliation import Reconciliation
 from databricks.labs.lakebridge.reconcile.trigger_recon_service import TriggerReconService
 
 
@@ -31,46 +33,52 @@ class TriggerReconAggregateService:
             ws, spark, reconcile_config, local_test_run
         )
 
-        # Get the Aggregated Reconciliation Output for each table
-        for table_conf in table_recon.tables:
-            normalized_table_conf = NormalizeReconConfigService(
-                reconciler.source, reconciler.target
-            ).normalize_recon_table_config(table_conf)
-
-            recon_process_duration = ReconcileProcessDuration(start_ts=str(datetime.now()), end_ts=None)
-            try:
-                src_schema, tgt_schema = TriggerReconService.get_schemas(
-                    reconciler.source, reconciler.target, normalized_table_conf, reconcile_config.database_config, True
+        try:
+            for table_conf in table_recon.tables:
+                TriggerReconAggregateService.recon_aggregate_one(
+                    reconciler, table_conf, reconcile_config, recon_capture
                 )
-            except DataSourceRuntimeException as e:
-                raise ReconciliationException(message=str(e)) from e
 
-            assert normalized_table_conf.aggregates, "Aggregates must be defined for Aggregates Reconciliation"
+            return TriggerReconService.verify_successful_reconciliation(
+                generate_final_reconcile_aggregate_output(
+                    recon_id=recon_capture.recon_id,
+                    spark=spark,
+                    metadata_config=reconcile_config.metadata_config,
+                    local_test_run=local_test_run,
+                ),
+                operation_name=AGG_RECONCILE_OPERATION_NAME,
+            )
+        finally:
+            ws.dbfs.delete(str(reconciler.intermediate_persist.base_dir), recursive=True)
 
-            try:
-                table_reconcile_agg_output_list = reconciler.reconcile_aggregates(
-                    normalized_table_conf, src_schema, tgt_schema
-                )
-            except DataSourceRuntimeException as e:
-                table_reconcile_agg_output_list = [
-                    AggregateQueryOutput(reconcile_output=DataReconcileOutput(exception=str(e)), rule=None)
-                ]
+    @staticmethod
+    def recon_aggregate_one(
+        reconciler: Reconciliation, table_conf: Table, reconcile_config: ReconcileConfig, recon_capture: ReconCapture
+    ):
+        normalized_table_conf = NormalizeReconConfigService(
+            reconciler.source, reconciler.target
+        ).normalize_recon_table_config(table_conf)
+        if not normalized_table_conf.aggregates:
+            raise ValueError("Aggregates must be defined for Aggregates Reconciliation")
 
-            recon_process_duration.end_ts = str(datetime.now())
-
-            # Persist the data to the delta tables
-            recon_capture.store_aggregates_metrics(
-                reconcile_agg_output_list=table_reconcile_agg_output_list,
-                table_conf=normalized_table_conf,
-                recon_process_duration=recon_process_duration,
+        recon_process_duration = ReconcileProcessDuration(start_ts=str(datetime.now()), end_ts=None)
+        try:
+            src_schema, tgt_schema = TriggerReconService.get_schemas(
+                reconciler.source, reconciler.target, normalized_table_conf, reconcile_config.database_config, True
             )
 
-        return TriggerReconService.verify_successful_reconciliation(
-            generate_final_reconcile_aggregate_output(
-                recon_id=recon_capture.recon_id,
-                spark=spark,
-                metadata_config=reconcile_config.metadata_config,
-                local_test_run=local_test_run,
-            ),
-            operation_name=AGG_RECONCILE_OPERATION_NAME,
+            table_reconcile_agg_output_list = reconciler.reconcile_aggregates(
+                normalized_table_conf, src_schema, tgt_schema
+            )
+        except DataSourceRuntimeException as e:
+            table_reconcile_agg_output_list = [
+                AggregateQueryOutput(reconcile_output=DataReconcileOutput(exception=str(e)), rule=None)
+            ]
+
+        recon_process_duration.end_ts = str(datetime.now())
+
+        recon_capture.store_aggregates_metrics(
+            reconcile_agg_output_list=table_reconcile_agg_output_list,
+            table_conf=normalized_table_conf,
+            recon_process_duration=recon_process_duration,
         )
