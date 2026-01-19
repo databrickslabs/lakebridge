@@ -61,11 +61,11 @@ class CredentialManager:
 
 
 def _get_home() -> Path:
-    return Path(__file__).home()
+    return Path.home()
 
 
 def cred_file(product_name) -> Path:
-    return Path(f"{_get_home()}/.databricks/labs/{product_name}/.credentials.yml")
+    return _get_home() / ".databricks" / "labs" / product_name / ".credentials.yml"
 
 
 def _load_credentials(path: Path) -> dict:

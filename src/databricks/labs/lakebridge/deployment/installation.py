@@ -34,9 +34,8 @@ class WorkspaceInstallation:
         self._product_info = product_info
         self._upgrades = upgrades
 
-    def _get_local_version_file_path(self):
-        user_home = f"{Path(__file__).home()}"
-        return Path(f"{user_home}/.databricks/labs/{self._product_info.product_name()}/state/version.json")
+    def _get_local_version_file_path(self) -> Path:
+        return Path.home() / ".databricks" / "labs" / self._product_info.product_name() / "state" / "version.json"
 
     def _get_local_version_file(self, file_path: Path):
         data = None

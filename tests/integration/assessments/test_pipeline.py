@@ -1,56 +1,48 @@
+from collections.abc import Callable
 from pathlib import Path
+from typing import TypeAlias
 import duckdb
 import pytest
 
 from databricks.labs.lakebridge.assessments.pipeline import PipelineClass, DB_NAME, StepExecutionStatus
+from databricks.labs.lakebridge.assessments.profiler import Profiler
 
 from databricks.labs.lakebridge.assessments.profiler_config import Step, PipelineConfig
+from databricks.labs.lakebridge.connections.database_manager import DatabaseManager
+
+
+_Loader: TypeAlias = Callable[[Path], PipelineConfig]
 
 
 @pytest.fixture
-def pipeline_config(tmp_path: Path) -> PipelineConfig:
-    prefix = Path(__file__).parent
-    config_path = f"{prefix}/../../resources/assessments/pipeline_config.yml"
-    config = PipelineClass.load_config_from_yaml(config_path)
-    config.extract_folder = str(tmp_path / "pipeline_output")
+def pipeline_configuration_loader(test_resources: Path, project_path: Path, tmp_path: Path) -> _Loader:
+    def _load(resource_name: Path) -> PipelineConfig:
+        config_path = test_resources / "assessments" / resource_name
+        return Profiler.path_modifier(config_file=config_path, path_prefix=test_resources).copy(
+            extract_folder=str(tmp_path / "pipeline_output")
+        )
 
-    for step in config.steps:
-        step.extract_source = f"{prefix}/../../{step.extract_source}"
-    return config
-
-
-@pytest.fixture
-def pipeline_dep_failure_config(tmp_path: Path) -> PipelineConfig:
-    prefix = Path(__file__).parent
-    config_path = f"{prefix}/../../resources/assessments/pipeline_config_failure_dependency.yml"
-    config = PipelineClass.load_config_from_yaml(config_path)
-    config.extract_folder = str(tmp_path / "pipeline_output")
-
-    for step in config.steps:
-        step.extract_source = f"{prefix}/../../{step.extract_source}"
-    return config
+    return _load
 
 
 @pytest.fixture
-def sql_failure_config(tmp_path: Path) -> PipelineConfig:
-    prefix = Path(__file__).parent
-    config_path = f"{prefix}/../../resources/assessments/pipeline_config_sql_failure.yml"
-    config = PipelineClass.load_config_from_yaml(config_path)
-    config.extract_folder = str(tmp_path / "pipeline_output")
-    for step in config.steps:
-        step.extract_source = f"{prefix}/../../{step.extract_source}"
-    return config
+def pipeline_config(pipeline_configuration_loader: _Loader) -> PipelineConfig:
+    return pipeline_configuration_loader(Path("pipeline_config.yml"))
 
 
 @pytest.fixture
-def python_failure_config(tmp_path: Path) -> PipelineConfig:
-    prefix = Path(__file__).parent
-    config_path = f"{prefix}/../../resources/assessments/pipeline_config_python_failure.yml"
-    config = PipelineClass.load_config_from_yaml(config_path)
-    config.extract_folder = str(tmp_path / "pipeline_output")
-    for step in config.steps:
-        step.extract_source = f"{prefix}/../../{step.extract_source}"
-    return config
+def pipeline_dep_failure_config(pipeline_configuration_loader: _Loader) -> PipelineConfig:
+    return pipeline_configuration_loader(Path("pipeline_config_failure_dependency.yml"))
+
+
+@pytest.fixture
+def sql_failure_config(pipeline_configuration_loader: _Loader) -> PipelineConfig:
+    return pipeline_configuration_loader(Path("pipeline_config_sql_failure.yml"))
+
+
+@pytest.fixture
+def python_failure_config(pipeline_configuration_loader: _Loader) -> PipelineConfig:
+    return pipeline_configuration_loader(Path("pipeline_config_python_failure.yml"))
 
 
 def test_run_pipeline(sandbox_sqlserver, pipeline_config, get_logger):
@@ -94,10 +86,10 @@ def test_run_python_dep_failure_pipeline(sandbox_sqlserver, pipeline_dep_failure
     assert "Pipeline execution failed due to errors in steps: package_status" in str(e.value)
 
 
-def test_skipped_steps(sandbox_sqlserver, pipeline_config, get_logger):
+def test_skipped_steps(sandbox_sqlserver: DatabaseManager, pipeline_config: PipelineConfig) -> None:
     # Modify config to have some inactive steps
-    for step in pipeline_config.steps:
-        step.flag = "inactive"
+    inactive_steps = [step.copy(flag="inactive") for step in pipeline_config.steps]
+    pipeline_config = pipeline_config.copy(steps=inactive_steps)
 
     pipeline = PipelineClass(config=pipeline_config, executor=sandbox_sqlserver)
     results = pipeline.execute()

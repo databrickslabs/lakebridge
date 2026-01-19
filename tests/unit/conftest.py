@@ -200,24 +200,21 @@ def parse_sql_files(input_dir: Path, source: str, target: str, is_expected_excep
     return suite
 
 
-def get_functional_test_files_from_directory(
-    input_dir: Path, source: str, target: str, is_expected_exception=False
+def get_functional_test_files(
+    project_dir: Path,
+    suite: str,
+    source: str,
+    is_expected_exception=False,
 ) -> Sequence[FunctionalTestFileWithExpectedException]:
-    """Get all functional tests in the input_dir."""
-    suite = parse_sql_files(input_dir, source, target, is_expected_exception)
-    return suite
+    """Load the functional tests from a specific suite for a given source dialect."""
+    test_resources = project_dir / "tests" / "resources"
+    input_dir = test_resources / "functional" / suite
+    return parse_sql_files(input_dir, source, "databricks", is_expected_exception)
 
 
 @pytest.fixture
 def expr():
     return parse_one("SELECT col1 FROM DUAL")
-
-
-def path_to_resource(*args: str) -> str:
-    resource_path = Path(__file__).parent.parent / "resources"
-    for arg in args:
-        resource_path = resource_path / arg
-    return str(resource_path)
 
 
 @pytest.fixture
@@ -430,8 +427,8 @@ def error_file(tmp_path: Path) -> Generator[Path, None, None]:
 
 
 @pytest.fixture
-async def lsp_engine() -> AsyncGenerator[LSPEngine, None]:
-    config_path = path_to_resource("lsp_transpiler", "lsp_config.yml")
+async def lsp_engine(test_resources: Path) -> AsyncGenerator[LSPEngine, None]:
+    config_path = test_resources / "lsp_transpiler" / "lsp_config.yml"
     engine = LSPEngine.from_config_path(Path(config_path))
     yield engine
     if engine.is_alive:
