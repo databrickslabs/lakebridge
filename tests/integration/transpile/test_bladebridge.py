@@ -97,14 +97,15 @@ def capture_errors_log(tmp_path: Path) -> Generator[Path, None, None]:
 def test_transpiles_informatica_to_sparksql(
     application_ctx: ApplicationContext,
     repository_with_bladebridge: TranspilerRepository,
+    test_resources: Path,
     errors_path: Path,
     tmp_path: Path,
-    capsys,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     """Check that 'transpile' can convert an Informatica (ETL) mapping to SparkSQL using Bladebridge."""
     # Prepare the application context with a configuration for converting Informatica (ETL)
     config_path = repository_with_bladebridge.transpiler_config_path("Bladebridge")
-    input_source = Path(__file__).parent.parent.parent / "resources" / "functional" / "informatica"
+    input_source = test_resources / "functional" / "informatica"
     output_folder = tmp_path / "output"
     output_folder.mkdir(parents=True, exist_ok=True)
     transpile_config = TranspileConfig(
@@ -154,14 +155,15 @@ def test_transpiles_informatica_to_sparksql_non_interactive(
     provide_overrides: bool,
     application_ctx: ApplicationContext,
     repository_with_bladebridge: TranspilerRepository,
+    test_resources: Path,
     errors_path: Path,
     tmp_path: Path,
-    capsys,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     """Check that 'transpile' can non-interactively convert an Informatica (ETL) mapping to SparkSQL using Bladebridge."""
     # Prepare the application context as if it were non-interactive (no config.yml file).
     config_path = repository_with_bladebridge.transpiler_config_path("Bladebridge")
-    input_source = Path(__file__).parent.parent.parent / "resources" / "functional" / "informatica"
+    input_source = test_resources / "functional" / "informatica"
     output_folder = tmp_path / "output"
     output_folder.mkdir(parents=True, exist_ok=True)
     kwargs: dict[str, str] = {}
@@ -218,14 +220,15 @@ def _check_transpile_informatica_to_sparksql(stdout: str, output_folder: Path, e
 def test_transpile_teradata_sql(
     application_ctx: ApplicationContext,
     repository_with_bladebridge: TranspilerRepository,
+    test_resources: Path,
     errors_path: Path,
     tmp_path: Path,
-    capsys,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     """Check that 'transpile' can convert a Teradata (SQL) to DBSQL using Bladebridge, and then validate the output."""
     # Prepare the application context with a configuration for converting Teradata (SQL)
     config_path = repository_with_bladebridge.transpiler_config_path("Bladebridge")
-    input_source = Path(__file__).parent.parent.parent / "resources" / "functional" / "teradata" / "integration"
+    input_source = test_resources / "functional" / "teradata" / "integration"
     output_folder = tmp_path / "output"
     output_folder.mkdir(parents=True, exist_ok=True)
     transpile_config = TranspileConfig(
@@ -253,15 +256,16 @@ def test_transpile_teradata_sql(
 def test_transpile_teradata_sql_non_interactive(
     provide_overrides: bool,
     application_ctx: ApplicationContext,
+    test_resources: Path,
     repository_with_bladebridge: TranspilerRepository,
     errors_path: Path,
     tmp_path: Path,
-    capsys,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     """Check that 'transpile' can non-interactively convert a Teradata (SQL) to DBSQL using Bladebridge, and then validate the output."""
     # Prepare the application context as if it were non-interactive (no config.yml file).
     config_path = repository_with_bladebridge.transpiler_config_path("Bladebridge")
-    input_source = Path(__file__).parent.parent.parent / "resources" / "functional" / "teradata" / "integration"
+    input_source = test_resources / "functional" / "teradata" / "integration"
     output_folder = tmp_path / "output"
     output_folder.mkdir(parents=True, exist_ok=True)
     kwargs: dict[str, str] = {}
