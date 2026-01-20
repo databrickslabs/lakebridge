@@ -1,6 +1,7 @@
 import os
 from dataclasses import dataclass
 from collections.abc import Sequence
+from pathlib import Path
 
 import yaml
 from duckdb import DuckDBPyConnection, CatalogException, ParserException, Error
@@ -201,7 +202,7 @@ class ExtractSchemaValidationCheck(ValidationStrategy):
         )
 
 
-def get_profiler_extract_path(pipeline_config_path: str) -> str:
+def get_profiler_extract_path(pipeline_config_path: Path) -> Path:
     """
     Returns the filesystem path of the profiler extract database.
     input:
@@ -211,7 +212,7 @@ def get_profiler_extract_path(pipeline_config_path: str) -> str:
     """
     pipeline_config = PipelineClass.load_config_from_yaml(pipeline_config_path)
     normalized_db_path = os.path.normpath(pipeline_config.extract_folder)
-    database_path = f"{normalized_db_path}/{PROFILER_DB_NAME}"
+    database_path = Path(normalized_db_path) / PROFILER_DB_NAME
     return database_path
 
 
