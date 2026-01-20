@@ -1,6 +1,7 @@
 import logging
 from datetime import datetime
 from functools import reduce
+from typing import Literal
 
 from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql.functions import col, collect_list, create_map, lit
@@ -79,7 +80,10 @@ class ReconIntermediatePersist:
             raise ReadAndWriteWithVolumeException(message) from e
 
 
-def classify_spark_runtime(spark):
+SparkRuntimeType = Literal["DATABRICKS_SERVERLESS", "CLASSIC", "SPARK_CONNECT", "NO_JVM_UNKNOWN"]
+
+
+def classify_spark_runtime(spark) -> SparkRuntimeType:
     try:
         _ = spark.sparkContext
         return "CLASSIC"

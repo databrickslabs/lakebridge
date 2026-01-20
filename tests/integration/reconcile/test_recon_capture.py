@@ -1018,4 +1018,12 @@ def test_apply_threshold_for_only_threshold_mismatch_with_true_absolute(mock_wor
 
 
 def test_classify_spark_runtime(spark):
-    assert classify_spark_runtime(spark) != "DATABRICKS_SERVERLESS"
+    """
+    Verify runtime classification in sandbox environment.
+
+    Note: Sandbox uses Spark Connect (not Databricks Serverless).
+    This test ensures we correctly distinguish between these runtime types.
+    If sandbox infrastructure changes in the future, update this assertion.
+    """
+    runtime = classify_spark_runtime(spark)
+    assert runtime != "DATABRICKS_SERVERLESS"
