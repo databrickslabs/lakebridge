@@ -1,10 +1,16 @@
 from collections.abc import Callable
 from pathlib import Path
+from logging import Logger
 from typing import TypeAlias
 import duckdb
 import pytest
 
-from databricks.labs.lakebridge.assessments.pipeline import PipelineClass, DB_NAME, StepExecutionStatus
+from databricks.labs.lakebridge.assessments.pipeline import (
+    PipelineClass,
+    DB_NAME,
+    StepExecutionStatus,
+    StepExecutionResult,
+)
 from databricks.labs.lakebridge.assessments.profiler import Profiler
 
 from databricks.labs.lakebridge.assessments.profiler_config import Step, PipelineConfig
@@ -49,10 +55,9 @@ def python_failure_config(pipeline_configuration_loader: _Loader) -> PipelineCon
 def empty_result_config() -> PipelineConfig:
     prefix = Path(__file__).parent
     config_path = f"{prefix}/../../resources/assessments/pipeline_config_empty_result.yml"
-    config = PipelineClass.load_config_from_yaml(config_path)
-    for step in config.steps:
-        step.extract_source = f"{prefix}/../../{step.extract_source}"
-    return config
+    config: PipelineConfig = PipelineClass.load_config_from_yaml(config_path)
+    updated_steps = [step.copy(extract_source=f"{prefix}/../../{step.extract_source}") for step in config.steps]
+    return config.copy(steps=updated_steps)
 
 
 def test_run_pipeline(
@@ -70,7 +75,7 @@ def test_run_pipeline(
             StepExecutionStatus.SKIPPED,
         ), f"Step {result.step_name} failed with status {result.status}"
 
-    assert verify_output(get_logger, pipeline_config.extract_folder)
+    assert verify_output(get_logger, Path(pipeline_config.extract_folder))
 
 
 def test_run_sql_failure_pipeline(
@@ -100,7 +105,9 @@ def test_run_python_failure_pipeline(
 
 
 def test_run_python_dep_failure_pipeline(
-    sandbox_sqlserver: DatabaseManager, pipeline_dep_failure_config: PipelineConfig, get_logger
+    sandbox_sqlserver: DatabaseManager,
+    pipeline_dep_failure_config: PipelineConfig,
+    get_logger: Logger,
 ):
     pipeline = PipelineClass(config=pipeline_dep_failure_config, executor=sandbox_sqlserver)
     with pytest.raises(RuntimeError) as e:
@@ -125,7 +132,7 @@ def test_skipped_steps(sandbox_sqlserver: DatabaseManager, pipeline_config: Pipe
         assert result.error_message is None, "Skipped steps should not have error messages"
 
 
-def verify_output(get_logger, path):
+def verify_output(get_logger: Logger, path: Path):
     conn = duckdb.connect(str(Path(path)) + "/" + DB_NAME)
 
     expected_tables = ["usage", "inventory", "random_data"]
@@ -133,8 +140,8 @@ def verify_output(get_logger, path):
     for table in expected_tables:
         try:
             result = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()
-            logger.info(f"Count for {table}: {result[0]}")
-            if result[0] == 0:
+            logger.info(f"Count for {table}: {result}")
+            if result is None or result[0] == 0:
                 logger.debug(f"Table {table} is empty")
                 return False
         except duckdb.CatalogException:
