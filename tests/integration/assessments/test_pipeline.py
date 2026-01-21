@@ -1,10 +1,16 @@
 from collections.abc import Callable
 from pathlib import Path
+from logging import Logger
 from typing import TypeAlias
 import duckdb
 import pytest
 
-from databricks.labs.lakebridge.assessments.pipeline import PipelineClass, DB_NAME, StepExecutionStatus
+from databricks.labs.lakebridge.assessments.pipeline import (
+    PipelineClass,
+    DB_NAME,
+    StepExecutionStatus,
+    StepExecutionResult,
+)
 from databricks.labs.lakebridge.assessments.profiler import Profiler
 
 from databricks.labs.lakebridge.assessments.profiler_config import Step, PipelineConfig
@@ -45,7 +51,20 @@ def python_failure_config(pipeline_configuration_loader: _Loader) -> PipelineCon
     return pipeline_configuration_loader(Path("pipeline_config_python_failure.yml"))
 
 
-def test_run_pipeline(sandbox_sqlserver, pipeline_config, get_logger):
+@pytest.fixture(scope="module")
+def empty_result_config() -> PipelineConfig:
+    prefix = Path(__file__).parent
+    config_path = f"{prefix}/../../resources/assessments/pipeline_config_empty_result.yml"
+    config: PipelineConfig = PipelineClass.load_config_from_yaml(config_path)
+    updated_steps = [step.copy(extract_source=f"{prefix}/../../{step.extract_source}") for step in config.steps]
+    return config.copy(steps=updated_steps)
+
+
+def test_run_pipeline(
+    sandbox_sqlserver: DatabaseManager,
+    pipeline_config: PipelineConfig,
+    get_logger: Logger,
+) -> None:
     pipeline = PipelineClass(config=pipeline_config, executor=sandbox_sqlserver)
     results = pipeline.execute()
 
@@ -56,10 +75,14 @@ def test_run_pipeline(sandbox_sqlserver, pipeline_config, get_logger):
             StepExecutionStatus.SKIPPED,
         ), f"Step {result.step_name} failed with status {result.status}"
 
-    assert verify_output(get_logger, pipeline_config.extract_folder)
+    assert verify_output(get_logger, Path(pipeline_config.extract_folder))
 
 
-def test_run_sql_failure_pipeline(sandbox_sqlserver, sql_failure_config, get_logger):
+def test_run_sql_failure_pipeline(
+    sandbox_sqlserver: DatabaseManager,
+    sql_failure_config: PipelineConfig,
+    get_logger: Logger,
+) -> None:
     pipeline = PipelineClass(config=sql_failure_config, executor=sandbox_sqlserver)
     with pytest.raises(RuntimeError) as e:
         pipeline.execute()
@@ -68,7 +91,11 @@ def test_run_sql_failure_pipeline(sandbox_sqlserver, sql_failure_config, get_log
     assert "Pipeline execution failed due to errors in steps: invalid_sql_step" in str(e.value)
 
 
-def test_run_python_failure_pipeline(sandbox_sqlserver, python_failure_config, get_logger):
+def test_run_python_failure_pipeline(
+    sandbox_sqlserver: DatabaseManager,
+    python_failure_config: PipelineConfig,
+    get_logger: Logger,
+) -> None:
     pipeline = PipelineClass(config=python_failure_config, executor=sandbox_sqlserver)
     with pytest.raises(RuntimeError) as e:
         pipeline.execute()
@@ -77,7 +104,11 @@ def test_run_python_failure_pipeline(sandbox_sqlserver, python_failure_config, g
     assert "Pipeline execution failed due to errors in steps: invalid_python_step" in str(e.value)
 
 
-def test_run_python_dep_failure_pipeline(sandbox_sqlserver, pipeline_dep_failure_config, get_logger):
+def test_run_python_dep_failure_pipeline(
+    sandbox_sqlserver: DatabaseManager,
+    pipeline_dep_failure_config: PipelineConfig,
+    get_logger: Logger,
+):
     pipeline = PipelineClass(config=pipeline_dep_failure_config, executor=sandbox_sqlserver)
     with pytest.raises(RuntimeError) as e:
         pipeline.execute()
@@ -101,7 +132,7 @@ def test_skipped_steps(sandbox_sqlserver: DatabaseManager, pipeline_config: Pipe
         assert result.error_message is None, "Skipped steps should not have error messages"
 
 
-def verify_output(get_logger, path):
+def verify_output(get_logger: Logger, path: Path):
     conn = duckdb.connect(str(Path(path)) + "/" + DB_NAME)
 
     expected_tables = ["usage", "inventory", "random_data"]
@@ -109,8 +140,8 @@ def verify_output(get_logger, path):
     for table in expected_tables:
         try:
             result = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()
-            logger.info(f"Count for {table}: {result[0]}")
-            if result[0] == 0:
+            logger.info(f"Count for {table}: {result}")
+            if result is None or result[0] == 0:
                 logger.debug(f"Table {table} is empty")
                 return False
         except duckdb.CatalogException:
@@ -122,7 +153,7 @@ def verify_output(get_logger, path):
     return True
 
 
-def test_pipeline_config_comments():
+def test_pipeline_config_comments() -> None:
     pipeline_w_comments = PipelineConfig(
         name="warehouse_profiler",
         version="1.0",
@@ -136,7 +167,7 @@ def test_pipeline_config_comments():
     assert pipeline_wo_comments.comment is None
 
 
-def test_pipeline_step_comments():
+def test_pipeline_step_comments() -> None:
     step_w_comment = Step(
         name="step_w_comment",
         type="sql",
@@ -156,3 +187,26 @@ def test_pipeline_step_comments():
     )
     assert step_w_comment.comment == "This is a step comment."
     assert step_wo_comment.comment is None
+
+
+def test_run_empty_result_pipeline(
+    sandbox_sqlserver: DatabaseManager,
+    empty_result_config: PipelineConfig,
+    get_logger: Logger,
+) -> None:
+    pipeline = PipelineClass(config=empty_result_config, executor=sandbox_sqlserver)
+    results = pipeline.execute()
+
+    # Verify step completed successfully despite empty results
+    assert len(results) == 1
+    assert results == [
+        StepExecutionResult(step_name="empty_result_step", status=StepExecutionStatus.COMPLETE, error_message=None)
+    ]
+
+    # Verify that no table was created (processing was skipped for empty resultset)
+    with duckdb.connect(str(Path(empty_result_config.extract_folder)) + "/" + DB_NAME) as conn:
+        tables = conn.execute("SHOW TABLES").fetchall()
+        table_names = [table[0] for table in tables]
+
+    # Table should NOT be created when resultset is empty
+    assert "empty_result_step" not in table_names, "Empty resultset should skip table creation"
