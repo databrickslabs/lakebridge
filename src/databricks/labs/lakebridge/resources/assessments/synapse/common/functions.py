@@ -2,24 +2,13 @@ import argparse
 import json
 import sys
 import logging
+
 from azure.identity import DefaultAzureCredential
 from azure.monitor.query import MetricsQueryClient
 from azure.synapse.artifacts import ArtifactsClient
 
 
-def set_logger(name: str = __name__) -> logging.Logger:
-    log = logging.getLogger(name)
-    if log.handlers:
-        return log
-    handler = logging.StreamHandler(sys.stderr)
-    log.setLevel(logging.INFO)
-    log.addHandler(handler)
-
-    log.propagate = False
-    return log
-
-
-logger = set_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 def arguments_loader(desc: str):

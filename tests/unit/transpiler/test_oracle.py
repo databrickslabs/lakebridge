@@ -1,15 +1,15 @@
-from pathlib import Path
-
 import pytest
 
-from ..conftest import FunctionalTestFile, get_functional_test_files_from_directory
-
-path = Path(__file__).parent / Path('../../resources/functional/oracle/')
-functional_tests = get_functional_test_files_from_directory(path, "oracle", "databricks", False)
-test_names = [f.test_name for f in functional_tests]
+from ..conftest import FunctionalTestFile, get_functional_test_files
 
 
-@pytest.mark.parametrize("sample", functional_tests, ids=test_names)
-def test_oracle(dialect_context, sample: FunctionalTestFile):
+def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
+    if "sample" in metafunc.fixturenames:
+        samples = get_functional_test_files(metafunc.config.rootpath, suite="oracle", source="oracle")
+        ids = [sample.test_name for sample in samples]
+        metafunc.parametrize("sample", samples, ids=ids)
+
+
+def test_oracle(dialect_context, sample: FunctionalTestFile) -> None:
     validate_source_transpile, _ = dialect_context
     validate_source_transpile(databricks_sql=sample.databricks_sql, source={"oracle": sample.source})

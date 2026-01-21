@@ -1,26 +1,29 @@
 import json
 import sys
-from databricks.labs.lakebridge.resources.assessments.synapse.common.functions import (
-    arguments_loader,
-    create_synapse_artifacts_client,
-    set_logger,
-)
+import zoneinfo
+
+from databricks.labs.blueprint.entrypoint import get_logger
+
+from databricks.labs.lakebridge import initialize_logging
+from databricks.labs.lakebridge.assessments import PRODUCT_NAME
+from databricks.labs.lakebridge.connections.credential_manager import create_credential_manager
+from databricks.labs.lakebridge.resources.assessments.synapse.common.connector import get_sqlpool_reader
 from databricks.labs.lakebridge.resources.assessments.synapse.common.duckdb_helpers import (
     save_resultset_to_db,
     get_max_column_value_duckdb,
 )
-from databricks.labs.lakebridge.resources.assessments.synapse.common.connector import get_sqlpool_reader
-
-import zoneinfo
-from databricks.labs.lakebridge.connections.credential_manager import create_credential_manager
-from databricks.labs.lakebridge.assessments import PRODUCT_NAME
+from databricks.labs.lakebridge.resources.assessments.synapse.common.functions import (
+    arguments_loader,
+    create_synapse_artifacts_client,
+)
 from databricks.labs.lakebridge.resources.assessments.synapse.common.profiler_classes import SynapseWorkspace
 from databricks.labs.lakebridge.resources.assessments.synapse.common.queries import SynapseQueries
 
 
-def execute():
-    logger = set_logger(__file__)
+logger = get_logger(__file__)
 
+
+def execute():
     db_path, creds_file = arguments_loader(desc="Synapse Synapse Dedicated SQL Pool Extract Script")
 
     cred_manager = create_credential_manager(PRODUCT_NAME, creds_file)
@@ -140,4 +143,5 @@ def execute():
 
 
 if __name__ == '__main__':
+    initialize_logging()
     execute()

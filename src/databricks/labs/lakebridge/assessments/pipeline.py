@@ -18,7 +18,6 @@ from databricks.labs.lakebridge.assessments.profiler_config import PipelineConfi
 from databricks.labs.lakebridge.connections.database_manager import DatabaseManager, FetchResult
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
 
 DB_NAME = "profiler_extract.db"
 
@@ -40,7 +39,7 @@ class PipelineClass:
     def __init__(self, config: PipelineConfig, executor: DatabaseManager | None):
         self.config = config
         self.executor = executor
-        self.db_path_prefix = Path(config.extract_folder)
+        self.db_path_prefix = Path(config.extract_folder).expanduser()
         self._create_dir(self.db_path_prefix)
 
     def execute(self) -> list[StepExecutionResult]:

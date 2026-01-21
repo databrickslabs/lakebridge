@@ -12,7 +12,6 @@ from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm.session import Session
 
 logger = logging.getLogger(__name__)
-logger.setLevel("INFO")
 
 
 @dataclasses.dataclass
