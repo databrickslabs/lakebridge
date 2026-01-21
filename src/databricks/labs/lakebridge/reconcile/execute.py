@@ -6,24 +6,20 @@ from databricks.connect import DatabricksSession
 from databricks.labs.blueprint.installation import Installation
 from databricks.sdk import WorkspaceClient
 
-from databricks.labs.lakebridge.config import (
-    TableRecon,
-    ReconcileConfig,
-)
-from databricks.labs.lakebridge.reconcile.exception import (
-    ReconciliationException,
-)
+from databricks.labs.lakebridge import initialize_logging
+from databricks.labs.lakebridge.config import ReconcileConfig, TableRecon
+from databricks.labs.lakebridge.reconcile.exception import ReconciliationException
+from databricks.labs.lakebridge.reconcile.recon_config import AGG_RECONCILE_OPERATION_NAME, RECONCILE_OPERATION_NAME
 from databricks.labs.lakebridge.reconcile.trigger_recon_aggregate_service import TriggerReconAggregateService
-from databricks.labs.lakebridge.reconcile.recon_config import (
-    RECONCILE_OPERATION_NAME,
-    AGG_RECONCILE_OPERATION_NAME,
-)
 from databricks.labs.lakebridge.reconcile.trigger_recon_service import TriggerReconService
 
 logger = logging.getLogger(__name__)
 
 
-def main(*argv) -> None:
+def main(*argv: str) -> None:
+    """Lakeview Jobs task entry point: reconcile"""
+    initialize_logging()
+
     logger.debug(f"Arguments received: {argv}")
 
     assert len(sys.argv) == 2, f"Invalid number of arguments: {len(sys.argv)}," f" Operation name must be specified."

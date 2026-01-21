@@ -16,7 +16,6 @@ from databricks.labs.lakebridge.connections.env_getter import EnvGetter
 from databricks.labs.lakebridge.assessments import CONNECTOR_REQUIRED
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
 
 
 def _save_to_disk(credential: dict, cred_file: Path) -> None:
