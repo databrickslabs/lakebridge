@@ -394,12 +394,14 @@ def reconcile_agg_data_per_rule(
     missing_in_src = joined_df_with_rule_cols.filter(_agg_conditions(rule_select_columns, "missing_in_src")).select(
         *rule_target_columns
     )
+    # TODO write `missing_in_tgt` to delta
 
     # Data missing in Target DataFrame
     rule_source_columns = set(source_columns).intersection([mapping.source_name for mapping in rule_select_columns])
     missing_in_tgt = joined_df_with_rule_cols.filter(_agg_conditions(rule_select_columns, "missing_in_tgt")).select(
         *rule_source_columns
     )
+    # TODO write `missing_in_tgt` to delta
 
     mismatch_count = 0
     if mismatch:
