@@ -102,7 +102,7 @@ def test_skipped_steps(sandbox_sqlserver: DatabaseManager, pipeline_config: Pipe
 
 
 def verify_output(get_logger, path):
-    conn = duckdb.connect(str(Path(path)) + "/" + DB_NAME)
+    conn = duckdb.connect(str(Path(path).expanduser()) + "/" + DB_NAME)
 
     expected_tables = ["usage", "inventory", "random_data"]
     logger = get_logger
