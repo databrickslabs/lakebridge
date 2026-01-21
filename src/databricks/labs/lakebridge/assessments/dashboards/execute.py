@@ -1,14 +1,18 @@
 import logging
 import os
 import sys
+from collections.abc import Sequence
+from importlib import resources
+from importlib.abc import Traversable
 from pathlib import Path
+
+import duckdb
 import yaml
+from pyspark.sql import SparkSession
 from yaml.parser import ParserError
 from yaml.scanner import ScannerError
 
-import duckdb
-from pyspark.sql import SparkSession
-
+import databricks.labs.lakebridge.resources.assessments as assessment_resources
 from databricks.labs.lakebridge.assessments.profiler_validator import (
     EmptyTableValidationCheck,
     build_validation_report,
@@ -34,14 +38,14 @@ def main(*argv) -> None:
         raise ValueError("Corrupt or invalid profiler extract.")
 
 
-def _get_extract_tables(schema_def_path: str) -> list:
+def _get_extract_tables(schema_def_path: Path | Traversable) -> Sequence[tuple[str, str, str]]:
     """
     Given a schema definition file for a source technology, returns a list of table info tuples:
     (schema_name, table_name, fully_qualified_name)
     """
     # First, load the schema definition file
     try:
-        with open(schema_def_path, 'r', encoding="UTF-8") as f:
+        with schema_def_path.open(mode="r", encoding="utf-8") as f:
             data = yaml.safe_load(f)
     except (ParserError, ScannerError) as e:
         raise ValueError(f"Could not read extract schema definition '{schema_def_path}': {e}") from e
@@ -49,7 +53,7 @@ def _get_extract_tables(schema_def_path: str) -> list:
         raise FileNotFoundError(f"Schema definition not found: {schema_def_path}") from e
     # Iterate through the defined schemas and build a list of
     # table info tuples: (schema_name, table_name, fully_qualified_name)
-    extracted_tables = []
+    extracted_tables: list[tuple[str, str, str]] = []
     for schema_name, schema_def in data.get("schemas", {}).items():
         tables = schema_def.get("tables", {})
         for table_name in tables.keys():
@@ -64,10 +68,11 @@ def _validate_profiler_extract(
 ) -> bool:
     logger.info("Validating the profiler extract file.")
     validation_checks: list[EmptyTableValidationCheck | ExtractSchemaValidationCheck] = []
-    schema_def_path = f"{Path(__file__).parent}/../../resources/assessments/{source_tech}_schema_def.yml"
-    tables = _get_extract_tables(schema_def_path)
+    # TODO: Verify this, I don't think it works? (These files are part of the test resources.)
+    schema_def = resources.files(assessment_resources).joinpath(f"{source_tech}_schema_def.yml")
+    tables = _get_extract_tables(schema_def)
     try:
-        with duckdb.connect(database=extract_location) as duck_conn:
+        with duckdb.connect(database=extract_location) as duck_conn, resources.as_file(schema_def) as schema_def_path:
             for table_info in tables:
                 # Ensure that the table contains data
                 empty_check = EmptyTableValidationCheck(table_info[2])
@@ -79,7 +84,7 @@ def _validate_profiler_extract(
                     table_info[1],
                     source_tech=source_tech,
                     extract_path=extract_location,
-                    schema_path=schema_def_path,
+                    schema_path=str(schema_def_path),
                 )
                 validation_checks.append(schema_check)
             report = build_validation_report(validation_checks, duck_conn)

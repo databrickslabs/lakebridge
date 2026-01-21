@@ -7,9 +7,8 @@ from databricks.labs.lakebridge.transpiler.repository import TranspilerRepositor
 
 
 @pytest.fixture
-def transpiler_repository(tmp_path: Path) -> TranspilerRepository:
+def transpiler_repository(tmp_path: Path, test_resources: Path) -> TranspilerRepository:
     """A thin transpiler repository that only contains metadata for the Bladebridge and Morpheus transpilers."""
-    resources_folder = Path(__file__).parent.parent.parent / "resources" / "transpiler_configs"
     labs_path = tmp_path / "labs"
     repository = TranspilerRepository(labs_path=labs_path)
     for transpiler in ("bladebridge", "morpheus"):
@@ -20,7 +19,7 @@ def transpiler_repository(tmp_path: Path) -> TranspilerRepository:
             Path("lib") / "config.yml",
             Path("state") / "version.json",
         ):
-            source = resources_folder / transpiler / resource
+            source = test_resources / "transpiler_configs" / transpiler / resource
             target = install_directory / resource
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(source, target)

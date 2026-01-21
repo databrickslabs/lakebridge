@@ -21,7 +21,12 @@ def _get_dashboard_query(dashboard: Dashboard | None):
     return serialized_dashboard['datasets'][0]['query']
 
 
-def test_deploy_dashboard():
+@pytest.fixture(scope="session")
+def dashboard_folder(test_resources: Path) -> Path:
+    return test_resources / "dashboards"
+
+
+def test_deploy_dashboard(dashboard_folder: Path) -> None:
     ws = create_autospec(WorkspaceClient)
     expected_query = """SELECT
   main.recon_id,
@@ -31,7 +36,6 @@ def test_deploy_dashboard():
   main.source_table.`schema` AS source_schema,
   main.source_table.table_name AS source_table_name\nFROM remorph.reconcile.main AS main""".strip()
 
-    dashboard_folder = Path(__file__).parent / Path("../../resources/dashboards")
     dashboard = Dashboard(
         dashboard_id="9c1fbf4ad3449be67d6cb64c8acc730b",
         display_name="Remorph-Reconciliation",
@@ -49,9 +53,9 @@ def test_deploy_dashboard():
 
 
 @pytest.mark.parametrize("exception", [InvalidParameterValue, NotFound])
-def test_recovery_invalid_dashboard(caplog, exception):
-    dashboard_folder = Path(__file__).parent / Path("../../resources/dashboards")
-
+def test_recovery_invalid_dashboard(
+    exception: Exception, dashboard_folder: Path, caplog: pytest.LogCaptureFixture
+) -> None:
     ws = create_autospec(WorkspaceClient)
     dashboard_id = "9c1fbf4ad3449be67d6cb64c8acc730b"
     dashboard = Dashboard(
@@ -81,9 +85,7 @@ def test_recovery_invalid_dashboard(caplog, exception):
     ws.lakeview.update.assert_not_called()
 
 
-def test_recovery_trashed_dashboard(caplog):
-    dashboard_folder = Path(__file__).parent / Path("../../resources/dashboards")
-
+def test_recovery_trashed_dashboard(dashboard_folder: Path, caplog: pytest.LogCaptureFixture) -> None:
     ws = create_autospec(WorkspaceClient)
     dashboard_id = "9c1fbf4ad3449be67d6cb64c8acc730b"
     dashboard = Dashboard(
