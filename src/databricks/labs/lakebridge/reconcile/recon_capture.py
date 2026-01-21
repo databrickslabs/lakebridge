@@ -60,7 +60,9 @@ class ReconIntermediatePersist(AbstractReconIntermediatePersist):
 
     @cached_property
     def _is_databricks(self) -> bool:
-        return any(k.startswith("spark.databricks") for k in self._spark.conf.getAll.keys())
+        is_db = any(k.startswith("spark.databricks") for k in self._spark.conf.getAll.keys())
+        logger.info(f"Running on Databricks check completed with result: {is_db}")
+        return is_db
 
     @property
     def base_dir(self) -> Path:
@@ -76,10 +78,15 @@ class ReconIntermediatePersist(AbstractReconIntermediatePersist):
         )
 
     def _write_df_to_volumes(self, df: DataFrame, path: str) -> None:
+        logger.debug(f"Writing DF on {self._format} to path: {path}")
         df.write.format(self._format).save(path)
+        logger.info(f"Wrote DF on {self._format}")
 
     def _read_df_from_volumes(self, path) -> DataFrame:
-        return self._spark.read.format(self._format).load(path)
+        logger.debug(f"Reading DF on {self._format} from path: {path}")
+        df = self._spark.read.format(self._format).load(path)
+        logger.info(f"Read DF on {self._format}")
+        return df
 
     def write_and_read_df_with_volumes(
         self,

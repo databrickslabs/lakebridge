@@ -1,4 +1,5 @@
 import logging
+import tempfile
 import uuid
 from collections.abc import Generator
 from pathlib import Path
@@ -107,7 +108,7 @@ def recon_metadata(mock_spark, report_tables_schema) -> Generator[ReconcileMetad
 class FakeReconIntermediatePersist(AbstractReconIntermediatePersist):
     @property
     def base_dir(self) -> Path:
-        return Path("/tmp") / type(self).__name__
+        return Path(tempfile.gettempdir())
 
     def write_and_read_df_with_volumes(
         self,
