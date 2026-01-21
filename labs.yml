@@ -2,7 +2,7 @@
 name: lakebridge
 description: Code Transpiler and Data Reconciliation tool for Accelerating Data onboarding to Databricks from EDW, CDW and other ETL sources.
 install:
-  script: src/databricks/labs/lakebridge/base_install.py
+  script: src/databricks/labs/lakebridge/install.py
 uninstall:
   script: src/databricks/labs/lakebridge/uninstall.py
 entrypoint: src/databricks/labs/lakebridge/cli.py
