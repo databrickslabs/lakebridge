@@ -83,7 +83,7 @@ class ReconIntermediatePersist:
 SparkRuntimeType = Literal["DATABRICKS_SERVERLESS", "CLASSIC", "SPARK_CONNECT", "NO_JVM_UNKNOWN"]
 
 
-def classify_spark_runtime(spark) -> SparkRuntimeType:
+def classify_spark_runtime(spark: SparkSession) -> SparkRuntimeType:
     try:
         _ = spark.sparkContext
         return "CLASSIC"
