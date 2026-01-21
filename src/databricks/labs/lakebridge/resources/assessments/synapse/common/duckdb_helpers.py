@@ -1,10 +1,11 @@
+import logging
+
 import pandas as pd
 import duckdb
 
 from databricks.labs.lakebridge.connections.database_manager import FetchResult
-from databricks.labs.lakebridge.resources.assessments.synapse.common.functions import set_logger
 
-logger = set_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 def save_resultset_to_db(

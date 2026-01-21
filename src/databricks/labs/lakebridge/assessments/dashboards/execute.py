@@ -19,11 +19,15 @@ from databricks.labs.lakebridge.assessments.profiler_validator import (
     ExtractSchemaValidationCheck,
     build_validation_report_dataframe,
 )
+from databricks.labs.lakebridge import initialize_logging
 
 logger = logging.getLogger(__name__)
 
 
-def main(*argv) -> None:
+def main(*argv: str) -> None:
+    """Lakeview Jobs task entry point: profiler_dashboards"""
+    initialize_logging()
+
     logger.debug(f"Arguments received: {argv}")
     assert len(sys.argv) == 4, f"Invalid number of arguments: {len(sys.argv)}"
     catalog_name = sys.argv[0]

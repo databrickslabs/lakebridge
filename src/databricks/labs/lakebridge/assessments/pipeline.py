@@ -18,7 +18,6 @@ from databricks.labs.lakebridge.assessments.profiler_config import PipelineConfi
 from databricks.labs.lakebridge.connections.database_manager import DatabaseManager, FetchResult
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
 
 DB_NAME = "profiler_extract.db"
 
