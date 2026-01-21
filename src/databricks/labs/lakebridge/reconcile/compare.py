@@ -168,6 +168,7 @@ def capture_mismatch_data_and_columns(source: DataFrame, target: DataFrame, key_
 
     check_columns = [column for column in source_columns if column not in unnormalized_key_columns]
     mismatch_df = _get_mismatch_df(source_df, target_df, unnormalized_key_columns, check_columns)
+    # TODO write `mismatch_df` to delta
     mismatch_columns = _get_mismatch_columns(mismatch_df, check_columns)
     return MismatchOutput(mismatch_df, mismatch_columns)
 

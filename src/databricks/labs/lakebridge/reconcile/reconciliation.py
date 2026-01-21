@@ -368,6 +368,7 @@ class Reconciliation:
         # Uses pre-calculated `mismatch_count` from `reconcile_output.mismatch_count` to avoid from recomputing `mismatch` for RandomSampler.
         mismatch_sampler = SamplerFactory.get_sampler(sampling_options)
         df = mismatch_sampler.sample(mismatch, mismatch_count, key_columns, sampling_model_target)
+        # TODO write `df` to delta
 
         src_mismatch_sample_query = src_sampler.build_query(df)
         tgt_mismatch_sample_query = tgt_sampler.build_query(df)
@@ -453,6 +454,7 @@ class Reconciliation:
             ["`" + DialectUtils.unnormalize_identifier(name) + "_match` = 'Failed'" for name in threshold_columns]
         )
         mismatched_df = threshold_result.filter(failed_where_cond)
+        # TODO write `mismatched_df` to delta
         mismatched_count = mismatched_df.count()
         threshold_df = None
         if mismatched_count > 0:
