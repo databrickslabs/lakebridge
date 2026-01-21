@@ -1,0 +1,61 @@
+---
+sidebar_position: 2
+title: Source Systems
+---
+
+# Source Systems Conversion Guides
+
+BladeBridge supports conversion from various ETL and data integration platforms to Databricks. Select your source system below to see detailed conversion guides, supported components, and migration strategies.
+
+---
+
+## Available Source Systems
+
+### Microsoft SSIS
+
+**Microsoft SQL Server Integration Services** - Enterprise ETL platform for data integration and workflow applications.
+
+- **Supported Versions:** SQL Server 2012-2022, Azure Data Factory SSIS Runtime
+- **Target Platforms:** Databricks PySpark, Spark SQL
+- **Component Coverage:** 76% (38 out of 50 components)
+
+[📖 View SSIS Conversion Guide](./ssis)
+
+---
+
+## Coming Soon
+
+Additional source system conversion guides will be added as they become available:
+
+- **IBM DataStage** - Coming soon
+- **Informatica PowerCenter** - Coming soon
+- **Talend** - Coming soon
+- **Ab Initio** - Coming soon
+
+---
+
+## Getting Started
+
+To convert your ETL sources to Databricks:
+
+1. **Export your sources** in the appropriate format (e.g., DTSX files for SSIS)
+2. **Review the conversion guide** for your source system
+3. **Run the Lakebridge transpiler:**
+   ```bash
+   databricks labs lakebridge transpile \
+     --source-dialect <your-source> \
+     --input-source /path/to/sources \
+     --output-folder /path/to/output
+   ```
+4. **Review generated code** and conversion notes
+5. **Test and deploy** to Databricks
+
+For detailed CLI instructions, see the [Transpile Guide](../index.mdx).
+
+---
+
+## Need Help?
+
+- Check the [FAQs](../../faq.mdx)
+- Review [BladeBridge Configuration](../pluggable_transpilers/bladebridge/bladebridge_configuration.mdx)
+- Consult the specific source system guide for detailed component mappings

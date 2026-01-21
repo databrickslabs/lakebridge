@@ -1,0 +1,630 @@
+---
+sidebar_position: 1
+title: SSIS
+---
+
+# Microsoft SSIS to Databricks
+
+## Overview
+
+The BladeBridge converter transforms Microsoft SQL Server Integration Services (SSIS) packages into Databricks PySpark notebooks and Spark SQL.
+
+### Supported SSIS Versions
+
+- SQL Server 2012, 2014, 2016, 2017, 2019, 2022
+- Azure Data Factory SSIS Integration Runtime
+
+### Input Requirements
+
+Export your SSIS packages as DTSX files:
+
+1. **Solution Export**: Export from Visual Studio / SQL Server Data Tools (SSDT)
+2. **File System Packages**: Direct DTSX file access
+3. **SSISDB Export**: Extract from SSIS catalog
+
+**Export from SSISDB:**
+```sql
+-- Extract package from SSISDB catalog
+DECLARE @packageData VARBINARY(MAX)
+SELECT @packageData = [packagedata]
+FROM [SSISDB].[catalog].[packages]
+WHERE [name] = 'YourPackageName'
+
+-- Save to file system for conversion
+```
+
+---
+
+## Supported Components
+
+### Control Flow (Orchestration) - Supported
+
+| SSIS Component | Microsoft Name | Spark Equivalent | Notes |
+|----------------|----------------|------------------|-------|
+| **Data Flow Task** | Microsoft.DataFlowTask | PySpark DataFrame pipeline | Core data transformations |
+| **Execute SQL Task** | Microsoft.ExecuteSQLTask | `spark.sql()` | SQL execution with parameter mapping |
+| **Execute Package Task** | Microsoft.ExecutePackageTask | `dbutils.notebook.run()` | Nested notebook execution |
+| **File System Task** | Microsoft.FileSystemTask | `dbutils.fs` commands | File operations (copy, move, delete, rename) |
+| **Script Task** | Microsoft.ScriptTask | Python code | C#/VB.NET scripts converted to Python |
+| **For Loop Container** | STOCK:FORLOOP | Python `for` loop | Iteration with counter |
+| **Foreach Loop Container** | STOCK:FOREACHLOOP | Python `for` loop with list | File/folder iteration |
+| **Sequence Container** | STOCK:SEQUENCE | Function or notebook section | Grouping tasks |
+| **Execute Process Task** | Microsoft.ExecuteProcess | `subprocess.run()` | External process execution |
+| **Extensible File Task** | ExtensibleFileTask | `dbutils.fs` commands | Extended file operations |
+
+### Control Flow (Orchestration) - Unsupported
+
+The following Control Flow components are **not supported** and would require manual conversion or alternative approaches:
+
+| SSIS Component | Microsoft Name | Reason |
+|----------------|----------------|--------|
+| **Analysis Services Execute DDL** | Microsoft.AnalysisServicesExecuteDDLTask | SSAS-specific, requires manual migration to Delta/SQL |
+| **Analysis Services Processing** | Microsoft.AnalysisServicesProcessingTask | SSAS-specific, requires manual migration to Delta/SQL |
+| **Bulk Insert Task** | Microsoft.BulkInsertTask | Use Data Flow Task with JDBC/Delta instead |
+| **Data Profiling Task** | Microsoft.DataProfilingTask | Use Databricks Data Profile UI or custom profiling code |
+| **FTP Task** | Microsoft.FTPTask | Implement using Python `ftplib` or `dbutils.fs` |
+| **Message Queue Task** | Microsoft.MessageQueueTask | Requires custom Kafka/Event Hub integration |
+| **Send Mail Task** | Microsoft.SendMailTask | Implement using Databricks job notifications or Python `smtplib` |
+| **Web Service Task** | Microsoft.WebServiceTask | Implement using Python `requests` library |
+| **WMI Data Reader Task** | Microsoft.WMIDataReaderTask | Windows-specific, requires alternative monitoring solution |
+| **XML Task** | Microsoft.XMLTask | Implement using Python `xml.etree` or PySpark XML functions |
+
+:::warning Conversion Difficulty
+Components like **Script Task** contain **C# or VB.NET code bodies** that cannot be automatically converted. These require **manual code translation** from C#/VB to Python. The converter will preserve the logic structure but the actual implementation must be rewritten.
+:::
+
+---
+
+### Data Flow (Transformation) - Supported
+
+#### Sources
+
+| SSIS Component | Microsoft Name | Spark Equivalent | Notes |
+|----------------|----------------|------------------|-------|
+| **OLE DB Source** | Microsoft.OLEDBSource | `spark.read.jdbc()` | Database reads via JDBC |
+| **Flat File Source** | Microsoft.FlatFileSource | `spark.read.csv()` or `text()` | CSV, delimited, fixed-width files |
+| **Excel Source** | Microsoft.ExcelSource | `spark.read.format('excel')` | Excel file reads |
+| **Raw File Source** | Microsoft.RawSource | `spark.read.format('parquet')` | SSIS raw files converted to Parquet |
+
+#### Transformations
+
+| SSIS Component | Microsoft Name | Spark Equivalent | Notes |
+|----------------|----------------|------------------|-------|
+| **Aggregate** | Microsoft.Aggregate | `groupBy().agg()` | Sum, count, avg, min, max operations |
+| **Audit** | Microsoft.Audit | `withColumn()` with metadata | Add audit columns (timestamp, user, etc.) |
+| **Cache Transform** | Microsoft.Cache | `cache()` or `persist()` | Cache data for lookup operations |
+| **Character Map** | Microsoft.CharacterMap | String functions | String transformations (upper, lower, etc.) |
+| **Conditional Split** | Microsoft.ConditionalSplit | Multiple `filter()` | Route rows by conditions |
+| **Copy Column** | Microsoft.CopyColumn | `withColumn()` | Duplicate columns |
+| **Data Conversion** | Microsoft.DataConvert | `cast()` | Type conversions |
+| **Derived Column** | Microsoft.DerivedColumn | `withColumn()` | Column transformations and calculations |
+| **Lookup** | Microsoft.Lookup | `join()` with `broadcast` | Reference data lookup with caching |
+| **Merge** | Microsoft.Merge | `union()` | Merge sorted datasets |
+| **Merge Join** | Microsoft.MergeJoin | `join()` | Sorted input joins |
+| **Multicast** | Microsoft.Multicast | DataFrame reuse/`cache()` | Send data to multiple outputs |
+| **OLE DB Command** | Microsoft.OLEDBCommand | `foreachPartition()` with JDBC | Row-by-row SQL execution |
+| **Percentage Sampling** | Microsoft.PercentageSampling | `sample()` | Statistical sampling |
+| **Pivot** | Microsoft.Pivot | `pivot()` | Pivot operations |
+| **Row Count** | Microsoft.RowCount | `count()` | Count rows and store in variable |
+| **Script Component** | Microsoft.SqlServer.Dts.Pipeline.ScriptComponentHost | Python UDF or `withColumn()` | Custom transformations |
+| **Slowly Changing Dimension** | Microsoft.SCD | `merge()` with Delta Lake | SCD Type 1, 2, 3 patterns |
+| **Sort** | Microsoft.Sort | `orderBy()` | Sorting operations |
+| **Union All** | Microsoft.UnionAll | `union()` or `unionByName()` | Combine multiple datasets |
+| **Unpivot** | Microsoft.UnPivot | `stack()` or `unpivot()` | Unpivot operations |
+
+#### Destinations
+
+| SSIS Component | Microsoft Name | Spark Equivalent | Notes |
+|----------------|----------------|------------------|-------|
+| **OLE DB Destination** | Microsoft.OLEDBDestination | `write.jdbc()` or Delta Lake | Database writes |
+| **Flat File Destination** | Microsoft.FlatFileDestination | `write.csv()` or `write.text()` | CSV and delimited file writes |
+| **Excel Destination** | Microsoft.ExcelDestination | `write.format('excel')` | Excel file writes |
+| **Raw File Destination** | Microsoft.RawDestination | `write.format('parquet')` | SSIS raw files converted to Parquet |
+
+### Data Flow (Transformation) - Unsupported
+
+The following Data Flow components are **not supported** and would require manual conversion:
+
+| SSIS Component | Microsoft Name | Reason |
+|----------------|----------------|--------|
+| **Export Column** | Microsoft.ExportColumn | Implement using custom UDF with file writing |
+| **Import Column** | Microsoft.ImportColumn | Implement using custom UDF with file reading |
+
+:::warning Script Component Conversion Difficulty
+The **Script Component** often contains **C# or VB.NET code bodies** with complex row-by-row processing logic. While the converter identifies these components, the actual C#/VB code **cannot be automatically converted**. 
+
+**Manual conversion required:**
+- Analyze the C#/VB logic
+- Rewrite as Python UDFs or PySpark transformations
+- Test thoroughly as row-by-row logic may need redesign for distributed processing
+:::
+
+---
+
+## Data Flow Conversion
+
+### Derived Column Transformation
+
+**SSIS Derived Column:**
+```
+Derived Column Transformation
+  Columns:
+    FullName = FirstName + " " + LastName
+    AgeGroup = Age < 30 ? "Young" : (Age < 60 ? "Middle" : "Senior")
+    ProcessDate = GETDATE()
+```
+
+**Converted PySpark:**
+```python
+from pyspark.sql.functions import col, concat, lit, when, current_timestamp
+
+df = df.withColumn('FullName', 
+                   concat(col('FirstName'), lit(' '), col('LastName'))) \
+       .withColumn('AgeGroup',
+                   when(col('Age') < 30, 'Young')
+                   .when(col('Age') < 60, 'Middle')
+                   .otherwise('Senior')) \
+       .withColumn('ProcessDate', current_timestamp())
+```
+
+### Conditional Split
+
+**SSIS Conditional Split:**
+```
+Conditional Split Transformation
+  Outputs:
+    HighValue: Amount > 1000
+    MediumValue: Amount > 100 AND Amount <= 1000
+    LowValue: Default Output
+```
+
+**Converted PySpark:**
+```python
+# Split into multiple DataFrames based on conditions
+df_high = df.filter(col('Amount') > 1000)
+df_medium = df.filter((col('Amount') > 100) & (col('Amount') <= 1000))
+df_low = df.filter(col('Amount') <= 100)
+
+# Process each split separately
+# ... further transformations ...
+```
+
+### Lookup Transformation
+
+**SSIS Lookup:**
+```
+Lookup Transformation
+  Reference Table: DimCustomerType
+  Join Columns: CustomerTypeID = TypeID
+  Lookup Columns: TypeName, TypeDescription
+  Cache Mode: Full Cache
+```
+
+**Converted PySpark (broadcast join):**
+```python
+from pyspark.sql.functions import broadcast
+
+# Load reference table
+df_customer_type = spark.table('dim.customer_type')
+
+# Perform broadcast join for small lookup tables
+df_enriched = df.join(
+    broadcast(df_customer_type),
+    df.CustomerTypeID == df_customer_type.TypeID,
+    'left'
+).select(
+    df['*'],
+    df_customer_type.TypeName,
+    df_customer_type.TypeDescription
+)
+```
+
+---
+
+## Variables and Expressions
+
+### SSIS Variables
+
+**SSIS Package Variables:**
+```
+Variables:
+  User::MaxProcessDate (DateTime)
+  User::RowCount (Int32)
+  User::SourceFolder (String)
+```
+
+**Converted PySpark (notebook parameters and variables):**
+```python
+# Databricks notebook widgets for package parameters
+dbutils.widgets.text("MaxProcessDate", "2024-01-01")
+dbutils.widgets.text("SourceFolder", "/mnt/source/")
+
+# Read widget values
+max_process_date = dbutils.widgets.get("MaxProcessDate")
+source_folder = dbutils.widgets.get("SourceFolder")
+
+# Local variables
+row_count = 0
+
+# Use in transformations
+df_incremental = df.filter(col('ProcessDate') > max_process_date)
+row_count = df_incremental.count()
+
+print(f"Processed {row_count} rows")
+```
+
+### SSIS Expressions
+
+**SSIS Expression Language:**
+```
+File Connection Manager Expression:
+  @[User::SourceFolder] + "customers_" + 
+  (DT_WSTR, 8) DATEPART("yyyy", GETDATE()) + 
+  RIGHT("0" + (DT_WSTR, 2) DATEPART("mm", GETDATE()), 2) + ".csv"
+```
+
+**Converted Python:**
+```python
+from datetime import datetime
+
+# Build dynamic file path
+current_date = datetime.now()
+year = current_date.strftime("%Y")
+month = current_date.strftime("%m")
+
+file_path = f"{source_folder}customers_{year}{month}.csv"
+print(f"Reading from: {file_path}")
+
+df = spark.read.csv(file_path, header=True)
+```
+
+---
+
+## Control Flow Patterns
+
+### ForEach Loop Container
+
+**SSIS ForEach Loop:**
+```
+ForEach Loop Container (File Enumerator)
+  Folder: C:\Data\Input\
+  Files: *.csv
+  
+  Tasks:
+    - Data Flow: Process each file
+    - Execute SQL: Log processing
+```
+
+**Converted PySpark:**
+```python
+# List files in directory
+file_list = dbutils.fs.ls("/mnt/data/input/")
+csv_files = [f.path for f in file_list if f.path.endswith('.csv')]
+
+# Process each file
+for file_path in csv_files:
+    print(f"Processing: {file_path}")
+    
+    # Data Flow: Load and transform
+    df = spark.read.csv(file_path, header=True)
+    df_transformed = df.withColumn('source_file', lit(file_path)) \
+                       .withColumn('process_date', current_timestamp())
+    
+    # Write to target
+    df_transformed.write.format("delta").mode("append").saveAsTable("staging.customer_data")
+    
+    # Log processing
+    log_df = spark.createDataFrame([(file_path, df.count(), datetime.now())], 
+                                   ['file_path', 'row_count', 'process_time'])
+    log_df.write.format("delta").mode("append").saveAsTable("logs.processing_log")
+    
+    print(f"Completed: {file_path}")
+```
+
+### Execute SQL Task
+
+**SSIS Execute SQL Task:**
+```
+Execute SQL Task
+  Connection: DW_Connection
+  SQL Statement:
+    TRUNCATE TABLE staging.customer_temp;
+    
+    INSERT INTO staging.customer_temp
+    SELECT * FROM staging.customer_stage
+    WHERE process_date >= ?;
+  
+  Parameter Mapping:
+    Variable: User::MaxProcessDate → Parameter 0
+```
+
+**Converted PySpark:**
+```python
+# Execute SQL statements
+spark.sql("TRUNCATE TABLE staging.customer_temp")
+
+spark.sql(f"""
+    INSERT INTO staging.customer_temp
+    SELECT * FROM staging.customer_stage
+    WHERE process_date >= '{max_process_date}'
+""")
+
+print("SQL execution completed")
+```
+
+---
+
+## Script Component Conversion
+
+### Script Task (Control Flow)
+
+**SSIS Script Task (C#):**
+```csharp
+public void Main()
+{
+    string sourceFolder = Dts.Variables["User::SourceFolder"].Value.ToString();
+    DateTime processDate = DateTime.Now;
+    
+    int fileCount = Directory.GetFiles(sourceFolder, "*.csv").Length;
+    
+    Dts.Variables["User::FileCount"].Value = fileCount;
+    
+    Dts.TaskResult = (int)ScriptResults.Success;
+}
+```
+
+**Converted Python:**
+```python
+# Script logic converted to Python
+import os
+from datetime import datetime
+
+source_folder = dbutils.widgets.get("SourceFolder")
+process_date = datetime.now()
+
+# Count files
+file_list = dbutils.fs.ls(source_folder)
+file_count = len([f for f in file_list if f.path.endswith('.csv')])
+
+# Store result for later use
+dbutils.widgets.text("FileCount", str(file_count))
+
+print(f"Found {file_count} CSV files in {source_folder}")
+```
+
+### Script Component (Data Flow)
+
+**SSIS Script Component (transformation):**
+```csharp
+public override void Input0_ProcessInputRow(Input0Buffer Row)
+{
+    // Custom business logic
+    if (Row.Amount > 1000)
+    {
+        Row.PriorityFlag = "HIGH";
+        Row.DiscountRate = 0.15;
+    }
+    else
+    {
+        Row.PriorityFlag = "NORMAL";
+        Row.DiscountRate = 0.05;
+    }
+    
+    Row.ProcessedDate = DateTime.Now;
+}
+```
+
+**Converted PySpark:**
+```python
+from pyspark.sql.functions import when, current_timestamp
+
+# Custom transformation logic
+df = df.withColumn('PriorityFlag',
+                   when(col('Amount') > 1000, 'HIGH').otherwise('NORMAL')) \
+       .withColumn('DiscountRate',
+                   when(col('Amount') > 1000, 0.15).otherwise(0.05)) \
+       .withColumn('ProcessedDate', current_timestamp())
+```
+
+---
+
+## Package Configurations
+
+### Connection Managers
+
+**SSIS Connection Managers:**
+```xml
+<ConnectionManagers>
+  <ConnectionManager>
+    <Name>SourceDB</Name>
+    <ConnectionString>
+      Data Source=source-server;Initial Catalog=SourceDB;
+      Integrated Security=True;
+    </ConnectionString>
+  </ConnectionManager>
+</ConnectionManagers>
+```
+
+**Converted PySpark (using secrets):**
+```python
+# Store connection details in Databricks secrets
+jdbc_url = dbutils.secrets.get("connections", "source-db-url")
+jdbc_user = dbutils.secrets.get("connections", "source-db-user")
+jdbc_password = dbutils.secrets.get("connections", "source-db-password")
+
+# Use in read operation
+df = spark.read \
+    .format("jdbc") \
+    .option("url", jdbc_url) \
+    .option("dbtable", "dbo.Customers") \
+    .option("user", jdbc_user) \
+    .option("password", jdbc_password) \
+    .load()
+```
+
+---
+
+## Conversion Example
+
+### Complete SSIS Package
+
+**SSIS Package: LoadCustomerData.dtsx**
+
+Control Flow:
+1. Execute SQL Task: Truncate staging table
+2. Data Flow Task: ETL_Customers
+   - OLE DB Source: SourceDB.Customers
+   - Derived Column: Add FullName, ProcessDate
+   - Lookup: Customer Type
+   - Conditional Split: Active customers only
+   - OLE DB Destination: DW.Customers
+3. Execute SQL Task: Update control table
+
+**Converted PySpark Notebook:**
+
+```python
+# Databricks notebook source
+# MAGIC %md
+# MAGIC # Customer Data Load Pipeline
+# MAGIC Converted from SSIS Package: LoadCustomerData.dtsx
+
+# COMMAND ----------
+
+from pyspark.sql.functions import col, concat, lit, when, current_timestamp, broadcast
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## Configuration
+
+# COMMAND ----------
+
+# Notebook parameters (equivalent to SSIS package parameters)
+dbutils.widgets.text("ProcessDate", "2024-01-01")
+process_date = dbutils.widgets.get("ProcessDate")
+
+# Connection details (stored in Databricks secrets)
+jdbc_url = dbutils.secrets.get("connections", "source-db-url")
+jdbc_user = dbutils.secrets.get("connections", "source-db-user")
+jdbc_password = dbutils.secrets.get("connections", "source-db-password")
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## Execute SQL Task: Truncate Staging Table
+
+# COMMAND ----------
+
+spark.sql("TRUNCATE TABLE staging.customers")
+print("Staging table truncated")
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## Data Flow Task: ETL_Customers
+
+# COMMAND ----------
+
+# OLE DB Source: Read from source database
+df_customers = spark.read \
+    .format("jdbc") \
+    .option("url", jdbc_url) \
+    .option("dbtable", "dbo.Customers") \
+    .option("user", jdbc_user) \
+    .option("password", jdbc_password) \
+    .load()
+
+print(f"Loaded {df_customers.count()} rows from source")
+
+# COMMAND ----------
+
+# Derived Column: Add computed columns
+df_transformed = df_customers \
+    .withColumn('FullName', 
+                concat(col('FirstName'), lit(' '), col('LastName'))) \
+    .withColumn('ProcessDate', current_timestamp())
+
+# COMMAND ----------
+
+# Lookup: Join with customer type reference
+df_customer_type = spark.table('dim.customer_type')
+
+df_enriched = df_transformed.join(
+    broadcast(df_customer_type),
+    df_transformed.CustomerTypeID == df_customer_type.TypeID,
+    'left'
+)
+
+# COMMAND ----------
+
+# Conditional Split: Filter active customers only
+df_active = df_enriched.filter(col('Status') == 'ACTIVE')
+
+print(f"Filtered to {df_active.count()} active customers")
+
+# COMMAND ----------
+
+# OLE DB Destination: Write to data warehouse
+df_active.select(
+    'CustomerID',
+    'FullName',
+    'Email',
+    'Status',
+    'TypeName',
+    'ProcessDate'
+).write \
+    .format("delta") \
+    .mode("append") \
+    .saveAsTable("dw.customers")
+
+print("Data loaded to warehouse")
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## Execute SQL Task: Update Control Table
+
+# COMMAND ----------
+
+row_count = df_active.count()
+
+spark.sql(f"""
+    INSERT INTO control.load_log (package_name, rows_processed, process_date)
+    VALUES ('LoadCustomerData', {row_count}, current_timestamp())
+""")
+
+print(f"Control table updated: {row_count} rows processed")
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## Conversion Notes
+# MAGIC - OLE DB connections converted to JDBC with Databricks secrets
+# MAGIC - Derived columns converted to PySpark withColumn transformations
+# MAGIC - Lookup converted to broadcast join (reference table is small)
+# MAGIC - Conditional split converted to filter operation
+# MAGIC - Target uses Delta Lake for ACID compliance
+```
+
+---
+
+## Next Steps
+
+1. **Export SSIS packages** to DTSX files
+2. **Run conversion** using Lakebridge CLI:
+   ```bash
+   databricks labs lakebridge transpile \
+     --source-dialect ssis \
+     --input-source /path/to/ssis/packages \
+     --output-folder /output/pyspark \
+     --target-technology pyspark
+   ```
+3. **Review generated notebooks** for conversion warnings
+4. **Configure Databricks secrets** for connection strings
+5. **Test with sample data** in Databricks
+6. **Deploy workflows** to production
+
+For more information, see:
+- [Source Systems Overview](./index.mdx)
+- [BladeBridge Configuration](../pluggable_transpilers/bladebridge/bladebridge_configuration)
+- [Transpile CLI Reference](../index.mdx)
