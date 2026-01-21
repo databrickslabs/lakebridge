@@ -4,6 +4,8 @@ from abc import ABC, abstractmethod
 from typing import Any
 from collections.abc import Sequence, Set
 
+import pandas as pd
+
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine, URL
 from sqlalchemy.engine.row import Row
@@ -18,6 +20,12 @@ logger = logging.getLogger(__name__)
 class FetchResult:
     columns: Set[str]
     rows: Sequence[Row[Any]]
+
+    def to_df(self) -> pd.DataFrame:
+        """Create a pandas dataframe based on these results."""
+        # Row emulates a named tuple, which Pandas understands natively. So the columns are safely inferred unless
+        # we have an empty result-set.
+        return pd.DataFrame(data=self.rows) if self.rows else pd.DataFrame(columns=list(self.columns))
 
 
 class DatabaseConnector(ABC):
