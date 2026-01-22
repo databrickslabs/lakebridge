@@ -57,6 +57,7 @@ class WorkspaceInstaller:
         *,
         is_interactive: bool = True,
         include_llm: bool = False,
+        switch_use_serverless: bool = True,
         transpiler_repository: TranspilerRepository = TranspilerRepository.user_home(),
         transpiler_installers: Sequence[Callable[[TranspilerRepository], TranspilerInstaller]] = (
             BladebridgeInstaller,
@@ -73,6 +74,7 @@ class WorkspaceInstaller:
         # TODO: Refactor the 'prompts' property in preference to using this flag, which should be redundant.
         self._is_interactive = is_interactive
         self._include_llm = include_llm
+        self._switch_use_serverless = switch_use_serverless
         self._transpiler_repository = transpiler_repository
         self._transpiler_installer_factories = transpiler_installers
 
@@ -142,7 +144,10 @@ class WorkspaceInstaller:
             case "transpile":
                 logger.info("Configuring lakebridge `transpile`.")
                 return LakebridgeConfiguration(
-                    self._configure_transpile(), reconcile=None, include_switch=self._include_llm
+                    self._configure_transpile(),
+                    reconcile=None,
+                    include_switch=self._include_llm,
+                    switch_use_serverless=self._switch_use_serverless,
                 )
             case "reconcile":
                 logger.info("Configuring lakebridge `reconcile`.")
@@ -153,6 +158,7 @@ class WorkspaceInstaller:
                     self._configure_transpile(),
                     self._configure_reconcile(),
                     include_switch=self._include_llm,
+                    switch_use_serverless=self._switch_use_serverless,
                 )
             case _:
                 raise ValueError(f"Invalid input: {module}")
@@ -410,6 +416,7 @@ def installer(
     *,
     is_interactive: bool,
     include_llm: bool = False,
+    switch_use_serverless: bool = True,
 ) -> WorkspaceInstaller:
     app_context = ApplicationContext(_verify_workspace_client(ws))
     return WorkspaceInstaller(
@@ -423,6 +430,7 @@ def installer(
         transpiler_repository=transpiler_repository,
         is_interactive=is_interactive,
         include_llm=include_llm,
+        switch_use_serverless=switch_use_serverless,
     )
 
 

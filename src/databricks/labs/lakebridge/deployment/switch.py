@@ -12,7 +12,8 @@ from databricks.labs.blueprint.installer import InstallState
 from databricks.labs.blueprint.paths import WorkspacePath
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.errors import InvalidParameterValue, NotFound
-from databricks.sdk.service.jobs import JobParameterDefinition, JobSettings, NotebookTask, Source, Task
+from databricks.sdk.service import compute
+from databricks.sdk.service.jobs import JobCluster, JobParameterDefinition, JobSettings, NotebookTask, Source, Task
 
 
 logger = logging.getLogger(__name__)
@@ -32,12 +33,12 @@ class SwitchDeployment:
         self._installation = installation
         self._install_state = install_state
 
-    def install(self) -> None:
+    def install(self, use_serverless: bool = True) -> None:
         """Deploy Switch to workspace and configure resources."""
         logger.debug("Deploying Switch resources to workspace...")
         try:
             self._deploy_resources_to_workspace()
-            self._setup_job()
+            self._setup_job(use_serverless)
             logger.debug("Switch deployment completed")
         except (RuntimeError, ValueError, InvalidParameterValue) as e:
             msg = f"Failed to setup required resources for Switch llm transpiler: {e}"
@@ -108,11 +109,11 @@ class SwitchDeployment:
 
         yield from _enumerate_resources(root)
 
-    def _setup_job(self) -> None:
+    def _setup_job(self, use_serverless: bool = True) -> None:
         """Create or update Switch job."""
         existing_job_id = self._get_existing_job_id()
         logger.debug("Setting up Switch job in workspace...")
-        job_id = self._create_or_update_switch_job(existing_job_id)
+        job_id = self._create_or_update_switch_job(existing_job_id, use_serverless)
         self._install_state.jobs[self._INSTALL_STATE_KEY] = job_id
         self._install_state.save()
         job_url = f"{self._ws.config.host}/jobs/{job_id}"
@@ -129,9 +130,9 @@ class SwitchDeployment:
         except (InvalidParameterValue, NotFound, ValueError):
             return None
 
-    def _create_or_update_switch_job(self, job_id: str | None) -> str:
+    def _create_or_update_switch_job(self, job_id: str | None, use_serverless: bool = True) -> str:
         """Create or update Switch job, returning job ID."""
-        job_settings = self._get_switch_job_settings()
+        job_settings = self._get_switch_job_settings(use_serverless)
 
         # Try to update existing job
         if job_id:
@@ -149,7 +150,7 @@ class SwitchDeployment:
         assert new_job_id is not None
         return new_job_id
 
-    def _get_switch_job_settings(self) -> dict[str, Any]:
+    def _get_switch_job_settings(self, use_serverless: bool = True) -> dict[str, Any]:
         """Build job settings for Switch transpiler."""
         job_name = "Lakebridge_Switch"
         notebook_path = self._get_switch_workspace_path() / "notebooks" / "00_main"
@@ -160,13 +161,30 @@ class SwitchDeployment:
             disable_auto_optimization=True,  # To disable retries on failure
         )
 
-        return {
+        settings: dict[str, Any] = {
             "name": job_name,
             "tags": {"created_by": self._ws.current_user.me().user_name, "switch_version": f"v{switch_version}"},
             "tasks": [task],
             "parameters": self._generate_switch_job_parameters(),
             "max_concurrent_runs": 100,  # Allow simultaneous transpilations
         }
+
+        if not use_serverless:
+            job_cluster_key = "Switch_Cluster"
+            settings["job_clusters"] = [
+                JobCluster(
+                    job_cluster_key=job_cluster_key,
+                    new_cluster=compute.ClusterSpec(
+                        spark_version=self._ws.clusters.select_spark_version(latest=True, long_term_support=True),
+                        node_type_id=self._ws.clusters.select_node_type(local_disk=True, min_memory_gb=16),
+                        num_workers=1,
+                        data_security_mode=compute.DataSecurityMode.USER_ISOLATION,
+                    ),
+                )
+            ]
+            task.job_cluster_key = job_cluster_key
+
+        return settings
 
     @staticmethod
     def _generate_switch_job_parameters() -> Sequence[JobParameterDefinition]:
