@@ -211,7 +211,7 @@ def get_profiler_extract_path(pipeline_config_path: Path) -> Path:
        the filesystem path to the profiler extract database
     """
     pipeline_config = PipelineClass.load_config_from_yaml(pipeline_config_path)
-    normalized_db_path = os.path.normpath(pipeline_config.extract_folder)
+    normalized_db_path = os.path.normpath(os.path.expanduser(pipeline_config.extract_folder))
     database_path = Path(normalized_db_path) / PROFILER_DB_NAME
     return database_path
 
