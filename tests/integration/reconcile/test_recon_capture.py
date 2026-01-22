@@ -10,7 +10,7 @@ from pyspark.sql.types import BooleanType, StringType, StructField, StructType
 from databricks.labs.lakebridge.config import DatabaseConfig, ReconcileMetadataConfig
 from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
 from databricks.labs.lakebridge.reconcile.exception import WriteToTableException, ReadAndWriteWithVolumeException
-from databricks.labs.lakebridge.reconcile.recon_capture import (
+from databricks.labs.lakebridge.reconcile.recon_capture import (  # pylint: disable=import-private-name
     ReconCapture,
     generate_final_reconcile_output,
     ReconIntermediatePersist,

@@ -8,7 +8,6 @@ from pyspark.sql.functions import col, collect_list, create_map, lit
 from pyspark.sql.types import StringType, StructField, StructType
 from pyspark.errors import PySparkException, PySparkAttributeError
 from sqlglot import Dialect
-from sqlglot.expressions import Boolean
 
 from databricks.labs.lakebridge.config import DatabaseConfig, Table, ReconcileMetadataConfig
 from databricks.labs.lakebridge.reconcile.recon_config import TableThresholds
@@ -99,12 +98,14 @@ def _classify_spark_runtime(spark: SparkSession) -> SparkRuntimeType:
 
         return "NO_JVM_UNKNOWN"
 
+
 @lru_cache(maxsize=1)
 def cache_df_or_not(spark: SparkSession, df: DataFrame) -> DataFrame:
     cluster_type = _classify_spark_runtime(spark)
     if cluster_type != "DATABRICKS_SERVERLESS":
         df = df.cache()
     return df
+
 
 def _write_df_to_delta(df: DataFrame, table_name: str, mode="append"):
     try:
