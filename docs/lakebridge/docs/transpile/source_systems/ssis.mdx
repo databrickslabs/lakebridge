@@ -1,13 +1,22 @@
 ---
 sidebar_position: 1
 title: SSIS
----
 
+toc_min_heading_level: 2
+toc_max_heading_level: 3
+---
 # Microsoft SSIS to Databricks
 
-## Overview
+{/* ## [Table of Contents](#table-of-contents) */}
 
-The BladeBridge converter transforms Microsoft SQL Server Integration Services (SSIS) packages into Databricks PySpark notebooks and Spark SQL.
+{/* * [Conversion information](#conversion-information) */}
+{/* * [Supported Components](#supported-components) */}
+{/* ** [Control Flow (Orchestration)](#control-flow-(orchestration)-supported) */}
+
+
+## Conversion information
+* **Transpiler**: BladeBridge
+* **Available** target: Databricks notebooks
 
 ### Supported SSIS Versions
 
@@ -35,7 +44,7 @@ WHERE [name] = 'YourPackageName'
 
 ---
 
-## Supported Components
+## Components
 
 ### Control Flow (Orchestration) - Supported
 
@@ -131,7 +140,7 @@ The following Data Flow components are **not supported** and would require manua
 | **Import Column** | Microsoft.ImportColumn | Implement using custom UDF with file reading |
 
 :::warning Script Component Conversion Difficulty
-The **Script Component** often contains **C# or VB.NET code bodies** with complex row-by-row processing logic. While the converter identifies these components, the actual C#/VB code **cannot be automatically converted**. 
+The **Script Component** often contains **C# or VB.NET code bodies** with complex row-by-row processing logic. While the converter identifies these components, the actual C#/VB code **cannot be automatically converted**.
 
 **Manual conversion required:**
 - Analyze the C#/VB logic
@@ -158,7 +167,7 @@ Derived Column Transformation
 ```python
 from pyspark.sql.functions import col, concat, lit, when, current_timestamp
 
-df = df.withColumn('FullName', 
+df = df.withColumn('FullName',
                    concat(col('FirstName'), lit(' '), col('LastName'))) \
        .withColumn('AgeGroup',
                    when(col('Age') < 30, 'Young')
@@ -258,8 +267,8 @@ print(f"Processed {row_count} rows")
 **SSIS Expression Language:**
 ```
 File Connection Manager Expression:
-  @[User::SourceFolder] + "customers_" + 
-  (DT_WSTR, 8) DATEPART("yyyy", GETDATE()) + 
+  @[User::SourceFolder] + "customers_" +
+  (DT_WSTR, 8) DATEPART("yyyy", GETDATE()) +
   RIGHT("0" + (DT_WSTR, 2) DATEPART("mm", GETDATE()), 2) + ".csv"
 ```
 
@@ -289,7 +298,7 @@ df = spark.read.csv(file_path, header=True)
 ForEach Loop Container (File Enumerator)
   Folder: C:\Data\Input\
   Files: *.csv
-  
+
   Tasks:
     - Data Flow: Process each file
     - Execute SQL: Log processing
@@ -304,20 +313,20 @@ csv_files = [f.path for f in file_list if f.path.endswith('.csv')]
 # Process each file
 for file_path in csv_files:
     print(f"Processing: {file_path}")
-    
+
     # Data Flow: Load and transform
     df = spark.read.csv(file_path, header=True)
     df_transformed = df.withColumn('source_file', lit(file_path)) \
                        .withColumn('process_date', current_timestamp())
-    
+
     # Write to target
     df_transformed.write.format("delta").mode("append").saveAsTable("staging.customer_data")
-    
+
     # Log processing
-    log_df = spark.createDataFrame([(file_path, df.count(), datetime.now())], 
+    log_df = spark.createDataFrame([(file_path, df.count(), datetime.now())],
                                    ['file_path', 'row_count', 'process_time'])
     log_df.write.format("delta").mode("append").saveAsTable("logs.processing_log")
-    
+
     print(f"Completed: {file_path}")
 ```
 
@@ -329,11 +338,11 @@ Execute SQL Task
   Connection: DW_Connection
   SQL Statement:
     TRUNCATE TABLE staging.customer_temp;
-    
+
     INSERT INTO staging.customer_temp
     SELECT * FROM staging.customer_stage
     WHERE process_date >= ?;
-  
+
   Parameter Mapping:
     Variable: User::MaxProcessDate → Parameter 0
 ```
@@ -364,11 +373,11 @@ public void Main()
 {
     string sourceFolder = Dts.Variables["User::SourceFolder"].Value.ToString();
     DateTime processDate = DateTime.Now;
-    
+
     int fileCount = Directory.GetFiles(sourceFolder, "*.csv").Length;
-    
+
     Dts.Variables["User::FileCount"].Value = fileCount;
-    
+
     Dts.TaskResult = (int)ScriptResults.Success;
 }
 ```
@@ -409,7 +418,7 @@ public override void Input0_ProcessInputRow(Input0Buffer Row)
         Row.PriorityFlag = "NORMAL";
         Row.DiscountRate = 0.05;
     }
-    
+
     Row.ProcessedDate = DateTime.Now;
 }
 ```
@@ -540,7 +549,7 @@ print(f"Loaded {df_customers.count()} rows from source")
 
 # Derived Column: Add computed columns
 df_transformed = df_customers \
-    .withColumn('FullName', 
+    .withColumn('FullName',
                 concat(col('FirstName'), lit(' '), col('LastName'))) \
     .withColumn('ProcessDate', current_timestamp())
 
