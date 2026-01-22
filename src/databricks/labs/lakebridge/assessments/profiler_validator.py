@@ -1,3 +1,4 @@
+# ruff: noqa: PLR0913
 import os
 from dataclasses import dataclass
 from collections.abc import Sequence

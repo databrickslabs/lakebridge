@@ -1,3 +1,4 @@
+# ruff: noqa: PLR0913, PLC0415
 import asyncio
 import dataclasses
 import itertools
@@ -105,7 +106,7 @@ def _remove_warehouse(ws: WorkspaceClient, warehouse_id: str):
 
 
 @lakebridge.command
-def transpile(  # pylint: disable=too-many-arguments
+def transpile(  # noqa: PLR0913
     *,
     w: WorkspaceClient,
     transpiler_config_path: str | None = None,
@@ -754,7 +755,7 @@ def install_transpile(
 ) -> None:
     """Install or upgrade the Lakebridge transpilers."""
     # Avoid circular imports.
-    from databricks.labs.lakebridge.install import installer  # pylint: disable=cyclic-import, import-outside-toplevel
+    from databricks.labs.lakebridge.install import installer  # noqa: PLC0415
 
     is_interactive = interactive_mode(interactive)
     ctx = ApplicationContext(w)
@@ -823,7 +824,7 @@ def configure_reconcile(
 ) -> None:
     """Configure the Lakebridge reconciliation module"""
     # Avoid circular imports.
-    from databricks.labs.lakebridge.install import installer  # pylint: disable=cyclic-import, import-outside-toplevel
+    from databricks.labs.lakebridge.install import installer  # noqa: PLC0415
 
     ctx = ApplicationContext(w)
     ctx.add_user_agent_extra("cmd", "configure-reconcile")

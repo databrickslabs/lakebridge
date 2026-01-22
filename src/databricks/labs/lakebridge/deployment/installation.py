@@ -1,3 +1,4 @@
+# ruff: noqa: PLR0913
 import logging
 from ast import literal_eval
 from pathlib import Path

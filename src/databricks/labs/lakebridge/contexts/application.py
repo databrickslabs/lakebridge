@@ -1,3 +1,4 @@
+# ruff: noqa: PLR0904
 import logging
 from functools import cached_property
 
@@ -26,7 +27,6 @@ from databricks.labs.lakebridge.helpers.metastore import CatalogOperations
 logger = logging.getLogger(__name__)
 
 
-# pylint: disable=too-many-public-methods
 class ApplicationContext:
     def __init__(self, ws: WorkspaceClient):
         self._ws = ws

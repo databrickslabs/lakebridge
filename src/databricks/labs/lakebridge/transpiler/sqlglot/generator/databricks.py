@@ -1,3 +1,4 @@
+# ruff: noqa: PLR0913, PLR2004
 import logging
 import re
 
@@ -46,7 +47,7 @@ def _parm_sfx(self, expression: local_expression.Parameter) -> str:
     this = self.sql(expression, "this")
     this = f"{{{this}}}" if expression.args.get("wrapped") else f"{this}"
     suffix = self.sql(expression, "suffix")
-    PARAMETER_TOKEN = "$"  # noqa: N806 pylint: disable=invalid-name
+    PARAMETER_TOKEN = "$"  # noqa: N806
     return f"{PARAMETER_TOKEN}{this}{suffix}"
 
 
@@ -400,7 +401,7 @@ def groupconcat_sql_databricks(self, expression: exp.GroupConcat) -> str:
     return groupconcat_sql(self, expression, sep="")
 
 
-class Databricks(SqlglotDatabricks):  #
+class Databricks(SqlglotDatabricks):
     # Instantiate Databricks Dialect
     databricks = SqlglotDatabricks()
     NULL_ORDERING = "nulls_are_small"

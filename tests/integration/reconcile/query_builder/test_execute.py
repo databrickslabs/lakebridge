@@ -1,3 +1,4 @@
+# ruff: noqa: PLR0913
 from pathlib import Path
 from dataclasses import dataclass
 from datetime import datetime

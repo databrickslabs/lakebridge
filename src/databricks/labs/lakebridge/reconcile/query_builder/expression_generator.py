@@ -1,3 +1,4 @@
+# ruff: noqa: PLR0913
 from collections.abc import Callable, Iterable
 from functools import partial, reduce
 

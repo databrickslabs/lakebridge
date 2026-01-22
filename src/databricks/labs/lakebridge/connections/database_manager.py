@@ -1,3 +1,4 @@
+# ruff: noqa: PLR2004
 import dataclasses
 import logging
 from abc import ABC, abstractmethod

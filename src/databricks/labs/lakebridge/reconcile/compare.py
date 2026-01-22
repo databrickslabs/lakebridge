@@ -1,3 +1,4 @@
+# ruff: noqa: PLR0913
 import logging
 from functools import reduce
 from pyspark.sql import DataFrame, SparkSession

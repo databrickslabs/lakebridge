@@ -1,3 +1,4 @@
+# ruff: noqa: PLC1901
 import asyncio
 from pathlib import Path
 
@@ -94,7 +95,6 @@ def test_procedure_conversion(transpiler, transpile_config):
 
 def test_find_root_table(transpiler):
     expression, _ = transpiler.parse("snowflake", "SELECT * FROM table_name", Path("test.sql"))
-    # pylint: disable=protected-access
     assert transpiler._find_root_table(expression[0]) == "table_name"
 
 

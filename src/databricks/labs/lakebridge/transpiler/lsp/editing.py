@@ -1,3 +1,4 @@
+# ruff: noqa: PLR6301, SIM115
 import logging
 import os.path
 import re
@@ -198,7 +199,7 @@ class LakebridgeEditor(BaseEditor):
         # Attempt to open the file for writing.
         buffering = self._write_buffering
         try:
-            file = open(path, open_mode, encoding="utf-8", buffering=buffering)  # pylint: disable=consider-using-with
+            file = open(path, open_mode, encoding="utf-8", buffering=buffering)
         except FileExistsError as e:
             if options and options.ignore_if_exists:
                 return ApplyWorkspaceEditResult(applied=True)

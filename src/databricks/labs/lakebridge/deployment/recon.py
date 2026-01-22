@@ -1,3 +1,4 @@
+# ruff: noqa: PLR0913
 import logging
 from importlib.resources import files
 

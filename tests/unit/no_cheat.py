@@ -1,11 +1,12 @@
+# ruff: noqa: PLW2901
 import sys
 from pathlib import Path
 
-DISABLE_TAG = '# pylint: disable='
+DISABLE_TAG = '# ruff: noqa'
 
 
 def _strip_code(code: str) -> str:
-    return code.strip().strip('\n').strip('"').strip("'")
+    return code.strip().strip('\n').strip('"').strip("'").lstrip(':').strip()
 
 
 def no_cheat(diff_text: str) -> str:
@@ -31,7 +32,7 @@ def no_cheat(diff_text: str) -> str:
     for code, count in added.items():
         count -= removed.get(code, 0)
         if count > 0:
-            results.append(f"Do not cheat the linter: found {count} additional {DISABLE_TAG}{code}")
+            results.append(f"Do not cheat the linter: found {count} additional {DISABLE_TAG}: {code}")
     return '\n'.join(results)
 
 

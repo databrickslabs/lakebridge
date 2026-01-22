@@ -1,3 +1,4 @@
+# ruff: noqa: PLR2004
 import logging
 import os
 import sys

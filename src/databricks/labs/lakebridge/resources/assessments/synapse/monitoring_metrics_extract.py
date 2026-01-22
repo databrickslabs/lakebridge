@@ -1,3 +1,4 @@
+# ruff: noqa: PLR0915
 import json
 import sys
 import urllib3

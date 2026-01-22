@@ -1,3 +1,4 @@
+# ruff: noqa: PLW2901
 from databricks.sdk.useragent import alphanum_pattern, semver_pattern
 
 

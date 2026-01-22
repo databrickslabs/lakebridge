@@ -1,3 +1,4 @@
+# ruff: noqa: PLR6301
 import logging
 import os
 import sys
@@ -46,7 +47,6 @@ class TranspileDocumentParams:
 @attrs.define
 class TranspileDocumentRequest:
     # 'id' is mandated by LSP
-    # pylint: disable=invalid-name
     id: int | str = attrs.field()
     params: TranspileDocumentParams = attrs.field()
     method: Literal["document/transpileToDatabricks"] = "document/transpileToDatabricks"
@@ -56,7 +56,7 @@ class TranspileDocumentRequest:
 @attrs.define
 class TranspileDocumentResult:
     uri: str = attrs.field()
-    language_id: LanguageKind | str = attrs.field()  #
+    language_id: LanguageKind | str = attrs.field()
     changes: Sequence[TextEdit] = attrs.field()
     diagnostics: Sequence[Diagnostic] = attrs.field()
 
@@ -64,7 +64,6 @@ class TranspileDocumentResult:
 @attrs.define
 class TranspileDocumentResponse:
     # 'id' is mandated by LSP
-    # pylint: disable=invalid-name
     id: int | str = attrs.field()
     result: TranspileDocumentResult = attrs.field()
     jsonrpc: str = attrs.field(default="2.0")

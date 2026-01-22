@@ -1,3 +1,4 @@
+# ruff: noqa: PLR0911
 import logging
 from io import StringIO
 

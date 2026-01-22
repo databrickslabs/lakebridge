@@ -10,7 +10,7 @@ import pandas as pd
 def check_specific_packages(packages):
     data = []
     for pkg in packages:
-        result = subprocess.run(['pip', 'show', pkg], capture_output=True, text=True)
+        result = subprocess.run(['pip', 'show', pkg], check=False, capture_output=True, text=True)
         status = "Installed" if result.returncode == 0 else "Not Installed"
         data.append({"Package": pkg, "Status": status})
     return pd.DataFrame(data)

@@ -1,3 +1,4 @@
+# ruff: noqa: PLR2004
 import logging
 from sqlglot.dialects.presto import Presto as presto
 from sqlglot import exp

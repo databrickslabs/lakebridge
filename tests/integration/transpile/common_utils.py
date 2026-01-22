@@ -1,3 +1,4 @@
+# ruff: noqa: PLR0913
 import difflib
 from pathlib import Path
 from databricks.labs.lakebridge.config import TranspileConfig

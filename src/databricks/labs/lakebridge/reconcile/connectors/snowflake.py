@@ -136,7 +136,7 @@ class SnowflakeDataSource(DataSource, SecretsMixin, JDBCReaderMixin):
         return self._spark.read.format("snowflake").option("dbtable", f"({query}) as tmp").options(**options)
 
     # TODO cache this method using @functools.cache
-    # Pay attention to https://pylint.pycqa.org/en/latest/user_guide/messages/warning/method-cache-max-size-none.html
+    # Pay attention to https://pylint.readthedocs.io/en/latest/user_guide/messages/warning/method-cache-max-size-none.html
     def _get_snowflake_options(self):
         options = {
             "sfUrl": self._get_secret('sfUrl'),

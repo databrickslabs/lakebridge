@@ -1,3 +1,4 @@
+# ruff: noqa: PLR0913
 import dataclasses
 import logging
 import os
@@ -44,7 +45,7 @@ TRANSPILER_WAREHOUSE_PREFIX = "Lakebridge Transpiler Validation"
 
 class WorkspaceInstaller:
     # TODO: Temporary suppression, is_interactive is pending removal.
-    def __init__(  # pylint: disable=too-many-arguments
+    def __init__(  # noqa: PLR0913
         self,
         ws: WorkspaceClient,
         prompts: Prompts,

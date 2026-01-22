@@ -1,3 +1,4 @@
+# ruff: noqa: PLR0913
 from pyspark.sql.types import IntegerType, StringType, StructField, StructType
 
 from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect

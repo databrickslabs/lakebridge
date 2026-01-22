@@ -1,3 +1,4 @@
+# ruff: noqa: PLR0913
 import asyncio
 import dataclasses
 import logging

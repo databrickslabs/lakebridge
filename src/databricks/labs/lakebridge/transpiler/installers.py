@@ -1,3 +1,4 @@
+# ruff: noqa: PLR0913
 import abc
 import datetime as dt
 import logging

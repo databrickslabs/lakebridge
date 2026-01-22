@@ -111,7 +111,6 @@ def debug_run_output(ctx: ApplicationContext, run_id: int) -> None:
     def strip_ansi(unescaped: str) -> str:
         return _ansi_escape.sub("", unescaped)
 
-    # pylint: disable = too-many-try-statements
     try:
         run_info = ctx.workspace_client.jobs.get_run(run_id)
         tasks = run_info.tasks if run_info.tasks else []

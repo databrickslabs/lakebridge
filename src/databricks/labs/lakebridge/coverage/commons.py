@@ -1,4 +1,4 @@
-# pylint: disable=all
+# ruff: noqa: PLR0913
 import collections
 import dataclasses
 import json
@@ -40,7 +40,7 @@ def sqlglot_run_coverage(dialect, subfolder):
     input_dir = get_env_var("INPUT_DIR_PARENT", required=True)
     output_dir = get_env_var("OUTPUT_DIR", required=True)
     sqlglot_version = sqlglot.__version__
-    SQLGLOT_COMMIT_HASH = ""  # C0103 pylint
+    SQLGLOT_COMMIT_HASH = ""
 
     if not input_dir:
         raise ValueError("Environment variable `INPUT_DIR_PARENT` is required")
