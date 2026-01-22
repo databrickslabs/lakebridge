@@ -23,41 +23,36 @@ def test_profile_missing_platform_config() -> None:
         profiler.profile()
 
 
-def test_profile_execution(tmp_path: Path) -> None:
+def test_profile_execution(test_resources: Path, tmp_path: Path) -> None:
     """Test successful profiling execution using actual pipeline configuration"""
     profiler = Profiler("synapse")
-    path_prefix = Path(__file__).parent / "../../../"
+    config_file = test_resources / "assessments" / "pipeline_config_main.yml"
     extract_folder = tmp_path / "profiler_main"
-    config_file = path_prefix / "tests/resources/assessments/pipeline_config_main.yml"
-    config = profiler.path_modifier(config_file=config_file, path_prefix=path_prefix)
-    config.extract_folder = str(extract_folder)
+    config = profiler.path_modifier(config_file=config_file, path_prefix=test_resources).copy(
+        extract_folder=str(extract_folder)
+    )
     profiler.profile(pipeline_config=config)
     assert (extract_folder / "profiler_extract.db").exists(), "Profiler extract database should be created"
 
 
-def test_profile_execution_with_invalid_config() -> None:
+def test_profile_execution_with_invalid_config(test_resources: Path) -> None:
     """Test profiling execution with invalid configuration"""
     profiler = Profiler("synapse")
-    path_prefix = Path(__file__).parent / "../../../"
     with pytest.raises(FileNotFoundError):
-        config_file = path_prefix / "tests/resources/assessments/invalid_pipeline_config.yml"
-        pipeline_config = profiler.path_modifier(
-            config_file=config_file,
-            path_prefix=path_prefix,
-        )
+        config_file = test_resources / "assessments" / "invalid_pipeline_config.yml"
+        pipeline_config = profiler.path_modifier(config_file=config_file, path_prefix=test_resources)
         profiler.profile(pipeline_config=pipeline_config)
 
 
-def test_profile_execution_config_override(tmp_path: Path) -> None:
+def test_profile_execution_config_override(test_resources: Path, tmp_path: Path) -> None:
     """Test successful profiling execution using actual pipeline configuration with config file override"""
     config_dir = tmp_path / "config_dir"
     config_dir.mkdir()
     extract_folder = tmp_path / "profiler_absolute"
     # Copy the YAML file and Python script to the temp directory
-    prefix = Path(__file__).parent / ".." / ".."
-    config_file_src = prefix / Path("resources/assessments/pipeline_config_absolute.yml")
+    config_file_src = test_resources / "assessments" / "pipeline_config_absolute.yml"
     config_file_dest = config_dir / config_file_src.name
-    script_src = prefix / Path("resources/assessments/db_extract.py")
+    script_src = test_resources / "assessments" / "db_extract.py"
     script_dest = config_dir / script_src.name
     shutil.copy(script_src, script_dest)
 

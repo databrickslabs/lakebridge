@@ -16,9 +16,6 @@ from databricks.sdk import WorkspaceClient
 
 from databricks.labs.lakebridge.contexts.application import ApplicationContext
 from databricks.labs.lakebridge.transpiler.repository import TranspilerRepository
-from tests.unit.conftest import path_to_resource
-
-TRANSPILERS_PATH = Path(__file__).parent.parent / "resources" / "transpiler_configs"
 
 
 @pytest.fixture()
@@ -427,15 +424,19 @@ def test_transpile_with_valid_inputs(
 
 
 def test_transpile_prints_errors(
-    caplog, tmp_path: Path, mock_workspace_client: WorkspaceClient, transpiler_repository: TranspilerRepository
+    caplog,
+    tmp_path: Path,
+    mock_workspace_client: WorkspaceClient,
+    transpiler_repository: TranspilerRepository,
+    test_resources: Path,
 ) -> None:
     prompts = MockPrompts({"Do you want to use the experimental.*": "no"})
     ctx = ApplicationContext(ws=mock_workspace_client).replace(prompts=prompts)
-    input_source = path_to_resource("lsp_transpiler", "unsupported_lca.sql")
+    input_source = test_resources / "lsp_transpiler" / "unsupported_lca.sql"
     with caplog.at_level("ERROR"):
         cli.transpile(
             w=mock_workspace_client,
-            transpiler_config_path=path_to_resource("lsp_transpiler", "lsp_config.yml"),
+            transpiler_config_path=str(test_resources / "lsp_transpiler" / "lsp_config.yml"),
             source_dialect="snowflake",
             input_source=input_source,
             output_folder=str(tmp_path),

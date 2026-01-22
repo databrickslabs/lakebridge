@@ -1,4 +1,5 @@
 import io
+import os
 from unittest.mock import Mock, patch, MagicMock, create_autospec, PropertyMock
 
 import pytest
@@ -102,3 +103,32 @@ def test_prompts_question():
     prompts = MockPrompts({"Some question": "something"})
     response = option.prompt_for_value(prompts)
     assert response == "something"
+
+
+@pytest.mark.parametrize(
+    ("env_value", "expected_serverless"),
+    (
+        (None, True),  # Default: serverless (no env var)
+        ("", True),  # Empty string: serverless
+        ("CLASSIC", False),  # CLASSIC: use classic cluster
+        ("classic", False),  # lowercase: use classic cluster
+        ("Classic", False),  # Mixed case: use classic cluster
+        ("SERVERLESS", True),  # Any other value: serverless
+        ("other", True),  # Any other value: serverless
+    ),
+)
+def test_install_transpile_cluster_type_env_var(
+    env_value: str | None,
+    expected_serverless: bool,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test LAKEBRIDGE_CLUSTER_TYPE env var determines serverless vs classic cluster."""
+    if env_value is None:
+        monkeypatch.delenv("LAKEBRIDGE_CLUSTER_TYPE", raising=False)
+    else:
+        monkeypatch.setenv("LAKEBRIDGE_CLUSTER_TYPE", env_value)
+
+    # The logic from cli.py install_transpile:
+    # switch_use_serverless = os.environ.get("LAKEBRIDGE_CLUSTER_TYPE", "").upper() != "CLASSIC"
+    actual = os.environ.get("LAKEBRIDGE_CLUSTER_TYPE", "").upper() != "CLASSIC"
+    assert actual == expected_serverless

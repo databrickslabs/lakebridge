@@ -7,6 +7,7 @@ steps:
   - name: invalid_python_step
     type: python
     flag: active
-    extract_source: resources/assessments/invalid_script.py
+    # Relative to tests/resources/ within the project.
+    extract_source: assessments/invalid_script.py
     mode: overwrite
     frequency: daily

@@ -28,7 +28,6 @@ from databricks.labs.lakebridge.transpiler.installers import (
 )
 from databricks.labs.lakebridge.transpiler.repository import TranspilerRepository
 
-from tests.unit.conftest import path_to_resource
 
 RECONCILE_DATA_SOURCES = sorted([source_type.value for source_type in ReconSourceType])
 RECONCILE_REPORT_TYPES = sorted([report_type.value for report_type in ReconReportType])
@@ -1097,6 +1096,7 @@ def test_runs_and_stores_confirm_config_option(
     ws_installer: Callable[..., WorkspaceInstaller],
     ws: WorkspaceClient,
     tmp_path: Path,
+    test_resources: Path,
 ) -> None:
     prompts = MockPrompts(
         {
@@ -1128,7 +1128,7 @@ def test_runs_and_stores_confirm_config_option(
     class _TranspilerRepository(TranspilerRepository):
         def __init__(self) -> None:
             super().__init__(tmp_path / "labs")
-            self._transpilers_path = Path(path_to_resource("transpiler_configs"))
+            self._transpilers_path = test_resources / "transpiler_configs"
 
         def transpilers_path(self) -> Path:
             return self._transpilers_path
@@ -1640,8 +1640,6 @@ def test_no_reconfigure_if_noninteractive(
         ),
     )
 
-    logging.getLogger("databricks.labs.lakebridge").setLevel(logging.DEBUG)
-
     installer = ws_installer(
         ctx.workspace_client,
         ctx.prompts,
@@ -1728,3 +1726,38 @@ def test_transpiler_installers_llm_flag(
     )
     assert installer.configure("transpile").include_switch == should_include_switch
     assert installer.configure("all").include_switch == should_include_switch
+
+
+@pytest.mark.parametrize(
+    ("switch_use_serverless", "expected_serverless"),
+    (
+        (True, True),  # Default: use serverless
+        (False, False),  # Flag disabled: use classic cluster
+    ),
+)
+def test_configure_switch_use_serverless_flag(
+    ws_installer: Callable[..., WorkspaceInstaller],
+    ws: WorkspaceClient,
+    switch_use_serverless: bool,
+    expected_serverless: bool,
+) -> None:
+    """Test switch_use_serverless configuration flag is passed through correctly."""
+    ctx = ApplicationContext(ws).replace(
+        product_info=ProductInfo.for_testing(LakebridgeConfiguration),
+        prompts=MockPrompts({}),
+        installation=MockInstallation({}),
+    )
+    installer = ws_installer(
+        ctx.workspace_client,
+        ctx.prompts,
+        ctx.installation,
+        ctx.install_state,
+        ctx.product_info,
+        ctx.resource_configurator,
+        ctx.workspace_installation,
+        is_interactive=False,
+        include_llm=True,
+        switch_use_serverless=switch_use_serverless,
+    )
+    config = installer.configure("transpile")
+    assert config.switch_use_serverless == expected_serverless
