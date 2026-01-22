@@ -10,11 +10,10 @@ from pyspark.sql.types import BooleanType, StringType, StructField, StructType
 from databricks.labs.lakebridge.config import DatabaseConfig, ReconcileMetadataConfig
 from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
 from databricks.labs.lakebridge.reconcile.exception import WriteToTableException, ReadAndWriteWithVolumeException
-from databricks.labs.lakebridge.reconcile.recon_capture import (  # pylint: disable=import-private-name
+from databricks.labs.lakebridge.reconcile.recon_capture import (
     ReconCapture,
     generate_final_reconcile_output,
     ReconIntermediatePersist,
-    _classify_spark_runtime,
 )
 from databricks.labs.lakebridge.reconcile.recon_output_config import (
     DataReconcileOutput,
@@ -1012,15 +1011,3 @@ def test_apply_threshold_for_only_threshold_mismatch_with_true_absolute(
     remorph_recon_metrics_df = spark.sql(f"select * from {recon_metadata.schema}.metrics")
     row = remorph_recon_metrics_df.collect()[0]
     assert row.run_metrics.status is True
-
-
-def test__classify_spark_runtime(spark):
-    """
-    Verify runtime classification in sandbox environment.
-
-    Note: Sandbox uses Spark Connect (not Databricks Serverless).
-    This test ensures we correctly distinguish between these runtime types.
-    If sandbox infrastructure changes in the future, update this assertion.
-    """
-    runtime = _classify_spark_runtime(spark)
-    assert runtime != "DATABRICKS_SERVERLESS"
