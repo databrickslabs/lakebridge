@@ -14,7 +14,7 @@ from databricks.labs.lakebridge.reconcile.recon_capture import (
     ReconCapture,
     generate_final_reconcile_output,
     ReconIntermediatePersist,
-    classify_spark_runtime,
+    _classify_spark_runtime,
 )
 from databricks.labs.lakebridge.reconcile.recon_output_config import (
     DataReconcileOutput,
@@ -1014,7 +1014,7 @@ def test_apply_threshold_for_only_threshold_mismatch_with_true_absolute(
     assert row.run_metrics.status is True
 
 
-def test_classify_spark_runtime(spark):
+def test__classify_spark_runtime(spark):
     """
     Verify runtime classification in sandbox environment.
 
@@ -1022,5 +1022,5 @@ def test_classify_spark_runtime(spark):
     This test ensures we correctly distinguish between these runtime types.
     If sandbox infrastructure changes in the future, update this assertion.
     """
-    runtime = classify_spark_runtime(spark)
+    runtime = _classify_spark_runtime(spark)
     assert runtime != "DATABRICKS_SERVERLESS"

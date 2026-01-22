@@ -7,7 +7,7 @@ from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import Dialec
 from databricks.labs.lakebridge.reconcile.exception import ColumnMismatchException
 from databricks.labs.lakebridge.reconcile.recon_capture import (
     ReconIntermediatePersist,
-    classify_spark_runtime,
+    cache_df_or_not,
 )
 from databricks.labs.lakebridge.reconcile.recon_output_config import (
     DataReconcileOutput,
@@ -454,9 +454,7 @@ def join_aggregate_data(
 
     # Write the joined df to volume path
     joined_volume_df = ReconIntermediatePersist(spark, path).write_and_read_unmatched_df_with_volumes(joined_df)
-    cluster_type = classify_spark_runtime(spark)
-    if cluster_type != "DATABRICKS_SERVERLESS":
-        joined_volume_df = joined_volume_df.cache()
+    joined_volume_df = cache_df_or_not(spark, joined_volume_df)
     logger.warning(f"Unmatched data is written to {path} successfully")
 
     return joined_volume_df

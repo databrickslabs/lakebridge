@@ -28,7 +28,7 @@ from databricks.labs.lakebridge.reconcile.query_builder.sampling_query import (
 from databricks.labs.lakebridge.reconcile.query_builder.threshold_query import (
     ThresholdQueryBuilder,
 )
-from databricks.labs.lakebridge.reconcile.recon_capture import classify_spark_runtime
+from databricks.labs.lakebridge.reconcile.recon_capture import cache_df_or_not
 from databricks.labs.lakebridge.reconcile.recon_config import (
     Schema,
     Table,
@@ -373,9 +373,7 @@ class Reconciliation:
         # Uses pre-calculated `mismatch_count` from `reconcile_output.mismatch_count` to avoid from recomputing `mismatch` for RandomSampler.
         mismatch_sampler = SamplerFactory.get_sampler(sampling_options)
         df = mismatch_sampler.sample(mismatch, mismatch_count, key_columns, sampling_model_target)
-        cluster_type = classify_spark_runtime(self._spark)
-        if cluster_type != "DATABRICKS_SERVERLESS":
-            df = df.cache()
+        df = cache_df_or_not(self._spark, df)
 
         src_mismatch_sample_query = src_sampler.build_query(df)
         tgt_mismatch_sample_query = tgt_sampler.build_query(df)
