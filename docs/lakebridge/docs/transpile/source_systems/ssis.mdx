@@ -50,13 +50,13 @@ WHERE [name] = 'YourPackageName'
 
 | SSIS Component | Microsoft Name | Spark Equivalent | Notes |
 |----------------|----------------|------------------|-------|
-| **Data Flow Task** | Microsoft.DataFlowTask | PySpark DataFrame pipeline | Core data transformations |
-| **Execute SQL Task** | Microsoft.ExecuteSQLTask | `spark.sql()` | SQL execution with parameter mapping |
+| **Data Flow Task** | Microsoft.DataFlowTask | Spark SQL temp views | Core data transformations |
+| **Execute SQL Task** | Microsoft.ExecuteSQLTask | Spark SQL statements | SQL execution with parameter mapping |
 | **Execute Package Task** | Microsoft.ExecutePackageTask | `dbutils.notebook.run()` | Nested notebook execution |
 | **File System Task** | Microsoft.FileSystemTask | `dbutils.fs` commands | File operations (copy, move, delete, rename) |
-| **Script Task** | Microsoft.ScriptTask | Python code | C#/VB.NET scripts converted to Python |
-| **For Loop Container** | STOCK:FORLOOP | Python `for` loop | Iteration with counter |
-| **Foreach Loop Container** | STOCK:FOREACHLOOP | Python `for` loop with list | File/folder iteration |
+| **Script Task** | Microsoft.ScriptTask | Python code with SQL | C#/VB.NET scripts converted to Python/SQL |
+| **For Loop Container** | STOCK:FORLOOP | SQL iteration pattern | Iteration with counter |
+| **Foreach Loop Container** | STOCK:FOREACHLOOP | SQL wildcard file reading | File/folder iteration |
 | **Sequence Container** | STOCK:SEQUENCE | Function or notebook section | Grouping tasks |
 | **Execute Process Task** | Microsoft.ExecuteProcess | `subprocess.run()` | External process execution |
 | **Extensible File Task** | ExtensibleFileTask | `dbutils.fs` commands | Extended file operations |
@@ -90,45 +90,45 @@ Components like **Script Task** contain **C# or VB.NET code bodies** that cannot
 
 | SSIS Component | Microsoft Name | Spark Equivalent | Notes |
 |----------------|----------------|------------------|-------|
-| **OLE DB Source** | Microsoft.OLEDBSource | `spark.read.jdbc()` | Database reads via JDBC |
-| **Flat File Source** | Microsoft.FlatFileSource | `spark.read.csv()` or `text()` | CSV, delimited, fixed-width files |
-| **Excel Source** | Microsoft.ExcelSource | `spark.read.format('excel')` | Excel file reads |
-| **Raw File Source** | Microsoft.RawSource | `spark.read.format('parquet')` | SSIS raw files converted to Parquet |
+| **OLE DB Source** | Microsoft.OLEDBSource | `spark.read.format("jdbc")` | Database reads via JDBC with PySpark |
+| **Flat File Source** | Microsoft.FlatFileSource | `spark.read.csv()` or SQL `csv.\`path\`` | CSV, delimited, fixed-width files |
+| **Excel Source** | Microsoft.ExcelSource | `spark.read.format("excel")` | Excel file reads |
+| **Raw File Source** | Microsoft.RawSource | `spark.read.format("parquet")` | SSIS raw files converted to Parquet |
 
 #### Transformations
 
 | SSIS Component | Microsoft Name | Spark Equivalent | Notes |
 |----------------|----------------|------------------|-------|
-| **Aggregate** | Microsoft.Aggregate | `groupBy().agg()` | Sum, count, avg, min, max operations |
-| **Audit** | Microsoft.Audit | `withColumn()` with metadata | Add audit columns (timestamp, user, etc.) |
-| **Cache Transform** | Microsoft.Cache | `cache()` or `persist()` | Cache data for lookup operations |
+| **Aggregate** | Microsoft.Aggregate | `GROUP BY` with aggregation | Sum, count, avg, min, max operations |
+| **Audit** | Microsoft.Audit | Add columns in SELECT | Add audit columns (timestamp, user, etc.) |
+| **Cache Transform** | Microsoft.Cache | Temp views or CTEs | Cache data for lookup operations |
 | **Character Map** | Microsoft.CharacterMap | String functions | String transformations (upper, lower, etc.) |
-| **Conditional Split** | Microsoft.ConditionalSplit | Multiple `filter()` | Route rows by conditions |
-| **Copy Column** | Microsoft.CopyColumn | `withColumn()` | Duplicate columns |
-| **Data Conversion** | Microsoft.DataConvert | `cast()` | Type conversions |
-| **Derived Column** | Microsoft.DerivedColumn | `withColumn()` | Column transformations and calculations |
-| **Lookup** | Microsoft.Lookup | `join()` with `broadcast` | Reference data lookup with caching |
-| **Merge** | Microsoft.Merge | `union()` | Merge sorted datasets |
-| **Merge Join** | Microsoft.MergeJoin | `join()` | Sorted input joins |
-| **Multicast** | Microsoft.Multicast | DataFrame reuse/`cache()` | Send data to multiple outputs |
-| **OLE DB Command** | Microsoft.OLEDBCommand | `foreachPartition()` with JDBC | Row-by-row SQL execution |
-| **Percentage Sampling** | Microsoft.PercentageSampling | `sample()` | Statistical sampling |
-| **Pivot** | Microsoft.Pivot | `pivot()` | Pivot operations |
-| **Row Count** | Microsoft.RowCount | `count()` | Count rows and store in variable |
-| **Script Component** | Microsoft.SqlServer.Dts.Pipeline.ScriptComponentHost | Python UDF or `withColumn()` | Custom transformations |
-| **Slowly Changing Dimension** | Microsoft.SCD | `merge()` with Delta Lake | SCD Type 1, 2, 3 patterns |
-| **Sort** | Microsoft.Sort | `orderBy()` | Sorting operations |
-| **Union All** | Microsoft.UnionAll | `union()` or `unionByName()` | Combine multiple datasets |
-| **Unpivot** | Microsoft.UnPivot | `stack()` or `unpivot()` | Unpivot operations |
+| **Conditional Split** | Microsoft.ConditionalSplit | Multiple `WHERE` clauses | Route rows by conditions |
+| **Copy Column** | Microsoft.CopyColumn | Column in SELECT | Duplicate columns |
+| **Data Conversion** | Microsoft.DataConvert | `CAST()` | Type conversions |
+| **Derived Column** | Microsoft.DerivedColumn | Calculated columns in SELECT | Column transformations and calculations |
+| **Lookup** | Microsoft.Lookup | `LEFT JOIN` | Reference data lookup with caching |
+| **Merge** | Microsoft.Merge | `UNION` | Merge sorted datasets |
+| **Merge Join** | Microsoft.MergeJoin | `JOIN` | Sorted input joins |
+| **Multicast** | Microsoft.Multicast | Temp view reuse | Send data to multiple outputs |
+| **OLE DB Command** | Microsoft.OLEDBCommand | Row-by-row SQL execution | Row-by-row SQL execution |
+| **Percentage Sampling** | Microsoft.PercentageSampling | `TABLESAMPLE` | Statistical sampling |
+| **Pivot** | Microsoft.Pivot | `PIVOT` clause | Pivot operations |
+| **Row Count** | Microsoft.RowCount | `COUNT(*)` | Count rows and store in variable |
+| **Script Component** | Microsoft.SqlServer.Dts.Pipeline.ScriptComponentHost | SQL UDFs or CASE statements | Custom transformations |
+| **Slowly Changing Dimension** | Microsoft.SCD | `MERGE` with Delta Lake | SCD Type 1, 2, 3 patterns |
+| **Sort** | Microsoft.Sort | `ORDER BY` | Sorting operations |
+| **Union All** | Microsoft.UnionAll | `UNION ALL` | Combine multiple datasets |
+| **Unpivot** | Microsoft.UnPivot | `UNPIVOT` or `STACK()` | Unpivot operations |
 
 #### Destinations
 
 | SSIS Component | Microsoft Name | Spark Equivalent | Notes |
 |----------------|----------------|------------------|-------|
-| **OLE DB Destination** | Microsoft.OLEDBDestination | `write.jdbc()` or Delta Lake | Database writes |
-| **Flat File Destination** | Microsoft.FlatFileDestination | `write.csv()` or `write.text()` | CSV and delimited file writes |
-| **Excel Destination** | Microsoft.ExcelDestination | `write.format('excel')` | Excel file writes |
-| **Raw File Destination** | Microsoft.RawDestination | `write.format('parquet')` | SSIS raw files converted to Parquet |
+| **OLE DB Destination** | Microsoft.OLEDBDestination | `INSERT INTO` SQL or Delta Lake | Database writes via SQL statements |
+| **Flat File Destination** | Microsoft.FlatFileDestination | `df.write.csv()` or SQL INSERT | CSV and delimited file writes |
+| **Excel Destination** | Microsoft.ExcelDestination | `df.write.format('excel')` | Excel file writes |
+| **Raw File Destination** | Microsoft.RawDestination | `df.write.format('parquet')` | SSIS raw files converted to Parquet |
 
 ### Data Flow (Transformation) - Unsupported
 
@@ -144,8 +144,8 @@ The **Script Component** often contains **C# or VB.NET code bodies** with comple
 
 **Manual conversion required:**
 - Analyze the C#/VB logic
-- Rewrite as Python UDFs or PySpark transformations
-- Test thoroughly as row-by-row logic may need redesign for distributed processing
+- Rewrite as SQL UDFs or CASE statements
+- Test thoroughly as row-by-row logic may need redesign for set-based SQL processing
 :::
 
 ---
@@ -163,17 +163,24 @@ Derived Column Transformation
     ProcessDate = GETDATE()
 ```
 
-**Converted PySpark:**
+**Converted Spark SQL:**
 ```python
-from pyspark.sql.functions import col, concat, lit, when, current_timestamp
-
-df = df.withColumn('FullName',
-                   concat(col('FirstName'), lit(' '), col('LastName'))) \
-       .withColumn('AgeGroup',
-                   when(col('Age') < 30, 'Young')
-                   .when(col('Age') < 60, 'Middle')
-                   .otherwise('Senior')) \
-       .withColumn('ProcessDate', current_timestamp())
+# Processing node Package\Data Flow Task\Derived Column, type DERIVED_COLUMN
+# component nameDerived Column
+Derived_Column_Add_Columns = f"""
+SELECT 
+    *,
+    CONCAT(FirstName, ' ', LastName) AS FullName,
+    CASE 
+        WHEN Age < 30 THEN 'Young'
+        WHEN Age < 60 THEN 'Middle'
+        ELSE 'Senior'
+    END AS AgeGroup,
+    CURRENT_TIMESTAMP() AS ProcessDate
+FROM source_table
+"""
+Derived_Column_Add_Columns = spark.sql(Derived_Column_Add_Columns)
+Derived_Column_Add_Columns.createOrReplaceTempView('Derived_Column_Add_Columns')
 ```
 
 ### Conditional Split
@@ -187,15 +194,34 @@ Conditional Split Transformation
     LowValue: Default Output
 ```
 
-**Converted PySpark:**
+**Converted Spark SQL:**
 ```python
-# Split into multiple DataFrames based on conditions
-df_high = df.filter(col('Amount') > 1000)
-df_medium = df.filter((col('Amount') > 100) & (col('Amount') <= 1000))
-df_low = df.filter(col('Amount') <= 100)
+# Processing node Package\Data Flow Task\Conditional Split, type CONDITIONAL_SPLIT
+# component nameConditional Split
 
-# Process each split separately
-# ... further transformations ...
+# High Value output
+Conditional_Split_High_Value = f"""
+SELECT * FROM source_table
+WHERE Amount > 1000
+"""
+Conditional_Split_High_Value = spark.sql(Conditional_Split_High_Value)
+Conditional_Split_High_Value.createOrReplaceTempView('Conditional_Split_High_Value')
+
+# Medium Value output
+Conditional_Split_Medium_Value = f"""
+SELECT * FROM source_table
+WHERE Amount > 100 AND Amount <= 1000
+"""
+Conditional_Split_Medium_Value = spark.sql(Conditional_Split_Medium_Value)
+Conditional_Split_Medium_Value.createOrReplaceTempView('Conditional_Split_Medium_Value')
+
+# Low Value output (default)
+Conditional_Split_Low_Value = f"""
+SELECT * FROM source_table
+WHERE Amount <= 100
+"""
+Conditional_Split_Low_Value = spark.sql(Conditional_Split_Low_Value)
+Conditional_Split_Low_Value.createOrReplaceTempView('Conditional_Split_Low_Value')
 ```
 
 ### Lookup Transformation
@@ -209,23 +235,21 @@ Lookup Transformation
   Cache Mode: Full Cache
 ```
 
-**Converted PySpark (broadcast join):**
+**Converted Spark SQL:**
 ```python
-from pyspark.sql.functions import broadcast
-
-# Load reference table
-df_customer_type = spark.table('dim.customer_type')
-
-# Perform broadcast join for small lookup tables
-df_enriched = df.join(
-    broadcast(df_customer_type),
-    df.CustomerTypeID == df_customer_type.TypeID,
-    'left'
-).select(
-    df['*'],
-    df_customer_type.TypeName,
-    df_customer_type.TypeDescription
-)
+# Processing node Package\Data Flow Task\Lookup Customer Type, type LOOKUP
+# component nameLookup Customer Type
+Lookup_Customer_Type = f"""
+SELECT 
+    src.*,
+    ref.TypeName,
+    ref.TypeDescription
+FROM source_table src
+LEFT JOIN dim.customer_type ref
+    ON src.CustomerTypeID = ref.TypeID
+"""
+Lookup_Customer_Type = spark.sql(Lookup_Customer_Type)
+Lookup_Customer_Type.createOrReplaceTempView('Lookup_Customer_Type')
 ```
 
 ---
@@ -242,24 +266,19 @@ Variables:
   User::SourceFolder (String)
 ```
 
-**Converted PySpark (notebook parameters and variables):**
+**Converted Spark SQL (with Python variables):**
 ```python
-# Databricks notebook widgets for package parameters
-dbutils.widgets.text("MaxProcessDate", "2024-01-01")
-dbutils.widgets.text("SourceFolder", "/mnt/source/")
+# SSIS Package Variables converted to Python variables
+V_MaxProcessDate = f'2024-01-01'
+V_SourceFolder = f'/mnt/source/'
 
-# Read widget values
-max_process_date = dbutils.widgets.get("MaxProcessDate")
-source_folder = dbutils.widgets.get("SourceFolder")
-
-# Local variables
-row_count = 0
-
-# Use in transformations
-df_incremental = df.filter(col('ProcessDate') > max_process_date)
-row_count = df_incremental.count()
-
-print(f"Processed {row_count} rows")
+# Use in SQL transformations via spark.sql()
+Incremental_Data_Query = f"""
+SELECT * 
+FROM source_table
+WHERE ProcessDate > '{V_MaxProcessDate}'
+"""
+spark.sql(Incremental_Data_Query)
 ```
 
 ### SSIS Expressions
@@ -267,24 +286,28 @@ print(f"Processed {row_count} rows")
 **SSIS Expression Language:**
 ```
 File Connection Manager Expression:
-  @[User::SourceFolder] + "customers_" +
-  (DT_WSTR, 8) DATEPART("yyyy", GETDATE()) +
+  @[User::SourceFolder] + "customers_" + 
+  (DT_WSTR, 8) DATEPART("yyyy", GETDATE()) + 
   RIGHT("0" + (DT_WSTR, 2) DATEPART("mm", GETDATE()), 2) + ".csv"
 ```
 
-**Converted Python:**
+**Converted Spark SQL:**
 ```python
 from datetime import datetime
+
+# SSIS Variables
+V_SourceFolder = f'/mnt/source/'
 
 # Build dynamic file path
 current_date = datetime.now()
 year = current_date.strftime("%Y")
 month = current_date.strftime("%m")
+V_FilePath = f"{V_SourceFolder}customers_{year}{month}.csv"
 
-file_path = f"{source_folder}customers_{year}{month}.csv"
-print(f"Reading from: {file_path}")
-
-df = spark.read.csv(file_path, header=True)
+# Read from dynamic path using spark.sql()
+Read_Customers_Data = f"""SELECT * FROM csv.`{V_FilePath}`"""
+Read_Customers_Data = spark.sql(Read_Customers_Data)
+Read_Customers_Data.createOrReplaceTempView('Read_Customers_Data')
 ```
 
 ---
@@ -298,36 +321,46 @@ df = spark.read.csv(file_path, header=True)
 ForEach Loop Container (File Enumerator)
   Folder: C:\Data\Input\
   Files: *.csv
-
+  
   Tasks:
     - Data Flow: Process each file
     - Execute SQL: Log processing
 ```
 
-**Converted PySpark:**
+**Converted Spark SQL:**
 ```python
-# List files in directory
-file_list = dbutils.fs.ls("/mnt/data/input/")
-csv_files = [f.path for f in file_list if f.path.endswith('.csv')]
+# SSIS Variables
+V_InputFolder = f'/mnt/data/input/'
 
-# Process each file
-for file_path in csv_files:
-    print(f"Processing: {file_path}")
+# Process multiple CSV files using wildcard pattern
+ForEach_Read_All_Files = f"""
+SELECT 
+    *,
+    input_file_name() AS source_file,
+    CURRENT_TIMESTAMP() AS process_date
+FROM csv.`{V_InputFolder}*.csv`
+"""
+ForEach_Read_All_Files = spark.sql(ForEach_Read_All_Files)
+ForEach_Read_All_Files.createOrReplaceTempView('ForEach_Read_All_Files')
 
-    # Data Flow: Load and transform
-    df = spark.read.csv(file_path, header=True)
-    df_transformed = df.withColumn('source_file', lit(file_path)) \
-                       .withColumn('process_date', current_timestamp())
+# Insert into target table
+ForEach_Insert_Customer_Data = f"""
+INSERT INTO staging.customer_data
+SELECT * FROM ForEach_Read_All_Files
+"""
+spark.sql(ForEach_Insert_Customer_Data)
 
-    # Write to target
-    df_transformed.write.format("delta").mode("append").saveAsTable("staging.customer_data")
-
-    # Log processing
-    log_df = spark.createDataFrame([(file_path, df.count(), datetime.now())],
-                                   ['file_path', 'row_count', 'process_time'])
-    log_df.write.format("delta").mode("append").saveAsTable("logs.processing_log")
-
-    print(f"Completed: {file_path}")
+# Log processing
+ForEach_Log_Processing = f"""
+INSERT INTO logs.processing_log
+SELECT 
+    source_file AS file_path,
+    COUNT(*) AS row_count,
+    MAX(process_date) AS process_time
+FROM ForEach_Read_All_Files
+GROUP BY source_file
+"""
+spark.sql(ForEach_Log_Processing)
 ```
 
 ### Execute SQL Task
@@ -338,27 +371,31 @@ Execute SQL Task
   Connection: DW_Connection
   SQL Statement:
     TRUNCATE TABLE staging.customer_temp;
-
+    
     INSERT INTO staging.customer_temp
     SELECT * FROM staging.customer_stage
     WHERE process_date >= ?;
-
+  
   Parameter Mapping:
     Variable: User::MaxProcessDate → Parameter 0
 ```
 
-**Converted PySpark:**
+**Converted Spark SQL:**
 ```python
-# Execute SQL statements
-spark.sql("TRUNCATE TABLE staging.customer_temp")
+# SSIS Variable
+V_MaxProcessDate = f'2024-01-01'
 
-spark.sql(f"""
-    INSERT INTO staging.customer_temp
-    SELECT * FROM staging.customer_stage
-    WHERE process_date >= '{max_process_date}'
-""")
+# Processing node Package\Execute SQL Task, type EXECUTE_SQL
+# component nameExecute SQL Task
+Execute_SQL_Truncate = f"""TRUNCATE TABLE staging.customer_temp"""
+spark.sql(Execute_SQL_Truncate)
 
-print("SQL execution completed")
+Execute_SQL_Insert = f"""
+INSERT INTO staging.customer_temp
+SELECT * FROM staging.customer_stage
+WHERE process_date >= '{V_MaxProcessDate}'
+"""
+spark.sql(Execute_SQL_Insert)
 ```
 
 ---
@@ -373,32 +410,26 @@ public void Main()
 {
     string sourceFolder = Dts.Variables["User::SourceFolder"].Value.ToString();
     DateTime processDate = DateTime.Now;
-
+    
     int fileCount = Directory.GetFiles(sourceFolder, "*.csv").Length;
-
+    
     Dts.Variables["User::FileCount"].Value = fileCount;
-
+    
     Dts.TaskResult = (int)ScriptResults.Success;
 }
 ```
 
-**Converted Python:**
+**Converted Python (with Spark SQL):**
 ```python
-# Script logic converted to Python
-import os
 from datetime import datetime
 
-source_folder = dbutils.widgets.get("SourceFolder")
-process_date = datetime.now()
+# SSIS Variables
+V_SourceFolder = f'/mnt/source/'
+V_ProcessDate = datetime.now()
 
-# Count files
-file_list = dbutils.fs.ls(source_folder)
-file_count = len([f for f in file_list if f.path.endswith('.csv')])
-
-# Store result for later use
-dbutils.widgets.text("FileCount", str(file_count))
-
-print(f"Found {file_count} CSV files in {source_folder}")
+# Count files (requires Python/dbutils for file system operations)
+file_list = dbutils.fs.ls(V_SourceFolder)
+V_FileCount = str(len([f for f in file_list if f.path.endswith('.csv')]))
 ```
 
 ### Script Component (Data Flow)
@@ -418,21 +449,31 @@ public override void Input0_ProcessInputRow(Input0Buffer Row)
         Row.PriorityFlag = "NORMAL";
         Row.DiscountRate = 0.05;
     }
-
+    
     Row.ProcessedDate = DateTime.Now;
 }
 ```
 
-**Converted PySpark:**
+**Converted Spark SQL:**
 ```python
-from pyspark.sql.functions import when, current_timestamp
-
-# Custom transformation logic
-df = df.withColumn('PriorityFlag',
-                   when(col('Amount') > 1000, 'HIGH').otherwise('NORMAL')) \
-       .withColumn('DiscountRate',
-                   when(col('Amount') > 1000, 0.15).otherwise(0.05)) \
-       .withColumn('ProcessedDate', current_timestamp())
+# Processing node Package\Data Flow Task\Script Component, type SCRIPT_COMPONENT
+# component nameScript Component
+Script_Component_Custom_Logic = f"""
+SELECT 
+    *,
+    CASE 
+        WHEN Amount > 1000 THEN 'HIGH'
+        ELSE 'NORMAL'
+    END AS PriorityFlag,
+    CASE 
+        WHEN Amount > 1000 THEN 0.15
+        ELSE 0.05
+    END AS DiscountRate,
+    CURRENT_TIMESTAMP() AS ProcessedDate
+FROM source_table
+"""
+Script_Component_Custom_Logic = spark.sql(Script_Component_Custom_Logic)
+Script_Component_Custom_Logic.createOrReplaceTempView('Script_Component_Custom_Logic')
 ```
 
 ---
@@ -454,21 +495,18 @@ df = df.withColumn('PriorityFlag',
 </ConnectionManagers>
 ```
 
-**Converted PySpark (using secrets):**
+**Converted PySpark:**
 ```python
-# Store connection details in Databricks secrets
-jdbc_url = dbutils.secrets.get("connections", "source-db-url")
-jdbc_user = dbutils.secrets.get("connections", "source-db-user")
-jdbc_password = dbutils.secrets.get("connections", "source-db-password")
-
-# Use in read operation
-df = spark.read \
+# Processing node Package\Data Flow Task\OLE DB Source, type SOURCE
+# component nameOLE DB Source - SourceDB Connection
+Connection_Manager_SourceDB = spark.read \
     .format("jdbc") \
-    .option("url", jdbc_url) \
+    .option("url", "source-db-url") \
     .option("dbtable", "dbo.Customers") \
-    .option("user", jdbc_user) \
-    .option("password", jdbc_password) \
+    .option("user", "source-db-user") \
+    .option("password", "source-db-password") \
     .load()
+Connection_Manager_SourceDB.createOrReplaceTempView('Connection_Manager_SourceDB')
 ```
 
 ---
@@ -489,130 +527,109 @@ Control Flow:
    - OLE DB Destination: DW.Customers
 3. Execute SQL Task: Update control table
 
-**Converted PySpark Notebook:**
+**Converted Spark SQL Notebook:**
 
 ```python
 # Databricks notebook source
-# MAGIC %md
-# MAGIC # Customer Data Load Pipeline
-# MAGIC Converted from SSIS Package: LoadCustomerData.dtsx
 
 # COMMAND ----------
 
-from pyspark.sql.functions import col, concat, lit, when, current_timestamp, broadcast
+# SSIS Package Variables
+V_ProcessDate = f'2024-01-01'
+V_PackageName = f'LoadCustomerData'
 
 # COMMAND ----------
 
-# MAGIC %md
-# MAGIC ## Configuration
+# Processing node Package\Startup Tasks\Truncate Staging Table, type EXECUTE_SQL
+# component nameTruncate Staging Table
+Package_Truncate_Staging_Table = f"""TRUNCATE TABLE staging.customers"""
+spark.sql(Package_Truncate_Staging_Table)
 
 # COMMAND ----------
 
-# Notebook parameters (equivalent to SSIS package parameters)
-dbutils.widgets.text("ProcessDate", "2024-01-01")
-process_date = dbutils.widgets.get("ProcessDate")
-
-# Connection details (stored in Databricks secrets)
-jdbc_url = dbutils.secrets.get("connections", "source-db-url")
-jdbc_user = dbutils.secrets.get("connections", "source-db-user")
-jdbc_password = dbutils.secrets.get("connections", "source-db-password")
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ## Execute SQL Task: Truncate Staging Table
-
-# COMMAND ----------
-
-spark.sql("TRUNCATE TABLE staging.customers")
-print("Staging table truncated")
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ## Data Flow Task: ETL_Customers
-
-# COMMAND ----------
-
-# OLE DB Source: Read from source database
-df_customers = spark.read \
+# Processing node Package\ETL_Customers\OLE DB Source, type SOURCE
+# component nameOLE DB Source
+Package_ETL_Customers_OLE_DB_Source = spark.read \
     .format("jdbc") \
-    .option("url", jdbc_url) \
+    .option("url", "source-db-url") \
     .option("dbtable", "dbo.Customers") \
-    .option("user", jdbc_user) \
-    .option("password", jdbc_password) \
+    .option("user", "source-db-user") \
+    .option("password", "source-db-password") \
     .load()
-
-print(f"Loaded {df_customers.count()} rows from source")
-
-# COMMAND ----------
-
-# Derived Column: Add computed columns
-df_transformed = df_customers \
-    .withColumn('FullName',
-                concat(col('FirstName'), lit(' '), col('LastName'))) \
-    .withColumn('ProcessDate', current_timestamp())
+Package_ETL_Customers_OLE_DB_Source.createOrReplaceTempView('Package_ETL_Customers_OLE_DB_Source')
 
 # COMMAND ----------
 
-# Lookup: Join with customer type reference
-df_customer_type = spark.table('dim.customer_type')
-
-df_enriched = df_transformed.join(
-    broadcast(df_customer_type),
-    df_transformed.CustomerTypeID == df_customer_type.TypeID,
-    'left'
-)
-
-# COMMAND ----------
-
-# Conditional Split: Filter active customers only
-df_active = df_enriched.filter(col('Status') == 'ACTIVE')
-
-print(f"Filtered to {df_active.count()} active customers")
+# Processing node Package\ETL_Customers\Derived Column, type DERIVED_COLUMN
+# component nameDerived Column
+Package_ETL_Customers_Derived_Column = f"""
+SELECT 
+    *,
+    CONCAT(FirstName, ' ', LastName) AS FullName,
+    CURRENT_TIMESTAMP() AS ProcessDate
+FROM Package_ETL_Customers_OLE_DB_Source
+"""
+Package_ETL_Customers_Derived_Column = spark.sql(Package_ETL_Customers_Derived_Column)
+Package_ETL_Customers_Derived_Column.createOrReplaceTempView('Package_ETL_Customers_Derived_Column')
 
 # COMMAND ----------
 
-# OLE DB Destination: Write to data warehouse
-df_active.select(
-    'CustomerID',
-    'FullName',
-    'Email',
-    'Status',
-    'TypeName',
-    'ProcessDate'
-).write \
-    .format("delta") \
-    .mode("append") \
-    .saveAsTable("dw.customers")
-
-print("Data loaded to warehouse")
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ## Execute SQL Task: Update Control Table
+# Processing node Package\ETL_Customers\Lookup Customer Type, type LOOKUP
+# component nameLookup Customer Type
+Package_ETL_Customers_Lookup = f"""
+SELECT 
+    src.*,
+    ref.TypeName,
+    ref.TypeDescription
+FROM Package_ETL_Customers_Derived_Column src
+LEFT JOIN dim.customer_type ref
+    ON src.CustomerTypeID = ref.TypeID
+"""
+Package_ETL_Customers_Lookup = spark.sql(Package_ETL_Customers_Lookup)
+Package_ETL_Customers_Lookup.createOrReplaceTempView('Package_ETL_Customers_Lookup')
 
 # COMMAND ----------
 
-row_count = df_active.count()
-
-spark.sql(f"""
-    INSERT INTO control.load_log (package_name, rows_processed, process_date)
-    VALUES ('LoadCustomerData', {row_count}, current_timestamp())
-""")
-
-print(f"Control table updated: {row_count} rows processed")
+# Processing node Package\ETL_Customers\Conditional Split, type CONDITIONAL_SPLIT
+# component nameConditional Split - Active Customers
+Package_ETL_Customers_Conditional_Split_Active = f"""
+SELECT * 
+FROM Package_ETL_Customers_Lookup
+WHERE Status = 'ACTIVE'
+"""
+Package_ETL_Customers_Conditional_Split_Active = spark.sql(Package_ETL_Customers_Conditional_Split_Active)
+Package_ETL_Customers_Conditional_Split_Active.createOrReplaceTempView('Package_ETL_Customers_Conditional_Split_Active')
 
 # COMMAND ----------
 
-# MAGIC %md
-# MAGIC ## Conversion Notes
-# MAGIC - OLE DB connections converted to JDBC with Databricks secrets
-# MAGIC - Derived columns converted to PySpark withColumn transformations
-# MAGIC - Lookup converted to broadcast join (reference table is small)
-# MAGIC - Conditional split converted to filter operation
-# MAGIC - Target uses Delta Lake for ACID compliance
+# Processing node Package\ETL_Customers\OLE DB Destination, type DESTINATION
+# component nameOLE DB Destination
+Package_ETL_Customers_OLE_DB_Destination = f"""
+INSERT INTO dw.customers
+SELECT 
+    CustomerID,
+    FullName,
+    Email,
+    Status,
+    TypeName,
+    ProcessDate
+FROM Package_ETL_Customers_Conditional_Split_Active
+"""
+spark.sql(Package_ETL_Customers_OLE_DB_Destination)
+
+# COMMAND ----------
+
+# Processing node Package\Completion Tasks\Update Control Table, type EXECUTE_SQL
+# component nameUpdate Control Table
+Package_Update_Control_Table = f"""
+INSERT INTO control.load_log (package_name, rows_processed, process_date)
+SELECT 
+    '{V_PackageName}' AS package_name,
+    COUNT(*) AS rows_processed,
+    CURRENT_TIMESTAMP() AS process_date
+FROM Package_ETL_Customers_Conditional_Split_Active
+"""
+spark.sql(Package_Update_Control_Table)
 ```
 
 ---
@@ -625,8 +642,8 @@ print(f"Control table updated: {row_count} rows processed")
    databricks labs lakebridge transpile \
      --source-dialect ssis \
      --input-source /path/to/ssis/packages \
-     --output-folder /output/pyspark \
-     --target-technology pyspark
+     --output-folder /output/sparksql \
+     --target-technology sparksql
    ```
 3. **Review generated notebooks** for conversion warnings
 4. **Configure Databricks secrets** for connection strings
@@ -634,6 +651,6 @@ print(f"Control table updated: {row_count} rows processed")
 6. **Deploy workflows** to production
 
 For more information, see:
-- [Source Systems Overview](./index.mdx)
+- [Main ETL Conversion Guide](../../)
 - [BladeBridge Configuration](../../pluggable_transpilers/bladebridge/bladebridge_configuration)
-- [Transpile CLI Reference](../index.mdx)
+- [Transpile CLI Reference](../../)
