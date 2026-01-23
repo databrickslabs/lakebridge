@@ -6,7 +6,7 @@ install:
 uninstall:
   script: src/databricks/labs/lakebridge/uninstall.py
 entrypoint: src/databricks/labs/lakebridge/cli.py
-min_python: 3.10
+min_python: 3.10.1
 commands:
   - name: analyze
     description: Analyze existing non-Databricks database or ETL sources

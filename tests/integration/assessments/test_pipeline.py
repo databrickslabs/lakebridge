@@ -132,8 +132,8 @@ def test_skipped_steps(sandbox_sqlserver: DatabaseManager, pipeline_config: Pipe
         assert result.error_message is None, "Skipped steps should not have error messages"
 
 
-def verify_output(get_logger: Logger, path: Path):
-    conn = duckdb.connect(str(Path(path)) + "/" + DB_NAME)
+def verify_output(get_logger, path):
+    conn = duckdb.connect(str(Path(path).expanduser()) + "/" + DB_NAME)
 
     expected_tables = ["usage", "inventory", "random_data"]
     logger = get_logger

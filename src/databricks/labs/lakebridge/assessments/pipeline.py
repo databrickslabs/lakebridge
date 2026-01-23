@@ -38,7 +38,7 @@ class PipelineClass:
     def __init__(self, config: PipelineConfig, executor: DatabaseManager | None):
         self.config = config
         self.executor = executor
-        self.db_path_prefix = Path(config.extract_folder)
+        self.db_path_prefix = Path(config.extract_folder).expanduser()
         self._create_dir(self.db_path_prefix)
 
     def execute(self) -> list[StepExecutionResult]:
