@@ -75,7 +75,7 @@ class ReconcileConfig:
 ```
 Parameters:
 
-- `data_source`: The data source to be reconciled. Supported values: `snowflake`, `teradata`, `oracle`, `mssql`, `synapse`, `databricks`.
+- `data_source`: The data source to be reconciled. Supported values: `snowflake`, `oracle`, `mssql`, `synapse`, `databricks`.
 - `report_type`: The type of report to be generated. Available report types are `schema`, `row`, `data` or `all`. For details check [here](./dataflow_example.mdx).
 - `secret_scope`: The secret scope name used to store the connection credentials for the source database system.
 - `database_config`: The database configuration for connecting to the source database. expects a `DatabaseConfig` object.

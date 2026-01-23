@@ -97,7 +97,7 @@ class WorkspaceInstallation:
             self._recon_deployment.install(config.reconcile, wheel_path)
         if config.include_switch:
             logger.info("Installing Switch transpiler to workspace.")
-            self._switch_deployment.install()
+            self._switch_deployment.install(use_serverless=config.switch_use_serverless)
 
     def uninstall(self, config: LakebridgeConfiguration):
         # This will remove all the Lakebridge modules
