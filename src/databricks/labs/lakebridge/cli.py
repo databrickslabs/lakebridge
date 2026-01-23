@@ -16,7 +16,7 @@ from databricks.sdk.service.sql import CreateWarehouseRequestWarehouseType
 from databricks.sdk import WorkspaceClient
 
 from databricks.labs.blueprint.cli import App
-from databricks.labs.blueprint.entrypoint import is_in_debug
+from databricks.labs.blueprint.entrypoint import get_logger
 from databricks.labs.blueprint.installation import RootJsonValue, JsonObject, JsonValue
 from databricks.labs.blueprint.tui import Prompts
 
@@ -33,7 +33,6 @@ from databricks.labs.lakebridge.connections.env_getter import EnvGetter
 from databricks.labs.lakebridge.connections.synapse_helpers import validate_synapse_pools
 from databricks.labs.lakebridge.helpers.recon_config_utils import ReconConfigPrompts
 from databricks.labs.lakebridge.helpers.telemetry_utils import make_alphanum_or_semver
-from databricks.labs.lakebridge.install import installer
 from databricks.labs.lakebridge.reconcile.runner import ReconcileRunner
 from databricks.labs.lakebridge.lineage import lineage_generator
 from databricks.labs.lakebridge.reconcile.recon_config import RECONCILE_OPERATION_NAME, AGG_RECONCILE_OPERATION_NAME
@@ -51,7 +50,6 @@ from databricks.labs.switch.lsp import get_switch_dialects
 
 # Subclass to allow controlled access to protected methods.
 class Lakebridge(App):
-    _logger_instance: logging.Logger | None = None
 
     def create_workspace_client(self) -> WorkspaceClient:
         """Create a workspace client, with the appropriate product and version information.
@@ -61,15 +59,25 @@ class Lakebridge(App):
         self._patch_databricks_host()
         return self._workspace_client()
 
-    def get_logger(self) -> logging.Logger:
-        if self._logger_instance is None:
-            self._logger_instance = self._logger
-            self._logger_instance.setLevel(logging.INFO)
-        return self._logger_instance
+    def _log_level(self, raw: str) -> int:
+        """Convert the log-level provided by the Databricks CLI into a logging level supported by Python."""
+        log_level = super()._log_level(raw)
+        # Due to an issue in the handoff of the intended logging level from the Databricks CLI to our
+        # application, we can't currently distinguish between --log-level=WARN and nothing at all, where we
+        # prefer (and the application logging expects) INFO.
+        #
+        # Rather than default to only have WARNING logs show, it's preferable to default to INFO and have
+        # --log-level=WARN not work for now.
+        #
+        # See: https://github.com/databrickslabs/lakebridge/issues/2167
+        # TODO: Remove this once #2167 has been resolved.
+        if log_level == logging.WARNING:
+            log_level = logging.INFO
+        return log_level
 
 
 lakebridge = Lakebridge(__file__)
-logger = lakebridge.get_logger()
+logger = get_logger(__file__)
 
 
 def raise_validation_exception(msg: str) -> NoReturn:
@@ -748,21 +756,31 @@ def install_transpile(
     transpiler_repository: TranspilerRepository = TranspilerRepository.user_home(),
 ) -> None:
     """Install or upgrade the Lakebridge transpilers."""
+    # Avoid circular imports.
+    from databricks.labs.lakebridge.install import installer  # pylint: disable=cyclic-import, import-outside-toplevel
+
     is_interactive = interactive_mode(interactive)
     ctx = ApplicationContext(w)
     ctx.add_user_agent_extra("cmd", "install-transpile")
     if artifact:
         ctx.add_user_agent_extra("artifact-overload", Path(artifact).name)
+    # Internal: use LAKEBRIDGE_CLUSTER_TYPE=CLASSIC env var to use classic job cluster
+    switch_use_serverless = os.environ.get("LAKEBRIDGE_CLUSTER_TYPE", "").upper() != "CLASSIC"
     if include_llm_transpiler:
         ctx.add_user_agent_extra("include-llm-transpiler", "true")
         # Decision was made not to prompt when include_llm_transpiler is set, and we expect users to use llm-transpile
         # and pass all the arguments.
         logger.info("Including LLM transpiler as part of install, interactive mode disabled: will skip questionnaire.")
         is_interactive = False
+
     user = w.current_user
     logger.debug(f"User: {user}")
     transpile_installer = installer(
-        w, transpiler_repository, is_interactive=is_interactive, include_llm=include_llm_transpiler
+        w,
+        transpiler_repository,
+        is_interactive=is_interactive,
+        include_llm=include_llm_transpiler,
+        switch_use_serverless=switch_use_serverless,
     )
     transpile_installer.run(module="transpile", artifact=artifact)
 
@@ -807,6 +825,9 @@ def configure_reconcile(
     transpiler_repository: TranspilerRepository = TranspilerRepository.user_home(),
 ) -> None:
     """Configure the Lakebridge reconciliation module"""
+    # Avoid circular imports.
+    from databricks.labs.lakebridge.install import installer  # pylint: disable=cyclic-import, import-outside-toplevel
+
     ctx = ApplicationContext(w)
     ctx.add_user_agent_extra("cmd", "configure-reconcile")
     user = w.current_user
@@ -1097,8 +1118,4 @@ def test_profiler_connection(w: WorkspaceClient, source_tech: str | None = None)
 
 
 if __name__ == "__main__":
-    app = lakebridge
-    logger = app.get_logger()
-    if is_in_debug():
-        logger.setLevel(logging.DEBUG)
-    app()
+    lakebridge()

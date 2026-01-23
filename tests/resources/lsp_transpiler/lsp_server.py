@@ -171,8 +171,8 @@ class TestLspServer(LanguageServer):
             )
             return source_sql, [diagnostic]
         elif file_name == "workflow.xml":
-            combined = Path(__file__).parent / "aggregated_output.mime"
-            output = combined.read_text("utf-8")
+            # This script must be the working directory at runtime.
+            output = Path("aggregated_output.mime").read_text("utf-8")
             return output, []
         else:
             # general test case

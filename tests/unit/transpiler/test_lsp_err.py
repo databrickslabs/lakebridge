@@ -51,9 +51,9 @@ def capture_lsp_server_logs(caplog: pytest.LogCaptureFixture) -> LSPServerLogs:
 
 
 @asynccontextmanager
-async def run_lsp_server() -> AsyncGenerator[LSPEngine]:
+async def run_lsp_server(test_resources: Path) -> AsyncGenerator[LSPEngine]:
     """Run the LSP server and yield the LSPEngine instance."""
-    config_path = Path(__file__).parent.parent.parent / "resources" / "lsp_transpiler" / "lsp_config.yml"
+    config_path = test_resources / "lsp_transpiler" / "lsp_config.yml"
     lsp_engine = LSPEngine.from_config_path(config_path)
     config = TranspileConfig(
         transpiler_config_path="transpiler_config_path",
@@ -68,21 +68,21 @@ async def run_lsp_server() -> AsyncGenerator[LSPEngine]:
 
 
 @pytest.mark.asyncio
-async def test_stderr_captured_as_logs(capture_lsp_server_logs: LSPServerLogs) -> None:
+async def test_stderr_captured_as_logs(capture_lsp_server_logs: LSPServerLogs, test_resources: Path) -> None:
     """Verify that output from the LSP engine is captured as logs."""
     # The LSP engine logs a message to stderr when it starts; look for that message in the logs.
     with capture_lsp_server_logs.capture():
-        async with run_lsp_server() as lsp_engine:
+        async with run_lsp_server(test_resources) as lsp_engine:
             assert lsp_engine.is_alive
 
     assert "Running LSP Test Server\u2026" in capture_lsp_server_logs.log_lines()
 
 
 @pytest.mark.asyncio
-async def test_stderr_non_utf8_captured(capture_lsp_server_logs: LSPServerLogs) -> None:
+async def test_stderr_non_utf8_captured(capture_lsp_server_logs: LSPServerLogs, test_resources: Path) -> None:
     """Verify that output from the LSP engine on stderr is captured even if it doesn't decode as UTF-8."""
     with capture_lsp_server_logs.capture():
-        async with run_lsp_server() as lsp_engine:
+        async with run_lsp_server(test_resources) as lsp_engine:
             assert lsp_engine.is_alive
 
     # U+FFFD is the Unicode replacement character, when invalid UTF-8 is encountered.

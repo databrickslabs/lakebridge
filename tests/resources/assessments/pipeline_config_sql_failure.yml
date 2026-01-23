@@ -6,6 +6,7 @@ steps:
   - name: invalid_sql_step
     type: sql
     flag: active
-    extract_source: resources/assessments/invalid_query.sql
+    # Relative to tests/resources/ within the project.
+    extract_source: assessments/invalid_query.sql
     mode: overwrite
     frequency: daily
