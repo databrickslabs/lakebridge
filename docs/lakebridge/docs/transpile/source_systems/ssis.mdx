@@ -495,7 +495,7 @@ Script_Component_Custom_Logic.createOrReplaceTempView('Script_Component_Custom_L
 </ConnectionManagers>
 ```
 
-**Converted PySpark:**
+**Converted Databricks:**
 ```python
 # Processing node Package\Data Flow Task\OLE DB Source, type SOURCE
 # component nameOLE DB Source - SourceDB Connection
@@ -518,117 +518,76 @@ Connection_Manager_SourceDB.createOrReplaceTempView('Connection_Manager_SourceDB
 **SSIS Package: LoadCustomerData.dtsx**
 
 Control Flow:
-1. Execute SQL Task: Truncate staging table
-2. Data Flow Task: ETL_Customers
-   - OLE DB Source: SourceDB.Customers
-   - Derived Column: Add FullName, ProcessDate
-   - Lookup: Customer Type
-   - Conditional Split: Active customers only
-   - OLE DB Destination: DW.Customers
-3. Execute SQL Task: Update control table
+1. Execute SQL Task: Get Destination Table Name or File Name (with ProcessName parameter)
+2. Execute SQL Task: Truncate Staging Table
+3. Execute SQL Task: Load Customer Data
+4. Execute SQL Task: Update Control Table (with ProcessName parameter)
+
+Parameters:
+- ProcessName (String): "CustomerETL"
 
 **Converted Spark SQL Notebook:**
 
 ```python
 # Databricks notebook source
 
-# COMMAND ----------
-
-# SSIS Package Variables
-V_ProcessDate = f'2024-01-01'
-V_PackageName = f'LoadCustomerData'
+ProcessName = f'CustomerETL'
 
 # COMMAND ----------
 
-# Processing node Package\Startup Tasks\Truncate Staging Table, type EXECUTE_SQL
+# Processing node Package\Get Destination Table Name or File Name, type EXECUTE_SQL
+# component nameGet Destination Table Name or File Name
+# input parameters :
+	# ProcessName 
+# output parameters :
+Package_Get_Destination_Table_Name_or_File_Name = f"""DECLARE VARIABLE V_TblNm STRING;
+call aud.spGetPackageDesTbl( {ProcessName}, V_TblNm );
+
+SELECT V_TblNm AS DestinationTable;"""
+spark.sql(Package_Get_Destination_Table_Name_or_File_Name)
+
+# COMMAND ----------
+
+# Processing node Package\Truncate Staging Table, type EXECUTE_SQL
 # component nameTruncate Staging Table
-Package_Truncate_Staging_Table = f"""TRUNCATE TABLE staging.customers"""
+# input parameters :
+# output parameters :
+Package_Truncate_Staging_Table = f"""TRUNCATE TABLE staging.customers;"""
 spark.sql(Package_Truncate_Staging_Table)
 
 # COMMAND ----------
 
-# Processing node Package\ETL_Customers\OLE DB Source, type SOURCE
-# component nameOLE DB Source
-Package_ETL_Customers_OLE_DB_Source = spark.read \
-    .format("jdbc") \
-    .option("url", "source-db-url") \
-    .option("dbtable", "dbo.Customers") \
-    .option("user", "source-db-user") \
-    .option("password", "source-db-password") \
-    .load()
-Package_ETL_Customers_OLE_DB_Source.createOrReplaceTempView('Package_ETL_Customers_OLE_DB_Source')
-
-# COMMAND ----------
-
-# Processing node Package\ETL_Customers\Derived Column, type DERIVED_COLUMN
-# component nameDerived Column
-Package_ETL_Customers_Derived_Column = f"""
-SELECT 
-    *,
-    CONCAT(FirstName, ' ', LastName) AS FullName,
-    CURRENT_TIMESTAMP() AS ProcessDate
-FROM Package_ETL_Customers_OLE_DB_Source
-"""
-Package_ETL_Customers_Derived_Column = spark.sql(Package_ETL_Customers_Derived_Column)
-Package_ETL_Customers_Derived_Column.createOrReplaceTempView('Package_ETL_Customers_Derived_Column')
-
-# COMMAND ----------
-
-# Processing node Package\ETL_Customers\Lookup Customer Type, type LOOKUP
-# component nameLookup Customer Type
-Package_ETL_Customers_Lookup = f"""
-SELECT 
-    src.*,
-    ref.TypeName,
-    ref.TypeDescription
-FROM Package_ETL_Customers_Derived_Column src
-LEFT JOIN dim.customer_type ref
-    ON src.CustomerTypeID = ref.TypeID
-"""
-Package_ETL_Customers_Lookup = spark.sql(Package_ETL_Customers_Lookup)
-Package_ETL_Customers_Lookup.createOrReplaceTempView('Package_ETL_Customers_Lookup')
-
-# COMMAND ----------
-
-# Processing node Package\ETL_Customers\Conditional Split, type CONDITIONAL_SPLIT
-# component nameConditional Split - Active Customers
-Package_ETL_Customers_Conditional_Split_Active = f"""
-SELECT * 
-FROM Package_ETL_Customers_Lookup
-WHERE Status = 'ACTIVE'
-"""
-Package_ETL_Customers_Conditional_Split_Active = spark.sql(Package_ETL_Customers_Conditional_Split_Active)
-Package_ETL_Customers_Conditional_Split_Active.createOrReplaceTempView('Package_ETL_Customers_Conditional_Split_Active')
-
-# COMMAND ----------
-
-# Processing node Package\ETL_Customers\OLE DB Destination, type DESTINATION
-# component nameOLE DB Destination
-Package_ETL_Customers_OLE_DB_Destination = f"""
-INSERT INTO dw.customers
+# Processing node Package\Load Customer Data, type EXECUTE_SQL
+# component nameLoad Customer Data
+# input parameters :
+# output parameters :
+Package_Load_Customer_Data = f"""INSERT INTO staging.customers 
+(CustomerID, CustomerName, Email, Status, ProcessDate)
 SELECT 
     CustomerID,
-    FullName,
+    CustomerName,
     Email,
     Status,
-    TypeName,
-    ProcessDate
-FROM Package_ETL_Customers_Conditional_Split_Active
-"""
-spark.sql(Package_ETL_Customers_OLE_DB_Destination)
+    current_timestamp() AS ProcessDate
+FROM source.customers
+WHERE Status = 'Active';"""
+spark.sql(Package_Load_Customer_Data)
 
 # COMMAND ----------
 
-# Processing node Package\Completion Tasks\Update Control Table, type EXECUTE_SQL
+# Processing node Package\Update Control Table, type EXECUTE_SQL
 # component nameUpdate Control Table
-Package_Update_Control_Table = f"""
-INSERT INTO control.load_log (package_name, rows_processed, process_date)
+# input parameters :
+	# ProcessName 
+# output parameters :
+Package_Update_Control_Table = f"""INSERT INTO control.load_log 
+(process_name, rows_processed, process_date)
 SELECT 
-    '{V_PackageName}' AS package_name,
+    {ProcessName} AS process_name,
     COUNT(*) AS rows_processed,
-    CURRENT_TIMESTAMP() AS process_date
-FROM Package_ETL_Customers_Conditional_Split_Active
-"""
+    current_timestamp() AS process_date
+FROM dw.customers
+WHERE ProcessDate >= CAST(current_timestamp() AS DATE);"""
 spark.sql(Package_Update_Control_Table)
 ```
 
