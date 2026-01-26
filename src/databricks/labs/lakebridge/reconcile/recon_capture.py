@@ -83,6 +83,7 @@ class ReconIntermediatePersist:
 SparkRuntimeType = Literal["DATABRICKS_SERVERLESS", "CLASSIC", "SPARK_CONNECT", "NO_JVM_UNKNOWN"]
 
 
+@lru_cache(maxsize=1)
 def _classify_spark_runtime(spark: SparkSession) -> SparkRuntimeType:
     try:
         _ = spark.sparkContext
@@ -99,8 +100,7 @@ def _classify_spark_runtime(spark: SparkSession) -> SparkRuntimeType:
         return "NO_JVM_UNKNOWN"
 
 
-@lru_cache(maxsize=1)
-def cache_df_or_not(spark: SparkSession, df: DataFrame) -> DataFrame:
+def cache_df_if_supported(spark: SparkSession, df: DataFrame) -> DataFrame:
     cluster_type = _classify_spark_runtime(spark)
     if cluster_type != "DATABRICKS_SERVERLESS":
         df = df.cache()
