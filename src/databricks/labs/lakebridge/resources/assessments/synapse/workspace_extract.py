@@ -41,7 +41,7 @@ def execute():
         table_name = "workspace_workspace_info"
         logger.info(f"Extraction started for {table_name}")
         workspace_info = workspace.get_workspace_info()
-        workspace_info_df = pd.json_normalize(workspace_info)
+        workspace_info_df = pd.json_normalize([workspace_info])
         insert_df_to_duckdb(workspace_info_df, db_path, table_name)
 
         # Extract SQL pools
@@ -62,63 +62,63 @@ def execute():
         table_name = "workspace_linked_services"
         logger.info(f"Extraction started for {table_name}")
         linked_services = workspace.list_linked_services()
-        linked_services_df = pd.json_normalize(linked_services)
+        linked_services_df = pd.json_normalize([svc for svc_pages in linked_services for svc in svc_pages])
         insert_df_to_duckdb(linked_services_df, db_path, table_name)
 
         # Extract Data Flows
         table_name = "workspace_dataflows"
         logger.info(f"Extraction started for {table_name}")
         dataflows = workspace.list_data_flows()
-        dataflows_df = pd.json_normalize(dataflows)
+        dataflows_df = pd.json_normalize([flow for flow_pages in dataflows for flow in flow_pages])
         insert_df_to_duckdb(dataflows_df, db_path, table_name)
 
         # Extract Pipelines
         table_name = "workspace_pipelines"
         logger.info(f"Extraction started for {table_name}")
         pipelines = workspace.list_pipelines()
-        pipelines_df = pd.json_normalize(pipelines)
+        pipelines_df = pd.json_normalize([pipeline for pipeline_pages in pipelines for pipeline in pipeline_pages])
         insert_df_to_duckdb(pipelines_df, db_path, table_name)
 
         # Extract Spark Jobs
         table_name = "workspace_spark_jobs"
         logger.info(f"Extraction started for {table_name}")
         spark_jobs = workspace.list_spark_job_definitions()
-        spark_jobs_df = pd.json_normalize(spark_jobs)
+        spark_jobs_df = pd.json_normalize([job for job_pages in spark_jobs for job in job_pages])
         insert_df_to_duckdb(spark_jobs_df, db_path, table_name)
 
         # Extract Notebooks
         table_name = "workspace_notebooks"
         logger.info(f"Extraction started for {table_name}")
         notebooks = workspace.list_notebooks()
-        notebooks_df = pd.json_normalize(notebooks)
+        notebooks_df = pd.json_normalize([notebook for notebook_pages in notebooks for notebook in notebook_pages])
         insert_df_to_duckdb(notebooks_df, db_path, table_name)
 
         # Extract SQL Scripts
         table_name = "workspace_sql_scripts"
         logger.info(f"Extraction started for {table_name}")
         sql_scripts = workspace.list_sqlscripts()
-        sql_scripts_df = pd.json_normalize(sql_scripts)
+        sql_scripts_df = pd.json_normalize([script for script_pages in sql_scripts for script in script_pages])
         insert_df_to_duckdb(sql_scripts_df, db_path, table_name)
 
         # Extract Triggers
         table_name = "workspace_triggers"
         logger.info(f"Extraction started for {table_name}")
         triggers = workspace.list_triggers()
-        triggers_df = pd.json_normalize(triggers)
+        triggers_df = pd.json_normalize([trigger for trigger_pages in triggers for trigger in trigger_pages])
         insert_df_to_duckdb(triggers_df, db_path, table_name)
 
         # Extract Libraries
         table_name = "workspace_libraries"
         logger.info(f"Extraction started for {table_name}")
         libraries = workspace.list_libraries()
-        libraries_df = pd.json_normalize(libraries)
+        libraries_df = pd.json_normalize([lib for lib_pages in libraries for lib in lib_pages])
         insert_df_to_duckdb(libraries_df, db_path, table_name)
 
         # Extract Datasets
         table_name = "workspace_datasets"
         logger.info(f"Extraction started for {table_name}")
         datasets = workspace.list_datasets()
-        datasets_df = pd.json_normalize(datasets)
+        datasets_df = pd.json_normalize([dataset for dataset_pages in datasets for dataset in dataset_pages])
         insert_df_to_duckdb(datasets_df, db_path, table_name)
 
         # Extract Pipeline Runs (last 60 days)
