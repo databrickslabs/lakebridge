@@ -422,7 +422,7 @@ WHERE status = 'deleted'
 INSERT INTO customer_archive
 SELECT * FROM customers
 WHERE status = 'deleted'
-    AND updated_at < CURRENT_DATE - INTERVAL 730 DAYS;
+    AND updated_at < DATE_ADD(current_date, -730);
 ```
 
 ---
