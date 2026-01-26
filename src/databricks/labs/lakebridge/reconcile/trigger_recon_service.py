@@ -60,7 +60,10 @@ class TriggerReconService:
                 )
             )
         finally:
-            ws.dbfs.delete(str(reconciler.intermediate_persist.base_dir), recursive=True)
+            try:
+                ws.dbfs.delete(str(reconciler.intermediate_persist.base_dir), recursive=True)
+            except IOError:
+                logger.exception("Cleaning intermediate storage failed. Resuming program")
 
     @staticmethod
     def create_recon_dependencies(

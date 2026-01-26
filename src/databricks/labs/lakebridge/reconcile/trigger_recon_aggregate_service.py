@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime
 
 from pyspark.sql import SparkSession
@@ -18,6 +19,8 @@ from databricks.labs.lakebridge.reconcile.recon_output_config import (
 )
 from databricks.labs.lakebridge.reconcile.reconciliation import Reconciliation
 from databricks.labs.lakebridge.reconcile.trigger_recon_service import TriggerReconService
+
+logger = logging.getLogger(__name__)
 
 
 class TriggerReconAggregateService:
@@ -49,7 +52,10 @@ class TriggerReconAggregateService:
                 operation_name=AGG_RECONCILE_OPERATION_NAME,
             )
         finally:
-            ws.dbfs.delete(str(reconciler.intermediate_persist.base_dir), recursive=True)
+            try:
+                ws.dbfs.delete(str(reconciler.intermediate_persist.base_dir), recursive=True)
+            except IOError:
+                logger.exception("Cleaning intermediate storage failed. Resuming program")
 
     @staticmethod
     def recon_aggregate_one(
