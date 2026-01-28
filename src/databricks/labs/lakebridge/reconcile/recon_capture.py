@@ -1,4 +1,5 @@
 import logging
+import os
 import tempfile
 import uuid
 from datetime import datetime
@@ -60,8 +61,8 @@ class ReconIntermediatePersist(AbstractReconIntermediatePersist):
 
     @cached_property
     def _is_databricks(self) -> bool:
-        is_db = any(k.startswith("spark.databricks") for k in self._spark.conf.getAll.keys())
-        logger.info(f"Running on Databricks check completed with result: {is_db}")
+        is_db = "DATABRICKS_RUNTIME_VERSION" in os.environ
+        logger.debug(f"Running on Databricks check completed with result: {is_db}")
         return is_db
 
     @property
