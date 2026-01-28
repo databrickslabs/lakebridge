@@ -23,6 +23,7 @@ from lsprotocol.types import (
     WorkspaceEditClientCapabilities,
 )
 
+Changes: TypeAlias = Mapping[str, Sequence[TextEdit]]
 DocumentChange: TypeAlias = CreateFile | DeleteFile | RenameFile | TextDocumentEdit
 
 
@@ -92,7 +93,7 @@ class BaseEditor(Editor):
             logger.debug(f"Could not (completely) apply workspace edit (result={result}): {edit}")
         return result
 
-    def _apply_changes(self, changes: Mapping[str, Sequence[TextEdit]]) -> ApplyWorkspaceEditResult:
+    def _apply_changes(self, changes: Changes) -> ApplyWorkspaceEditResult:
         for index, (uri, text_edits) in enumerate(changes.items()):
             if not (result := self._apply_text_edits(uri, text_edits)).applied:
                 return ApplyWorkspaceEditResult(
