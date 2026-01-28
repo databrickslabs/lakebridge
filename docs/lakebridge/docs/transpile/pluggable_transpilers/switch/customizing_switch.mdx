@@ -175,6 +175,7 @@ Switch creates Delta tables with the following complete schema:
 | `result_python_parse_error` | string | Python syntax errors found using ast.parse (initially null) |
 | `result_extracted_sqls` | array&lt;string&gt; | SQL statements extracted from Python code (initially null) |
 | `result_sql_parse_errors` | array&lt;string&gt; | SQL syntax errors found using EXPLAIN (initially null) |
+| `result_sdp_error` | string | Any SDP related conversion errors encountered (initially null) |
 | `export_output_path` | string | Path to the exported file (initially null) |
 | `export_status` | string | Export processing status (initially null) |
 | `export_error` | string | Export error information (initially null) |
