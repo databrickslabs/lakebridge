@@ -342,3 +342,44 @@ class EditorProxy(Editor, ABC):
                 string-value of the exception as the failure reason.
         """
         return document_change
+
+
+class SandboxEditor(EditorProxy):
+    """An editor that only allows edits within a specific directory."""
+
+    _base: Path
+    """The base path within which edits are allowed."""
+
+    def __init__(self, editor: Editor, *, base: Path) -> None:
+        super().__init__(editor)
+        self._base = base
+
+    def _map_text_edits(self, uri: str, text_edits: Sequence[TextEdit]) -> tuple[str, Sequence[TextEdit]]:
+        uri, text_edits = super()._map_text_edits(uri, text_edits)
+        path = self.uri_as_path(uri)
+        if path is None:
+            raise ValueError(f"Invalid uri for edits: {uri}")
+        if not path.is_relative_to(self._base):
+            raise ValueError(f"Edit not allowed, must be within {self._base}: {uri}")
+        return uri, text_edits
+
+    def _check_uri(self, uri: str, document_change: DocumentChange) -> None:
+        path = self.uri_as_path(uri)
+        if path is None:
+            raise ValueError(f"Invalid uri for change: {document_change}")
+        if not path.is_relative_to(self._base):
+            raise ValueError(f"Invalid uri for change, must be within {self._base}: {document_change}")
+
+    def _map_document_change(self, document_change: DocumentChange) -> DocumentChange:
+        document_change = super()._map_document_change(document_change)
+        match document_change:
+            case CreateFile(uri=uri) | DeleteFile(uri=uri):
+                self._check_uri(uri, document_change)
+            case RenameFile(old_uri=old_uri, new_uri=new_uri):
+                self._check_uri(old_uri, document_change)
+                self._check_uri(new_uri, document_change)
+            case TextDocumentEdit(text_document=text_document):
+                self._check_uri(text_document.uri, document_change)
+            case _:
+                raise ValueError(f"Unsupported document change type: {document_change}")
+        return document_change

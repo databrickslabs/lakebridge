@@ -1,8 +1,9 @@
 import logging
 import os
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from logging import LogRecord
 from pathlib import Path
+from typing import TypeAlias
 from unittest.mock import Mock, DEFAULT
 
 import pytest
@@ -24,8 +25,10 @@ from lsprotocol.types import (
 
 from databricks.labs.lakebridge.transpiler.lsp.editing import (
     BaseEditor,
+    DocumentChange,
     EditorProxy,
     LakebridgeEditor,
+    SandboxEditor,
     logger as editing_logger,
 )
 
@@ -33,20 +36,33 @@ from databricks.labs.lakebridge.transpiler.lsp.editing import (
 LSP_ORIGIN = Range(start=Position(0, 0), end=Position(0, 0))
 
 
+AppliedEdits: TypeAlias = tuple[str, Sequence[TextEdit]] | DocumentChange
+
+
 class MinimumEditor(BaseEditor):
+    edits: list[AppliedEdits]
+
+    def __init__(self):
+        self.edits = []
+
     def _apply_text_edits(self, uri: str, text_edits: Sequence[TextEdit]) -> ApplyWorkspaceEditResult:
+        self.edits.append((uri, text_edits))
         return ApplyWorkspaceEditResult(applied=True)
 
     def _apply_document_edit(self, edit: TextDocumentEdit) -> ApplyWorkspaceEditResult:
+        self.edits.append(edit)
         return ApplyWorkspaceEditResult(applied=True)
 
     def _create_file(self, edit: CreateFile) -> ApplyWorkspaceEditResult:
+        self.edits.append(edit)
         return ApplyWorkspaceEditResult(applied=True)
 
     def _rename_file(self, edit: RenameFile) -> ApplyWorkspaceEditResult:
+        self.edits.append(edit)
         return ApplyWorkspaceEditResult(applied=True)
 
     def _delete_file(self, edit: DeleteFile) -> ApplyWorkspaceEditResult:
+        self.edits.append(edit)
         return ApplyWorkspaceEditResult(applied=True)
 
 
@@ -732,3 +748,140 @@ def test_proxy_capabilities_are_underlying_capabilities() -> None:
     editor_proxy = _IdentityProxy(base_editor)
 
     assert base_editor.capabilities() == editor_proxy.capabilities()
+
+
+# Synthetic path, a sandbox within which changes are allowed.
+SANDBOX = Path("/path") / "to" / "sandbox"
+# Various paths that are all within the sandbox.
+ALLOWED_PATHS: Sequence[Path] = (
+    SANDBOX / "file.txt",
+    SANDBOX / "nested" / "file.txt",
+    SANDBOX / "nested" / ".." / "file.txt",
+    SANDBOX / "a" / "b" / ".." / ".." / "c" / "file.txt",
+)
+# Various paths that are all outside the sandbox.
+DISALLOWED_PATHS: Sequence[Path] = (
+    Path("/path") / "to" / "outside.txt",
+    Path("/other") / "location.txt",
+    Path("/path") / "to" / "sandbox" / ".." / "outside.txt",
+    Path("/path") / "to" / "sandbox" / "nested" / ".." / ".." / "outside.txt",
+    Path("/path") / "to" / "sandbox" / ".." / ".." / ".." / "etc" / "passwd",
+)
+
+
+def _apply_sandbox_edits(edit: WorkspaceEdit) -> tuple[ApplyWorkspaceEditResult, Sequence[AppliedEdits]]:
+    base_editor = MinimumEditor()
+    sandbox_editor = SandboxEditor(base_editor, base=SANDBOX)
+
+    result = sandbox_editor.apply(edit)
+
+    return result, base_editor.edits
+
+
+@pytest.mark.parametrize("allowed_path", ALLOWED_PATHS, ids=str)
+def test_sandbox_editor_allows_changes_within_sandbox(allowed_path) -> None:
+    """Verify that simple changes within the sandbox directory are allowed."""
+    uri = allowed_path.as_uri()
+    changes = (TextEdit(range=Range(start=Position(0, 0), end=Position(1, 0)), new_text="new first line\n"),)
+    result, applied_edits = _apply_sandbox_edits(WorkspaceEdit(changes={uri: changes}))
+
+    assert result.applied
+    assert applied_edits == [(uri, changes)]
+
+
+@pytest.mark.parametrize("disallowed_path", DISALLOWED_PATHS, ids=str)
+def test_sandbox_editor_rejects_changes_outside_sandbox(disallowed_path: Path) -> None:
+    """Verify that simple changes outside the sandbox are rejected."""
+    uri = disallowed_path.as_uri()
+    changes = (TextEdit(range=Range(start=Position(0, 0), end=Position(1, 0)), new_text="new first line\n"),)
+
+    result, applied_edits = _apply_sandbox_edits(WorkspaceEdit(changes={uri: changes}))
+
+    assert not result.applied
+    assert result.failure_reason is not None and "must be within" in result.failure_reason
+    assert not applied_edits
+
+
+def _create_file(p: Path) -> CreateFile:
+    return CreateFile(uri=p.as_uri())
+
+
+def _delete_file(p: Path) -> DeleteFile:
+    return DeleteFile(uri=p.as_uri())
+
+
+def _rename_file(old: Path, new: Path) -> RenameFile:
+    return RenameFile(old.as_uri(), new.as_uri())
+
+
+def _text_replace(p: Path) -> TextDocumentEdit:
+    text_document = OptionalVersionedTextDocumentIdentifier(uri=p.as_uri())
+    edits = (TextEdit(range=Range(start=Position(0, 0), end=Position(1, 0)), new_text="replacement first line\n"),)
+    return TextDocumentEdit(text_document=text_document, edits=edits)
+
+
+def _test_sandbox_document_changes_allowed(document_changes: Sequence[DocumentChange]) -> None:
+    result, applied_edits = _apply_sandbox_edits(WorkspaceEdit(document_changes=document_changes))
+
+    assert result.applied
+    assert applied_edits == list(document_changes)
+
+
+def _test_sandbox_document_changes_rejected(document_changes: Sequence[DocumentChange]) -> None:
+    result, applied_edits = _apply_sandbox_edits(WorkspaceEdit(document_changes=document_changes))
+
+    assert not result.applied
+    assert result.failure_reason is not None and "must be within" in result.failure_reason
+    assert not applied_edits
+
+
+@pytest.mark.parametrize("allowed_path", ALLOWED_PATHS, ids=str)
+@pytest.mark.parametrize("resource_op", (_create_file, _delete_file, _text_replace))
+def test_sandbox_editor_allows_single_resource_operations_within_sandbox(
+    allowed_path: Path, resource_op: Callable[[Path], DocumentChange]
+) -> None:
+    """Verify that single-resource operations outside the sandbox are allowed."""
+    document_changes = (resource_op(allowed_path),)
+    _test_sandbox_document_changes_allowed(document_changes)
+
+
+@pytest.mark.parametrize("allowed_old_path", ALLOWED_PATHS, ids=str)
+@pytest.mark.parametrize("allowed_new_path", ALLOWED_PATHS, ids=str)
+def test_sandbox_editor_allows_rename_file_within_sandbox(allowed_old_path: Path, allowed_new_path: Path) -> None:
+    """Verify that renaming within the sandbox is allowed."""
+    document_changes = (_rename_file(allowed_old_path, allowed_new_path),)
+    _test_sandbox_document_changes_allowed(document_changes)
+
+
+@pytest.mark.parametrize("disallowed_path", DISALLOWED_PATHS, ids=str)
+@pytest.mark.parametrize("resource_op", (_create_file, _delete_file, _text_replace))
+def test_sandbox_editor_rejects_single_resource_operations_outside_sandbox(
+    disallowed_path: Path, resource_op: Callable[[Path], DocumentChange]
+) -> None:
+    """Verify that single-resource operations within the sandbox are rejected."""
+    document_changes = (resource_op(disallowed_path),)
+    _test_sandbox_document_changes_rejected(document_changes)
+
+
+@pytest.mark.parametrize("disallowed_old_path", DISALLOWED_PATHS, ids=str)
+def test_sandbox_editor_rejects_rename_file_from_outside_sandbox(disallowed_old_path: Path) -> None:
+    """Verify that renaming from outside into the sandbox is not allowed."""
+    inside_sandbox = SANDBOX / "file_within.txt"
+    document_changes = (_rename_file(old=disallowed_old_path, new=inside_sandbox),)
+    _test_sandbox_document_changes_rejected(document_changes)
+
+
+@pytest.mark.parametrize("disallowed_new_path", DISALLOWED_PATHS, ids=str)
+def test_sandbox_editor_rejects_rename_file_to_outside_sandbox(disallowed_new_path: Path) -> None:
+    """Verify that renaming to outside the sandbox is not allowed."""
+    inside_sandbox = SANDBOX / "file_within.txt"
+    document_changes = (_rename_file(old=inside_sandbox, new=disallowed_new_path),)
+    _test_sandbox_document_changes_rejected(document_changes)
+
+
+@pytest.mark.parametrize("disallowed_old_path", DISALLOWED_PATHS, ids=str)
+@pytest.mark.parametrize("disallowed_new_path", DISALLOWED_PATHS, ids=str)
+def test_sandbox_editor_rejects_renames_outside_sandbox(disallowed_old_path: Path, disallowed_new_path: Path) -> None:
+    """Verify that renaming from the sandbox to outside is not allowed."""
+    document_changes = (_rename_file(old=disallowed_old_path, new=disallowed_new_path),)
+    _test_sandbox_document_changes_rejected(document_changes)
