@@ -764,9 +764,9 @@ ALLOWED_PATHS: Sequence[Path] = (
 DISALLOWED_PATHS: Sequence[Path] = (
     Path("/path") / "to" / "outside.txt",
     Path("/other") / "location.txt",
-    Path("/path") / "to" / "sandbox" / ".." / "outside.txt",
-    Path("/path") / "to" / "sandbox" / "nested" / ".." / ".." / "outside.txt",
-    Path("/path") / "to" / "sandbox" / ".." / ".." / ".." / "etc" / "passwd",
+    SANDBOX / ".." / "outside.txt",
+    SANDBOX / "nested" / ".." / ".." / "outside.txt",
+    SANDBOX / ".." / ".." / ".." / "etc" / "passwd",
 )
 
 
