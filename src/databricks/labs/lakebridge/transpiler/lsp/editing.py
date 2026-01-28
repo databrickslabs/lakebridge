@@ -4,7 +4,7 @@ import re
 from abc import ABC, abstractmethod
 from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import IO, ClassVar
+from typing import ClassVar, IO, TypeAlias
 
 from pygls.uris import to_fs_path
 
@@ -23,7 +23,7 @@ from lsprotocol.types import (
     WorkspaceEditClientCapabilities,
 )
 
-DocumentChange = CreateFile | DeleteFile | RenameFile | TextDocumentEdit
+DocumentChange: TypeAlias = CreateFile | DeleteFile | RenameFile | TextDocumentEdit
 
 
 logger = logging.getLogger(__name__)
