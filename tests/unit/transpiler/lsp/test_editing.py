@@ -28,6 +28,7 @@ from databricks.labs.lakebridge.transpiler.lsp.editing import (
     DocumentChange,
     EditorProxy,
     LakebridgeEditor,
+    RetargetingEditor,
     SandboxEditor,
     logger as editing_logger,
 )
@@ -885,3 +886,70 @@ def test_sandbox_editor_rejects_renames_outside_sandbox(disallowed_old_path: Pat
     """Verify that renaming from the sandbox to outside is not allowed."""
     document_changes = (_rename_file(old=disallowed_old_path, new=disallowed_new_path),)
     _test_sandbox_document_changes_rejected(document_changes)
+
+
+RETARGET_BASE = Path("/path/to/input")
+RETARGET_TARGET = Path("/path/output")
+
+EXPECTED_RETARGETS = {
+    RETARGET_BASE / "file.txt": RETARGET_TARGET / "file.txt",
+    RETARGET_BASE / "path" / "to" / "file.txt": RETARGET_TARGET / "path" / "to" / "file.txt",
+    RETARGET_BASE / "nested" / "but" / ".." / ".." / "not-nested.txt": RETARGET_TARGET / "not-nested.txt",
+    RETARGET_BASE / "nested" / ".." / ".." / "not-retargeted": (RETARGET_BASE / ".." / "not-retargeted").resolve(),
+    Path("/outside") / "non-retargeted.txt": Path("/outside") / "non-retargeted.txt",
+}
+
+
+def _apply_retargeted_edits(edit: WorkspaceEdit) -> tuple[ApplyWorkspaceEditResult, Sequence[AppliedEdits]]:
+    base_editor = MinimumEditor()
+    retargeting_editor = RetargetingEditor(base_editor, base=RETARGET_BASE, target=RETARGET_TARGET)
+
+    result = retargeting_editor.apply(edit)
+
+    return result, base_editor.edits
+
+
+@pytest.mark.parametrize(("original_path", "expected_path"), EXPECTED_RETARGETS.items(), ids=str)
+def test_retargeting_editor_changes(original_path: Path, expected_path: Path) -> None:
+    """Verify that simple changes are retargeted properly."""
+    text_edits = (TextEdit(range=Range(start=Position(0, 0), end=Position(1, 0)), new_text="replacement first line\n"),)
+    original_changes = {original_path.as_uri(): text_edits}
+    expected_changes = [(expected_path.as_uri(), text_edits)]
+
+    result, edits = _apply_retargeted_edits(WorkspaceEdit(changes=original_changes))
+
+    assert result.applied
+    assert edits == expected_changes
+
+
+def _test_retargeted_document_changes(
+    document_changes: Sequence[DocumentChange], expected_changes: Sequence[DocumentChange]
+) -> None:
+    result, applied_edits = _apply_retargeted_edits(WorkspaceEdit(document_changes=document_changes))
+
+    assert result.applied
+    assert applied_edits == list(expected_changes)
+
+
+@pytest.mark.parametrize(("original_path", "expected_path"), EXPECTED_RETARGETS.items(), ids=str)
+@pytest.mark.parametrize("resource_op", (_create_file, _delete_file, _text_replace))
+def test_retargeting_editor_single_resource_operations(
+    original_path: Path, expected_path: Path, resource_op: Callable[[Path], DocumentChange]
+) -> None:
+    """Verify that single-resource operations are properly retargeted."""
+    original_changes = (resource_op(original_path),)
+    retargeted_changes = (resource_op(expected_path),)
+
+    _test_retargeted_document_changes(original_changes, retargeted_changes)
+
+
+@pytest.mark.parametrize(("original_old_path", "expected_old_path"), EXPECTED_RETARGETS.items(), ids=str)
+@pytest.mark.parametrize(("original_new_path", "expected_new_path"), EXPECTED_RETARGETS.items(), ids=str)
+def test_retargeting_editor_rename_operations(
+    original_old_path: Path, expected_old_path: Path, original_new_path: Path, expected_new_path: Path
+) -> None:
+    """Verify that rename operations work properly, including when one side is outside the retargeting base."""
+    original_changes = (_rename_file(original_old_path, original_new_path),)
+    retargeted_changes = (_rename_file(expected_old_path, expected_new_path),)
+
+    _test_retargeted_document_changes(original_changes, retargeted_changes)

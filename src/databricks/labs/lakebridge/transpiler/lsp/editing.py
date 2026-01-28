@@ -383,3 +383,55 @@ class SandboxEditor(EditorProxy):
             case _:
                 raise ValueError(f"Unsupported document change type: {document_change}")
         return document_change
+
+
+class RetargetingEditor(EditorProxy):
+    """An editor that retargets paths and passes through them to a downstream editor."""
+
+    _base: Path
+    """The base path, within which edits will be retargeted."""
+
+    _target: Path
+    """The target path where edits will be retargeted."""
+
+    def __init__(self, editor: Editor, *, base: Path, target: Path) -> None:
+        super().__init__(editor)
+        self._base = base
+        self._target = target
+
+    def _retarget(self, uri: str) -> str:
+        path = self.uri_as_path(uri)
+        if path is None:
+            raise ValueError(f"Invalid uri for change: {uri}")
+        try:
+            relative_path = path.relative_to(self._base)
+        except ValueError:
+            return path.as_uri()
+        retargeted = self._target / relative_path
+        return retargeted.as_uri()
+
+    def _map_text_edits(self, uri: str, text_edits: Sequence[TextEdit]) -> tuple[str, Sequence[TextEdit]]:
+        uri, text_edits = super()._map_text_edits(uri, text_edits)
+        retargeted_uri = self._retarget(uri)
+        return retargeted_uri, text_edits
+
+    def _map_document_change(self, document_change: DocumentChange) -> DocumentChange:
+        document_change = super()._map_document_change(document_change)
+        retargeted_change: DocumentChange
+        match document_change:
+            case CreateFile(uri=uri) | DeleteFile(uri=uri):
+                retargeted_uri = self._retarget(uri)
+                retargeted_change = attrs.evolve(document_change, uri=retargeted_uri)
+            case RenameFile(old_uri=old_uri, new_uri=new_uri):
+                retargeted_old_uri = self._retarget(old_uri)
+                retargeted_new_uri = self._retarget(new_uri)
+                retargeted_change = attrs.evolve(
+                    document_change, old_uri=retargeted_old_uri, new_uri=retargeted_new_uri
+                )
+            case TextDocumentEdit(text_document=text_document):
+                retargeted_uri = self._retarget(text_document.uri)
+                retargeted_document = attrs.evolve(text_document, uri=retargeted_uri)
+                retargeted_change = attrs.evolve(document_change, text_document=retargeted_document)
+            case _:
+                raise ValueError(f"Unsupported document change type: {document_change}")
+        return retargeted_change
