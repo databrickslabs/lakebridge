@@ -644,31 +644,33 @@ class LSPEngine(TranspileEngine):
         # Set CONVERTER_KEY_FILE to bypass hash validation and use file-based key
         # Find the converter_key.txt relative to the installed bladebridge package
         try:
-            import databricks.labs.bladebridge
-            bladebridge_path = Path(databricks.labs.bladebridge.__file__).parent
+            import databricks.labs.bladebridge  # type: ignore[import-untyped] # pylint: disable=import-outside-toplevel,import-error,no-name-in-module
+
+            bladebridge_path = Path(databricks.labs.bladebridge.__file__).parent  # pylint: disable=no-member
             converter_key = str(bladebridge_path / "Converter" / "bin" / "MacOS" / "converter_key.txt")
-        except Exception:
+        except Exception:  # pylint: disable=broad-exception-caught
             # Fallback if module not found
             converter_key = ""
-        
+
         env = {
-            **env, 
-            "DATABRICKS_LAKEBRIDGE_LOG_LEVEL": log_level, 
+            **env,
+            "DATABRICKS_LAKEBRIDGE_LOG_LEVEL": log_level,
             "PYTHONUNBUFFERED": "1",
         }
         if converter_key and Path(converter_key).exists():
             env["CONVERTER_KEY_FILE"] = converter_key
-            
+
         logger.debug(f"Starting LSP engine: {executable} {args} (cwd={self._workdir})")
         await self._client.start_io(executable, *args, env=env, cwd=self._workdir)
 
     def _setup_progress_handler(self) -> None:
         """Register handler for window/logMessage notifications from LSP server."""
+
         @self._client.feature("window/logMessage")
         def on_log_message(params):
             # Display server progress messages to user
             logger.info(f"[Transpiler] {params.message}")
-    
+
     def _client_capabilities(self):
         return ClientCapabilities()  # TODO do we need to refine this ?
 
