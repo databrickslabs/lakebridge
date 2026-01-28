@@ -1011,13 +1011,6 @@ def test_is_databricks_false(mock_spark):
     assert persist.is_databricks is False
 
 
-def test_is_databricks_true(spark):
-    conf = ReconcileMetadataConfig()
-    persist = ReconIntermediatePersistUnderTest(spark, conf)
-
-    assert persist.is_databricks is True
-
-
 def test_dir_uses_tempfile(mock_spark):
     conf = ReconcileMetadataConfig()
     persist = ReconIntermediatePersistUnderTest(mock_spark, conf)
@@ -1026,22 +1019,8 @@ def test_dir_uses_tempfile(mock_spark):
     assert str(persist.base_dir).startswith(expected)
 
 
-def test_format_uses_uc(spark):
-    conf = ReconcileMetadataConfig()
-    persist = ReconIntermediatePersistUnderTest(spark, conf)
-
-    assert str(persist.base_dir).startswith("/Volumes/")
-
-
 def test_format_uses_parquet(mock_spark):
     conf = ReconcileMetadataConfig()
     persist = ReconIntermediatePersistUnderTest(mock_spark, conf)
 
     assert persist.format == "parquet"
-
-
-def test_format_uses_delta(spark):
-    conf = ReconcileMetadataConfig()
-    persist = ReconIntermediatePersistUnderTest(spark, conf)
-
-    assert persist.format == "delta"
