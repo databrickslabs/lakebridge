@@ -28,9 +28,27 @@ from databricks.labs.lakebridge.transpiler.lsp.editing import BaseEditor, Lakebr
 LSP_ORIGIN = Range(start=Position(0, 0), end=Position(0, 0))
 
 
+class MinimumEditor(BaseEditor):
+    def _apply_text_edits(self, uri: str, text_edits: Sequence[TextEdit]) -> ApplyWorkspaceEditResult:
+        return ApplyWorkspaceEditResult(applied=True)
+
+    def _apply_document_edit(self, edit: TextDocumentEdit) -> ApplyWorkspaceEditResult:
+        return ApplyWorkspaceEditResult(applied=True)
+
+    def _create_file(self, edit: CreateFile) -> ApplyWorkspaceEditResult:
+        return ApplyWorkspaceEditResult(applied=True)
+
+    def _rename_file(self, edit: RenameFile) -> ApplyWorkspaceEditResult:
+        return ApplyWorkspaceEditResult(applied=True)
+
+    def _delete_file(self, edit: DeleteFile) -> ApplyWorkspaceEditResult:
+        return ApplyWorkspaceEditResult(applied=True)
+
+
 def test_default_capabilities() -> None:
     """Verify the default set of capabilities that are reported."""
-    capabilities = BaseEditor.capabilities()
+
+    capabilities = MinimumEditor().capabilities()
     assert capabilities.normalizes_line_endings, "Line endings are normalized here to avoid duplication in servers."
     assert capabilities.failure_handling == FailureHandlingKind.Abort, "Editors abort on first error by default."
     assert capabilities.resource_operations == [], "No resource operations are supported by default."
@@ -200,7 +218,7 @@ def test_base_editor_document_changes_error_abort() -> None:
 
 def test_lakebridge_editor_capabilities() -> None:
     """Verify the capabilities declared by the Lakebridge editor."""
-    capabilities = LakebridgeEditor.capabilities()
+    capabilities = LakebridgeEditor().capabilities()
     assert capabilities.document_changes
     assert capabilities.normalizes_line_endings
     assert (resource_operations := capabilities.resource_operations) is not None

@@ -30,9 +30,8 @@ logger = logging.getLogger(__name__)
 
 
 class Editor(ABC):
-    @classmethod
     @abstractmethod
-    def capabilities(cls) -> WorkspaceEditClientCapabilities:
+    def capabilities(self) -> WorkspaceEditClientCapabilities:
         """Return the capabilities of this editor."""
 
     @abstractmethod
@@ -43,12 +42,11 @@ class Editor(ABC):
 class BaseEditor(Editor):
     """A base editor implementation that sets up the plumbing for applying text edits."""
 
-    @classmethod
-    def capabilities(cls) -> WorkspaceEditClientCapabilities:
+    def capabilities(self) -> WorkspaceEditClientCapabilities:
         return WorkspaceEditClientCapabilities(
             document_changes=True,
-            resource_operations=list(cls.supported_resource_operations()),
-            failure_handling=cls.failure_handling(),
+            resource_operations=list(self.supported_resource_operations()),
+            failure_handling=self.failure_handling(),
             normalizes_line_endings=True,
         )
 
