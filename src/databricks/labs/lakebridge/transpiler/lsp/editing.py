@@ -39,6 +39,15 @@ class Editor(ABC):
     def apply(self, edit: WorkspaceEdit) -> ApplyWorkspaceEditResult:
         """Apply the given set of edits."""
 
+    @classmethod
+    def uri_as_path(cls, uri: str) -> Path | None:
+        """Convert a URI to a filesystem path, if possible."""
+        fs_path = to_fs_path(uri)
+        if fs_path is None:
+            return None
+        real_path = os.path.realpath(fs_path)
+        return Path(real_path)
+
 
 class BaseEditor(Editor):
     """A base editor implementation that sets up the plumbing for applying text edits."""
@@ -170,13 +179,10 @@ class LakebridgeEditor(BaseEditor):
 
     def _create_file(self, edit: CreateFile) -> ApplyWorkspaceEditResult:
         # Determine the canonical path to the file that will be created. (Parts of the path may or may not exist.)
-        uri = edit.uri
-        fs_path = to_fs_path(uri)
-        if fs_path is None:
-            reason = f"Cannot create file, invalid filesystem path: {uri}"
+        path = self.uri_as_path(edit.uri)
+        if path is None:
+            reason = f"Cannot create file, invalid filesystem path: {edit.uri}"
             return ApplyWorkspaceEditResult(applied=False, failure_reason=reason)
-        real_path = os.path.realpath(fs_path)
-        path = Path(real_path)
 
         # There are really 3 different modes of operation, depending on the options.
         #  - overwrite: options.overwrite is true
@@ -190,8 +196,10 @@ class LakebridgeEditor(BaseEditor):
         try:
             path.parent.mkdir(parents=True, exist_ok=True)
         except OSError as e:
-            logger.warning(f"Cannot create/truncate file, parent directory could not be created: {uri}", exc_info=e)
-            reason = f"Cannot create/truncate file ({uri}), parent directory could not be created: {e}"
+            logger.warning(
+                f"Cannot create/truncate file, parent directory could not be created: {edit.uri}", exc_info=e
+            )
+            reason = f"Cannot create/truncate file ({edit.uri}), parent directory could not be created: {e}"
             return ApplyWorkspaceEditResult(applied=False, failure_reason=reason)
 
         # Attempt to open the file for writing.
@@ -201,12 +209,12 @@ class LakebridgeEditor(BaseEditor):
         except FileExistsError as e:
             if options and options.ignore_if_exists:
                 return ApplyWorkspaceEditResult(applied=True)
-            msg = f"Cannot create file, already exists: {uri}"
+            msg = f"Cannot create file, already exists: {edit.uri}"
             logger.warning(msg, exc_info=e)
             return ApplyWorkspaceEditResult(applied=False, failure_reason=msg)
         except OSError as e:
-            logger.warning(f"Cannot create/truncate file: {uri}", exc_info=e)
-            msg = f"Cannot create/truncate file ({uri}) due to error: {e}"
+            logger.warning(f"Cannot create/truncate file: {edit.uri}", exc_info=e)
+            msg = f"Cannot create/truncate file ({edit.uri}) due to error: {e}"
             return ApplyWorkspaceEditResult(applied=False, failure_reason=msg)
 
         # Store the open (and empty) file, so a subsequent edit can insert the content.
@@ -215,13 +223,10 @@ class LakebridgeEditor(BaseEditor):
 
     def _apply_document_edit(self, edit: TextDocumentEdit) -> ApplyWorkspaceEditResult:
         # Determine the canonical path to the file that is being replaced.
-        uri = edit.text_document.uri
-        fs_path = to_fs_path(uri)
-        if fs_path is None:
-            reason = f"Cannot edit file, invalid filesystem path: {uri}"
+        path = self.uri_as_path(edit.text_document.uri)
+        if path is None:
+            reason = f"Cannot edit file, invalid filesystem path: {edit.text_document.uri}"
             return ApplyWorkspaceEditResult(applied=False, failure_reason=reason)
-        real_path = os.path.realpath(fs_path)
-        path = Path(real_path)
 
         # We must already have an open file ready for the content. It's empty.
         try:
@@ -231,14 +236,14 @@ class LakebridgeEditor(BaseEditor):
                         normalized_text = self.normalize_line_endings(only_edit.new_text)
                         open_file.write(normalized_text)
                     case _:
-                        reason = f"Unsupported document edit(s) for {uri}, only a single insert at the start of the file is supported: {edit.edits}"
+                        reason = f"Unsupported document edit(s) for {edit.text_document.uri}, only a single insert at the start of the file is supported: {edit.edits}"
                         return ApplyWorkspaceEditResult(applied=False, failure_reason=reason)
         except KeyError:
-            reason = f"Cannot modify a text document that is not newly created: {uri}"
+            reason = f"Cannot modify a text document that is not newly created: {edit.text_document.uri}"
             return ApplyWorkspaceEditResult(applied=False, failure_reason=reason)
         except OSError as e:
-            logger.warning(f"Cannot modify file due to error: {uri}", exc_info=e)
-            reason = f"Cannot modify file ({uri}) due to error: {e}"
+            logger.warning(f"Cannot modify file due to error: {edit.text_document.uri}", exc_info=e)
+            reason = f"Cannot modify file ({edit.text_document.uri}) due to error: {e}"
             return ApplyWorkspaceEditResult(applied=False, failure_reason=reason)
         return ApplyWorkspaceEditResult(applied=True)
 
