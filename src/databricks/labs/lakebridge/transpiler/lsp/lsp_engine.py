@@ -560,6 +560,7 @@ class LSPEngine(TranspileEngine):
 
     async def _do_initialize(self, config: TranspileConfig) -> None:
         await self._start_server()
+        self._setup_progress_handler()
         input_path = config.input_path
         root_path = input_path if input_path.is_dir() else input_path.parent
         params = InitializeParams(
@@ -639,10 +640,35 @@ class LSPEngine(TranspileEngine):
         log_level = logging.getLevelName(logging.getLogger("databricks").getEffectiveLevel())
         # TODO: Remove the --log_level argument once all our transpilers support the environment variable.
         args = [*args, f"--log_level={log_level}"]
-        env = {**env, "DATABRICKS_LAKEBRIDGE_LOG_LEVEL": log_level}
+        # Force Python to use unbuffered mode so subprocess output appears immediately
+        # Set CONVERTER_KEY_FILE to bypass hash validation and use file-based key
+        # Find the converter_key.txt relative to the installed bladebridge package
+        try:
+            import databricks.labs.bladebridge
+            bladebridge_path = Path(databricks.labs.bladebridge.__file__).parent
+            converter_key = str(bladebridge_path / "Converter" / "bin" / "MacOS" / "converter_key.txt")
+        except Exception:
+            # Fallback if module not found
+            converter_key = ""
+        
+        env = {
+            **env, 
+            "DATABRICKS_LAKEBRIDGE_LOG_LEVEL": log_level, 
+            "PYTHONUNBUFFERED": "1",
+        }
+        if converter_key and Path(converter_key).exists():
+            env["CONVERTER_KEY_FILE"] = converter_key
+            
         logger.debug(f"Starting LSP engine: {executable} {args} (cwd={self._workdir})")
         await self._client.start_io(executable, *args, env=env, cwd=self._workdir)
 
+    def _setup_progress_handler(self) -> None:
+        """Register handler for window/logMessage notifications from LSP server."""
+        @self._client.feature("window/logMessage")
+        def on_log_message(params):
+            # Display server progress messages to user
+            logger.info(f"[Transpiler] {params.message}")
+    
     def _client_capabilities(self):
         return ClientCapabilities()  # TODO do we need to refine this ?
 
