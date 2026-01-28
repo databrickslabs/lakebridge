@@ -22,7 +22,12 @@ from lsprotocol.types import (
     ApplyWorkspaceEditResult,
 )
 
-from databricks.labs.lakebridge.transpiler.lsp.editing import BaseEditor, LakebridgeEditor, logger as editing_logger
+from databricks.labs.lakebridge.transpiler.lsp.editing import (
+    BaseEditor,
+    EditorProxy,
+    LakebridgeEditor,
+    logger as editing_logger,
+)
 
 
 LSP_ORIGIN = Range(start=Position(0, 0), end=Position(0, 0))
@@ -714,3 +719,16 @@ def _apply_failing_document_write(
     expected_message = f"Cannot modify file due to error: {the_file.as_uri()}"
     [only_log] = [record for record in editor_warning_logs if record.msg == expected_message]
     return only_log
+
+
+def test_proxy_capabilities_are_underlying_capabilities() -> None:
+    """Verify that the editor proxy simply returns the underlying editor's capabilities as its own."""
+
+    class _IdentityProxy(EditorProxy):
+        # Nothing needed here; base implementation is sufficient.
+        pass
+
+    base_editor = MinimumEditor()
+    editor_proxy = _IdentityProxy(base_editor)
+
+    assert base_editor.capabilities() == editor_proxy.capabilities()

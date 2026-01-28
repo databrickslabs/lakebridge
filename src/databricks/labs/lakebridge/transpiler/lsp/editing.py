@@ -6,6 +6,7 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import ClassVar, IO, TypeAlias
 
+import attrs
 from pygls.uris import to_fs_path
 
 from lsprotocol.types import (
@@ -254,3 +255,90 @@ class LakebridgeEditor(BaseEditor):
     def _delete_file(self, edit: DeleteFile) -> ApplyWorkspaceEditResult:
         reason = f"Deleting files is not supported: {edit.uri}"
         return ApplyWorkspaceEditResult(applied=False, failure_reason=reason)
+
+
+class EditorProxy(Editor, ABC):
+    """A base class for an editing proxy.
+
+    This can examine (and potentially modify) edits before passing them to an underlying editor.
+    """
+
+    _editor: Editor
+    """Underlying editor that will apply edits to the retargeted path."""
+
+    def __init__(self, editor: Editor) -> None:
+        self._editor = editor
+
+    def capabilities(self) -> WorkspaceEditClientCapabilities:
+        return self._editor.capabilities()
+
+    def apply(self, edit: WorkspaceEdit) -> ApplyWorkspaceEditResult:
+        match self._map_changes(edit.changes):
+            case ApplyWorkspaceEditResult() as early_result:
+                return early_result
+            case mapped_changes:
+                pass
+        match self._map_document_changes(edit.document_changes):
+            case ApplyWorkspaceEditResult() as early_result:
+                return early_result
+            case mapped_document_changes:
+                pass
+        updated_edit = attrs.evolve(edit, changes=mapped_changes, document_changes=mapped_document_changes)
+        return self._editor.apply(updated_edit)
+
+    def _map_changes(self, changes: Changes | None) -> Changes | None | ApplyWorkspaceEditResult:
+        if not changes:
+            return changes
+        mapped_changes: dict[str, Sequence[TextEdit]] = {}
+        for index, (uri, text_edits) in enumerate(changes.items()):
+            try:
+                uri, text_edits = self._map_text_edits(uri, text_edits)
+            except ValueError as e:
+                return ApplyWorkspaceEditResult(applied=False, failure_reason=str(e), failed_change=index)
+            mapped_changes[uri] = text_edits
+        return mapped_changes
+
+    def _map_text_edits(self, uri: str, text_edits: Sequence[TextEdit]) -> tuple[str, Sequence[TextEdit]]:
+        """Allow subclasses to modify (or reject) edits for a document.
+
+        The default implementation returns the uri and edits as-is.
+
+        Args:
+              uri: the URI of the document to which the edits apply.
+              text_edits: the edits to apply to the document.
+        Returns:
+              A tuple containing the updated URI and text edits to apply.
+        Raises:
+              ValueError: if the edits should not be applied. The underlying workspace-edit will fail using the
+                string-value of the exception as the failure reason.
+        """
+        return uri, text_edits
+
+    def _map_document_changes(
+        self, document_changes: Sequence[DocumentChange] | None
+    ) -> Sequence[DocumentChange] | None | ApplyWorkspaceEditResult:
+        if not document_changes:
+            return document_changes
+        mapped_document_changes: list[DocumentChange] = []
+        for index, document_change in enumerate(document_changes):
+            try:
+                mapped_document_change = self._map_document_change(document_change)
+            except ValueError as e:
+                return ApplyWorkspaceEditResult(applied=False, failure_reason=str(e), failed_change=index)
+            mapped_document_changes.append(mapped_document_change)
+        return mapped_document_changes
+
+    def _map_document_change(self, document_change: DocumentChange) -> DocumentChange:
+        """Allow subclasses to modify (or reject) a change to a document.
+
+        The default implementation returns the change as-is.
+
+        Args:
+              document_change: the change to examine and/or modify.
+        Returns:
+              the change that should be applied.
+        Raises:
+              ValueError: if the change should not be applied. The underlying workspace-edit will fail using the
+                string-value of the exception as the failure reason.
+        """
+        return document_change
