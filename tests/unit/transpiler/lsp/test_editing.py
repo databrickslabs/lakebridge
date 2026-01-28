@@ -806,7 +806,7 @@ def test_sandbox_editor_rejects_changes_outside_sandbox(disallowed_path: Path) -
 
 
 def _create_file(p: Path) -> CreateFile:
-    return CreateFile(uri=p.as_uri())
+    return CreateFile(uri=p.as_uri(), options=CreateFileOptions(overwrite=True))
 
 
 def _delete_file(p: Path) -> DeleteFile:
@@ -817,9 +817,9 @@ def _rename_file(old: Path, new: Path) -> RenameFile:
     return RenameFile(old.as_uri(), new.as_uri())
 
 
-def _text_replace(p: Path) -> TextDocumentEdit:
+def _text_replace(p: Path, new_text="replacement first line\n") -> TextDocumentEdit:
     text_document = OptionalVersionedTextDocumentIdentifier(uri=p.as_uri())
-    edits = (TextEdit(range=Range(start=Position(0, 0), end=Position(1, 0)), new_text="replacement first line\n"),)
+    edits = (TextEdit(range=LSP_ORIGIN, new_text=new_text),)
     return TextDocumentEdit(text_document=text_document, edits=edits)
 
 
@@ -1000,3 +1000,86 @@ def test_retargeting_lakebridge_editor_rejects_outside_base(tmp_path: Path) -> N
     assert not result.applied
     assert result.failure_reason is not None and "must be within" in result.failure_reason
     assert not outside_file.exists()
+
+
+def _conversion_output(p: Path, content: str) -> Sequence[DocumentChange]:
+    return (_create_file(p), _text_replace(p, new_text=content))
+
+
+def test_lakebridge_editor_transpile_sql(tmp_path: Path) -> None:
+    """Verify the events needed for transpiling a SQL file, 1:1."""
+    # Set up the paths for the scenario.
+    input_path = tmp_path / "input"
+    input_file = input_path / "queries" / "annual_report.sql"
+    output_path = tmp_path / "output"
+    output_file = output_path / "queries" / "annual_report.sql"
+
+    # Prepare the content.
+    input_file.parent.mkdir(parents=True)
+    input_file.write_text("-- Input query, to be converted.\n", encoding="utf-8")
+
+    # Apply the results of conversion.
+    edit = WorkspaceEdit(document_changes=[*_conversion_output(input_file, content="-- Conversion output.\n")])
+    editor = LakebridgeEditor.retargeting_editor(base=input_path, target=output_path)
+    result = editor.apply(edit)
+
+    # Verify the input was untouched and the output is as expected.
+    assert result.applied
+    assert input_file.read_text(encoding="utf-8")
+    assert output_file.read_text(encoding="utf-8")
+
+
+def test_lakebridge_editor_transpile_to_notebook(tmp_path: Path) -> None:
+    """Verify the events needed for transpiling to a different type of file, such as SQL to notebook."""
+    # Set up the paths for the scenario.
+    input_path = tmp_path / "input"
+    input_file = input_path / "ddl" / "stored_proc.sql"
+    output_path = tmp_path / "output"
+    output_file = output_path / "ddl" / "stored_proc.py"
+
+    # Prepare the content.
+    input_file.parent.mkdir(parents=True)
+    input_file.write_text("-- File that could contain a stored procedure.\n", encoding="utf-8")
+
+    # Apply the results of conversion.
+    edit = WorkspaceEdit(
+        document_changes=[*_conversion_output(input_file.with_suffix(".py"), content="# Python code.\n")]
+    )
+    editor = LakebridgeEditor.retargeting_editor(base=input_path, target=output_path)
+    result = editor.apply(edit)
+
+    # Verify the input was untouched and the output is as expected.
+    assert result.applied
+    assert input_file.read_text(encoding="utf-8")
+    assert output_file.read_text(encoding="utf-8")
+
+
+def test_lakebridge_editor_transpile_to_many(tmp_path: Path) -> None:
+    """Verify the events needed for transpiling to multiple files, for example ETL to notebooks."""
+    # Set up the paths for the scenario.
+    input_path = tmp_path / "input"
+    input_file = input_path / "schedule.xml"
+    output_path = tmp_path / "output"
+    output_files = (
+        output_path / "schedule.json",
+        output_path / "schedule_j1.py",
+    )
+
+    # Prepare some content.
+    input_file.parent.mkdir(parents=True)
+    input_file.write_text("<?xml version='1.0'?><etl/>\n", encoding="utf-8")
+
+    # Apply the results of conversion.
+    edit = WorkspaceEdit(
+        document_changes=[
+            *_conversion_output(input_file.with_suffix(".json"), content="{}\n"),
+            *_conversion_output(input_path / "schedule_j1.py", content="# Python code.\n"),
+        ]
+    )
+    editor = LakebridgeEditor.retargeting_editor(base=input_path, target=output_path)
+    result = editor.apply(edit)
+
+    # Verify the input was untouched and the output files all exist and have content.
+    assert result.applied
+    assert input_file.read_text(encoding="utf-8") == "<?xml version='1.0'?><etl/>\n"
+    assert all(output_file.read_text(encoding="utf-8") for output_file in output_files)
