@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 from collections.abc import Callable, Sequence
 from logging import LogRecord
 from pathlib import Path
@@ -31,6 +32,7 @@ from databricks.labs.lakebridge.transpiler.lsp.editing import (
     RetargetingEditor,
     SandboxEditor,
     logger as editing_logger,
+    Editor,
 )
 
 
@@ -953,3 +955,48 @@ def test_retargeting_editor_rename_operations(
     retargeted_changes = (_rename_file(expected_old_path, expected_new_path),)
 
     _test_retargeted_document_changes(original_changes, retargeted_changes)
+
+
+def test_retargeting_lakebridge_editor() -> None:
+    """Test that we can construct a retargeting lakebridge editor."""
+    base = Path("/some/base")
+    target = Path("/somewhere/else")
+    editor: Editor = LakebridgeEditor.retargeting_editor(base=base, target=target)
+
+    assert editor
+
+
+@pytest.mark.parametrize(
+    "inside_path",
+    (
+        Path("inside"),
+        Path("also") / "inside",
+        Path("tricky") / "but" / ".." / ".." / "still" / "inside",
+    ),
+)
+def test_retargeting_lakebridge_editor_overlap_disallowed(inside_path: Path) -> None:
+    """Verify that a retargeting editor cannot be created that writes into the base directory."""
+    assert not inside_path.is_absolute()
+    base = Path("/some") / "path"
+    target = base / inside_path
+    expected_message = f"Target directory may not be within the base directory {base}: {target}"
+    with pytest.raises(ValueError, match=re.escape(expected_message)):
+        LakebridgeEditor.retargeting_editor(base=base, target=target)
+
+
+def test_retargeting_lakebridge_editor_rejects_outside_base(tmp_path: Path) -> None:
+    """Verify that a retargeting editor will reject edits outside the base directory."""
+    input = tmp_path / "input"
+    output = tmp_path / "output"
+    input.mkdir()
+    output.mkdir()
+    outside_file = tmp_path / "not_allowed.txt"
+
+    # No need for extensive tests here, just checking for the presence of rejection.
+    editor = LakebridgeEditor.retargeting_editor(base=input, target=output)
+    edit = WorkspaceEdit(document_changes=(CreateFile(uri=outside_file.as_uri()),))
+    result = editor.apply(edit)
+
+    assert not result.applied
+    assert result.failure_reason is not None and "must be within" in result.failure_reason
+    assert not outside_file.exists()

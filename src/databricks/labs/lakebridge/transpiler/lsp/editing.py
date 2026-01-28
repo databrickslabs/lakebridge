@@ -172,6 +172,30 @@ class LakebridgeEditor(BaseEditor):
         self._open_files = {}
         self._write_buffering = write_buffering
 
+    @classmethod
+    def retargeting_editor(cls, base: Path, target: Path, *, write_buffering: int = -1) -> Editor:
+        """Create an editor that will retarget changes from a given base and apply them into the target directory.
+
+        Edits to files within the base directory will be retargeted relative to the target directory. Edits that refer
+        to resources outside the base directory are not allowed and will cause the edit to be fail.
+
+        Args:
+              base: the base directory within edits are expected. This directory will be left alone.
+              target: the target directory into which edits will be applied.
+              write_buffering: The buffering mode to use when writing to files, passed to the `open()` function.
+        Returns:
+              an editor that will retarget applied edits.
+        Raises:
+              ValueError: if the target directory is within the base directory.
+        """
+        if target.resolve().is_relative_to(base.resolve()):
+            msg = f"Target directory may not be within the base directory {base}: {target}"
+            raise ValueError(msg)
+        underlying_editor = LakebridgeEditor(write_buffering=write_buffering)
+        retargeting_editor = RetargetingEditor(underlying_editor, base=base, target=target)
+        sandbox_editor = SandboxEditor(retargeting_editor, base=base)
+        return sandbox_editor
+
     def _apply_text_edits(self, uri: str, text_edits: Sequence[TextEdit]) -> ApplyWorkspaceEditResult:
         reason = f"Text edits are not supported, use document changes instead: {uri}"
         return ApplyWorkspaceEditResult(applied=False, failure_reason=reason)
