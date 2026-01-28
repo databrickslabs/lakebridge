@@ -44,6 +44,12 @@ from databricks.labs.lakebridge.config import LSPConfigOptionV1, TranspileConfig
 from databricks.labs.lakebridge.errors.exceptions import IllegalStateException
 from databricks.labs.lakebridge.helpers.file_utils import is_dbt_project_file, is_sql_file
 from databricks.labs.lakebridge.transpiler.transpile_engine import TranspileEngine
+
+# Optional dependency for bladebridge transpiler
+try:
+    import databricks.labs.bladebridge as bladebridge_module  # type: ignore[import-untyped]
+except ImportError:
+    bladebridge_module = None  # type: ignore[assignment]
 from databricks.labs.lakebridge.transpiler.transpile_status import (
     CodePosition,
     CodeRange,
@@ -643,14 +649,14 @@ class LSPEngine(TranspileEngine):
         # Force Python to use unbuffered mode so subprocess output appears immediately
         # Set CONVERTER_KEY_FILE to bypass hash validation and use file-based key
         # Find the converter_key.txt relative to the installed bladebridge package
-        try:
-            import databricks.labs.bladebridge  # type: ignore[import-untyped] # pylint: disable=import-outside-toplevel,import-error,no-name-in-module
-
-            bladebridge_path = Path(databricks.labs.bladebridge.__file__).parent  # pylint: disable=no-member
-            converter_key = str(bladebridge_path / "Converter" / "bin" / "MacOS" / "converter_key.txt")
-        except Exception:  # pylint: disable=broad-exception-caught
-            # Fallback if module not found
-            converter_key = ""
+        converter_key = ""
+        if bladebridge_module is not None:
+            try:
+                bladebridge_path = Path(bladebridge_module.__file__).parent
+                converter_key = str(bladebridge_path / "Converter" / "bin" / "MacOS" / "converter_key.txt")
+            except AttributeError:
+                # Fallback if module doesn't have expected structure
+                pass
 
         env = {
             **env,
