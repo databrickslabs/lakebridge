@@ -46,7 +46,7 @@ class Editor(ABC):
         fs_path = to_fs_path(uri)
         if fs_path is None:
             return None
-        real_path = os.path.realpath(fs_path)
+        real_path = os.path.realpath(fs_path, strict=False)
         return Path(real_path)
 
 
