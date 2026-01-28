@@ -1,8 +1,8 @@
 import logging
 import os
+from collections.abc import Sequence
 from logging import LogRecord
 from pathlib import Path
-from typing import Sequence
 from unittest.mock import Mock, DEFAULT
 
 import pytest
