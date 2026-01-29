@@ -6,6 +6,131 @@ import useBaseUrl from '@docusaurus/useBaseUrl';
 
 #  Transpile Guide
 
+## Supported dialects
+
+<table>
+  <thead>
+    <tr>
+      <th>Source system type</th>
+      <th>Source Technology</th>
+      <th>Source System</th>
+      <th>BladeBridge</th>
+      <th>Morpheus</th>
+      <th>Switch (Experimental)</th>
+    </tr>
+  </thead>
+  <tbody>
+    <!-- SQL -->
+    <tr>
+      <td rowspan="9">SQL</td>
+      <td>`mssql`</td>
+      <td>MMicrosoft SQL Server, Azure SQL Database, Azure SQL Managed Instance, Amazon RDS for SQL Server</td>
+      <td>DBSQL</td>
+      <td>DBSQL</td>
+      <td>SparkSql</td>
+    </tr>
+    <tr>
+      <td>`mysql`</td>
+      <td>MySQL, MariaDB, and MySQL-compatible services (including Amazon Aurora MySQL, RDS, Google Cloud SQL)</td>
+      <td></td>
+      <td></td>
+      <td>SparkSql</td>
+    </tr>
+    <tr>
+      <td>`netezza`</td>
+      <td>IBM Netezza</td>
+      <td>DBSQL</td>
+      <td></td>
+      <td>SparkSql</td>
+    </tr>
+    <tr>
+      <td>`oracle`</td>
+      <td>Oracle Database, Oracle Exadata, and Oracle-compatible services (including Amazon RDS)</td>
+      <td>DBSQL</td>
+      <td></td>
+      <td>SparkSql</td>
+    </tr>
+    <tr>
+      <td>`postgresql`</td>
+      <td>PostgreSQL and PostgreSQL-compatible services (including Amazon Aurora PostgreSQL, RDS, Google Cloud SQL)</td>
+      <td></td>
+      <td></td>
+      <td>SparkSql</td>
+    </tr>
+    <tr>
+      <td>`redshift`</td>
+      <td>Amazon Redshift</td>
+      <td>DBSQL (experimental)</td>
+      <td></td>
+      <td>SparkSql</td>
+    </tr>
+    <tr>
+      <td>`snowflake`</td>
+      <td>Snowflake (including dbt Repointing)</td>
+      <td></td>
+      <td>DBSQL</td>
+      <td>SparkSql</td>
+    </tr>
+    <tr>
+      <td>`synapse`</td>
+      <td>Azure Synapse Analytics (dedicated SQL pools)</td>
+      <td>DBSQL</td>
+      <td>DBSQL</td>
+      <td>SparkSql</td>
+    </tr>
+    <tr>
+      <td>`teradata`</td>
+      <td>Teradata</td>
+      <td>DBSQL</td>
+      <td></td>
+      <td>SparkSql</td>
+    </tr>
+
+    <!-- ETL -->
+    <tr>
+      <td rowspan="2">ETL</td>
+      <td>`datastage`</td>
+      <td>IBM DataStage</td>
+      <td>SparkSql, PySpark</td>
+      <td></td>
+      <td>SDP</td>
+    </tr>
+    <tr>
+      <td>`ssis`</td>
+      <td>SSIS</td>
+      <td>SparkSql (experimental)</td>
+      <td></td>
+      <td>SDP</td>
+    </tr>
+
+    <!-- Orchestration -->
+    <tr>
+      <td>Orchestration</td>
+      <td></td>
+      <td>Airflow</td>
+      <td></td>
+      <td></td>
+      <td>Databricks Workflow</td>
+    </tr>
+
+    <!-- Generic -->
+    <tr>
+      <td rowspan="2">Generic</td>
+      <td></td>
+      <td>Python Code</td>
+      <td></td>
+      <td></td>
+      <td>Python Notebook</td>
+    </tr>
+    <tr>
+      <td></td>
+      <td>Scala Code</td>
+      <td></td>
+      <td></td>
+      <td>Python Notebook</td>
+    </tr>
+  </tbody>
+</table>
 
 ## Verify Installation
 Verify the successful installation by executing the provided command; confirmation of a successful installation is indicated when the displayed output aligns with the example screenshot provided:
