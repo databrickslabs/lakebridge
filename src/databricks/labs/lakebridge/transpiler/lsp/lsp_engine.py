@@ -21,9 +21,6 @@ from lsprotocol import types as types_module
 from lsprotocol.types import (
     CLIENT_REGISTER_CAPABILITY,
     METHOD_TO_TYPES,
-    WORKSPACE_APPLY_EDIT,
-    ApplyWorkspaceEditParams,
-    ApplyWorkspaceEditResult,
     ClientCapabilities,
     ClientInfo,
     Diagnostic,
