@@ -119,6 +119,7 @@ class TestLspServer(LanguageServer):
         logger.debug(f"dialect={self.dialect}")
         logger.debug(f"whatever={self.whatever}")
         logger.debug(f"experimental={self.experimental}")
+        logger.debug(f"client-capabilities={self.client_capabilities}")
         # TODO check whether the client supports dynamic registration
         registrations = [
             Registration(
