@@ -112,8 +112,7 @@ class TestLspServer(LanguageServer):
 
     async def did_initialize(self, init_params: InitializeParams) -> None:
         self.initialization_options = init_params.initialization_options or {}
-        client_info = init_params.client_info
-        if client_info:
+        if client_info := init_params.client_info:
             logger.debug(f"client-info={client_info.name}/{client_info.version}")
         if init_params.process_id:
             logger.debug(f"client-process-id={init_params.process_id}")
