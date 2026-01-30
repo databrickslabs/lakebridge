@@ -34,7 +34,7 @@ from lsprotocol.types import (
     InitializeParams,
     InitializeResult,
     LanguageKind,
-    WorkspaceClientCapabilities, WindowClientCapabilities,
+    WorkspaceClientCapabilities,
 )
 from lsprotocol.types import Position as LSPPosition
 from lsprotocol.types import Range as LSPRange
