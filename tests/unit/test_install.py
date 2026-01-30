@@ -1726,3 +1726,38 @@ def test_transpiler_installers_llm_flag(
     )
     assert installer.configure("transpile").include_switch == should_include_switch
     assert installer.configure("all").include_switch == should_include_switch
+
+
+@pytest.mark.parametrize(
+    ("switch_use_serverless", "expected_serverless"),
+    (
+        (True, True),  # Default: use serverless
+        (False, False),  # Flag disabled: use classic cluster
+    ),
+)
+def test_configure_switch_use_serverless_flag(
+    ws_installer: Callable[..., WorkspaceInstaller],
+    ws: WorkspaceClient,
+    switch_use_serverless: bool,
+    expected_serverless: bool,
+) -> None:
+    """Test switch_use_serverless configuration flag is passed through correctly."""
+    ctx = ApplicationContext(ws).replace(
+        product_info=ProductInfo.for_testing(LakebridgeConfiguration),
+        prompts=MockPrompts({}),
+        installation=MockInstallation({}),
+    )
+    installer = ws_installer(
+        ctx.workspace_client,
+        ctx.prompts,
+        ctx.installation,
+        ctx.install_state,
+        ctx.product_info,
+        ctx.resource_configurator,
+        ctx.workspace_installation,
+        is_interactive=False,
+        include_llm=True,
+        switch_use_serverless=switch_use_serverless,
+    )
+    config = installer.configure("transpile")
+    assert config.switch_use_serverless == expected_serverless

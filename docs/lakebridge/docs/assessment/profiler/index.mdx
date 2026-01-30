@@ -101,7 +101,7 @@ This helps users quickly visualize and explore profiler results without addition
 databricks labs lakebridge create-profiler-dashboard \
   --extract-file <path-to-local-extract-file> \
   --source-tech <source-system-name> \
-  --uc-volume <uc-volume-path> \
+  --volume-path <uc-volume-path> \
   [--catalog-name <uc-catalog-name>] \
   [--schema-name <uc-schema-name>]
 ```
@@ -148,7 +148,7 @@ The following example deploys a profiler summary dashboard for an Azure Synapse 
 databricks labs lakebridge create-profiler-dashboard \
   --extract-file ./output/profile_output.db \
   --source-tech synapse \
-  --uc-volume /Volumes/lakebridge_profiler/profiler_runs \
+  --volume-path /Volumes/lakebridge_profiler/profiler_runs \
   --catalog-name lakebridge_profiler \
   --schema-name profiler_runs
 ```
