@@ -1,5 +1,6 @@
 import logging
 from urllib.parse import urlparse
+from uuid import UUID
 
 import pytest
 from pyspark.sql import SparkSession
@@ -62,3 +63,8 @@ def sandbox_sqlserver_config() -> dict:
 @pytest.fixture()
 def sandbox_sqlserver(sandbox_sqlserver_config) -> DatabaseManager:
     return DatabaseManager("mssql", sandbox_sqlserver_config)
+
+
+@pytest.fixture()
+def recon_id() -> UUID:
+    return UUID("00112233-4455-6677-8899-aabbccddeeff")
