@@ -92,6 +92,7 @@ async def test_installs_and_runs_local_bladebridge(
 ) -> None:
     input_source = tmp_path / "input_source"
     output_folder = tmp_path / "output_folder"
+    input_source.mkdir()
     location = WheelInstaller(
         transpiler_repository, "bladebridge", "databricks-bb-plugin", bladebridge_artifact
     ).install()
@@ -118,6 +119,7 @@ async def test_installs_and_runs_local_bladebridge(
 async def test_installs_and_runs_pypi_bladebridge(transpiler_repository: TranspilerRepository, tmp_path: Path) -> None:
     input_source = tmp_path / "input_source"
     output_folder = tmp_path / "output_folder"
+    input_source.mkdir()
     location = WheelInstaller(transpiler_repository, "bladebridge", "databricks-bb-plugin").install()
     assert location is not None
     config_path = transpiler_repository.transpiler_config_path("Bladebridge")
@@ -147,6 +149,7 @@ async def test_installs_and_runs_local_morpheus(
 ) -> None:
     input_source = tmp_path / "input_source"
     output_folder = tmp_path / "output_folder"
+    input_source.mkdir()
     location = MavenInstaller(
         transpiler_repository, "databricks-morph-plugin", "com.databricks.labs", morpheus_artifact
     ).install()
@@ -173,6 +176,7 @@ async def test_installs_and_runs_local_morpheus(
 async def test_installs_and_runs_maven_morpheus(transpiler_repository: TranspilerRepository, tmp_path: Path) -> None:
     input_source = tmp_path / "input_source"
     output_folder = tmp_path / "output_folder"
+    input_source.mkdir()
     location = MavenInstaller(transpiler_repository, "databricks-morph-plugin", "com.databricks.labs").install()
     assert location is not None
     config_path = transpiler_repository.transpiler_config_path("Morpheus")
