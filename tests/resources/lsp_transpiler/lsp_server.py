@@ -3,7 +3,7 @@ import os
 import sys
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Literal
+from typing import Literal
 from uuid import uuid4
 
 import attrs
@@ -18,6 +18,7 @@ from lsprotocol.types import (
     DidCloseTextDocumentParams,
     DidOpenTextDocumentParams,
     InitializeParams,
+    LSPAny,
     LanguageKind,
     Position,
     Range,
@@ -93,9 +94,7 @@ METHOD_TO_TYPES[TRANSPILE_TO_DATABRICKS_METHOD] = (
 
 class TestLspServer(LanguageServer):
 
-    def __init__(self, name, version):
-        super().__init__(name, version)
-        self.initialization_options: Any = None
+    initialization_options: LSPAny
 
     @property
     def dialect(self) -> str:
