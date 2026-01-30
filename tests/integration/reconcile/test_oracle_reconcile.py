@@ -12,6 +12,7 @@ from databricks.labs.lakebridge.reconcile.reconciliation import Reconciliation
 from databricks.labs.lakebridge.reconcile.schema_compare import SchemaCompare
 from databricks.labs.lakebridge.reconcile.trigger_recon_service import TriggerReconService
 from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
+from tests.integration.reconcile.conftest import FakeReconIntermediatePersist
 from tests.integration.debug_envgetter import TestEnvGetter
 from tests.integration.reconcile.connectors.test_read_schema import OracleDataSourceUnderTest
 
@@ -63,6 +64,7 @@ def test_oracle_db_reconcile(mock_spark, mock_workspace_client, tmp_path):
         source_engine=get_dialect("oracle"),
         spark=mock_spark,
         metadata_config=ReconcileMetadataConfig(catalog="tmp", schema="reconcile"),
+        intermediate_persist=FakeReconIntermediatePersist(),
     )
     recon_capture = ReconCapture(
         database_config=db_config,
@@ -76,7 +78,6 @@ def test_oracle_db_reconcile(mock_spark, mock_workspace_client, tmp_path):
     )
     with patch("databricks.labs.lakebridge.reconcile.utils.generate_volume_path", return_value=str(tmp_path)):
         _, data_reconcile_output = TriggerReconService.recon_one(
-            spark=mock_spark,
             reconciler=recon,
             recon_capture=recon_capture,
             reconcile_config=reconcile_config,

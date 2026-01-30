@@ -7,7 +7,6 @@ from databricks.labs.lakebridge.config import (
     DatabaseConfig,
     ReconcileMetadataConfig,
 )
-from databricks.labs.lakebridge.reconcile import utils
 from databricks.labs.lakebridge.reconcile.compare import (
     capture_mismatch_data_and_columns,
     reconcile_data,
@@ -28,6 +27,7 @@ from databricks.labs.lakebridge.reconcile.query_builder.sampling_query import (
 from databricks.labs.lakebridge.reconcile.query_builder.threshold_query import (
     ThresholdQueryBuilder,
 )
+from databricks.labs.lakebridge.reconcile.recon_capture import AbstractReconIntermediatePersist
 from databricks.labs.lakebridge.reconcile.recon_config import (
     Schema,
     Table,
@@ -59,6 +59,7 @@ class Reconciliation:
         source_engine: Dialect,
         spark: SparkSession,
         metadata_config: ReconcileMetadataConfig,
+        intermediate_persist: AbstractReconIntermediatePersist,
     ):
         self._source = source
         self._target = target
@@ -69,6 +70,7 @@ class Reconciliation:
         self._source_engine = source_engine
         self._spark = spark
         self._metadata_config = metadata_config
+        self.intermediate_persist = intermediate_persist
 
     @property
     def source(self) -> DataSource:
@@ -143,14 +145,12 @@ class Reconciliation:
             options=table_conf.jdbc_reader_options,
         )
 
-        volume_path = utils.generate_volume_path(table_conf, self._metadata_config)
         return reconcile_data(
             source=src_data,
             target=tgt_data,
             key_columns=table_conf.join_columns,
             report_type=self._report_type,
-            spark=self._spark,
-            path=volume_path,
+            persistence=self.intermediate_persist,
         )
 
     def _get_reconcile_aggregate_output(
@@ -230,8 +230,6 @@ class Reconciliation:
             self._target,
         ).build_queries()
 
-        volume_path = utils.generate_volume_path(table_conf, self._metadata_config)
-
         table_agg_output: list[AggregateQueryOutput] = []
 
         # Iterate over the grouped aggregates and reconcile the data
@@ -266,8 +264,7 @@ class Reconciliation:
                     source=src_data,
                     target=tgt_data,
                     key_columns=src_query_with_rules.group_by_columns,
-                    spark=self._spark,
-                    path=f"{volume_path}{src_query_with_rules.group_by_columns_as_str}",
+                    persistence=self.intermediate_persist,
                 )
             except DataSourceRuntimeException as e:
                 data_source_exception = e
@@ -370,7 +367,8 @@ class Reconciliation:
 
         # Uses pre-calculated `mismatch_count` from `reconcile_output.mismatch_count` to avoid from recomputing `mismatch` for RandomSampler.
         mismatch_sampler = SamplerFactory.get_sampler(sampling_options)
-        df = mismatch_sampler.sample(mismatch, mismatch_count, key_columns, sampling_model_target).cache()
+        df = mismatch_sampler.sample(mismatch, mismatch_count, key_columns, sampling_model_target)
+        # TODO write `df` to delta
 
         src_mismatch_sample_query = src_sampler.build_query(df)
         tgt_mismatch_sample_query = tgt_sampler.build_query(df)
@@ -456,6 +454,7 @@ class Reconciliation:
             ["`" + DialectUtils.unnormalize_identifier(name) + "_match` = 'Failed'" for name in threshold_columns]
         )
         mismatched_df = threshold_result.filter(failed_where_cond)
+        # TODO write `mismatched_df` to delta
         mismatched_count = mismatched_df.count()
         threshold_df = None
         if mismatched_count > 0:
