@@ -176,6 +176,18 @@ async def read_log(marker: str, test_resources: Path) -> str:
     return log_path.read_text("utf-8")
 
 
+async def test_server_apply_edit(
+    lsp_engine: LSPEngine, transpile_config: TranspileConfig, test_resources: Path
+) -> None:
+    await lsp_engine.initialize(transpile_config)
+
+    assert transpile_config.output_path is not None
+    expected_file = transpile_config.output_path / "new-test-file.sql"
+    await read_log(f"Created file: {expected_file}", test_resources)
+
+    assert expected_file.read_text(encoding="utf-8") == "-- This file is intentionally blank."
+
+
 async def test_server_loads_document(
     lsp_engine: LSPEngine,
     transpile_config: TranspileConfig,
