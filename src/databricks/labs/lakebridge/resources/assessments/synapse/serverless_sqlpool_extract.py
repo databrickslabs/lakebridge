@@ -1,21 +1,22 @@
 import json
 import sys
+
 import duckdb
+from databricks.labs.blueprint.entrypoint import get_logger
 
-from databricks.labs.lakebridge.connections.credential_manager import create_credential_manager
+from databricks.labs.lakebridge import initialize_logging
 from databricks.labs.lakebridge.assessments import PRODUCT_NAME
-
-from databricks.labs.lakebridge.resources.assessments.synapse.common.functions import (
-    arguments_loader,
-    set_logger,
-)
+from databricks.labs.lakebridge.connections.credential_manager import create_credential_manager
 from databricks.labs.lakebridge.resources.assessments.synapse.common.duckdb_helpers import (
     save_resultset_to_db,
     get_max_column_value_duckdb,
 )
-
+from databricks.labs.lakebridge.resources.assessments.synapse.common.functions import arguments_loader
 from databricks.labs.lakebridge.resources.assessments.synapse.common.queries import SynapseQueries
 from databricks.labs.lakebridge.resources.assessments.synapse.common.connector import get_sqlpool_reader
+
+
+logger = get_logger(__file__)
 
 
 def get_serverless_database_groups(
@@ -51,7 +52,6 @@ def get_serverless_database_groups(
 
 
 def execute():
-    logger = set_logger(__name__)
     db_path, creds_file = arguments_loader(desc="Synapse Synapse Serverless SQL Pool Extract Script")
 
     cred_manager = create_credential_manager(PRODUCT_NAME, creds_file)
@@ -172,4 +172,5 @@ def execute():
 
 
 if __name__ == '__main__':
+    initialize_logging()
     execute()

@@ -1,6 +1,6 @@
-import os
 import logging
 from urllib.parse import urlparse
+from uuid import UUID
 
 import pytest
 from pyspark.sql import SparkSession
@@ -9,8 +9,9 @@ from databricks.labs.lakebridge.__about__ import __version__
 from databricks.labs.lakebridge.connections.database_manager import DatabaseManager
 from tests.integration.debug_envgetter import TestEnvGetter
 
-logging.getLogger("tests").setLevel("DEBUG")
-logging.getLogger("databricks.labs.lakebridge").setLevel("DEBUG")
+logging.getLogger("tests").setLevel(logging.DEBUG)
+logging.getLogger("databricks.labs.lakebridge").setLevel(logging.DEBUG)
+logging.getLogger("databricks.labs.pytester").setLevel(logging.DEBUG)
 
 logger = logging.getLogger(__name__)
 
@@ -28,22 +29,6 @@ def product_info() -> tuple[str, str]:
 @pytest.fixture
 def get_logger():
     return logger
-
-
-def pytest_collection_modifyitems(config, items):
-    if os.getenv('TEST_ENV') != 'ACCEPTANCE':
-        return
-    selected_items = []
-    deselected_items = []
-    # Add only specific tests to run from acceptance.yml
-    inclusions = {'assessments', 'connections', 'config', 'discovery', 'helpers', 'transpile'}
-    for item in items:
-        if any(f"tests/integration/{inclusion}" in str(item.fspath) for inclusion in inclusions):
-            selected_items.append(item)
-        else:
-            deselected_items.append(item)
-    items[:] = selected_items
-    config.hook.pytest_deselected(items=deselected_items)
 
 
 @pytest.fixture(scope="session")
@@ -78,3 +63,8 @@ def sandbox_sqlserver_config() -> dict:
 @pytest.fixture()
 def sandbox_sqlserver(sandbox_sqlserver_config) -> DatabaseManager:
     return DatabaseManager("mssql", sandbox_sqlserver_config)
+
+
+@pytest.fixture()
+def recon_id() -> UUID:
+    return UUID("00112233-4455-6677-8899-aabbccddeeff")

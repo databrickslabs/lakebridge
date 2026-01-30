@@ -3,27 +3,28 @@ version: "1.0"
 # Value replaced prior to actual use:
 extract_folder: /replaced/after/loading/
 steps:
+  # Paths for extract_source are relative to the tests/resources/ directory within the project.
   - name: inventory
     type: sql
-    extract_source: resources/assessments/inventory.sql
+    extract_source: assessments/inventory.sql
     mode: overwrite
     frequency: daily
     flag: active
   - name: usage
     type: sql
-    extract_source: resources/assessments/usage.sql
+    extract_source: assessments/usage.sql
     mode: overwrite
     frequency: weekly
     flag: active
   - name: usage_2
     type: sql
-    extract_source: resources/assessments/usage.sql
+    extract_source: assessments/usage.sql
     mode: overwrite
     frequency: daily
     flag: inactive
   - name: random_data
     type: python
-    extract_source: resources/assessments/db_extract.py
+    extract_source: assessments/db_extract.py
     mode: overwrite
     frequency: daily
     flag: active

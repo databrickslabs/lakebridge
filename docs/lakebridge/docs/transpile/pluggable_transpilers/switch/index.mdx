@@ -18,6 +18,8 @@ This LLM-powered approach excels at converting complex SQL code and business log
 than syntactic transformation. While generated notebooks may require manual adjustments, they provide a valuable foundation
 for Databricks migration.
 
+Switch can also convert ETL workloads into Spark Declarative Pipelines, supporting both Python and SQL. Refer to the sections below for usage instructions.
+
 ---
 
 ## How Switch Works
@@ -36,6 +38,7 @@ Switch runs entirely within the Databricks workspace. You can find details about
 - **Jobs API**: Executes as scalable Databricks Jobs for batch processing
 - **Model Serving**: Direct integration with Databricks LLM endpoints, with concurrent processing for multiple files
 - **Delta Tables**: Tracks conversion progress and results
+- **Pipelines API**: Creates and Executes Spark Declarative Pipeline for pipeline conversion.
 
 ### 3. Flexible Output Formats
 - **Notebooks**: Python notebooks containing Spark SQL (primary output)
@@ -97,6 +100,15 @@ Convert non-SQL files to notebooks or other formats.
 | `python` | Python Script → Databricks Python Notebook |
 | `scala` | Scala Code → Databricks Python Notebook |
 | `airflow` | Airflow DAG → Databricks Jobs YAML + Operator conversion guidance (SQL→sql_task, Python→notebook, etc.) |
+
+### Built-in Prompts: ETL Sources
+
+Convert ETL workloads to Spark Declarative Pipeline (SDP) in Python or SQL.
+
+| Source Technology | Source → Target |
+|--------------|-----------------|
+| `pyspark` | PySpark ETL → Databricks Notebook in Python or SQL for SDP |
+| `unknown_etl` | If the source type is not supported as a built-in option, Switch will use the LLM's prior knowledge to identify the source technology and perform the conversion |
 
 ### Custom Prompts: Any Source Format
 
@@ -186,7 +198,7 @@ Additional conversion parameters are managed in the Switch configuration file. Y
 
 | Parameter | Description | Default Value | Available Options |
 |-----------|-------------|---------------|-------------------|
-| `target_type` | Output format type. `notebook` for Python notebooks with validation and error fixing, `file` for generic file formats. See [Conversion Flow Overview](#conversion-flow-overview) for processing differences. | `notebook` | `notebook`, `file` |
+| `target_type` | Output format type. `notebook` for Python notebooks with validation and error fixing, `file` for generic file formats, `sdp` for conversion from etl workloads to Spark Declarative Pipeline (SDP). See [Conversion Flow Overview](#conversion-flow-overview) for processing differences. | `notebook` | `notebook`, `file`, `sdp` |
 | `source_format` | Source file format type. `sql` performs SQL comment removal and whitespace compression preprocessing before conversion. `generic` processes files as-is without preprocessing. Preprocessing affects token counting and conversion quality. See [analyze_input_files](#analyze_input_files) for preprocessing details. | `sql` | `sql`, `generic` |
 | `comment_lang` | Language for generated comments. | `English` | `English`, `Japanese`, `Chinese`, `French`, `German`, `Italian`, `Korean`, `Portuguese`, `Spanish` |
 | `log_level` | Logging verbosity level. | `INFO` | `DEBUG`, `INFO`, `WARNING`, `ERROR` |
@@ -197,6 +209,7 @@ Additional conversion parameters are managed in the Switch configuration file. Y
 | `output_extension` | File extension for output files when `target_type=file`. Required for non-notebook output formats like YAML workflows or JSON configurations. See [File Conversion Flow](#file-conversion-flow) for usage examples. | `null` | Any extension (e.g., `.yml`, `.json`) |
 | `sql_output_dir` | (Experimental) When specified, triggers additional conversion of Python notebooks to SQL notebook format. This optional post-processing step may lose some Python-specific logic. See [convert_notebook_to_sql](#convert_notebook_to_sql-optional) for details on the SQL conversion process. | `null` | Full workspace path |
 | `request_params` | Additional request parameters passed to the model serving endpoint. Use for advanced configurations like extended thinking mode or custom token limits. See [LLM Configuration](/docs/transpile/pluggable_transpilers/switch/customizing_switch#llm-configuration) for configuration examples including Claude's extended thinking mode. | `null` | JSON format string (e.g., `{"max_tokens": 64000}`) |
+| `sdp_language` | Control the language of converted SDP code, can only be "python" or "sql". | `python` | `python`, `sql` |
 
 ---
 
@@ -274,6 +287,26 @@ databricks labs lakebridge llm-transpile \
   --accept-terms true
 ```
 
+### Example 5: PySpark ETL to Databricks SDP in SQL 
+
+Convert PySpark ETL workload to Databricks Spark Declarative Pipeline in SQL:
+
+First, edit `switch_config.yml` (leave other parameters unchanged):
+```yaml
+target_type: "sdp"
+sdp_language: "sql"
+```
+
+Then run:
+```bash
+databricks labs lakebridge llm-transpile \
+  --input-source /local/path/to/input \
+  --output-ws-folder /Workspace/path/to/output \
+  --source-dialect pyspark \
+  --profile profile_name \
+  --accept-terms true
+```
+
 ---
 ## Databricks Implementation Details
 
@@ -316,7 +349,7 @@ flowchart TD
 
 ### Notebook Conversion Flow
 
-For `target_type=notebook`, the `orchestrate_to_notebook` orchestrator executes a comprehensive 7-step processing pipeline:
+For `target_type=notebook` or `target_type=sdp`, the `orchestrate_to_notebook` orchestrator executes a comprehensive 7-step processing pipeline:
 
 ```mermaid
 flowchart TD
@@ -325,8 +358,15 @@ flowchart TD
     subgraph processing ["Notebook Processing Workflow"]
         direction TB
         analyze[analyze_input_files] e2@==> convert[convert_with_llm]
-        convert e3@==> validate[validate_python_notebook]
-        validate e4@==> fix[fix_syntax_with_llm]
+
+        %% Branch: decide validation path
+        convert e8@==>|if SDP| validate_sdp[validate_sdp]
+        convert e3@==>|if NOT SDP| validate_nb[validate_python_notebook]
+
+        %% Downstream connections - both validations flow to fix_syntax
+        validate_nb e4@==> fix[fix_syntax_with_llm]
+        validate_sdp e9@==> fix
+
         fix e5@==> split[split_code_into_cells]
         split e6@==> export[export_to_notebook]
         export -.-> sqlExport["convert_notebook_to_sql<br>(Optional)"]
@@ -340,6 +380,7 @@ flowchart TD
 
     export e7@==> notebooks[Python Notebooks]
     sqlExport -.-> sqlNotebooks["SQL Notebooks<br>(Optional Output)"]
+  
     e1@{ animate: true }
     e2@{ animate: true }
     e3@{ animate: true }
@@ -347,6 +388,8 @@ flowchart TD
     e5@{ animate: true }
     e6@{ animate: true }
     e7@{ animate: true }
+    e8@{ animate: true }
+    e9@{ animate: true }
 ```
 
 ### File Conversion Flow
@@ -393,6 +436,18 @@ Loads conversion prompts (built-in or custom YAML) and sends file content to the
 
 ### validate_python_notebook
 Performs syntax validation on the generated code. Python syntax is checked using `ast.parse()`, while SQL statements within `spark.sql()` calls are validated using Spark's `EXPLAIN` command. Any errors are recorded in the result table for potential fixing in the next step.
+
+### validate_sdp
+Performs Spark Declarative Pipeline validation on the generated code. The validation process executes these steps sequentially:
+
+| Step | Description |
+|------|-------------|
+| Export Notebook | Writes the converted code to a temporary notebook in workspace |
+| Create Pipeline | Creates a temporary Spark Declarative Pipeline referencing the notebook |
+| Update Pipeline | Runs a validation-only update to check for SDP syntax errors |
+| Delete Pipeline | Cleans up the temporary pipeline after validation |
+
+Note: `TABLE_OR_VIEW_NOT_FOUND` errors are ignored.
 
 ### fix_syntax_with_llm
 Attempts automatic error correction when syntax issues are detected. Sends error context back to the model serving endpoint, which suggests corrections. The validation and fix process repeats up to `max_fix_attempts` times (default: 1) until errors are resolved or the retry limit is reached.

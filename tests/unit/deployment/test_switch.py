@@ -10,6 +10,7 @@ from databricks.labs.lakebridge.deployment.job import JobDeployment
 from databricks.labs.lakebridge.deployment.switch import SwitchDeployment
 from databricks.sdk import WorkspaceClient, JobsExt
 from databricks.sdk.errors import NotFound, InvalidParameterValue
+from databricks.sdk.service import compute
 from databricks.sdk.service.jobs import CreateResponse
 from databricks.sdk.service.iam import User
 
@@ -319,3 +320,62 @@ def test_install_creates_new_job_on_update_failure(
     assert install_state.jobs["Switch"] == str(expected_job_id)
     mock_workspace_client.jobs.reset.assert_called_once()
     mock_workspace_client.jobs.create.assert_called_once()
+
+
+# Tests for serverless vs classic cluster selection
+
+
+def test_install_with_serverless_creates_job_without_cluster_key(
+    switch_deployment: SwitchDeployment, mock_workspace_client: Any
+) -> None:
+    """Test serverless mode does not include job_clusters in settings."""
+    new_job = CreateResponse(job_id=123)
+    mock_workspace_client.jobs.create.return_value = new_job
+
+    switch_deployment.install(use_serverless=True)
+
+    call_kwargs = mock_workspace_client.jobs.create.call_args.kwargs
+    assert "job_clusters" not in call_kwargs
+    assert call_kwargs["tasks"][0].job_cluster_key is None
+
+
+def test_install_with_classic_cluster_creates_job_with_cluster_key(
+    switch_deployment: SwitchDeployment, mock_workspace_client: Any
+) -> None:
+    """Test classic cluster mode includes job_clusters and job_cluster_key."""
+    new_job = CreateResponse(job_id=123)
+    mock_workspace_client.jobs.create.return_value = new_job
+    mock_workspace_client.clusters.select_spark_version.return_value = "15.4.x-scala2.12"
+    mock_workspace_client.clusters.select_node_type.return_value = "m5.xlarge"
+
+    switch_deployment.install(use_serverless=False)
+
+    call_kwargs = mock_workspace_client.jobs.create.call_args.kwargs
+    assert "job_clusters" in call_kwargs
+    assert len(call_kwargs["job_clusters"]) == 1
+    assert call_kwargs["job_clusters"][0].job_cluster_key == "Switch_Cluster"
+    assert call_kwargs["tasks"][0].job_cluster_key == "Switch_Cluster"
+
+
+def test_install_with_classic_cluster_configures_correct_cluster_spec(
+    switch_deployment: SwitchDeployment, mock_workspace_client: Any
+) -> None:
+    """Test classic cluster mode configures ClusterSpec correctly."""
+    new_job = CreateResponse(job_id=123)
+    mock_workspace_client.jobs.create.return_value = new_job
+    mock_workspace_client.clusters.select_spark_version.return_value = "15.4.x-scala2.12"
+    mock_workspace_client.clusters.select_node_type.return_value = "m5.xlarge"
+
+    switch_deployment.install(use_serverless=False)
+
+    call_kwargs = mock_workspace_client.jobs.create.call_args.kwargs
+    cluster_spec = call_kwargs["job_clusters"][0].new_cluster
+
+    assert cluster_spec.spark_version == "15.4.x-scala2.12"
+    assert cluster_spec.node_type_id == "m5.xlarge"
+    assert cluster_spec.num_workers == 1
+    assert cluster_spec.data_security_mode == compute.DataSecurityMode.USER_ISOLATION
+
+    # Verify cluster selection methods were called with correct parameters
+    mock_workspace_client.clusters.select_spark_version.assert_called_once_with(latest=True, long_term_support=True)
+    mock_workspace_client.clusters.select_node_type.assert_called_once_with(local_disk=True, min_memory_gb=16)
