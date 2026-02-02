@@ -11,7 +11,7 @@ from databricks.labs.lakebridge.reconcile.recon_capture import (
     generate_final_reconcile_aggregate_output,
     ReconCapture,
 )
-from databricks.labs.lakebridge.reconcile.recon_config import AGG_RECONCILE_OPERATION_NAME, Table
+from databricks.labs.lakebridge.reconcile.recon_config import Table
 from databricks.labs.lakebridge.reconcile.recon_output_config import (
     ReconcileProcessDuration,
     AggregateQueryOutput,
@@ -49,7 +49,7 @@ class TriggerReconAggregateService:
                     metadata_config=reconcile_config.metadata_config,
                     local_test_run=local_test_run,
                 ),
-                operation_name=AGG_RECONCILE_OPERATION_NAME,
+                report_type="aggregate",
             )
         finally:
             try:

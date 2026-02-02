@@ -22,6 +22,7 @@ from databricks.labs.lakebridge.reconcile.recon_output_config import (
     ReconcileProcessDuration,
     SchemaReconcileOutput,
     DataReconcileOutput,
+    ReconcileTableOutput,
 )
 from databricks.labs.lakebridge.reconcile.reconciliation import Reconciliation
 from databricks.labs.lakebridge.reconcile.schema_compare import SchemaCompare
@@ -57,7 +58,8 @@ class TriggerReconService:
                     spark=spark,
                     metadata_config=reconcile_config.metadata_config,
                     local_test_run=local_test_run,
-                )
+                ),
+                reconcile_config.report_type,
             )
         finally:
             try:
@@ -218,21 +220,32 @@ class TriggerReconService:
             return DataReconcileOutput(exception=str(e))
 
     @staticmethod
-    def verify_successful_reconciliation(
-        reconcile_output: ReconcileOutput, operation_name: str = "reconcile"
-    ) -> ReconcileOutput:
-        for table_output in reconcile_output.results:
-            if table_output.exception_message or (
+    def verify_successful_reconciliation(reconcile_output: ReconcileOutput, report_type: str) -> ReconcileOutput:
+        def is_table_recon_mismatch(table_output: ReconcileTableOutput):
+            return (
                 table_output.status.column is False
                 or table_output.status.row is False
                 or table_output.status.schema is False
                 or table_output.status.aggregate is False
-            ):
-                raise ReconciliationException(
-                    f" Reconciliation failed for one or more tables. Please check the recon metrics for more details."
-                    f" **{operation_name}** failed.",
-                    reconcile_output=reconcile_output,
-                )
+            )
 
-        logger.info("Reconciliation completed successfully.")
+        if any(res.exception_message for res in reconcile_output.results):
+            raise ReconciliationException(
+                f"Reconciliation failed for one or more tables during **{report_type}** check. "
+                "Please check the recon metrics for details.",
+                reconcile_output=reconcile_output,
+            )
+
+        mismatched = [r for r in reconcile_output.results if is_table_recon_mismatch(r)]
+        if mismatched:
+            logger.warning(
+                f"Reconciliation found mismatches in {len(mismatched)} table(s). "
+                "Please check the recon metrics for details."
+            )
+        else:
+            logger.info(
+                f"Reconciliation type **{report_type}** completed successfully. "
+                "Please check the recon metrics for details."
+            )
+
         return reconcile_output
