@@ -7,27 +7,6 @@ import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import CodeBlock from '@theme/CodeBlock';
 
-## [Recon Config](#recon-config)
-
-* [Types of Report Supported](#types-of-report-supported)
-* [Report Type-Flow Chart](#report-type-flow-chart)
-* [Supported Source System](#supported-source-system)
-* [TABLE Config JSON filename](#table-config-json-filename)
-* [TABLE Config Elements](#table-config-elements)
-* [Aggregates](#aggregate)
-* [JDBC Reader Options](#jdbc-reader-options)
-* [Column Mapping](#column-mapping)
-* [Drop Columns](#drop-columns)
-* [Transformations](#transformations)
-* [Column Thresholds](#column-thresholds)
-* [Table Thresholds](#table-thresholds)
-* [Filters](#filters)
-* [Aggregates Reconcile](#aggregates-reconciliation)
-  * [Supported Aggregate Functions](#supported-aggregate-functions)
-  * [Flow Chart](#flow-chart)
-  * [Aggregate](#aggregate)
-  * [TABLE Config Examples](#table-config-examples)
-
 ## Types of Report Supported
 
 | report type | sample visualisation                 | description                                                                                                                                                                                    | key outputs  captured in the recon metrics tables                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
@@ -37,7 +16,7 @@ import CodeBlock from '@theme/CodeBlock';
 | **data**    | [data](../dataflow_example#data)     | reconcile the data at row and column level- ```join_columns``` will help us to identify mismatches at each row and column level                                                                | - **mismatch_data**(the sample data with mismatches captured at each column and row level )<br /> - **missing_in_src**(sample rows that are available in target but missing in source)<br /> - **missing_in_tgt**(sample rows that are available in source but are missing in target)<br /> - **threshold_mismatch**(configured column will be reconciled based on percentile or threshold boundary or date boundary)<br /> - **mismatch_columns**(consolidated list of columns that has mismatches in them)<br /> |
 | **all**     | [all](../dataflow_example#all)       | this is a combination of data + schema                                                                                                                                                         | - **data + schema outputs**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 
-[[back to top](#recon-config)]
+[[back to top](#types-of-report-supported)]
 
 ## Report Type-Flow Chart
 ---
@@ -81,7 +60,7 @@ flowchart TD
 ```
 ---
 
-[[back to top](#recon-config)]
+[[back to top](#types-of-report-supported)]
 
 ## Supported Source System
 
@@ -92,7 +71,7 @@ flowchart TD
 | MS SQL Server (incl. Synapse) | Yes    | Yes | Yes  | Yes |
 | Databricks                    | Yes    | Yes | Yes  | Yes |
 
-[[back to top](#recon-config)]
+[[back to top](#types-of-report-supported)]
 
 ## TABLE Config Json filename:
 The config file must be named as `recon_config_[DATA_SOURCE]_[SOURCE_CATALOG_OR_SCHEMA]_[REPORT_TYPE].json` and should be placed in the Lakebridge root directory `.lakebridge` within the Databricks Workspace.
@@ -164,7 +143,7 @@ Please find the `Table Recon` filename examples below for the `Snowflake`, `Orac
 > For example, if the source schema is defined as `ORC` in the `reconcile` config, the filename should be `recon_config_oracle_ORC_data.json`.
 
 
-[[back to top](#recon-config)]
+[[back to top](#types-of-report-supported)]
 
 
 
@@ -228,7 +207,7 @@ Please find the `Table Recon` filename examples below for the `Snowflake`, `Orac
 | `table_thresholds`      | `list[TableThresholds]`  | Table-level mismatch thresholds (see [table_thresholds](#table-thresholds))    | Optional    | <CodeBlock language="json">{`{"table_thresholds": {"model": "mismatch", "lower_bound": "0%", "upper_bound": "5%"}}`}</CodeBlock>                        |
 | `filters`               | `Filters`                | Source/target filter expressions                                               | Optional    | <CodeBlock language="json">{`{"filters": {"source": "quantity > 100", "target": "stock_quantity >= 100"}}`}</CodeBlock>                                 |
 
-[[back to top](#recon-config)]
+[[back to top](#types-of-report-supported)]
 
 ### JDBC Reader Options
 
@@ -277,7 +256,7 @@ For Oracle source, the following Spark Configurations are automatically set:
 While configuring Recon for Oracle source, the above options should be taken into consideration.
 :::
 
-[[back to top](#recon-config)]
+[[back to top](#types-of-report-supported)]
 
 ## Column Mapping
 
@@ -307,7 +286,7 @@ While configuring Recon for Oracle source, the above options should be taken int
 | source_name | string    | source column name | required          | "dept_id"       |
 | target_name | string    | target column name | required          | "department_id" |
 
-[[back to top](#recon-config)]
+[[back to top](#types-of-report-supported)]
 
 
 ## Drop Columns
@@ -332,7 +311,7 @@ using this config, you can specify the columns that you want to exclude from the
   </TabItem>
 </Tabs>
 
-[[back to top](#recon-config)]
+[[back to top](#types-of-report-supported)]
 
 
 ## Transformations
@@ -502,7 +481,7 @@ you may search the reconciliation log with the following string:
 
 [[back to Transformations](#transformations)]
 
-[[back to top](#recon-config)]
+[[back to top](#types-of-report-supported)]
 
 ## Column Thresholds
 
@@ -540,7 +519,7 @@ you may search the reconciliation log with the following string:
 | upper_bound | string    | the upper bound of the difference between the source value and the target value                                 | required          | "5%"               |
 | type        | string    | The user must specify the column type. Supports SQLGLOT `DataType.NUMERIC_TYPES` and `DataType.TEMPORAL_TYPES`. | required          | "int"              |
 
-[[back to top](#recon-config)]
+[[back to top](#types-of-report-supported)]
 
 ## Table Thresholds
 
@@ -575,7 +554,7 @@ you may search the reconciliation log with the following string:
 | upper_bound | string    | the upper bound of the difference between the source mismatch and the target mismatch count          | required          | 5%            |
 | model       | string    | The user must specify on which table model it should be applied; for now, we support only "mismatch" | required          | int           |
 
-[[back to top](#recon-config)]
+[[back to top](#types-of-report-supported)]
 
 ## Filters
 
@@ -628,7 +607,7 @@ reconciler will not apply any logic
 on top of this.
 :::
 
-[[back to top](#recon-config)]
+[[back to top](#types-of-report-supported)]
 
 ## Aggregates Reconciliation
 
@@ -662,7 +641,7 @@ between source and target data residing on Databricks.
 
 [[back to aggregates-reconciliation](#aggregates-reconciliation)]
 
-[[back to top](#recon-config)]
+[[back to top](#types-of-report-supported)]
 
 ### Flow Chart
 
@@ -676,7 +655,7 @@ flowchart TD
 
 [[back to aggregates-reconciliation](#aggregates-reconciliation)]
 
-[[back to top](#recon-config)]
+[[back to top](#types-of-report-supported)]
 
 
 ### Aggregate
@@ -712,7 +691,7 @@ flowchart TD
 
 [[back to aggregates-reconciliation](#aggregates-reconciliation)]
 
-[[back to top](#recon-config)]
+[[back to top](#types-of-report-supported)]
 
 
 ### TABLE Config Examples:
@@ -778,7 +757,7 @@ Key Considerations:
 
 [[back to aggregates-reconciliation](#aggregates-reconciliation)]
 
-[[back to top](#recon-config)]
+[[back to top](#types-of-report-supported)]
 
 
 

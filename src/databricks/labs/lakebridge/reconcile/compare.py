@@ -1,12 +1,12 @@
 import logging
 from functools import reduce
-from pyspark.sql import DataFrame, SparkSession
+from pyspark.sql import DataFrame
 from pyspark.sql.functions import col, expr, lit
 
 from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import DialectUtils
 from databricks.labs.lakebridge.reconcile.exception import ColumnMismatchException
 from databricks.labs.lakebridge.reconcile.recon_capture import (
-    ReconIntermediatePersist,
+    AbstractReconIntermediatePersist,
 )
 from databricks.labs.lakebridge.reconcile.recon_output_config import (
     DataReconcileOutput,
@@ -58,8 +58,7 @@ def reconcile_data(
     target: DataFrame,
     key_columns: list[str],
     report_type: str,
-    spark: SparkSession,
-    path: str,
+    persistence: AbstractReconIntermediatePersist,
 ) -> DataReconcileOutput:
     source_alias = "src"
     target_alias = "tgt"
@@ -78,9 +77,8 @@ def reconcile_data(
         )
     )
 
-    # Write unmatched df to volume
-    df = ReconIntermediatePersist(spark, path).write_and_read_unmatched_df_with_volumes(df)
-    logger.debug(f"Unmatched data was written to {path} successfully")
+    df = persistence.write_and_read_df_with_volumes(df)
+    # Checkpoint after joining source and target to backpressure
 
     mismatch = _get_mismatch_data(df, source_alias, target_alias) if report_type in {"all", "data"} else None
 
@@ -170,6 +168,7 @@ def capture_mismatch_data_and_columns(source: DataFrame, target: DataFrame, key_
 
     check_columns = [column for column in source_columns if column not in unnormalized_key_columns]
     mismatch_df = _get_mismatch_df(source_df, target_df, unnormalized_key_columns, check_columns)
+    # TODO write `mismatch_df` to delta
     mismatch_columns = _get_mismatch_columns(mismatch_df, check_columns)
     return MismatchOutput(mismatch_df, mismatch_columns)
 
@@ -395,12 +394,14 @@ def reconcile_agg_data_per_rule(
     missing_in_src = joined_df_with_rule_cols.filter(_agg_conditions(rule_select_columns, "missing_in_src")).select(
         *rule_target_columns
     )
+    # TODO write `missing_in_tgt` to delta
 
     # Data missing in Target DataFrame
     rule_source_columns = set(source_columns).intersection([mapping.source_name for mapping in rule_select_columns])
     missing_in_tgt = joined_df_with_rule_cols.filter(_agg_conditions(rule_select_columns, "missing_in_tgt")).select(
         *rule_source_columns
     )
+    # TODO write `missing_in_tgt` to delta
 
     mismatch_count = 0
     if mismatch:
@@ -422,8 +423,7 @@ def join_aggregate_data(
     source: DataFrame,
     target: DataFrame,
     key_columns: list[str] | None,
-    spark: SparkSession,
-    path: str,
+    persistence: AbstractReconIntermediatePersist,
 ) -> DataFrame:
     # TODO:  Integrate with reconcile_data function
 
@@ -450,9 +450,5 @@ def join_aggregate_data(
     joined_cols = source.columns + target.columns
     normalized_joined_cols = [DialectUtils.ansi_normalize_identifier(col) for col in joined_cols]
     joined_df = df.select(*normalized_joined_cols)
-
-    # Write the joined df to volume path
-    joined_volume_df = ReconIntermediatePersist(spark, path).write_and_read_unmatched_df_with_volumes(joined_df).cache()
-    logger.warning(f"Unmatched data is written to {path} successfully")
-
-    return joined_volume_df
+    persisted = persistence.write_and_read_df_with_volumes(joined_df)
+    return persisted

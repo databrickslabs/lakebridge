@@ -1,10 +1,13 @@
 import logging
+import os
+import tempfile
+import uuid
 from datetime import datetime
-from functools import reduce
+from functools import reduce, cached_property
+from pathlib import Path
 
 from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql.functions import col, collect_list, create_map, lit
-from pyspark.sql.types import StringType, StructField, StructType
 from pyspark.errors import PySparkException
 from sqlglot import Dialect
 
@@ -14,7 +17,6 @@ from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_key_
 from databricks.labs.lakebridge.reconcile.exception import (
     WriteToTableException,
     ReadAndWriteWithVolumeException,
-    CleanFromVolumeException,
 )
 from databricks.labs.lakebridge.reconcile.recon_output_config import (
     DataReconcileOutput,
@@ -38,44 +40,66 @@ _RECON_AGGREGATE_METRICS_TABLE_NAME = "aggregate_metrics"
 _RECON_AGGREGATE_DETAILS_TABLE_NAME = "aggregate_details"
 
 
-class ReconIntermediatePersist:
+class AbstractReconIntermediatePersist:
+    @property
+    def base_dir(self) -> Path:
+        raise NotImplementedError
 
-    def __init__(self, spark: SparkSession, path: str):
-        self.spark = spark
-        self.path = path
-
-    def _write_unmatched_df_to_volumes(
+    def write_and_read_df_with_volumes(
         self,
-        unmatched_df: DataFrame,
-    ) -> None:
-        unmatched_df.write.format("parquet").mode("overwrite").save(self.path)
-
-    def _read_unmatched_df_from_volumes(self) -> DataFrame:
-        return self.spark.read.format("parquet").load(self.path)
-
-    def clean_unmatched_df_from_volume(self):
-        try:
-            # TODO: for now we are overwriting the intermediate cache path. We should delete the volume in future
-            # workspace_client.dbfs.get_status(path)
-            # workspace_client.dbfs.delete(path, recursive=True)
-            empty_df = self.spark.createDataFrame([], schema=StructType([StructField("empty", StringType(), True)]))
-            empty_df.write.format("parquet").mode("overwrite").save(self.path)
-            logger.debug(f"Unmatched DF cleaned up from {self.path} successfully.")
-        except PySparkException as e:
-            message = f"Error cleaning up unmatched DF from {self.path} volumes --> {e}"
-            logger.error(message)
-            raise CleanFromVolumeException(message) from e
-
-    def write_and_read_unmatched_df_with_volumes(
-        self,
-        unmatched_df: DataFrame,
+        df: DataFrame,
     ) -> DataFrame:
+        raise NotImplementedError
+
+
+class ReconIntermediatePersist(AbstractReconIntermediatePersist):
+    def __init__(self, spark: SparkSession, metadata_config: ReconcileMetadataConfig):
+        self._spark = spark
+        self._metadata_config = metadata_config
+        self._format = "delta" if self._is_databricks else "parquet"
+        self._base_dir = self._get_uc_volume_path if self._is_databricks else tempfile.gettempdir()
+
+    @cached_property
+    def _is_databricks(self) -> bool:
+        is_db = "DATABRICKS_RUNTIME_VERSION" in os.environ
+        logger.debug(f"Running on Databricks check completed with result: {is_db}")
+        return is_db
+
+    @property
+    def base_dir(self) -> Path:
+        return Path(self._base_dir)
+
+    @property
+    def _get_uc_volume_path(self):
+        return (
+            f"/Volumes/"
+            f"{self._metadata_config.catalog}/"
+            f"{self._metadata_config.schema}/"
+            f"{self._metadata_config.volume}"
+        )
+
+    def _write_df_to_volumes(self, df: DataFrame, path: str) -> None:
+        logger.debug(f"Writing DF on {self._format} to path: {path}")
+        df.write.format(self._format).save(path)
+        logger.info(f"Wrote DF on {self._format}")
+
+    def _read_df_from_volumes(self, path) -> DataFrame:
+        logger.debug(f"Reading DF on {self._format} from path: {path}")
+        df = self._spark.read.format(self._format).load(path)
+        logger.info(f"Read DF on {self._format}")
+        return df
+
+    def write_and_read_df_with_volumes(
+        self,
+        df: DataFrame,
+    ) -> DataFrame:
+        path = str(self.base_dir / uuid.uuid4().hex)
         try:
-            self._write_unmatched_df_to_volumes(unmatched_df)
-            return self._read_unmatched_df_from_volumes()
+            self._write_df_to_volumes(df, path)
+            return self._read_df_from_volumes(path)
         except PySparkException as e:
-            message = f"Exception in reading or writing unmatched DF with volumes {self.path} --> {e}"
-            logger.error(message)
+            message = f"Exception in reading or writing DF at: {path}"
+            logger.exception(message)
             raise ReadAndWriteWithVolumeException(message) from e
 
 

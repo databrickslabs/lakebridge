@@ -13,8 +13,8 @@ from databricks.labs.lakebridge.reconcile.connectors.data_source import DataSour
 from databricks.labs.lakebridge.reconcile.exception import DataSourceRuntimeException, ReconciliationException
 from databricks.labs.lakebridge.reconcile.recon_capture import (
     ReconCapture,
-    ReconIntermediatePersist,
     generate_final_reconcile_output,
+    ReconIntermediatePersist,
 )
 from databricks.labs.lakebridge.reconcile.recon_config import Table, Schema
 from databricks.labs.lakebridge.reconcile.recon_output_config import (
@@ -47,17 +47,23 @@ class TriggerReconService:
             ws, spark, reconcile_config, local_test_run
         )
 
-        for table_conf in table_recon.tables:
-            TriggerReconService.recon_one(spark, reconciler, recon_capture, reconcile_config, table_conf)
+        try:
+            for table_conf in table_recon.tables:
+                TriggerReconService.recon_one(reconciler, recon_capture, reconcile_config, table_conf)
 
-        return TriggerReconService.verify_successful_reconciliation(
-            generate_final_reconcile_output(
-                recon_id=recon_capture.recon_id,
-                spark=spark,
-                metadata_config=reconcile_config.metadata_config,
-                local_test_run=local_test_run,
+            return TriggerReconService.verify_successful_reconciliation(
+                generate_final_reconcile_output(
+                    recon_id=recon_capture.recon_id,
+                    spark=spark,
+                    metadata_config=reconcile_config.metadata_config,
+                    local_test_run=local_test_run,
+                )
             )
-        )
+        finally:
+            try:
+                ws.dbfs.delete(str(reconciler.intermediate_persist.base_dir), recursive=True)
+            except IOError:
+                logger.exception("Cleaning intermediate storage failed. Resuming program")
 
     @staticmethod
     def create_recon_dependencies(
@@ -77,7 +83,7 @@ class TriggerReconService:
             secret_scope=reconcile_config.secret_scope,
         )
 
-        recon_id = str(uuid4())
+        recon_id = uuid4().hex
         # initialise the Reconciliation
         reconciler = Reconciliation(
             source,
@@ -88,6 +94,7 @@ class TriggerReconService:
             get_dialect(reconcile_config.data_source),
             spark,
             metadata_config=reconcile_config.metadata_config,
+            intermediate_persist=ReconIntermediatePersist(spark, reconcile_config.metadata_config),
         )
 
         recon_capture = ReconCapture(
@@ -105,7 +112,6 @@ class TriggerReconService:
 
     @staticmethod
     def recon_one(
-        spark: SparkSession,
         reconciler: Reconciliation,
         recon_capture: ReconCapture,
         reconcile_config: ReconcileConfig,
@@ -119,15 +125,12 @@ class TriggerReconService:
             reconciler, reconcile_config, normalized_table_conf
         )
 
-        TriggerReconService.persist_delta_table(
-            spark,
-            reconciler,
-            recon_capture,
-            schema_reconcile_output,
-            data_reconcile_output,
-            reconcile_config,
-            normalized_table_conf,
-            recon_process_duration,
+        recon_capture.start(
+            data_reconcile_output=data_reconcile_output,
+            schema_reconcile_output=schema_reconcile_output,
+            table_conf=table_conf,
+            recon_process_duration=recon_process_duration,
+            record_count=reconciler.get_record_count(table_conf, reconciler.report_type),
         )
 
         return schema_reconcile_output, data_reconcile_output
@@ -213,29 +216,6 @@ class TriggerReconService:
             return reconciler.reconcile_data(table_conf=table_conf, src_schema=src_schema, tgt_schema=tgt_schema)
         except DataSourceRuntimeException as e:
             return DataReconcileOutput(exception=str(e))
-
-    @staticmethod
-    def persist_delta_table(
-        spark: SparkSession,
-        reconciler: Reconciliation,
-        recon_capture: ReconCapture,
-        schema_reconcile_output: SchemaReconcileOutput,
-        data_reconcile_output: DataReconcileOutput,
-        reconcile_config: ReconcileConfig,
-        table_conf: Table,
-        recon_process_duration: ReconcileProcessDuration,
-    ):
-        recon_capture.start(
-            data_reconcile_output=data_reconcile_output,
-            schema_reconcile_output=schema_reconcile_output,
-            table_conf=table_conf,
-            recon_process_duration=recon_process_duration,
-            record_count=reconciler.get_record_count(table_conf, reconciler.report_type),
-        )
-        if reconciler.report_type != "schema":
-            ReconIntermediatePersist(
-                spark=spark, path=utils.generate_volume_path(table_conf, reconcile_config.metadata_config)
-            ).clean_unmatched_df_from_volume()
 
     @staticmethod
     def verify_successful_reconciliation(
