@@ -45,11 +45,6 @@ from databricks.labs.lakebridge.errors.exceptions import IllegalStateException
 from databricks.labs.lakebridge.helpers.file_utils import is_dbt_project_file, is_sql_file
 from databricks.labs.lakebridge.transpiler.transpile_engine import TranspileEngine
 
-# Optional dependency for bladebridge transpiler
-try:
-    import databricks.labs.bladebridge as bladebridge_module  # type: ignore[import-untyped]
-except ImportError:
-    bladebridge_module = None  # type: ignore[assignment]
 from databricks.labs.lakebridge.transpiler.transpile_status import (
     CodePosition,
     CodeRange,
@@ -647,24 +642,11 @@ class LSPEngine(TranspileEngine):
         # TODO: Remove the --log_level argument once all our transpilers support the environment variable.
         args = [*args, f"--log_level={log_level}"]
         # Force Python to use unbuffered mode so subprocess output appears immediately
-        # Set CONVERTER_KEY_FILE to bypass hash validation and use file-based key
-        # Find the converter_key.txt relative to the installed bladebridge package
-        converter_key = ""
-        if bladebridge_module is not None:
-            try:
-                bladebridge_path = Path(bladebridge_module.__file__).parent
-                converter_key = str(bladebridge_path / "Converter" / "bin" / "MacOS" / "converter_key.txt")
-            except AttributeError:
-                # Fallback if module doesn't have expected structure
-                pass
-
         env = {
             **env,
             "DATABRICKS_LAKEBRIDGE_LOG_LEVEL": log_level,
             "PYTHONUNBUFFERED": "1",
         }
-        if converter_key and Path(converter_key).exists():
-            env["CONVERTER_KEY_FILE"] = converter_key
 
         logger.debug(f"Starting LSP engine: {executable} {args} (cwd={self._workdir})")
         await self._client.start_io(executable, *args, env=env, cwd=self._workdir)
