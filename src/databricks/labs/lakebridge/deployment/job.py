@@ -275,6 +275,11 @@ class JobDeployment:
             python_wheel_task=PythonWheelTask(
                 package_name=self.parse_package_name(lakebridge_wheel_path),
                 entry_point="profiler_dashboards",
-                parameters=["{{job.parameters.[operation_name]}}"],
+                parameters=[
+                    "{{job.parameters.[catalog_name]}}",
+                    "{{job.parameters.[schema_name]}}",
+                    "{{job.parameters.[volume_path]}}",
+                    "{{job.parameters.[source_tech]}}",
+                ],
             ),
         )

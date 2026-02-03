@@ -13,6 +13,10 @@ from databricks.sdk import WorkspaceClient
 from databricks.labs.blueprint.installation import Installation
 from databricks.labs.blueprint.installer import InstallState
 from databricks.labs.blueprint.wheels import find_project_root
+from databricks.labs.blueprint.wheels import ProductInfo
+
+from databricks.labs.lakebridge.deployment.job import JobDeployment
+from databricks.labs.lakebridge.config import LakebridgeConfiguration
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -112,6 +116,19 @@ class DashboardManager:
         logging.info(f"Created dashboard '{dashboard.dashboard_id}' in workspace location {ws_parent_path}.")
         self._install_state.dashboards[dash_reference] = dashboard.dashboard_id
         return dashboard
+
+    def start_ingestion_job(self, volume_path, source_tech, catalog_name, schema_name) -> None:
+        product_info = ProductInfo.from_class(LakebridgeConfiguration)
+        name = "Profiler Ingestion Job"
+        job_deployer = JobDeployment(self._ws, self._installation, self._install_state, product_info)
+        job_deployer.deploy_profiler_ingestion_job(
+            name,
+            catalog_name=catalog_name,
+            schema_name=schema_name,
+            volume_location=volume_path,
+            source_tech=source_tech,
+            lakebridge_wheel_path="/Workspace/Users/guenia.izquierdo@databricks.com/.lakebridge/wheels/databricks_labs_lakebridge-0.12.0-py3-none-any.whl",
+        )
 
     def create_profiler_summary_dashboard(
         self,
