@@ -149,7 +149,8 @@ class PipelineClass:
         logging.info(f"Installing dependencies: {', '.join(dependencies)}")
         try:
             logging.debug("Upgrading local pip")
-            result = run(
+            is_debug = logging.getLogger(__name__).isEnabledFor(logging.DEBUG)
+            run(
                 [
                     venv_exec_cmd,
                     "-m",
@@ -162,13 +163,11 @@ class PipelineClass:
                     "--disable-pip-version-check",
                 ],
                 check=True,
-                capture_output=True,
+                capture_output=not is_debug,
                 text=True,
             )
-            if result.stdout:
-                logging.debug(f"Pip upgrade output: {result.stdout}")
-            
-            result = run(
+    
+            run(
                 [
                     venv_exec_cmd,
                     "-m",
@@ -180,11 +179,9 @@ class PipelineClass:
                     "--disable-pip-version-check",
                 ],
                 check=True,
-                capture_output=True,
+                capture_output=not is_debug,
                 text=True,
             )
-            if result.stdout:
-                logging.debug(f"Dependency installation output: {result.stdout}")
         except CalledProcessError as e:
             # Log detailed output at debug level for troubleshooting
             logging.debug(
