@@ -246,7 +246,6 @@ def test_mixed_data_types_preserved():
         },
     }
 
-
     manager = CredentialManager(credentials, _create_secret_providers())
     creds = manager.get_credentials('test_source')
 
@@ -285,7 +284,6 @@ def test_deeply_nested_credentials():
         },
     }
 
-
     manager = CredentialManager(credentials, _create_secret_providers())
     creds = manager.get_credentials('test_source')
 
@@ -307,7 +305,6 @@ def test_empty_nested_dict_and_list():
             },
         },
     }
-
 
     manager = CredentialManager(credentials, _create_secret_providers())
     creds = manager.get_credentials('test_source')
