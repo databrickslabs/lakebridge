@@ -42,7 +42,7 @@ def main(*argv: str) -> None:
     print(f"ARG 4 '{source_tech}'")
 
     logger.info(f"Validating {source_tech} profiler extract located at '{extract_location}'.")
-    valid_extract = _validate_profiler_gitextract(catalog_name, schema_name, extract_location, source_tech)
+    valid_extract = _validate_profiler_extract(catalog_name, schema_name, extract_location, source_tech)
     if valid_extract:
         _ingest_profiler_tables(catalog_name, schema_name, extract_location)
     else:
