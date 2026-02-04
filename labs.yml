@@ -85,9 +85,9 @@ commands:
       - name: volume-path
         description: Unity Catalog Volume to upload the profiler extract
       - name: catalog-name
-        description: (Optional) Name of the Catalog that extract data will be uploaded to
+        description: Name of the Catalog that extract data will be uploaded to
       - name: schema-name
-        description: (Optional) Name of the Schema that the extract tables will be uploaded to
+        description: Name of the Schema that the extract tables will be uploaded to
 
   - name: install-transpile
     description: Install & optionally configure 'transpile' dependencies
