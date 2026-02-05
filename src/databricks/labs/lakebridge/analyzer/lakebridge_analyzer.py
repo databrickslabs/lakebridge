@@ -49,8 +49,6 @@ class AnalyzerPrompts:
             if platform is not None:
                 logger.warning(f"Invalid source technology {platform}")
             platform = self._prompts.choice("Select the source technology", Analyzer.supported_source_technologies())
-        assert platform in Analyzer.supported_source_technologies()
-
         return platform
 
 
