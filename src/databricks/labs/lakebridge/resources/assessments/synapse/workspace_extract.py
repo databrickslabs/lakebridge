@@ -138,7 +138,8 @@ def execute():
             table_name = "workspace_pipeline_runs"
             logger.info(f"Extraction started for {table_name} for date: {days}")
             last_upd = today + timedelta(days=-days)
-            pipeline_runs = workspace.list_pipeline_runs(last_upd)
+            pipeline_runs_batches = workspace.list_pipeline_runs(last_upd)
+            pipeline_runs = [run for batch in pipeline_runs_batches for run in batch]
             if not pipeline_runs:
                 logger.warning(f"No pipeline runs found for {last_upd}")
                 continue
@@ -159,7 +160,8 @@ def execute():
             table_name = "workspace_trigger_runs"
             logger.info(f"Extraction started for {table_name} for date: {days}")
             last_upd = today + timedelta(days=-days)
-            trigger_runs = workspace.list_trigger_runs(last_upd)
+            trigger_runs_batches = workspace.list_trigger_runs(last_upd)
+            trigger_runs = [run for batch in trigger_runs_batches for run in batch]
             if not trigger_runs:
                 logger.warning(f"No trigger runs found for {last_upd}")
                 continue
