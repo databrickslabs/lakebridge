@@ -94,16 +94,8 @@ class LakebridgeAnalyzer:
     def run_analyzer(
         self, source: str | None = None, results: str | None = None, platform: str | None = None
     ) -> AnalyzerResult:
-        if not source:
-            source_dir = self._prompts.get_source_directory()
-        else:
-            source_dir = Path(source)
-
-        if not results:
-            results_dir = self._prompts.get_result_file_path(source_dir)
-        else:
-            results_dir = Path(results)
-
+        source_dir = self._prompts.get_source_directory() if source is None else Path(source)
+        results_dir = self._prompts.get_result_file_path(source_dir) if results is None else Path(results)
         platform = self._prompts.get_source_system(platform)
 
         return self._runner.run(source_dir, results_dir, platform)
