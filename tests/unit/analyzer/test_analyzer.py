@@ -1,11 +1,16 @@
 from pathlib import Path
 from unittest.mock import Mock
 
+from databricks.labs.bladespector.analyzer import Analyzer
 from databricks.labs.blueprint.tui import MockPrompts
 
-from databricks.labs.lakebridge.analyzer.lakebridge_analyzer import LakebridgeAnalyzer, AnalyzerPrompts, AnalyzerRunner
-
-from databricks.labs.bladespector.analyzer import Analyzer
+from databricks.labs.lakebridge.analyzer.lakebridge_analyzer import (
+    AnalyzerPrompts,
+    AnalyzerResult,
+    AnalyzerRunner,
+    LakebridgeAnalyzer,
+)
+from databricks.labs.lakebridge.helpers.file_utils import chdir
 
 
 def test_analyze_arguments_return(tmp_path: Path):
@@ -24,22 +29,45 @@ def test_analyze_arguments_return(tmp_path: Path):
 
 
 def test_analyze_prompts_result(tmp_path: Path):
-    supported_tech = sorted(Analyzer.supported_source_technologies(), key=str.casefold)
-    tech_enum = next((i for i, tech in enumerate(supported_tech) if tech == "Informatica - PC"), 12)
+    first_tech = next(iter(sorted(Analyzer.supported_source_technologies(), key=str.casefold)))
     input_path = tmp_path / "in"
-    output_path = tmp_path / "out"
+    report_file = tmp_path / "report.xlsx"
     mock_prompts = MockPrompts(
         {
-            "Select the source technology": str(tech_enum),
+            "Select the source technology": "0",
             "Enter the path of the directory containing sources to analyze": str(input_path),
-            "Enter the path of the report file for analyzer results": str(output_path),
+            "Enter the path of the report file for analyzer results": str(report_file),
         }
     )
+    expected_result = AnalyzerResult(
+        source_directory=input_path, report_path=report_file, source_system=str(first_tech)
+    )
+    _test_analyze_prompt(mock_prompts, expected_result)
+
+
+def test_analyze_prompt_relative_result_path(tmp_path: Path) -> None:
+    """Verify the handling when a relative path is provided for the report file."""
+    first_tech = next(iter(sorted(Analyzer.supported_source_technologies(), key=str.casefold)))
+    input_path = Path("in")
+    report_file = Path("report.xlsx")
+    mock_prompts = MockPrompts(
+        {
+            "Select the source technology": "0",
+            "Enter the path of the directory containing sources to analyze": str(input_path),
+            "Enter the path of the report file for analyzer results": str(report_file),
+        }
+    )
+    expected_result = AnalyzerResult(
+        source_directory=tmp_path / input_path, report_path=tmp_path / report_file, source_system=str(first_tech)
+    )
+
+    with chdir(tmp_path):
+        _test_analyze_prompt(mock_prompts, expected_result)
+
+
+def _test_analyze_prompt(mock_prompts: MockPrompts, expected_result: AnalyzerResult) -> None:
     runner = AnalyzerRunner(runnable=Mock(), is_debug=True)
     analyzer = LakebridgeAnalyzer(AnalyzerPrompts(mock_prompts), runner)
 
     result = analyzer.run_analyzer()
-
-    assert result.source_directory == input_path
-    assert result.report_path == output_path
-    assert result.source_system == "Informatica - PC"
+    assert result == expected_result
