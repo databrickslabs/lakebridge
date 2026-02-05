@@ -73,7 +73,7 @@ class AnalyzerRunner:
         tmp_dir = self._temp_xlsx_path(results_dir)
         self._runnable(source_dir, tmp_dir, platform, self._is_debug)
         self._move_file(tmp_dir, Path(results_dir))
-        logger.info(f"Successfully Analyzed files in {source_dir} for {platform} and saved report to {results_dir}")
+        logger.info(f"Analyzed {platform} files in {source_dir}; report saved to: {results_dir}")
         return AnalyzerResult(source_dir, results_dir, platform)
 
     @staticmethod
