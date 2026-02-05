@@ -96,17 +96,13 @@ class LakebridgeAnalyzer:
     ) -> AnalyzerResult:
         if not source:
             source_dir = self._prompts.get_source_directory()
-        elif not isinstance(source, Path):
-            source_dir = Path(source)
         else:
-            source_dir = source
+            source_dir = Path(source)
 
         if not results:
             results_dir = self._prompts.get_result_file_path(source_dir)
-        elif not isinstance(results, Path):
-            results_dir = Path(results)
         else:
-            results_dir = results
+            results_dir = Path(results)
 
         platform = self._prompts.get_source_system(platform)
 
