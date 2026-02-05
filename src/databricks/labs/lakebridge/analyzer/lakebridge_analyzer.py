@@ -64,19 +64,19 @@ class AnalyzerRunner:
     def create(cls, is_debug: bool = False) -> "AnalyzerRunner":
         return cls(Analyzer.analyze, move_tmp_file, is_debug)
 
-    def run(self, source_dir: Path, results_dir: Path, platform: str) -> AnalyzerResult:
+    def run(self, source_dir: Path, results_file_path: Path, platform: str) -> AnalyzerResult:
         logger.debug(f"Starting analyzer execution for {platform}: {source_dir}")
 
         if not check_path(source_dir):
             raise ValueError(f"Invalid source directory, not writable: {source_dir}")
-        if not check_path(results_dir):
-            raise ValueError(f"Invalid result path, not writable: {results_dir}")
+        if not check_path(results_file_path):
+            raise ValueError(f"Invalid result path, not writable: {results_file_path}")
 
-        tmp_dir = self._temp_xlsx_path(results_dir)
+        tmp_dir = self._temp_xlsx_path(results_file_path)
         self._runnable(source_dir, tmp_dir, platform, self._is_debug)
-        self._move_file(tmp_dir, Path(results_dir))
-        logger.info(f"Analyzed {platform} files in {source_dir}; report saved to: {results_dir}")
-        return AnalyzerResult(source_dir, results_dir, platform)
+        self._move_file(tmp_dir, Path(results_file_path))
+        logger.info(f"Analyzed {platform} files in {source_dir}; report saved to: {results_file_path}")
+        return AnalyzerResult(source_dir, results_file_path, platform)
 
     @staticmethod
     def _temp_xlsx_path(results_dir: Path | str) -> Path:
