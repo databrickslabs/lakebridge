@@ -7,16 +7,9 @@ toc_max_heading_level: 3
 ---
 # Microsoft SSIS to Databricks
 
-{/* ## [Table of Contents](#table-of-contents) */}
-
-{/* * [Conversion information](#conversion-information) */}
-{/* * [Supported Components](#supported-components) */}
-{/* ** [Control Flow (Orchestration)](#control-flow-(orchestration)-supported) */}
-
-
 ## Conversion information
 * **Transpiler**: BladeBridge
-* **Available** target: Databricks notebooks
+* **Available** target: Databricks notebooks (experimental)
 
 ### Supported SSIS Versions
 
@@ -168,10 +161,10 @@ Derived Column Transformation
 # Processing node Package\Data Flow Task\Derived Column, type DERIVED_COLUMN
 # component nameDerived Column
 Derived_Column_Add_Columns = f"""
-SELECT 
+SELECT
     *,
     CONCAT(FirstName, ' ', LastName) AS FullName,
-    CASE 
+    CASE
         WHEN Age < 30 THEN 'Young'
         WHEN Age < 60 THEN 'Middle'
         ELSE 'Senior'
@@ -240,7 +233,7 @@ Lookup Transformation
 # Processing node Package\Data Flow Task\Lookup Customer Type, type LOOKUP
 # component nameLookup Customer Type
 Lookup_Customer_Type = f"""
-SELECT 
+SELECT
     src.*,
     ref.TypeName,
     ref.TypeDescription
@@ -274,7 +267,7 @@ V_SourceFolder = f'/mnt/source/'
 
 # Use in SQL transformations via spark.sql()
 Incremental_Data_Query = f"""
-SELECT * 
+SELECT *
 FROM source_table
 WHERE ProcessDate > '{V_MaxProcessDate}'
 """
@@ -286,8 +279,8 @@ spark.sql(Incremental_Data_Query)
 **SSIS Expression Language:**
 ```
 File Connection Manager Expression:
-  @[User::SourceFolder] + "customers_" + 
-  (DT_WSTR, 8) DATEPART("yyyy", GETDATE()) + 
+  @[User::SourceFolder] + "customers_" +
+  (DT_WSTR, 8) DATEPART("yyyy", GETDATE()) +
   RIGHT("0" + (DT_WSTR, 2) DATEPART("mm", GETDATE()), 2) + ".csv"
 ```
 
@@ -321,7 +314,7 @@ Read_Customers_Data.createOrReplaceTempView('Read_Customers_Data')
 ForEach Loop Container (File Enumerator)
   Folder: C:\Data\Input\
   Files: *.csv
-  
+
   Tasks:
     - Data Flow: Process each file
     - Execute SQL: Log processing
@@ -334,7 +327,7 @@ V_InputFolder = f'/mnt/data/input/'
 
 # Process multiple CSV files using wildcard pattern
 ForEach_Read_All_Files = f"""
-SELECT 
+SELECT
     *,
     input_file_name() AS source_file,
     CURRENT_TIMESTAMP() AS process_date
@@ -353,7 +346,7 @@ spark.sql(ForEach_Insert_Customer_Data)
 # Log processing
 ForEach_Log_Processing = f"""
 INSERT INTO logs.processing_log
-SELECT 
+SELECT
     source_file AS file_path,
     COUNT(*) AS row_count,
     MAX(process_date) AS process_time
@@ -371,11 +364,11 @@ Execute SQL Task
   Connection: DW_Connection
   SQL Statement:
     TRUNCATE TABLE staging.customer_temp;
-    
+
     INSERT INTO staging.customer_temp
     SELECT * FROM staging.customer_stage
     WHERE process_date >= ?;
-  
+
   Parameter Mapping:
     Variable: User::MaxProcessDate → Parameter 0
 ```
@@ -410,11 +403,11 @@ public void Main()
 {
     string sourceFolder = Dts.Variables["User::SourceFolder"].Value.ToString();
     DateTime processDate = DateTime.Now;
-    
+
     int fileCount = Directory.GetFiles(sourceFolder, "*.csv").Length;
-    
+
     Dts.Variables["User::FileCount"].Value = fileCount;
-    
+
     Dts.TaskResult = (int)ScriptResults.Success;
 }
 ```
@@ -449,7 +442,7 @@ public override void Input0_ProcessInputRow(Input0Buffer Row)
         Row.PriorityFlag = "NORMAL";
         Row.DiscountRate = 0.05;
     }
-    
+
     Row.ProcessedDate = DateTime.Now;
 }
 ```
@@ -459,13 +452,13 @@ public override void Input0_ProcessInputRow(Input0Buffer Row)
 # Processing node Package\Data Flow Task\Script Component, type SCRIPT_COMPONENT
 # component nameScript Component
 Script_Component_Custom_Logic = f"""
-SELECT 
+SELECT
     *,
-    CASE 
+    CASE
         WHEN Amount > 1000 THEN 'HIGH'
         ELSE 'NORMAL'
     END AS PriorityFlag,
-    CASE 
+    CASE
         WHEN Amount > 1000 THEN 0.15
         ELSE 0.05
     END AS DiscountRate,
@@ -538,7 +531,7 @@ ProcessName = f'CustomerETL'
 # Processing node Package\Get Destination Table Name or File Name, type EXECUTE_SQL
 # component nameGet Destination Table Name or File Name
 # input parameters :
-	# ProcessName 
+	# ProcessName
 # output parameters :
 Package_Get_Destination_Table_Name_or_File_Name = f"""DECLARE VARIABLE V_TblNm STRING;
 call aud.spGetPackageDesTbl( {ProcessName}, V_TblNm );
@@ -561,9 +554,9 @@ spark.sql(Package_Truncate_Staging_Table)
 # component nameLoad Customer Data
 # input parameters :
 # output parameters :
-Package_Load_Customer_Data = f"""INSERT INTO staging.customers 
+Package_Load_Customer_Data = f"""INSERT INTO staging.customers
 (CustomerID, CustomerName, Email, Status, ProcessDate)
-SELECT 
+SELECT
     CustomerID,
     CustomerName,
     Email,
@@ -578,11 +571,11 @@ spark.sql(Package_Load_Customer_Data)
 # Processing node Package\Update Control Table, type EXECUTE_SQL
 # component nameUpdate Control Table
 # input parameters :
-	# ProcessName 
+	# ProcessName
 # output parameters :
-Package_Update_Control_Table = f"""INSERT INTO control.load_log 
+Package_Update_Control_Table = f"""INSERT INTO control.load_log
 (process_name, rows_processed, process_date)
-SELECT 
+SELECT
     {ProcessName} AS process_name,
     COUNT(*) AS rows_processed,
     current_timestamp() AS process_date
