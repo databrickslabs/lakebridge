@@ -65,7 +65,7 @@ class AnalyzerRunner:
         return cls(Analyzer.analyze, move_tmp_file, is_debug)
 
     def run(self, source_dir: Path, results_dir: Path, platform: str) -> AnalyzerResult:
-        logger.debug(f"Starting analyzer execution in {source_dir} for {platform}")
+        logger.debug(f"Starting analyzer execution for {platform}: {source_dir}")
 
         if not check_path(source_dir) or not check_path(results_dir):
             raise ValueError(f"Invalid path(s) provided: source_dir={source_dir}, results_dir={results_dir}")
