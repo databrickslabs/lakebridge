@@ -22,10 +22,10 @@ dev:
 
 
 lint:
-	hatch run verify
+	hatch run lint:verify
 
 fmt:
-	hatch run fmt
+	hatch run lint:fmt
 
 setup_spark_remote:
 	.github/scripts/setup_spark_remote.sh

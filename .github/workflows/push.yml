@@ -63,9 +63,6 @@ jobs:
       - name: Install hatch
         run: pip install hatch==$HATCH_VERSION
 
-      - name: Install optional dependencies for linting
-        run: pip install -e ".[resources-lint]"
-
       - name: Reformat code
         run: make fmt
 

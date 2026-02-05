@@ -107,6 +107,15 @@ profiler_dashboards = "databricks.labs.lakebridge.assessments.dashboards.execute
 test         = "pytest --cov src --cov-report=xml tests/unit"
 coverage     = "pytest --cov src tests --cov-report=html --ignore=tests/integration/install --ignore=tests/integration/connections --ignore=tests/integration/assessments"
 integration  = "pytest --cov src tests/integration --durations 20"
+
+# Linting environment with dependencies for profiler development inside resource folder
+[tool.hatch.envs.lint]
+template = "default"
+features = [
+  "resources-lint"
+]
+
+[tool.hatch.envs.lint.scripts]
 fmt          = ["black .",
                    "ruff  check . --fix",
                    "mypy --disable-error-code 'annotation-unchecked' .",
