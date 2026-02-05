@@ -138,7 +138,31 @@ class DashboardManager:
             folder=template_folder, ws_parent_path=ws_parent_path, dest_catalog=catalog_name, dest_schema=schema_name
         )
 
-    def upload_duckdb_to_uc_volume(self, local_file_path, volume_path):
+    @staticmethod
+    def _resolve_volume_path(local_file_path: str, volume_path: str) -> str:
+        """
+            Resolves the UC Volume path based on extract file path and UC Volume path inputs from the CLI.
+            Args:
+                local_file_path (str): Local path to the DuckDB file
+                volume_path (str): Target path in UC Volume (e.g., '/Volumes/catalog/schema/volume/myfile.duckdb')
+            Returns:
+                str: The resolved UC Volume path
+        """
+        extract_path = Path(local_file_path)
+        upload_path = Path(volume_path)
+
+        # Ensure that the extract file path ends with a valid DuckDB file name
+        if extract_path.name == "" or extract_path.suffix == "":
+            raise ValueError(f"The profile extract path must include a file name: {extract_path}")
+
+        # If the upload file path includes a valid file name, then return it
+        # Otherwise, append the extract file name to the UC Volume upload path
+        if upload_path.suffix:
+            return volume_path
+        else:
+            return str(upload_path / extract_path.name)
+
+    def upload_duckdb_to_uc_volume(self, local_file_path: str, volume_path: str) -> bool:
         """
         Upload a DuckDB file to Unity Catalog Volume
         Args:
@@ -148,12 +172,14 @@ class DashboardManager:
             bool: True if successful, False otherwise
         """
 
-        # Validate inputs
+        # Validate the extract file path
         if not os.path.exists(local_file_path):
             logger.error(f"Local file not found: {local_file_path}")
             return False
 
-        if not volume_path.startswith('/Volumes/'):
+        # Validate the upload Volume path
+        resolved_volume_path = self._resolve_volume_path(local_file_path, volume_path)
+        if not resolved_volume_path.startswith('/Volumes/'):
             logger.error("Volume path must start with '/Volumes/'")
             return False
 
@@ -161,8 +187,8 @@ class DashboardManager:
             with open(local_file_path, 'rb') as f:
                 file_bytes = f.read()
                 binary_data = io.BytesIO(file_bytes)
-                self._ws.files.upload(volume_path, binary_data, overwrite=True)
-            logger.info(f"Successfully uploaded {local_file_path} to {volume_path}")
+                self._ws.files.upload(resolved_volume_path, binary_data, overwrite=True)
+            logger.info(f"Successfully uploaded {local_file_path} to {resolved_volume_path}")
             return True
         except FileNotFoundError as e:
             logger.error(f"Profiler extract file was not found: \n{e}")
