@@ -1,5 +1,4 @@
 import dataclasses
-import tempfile
 from pathlib import Path
 from collections.abc import Callable
 
@@ -16,7 +15,7 @@ logger = get_logger(__file__)
 @dataclasses.dataclass
 class AnalyzerResult:
     source_directory: Path
-    output_directory: Path
+    report_path: Path
     source_system: str
 
 
@@ -34,14 +33,14 @@ class AnalyzerPrompts:
         )
         return Path(directory_str)
 
-    def get_result_file_path(self, directory: Path) -> Path:
-        """Get the result file path - accepts either filename or full path."""
+    def get_result_file_path(self) -> Path:
+        """Prompt the user for where the analyzer report should be saved."""
         filename = self._prompts.question(
-            "Enter report file name or custom export path including file name without extension",
-            default=f"{directory.as_posix()}/lakebridge-analyzer-results.xlsx",
+            "Enter the path of the report file for analyzer results",
+            default="lakebridge-analyzer-results.xlsx",
             validate=check_path,
         )
-        return directory / Path(filename) if len(filename.split("/")) == 1 else Path(filename)
+        return Path(filename)
 
     def get_source_system(self, platform: str | None = None) -> str:
         """Validate source technology or prompt for a valid source"""
@@ -70,6 +69,9 @@ class AnalyzerRunner:
         if not source_dir.is_absolute():
             source_dir = source_dir.resolve()
             logger.debug(f"Relative path provided for source directory, will use: {source_dir}")
+        if not results_file_path.is_absolute():
+            results_file_path = results_file_path.resolve()
+            logger.debug(f"Relative path provided for results file, will use: {results_file_path}")
 
         if not check_path(source_dir):
             raise ValueError(f"Invalid source directory, not writable: {source_dir}")
@@ -78,15 +80,9 @@ class AnalyzerRunner:
         if results_file_path.suffix != ".xlsx":
             logger.warning(f"Excel report will be written without .xlsx extension: {results_file_path}")
 
-        tmp_dir = self._temp_xlsx_path(results_file_path)
-        self._runnable(source_dir, tmp_dir, platform, self._is_debug)
-        self._move_file(tmp_dir, Path(results_file_path))
+        self._runnable(source_dir, results_file_path, platform, self._is_debug)
         logger.info(f"Analyzed {platform} files in {source_dir}; report saved to: {results_file_path}")
         return AnalyzerResult(source_dir, results_file_path, platform)
-
-    @staticmethod
-    def _temp_xlsx_path(results_dir: Path | str) -> Path:
-        return (Path(tempfile.mkdtemp()) / Path(results_dir).name).with_suffix(".xlsx")
 
 
 class LakebridgeAnalyzer:
@@ -99,7 +95,7 @@ class LakebridgeAnalyzer:
         self, source: str | None = None, report_file: str | None = None, platform: str | None = None
     ) -> AnalyzerResult:
         source_dir = self._prompts.get_source_directory() if source is None else Path(source)
-        results_file_path = self._prompts.get_result_file_path(source_dir) if report_file is None else Path(report_file)
+        results_file_path = self._prompts.get_result_file_path() if report_file is None else Path(report_file)
         platform = self._prompts.get_source_system(platform)
 
         return self._runner.run(source_dir, results_file_path, platform)

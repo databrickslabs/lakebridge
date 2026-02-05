@@ -11,15 +11,15 @@ from databricks.labs.bladespector.analyzer import Analyzer
 def test_analyze_arguments_return(tmp_path: Path):
     mock_prompts = MockPrompts({})
     input_path = tmp_path / "in"
-    output_path = tmp_path / "out"
+    report_file = tmp_path / "report.xlsx"
     tech = "Synapse"
     runner = AnalyzerRunner(Mock(), Mock(), True)
     analyzer = LakebridgeAnalyzer(AnalyzerPrompts(mock_prompts), runner)
 
-    result = analyzer.run_analyzer(str(input_path), str(output_path), tech)
+    result = analyzer.run_analyzer(str(input_path), str(report_file), tech)
 
     assert result.source_directory == input_path
-    assert result.output_directory == output_path
+    assert result.report_path == report_file
     assert result.source_system == tech
 
 
@@ -32,7 +32,7 @@ def test_analyze_prompts_result(tmp_path: Path):
         {
             "Select the source technology": str(tech_enum),
             "Enter the path of the directory containing sources to analyze": str(input_path),
-            "Enter report file name or custom export path including file name without extension": str(output_path),
+            "Enter the path of the report file for analyzer results": str(output_path),
         }
     )
     runner = AnalyzerRunner(Mock(), Mock(), True)
@@ -41,5 +41,5 @@ def test_analyze_prompts_result(tmp_path: Path):
     result = analyzer.run_analyzer()
 
     assert result.source_directory == input_path
-    assert result.output_directory == output_path
+    assert result.report_path == output_path
     assert result.source_system == "Informatica - PC"

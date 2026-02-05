@@ -17,7 +17,7 @@ def test_analyze_arguments(mock_workspace_client: WorkspaceClient, test_resource
     cli.analyze(
         w=mock_workspace_client,
         source_directory=str(input_path),
-        report_file=str(tmp_path / "sample"),
+        report_file=str(tmp_path / "sample.xlsx"),
         source_tech="Informatica - PC",
     )
 
@@ -53,13 +53,13 @@ def test_analyze_prompts(mock_workspace_client: WorkspaceClient, test_resources:
     tech_enum = next((i for i, tech in enumerate(supported_tech) if tech == "Informatica - PC"), 12)
 
     source_dir = test_resources / "functional" / "informatica"
-    output_dir = tmp_path / "results"
+    report_path = tmp_path / "results.xlsx"
 
     mock_prompts = MockPrompts(
         {
             "Select the source technology": str(tech_enum),
             "Enter the path of the directory containing sources to analyze": str(source_dir),
-            "Enter report file name or custom export path including file name without extension": str(output_dir),
+            "Enter the path of the report file for analyzer results": str(report_path),
         }
     )
     with patch.object(ApplicationContext, "prompts", mock_prompts):
