@@ -58,7 +58,7 @@ def test_analyze_prompts(mock_workspace_client: WorkspaceClient, test_resources:
     mock_prompts = MockPrompts(
         {
             "Select the source technology": str(tech_enum),
-            "Enter full path to the source directory": str(source_dir),
+            "Enter the path of the directory containing sources to analyze": str(source_dir),
             "Enter report file name or custom export path including file name without extension": str(output_dir),
         }
     )

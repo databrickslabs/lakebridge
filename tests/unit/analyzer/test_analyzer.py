@@ -31,7 +31,7 @@ def test_analyze_prompts_result(tmp_path: Path):
     mock_prompts = MockPrompts(
         {
             "Select the source technology": str(tech_enum),
-            "Enter full path to the source directory": str(input_path),
+            "Enter the path of the directory containing sources to analyze": str(input_path),
             "Enter report file name or custom export path including file name without extension": str(output_path),
         }
     )

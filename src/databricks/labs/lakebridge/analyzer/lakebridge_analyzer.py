@@ -26,13 +26,13 @@ class AnalyzerPrompts:
         self._prompts = prompts
 
     def get_source_directory(self) -> Path:
-        """Get and validate the source directory from user input."""
+        """Prompt the user for the directory containing sources to analyze."""
         directory_str = self._prompts.question(
-            "Enter full path to the source directory",
+            "Enter the path of the directory containing sources to analyze",
             default=Path.cwd().as_posix(),
             validate=check_path,
         )
-        return Path(directory_str).resolve()
+        return Path(directory_str)
 
     def get_result_file_path(self, directory: Path) -> Path:
         """Get the result file path - accepts either filename or full path."""
@@ -66,6 +66,10 @@ class AnalyzerRunner:
 
     def run(self, source_dir: Path, results_file_path: Path, platform: str) -> AnalyzerResult:
         logger.debug(f"Starting analyzer execution for {platform}: {source_dir}")
+
+        if not source_dir.is_absolute():
+            source_dir = source_dir.resolve()
+            logger.debug(f"Relative path provided for source directory, will use: {source_dir}")
 
         if not check_path(source_dir):
             raise ValueError(f"Invalid source directory, not writable: {source_dir}")
