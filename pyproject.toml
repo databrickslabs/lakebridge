@@ -45,6 +45,14 @@ dependencies = [
   "pandas~=2.3.1", # Required for new configure assessment
 ]
 
+[project.optional-dependencies]
+# Optional dependencies for linting resources folder (assessments, profilers)
+resources-lint = [
+  "azure-identity~=1.19.0",
+  "azure-monitor-query~=1.4.0",
+  "azure-synapse-artifacts~=0.20.0",
+]
+
 [project.urls]
 Documentation = "https://databrickslabs.github.io/lakebridge"
 Issues = "https://github.com/databrickslabs/lakebridge/issues"
@@ -123,7 +131,7 @@ asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope="function"
 
 [tool.mypy]
-exclude = ["tests/resources/.*", "src/databricks/labs/lakebridge/resources/assessments/.*"]
+exclude = ["tests/resources/.*"]
 
 [tool.black]
 target-version = ["py310"]
@@ -211,7 +219,7 @@ fail-under = 10.0
 # file locks
 ignore-patterns = ["^\\.#"]
 
-# Ignore files under tests/resources
+# Ignore files under tests/resources and resources/assessments
 ignore-paths = ["tests/resources", "src/databricks/labs/lakebridge/resources/assessments"]
 
 # List of module names for which member attributes should not be checked (useful

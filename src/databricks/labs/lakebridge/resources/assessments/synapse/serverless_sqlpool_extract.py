@@ -30,7 +30,7 @@ def get_serverless_database_groups(
     and applies inclusion/exclusion filters.
 
     Returns:
-        (serverless_database_groups, serverless_database_groups_in_scope)
+        (serverless_database_groups, serverless_db_groups_in_scope)
     """
     with duckdb.connect(db_path) as conn:
         rows = conn.execute(f"SELECT name, collation_name FROM {table_name}").fetchall()
@@ -42,13 +42,13 @@ def get_serverless_database_groups(
     inclusion_list = inclusion_list or []
     exclusion_list = exclusion_list or []
 
-    serverless_database_groups_in_scope = {}
+    serverless_db_groups_in_scope = {}
     for collation_name, dbs in serverless_database_groups.items():
-        for db in dbs:
-            if (not inclusion_list or db in inclusion_list) and db not in exclusion_list:
-                serverless_database_groups_in_scope.setdefault(collation_name, []).append(db)
+        for database in dbs:
+            if (not inclusion_list or database in inclusion_list) and database not in exclusion_list:
+                serverless_db_groups_in_scope.setdefault(collation_name, []).append(database)
 
-    return serverless_database_groups_in_scope
+    return serverless_db_groups_in_scope
 
 
 def execute():
@@ -74,12 +74,12 @@ def execute():
             result = connection.fetch(database_query)
             save_resultset_to_db(result, "serverless_databases", db_path, mode="overwrite")
 
-            serverless_database_groups_in_scope = get_serverless_database_groups(db_path)
-            logger.info(f"serverless db in scope: {serverless_database_groups_in_scope}")
+            serverless_db_groups_in_scope = get_serverless_database_groups(db_path)
+            logger.info(f"serverless db in scope: {serverless_db_groups_in_scope}")
 
-            for idx, collation_name in enumerate(serverless_database_groups_in_scope):
+            for idx, collation_name in enumerate(serverless_db_groups_in_scope):
                 mode = "overwrite" if idx == 0 else "append"
-                databases = serverless_database_groups_in_scope[collation_name]
+                databases = serverless_db_groups_in_scope[collation_name]
 
                 for db_name in databases:
                     connection = get_sqlpool_reader(

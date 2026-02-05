@@ -59,9 +59,9 @@ class SynapseQueries:
                """
 
     @staticmethod
-    def list_views(pool_name, redact_sql_text: bool = False) -> str:
+    def list_views(pool_name, _redact_sql_text: bool = False) -> str:
         """Get list of views"""
-        return """
+        return f"""
                SELECT
                    TABLE_CATALOG,
                    TABLE_SCHEMA,
@@ -74,7 +74,7 @@ class SynapseQueries:
                """
 
     @staticmethod
-    def list_routines(pool_name, redact_sql_text: bool = False) -> str:
+    def list_routines(pool_name, _redact_sql_text: bool = False) -> str:
         """Get list of routines (functions + procedures)"""
         return f"""
                SELECT
