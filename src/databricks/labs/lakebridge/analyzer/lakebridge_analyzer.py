@@ -7,7 +7,7 @@ from databricks.labs.blueprint.tui import Prompts
 
 from databricks.labs.bladespector.analyzer import Analyzer
 
-from databricks.labs.lakebridge.helpers.file_utils import check_path, move_tmp_file
+from databricks.labs.lakebridge.helpers.file_utils import check_path
 
 logger = get_logger(__file__)
 
@@ -52,16 +52,13 @@ class AnalyzerPrompts:
 
 
 class AnalyzerRunner:
-    def __init__(
-        self, runnable: Callable[[Path, Path, str, bool], None], move_file: Callable[[Path, Path], None], is_debug: bool
-    ):
+    def __init__(self, runnable: Callable[[Path, Path, str, bool], None], is_debug: bool) -> None:
         self._runnable = runnable
-        self._move_file = move_file
         self._is_debug = is_debug
 
     @classmethod
     def create(cls, is_debug: bool = False) -> "AnalyzerRunner":
-        return cls(Analyzer.analyze, move_tmp_file, is_debug)
+        return cls(Analyzer.analyze, is_debug)
 
     def run(self, source_dir: Path, results_file_path: Path, platform: str) -> AnalyzerResult:
         logger.debug(f"Starting analyzer execution for {platform}: {source_dir}")

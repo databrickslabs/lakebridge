@@ -13,7 +13,7 @@ def test_analyze_arguments_return(tmp_path: Path):
     input_path = tmp_path / "in"
     report_file = tmp_path / "report.xlsx"
     tech = "Synapse"
-    runner = AnalyzerRunner(Mock(), Mock(), True)
+    runner = AnalyzerRunner(runnable=Mock(), is_debug=True)
     analyzer = LakebridgeAnalyzer(AnalyzerPrompts(mock_prompts), runner)
 
     result = analyzer.run_analyzer(str(input_path), str(report_file), tech)
@@ -35,7 +35,7 @@ def test_analyze_prompts_result(tmp_path: Path):
             "Enter the path of the report file for analyzer results": str(output_path),
         }
     )
-    runner = AnalyzerRunner(Mock(), Mock(), True)
+    runner = AnalyzerRunner(runnable=Mock(), is_debug=True)
     analyzer = LakebridgeAnalyzer(AnalyzerPrompts(mock_prompts), runner)
 
     result = analyzer.run_analyzer()
