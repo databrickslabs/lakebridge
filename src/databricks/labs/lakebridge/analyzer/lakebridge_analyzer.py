@@ -71,6 +71,8 @@ class AnalyzerRunner:
             raise ValueError(f"Invalid source directory, not writable: {source_dir}")
         if not check_path(results_file_path):
             raise ValueError(f"Invalid result path, not writable: {results_file_path}")
+        if results_file_path.suffix != ".xlsx":
+            logger.warning(f"Excel report will be written without .xlsx extension: {results_file_path}")
 
         tmp_dir = self._temp_xlsx_path(results_file_path)
         self._runnable(source_dir, tmp_dir, platform, self._is_debug)
