@@ -21,6 +21,11 @@ def test_analyze_arguments(mock_workspace_client: WorkspaceClient, test_resource
         source_tech="Informatica - PC",
     )
 
+    with report_path.open("rb") as f:
+        header = f.read(4)
+    # Excel files are .zip files, so we can check they have the zip header.
+    assert header == b"PK\x03\x04"
+
 
 def test_analyze_arguments_wrong_tech(
     mock_workspace_client: WorkspaceClient,
