@@ -16,6 +16,7 @@ dev:
 	which hatch > /dev/null || pip3 install hatch
 	hatch env create
 	hatch run pip3 install --upgrade pip
+	hatch run pip3 install -e '.[test]'
 	hatch run which python
 	@echo "Hatch has created the above virtual environment. Please activate it using 'source .venv/bin/activate' and also select the .venv/bin/python interpreter in your IDE."
 
