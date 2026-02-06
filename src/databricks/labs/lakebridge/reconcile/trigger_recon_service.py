@@ -222,30 +222,44 @@ class TriggerReconService:
     @staticmethod
     def verify_successful_reconciliation(reconcile_output: ReconcileOutput, report_type: str) -> ReconcileOutput:
         def is_table_recon_mismatch(table_output: ReconcileTableOutput):
-            return (
+            is_mismatch = (
                 table_output.status.column is False
                 or table_output.status.row is False
                 or table_output.status.schema is False
                 or table_output.status.aggregate is False
             )
+            if is_mismatch:
+                logger.debug(
+                    f"Mismatches found between source and target tables:"
+                    f" ({table_output.source_table_name}, {table_output.target_table_name})."
+                )
 
-        if any(res.exception_message for res in reconcile_output.results):
+            return is_mismatch
+
+        exceptions = [r for r in reconcile_output.results if r.exception_message]
+        mismatched = [r for r in reconcile_output.results if is_table_recon_mismatch(r)]
+
+        (total_count, exc_count, mismatched_count) = (len(reconcile_output.results), len(exceptions), len(mismatched))
+        success_count = min(total_count, exc_count + mismatched_count - total_count)
+
+        logger.info(
+            f"Ran **{report_type}** reconcile for total {total_count} source tables and their targets with id: {reconcile_output.recon_id}."
+            f" {success_count} tables succeeded, {exc_count} tables failed with exceptions and {mismatched_count} tables mismatched."
+        )
+
+        if exceptions:
             raise ReconciliationException(
-                f"Reconciliation failed for one or more tables during **{report_type}** check. "
-                "Please check the recon metrics for details.",
+                f"Reconciliation failed with exceptions for {exc_count} table(s). Please check recon metrics for details.",
                 reconcile_output=reconcile_output,
             )
 
-        mismatched = [r for r in reconcile_output.results if is_table_recon_mismatch(r)]
         if mismatched:
-            logger.warning(
-                f"Reconciliation found mismatches in {len(mismatched)} table(s). "
-                "Please check the recon metrics for details."
+            logger.error(
+                f"Reconciliation found mismatches in {mismatched_count} table(s). Please check recon metrics for details."
             )
         else:
             logger.info(
-                f"Reconciliation type **{report_type}** completed successfully. "
-                "Please check the recon metrics for details."
+                f"Reconciliation type **{report_type}** completed successfully. Please check recon metrics for details."
             )
 
         return reconcile_output
