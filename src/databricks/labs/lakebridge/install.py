@@ -101,6 +101,8 @@ class WorkspaceInstaller:
         elif module in {"transpile", "all"}:
             for transpiler_installer in self._transpiler_installers:
                 transpiler_installer.install()
+        elif module == "profiler_dashboard":
+            logger.info("Installing the profiler ingestion job.")
         if not config:
             config = self.configure(module)
         if self._is_testing():

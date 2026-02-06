@@ -14,6 +14,8 @@ from databricks.labs.blueprint.installation import Installation
 from databricks.labs.blueprint.installer import InstallState
 from databricks.labs.blueprint.wheels import find_project_root
 
+from databricks.labs.lakebridge.deployment.job import JobDeployment
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -49,14 +51,21 @@ class DashboardManager:
     """
 
     _DASHBOARD_NAME = "Lakebridge Profiler Assessment"
+    _INGESTION_JOB_NAME = "Lakebridge Profiler Ingestion Job"
 
     def __init__(
-        self, ws: WorkspaceClient, installation: Installation, install_state: InstallState, is_debug: bool = False
+        self,
+        ws: WorkspaceClient,
+        installation: Installation,
+        install_state: InstallState,
+        job_deployer: JobDeployment,
+        is_debug: bool = False,
     ):
         self._ws = ws
         self._installation = installation
         self._install_state = install_state
         self._is_debug = is_debug
+        self._job_deployer = job_deployer
 
     @staticmethod
     def _replace_catalog_schema(
@@ -141,12 +150,12 @@ class DashboardManager:
     @staticmethod
     def _resolve_volume_path(local_file_path: str, volume_path: str) -> str:
         """
-            Resolves the UC Volume path based on extract file path and UC Volume path inputs from the CLI.
-            Args:
-                local_file_path (str): Local path to the DuckDB file
-                volume_path (str): Target path in UC Volume (e.g., '/Volumes/catalog/schema/volume/myfile.duckdb')
-            Returns:
-                str: The resolved UC Volume path
+        Resolves the UC Volume path based on extract file path and UC Volume path inputs from the CLI.
+        Args:
+            local_file_path (str): Local path to the DuckDB file
+            volume_path (str): Target path in UC Volume (e.g., '/Volumes/catalog/schema/volume/myfile.duckdb')
+        Returns:
+            str: The resolved UC Volume path
         """
         extract_path = Path(local_file_path)
         upload_path = Path(volume_path)
@@ -159,8 +168,8 @@ class DashboardManager:
         # Otherwise, append the extract file name to the UC Volume upload path
         if upload_path.suffix:
             return volume_path
-        else:
-            return str(upload_path / extract_path.name)
+
+        return str(upload_path / extract_path.name)
 
     def upload_duckdb_to_uc_volume(self, local_file_path: str, volume_path: str) -> bool:
         """

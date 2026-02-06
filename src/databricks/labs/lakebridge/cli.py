@@ -1029,12 +1029,22 @@ def create_profiler_dashboard(
     volume_path: str,
     catalog_name: str,
     schema_name: str,
+    transpiler_repository: TranspilerRepository = TranspilerRepository.user_home(),
 ) -> None:
     """Deploys a profiler summary as a Databricks dashboard"""
+    from databricks.labs.lakebridge.install import installer  # pylint: disable=cyclic-import, import-outside-toplevel
+
     ctx = ApplicationContext(w)
     ctx.add_user_agent_extra("cmd", "create-profiler-dashboard")
-    ctx.dashboard_manager.upload_duckdb_to_uc_volume(extract_file, volume_path)
-    ctx.dashboard_manager.create_profiler_summary_dashboard(source_tech, catalog_name, schema_name)
+
+    # Deploy the profiler dashboard and ingestion job
+    if not w.config.warehouse_id:
+        dbsql_id = _create_warehouse(w)
+        w.config.warehouse_id = dbsql_id
+    logger.debug(f"Warehouse ID used for running the profiler dashboard: {w.config.warehouse_id}.")
+    logger.debug(f"Using transpiler_repo: {transpiler_repository}")
+    profiler_dashboard_installer = installer(w, transpiler_repository, is_interactive=True)
+    profiler_dashboard_installer.run(module="profiler_dashboard")
 
 
 if __name__ == "__main__":

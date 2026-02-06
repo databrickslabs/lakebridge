@@ -79,9 +79,9 @@ commands:
     description: (Experimental) Upload the profiler results as a Databricks dashboard.
     flags:
       - name: extract-file
-        description: Path Location of the Profiler Extract File
+        description: Local file path to the profiler extract file (.db file)
       - name: source-tech
-        description: Name of the Source System Technology that was Profiled
+        description: Name of the source system technology that was profiled
       - name: volume-path
         description: Unity Catalog Volume to upload the profiler extract
       - name: catalog-name

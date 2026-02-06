@@ -73,7 +73,7 @@ def _validate_profiler_extract(
     logger.info("Validating the profiler extract file.")
     validation_checks: list[EmptyTableValidationCheck | ExtractSchemaValidationCheck] = []
     # TODO: Verify this, I don't think it works? (These files are part of the test resources.)
-    schema_def = resources.files(assessment_resources).joinpath(f"{source_tech}_schema_def.yml")
+    schema_def = resources.files(assessment_resources).joinpath(f"{source_tech}_extract_schema.yml")
     tables = _get_extract_tables(schema_def)
     try:
         with duckdb.connect(database=extract_location) as duck_conn, resources.as_file(schema_def) as schema_def_path:

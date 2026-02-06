@@ -11,7 +11,10 @@ from databricks.sdk.service.iam import User
 
 from databricks.labs.blueprint.installation import MockInstallation
 from databricks.labs.blueprint.installer import InstallState
+from databricks.labs.blueprint.wheels import ProductInfo
 from databricks.labs.lakebridge.assessments.dashboards.dashboard_manager import DashboardManager
+from databricks.labs.lakebridge.config import LakebridgeConfiguration
+from databricks.labs.lakebridge.deployment.job import JobDeployment
 
 
 @pytest.fixture
@@ -32,7 +35,9 @@ def dashboard_manager(mocked_workspace_client: WorkspaceClient):
     workspace_client = mocked_workspace_client
     installation = MockInstallation(is_global=False)
     install_state = InstallState.from_installation(installation)
-    return DashboardManager(workspace_client, installation, install_state, is_debug=True)
+    product_info = ProductInfo.for_testing(LakebridgeConfiguration)
+    job_deployer = JobDeployment(workspace_client, installation, install_state, product_info)
+    return DashboardManager(workspace_client, installation, install_state, job_deployer, is_debug=True)
 
 
 def test_upload_duckdb_to_uc_volume_file_not_found(
