@@ -1,6 +1,7 @@
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
 from databricks.labs.blueprint.tui import MockPrompts
 from databricks.sdk import WorkspaceClient
 
@@ -12,12 +13,30 @@ from databricks.labs.bladespector.analyzer import Analyzer
 # TODO: These should be moved to the integration tests.
 
 
-def test_analyze_arguments(mock_workspace_client: WorkspaceClient, test_resources: Path, tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    "report_file",
+    (
+        Path("sample.xlsx"),
+        Path("file-without-extension"),
+    ),
+    ids=str,
+)
+@pytest.mark.parametrize("target_exists", (False, True), ids=lambda x: "target_exists" if x else "new_file")
+def test_analyze_arguments(
+    mock_workspace_client: WorkspaceClient,
+    test_resources: Path,
+    tmp_path: Path,
+    report_file: Path,
+    target_exists: bool,
+) -> None:
     input_path = test_resources / "functional" / "informatica"
+    report_path = tmp_path / report_file
+    if target_exists:
+        report_path.write_text("Target will already exist; needs to be overwritten.", encoding="utf-8")
     cli.analyze(
         w=mock_workspace_client,
         source_directory=str(input_path),
-        report_file=str(tmp_path / "sample.xlsx"),
+        report_file=str(report_path),
         source_tech="Informatica - PC",
     )
 

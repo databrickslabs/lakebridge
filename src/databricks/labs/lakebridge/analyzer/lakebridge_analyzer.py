@@ -1,4 +1,6 @@
 import dataclasses
+import shutil
+import tempfile
 from pathlib import Path
 from collections.abc import Callable
 
@@ -74,9 +76,31 @@ class AnalyzerRunner:
             raise ValueError(f"Invalid source directory, not writable: {source_dir}")
         if not check_path(results_file_path):
             raise ValueError(f"Invalid result path, not writable: {results_file_path}")
-        if results_file_path.suffix != ".xlsx":
+        _run_imp: Callable[[Path, Path, str], AnalyzerResult]
+        if results_file_path.suffix == ".xlsx":
+            _run_imp = self._run
+        else:
+            # Bladespector currently fails if the path doesn't have a .xlsx extension.
             logger.warning(f"Excel report will be written without .xlsx extension: {results_file_path}")
+            _run_imp = self._run_with_staged_report
+        return _run_imp(source_dir, results_file_path, platform)
 
+    def _run_with_staged_report(self, source_dir: Path, results_file_path: Path, platform: str) -> AnalyzerResult:
+        """Run the analyzer, staging the results first to a temporary directory.
+
+        This is a workaround: bladespector currently imposes restrictions on file names.
+        """
+        # TODO: Move this workaround to bladespector, so this can be eliminated here.
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            staging_path = Path(tmp_dir) / "staging-report.xlsx"
+            result = self._run(source_dir, staging_path, platform)
+            # On Windows, can't overwrite via move() so first need to remove the target if it exists.
+            results_file_path.unlink(missing_ok=True)
+            shutil.move(staging_path, results_file_path)
+            result.report_path = results_file_path
+        return result
+
+    def _run(self, source_dir: Path, results_file_path: Path, platform: str) -> AnalyzerResult:
         self._runnable(source_dir, results_file_path, platform, self._is_debug)
         logger.info(f"Analyzed {platform} files in {source_dir}; report saved to: {results_file_path}")
         return AnalyzerResult(source_dir, results_file_path, platform)

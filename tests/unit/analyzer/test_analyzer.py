@@ -1,6 +1,6 @@
 from pathlib import Path
-from unittest.mock import Mock
 
+import pytest
 from databricks.labs.bladespector.analyzer import Analyzer
 from databricks.labs.blueprint.tui import MockPrompts
 
@@ -13,19 +13,31 @@ from databricks.labs.lakebridge.analyzer.lakebridge_analyzer import (
 from databricks.labs.lakebridge.helpers.file_utils import chdir
 
 
-def test_analyze_arguments_return(tmp_path: Path):
+def _mock_analyze(_directory: Path, result: Path, _platform: str, _is_debug: bool = False) -> None:
+    # Nothing really needed here, except a result needs to be created.
+    result.touch()
+
+
+@pytest.mark.parametrize(
+    "report_file",
+    (
+        Path("report.xlsx"),
+        Path("report-without-extension"),
+    ),
+    ids=str,
+)
+def test_analyze_arguments_return(tmp_path: Path, report_file: Path) -> None:
+    path = tmp_path / "in"
+    file = tmp_path / report_file
     mock_prompts = MockPrompts({})
-    input_path = tmp_path / "in"
-    report_file = tmp_path / "report.xlsx"
-    tech = "Synapse"
-    runner = AnalyzerRunner(runnable=Mock(), is_debug=True)
+
+    runner = AnalyzerRunner(runnable=_mock_analyze, is_debug=True)
+    expected_result = AnalyzerResult(source_directory=path, report_path=file, source_system=str("Synapse"))
+
     analyzer = LakebridgeAnalyzer(AnalyzerPrompts(mock_prompts), runner)
+    result = analyzer.run_analyzer(source=str(path), report_file=str(file), platform="Synapse")
 
-    result = analyzer.run_analyzer(str(input_path), str(report_file), tech)
-
-    assert result.source_directory == input_path
-    assert result.report_path == report_file
-    assert result.source_system == tech
+    assert result == expected_result
 
 
 def test_analyze_prompts_result(tmp_path: Path):
@@ -64,7 +76,7 @@ def test_analyze_prompt_relative_result_path(tmp_path: Path) -> None:
 
 
 def _test_analyze_prompt(mock_prompts: MockPrompts, expected_result: AnalyzerResult) -> None:
-    runner = AnalyzerRunner(runnable=Mock(), is_debug=True)
+    runner = AnalyzerRunner(runnable=_mock_analyze, is_debug=True)
     analyzer = LakebridgeAnalyzer(AnalyzerPrompts(mock_prompts), runner)
 
     result = analyzer.run_analyzer()
