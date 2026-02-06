@@ -1,7 +1,7 @@
 all: clean dev fmt lint test
 
 clean:
-	rm -rf .direnv .venv clean htmlcov .mypy_cache .pytest_cache .ruff_cache .coverage coverage.xml .python-version
+	rm -rf .direnv .venv .venv-lint clean htmlcov .mypy_cache .pytest_cache .ruff_cache .coverage coverage.xml .python-version
 
 setup_python:
 	@echo "You have selected python setup with pyenv. It will install pyenv on your system."
@@ -18,6 +18,7 @@ dev:
 	hatch run pip3 install --upgrade pip
 	hatch run pip3 install -e '.[test]'
 	hatch run which python
+	hatch env create lint
 	@echo "Hatch has created the above virtual environment. Please activate it using 'source .venv/bin/activate' and also select the .venv/bin/python interpreter in your IDE."
 
 

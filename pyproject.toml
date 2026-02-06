@@ -111,6 +111,7 @@ integration  = "pytest --cov src tests/integration --durations 20"
 # Linting environment with dependencies for profiler development inside resource folder
 [tool.hatch.envs.lint]
 template = "default"
+path = ".venv-lint"
 features = [
   "resources-lint"
 ]
