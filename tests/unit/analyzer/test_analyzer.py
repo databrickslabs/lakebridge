@@ -56,7 +56,7 @@ def test_analyze_prompt_relative_result_path(tmp_path: Path) -> None:
         }
     )
     expected_result = AnalyzerResult(
-        source_directory=tmp_path / input_path, report_path=tmp_path / report_file, source_system=str(first_tech)
+        source_directory=tmp_path / input_path, report_path=tmp_path / report_file, source_system=first_tech
     )
 
     with chdir(tmp_path):
