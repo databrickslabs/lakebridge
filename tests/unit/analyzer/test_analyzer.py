@@ -39,9 +39,7 @@ def test_analyze_prompts_result(tmp_path: Path):
             "Enter the path of the report file for analyzer results": str(report_file),
         }
     )
-    expected_result = AnalyzerResult(
-        source_directory=input_path, report_path=report_file, source_system=str(first_tech)
-    )
+    expected_result = AnalyzerResult(source_directory=input_path, report_path=report_file, source_system=first_tech)
     _test_analyze_prompt(mock_prompts, expected_result)
 
 
