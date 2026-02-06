@@ -62,4 +62,4 @@ def test_raises_on_exception_message() -> None:
     with pytest.raises(ReconciliationException) as excinfo:
         TriggerReconService.verify_successful_reconciliation(reconcile_output, report_type="daily")
 
-    assert "failed for one or more tables" in str(excinfo.value)
+    assert "Reconciliation failed with exceptions for" in str(excinfo.value)
