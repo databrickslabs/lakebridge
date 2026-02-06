@@ -6,7 +6,6 @@ import yaml
 
 from databricks.labs.lakebridge.connections.env_getter import EnvGetter
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -45,7 +44,7 @@ class CredentialManager:
         if not self._provider:
             raise ValueError(f"Unsupported secret vault type: {self._default_vault}")
 
-    def get_credentials(self, source: str) -> dict:
+    def get_credentials(self, source: str) -> dict[str, Any]:
         if source not in self._credentials:
             raise KeyError(f"Source system: {source} credentials not found")
 
@@ -53,9 +52,10 @@ class CredentialManager:
         if not isinstance(value, dict):
             raise KeyError(f"Invalid credential format for source: {source}")
 
+        # Safe to cast: we verified value is a dict, so _resolve_credentials returns a dict
         return self._resolve_credentials(value)
 
-    def _resolve_credentials(self, value: Any) -> Any:
+    def _resolve_credentials(self, value: dict[str, Any]) -> dict[str, Any]:
         """Recursively resolve credentials, handling nested dictionaries and secret values.
 
         rules:
