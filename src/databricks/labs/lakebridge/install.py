@@ -101,8 +101,6 @@ class WorkspaceInstaller:
         elif module in {"transpile", "all"}:
             for transpiler_installer in self._transpiler_installers:
                 transpiler_installer.install()
-        elif module == "profiler_dashboard":
-            logger.info("Installing the profiler ingestion job.")
         if not config:
             config = self.configure(module)
         if self._is_testing():
@@ -162,6 +160,9 @@ class WorkspaceInstaller:
                     include_switch=self._include_llm,
                     switch_use_serverless=self._switch_use_serverless,
                 )
+            case "profiler_dashboard":
+                logger.info("Configuring Lakebridge `profiler-dashboard`.")
+                return LakebridgeConfiguration(None, None, False, False)
             case _:
                 raise ValueError(f"Invalid input: {module}")
 
