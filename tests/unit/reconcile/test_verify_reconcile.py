@@ -6,7 +6,7 @@ from databricks.labs.lakebridge.reconcile.recon_output_config import ReconcileTa
 from databricks.labs.lakebridge.reconcile.trigger_recon_service import TriggerReconService
 
 
-def test_success_no_mismatches_and_no_exceptions(caplog):
+def test_success_no_mismatches_and_no_exceptions(caplog: pytest.LogCaptureFixture) -> None:
     caplog.set_level(logging.INFO)
 
     results = [
@@ -21,7 +21,7 @@ def test_success_no_mismatches_and_no_exceptions(caplog):
     assert any("completed successfully" in rec.message for rec in caplog.records)
 
 
-def test_mismatches_but_no_exceptions_logs_warning(caplog):
+def test_mismatches_but_no_exceptions_logs_warning(caplog: pytest.LogCaptureFixture) -> None:
     caplog.set_level(logging.WARNING)
 
     results = [
@@ -36,7 +36,7 @@ def test_mismatches_but_no_exceptions_logs_warning(caplog):
     assert any("found mismatches in 1 table(s)" in rec.message for rec in caplog.records)
 
 
-def test_ignores_none_status_values():
+def test_ignores_none_status_values() -> None:
     # None should be ignored (not treated as mismatch)
     results = [
         ReconcileTableOutput("t1", "s1", StatusOutput(column=None, row=None, schema=None, aggregate=None)),
@@ -47,7 +47,7 @@ def test_ignores_none_status_values():
     TriggerReconService.verify_successful_reconciliation(reconcile_output, report_type="daily")
 
 
-def test_raises_on_exception_message():
+def test_raises_on_exception_message() -> None:
     results = [
         ReconcileTableOutput("t1", "s1", StatusOutput(column=True, row=True, schema=True, aggregate=True)),
         ReconcileTableOutput(
