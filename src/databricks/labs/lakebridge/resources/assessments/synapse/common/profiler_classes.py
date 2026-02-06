@@ -1,6 +1,6 @@
 from abc import ABC
 from collections.abc import Callable, Generator, Iterable, MutableMapping
-from datetime import date, datetime, time as timex, timedelta, tzinfo
+import datetime as dt
 from typing import Any
 
 import pandas as pd
@@ -17,7 +17,7 @@ RunsQueryCallable = Callable[[ArtifactsModels.RunFilterParameters], ArtifactsMod
 class AzureArtifact(ABC):
     # constructor
     def __init__(
-        self, tz_info: tzinfo, artifacts_client: ArtifactsClient, fetch_batch_size: int = 20, max_pages: int = 5000
+        self, tz_info: dt.tzinfo, artifacts_client: ArtifactsClient, fetch_batch_size: int = 20, max_pages: int = 5000
     ) -> None:
         self.tz_info = tz_info
         self.client = artifacts_client
@@ -39,7 +39,7 @@ class AzureArtifact(ABC):
 
     @staticmethod
     def create_run_filter_parameters(
-        last_updated_after: datetime, last_updated_before: datetime
+        last_updated_after: dt.datetime, last_updated_before: dt.datetime
     ) -> ArtifactsModels.RunFilterParameters:
         # TODO: fix this from global context to import
         return ArtifactsModels.RunFilterParameters(
@@ -126,7 +126,7 @@ class SynapseWorkspace(AzureArtifact):
     """
 
     # constructor
-    def __init__(self, tz_info: tzinfo, artifacts_client: ArtifactsClient, fetch_batch_size: int = 20) -> None:
+    def __init__(self, tz_info: dt.tzinfo, artifacts_client: ArtifactsClient, fetch_batch_size: int = 20) -> None:
         super().__init__(tz_info, artifacts_client, fetch_batch_size)
 
     # get_workspace_info
@@ -388,7 +388,7 @@ class SynapseWorkspace(AzureArtifact):
 
     # list_pipeline_runs
     def list_pipeline_runs(
-        self, last_updated_date: date, keep: list[str] | None = None, remove: list[str] | None = None
+        self, last_updated_date: dt.date, keep: list[str] | None = None, remove: list[str] | None = None
     ) -> Generator[list[dict[str, Any]], None, None]:
         """
         Query Pipeline runs by last_updated_date (in UTC)
@@ -402,8 +402,8 @@ class SynapseWorkspace(AzureArtifact):
             keep = []
         if remove is None:
             remove = []
-        last_updated_after = datetime.combine(last_updated_date, timex(0, 0, 0, 0)).replace(tzinfo=self.tz_info)
-        last_updated_before = datetime.combine(last_updated_date, timex(23, 59, 59, 999999)).replace(
+        last_updated_after = dt.datetime.combine(last_updated_date, dt.time(0, 0, 0, 0)).replace(tzinfo=self.tz_info)
+        last_updated_before = dt.datetime.combine(last_updated_date, dt.time(23, 59, 59, 999999)).replace(
             tzinfo=self.tz_info
         )
 
@@ -414,7 +414,7 @@ class SynapseWorkspace(AzureArtifact):
 
     # list_trigger_runs
     def list_trigger_runs(
-        self, last_updated_date: date, keep: list[str] | None = None, remove: list[str] | None = None
+        self, last_updated_date: dt.date, keep: list[str] | None = None, remove: list[str] | None = None
     ) -> Generator[list[dict[str, Any]], None, None]:
         """
         Query Trigger runs by last_updated_date (in UTC)
@@ -428,8 +428,8 @@ class SynapseWorkspace(AzureArtifact):
             keep = []
         if remove is None:
             remove = []
-        last_updated_after = datetime.combine(last_updated_date, timex(0, 0, 0, 0)).replace(tzinfo=self.tz_info)
-        last_updated_before = datetime.combine(last_updated_date, timex(23, 59, 59, 999999)).replace(
+        last_updated_after = dt.datetime.combine(last_updated_date, dt.time(0, 0, 0, 0)).replace(tzinfo=self.tz_info)
+        last_updated_before = dt.datetime.combine(last_updated_date, dt.time(23, 59, 59, 999999)).replace(
             tzinfo=self.tz_info
         )
 
@@ -497,8 +497,8 @@ class SynapseMetrics:
                 "Connections",
                 "ActiveQueries",
             ],
-            timespan=timedelta(days=self.num_days),
-            granularity=timedelta(minutes=self.granularity_mins),
+            timespan=dt.timedelta(days=self.num_days),
+            granularity=dt.timedelta(minutes=self.granularity_mins),
             aggregations=[
                 MetricAggregationType.AVERAGE,
                 MetricAggregationType.COUNT,
@@ -525,8 +525,8 @@ class SynapseMetrics:
                 "BigDataPoolAllocatedMemory",
                 "BigDataPoolApplicationsActive",
             ],
-            timespan=timedelta(days=self.num_days),
-            granularity=timedelta(minutes=self.granularity_mins),
+            timespan=dt.timedelta(days=self.num_days),
+            granularity=dt.timedelta(minutes=self.granularity_mins),
             aggregations=[
                 MetricAggregationType.AVERAGE,
                 MetricAggregationType.COUNT,
@@ -555,8 +555,8 @@ class SynapseMetrics:
                 "BuiltinSqlPoolLoginAttempts",
                 "BuiltinSqlPoolRequestsEnded",
             ],
-            timespan=timedelta(days=self.num_days),
-            granularity=timedelta(hours=1),
+            timespan=dt.timedelta(days=self.num_days),
+            granularity=dt.timedelta(hours=1),
             aggregations=[
                 MetricAggregationType.AVERAGE,
                 MetricAggregationType.COUNT,

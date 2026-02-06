@@ -23,4 +23,3 @@ remorph_transpile/
 .databricks-login.json
 .mypy_cache
 .env
-/.venv-lint/

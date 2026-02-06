@@ -45,14 +45,6 @@ dependencies = [
   "pandas~=2.3.1", # Required for new configure assessment
 ]
 
-[project.optional-dependencies]
-# Optional dependencies for linting resources folder (assessments, profilers)
-resources-lint = [
-  "azure-identity~=1.19.0",
-  "azure-monitor-query~=1.4.0",
-  "azure-synapse-artifacts~=0.20.0",
-]
-
 [project.urls]
 Documentation = "https://databrickslabs.github.io/lakebridge"
 Issues = "https://github.com/databrickslabs/lakebridge/issues"
@@ -96,7 +88,11 @@ dependencies = [
   "numpy~=1.26.4",
   "pandas-stubs~=2.3.0.250703",
   "cattrs>=25.2.0",
-  "faker"
+  "faker",
+  # Azure SDK dependencies for linting resources/assessments folder
+  "azure-identity~=1.19.0",
+  "azure-monitor-query~=1.4.0",
+  "azure-synapse-artifacts~=0.20.0",
 ]
 
 [project.entry-points.databricks]
@@ -107,16 +103,6 @@ profiler_dashboards = "databricks.labs.lakebridge.assessments.dashboards.execute
 test         = "pytest --cov src --cov-report=xml tests/unit"
 coverage     = "pytest --cov src tests --cov-report=html --ignore=tests/integration/install --ignore=tests/integration/connections --ignore=tests/integration/assessments"
 integration  = "pytest --cov src tests/integration --durations 20"
-
-# Linting environment with dependencies for profiler development inside resource folder
-[tool.hatch.envs.lint]
-template = "default"
-path = ".venv-lint"
-features = [
-  "resources-lint"
-]
-
-[tool.hatch.envs.lint.scripts]
 fmt          = ["black .",
                    "ruff  check . --fix",
                    "mypy --disable-error-code 'annotation-unchecked' .",
