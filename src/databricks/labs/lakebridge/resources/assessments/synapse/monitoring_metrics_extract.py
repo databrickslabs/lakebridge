@@ -133,8 +133,12 @@ def execute():
                 logger.info(f"   Resource id: {pool_resoure_id}")
 
                 step_name = "metrics_spark_pool_metrics"
-
                 spark_pool_metrics_df = synapse_metrics.get_spark_pool_metrics(pool_resoure_id)
+
+                # Add pool name and resource id columns
+                spark_pool_metrics_df.insert(loc=0, column="pool_name", value=pool_name)
+                spark_pool_metrics_df.insert(loc=1, column="resource_id", value=pool_resoure_id)
+
                 if idx == 0:
                     spark_pools_df = spark_pool_metrics_df
                 else:
