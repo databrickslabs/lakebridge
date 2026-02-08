@@ -9,6 +9,7 @@ from databricks.labs.blueprint.entrypoint import get_logger
 from databricks.labs.lakebridge import initialize_logging
 from databricks.labs.lakebridge.assessments import PRODUCT_NAME
 from databricks.labs.lakebridge.connections.credential_manager import create_credential_manager
+from databricks.labs.lakebridge.connections.env_getter import EnvGetter
 from databricks.labs.lakebridge.resources.assessments.synapse.common.duckdb_helpers import insert_df_to_duckdb
 from databricks.labs.lakebridge.resources.assessments.synapse.common.functions import (
     arguments_loader,
@@ -25,7 +26,7 @@ logger = get_logger(__file__)
 
 def execute():
     db_path, creds_file = arguments_loader(desc="Monitoring Metrics Extract Script")
-    cred_manager = create_credential_manager(PRODUCT_NAME, creds_file)
+    cred_manager = create_credential_manager(PRODUCT_NAME, EnvGetter())
     synapse_workspace_settings = cred_manager.get_credentials("synapse")
     synapse_profiler_settings = synapse_workspace_settings["profiler"]
 
@@ -76,7 +77,7 @@ def execute():
             msg = f"Pool names to extract metrics: {[entry['name'] for entry in dedicated_pools_to_profile]}"
             logger.info(msg)
 
-            pools_df = pd.DataFrame()
+            pool_metrics_list = []
             for idx, pool in enumerate(dedicated_pools_to_profile):
                 pool_name = pool['name']
                 pool_resoure_id = pool['id']
@@ -88,14 +89,13 @@ def execute():
                 print(f"   Resource id: {pool_resoure_id}")
 
                 pool_metrics_df = synapse_metrics.get_dedicated_sql_pool_metrics(pool_resoure_id)
-                if idx == 0:
-                    pools_df = pool_metrics_df
-                else:
-                    pools_df = pools_df.union(pool_metrics_df)
+                if not pool_metrics_df.empty:
+                    pool_metrics_list.append(pool_metrics_df)
 
             # Insert the combined metrics into DuckDB
             step_name = "metrics_dedicated_pool_metrics"
             print(f"Loading data for {step_name}")
+            pools_df = pd.concat(pool_metrics_list, ignore_index=True) if pool_metrics_list else pd.DataFrame()
             insert_df_to_duckdb(pools_df, db_path, step_name)
 
         # Spark Pool  Metrics
@@ -123,7 +123,7 @@ def execute():
             logger.info(f" Pool names to extract metrics: {[entry['name'] for entry in spark_pools_to_profile]}")
             print(f" Pool names to extract metrics: {[entry['name'] for entry in spark_pools_to_profile]}")
 
-            spark_pools_df = pd.DataFrame()
+            spark_pool_metrics_list = []
             for idx, pool in enumerate(spark_pools_to_profile):
                 pool_name = pool['name']
                 pool_resoure_id = pool['id']
@@ -132,15 +132,15 @@ def execute():
                 logger.info(f"{idx+1}) Pool Name: {pool_name}")
                 logger.info(f"   Resource id: {pool_resoure_id}")
 
-                step_name = "metrics_spark_pool_metrics"
-
                 spark_pool_metrics_df = synapse_metrics.get_spark_pool_metrics(pool_resoure_id)
-                if idx == 0:
-                    spark_pools_df = spark_pool_metrics_df
-                else:
-                    spark_pools_df = spark_pools_df.union(spark_pool_metrics_df)
+                if not spark_pool_metrics_df.empty:
+                    spark_pool_metrics_list.append(spark_pool_metrics_df)
 
             # Insert the combined metrics into DuckDB
+            step_name = "metrics_spark_pool_metrics"
+            spark_pools_df = (
+                pd.concat(spark_pool_metrics_list, ignore_index=True) if spark_pool_metrics_list else pd.DataFrame()
+            )
             insert_df_to_duckdb(spark_pools_df, db_path, step_name)
 
         # This is the output format expected by the pipeline.py which orchestrates the execution of this script
