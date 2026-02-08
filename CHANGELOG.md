@@ -1,5 +1,102 @@
 # Version changelog
 
+## Lakebridge v0.12.0 Release Notes
+
+## Analyzer
+
+- Extended the Analyzer to recognize more SQL-bearing file types, including Oracle package files (`.pks`, `.pkb`), Teradata utilities (`.bteq`, `.fload`, `.mload`, etc.), Hive scripts (`.hql`), and shell scripts with embedded SQL (`.sh`, `.ksh`, `.bash`, `.csh`), so more source assets are discovered without manual renaming.
+    
+## Converters
+
+## General
+
+- Enabled SSIS conversion so SSIS packages can be translated into Databricks notebooks via the BladeBridge-based converter, providing a new migration path for ETL workloads built on SSIS.
+    
+- Added Amazon Redshift conversion documentation describing supported features, known limitations, and a step-by-step workflow to convert Redshift SQL into Databricks SQL using the BladeBridge transpiler.
+    
+
+## Morpheus
+
+### All dialects
+
+- Implemented explicit support for multi-statement transactions (`BEGIN TRANSACTION`, `COMMIT TRANSACTION`, `ROLLBACK TRANSACTION`, and `ATOMIC` blocks) in the parser and generator, enabling transaction-aware translation and testing.
+
+- Fixed generation of CASE expressions so CASE expressions now terminate with `END` while CASE statements remain terminated with `END CASE`, improving standards-compliant SQL output across dialects.
+    
+- Expanded `CREATE VIEW` support to handle `SCHEMABINDING` and `MATERIALIZED` options, increasing coverage of advanced view definitions.
+    
+- Standardized translation of `DATE_xxx` functions by mapping to `DATE_ADD` and adding synonyms such as `DATE_FORMAT`, `DATE_PART`, `DATE_SUB`, and `DATE_TRUNC` for consistent naming and mapping.
+    
+- Ensured control-flow statements like `LEAVE` and `ITERATE` are always generated with labels by auto-labelling enclosing blocks or loops when needed, improving robustness of generated control-flow SQL.
+    
+
+### Snowflake
+
+- Added support for Snowflake ICEBERG catalog DDL by extending the grammar to recognize `CREATE ICEBERG TABLE` and related syntax so ICEBERG table definitions parse and test correctly.
+    
+
+### Synapse / TSQL
+
+- Updated translation of T‑SQL `VAR` and `VARP` to map to ANSI `VARIANCE` and `VAR_POP`, aligning variance aggregation semantics and tests.
+    
+- Updated translation of T‑SQL `STDEV` and `STDEVP` to treat them as synonyms for `STDDEV` and `STDDEV_POP`, improving aggregate function compatibility.
+    
+- Fixed translation of T‑SQL `REPLICATE` by mapping it as a synonym of `REPEAT`, clarifying conversion behavior and tightening test coverage.
+    
+
+
+## BladeBridge
+
+### SSIS
+
+- Enabled SSIS support so SSIS packages can be translated into Databricks notebooks, allowing customers to migrate SSIS workloads using the BladeBridge converter within Lakebridge.
+    
+
+### Amazon Redshift
+
+- Enabled Amazon Redshift SQL conversion to Databricks SQL, broadening coverage of cloud data warehouse sources and aligning with the new Redshift conversion documentation.[ppl-ai-file-upload.s3.amazonaws+1](https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/attachments/14956696/b1dd211b-5287-4635-85f6-c08f86948a49/lakebridge_0.12.txt)
+    
+
+### Synapse / TSQL / MSSQL
+
+- Fixed handling of non-standard `DELETE` statements with two `FROM` clauses by normalizing the first `FROM` to use the table alias before conversion, preventing malformed `MERGE` statements for Synapse and similar targets.
+    
+- Updated SQL conversion to automatically remove unsupported `NOLOCK` hints, corrected a fragment-breaker bug that split scripts before `INSERT`, and fixed variable declarations using `AS`, improving reliability of T‑SQL parsing and conversion.
+    
+- Improved stored procedure conversion from SQL Server to Databricks SQL by correctly handling output parameters and standardizing EXEC-to-CALL translation to stay within Databricks SQL scripting constraints.
+    
+- Added patterns to correctly convert `COUNT(DISTINCT COL1) OVER (PARTITION BY COL2)` window expressions and to normalize table references from `'{database_param}'.schema.table_name` to `{database_param}.schema.table_name`, eliminating stray quoting in database qualifiers.
+    
+- Fixed BIGINT datatype conversion when the type appears inside braces so it is recognized as a datatype and emitted as plain `bigint` rather than as a backticked identifier, avoiding invalid Databricks SQL.
+    
+
+### Oracle
+
+- Improved Oracle package conversion by stripping unnecessary `BEGIN`/`END` blocks from functions, emitting logic as a single returned `SELECT`, adding a dedicated handler for UDF definitions, and tightening procedure conversion for variable declarations, loop `THEN` usage, and cursor placement inside loops.
+    
+
+### Informatica
+
+- Enhanced Informatica-to-Spark SQL mappings by removing redundant empty-string wrapping, adding mappings for additional datetime and related functions, and fixing parameter replacement and `.format()` usage so generated Spark SQL is cleaner and more accurate.
+    
+- Corrected Databricks notebook generation for Informatica mapplets by switching from relative to absolute imports in the Python template and simplifying mapplet argument collection, removing unused `JOB_PARAMETERS` and `MAPPLET_INFO` code.
+    
+## Documentation
+
+- Added Redshift conversion documentation and guide, describing supported features, limitations, and a recommended workflow for converting Redshift SQL to Databricks SQL.
+    
+- Added an SSIS conversion guide with a full list of supported components, step-by-step migration instructions, and a sample SSIS package to showcase an end-to-end workflow.
+    
+- Updated Switch documentation for Spark Declarative Pipeline conversion, including the new `result_sdp_error` column in Delta schemas, `target_type = sdp`, and `sdp_language` options, and documented the 7-step conversion pipeline and validation behavior.
+    
+- Removed WSL from the Windows installation prerequisites, simplifying setup instructions while retaining guidance for Python installation and version checks across platforms.
+    
+
+## General
+
+- Updated project metadata to require Python versions between 3.10.1 and 3.13.x, avoiding Python 3.10.0, and revised installation docs to reflect the new supported version range.
+   
+
 ## 0.11.3
 
 ## Analyzer

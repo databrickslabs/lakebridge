@@ -1,14 +1,19 @@
 import logging
+import tempfile
 import uuid
 from collections.abc import Generator
+from pathlib import Path
 
 import pytest
+
+from pyspark.sql import DataFrame
 
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.errors.platform import PermissionDenied
 from databricks.sdk.service.catalog import TableInfo, SchemaInfo
 
 from databricks.labs.lakebridge.config import ReconcileMetadataConfig
+from databricks.labs.lakebridge.reconcile.recon_capture import AbstractReconIntermediatePersist
 from tests.integration.debug_envgetter import TestEnvGetter
 
 logger = logging.getLogger(__name__)
@@ -98,3 +103,15 @@ def recon_metadata(mock_spark, report_tables_schema) -> Generator[ReconcileMetad
     )
 
     mock_spark.sql(f"DROP SCHEMA {schema} CASCADE")
+
+
+class FakeReconIntermediatePersist(AbstractReconIntermediatePersist):
+    @property
+    def base_dir(self) -> Path:
+        return Path(tempfile.gettempdir())
+
+    def write_and_read_df_with_volumes(
+        self,
+        df: DataFrame,
+    ) -> DataFrame:
+        return df

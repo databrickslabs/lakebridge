@@ -1,6 +1,6 @@
-from pathlib import Path
 import datetime
 import json
+import tempfile
 
 import pytest
 from pyspark.sql import Row, SparkSession
@@ -9,7 +9,7 @@ from pyspark.sql.types import BooleanType, StringType, StructField, StructType
 
 from databricks.labs.lakebridge.config import DatabaseConfig, ReconcileMetadataConfig
 from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
-from databricks.labs.lakebridge.reconcile.exception import WriteToTableException, ReadAndWriteWithVolumeException
+from databricks.labs.lakebridge.reconcile.exception import WriteToTableException
 from databricks.labs.lakebridge.reconcile.recon_capture import (
     ReconCapture,
     generate_final_reconcile_output,
@@ -672,25 +672,6 @@ def test_generate_final_reconcile_output_exception(mock_workspace_client, mock_s
     )
 
 
-def test_write_and_read_unmatched_df_with_volumes_with_exception(tmp_path: Path, mock_spark, mock_workspace_client):
-    data = [Row(id=1, name='John', sal=5000), Row(id=2, name='Jane', sal=6000), Row(id=3, name='Doe', sal=7000)]
-    df = mock_spark.createDataFrame(data)
-
-    path = str(tmp_path)
-    df = ReconIntermediatePersist(mock_spark, path).write_and_read_unmatched_df_with_volumes(df)
-    assert df.count() == 3
-
-    path = "/path/that/does/not/exist"
-    with pytest.raises(ReadAndWriteWithVolumeException):
-        ReconIntermediatePersist(mock_spark, path).write_and_read_unmatched_df_with_volumes(df)
-
-
-def test_clean_unmatched_df_from_volume_with_exception(mock_spark):
-    path = "/path/that/does/not/exist"
-    with pytest.raises(Exception):
-        ReconIntermediatePersist(mock_spark, path).clean_unmatched_df_from_volume()
-
-
 def test_apply_threshold_for_mismatch_with_true_absolute(mock_workspace_client, mock_spark, recon_metadata):
     database_config = DatabaseConfig(
         "source_test_schema", "target_test_catalog", "target_test_schema", "source_test_catalog"
@@ -1011,3 +992,35 @@ def test_apply_threshold_for_only_threshold_mismatch_with_true_absolute(
     remorph_recon_metrics_df = spark.sql(f"select * from {recon_metadata.schema}.metrics")
     row = remorph_recon_metrics_df.collect()[0]
     assert row.run_metrics.status is True
+
+
+class ReconIntermediatePersistUnderTest(ReconIntermediatePersist):
+    @property
+    def is_databricks(self) -> bool:
+        return self._is_databricks
+
+    @property
+    def format(self):
+        return self._format
+
+
+def test_is_databricks_false(mock_spark):
+    conf = ReconcileMetadataConfig()
+    persist = ReconIntermediatePersistUnderTest(mock_spark, conf)
+
+    assert persist.is_databricks is False
+
+
+def test_dir_uses_tempfile(mock_spark):
+    conf = ReconcileMetadataConfig()
+    persist = ReconIntermediatePersistUnderTest(mock_spark, conf)
+    expected = tempfile.gettempdir()
+
+    assert str(persist.base_dir).startswith(expected)
+
+
+def test_format_uses_parquet(mock_spark):
+    conf = ReconcileMetadataConfig()
+    persist = ReconIntermediatePersistUnderTest(mock_spark, conf)
+
+    assert persist.format == "parquet"
