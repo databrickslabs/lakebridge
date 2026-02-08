@@ -90,6 +90,7 @@ def execute():
 
                 pool_metrics_df = synapse_metrics.get_dedicated_sql_pool_metrics(pool_resoure_id)
                 if not pool_metrics_df.empty:
+                    pool_metrics_df.insert(loc=0, column="pool_name", value=pool_name)
                     pool_metrics_list.append(pool_metrics_df)
 
             # Insert the combined metrics into DuckDB
@@ -134,6 +135,7 @@ def execute():
 
                 spark_pool_metrics_df = synapse_metrics.get_spark_pool_metrics(pool_resoure_id)
                 if not spark_pool_metrics_df.empty:
+                    spark_pool_metrics_df.insert(loc=0, column="pool_name", value=pool_name)
                     spark_pool_metrics_list.append(spark_pool_metrics_df)
 
             # Insert the combined metrics into DuckDB
