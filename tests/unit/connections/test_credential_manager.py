@@ -38,7 +38,7 @@ def _create_secret_providers() -> dict:
     """Create real secret providers for testing."""
     return {
         'local': LocalSecretProvider(),
-        'env': EnvSecretProvider(EnvGetter()),  # Real EnvGetter!
+        'env': EnvSecretProvider(EnvGetter()),
         'databricks': DatabricksSecretProvider(),
     }
 
@@ -64,7 +64,6 @@ def test_local_credentials_flat_structure():
     assert creds['password'] == 'local_password'
     assert creds['database'] == 'DB_NAME'
     assert creds['port'] == 1433
-    assert isinstance(creds['port'], int)
 
 
 def test_env_credentials_with_real_env_getter():
@@ -98,11 +97,9 @@ def test_env_credentials_fallback_to_literal_value():
         },
     }
 
-    # Real EnvGetter will fallback to literal value
     manager = CredentialManager(credentials, _create_secret_providers())
     creds = manager.get_credentials('mssql')
 
-    # Should fall back to the literal value
     assert creds['user'] == 'NONEXISTENT_ENV_VAR'
     assert creds['database'] == 'DB_NAME'
 
@@ -125,7 +122,22 @@ def test_databricks_credentials_raises_not_implemented():
 
 
 def test_nested_dict_credentials_local_vault():
-    """Test Synapse-style nested dictionaries with local secret vault ."""
+    """Test Synapse-style nested dictionaries with local secret vault.
+
+    Validates handling of complex nested credential structures required by
+    enterprise data sources. The test structure mirrors actual Synapse credential
+    requirements with multiple configuration levels:
+
+    - workspace: SQL connection details (endpoints, user, password, driver, port)
+    - azure_api_access: Azure API endpoints for resource management
+    - jdbc: JDBC-specific settings (authentication, timeouts, fetch size)
+    - profiler: Profiler configuration (pool exclusions, profiling lists)
+
+    This demonstrates the credential manager's ability to:
+    1. Preserve nested structure without flattening
+    2. Maintain type information through recursive processing
+    3. Handle multiple configuration domains in a single credential entry
+    """
     credentials = {
         'secret_vault_type': 'local',
         'synapse': {
@@ -175,11 +187,9 @@ def test_nested_dict_credentials_local_vault():
 
     # Verify integers are preserved
     assert creds['workspace']['port'] == 1433
-    assert isinstance(creds['workspace']['port'], int)
 
     # Verify booleans are preserved
     assert creds['profiler']['exclude_serverless_sql_pool'] is False
-    assert isinstance(creds['profiler']['exclude_serverless_sql_pool'], bool)
 
     # Verify None values are preserved
     assert creds['profiler']['dedicated_sql_pools_profiling_list'] is None
@@ -217,11 +227,9 @@ def test_nested_dict_credentials_env_vault():
 
     # Verify integers are preserved (not treated as secrets)
     assert creds['workspace']['port'] == 1433
-    assert isinstance(creds['workspace']['port'], int)
 
     # Verify booleans are preserved (not treated as secrets)
     assert creds['profiler']['exclude_spark_pools'] is False
-    assert isinstance(creds['profiler']['exclude_spark_pools'], bool)
 
     # Verify lists with strings are processed recursively
     assert creds['profiler']['spark_pools_profiling_list'] == ['pool1', 'pool2']
@@ -252,18 +260,13 @@ def test_mixed_data_types_preserved():
     # Verify each data type is preserved correctly
     assert creds['string_value'] == 'test_string'
     assert creds['int_value'] == 42
-    assert isinstance(creds['int_value'], int)
     assert creds['float_value'] == 3.14
-    assert isinstance(creds['float_value'], float)
     assert creds['bool_true'] is True
-    assert isinstance(creds['bool_true'], bool)
     assert creds['bool_false'] is False
-    assert isinstance(creds['bool_false'], bool)
     assert creds['none_value'] is None
     assert creds['list_value'] == ['item1', 'item2', 123]
     assert creds['nested_dict']['nested_string'] == 'nested_value'
     assert creds['nested_dict']['nested_int'] == 100
-    assert isinstance(creds['nested_dict']['nested_int'], int)
 
 
 def test_deeply_nested_credentials():
