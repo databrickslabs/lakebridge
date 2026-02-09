@@ -47,7 +47,7 @@ class AbstractReconIntermediatePersist:
         raise NotImplementedError
 
     @property
-    def can_cache(self) -> bool:
+    def is_cache_supported(self) -> bool:
         raise NotImplementedError
 
     def write_and_read_df_with_volumes(
@@ -63,7 +63,6 @@ class ReconIntermediatePersist(AbstractReconIntermediatePersist):
         self._metadata_config = metadata_config
         self._format = "delta" if self._is_databricks else "parquet"
         self._base_dir = self._get_uc_volume_path if self._is_databricks else tempfile.gettempdir()
-        self._can_cache = self._try_cache()
 
     @cached_property
     def _is_databricks(self) -> bool:
@@ -75,9 +74,15 @@ class ReconIntermediatePersist(AbstractReconIntermediatePersist):
     def base_dir(self) -> Path:
         return Path(self._base_dir)
 
-    @property
-    def can_cache(self) -> bool:
-        return self._can_cache
+    @cached_property
+    def is_cache_supported(self) -> bool:
+        try:
+            schema = StructType([StructField("col1", StringType(), True)])
+            df = self._spark.createDataFrame([], schema)
+            df.cache()
+            return True
+        except (AnalysisException, PySparkAttributeError):
+            return False
 
     @property
     def _get_uc_volume_path(self):
@@ -111,15 +116,6 @@ class ReconIntermediatePersist(AbstractReconIntermediatePersist):
             message = f"Exception in reading or writing DF at: {path}"
             logger.exception(message)
             raise ReadAndWriteWithVolumeException(message) from e
-
-    def _try_cache(self) -> bool:
-        try:
-            schema = StructType([StructField("col1", StringType(), True)])
-            df = self._spark.createDataFrame([], schema)
-            df.cache()
-            return True
-        except (AnalysisException, PySparkAttributeError):
-            return False
 
 
 def _write_df_to_delta(df: DataFrame, table_name: str, mode="append"):
