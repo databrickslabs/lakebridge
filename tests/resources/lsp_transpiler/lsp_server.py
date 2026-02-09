@@ -3,7 +3,7 @@ import os
 import sys
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Literal
+from typing import Literal
 from uuid import uuid4
 
 import attrs
@@ -13,19 +13,29 @@ from lsprotocol.types import (
     METHOD_TO_TYPES,
     TEXT_DOCUMENT_DID_CLOSE,
     TEXT_DOCUMENT_DID_OPEN,
+    ApplyWorkspaceEditParams,
+    CreateFile,
+    CreateFileOptions,
     Diagnostic,
     DiagnosticSeverity,
     DidCloseTextDocumentParams,
     DidOpenTextDocumentParams,
     InitializeParams,
+    LSPAny,
     LanguageKind,
+    OptionalVersionedTextDocumentIdentifier,
     Position,
     Range,
     Registration,
     RegistrationParams,
+    ResourceOperationKind,
+    TextDocumentEdit,
     TextEdit,
+    WorkspaceEdit,
 )
 from pygls.lsp.server import LanguageServer
+from pygls.uris import to_fs_path
+
 
 logging.basicConfig(filename='test-lsp-server.log', filemode='w', level=logging.DEBUG)
 
@@ -93,9 +103,7 @@ METHOD_TO_TYPES[TRANSPILE_TO_DATABRICKS_METHOD] = (
 
 class TestLspServer(LanguageServer):
 
-    def __init__(self, name, version):
-        super().__init__(name, version)
-        self.initialization_options: Any = None
+    initialization_options: LSPAny
 
     @property
     def dialect(self) -> str:
@@ -113,14 +121,14 @@ class TestLspServer(LanguageServer):
 
     async def did_initialize(self, init_params: InitializeParams) -> None:
         self.initialization_options = init_params.initialization_options or {}
-        client_info = init_params.client_info
-        if client_info:
+        if client_info := init_params.client_info:
             logger.debug(f"client-info={client_info.name}/{client_info.version}")
         if init_params.process_id:
             logger.debug(f"client-process-id={init_params.process_id}")
         logger.debug(f"dialect={self.dialect}")
         logger.debug(f"whatever={self.whatever}")
         logger.debug(f"experimental={self.experimental}")
+        logger.debug(f"client-capabilities={self.client_capabilities}")
         # TODO check whether the client supports dynamic registration
         registrations = [
             Registration(
@@ -144,6 +152,38 @@ class TestLspServer(LanguageServer):
         return TranspileDocumentResult(
             uri=params.uri, language_id=LanguageKind.Sql, changes=changes, diagnostics=diagnostics
         )
+
+    async def create_a_file(self, location: Path) -> None:
+        workspace_capabilities = self.client_capabilities.workspace
+        apply_edit = workspace_capabilities.apply_edit if workspace_capabilities is not None else False
+        workspace_edit = workspace_capabilities.workspace_edit if workspace_capabilities is not None else None
+        document_changes = workspace_edit.document_changes if workspace_edit is not None else False
+        resource_operations = workspace_edit.resource_operations if workspace_edit is not None else ()
+
+        if not apply_edit or not document_changes or ResourceOperationKind.Create not in resource_operations:
+            logger.error("Capabilities do not support file creation.")
+            return
+
+        file_to_create = location / "new-test-file.sql"
+        changes = (
+            CreateFile(file_to_create.as_uri(), options=CreateFileOptions(overwrite=True)),
+            TextDocumentEdit(
+                text_document=OptionalVersionedTextDocumentIdentifier(uri=file_to_create.as_uri()),
+                edits=(
+                    TextEdit(
+                        range=Range(start=Position(0, 0), end=Position(0, 0)),
+                        new_text="-- This file is intentionally blank.",
+                    ),
+                ),
+            ),
+        )
+        edit = WorkspaceEdit(document_changes=changes)
+        logger.debug(f"Creating file: {file_to_create}")
+        result = await self.workspace_apply_edit_async(ApplyWorkspaceEditParams(edit=edit))
+        if result.applied:
+            logger.info(f"Created file: {file_to_create}")
+        else:
+            logger.error(f"Failed to create file ({file_to_create}): {result}")
 
     def _transpile(self, file_name: str, source_sql: str, lsp_range: Range) -> tuple[str, list[Diagnostic]]:
         if file_name == "no_transpile.sql":
@@ -178,6 +218,15 @@ class TestLspServer(LanguageServer):
             # general test case
             return source_sql.upper(), []
 
+    @classmethod
+    def uri_to_path(cls, uri: str | None) -> Path:
+        if uri is None:
+            raise ValueError("Missing uri")
+        path = to_fs_path(uri)
+        if path is None:
+            raise ValueError(f"Invalid file uri: {uri}")
+        return Path(path)
+
 
 server = TestLspServer("test-lsp-server", "v0.1")
 
@@ -185,6 +234,7 @@ server = TestLspServer("test-lsp-server", "v0.1")
 @server.feature(INITIALIZE)
 async def lsp_did_initialize(params: InitializeParams) -> None:
     await server.did_initialize(params)
+    await server.create_a_file(server.uri_to_path(params.root_uri))
 
 
 @server.feature(TEXT_DOCUMENT_DID_OPEN)
