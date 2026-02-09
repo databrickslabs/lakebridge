@@ -450,6 +450,5 @@ def join_aggregate_data(
     joined_cols = source.columns + target.columns
     normalized_joined_cols = [DialectUtils.ansi_normalize_identifier(col) for col in joined_cols]
     joined_df = df.select(*normalized_joined_cols)
-
     persisted = persistence.write_and_read_df_with_volumes(joined_df)
     return persisted

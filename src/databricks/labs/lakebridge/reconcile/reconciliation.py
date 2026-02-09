@@ -302,7 +302,6 @@ class Reconciliation:
             or reconcile_output.missing_in_src_count > 0
             or reconcile_output.missing_in_tgt_count > 0
         ):
-
             src_sampler = SamplingQueryBuilder(table_conf, src_schema, "source", self._source_engine, self._source)
             tgt_sampler = SamplingQueryBuilder(table_conf, tgt_schema, "target", self._target_engine, self._target)
             if reconcile_output.mismatch_count > 0:

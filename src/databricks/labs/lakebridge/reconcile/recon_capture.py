@@ -3,7 +3,6 @@ import os
 import tempfile
 import uuid
 from datetime import datetime
-
 from functools import reduce, cached_property
 from pathlib import Path
 
@@ -11,7 +10,6 @@ from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql.functions import col, collect_list, create_map, lit
 from pyspark.sql.types import StringType, StructField, StructType
 from pyspark.errors import PySparkException, PySparkAttributeError, AnalysisException
-
 from sqlglot import Dialect
 
 from databricks.labs.lakebridge.config import DatabaseConfig, Table, ReconcileMetadataConfig
