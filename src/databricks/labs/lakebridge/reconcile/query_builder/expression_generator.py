@@ -298,7 +298,7 @@ Dialect_hash_algo_mapping: dict[Dialect, HashAlgoMapping] = {
     get_dialect("tsql"): HashAlgoMapping(
         source=partial(
             anonymous,
-            func="CONVERT(VARCHAR(256), HASHBYTES('SHA2_256', CONVERT(VARCHAR(256),{})), 2)",
+            func="CONVERT(VARCHAR(64), HASHBYTES('SHA2_256', CONVERT(VARCHAR(MAX),{})), 2)",
             is_expr=True,
             dialect=get_dialect("tsql"),
         ),

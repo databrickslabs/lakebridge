@@ -134,8 +134,8 @@ def test_hash_query_builder_for_tsql_src(
         fake_tsql_datasource,
     ).build_query(report_type="data")
     src_expected = (
-        "SELECT LOWER(CONVERT(VARCHAR(256), HASHBYTES('SHA2_256', "
-        'CONVERT(VARCHAR(256),SUBSTRING([s_address], 1, 11) + UPPER([s_name]) + '
+        "SELECT LOWER(CONVERT(VARCHAR(64), HASHBYTES('SHA2_256', "
+        'CONVERT(VARCHAR(8000),SUBSTRING([s_address], 1, 11) + UPPER([s_name]) + '
         "COALESCE(TRIM(CAST([s_nationkey] AS VARCHAR(256))), '_null_recon_') + "
         "COALESCE(TRIM(CAST([s_phone] AS VARCHAR(256))), '_null_recon_') + "
         "COALESCE(TRIM(CAST([s_suppkey] AS VARCHAR(256))), '_null_recon_'))), 2)) AS "
@@ -359,8 +359,8 @@ def test_hash_query_builder_sort_column(
 
     # Verify columns are in alphabetical order: id, month, month_num, revenue, year
     src_expected = (
-        "SELECT LOWER(CONVERT(VARCHAR(256), HASHBYTES('SHA2_256', "
-        "CONVERT(VARCHAR(256),COALESCE(TRIM(CAST([id] AS VARCHAR(256))), '_null_recon_') + "
+        "SELECT LOWER(CONVERT(VARCHAR(64), HASHBYTES('SHA2_256', "
+        "CONVERT(VARCHAR(8000),COALESCE(TRIM(CAST([id] AS VARCHAR(256))), '_null_recon_') + "
         "COALESCE(TRIM(CAST([month] AS VARCHAR(256))), '_null_recon_') + "
         "COALESCE(TRIM(CAST([month_num] AS VARCHAR(256))), '_null_recon_') + "
         "COALESCE(TRIM(CAST([revenue] AS VARCHAR(256))), '_null_recon_') + "
