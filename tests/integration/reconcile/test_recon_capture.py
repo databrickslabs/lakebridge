@@ -1003,6 +1003,10 @@ class ReconIntermediatePersistUnderTest(ReconIntermediatePersist):
     def format(self):
         return self._format
 
+    @property
+    def try_cache(self) -> bool:
+        return self._try_cache()
+
 
 def test_is_databricks_false(mock_spark):
     conf = ReconcileMetadataConfig()
@@ -1024,3 +1028,10 @@ def test_format_uses_parquet(mock_spark):
     persist = ReconIntermediatePersistUnderTest(mock_spark, conf)
 
     assert persist.format == "parquet"
+
+
+def test_try_cache(spark):
+    conf = ReconcileMetadataConfig()
+    persist = ReconIntermediatePersistUnderTest(spark, conf)
+
+    assert persist.try_cache is True

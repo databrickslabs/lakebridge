@@ -6,8 +6,6 @@ from pyspark.sql.functions import col, expr, lit
 from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import DialectUtils
 from databricks.labs.lakebridge.reconcile.exception import ColumnMismatchException
 from databricks.labs.lakebridge.reconcile.recon_capture import (
-    ReconIntermediatePersist,
-    cache_df_if_supported,
     AbstractReconIntermediatePersist,
 )
 from databricks.labs.lakebridge.reconcile.recon_output_config import (

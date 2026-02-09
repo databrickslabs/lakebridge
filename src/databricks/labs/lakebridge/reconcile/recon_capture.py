@@ -4,14 +4,13 @@ import tempfile
 import uuid
 from datetime import datetime
 
-from functools import reduce, lru_cache, cached_property
-from typing import Literal
+from functools import reduce, cached_property
 from pathlib import Path
 
 from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql.functions import col, collect_list, create_map, lit
 from pyspark.sql.types import StringType, StructField, StructType
-from pyspark.errors import PySparkException, PySparkAttributeError
+from pyspark.errors import PySparkException, PySparkAttributeError, AnalysisException
 
 from sqlglot import Dialect
 
@@ -49,6 +48,10 @@ class AbstractReconIntermediatePersist:
     def base_dir(self) -> Path:
         raise NotImplementedError
 
+    @property
+    def can_cache(self) -> bool:
+        raise NotImplementedError
+
     def write_and_read_df_with_volumes(
         self,
         df: DataFrame,
@@ -62,6 +65,7 @@ class ReconIntermediatePersist(AbstractReconIntermediatePersist):
         self._metadata_config = metadata_config
         self._format = "delta" if self._is_databricks else "parquet"
         self._base_dir = self._get_uc_volume_path if self._is_databricks else tempfile.gettempdir()
+        self._can_cache = self._try_cache()
 
     @cached_property
     def _is_databricks(self) -> bool:
@@ -72,6 +76,10 @@ class ReconIntermediatePersist(AbstractReconIntermediatePersist):
     @property
     def base_dir(self) -> Path:
         return Path(self._base_dir)
+
+    @property
+    def can_cache(self) -> bool:
+        return self._can_cache
 
     @property
     def _get_uc_volume_path(self):
@@ -106,32 +114,14 @@ class ReconIntermediatePersist(AbstractReconIntermediatePersist):
             logger.exception(message)
             raise ReadAndWriteWithVolumeException(message) from e
 
-
-SparkRuntimeType = Literal["DATABRICKS_SERVERLESS", "CLASSIC", "SPARK_CONNECT", "NO_JVM_UNKNOWN"]
-
-
-@lru_cache(maxsize=1)
-def _classify_spark_runtime(spark: SparkSession) -> SparkRuntimeType:
-    try:
-        _ = spark.sparkContext
-        return "CLASSIC"
-    except PySparkAttributeError as e:
-        msg = str(e).lower()
-
-        if "serverless" in msg:
-            return "DATABRICKS_SERVERLESS"
-
-        if "spark connect" in msg:
-            return "SPARK_CONNECT"
-
-        return "NO_JVM_UNKNOWN"
-
-
-def cache_df_if_supported(spark: SparkSession, df: DataFrame) -> DataFrame:
-    cluster_type = _classify_spark_runtime(spark)
-    if cluster_type != "DATABRICKS_SERVERLESS":
-        df = df.cache()
-    return df
+    def _try_cache(self) -> bool:
+        try:
+            schema = StructType([StructField("col1", StringType(), True)])
+            df = self._spark.createDataFrame([], schema)
+            df.cache()
+            return True
+        except (AnalysisException, PySparkAttributeError):
+            return False
 
 
 def _write_df_to_delta(df: DataFrame, table_name: str, mode="append"):

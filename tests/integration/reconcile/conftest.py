@@ -110,6 +110,10 @@ class FakeReconIntermediatePersist(AbstractReconIntermediatePersist):
     def base_dir(self) -> Path:
         return Path(tempfile.gettempdir())
 
+    @property
+    def can_cache(self) -> bool:
+        return True
+
     def write_and_read_df_with_volumes(
         self,
         df: DataFrame,
