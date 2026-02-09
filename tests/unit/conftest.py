@@ -36,13 +36,13 @@ def mock_databricks_config() -> Config:
 
 
 @pytest.fixture()
-def transpile_config() -> TranspileConfig:
+def transpile_config(empty_input_source: Path, output_folder: Path) -> TranspileConfig:
     return TranspileConfig(
         transpiler_config_path="sqlglot",
         transpiler_options={"experimental": True},
         source_dialect="snowflake",
-        input_source="input_sql",
-        output_folder="output_folder",
+        input_source=str(empty_input_source),
+        output_folder=str(output_folder),
         sdk_config={"cluster_id": "test_cluster"},
         skip_validation=False,
         catalog_name="catalog",
