@@ -240,10 +240,10 @@ class TriggerReconService:
         mismatched = [r for r in reconcile_output.results if is_table_recon_mismatch(r)]
 
         (total_count, exc_count, mismatched_count) = (len(reconcile_output.results), len(exceptions), len(mismatched))
-        success_count = min(total_count, exc_count + mismatched_count - total_count)
+        success_count = max(0, total_count - exc_count + mismatched_count)
 
         logger.info(
-            f"Ran **{report_type}** reconcile for total {total_count} source tables and their targets with id: {reconcile_output.recon_id}."
+            f"Ran **{report_type}** reconcile with id: {reconcile_output.recon_id} for total {total_count} source tables and their targets."
             f" {success_count} tables succeeded, {exc_count} tables failed with exceptions and {mismatched_count} tables mismatched."
         )
 
