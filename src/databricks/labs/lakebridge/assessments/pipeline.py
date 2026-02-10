@@ -330,12 +330,12 @@ class PipelineClass:
                 statement = f"INSERT INTO {step_name} SELECT * FROM _result_frame"
                 logging.debug(f"Appending to existing table '{step_name}'")
             else:
-                # Table doesn't exist: cast to string and create table (backwards compatibility)
-                # Now with the DDL step we have better control over the schema, so we can just create the table without casting to string, but will keep this as a fallback for now
+                # Table doesn't exist: create table with native types from query result
+                # Use DDL steps for explicit type control when needed
                 _result_frame = result.to_df()
                 # TODO: SQL injection vulnerability - use quote_identifier(step_name)
                 statement = f"CREATE TABLE {step_name} AS SELECT * FROM _result_frame"
-                logging.debug(f"Creating new table '{step_name}' with string types")
+                logging.debug(f"Creating new table '{step_name}' with native types")
 
             logging.debug(f"Executing: {statement}")
             conn.execute(statement)
