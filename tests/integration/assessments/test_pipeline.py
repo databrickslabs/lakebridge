@@ -37,6 +37,11 @@ def pipeline_config(pipeline_configuration_loader: _Loader) -> PipelineConfig:
 
 
 @pytest.fixture
+def pipeline_config_with_ddl(pipeline_configuration_loader: _Loader) -> PipelineConfig:
+    return pipeline_configuration_loader(Path("pipeline_config_with_ddl.yml"))
+
+
+@pytest.fixture
 def pipeline_dep_failure_config(pipeline_configuration_loader: _Loader) -> PipelineConfig:
     return pipeline_configuration_loader(Path("pipeline_config_failure_dependency.yml"))
 
@@ -210,3 +215,79 @@ def test_run_empty_result_pipeline(
 
     # Table should NOT be created when resultset is empty
     assert "empty_result_step" not in table_names, "Empty resultset should skip table creation"
+
+
+def test_run_pipeline_with_ddl(
+    sandbox_sqlserver: DatabaseManager,
+    pipeline_config_with_ddl: PipelineConfig,
+    get_logger: Logger,
+) -> None:
+    """Test pipeline execution with DDL steps that create tables with proper data types."""
+    pipeline = PipelineClass(config=pipeline_config_with_ddl, executor=sandbox_sqlserver)
+    results = pipeline.execute()
+
+    # Verify all steps completed successfully
+    for result in results:
+        assert result.status in (
+            StepExecutionStatus.COMPLETE,
+            StepExecutionStatus.SKIPPED,
+        ), f"Step {result.step_name} failed with status {result.status}"
+
+    # Verify tables exist and have proper data types
+    db_path = str(Path(pipeline_config_with_ddl.extract_folder)) + "/" + DB_NAME
+    with duckdb.connect(db_path) as conn:
+        # Check inventory table schema (created from DDL)
+        inventory_schema = conn.execute("DESCRIBE inventory").fetchall()
+        get_logger.info(f"Inventory schema: {inventory_schema}")
+
+        # Verify column types match DDL definition
+        schema_dict = {col[0]: col[1] for col in inventory_schema}
+        assert schema_dict["db_id"] == "INTEGER", "db_id should be INTEGER from DDL"
+        assert "VARCHAR" in schema_dict["name"], "name should be VARCHAR"
+        assert "TIMESTAMP" in schema_dict["create_date"], "create_date should be TIMESTAMP"
+
+        # Check usage table schema (created without DDL, should be all VARCHAR)
+        usage_schema = conn.execute("DESCRIBE usage").fetchall()
+        get_logger.info(f"Usage schema: {usage_schema}")
+
+        # Verify all columns are VARCHAR when no DDL is provided (backwards compatibility)
+        for col in usage_schema:
+            assert "VARCHAR" in col[1], f"Column {col[0]} should be VARCHAR without DDL"
+
+        # Verify data was inserted
+        inventory_result = conn.execute("SELECT COUNT(*) FROM inventory").fetchone()
+        usage_result = conn.execute("SELECT COUNT(*) FROM usage").fetchone()
+        assert inventory_result is not None and inventory_result[0] > 0, "Inventory table should have data"
+        assert usage_result is not None and usage_result[0] > 0, "Usage table should have data"
+
+
+def test_ddl_overwrite_mode(
+    sandbox_sqlserver: DatabaseManager,
+    pipeline_config_with_ddl: PipelineConfig,
+    get_logger: Logger,
+) -> None:
+    """Test that DDL steps in overwrite mode properly drop and recreate tables."""
+    pipeline = PipelineClass(config=pipeline_config_with_ddl, executor=sandbox_sqlserver)
+
+    # Run pipeline first time
+    pipeline.execute()
+
+    db_path = str(Path(pipeline_config_with_ddl.extract_folder)) + "/" + DB_NAME
+
+    # Insert additional data directly
+    with duckdb.connect(db_path) as conn:
+        conn.execute("INSERT INTO inventory VALUES (999, 'test', 'test_collation', NOW(), NOW())")
+        count_before_result = conn.execute("SELECT COUNT(*) FROM inventory").fetchone()
+        assert count_before_result is not None
+        count_before = count_before_result[0]
+
+    # Run pipeline again with overwrite mode
+    pipeline.execute()
+
+    # Verify table was recreated (additional data should be gone)
+    with duckdb.connect(db_path) as conn:
+        count_after_result = conn.execute("SELECT COUNT(*) FROM inventory").fetchone()
+        assert count_after_result is not None
+        count_after = count_after_result[0]
+        # Count should be back to original (without the extra row we added)
+        assert count_after < count_before, "Overwrite mode should recreate table"

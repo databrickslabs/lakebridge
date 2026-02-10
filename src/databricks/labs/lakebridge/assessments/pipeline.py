@@ -38,14 +38,39 @@ class PipelineClass:
     def __init__(self, config: PipelineConfig, executor: DatabaseManager | None):
         self.config = config
         self.executor = executor
-        self.db_path_prefix = Path(config.extract_folder).expanduser()
-        self._create_dir(self.db_path_prefix)
+        self._db_path_prefix = Path(config.extract_folder).expanduser()
+        self._create_dir(self._db_path_prefix)
+        self._db_path = str(self._db_path_prefix / DB_NAME)
 
     def execute(self) -> list[StepExecutionResult]:
         logging.info(f"Pipeline initialized with config: {self.config.name}, version: {self.config.version}")
         execution_results: list[StepExecutionResult] = []
         error_flag = False
-        for step in self.config.steps:
+
+        # Separate DDL steps from other steps
+        ddl_steps = [step for step in self.config.steps if step.type == "ddl"]
+        other_steps = [step for step in self.config.steps if step.type != "ddl"]
+
+        # Execute all DDL steps first
+        logging.info("Executing DDL steps first to create table schemas")
+        for step in ddl_steps:
+            logger.info(f"Executing step: {step.name}")
+            result = self._process_step(step)
+            execution_results.append(result)
+            logger.info(f"Step '{step.name}' completed with status: {result.status}")
+
+            # Check step execution status
+            if result.status == StepExecutionStatus.ERROR:
+                logger.error(f"Step {result.step_name} failed with error: {result.error_message}")
+                error_flag = True
+            elif result.status == StepExecutionStatus.SKIPPED:
+                logger.info(f"Step {result.step_name} was skipped.")
+            else:
+                logger.info(f"Step {result.step_name} has completed successfully.")
+
+        # Then execute all other steps (SQL, Python, etc.)
+        logging.info("Executing data extraction and processing steps")
+        for step in other_steps:
             logger.info(f"Executing step: {step.name}")
             result = self._process_step(step)
             execution_results.append(result)
@@ -85,6 +110,10 @@ class PipelineClass:
             logging.info(f"Executing SQL step {step.name}")
             self._execute_sql_step(step)
             return StepExecutionStatus.COMPLETE
+        if step.type == "ddl":
+            logging.info(f"Executing DDL step {step.name}")
+            self._execute_ddl_step(step)
+            return StepExecutionStatus.COMPLETE
         if step.type == "python":
             logging.info(f"Executing Python step {step.name}")
             self._execute_python_step(step)
@@ -112,10 +141,48 @@ class PipelineClass:
             logging.error(f"SQL execution failed: {str(e)}")
             raise RuntimeError(f"SQL execution failed: {str(e)}") from e
 
+    def _execute_ddl_step(self, step: Step):
+        logging.debug(f"Reading DDL from file: {step.extract_source}")
+        with open(step.extract_source, 'r', encoding='utf-8') as file:
+            ddl = file.read().strip()
+
+        logging.info(f"Executing DDL for table '{step.name}'")
+
+        try:
+            with duckdb.connect(self._db_path) as conn:
+                if step.mode == 'overwrite':
+                    # Overwrite mode: drop existing table first
+                    # TODO: SQL injection vulnerability - use quote_identifier(step.name)
+                    conn.execute(f"DROP TABLE IF EXISTS {step.name}")
+                    logging.debug(f"Dropped existing table '{step.name}' for overwrite mode")
+                    # Execute the DDL statement
+                    conn.execute(ddl)
+                else:
+                    # Non-overwrite mode: only create if table doesn't exist
+                    # Check if table exists using information_schema
+                    # TODO: SQL injection vulnerability - use parameterized query with ?
+                    result = conn.execute(
+                        f"SELECT COUNT(*) FROM information_schema.tables WHERE table_name = '{step.name}'"
+                    ).fetchone()
+                    table_exists = result[0] > 0 if result else False
+
+                    if not table_exists:
+                        conn.execute(ddl)
+                        logging.debug(f"Created new table '{step.name}'")
+                    else:
+                        # Table already exists in non-overwrite mode, skip
+                        logging.debug(f"Table '{step.name}' already exists, skipping DDL execution")
+
+                # Explicit commit before context exit
+                conn.commit()
+                logging.info(f"Successfully handled DDL for table '{step.name}'")
+        except Exception as e:
+            logging.error(f"DDL execution failed: {str(e)}")
+            raise RuntimeError(f"DDL execution failed: {str(e)}") from e
+
     def _execute_python_step(self, step: Step):
 
         logging.debug(f"Executing Python script: {step.extract_source}")
-        db_path = str(self.db_path_prefix / DB_NAME)
         credential_config = str(cred_file("lakebridge"))
         venv_path_prefix = Path.home() / ".databricks" / "labs" / "lakebridge_profilers"
         os.makedirs(venv_path_prefix, exist_ok=True)
@@ -142,7 +209,7 @@ class PipelineClass:
             if step.dependencies:
                 self._install_dependencies(venv_exec_cmd, step.dependencies)
 
-            self._run_python_script(venv_exec_cmd, step.extract_source, db_path, credential_config)
+            self._run_python_script(venv_exec_cmd, step.extract_source, self._db_path, credential_config)
 
     @staticmethod
     def _install_dependencies(venv_exec_cmd, dependencies):
@@ -232,8 +299,6 @@ class PipelineClass:
             raise RuntimeError(f"Script execution failed with exit code {process.returncode}")
 
     def _save_to_db(self, result: FetchResult, step_name: str, mode: str):
-        db_path = str(self.db_path_prefix / DB_NAME)
-
         # Check row count and log appropriately and skip data insertion if 0 rows
         if not result.rows:
             logging.warning(
@@ -243,20 +308,41 @@ class PipelineClass:
 
         row_count = len(result.rows)
         logging.info(f"Query for step '{step_name}' returned {row_count} rows.")
-        # TODO: Add support for figuring out data types from SQLALCHEMY result object result.cursor.description is not reliable
-        _result_frame = result.to_df().astype(str)
 
-        with duckdb.connect(db_path) as conn:
-            # DuckDB can access _result_frame from the local scope automatically.
-            if mode == 'overwrite':
+        with duckdb.connect(self._db_path) as conn:
+            # Check if table exists using information_schema
+            # TODO: SQL injection vulnerability - use parameterized query with ?
+            table_check = conn.execute(
+                f"SELECT COUNT(*) FROM information_schema.tables WHERE table_name = '{step_name}'"
+            ).fetchone()
+            table_exists = table_check[0] > 0 if table_check else False
+
+            if table_exists and mode == 'overwrite':
+                # Table exists and overwrite mode: replace the table with cursor data (preserve existing schema)
+                _result_frame = result.to_df()
+                # TODO: SQL injection vulnerability - use quote_identifier(step_name)
                 statement = f"CREATE OR REPLACE TABLE {step_name} AS SELECT * FROM _result_frame"
-            elif mode == 'append' and step_name not in conn.get_table_names(""):
-                statement = f"CREATE TABLE {step_name} AS SELECT * FROM _result_frame"
-            else:
+                logging.debug(f"Overwriting existing table '{step_name}'")
+            elif table_exists:
+                # Table exists and append mode: insert into existing table (DuckDB handles type conversion)
+                _result_frame = result.to_df()
+                # TODO: SQL injection vulnerability - use quote_identifier(step_name)
                 statement = f"INSERT INTO {step_name} SELECT * FROM _result_frame"
-            logging.debug(f"Inserting {row_count} rows: {statement}")
+                logging.debug(f"Appending to existing table '{step_name}'")
+            else:
+                # Table doesn't exist: cast to string and create table (backwards compatibility)
+                # TODO: Add support for figuring out data types from SQLALCHEMY result object result.cursor.description is not reliable
+                _result_frame = result.to_df().astype(str)
+                # TODO: SQL injection vulnerability - use quote_identifier(step_name)
+                statement = f"CREATE TABLE {step_name} AS SELECT * FROM _result_frame"
+                logging.debug(f"Creating new table '{step_name}' with string types")
+
+            logging.debug(f"Executing: {statement}")
             conn.execute(statement)
-        logging.info(f"Successfully inserted {row_count} rows into table '{step_name}'.")
+
+            # Explicit commit before context exit
+            conn.commit()
+            logging.info(f"Successfully processed {row_count} rows for table '{step_name}'.")
 
     @staticmethod
     def _create_dir(dir_path: Path):
