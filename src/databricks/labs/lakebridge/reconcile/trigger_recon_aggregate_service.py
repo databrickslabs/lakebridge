@@ -16,6 +16,7 @@ from databricks.labs.lakebridge.reconcile.recon_output_config import (
     ReconcileProcessDuration,
     AggregateQueryOutput,
     DataReconcileOutput,
+    ReconcileOutput,
 )
 from databricks.labs.lakebridge.reconcile.reconciliation import Reconciliation
 from databricks.labs.lakebridge.reconcile.trigger_recon_service import TriggerReconService
@@ -31,7 +32,7 @@ class TriggerReconAggregateService:
         table_recon: TableRecon,
         reconcile_config: ReconcileConfig,
         local_test_run: bool = False,
-    ):
+    ) -> ReconcileOutput:
         reconciler, recon_capture = TriggerReconService.create_recon_dependencies(
             ws, spark, reconcile_config, local_test_run
         )
