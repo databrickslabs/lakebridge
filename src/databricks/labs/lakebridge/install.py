@@ -166,7 +166,7 @@ class WorkspaceInstaller:
                 )
             case "profiler_dashboard":
                 logger.info("Configuring Lakebridge `profiler-dashboard`.")
-                return LakebridgeConfiguration(None, None, None)
+                return LakebridgeConfiguration(None, None, self._configure_profiler_dashboard())
             case _:
                 raise ValueError(f"Invalid input: {module}")
 
