@@ -848,35 +848,36 @@ spark.sql("CALL CDC.SET_INTF_RUNNING(:table_id, :source_pattern, :path_code)")
 
 ### Configuration Inheritance
 
-BladeBridge uses a layered configuration system where configs inherit from base configs and can be overridden by customer-provided configs.
+BladeBridge uses a layered configuration system where configs inherit from base configs. Based on the target technology selected, the converter loads the appropriate configuration hierarchy.
 
-```mermaid
-graph TD
-    U["Customer Override Config<br/>(passed with -u flag)"] -->|"[[LINK_OVERRIDE]]"| T
-    
-    T{"Target Tech Selection"}
-    T -->|"[[LINK_SPARKSQL]]"| B["base_infapc2databricks_sparksql.json"]
-    T -->|"[[LINK_PYSPARK]]"| C["base_infapc2databricks_pyspark.json"]
-    
-    B -->|"[[LINK_INHERIT_B]]"| D["base_infapc2databricks.json<br/>(shared base)"]
-    C -->|"[[LINK_INHERIT_C]]"| D
-    
-    B -->|"[[LINK_EXPR_SQL]]"| E["infa2databricks.json<br/>(function translations)"]
-    C -->|"[[LINK_ETL_PY]]"| F["base_infapc2pyspark.json<br/>(PySpark functions)"]
-    C -->|"[[LINK_EXPR_PY]]"| G["base_infa2databricks_expr.json"]
-    
-    D -->|"[[LINK_DEFINES]]"| H["system_type_class<br/>+ commands (READER/WRITER)"]
+**SparkSQL Output - Inheritance Path:**
+
+```
+base_infapc2databricks_sparksql.json
+    └── inherits from: base_infapc2databricks.json
+            └── inherits from: base_etl2databricks_defs.json
 ```
 
-**Key Config Files:**
+**PySpark Output - Inheritance Path:**
 
-| Config File | Purpose |
-|-------------|---------|
-| `base_infapc2databricks_sparksql.json` | SparkSQL output generation |
-| `base_infapc2databricks_pyspark.json` | PySpark output generation |
-| `base_infapc2databricks.json` | Shared base configuration |
-| `infa2databricks.json` | Date/time and function translations |
-| `base_infapc2pyspark.json` | PySpark-specific function mapping |
+```
+base_infapc2databricks_pyspark.json
+    └── inherits from: base_infapc2databricks.json
+            └── inherits from: base_etl2databricks_defs.json
+```
+
+**Expression Conversion Config Files:**
+
+Each main config file references additional configs for expression and function translation:
+
+| Setting | SparkSQL Config | PySpark Config | Purpose |
+|---------|-----------------|----------------|---------|
+| `etl_converter_config_file` | `infa2databricks.json` | `base_infapc2pyspark.json` | Converts ETL-level expressions (PowerCenter functions like IIF, DECODE, date functions) |
+| `expr_sql_converter_config_file` | (not used) | `base_infa2databricks_expr.json` | PySpark only - complex expressions containing IIF or DECODE are wrapped in `expr('...')` construct |
+
+**Embedded SQL Conversion:**
+
+When PowerCenter mappings contain embedded SQL (e.g., in Source Qualifier SQL Override or Lookup SQL), the converter identifies the source database type from the connection and applies the appropriate SQL dialect translation rules from the tech mapper configuration.
 
 ### Custom Config Overrides
 
