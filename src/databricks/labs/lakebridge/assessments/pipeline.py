@@ -152,7 +152,7 @@ class PipelineClass:
             with duckdb.connect(self._db_path) as conn:
                 if step.mode == 'overwrite':
                     # Overwrite mode: drop existing table first
-                    # TODO: SQL injection vulnerability - use quote_identifier(step.name)
+                    # Note: step.name is validated to be SQL-safe by Step.__post_init__
                     conn.execute(f"DROP TABLE IF EXISTS {step.name}")
                     logging.debug(f"Dropped existing table '{step.name}' for overwrite mode")
                     # Execute the DDL statement
@@ -160,7 +160,7 @@ class PipelineClass:
                 else:
                     # Non-overwrite mode: only create if table doesn't exist
                     # Check if table exists using information_schema
-                    # TODO: SQL injection vulnerability - use parameterized query with ?
+                    # Note: step.name is validated to be SQL-safe by Step.__post_init__
                     result = conn.execute(
                         f"SELECT COUNT(*) FROM information_schema.tables WHERE table_name = '{step.name}'"
                     ).fetchone()
@@ -311,7 +311,7 @@ class PipelineClass:
 
         with duckdb.connect(self._db_path) as conn:
             # Check if table exists using information_schema
-            # TODO: SQL injection vulnerability - use parameterized query with ?
+            # Note: step_name is validated to be SQL-safe by Step.__post_init__
             table_check = conn.execute(
                 f"SELECT COUNT(*) FROM information_schema.tables WHERE table_name = '{step_name}'"
             ).fetchone()
@@ -320,20 +320,20 @@ class PipelineClass:
             if table_exists and mode == 'overwrite':
                 # Table exists and overwrite mode: replace the table with cursor data (preserve existing schema)
                 _result_frame = result.to_df()
-                # TODO: SQL injection vulnerability - use quote_identifier(step_name)
+                # Note: step_name is validated to be SQL-safe by Step.__post_init__
                 statement = f"CREATE OR REPLACE TABLE {step_name} AS SELECT * FROM _result_frame"
                 logging.debug(f"Overwriting existing table '{step_name}'")
             elif table_exists:
                 # Table exists and append mode: insert into existing table (DuckDB handles type conversion)
                 _result_frame = result.to_df()
-                # TODO: SQL injection vulnerability - use quote_identifier(step_name)
+                # Note: step_name is validated to be SQL-safe by Step.__post_init__
                 statement = f"INSERT INTO {step_name} SELECT * FROM _result_frame"
                 logging.debug(f"Appending to existing table '{step_name}'")
             else:
                 # Table doesn't exist: cast to string and create table (backwards compatibility)
-                # TODO: Add support for figuring out data types from SQLALCHEMY result object result.cursor.description is not reliable
+                # Now with the DDL step we have better control over the schema, so we can just create the table without casting to string, but will keep this as a fallback for now.
                 _result_frame = result.to_df().astype(str)
-                # TODO: SQL injection vulnerability - use quote_identifier(step_name)
+                # Note: step_name is validated to be SQL-safe by Step.__post_init__
                 statement = f"CREATE TABLE {step_name} AS SELECT * FROM _result_frame"
                 logging.debug(f"Creating new table '{step_name}' with string types")
 
