@@ -149,7 +149,7 @@ def test_invalid_mode():
         )
 
 
-@pytest.mark.parametrize("step_type", ["sql", "ddl", "python", None])
+@pytest.mark.parametrize("step_type", ["sql", "ddl", "python"])
 def test_valid_types(step_type):
     """Test that valid types are accepted."""
     step = Step(
@@ -166,6 +166,16 @@ def test_invalid_type():
         Step(
             name="test_table",
             type="invalid_type",
+            extract_source="test.sql",
+        )
+
+
+def test_none_type_rejected():
+    """Test that None type is rejected."""
+    with pytest.raises((ValueError, TypeError)):
+        Step(
+            name="test_table",
+            type=None,
             extract_source="test.sql",
         )
 

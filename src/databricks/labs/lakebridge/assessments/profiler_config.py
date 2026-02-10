@@ -10,7 +10,7 @@ _VALID_IDENTIFIER_PATTERN = re.compile(r'^[a-zA-Z_][a-zA-Z0-9_]*$')
 @dataclass(frozen=True)
 class Step:
     name: str
-    type: str | None
+    type: str
     extract_source: str
     mode: str = "append"
     frequency: str = "once"
@@ -56,12 +56,11 @@ class Step:
 
     def _validate_type(self):
         """Validate type is a recognized value."""
-        valid_types = {'sql', 'ddl', 'python', None}
+        valid_types = {'sql', 'ddl', 'python'}
         if self.type not in valid_types:
-            valid_types_str = ', '.join(f"'{t}'" if t else 'None' for t in sorted(valid_types, key=lambda x: (x is None, x)))
             raise ValueError(
                 f"Invalid type '{self.type}' for step '{self.name}'. "
-                f"Valid types are: {valid_types_str}"
+                f"Valid types are: {', '.join(sorted(valid_types))}"
             )
 
     def copy(self, /, **changes) -> "Step":
