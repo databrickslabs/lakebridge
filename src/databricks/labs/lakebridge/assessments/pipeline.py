@@ -331,9 +331,9 @@ class PipelineClass:
                 logging.debug(f"Appending to existing table '{step_name}'")
             else:
                 # Table doesn't exist: cast to string and create table (backwards compatibility)
-                # Now with the DDL step we have better control over the schema, so we can just create the table without casting to string, but will keep this as a fallback for now.
-                _result_frame = result.to_df().astype(str)
-                # Note: step_name is validated to be SQL-safe by Step.__post_init__
+                # Now with the DDL step we have better control over the schema, so we can just create the table without casting to string, but will keep this as a fallback for now
+                _result_frame = result.to_df()
+                # TODO: SQL injection vulnerability - use quote_identifier(step_name)
                 statement = f"CREATE TABLE {step_name} AS SELECT * FROM _result_frame"
                 logging.debug(f"Creating new table '{step_name}' with string types")
 
