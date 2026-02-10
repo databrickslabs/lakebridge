@@ -61,7 +61,7 @@ class TriggerReconAggregateService:
     @staticmethod
     def recon_aggregate_one(
         reconciler: Reconciliation, table_conf: Table, reconcile_config: ReconcileConfig, recon_capture: ReconCapture
-    ):
+    ) -> None:
         normalized_table_conf = NormalizeReconConfigService(
             reconciler.source, reconciler.target
         ).normalize_recon_table_config(table_conf)

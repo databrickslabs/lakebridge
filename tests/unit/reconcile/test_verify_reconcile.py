@@ -60,6 +60,6 @@ def test_raises_on_exception_message() -> None:
     reconcile_output = ReconcileOutput(recon_id="mock-id", results=results)
 
     with pytest.raises(ReconciliationException) as excinfo:
-        TriggerReconService.verify_successful_reconciliation(reconcile_output, report_type="daily")
+        TriggerReconService.verify_successful_reconciliation(reconcile_output, report_type="all")
 
-    assert "Reconciliation failed with exceptions for" in str(excinfo.value)
+    assert "Reconciliation **all** with id: mock-id failed with exceptions for" in str(excinfo.value)
