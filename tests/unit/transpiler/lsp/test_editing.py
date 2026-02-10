@@ -1,8 +1,10 @@
 import logging
 import os
+import re
+from collections.abc import Callable, Sequence
 from logging import LogRecord
 from pathlib import Path
-from typing import Sequence
+from typing import TypeAlias
 from unittest.mock import Mock, DEFAULT
 
 import pytest
@@ -22,15 +24,55 @@ from lsprotocol.types import (
     ApplyWorkspaceEditResult,
 )
 
-from databricks.labs.lakebridge.transpiler.lsp.editing import BaseEditor, LakebridgeEditor, logger as editing_logger
+from databricks.labs.lakebridge.transpiler.lsp.editing import (
+    BaseEditor,
+    DocumentChange,
+    EditorProxy,
+    LakebridgeEditor,
+    RetargetingEditor,
+    SandboxEditor,
+    logger as editing_logger,
+    Editor,
+)
 
 
 LSP_ORIGIN = Range(start=Position(0, 0), end=Position(0, 0))
 
 
+AppliedEdits: TypeAlias = tuple[str, Sequence[TextEdit]] | DocumentChange
+
+
+class MinimumEditor(BaseEditor):
+    edits: list[AppliedEdits]
+
+    def __init__(self):
+        self.edits = []
+
+    def _apply_text_edits(self, uri: str, text_edits: Sequence[TextEdit]) -> ApplyWorkspaceEditResult:
+        self.edits.append((uri, text_edits))
+        return ApplyWorkspaceEditResult(applied=True)
+
+    def _apply_document_edit(self, edit: TextDocumentEdit) -> ApplyWorkspaceEditResult:
+        self.edits.append(edit)
+        return ApplyWorkspaceEditResult(applied=True)
+
+    def _create_file(self, edit: CreateFile) -> ApplyWorkspaceEditResult:
+        self.edits.append(edit)
+        return ApplyWorkspaceEditResult(applied=True)
+
+    def _rename_file(self, edit: RenameFile) -> ApplyWorkspaceEditResult:
+        self.edits.append(edit)
+        return ApplyWorkspaceEditResult(applied=True)
+
+    def _delete_file(self, edit: DeleteFile) -> ApplyWorkspaceEditResult:
+        self.edits.append(edit)
+        return ApplyWorkspaceEditResult(applied=True)
+
+
 def test_default_capabilities() -> None:
     """Verify the default set of capabilities that are reported."""
-    capabilities = BaseEditor.capabilities()
+
+    capabilities = MinimumEditor().capabilities()
     assert capabilities.normalizes_line_endings, "Line endings are normalized here to avoid duplication in servers."
     assert capabilities.failure_handling == FailureHandlingKind.Abort, "Editors abort on first error by default."
     assert capabilities.resource_operations == [], "No resource operations are supported by default."
@@ -200,7 +242,7 @@ def test_base_editor_document_changes_error_abort() -> None:
 
 def test_lakebridge_editor_capabilities() -> None:
     """Verify the capabilities declared by the Lakebridge editor."""
-    capabilities = LakebridgeEditor.capabilities()
+    capabilities = LakebridgeEditor().capabilities()
     assert capabilities.document_changes
     assert capabilities.normalizes_line_endings
     assert (resource_operations := capabilities.resource_operations) is not None
@@ -696,3 +738,348 @@ def _apply_failing_document_write(
     expected_message = f"Cannot modify file due to error: {the_file.as_uri()}"
     [only_log] = [record for record in editor_warning_logs if record.msg == expected_message]
     return only_log
+
+
+def test_proxy_capabilities_are_underlying_capabilities() -> None:
+    """Verify that the editor proxy simply returns the underlying editor's capabilities as its own."""
+
+    class _IdentityProxy(EditorProxy):
+        # Nothing needed here; base implementation is sufficient.
+        pass
+
+    base_editor = MinimumEditor()
+    editor_proxy = _IdentityProxy(base_editor)
+
+    assert base_editor.capabilities() == editor_proxy.capabilities()
+
+
+# Synthetic path, a sandbox within which changes are allowed.
+SANDBOX = Path("/path") / "to" / "sandbox"
+# Various paths that are all within the sandbox.
+ALLOWED_PATHS: Sequence[Path] = (
+    SANDBOX / "file.txt",
+    SANDBOX / "nested" / "file.txt",
+    SANDBOX / "nested" / ".." / "file.txt",
+    SANDBOX / "a" / "b" / ".." / ".." / "c" / "file.txt",
+)
+# Various paths that are all outside the sandbox.
+DISALLOWED_PATHS: Sequence[Path] = (
+    Path("/path") / "to" / "outside.txt",
+    Path("/other") / "location.txt",
+    SANDBOX / ".." / "outside.txt",
+    SANDBOX / "nested" / ".." / ".." / "outside.txt",
+    SANDBOX / ".." / ".." / ".." / "etc" / "passwd",
+)
+
+
+def _apply_sandbox_edits(edit: WorkspaceEdit) -> tuple[ApplyWorkspaceEditResult, Sequence[AppliedEdits]]:
+    base_editor = MinimumEditor()
+    sandbox_editor = SandboxEditor(base_editor, base=SANDBOX)
+
+    result = sandbox_editor.apply(edit)
+
+    return result, base_editor.edits
+
+
+@pytest.mark.parametrize("allowed_path", ALLOWED_PATHS, ids=str)
+def test_sandbox_editor_allows_changes_within_sandbox(allowed_path) -> None:
+    """Verify that simple changes within the sandbox directory are allowed."""
+    uri = allowed_path.as_uri()
+    changes = (TextEdit(range=Range(start=Position(0, 0), end=Position(1, 0)), new_text="new first line\n"),)
+    result, applied_edits = _apply_sandbox_edits(WorkspaceEdit(changes={uri: changes}))
+
+    assert result.applied
+    assert applied_edits == [(uri, changes)]
+
+
+@pytest.mark.parametrize("disallowed_path", DISALLOWED_PATHS, ids=str)
+def test_sandbox_editor_rejects_changes_outside_sandbox(disallowed_path: Path) -> None:
+    """Verify that simple changes outside the sandbox are rejected."""
+    uri = disallowed_path.as_uri()
+    changes = (TextEdit(range=Range(start=Position(0, 0), end=Position(1, 0)), new_text="new first line\n"),)
+
+    result, applied_edits = _apply_sandbox_edits(WorkspaceEdit(changes={uri: changes}))
+
+    assert not result.applied
+    assert result.failure_reason is not None and "must be within" in result.failure_reason
+    assert not applied_edits
+
+
+def _create_file(p: Path) -> CreateFile:
+    return CreateFile(uri=p.as_uri(), options=CreateFileOptions(overwrite=True))
+
+
+def _delete_file(p: Path) -> DeleteFile:
+    return DeleteFile(uri=p.as_uri())
+
+
+def _rename_file(old: Path, new: Path) -> RenameFile:
+    return RenameFile(old.as_uri(), new.as_uri())
+
+
+def _text_replace(p: Path, new_text="replacement first line\n") -> TextDocumentEdit:
+    text_document = OptionalVersionedTextDocumentIdentifier(uri=p.as_uri())
+    edits = (TextEdit(range=LSP_ORIGIN, new_text=new_text),)
+    return TextDocumentEdit(text_document=text_document, edits=edits)
+
+
+def _test_sandbox_document_changes_allowed(document_changes: Sequence[DocumentChange]) -> None:
+    result, applied_edits = _apply_sandbox_edits(WorkspaceEdit(document_changes=document_changes))
+
+    assert result.applied
+    assert applied_edits == list(document_changes)
+
+
+def _test_sandbox_document_changes_rejected(document_changes: Sequence[DocumentChange]) -> None:
+    result, applied_edits = _apply_sandbox_edits(WorkspaceEdit(document_changes=document_changes))
+
+    assert not result.applied
+    assert result.failure_reason is not None and "must be within" in result.failure_reason
+    assert not applied_edits
+
+
+@pytest.mark.parametrize("allowed_path", ALLOWED_PATHS, ids=str)
+@pytest.mark.parametrize("resource_op", (_create_file, _delete_file, _text_replace))
+def test_sandbox_editor_allows_single_resource_operations_within_sandbox(
+    allowed_path: Path, resource_op: Callable[[Path], DocumentChange]
+) -> None:
+    """Verify that single-resource operations outside the sandbox are allowed."""
+    document_changes = (resource_op(allowed_path),)
+    _test_sandbox_document_changes_allowed(document_changes)
+
+
+@pytest.mark.parametrize("allowed_old_path", ALLOWED_PATHS, ids=str)
+@pytest.mark.parametrize("allowed_new_path", ALLOWED_PATHS, ids=str)
+def test_sandbox_editor_allows_rename_file_within_sandbox(allowed_old_path: Path, allowed_new_path: Path) -> None:
+    """Verify that renaming within the sandbox is allowed."""
+    document_changes = (_rename_file(allowed_old_path, allowed_new_path),)
+    _test_sandbox_document_changes_allowed(document_changes)
+
+
+@pytest.mark.parametrize("disallowed_path", DISALLOWED_PATHS, ids=str)
+@pytest.mark.parametrize("resource_op", (_create_file, _delete_file, _text_replace))
+def test_sandbox_editor_rejects_single_resource_operations_outside_sandbox(
+    disallowed_path: Path, resource_op: Callable[[Path], DocumentChange]
+) -> None:
+    """Verify that single-resource operations within the sandbox are rejected."""
+    document_changes = (resource_op(disallowed_path),)
+    _test_sandbox_document_changes_rejected(document_changes)
+
+
+@pytest.mark.parametrize("disallowed_old_path", DISALLOWED_PATHS, ids=str)
+def test_sandbox_editor_rejects_rename_file_from_outside_sandbox(disallowed_old_path: Path) -> None:
+    """Verify that renaming from outside into the sandbox is not allowed."""
+    inside_sandbox = SANDBOX / "file_within.txt"
+    document_changes = (_rename_file(old=disallowed_old_path, new=inside_sandbox),)
+    _test_sandbox_document_changes_rejected(document_changes)
+
+
+@pytest.mark.parametrize("disallowed_new_path", DISALLOWED_PATHS, ids=str)
+def test_sandbox_editor_rejects_rename_file_to_outside_sandbox(disallowed_new_path: Path) -> None:
+    """Verify that renaming to outside the sandbox is not allowed."""
+    inside_sandbox = SANDBOX / "file_within.txt"
+    document_changes = (_rename_file(old=inside_sandbox, new=disallowed_new_path),)
+    _test_sandbox_document_changes_rejected(document_changes)
+
+
+@pytest.mark.parametrize("disallowed_old_path", DISALLOWED_PATHS, ids=str)
+@pytest.mark.parametrize("disallowed_new_path", DISALLOWED_PATHS, ids=str)
+def test_sandbox_editor_rejects_renames_outside_sandbox(disallowed_old_path: Path, disallowed_new_path: Path) -> None:
+    """Verify that renaming from the sandbox to outside is not allowed."""
+    document_changes = (_rename_file(old=disallowed_old_path, new=disallowed_new_path),)
+    _test_sandbox_document_changes_rejected(document_changes)
+
+
+RETARGET_BASE = Path("/path/to/input")
+RETARGET_TARGET = Path("/path/output")
+
+EXPECTED_RETARGETS = {
+    RETARGET_BASE / "file.txt": RETARGET_TARGET / "file.txt",
+    RETARGET_BASE / "path" / "to" / "file.txt": RETARGET_TARGET / "path" / "to" / "file.txt",
+    RETARGET_BASE / "nested" / "but" / ".." / ".." / "not-nested.txt": RETARGET_TARGET / "not-nested.txt",
+    RETARGET_BASE / "nested" / ".." / ".." / "not-retargeted": (RETARGET_BASE / ".." / "not-retargeted").resolve(),
+    Path("/outside") / "non-retargeted.txt": Path("/outside") / "non-retargeted.txt",
+}
+
+
+def _apply_retargeted_edits(edit: WorkspaceEdit) -> tuple[ApplyWorkspaceEditResult, Sequence[AppliedEdits]]:
+    base_editor = MinimumEditor()
+    retargeting_editor = RetargetingEditor(base_editor, base=RETARGET_BASE, target=RETARGET_TARGET)
+
+    result = retargeting_editor.apply(edit)
+
+    return result, base_editor.edits
+
+
+@pytest.mark.parametrize(("original_path", "expected_path"), EXPECTED_RETARGETS.items(), ids=str)
+def test_retargeting_editor_changes(original_path: Path, expected_path: Path) -> None:
+    """Verify that simple changes are retargeted properly."""
+    text_edits = (TextEdit(range=Range(start=Position(0, 0), end=Position(1, 0)), new_text="replacement first line\n"),)
+    original_changes = {original_path.as_uri(): text_edits}
+    expected_changes = [(expected_path.as_uri(), text_edits)]
+
+    result, edits = _apply_retargeted_edits(WorkspaceEdit(changes=original_changes))
+
+    assert result.applied
+    assert edits == expected_changes
+
+
+def _test_retargeted_document_changes(
+    document_changes: Sequence[DocumentChange], expected_changes: Sequence[DocumentChange]
+) -> None:
+    result, applied_edits = _apply_retargeted_edits(WorkspaceEdit(document_changes=document_changes))
+
+    assert result.applied
+    assert applied_edits == list(expected_changes)
+
+
+@pytest.mark.parametrize(("original_path", "expected_path"), EXPECTED_RETARGETS.items(), ids=str)
+@pytest.mark.parametrize("resource_op", (_create_file, _delete_file, _text_replace))
+def test_retargeting_editor_single_resource_operations(
+    original_path: Path, expected_path: Path, resource_op: Callable[[Path], DocumentChange]
+) -> None:
+    """Verify that single-resource operations are properly retargeted."""
+    original_changes = (resource_op(original_path),)
+    retargeted_changes = (resource_op(expected_path),)
+
+    _test_retargeted_document_changes(original_changes, retargeted_changes)
+
+
+@pytest.mark.parametrize(("original_old_path", "expected_old_path"), EXPECTED_RETARGETS.items(), ids=str)
+@pytest.mark.parametrize(("original_new_path", "expected_new_path"), EXPECTED_RETARGETS.items(), ids=str)
+def test_retargeting_editor_rename_operations(
+    original_old_path: Path, expected_old_path: Path, original_new_path: Path, expected_new_path: Path
+) -> None:
+    """Verify that rename operations work properly, including when one side is outside the retargeting base."""
+    original_changes = (_rename_file(original_old_path, original_new_path),)
+    retargeted_changes = (_rename_file(expected_old_path, expected_new_path),)
+
+    _test_retargeted_document_changes(original_changes, retargeted_changes)
+
+
+def test_retargeting_lakebridge_editor() -> None:
+    """Test that we can construct a retargeting lakebridge editor."""
+    base = Path("/some/base")
+    target = Path("/somewhere/else")
+    editor: Editor = LakebridgeEditor.retargeting_editor(base=base, target=target)
+
+    assert editor
+
+
+@pytest.mark.parametrize(
+    "inside_path",
+    (
+        Path("inside"),
+        Path("also") / "inside",
+        Path("tricky") / "but" / ".." / ".." / "still" / "inside",
+    ),
+)
+def test_retargeting_lakebridge_editor_overlap_disallowed(inside_path: Path) -> None:
+    """Verify that a retargeting editor cannot be created that writes into the base directory."""
+    assert not inside_path.is_absolute()
+    base = Path("/some") / "path"
+    target = base / inside_path
+    expected_message = f"Target directory may not be within the base directory {base}: {target}"
+    with pytest.raises(ValueError, match=re.escape(expected_message)):
+        LakebridgeEditor.retargeting_editor(base=base, target=target)
+
+
+def test_retargeting_lakebridge_editor_rejects_outside_base(tmp_path: Path) -> None:
+    """Verify that a retargeting editor will reject edits outside the base directory."""
+    input = tmp_path / "input"
+    output = tmp_path / "output"
+    input.mkdir()
+    output.mkdir()
+    outside_file = tmp_path / "not_allowed.txt"
+
+    # No need for extensive tests here, just checking for the presence of rejection.
+    editor = LakebridgeEditor.retargeting_editor(base=input, target=output)
+    edit = WorkspaceEdit(document_changes=(CreateFile(uri=outside_file.as_uri()),))
+    result = editor.apply(edit)
+
+    assert not result.applied
+    assert result.failure_reason is not None and "must be within" in result.failure_reason
+    assert not outside_file.exists()
+
+
+def _conversion_output(p: Path, content: str) -> Sequence[DocumentChange]:
+    return (_create_file(p), _text_replace(p, new_text=content))
+
+
+def test_lakebridge_editor_transpile_sql(tmp_path: Path) -> None:
+    """Verify the events needed for transpiling a SQL file, 1:1."""
+    # Set up the paths for the scenario.
+    input_path = tmp_path / "input"
+    input_file = input_path / "queries" / "annual_report.sql"
+    output_path = tmp_path / "output"
+    output_file = output_path / "queries" / "annual_report.sql"
+
+    # Prepare the content.
+    input_file.parent.mkdir(parents=True)
+    input_file.write_text("-- Input query, to be converted.\n", encoding="utf-8")
+
+    # Apply the results of conversion.
+    edit = WorkspaceEdit(document_changes=[*_conversion_output(input_file, content="-- Conversion output.\n")])
+    editor = LakebridgeEditor.retargeting_editor(base=input_path, target=output_path)
+    result = editor.apply(edit)
+
+    # Verify the input was untouched and the output is as expected.
+    assert result.applied
+    assert input_file.read_text(encoding="utf-8")
+    assert output_file.read_text(encoding="utf-8")
+
+
+def test_lakebridge_editor_transpile_to_notebook(tmp_path: Path) -> None:
+    """Verify the events needed for transpiling to a different type of file, such as SQL to notebook."""
+    # Set up the paths for the scenario.
+    input_path = tmp_path / "input"
+    input_file = input_path / "ddl" / "stored_proc.sql"
+    output_path = tmp_path / "output"
+    output_file = output_path / "ddl" / "stored_proc.py"
+
+    # Prepare the content.
+    input_file.parent.mkdir(parents=True)
+    input_file.write_text("-- File that could contain a stored procedure.\n", encoding="utf-8")
+
+    # Apply the results of conversion.
+    edit = WorkspaceEdit(
+        document_changes=[*_conversion_output(input_file.with_suffix(".py"), content="# Python code.\n")]
+    )
+    editor = LakebridgeEditor.retargeting_editor(base=input_path, target=output_path)
+    result = editor.apply(edit)
+
+    # Verify the input was untouched and the output is as expected.
+    assert result.applied
+    assert input_file.read_text(encoding="utf-8")
+    assert output_file.read_text(encoding="utf-8")
+
+
+def test_lakebridge_editor_transpile_to_many(tmp_path: Path) -> None:
+    """Verify the events needed for transpiling to multiple files, for example ETL to notebooks."""
+    # Set up the paths for the scenario.
+    input_path = tmp_path / "input"
+    input_file = input_path / "schedule.xml"
+    output_path = tmp_path / "output"
+    output_files = (
+        output_path / "schedule.json",
+        output_path / "schedule_j1.py",
+    )
+
+    # Prepare some content.
+    input_file.parent.mkdir(parents=True)
+    input_file.write_text("<?xml version='1.0'?><etl/>\n", encoding="utf-8")
+
+    # Apply the results of conversion.
+    edit = WorkspaceEdit(
+        document_changes=[
+            *_conversion_output(input_file.with_suffix(".json"), content="{}\n"),
+            *_conversion_output(input_path / "schedule_j1.py", content="# Python code.\n"),
+        ]
+    )
+    editor = LakebridgeEditor.retargeting_editor(base=input_path, target=output_path)
+    result = editor.apply(edit)
+
+    # Verify the input was untouched and the output files all exist and have content.
+    assert result.applied
+    assert input_file.read_text(encoding="utf-8") == "<?xml version='1.0'?><etl/>\n"
+    assert all(output_file.read_text(encoding="utf-8") for output_file in output_files)

@@ -12,6 +12,7 @@ from databricks.labs.lakebridge.reconcile.recon_output_config import (
     DataReconcileOutput,
     MismatchOutput,
 )
+from tests.integration.reconcile.conftest import FakeReconIntermediatePersist
 
 
 def test_compare_data_for_report_all(
@@ -44,8 +45,7 @@ def test_compare_data_for_report_all(
         target=target,
         key_columns=["s_suppkey", "s_nationkey"],
         report_type="all",
-        spark=mock_spark,
-        path=str(tmp_path),
+        persistence=FakeReconIntermediatePersist(),
     )
     expected = DataReconcileOutput(
         mismatch_count=1,
@@ -97,8 +97,7 @@ def test_compare_data_for_report_hash(mock_spark, tmp_path: Path):
         target=target,
         key_columns=["s_suppkey", "s_nationkey"],
         report_type="hash",
-        spark=mock_spark,
-        path=str(tmp_path),
+        persistence=FakeReconIntermediatePersist(),
     )
     expected = DataReconcileOutput(
         missing_in_src=missing_in_src,
@@ -281,8 +280,7 @@ def test_compare_data_special_column_names(mock_spark, tmp_path: Path):
         target=target,
         key_columns=["`s``supp#`", "`s_nation#`"],
         report_type="all",
-        spark=mock_spark,
-        path=str(tmp_path),
+        persistence=FakeReconIntermediatePersist(),
     )
     expected = DataReconcileOutput(
         mismatch_count=1,

@@ -142,6 +142,23 @@ async def test_receives_process_id(
     assert expected_process_id in log
 
 
+async def test_receives_client_capabilities(
+    lsp_engine: LSPEngine,
+    transpile_config: TranspileConfig,
+    test_resources: Path,
+) -> None:
+    await lsp_engine.initialize(transpile_config)
+    log = (test_resources / "lsp_transpiler" / "test-lsp-server.log").read_text("utf-8")
+    lines = log.splitlines()
+    client_capabilities = next(line for line in lines if "client-capabilities=ClientCapabilities" in line)
+    assert "apply_edit=True" in client_capabilities
+    assert "document_changes=True" in client_capabilities
+    assert "normalizes_line_endings=True" in client_capabilities
+    assert "ResourceOperationKind.Create" in client_capabilities
+    assert "failure_handling=<FailureHandlingKind.Abort: 'abort'>" in client_capabilities
+    assert client_capabilities
+
+
 async def test_server_has_transpile_capability(lsp_engine: LSPEngine, transpile_config: TranspileConfig) -> None:
     await lsp_engine.initialize(transpile_config)
     assert lsp_engine.server_has_transpile_capability
@@ -157,6 +174,18 @@ async def read_log(marker: str, test_resources: Path) -> str:
             return log
         await asyncio.sleep(0.1)
     return log_path.read_text("utf-8")
+
+
+async def test_server_apply_edit(
+    lsp_engine: LSPEngine, transpile_config: TranspileConfig, test_resources: Path
+) -> None:
+    await lsp_engine.initialize(transpile_config)
+
+    assert transpile_config.output_path is not None
+    expected_file = transpile_config.output_path / "new-test-file.sql"
+    await read_log(f"Created file: {expected_file}", test_resources)
+
+    assert expected_file.read_text(encoding="utf-8") == "-- This file is intentionally blank."
 
 
 async def test_server_loads_document(
