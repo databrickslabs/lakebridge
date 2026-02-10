@@ -132,7 +132,11 @@ In this flow, `exp_D` needs to combine results from `exp_A` and `exp_C`. Since e
 
 **The Solution - `source_record_id` Column:**
 
-The converter generates a synthetic row identifier column called `source_record_id` at the Source Qualifier using the `xxhash64()` hash function. This column is computed from the row's natural key columns and is propagated through all downstream transformations, linking the DataFrames together.
+The converter generates a synthetic row identifier column called `source_record_id` at the Source Qualifier using the `xxhash64()` hash function. This column is computed from all source columns and is propagated through all downstream transformations, linking the DataFrames together.
+
+:::info Why xxhash64 instead of monotonically_increasing_id?
+The PySpark function `monotonically_increasing_id()` cannot be used for row lineage tracking because it re-evaluates every time a DataFrame is accessed. This means the same row could get different IDs across operations, breaking the ability to correlate rows when DataFrames are joined. The `xxhash64()` function produces a deterministic hash based on the actual column values, guaranteeing consistent identification of each row throughout the pipeline.
+:::
 
 ```python
 # Source Qualifier generates the source_record_id
