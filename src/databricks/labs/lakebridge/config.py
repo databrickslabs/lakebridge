@@ -258,6 +258,19 @@ class ReconcileJobConfig:
 
 
 @dataclass
+class ProfilerDashboardMetadataConfig:
+    catalog: str = "lakebridge"
+    schema: str = "profiler"
+    volume: str = "ingestion_volume"
+
+
+@dataclass
+class JobConfig:
+    existing_cluster_id: str
+    tags: dict[str, str]
+
+
+@dataclass
 class ReconcileConfig:
     __file__ = "reconcile.yml"
     __version__ = 1
@@ -271,9 +284,20 @@ class ReconcileConfig:
 
 
 @dataclass
+class ProfilerDashboardConfig:
+    __file__ = "profiler_dashboard.yml"
+    __version__ = 1
+
+    source_tech: str
+    metadata_config: ProfilerDashboardMetadataConfig
+    job_overrides: JobConfig | None = None
+
+
+@dataclass
 class LakebridgeConfiguration:
     transpile: TranspileConfig | None
     reconcile: ReconcileConfig | None
+    profiler_dashboard: ProfilerDashboardConfig | None
     # Temporary flag, indicating whether to include the LLM-based Switch transpiler.
     include_switch: bool = False
     # Internal: Use serverless compute for Switch job. Set via LAKEBRIDGE_CLUSTER_TYPE env var.

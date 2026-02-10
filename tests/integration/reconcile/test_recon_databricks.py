@@ -89,7 +89,7 @@ def application_context(
     ws: WorkspaceClient, recon_config: ReconcileConfig, recon_config_filename: str, recon_table_config
 ):
     logger.info("Setting up application context for recon tests")
-    config = LakebridgeConfiguration(None, recon_config)
+    config = LakebridgeConfiguration(None, recon_config, None)
     ctx = ApplicationContext(ws)
 
     logger.info("Installing app and recon configuration into workspace")

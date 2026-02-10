@@ -30,7 +30,7 @@ def test_uninstaller_run(ws):
     ctx = ApplicationContext(ws)
     ctx.replace(
         workspace_installation=ws_installation,
-        remorph_config=LakebridgeConfiguration(transpile=None, reconcile=None),
+        remorph_config=LakebridgeConfiguration(transpile=None, reconcile=None, profiler_dashboard=None),
         prompts=prompts,
     )
     uninstall.run(ctx)
@@ -47,7 +47,7 @@ def test_negative_uninstall_confirmation(ws):
     ctx = ApplicationContext(ws)
     ctx.replace(
         workspace_installation=ws_installation,
-        remorph_config=LakebridgeConfiguration(transpile=None, reconcile=None),
+        remorph_config=LakebridgeConfiguration(transpile=None, reconcile=None, profiler_dashboard=None),
         prompts=prompts,
     )
     uninstall.run(ctx)
