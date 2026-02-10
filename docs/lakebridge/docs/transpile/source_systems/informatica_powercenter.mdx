@@ -349,6 +349,82 @@ Transformations containing **custom Java code**, **external procedures**, or **s
 | Delta Lake | RELATIONAL | `INSERT INTO` / Delta write |
 | Flat File | FILE_DELIMITED | `df.write.csv()` |
 
+### Workflow and Worklet Conversion
+
+PowerCenter Workflows and Worklets are converted to Databricks Workflow JSON definitions that orchestrate the execution of converted notebooks. The converter replicates the branching logic and execution flow of the original Informatica workflow.
+
+**What Gets Orchestrated:**
+
+| PowerCenter Component | Databricks Equivalent | Description |
+|-----------------------|----------------------|-------------|
+| **Session** | Notebook Task | Calls a notebook containing the converted mapping logic with session overrides applied |
+| **Command Task** | Notebook Task | Shell commands are converted to separate notebooks that execute the command logic |
+| **Worklet** | Nested Workflow | Reusable workflow components become separate Databricks Workflows |
+| **Decision** | Task Conditions | Conditional branching is preserved using `run_if` conditions |
+| **Event Wait/Raise** | Task Dependencies | Event-based coordination is mapped to task dependencies |
+
+**Workflow JSON Structure:**
+
+The converted workflow is a multi-task Databricks Workflow that preserves:
+
+- **Task Dependencies**: The `depends_on` array captures which tasks must complete before others start
+- **Execution Order**: Tasks execute in the same sequence as the original workflow
+- **Branching Logic**: Parallel paths and conditional execution are maintained
+- **Failure Handling**: Email notifications and retry logic are configured per task
+
+**Example Converted Workflow:**
+
+```json
+{
+  "name": "wf_customer_load",
+  "format": "MULTI_TASK",
+  "tasks": [
+    {
+      "task_key": "wf_customer_load_parameters",
+      "notebook_task": {
+        "notebook_path": "/Workspace/Users/wf_customer_load_params.py"
+      },
+      "run_if": "ALL_SUCCESS"
+    },
+    {
+      "task_key": "s_m_customer_extract",
+      "depends_on": [
+        { "task_key": "wf_customer_load_parameters" }
+      ],
+      "notebook_task": {
+        "notebook_path": "/Workspace/Users/m_customer_extract",
+        "source": "WORKSPACE"
+      },
+      "max_retries": 3,
+      "run_if": "ALL_SUCCESS"
+    },
+    {
+      "task_key": "s_m_customer_transform",
+      "depends_on": [
+        { "task_key": "s_m_customer_extract" }
+      ],
+      "notebook_task": {
+        "notebook_path": "/Workspace/Users/m_customer_transform",
+        "source": "WORKSPACE"
+      },
+      "run_if": "ALL_SUCCESS"
+    }
+  ],
+  "email_notifications": {
+    "on_failure": ["etl-alerts@company.com"],
+    "on_success": ["etl-alerts@company.com"]
+  }
+}
+```
+
+**Key Points:**
+
+- Each session becomes a notebook task that calls the notebook containing the actual mapping logic
+- Session-level overrides (SQL statements, connection properties) are incorporated into the notebook code
+- A parameters notebook is generated to initialize workflow variables at the start
+- Command tasks (shell commands) become separate notebook tasks
+- The workflow preserves the original Informatica task names for easy correlation with source objects
+
 ---
 
 ## Conversion Examples
@@ -877,7 +953,23 @@ Each main config file references additional configs for expression and function 
 
 **Embedded SQL Conversion:**
 
-When PowerCenter mappings contain embedded SQL (e.g., in Source Qualifier SQL Override or Lookup SQL), the converter identifies the source database type from the connection and applies the appropriate SQL dialect translation rules from the tech mapper configuration.
+When PowerCenter mappings contain embedded SQL (e.g., in Source Qualifier SQL Override or Lookup SQL), the converter identifies the source database type and applies the appropriate SQL dialect translation rules from the tech mapper configuration.
+
+**Database Type Determination:**
+
+The source database type is determined from the session-level connection settings, not from the source/target definition at the folder level. Specifically, the converter reads the `CONNECTIONSUBTYPE` attribute from the `CONNECTIONREFERENCE` element within the `SESSIONEXTENSION`:
+
+```xml
+<SESSIONEXTENSION NAME="Relational Reader" SINSTANCENAME="SQ_CUSTOMERS" ...>
+  <CONNECTIONREFERENCE 
+    CNXREFNAME="DB Connection" 
+    CONNECTIONNAME="Oracle_Prod" 
+    CONNECTIONSUBTYPE="Oracle"           <!-- This determines the SQL dialect -->
+    CONNECTIONTYPE="Relational" />
+</SESSIONEXTENSION>
+```
+
+This session-level connection information takes precedence and enables the converter to apply the correct SQL translation rules (e.g., Oracle to Spark, Teradata to Spark, SQL Server to Spark) for any embedded SQL within that source or lookup.
 
 ### Custom Config Overrides
 
@@ -919,12 +1011,17 @@ The converter automatically identifies source/target endpoint types and dispatch
 
 **How Endpoint Types Are Identified:**
 
-1. **Source/Target Definition** in XML contains `DATABASETYPE` attribute:
+1. **Session-level Connection** (primary source): The `CONNECTIONSUBTYPE` from the session's `CONNECTIONREFERENCE` element determines the database type. This takes precedence because it reflects the actual runtime connection:
+```xml
+<CONNECTIONREFERENCE CONNECTIONSUBTYPE="Oracle" CONNECTIONTYPE="Relational" ...>
+```
+
+2. **Source/Target Definition** (fallback): If session connection info is not available, the `DATABASETYPE` attribute from the source/target definition is used:
 ```xml
 <SOURCE DATABASETYPE="Oracle" NAME="CUSTOMERS" ...>
 ```
 
-2. **`system_type_class`** in config maps database types to categories:
+3. **`system_type_class`** in config maps database types to categories:
 ```json
 "system_type_class": {
   "ORACLE": "RELATIONAL",
@@ -934,7 +1031,7 @@ The converter automatically identifies source/target endpoint types and dispatch
 }
 ```
 
-3. **`commands`** section defines reader/writer templates per category:
+4. **`commands`** section defines reader/writer templates per category:
 ```json
 "commands": {
   "READER_RELATIONAL": "spark.read.jdbc(...)",
@@ -946,12 +1043,12 @@ The converter automatically identifies source/target endpoint types and dispatch
 
 **Dispatch Flow:**
 ```
-XML DATABASETYPE → system_type_class mapping → READER/WRITER command template
+Session CONNECTIONSUBTYPE (or fallback: XML DATABASETYPE) → system_type_class mapping → READER/WRITER command template
 ```
 
 ### Column Conforming
 
-When source columns need to be renamed to match expected component layouts (due to database case sensitivity or missing aliases), the converter generates column conforming code.
+The converter generates column conforming code to ensure source columns match expected component layouts. This handles database case sensitivity differences and missing aliases between source definitions and transformation port names.
 
 **Config Switches:**
 
@@ -972,6 +1069,9 @@ SQ_Source = DatabricksConversionSupplements.conform_df_columns(
 ```
 
 **Helper Library (`databricks_conversion_supplements.py`):**
+
+This file is generated as part of each conversion run and contains utility functions used by the converted notebooks. The content is static - it does not change from run to run, so you only need to deploy it once. Take the file from your first conversion output and deploy it to your Databricks workspace where the converted notebooks can import it.
+
 ```python
 class DatabricksConversionSupplements:
     @staticmethod
