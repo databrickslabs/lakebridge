@@ -243,23 +243,23 @@ class TriggerReconService:
         success_count = max(0, total_count - exc_count + mismatched_count)
 
         logger.info(
-            f"Ran **{report_type}** reconcile with id: {reconcile_output.recon_id} for total {total_count} source tables and their targets."
+            f"Reconciliation **{report_type}** with id: {reconcile_output.recon_id} ran for total {total_count} source tables and their targets."
             f" {success_count} tables succeeded, {exc_count} tables failed with exceptions and {mismatched_count} tables mismatched."
         )
 
         if exceptions:
             raise ReconciliationException(
-                f"Reconciliation failed with exceptions for {exc_count} table(s). Please check recon metrics for details.",
+                f"Reconciliation **{report_type}** with id: {reconcile_output.recon_id} failed with exceptions for {exc_count} table(s). Please check recon metrics for details.",
                 reconcile_output=reconcile_output,
             )
 
         if mismatched:
             logger.error(
-                f"Reconciliation found mismatches in {mismatched_count} table(s). Please check recon metrics for details."
+                f"Reconciliation **{report_type}** with id: {reconcile_output.recon_id} found mismatches in {mismatched_count} table(s). Please check recon metrics for details."
             )
         else:
             logger.info(
-                f"Reconciliation type **{report_type}** completed successfully. Please check recon metrics for details."
+                f"Reconciliation **{report_type}** with id: {reconcile_output.recon_id} completed successfully. Please check recon metrics for details."
             )
 
         return reconcile_output
