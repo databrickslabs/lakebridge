@@ -29,11 +29,12 @@ def main(*argv: str) -> None:
     initialize_logging()
 
     logger.debug(f"Arguments received: {argv}")
-    assert len(sys.argv) == 4, f"Invalid number of arguments: {len(sys.argv)}"
-    catalog_name = sys.argv[0]
-    schema_name = sys.argv[1]
-    extract_location = sys.argv[2]
-    source_tech = sys.argv[3]
+    assert len(sys.argv) == 5, f"Invalid number of arguments: {len(sys.argv)}"
+    logger.info(f"Received the following inputs: {', '.join(sys.argv)}")
+    catalog_name = sys.argv[1]
+    schema_name = sys.argv[2]
+    extract_location = sys.argv[3]
+    source_tech = sys.argv[4]
     logger.info(f"Validating {source_tech} profiler extract located at '{extract_location}'.")
     valid_extract = _validate_profiler_extract(catalog_name, schema_name, extract_location, source_tech)
     if valid_extract:

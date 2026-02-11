@@ -15,6 +15,7 @@ from databricks.sdk.service.jobs import (
     JobParameterDefinition,
 )
 from databricks.labs.lakebridge.config import ReconcileConfig, ProfilerDashboardConfig
+from databricks.labs.lakebridge.deployment.dashboard import ProfilerDashboardManager
 from databricks.labs.lakebridge.reconcile.constants import ReconSourceType
 
 logger = logging.getLogger(__name__)
@@ -182,14 +183,23 @@ class JobDeployment:
     ) -> str:
         description = "Ingest Lakebridge profiler results"
         task_key = "ingest_profiler_extract"
+        extract_path = profiler_dashboard_config.extract_file_path
         catalog_name = profiler_dashboard_config.metadata_config.catalog
         schema_name = profiler_dashboard_config.metadata_config.schema
         volume_name = profiler_dashboard_config.metadata_config.volume
         volume_location = f"/Volumes/{catalog_name}/{schema_name}/{volume_name}"
+        resolved_volume_location = ProfilerDashboardManager.resolve_volume_path(extract_path, volume_location)
         source_tech = profiler_dashboard_config.source_tech
 
         job_settings = self._profiler_ingestion_job_settings(
-            name, task_key, description, catalog_name, schema_name, volume_location, source_tech, lakebridge_wheel_path
+            name,
+            task_key,
+            description,
+            catalog_name,
+            schema_name,
+            resolved_volume_location,
+            source_tech,
+            lakebridge_wheel_path,
         )
         if name in self._install_state.jobs:
             try:

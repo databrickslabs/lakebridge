@@ -260,7 +260,7 @@ class ProfilerDashboardManager:
         )
 
     @staticmethod
-    def _resolve_volume_path(local_file_path: str, volume_path: str) -> str:
+    def resolve_volume_path(local_file_path: str, volume_path: str) -> str:
         """
         Resolves the UC Volume path based on extract file path and UC Volume path inputs from the CLI.
         Args:
@@ -304,7 +304,7 @@ class ProfilerDashboardManager:
             return False
 
         # Validate the upload Volume path
-        resolved_volume_path = self._resolve_volume_path(local_file_path, volume_path)
+        resolved_volume_path = self.resolve_volume_path(local_file_path, volume_path)
         if not resolved_volume_path.startswith('/Volumes/'):
             logger.error("Volume path must start with '/Volumes/'")
             return False
