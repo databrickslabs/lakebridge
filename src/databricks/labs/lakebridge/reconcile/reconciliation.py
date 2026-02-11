@@ -370,7 +370,7 @@ class Reconciliation:
         # Uses pre-calculated `mismatch_count` from `reconcile_output.mismatch_count` to avoid from recomputing `mismatch` for RandomSampler.
         mismatch_sampler = SamplerFactory.get_sampler(sampling_options)
         df = mismatch_sampler.sample(mismatch, mismatch_count, key_columns, sampling_model_target)
-        if self.intermediate_persist.is_serverless:
+        if not self.intermediate_persist.is_serverless:
             df = df.cache()
         else:
             df = self.intermediate_persist.write_and_read_df_with_volumes(df)
