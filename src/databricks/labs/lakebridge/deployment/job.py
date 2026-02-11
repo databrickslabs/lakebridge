@@ -251,6 +251,7 @@ class JobDeployment:
             ],
             "max_concurrent_runs": 1,
             "parameters": [
+                JobParameterDefinition(name="operation_name", default="ingest-data-extract"),
                 JobParameterDefinition(name="catalog_name", default=catalog_name),
                 JobParameterDefinition(name="schema_name", default=schema_name),
                 JobParameterDefinition(name="volume_path", default=volume_location),
