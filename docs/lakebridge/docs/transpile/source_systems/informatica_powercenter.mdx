@@ -1,26 +1,46 @@
 ---
 sidebar_position: 3
-title: Informatica PowerCenter
+title: Informatica
 
 toc_min_heading_level: 2
 toc_max_heading_level: 3
 ---
-# Informatica PowerCenter to Databricks
+# Informatica to Databricks
+
+This guide covers conversion of Informatica ETL assets to Databricks. BladeBridge supports two Informatica products:
+
+- **PowerCenter** - Informatica's on-premise ETL platform
+- **IDMC (Informatica Data Management Cloud)** - Informatica's cloud-based data integration platform (also referred to as InfaCloud)
 
 ## Getting Started
+
+### Platform Comparison
+
+| Feature | PowerCenter | IDMC (InfaCloud) |
+|---------|-------------|------------------|
+| **Output formats** | SparkSQL or PySpark | PySpark only |
+| **Conversion scope** | Mappings + Workflows | Mappings only |
+| **Input format** | XML export files | ZIP export packages |
+| **Invocation** | Lakebridge CLI | dbxconv (requires license key from Lakebridge team)* |
+
+*IDMC conversion via Lakebridge CLI will be available once the LSP server is upgraded to support ZIP file inputs. Note that dbxconv is included with the Lakebridge installation - it is not a separate download.
 
 ### Conversion Information
 
 * **Transpiler**: BladeBridge
-* **Conversion approach**: Lift and shift - the converter translates PowerCenter logic to equivalent Databricks code while preserving the original structure and flow
-* **Available targets**: Databricks Notebooks (SparkSQL or PySpark)
+* **Conversion approach**: Lift and shift - the converter translates Informatica logic to equivalent Databricks code while preserving the original structure and flow
+* **Available targets**: Databricks Notebooks (PySpark for both; SparkSQL for PowerCenter only)
 
-### Supported PowerCenter Versions
+---
+
+## PowerCenter Input Requirements
+
+### Supported Versions
 
 - PowerCenter 9.x, 10.x
 - PowerCenter Repository Services
 
-### Input Requirements
+### Exporting from PowerCenter
 
 Export your PowerCenter mappings and workflows as XML files using the PowerMart XML format:
 
@@ -59,19 +79,64 @@ pmrep objectexport -o folder -n FOLDER_NAME -f exported_folder.xml
 
 ---
 
+## IDMC (InfaCloud) Input Requirements
+
+### Exporting from IDMC
+
+Export your IDMC mappings as ZIP packages from the Informatica Cloud portal:
+
+1. Navigate to your project in IDMC
+2. Select the mapping(s) you want to export
+3. Use the Export function to create a ZIP package
+4. Save the `.zip` file
+
+:::warning Do Not Modify Export Files
+The ZIP files exported from IDMC must be preserved exactly as exported. Do not extract, modify, or repackage the ZIP files - the converter requires the exact structure produced by IDMC's export process.
+:::
+
+**Export Package Structure:**
+
+When unzipped (for reference only - do not manually unzip for conversion), the export package contains:
+
+```
+your-export-package/
+├── exportMetadata.v2.json          # Package metadata
+├── exportPackage.chksum            # Checksum file
+├── ContentsofExportPackage_*.csv   # Contents manifest
+├── Explore/
+│   ├── Default.Project.json        # Project definition
+│   └── Default/
+│       └── YourMapping.DTEMPLATE.zip   # Mapping definition (nested ZIP)
+└── SYS/
+    ├── ConnectionName.Connection.zip    # Connection definitions
+    └── AgentGroup.AgentGroup.zip        # Agent configurations
+```
+
+**Key Points:**
+- IDMC exports are ZIP files containing nested ZIP files
+- The converter processes the outer ZIP directly - do not pre-extract
+- Connection definitions and agent groups are included in the export
+- Only mappings are converted (IDMC task flows are not currently supported by the converter)
+
+---
+
 ## What Gets Converted
 
 ### High-Level Conversion Overview
 
-PowerCenter objects are converted to their Databricks equivalents as follows:
+Informatica objects are converted to their Databricks equivalents as follows:
 
-| PowerCenter Object | Databricks Equivalent | Description |
-|--------------------|----------------------|-------------|
-| **Mapping** | Databricks Notebook | Each mapping is converted to a notebook containing PySpark or SparkSQL code (based on user selection) |
-| **Session** | Databricks Notebook | Sessions execute mappings and are converted to notebook tasks |
-| **Workflow** | Databricks Workflow | Workflows are converted to Databricks Workflow JSON definitions that orchestrate notebook execution |
-| **Worklet** | Databricks Workflow | Reusable worklets are converted to separate Databricks Workflows |
-| **Mapplet** | Shared Python Module | Reusable mapplets are converted to Python functions in a `shared_functions/` folder |
+| Informatica Object | Databricks Equivalent | PowerCenter | IDMC | Description |
+|--------------------|----------------------|:-----------:|:----:|-------------|
+| **Mapping + Session** | Databricks Notebook | ✓ | - | Combined into one notebook per mapping/session pair (session overrides applied) |
+| **Mapping** | Databricks Notebook | - | ✓ | Each IDMC mapping is converted to a PySpark notebook |
+| **Workflow** | Databricks Workflow | ✓ | - | Workflows are converted to Databricks Workflow JSON definitions |
+| **Worklet** | Databricks Workflow | ✓ | - | Reusable worklets are converted to separate Databricks Workflows |
+| **Mapplet** | Shared Python Module | ✓ | ✓ | Reusable mapplets are converted to Python functions in `shared_functions/` |
+
+:::info Mapping and Session Output
+In PowerCenter, a Session is a wrapper around a Mapping that contains runtime configuration and potential overrides (SQL statements, connection properties, etc.). The converter combines the mapping logic with any session-level overrides into a single output notebook - there is no separate file for the session. Each mapping/session pair produces one Databricks notebook.
+:::
 
 **Orchestration Flow:**
 
@@ -1103,7 +1168,9 @@ For a complete list of function mappings, refer to the config files:
 
 ## Next Steps
 
-1. **Export PowerCenter mappings** to PowerMart XML format
+### PowerCenter Conversion
+
+1. **Export PowerCenter mappings** to PowerMart XML format (include sessions and workflows)
 2. **Run conversion** using Lakebridge CLI:
    
    **For SparkSQL output:**
@@ -1124,13 +1191,101 @@ For a complete list of function mappings, refer to the config files:
      --target-technology pyspark
    ```
 
+### IDMC (InfaCloud) Conversion
+
+1. **Export IDMC mappings** as ZIP packages from the Informatica Cloud portal
+2. **Run conversion** using dbxconv (contact Lakebridge team for license key):
+   ```bash
+   dbxconv --input /path/to/export.zip \
+     --output /output/pyspark \
+     --config infacloud_config.json
+   ```
+
+### Post-Conversion Steps
+
 3. **Review generated notebooks** for conversion warnings and unsupported components
 4. **Configure Databricks secrets** for connection strings
 5. **Deploy helper library** (`databricks_conversion_supplements.py`) to your workspace
 6. **Test with sample data** in Databricks
-7. **Deploy workflows** to production
+7. **Deploy workflows** to production (PowerCenter only)
 
 For more information, see:
 - [Main ETL Conversion Guide](../../)
 - [BladeBridge Configuration](../../pluggable_transpilers/bladebridge/bladebridge_configuration)
 - [Transpile CLI Reference](../../)
+
+---
+
+## Troubleshooting
+
+### PowerCenter Issues
+
+#### Incomplete Export - Missing Sessions or Workflows
+
+**Problem:** The converter produces mapping notebooks but no workflow JSON files.
+
+**Cause:** The XML export contains only mappings without the associated sessions and workflows. This commonly happens when exporting from PowerCenter Designer instead of Repository Manager, or when only mapping objects are selected during export.
+
+**Solution:** Re-export from Repository Manager and ensure you select the complete folder or explicitly include:
+- All mappings
+- All sessions that reference the mappings
+- All workflows that orchestrate the sessions
+
+#### Export from Workflow Manager Missing Dependencies
+
+**Problem:** Conversion errors or missing transformations when using exports from Workflow Manager.
+
+**Cause:** Exports created directly from Workflow Manager may not include all dependent objects (sources, targets, shared objects, shortcuts).
+
+**Solution:** Always export from Repository Manager using the "Export Objects" wizard, which properly resolves and includes all dependencies.
+
+### IDMC (InfaCloud) Issues
+
+#### Path Too Long Error (Windows)
+
+**Problem:** Conversion fails with path-related errors, especially on Windows.
+
+**Cause:** IDMC export ZIP files contain deeply nested folder structures. When the converter extracts these files, the combined path length can exceed Windows' 260-character (or 1024-character extended) path limit.
+
+**Solution:** 
+- Use shorter paths for both input and output folders
+- Avoid spaces in folder and file names
+- Place the input ZIP file close to the drive root (e.g., `C:\infa\input.zip`)
+- Use a short output path (e.g., `C:\infa\out`)
+- On Windows, consider enabling long path support in Group Policy
+
+#### Modified ZIP File Errors
+
+**Problem:** Converter fails to parse the IDMC export or produces unexpected errors.
+
+**Cause:** The ZIP file was manually extracted, modified, or repackaged. The converter expects the exact structure produced by IDMC's export process.
+
+**Solution:** Use a fresh, unmodified ZIP file directly from IDMC export. Do not:
+- Extract and re-zip the contents
+- Rename files within the ZIP
+- Add or remove files from the package
+- Use third-party ZIP tools to "fix" the archive
+
+### General Issues
+
+#### Output Folder Permission Errors
+
+**Problem:** Conversion fails when writing output files.
+
+**Cause:** The output folder doesn't exist or lacks write permissions.
+
+**Solution:**
+- Ensure the output folder exists before running the conversion
+- Verify you have write permissions to the output location
+- On shared drives, check network permissions
+
+#### Unsupported Transformation Warnings
+
+**Problem:** Conversion completes but with warnings about unsupported transformations.
+
+**Cause:** Some transformations (Java, External Procedure, Custom Transformation) cannot be automatically converted.
+
+**Solution:** These warnings are expected. Review the generated notebooks and:
+- Implement custom logic manually in Python
+- Use the warnings to identify the percentage of code requiring manual attention
+- Consider creating post-conversion automation for recurring patterns
