@@ -770,12 +770,12 @@ def test_recon_for_report_type_is_data(
     ):
         mock_datetime.now.return_value = datetime(2024, 5, 23, 9, 21, 25, 122185)
         recon_datetime.now.return_value = datetime(2024, 5, 23, 9, 21, 25, 122185)
-        with pytest.raises(ReconciliationException) as exc_info:
-            TriggerReconService.trigger_recon(
-                mock_workspace_client, mock_spark, table_recon, reconcile_config_data, local_test_run=True
-            )
-        if exc_info.value.reconcile_output is not None:
-            assert exc_info.value.reconcile_output.recon_id == recon_id.hex
+
+        reconcile_output = TriggerReconService.trigger_recon(
+            mock_workspace_client, mock_spark, table_recon, reconcile_config_data, local_test_run=True
+        )
+
+        assert reconcile_output.recon_id == recon_id.hex
 
     expected_remorph_recon = mock_spark.createDataFrame(
         data=[
