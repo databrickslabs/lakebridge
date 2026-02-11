@@ -45,81 +45,67 @@ class PipelineClass:
     def execute(self) -> list[StepExecutionResult]:
         logging.info(f"Pipeline initialized with config: {self.config.name}, version: {self.config.version}")
         execution_results: list[StepExecutionResult] = []
-        error_flag = False
 
-        # Separate DDL steps from other steps
+        # Separate DDL steps from other steps to ensure DDL runs first
         ddl_steps = [step for step in self.config.steps if step.type == "ddl"]
         other_steps = [step for step in self.config.steps if step.type != "ddl"]
 
-        # Execute all DDL steps first
-        logging.info("Executing DDL steps first to create table schemas")
-        for step in ddl_steps:
-            logger.info(f"Executing step: {step.name}")
+        # Execute all steps: DDL first, then others
+        for step in ddl_steps + other_steps:
             result = self._process_step(step)
             execution_results.append(result)
-            logger.info(f"Step '{step.name}' completed with status: {result.status}")
+            self._log_step_result(result)
 
-            # Check step execution status
-            if result.status == StepExecutionStatus.ERROR:
-                logger.error(f"Step {result.step_name} failed with error: {result.error_message}")
-                error_flag = True
-            elif result.status == StepExecutionStatus.SKIPPED:
-                logger.info(f"Step {result.step_name} was skipped.")
-            else:
-                logger.info(f"Step {result.step_name} has completed successfully.")
+            # Fail immediately if DDL step failed
+            if step.type == "ddl" and result.status == StepExecutionStatus.ERROR:
+                error_msg = f"Pipeline execution failed due to error in DDL step: {result.step_name}"
+                if result.error_message:
+                    error_msg += f" - {result.error_message}"
+                logger.error(error_msg)
+                raise RuntimeError(error_msg)
 
-        # Then execute all other steps (SQL, Python, etc.)
-        logging.info("Executing data extraction and processing steps")
-        for step in other_steps:
-            logger.info(f"Executing step: {step.name}")
-            result = self._process_step(step)
-            execution_results.append(result)
-            logger.info(f"Step '{step.name}' completed with status: {result.status}")
-
-            # Check step execution status
-            if result.status == StepExecutionStatus.ERROR:
-                logger.error(f"Step {result.step_name} failed with error: {result.error_message}")
-                error_flag = True
-            elif result.status == StepExecutionStatus.SKIPPED:
-                logger.info(f"Step {result.step_name} was skipped.")
-            else:
-                logger.info(f"Step {result.step_name} has completed successfully.")
-
-        if error_flag:
-            failed_steps = [r for r in execution_results if r.status == StepExecutionStatus.ERROR]
+        # Check if any non-DDL steps failed
+        failed_steps = [r for r in execution_results if r.status == StepExecutionStatus.ERROR]
+        if failed_steps:
             error_msg = (
                 f"Pipeline execution failed due to errors in steps: {', '.join(r.step_name for r in failed_steps)}"
             )
             logger.error(error_msg)
             raise RuntimeError(error_msg)
+
         return execution_results
 
     def _process_step(self, step: Step) -> StepExecutionResult:
+        logger.info(f"Executing step: {step.name}")
+
         if step.flag != "active":
             logging.info(f"Skipping step: {step.name} as it is not active")
             return StepExecutionResult(step_name=step.name, status=StepExecutionStatus.SKIPPED)
-        logging.debug(f"Executing step: {step.name}")
+
         try:
-            status = self._execute_step(step)
-            return StepExecutionResult(step_name=step.name, status=status)
+            # Execute based on step type
+            match step.type:
+                case "sql":
+                    self._execute_sql_step(step)
+                case "ddl":
+                    self._execute_ddl_step(step)
+                case "python":
+                    self._execute_python_step(step)
+                case _:
+                    raise RuntimeError(f"Unsupported step type: {step.type}")
+
+            return StepExecutionResult(step_name=step.name, status=StepExecutionStatus.COMPLETE)
         except RuntimeError as e:
             return StepExecutionResult(step_name=step.name, status=StepExecutionStatus.ERROR, error_message=str(e))
 
-    def _execute_step(self, step: Step) -> StepExecutionStatus:
-        if step.type == "sql":
-            logging.info(f"Executing SQL step {step.name}")
-            self._execute_sql_step(step)
-            return StepExecutionStatus.COMPLETE
-        if step.type == "ddl":
-            logging.info(f"Executing DDL step {step.name}")
-            self._execute_ddl_step(step)
-            return StepExecutionStatus.COMPLETE
-        if step.type == "python":
-            logging.info(f"Executing Python step {step.name}")
-            self._execute_python_step(step)
-            return StepExecutionStatus.COMPLETE
-        logging.error(f"Unsupported step type: {step.type}")
-        raise RuntimeError(f"Unsupported step type: {step.type}")
+    def _log_step_result(self, result: StepExecutionResult):
+        match result.status:
+            case StepExecutionStatus.ERROR:
+                logger.error(f"Step {result.step_name} failed with error: {result.error_message}")
+            case StepExecutionStatus.SKIPPED:
+                logger.info(f"Step {result.step_name} was skipped.")
+            case StepExecutionStatus.COMPLETE:
+                logger.info(f"Step {result.step_name} has completed successfully.")
 
     def _execute_sql_step(self, step: Step):
         logging.debug(f"Reading query from file: {step.extract_source}")
