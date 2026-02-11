@@ -42,7 +42,7 @@ def pipeline_config_with_ddl(pipeline_configuration_loader: _Loader) -> Pipeline
 
 
 @pytest.fixture
-def pipeline_config_with_combined_ddl(pipeline_configuration_loader: _Loader) -> PipelineConfig:
+def pipeline_config_combined_ddl(pipeline_configuration_loader: _Loader) -> PipelineConfig:
     return pipeline_configuration_loader(Path("pipeline_config_with_combined_ddl.yml"))
 
 
@@ -299,11 +299,11 @@ def test_ddl_overwrite_mode(
 
 def test_run_pipeline_with_combined_ddl(
     sandbox_sqlserver: DatabaseManager,
-    pipeline_config_with_combined_ddl: PipelineConfig,
+    pipeline_config_combined_ddl: PipelineConfig,
     get_logger: Logger,
 ) -> None:
     """Test pipeline execution with a single DDL file containing multiple CREATE TABLE statements."""
-    pipeline = PipelineClass(config=pipeline_config_with_combined_ddl, executor=sandbox_sqlserver)
+    pipeline = PipelineClass(config=pipeline_config_combined_ddl, executor=sandbox_sqlserver)
     results = pipeline.execute()
 
     # Verify all steps completed successfully
@@ -314,7 +314,7 @@ def test_run_pipeline_with_combined_ddl(
         ), f"Step {result.step_name} failed with status {result.status}"
 
     # Verify all tables from combined DDL were created
-    db_path = str(Path(pipeline_config_with_combined_ddl.extract_folder)) + "/" + DB_NAME
+    db_path = str(Path(pipeline_config_combined_ddl.extract_folder)) + "/" + DB_NAME
     with duckdb.connect(db_path) as conn:
         # Check that all three tables exist
         tables = conn.execute("SHOW TABLES").fetchall()
