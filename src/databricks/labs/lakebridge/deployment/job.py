@@ -251,10 +251,9 @@ class JobDeployment:
             ],
             "max_concurrent_runs": 1,
             "parameters": [
-                JobParameterDefinition(name="operation_name", default="ingest-data-extract"),
                 JobParameterDefinition(name="catalog_name", default=catalog_name),
                 JobParameterDefinition(name="schema_name", default=schema_name),
-                JobParameterDefinition(name="volume_path", default=volume_location),
+                JobParameterDefinition(name="extract_location", default=volume_location),
                 JobParameterDefinition(name="source_tech", default=source_tech),
             ],
         }
@@ -273,6 +272,11 @@ class JobDeployment:
             python_wheel_task=PythonWheelTask(
                 package_name=self.parse_package_name(lakebridge_wheel_path),
                 entry_point="profiler_dashboards",
-                parameters=["{{job.parameters.[operation_name]}}"],
+                parameters=[
+                    "{{job.parameters.[catalog_name]}}",
+                    "{{job.parameters.[schema_name]}}",
+                    "{{job.parameters.[extract_location]}}",
+                    "{{job.parameters.[source_tech]}}",
+                ],
             ),
         )

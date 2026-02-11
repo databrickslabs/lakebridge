@@ -14,7 +14,7 @@ from databricks.labs.lakebridge.deployment.table import TableDeployment
 
 logger = logging.getLogger(__name__)
 
-_PROFILER_DASHBOARD_PREFIX = "Lakebridge Profiler Dashboard"
+_PROFILER_DASHBOARD_PREFIX = "Profiler Dashboard"
 PROFILER_INGESTION_JOB_NAME = f"{_PROFILER_DASHBOARD_PREFIX} Ingestion Job"
 
 
