@@ -1024,11 +1024,6 @@ def execute_database_profiler(w: WorkspaceClient, source_tech: str | None = None
 def create_profiler_dashboard(
     *,
     w: WorkspaceClient,
-    extract_file: str,
-    source_tech: str,
-    volume_path: str,
-    catalog_name: str,
-    schema_name: str,
     transpiler_repository: TranspilerRepository = TranspilerRepository.user_home(),
 ) -> None:
     """Deploys a profiler summary as a Databricks dashboard"""
@@ -1042,7 +1037,6 @@ def create_profiler_dashboard(
         dbsql_id = _create_warehouse(w)
         w.config.warehouse_id = dbsql_id
     logger.debug(f"Warehouse ID used for running the profiler dashboard: {w.config.warehouse_id}.")
-    logger.debug(f"Using transpiler_repo: {transpiler_repository}")
     profiler_dashboard_installer = installer(w, transpiler_repository, is_interactive=True)
     profiler_dashboard_installer.run(module="profiler_dashboard")
 

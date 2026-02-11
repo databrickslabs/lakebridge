@@ -13,7 +13,6 @@ from databricks.sdk.errors import NotFound
 from databricks.sdk.service.iam import User
 
 from databricks.labs.lakebridge.analyzer.lakebridge_analyzer import LakebridgeAnalyzer, AnalyzerPrompts, AnalyzerRunner
-from databricks.labs.lakebridge.assessments.dashboards.dashboard_manager import DashboardManager
 
 from databricks.labs.lakebridge.config import (
     TranspileConfig,
@@ -22,7 +21,7 @@ from databricks.labs.lakebridge.config import (
     ProfilerDashboardConfig,
 )
 from databricks.labs.lakebridge.deployment.configurator import ResourceConfigurator
-from databricks.labs.lakebridge.deployment.dashboard import DashboardDeployment
+from databricks.labs.lakebridge.deployment.dashboard import DashboardDeployment, ProfilerDashboardManager
 from databricks.labs.lakebridge.deployment.installation import WorkspaceInstallation
 from databricks.labs.lakebridge.deployment.profiler_dashboard import ProfilerDashboardDeployment
 from databricks.labs.lakebridge.deployment.recon import TableDeployment, JobDeployment, ReconDeployment
@@ -129,11 +128,8 @@ class ApplicationContext:
         return DashboardDeployment(self.workspace_client, self.installation, self.install_state)
 
     @cached_property
-    def dashboard_manager(self) -> DashboardManager:
-        is_debug = logger.getEffectiveLevel() == logging.DEBUG
-        return DashboardManager(
-            self.workspace_client, self.installation, self.install_state, self.job_deployment, is_debug
-        )
+    def dashboard_manager(self) -> ProfilerDashboardManager:
+        return ProfilerDashboardManager(self.workspace_client, self.installation, self.install_state)
 
     @cached_property
     def recon_deployment(self) -> ReconDeployment:
@@ -164,7 +160,7 @@ class ApplicationContext:
             self.product_info,
             self.table_deployment,
             self.job_deployment,
-            self.dashboard_deployment,
+            self.dashboard_manager,
         )
 
     @cached_property

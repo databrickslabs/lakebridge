@@ -3,11 +3,12 @@ import logging
 from databricks.labs.blueprint.installation import Installation
 from databricks.labs.blueprint.installer import InstallState
 from databricks.labs.blueprint.wheels import ProductInfo
+
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.errors import InvalidParameterValue, NotFound
 
 from databricks.labs.lakebridge.config import ProfilerDashboardConfig
-from databricks.labs.lakebridge.deployment.dashboard import DashboardDeployment
+from databricks.labs.lakebridge.deployment.dashboard import ProfilerDashboardManager
 from databricks.labs.lakebridge.deployment.job import JobDeployment
 from databricks.labs.lakebridge.deployment.table import TableDeployment
 
@@ -26,7 +27,7 @@ class ProfilerDashboardDeployment:
         product_info: ProductInfo,
         table_deployer: TableDeployment,
         job_deployer: JobDeployment,
-        dashboard_deployer: DashboardDeployment,
+        dashboard_deployer: ProfilerDashboardManager,
     ):
         self._ws = ws
         self._installation = installation
@@ -41,9 +42,9 @@ class ProfilerDashboardDeployment:
             logger.warning("Profiler Dashboard Config is empty.")
             return
         logger.info("Installing the profiler dashboard components.")
-        # self._deploy_dashboards(profiler_dashboard_config)
-        # self._deploy_jobs(profiler_dashboard_config, wheel_path)
-        # self._install_state.save()
+        self._deploy_dashboards(profiler_dashboard_config)
+        self._deploy_jobs(profiler_dashboard_config, wheel_path)
+        self._install_state.save()
         logger.info("Installation of the profiler dashboard components completed successfully.")
 
     def uninstall(self, profiler_dashboard_config: ProfilerDashboardConfig | None):
@@ -60,7 +61,8 @@ class ProfilerDashboardDeployment:
         )
 
     def _deploy_dashboards(self, profiler_dashboard_config: ProfilerDashboardConfig):
-        logger.info("Deploying profiler summary dashboard.")
+        logger.info("Deploying the profiler dashboard.")
+        self._dashboard_deployer.deploy(profiler_dashboard_config)
 
     def _get_dashboards(self) -> list[tuple[str, str]]:
         return list(self._install_state.dashboards.items())
@@ -77,7 +79,18 @@ class ProfilerDashboardDeployment:
                 continue
 
     def _deploy_jobs(self, profiler_dashboard_config: ProfilerDashboardConfig, lakebridge_wheel_path: str):
-        logger.info("Deploying profiler dashboard ingestion job.")
+        logger.info("Deploying the Lakebridge profiler dashboard ingestion job.")
+        self._job_deployer.deploy_profiler_ingestion_job(
+            PROFILER_INGESTION_JOB_NAME, profiler_dashboard_config, lakebridge_wheel_path
+        )
+        for job_name, job_id in self._get_deprecated_jobs():
+            try:
+                logger.info(f"Removing job_id={job_id}, as it is no longer needed.")
+                del self._install_state.jobs[job_name]
+                self._ws.jobs.delete(job_id)
+            except (InvalidParameterValue, NotFound):
+                logger.warning(f"{job_name} doesn't exist anymore for some reason.")
+                continue
 
     def _get_jobs(self) -> list[tuple[str, int]]:
         return [
