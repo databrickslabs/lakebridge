@@ -8,8 +8,7 @@ from pathlib import Path
 
 from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql.functions import col, collect_list, create_map, lit
-from pyspark.sql.types import StringType, StructField, StructType
-from pyspark.errors import PySparkException, PySparkAttributeError, AnalysisException
+from pyspark.errors import PySparkException
 from sqlglot import Dialect
 
 from databricks.labs.lakebridge.config import DatabaseConfig, Table, ReconcileMetadataConfig
@@ -47,7 +46,7 @@ class AbstractReconIntermediatePersist:
         raise NotImplementedError
 
     @property
-    def is_cache_supported(self) -> bool:
+    def is_serverless(self) -> bool:
         raise NotImplementedError
 
     def write_and_read_df_with_volumes(
@@ -75,14 +74,9 @@ class ReconIntermediatePersist(AbstractReconIntermediatePersist):
         return Path(self._base_dir)
 
     @cached_property
-    def is_cache_supported(self) -> bool:
-        try:
-            schema = StructType([StructField("col1", StringType(), True)])
-            df = self._spark.createDataFrame([], schema)
-            df.cache()
-            return True
-        except (AnalysisException, PySparkAttributeError):
-            return False
+    def is_serverless(self) -> bool:
+        is_serverless = os.getenv("IS_SERVERLESS", "").lower() == "true"
+        return is_serverless
 
     @property
     def _get_uc_volume_path(self):

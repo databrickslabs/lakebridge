@@ -111,8 +111,8 @@ class FakeReconIntermediatePersist(AbstractReconIntermediatePersist):
         return Path(tempfile.gettempdir())
 
     @property
-    def is_cache_supported(self) -> bool:
-        return True
+    def is_serverless(self) -> bool:
+        return False
 
     def write_and_read_df_with_volumes(
         self,

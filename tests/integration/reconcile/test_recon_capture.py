@@ -1026,8 +1026,8 @@ def test_format_uses_parquet(mock_spark):
     assert persist.format == "parquet"
 
 
-def test_is_cache_supported(spark):
+def test_is_serverless(spark):
     conf = ReconcileMetadataConfig()
     persist = ReconIntermediatePersistUnderTest(spark, conf)
 
-    assert persist.is_cache_supported is True
+    assert persist.is_serverless is False
