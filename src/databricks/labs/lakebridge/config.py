@@ -289,6 +289,7 @@ class ProfilerDashboardConfig:
     __version__ = 1
 
     source_tech: str
+    extract_file_path: str
     metadata_config: ProfilerDashboardMetadataConfig
     job_overrides: JobConfig | None = None
 

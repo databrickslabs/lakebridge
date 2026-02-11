@@ -978,6 +978,7 @@ def test_configure_all_override_installation(
 
     expected_profiler_dash_config = ProfilerDashboardConfig(
         source_tech="snowflake",
+        extract_file_path="/tmp/data/synapse_assessment/profiler_extract.db",
         metadata_config=ProfilerDashboardMetadataConfig(
             catalog="lakebridge",
             schema="profiler",

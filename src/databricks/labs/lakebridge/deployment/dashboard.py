@@ -283,15 +283,20 @@ class ProfilerDashboardManager:
 
         return str(upload_path / extract_path.name)
 
-    def upload_duckdb_to_uc_volume(self, local_file_path: str, volume_path: str) -> bool:
+    def upload_duckdb_to_uc_volume(self, profiler_dashboard_config: ProfilerDashboardConfig) -> bool:
         """
         Upload a DuckDB file to Unity Catalog Volume
         Args:
-            local_file_path (str): Local path to the DuckDB file
-            volume_path (str): Target path in UC Volume (e.g., '/Volumes/catalog/schema/volume/myfile.duckdb')
+            profiler_dashboard_config (ProfilerDashboardConfig): the profiler dashboard config created
+              as a result of the user completing the CLI prompts
         Returns:
             bool: True if successful, False otherwise
         """
+        local_file_path = profiler_dashboard_config.extract_file_path
+        catalog = profiler_dashboard_config.metadata_config.catalog
+        schema = profiler_dashboard_config.metadata_config.schema
+        volume = profiler_dashboard_config.metadata_config.volume
+        volume_path = f"/Volumes/{catalog}/{schema}/{volume}"
 
         # Validate the extract file path
         if not os.path.exists(local_file_path):

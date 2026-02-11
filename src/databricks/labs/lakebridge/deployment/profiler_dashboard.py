@@ -42,6 +42,7 @@ class ProfilerDashboardDeployment:
             logger.warning("Profiler Dashboard Config is empty.")
             return
         logger.info("Installing the profiler dashboard components.")
+        self._upload_profiler_extract(profiler_dashboard_config)
         self._deploy_dashboards(profiler_dashboard_config)
         self._deploy_jobs(profiler_dashboard_config, wheel_path)
         self._install_state.save()
@@ -59,6 +60,10 @@ class ProfilerDashboardDeployment:
             f"from catalog `{profiler_dashboard_config.metadata_config.catalog}`. "
             f"Please remove it and the tables inside manually."
         )
+
+    def _upload_profiler_extract(self, profiler_dashboard_config: ProfilerDashboardConfig):
+        logger.info("Uploading the profiler extract file to UC Volume.")
+        self._dashboard_deployer.upload_duckdb_to_uc_volume(profiler_dashboard_config)
 
     def _deploy_dashboards(self, profiler_dashboard_config: ProfilerDashboardConfig):
         logger.info("Deploying the profiler dashboard.")
