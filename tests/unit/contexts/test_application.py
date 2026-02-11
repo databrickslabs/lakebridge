@@ -92,7 +92,7 @@ def test_workspace_context_attributes_not_none(ws):
     assert hasattr(ctx, "remorph_config")
     assert ctx.remorph_config is not None
     assert ctx.remorph_config.transpile is not None
-    assert ctx.remorph_config.reconcile is not None
+    assert ctx.remorph_config.reconcile_metadata is not None
     assert hasattr(ctx, "install_state")
     assert ctx.install_state is not None
 

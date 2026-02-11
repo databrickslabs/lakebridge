@@ -145,18 +145,25 @@ class WorkspaceInstaller:
                 logger.info("Configuring lakebridge `transpile`.")
                 return LakebridgeConfiguration(
                     self._configure_transpile(),
-                    reconcile=None,
+                    reconcile_metadata=None,
                     include_switch=self._include_llm,
                     switch_use_serverless=self._switch_use_serverless,
                 )
             case "reconcile":
                 logger.info("Configuring lakebridge `reconcile`.")
-                return LakebridgeConfiguration(None, self._configure_reconcile())
+                recon_config = self._configure_reconcile()  # TODO only configure meta reconcile
+                return LakebridgeConfiguration(
+                    transpile=None,
+                    reconcile_metadata=recon_config.metadata_config,
+                    reconcile=recon_config,  # Keep existing behavior with the CLI. TODO remove
+                )
             case "all":
                 logger.info("Configuring lakebridge `transpile` and `reconcile`.")
+                recon_config = self._configure_reconcile()  # TODO only configure meta reconcile
                 return LakebridgeConfiguration(
-                    self._configure_transpile(),
-                    self._configure_reconcile(),
+                    transpile=self._configure_transpile(),
+                    reconcile_metadata=recon_config.metadata_config,
+                    reconcile=recon_config,  # Keep existing behavior with the CLI. TODO remove
                     include_switch=self._include_llm,
                     switch_use_serverless=self._switch_use_serverless,
                 )

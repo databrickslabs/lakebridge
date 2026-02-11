@@ -42,7 +42,9 @@ class JobDeployment:
         logger.info(f"Job URL: {self._ws.config.host}#job/{job_id}")
         self._install_state.save()
 
-    def _update_or_create_recon_job(self, name: str, lakebridge_wheel_path: str, recon_job_conf: ReconcileJobConfig | None) -> str:
+    def _update_or_create_recon_job(
+        self, name: str, lakebridge_wheel_path: str, recon_job_conf: ReconcileJobConfig | None
+    ) -> str:
         description = "Run the reconciliation process"
         task_key = "run_reconciliation"
 
@@ -96,14 +98,20 @@ class JobDeployment:
         }
 
     def _job_recon_task(
-        self, task_key: str, description: str, lakebridge_wheel_path: str, recon_job_conf: ReconcileJobConfig | None,
+        self,
+        task_key: str,
+        description: str,
+        lakebridge_wheel_path: str,
+        recon_job_conf: ReconcileJobConfig | None,
     ) -> Task:
         # TODO: Automatically fetch a version list for `ojdbc8`
         oracle_driver_version = "23.4.0.24.05"
         libraries = [
             compute.Library(whl=lakebridge_wheel_path),
             compute.Library(
-                maven=compute.MavenLibrary(f"com.oracle.database.jdbc:ojdbc8:{oracle_driver_version}"), # TODO configure with job_overrides
+                maven=compute.MavenLibrary(
+                    f"com.oracle.database.jdbc:ojdbc8:{oracle_driver_version}"
+                ),  # TODO configure with job_overrides
             ),
         ]
 
@@ -111,9 +119,7 @@ class JobDeployment:
             task_key=task_key,
             description=description,
             job_cluster_key=None if recon_job_conf else self.DEFAULT_CLUSTER_NAME,
-            existing_cluster_id=(
-                recon_job_conf.existing_cluster_id if recon_job_conf else None
-            ),
+            existing_cluster_id=(recon_job_conf.existing_cluster_id if recon_job_conf else None),
             libraries=libraries,
             python_wheel_task=PythonWheelTask(
                 package_name=self.parse_package_name(lakebridge_wheel_path),

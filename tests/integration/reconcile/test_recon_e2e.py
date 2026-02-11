@@ -25,6 +25,7 @@ from tests.integration.debug_envgetter import TestEnvGetter
 
 logger = logging.getLogger(__name__)
 
+
 def _recon_config_filename(recon_config: ReconcileConfig) -> str:
     source_catalog_or_schema = (
         recon_config.database_config.source_catalog
@@ -90,6 +91,7 @@ def databricks_recon_table_config(recon_tables: tuple[TableInfo, TableInfo]) -> 
 def databricks_recon_config(recon_schema: SchemaInfo, lakebridge_config: LakebridgeConfiguration) -> ReconcileConfig:
     assert recon_schema.catalog_name
     assert recon_schema.name
+    assert lakebridge_config.reconcile_metadata
     conf = ReconcileConfig(
         data_source="databricks",
         report_type="all",
@@ -129,10 +131,15 @@ def debug_run_output(ctx: ApplicationContext, run_id: int) -> None:
         logger.exception("Failed to fetch run output")
 
 
-def test_recon_databricks_job_succeeds(application_context: ApplicationContext, databricks_recon_config: ReconcileConfig,
-                                       databricks_recon_table_config: TableRecon) -> None:
+def test_recon_databricks_job_succeeds(
+    application_context: ApplicationContext,
+    databricks_recon_config: ReconcileConfig,
+    databricks_recon_table_config: TableRecon,
+) -> None:
     application_context.installation.save(databricks_recon_config)
-    application_context.installation.upload(_recon_config_filename(databricks_recon_config), json.dumps(asdict(databricks_recon_table_config)).encode())
+    application_context.installation.upload(
+        _recon_config_filename(databricks_recon_config), json.dumps(asdict(databricks_recon_table_config)).encode()
+    )
 
     recon_runner = ReconcileRunner(
         application_context.workspace_client,

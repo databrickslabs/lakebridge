@@ -9,7 +9,7 @@ from databricks.sdk import WorkspaceClient
 from databricks.sdk.errors import InvalidParameterValue, NotFound
 
 import databricks.labs.lakebridge.resources
-from databricks.labs.lakebridge.config import ReconcileConfig, ReconcileMetadataConfig, ReconcileJobConfig
+from databricks.labs.lakebridge.config import ReconcileMetadataConfig, ReconcileJobConfig
 from databricks.labs.lakebridge.deployment.dashboard import DashboardDeployment
 from databricks.labs.lakebridge.deployment.job import JobDeployment
 from databricks.labs.lakebridge.deployment.table import TableDeployment
@@ -39,7 +39,7 @@ class ReconDeployment:
         self._job_deployer = job_deployer
         self._dashboard_deployer = dashboard_deployer
 
-    def install(self, wheel_path: str, recon_meta: ReconcileMetadataConfig, job_overrides: ReconcileJobConfig):
+    def install(self, wheel_path: str, recon_meta: ReconcileMetadataConfig, job_overrides: ReconcileJobConfig | None):
         logger.info("Installing reconcile components.")
         self._deploy_tables(recon_meta)
         self._deploy_dashboards(recon_meta)
@@ -47,19 +47,15 @@ class ReconDeployment:
         self._install_state.save()
         logger.info("Installation of reconcile components completed successfully.")
 
-    def uninstall(self, recon_config: ReconcileConfig | None):
-        if not recon_config:
+    def uninstall(self, metadata_config: ReconcileMetadataConfig | None):
+        if not metadata_config:
             return
         logger.info("Uninstalling reconcile components.")
         self._remove_dashboards()
         self._remove_jobs()
         logging.info(
-            f"Won't remove reconcile metadata schema `{recon_config.metadata_config.schema}` "
-            f"from catalog `{recon_config.metadata_config.catalog}`. Please remove it and the tables inside manually."
-        )
-        logging.info(
-            f"Won't remove configured reconcile secret scope `{recon_config.secret_scope}`. "
-            f"Please remove it manually."
+            f"Won't remove reconcile metadata schema `{metadata_config.schema}` "
+            f"from catalog `{metadata_config.catalog}`. Please remove it and the tables inside manually."
         )
 
     def _deploy_tables(self, recon_meta: ReconcileMetadataConfig):

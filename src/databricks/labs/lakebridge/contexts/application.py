@@ -71,7 +71,10 @@ class ApplicationContext:
 
     @cached_property
     def remorph_config(self) -> LakebridgeConfiguration:
-        return LakebridgeConfiguration(transpile=self.transpile_config, reconcile=self.recon_config)
+        return LakebridgeConfiguration(
+            transpile=self.transpile_config,
+            reconcile_metadata=self.recon_config.metadata_config if self.recon_config else None,
+        )
 
     @property
     def connect_config(self) -> Config:

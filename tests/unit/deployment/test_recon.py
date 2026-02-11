@@ -10,8 +10,6 @@ from databricks.sdk.service import iam
 
 from databricks.labs.lakebridge.config import (
     LakebridgeConfiguration,
-    ReconcileConfig,
-    DatabaseConfig,
     ReconcileMetadataConfig,
 )
 from databricks.labs.lakebridge.deployment.dashboard import DashboardDeployment
@@ -29,45 +27,11 @@ def ws():
     return w
 
 
-def test_install_missing_config(ws):
-    table_deployer = create_autospec(TableDeployment)
-    job_deployer = create_autospec(JobDeployment)
-    dashboard_deployer = create_autospec(DashboardDeployment)
-    installation = MockInstallation(is_global=False)
-    install_state = InstallState.from_installation(installation)
-    product_info = ProductInfo.for_testing(LakebridgeConfiguration)
-    recon_deployer = ReconDeployment(
-        ws,
-        installation,
-        install_state,
-        product_info,
-        table_deployer,
-        job_deployer,
-        dashboard_deployer,
-    )
-    remorph_config = None
-    recon_deployer.install(remorph_config, ["lakebridge-x.y.z-py3-none-any.whl"])
-    table_deployer.deploy_table_from_ddl_file.assert_not_called()
-    job_deployer.deploy_recon_job.assert_not_called()
-    dashboard_deployer.deploy.assert_not_called()
-
-
 def test_install(ws):
-    reconcile_config = ReconcileConfig(
-        data_source="snowflake",
-        report_type="all",
-        secret_scope="remorph_snowflake4",
-        database_config=DatabaseConfig(
-            source_catalog="snowflake_sample_data4",
-            source_schema="tpch_sf10004",
-            target_catalog="tpch4",
-            target_schema="1000gb4",
-        ),
-        metadata_config=ReconcileMetadataConfig(
-            catalog="remorph4",
-            schema="reconcile4",
-            volume="reconcile_volume4",
-        ),
+    reconcile_config = ReconcileMetadataConfig(
+        catalog="remorph4",
+        schema="reconcile4",
+        volume="reconcile_volume4",
     )
     installation = MockInstallation(
         {
@@ -113,7 +77,7 @@ def test_install(ws):
 
     ws.lakeview.trash.side_effect = raise_invalid_parameter_err_for_dashboard
     ws.jobs.delete.side_effect = raise_invalid_parameter_err_for_job
-    recon_deployer.install(reconcile_config, ["lakebridge-x.y.z-py3-none-any.whl"])
+    recon_deployer.install("lakebridge-x.y.z-py3-none-any.whl", reconcile_config, None)
     table_deployer.deploy_table_from_ddl_file.assert_called()
     job_deployer.deploy_recon_job.assert_called()
     dashboard_deployer.deploy.assert_called()
@@ -146,21 +110,10 @@ def test_uninstall_missing_config(ws):
 
 
 def test_uninstall(ws):
-    recon_config = ReconcileConfig(
-        data_source="snowflake",
-        report_type="all",
-        secret_scope="remorph_snowflake5",
-        database_config=DatabaseConfig(
-            source_catalog="snowflake_sample_data5",
-            source_schema="tpch_sf10005",
-            target_catalog="tpch5",
-            target_schema="1000gb5",
-        ),
-        metadata_config=ReconcileMetadataConfig(
-            catalog="remorph5",
-            schema="reconcile5",
-            volume="reconcile_volume5",
-        ),
+    metadata_config = ReconcileMetadataConfig(
+        catalog="remorph5",
+        schema="reconcile5",
+        volume="reconcile_volume5",
     )
     installation = MockInstallation(
         {
@@ -207,7 +160,7 @@ def test_uninstall(ws):
     ws.lakeview.trash.side_effect = raise_invalid_parameter_err_for_dashboard
     ws.jobs.delete.side_effect = raise_invalid_parameter_err_for_job
 
-    recon_deployer.uninstall(recon_config)
+    recon_deployer.uninstall(metadata_config)
     ws.lakeview.trash.assert_called()
     ws.jobs.delete.assert_called()
 

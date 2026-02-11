@@ -12,8 +12,6 @@ from databricks.sdk.service import iam
 from databricks.labs.lakebridge.config import (
     TranspileConfig,
     LakebridgeConfiguration,
-    ReconcileConfig,
-    DatabaseConfig,
     ReconcileMetadataConfig,
 )
 from databricks.labs.lakebridge.deployment.installation import WorkspaceInstallation
@@ -46,22 +44,12 @@ def test_install_all(ws):
         catalog_name="remorph6",
         schema_name="transpiler6",
     )
-    reconcile_config = ReconcileConfig(
-        data_source="oracle",
-        report_type="all",
-        secret_scope="remorph_oracle6",
-        database_config=DatabaseConfig(
-            source_schema="tpch_sf10006",
-            target_catalog="tpch6",
-            target_schema="1000gb6",
-        ),
-        metadata_config=ReconcileMetadataConfig(
-            catalog="remorph6",
-            schema="reconcile6",
-            volume="reconcile_volume6",
-        ),
+    reconcile_metadata = ReconcileMetadataConfig(
+        catalog="remorph6",
+        schema="reconcile6",
+        volume="reconcile_volume6",
     )
-    config = LakebridgeConfiguration(transpile=transpile_config, reconcile=reconcile_config)
+    config = LakebridgeConfiguration(transpile=transpile_config, reconcile_metadata=reconcile_metadata)
     installation = WorkspaceInstallation(ws, installation, recon_deployment, switch_deployment, product_info, upgrades)
     installation.install(config)
 
@@ -82,7 +70,7 @@ def test_no_recon_component_installation(ws):
         catalog_name="remorph7",
         schema_name="transpiler7",
     )
-    config = LakebridgeConfiguration(transpile=transpile_config, reconcile=None)
+    config = LakebridgeConfiguration(transpile=transpile_config, reconcile_metadata=None)
     installation = WorkspaceInstallation(ws, installation, recon_deployment, switch_deployment, product_info, upgrades)
     installation.install(config)
     recon_deployment.install.assert_not_called()
@@ -95,22 +83,12 @@ def test_recon_component_installation(ws):
     product_info = create_autospec(ProductInfo)
     upgrades = create_autospec(Upgrades)
 
-    reconcile_config = ReconcileConfig(
-        data_source="oracle",
-        report_type="all",
-        secret_scope="remorph_oracle8",
-        database_config=DatabaseConfig(
-            source_schema="tpch_sf10008",
-            target_catalog="tpch8",
-            target_schema="1000gb8",
-        ),
-        metadata_config=ReconcileMetadataConfig(
-            catalog="remorph8",
-            schema="reconcile8",
-            volume="reconcile_volume8",
-        ),
+    reconcile_metadata = ReconcileMetadataConfig(
+        catalog="remorph8",
+        schema="reconcile8",
+        volume="reconcile_volume8",
     )
-    config = LakebridgeConfiguration(reconcile=reconcile_config, transpile=None)
+    config = LakebridgeConfiguration(reconcile_metadata=reconcile_metadata, transpile=None)
     installation = WorkspaceInstallation(ws, installation, recon_deployment, switch_deployment, product_info, upgrades)
     installation.install(config)
     recon_deployment.install.assert_called()
@@ -126,7 +104,7 @@ def test_missing_installation(ws):
     upgrades = create_autospec(Upgrades)
 
     ws_installation = WorkspaceInstallation(ws, installation, recon_deployment, switch_deployment, wheels, upgrades)
-    config = LakebridgeConfiguration(transpile=None, reconcile=None)
+    config = LakebridgeConfiguration(transpile=None, reconcile_metadata=None)
     ws_installation.uninstall(config)
     installation.remove.assert_not_called()
 
@@ -143,23 +121,12 @@ def test_uninstall_configs_exist(ws):
         sdk_config={"warehouse_id": "abc"},
     )
 
-    reconcile_config = ReconcileConfig(
-        data_source="snowflake",
-        report_type="all",
-        secret_scope="remorph_snowflake1",
-        database_config=DatabaseConfig(
-            source_catalog="snowflake_sample_data1",
-            source_schema="tpch_sf10001",
-            target_catalog="tpch1",
-            target_schema="1000gb1",
-        ),
-        metadata_config=ReconcileMetadataConfig(
-            catalog="remorph1",
-            schema="reconcile1",
-            volume="reconcile_volume1",
-        ),
+    reconcile_metadata = ReconcileMetadataConfig(
+        catalog="remorph1",
+        schema="reconcile1",
+        volume="reconcile_volume1",
     )
-    config = LakebridgeConfiguration(transpile=transpile_config, reconcile=reconcile_config)
+    config = LakebridgeConfiguration(transpile=transpile_config, reconcile_metadata=reconcile_metadata)
     installation = MockInstallation({})
     recon_deployment = create_autospec(ReconDeployment)
     switch_deployment = create_autospec(SwitchDeployment)
@@ -180,7 +147,7 @@ def test_uninstall_configs_missing(ws):
     upgrades = create_autospec(Upgrades)
 
     ws_installation = WorkspaceInstallation(ws, installation, recon_deployment, switch_deployment, wheels, upgrades)
-    config = LakebridgeConfiguration(transpile=None, reconcile=None)
+    config = LakebridgeConfiguration(transpile=None, reconcile_metadata=None)
     ws_installation.uninstall(config)
     recon_deployment.uninstall.assert_not_called()
     installation.assert_removed()
@@ -196,7 +163,7 @@ class TestSwitchInstallation:
         product_info = create_autospec(ProductInfo)
         upgrades = create_autospec(Upgrades)
 
-        config = LakebridgeConfiguration(transpile=TranspileConfig(), reconcile=None, include_switch=True)
+        config = LakebridgeConfiguration(transpile=TranspileConfig(), reconcile_metadata=None, include_switch=True)
 
         ws_installation = WorkspaceInstallation(
             ws, installation, recon_deployment, switch_deployment, product_info, upgrades

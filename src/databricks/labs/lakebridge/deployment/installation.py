@@ -115,8 +115,8 @@ class WorkspaceInstallation:
             )
             self._uninstall_switch_job()
 
-        if config.reconcile:
-            self._recon_deployment.uninstall(config.reconcile)
+        if config.reconcile_metadata:
+            self._recon_deployment.uninstall(config.reconcile_metadata)
 
         self._installation.remove()
         logger.info("Uninstallation completed successfully.")

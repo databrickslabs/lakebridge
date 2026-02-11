@@ -107,7 +107,7 @@ def test_workspace_installer_run_install_not_called_in_test(
         workspace_installation=ws_installation,
     )
 
-    provided_config = LakebridgeConfiguration(transpile=None, reconcile=None)
+    provided_config = LakebridgeConfiguration(transpile=None, reconcile_metadata=None)
     workspace_installer = ws_installer(
         ctx.workspace_client,
         ctx.prompts,
@@ -134,7 +134,7 @@ def test_workspace_installer_run_install_called_with_provided_config(
         resource_configurator=create_autospec(ResourceConfigurator),
         workspace_installation=ws_installation,
     )
-    provided_config = LakebridgeConfiguration(transpile=None, reconcile=None)
+    provided_config = LakebridgeConfiguration(transpile=None, reconcile_metadata=None)
     workspace_installer = ws_installer(
         ctx.workspace_client,
         ctx.prompts,
@@ -268,7 +268,7 @@ def test_configure_transpile_no_existing_installation(
         catalog_name="remorph",
         schema_name="transpiler",
     )
-    expected_config = LakebridgeConfiguration(transpile=expected_morph_config, reconcile=None)
+    expected_config = LakebridgeConfiguration(transpile=expected_morph_config, reconcile_metadata=None)
     assert config == expected_config
     installation.assert_file_written(
         "config.yml",
@@ -399,7 +399,7 @@ def test_configure_transpile_installation_config_error_continue_install(
         catalog_name="remorph",
         schema_name="transpiler",
     )
-    expected_config = LakebridgeConfiguration(transpile=expected_morph_config, reconcile=None)
+    expected_config = LakebridgeConfiguration(transpile=expected_morph_config, reconcile_metadata=None)
     assert config == expected_config
     installation.assert_file_written(
         "config.yml",
@@ -462,7 +462,7 @@ def test_configure_transpile_installation_with_no_validation(ws, ws_installer):
         catalog_name="remorph",
         schema_name="transpiler",
     )
-    expected_config = LakebridgeConfiguration(transpile=expected_morph_config, reconcile=None)
+    expected_config = LakebridgeConfiguration(transpile=expected_morph_config, reconcile_metadata=None)
     assert config == expected_config
     installation.assert_file_written(
         "config.yml",
@@ -534,7 +534,7 @@ def test_configure_transpile_installation_with_validation_and_warehouse_id_from_
             schema_name="transpiler_test",
             sdk_config={"warehouse_id": "w_id"},
         ),
-        reconcile=None,
+        reconcile_metadata=None,
     )
     assert config == expected_config
     installation.assert_file_written(
@@ -672,6 +672,11 @@ def test_configure_reconcile_installation_config_error_continue_install(ws: Work
                 volume="reconcile_volume",
             ),
         ),
+        reconcile_metadata=ReconcileMetadataConfig(
+            catalog="remorph",
+            schema="reconcile",
+            volume="reconcile_volume",
+        ),
         transpile=None,
     )
     assert config == expected_config
@@ -751,6 +756,11 @@ def test_configure_reconcile_no_existing_installation(ws: WorkspaceClient) -> No
                 schema="reconcile",
                 volume="reconcile_volume",
             ),
+        ),
+        reconcile_metadata=ReconcileMetadataConfig(
+            catalog="remorph",
+            schema="reconcile",
+            volume="reconcile_volume",
         ),
         transpile=None,
     )
@@ -832,6 +842,11 @@ def test_configure_reconcile_databricks_no_existing_installation(ws: WorkspaceCl
                 schema="reconcile",
                 volume="reconcile_volume",
             ),
+        ),
+        reconcile_metadata=ReconcileMetadataConfig(
+            catalog="remorph",
+            schema="reconcile",
+            volume="reconcile_volume",
         ),
         transpile=None,
     )
@@ -969,7 +984,11 @@ def test_configure_all_override_installation(
             volume="reconcile_volume",
         ),
     )
-    expected_config = LakebridgeConfiguration(transpile=expected_transpile_config, reconcile=expected_reconcile_config)
+    expected_config = LakebridgeConfiguration(
+        transpile=expected_transpile_config,
+        reconcile_metadata=expected_reconcile_config.metadata_config,
+        reconcile=expected_reconcile_config,
+    )
     assert config == expected_config
     installation.assert_file_written(
         "config.yml",
@@ -1087,7 +1106,7 @@ def test_runs_upgrades_on_more_recent_version(
                 schema_name="transpiler",
                 skip_validation=True,
             ),
-            reconcile=None,
+            reconcile_metadata=None,
         )
     )
 
@@ -1158,7 +1177,7 @@ def test_runs_and_stores_confirm_config_option(
             schema_name="transpiler_test",
             sdk_config={"warehouse_id": "w_id"},
         ),
-        reconcile=None,
+        reconcile_metadata=None,
     )
     assert config == expected_config
     installation.assert_file_written(
@@ -1247,7 +1266,7 @@ def test_runs_and_stores_force_config_option(
             schema_name="transpiler_test",
             sdk_config={"warehouse_id": "w_id"},
         ),
-        reconcile=None,
+        reconcile_metadata=None,
     )
     assert config == expected_config
     installation.assert_file_written(
@@ -1329,7 +1348,7 @@ def test_runs_and_stores_question_config_option(
             schema_name="transpiler_test",
             sdk_config={"warehouse_id": "w_id"},
         ),
-        reconcile=None,
+        reconcile_metadata=None,
     )
     assert config == expected_config
     installation.assert_file_written(
@@ -1417,7 +1436,7 @@ def test_runs_and_stores_choice_config_option(
             schema_name="transpiler_test",
             sdk_config={"warehouse_id": "w_id"},
         ),
-        reconcile=None,
+        reconcile_metadata=None,
     )
     assert config == expected_config
     installation.assert_file_written(
