@@ -14,8 +14,7 @@ from databricks.sdk.service.jobs import (
     JobSettings,
     JobParameterDefinition,
 )
-from databricks.labs.lakebridge.config import ReconcileConfig
-from databricks.labs.lakebridge.reconcile.constants import ReconSourceType
+from databricks.labs.lakebridge.config import ReconcileJobConfig
 
 logger = logging.getLogger(__name__)
 
@@ -36,18 +35,18 @@ class JobDeployment:
         self._install_state = install_state
         self._product_info = product_info
 
-    def deploy_recon_job(self, name, recon_config: ReconcileConfig, lakebridge_wheel_path: str):
+    def deploy_recon_job(self, name: str, lakebridge_wheel_path: str, recon_job_conf: ReconcileJobConfig | None):
         logger.info("Deploying reconciliation job.")
-        job_id = self._update_or_create_recon_job(name, recon_config, lakebridge_wheel_path)
+        job_id = self._update_or_create_recon_job(name, lakebridge_wheel_path, recon_job_conf)
         logger.info(f"Reconciliation job deployed with job_id={job_id}")
         logger.info(f"Job URL: {self._ws.config.host}#job/{job_id}")
         self._install_state.save()
 
-    def _update_or_create_recon_job(self, name, recon_config: ReconcileConfig, lakebridge_wheel_path: str) -> str:
+    def _update_or_create_recon_job(self, name: str, lakebridge_wheel_path: str, recon_job_conf: ReconcileJobConfig | None) -> str:
         description = "Run the reconciliation process"
         task_key = "run_reconciliation"
 
-        job_settings = self._recon_job_settings(name, task_key, description, recon_config, lakebridge_wheel_path)
+        job_settings = self._recon_job_settings(name, task_key, description, lakebridge_wheel_path, recon_job_conf)
         if name in self._install_state.jobs:
             try:
                 job_id = int(self._install_state.jobs[name])
@@ -57,7 +56,7 @@ class JobDeployment:
             except InvalidParameterValue:
                 del self._install_state.jobs[name]
                 logger.warning(f"Job `{name}` does not exist anymore for some reason")
-                return self._update_or_create_recon_job(name, recon_config, lakebridge_wheel_path)
+                return self._update_or_create_recon_job(name, lakebridge_wheel_path, recon_job_conf)
 
         logger.info(f"Creating new job configuration for job `{name}`")
         new_job = self._ws.jobs.create(**job_settings)
@@ -70,26 +69,26 @@ class JobDeployment:
         job_name: str,
         task_key: str,
         description: str,
-        recon_config: ReconcileConfig,
         lakebridge_wheel_path: str,
+        recon_job_conf: ReconcileJobConfig | None,
     ) -> dict[str, Any]:
         version = self._product_info.version()
         version = version if not self._ws.config.is_gcp else version.replace("+", "-")
         tags = {"version": f"v{version}"}
-        if recon_config.job_overrides:
-            logger.debug(f"Applying deployment overrides: {recon_config.job_overrides}")
-            tags.update(recon_config.job_overrides.tags)
+        if recon_job_conf:
+            logger.debug(f"Applying deployment overrides: {recon_job_conf}")
+            tags.update(recon_job_conf.tags)
 
         return {
             "name": self._name_with_prefix(job_name),
             "tags": tags,
-            "job_clusters": [] if recon_config.job_overrides else [self._default_job_cluster()],
+            "job_clusters": [] if recon_job_conf else [self._default_job_cluster()],
             "tasks": [
                 self._job_recon_task(
                     task_key,
                     description,
-                    recon_config,
                     lakebridge_wheel_path,
+                    recon_job_conf,
                 ),
             ],
             "max_concurrent_runs": 2,
@@ -97,27 +96,23 @@ class JobDeployment:
         }
 
     def _job_recon_task(
-        self, task_key: str, description: str, recon_config: ReconcileConfig, lakebridge_wheel_path: str
+        self, task_key: str, description: str, lakebridge_wheel_path: str, recon_job_conf: ReconcileJobConfig | None,
     ) -> Task:
+        # TODO: Automatically fetch a version list for `ojdbc8`
+        oracle_driver_version = "23.4.0.24.05"
         libraries = [
             compute.Library(whl=lakebridge_wheel_path),
+            compute.Library(
+                maven=compute.MavenLibrary(f"com.oracle.database.jdbc:ojdbc8:{oracle_driver_version}"), # TODO configure with job_overrides
+            ),
         ]
-
-        if recon_config.data_source == ReconSourceType.ORACLE.value:
-            # TODO: Automatically fetch a version list for `ojdbc8`
-            oracle_driver_version = "23.4.0.24.05"
-            libraries.append(
-                compute.Library(
-                    maven=compute.MavenLibrary(f"com.oracle.database.jdbc:ojdbc8:{oracle_driver_version}"),
-                ),
-            )
 
         task = Task(
             task_key=task_key,
             description=description,
-            job_cluster_key=None if recon_config.job_overrides else self.DEFAULT_CLUSTER_NAME,
+            job_cluster_key=None if recon_job_conf else self.DEFAULT_CLUSTER_NAME,
             existing_cluster_id=(
-                recon_config.job_overrides.existing_cluster_id if recon_config.job_overrides else None
+                recon_job_conf.existing_cluster_id if recon_job_conf else None
             ),
             libraries=libraries,
             python_wheel_task=PythonWheelTask(

@@ -273,7 +273,8 @@ class ReconcileConfig:
 @dataclass
 class LakebridgeConfiguration:
     transpile: TranspileConfig | None
-    reconcile: ReconcileConfig | None
+    reconcile_metadata: ReconcileMetadataConfig | None
+    reconcile_job_overrides: ReconcileJobConfig | None
     # Temporary flag, indicating whether to include the LLM-based Switch transpiler.
     include_switch: bool = False
     # Internal: Use serverless compute for Switch job. Set via LAKEBRIDGE_CLUSTER_TYPE env var.

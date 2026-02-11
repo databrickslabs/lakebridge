@@ -25,9 +25,52 @@ from tests.integration.debug_envgetter import TestEnvGetter
 
 logger = logging.getLogger(__name__)
 
+def _recon_config_filename(recon_config: ReconcileConfig) -> str:
+    source_catalog_or_schema = (
+        recon_config.database_config.source_catalog
+        if recon_config.database_config.source_catalog
+        else recon_config.database_config.source_schema
+    )
+    filename = f"recon_config_{recon_config.data_source}_{source_catalog_or_schema}_{recon_config.report_type}.json"
+    return filename
+
 
 @pytest.fixture
-def recon_table_config(recon_schema: SchemaInfo, recon_tables: tuple[TableInfo, TableInfo]) -> TableRecon:
+def lakebridge_config(recon_schema, make_volume, watchdog_remove_after) -> LakebridgeConfiguration:
+    volume = make_volume(catalog_name=recon_schema.catalog_name, schema_name=recon_schema.name, name=recon_schema.name)
+    recon_meta = ReconcileMetadataConfig(
+        catalog=recon_schema.catalog_name, schema=recon_schema.name, volume=volume.name
+    )
+
+    test_env = TestEnvGetter(True)
+    cluster = test_env.get("DATABRICKS_CLUSTER_ID")
+    tags = {"RemoveAfter": watchdog_remove_after}
+    deployment_overrides = ReconcileJobConfig(existing_cluster_id=cluster, tags=tags)
+    logger.info(f"Using recon job overrides: {deployment_overrides}")
+
+    config = LakebridgeConfiguration(None, recon_meta, deployment_overrides)
+
+    return config
+
+
+@pytest.fixture
+def application_context(ws: WorkspaceClient, lakebridge_config: LakebridgeConfiguration):
+    logger.info("Setting up application context for recon tests")
+    ctx = ApplicationContext(ws)
+
+    logger.info("Installing app and recon configuration into workspace")
+    ctx.workspace_installation.install(lakebridge_config)
+
+    logger.info("Application context setup complete for recon tests")
+    yield ctx
+
+    logger.info("Tearing down application context for recon tests")
+    ctx.workspace_installation.uninstall(lakebridge_config)
+    logger.info("Application context teardown complete for recon tests")
+
+
+@pytest.fixture
+def databricks_recon_table_config(recon_tables: tuple[TableInfo, TableInfo]) -> TableRecon:
     (src_table, tgt_table) = recon_tables
     assert src_table.name
     assert tgt_table.name
@@ -44,15 +87,7 @@ def recon_table_config(recon_schema: SchemaInfo, recon_tables: tuple[TableInfo, 
 
 
 @pytest.fixture
-def recon_config(watchdog_remove_after: str, recon_schema: SchemaInfo, make_volume) -> ReconcileConfig:
-    volume = make_volume(catalog_name=recon_schema.catalog_name, schema_name=recon_schema.name, name=recon_schema.name)
-
-    test_env = TestEnvGetter(True)
-    cluster = test_env.get("DATABRICKS_CLUSTER_ID")
-    tags = {"RemoveAfter": watchdog_remove_after}
-    deployment_overrides = ReconcileJobConfig(existing_cluster_id=cluster, tags=tags)
-    logger.info(f"Using recon job overrides: {deployment_overrides}")
-
+def databricks_recon_config(recon_schema: SchemaInfo, lakebridge_config: LakebridgeConfiguration) -> ReconcileConfig:
     assert recon_schema.catalog_name
     assert recon_schema.name
     conf = ReconcileConfig(
@@ -65,44 +100,10 @@ def recon_config(watchdog_remove_after: str, recon_schema: SchemaInfo, make_volu
             target_catalog=recon_schema.catalog_name,
             target_schema=recon_schema.name,
         ),
-        metadata_config=ReconcileMetadataConfig(
-            catalog=recon_schema.catalog_name, schema=recon_schema.name, volume=volume.name
-        ),
-        job_overrides=deployment_overrides,
+        metadata_config=lakebridge_config.reconcile_metadata,
+        job_overrides=lakebridge_config.reconcile_job_overrides,
     )
     return conf
-
-
-@pytest.fixture
-def recon_config_filename(recon_config: ReconcileConfig) -> str:
-    source_catalog_or_schema = (
-        recon_config.database_config.source_catalog
-        if recon_config.database_config.source_catalog
-        else recon_config.database_config.source_schema
-    )
-    filename = f"recon_config_{recon_config.data_source}_{source_catalog_or_schema}_{recon_config.report_type}.json"
-    return filename
-
-
-@pytest.fixture
-def application_context(
-    ws: WorkspaceClient, recon_config: ReconcileConfig, recon_config_filename: str, recon_table_config
-):
-    logger.info("Setting up application context for recon tests")
-    config = LakebridgeConfiguration(None, recon_config)
-    ctx = ApplicationContext(ws)
-
-    logger.info("Installing app and recon configuration into workspace")
-    ctx.installation.save(recon_config)
-    ctx.installation.upload(recon_config_filename, json.dumps(asdict(recon_table_config)).encode())
-    ctx.workspace_installation.install(config)
-
-    logger.info("Application context setup complete for recon tests")
-    yield ctx
-
-    logger.info("Tearing down application context for recon tests")
-    ctx.workspace_installation.uninstall(config)
-    logger.info("Application context teardown complete for recon tests")
 
 
 def debug_run_output(ctx: ApplicationContext, run_id: int) -> None:
@@ -128,7 +129,11 @@ def debug_run_output(ctx: ApplicationContext, run_id: int) -> None:
         logger.exception("Failed to fetch run output")
 
 
-def test_recon_databricks_job_succeeds(application_context: ApplicationContext) -> None:
+def test_recon_databricks_job_succeeds(application_context: ApplicationContext, databricks_recon_config: ReconcileConfig,
+                                       databricks_recon_table_config: TableRecon) -> None:
+    application_context.installation.save(databricks_recon_config)
+    application_context.installation.upload(_recon_config_filename(databricks_recon_config), json.dumps(asdict(databricks_recon_table_config)).encode())
+
     recon_runner = ReconcileRunner(
         application_context.workspace_client,
         application_context.install_state,

@@ -9,7 +9,7 @@ from databricks.sdk import WorkspaceClient
 from databricks.sdk.errors import InvalidParameterValue, NotFound
 
 import databricks.labs.lakebridge.resources
-from databricks.labs.lakebridge.config import ReconcileConfig
+from databricks.labs.lakebridge.config import ReconcileConfig, ReconcileMetadataConfig, ReconcileJobConfig
 from databricks.labs.lakebridge.deployment.dashboard import DashboardDeployment
 from databricks.labs.lakebridge.deployment.job import JobDeployment
 from databricks.labs.lakebridge.deployment.table import TableDeployment
@@ -39,14 +39,11 @@ class ReconDeployment:
         self._job_deployer = job_deployer
         self._dashboard_deployer = dashboard_deployer
 
-    def install(self, recon_config: ReconcileConfig | None, wheel_path: str):
-        if not recon_config:
-            logger.warning("Recon Config is empty.")
-            return
+    def install(self, wheel_path: str, recon_meta: ReconcileMetadataConfig, job_overrides: ReconcileJobConfig):
         logger.info("Installing reconcile components.")
-        self._deploy_tables(recon_config)
-        self._deploy_dashboards(recon_config)
-        self._deploy_jobs(recon_config, wheel_path)
+        self._deploy_tables(recon_meta)
+        self._deploy_dashboards(recon_meta)
+        self._deploy_jobs(wheel_path, job_overrides)
         self._install_state.save()
         logger.info("Installation of reconcile components completed successfully.")
 
@@ -65,10 +62,10 @@ class ReconDeployment:
             f"Please remove it manually."
         )
 
-    def _deploy_tables(self, recon_config: ReconcileConfig):
+    def _deploy_tables(self, recon_meta: ReconcileMetadataConfig):
         logger.info("Deploying reconciliation metadata tables.")
-        catalog = recon_config.metadata_config.catalog
-        schema = recon_config.metadata_config.schema
+        catalog = recon_meta.catalog
+        schema = recon_meta.schema
         resources = files(databricks.labs.lakebridge.resources)
         query_dir = resources.joinpath("reconcile/queries/installation")
 
@@ -85,12 +82,12 @@ class ReconDeployment:
             table_sql_file = query_dir.joinpath(sql_file)
             self._table_deployer.deploy_table_from_ddl_file(catalog, schema, sql_file.strip(".sql"), table_sql_file)
 
-    def _deploy_dashboards(self, recon_config: ReconcileConfig):
+    def _deploy_dashboards(self, recon_meta: ReconcileMetadataConfig):
         logger.info("Deploying reconciliation dashboards.")
         dashboard_base_dir = (
             find_project_root(__file__) / "src/databricks/labs/lakebridge/resources/reconcile/dashboards"
         )
-        self._dashboard_deployer.deploy(dashboard_base_dir, recon_config.metadata_config)
+        self._dashboard_deployer.deploy(dashboard_base_dir, recon_meta)
 
     def _get_dashboards(self) -> list[tuple[str, str]]:
         return list(self._install_state.dashboards.items())
@@ -106,9 +103,9 @@ class ReconDeployment:
                 logger.warning(f"Dashboard with id={dashboard_id} doesn't exist anymore for some reason.")
                 continue
 
-    def _deploy_jobs(self, recon_config: ReconcileConfig, lakebridge_wheel_path: str):
+    def _deploy_jobs(self, lakebridge_wheel_path: str, recon_job_conf: ReconcileJobConfig | None):
         logger.info("Deploying reconciliation jobs.")
-        self._job_deployer.deploy_recon_job(RECON_JOB_NAME, recon_config, lakebridge_wheel_path)
+        self._job_deployer.deploy_recon_job(RECON_JOB_NAME, lakebridge_wheel_path, recon_job_conf)
         for job_name, job_id in self._get_deprecated_jobs():
             try:
                 logger.info(f"Removing job_id={job_id}, as it is no longer needed.")

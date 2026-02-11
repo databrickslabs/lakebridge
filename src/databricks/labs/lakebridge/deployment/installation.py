@@ -92,9 +92,9 @@ class WorkspaceInstallation:
     def install(self, config: LakebridgeConfiguration):
         self._apply_upgrades()
         wheel_path = self._upload_wheel()
-        if config.reconcile:
+        if config.reconcile_metadata:
             logger.info("Installing Lakebridge reconcile Metadata components.")
-            self._recon_deployment.install(config.reconcile, wheel_path)
+            self._recon_deployment.install(wheel_path, config.reconcile_metadata, config.reconcile_job_overrides)
         if config.include_switch:
             logger.info("Installing Switch transpiler to workspace.")
             self._switch_deployment.install(use_serverless=config.switch_use_serverless)
