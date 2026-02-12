@@ -102,19 +102,7 @@ class MSSQLConnector(_BaseConnector):
             query=query_params,
         )
         
-        try:
-            logger.info(f"Attempting to connect to database: {self.config['database'].strip()} "
-                       f"on server: {self.config['server'].strip()}:{self.config.get('port', 1433)} "
-                       f"with driver: {self.config['driver'].strip()}")
-            engine = create_engine(connection_string)
-            # Test the connection immediately
-            with engine.connect() as conn:
-                conn.execute(text("SELECT 1"))
-            logger.info("Database connection established successfully")
-            return engine
-        except Exception as e:
-            logger.error(f"Failed to create database engine: {type(e).__name__}: {str(e)}")
-            raise
+        return create_engine(connection_string)
 
 
 class DatabaseManager:
@@ -124,16 +112,7 @@ class DatabaseManager:
     def fetch(self, query: str) -> FetchResult:
         try:
             return self.connector.fetch(query)
-        except OperationalError as e:
-            # Log detailed error information for diagnostics
-            logger.error(f"Database connection error details: {type(e).__name__}: {str(e)}")
-            if hasattr(e, 'orig') and e.orig:
-                logger.error(f"Original error: {type(e.orig).__name__}: {str(e.orig)}")
-            logger.error(f"Connection parameters (masked): driver={self.connector.config.get('driver', 'N/A')}, "
-                        f"server={self.connector.config.get('server', 'N/A')}, "
-                        f"database={self.connector.config.get('database', 'N/A')}, "
-                        f"port={self.connector.config.get('port', 'N/A')}, "
-                        f"auth_type={self.connector.config.get('auth_type', 'N/A')}")
+        except OperationalError:
             logger.error("Error connecting to the database check credentials")
             raise ConnectionError("Error connecting to the database check credentials") from None
 
