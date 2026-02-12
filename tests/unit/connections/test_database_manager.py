@@ -77,7 +77,7 @@ def test_mssql_connector_strips_whitespace_from_credentials(mock_create_engine) 
     mock_engine = MagicMock()
     mock_create_engine.return_value = mock_engine
 
-    connector = MSSQLConnector(config_with_whitespace)
+    MSSQLConnector(config_with_whitespace)
 
     # Verify create_engine was called
     assert mock_create_engine.called
@@ -109,7 +109,7 @@ def test_mssql_connector_strips_auth_type(mock_create_engine) -> None:
     mock_engine = MagicMock()
     mock_create_engine.return_value = mock_engine
 
-    connector = MSSQLConnector(config_with_ad_auth)
+    MSSQLConnector(config_with_ad_auth)
 
     # Verify create_engine was called
     assert mock_create_engine.called
@@ -136,7 +136,7 @@ def test_mssql_connector_preserves_internal_spaces(mock_create_engine) -> None:
     mock_engine = MagicMock()
     mock_create_engine.return_value = mock_engine
 
-    connector = MSSQLConnector(config_with_spaces)
+    MSSQLConnector(config_with_spaces)
 
     # Verify create_engine was called
     assert mock_create_engine.called
