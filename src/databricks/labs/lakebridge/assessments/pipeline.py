@@ -7,7 +7,7 @@ import tempfile
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from subprocess import CalledProcessError, DEVNULL, PIPE, Popen, STDOUT, run
+from subprocess import CalledProcessError, PIPE, Popen, STDOUT, run
 
 import duckdb
 import yaml
@@ -166,7 +166,7 @@ class PipelineClass:
                 capture_output=not is_debug,
                 text=True,
             )
-    
+
             run(
                 [
                     venv_exec_cmd,
@@ -185,8 +185,7 @@ class PipelineClass:
         except CalledProcessError as e:
             # Log detailed output at debug level for troubleshooting
             logging.debug(
-                f"Failed to install dependencies (exit code {e.returncode})\n"
-                f"stdout: {e.stdout}\nstderr: {e.stderr}"
+                f"Failed to install dependencies (exit code {e.returncode})\n" f"stdout: {e.stdout}\nstderr: {e.stderr}"
             )
             logging.error(f"Failed to install dependencies: {e.stderr}")
             raise RuntimeError(f"Failed to install dependencies: {e.stderr}") from e
