@@ -43,7 +43,6 @@ class PipelineClass:
 
     def execute(self) -> list[StepExecutionResult]:
         logging.info(f"Pipeline initialized with config: {self.config.name}, version: {self.config.version}")
-        
         execution_results: list[StepExecutionResult] = []
         error_flag = False
         for step in self.config.steps:
@@ -150,7 +149,7 @@ class PipelineClass:
         logging.info(f"Installing dependencies: {', '.join(dependencies)}")
         try:
             logging.debug("Upgrading local pip")
-            result = run(
+            run(
                 [
                     venv_exec_cmd,
                     "-m",
@@ -159,17 +158,15 @@ class PipelineClass:
                     "--upgrade",
                     "pip",
                     "--require-virtualenv",
+                    "--quiet",
                     "--no-input",
                     "--disable-pip-version-check",
                 ],
                 check=True,
-                capture_output=True,
-                text=True,
+                stdout=DEVNULL,
+                stderr=DEVNULL,
             )
-            if result.stdout:
-                logging.debug(f"Pip upgrade output: {result.stdout}")
-            
-            result = run(
+            run(
                 [
                     venv_exec_cmd,
                     "-m",
@@ -177,19 +174,17 @@ class PipelineClass:
                     "install",
                     *dependencies,
                     "--require-virtualenv",
+                    "--quiet",
                     "--no-input",
                     "--disable-pip-version-check",
                 ],
                 check=True,
-                capture_output=True,
-                text=True,
+                stdout=DEVNULL,
+                stderr=DEVNULL,
             )
-            if result.stdout:
-                logging.info(f"Dependency installation output: {result.stdout}")
         except CalledProcessError as e:
-            error_details = f"stdout: {e.stdout}\nstderr: {e.stderr}" if e.stderr or e.stdout else "No output captured"
-            logging.error(f"Failed to install dependencies: {error_details}")
-            raise RuntimeError(f"Failed to install dependencies: {error_details}") from e
+            logging.error(f"Failed to install dependencies: {e.stderr}")
+            raise RuntimeError(f"Failed to install dependencies: {e.stderr}") from e
 
     @staticmethod
     def _run_python_script(venv_exec_cmd, script_path, db_path, credential_config):
