@@ -27,7 +27,7 @@ class ProfilerDashboardDeployment:
         product_info: ProductInfo,
         table_deployer: TableDeployment,
         job_deployer: JobDeployment,
-        dashboard_deployer: ProfilerDashboardManager,
+        profiler_dashboard_manager: ProfilerDashboardManager,
     ):
         self._ws = ws
         self._installation = installation
@@ -35,7 +35,7 @@ class ProfilerDashboardDeployment:
         self._product_info = product_info
         self._table_deployer = table_deployer
         self._job_deployer = job_deployer
-        self._dashboard_deployer = dashboard_deployer
+        self._dashboard_deployer = profiler_dashboard_manager
 
     def install(self, profiler_dashboard_config: ProfilerDashboardConfig | None, wheel_path: str):
         if not profiler_dashboard_config:
@@ -73,14 +73,13 @@ class ProfilerDashboardDeployment:
         return list(self._install_state.dashboards.items())
 
     def _remove_dashboards(self):
-        logger.info("Removing profiler dashboard.")
-        for dashboard_ref, dashboard_id in self._get_dashboards():
+        for ref, dashboard_id in self._get_dashboards():
             try:
-                logger.info(f"Removing dashboard with id={dashboard_id}.")
-                del self._install_state.dashboards[dashboard_ref]
+                logger.info(f"Removing old profiler dashboard: {dashboard_id}.")
+                del self._install_state.dashboards[ref]
                 self._ws.lakeview.trash(dashboard_id)
             except (InvalidParameterValue, NotFound):
-                logger.warning(f"Dashboard with id={dashboard_id} doesn't exist anymore for some reason.")
+                logger.warning(f"Dashboard '{dashboard_id}' does not exist. Skipping.")
                 continue
 
     def _deploy_jobs(self, profiler_dashboard_config: ProfilerDashboardConfig, lakebridge_wheel_path: str):
@@ -90,11 +89,11 @@ class ProfilerDashboardDeployment:
         )
         for job_name, job_id in self._get_deprecated_jobs():
             try:
-                logger.info(f"Removing job_id={job_id}, as it is no longer needed.")
+                logger.info(f"Removing old profiler ingestion job: {job_id}.")
                 del self._install_state.jobs[job_name]
                 self._ws.jobs.delete(job_id)
             except (InvalidParameterValue, NotFound):
-                logger.warning(f"{job_name} doesn't exist anymore for some reason.")
+                logger.warning(f"Could not remove old job {job_name} because it no longer exists. Skipping.")
                 continue
 
     def _get_jobs(self) -> list[tuple[str, int]]:
@@ -112,12 +111,11 @@ class ProfilerDashboardDeployment:
         ]
 
     def _remove_jobs(self):
-        logger.info("Removing Profiler Ingestion Job.")
         for job_name, job_id in self._get_jobs():
             try:
-                logger.info(f"Removing job {job_name} with job_id={job_id}.")
+                logger.info(f"Removing old profiler ingestion job '{job_name}'  (job_id: {job_id}).")
                 del self._install_state.jobs[job_name]
                 self._ws.jobs.delete(int(job_id))
             except (InvalidParameterValue, NotFound):
-                logger.warning(f"{job_name} doesn't exist anymore for some reason.")
+                logger.warning(f"Could not remove job '{job_name}' because it no longer exists. Skipping.")
                 continue
