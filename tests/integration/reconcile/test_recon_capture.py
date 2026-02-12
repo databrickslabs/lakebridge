@@ -1024,3 +1024,10 @@ def test_format_uses_parquet(mock_spark):
     persist = ReconIntermediatePersistUnderTest(mock_spark, conf)
 
     assert persist.format == "parquet"
+
+
+def test_is_serverless(spark):
+    conf = ReconcileMetadataConfig()
+    persist = ReconIntermediatePersistUnderTest(spark, conf)
+
+    assert persist.is_serverless is False
