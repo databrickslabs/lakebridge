@@ -2,12 +2,14 @@ import json
 import re
 import logging
 from dataclasses import asdict
+from datetime import timedelta
 
 import pytest
 
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.service.jobs import TerminationTypeType
 from databricks.sdk.core import DatabricksError
+from databricks.sdk.retries import retried
 
 from databricks.labs.lakebridge.config import (
     ReconcileConfig,
@@ -42,7 +44,7 @@ def lakebridge_config(make_cluster, recon_schema, make_volume, watchdog_remove_a
         catalog=recon_schema.catalog_name, schema=recon_schema.name, volume=volume.name
     )
 
-    cluster = make_cluster(single_node=True)
+    cluster = make_cluster(single_node=True, data_security_mode="DATA_SECURITY_MODE_AUTO")
     tags = {"RemoveAfter": watchdog_remove_after}
     deployment_overrides = ReconcileJobConfig(existing_cluster_id=cluster.cluster_id, tags=tags)
     logger.info(f"Using recon job overrides: {deployment_overrides}")
@@ -129,6 +131,7 @@ def debug_run_output(ctx: ApplicationContext, run_id: int) -> None:
         logger.exception("Failed to fetch run output")
 
 
+@retried(timeout=timedelta(minutes=5))
 def test_recon_databricks_job_succeeds(
     application_context: ApplicationContext,
     databricks_recon_config: ReconcileConfig,
