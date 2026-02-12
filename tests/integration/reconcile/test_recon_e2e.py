@@ -2,14 +2,12 @@ import json
 import re
 import logging
 from dataclasses import asdict
-from datetime import timedelta
 
 import pytest
 
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.service.jobs import TerminationTypeType
 from databricks.sdk.core import DatabricksError
-from databricks.sdk.retries import retried
 
 from databricks.labs.lakebridge.config import (
     ReconcileConfig,
@@ -131,7 +129,6 @@ def debug_run_output(ctx: ApplicationContext, run_id: int) -> None:
         logger.exception("Failed to fetch run output")
 
 
-@retried(timeout=timedelta(minutes=5))
 def test_recon_databricks_job_succeeds(
     application_context: ApplicationContext,
     databricks_recon_config: ReconcileConfig,
