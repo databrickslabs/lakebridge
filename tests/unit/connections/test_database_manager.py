@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import MagicMock, patch
 from databricks.labs.lakebridge.connections.database_manager import DatabaseManager, MSSQLConnector
 
 sample_config = {
@@ -73,19 +73,19 @@ def test_mssql_connector_strips_whitespace_from_credentials(mock_create_engine) 
         'driver': 'ODBC Driver 17 for SQL Server ',
         'auth_type': ' sql_authentication ',
     }
-    
+
     mock_engine = MagicMock()
     mock_create_engine.return_value = mock_engine
-    
+
     connector = MSSQLConnector(config_with_whitespace)
-    
+
     # Verify create_engine was called
     assert mock_create_engine.called
-    
+
     # Get the connection string that was passed to create_engine
     call_args = mock_create_engine.call_args
     connection_string = call_args[0][0]
-    
+
     # Verify stripped values in connection string
     assert connection_string.username == 'test_user'
     assert connection_string.password == 'test_pass'
@@ -105,19 +105,19 @@ def test_mssql_connector_strips_auth_type(mock_create_engine) -> None:
         'driver': 'ODBC Driver 17 for SQL Server',
         'auth_type': ' ad_passwd_authentication ',
     }
-    
+
     mock_engine = MagicMock()
     mock_create_engine.return_value = mock_engine
-    
+
     connector = MSSQLConnector(config_with_ad_auth)
-    
+
     # Verify create_engine was called
     assert mock_create_engine.called
-    
+
     # Get the connection string
     call_args = mock_create_engine.call_args
     connection_string = call_args[0][0]
-    
+
     # Verify ActiveDirectoryPassword authentication was set
     assert connection_string.query['authentication'] == 'ActiveDirectoryPassword'
 
@@ -132,19 +132,19 @@ def test_mssql_connector_preserves_internal_spaces(mock_create_engine) -> None:
         'database': 'test db',
         'driver': ' ODBC Driver 17 for SQL Server ',
     }
-    
+
     mock_engine = MagicMock()
     mock_create_engine.return_value = mock_engine
-    
+
     connector = MSSQLConnector(config_with_spaces)
-    
+
     # Verify create_engine was called
     assert mock_create_engine.called
-    
+
     # Get the connection string
     call_args = mock_create_engine.call_args
     connection_string = call_args[0][0]
-    
+
     # Verify internal spaces are preserved
     assert connection_string.username == 'user with spaces'
     assert connection_string.password == 'pass word'

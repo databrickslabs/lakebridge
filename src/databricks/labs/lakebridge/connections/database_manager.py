@@ -101,7 +101,7 @@ class MSSQLConnector(_BaseConnector):
             database=self.config['database'].strip(),
             query=query_params,
         )
-        
+
         return create_engine(connection_string)
 
 

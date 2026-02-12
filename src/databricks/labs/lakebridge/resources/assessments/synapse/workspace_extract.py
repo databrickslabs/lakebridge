@@ -156,7 +156,7 @@ def execute():
             trigger_runs = [run for batch in trigger_runs_batches for run in batch]
             if not trigger_runs:
                 logger.warning(f"No trigger runs found for {last_upd}")
-        
+
         trigger_runs_df = pd.json_normalize(trigger_runs_list)
         insert_df_to_duckdb(trigger_runs_df, db_path, table_name)
 
