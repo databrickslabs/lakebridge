@@ -53,7 +53,23 @@ const config: Config = {
       }
     },
     'docusaurus-plugin-image-zoom',
-    'docusaurus-lunr-search'
+    'docusaurus-lunr-search',
+    [
+      '@signalwire/docusaurus-plugin-llms-txt',
+      {
+        markdown: {
+          enableFiles: false,  // Disable markdown file generation (only llms.txt)
+          relativePaths: true,
+          includeDocs: true,
+        },
+        llmsTxt: {
+          includeDocs: true,
+          siteTitle: 'Lakebridge Documentation',
+          siteDescription: 'Simplified Data Migration Toolkit to ease Migration to Databricks',
+          autoSectionDepth: 1,  // Simple top-level organization
+        },
+      },
+    ]
   ],
 
   presets: [
