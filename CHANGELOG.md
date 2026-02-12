@@ -1,5 +1,101 @@
 # Version changelog
 
+## 0.12.1
+
+## Synapse Profiler
+
+- Fixed several critical errors in the Synapse profiler extraction pipeline, including a type mismatch when initializing the credential manager and handling of empty or partial result sets from Spark data pools.  
+- Added support for an `env` secret type in the Synapse profiler, allowing profiler configurations to resolve secrets from environment variables.  
+- Enhanced the credential manager backing the profiler so it can resolve nested credential structures (for example, workspace config, JDBC settings, and profiler options) instead of only flat key–value maps.  
+- Introduced recursive, type-aware resolution of dictionaries, lists, and strings in profiler-related credentials while preserving primitive values and maintaining backward compatibility with existing configurations.  
+- Enhanced the credential manager to support nested credential structures 
+
+## Analyzer
+
+- Expanded SQL parsing to cover additional TSQL constructs (including CREATE STATISTICS, THROW, and DROP TEMPORARY TABLE IF EXISTS), improving handling of error management, statistics, and temporary tables.  
+- Fixed crashes caused by special characters in mapping names by treating them as escaped literals instead of regex symbols.  
+- Improved reliability of MERGE into partitioned targets with enhanced handling and added test coverage.  
+- Added Jupyter Notebook detection to the Lakebridge analyze command by mapping notebook assets to the JUPYTERNB type and updating local dev tooling ignores.  
+- Simplified analyze filepath handling: `--report-file` now directly controls the Excel filename with consistent relative-path semantics, and `--source-directory` behavior and prompt text are aligned with the implementation.  
+- Removed a confusing “timestamped directory” behavior when the target report file already existed so logs and output now match user expectations.  
+
+## Converters
+
+### Morpheus
+
+#### Snowflake
+
+- Always emit SQL SECURITY INVOKER on generated Snowflake procedures so the security context is explicit and tests align with this behavior.  
+- Improved parsing and generation of INTERVAL literals to support both ANSI-style and Snowflake-style syntaxes.  
+- Implemented correct transpilation of Snowflake INTERVAL literals, including composite values and Snowflake-specific units, into normalized Databricks SQL YEAR TO MONTH and day-time intervals.  
+
+#### Synapse / TSQL / SQL Server
+
+- Improved parsing and handling of logical expressions (AND/OR/NOT) from other expressions in the T-SQL grammar to reduce ambiguity and improve parsing performance.  
+- Added support for T-SQL ALTER DATABASE statements into Databricks SQL ALTER SCHEMA, emitting comments for unmappable features.  
+- Introduced partial support for T-SQL CONVERT, adding indication for unsupported datetime types.
+- Improved typing and parsing of the T-SQL `+` operator so string concatenation is consistently treated as string operations and flattened where possible.  
+- Added T-SQL-specific overrides for equality and missing-value functions to avoid unresolved routines by mapping them to appropriate Databricks SQL equivalents.  
+- Implemented full AST support for T-SQL RAISERROR
+- Supported T-SQL CROSS APPLY by transpiling it to CROSS JOIN LATERAL, with correct join clause and hint formatting.  
+- Implemented T-SQL OUTER APPLY by generating LEFT JOIN LATERAL, with tests for ordering and LIMIT placement.  
+- Fixed transpilation of WHERE … LIKE … so columns and patterns render correctly, including COLLATE expressions.  
+- Added tests for SET within nested IF blocks to validate correct handling of T-SQL control flow without extra variable declarations.  
+- Correctly translated T-SQL DATEDIFF for all date parts into Databricks SQL expressions that match T-SQL boundary-count semantics, with comprehensive tests.  
+- Generated Delta Lake computed columns from T-SQL COMPUTED definitions, including PERSISTED columns, using GENERATED ALWAYS AS in target schemas.  
+- Recognized T-SQL table variables as temporary tables and transpiled them to appropriate temporary table syntax in the target dialect.  
+- Implemented support for T-SQL SELECT … INTO by converting to CREATE TABLE AS SELECT and handling INTO precedence rules, while rewriting Snowflake-style INTO to session variables.  
+- Split T-SQL DECLARE statements with scalar subquery defaults into separate DECLARE and SET statements compatible with Databricks SQL.  
+
+#### General (Morpheus engine)
+
+- Ensured block-level DECLARE variable scoping is dialect-aware by introducing a postDeclare flag so Snowflake-style declarations appear inside blocks.  
+- Cleaned up data type definitions and generators, adding TIME support, refactoring INTERVAL handling, and replacing ir.Byte with ir.TinyInt.  
+- Improved grammar, IR, and generation of INTERVAL literals so Snowflake-like and ANSI-style syntaxes are both supported.  
+- Fixed expression rendering to always emit parentheses for bracketed constructs, including empty window clauses.  
+- Added transformations to hoist DECLARE variables to the start of blocks and wrap batches with blocks when variables are present, improving procedural SQL handling.  
+- Generalized batch-wrapping logic so any scripting statements are encapsulated in BEGIN … END blocks, with tests updated for the new structure.  
+- Added dialect-specific configuration and grammar for IF/WHILE block parsing so T-SQL and Snowflake scripting blocks terminate correctly per dialect.  
+
+### BladeBridge
+
+#### TSQL / SQL Server
+
+- Expanded SQL parsing to include TSQL features such as CREATE STATISTICS, THROW, and DROP TEMPORARY TABLE IF EXISTS, improving conversion robustness for TSQL workloads.  
+- Added support for SELECT column aliasing and extended TSQL keyword recognition to improve conversion of SQL scripts to Databricks-compatible syntax.  
+- Enhanced handling of MERGE statements into specific partitions and added tests to improve conversion reliability for partitioned MERGE patterns.  
+
+#### SSIS
+
+- Ensured deterministic SSIS conversion output by enforcing stable ordering for variables and target columns, improving null handling, and adding tests so repeated runs generate consistent PySpark.  
+
+#### Informatica / IICS
+
+- Implemented the SQL Transform component for Informatica-to-PySpark conversion to cover more data transformation logic.  
+- Added native JDBC/ODBC database connection support for IICS-to-Databricks conversions, allowing direct database reads/writes and fixing connection flag logic for Target components.  
+
+### Switch
+
+#### General
+
+- Used empty strings instead of nulls for optional configuration parameters to simplify downstream handling.  
+- Preserved directory hierarchy in conversion output so generated artifacts mirror the source layout.  
+
+## Reconcile
+
+- Refactored reconciliation intermediate persistence to clean checkpoint volumes after runs, remove overwrite write mode usage, and prefer Delta volumes on Databricks instead of Parquet.  
+- Hid implementation details behind a more generic interface and marked future work to persist to Delta instead of re-reading from source systems.  
+- Improved reconciliation result handling and logging: reconciliation exceptions now raise a ReconciliationException, while mismatches and passes are logged with severity and report type.  
+- Implemented capability-based caching detection to keep reconciliation compatible with Databricks serverless compute, caching only when supported and using Delta writes as materialization boundaries on serverless.  
+
+## Documentation
+
+- Overhaul of documentation to more clearly show which source system is support in which module.
+- Updated analyze command documentation to match the current implementation, simplifying caveats and clarifying expected behavior for `--report-file` and `--source-directory`.  
+
+Dependency updates:
+
+- Bump lodash from 4.17.21 to 4.17.23
 ## Lakebridge v0.12.0 Release Notes
 
 ## Analyzer
