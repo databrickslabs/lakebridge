@@ -3,12 +3,12 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-from unittest.mock import patch
 
 import pytest
 from pyspark.testing import assertDataFrameEqual
 from pyspark.sql import Row
 
+from tests.integration.reconcile.conftest import FakeReconIntermediatePersist
 from tests.conftest import ansi_schema_fixture_factory
 from databricks.labs.lakebridge.config import DatabaseConfig, ReconcileMetadataConfig
 from databricks.labs.lakebridge.reconcile.reconciliation import Reconciliation
@@ -113,58 +113,58 @@ def test_reconcile_aggregate_data_missing_records(
     )
     source = MockDataSource(source_dataframe_repository, source_schema_repository)
     target = MockDataSource(target_dataframe_repository, target_schema_repository)
-    with patch("databricks.labs.lakebridge.reconcile.utils.generate_volume_path", return_value=str(tmp_path)):
-        actual: list[AggregateQueryOutput] = Reconciliation(
-            source,
-            target,
-            database_config,
-            "",
-            SchemaCompare(mock_spark),
-            get_dialect("databricks"),
-            mock_spark,
-            ReconcileMetadataConfig(),
-        ).reconcile_aggregates(normalized_table_conf_with_opts, src_schema, tgt_schema)
+    actual: list[AggregateQueryOutput] = Reconciliation(
+        source,
+        target,
+        database_config,
+        "",
+        SchemaCompare(mock_spark),
+        get_dialect("databricks"),
+        mock_spark,
+        ReconcileMetadataConfig(),
+        FakeReconIntermediatePersist(),
+    ).reconcile_aggregates(normalized_table_conf_with_opts, src_schema, tgt_schema)
 
-        assert len(actual) == 1
+    assert len(actual) == 1
 
-        assert actual[0].rule, "Rule must be generated"
+    assert actual[0].rule, "Rule must be generated"
 
-        assert actual[0].rule.agg_type == "min"
-        assert actual[0].rule.agg_column == "s_acctbal"
-        assert actual[0].rule.group_by_columns is None
-        assert actual[0].rule.group_by_columns_as_str == "NA"
-        assert actual[0].rule.group_by_columns_as_table_column == "NULL"
-        assert actual[0].rule.column_from_rule == "min_s_acctbal_NA"
-        assert actual[0].rule.rule_type == "AGGREGATE"
+    assert actual[0].rule.agg_type == "min"
+    assert actual[0].rule.agg_column == "s_acctbal"
+    assert actual[0].rule.group_by_columns is None
+    assert actual[0].rule.group_by_columns_as_str == "NA"
+    assert actual[0].rule.group_by_columns_as_table_column == "NULL"
+    assert actual[0].rule.column_from_rule == "min_s_acctbal_NA"
+    assert actual[0].rule.rule_type == "AGGREGATE"
 
-        assert actual[0].reconcile_output.mismatch.mismatch_df, "Mismatch dataframe must be present"
-        assert not actual[0].reconcile_output.mismatch.mismatch_df.isEmpty()
+    assert actual[0].reconcile_output.mismatch.mismatch_df, "Mismatch dataframe must be present"
+    assert not actual[0].reconcile_output.mismatch.mismatch_df.isEmpty()
 
-        expected = DataReconcileOutput(
-            mismatch_count=1,
-            missing_in_src_count=0,
-            missing_in_tgt_count=0,
-            mismatch=MismatchOutput(
-                mismatch_columns=None,
-                mismatch_df=mock_spark.createDataFrame(
-                    [
-                        Row(
-                            source_min_s_acctbal=11,
-                            target_min_s_acctbal=10,
-                            match_min_s_acctbal=False,
-                            agg_data_match=False,
-                        )
-                    ]
-                ),
+    expected = DataReconcileOutput(
+        mismatch_count=1,
+        missing_in_src_count=0,
+        missing_in_tgt_count=0,
+        mismatch=MismatchOutput(
+            mismatch_columns=None,
+            mismatch_df=mock_spark.createDataFrame(
+                [
+                    Row(
+                        source_min_s_acctbal=11,
+                        target_min_s_acctbal=10,
+                        match_min_s_acctbal=False,
+                        agg_data_match=False,
+                    )
+                ]
             ),
-        )
+        ),
+    )
 
-        assert actual[0].reconcile_output.mismatch_count == expected.mismatch_count
-        assert actual[0].reconcile_output.missing_in_src_count == expected.missing_in_src_count
-        assert actual[0].reconcile_output.missing_in_tgt_count == expected.missing_in_tgt_count
-        assert actual[0].reconcile_output.mismatch.mismatch_df is not None
-        assert expected.mismatch.mismatch_df is not None
-        assertDataFrameEqual(actual[0].reconcile_output.mismatch.mismatch_df, expected.mismatch.mismatch_df)
+    assert actual[0].reconcile_output.mismatch_count == expected.mismatch_count
+    assert actual[0].reconcile_output.missing_in_src_count == expected.missing_in_src_count
+    assert actual[0].reconcile_output.missing_in_tgt_count == expected.missing_in_tgt_count
+    assert actual[0].reconcile_output.mismatch.mismatch_df is not None
+    assert expected.mismatch.mismatch_df is not None
+    assertDataFrameEqual(actual[0].reconcile_output.mismatch.mismatch_df, expected.mismatch.mismatch_df)
 
 
 def expected_rule_output():
@@ -356,41 +356,41 @@ def test_reconcile_aggregate_data_mismatch_and_missing_records(
     )
     source = MockDataSource(source_dataframe_repository, source_schema_repository, delimiter='"')
     target = MockDataSource(target_dataframe_repository, target_schema_repository)
-    with patch("databricks.labs.lakebridge.reconcile.utils.generate_volume_path", return_value=str(tmp_path)):
-        actual_list: list[AggregateQueryOutput] = Reconciliation(
-            source,
-            target,
-            db_config,
-            "",
-            SchemaCompare(mock_spark),
-            get_dialect("snowflake"),
-            mock_spark,
-            ReconcileMetadataConfig(),
-        ).reconcile_aggregates(normalized_table_conf_with_opts, src_schema, tgt_schema)
+    actual_list: list[AggregateQueryOutput] = Reconciliation(
+        source,
+        target,
+        db_config,
+        "",
+        SchemaCompare(mock_spark),
+        get_dialect("snowflake"),
+        mock_spark,
+        ReconcileMetadataConfig(),
+        FakeReconIntermediatePersist(),
+    ).reconcile_aggregates(normalized_table_conf_with_opts, src_schema, tgt_schema)
 
-        assert len(actual_list) == 4
+    assert len(actual_list) == 4
 
-        for actual in actual_list:
-            assert actual.rule, "Rule must be generated"
-            expected_rule = expected_rule_output().get(actual.rule.agg_type)
-            assert expected_rule, "Rule must be defined in expected"
+    for actual in actual_list:
+        assert actual.rule, "Rule must be generated"
+        expected_rule = expected_rule_output().get(actual.rule.agg_type)
+        assert expected_rule, "Rule must be defined in expected"
 
-            # Rule validations
-            assert actual.rule.agg_type == expected_rule.agg_type
-            assert actual.rule.agg_column == expected_rule.agg_column
-            assert actual.rule.group_by_columns == expected_rule.group_by_columns
-            assert actual.rule.group_by_columns_as_str == expected_rule.group_by_columns_as_str
-            assert actual.rule.group_by_columns_as_table_column == expected_rule.group_by_columns_as_table_column
-            assert (
-                actual.rule.column_from_rule
-                == f"{expected_rule.agg_type}_{expected_rule.agg_column}_{expected_rule.group_by_columns_as_str}"
-            )
-            assert actual.rule.rule_type == "AGGREGATE"
+        # Rule validations
+        assert actual.rule.agg_type == expected_rule.agg_type
+        assert actual.rule.agg_column == expected_rule.agg_column
+        assert actual.rule.group_by_columns == expected_rule.group_by_columns
+        assert actual.rule.group_by_columns_as_str == expected_rule.group_by_columns_as_str
+        assert actual.rule.group_by_columns_as_table_column == expected_rule.group_by_columns_as_table_column
+        assert (
+            actual.rule.column_from_rule
+            == f"{expected_rule.agg_type}_{expected_rule.agg_column}_{expected_rule.group_by_columns_as_str}"
+        )
+        assert actual.rule.rule_type == "AGGREGATE"
 
-            # Reconcile Output validations
-            _compare_reconcile_output(
-                actual.reconcile_output, expected_reconcile_output_dict(mock_spark).get(actual.rule.agg_type)
-            )
+        # Reconcile Output validations
+        _compare_reconcile_output(
+            actual.reconcile_output, expected_reconcile_output_dict(mock_spark).get(actual.rule.agg_type)
+        )
 
 
 def test_run_with_invalid_operation_name(monkeypatch):

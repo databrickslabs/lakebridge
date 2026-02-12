@@ -13,8 +13,8 @@ from databricks.labs.lakebridge.reconcile.connectors.data_source import DataSour
 from databricks.labs.lakebridge.reconcile.exception import DataSourceRuntimeException, ReconciliationException
 from databricks.labs.lakebridge.reconcile.recon_capture import (
     ReconCapture,
-    ReconIntermediatePersist,
     generate_final_reconcile_output,
+    ReconIntermediatePersist,
 )
 from databricks.labs.lakebridge.reconcile.recon_config import Table, Schema
 from databricks.labs.lakebridge.reconcile.recon_output_config import (
@@ -22,6 +22,7 @@ from databricks.labs.lakebridge.reconcile.recon_output_config import (
     ReconcileProcessDuration,
     SchemaReconcileOutput,
     DataReconcileOutput,
+    ReconcileTableOutput,
 )
 from databricks.labs.lakebridge.reconcile.reconciliation import Reconciliation
 from databricks.labs.lakebridge.reconcile.schema_compare import SchemaCompare
@@ -47,17 +48,24 @@ class TriggerReconService:
             ws, spark, reconcile_config, local_test_run
         )
 
-        for table_conf in table_recon.tables:
-            TriggerReconService.recon_one(spark, reconciler, recon_capture, reconcile_config, table_conf)
+        try:
+            for table_conf in table_recon.tables:
+                TriggerReconService.recon_one(reconciler, recon_capture, reconcile_config, table_conf)
 
-        return TriggerReconService.verify_successful_reconciliation(
-            generate_final_reconcile_output(
-                recon_id=recon_capture.recon_id,
-                spark=spark,
-                metadata_config=reconcile_config.metadata_config,
-                local_test_run=local_test_run,
+            return TriggerReconService.verify_successful_reconciliation(
+                generate_final_reconcile_output(
+                    recon_id=recon_capture.recon_id,
+                    spark=spark,
+                    metadata_config=reconcile_config.metadata_config,
+                    local_test_run=local_test_run,
+                ),
+                reconcile_config.report_type,
             )
-        )
+        finally:
+            try:
+                ws.dbfs.delete(str(reconciler.intermediate_persist.base_dir), recursive=True)
+            except IOError:
+                logger.exception("Cleaning intermediate storage failed. Resuming program")
 
     @staticmethod
     def create_recon_dependencies(
@@ -77,7 +85,7 @@ class TriggerReconService:
             secret_scope=reconcile_config.secret_scope,
         )
 
-        recon_id = str(uuid4())
+        recon_id = uuid4().hex
         # initialise the Reconciliation
         reconciler = Reconciliation(
             source,
@@ -88,6 +96,7 @@ class TriggerReconService:
             get_dialect(reconcile_config.data_source),
             spark,
             metadata_config=reconcile_config.metadata_config,
+            intermediate_persist=ReconIntermediatePersist(spark, reconcile_config.metadata_config),
         )
 
         recon_capture = ReconCapture(
@@ -105,7 +114,6 @@ class TriggerReconService:
 
     @staticmethod
     def recon_one(
-        spark: SparkSession,
         reconciler: Reconciliation,
         recon_capture: ReconCapture,
         reconcile_config: ReconcileConfig,
@@ -119,15 +127,12 @@ class TriggerReconService:
             reconciler, reconcile_config, normalized_table_conf
         )
 
-        TriggerReconService.persist_delta_table(
-            spark,
-            reconciler,
-            recon_capture,
-            schema_reconcile_output,
-            data_reconcile_output,
-            reconcile_config,
-            normalized_table_conf,
-            recon_process_duration,
+        recon_capture.start(
+            data_reconcile_output=data_reconcile_output,
+            schema_reconcile_output=schema_reconcile_output,
+            table_conf=table_conf,
+            recon_process_duration=recon_process_duration,
+            record_count=reconciler.get_record_count(table_conf, reconciler.report_type),
         )
 
         return schema_reconcile_output, data_reconcile_output
@@ -215,44 +220,46 @@ class TriggerReconService:
             return DataReconcileOutput(exception=str(e))
 
     @staticmethod
-    def persist_delta_table(
-        spark: SparkSession,
-        reconciler: Reconciliation,
-        recon_capture: ReconCapture,
-        schema_reconcile_output: SchemaReconcileOutput,
-        data_reconcile_output: DataReconcileOutput,
-        reconcile_config: ReconcileConfig,
-        table_conf: Table,
-        recon_process_duration: ReconcileProcessDuration,
-    ):
-        recon_capture.start(
-            data_reconcile_output=data_reconcile_output,
-            schema_reconcile_output=schema_reconcile_output,
-            table_conf=table_conf,
-            recon_process_duration=recon_process_duration,
-            record_count=reconciler.get_record_count(table_conf, reconciler.report_type),
-        )
-        if reconciler.report_type != "schema":
-            ReconIntermediatePersist(
-                spark=spark, path=utils.generate_volume_path(table_conf, reconcile_config.metadata_config)
-            ).clean_unmatched_df_from_volume()
-
-    @staticmethod
-    def verify_successful_reconciliation(
-        reconcile_output: ReconcileOutput, operation_name: str = "reconcile"
-    ) -> ReconcileOutput:
-        for table_output in reconcile_output.results:
-            if table_output.exception_message or (
+    def verify_successful_reconciliation(reconcile_output: ReconcileOutput, report_type: str) -> ReconcileOutput:
+        def is_table_recon_mismatch(table_output: ReconcileTableOutput):
+            is_mismatch = (
                 table_output.status.column is False
                 or table_output.status.row is False
                 or table_output.status.schema is False
                 or table_output.status.aggregate is False
-            ):
-                raise ReconciliationException(
-                    f" Reconciliation failed for one or more tables. Please check the recon metrics for more details."
-                    f" **{operation_name}** failed.",
-                    reconcile_output=reconcile_output,
+            )
+            if is_mismatch:
+                logger.debug(
+                    f"Mismatches found between source and target tables:"
+                    f" ({table_output.source_table_name}, {table_output.target_table_name})."
                 )
 
-        logger.info("Reconciliation completed successfully.")
+            return is_mismatch
+
+        exceptions = [r for r in reconcile_output.results if r.exception_message]
+        mismatched = [r for r in reconcile_output.results if is_table_recon_mismatch(r)]
+
+        (total_count, exc_count, mismatched_count) = (len(reconcile_output.results), len(exceptions), len(mismatched))
+        success_count = max(0, total_count - exc_count + mismatched_count)
+
+        logger.info(
+            f"Reconciliation **{report_type}** with id: {reconcile_output.recon_id} ran for total {total_count} source tables and their targets."
+            f" {success_count} tables succeeded, {exc_count} tables failed with exceptions and {mismatched_count} tables mismatched."
+        )
+
+        if exceptions:
+            raise ReconciliationException(
+                f"Reconciliation **{report_type}** with id: {reconcile_output.recon_id} failed with exceptions for {exc_count} table(s). Please check recon metrics for details.",
+                reconcile_output=reconcile_output,
+            )
+
+        if mismatched:
+            logger.error(
+                f"Reconciliation **{report_type}** with id: {reconcile_output.recon_id} found mismatches in {mismatched_count} table(s). Please check recon metrics for details."
+            )
+        else:
+            logger.info(
+                f"Reconciliation **{report_type}** with id: {reconcile_output.recon_id} completed successfully. Please check recon metrics for details."
+            )
+
         return reconcile_output

@@ -26,6 +26,8 @@ def arguments_loader(desc: str):
         print(json.dumps({"status": "error", "message": msg}), file=sys.stderr)
         raise ValueError("Credential config file must have 'credentials.yml' extension")
 
+    # file exists check takes place within the entry point so not replicating this here check cli.py execute-profiler
+
     return args.db_path, credential_file
 
 

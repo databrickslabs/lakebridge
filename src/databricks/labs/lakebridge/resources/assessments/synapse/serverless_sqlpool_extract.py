@@ -7,6 +7,7 @@ from databricks.labs.blueprint.entrypoint import get_logger
 from databricks.labs.lakebridge import initialize_logging
 from databricks.labs.lakebridge.assessments import PRODUCT_NAME
 from databricks.labs.lakebridge.connections.credential_manager import create_credential_manager
+from databricks.labs.lakebridge.connections.env_getter import EnvGetter
 from databricks.labs.lakebridge.resources.assessments.synapse.common.duckdb_helpers import (
     save_resultset_to_db,
     get_max_column_value_duckdb,
@@ -54,7 +55,7 @@ def get_serverless_database_groups(
 def execute():
     db_path, creds_file = arguments_loader(desc="Synapse Synapse Serverless SQL Pool Extract Script")
 
-    cred_manager = create_credential_manager(PRODUCT_NAME, creds_file)
+    cred_manager = create_credential_manager(PRODUCT_NAME, EnvGetter())
     synapse_workspace_settings = cred_manager.get_credentials("synapse")
     config = synapse_workspace_settings["workspace"]
     auth_type = synapse_workspace_settings["jdbc"].get("auth_type", "sql_authentication")
