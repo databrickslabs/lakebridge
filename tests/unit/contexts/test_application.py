@@ -90,9 +90,9 @@ def test_workspace_context_attributes_not_none(ws):
     assert hasattr(ctx, "recon_config")
     assert ctx.recon_config is not None
     assert hasattr(ctx, "remorph_config")
-    assert ctx.remorph_config is not None
-    assert ctx.remorph_config.transpile is not None
-    assert ctx.remorph_config.reconcile_metadata is not None
+    assert ctx.uninstall_config is not None
+    assert ctx.uninstall_config.transpile is not None
+    assert ctx.uninstall_config.reconcile_metadata is not None
     assert hasattr(ctx, "install_state")
     assert ctx.install_state is not None
 
@@ -118,6 +118,6 @@ def test_workspace_context_missing_configs(ws):
     assert hasattr(ctx, "recon_config")
     assert ctx.recon_config is None
     assert hasattr(ctx, "remorph_config")
-    assert ctx.remorph_config is not None
-    assert ctx.remorph_config.transpile is None
-    assert ctx.remorph_config.reconcile is None
+    assert ctx.uninstall_config is not None
+    assert ctx.uninstall_config.transpile is None
+    assert ctx.uninstall_config.reconcile is None

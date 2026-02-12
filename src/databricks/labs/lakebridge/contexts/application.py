@@ -70,7 +70,7 @@ class ApplicationContext:
             return None
 
     @cached_property
-    def remorph_config(self) -> LakebridgeConfiguration:
+    def uninstall_config(self) -> LakebridgeConfiguration:
         return LakebridgeConfiguration(
             transpile=self.transpile_config,
             reconcile_metadata=self.recon_config.metadata_config if self.recon_config else None,

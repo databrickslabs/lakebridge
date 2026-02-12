@@ -10,7 +10,7 @@ def run(context: ApplicationContext):
         "Do you want to uninstall Lakebridge from the workspace too, this would "
         "remove Lakebridge project folder, jobs, metadata and dashboards"
     ):
-        context.workspace_installation.uninstall(context.remorph_config)
+        context.workspace_installation.uninstall(context.uninstall_config)
 
 
 if __name__ == "__main__":
