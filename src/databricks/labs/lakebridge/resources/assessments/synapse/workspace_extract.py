@@ -137,6 +137,9 @@ def execute():
                 # Each batch is a list of dictionaries
                 has_runs = True
                 for run in batch:
+                    if not isinstance(run, dict):
+                        logger.error(f"Unexpected data export in pipeline_runs: {batch}")
+                        raise ValueError(f"Invalid data export in pipeline_runs")
                     run['last_upd'] = last_upd
                     pipeline_runs_list.append(run)
             
@@ -161,6 +164,9 @@ def execute():
                 # Each batch is a list of dictionaries
                 has_runs = True
                 for run in batch:
+                    if not isinstance(run, dict):
+                        logger.error(f"Unexpected data export in trigger_runs: {batch}")
+                        raise ValueError(f"Invalid data export in trigger_runs")
                     run['last_upd'] = last_upd
                     trigger_runs_list.append(run)
             
