@@ -1769,7 +1769,7 @@ def test_data_recon_with_general_exception(
         data=[
             (
                 33333,
-                (0, 0, None, None, None),
+                (3, 3, None, None, None),
                 (
                     False,
                     "remorph",
