@@ -1,3 +1,4 @@
+# Databricks notebook source
 import dataclasses
 import logging
 from abc import ABC, abstractmethod
@@ -60,6 +61,7 @@ def _create_connector(db_type: str, config: dict[str, Any]) -> DatabaseConnector
         "snowflake": SnowflakeConnector,
         "mssql": MSSQLConnector,
         "tsql": MSSQLConnector,
+        "redshift": RedshiftConnector
     }
 
     connector_class = connectors.get(db_type.lower())
@@ -104,6 +106,20 @@ class MSSQLConnector(_BaseConnector):
         )
         return create_engine(connection_string)
 
+class RedshiftConnector(_BaseConnector):
+    def _connect(self) -> Engine:
+
+        db_name = self.config.get('database')
+        connection_string = URL.create(
+        drivername="redshift+redshift_connector",
+        username=self.config['user'],
+        password=self.config['password'],
+        host=self.config['host'],
+        port=self.config.get('tnsPort', 5439),
+        database=db_name
+        )
+
+        return create_engine(connection_string)
 
 class DatabaseManager:
     def __init__(self, db_type: str, config: dict[str, Any]):
