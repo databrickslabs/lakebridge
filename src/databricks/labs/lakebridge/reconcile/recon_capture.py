@@ -45,6 +45,10 @@ class AbstractReconIntermediatePersist:
     def base_dir(self) -> Path:
         raise NotImplementedError
 
+    @property
+    def is_serverless(self) -> bool:
+        raise NotImplementedError
+
     def write_and_read_df_with_volumes(
         self,
         df: DataFrame,
@@ -68,6 +72,11 @@ class ReconIntermediatePersist(AbstractReconIntermediatePersist):
     @property
     def base_dir(self) -> Path:
         return Path(self._base_dir)
+
+    @cached_property
+    def is_serverless(self) -> bool:
+        is_serverless = os.getenv("IS_SERVERLESS", "").lower() == "true"
+        return is_serverless
 
     @property
     def _get_uc_volume_path(self):
