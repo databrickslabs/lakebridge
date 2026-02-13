@@ -389,14 +389,15 @@ base_datastage2databricks_pyspark.json
 
 ### Custom Configuration Override
 
-Use the `-u` flag to provide custom configuration overrides:
+Use the `--transpiler-config-path` switch to provide custom configuration overrides:
 
 ```bash
 databricks labs lakebridge transpile \
   --source-dialect datastage \
   --input-source /path/to/datastage/exports \
   --output-folder /output/sparksql \
-  --target-technology sparksql
+  --target-technology sparksql \
+  --transpiler-config-path /path/to/custom/config
 ```
 
 ### Function Translation
