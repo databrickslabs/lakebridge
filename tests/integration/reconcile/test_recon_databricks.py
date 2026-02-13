@@ -52,7 +52,8 @@ def recon_config(make_cluster, watchdog_remove_after: str, recon_schema: SchemaI
             cluster_name="reconcile_e2e",
             data_security_mode=DataSecurityMode.DATA_SECURITY_MODE_AUTO,
             kind=Kind.CLASSIC_PREVIEW,
-            num_workers=2,)
+            num_workers=2,
+        )
         .result()
         .cluster_id
     )
