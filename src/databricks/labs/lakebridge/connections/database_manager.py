@@ -115,7 +115,7 @@ class RedshiftConnector(_BaseConnector):
         username=self.config['user'],
         password=self.config['password'],
         host=self.config['host'],
-        port=self.config.get('tnsPort', 5439),
+        port=self.config.get('port', 5439),
         database=db_name
         )
 
