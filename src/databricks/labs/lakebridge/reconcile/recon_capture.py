@@ -393,6 +393,8 @@ class ReconCapture:
             f"""
                 select {recon_table_id} as recon_table_id,
                 named_struct(
+                    'source_record_count', cast({record_count.source} as bigint),
+                    'target_record_count', cast({record_count.target} as bigint),
                     'row_comparison', case when '{self.report_type.lower()}' in ('all', 'row', 'data')
                         and '{exception_msg}' = '' then
                      named_struct(
