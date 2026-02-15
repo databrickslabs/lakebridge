@@ -1,4 +1,3 @@
-# Databricks notebook source
 from abc import ABC, abstractmethod
 from pathlib import Path
 import logging
@@ -107,6 +106,18 @@ class ConfigureSqlServerAssessment(AssessmentConfigurator):
         return source
 
 
+# Redshift auth methods (connection still via SQLAlchemy + user/password from config; no boto3).
+REDSHIFT_AUTH_METHODS = [
+    "database_password",
+    "temporary_credentials_db_user",
+    "temporary_credentials_iam",
+    "federated_user",
+    "secrets_manager",
+]
+
+REDSHIFT_CREDENTIAL_SOURCES = ["local", "env", "file"]
+
+
 class ConfigureRedshiftAssessment(AssessmentConfigurator):
     """Redshift specific assessment configuration."""
 
@@ -115,11 +126,16 @@ class ConfigureRedshiftAssessment(AssessmentConfigurator):
         source = self._source_name
 
         logger.info(
-            "\n(local | env | file) \nlocal = plain text in file, env = values from environment variables, "
-            "file = use existing credential file if it exists else prompt\n",
+            "Redshift authentication: database_password, temporary_credentials_db_user, "
+            "temporary_credentials_iam, federated_user, or secrets_manager. "
+            "Credentials are provided via local (plain text in file), env (environment variables), "
+            "or file (use existing credential file if valid else prompt)."
         )
+        auth_method = str(
+            self.prompts.choice("Authentication method", REDSHIFT_AUTH_METHODS)
+        ).lower()
         choice = str(
-            self.prompts.choice("Enter secret vault type (local | env | file)", ["local", "env", "file"])
+            self.prompts.choice("Credential source (local | env | file)", REDSHIFT_CREDENTIAL_SOURCES)
         ).lower()
         if choice == "file":
             if cred_file.exists():
@@ -144,6 +160,7 @@ class ConfigureRedshiftAssessment(AssessmentConfigurator):
             "secret_vault_type": secret_vault_type,
             "secret_vault_name": secret_vault_name,
             source: {
+                "auth_method": auth_method,
                 "host": self.prompts.question("Enter the Redshift cluster endpoint (host)"),
                 "port": int(self.prompts.question("Enter the port details", valid_number=True, default="5439")),
                 "database": self.prompts.question("Enter the database name"),
