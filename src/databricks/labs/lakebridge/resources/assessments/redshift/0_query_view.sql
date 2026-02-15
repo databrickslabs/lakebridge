@@ -36,4 +36,4 @@ as
  )
 ;
 
-select * from query_view;
+select * from query_view limit 10;
