@@ -79,11 +79,11 @@ class DashboardManager:
         Existing dashboards are automatically replaced with the latest dashboard template.
         """
 
-        # Load the dashboard template
+        # Load the dashboard template (template filename: {source_system}_dashboard.lvdash.json)
         logging.info(f"Loading dashboard template from folder: {folder}")
         dash_reference = f"{folder.stem}".lower()
         dashboard_loader = DashboardTemplateLoader(folder)
-        dashboard_json = dashboard_loader.load(source_system="synapse")
+        dashboard_json = dashboard_loader.load(source_system=dash_reference)
         dashboard_str = json.dumps(dashboard_json)
 
         # Replace catalog and schema placeholders
