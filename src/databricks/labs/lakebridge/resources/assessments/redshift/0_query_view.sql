@@ -35,3 +35,5 @@ as
    and query_label not like 'stmt%')
  )
 ;
+
+select * from query_view;
