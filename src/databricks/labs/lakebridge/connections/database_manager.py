@@ -16,16 +16,14 @@ from sqlalchemy.orm.session import Session
 from sqlalchemy.dialects import registry
 from sqlalchemy.dialects.postgresql.psycopg2 import PGDialect_psycopg2
 
+logger = logging.getLogger(__name__)
+
 class RedshiftDialect_psycopg2(PGDialect_psycopg2):
     """Use PostgreSQL dialect but skip standard_conforming_strings (not supported by Redshift)."""
-    supports_statement_cache = True  # Use SQL compilation caching (removes SAWarning)
-
+    supports_statement_cache = True 
     def _set_backslash_escapes(self, connection):
         self._backslash_escapes = False
 
-registry.register("redshift_psycopg2", __name__, "RedshiftDialect_psycopg2")
-
-logger = logging.getLogger(__name__)
 
 @dataclasses.dataclass
 class FetchResult:
@@ -118,6 +116,8 @@ class MSSQLConnector(_BaseConnector):
 
 class RedshiftConnector(_BaseConnector):
     def _connect(self) -> Engine:
+
+        registry.register("redshift_psycopg2", __name__, "RedshiftDialect_psycopg2")
 
         db_name = self.config.get('database')
         connection_string = URL.create(
