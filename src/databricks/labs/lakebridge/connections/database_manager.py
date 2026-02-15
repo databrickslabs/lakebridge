@@ -118,10 +118,10 @@ class MSSQLConnector(_BaseConnector):
 
 class RedshiftConnector(_BaseConnector):
     def _connect(self) -> Engine:
-        
+
         db_name = self.config.get('database')
         connection_string = URL.create(
-            drivername="postgresql+psycopg2",
+            drivername="redshift_psycopg2",
             username=self.config['user'],
             password=self.config['password'],
             host=self.config['host'],
