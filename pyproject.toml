@@ -38,7 +38,7 @@ dependencies = [
   "cryptography>=44.0.2,<46.1.0",
   "pyodbc~=5.2.0",
   "SQLAlchemy~=2.0.40",
-  "sqlalchemy-redshift==0.8.14",
+  "sqlalchemy-redshift",
   "redshift-connector==2.1.3",
   "pygls~=2.0.0",
   "duckdb~=1.2.2",
