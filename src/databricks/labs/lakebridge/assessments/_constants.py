@@ -4,9 +4,13 @@ from pathlib import Path
 PRODUCT_NAME = "lakebridge"
 PRODUCT_PATH_PREFIX = Path.home() / ".databricks" / "labs" / PRODUCT_NAME / "lib"
 
+REDSHIFT_VARIANTS = ["serverless", "provisioned", "provisioned_multi_az"]
+
+REDSHIFT_CONFIG_PATH_TEMPLATE = "src/databricks/labs/lakebridge/resources/assessments/redshift/{variant}/pipeline_config.yml"
+
 PLATFORM_TO_SOURCE_TECHNOLOGY_CFG = {
     "synapse": "src/databricks/labs/lakebridge/resources/assessments/synapse/pipeline_config.yml",
-    "redshift": "src/databricks/labs/lakebridge/resources/assessments/redshift/pipeline_config.yml",
+    "redshift": None,  # path resolved via REDSHIFT_CONFIG_PATH_TEMPLATE + variant
 }
 
 # TODO modify this PLATFORM_TO_SOURCE_TECHNOLOGY.keys() once all platforms are supported

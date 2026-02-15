@@ -13,6 +13,7 @@ from databricks.labs.lakebridge.assessments import (
     PRODUCT_PATH_PREFIX,
     PLATFORM_TO_SOURCE_TECHNOLOGY_CFG,
     CONNECTOR_REQUIRED,
+    REDSHIFT_CONFIG_PATH_TEMPLATE,
 )
 
 logger = logging.getLogger(__name__)
@@ -25,13 +26,18 @@ class Profiler:
         self._pipeline_config = pipeline_configs
 
     @classmethod
-    def create(cls, platform: str) -> "Profiler":
-        pipeline_config_path = PLATFORM_TO_SOURCE_TECHNOLOGY_CFG.get(platform, None)
+    def create(cls, platform: str, *, redshift_variant: str | None = None) -> "Profiler":
+        platform_lower = platform.lower()
+        pipeline_config_path = PLATFORM_TO_SOURCE_TECHNOLOGY_CFG.get(platform_lower, None)
+        if platform_lower == "redshift":
+            if not redshift_variant:
+                raise ValueError("redshift_variant is required when platform is redshift")
+            pipeline_config_path = REDSHIFT_CONFIG_PATH_TEMPLATE.format(variant=redshift_variant)
         pipeline_config = None
         if pipeline_config_path:
             pipeline_config_absolute_path = Profiler._locate_config(pipeline_config_path)
             pipeline_config = Profiler.path_modifier(config_file=pipeline_config_absolute_path)
-        return cls(platform, pipeline_config)
+        return cls(platform_lower, pipeline_config)
 
     @classmethod
     def supported_platforms(cls) -> list[str]:
