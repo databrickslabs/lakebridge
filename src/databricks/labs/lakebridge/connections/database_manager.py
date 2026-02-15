@@ -19,7 +19,7 @@ from sqlalchemy.dialects.postgresql.psycopg2 import PGDialect_psycopg2
 logger = logging.getLogger(__name__)
 
 class RedshiftDialect_psycopg2(PGDialect_psycopg2):
-    """Use PostgreSQL dialect but skip standard_conforming_strings (not supported by Redshift). """
+    """Use PostgreSQL dialect but skip standard_conforming_strings (not supported by Redshift)."""
     supports_statement_cache = True 
     def _set_backslash_escapes(self, connection):
         self._backslash_escapes = False
