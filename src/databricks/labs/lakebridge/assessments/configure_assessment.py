@@ -1,3 +1,4 @@
+# Databricks notebook source
 from abc import ABC, abstractmethod
 from pathlib import Path
 import logging
@@ -114,10 +115,27 @@ class ConfigureRedshiftAssessment(AssessmentConfigurator):
         source = self._source_name
 
         logger.info(
-            "\n(local | env) \nlocal means values are read as plain text \nenv means values are read "
-            "from environment variables fall back to plain text if not variable is not found\n",
+            "\n(local | env | file) \nlocal = plain text in file, env = values from environment variables, "
+            "file = use existing credential file if it exists else prompt\n",
         )
-        secret_vault_type = str(self.prompts.choice("Enter secret vault type (local | env)", ["local", "env"])).lower()
+        choice = str(
+            self.prompts.choice("Enter secret vault type (local | env | file)", ["local", "env", "file"])
+        ).lower()
+        if choice == "file":
+            if cred_file.exists():
+                try:
+                    with open(cred_file, encoding="utf-8") as f:
+                        data = yaml.safe_load(f)
+                except (yaml.YAMLError, OSError):
+                    data = None
+                source_creds = data.get(source) if data and isinstance(data, dict) else None
+                required = ["host", "port", "database", "user", "password"]
+                if source_creds and isinstance(source_creds, dict) and all(k in source_creds for k in required):
+                    logger.info(f"Using existing credential file at {cred_file}.")
+                    return source
+            logger.info("Credential file not found or incomplete, prompting for connection details.")
+            choice = "local"
+        secret_vault_type = choice
         secret_vault_name = None
 
         logger.info("Please refer to the documentation to understand the difference between local and env.")
