@@ -1041,7 +1041,8 @@ def create_profiler_dashboard(
     ctx.dashboard_manager.upload_duckdb_to_uc_volume(extract_file, volume_path)
     if source_tech.lower() == "redshift":
         logger.info(
-            "For Redshift this command only uploads the profiler extract file to the volume; no dashboard is created."
+            "For Redshift (serverless, provisioned, or provisioned_multi_az) this command only uploads the profiler "
+            "extract file to the volume; no dashboard is created."
         )
         return
     ctx.dashboard_manager.create_profiler_summary_dashboard(source_tech, catalog_name, schema_name)
