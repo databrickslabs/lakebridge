@@ -107,9 +107,14 @@ class DashboardManager:
             dashboard = self._ws.lakeview.create(dashboard=dashboard)
         except DatabricksError as e:
             logging.error(f"Could not create profiler summary dashboard: {e}")
+            raise
 
         assert dashboard.dashboard_id is not None
-        logging.info(f"Created dashboard '{dashboard.dashboard_id}' in workspace location {ws_parent_path}.")
+        logging.info(
+            f"Created dashboard '{dashboard.dashboard_id}' (name: {self._DASHBOARD_NAME}). "
+            f"Workspace path: {ws_parent_path}. "
+            "Find it: Workspace → your user folder → lakebridge → dashboards, or open Lakeview/Dashboards and search for the dashboard name."
+        )
         self._install_state.dashboards[dash_reference] = dashboard.dashboard_id
         return dashboard
 
@@ -137,6 +142,10 @@ class DashboardManager:
         self._create_or_replace_dashboard(
             folder=template_folder, ws_parent_path=ws_parent_path, dest_catalog=catalog_name, dest_schema=schema_name
         )
+        logger.info(
+            f"Dashboard deployed. Workspace folder: {ws_parent_path}. "
+            "Open Databricks → Workspace → your user (e.g. Users → your_email) → lakebridge → dashboards; or use Lakeview/Dashboards in the sidebar and look for 'Lakebridge Profiler Assessment'."
+        )
 
     def upload_duckdb_to_uc_volume(self, local_file_path, volume_path):
         """
@@ -162,7 +171,10 @@ class DashboardManager:
                 file_bytes = f.read()
                 binary_data = io.BytesIO(file_bytes)
                 self._ws.files.upload(volume_path, binary_data, overwrite=True)
-            logger.info(f"Successfully uploaded {local_file_path} to {volume_path}")
+            logger.info(
+                f"Successfully uploaded {local_file_path} to {volume_path}. "
+                "Find it: Catalog Explorer → Volumes → <catalog> → <schema> → <volume> → path (e.g. redshift_assessment/serverless/profiler_extract.db)."
+            )
             return True
         except FileNotFoundError as e:
             logger.error(f"Profiler extract file was not found: \n{e}")
