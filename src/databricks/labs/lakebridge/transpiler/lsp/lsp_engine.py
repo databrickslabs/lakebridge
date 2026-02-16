@@ -21,15 +21,20 @@ from lsprotocol import types as types_module
 from lsprotocol.types import (
     CLIENT_REGISTER_CAPABILITY,
     METHOD_TO_TYPES,
+    WORKSPACE_APPLY_EDIT,
+    ApplyWorkspaceEditParams,
+    ApplyWorkspaceEditResult,
     ClientCapabilities,
     ClientInfo,
     Diagnostic,
     DiagnosticSeverity,
     DidCloseTextDocumentParams,
     DidOpenTextDocumentParams,
+    GeneralClientCapabilities,
     InitializeParams,
     InitializeResult,
     LanguageKind,
+    WorkspaceClientCapabilities,
 )
 from lsprotocol.types import Position as LSPPosition
 from lsprotocol.types import Range as LSPRange
@@ -43,6 +48,7 @@ from databricks.labs.blueprint.wheels import ProductInfo
 from databricks.labs.lakebridge.config import LSPConfigOptionV1, TranspileConfig, TranspileResult, extract_string_field
 from databricks.labs.lakebridge.errors.exceptions import IllegalStateException
 from databricks.labs.lakebridge.helpers.file_utils import is_dbt_project_file, is_sql_file
+from databricks.labs.lakebridge.transpiler.lsp.editing import Editor, LakebridgeEditor
 from databricks.labs.lakebridge.transpiler.transpile_engine import TranspileEngine
 from databricks.labs.lakebridge.transpiler.transpile_status import (
     CodePosition,
@@ -331,8 +337,11 @@ class ExtendableLanguageClient(LanguageClient):
 
 class LakebridgeLanguageClient(ExtendableLanguageClient):
 
+    _editor: Editor | None
+
     def __init__(self, name: str, version: str) -> None:
         super().__init__(name, version)
+        self._editor = None
         self._transpile_to_databricks_capability: Registration | None = None
 
     @property
@@ -401,6 +410,21 @@ class LakebridgeLanguageClient(ExtendableLanguageClient):
             if not self._stop_event.is_set():
                 logger.warning("LSP server stderr closed prematurely, no more output will be logged.")
         logger.debug("Finished piping stderr from subprocess.")
+
+    @property
+    def editor(self) -> Editor:
+        if (editor := self._editor) is None:
+            raise AttributeError("Editor has not been set", name="editor", obj=self)
+        return editor
+
+    @editor.setter
+    def editor(self, editor: Editor) -> None:
+        self._editor = editor
+
+    @lsp_feature(WORKSPACE_APPLY_EDIT)
+    async def edit(self, params: ApplyWorkspaceEditParams) -> ApplyWorkspaceEditResult:
+        logger.debug(f"Applying edit: {params}")
+        return self.editor.apply(params.edit)
 
 
 class ChangeManager(abc.ABC):
@@ -562,6 +586,10 @@ class LSPEngine(TranspileEngine):
         await self._start_server()
         input_path = config.input_path
         root_path = input_path if input_path.is_dir() else input_path.parent
+        output_path = config.output_path
+        if output_path is None:
+            raise ValueError("Missing config output location, must be set.")
+        self._client.editor = LakebridgeEditor.retargeting_editor(base=root_path, target=output_path)
         params = InitializeParams(
             capabilities=self._client_capabilities(),
             client_info=ClientInfo(name=self._client.name, version=self._client.version),
@@ -644,7 +672,12 @@ class LSPEngine(TranspileEngine):
         await self._client.start_io(executable, *args, env=env, cwd=self._workdir)
 
     def _client_capabilities(self):
-        return ClientCapabilities()  # TODO do we need to refine this ?
+        return ClientCapabilities(
+            general=GeneralClientCapabilities(position_encodings=["utf-8", "utf-16"]),
+            # TODO: Support progress reporting.
+            # window=WindowClientCapabilities(work_done_progress=True),
+            workspace=WorkspaceClientCapabilities(apply_edit=True, workspace_edit=self._client.editor.capabilities()),
+        )
 
     def _initialization_options(self, config: TranspileConfig):
         return {

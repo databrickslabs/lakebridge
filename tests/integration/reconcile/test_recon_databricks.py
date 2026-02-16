@@ -8,6 +8,7 @@ import pytest
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.service.jobs import TerminationTypeType
 from databricks.sdk.core import DatabricksError
+from databricks.sdk.service.compute import DataSecurityMode, Kind
 
 from databricks.labs.lakebridge.config import (
     ReconcileConfig,
@@ -21,7 +22,6 @@ from databricks.labs.lakebridge.contexts.application import ApplicationContext
 from databricks.labs.lakebridge.reconcile.recon_config import RECONCILE_OPERATION_NAME, Table
 from databricks.labs.lakebridge.reconcile.runner import ReconcileRunner
 from databricks.sdk.service.catalog import TableInfo, SchemaInfo
-from tests.integration.debug_envgetter import TestEnvGetter
 
 logger = logging.getLogger(__name__)
 
@@ -44,12 +44,21 @@ def recon_table_config(recon_schema: SchemaInfo, recon_tables: tuple[TableInfo, 
 
 
 @pytest.fixture
-def recon_config(watchdog_remove_after: str, recon_schema: SchemaInfo, make_volume) -> ReconcileConfig:
+def recon_config(make_cluster, watchdog_remove_after: str, recon_schema: SchemaInfo, make_volume) -> ReconcileConfig:
     volume = make_volume(catalog_name=recon_schema.catalog_name, schema_name=recon_schema.name, name=recon_schema.name)
 
-    test_env = TestEnvGetter(True)
-    cluster = test_env.get("DATABRICKS_CLUSTER_ID")
     tags = {"RemoveAfter": watchdog_remove_after}
+    cluster = (
+        make_cluster(
+            cluster_name="reconcile_e2e",
+            data_security_mode=DataSecurityMode.DATA_SECURITY_MODE_AUTO,
+            kind=Kind.CLASSIC_PREVIEW,
+            num_workers=2,
+            custom_tags=tags,
+        )
+        .result()
+        .cluster_id
+    )
     deployment_overrides = ReconcileJobConfig(existing_cluster_id=cluster, tags=tags)
     logger.info(f"Using recon job overrides: {deployment_overrides}")
 

@@ -2,8 +2,6 @@ import contextlib
 import logging
 import os
 from pathlib import Path
-from shutil import move, Error
-from datetime import datetime
 from collections.abc import Generator
 
 logger = logging.getLogger(__name__)
@@ -84,18 +82,3 @@ def check_path(path: Path | str) -> bool:
     except OSError as e:
         logger.warning(f"Could not validate path: {path}, error: {e}")
         return False
-
-
-def move_tmp_file(tmp_path: Path, output_path: Path) -> None:
-    """Process file from a temp directory"""
-    try:
-        move(tmp_path, output_path.parent)
-    except (FileExistsError, Error):
-        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-        new_output_path = output_path.parent / timestamp
-        new_output_path.mkdir(exist_ok=True)
-
-        move(tmp_path, new_output_path)
-    finally:
-        tmp_path.parent.rmdir()
-        logger.info(f"Results store at {output_path}")

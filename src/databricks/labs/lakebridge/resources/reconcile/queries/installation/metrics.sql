@@ -1,6 +1,8 @@
 CREATE TABLE IF NOT EXISTS metrics (
     recon_table_id BIGINT NOT NULL,
     recon_metrics STRUCT<
+                        source_record_count: BIGINT,
+                        target_record_count: BIGINT,
                         row_comparison: STRUCT<
                                                 missing_in_source: BIGINT,
                                                 missing_in_target: BIGINT
