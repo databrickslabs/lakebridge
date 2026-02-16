@@ -29,6 +29,7 @@ classifiers = [
 ]
 
 dependencies = [
+  "boto3>=1.28.0",
   "databricks-sdk~=0.85.0",
   "standard-distutils~=3.11.9; python_version>='3.11'",
   "databricks-bb-analyzer~=0.2.0",
