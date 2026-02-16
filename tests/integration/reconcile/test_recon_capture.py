@@ -164,6 +164,8 @@ def test_recon_capture_start_snowflake_all(mock_workspace_client, mock_spark, re
     remorph_recon_metrics_df = spark.sql(f"select * from {recon_metadata.schema}.metrics")
     row = remorph_recon_metrics_df.collect()[0]
     assert remorph_recon_metrics_df.count() == 1
+    assert row.recon_metrics.source_record_count == 5
+    assert row.recon_metrics.target_record_count == 5
     assert row.recon_metrics.row_comparison.missing_in_source == 3
     assert row.recon_metrics.row_comparison.missing_in_target == 4
     assert row.recon_metrics.column_comparison.absolute_mismatch == 2
