@@ -56,7 +56,7 @@ def recon_config(make_cluster, watchdog_remove_after: str, recon_schema: SchemaI
         .result()
         .cluster_id
     )
-    deployment_overrides = ReconcileJobConfig(existing_cluster_id=cluster)
+    deployment_overrides = ReconcileJobConfig(existing_cluster_id=cluster, tags={"lakebridge": "reconcile_test"})
     logger.info(f"Using recon job overrides: {deployment_overrides}")
 
     assert recon_schema.catalog_name
