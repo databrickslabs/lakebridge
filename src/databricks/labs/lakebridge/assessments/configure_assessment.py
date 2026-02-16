@@ -171,7 +171,7 @@ class ConfigureRedshiftAssessment(AssessmentConfigurator):
         source_creds: dict[str, Any] = {"auth_method": auth_method, "ssl": ssl_choice}
         if auth_method == "secrets_manager":
             source_creds["secrets_manager_secret_arn"] = self.prompts.question(
-                "Enter the AWS Secrets Manager secret ARN (or secret name) with Redshift connection JSON",
+                "Enter the AWS Secrets Manager secret ARN with Redshift connection JSON",
             )
             source_creds["aws_profile"] = self.prompts.question(
                 "Enter the AWS profile name (or leave empty for default)",

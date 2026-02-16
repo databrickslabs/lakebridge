@@ -162,7 +162,7 @@ def _get_redshift_secrets_manager_credentials(config: dict[str, Any]) -> dict[st
         raise ConnectionError(
             "secrets_manager auth requires boto3. Install with: pip install boto3"
         ) from e
-    secret_arn = (config.get("secrets_manager_secret_arn") or config.get("secrets_manager_secret_id") or "").strip()
+    secret_arn = (config.get("secrets_manager_secret_arn") or "").strip()
     if not secret_arn:
         raise ConnectionError("secrets_manager auth requires secrets_manager_secret_arn in config.")
     profile = config.get("aws_profile") or os.environ.get("AWS_PROFILE")
