@@ -125,7 +125,7 @@ class RedshiftConnector(_BaseConnector):
         db_name = self.config.get('database') or ""
         user = quote_plus(str(self.config['user']))
         password = quote_plus(str(self.config['password']))
-        url_str = f"redshift_psycopg2://{user}:{password}@{host}:{port}/{db_name}"
+        url_str = f"redshift_psycopg2://{user}:{password}@{host}:{port}/{db_name}?sslmode=require"
         return create_engine(url_str)
 
 class DatabaseManager:
