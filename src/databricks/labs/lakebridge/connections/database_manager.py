@@ -120,6 +120,7 @@ class RedshiftConnector(_BaseConnector):
     def _connect(self) -> Engine:
         registry.register("redshift_psycopg2", __name__, "RedshiftDialect_psycopg2")
         db_name = self.config.get("database")
+        use_ssl = str(self.config.get("ssl") or "no").lower() in ("yes", "true", "1")
         connection_string = URL.create(
             drivername="redshift_psycopg2",
             username=self.config["user"],
@@ -128,7 +129,8 @@ class RedshiftConnector(_BaseConnector):
             port=self.config.get("port", 5439),
             database=db_name,
         )
-        return create_engine(connection_string)
+        connect_args = {"sslmode": "require"} if use_ssl else {}
+        return create_engine(connection_string, connect_args=connect_args)
 
 class DatabaseManager:
     def __init__(self, db_type: str, config: dict[str, Any]):

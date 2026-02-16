@@ -150,7 +150,7 @@ class ConfigureRedshiftAssessment(AssessmentConfigurator):
                 except (yaml.YAMLError, OSError):
                     data = None
                 source_creds = data.get(source) if data and isinstance(data, dict) else None
-                required = ["host", "port", "database", "user", "password", "ssl"]
+                required = ["host", "port", "database", "user", "password"]
                 if source_creds and isinstance(source_creds, dict) and all(k in source_creds for k in required):
                     logger.info(f"Using existing credential file at {cred_file}.")
                     return source
