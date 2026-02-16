@@ -1,6 +1,7 @@
 # Databricks notebook source
 import dataclasses
 import logging
+from urllib.parse import quote_plus
 from abc import ABC, abstractmethod
 from typing import Any
 from collections.abc import Sequence, Set
@@ -18,9 +19,11 @@ from sqlalchemy.dialects.postgresql.psycopg2 import PGDialect_psycopg2
 
 logger = logging.getLogger(__name__)
 
+
 class RedshiftDialect_psycopg2(PGDialect_psycopg2):
     """Use PostgreSQL dialect but skip standard_conforming_strings (not supported by Redshift)."""
-    supports_statement_cache = True 
+    supports_statement_cache = True
+
     def _set_backslash_escapes(self, connection):
         self._backslash_escapes = False
 
@@ -116,19 +119,14 @@ class MSSQLConnector(_BaseConnector):
 
 class RedshiftConnector(_BaseConnector):
     def _connect(self) -> Engine:
-
         registry.register("redshift_psycopg2", __name__, "RedshiftDialect_psycopg2")
-
-        db_name = self.config.get('database')
-        connection_string = URL.create(
-            drivername="redshift_psycopg2",
-            username=self.config['user'],
-            password=self.config['password'],
-            host=self.config['host'],
-            port=self.config.get('port', 5439),
-            database=db_name,
-        )
-        return create_engine(connection_string)
+        host = self.config['host']
+        port = self.config.get('port', 5439)
+        db_name = self.config.get('database') or ""
+        user = quote_plus(str(self.config['user']))
+        password = quote_plus(str(self.config['password']))
+        url_str = f"redshift_psycopg2://{user}:{password}@{host}:{port}/{db_name}"
+        return create_engine(url_str)
 
 class DatabaseManager:
     def __init__(self, db_type: str, config: dict[str, Any]):
@@ -137,9 +135,9 @@ class DatabaseManager:
     def fetch(self, query: str) -> FetchResult:
         try:
             return self.connector.fetch(query)
-        except OperationalError:
-            logger.error("Error connecting to the database check credentials")
-            raise ConnectionError("Error connecting to the database check credentials") from None
+        except OperationalError as e:
+            logger.error("Error connecting to the database: %s", e)
+            raise ConnectionError(f"Error connecting to the database check credentials: {e}") from e
 
     def check_connection(self) -> bool:
         query = "SELECT 101 AS test_column"
