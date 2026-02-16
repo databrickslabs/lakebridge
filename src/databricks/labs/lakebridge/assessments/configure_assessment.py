@@ -1,7 +1,9 @@
 from abc import ABC, abstractmethod
 from pathlib import Path
 import logging
+import os
 import shutil
+from typing import Any
 import yaml
 
 from databricks.labs.blueprint.tui import Prompts
@@ -145,7 +147,9 @@ class ConfigureRedshiftAssessment(AssessmentConfigurator):
                 except (yaml.YAMLError, OSError):
                     data = None
                 source_creds = data.get(source) if data and isinstance(data, dict) else None
-                required = ["host", "port", "database", "user", "password"]
+                required = ["host", "port", "database", "user"]
+                if (source_creds or {}).get("auth_method") != "federated_user":
+                    required = required + ["password"]
                 if source_creds and isinstance(source_creds, dict) and all(k in source_creds for k in required):
                     logger.info(f"Using existing credential file at {cred_file}.")
                     return source
@@ -156,17 +160,31 @@ class ConfigureRedshiftAssessment(AssessmentConfigurator):
 
         logger.info("Please refer to the documentation to understand the difference between local and env.")
 
+        source_creds: dict[str, Any] = {
+            "auth_method": auth_method,
+            "host": self.prompts.question("Enter the Redshift cluster endpoint (host)"),
+            "port": int(self.prompts.question("Enter the port details", valid_number=True, default="5439")),
+            "database": self.prompts.question("Enter the database name"),
+            "user": self.prompts.question("Enter the user details"),
+            "password": self.prompts.password("Enter the password details"),
+        }
+        if auth_method == "federated_user":
+            source_creds["cluster_identifier"] = self.prompts.question(
+                "Enter the Redshift cluster identifier (e.g. from host name)",
+                default=source_creds["host"].split(".")[0] if source_creds["host"] else "",
+            )
+            source_creds["aws_profile"] = self.prompts.question(
+                "Enter the AWS profile name for GetClusterCredentials (or leave empty for default)",
+                default=os.environ.get("AWS_PROFILE", ""),
+            )
+            source_creds["region"] = self.prompts.question(
+                "Enter the AWS region for Redshift",
+                default=os.environ.get("AWS_REGION", "us-west-2"),
+            )
         credential = {
             "secret_vault_type": secret_vault_type,
             "secret_vault_name": secret_vault_name,
-            source: {
-                "auth_method": auth_method,
-                "host": self.prompts.question("Enter the Redshift cluster endpoint (host)"),
-                "port": int(self.prompts.question("Enter the port details", valid_number=True, default="5439")),
-                "database": self.prompts.question("Enter the database name"),
-                "user": self.prompts.question("Enter the user details"),
-                "password": self.prompts.password("Enter the password details"),
-            },
+            source: source_creds,
         }
 
         _save_to_disk(credential, cred_file)
