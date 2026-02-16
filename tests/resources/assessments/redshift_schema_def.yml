@@ -13,9 +13,9 @@ schemas:
           - name: query_text
             type: VARCHAR
           - name: start_time
-            type: TIMESTAMP
+            type: VARCHAR
           - name: end_time
-            type: TIMESTAMP
+            type: VARCHAR
           - name: query_group
             type: VARCHAR
           - name: query_type
