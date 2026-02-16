@@ -190,25 +190,29 @@ def _get_redshift_secrets_manager_credentials(config: dict[str, Any]) -> dict[st
 class RedshiftConnector(_BaseConnector):
     def _connect(self) -> Engine:
         registry.register("redshift_psycopg2", __name__, "RedshiftDialect_psycopg2")
-        host = self.config["host"]
-        port = self.config.get("port", 5439)
-        db_name = self.config.get("database") or ""
         use_ssl = str(self.config.get("ssl") or "no").lower() in ("yes", "true", "1")
         connect_args = {"sslmode": "require"} if use_ssl else {}
+        auth = (self.config.get("auth_method") or "").lower()
 
-        if (self.config.get("auth_method") or "").lower() in ("federated_user", "temporary_credentials_iam"):
-            user, password = _get_redshift_federated_credentials(self.config)
-            user_enc = quote_plus(user)
-            password_enc = quote_plus(password)
-            url_str = f"redshift_psycopg2://{user_enc}:{password_enc}@{host}:{port}/{db_name}"
-            return create_engine(url_str, connect_args=connect_args)
-        if (self.config.get("auth_method") or "").lower() == "secrets_manager":
+        if auth == "secrets_manager":
             sm = _get_redshift_secrets_manager_credentials(self.config)
             host, port, db_name = sm["host"], sm["port"], sm["database"]
             user_enc = quote_plus(sm["user"])
             password_enc = quote_plus(sm["password"])
             url_str = f"redshift_psycopg2://{user_enc}:{password_enc}@{host}:{port}/{db_name}"
             return create_engine(url_str, connect_args=connect_args)
+        if auth in ("federated_user", "temporary_credentials_iam"):
+            host = self.config["host"]
+            port = self.config.get("port", 5439)
+            db_name = self.config.get("database") or ""
+            user, password = _get_redshift_federated_credentials(self.config)
+            user_enc = quote_plus(user)
+            password_enc = quote_plus(password)
+            url_str = f"redshift_psycopg2://{user_enc}:{password_enc}@{host}:{port}/{db_name}"
+            return create_engine(url_str, connect_args=connect_args)
+        host = self.config["host"]
+        port = self.config.get("port", 5439)
+        db_name = self.config.get("database") or ""
         connection_string = URL.create(
             drivername="redshift_psycopg2",
             username=self.config["user"],
