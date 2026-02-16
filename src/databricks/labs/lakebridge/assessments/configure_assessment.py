@@ -111,10 +111,13 @@ REDSHIFT_AUTH_METHODS = [
     "database_password",
     "temporary_credentials_db_user",
     "temporary_credentials_iam",
+    "federated_user",
     "secrets_manager",
 ]
 
 REDSHIFT_CREDENTIAL_SOURCES = ["local", "env", "file"]
+
+REDSHIFT_SSL_OPTIONS = ["no", "yes"]
 
 
 class ConfigureRedshiftAssessment(AssessmentConfigurator):
@@ -126,12 +129,15 @@ class ConfigureRedshiftAssessment(AssessmentConfigurator):
 
         logger.info(
             "Redshift authentication: database_password, temporary_credentials_db_user, "
-            "temporary_credentials_iam, or secrets_manager. "
+            "temporary_credentials_iam, federated_user, or secrets_manager. "
             "Credentials are provided via local (plain text in file), env (environment variables), "
             "or file (use existing credential file if valid else prompt)."
         )
         auth_method = str(
             self.prompts.choice("Authentication method", REDSHIFT_AUTH_METHODS)
+        ).lower()
+        ssl_choice = str(
+            self.prompts.choice("Use SSL for connection (no | yes)", REDSHIFT_SSL_OPTIONS)
         ).lower()
         choice = str(
             self.prompts.choice("Credential source (local | env | file)", REDSHIFT_CREDENTIAL_SOURCES)
@@ -144,7 +150,7 @@ class ConfigureRedshiftAssessment(AssessmentConfigurator):
                 except (yaml.YAMLError, OSError):
                     data = None
                 source_creds = data.get(source) if data and isinstance(data, dict) else None
-                required = ["host", "port", "database", "user", "password"]
+                required = ["host", "port", "database", "user", "password", "ssl"]
                 if source_creds and isinstance(source_creds, dict) and all(k in source_creds for k in required):
                     logger.info(f"Using existing credential file at {cred_file}.")
                     return source
@@ -160,6 +166,7 @@ class ConfigureRedshiftAssessment(AssessmentConfigurator):
             "secret_vault_name": secret_vault_name,
             source: {
                 "auth_method": auth_method,
+                "ssl": ssl_choice,
                 "host": self.prompts.question("Enter the Redshift cluster endpoint (host)"),
                 "port": int(self.prompts.question("Enter the port details", valid_number=True, default="5439")),
                 "database": self.prompts.question("Enter the database name"),
