@@ -1,5 +1,6 @@
 # Databricks notebook source
 import dataclasses
+import json
 import logging
 import os
 from urllib.parse import quote_plus
@@ -153,6 +154,39 @@ def _get_redshift_federated_credentials(config: dict[str, Any]) -> tuple[str, st
     return (resp["DbUser"], resp["DbPassword"])
 
 
+def _get_redshift_secrets_manager_credentials(config: dict[str, Any]) -> dict[str, Any]:
+    """Fetch Redshift connection info from AWS Secrets Manager. Secret JSON: username, password, host, port, dbname, engine."""
+    try:
+        import boto3
+    except ImportError as e:
+        raise ConnectionError(
+            "secrets_manager auth requires boto3. Install with: pip install boto3"
+        ) from e
+    secret_arn = config.get("secrets_manager_secret_arn") or config.get("secrets_manager_secret_id") or ""
+    if not secret_arn:
+        raise ConnectionError("secrets_manager auth requires secrets_manager_secret_arn in config.")
+    profile = config.get("aws_profile") or os.environ.get("AWS_PROFILE")
+    arn_parts = secret_arn.split(":")
+    region = config.get("region") or (arn_parts[3] if len(arn_parts) >= 4 else None) or os.environ.get("AWS_REGION", "us-west-2")
+    session_kw: dict[str, Any] = {"region_name": region}
+    if profile:
+        session_kw["profile_name"] = profile
+    session = boto3.Session(**session_kw)
+    client = session.client("secretsmanager")
+    resp = client.get_secret_value(SecretId=secret_arn)
+    try:
+        data = json.loads(resp["SecretString"])
+    except (KeyError, json.JSONDecodeError) as e:
+        raise ConnectionError(f"secrets_manager: invalid secret format: {e}") from e
+    return {
+        "host": data.get("host", ""),
+        "port": int(data.get("port", 5439)),
+        "database": data.get("dbname", ""),
+        "user": data.get("username", ""),
+        "password": data.get("password", ""),
+    }
+
+
 class RedshiftConnector(_BaseConnector):
     def _connect(self) -> Engine:
         registry.register("redshift_psycopg2", __name__, "RedshiftDialect_psycopg2")
@@ -166,6 +200,13 @@ class RedshiftConnector(_BaseConnector):
             user, password = _get_redshift_federated_credentials(self.config)
             user_enc = quote_plus(user)
             password_enc = quote_plus(password)
+            url_str = f"redshift_psycopg2://{user_enc}:{password_enc}@{host}:{port}/{db_name}"
+            return create_engine(url_str, connect_args=connect_args)
+        if (self.config.get("auth_method") or "").lower() == "secrets_manager":
+            sm = _get_redshift_secrets_manager_credentials(self.config)
+            host, port, db_name = sm["host"], sm["port"], sm["database"]
+            user_enc = quote_plus(sm["user"])
+            password_enc = quote_plus(sm["password"])
             url_str = f"redshift_psycopg2://{user_enc}:{password_enc}@{host}:{port}/{db_name}"
             return create_engine(url_str, connect_args=connect_args)
         connection_string = URL.create(

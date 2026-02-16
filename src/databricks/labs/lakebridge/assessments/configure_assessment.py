@@ -152,9 +152,12 @@ class ConfigureRedshiftAssessment(AssessmentConfigurator):
                 except (yaml.YAMLError, OSError):
                     data = None
                 source_creds = data.get(source) if data and isinstance(data, dict) else None
-                required = ["host", "port", "database", "user"]
-                if (source_creds or {}).get("auth_method") not in ("federated_user", "temporary_credentials_iam"):
-                    required = required + ["password"]
+                if (source_creds or {}).get("auth_method") == "secrets_manager":
+                    required = ["secrets_manager_secret_arn"]
+                else:
+                    required = ["host", "port", "database", "user"]
+                    if (source_creds or {}).get("auth_method") not in ("federated_user", "temporary_credentials_iam"):
+                        required = required + ["password"]
                 if source_creds and isinstance(source_creds, dict) and all(k in source_creds for k in required):
                     logger.info(f"Using existing credential file at {cred_file}.")
                     return source
@@ -165,14 +168,19 @@ class ConfigureRedshiftAssessment(AssessmentConfigurator):
 
         logger.info("Please refer to the documentation to understand the difference between local and env.")
 
-        source_creds = {
-            "auth_method": auth_method,
-            "ssl": ssl_choice,
-            "host": self.prompts.question("Enter the Redshift cluster endpoint (host)"),
-            "port": int(self.prompts.question("Enter the port details", valid_number=True, default="5439")),
-            "database": self.prompts.question("Enter the database name"),
-        }
-        if auth_method in ("federated_user", "temporary_credentials_iam"):
+        source_creds: dict[str, Any] = {"auth_method": auth_method, "ssl": ssl_choice}
+        if auth_method == "secrets_manager":
+            source_creds["secrets_manager_secret_arn"] = self.prompts.question(
+                "Enter the AWS Secrets Manager secret ARN (or secret name) with Redshift connection JSON",
+            )
+            source_creds["aws_profile"] = self.prompts.question(
+                "Enter the AWS profile name (or leave empty for default)",
+                default=os.environ.get("AWS_PROFILE", ""),
+            )
+        elif auth_method in ("federated_user", "temporary_credentials_iam"):
+            source_creds["host"] = self.prompts.question("Enter the Redshift cluster endpoint (host)")
+            source_creds["port"] = int(self.prompts.question("Enter the port details", valid_number=True, default="5439"))
+            source_creds["database"] = self.prompts.question("Enter the database name")
             get_credentials_db_user = self.prompts.question(
                 "DB user for GetClusterCredentials (use awsuser for temp creds as master user)",
                 default="awsuser",
@@ -185,6 +193,9 @@ class ConfigureRedshiftAssessment(AssessmentConfigurator):
                 default=os.environ.get("AWS_PROFILE", ""),
             )
         else:
+            source_creds["host"] = self.prompts.question("Enter the Redshift cluster endpoint (host)")
+            source_creds["port"] = int(self.prompts.question("Enter the port details", valid_number=True, default="5439"))
+            source_creds["database"] = self.prompts.question("Enter the database name")
             source_creds["user"] = self.prompts.question("Enter the user details")
             source_creds["password"] = self.prompts.password("Enter the password details")
         credential = {
