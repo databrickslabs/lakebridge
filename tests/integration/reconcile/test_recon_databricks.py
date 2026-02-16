@@ -47,17 +47,18 @@ def recon_table_config(recon_schema: SchemaInfo, recon_tables: tuple[TableInfo, 
 def recon_config(make_cluster, watchdog_remove_after: str, recon_schema: SchemaInfo, make_volume) -> ReconcileConfig:
     volume = make_volume(catalog_name=recon_schema.catalog_name, schema_name=recon_schema.name, name=recon_schema.name)
 
+    tags = {"RemoveAfter": watchdog_remove_after}
     cluster = (
         make_cluster(
             cluster_name="reconcile_e2e",
             data_security_mode=DataSecurityMode.DATA_SECURITY_MODE_AUTO,
             kind=Kind.CLASSIC_PREVIEW,
             num_workers=2,
+            custom_tags=tags,
         )
         .result()
         .cluster_id
     )
-    tags = {"RemoveAfter": watchdog_remove_after}
     deployment_overrides = ReconcileJobConfig(existing_cluster_id=cluster, tags=tags)
     logger.info(f"Using recon job overrides: {deployment_overrides}")
 
