@@ -162,7 +162,7 @@ class RedshiftConnector(_BaseConnector):
         use_ssl = str(self.config.get("ssl") or "no").lower() in ("yes", "true", "1")
         connect_args = {"sslmode": "require"} if use_ssl else {}
 
-        if (self.config.get("auth_method") or "").lower() == "federated_user":
+        if (self.config.get("auth_method") or "").lower() in ("federated_user", "temporary_credentials_iam"):
             user, password = _get_redshift_federated_credentials(self.config)
             user_enc = quote_plus(user)
             password_enc = quote_plus(password)

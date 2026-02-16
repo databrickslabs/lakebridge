@@ -153,7 +153,7 @@ class ConfigureRedshiftAssessment(AssessmentConfigurator):
                     data = None
                 source_creds = data.get(source) if data and isinstance(data, dict) else None
                 required = ["host", "port", "database", "user"]
-                if (source_creds or {}).get("auth_method") != "federated_user":
+                if (source_creds or {}).get("auth_method") not in ("federated_user", "temporary_credentials_iam"):
                     required = required + ["password"]
                 if source_creds and isinstance(source_creds, dict) and all(k in source_creds for k in required):
                     logger.info(f"Using existing credential file at {cred_file}.")
@@ -172,7 +172,7 @@ class ConfigureRedshiftAssessment(AssessmentConfigurator):
             "port": int(self.prompts.question("Enter the port details", valid_number=True, default="5439")),
             "database": self.prompts.question("Enter the database name"),
         }
-        if auth_method == "federated_user":
+        if auth_method in ("federated_user", "temporary_credentials_iam"):
             get_credentials_db_user = self.prompts.question(
                 "DB user for GetClusterCredentials (use awsuser for temp creds as master user)",
                 default="awsuser",
