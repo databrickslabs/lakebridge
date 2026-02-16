@@ -1,5 +1,6 @@
 import logging
 from functools import cached_property
+from pathlib import Path
 
 from databricks.labs.blueprint.installation import Installation
 from databricks.labs.blueprint.installer import InstallState
@@ -10,6 +11,7 @@ from databricks.labs.lsql.backends import SqlBackend, StatementExecutionBackend
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.config import Config
 from databricks.sdk.errors import NotFound
+from databricks.sdk.mixins.compute import SemVer
 from databricks.sdk.service.iam import User
 
 from databricks.labs.lakebridge.analyzer.lakebridge_analyzer import LakebridgeAnalyzer, AnalyzerPrompts, AnalyzerRunner
@@ -24,6 +26,44 @@ from databricks.labs.lakebridge.deployment.switch import SwitchDeployment
 from databricks.labs.lakebridge.helpers.metastore import CatalogOperations
 
 logger = logging.getLogger(__name__)
+
+
+class LakebridgeUpgrades(Upgrades):
+    """
+    Custom Upgrades class that properly handles build metadata in version comparisons.
+
+    According to SemVer spec, build metadata (part after '+') SHOULD be ignored when
+    determining version precedence. This class strips build metadata before comparisons
+    to avoid errors when comparing versions with and without build metadata.
+    """
+
+    @staticmethod
+    def _strip_build_metadata(semver: SemVer) -> SemVer:
+        """Return a new SemVer without build metadata."""
+        return SemVer(
+            major=semver.major,
+            minor=semver.minor,
+            patch=semver.patch,
+            pre_release=semver.pre_release,
+            build=None  # Strip build metadata as per SemVer spec
+        )
+
+    def _diff(self, upgrades_folder: Path):
+        """Yield the upgrade scripts that need to be applied."""
+        current = self._strip_build_metadata(self._product_info.as_semver())
+        installed_version = self._strip_build_metadata(self._installed())
+        for file in upgrades_folder.glob("v*.py"):
+            try:
+                semver = self._strip_build_metadata(self._parse_version(file.name))
+            except ValueError:
+                logger.warning(f"not an upgrade script: {file.name}")
+                continue
+            if semver < installed_version:
+                continue
+            if semver > current:
+                logger.warning(f"future version: {file.name}")
+                continue
+            yield file
 
 
 # pylint: disable=too-many-public-methods
@@ -148,7 +188,7 @@ class ApplicationContext:
 
     @cached_property
     def upgrades(self):
-        return Upgrades(self.product_info, self.installation)
+        return LakebridgeUpgrades(self.product_info, self.installation)
 
     @cached_property
     def analyzer(self):
