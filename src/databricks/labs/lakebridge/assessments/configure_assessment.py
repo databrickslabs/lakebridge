@@ -165,24 +165,25 @@ class ConfigureRedshiftAssessment(AssessmentConfigurator):
 
         logger.info("Please refer to the documentation to understand the difference between local and env.")
 
-        source_creds: dict[str, Any] = {
+        source_creds = {
             "auth_method": auth_method,
             "ssl": ssl_choice,
             "host": self.prompts.question("Enter the Redshift cluster endpoint (host)"),
             "port": int(self.prompts.question("Enter the port details", valid_number=True, default="5439")),
             "database": self.prompts.question("Enter the database name"),
-            "user": self.prompts.question("Enter the user details"),
-            "password": self.prompts.password("Enter the password details"),
         }
         if auth_method == "federated_user":
             source_creds["cluster_identifier"] = self.prompts.question(
                 "Enter the Redshift cluster identifier (e.g. from host name)",
                 default=source_creds["host"].split(".")[0] if source_creds["host"] else "",
             )
-            source_creds["get_credentials_db_user"] = self.prompts.question(
+            get_credentials_db_user = self.prompts.question(
                 "DB user for GetClusterCredentials (use awsuser for temp creds as master user)",
                 default="awsuser",
             )
+            source_creds["get_credentials_db_user"] = get_credentials_db_user
+            source_creds["user"] = get_credentials_db_user
+            source_creds["password"] = "federated"
             source_creds["aws_profile"] = self.prompts.question(
                 "Enter the AWS profile name for GetClusterCredentials (or leave empty for default)",
                 default=os.environ.get("AWS_PROFILE", ""),
@@ -191,6 +192,9 @@ class ConfigureRedshiftAssessment(AssessmentConfigurator):
                 "Enter the AWS region for Redshift",
                 default=os.environ.get("AWS_REGION", "us-west-2"),
             )
+        else:
+            source_creds["user"] = self.prompts.question("Enter the user details")
+            source_creds["password"] = self.prompts.password("Enter the password details")
         credential = {
             "secret_vault_type": secret_vault_type,
             "secret_vault_name": secret_vault_name,
