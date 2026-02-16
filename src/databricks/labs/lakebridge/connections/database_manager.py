@@ -1,8 +1,6 @@
 # Databricks notebook source
 import dataclasses
 import logging
-import os
-from urllib.parse import quote_plus
 from abc import ABC, abstractmethod
 from typing import Any
 from collections.abc import Sequence, Set
@@ -118,51 +116,19 @@ class MSSQLConnector(_BaseConnector):
         )
         return create_engine(connection_string)
 
-def _get_redshift_federated_credentials(config: dict[str, Any]) -> tuple[str, str]:
-    """Resolve Redshift user and password via GetClusterCredentials for federated_user auth."""
-    try:
-        import boto3
-    except ImportError as e:
-        raise ConnectionError(
-            "federated_user auth requires boto3. Install with: pip install boto3"
-        ) from e
-    cluster_identifier = config.get("cluster_identifier") or (config.get("host") or "").split(".")[0]
-    db_name = config.get("database") or ""
-    db_user = config.get("user") or ""
-    region = config.get("region") or os.environ.get("AWS_REGION", "us-west-2")
-    profile = config.get("aws_profile") or os.environ.get("AWS_PROFILE")
-    if not cluster_identifier or not db_name or not db_user:
-        raise ConnectionError(
-            "federated_user auth requires cluster_identifier (or host), database, and user (IAM identity) in config."
-        )
-    session_kw: dict[str, Any] = {"region_name": region}
-    if profile:
-        session_kw["profile_name"] = profile
-    session = boto3.Session(**session_kw)
-    client = session.client("redshift")
-    resp = client.get_cluster_credentials(
-        ClusterIdentifier=cluster_identifier,
-        DbName=db_name,
-        DbUser=db_user,
-    )
-    return (resp["DbUser"], resp["DbPassword"])
-
-
 class RedshiftConnector(_BaseConnector):
     def _connect(self) -> Engine:
         registry.register("redshift_psycopg2", __name__, "RedshiftDialect_psycopg2")
-        host = self.config["host"]
-        port = self.config.get("port", 5439)
-        db_name = self.config.get("database") or ""
-        if (self.config.get("auth_method") or "").lower() == "federated_user":
-            user, password = _get_redshift_federated_credentials(self.config)
-        else:
-            user = str(self.config["user"])
-            password = str(self.config["password"])
-        user = quote_plus(user)
-        password = quote_plus(password)
-        url_str = f"redshift_psycopg2://{user}:{password}@{host}:{port}/{db_name}?sslmode=require"
-        return create_engine(url_str)
+        db_name = self.config.get("database")
+        connection_string = URL.create(
+            drivername="redshift_psycopg2",
+            username=self.config["user"],
+            password=self.config["password"],
+            host=self.config["host"],
+            port=self.config.get("port", 5439),
+            database=db_name,
+        )
+        return create_engine(connection_string)
 
 class DatabaseManager:
     def __init__(self, db_type: str, config: dict[str, Any]):
