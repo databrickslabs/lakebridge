@@ -30,7 +30,7 @@ def execute():
     synapse_workspace_settings = cred_manager.get_credentials("synapse")
     synapse_profiler_settings = synapse_workspace_settings["profiler"]
 
-    tz_info = synapse_workspace_settings["workspace"]["tz_info"].strip()
+    tz_info = synapse_workspace_settings["workspace"]["tz_info"]
     workspace_tz = zoneinfo.ZoneInfo(tz_info)
     workspace_name = synapse_workspace_settings["workspace"]["name"]
     logger.info(f"workspace_name: {workspace_name}")

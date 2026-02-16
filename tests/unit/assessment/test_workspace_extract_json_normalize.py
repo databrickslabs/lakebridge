@@ -1,12 +1,3 @@
-"""
-Unit tests for workspace_extract.py pandas json_normalize handling.
-
-Tests the fix for the "All items in data must be of type dict, found list" error
-that occurs when:
-1. Single dict with nested list of non-dict items is passed without wrapping
-2. Generators yielding batches aren't properly flattened before normalization
-"""
-
 import pandas as pd
 from unittest.mock import Mock
 

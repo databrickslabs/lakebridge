@@ -1,10 +1,3 @@
-"""
-Unit tests for workspace_extract.py batch handling logic.
-
-Tests the fix for pipeline_runs and trigger_runs extraction where the methods
-yield BATCHES (lists) of runs rather than individual run objects.
-"""
-
 from unittest.mock import Mock
 from datetime import date
 

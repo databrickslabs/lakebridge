@@ -77,10 +77,11 @@ class SnowflakeConnector(_BaseConnector):
 
 class MSSQLConnector(_BaseConnector):
     def _connect(self) -> Engine:
-        auth_type = self.config.get('auth_type', 'sql_authentication').strip()
+        auth_type = self.config.get('auth_type', 'sql_authentication')
+        db_name = self.config.get('database')
 
         query_params = {
-            "driver": self.config['driver'].strip(),
+            "driver": self.config['driver'],
             "loginTimeout": "30",
         }
 
@@ -94,14 +95,13 @@ class MSSQLConnector(_BaseConnector):
 
         connection_string = URL.create(
             drivername="mssql+pyodbc",
-            username=self.config['user'].strip(),
-            password=self.config['password'].strip(),
-            host=self.config['server'].strip(),
+            username=self.config['user'],
+            password=self.config['password'],
+            host=self.config['server'],
             port=self.config.get('port', 1433),
-            database=self.config['database'].strip(),
+            database=db_name,
             query=query_params,
         )
-
         return create_engine(connection_string)
 
 

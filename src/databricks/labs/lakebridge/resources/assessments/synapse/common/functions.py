@@ -36,7 +36,7 @@ def create_synapse_artifacts_client(config: dict) -> ArtifactsClient:
     :return:  an Azure SDK client handle for Synapse Artifacts
     """
     return ArtifactsClient(
-        endpoint=config["azure_api_access"]["development_endpoint"].strip(), credential=DefaultAzureCredential()
+        endpoint=config["azure_api_access"]["development_endpoint"], credential=DefaultAzureCredential()
     )
 
 

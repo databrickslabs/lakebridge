@@ -26,7 +26,7 @@ def execute():
 
     cred_manager = create_credential_manager(PRODUCT_NAME, EnvGetter())
     synapse_workspace_settings = cred_manager.get_credentials("synapse")
-    tz_info = synapse_workspace_settings["workspace"]["tz_info"].strip()
+    tz_info = synapse_workspace_settings["workspace"]["tz_info"]
     workspace_tz = zoneinfo.ZoneInfo(tz_info)
     workspace_name = synapse_workspace_settings["workspace"]["name"]
 
@@ -142,8 +142,16 @@ def execute():
             pipeline_runs = [run for batch in pipeline_runs_batches for run in batch]
             if not pipeline_runs:
                 logger.warning(f"No pipeline runs found for {last_upd}")
+                continue
+            if not all(isinstance(run, dict) for run in pipeline_runs):
+                logger.error(f"Unexpected data export in {table_name}: {pipeline_runs}")
+                raise ValueError(f"Invalid data export in {table_name}")
+            for run in pipeline_runs:
+                run['last_upd'] = last_upd
+                pipeline_runs_list.append(run)
 
         pipeline_runs_df = pd.json_normalize(pipeline_runs_list)
+
         insert_df_to_duckdb(pipeline_runs_df, db_path, table_name)
 
         # Extract Trigger Runs (last 60 days)
@@ -156,7 +164,13 @@ def execute():
             trigger_runs = [run for batch in trigger_runs_batches for run in batch]
             if not trigger_runs:
                 logger.warning(f"No trigger runs found for {last_upd}")
-
+                continue
+            if not all(isinstance(run, dict) for run in trigger_runs):
+                logger.error(f"Unexpected data export in {table_name}: {trigger_runs}")
+                raise ValueError(f"Invalid data export in {table_name}")
+            for run in trigger_runs:
+                run['last_upd'] = last_upd
+                trigger_runs_list.append(run)
         trigger_runs_df = pd.json_normalize(trigger_runs_list)
         insert_df_to_duckdb(trigger_runs_df, db_path, table_name)
 
