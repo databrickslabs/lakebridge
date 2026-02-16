@@ -129,10 +129,12 @@ def _get_redshift_federated_credentials(config: dict[str, Any]) -> tuple[str, st
         raise ConnectionError(
             "federated_user auth requires boto3. Install with: pip install boto3"
         ) from e
-    cluster_identifier = config.get("cluster_identifier") or (config.get("host") or "").split(".")[0]
+    host = config.get("host") or ""
+    host_parts = host.split(".")
+    cluster_identifier = config.get("cluster_identifier") or (host_parts[0] if host_parts else "")
     db_name = config.get("database") or ""
     db_user = config.get("get_credentials_db_user") or config.get("master_username") or "awsuser"
-    region = config.get("region") or os.environ.get("AWS_REGION", "us-west-2")
+    region = config.get("region") or (host_parts[2] if len(host_parts) >= 3 else None) or os.environ.get("AWS_REGION", "us-west-2")
     profile = config.get("aws_profile") or os.environ.get("AWS_PROFILE")
     if not cluster_identifier or not db_name:
         raise ConnectionError(

@@ -173,10 +173,6 @@ class ConfigureRedshiftAssessment(AssessmentConfigurator):
             "database": self.prompts.question("Enter the database name"),
         }
         if auth_method == "federated_user":
-            source_creds["cluster_identifier"] = self.prompts.question(
-                "Enter the Redshift cluster identifier (e.g. from host name)",
-                default=source_creds["host"].split(".")[0] if source_creds["host"] else "",
-            )
             get_credentials_db_user = self.prompts.question(
                 "DB user for GetClusterCredentials (use awsuser for temp creds as master user)",
                 default="awsuser",
@@ -187,10 +183,6 @@ class ConfigureRedshiftAssessment(AssessmentConfigurator):
             source_creds["aws_profile"] = self.prompts.question(
                 "Enter the AWS profile name for GetClusterCredentials (or leave empty for default)",
                 default=os.environ.get("AWS_PROFILE", ""),
-            )
-            source_creds["region"] = self.prompts.question(
-                "Enter the AWS region for Redshift",
-                default=os.environ.get("AWS_REGION", "us-west-2"),
             )
         else:
             source_creds["user"] = self.prompts.question("Enter the user details")
