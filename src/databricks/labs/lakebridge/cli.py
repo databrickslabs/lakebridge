@@ -1090,9 +1090,8 @@ def test_profiler_connection(w: WorkspaceClient, source_tech: str | None = None)
         raw_config = cred_manager.get_credentials(source_tech)
     except KeyError as e:
         logger.error(f"Credential configuration error: {e}")
-        raise SystemExit(
-            f"Invalid credentials for {source_tech}. Please run `databricks labs lakebridge configure-database-profiler`. Exiting..."
-        ) from e
+        logger.fatal(f"Invalid credentials for {source_tech}. Please run `databricks labs lakebridge configure-database-profiler`.")
+        return
 
     # Validate connection for other source technologies
     config = _transform_profiler_credentials(source_tech, raw_config)
