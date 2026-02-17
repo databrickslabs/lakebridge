@@ -53,7 +53,107 @@ const config: Config = {
       }
     },
     'docusaurus-plugin-image-zoom',
-    'docusaurus-lunr-search'
+    'docusaurus-lunr-search',
+    [
+      '@signalwire/docusaurus-plugin-llms-txt',
+      {
+        // Markdown file generation with hierarchical structure
+        markdown: {
+          enableFiles: true,
+          relativePaths: true,
+          includeBlog: false,
+          includePages: true,
+          includeDocs: true,
+          includeVersionedDocs: false,
+          excludeRoutes: [],
+        },
+
+        // llms.txt index file configuration
+        llmsTxt: {
+          enableLlmsFullTxt: true,
+          includeBlog: false,
+          includePages: true,
+          includeDocs: true,
+          excludeRoutes: [],
+
+          // Site metadata
+          siteTitle: 'Lakebridge Documentation',
+          siteDescription: 'Simplified Data Migration Toolkit to ease Migration to Databricks',
+
+          // Auto-section organization (set to 1 to minimize auto-sections)
+          autoSectionDepth: 1, // Group by first path segment only
+          autoSectionPosition: 100, // Auto-sections appear after manual sections
+
+          // Manual section organization with hierarchical structure
+          sections: [
+            {
+              id: 'overview',
+              name: 'Overview',
+              description: 'Introduction to Lakebridge',
+              position: 1,
+              routes: [
+                { route: '/lakebridge/docs/overview' }
+              ],
+            },
+            {
+              id: 'installation',
+              name: 'Installation',
+              description: 'Getting started with Lakebridge',
+              position: 2,
+              routes: [
+                { route: '/lakebridge/docs/installation' }
+              ],
+            },
+            {
+              id: 'assessment',
+              name: 'Assessment Guide',
+              description: 'Profiler and Analyzer tools for assessment',
+              position: 3,
+              routes: [
+                { route: '/lakebridge/docs/assessment/**' }
+              ],
+            },
+            {
+              id: 'transpile',
+              name: 'Transpile Guide',
+              description: 'Transpilation tools and source system guides',
+              position: 4,
+              routes: [
+                { route: '/lakebridge/docs/transpile/**' }
+              ],
+            },
+            {
+              id: 'reconcile',
+              name: 'Reconcile Guide',
+              description: 'Data reconciliation and validation',
+              position: 5,
+              routes: [
+                { route: '/lakebridge/docs/reconcile/**' }
+              ],
+            },
+            {
+              id: 'utilities',
+              name: 'Utilities',
+              description: 'Additional utilities and tools',
+              position: 6,
+              routes: [
+                { route: '/lakebridge/docs/sql_splitter' },
+                { route: '/lakebridge/docs/faq' }
+              ],
+            },
+            {
+              id: 'development',
+              name: 'Development',
+              description: 'Contributing and development documentation',
+              position: 7,
+              routes: [
+                { route: '/lakebridge/docs/dev/**' }
+              ],
+            },
+          ],
+        },
+      },
+    ]
   ],
 
   presets: [
