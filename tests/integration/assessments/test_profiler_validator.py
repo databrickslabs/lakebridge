@@ -1,6 +1,7 @@
 import tempfile
 from collections.abc import Generator
 from pathlib import Path
+from typing import TypedDict
 
 import duckdb
 import pytest
@@ -17,38 +18,58 @@ from databricks.labs.lakebridge.assessments.profiler_validator import (
 from .profiler_extract_utils import build_mock_synapse_extract, build_mock_redshift_extract
 
 # Platform-specific config for parametrized validator tests (same test logic, different tables/counts)
-PLATFORM_VALIDATOR_CONFIG = {
-    "synapse": {
-        "schema_file": "synapse_schema_def.yml",
-        "nonexistent_schema_file": "synapse_scheme_def_nonexists.yml",
-        "schema_path_check_table": "dedicated_routines",
-        "success_schema_table": "dedicated_sql_pool_metrics",
-        "invalid_schema_table": "dedicated_storage_info",
-        "expected_non_empty_total": 3,
-        "expected_non_empty_fail": 1,
-        "expected_non_empty_pass": 2,
-        "mixed_table_1": "mock_profiler_extract.main.dedicated_sql_pool_metrics",
-        "mixed_table_2": "mock_profiler_extract.main.workspace_sql_pools",
-        "mixed_null_table": "mock_profiler_extract.main.workspace_sql_pools",
-        "mixed_null_cols": ["id", "sku"],
-        "expected_mixed_total": 4,
-    },
-    "redshift": {
-        "schema_file": "redshift_schema_def.yml",
-        "nonexistent_schema_file": "redshift_scheme_def_nonexists.yml",
-        "schema_path_check_table": "query_view",
-        "success_schema_table": "query_view",
-        "invalid_schema_table": "rs_managed_storage_gb",
-        "expected_non_empty_total": 3,
-        "expected_non_empty_fail": 1,
-        "expected_non_empty_pass": 2,
-        "mixed_table_1": "mock_profiler_extract.main.query_view",
-        "mixed_table_2": "mock_profiler_extract.main.rs_managed_storage_gb",
-        "mixed_null_table": "mock_profiler_extract.main.query_view",
-        "mixed_null_cols": ["user_id", "query_id"],
-        "expected_mixed_total": 4,
-    },
-}
+
+
+class _PlatformValidatorConfig(TypedDict):
+    schema_file: str
+    nonexistent_schema_file: str
+    schema_path_check_table: str
+    success_schema_table: str
+    invalid_schema_table: str
+    expected_non_empty_total: int
+    expected_non_empty_fail: int
+    expected_non_empty_pass: int
+    mixed_table_1: str
+    mixed_table_2: str
+    mixed_null_table: str
+    mixed_null_cols: list[str]
+    expected_mixed_total: int
+
+
+PLATFORM_VALIDATOR_CONFIG: dict[str, _PlatformValidatorConfig] = (
+    {  # pylint: disable=consider-using-namedtuple-or-dataclass
+        "synapse": {
+            "schema_file": "synapse_schema_def.yml",
+            "nonexistent_schema_file": "synapse_scheme_def_nonexists.yml",
+            "schema_path_check_table": "dedicated_routines",
+            "success_schema_table": "dedicated_sql_pool_metrics",
+            "invalid_schema_table": "dedicated_storage_info",
+            "expected_non_empty_total": 3,
+            "expected_non_empty_fail": 1,
+            "expected_non_empty_pass": 2,
+            "mixed_table_1": "mock_profiler_extract.main.dedicated_sql_pool_metrics",
+            "mixed_table_2": "mock_profiler_extract.main.workspace_sql_pools",
+            "mixed_null_table": "mock_profiler_extract.main.workspace_sql_pools",
+            "mixed_null_cols": ["id", "sku"],
+            "expected_mixed_total": 4,
+        },
+        "redshift": {
+            "schema_file": "redshift_schema_def.yml",
+            "nonexistent_schema_file": "redshift_scheme_def_nonexists.yml",
+            "schema_path_check_table": "query_view",
+            "success_schema_table": "query_view",
+            "invalid_schema_table": "rs_managed_storage_gb",
+            "expected_non_empty_total": 3,
+            "expected_non_empty_fail": 1,
+            "expected_non_empty_pass": 2,
+            "mixed_table_1": "mock_profiler_extract.main.query_view",
+            "mixed_table_2": "mock_profiler_extract.main.rs_managed_storage_gb",
+            "mixed_null_table": "mock_profiler_extract.main.query_view",
+            "mixed_null_cols": ["user_id", "query_id"],
+            "expected_mixed_total": 4,
+        },
+    }
+)
 
 
 @pytest.fixture(scope="module")

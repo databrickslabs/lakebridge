@@ -135,15 +135,9 @@ class ConfigureRedshiftAssessment(AssessmentConfigurator):
             "Credentials are provided via local (plain text in file), env (environment variables), "
             "or file (use existing credential file if valid else prompt)."
         )
-        auth_method = str(
-            self.prompts.choice("Authentication method", REDSHIFT_AUTH_METHODS)
-        ).lower()
-        ssl_choice = str(
-            self.prompts.choice("Use SSL for connection (no | yes)", REDSHIFT_SSL_OPTIONS)
-        ).lower()
-        choice = str(
-            self.prompts.choice("Credential source (local | env | file)", REDSHIFT_CREDENTIAL_SOURCES)
-        ).lower()
+        auth_method = str(self.prompts.choice("Authentication method", REDSHIFT_AUTH_METHODS)).lower()
+        ssl_choice = str(self.prompts.choice("Use SSL for connection (no | yes)", REDSHIFT_SSL_OPTIONS)).lower()
+        choice = str(self.prompts.choice("Credential source (local | env | file)", REDSHIFT_CREDENTIAL_SOURCES)).lower()
         if choice == "file":
             if cred_file.exists():
                 try:
@@ -151,14 +145,14 @@ class ConfigureRedshiftAssessment(AssessmentConfigurator):
                         data = yaml.safe_load(f)
                 except (yaml.YAMLError, OSError):
                     data = None
-                source_creds = data.get(source) if data and isinstance(data, dict) else None
-                if (source_creds or {}).get("auth_method") == "secrets_manager":
+                existing_creds = data.get(source) if data and isinstance(data, dict) else None
+                if (existing_creds or {}).get("auth_method") == "secrets_manager":
                     required = ["secrets_manager_secret_arn"]
                 else:
                     required = ["host", "port", "database", "user"]
-                    if (source_creds or {}).get("auth_method") not in ("federated_user", "temporary_credentials_iam"):
+                    if (existing_creds or {}).get("auth_method") not in {"federated_user", "temporary_credentials_iam"}:
                         required = required + ["password"]
-                if source_creds and isinstance(source_creds, dict) and all(k in source_creds for k in required):
+                if existing_creds and isinstance(existing_creds, dict) and all(k in existing_creds for k in required):
                     logger.info(f"Using existing credential file at {cred_file}.")
                     return source
             logger.info("Credential file not found or incomplete, prompting for connection details.")
@@ -177,9 +171,11 @@ class ConfigureRedshiftAssessment(AssessmentConfigurator):
                 "Enter the AWS profile name (or leave empty for default)",
                 default=os.environ.get("AWS_PROFILE", ""),
             )
-        elif auth_method in ("federated_user", "temporary_credentials_iam"):
+        elif auth_method in {"federated_user", "temporary_credentials_iam"}:
             source_creds["host"] = self.prompts.question("Enter the Redshift cluster endpoint (host)")
-            source_creds["port"] = int(self.prompts.question("Enter the port details", valid_number=True, default="5439"))
+            source_creds["port"] = int(
+                self.prompts.question("Enter the port details", valid_number=True, default="5439")
+            )
             source_creds["database"] = self.prompts.question("Enter the database name")
             get_credentials_db_user = self.prompts.question(
                 "DB user for GetClusterCredentials (use awsuser for temp creds as master user)",
@@ -194,7 +190,9 @@ class ConfigureRedshiftAssessment(AssessmentConfigurator):
             )
         else:
             source_creds["host"] = self.prompts.question("Enter the Redshift cluster endpoint (host)")
-            source_creds["port"] = int(self.prompts.question("Enter the port details", valid_number=True, default="5439"))
+            source_creds["port"] = int(
+                self.prompts.question("Enter the port details", valid_number=True, default="5439")
+            )
             source_creds["database"] = self.prompts.question("Enter the database name")
             source_creds["user"] = self.prompts.question("Enter the user details")
             source_creds["password"] = self.prompts.password("Enter the password details")
@@ -294,4 +292,4 @@ def create_assessment_configurator(
     if source_system not in configurators:
         raise ValueError(f"Unsupported source system: {source_system}")
 
-    return configurators[source_system](product_name, prompts, source_system, credential_file)
+    return configurators[source_system](product_name, prompts, source_system, credential_file)  # type: ignore[abstract]

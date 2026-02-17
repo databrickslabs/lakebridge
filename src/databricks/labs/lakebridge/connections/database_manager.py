@@ -22,8 +22,9 @@ from sqlalchemy.dialects.postgresql.psycopg2 import PGDialect_psycopg2
 logger = logging.getLogger(__name__)
 
 
-class RedshiftDialect_psycopg2(PGDialect_psycopg2):
+class RedshiftDialect_psycopg2(PGDialect_psycopg2):  # pylint: disable=invalid-name,abstract-method
     """Use PostgreSQL dialect but skip standard_conforming_strings (not supported by Redshift)."""
+
     supports_statement_cache = True
 
     def _set_backslash_escapes(self, connection):
@@ -74,7 +75,7 @@ def _create_connector(db_type: str, config: dict[str, Any]) -> DatabaseConnector
         "snowflake": SnowflakeConnector,
         "mssql": MSSQLConnector,
         "tsql": MSSQLConnector,
-        "redshift": RedshiftConnector
+        "redshift": RedshiftConnector,
     }
 
     connector_class = connectors.get(db_type.lower())
@@ -125,22 +126,22 @@ def _get_redshift_federated_credentials(config: dict[str, Any]) -> tuple[str, st
     Uses get_credentials_db_user (default awsuser) so temp creds are for an existing DB user;
     your federated identity (AWS profile/SSO) authorizes the call."""
     try:
-        import boto3
+        import boto3  # type: ignore[import-untyped]  # pylint: disable=import-outside-toplevel
     except ImportError as e:
-        raise ConnectionError(
-            "federated_user auth requires boto3. Install with: pip install boto3"
-        ) from e
+        raise ConnectionError("federated_user auth requires boto3. Install with: pip install boto3") from e
     host = config.get("host") or ""
     host_parts = host.split(".")
     cluster_identifier = config.get("cluster_identifier") or (host_parts[0] if host_parts else "")
     db_name = config.get("database") or ""
     db_user = config.get("get_credentials_db_user") or config.get("master_username") or "awsuser"
-    region = config.get("region") or (host_parts[2] if len(host_parts) >= 3 else None) or os.environ.get("AWS_REGION", "us-west-2")
+    region = (
+        config.get("region")
+        or (host_parts[2] if len(host_parts) >= 3 else None)
+        or os.environ.get("AWS_REGION", "us-west-2")
+    )
     profile = config.get("aws_profile") or os.environ.get("AWS_PROFILE")
     if not cluster_identifier or not db_name:
-        raise ConnectionError(
-            "federated_user auth requires cluster_identifier (or host) and database in config."
-        )
+        raise ConnectionError("federated_user auth requires cluster_identifier (or host) and database in config.")
     session_kw: dict[str, Any] = {"region_name": region}
     if profile:
         session_kw["profile_name"] = profile
@@ -157,17 +158,19 @@ def _get_redshift_federated_credentials(config: dict[str, Any]) -> tuple[str, st
 def _get_redshift_secrets_manager_credentials(config: dict[str, Any]) -> dict[str, Any]:
     """Fetch Redshift connection info from AWS Secrets Manager. Secret JSON: username, password, host, port, dbname, engine."""
     try:
-        import boto3
+        import boto3  # type: ignore[import-untyped]  # pylint: disable=import-outside-toplevel
     except ImportError as e:
-        raise ConnectionError(
-            "secrets_manager auth requires boto3. Install with: pip install boto3"
-        ) from e
+        raise ConnectionError("secrets_manager auth requires boto3. Install with: pip install boto3") from e
     secret_arn = (config.get("secrets_manager_secret_arn") or "").strip()
     if not secret_arn:
         raise ConnectionError("secrets_manager auth requires secrets_manager_secret_arn in config.")
     profile = config.get("aws_profile") or os.environ.get("AWS_PROFILE")
     arn_parts = secret_arn.split(":")
-    region = config.get("region") or (arn_parts[3] if len(arn_parts) >= 4 else None) or os.environ.get("AWS_REGION", "us-west-2")
+    region = (
+        config.get("region")
+        or (arn_parts[3] if len(arn_parts) >= 4 else None)
+        or os.environ.get("AWS_REGION", "us-west-2")
+    )
     session_kw: dict[str, Any] = {"region_name": region}
     if profile:
         session_kw["profile_name"] = profile
@@ -190,18 +193,22 @@ def _get_redshift_secrets_manager_credentials(config: dict[str, Any]) -> dict[st
 class RedshiftConnector(_BaseConnector):
     def _connect(self) -> Engine:
         registry.register("redshift_psycopg2", __name__, "RedshiftDialect_psycopg2")
-        use_ssl = str(self.config.get("ssl") or "no").lower() in ("yes", "true", "1")
+        use_ssl = str(self.config.get("ssl") or "no").lower() in {"yes", "true", "1"}
         connect_args = {"sslmode": "require"} if use_ssl else {}
         auth = (self.config.get("auth_method") or "").lower()
 
         if auth == "secrets_manager":
-            sm = _get_redshift_secrets_manager_credentials(self.config)
-            host, port, db_name = sm["host"], sm["port"], sm["database"]
-            user_enc = quote_plus(sm["user"])
-            password_enc = quote_plus(sm["password"])
+            secrets_manager_creds = _get_redshift_secrets_manager_credentials(self.config)
+            host, port, db_name = (
+                secrets_manager_creds["host"],
+                secrets_manager_creds["port"],
+                secrets_manager_creds["database"],
+            )
+            user_enc = quote_plus(secrets_manager_creds["user"])
+            password_enc = quote_plus(secrets_manager_creds["password"])
             url_str = f"redshift_psycopg2://{user_enc}:{password_enc}@{host}:{port}/{db_name}"
             return create_engine(url_str, connect_args=connect_args)
-        if auth in ("federated_user", "temporary_credentials_iam"):
+        if auth in {"federated_user", "temporary_credentials_iam"}:
             host = self.config["host"]
             port = self.config.get("port", 5439)
             db_name = self.config.get("database") or ""
@@ -223,6 +230,7 @@ class RedshiftConnector(_BaseConnector):
         )
         return create_engine(connection_string, connect_args=connect_args)
 
+
 class DatabaseManager:
     def __init__(self, db_type: str, config: dict[str, Any]):
         self.connector = _create_connector(db_type, config)
@@ -231,7 +239,7 @@ class DatabaseManager:
         try:
             return self.connector.fetch(query)
         except OperationalError as e:
-            logger.error("Error connecting to the database: %s", e)
+            logger.exception("Error connecting to the database: %s", e)  # pylint: disable=logging-too-many-args
             raise ConnectionError(f"Error connecting to the database check credentials: {e}") from e
 
     def check_connection(self) -> bool:

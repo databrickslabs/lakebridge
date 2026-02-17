@@ -6,7 +6,9 @@ PRODUCT_PATH_PREFIX = Path.home() / ".databricks" / "labs" / PRODUCT_NAME / "lib
 
 REDSHIFT_VARIANTS = ["serverless", "provisioned", "provisioned_multi_az"]
 
-REDSHIFT_CONFIG_PATH_TEMPLATE = "src/databricks/labs/lakebridge/resources/assessments/redshift/{variant}/pipeline_config.yml"
+REDSHIFT_CONFIG_PATH_TEMPLATE = (
+    "src/databricks/labs/lakebridge/resources/assessments/redshift/{variant}/pipeline_config.yml"
+)
 
 PLATFORM_TO_SOURCE_TECHNOLOGY_CFG = {
     "synapse": "src/databricks/labs/lakebridge/resources/assessments/synapse/pipeline_config.yml",
@@ -14,9 +16,10 @@ PLATFORM_TO_SOURCE_TECHNOLOGY_CFG = {
 }
 
 # TODO modify this PLATFORM_TO_SOURCE_TECHNOLOGY.keys() once all platforms are supported
-PROFILER_SOURCE_SYSTEM = ["synapse",
-                          "redshift",
-                          ]
+PROFILER_SOURCE_SYSTEM = [
+    "synapse",
+    "redshift",
+]
 
 
 # This flag indicates whether a connector is required for the source system when pipeline is trigger
