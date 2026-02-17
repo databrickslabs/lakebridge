@@ -74,9 +74,7 @@ class Profiler:
     @staticmethod
     def _pipeline_needs_connector(pipeline_config: PipelineConfig) -> bool:
         """True if the pipeline has any active SQL step that requires a DatabaseManager."""
-        return any(
-            step.type == "sql" and step.flag == "active" for step in pipeline_config.steps
-        )
+        return any(step.type == "sql" and step.flag == "active" for step in pipeline_config.steps)
 
     def _execute(self, platform: str, pipeline_config: PipelineConfig, extractor=None) -> None:
         try:
