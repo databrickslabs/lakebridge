@@ -1100,11 +1100,13 @@ def test_profiler_connection(*, w: WorkspaceClient, source_tech: str | None = No
     except ConnectionError as e:
         logger.error(f"Failed to connect to the source system: {e}")
         if "IM002" in str(e) or "ODBC driver not found" in str(e):
-            raise SystemExit("Missing ODBC driver, Please install pre-req. Exiting...") from e
-        raise SystemExit("Connection validation failed. Exiting...") from e
-    except Exception as e:
+            logger.fatal("Missing ODBC driver, Please install pre-req. Exiting...")
+        else:
+            logger.fatal("Connection validation failed. Exiting...")
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        # Catch all exceptions to provide user-friendly error messages for CLI
         logger.error(f"Unexpected error during connection test: {e}")
-        raise SystemExit("Connection test failed. Exiting...") from e
+        logger.fatal("Connection test failed. Exiting...")
 
 
 if __name__ == "__main__":
