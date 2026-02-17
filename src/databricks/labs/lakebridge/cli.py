@@ -30,7 +30,7 @@ from databricks.labs.lakebridge.contexts.application import ApplicationContext
 from databricks.labs.lakebridge.connections.credential_manager import cred_file, create_credential_manager
 from databricks.labs.lakebridge.connections.database_manager import DatabaseManager
 from databricks.labs.lakebridge.connections.env_getter import EnvGetter
-from databricks.labs.lakebridge.connections.synapse_helpers import validate_synapse_pools
+from databricks.labs.lakebridge.connections.synapse_connection_helpers import validate_synapse_pools
 from databricks.labs.lakebridge.helpers.recon_config_utils import ReconConfigPrompts
 from databricks.labs.lakebridge.helpers.telemetry_utils import make_alphanum_or_semver
 from databricks.labs.lakebridge.reconcile.runner import ReconcileRunner
@@ -1040,19 +1040,19 @@ def create_profiler_dashboard(
     ctx.dashboard_manager.create_profiler_summary_dashboard(source_tech, catalog_name, schema_name)
 
 
-def _transform_profiler_credentials(source_tech: str, raw_config: dict) -> dict:
-    """Transform source-specific credential structures to flat connection config."""
+def _test_database_connection(source_tech: str, raw_config: dict) -> None:
+    """Test connection to the source database with appropriate error handling."""
+    # Handle synapse-specific validation using dedicated helper
     if source_tech == "synapse":
-        # Synapse has nested structure: extract workspace config and add database
-        workspace_config = raw_config.get("workspace", {})
-        jdbc_config = raw_config.get("jdbc", {})
+        validate_synapse_pools(raw_config)
+        logger.info("Connection to the source system successful")
+        return
 
-        return {
-            **workspace_config,
-            "database": "master",  # Use master database for connection test
-            "auth_type": jdbc_config.get("auth_type", "sql_authentication"),
-        }
-    return raw_config
+    # For other source technologies, use DatabaseManager directly
+    db_manager = DatabaseManager(source_tech, raw_config)
+    response = db_manager.check_connection()
+    logger.debug(f"Connection response: {response}")
+    logger.info("Connection to the source system successful")
 
 
 @lakebridge.command()
@@ -1090,22 +1090,13 @@ def test_profiler_connection(*, w: WorkspaceClient, source_tech: str | None = No
         raw_config = cred_manager.get_credentials(source_tech)
     except KeyError as e:
         logger.error(f"Credential configuration error: {e}")
-        logger.fatal(f"Invalid credentials for {source_tech}. Please run `databricks labs lakebridge configure-database-profiler`.")
+        logger.fatal(
+            f"Invalid credentials for {source_tech}. Please run `databricks labs lakebridge configure-database-profiler`."
+        )
         return
 
-    # Validate connection for other source technologies
-    config = _transform_profiler_credentials(source_tech, raw_config)
-    db_manager = DatabaseManager(source_tech, config)
-
     try:
-        # Handle synapse-specific validation
-        if source_tech == "synapse":
-            validate_synapse_pools(raw_config)
-            logger.info("Connection to the source system successful")
-            return
-        response = db_manager.check_connection()
-        logger.debug(f"Connection response: {response}")
-        logger.info("Connection to the source system successful")
+        _test_database_connection(source_tech, raw_config)
     except ConnectionError as e:
         logger.error(f"Failed to connect to the source system: {e}")
         if "IM002" in str(e) or "ODBC driver not found" in str(e):

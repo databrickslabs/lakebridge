@@ -60,7 +60,7 @@ def _create_connector(db_type: str, config: dict[str, Any]) -> DatabaseConnector
         "snowflake": SnowflakeConnector,
         "mssql": MSSQLConnector,
         "tsql": MSSQLConnector,
-        "synapse": SynapseConnector,
+        "synapse": MSSQLConnector,  # Synapse uses MSSQL protocol
     }
 
     connector_class = connectors.get(db_type.lower())
@@ -104,38 +104,6 @@ class MSSQLConnector(_BaseConnector):
             query=query_params,
         )
         return create_engine(connection_string)
-
-
-class SynapseConnector(MSSQLConnector):
-    """
-    Azure Synapse SQL Pool connector.
-
-    This is an adapter that translates Synapse-specific configuration
-    to MSSQL connection format, then delegates to MSSQLConnector.
-
-    Synapse SQL pools use the same protocol as SQL Server, so this
-    connector inherits from MSSQLConnector and only transforms the config.
-    """
-
-    def __init__(self, config: dict[str, Any]):
-        # Synapse config may have endpoint_key for dedicated/serverless pools
-        # Transform to MSSQL-compatible config
-        endpoint_key = config.get('endpoint_key', 'dedicated_sql_endpoint')
-
-        # Build MSSQL-compatible configuration
-        mssql_config = {
-            'driver': config['driver'],
-            'server': config.get('server') or config.get(endpoint_key, config.get('dedicated_sql_endpoint')),
-            'database': config['database'],
-            'user': config.get('user') or config.get('sql_user'),
-            'password': config.get('password') or config.get('sql_password'),
-            'port': config.get('port', 1433),
-            'auth_type': config.get('auth_type', 'sql_authentication'),
-        }
-
-        # Initialize parent with transformed config
-        # This will call MSSQLConnector.__init__ which calls _connect()
-        super().__init__(mssql_config)
 
 
 class DatabaseManager:
