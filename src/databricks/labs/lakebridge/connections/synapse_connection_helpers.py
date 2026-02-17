@@ -43,7 +43,7 @@ def _test_pool_connection(
     endpoint_key: str,
     auth_type: str,
 ) -> tuple[bool, str | None]:
-    """Test connection to a single Synapse SQL pool with proper resource cleanup.
+    """Test connection to a single Synapse SQL pool with automatic resource cleanup.
 
     Args:
         pool_name: Name of the pool for logging (e.g., "dedicated", "serverless")
@@ -56,25 +56,19 @@ def _test_pool_connection(
         Tuple of (success, error_message). error_message is None if successful.
     """
     logger.info(f"Testing connection to {pool_name} SQL pool...")
-    db_manager = None
 
     try:
-        db_manager = create_synapse_connection(workspace_config, database, endpoint_key, auth_type)
-        if db_manager.check_connection():
-            logger.info(f"✓ {pool_name.capitalize()} SQL pool connection successful")
-            return True, None
-        logger.error(f"✗ {pool_name.capitalize()} SQL pool connection failed")
-        return False, f"{pool_name.capitalize()} SQL pool connection check failed"
+        with create_synapse_connection(workspace_config, database, endpoint_key, auth_type) as db_manager:
+            if db_manager.check_connection():
+                logger.info(f"✓ {pool_name.capitalize()} SQL pool connection successful")
+                return True, None
+            logger.error(f"✗ {pool_name.capitalize()} SQL pool connection failed")
+            return False, f"{pool_name.capitalize()} SQL pool connection check failed"
     except Exception as e:  # pylint: disable=broad-exception-caught
         # Catch all exceptions to gracefully handle any connection failure (network, auth, config, etc.)
         error_msg = f"Failed to connect to {pool_name} SQL pool: {e}"
         logger.error(f"✗ {error_msg}")
         return False, error_msg
-    finally:
-        # Clean up database engine resources
-        if db_manager and hasattr(db_manager, 'connector') and hasattr(db_manager.connector, 'engine'):
-            db_manager.connector.engine.dispose()
-            logger.debug(f"Disposed engine for {pool_name} SQL pool")
 
 
 def validate_synapse_pools(raw_config: dict) -> None:

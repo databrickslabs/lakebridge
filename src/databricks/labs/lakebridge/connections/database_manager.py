@@ -110,6 +110,16 @@ class DatabaseManager:
     def __init__(self, db_type: str, config: dict[str, Any]):
         self.connector = _create_connector(db_type, config)
 
+    def __enter__(self):
+        """Support context manager protocol for resource management."""
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Clean up connector resources when exiting context."""
+        if hasattr(self.connector, '__exit__'):
+            self.connector.__exit__(exc_type, exc_val, exc_tb)
+        return False
+
     def fetch(self, query: str) -> FetchResult:
         try:
             return self.connector.fetch(query)
