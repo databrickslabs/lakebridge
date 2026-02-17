@@ -1108,7 +1108,7 @@ def test_profiler_connection(
     except ConnectionError as e:
         logger.error(f"Failed to connect to the source system: {e}")
         error_msg = str(e).lower()
-        if any(pattern in error_msg for pattern in ["im002", "odbc driver not found", "can't open lib"]):
+        if any(pattern in error_msg for pattern in ("im002", "odbc driver not found", "can't open lib")):
             logger.fatal("Missing ODBC driver, Please install pre-req. Exiting...")
         else:
             logger.fatal("Connection validation failed. Exiting...")
