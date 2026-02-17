@@ -1056,7 +1056,7 @@ def _transform_profiler_credentials(source_tech: str, raw_config: dict) -> dict:
 
 
 @lakebridge.command()
-def test_profiler_connection(w: WorkspaceClient, source_tech: str | None = None) -> None:
+def test_profiler_connection(*, w: WorkspaceClient, source_tech: str | None = None) -> None:
     """[Internal] Test the connection to the source database for profiling"""
     ctx = ApplicationContext(w)
     ctx.add_user_agent_extra("cmd", "test-profiler-connection")
