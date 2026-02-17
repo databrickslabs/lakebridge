@@ -75,20 +75,22 @@ The converter supports the following DataStage stages:
 
 ### Source/Target Connectors
 
-| DataStage Connector | System Type | Spark Equivalent | Notes |
-|--------------------|-------------|------------------|-------|
-| **Oracle Connector** | ORACLE | `spark.read.jdbc()` or SparkSQL | Oracle database |
-| **DB2 Connector** | DB2 | `spark.read.jdbc()` or SparkSQL | IBM DB2 database |
-| **SQL Server (ODBC)** | MSSQL | `spark.read.jdbc()` or SparkSQL | Microsoft SQL Server |
-| **Teradata Connector** | TERADATA | `spark.read.jdbc()` or SparkSQL | Teradata database |
-| **Snowflake Connector** | SNOWFLAKE | `spark.read.jdbc()` or SparkSQL | Snowflake cloud DW |
-| **Netezza Connector** | NETEZZA | `spark.read.jdbc()` or SparkSQL | Netezza appliance |
-| **Hive Connector** | HIVE | SparkSQL | Hive metastore tables |
-| **Sequential File** | FLATFILE | `spark.read.csv()` or `csv.\`path\`` | CSV/delimited files |
-| **Dataset** | FLATFILE | `spark.read.parquet()` | DataStage dataset files |
-| **File Connector** | FLATFILE | `spark.read.csv()` or file reader | Generic file access |
-| **Amazon S3** | AMAZON_S3 | `spark.read` with S3 path | AWS S3 storage |
-| **HDFS (BDFS)** | FLATFILE | `spark.read` with HDFS path | Hadoop file system |
+| DataStage Connector | System Type | Notes |
+|--------------------|-------------|-------|
+| **Amazon S3** | AMAZON_S3 | AWS S3 storage |
+| **DB2 Connector** | DB2 | IBM DB2 database |
+| **Dataset** | FLATFILE | DataStage dataset files |
+| **File Connector** | FLATFILE | Generic file access |
+| **HDFS (BDFS)** | FLATFILE | Hadoop file system |
+| **Hive Connector** | HIVE | Hive metastore tables |
+| **Netezza Connector** | NETEZZA | Netezza appliance |
+| **Oracle Connector** | ORACLE | Oracle database |
+| **Sequential File** | FLATFILE | CSV/delimited files |
+| **Snowflake Connector** | SNOWFLAKE | Snowflake cloud DW |
+| **SQL Server (ODBC)** | MSSQL | Microsoft SQL Server |
+| **Teradata Connector** | TERADATA | Teradata database |
+
+The actual Spark code generated for sources and targets is configurable. See [Source and Target Code Generation](#source-and-target-code-generation) in Advanced Configuration.
 
 ### Orchestration Stages (Sequence Jobs)
 
@@ -396,8 +398,7 @@ databricks labs lakebridge transpile \
   --source-dialect datastage \
   --input-source /path/to/datastage/exports \
   --output-folder /output/sparksql \
-  --target-technology sparksql \
-  --transpiler-config-path /path/to/custom/config
+  --target-technology sparksql
 ```
 
 ### Function Translation
@@ -418,6 +419,70 @@ Common DataStage functions are automatically translated:
 | `IIF(cond, t, f)` | `IF(cond, t, f)` |
 | `IsNull(val)` | `ISNULL(val)` |
 | `NullToValue(val, def)` | `NVL(val, def)` or `COALESCE(val, def)` |
+
+### Source and Target Code Generation
+
+The code generated for source and target connectors is fully configurable through JSON configuration files. This allows customization of how data is read from sources and written to targets.
+
+#### System Type Classification
+
+The `system_type_class` setting maps database/connector types to a system class:
+
+```json
+"system_type_class": {
+  "ORACLE": "RELATIONAL",
+  "DB2": "RELATIONAL",
+  "MSSQL": "RELATIONAL",
+  "TERADATA": "RELATIONAL",
+  "HIVE": "RELATIONAL",
+  "FLATFILE": "FILE_DELIMITED",
+  "DEFAULT": "RELATIONAL"
+}
+```
+
+#### Reader/Writer Command Templates
+
+The `commands` section defines templates for generating reader and writer code based on system class:
+
+```json
+"commands": {
+  "READER_RELATIONAL": "spark.sql(f\"\"\"%TABLE_NAME%\"\"\")",
+  "READER_FILE_DELIMITED": "spark.read.format('csv').option('header', '%HEADER%').load(f'''%PATH%''')",
+  "WRITER_RELATIONAL": "%DF%.write.saveAsTable('%TABLE_NAME%', mode = 'append')",
+  "WRITER_FILE_DELIMITED": "%DF%.write.format('csv').option('header','%HEADER%').mode('overwrite').csv(f'''%PATH%''')"
+}
+```
+
+#### Template Tokens
+
+Command templates use placeholder tokens that are replaced at conversion time:
+
+| Token | Description |
+|-------|-------------|
+| `%NODE_NAME%` | Name of the current component/stage |
+| `%DF%` | DataFrame variable name (same as node name) |
+| `%TABLE_NAME%` | Name of the table referenced in the node metadata; depending on the node, could be source or target table |
+| `%PATH%` | File path for flat files |
+| `%FILENAME%` | File directory |
+| `%DELIMITER%` | Field delimiter for CSV |
+| `%HEADER%` | `'true'` or `'false'` for CSV header row |
+| `%SQL%` | Raw SQL content |
+| `%COLUMN_LIST%` | Comma-separated column names |
+
+#### SparkSQL Hybrid Approach
+
+When generating SparkSQL output, the converter uses a hybrid approach:
+
+- **Relational sources/targets**: Generate SparkSQL via `spark.sql()`
+- **Flat file sources/targets**: Generate PySpark code (e.g., `spark.read.csv()`)
+
+This is controlled by the `force_pyspark_output_by_node_types` setting in `base_datastage2databricks_sparksql.json`:
+
+```json
+"force_pyspark_output_by_node_types": ["SOURCE|FLATFILE", "TARGET|FLATFILE", "INSERT|FLATFILE"]
+```
+
+When a node matches this list, the converter uses the `pyspark_config.commands` section instead of generating SparkSQL. This is necessary because SparkSQL does not have native file I/O syntax.
 
 ---
 
