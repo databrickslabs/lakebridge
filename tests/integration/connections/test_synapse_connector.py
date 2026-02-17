@@ -1,43 +1,6 @@
 from typing import Any
 
-import pytest
-
 from databricks.labs.lakebridge.connections.database_manager import DatabaseManager, MSSQLConnector
-
-
-@pytest.fixture()
-def sandbox_synapse_config(sandbox_sqlserver_config: dict[str, Any]) -> dict[str, Any]:
-    """Convert SQL Server config to Synapse config format for direct DatabaseManager usage."""
-    # Transform MSSQL config to Synapse format
-    # In testing, we use SQL Server as a stand-in for Synapse since they use the same protocol
-    return {
-        "server": sandbox_sqlserver_config["server"],
-        "user": sandbox_sqlserver_config["user"],
-        "password": sandbox_sqlserver_config["password"],
-        "driver": sandbox_sqlserver_config["driver"],
-        "database": sandbox_sqlserver_config["database"],
-        "auth_type": "sql_authentication",
-        "port": 1433,
-    }
-
-
-@pytest.fixture()
-def sandbox_synapse_cred_config(sandbox_sqlserver_config: dict[str, Any]) -> dict[str, Any]:
-    """Convert SQL Server config to Synapse credential format (as stored by configure-database-profiler)."""
-    # This mimics the structure returned by credential manager for get_sqlpool_reader
-    return {
-        "dedicated_sql_endpoint": sandbox_sqlserver_config["server"],
-        "sql_user": sandbox_sqlserver_config["user"],
-        "sql_password": sandbox_sqlserver_config["password"],
-        "driver": sandbox_sqlserver_config["driver"],
-        "database": sandbox_sqlserver_config["database"],
-    }
-
-
-@pytest.fixture()
-def sandbox_synapse(sandbox_synapse_config: dict[str, Any]) -> DatabaseManager:
-    """Create a DatabaseManager for Synapse (uses MSSQLConnector via factory method)."""
-    return DatabaseManager("synapse", sandbox_synapse_config)
 
 
 def test_synapse_connector_connection(sandbox_synapse: DatabaseManager) -> None:
@@ -59,18 +22,19 @@ def test_synapse_connection_check(sandbox_synapse: DatabaseManager) -> None:
 
 def test_synapse_with_credential_format(sandbox_synapse_cred_config: dict[str, Any]) -> None:
     """Test DatabaseManager with credential format (sql_user/sql_password)."""
-    db_name = sandbox_synapse_cred_config["database"]
+    workspace_config = sandbox_synapse_cred_config["synapse"]["workspace"]
+    db_name = sandbox_synapse_cred_config["synapse"]["profiler"]["databases"]
 
     # Simulate what the assessment code does: transform credential format to connection config
     manager = DatabaseManager(
         "synapse",
         {
-            "driver": sandbox_synapse_cred_config['driver'],
-            "server": sandbox_synapse_cred_config['dedicated_sql_endpoint'],
+            "driver": workspace_config['driver'],
+            "server": workspace_config['dedicated_sql_endpoint'],
             "database": db_name,
-            "user": sandbox_synapse_cred_config['sql_user'],
-            "password": sandbox_synapse_cred_config['sql_password'],
-            "port": sandbox_synapse_cred_config.get('port', 1433),
+            "user": workspace_config['sql_user'],
+            "password": workspace_config['sql_password'],
+            "port": workspace_config.get('port', 1433),
             "auth_type": 'sql_authentication',
         },
     )
@@ -82,17 +46,18 @@ def test_synapse_with_credential_format(sandbox_synapse_cred_config: dict[str, A
 
 def test_synapse_query_execution(sandbox_synapse_cred_config: dict[str, Any]) -> None:
     """Test DatabaseManager can execute queries with credential format."""
-    db_name = sandbox_synapse_cred_config["database"]
+    workspace_config = sandbox_synapse_cred_config["synapse"]["workspace"]
+    db_name = sandbox_synapse_cred_config["synapse"]["profiler"]["databases"]
 
     manager = DatabaseManager(
         "synapse",
         {
-            "driver": sandbox_synapse_cred_config['driver'],
-            "server": sandbox_synapse_cred_config['dedicated_sql_endpoint'],
+            "driver": workspace_config['driver'],
+            "server": workspace_config['dedicated_sql_endpoint'],
             "database": db_name,
-            "user": sandbox_synapse_cred_config['sql_user'],
-            "password": sandbox_synapse_cred_config['sql_password'],
-            "port": sandbox_synapse_cred_config.get('port', 1433),
+            "user": workspace_config['sql_user'],
+            "password": workspace_config['sql_password'],
+            "port": workspace_config.get('port', 1433),
             "auth_type": 'sql_authentication',
         },
     )

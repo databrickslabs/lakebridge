@@ -127,3 +127,5 @@ commands:
     flags:
       - name: source-tech
         description: Database platform/technology of source connection
+      - name: cred-file-path
+        description: (Optional) Local `path` of the credential file to use for testing the connection

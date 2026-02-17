@@ -1056,7 +1056,12 @@ def _test_database_connection(source_tech: str, raw_config: dict) -> None:
 
 
 @lakebridge.command()
-def test_profiler_connection(*, w: WorkspaceClient, source_tech: str | None = None) -> None:
+def test_profiler_connection(
+    *,
+    w: WorkspaceClient,
+    source_tech: str | None = None,
+    cred_file_path: str | None = None,
+) -> None:
     """[Internal] Test the connection to the source database for profiling"""
     ctx = ApplicationContext(w)
     ctx.add_user_agent_extra("cmd", "test-profiler-connection")
@@ -1075,8 +1080,11 @@ def test_profiler_connection(*, w: WorkspaceClient, source_tech: str | None = No
     ctx.add_user_agent_extra("profiler_source_tech", make_alphanum_or_semver(source_tech))
     logger.debug(f"User: {ctx.current_user}")
 
+    # Use provided credential file path or fall back to default
+    credential_file = Path(cred_file_path) if cred_file_path else cred_file(PRODUCT_NAME)
+
     # Check if credential file exists
-    if not cred_file(PRODUCT_NAME).exists():
+    if not credential_file.exists():
         raise_validation_exception(
             f"Connection details not found. Please run `databricks labs lakebridge configure-database-profiler` "
             f"to set up connection details for {source_tech}."
@@ -1084,7 +1092,7 @@ def test_profiler_connection(*, w: WorkspaceClient, source_tech: str | None = No
 
     logger.info(f"Testing connection for source technology: {source_tech}")
 
-    cred_manager = create_credential_manager(PRODUCT_NAME, EnvGetter())
+    cred_manager = create_credential_manager(PRODUCT_NAME, EnvGetter(), creds_path=credential_file)
 
     try:
         raw_config = cred_manager.get_credentials(source_tech)
@@ -1099,7 +1107,8 @@ def test_profiler_connection(*, w: WorkspaceClient, source_tech: str | None = No
         _test_database_connection(source_tech, raw_config)
     except ConnectionError as e:
         logger.error(f"Failed to connect to the source system: {e}")
-        if "IM002" in str(e) or "ODBC driver not found" in str(e):
+        error_msg = str(e).lower()
+        if any(pattern in error_msg for pattern in ["im002", "odbc driver not found", "can't open lib"]):
             logger.fatal("Missing ODBC driver, Please install pre-req. Exiting...")
         else:
             logger.fatal("Connection validation failed. Exiting...")
