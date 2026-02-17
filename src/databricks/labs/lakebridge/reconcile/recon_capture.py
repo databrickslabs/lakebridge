@@ -45,6 +45,10 @@ class AbstractReconIntermediatePersist:
     def base_dir(self) -> Path:
         raise NotImplementedError
 
+    @property
+    def is_serverless(self) -> bool:
+        raise NotImplementedError
+
     def write_and_read_df_with_volumes(
         self,
         df: DataFrame,
@@ -68,6 +72,11 @@ class ReconIntermediatePersist(AbstractReconIntermediatePersist):
     @property
     def base_dir(self) -> Path:
         return Path(self._base_dir)
+
+    @cached_property
+    def is_serverless(self) -> bool:
+        is_serverless = os.getenv("IS_SERVERLESS", "").lower() == "true"
+        return is_serverless
 
     @property
     def _get_uc_volume_path(self):
@@ -384,6 +393,8 @@ class ReconCapture:
             f"""
                 select {recon_table_id} as recon_table_id,
                 named_struct(
+                    'source_record_count', cast({record_count.source} as bigint),
+                    'target_record_count', cast({record_count.target} as bigint),
                     'row_comparison', case when '{self.report_type.lower()}' in ('all', 'row', 'data')
                         and '{exception_msg}' = '' then
                      named_struct(

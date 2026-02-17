@@ -11,11 +11,12 @@ from databricks.labs.lakebridge.reconcile.recon_capture import (
     generate_final_reconcile_aggregate_output,
     ReconCapture,
 )
-from databricks.labs.lakebridge.reconcile.recon_config import AGG_RECONCILE_OPERATION_NAME, Table
+from databricks.labs.lakebridge.reconcile.recon_config import Table
 from databricks.labs.lakebridge.reconcile.recon_output_config import (
     ReconcileProcessDuration,
     AggregateQueryOutput,
     DataReconcileOutput,
+    ReconcileOutput,
 )
 from databricks.labs.lakebridge.reconcile.reconciliation import Reconciliation
 from databricks.labs.lakebridge.reconcile.trigger_recon_service import TriggerReconService
@@ -31,7 +32,7 @@ class TriggerReconAggregateService:
         table_recon: TableRecon,
         reconcile_config: ReconcileConfig,
         local_test_run: bool = False,
-    ):
+    ) -> ReconcileOutput:
         reconciler, recon_capture = TriggerReconService.create_recon_dependencies(
             ws, spark, reconcile_config, local_test_run
         )
@@ -49,7 +50,7 @@ class TriggerReconAggregateService:
                     metadata_config=reconcile_config.metadata_config,
                     local_test_run=local_test_run,
                 ),
-                operation_name=AGG_RECONCILE_OPERATION_NAME,
+                report_type="aggregate",
             )
         finally:
             try:
@@ -60,7 +61,7 @@ class TriggerReconAggregateService:
     @staticmethod
     def recon_aggregate_one(
         reconciler: Reconciliation, table_conf: Table, reconcile_config: ReconcileConfig, recon_capture: ReconCapture
-    ):
+    ) -> None:
         normalized_table_conf = NormalizeReconConfigService(
             reconciler.source, reconciler.target
         ).normalize_recon_table_config(table_conf)

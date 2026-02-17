@@ -8,7 +8,6 @@ from databricks.sdk import WorkspaceClient
 
 from databricks.labs.lakebridge import initialize_logging
 from databricks.labs.lakebridge.config import ReconcileConfig, TableRecon
-from databricks.labs.lakebridge.reconcile.exception import ReconciliationException
 from databricks.labs.lakebridge.reconcile.recon_config import AGG_RECONCILE_OPERATION_NAME, RECONCILE_OPERATION_NAME
 from databricks.labs.lakebridge.reconcile.trigger_recon_aggregate_service import TriggerReconAggregateService
 from databricks.labs.lakebridge.reconcile.trigger_recon_service import TriggerReconService
@@ -58,18 +57,13 @@ def _trigger_recon(
     table_recon: TableRecon,
     reconcile_config: ReconcileConfig,
 ):
-    try:
-        recon_output = TriggerReconService.trigger_recon(
-            ws=w,
-            spark=DatabricksSession.builder.getOrCreate(),
-            table_recon=table_recon,
-            reconcile_config=reconcile_config,
-        )
-        logger.info(f"recon_output: {recon_output}")
-        logger.info(f"recon_id: {recon_output.recon_id}")
-    except ReconciliationException as e:
-        logger.error(f"Error while running recon: {e.reconcile_output}")
-        raise e
+    recon_output = TriggerReconService.trigger_recon(
+        ws=w,
+        spark=DatabricksSession.builder.getOrCreate(),
+        table_recon=table_recon,
+        reconcile_config=reconcile_config,
+    )
+    logger.info(f"Output: {recon_output}")
 
 
 def _trigger_reconcile_aggregates(
@@ -94,19 +88,14 @@ def _trigger_reconcile_aggregates(
     - ReconciliationException: If an error occurs during the reconciliation process, it is caught and re-raised
       after logging the error details.
     """
-    try:
-        reconcile_config.report_type = "aggregate"
-        recon_output = TriggerReconAggregateService.trigger_recon_aggregates(
-            ws=ws,
-            spark=DatabricksSession.builder.getOrCreate(),
-            table_recon=table_recon,
-            reconcile_config=reconcile_config,
-        )
-        logger.info(f"recon_output: {recon_output}")
-        logger.info(f"recon_id: {recon_output.recon_id}")
-    except ReconciliationException as e:
-        logger.error(f"Error while running aggregate reconcile: {str(e)}")
-        raise e
+    reconcile_config.report_type = "aggregate"
+    recon_output = TriggerReconAggregateService.trigger_recon_aggregates(
+        ws=ws,
+        spark=DatabricksSession.builder.getOrCreate(),
+        table_recon=table_recon,
+        reconcile_config=reconcile_config,
+    )
+    logger.info(f"Output: {recon_output}")
 
 
 if __name__ == "__main__":
