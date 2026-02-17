@@ -56,6 +56,16 @@ schemas:
             type: VARCHAR
           - name: avg_queries_minute
             type: DOUBLE
+      chart_query_type_by_hour:
+        columns:
+          - name: set_name
+            type: VARCHAR
+          - name: query_type
+            type: VARCHAR
+          - name: hour
+            type: BIGINT
+          - name: count
+            type: BIGINT
       chart_cpu_consumption_by_query_type:
         columns:
           - name: set_name
