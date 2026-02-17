@@ -126,4 +126,4 @@ commands:
     description: (Internal) Test the connection to the source database for profiling
     flags:
       - name: source-tech
-        description: The technology/platform of the source to test connection
+        description: Database platform/technology of source connection
