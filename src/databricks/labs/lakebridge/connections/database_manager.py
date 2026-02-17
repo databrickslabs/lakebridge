@@ -21,14 +21,27 @@ from sqlalchemy.dialects.postgresql.psycopg2 import PGDialect_psycopg2
 
 logger = logging.getLogger(__name__)
 
+try:
+    import boto3  # type: ignore[import-untyped]
+except ImportError:
+    boto3 = None
 
-class RedshiftDialect_psycopg2(PGDialect_psycopg2):  # pylint: disable=invalid-name,abstract-method
+
+class RedshiftDialectPsycopg2(PGDialect_psycopg2):
     """Use PostgreSQL dialect but skip standard_conforming_strings (not supported by Redshift)."""
 
     supports_statement_cache = True
 
     def _set_backslash_escapes(self, connection):
         self._backslash_escapes = False
+
+    def do_set_input_sizes(self, cursor, list_of_tuples, context):
+        """Required by Dialect; use PostgreSQL implementation."""
+        PGDialect_psycopg2.do_set_input_sizes(self, cursor, list_of_tuples, context)
+
+    def get_table_options(self, *args, **kwargs):
+        """Required by Dialect; delegate to parent."""
+        return super().get_table_options(*args, **kwargs)
 
 
 @dataclasses.dataclass
@@ -125,10 +138,8 @@ def _get_redshift_federated_credentials(config: dict[str, Any]) -> tuple[str, st
     """Resolve Redshift user and password via GetClusterCredentials for federated_user auth.
     Uses get_credentials_db_user (default awsuser) so temp creds are for an existing DB user;
     your federated identity (AWS profile/SSO) authorizes the call."""
-    try:
-        import boto3  # type: ignore[import-untyped]  # pylint: disable=import-outside-toplevel
-    except ImportError as e:
-        raise ConnectionError("federated_user auth requires boto3. Install with: pip install boto3") from e
+    if boto3 is None:
+        raise ConnectionError("federated_user auth requires boto3. Install with: pip install boto3")
     host = config.get("host") or ""
     host_parts = host.split(".")
     cluster_identifier = config.get("cluster_identifier") or (host_parts[0] if host_parts else "")
@@ -157,10 +168,8 @@ def _get_redshift_federated_credentials(config: dict[str, Any]) -> tuple[str, st
 
 def _get_redshift_secrets_manager_credentials(config: dict[str, Any]) -> dict[str, Any]:
     """Fetch Redshift connection info from AWS Secrets Manager. Secret JSON: username, password, host, port, dbname, engine."""
-    try:
-        import boto3  # type: ignore[import-untyped]  # pylint: disable=import-outside-toplevel
-    except ImportError as e:
-        raise ConnectionError("secrets_manager auth requires boto3. Install with: pip install boto3") from e
+    if boto3 is None:
+        raise ConnectionError("secrets_manager auth requires boto3. Install with: pip install boto3")
     secret_arn = (config.get("secrets_manager_secret_arn") or "").strip()
     if not secret_arn:
         raise ConnectionError("secrets_manager auth requires secrets_manager_secret_arn in config.")
@@ -192,7 +201,7 @@ def _get_redshift_secrets_manager_credentials(config: dict[str, Any]) -> dict[st
 
 class RedshiftConnector(_BaseConnector):
     def _connect(self) -> Engine:
-        registry.register("redshift_psycopg2", __name__, "RedshiftDialect_psycopg2")
+        registry.register("redshift_psycopg2", __name__, "RedshiftDialectPsycopg2")
         use_ssl = str(self.config.get("ssl") or "no").lower() in {"yes", "true", "1"}
         connect_args = {"sslmode": "require"} if use_ssl else {}
         auth = (self.config.get("auth_method") or "").lower()
@@ -239,7 +248,7 @@ class DatabaseManager:
         try:
             return self.connector.fetch(query)
         except OperationalError as e:
-            logger.exception("Error connecting to the database: %s", e)  # pylint: disable=logging-too-many-args
+            logger.exception(f"Error connecting to the database: {e}")
             raise ConnectionError(f"Error connecting to the database check credentials: {e}") from e
 
     def check_connection(self) -> bool:

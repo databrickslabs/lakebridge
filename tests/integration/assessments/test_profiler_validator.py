@@ -1,7 +1,7 @@
+import dataclasses
 import tempfile
 from collections.abc import Generator
 from pathlib import Path
-from typing import TypedDict
 
 import duckdb
 import pytest
@@ -20,7 +20,8 @@ from .profiler_extract_utils import build_mock_synapse_extract, build_mock_redsh
 # Platform-specific config for parametrized validator tests (same test logic, different tables/counts)
 
 
-class _PlatformValidatorConfig(TypedDict):
+@dataclasses.dataclass
+class _PlatformValidatorConfig:
     schema_file: str
     nonexistent_schema_file: str
     schema_path_check_table: str
@@ -36,40 +37,38 @@ class _PlatformValidatorConfig(TypedDict):
     expected_mixed_total: int
 
 
-PLATFORM_VALIDATOR_CONFIG: dict[str, _PlatformValidatorConfig] = (
-    {  # pylint: disable=consider-using-namedtuple-or-dataclass
-        "synapse": {
-            "schema_file": "synapse_schema_def.yml",
-            "nonexistent_schema_file": "synapse_scheme_def_nonexists.yml",
-            "schema_path_check_table": "dedicated_routines",
-            "success_schema_table": "dedicated_sql_pool_metrics",
-            "invalid_schema_table": "dedicated_storage_info",
-            "expected_non_empty_total": 3,
-            "expected_non_empty_fail": 1,
-            "expected_non_empty_pass": 2,
-            "mixed_table_1": "mock_profiler_extract.main.dedicated_sql_pool_metrics",
-            "mixed_table_2": "mock_profiler_extract.main.workspace_sql_pools",
-            "mixed_null_table": "mock_profiler_extract.main.workspace_sql_pools",
-            "mixed_null_cols": ["id", "sku"],
-            "expected_mixed_total": 4,
-        },
-        "redshift": {
-            "schema_file": "redshift_schema_def.yml",
-            "nonexistent_schema_file": "redshift_scheme_def_nonexists.yml",
-            "schema_path_check_table": "query_view",
-            "success_schema_table": "query_view",
-            "invalid_schema_table": "rs_managed_storage_gb",
-            "expected_non_empty_total": 3,
-            "expected_non_empty_fail": 1,
-            "expected_non_empty_pass": 2,
-            "mixed_table_1": "mock_profiler_extract.main.query_view",
-            "mixed_table_2": "mock_profiler_extract.main.rs_managed_storage_gb",
-            "mixed_null_table": "mock_profiler_extract.main.query_view",
-            "mixed_null_cols": ["user_id", "query_id"],
-            "expected_mixed_total": 4,
-        },
-    }
-)
+PLATFORM_VALIDATOR_CONFIG: dict[str, _PlatformValidatorConfig] = {
+    "synapse": _PlatformValidatorConfig(
+        schema_file="synapse_schema_def.yml",
+        nonexistent_schema_file="synapse_scheme_def_nonexists.yml",
+        schema_path_check_table="dedicated_routines",
+        success_schema_table="dedicated_sql_pool_metrics",
+        invalid_schema_table="dedicated_storage_info",
+        expected_non_empty_total=3,
+        expected_non_empty_fail=1,
+        expected_non_empty_pass=2,
+        mixed_table_1="mock_profiler_extract.main.dedicated_sql_pool_metrics",
+        mixed_table_2="mock_profiler_extract.main.workspace_sql_pools",
+        mixed_null_table="mock_profiler_extract.main.workspace_sql_pools",
+        mixed_null_cols=["id", "sku"],
+        expected_mixed_total=4,
+    ),
+    "redshift": _PlatformValidatorConfig(
+        schema_file="redshift_schema_def.yml",
+        nonexistent_schema_file="redshift_scheme_def_nonexists.yml",
+        schema_path_check_table="query_view",
+        success_schema_table="query_view",
+        invalid_schema_table="rs_managed_storage_gb",
+        expected_non_empty_total=3,
+        expected_non_empty_fail=1,
+        expected_non_empty_pass=2,
+        mixed_table_1="mock_profiler_extract.main.query_view",
+        mixed_table_2="mock_profiler_extract.main.rs_managed_storage_gb",
+        mixed_null_table="mock_profiler_extract.main.query_view",
+        mixed_null_cols=["user_id", "query_id"],
+        expected_mixed_total=4,
+    ),
+}
 
 
 @pytest.fixture(scope="module")
@@ -138,9 +137,9 @@ def test_validate_non_empty_tables(
         report = build_validation_report(validation_checks, duck_conn)
         num_failures = len(list(filter(lambda row: row.outcome == "FAIL", report)))
         num_passing = len(list(filter(lambda row: row.outcome == "PASS", report)))
-        assert len(report) == cfg["expected_non_empty_total"]
-        assert num_failures == cfg["expected_non_empty_fail"]
-        assert num_passing == cfg["expected_non_empty_pass"]
+        assert len(report) == cfg.expected_non_empty_total
+        assert num_failures == cfg.expected_non_empty_fail
+        assert num_passing == cfg.expected_non_empty_pass
 
 
 @pytest.mark.parametrize("platform", ["synapse", "redshift"])
@@ -151,8 +150,8 @@ def test_validate_mixed_checks(
 ) -> None:
     extract_path = _get_mock_extract(platform, mock_synapse_profiler_extract, mock_redshift_profiler_extract)
     cfg = PLATFORM_VALIDATOR_CONFIG[platform]
-    table_1, table_2 = cfg["mixed_table_1"], cfg["mixed_table_2"]
-    null_table, null_cols = cfg["mixed_null_table"], cfg["mixed_null_cols"]
+    table_1, table_2 = cfg.mixed_table_1, cfg.mixed_table_2
+    null_table, null_cols = cfg.mixed_null_table, cfg.mixed_null_cols
     with duckdb.connect(database=extract_path) as duck_conn:
         validation_checks = [
             EmptyTableValidationCheck(table_1, "ERROR"),
@@ -163,9 +162,9 @@ def test_validate_mixed_checks(
         report = build_validation_report(validation_checks, duck_conn)
         num_failures = len(list(filter(lambda row: row.outcome == "FAIL", report)))
         num_passing = len(list(filter(lambda row: row.outcome == "PASS", report)))
-        assert len(report) == cfg["expected_mixed_total"]
+        assert len(report) == cfg.expected_mixed_total
         assert num_failures == 0
-        assert num_passing == cfg["expected_mixed_total"]
+        assert num_passing == cfg.expected_mixed_total
 
 
 @pytest.mark.parametrize("platform", ["synapse", "redshift"])
@@ -177,12 +176,12 @@ def test_validate_invalid_schema_path(
 ) -> None:
     extract_path = _get_mock_extract(platform, mock_synapse_profiler_extract, mock_redshift_profiler_extract)
     cfg = PLATFORM_VALIDATOR_CONFIG[platform]
-    schema_def_path = test_resources / "assessments" / cfg["nonexistent_schema_file"]
+    schema_def_path = test_resources / "assessments" / cfg.nonexistent_schema_file
     with duckdb.connect(database=extract_path) as duck_conn:
         validation_checks = [
             ExtractSchemaValidationCheck(
                 "main",
-                cfg["schema_path_check_table"],
+                cfg.schema_path_check_table,
                 source_tech=platform,
                 extract_path=str(extract_path),
                 schema_path=str(schema_def_path),
@@ -202,12 +201,12 @@ def test_validate_invalid_source_tech(
 ) -> None:
     extract_path = _get_mock_extract(platform, mock_synapse_profiler_extract, mock_redshift_profiler_extract)
     cfg = PLATFORM_VALIDATOR_CONFIG[platform]
-    schema_def_path = test_resources / "assessments" / cfg["schema_file"]
+    schema_def_path = test_resources / "assessments" / cfg.schema_file
     with duckdb.connect(database=extract_path) as duck_conn:
         validation_checks = [
             ExtractSchemaValidationCheck(
                 "main",
-                cfg["schema_path_check_table"],
+                cfg.schema_path_check_table,
                 source_tech="oracle",
                 extract_path=str(extract_path),
                 schema_path=str(schema_def_path),
@@ -227,7 +226,7 @@ def test_validate_table_not_found(
 ) -> None:
     extract_path = _get_mock_extract(platform, mock_synapse_profiler_extract, mock_redshift_profiler_extract)
     cfg = PLATFORM_VALIDATOR_CONFIG[platform]
-    schema_def_path = test_resources / "assessments" / cfg["schema_file"]
+    schema_def_path = test_resources / "assessments" / cfg.schema_file
     with duckdb.connect(database=extract_path) as duck_conn:
         validation_checks = [
             ExtractSchemaValidationCheck(
@@ -252,12 +251,12 @@ def test_validate_successful_schema_check(
 ) -> None:
     extract_path = _get_mock_extract(platform, mock_synapse_profiler_extract, mock_redshift_profiler_extract)
     cfg = PLATFORM_VALIDATOR_CONFIG[platform]
-    schema_def_path = test_resources / "assessments" / cfg["schema_file"]
+    schema_def_path = test_resources / "assessments" / cfg.schema_file
     with duckdb.connect(database=extract_path) as duck_conn:
         validation_checks = [
             ExtractSchemaValidationCheck(
                 "main",
-                cfg["success_schema_table"],
+                cfg.success_schema_table,
                 source_tech=platform,
                 extract_path=str(extract_path),
                 schema_path=str(schema_def_path),
@@ -280,12 +279,12 @@ def test_validate_invalid_schema_check(
 ) -> None:
     extract_path = _get_mock_extract(platform, mock_synapse_profiler_extract, mock_redshift_profiler_extract)
     cfg = PLATFORM_VALIDATOR_CONFIG[platform]
-    schema_def_path = test_resources / "assessments" / cfg["schema_file"]
+    schema_def_path = test_resources / "assessments" / cfg.schema_file
     with duckdb.connect(database=extract_path) as duck_conn:
         validation_checks = [
             ExtractSchemaValidationCheck(
                 "main",
-                cfg["invalid_schema_table"],
+                cfg.invalid_schema_table,
                 source_tech=platform,
                 extract_path=str(extract_path),
                 schema_path=str(schema_def_path),
