@@ -91,7 +91,7 @@ def validate_synapse_pools(raw_config: dict) -> None:
             error_messages["serverless"] = error_msg
 
     # Check if any pools failed
-    if not all(results.values()):
-        failed_pools = [pool for pool, success in results.items() if not success]
+    failed_pools = [pool for pool, success in results.items() if not success]
+    if failed_pools:
         error_details = "; ".join([f"{pool}: {error_messages.get(pool, 'Unknown error')}" for pool in failed_pools])
         raise ConnectionError(f"Connection failed for SQL pools - {error_details}")
