@@ -1,4 +1,5 @@
 import os
+from collections.abc import Mapping
 
 from databricks.sdk.useragent import alphanum_pattern, semver_pattern
 
@@ -19,7 +20,7 @@ def make_alphanum_or_semver(value: str) -> str:
     return "".join(result)
 
 
-def get_entrypoint_from_env(environ: dict | None = None) -> str:
+def get_entrypoint_from_env(environ: Mapping[str, str] | None = None) -> str:
     """Detect execution entrypoint from LAKEBRIDGE_ENTRYPOINT env var.
 
     Args:
@@ -29,7 +30,9 @@ def get_entrypoint_from_env(environ: dict | None = None) -> str:
         One of "cli", "desktop-app", or "databricks-app". Defaults to "cli" if
         the environment variable is missing or contains an invalid value.
     """
-    entrypoint = (environ or os.environ).get("LAKEBRIDGE_ENTRYPOINT")
+    if environ is None:
+        environ = os.environ
+    entrypoint = environ.get("LAKEBRIDGE_ENTRYPOINT")
     if not entrypoint:
         return DEFAULT_ENTRYPOINT
 
