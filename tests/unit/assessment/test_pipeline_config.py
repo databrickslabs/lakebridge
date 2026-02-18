@@ -23,7 +23,12 @@ def _config(*step_specs: tuple[str, str, str]) -> PipelineConfig:
         ([], False, []),
         # No warning: interleaved DDL where first active step is DDL
         (
-            [("ddl1", "ddl", "active"), ("sql1", "sql", "active"), ("ddl2", "ddl", "active"), ("sql2", "sql", "active")],
+            [
+                ("ddl1", "ddl", "active"),
+                ("sql1", "sql", "active"),
+                ("ddl2", "ddl", "active"),
+                ("sql2", "sql", "active"),
+            ],
             False,
             [],
         ),

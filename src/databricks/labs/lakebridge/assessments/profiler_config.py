@@ -36,11 +36,11 @@ class PipelineConfig:
         if first_ddl_index is not None and first_ddl_index > 0:
             early_non_ddl = [s.name for s in active_steps[:first_ddl_index] if s.type != "ddl"]
             if early_non_ddl:
+                names = ", ".join(early_non_ddl)
                 logger.warning(
-                    "The following active steps run before the first DDL step and may fail if the "
-                    "target tables have not yet been created: %s. "
-                    "Consider moving DDL steps earlier in the pipeline configuration.",
-                    ", ".join(early_non_ddl),
+                    f"The following active steps run before the first DDL step and may fail if the "
+                    f"target tables have not yet been created: {names}. "
+                    f"Consider moving DDL steps earlier in the pipeline configuration."
                 )
 
     def copy(self, /, **changes) -> "PipelineConfig":
