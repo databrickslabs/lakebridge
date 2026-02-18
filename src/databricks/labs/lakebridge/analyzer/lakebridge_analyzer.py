@@ -55,13 +55,13 @@ class AnalyzerPrompts:
 
 
 class AnalyzerRunner:
-    def __init__(self, runnable: Callable[[Path, Path, str, bool, bool], None], is_debug: bool) -> None:
+    def __init__(self, runnable: Callable[[Path, Path, str, bool, Path | None], None], is_debug: bool) -> None:
         self._runnable = runnable
         self._is_debug = is_debug
 
     @classmethod
     def create(cls, is_debug: bool = False) -> "AnalyzerRunner":
-        return cls(cast(Callable[[Path, Path, str, bool, bool], None], Analyzer.analyze), is_debug)
+        return cls(cast(Callable[[Path, Path, str, bool, Path | None], None], Analyzer.analyze), is_debug)
 
     def run(
         self, source_dir: Path, results_file_path: Path, platform: str, generate_json: bool = False
@@ -79,19 +79,27 @@ class AnalyzerRunner:
             raise ValueError(f"Invalid source directory, not writable: {source_dir}")
         if not check_path(results_file_path):
             raise ValueError(f"Invalid result path, not writable: {results_file_path}")
-        _runnable: Callable[[Path, Path, str, bool, bool], None]
+
+        json_result = results_file_path.with_suffix(".json") if generate_json else None
+
+        _runnable: Callable[[Path, Path, str, bool, Path | None], None]
         if results_file_path.suffix == ".xlsx":
             _runnable = self._runnable
         else:
             # Bladespector currently fails if the path doesn't have a .xlsx extension.
             logger.warning(f"Excel report will be written without .xlsx extension: {results_file_path}")
             _runnable = self._run_with_staged_report
-        _runnable(source_dir, results_file_path, platform, self._is_debug, generate_json)
+        _runnable(source_dir, results_file_path, platform, self._is_debug, json_result)
         logger.info(f"Analyzed {platform} files in {source_dir}; report saved to: {results_file_path}")
         return AnalyzerResult(source_dir, results_file_path, platform)
 
     def _run_with_staged_report(
-        self, source_dir: Path, results_file_path: Path, platform: str, is_debug: bool, generate_json: bool = False
+        self,
+        source_dir: Path,
+        results_file_path: Path,
+        platform: str,
+        is_debug: bool,
+        json_result: Path | None = None,
     ) -> None:
         """Run the analyzer, staging the results first to a temporary directory.
 
@@ -100,19 +108,16 @@ class AnalyzerRunner:
         # TODO: Move this workaround to bladespector, so this can be eliminated here.
         with tempfile.TemporaryDirectory() as tmp_dir:
             staging_path = Path(tmp_dir) / "staging-report.xlsx"
-            self._runnable(source_dir, staging_path, platform, is_debug, generate_json)
+            staging_json = Path(tmp_dir) / "staging-report.json" if json_result else None
+            self._runnable(source_dir, staging_path, platform, is_debug, staging_json)
             # On Windows, can't overwrite via move() so first need to remove the target if it exists.
             results_file_path.unlink(missing_ok=True)
             shutil.move(staging_path, results_file_path)
             logger.debug(f"Report moved from staging to requested location: {staging_path} -> {results_file_path}")
-            # Also move the JSON file if it was generated
-            if generate_json:
-                staging_json = staging_path.with_suffix(".json")
-                if staging_json.exists():
-                    target_json = results_file_path.with_suffix(".json")
-                    target_json.unlink(missing_ok=True)
-                    shutil.move(staging_json, target_json)
-                    logger.debug(f"JSON report moved: {staging_json} -> {target_json}")
+            if json_result and staging_json and staging_json.exists():
+                json_result.unlink(missing_ok=True)
+                shutil.move(staging_json, json_result)
+                logger.debug(f"JSON report moved: {staging_json} -> {json_result}")
 
 
 class LakebridgeAnalyzer:
