@@ -1,5 +1,5 @@
-import pytest
 import zoneinfo
+import pytest
 
 
 def test_zoneinfo_creation_with_stripped_whitespace() -> None:
@@ -9,8 +9,8 @@ def test_zoneinfo_creation_with_stripped_whitespace() -> None:
     tz_stripped = tz_with_whitespace.strip()
 
     # This should work without raising an exception
-    tz = zoneinfo.ZoneInfo(tz_stripped)
-    assert str(tz) == 'America/New_York'
+    tz_stripped_zoneinfo = zoneinfo.ZoneInfo(tz_stripped)
+    assert str(tz_stripped_zoneinfo) == 'America/New_York'
 
     # Verify that unstripped whitespace would cause issues
     # (This is the bug we're fixing)
@@ -28,8 +28,8 @@ def test_zoneinfo_with_various_whitespace() -> None:
 
     for tz_with_whitespace in test_cases:
         # With strip, should work
-        tz = zoneinfo.ZoneInfo(tz_with_whitespace.strip())
-        assert isinstance(tz, zoneinfo.ZoneInfo)
+        tz_stripped_zoneinfo = zoneinfo.ZoneInfo(tz_with_whitespace.strip())
+        assert isinstance(tz_stripped_zoneinfo, zoneinfo.ZoneInfo)
 
         # Without strip, should fail
         with pytest.raises(zoneinfo.ZoneInfoNotFoundError):

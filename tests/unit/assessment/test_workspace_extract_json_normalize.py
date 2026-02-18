@@ -1,5 +1,5 @@
-import pandas as pd
 from unittest.mock import Mock
+import pandas as pd
 
 
 def test_workspace_info_single_dict_normalization():
