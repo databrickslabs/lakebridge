@@ -1049,8 +1049,8 @@ def _test_database_connection(source_tech: str, raw_config: dict) -> None:
         return
 
     # For other source technologies, use DatabaseManager directly
-    db_manager = DatabaseManager(source_tech, raw_config)
-    response = db_manager.check_connection()
+    with DatabaseManager(source_tech, raw_config) as db_manager:
+        response = db_manager.check_connection()
     logger.debug(f"Connection response: {response}")
     logger.info("Connection to the source system successful")
 

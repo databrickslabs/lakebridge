@@ -1,6 +1,7 @@
+import contextlib
 import dataclasses
 import logging
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 from typing import Any
 from collections.abc import Sequence, Set
 
@@ -28,13 +29,17 @@ class FetchResult:
         return pd.DataFrame(data=self.rows) if self.rows else pd.DataFrame(columns=list(self.columns))
 
 
-class DatabaseConnector(ABC):
+class DatabaseConnector(contextlib.AbstractContextManager):
     @abstractmethod
     def _connect(self) -> Engine:
         pass
 
     @abstractmethod
     def fetch(self, query: str) -> FetchResult:
+        pass
+
+    @abstractmethod
+    def close(self) -> None:
         pass
 
 
@@ -45,6 +50,13 @@ class _BaseConnector(DatabaseConnector):
 
     def _connect(self) -> Engine:
         raise NotImplementedError("Subclasses should implement this method")
+
+    def close(self) -> None:
+        self.engine.dispose()
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+        return False
 
     def fetch(self, query: str) -> FetchResult:
         if not self.engine:
@@ -116,8 +128,7 @@ class DatabaseManager:
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Clean up connector resources when exiting context."""
-        if hasattr(self.connector, '__exit__'):
-            self.connector.__exit__(exc_type, exc_val, exc_tb)
+        self.connector.__exit__(exc_type, exc_val, exc_tb)
         return False
 
     def fetch(self, query: str) -> FetchResult:

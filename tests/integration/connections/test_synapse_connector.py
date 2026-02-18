@@ -1,5 +1,4 @@
-from typing import Any
-
+from databricks.labs.blueprint.installation import JsonObject
 from databricks.labs.lakebridge.connections.database_manager import DatabaseManager, MSSQLConnector
 
 
@@ -20,10 +19,15 @@ def test_synapse_connection_check(sandbox_synapse: DatabaseManager) -> None:
     assert sandbox_synapse.check_connection()
 
 
-def test_synapse_with_credential_format(sandbox_synapse_cred_config: dict[str, Any]) -> None:
+def test_synapse_with_credential_format(sandbox_synapse_cred_config: JsonObject) -> None:
     """Test DatabaseManager with credential format (sql_user/sql_password)."""
-    workspace_config = sandbox_synapse_cred_config["synapse"]["workspace"]
-    db_name = sandbox_synapse_cred_config["synapse"]["profiler"]["databases"]
+    synapse = sandbox_synapse_cred_config["synapse"]
+    assert isinstance(synapse, dict)
+    workspace_config = synapse["workspace"]
+    assert isinstance(workspace_config, dict)
+    profiler = synapse["profiler"]
+    assert isinstance(profiler, dict)
+    db_name = profiler["databases"]
 
     # Simulate what the assessment code does: transform credential format to connection config
     manager = DatabaseManager(
@@ -44,10 +48,15 @@ def test_synapse_with_credential_format(sandbox_synapse_cred_config: dict[str, A
     assert manager.check_connection()
 
 
-def test_synapse_query_execution(sandbox_synapse_cred_config: dict[str, Any]) -> None:
+def test_synapse_query_execution(sandbox_synapse_cred_config: JsonObject) -> None:
     """Test DatabaseManager can execute queries with credential format."""
-    workspace_config = sandbox_synapse_cred_config["synapse"]["workspace"]
-    db_name = sandbox_synapse_cred_config["synapse"]["profiler"]["databases"]
+    synapse = sandbox_synapse_cred_config["synapse"]
+    assert isinstance(synapse, dict)
+    workspace_config = synapse["workspace"]
+    assert isinstance(workspace_config, dict)
+    profiler = synapse["profiler"]
+    assert isinstance(profiler, dict)
+    db_name = profiler["databases"]
 
     manager = DatabaseManager(
         "synapse",

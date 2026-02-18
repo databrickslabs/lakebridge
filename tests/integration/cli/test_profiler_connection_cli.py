@@ -1,51 +1,45 @@
 import copy
 from pathlib import Path
-from typing import Any
 
 import pytest
 import yaml
+
 from databricks.sdk import WorkspaceClient
 
+from databricks.labs.blueprint.installation import JsonObject
 from databricks.labs.lakebridge.cli import test_profiler_connection as check_connection
 
 
-def _create_credentials_file(base_config: dict[str, Any], tmp_path: Path, **modifications: Any) -> Path:
-    """Helper to create credential files with modifications.
-
-    Args:
-        base_config: Base credential configuration to copy
-        tmp_path: Temporary directory path
-        **modifications: Keyword arguments to modify the config:
-            - exclude_serverless: Set profiler.exclude_serverless_sql_pool
-            - invalid_server: Use invalid dedicated_sql_endpoint
-            - invalid_driver: Use non-existent ODBC driver
-            - missing_workspace: Remove workspace section entirely
-            - use_same_serverless_endpoint: Copy dedicated endpoint to serverless
-
-    Returns:
-        Path to the created credentials file
-    """
+def _create_credentials_file(
+    base_config: JsonObject,
+    tmp_path: Path,
+    *,
+    exclude_serverless: bool | None = None,
+    invalid_server: bool = False,
+    invalid_driver: bool = False,
+    missing_workspace: bool = False,
+    use_same_serverless_endpoint: bool = False,
+) -> Path:
     cred_path = tmp_path / ".credentials.yml"
     credentials = copy.deepcopy(base_config)
 
-    for key, value in modifications.items():
-        match key:
-            case "exclude_serverless":
-                credentials["synapse"]["profiler"]["exclude_serverless_sql_pool"] = value
-            case "invalid_server" if value:
-                credentials["synapse"]["workspace"]["dedicated_sql_endpoint"] = "invalid-server.database.windows.net"
-            case "invalid_driver" if value:
-                credentials["synapse"]["workspace"]["driver"] = "ODBC Driver 999 for SQL Server"
-            case "missing_workspace" if value:
-                # Keep jdbc and profiler sections, remove workspace
-                credentials["synapse"] = {
-                    "jdbc": credentials["synapse"]["jdbc"],
-                    "profiler": credentials["synapse"]["profiler"],
-                }
-            case "use_same_serverless_endpoint" if value:
-                credentials["synapse"]["workspace"]["serverless_sql_endpoint"] = credentials["synapse"]["workspace"][
-                    "dedicated_sql_endpoint"
-                ]
+    synapse = credentials["synapse"]
+    assert isinstance(synapse, dict)
+    workspace = synapse["workspace"]
+    assert isinstance(workspace, dict)
+    profiler = synapse["profiler"]
+    assert isinstance(profiler, dict)
+
+    if exclude_serverless is not None:
+        profiler["exclude_serverless_sql_pool"] = exclude_serverless
+    if invalid_server:
+        workspace["dedicated_sql_endpoint"] = "invalid-server.database.windows.net"
+    if invalid_driver:
+        workspace["driver"] = "ODBC Driver 999 for SQL Server"
+    if missing_workspace:
+        credentials["synapse"] = {"jdbc": synapse["jdbc"], "profiler": profiler}
+    if use_same_serverless_endpoint:
+        workspace["serverless_sql_endpoint"] = workspace["dedicated_sql_endpoint"]
 
     with open(cred_path, "w", encoding="utf-8") as f:
         yaml.dump(credentials, f)
@@ -54,7 +48,7 @@ def _create_credentials_file(base_config: dict[str, Any], tmp_path: Path, **modi
 
 
 def test_profiler_connection_synapse_success(
-    sandbox_synapse_cred_config: dict[str, Any],
+    sandbox_synapse_cred_config: JsonObject,
     tmp_path: Path,
     ws: WorkspaceClient,
     caplog,
@@ -81,7 +75,7 @@ def test_profiler_connection_missing_credentials_file(
 
 
 def test_profiler_connection_invalid_source_technology(
-    sandbox_synapse_cred_config: dict[str, Any],
+    sandbox_synapse_cred_config: JsonObject,
     tmp_path: Path,
     ws: WorkspaceClient,
 ) -> None:
@@ -94,7 +88,7 @@ def test_profiler_connection_invalid_source_technology(
 
 
 def test_profiler_connection_invalid_config_errors(
-    sandbox_synapse_cred_config: dict[str, Any],
+    sandbox_synapse_cred_config: JsonObject,
     tmp_path: Path,
     ws: WorkspaceClient,
     caplog,

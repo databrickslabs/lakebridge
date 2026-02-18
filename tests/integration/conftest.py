@@ -6,6 +6,7 @@ from uuid import UUID
 import pytest
 from pyspark.sql import SparkSession
 
+from databricks.labs.blueprint.installation import JsonObject
 from databricks.labs.lakebridge.__about__ import __version__
 from databricks.labs.lakebridge.connections.database_manager import DatabaseManager
 from tests.integration.debug_envgetter import TestEnvGetter
@@ -83,13 +84,14 @@ def sandbox_synapse_config(sandbox_sqlserver_config: dict[str, Any]) -> dict[str
 
 
 @pytest.fixture()
-def sandbox_synapse_cred_config(sandbox_sqlserver_config: dict[str, Any]) -> dict[str, Any]:
+def sandbox_synapse_cred_config(sandbox_sqlserver_config: JsonObject) -> JsonObject:
     """Create complete Synapse credential structure as stored by configure-database-profiler.
 
     This mimics the full structure returned by credential manager for Synapse,
     matching the format in .credentials.yml after running 'databricks labs lakebridge configure-database-profiler'.
     """
     server = sandbox_sqlserver_config["server"]
+    assert isinstance(server, str)
     # Extract workspace name from server (e.g., "workspace-name" from "workspace-name.sql.azuresynapse.net")
     workspace_name = server.split('.')[0] if '.' in server else server
 
