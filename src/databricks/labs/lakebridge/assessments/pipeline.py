@@ -46,12 +46,7 @@ class PipelineClass:
         logging.info(f"Pipeline initialized with config: {self.config.name}, version: {self.config.version}")
         execution_results: list[StepExecutionResult] = []
 
-        # Separate DDL steps from other steps to ensure DDL runs first
-        ddl_steps = [step for step in self.config.steps if step.type == "ddl"]
-        other_steps = [step for step in self.config.steps if step.type != "ddl"]
-
-        # Execute all steps: DDL first, then others
-        for step in ddl_steps + other_steps:
+        for step in self.config.steps:
             result = self._process_step(step)
             execution_results.append(result)
             self._log_step_result(result)
