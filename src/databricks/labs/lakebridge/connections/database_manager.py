@@ -2,6 +2,7 @@ import contextlib
 import dataclasses
 import logging
 from abc import abstractmethod
+from types import TracebackType
 from typing import Any
 from collections.abc import Sequence, Set
 
@@ -13,6 +14,8 @@ from sqlalchemy.engine.row import Row
 from sqlalchemy import text
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm.session import Session
+
+from databricks.labs.blueprint.installation import JsonObject
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +47,7 @@ class DatabaseConnector(contextlib.AbstractContextManager):
 
 
 class _BaseConnector(DatabaseConnector):
-    def __init__(self, config: dict[str, Any]):
+    def __init__(self, config: JsonObject):
         self.config = config
         self.engine: Engine = self._connect()
 
@@ -54,9 +57,13 @@ class _BaseConnector(DatabaseConnector):
     def close(self) -> None:
         self.engine.dispose()
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
         self.close()
-        return False
 
     def fetch(self, query: str) -> FetchResult:
         if not self.engine:
@@ -67,7 +74,7 @@ class _BaseConnector(DatabaseConnector):
             return FetchResult(result.keys(), result.fetchall())
 
 
-def _create_connector(db_type: str, config: dict[str, Any]) -> DatabaseConnector:
+def _create_connector(db_type: str, config: JsonObject) -> DatabaseConnector:
     connectors = {
         "snowflake": SnowflakeConnector,
         "mssql": MSSQLConnector,
@@ -91,10 +98,10 @@ class SnowflakeConnector(_BaseConnector):
 class MSSQLConnector(_BaseConnector):
     def _connect(self) -> Engine:
         auth_type = self.config.get('auth_type', 'sql_authentication')
-        db_name = self.config.get('database')
+        db_name = str(self.config.get('database'))
 
-        query_params = {
-            "driver": self.config['driver'],
+        query_params: dict[str, str] = {
+            "driver": str(self.config['driver']),
             "loginTimeout": "30",
         }
 
@@ -108,10 +115,10 @@ class MSSQLConnector(_BaseConnector):
 
         connection_string = URL.create(
             drivername="mssql+pyodbc",
-            username=self.config['user'],
-            password=self.config['password'],
-            host=self.config['server'],
-            port=self.config.get('port', 1433),
+            username=str(self.config['user']),
+            password=str(self.config['password']),
+            host=str(self.config['server']),
+            port=int(str(self.config.get('port', '1433'))),
             database=db_name,
             query=query_params,
         )
@@ -119,17 +126,21 @@ class MSSQLConnector(_BaseConnector):
 
 
 class DatabaseManager:
-    def __init__(self, db_type: str, config: dict[str, Any]):
+    def __init__(self, db_type: str, config: JsonObject):
         self.connector = _create_connector(db_type, config)
 
-    def __enter__(self):
+    def __enter__(self) -> "DatabaseManager":
         """Support context manager protocol for resource management."""
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
         """Clean up connector resources when exiting context."""
         self.connector.__exit__(exc_type, exc_val, exc_tb)
-        return False
 
     def fetch(self, query: str) -> FetchResult:
         try:

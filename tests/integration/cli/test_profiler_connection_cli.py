@@ -51,7 +51,7 @@ def test_profiler_connection_synapse_success(
     sandbox_synapse_cred_config: JsonObject,
     tmp_path: Path,
     ws: WorkspaceClient,
-    caplog,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Test successful connection to Synapse dedicated SQL pool."""
     cred_path = _create_credentials_file(sandbox_synapse_cred_config, tmp_path, exclude_serverless=True)
@@ -91,7 +91,7 @@ def test_profiler_connection_invalid_config_errors(
     sandbox_synapse_cred_config: JsonObject,
     tmp_path: Path,
     ws: WorkspaceClient,
-    caplog,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Test error handling when ODBC driver is missing."""
     cred_path = _create_credentials_file(

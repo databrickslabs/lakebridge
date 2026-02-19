@@ -1,5 +1,4 @@
 import logging
-from typing import Any
 from urllib.parse import urlparse
 from uuid import UUID
 
@@ -43,7 +42,7 @@ def mock_spark() -> SparkSession:
 
 
 @pytest.fixture()
-def sandbox_sqlserver_config() -> dict:
+def sandbox_sqlserver_config() -> JsonObject:
     env = TestEnvGetter(True)
     db_url = env.get("TEST_TSQL_JDBC").removeprefix("jdbc:")
     base_url, params = db_url.split(";", 1)
@@ -52,7 +51,7 @@ def sandbox_sqlserver_config() -> dict:
     query_params = dict(param.split("=", 1) for param in params.split(";") if "=" in param)
     database = query_params.get("database", "")
 
-    config = {
+    config: JsonObject = {
         "user": env.get("TEST_TSQL_USER"),
         "password": env.get("TEST_TSQL_PASS"),
         "server": server,
@@ -68,7 +67,7 @@ def sandbox_sqlserver(sandbox_sqlserver_config) -> DatabaseManager:
 
 
 @pytest.fixture()
-def sandbox_synapse_config(sandbox_sqlserver_config: dict[str, Any]) -> dict[str, Any]:
+def sandbox_synapse_config(sandbox_sqlserver_config: JsonObject) -> JsonObject:
     """Convert SQL Server config to Synapse config format for direct DatabaseManager usage."""
     # Transform MSSQL config to Synapse format
     # In testing, we use SQL Server as a stand-in for Synapse since they use the same protocol
@@ -129,7 +128,7 @@ def sandbox_synapse_cred_config(sandbox_sqlserver_config: JsonObject) -> JsonObj
 
 
 @pytest.fixture()
-def sandbox_synapse(sandbox_synapse_config: dict[str, Any]) -> DatabaseManager:
+def sandbox_synapse(sandbox_synapse_config: JsonObject) -> DatabaseManager:
     """Create a DatabaseManager for Synapse (uses MSSQLConnector via factory method)."""
     return DatabaseManager("synapse", sandbox_synapse_config)
 
