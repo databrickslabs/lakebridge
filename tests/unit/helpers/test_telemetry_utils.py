@@ -21,7 +21,7 @@ from databricks.labs.lakebridge.helpers.telemetry_utils import make_alphanum_or_
         "@&x2",
     ],
 )
-def test_make_alphanum_or_semver(value: str):
+def test_make_alphanum_or_semver(value: str) -> None:
     value = make_alphanum_or_semver(value)
     assert alphanum_pattern.match(value) or semver_pattern.match(value)
 
@@ -39,10 +39,10 @@ def test_make_alphanum_or_semver(value: str):
         ({"LAKEBRIDGE_ENTRYPOINT": "invalid"}, "cli"),
     ],
 )
-def test_get_entrypoint_from_env(env, expected):
+def test_get_entrypoint_from_env(env: dict[str, str], expected: str) -> None:
     assert get_entrypoint_from_env(env) == expected
 
 
-def test_get_entrypoint_uses_os_environ_by_default(monkeypatch):
+def test_get_entrypoint_uses_os_environ_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("LAKEBRIDGE_ENTRYPOINT", "desktop-app")
     assert get_entrypoint_from_env() == "desktop-app"
