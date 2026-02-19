@@ -8,13 +8,13 @@ from databricks.labs.lakebridge import initialize_logging
 from databricks.labs.lakebridge.assessments import PRODUCT_NAME
 from databricks.labs.lakebridge.connections.credential_manager import create_credential_manager
 from databricks.labs.lakebridge.connections.env_getter import EnvGetter
+from databricks.labs.lakebridge.connections.synapse_connection_helpers import create_synapse_connection
 from databricks.labs.lakebridge.resources.assessments.synapse.common.duckdb_helpers import (
     save_resultset_to_db,
     get_max_column_value_duckdb,
 )
 from databricks.labs.lakebridge.resources.assessments.synapse.common.functions import arguments_loader
 from databricks.labs.lakebridge.resources.assessments.synapse.common.queries import SynapseQueries
-from databricks.labs.lakebridge.resources.assessments.synapse.common.connector import get_sqlpool_reader
 
 
 logger = get_logger(__file__)
@@ -66,9 +66,9 @@ def execute():
         if not synapse_profiler_settings.get("exclude_serverless_sql_pool", False):
             # Databases
             database_query = SynapseQueries.list_databases()
-            connection = get_sqlpool_reader(
-                config,
-                'master',
+            connection = create_synapse_connection(
+                workspace_config=config,
+                database='master',
                 endpoint_key='serverless_sql_endpoint',
                 auth_type=auth_type,
             )
@@ -83,9 +83,9 @@ def execute():
                 databases = serverless_db_groups_in_scope[collation_name]
 
                 for db_name in databases:
-                    connection = get_sqlpool_reader(
-                        config,
-                        db_name,
+                    connection = create_synapse_connection(
+                        workspace_config=config,
+                        database=db_name,
                         endpoint_key='serverless_sql_endpoint',
                         auth_type=auth_type,
                     )
