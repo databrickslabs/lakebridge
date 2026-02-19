@@ -1,0 +1,39 @@
+source_tech: redshift
+version: 0.1
+
+schemas:
+  main:
+    tables:
+      query_view:
+        columns:
+          - name: user_id
+            type: BIGINT
+          - name: query_id
+            type: BIGINT
+          - name: query_text
+            type: VARCHAR
+          - name: start_time
+            type: VARCHAR
+          - name: end_time
+            type: VARCHAR
+          - name: query_group
+            type: VARCHAR
+          - name: query_type
+            type: VARCHAR
+      rs_managed_storage_gb:
+        columns:
+          - name: set_name
+            type: VARCHAR
+          # Deliberately wrong type for invalid_schema_check test (mock has DOUBLE)
+          - name: rs_managed_storage_gb
+            type: VARCHAR
+      rs_nodes:
+        columns:
+          - name: set_name
+            type: VARCHAR
+          - name: rs_nodes_type
+            type: VARCHAR
+          - name: rs_number_of_nodes
+            type: BIGINT
+          - name: compute_seconds
+            type: BIGINT

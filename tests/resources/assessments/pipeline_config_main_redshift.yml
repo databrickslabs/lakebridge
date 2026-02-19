@@ -1,0 +1,12 @@
+name: RedshiftExamplePipeline
+version: "1.0"
+extract_folder: /replaced/after/loading/
+steps:
+  - name: redshift_extract
+    type: python
+    extract_source: assessments/db_extract_redshift.py
+    mode: overwrite
+    frequency: daily
+    flag: active
+    dependencies:
+      - duckdb

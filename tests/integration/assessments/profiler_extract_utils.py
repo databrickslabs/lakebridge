@@ -181,3 +181,82 @@ def build_mock_synapse_extract(extract_db_name: str, path_prefix: Path) -> Path:
     builder.create_sample_data()
     builder.shutdown()
     return full_synapse_extract_path
+
+
+# --- Redshift mock (same pattern as Synapse, no live DB) ---
+
+
+def _generate_query_view(fake) -> tuple[int, int, str, str, str, str, str]:
+    return (
+        fake.random_int(1, 10000),
+        fake.random_int(1, 100000),
+        fake.sentence(),
+        fake.date_time_between("-7d", "now").isoformat(),
+        fake.date_time_between("-7d", "now").isoformat(),
+        fake.word(),
+        fake.random_element(["SELECT", "INSERT", "UPDATE", "DELETE"]),
+    )
+
+
+def _generate_rs_managed_storage_gb(fake) -> tuple[str, float]:
+    return (fake.word(), round(fake.random.uniform(1.0, 1000.0), 2))
+
+
+def _generate_rs_nodes(fake) -> tuple[str, str, int, int]:
+    return (
+        fake.word(),
+        fake.random_element(["ra3.xlplus", "ra3.4xlarge"]),
+        fake.random_int(1, 10),
+        fake.random_int(0, 100000),
+    )
+
+
+redshift_table_definitions = {
+    "query_view": MockTableDefinition(
+        schema="""
+            user_id BIGINT,
+            query_id BIGINT,
+            query_text VARCHAR,
+            start_time VARCHAR,
+            end_time VARCHAR,
+            query_group VARCHAR,
+            query_type VARCHAR
+        """,
+        generator=_generate_query_view,
+        num_rows=1000,
+    ),
+    "rs_managed_storage_gb": MockTableDefinition(
+        schema="""
+            set_name VARCHAR,
+            rs_managed_storage_gb DOUBLE
+        """,
+        generator=_generate_rs_managed_storage_gb,
+        num_rows=1000,
+    ),
+    "rs_nodes": MockTableDefinition(
+        schema="""
+            set_name VARCHAR,
+            rs_nodes_type VARCHAR,
+            rs_number_of_nodes BIGINT,
+            compute_seconds BIGINT
+        """,
+        generator=_generate_rs_nodes,
+        num_rows=0,
+    ),
+}
+
+
+class RedshiftProfilerBuilder(SynapseProfilerBuilder):
+    """Simulates Redshift profiler extract (DuckDB, no live Redshift)."""
+
+    def __init__(self, tables_dict: dict, db_path: str = ":memory:"):
+        super().__init__(tables_dict, db_path)
+
+
+def build_mock_redshift_extract(extract_db_name: str, path_prefix: Path) -> Path:
+    path_prefix.mkdir(parents=True, exist_ok=False)
+    full_path = path_prefix / f"{extract_db_name}.db"
+    builder = RedshiftProfilerBuilder(redshift_table_definitions, db_path=str(full_path))
+    builder.create_sample_data()
+    builder.shutdown()
+    return full_path
