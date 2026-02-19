@@ -61,7 +61,12 @@ def _config(*step_specs: tuple[str, str, str]) -> PipelineConfig:
         "only_active_non_ddl_named_in_warning",
     ],
 )
-def test_pipeline_config_ddl_order_warning(step_specs, expect_warning, expected_in_message, caplog):
+def test_pipeline_config_ddl_order_warning(
+    step_specs: list[tuple[str, str, str]],
+    expect_warning: bool,
+    expected_in_message: list[str],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     logger_name = "databricks.labs.lakebridge.assessments.profiler_config"
     with caplog.at_level(logging.WARNING, logger=logger_name):
         _config(*step_specs)
