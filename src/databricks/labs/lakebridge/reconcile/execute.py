@@ -21,8 +21,9 @@ def main(*argv: str) -> None:
 
     logger.debug(f"Arguments received: {argv}")
 
-    assert len(sys.argv) == 2, f"Invalid number of arguments: {len(sys.argv)}," f" Operation name must be specified."
+    assert len(sys.argv) in {2, 3}, f"Invalid number of arguments: {len(sys.argv)}, Operation name must be specified."
     operation_name = sys.argv[1]
+    install_folder = sys.argv[2] if len(sys.argv) == 3 else None
 
     assert operation_name in {
         RECONCILE_OPERATION_NAME,
@@ -31,7 +32,10 @@ def main(*argv: str) -> None:
 
     w = WorkspaceClient()
 
-    installation = Installation.assume_user_home(w, "lakebridge")
+    if install_folder:
+        installation = Installation(w, "lakebridge", install_folder=install_folder)
+    else:
+        installation = Installation.assume_user_home(w, "lakebridge")
 
     reconcile_config = installation.load(ReconcileConfig)
 
