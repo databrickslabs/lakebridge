@@ -110,6 +110,10 @@ class FakeReconIntermediatePersist(AbstractReconIntermediatePersist):
     def base_dir(self) -> Path:
         return Path(tempfile.gettempdir())
 
+    @property
+    def is_serverless(self) -> bool:
+        return False
+
     def write_and_read_df_with_volumes(
         self,
         df: DataFrame,
