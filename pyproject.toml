@@ -88,7 +88,11 @@ dependencies = [
   "numpy~=1.26.4",
   "pandas-stubs~=2.3.0.250703",
   "cattrs>=25.2.0",
-  "faker"
+  "faker",
+  # Azure SDK dependencies for linting resources/assessments folder
+  "azure-identity~=1.19.0",
+  "azure-monitor-query~=1.4.0",
+  "azure-synapse-artifacts~=0.20.0",
 ]
 
 [project.entry-points.databricks]
@@ -123,7 +127,7 @@ asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope="function"
 
 [tool.mypy]
-exclude = ["tests/resources/.*", "src/databricks/labs/lakebridge/resources/assessments/.*"]
+exclude = ["tests/resources/.*"]
 
 [tool.black]
 target-version = ["py310"]
@@ -211,7 +215,7 @@ fail-under = 10.0
 # file locks
 ignore-patterns = ["^\\.#"]
 
-# Ignore files under tests/resources
+# Ignore files under tests/resources and resources/assessments
 ignore-paths = ["tests/resources", "src/databricks/labs/lakebridge/resources/assessments"]
 
 # List of module names for which member attributes should not be checked (useful
