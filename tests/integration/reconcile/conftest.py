@@ -185,26 +185,26 @@ def recon_config_filename(recon_config: ReconcileConfig) -> str:
 
 @pytest.fixture
 def application_context(
-    ctx: ApplicationContext,
+    application_ctx: ApplicationContext,
     recon_config: ReconcileConfig,
     recon_config_filename: str,
     recon_table_config: TableRecon,
 ) -> Generator[ApplicationContext, None, None]:
     logger.info("Setting up application context for recon tests")
     config = LakebridgeConfiguration(None, recon_config)
-    ws = ctx.workspace_client
+    ws = application_ctx.workspace_client
     logger.info("Installing app and recon configuration into workspace")
-    ctx.installation.save(recon_config)
-    ctx.installation.upload(recon_config_filename, json.dumps(asdict(recon_table_config)).encode())
-    ctx.workspace_installation.install(config)
+    application_ctx.installation.save(recon_config)
+    application_ctx.installation.upload(recon_config_filename, json.dumps(asdict(recon_table_config)).encode())
+    application_ctx.workspace_installation.install(config)
 
     logger.info("Application context setup complete for recon tests")
-    yield ctx
+    yield application_ctx
 
     logger.info("Tearing down application context for recon tests")
-    ctx.workspace_installation.uninstall(config)
-    if WorkspacePath(ws, ctx.installation.install_folder()).exists():
-        ctx.installation.remove()
+    application_ctx.workspace_installation.uninstall(config)
+    if WorkspacePath(ws, application_ctx.installation.install_folder()).exists():
+        application_ctx.installation.remove()
     logger.info("Application context teardown complete for recon tests")
 
 
