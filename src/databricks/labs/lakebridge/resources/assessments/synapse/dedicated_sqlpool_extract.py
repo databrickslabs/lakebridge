@@ -36,7 +36,7 @@ def execute():
     tz_info = synapse_workspace_settings["workspace"]["tz_info"]
     workspace_tz = zoneinfo.ZoneInfo(tz_info)
     exclude_dedicated_sql_pools = synapse_profiler_settings.get("exclude_dedicated_sql_pools", None)
-    dedicated_sql_pools_profiling_list = synapse_profiler_settings.get("dedicated_sql_pools_profiling_list", None)
+    dedicated_pools_list = synapse_profiler_settings.get("dedicated_pools_list", None)
     artifacts_client = create_synapse_artifacts_client(synapse_workspace_settings)
 
     connection = None
@@ -52,9 +52,9 @@ def execute():
 
         dedicated_sqlpools = workspace.list_sql_pools()
         all_dedicated_pools_list = [pool for poolPages in dedicated_sqlpools for pool in poolPages]
-        if dedicated_sql_pools_profiling_list:
+        if dedicated_pools_list:
             dedicated_pools_to_profile = [
-                pool for pool in all_dedicated_pools_list if pool['name'] in dedicated_sql_pools_profiling_list
+                pool for pool in all_dedicated_pools_list if pool['name'] in dedicated_pools_list
             ]
         else:
             dedicated_pools_to_profile = all_dedicated_pools_list
