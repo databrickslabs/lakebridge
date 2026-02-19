@@ -121,9 +121,3 @@ def test_workspace_context_missing_configs(ws):
     assert ctx.remorph_config is not None
     assert ctx.remorph_config.transpile is None
     assert ctx.remorph_config.reconcile is None
-
-
-def test_for_testing_produces_unique_product_names(ws):
-    name_a = ApplicationContext.for_testing(ws).product_info.product_name()
-    name_b = ApplicationContext.for_testing(ws).product_info.product_name()
-    assert name_a != name_b
