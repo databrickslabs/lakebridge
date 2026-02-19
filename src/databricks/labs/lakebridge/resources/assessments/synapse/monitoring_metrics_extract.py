@@ -1,9 +1,9 @@
 import json
 import sys
-import urllib3
 import zoneinfo
 
 import pandas as pd
+import urllib3
 from databricks.labs.blueprint.entrypoint import get_logger
 
 from databricks.labs.lakebridge import initialize_logging
@@ -57,10 +57,10 @@ def execute():
         # SQL Pool Metrics
 
         exclude_dedicated_sql_pools = synapse_profiler_settings.get("exclude_dedicated_sql_pools", None)
-        dedicated_sql_pools_profiling_list = synapse_profiler_settings.get("dedicated_sql_pools_profiling_list", None)
+        dedicated_pools_list = synapse_profiler_settings.get("dedicated_pools_list", None)
 
         logger.info(f" exclude_dedicated_sql_pools: {exclude_dedicated_sql_pools}")
-        logger.info(f" dedicated_sql_pools_profiling_list: {dedicated_sql_pools_profiling_list}")
+        logger.info(f" dedicated_pools_list: {dedicated_pools_list}")
 
         if exclude_dedicated_sql_pools:
             logger.info(
@@ -71,8 +71,8 @@ def execute():
             all_dedicated_pools_list = [pool for poolPages in dedicated_sqlpools for pool in poolPages]
             dedicated_pools_to_profile = (
                 all_dedicated_pools_list
-                if not dedicated_sql_pools_profiling_list
-                else [pool for pool in all_dedicated_pools_list if pool['name'] in dedicated_sql_pools_profiling_list]
+                if not dedicated_pools_list
+                else [pool for pool in all_dedicated_pools_list if pool['name'] in dedicated_pools_list]
             )
             msg = f"Pool names to extract metrics: {[entry['name'] for entry in dedicated_pools_to_profile]}"
             logger.info(msg)
