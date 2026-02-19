@@ -19,7 +19,7 @@ from databricks.labs.lakebridge.assessments.profiler_config import PipelineConfi
         "a" * 255,  # max length
     ],
 )
-def test_valid_step_names(valid_name):
+def test_valid_step_names(valid_name: str) -> None:
     """Test that valid step names are accepted."""
     step = Step(
         name=valid_name,
@@ -61,7 +61,7 @@ def test_valid_step_names(valid_name):
         ("x' UNION SELECT * FROM sensitive_data --", "Invalid step name"),
     ],
 )
-def test_invalid_step_names(invalid_name, error_pattern):
+def test_invalid_step_names(invalid_name: str, error_pattern: str) -> None:
     """Test that invalid step names are rejected with appropriate error messages."""
     with pytest.raises(ValueError, match=error_pattern):
         Step(
@@ -72,7 +72,7 @@ def test_invalid_step_names(invalid_name, error_pattern):
 
 
 @pytest.mark.parametrize("mode", ["append", "overwrite"])
-def test_valid_modes(mode):
+def test_valid_modes(mode: str) -> None:
     """Test that valid modes are accepted."""
     step = Step(
         name="test_table",
@@ -84,7 +84,7 @@ def test_valid_modes(mode):
 
 
 @pytest.mark.parametrize("invalid_mode", ["invalid_mode", "delete", "replace", ""])
-def test_invalid_mode(invalid_mode):
+def test_invalid_mode(invalid_mode: str) -> None:
     """Test that invalid modes are rejected."""
     with pytest.raises(ValueError, match="Invalid mode"):
         Step(
@@ -96,7 +96,7 @@ def test_invalid_mode(invalid_mode):
 
 
 @pytest.mark.parametrize("step_type", ["sql", "ddl", "python"])
-def test_valid_types(step_type):
+def test_valid_types(step_type: str) -> None:
     """Test that valid types are accepted."""
     step = Step(
         name="test_table",
@@ -107,7 +107,7 @@ def test_valid_types(step_type):
 
 
 @pytest.mark.parametrize("invalid_type", ["invalid_type", "query", "script", ""])
-def test_invalid_type(invalid_type):
+def test_invalid_type(invalid_type: str) -> None:
     """Test that invalid types are rejected."""
     with pytest.raises(ValueError, match="Invalid type"):
         Step(
@@ -117,7 +117,7 @@ def test_invalid_type(invalid_type):
         )
 
 
-def test_step_copy_preserves_validation():
+def test_step_copy_preserves_validation() -> None:
     """Test that copying a step preserves validation."""
     original = Step(
         name="valid_name",
@@ -135,7 +135,7 @@ def test_step_copy_preserves_validation():
         original.copy(mode="invalid")
 
 
-def test_pipeline_config_with_valid_steps():
+def test_pipeline_config_with_valid_steps() -> None:
     """Test that pipeline config accepts valid steps."""
     steps = [
         Step(name="inventory", type="sql", extract_source="inventory.sql"),
@@ -153,7 +153,7 @@ def test_pipeline_config_with_valid_steps():
     assert len(config.steps) == 2
 
 
-def test_error_message_is_helpful():
+def test_error_message_is_helpful() -> None:
     """Test that validation errors provide helpful messages."""
     with pytest.raises(ValueError) as exc_info:
         Step(

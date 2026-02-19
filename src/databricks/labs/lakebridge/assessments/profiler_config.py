@@ -22,13 +22,13 @@ class Step:
     dependencies: list[str] = field(default_factory=list)
     comment: str | None = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Validate step configuration to prevent SQL injection and configuration errors."""
         self._validate_name()
         self._validate_mode()
         self._validate_type()
 
-    def _validate_name(self):
+    def _validate_name(self) -> None:
         """Validate step name uses only safe SQL identifier characters."""
         if not self.name:
             raise ValueError("Step name cannot be empty")
@@ -49,7 +49,7 @@ class Step:
                 f"Maximum length is 255 characters."
             )
 
-    def _validate_mode(self):
+    def _validate_mode(self) -> None:
         """Validate mode is a recognized value."""
         valid_modes = {'append', 'overwrite'}
         if self.mode not in valid_modes:
@@ -58,7 +58,7 @@ class Step:
                 f"Valid modes are: {', '.join(sorted(valid_modes))}"
             )
 
-    def _validate_type(self):
+    def _validate_type(self) -> None:
         """Validate type is a recognized value."""
         valid_types = {'sql', 'ddl', 'python'}
         if self.type not in valid_types:
@@ -79,7 +79,7 @@ class PipelineConfig:
     comment: str | None = None
     steps: list[Step] = field(default_factory=list)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         # Warn if any active non-DDL step precedes the first active DDL step.
         # Inactive steps are excluded: they are skipped at runtime and have no ordering impact.
         active_steps = [s for s in self.steps if s.flag == "active"]
