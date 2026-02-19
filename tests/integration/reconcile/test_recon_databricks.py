@@ -56,7 +56,10 @@ def recon_config(make_cluster, watchdog_remove_after: str, recon_schema: SchemaI
         .result()
         .cluster_id
     )
-    deployment_overrides = ReconcileJobConfig(existing_cluster_id=cluster, tags={"lakebridge": "reconcile_test"})
+    deployment_overrides = ReconcileJobConfig(
+        existing_cluster_id=cluster,
+        tags={"lakebridge": "reconcile_test", "RemoveAfter": watchdog_remove_after},
+    )
     logger.info(f"Using recon job overrides: {deployment_overrides}")
 
     assert recon_schema.catalog_name
@@ -96,7 +99,7 @@ def application_context(
 ):
     logger.info("Setting up application context for recon tests")
     config = LakebridgeConfiguration(None, recon_config)
-    ctx = ApplicationContext(ws)
+    ctx = ApplicationContext.for_testing(ws)
 
     logger.info("Installing app and recon configuration into workspace")
     ctx.installation.save(recon_config)

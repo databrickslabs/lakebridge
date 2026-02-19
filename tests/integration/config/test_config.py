@@ -18,7 +18,7 @@ def test_stores_and_fetches_config(ws: WorkspaceClient) -> None:
             r"Open .* in the browser?": "no",
         }
     )
-    context = ApplicationContext(ws)
+    context = ApplicationContext.for_testing(ws)
     installer = _WorkspaceInstaller(
         context.workspace_client,
         prompts,
@@ -41,5 +41,5 @@ def test_stores_and_fetches_config(ws: WorkspaceClient) -> None:
         schema_name="some_schema",
     )
     installer.save_config(config)
-    retrieved = ApplicationContext(ws).transpile_config
+    retrieved = context.transpile_config
     assert retrieved == config

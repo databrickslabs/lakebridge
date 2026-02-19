@@ -31,6 +31,13 @@ class ApplicationContext:
     def __init__(self, ws: WorkspaceClient):
         self._ws = ws
 
+    @classmethod
+    def for_testing(cls, ws: WorkspaceClient) -> "ApplicationContext":
+        """Create a test-isolated context with a random product name to prevent CI collision."""
+        ctx = cls(ws)
+        ctx.__dict__["product_info"] = ProductInfo.for_testing(LakebridgeConfiguration)
+        return ctx
+
     def replace(self, **kwargs):
         """Replace cached properties for unit testing purposes."""
         for key, value in kwargs.items():
