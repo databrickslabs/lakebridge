@@ -104,6 +104,18 @@ Below are the connection properties required for each source:
 - Additionally, the user must have `USE CATALOG` and `CREATE SCHEMA` permission in order to deploy metadata tables and
 dashboards that are created as part of the Reconcile output. If there is a pre-existing schema, the 'create volumes' permission is also required.
 
+>4. Serverless cluster support
+
+Reconcile automatically detects the cluster type and optimizes intermediate data persistence accordingly:
+- **On Serverless clusters**: Reconcile uses Unity Catalog volumes for intermediate data persistence
+- **On Standard clusters**: Reconcile uses DataFrame caching for better performance
+
+:::note
+- On serverless clusters, the configured volume (from `metadata_config.volume`) is automatically used
+- The volume must be created in the metadata catalog and schema specified in your `ReconcileMetadataConfig`
+- Ensure you have the necessary permissions to write to the volume on serverless clusters
+:::
+
 
 ### Execution
 You can execute the reconciliation process by executing the below command in a notebook cell.
