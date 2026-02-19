@@ -2,11 +2,11 @@ import dataclasses
 import re
 from dataclasses import dataclass, field
 
+import logging
+
 # Valid SQL identifier pattern: must start with letter or underscore,
 # followed by letters, numbers, or underscores only
 _VALID_IDENTIFIER_PATTERN = re.compile(r'^[a-zA-Z_][a-zA-Z0-9_]*$')
-import logging
-from dataclasses import dataclass, field
 
 logger = logging.getLogger(__name__)
 
