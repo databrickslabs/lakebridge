@@ -27,7 +27,10 @@ from databricks.labs.lakebridge.assessments.profiler import Profiler
 
 from databricks.labs.lakebridge.config import TranspileConfig, LSPConfigOptionV1
 from databricks.labs.lakebridge.contexts.application import ApplicationContext
-from databricks.labs.lakebridge.connections.credential_manager import cred_file
+from databricks.labs.lakebridge.connections.credential_manager import cred_file, create_credential_manager
+from databricks.labs.lakebridge.connections.database_manager import DatabaseManager
+from databricks.labs.lakebridge.connections.env_getter import EnvGetter
+from databricks.labs.lakebridge.connections.synapse_connection_helpers import validate_synapse_pools
 from databricks.labs.lakebridge.helpers.recon_config_utils import ReconConfigPrompts
 from databricks.labs.lakebridge.helpers.telemetry_utils import make_alphanum_or_semver
 from databricks.labs.lakebridge.reconcile.runner import ReconcileRunner
@@ -1035,6 +1038,84 @@ def create_profiler_dashboard(
     ctx.add_user_agent_extra("cmd", "create-profiler-dashboard")
     ctx.dashboard_manager.upload_duckdb_to_uc_volume(extract_file, volume_path)
     ctx.dashboard_manager.create_profiler_summary_dashboard(source_tech, catalog_name, schema_name)
+
+
+def _test_database_connection(source_tech: str, raw_config: dict) -> None:
+    """Test connection to the source database with appropriate error handling."""
+    # Handle synapse-specific validation using dedicated helper
+    if source_tech == "synapse":
+        validate_synapse_pools(raw_config)
+        logger.info("Connection to the source system successful")
+        return
+
+    # For other source technologies, use DatabaseManager directly
+    with DatabaseManager(source_tech, raw_config) as db_manager:
+        response = db_manager.check_connection()
+    logger.debug(f"Connection response: {response}")
+    logger.info("Connection to the source system successful")
+
+
+@lakebridge.command()
+def test_profiler_connection(
+    *,
+    w: WorkspaceClient,
+    source_tech: str | None = None,
+    cred_file_path: str | None = None,
+) -> None:
+    """[Internal] Test the connection to the source database for profiling"""
+    ctx = ApplicationContext(w)
+    ctx.add_user_agent_extra("cmd", "test-profiler-connection")
+    prompts = ctx.prompts
+
+    source_tech = (
+        source_tech.lower()
+        if source_tech
+        else prompts.choice("Select the source technology", PROFILER_SOURCE_SYSTEM).lower()
+    )
+
+    if source_tech not in PROFILER_SOURCE_SYSTEM:
+        logger.error(f"Only the following source systems are supported: {PROFILER_SOURCE_SYSTEM}")
+        raise_validation_exception(f"Invalid source technology {source_tech}")
+
+    ctx.add_user_agent_extra("profiler_source_tech", make_alphanum_or_semver(source_tech))
+    logger.debug(f"User: {ctx.current_user}")
+
+    # Use provided credential file path or fall back to default
+    credential_file = Path(cred_file_path) if cred_file_path else cred_file(PRODUCT_NAME)
+
+    # Check if credential file exists
+    if not credential_file.exists():
+        raise_validation_exception(
+            f"Connection details not found. Please run `databricks labs lakebridge configure-database-profiler` "
+            f"to set up connection details for {source_tech}."
+        )
+
+    logger.info(f"Testing connection for source technology: {source_tech}")
+
+    cred_manager = create_credential_manager(PRODUCT_NAME, EnvGetter(), creds_path=credential_file)
+
+    try:
+        raw_config = cred_manager.get_credentials(source_tech)
+    except KeyError as e:
+        logger.error(f"Credential configuration error: {e}")
+        logger.fatal(
+            f"Invalid credentials for {source_tech}. Please run `databricks labs lakebridge configure-database-profiler`."
+        )
+        return
+
+    try:
+        _test_database_connection(source_tech, raw_config)
+    except ConnectionError as e:
+        logger.error(f"Failed to connect to the source system: {e}")
+        error_msg = str(e).lower()
+        if any(pattern in error_msg for pattern in ("im002", "odbc driver not found", "can't open lib")):
+            logger.fatal("Missing ODBC driver, Please install pre-req. Exiting...")
+        else:
+            logger.fatal("Connection validation failed. Exiting...")
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        # Catch all exceptions to provide user-friendly error messages for CLI
+        logger.error(f"Unexpected error during connection test: {e}")
+        logger.fatal("Connection test failed. Exiting...")
 
 
 if __name__ == "__main__":
