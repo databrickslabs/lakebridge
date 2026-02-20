@@ -396,7 +396,7 @@ def test_reconcile_aggregate_data_mismatch_and_missing_records(
 def test_run_with_invalid_operation_name(monkeypatch):
     test_args = ["databricks_labs_remorph", "invalid-operation"]
     monkeypatch.setattr(sys, 'argv', test_args)
-    with pytest.raises(AssertionError, match="Invalid option:"):
+    with pytest.raises(ValueError, match="Invalid arguments:"):
         main()
 
 
