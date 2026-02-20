@@ -18,7 +18,8 @@ commands:
       - name: source-tech
         description: (Optional) Name of the Source System Technology you want to analyze
       - name: generate-json
-        description: (Optional) Generate JSON file alongside the Excel report
+        description: (Optional) Generate JSON file alongside the Excel report (`true|false`)
+        default: "false"
 
   - name: transpile
     description: Transpile SQL/ETL sources to Databricks-compatible code
