@@ -2,24 +2,13 @@ import argparse
 import json
 import sys
 import logging
+
 from azure.identity import DefaultAzureCredential
 from azure.monitor.query import MetricsQueryClient
 from azure.synapse.artifacts import ArtifactsClient
 
 
-def set_logger(name: str = __name__) -> logging.Logger:
-    log = logging.getLogger(name)
-    if log.handlers:
-        return log
-    handler = logging.StreamHandler(sys.stderr)
-    log.setLevel(logging.INFO)
-    log.addHandler(handler)
-
-    log.propagate = False
-    return log
-
-
-logger = set_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 def arguments_loader(desc: str):
@@ -36,6 +25,8 @@ def arguments_loader(desc: str):
         # This is the output format expected by the pipeline.py which orchestrates the execution of this script
         print(json.dumps({"status": "error", "message": msg}), file=sys.stderr)
         raise ValueError("Credential config file must have 'credentials.yml' extension")
+
+    # file exists check takes place within the entry point so not replicating this here check cli.py execute-profiler
 
     return args.db_path, credential_file
 

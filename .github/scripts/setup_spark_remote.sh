@@ -91,6 +91,8 @@ else
   fi
 fi
 
+rm -rf "${HOME}"/spark/"${spark}"/spark-warehouse
+echo "Cleared old spark warehouse default directory"
 
 cd "${spark}" || exit 1
 ## check spark remote is running,if not start the spark remote

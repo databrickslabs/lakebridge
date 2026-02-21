@@ -1,29 +1,33 @@
 import json
 import sys
-from databricks.labs.lakebridge.resources.assessments.synapse.common.functions import (
-    arguments_loader,
-    create_synapse_artifacts_client,
-    set_logger,
-)
+import zoneinfo
+
+from databricks.labs.blueprint.entrypoint import get_logger
+
+from databricks.labs.lakebridge import initialize_logging
+from databricks.labs.lakebridge.assessments import PRODUCT_NAME
+from databricks.labs.lakebridge.connections.credential_manager import create_credential_manager
+from databricks.labs.lakebridge.connections.env_getter import EnvGetter
+from databricks.labs.lakebridge.connections.synapse_connection_helpers import create_synapse_connection
 from databricks.labs.lakebridge.resources.assessments.synapse.common.duckdb_helpers import (
     save_resultset_to_db,
     get_max_column_value_duckdb,
 )
-from databricks.labs.lakebridge.resources.assessments.synapse.common.connector import get_sqlpool_reader
-
-import zoneinfo
-from databricks.labs.lakebridge.connections.credential_manager import create_credential_manager
-from databricks.labs.lakebridge.assessments import PRODUCT_NAME
+from databricks.labs.lakebridge.resources.assessments.synapse.common.functions import (
+    arguments_loader,
+    create_synapse_artifacts_client,
+)
 from databricks.labs.lakebridge.resources.assessments.synapse.common.profiler_classes import SynapseWorkspace
 from databricks.labs.lakebridge.resources.assessments.synapse.common.queries import SynapseQueries
 
 
-def execute():
-    logger = set_logger(__file__)
+logger = get_logger(__file__)
 
+
+def execute():
     db_path, creds_file = arguments_loader(desc="Synapse Synapse Dedicated SQL Pool Extract Script")
 
-    cred_manager = create_credential_manager(PRODUCT_NAME, creds_file)
+    cred_manager = create_credential_manager(PRODUCT_NAME, EnvGetter())
     synapse_workspace_settings = cred_manager.get_credentials("synapse")
     config = synapse_workspace_settings["workspace"]
     auth_type = synapse_workspace_settings["jdbc"].get("auth_type", "sql_authentication")
@@ -32,7 +36,7 @@ def execute():
     tz_info = synapse_workspace_settings["workspace"]["tz_info"]
     workspace_tz = zoneinfo.ZoneInfo(tz_info)
     exclude_dedicated_sql_pools = synapse_profiler_settings.get("exclude_dedicated_sql_pools", None)
-    dedicated_sql_pools_profiling_list = synapse_profiler_settings.get("dedicated_sql_pools_profiling_list", None)
+    dedicated_pools_list = synapse_profiler_settings.get("dedicated_pools_list", None)
     artifacts_client = create_synapse_artifacts_client(synapse_workspace_settings)
 
     connection = None
@@ -48,9 +52,9 @@ def execute():
 
         dedicated_sqlpools = workspace.list_sql_pools()
         all_dedicated_pools_list = [pool for poolPages in dedicated_sqlpools for pool in poolPages]
-        if dedicated_sql_pools_profiling_list:
+        if dedicated_pools_list:
             dedicated_pools_to_profile = [
-                pool for pool in all_dedicated_pools_list if pool['name'] in dedicated_sql_pools_profiling_list
+                pool for pool in all_dedicated_pools_list if pool['name'] in dedicated_pools_list
             ]
         else:
             dedicated_pools_to_profile = all_dedicated_pools_list
@@ -70,7 +74,12 @@ def execute():
             # tables
             table_name = "dedicated_tables"
             table_query = SynapseQueries.list_tables(pool_name)
-            connection = get_sqlpool_reader(config, pool_name, auth_type=auth_type)
+            connection = create_synapse_connection(
+                workspace_config=config,
+                database=pool_name,
+                endpoint_key="dedicated_sql_endpoint",
+                auth_type=auth_type,
+            )
             logger.info(f"Loading '{table_name}' for pool: %s", pool_name)
             result = connection.fetch(table_query)
             save_resultset_to_db(result, table_name, db_path, mode=mode)
@@ -113,7 +122,12 @@ def execute():
         ]
         for idx, sqlpool_name in enumerate(sqlpool_names_to_profile_list):
             # print(f"INFO: sqlpool_name:{sqlpool_name}")
-            connection = get_sqlpool_reader(config, sqlpool_name, auth_type=auth_type)
+            connection = create_synapse_connection(
+                workspace_config=config,
+                database=sqlpool_name,
+                endpoint_key="dedicated_sql_endpoint",
+                auth_type=auth_type,
+            )
 
             table_name = "dedicated_sessions"
             prev_max_login_time = get_max_column_value_duckdb("login_time", table_name, db_path)
@@ -140,4 +154,5 @@ def execute():
 
 
 if __name__ == '__main__':
+    initialize_logging()
     execute()

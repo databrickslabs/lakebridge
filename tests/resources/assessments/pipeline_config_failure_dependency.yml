@@ -1,10 +1,12 @@
 name: ExamplePipeline
 version: "1.0"
-extract_folder: /tmp/extracts/
+# Value replaced prior to actual use:
+extract_folder: /replaced/after/loading/
 steps:
   - name: package_status
     type: python
-    extract_source: resources/assessments/db_extract_dep.py
+    # Relative to the tests/resources/ directory in the project.
+    extract_source: assessments/db_extract_dep.py
     mode: overwrite
     frequency: daily
     flag: active

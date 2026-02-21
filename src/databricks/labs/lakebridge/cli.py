@@ -7,7 +7,8 @@ import os
 import re
 import sys
 import time
-from collections.abc import Mapping
+import webbrowser
+from collections.abc import Mapping, Callable
 from pathlib import Path
 from typing import NoReturn, TextIO
 
@@ -15,7 +16,7 @@ from databricks.sdk.service.sql import CreateWarehouseRequestWarehouseType
 from databricks.sdk import WorkspaceClient
 
 from databricks.labs.blueprint.cli import App
-from databricks.labs.blueprint.entrypoint import is_in_debug
+from databricks.labs.blueprint.entrypoint import get_logger
 from databricks.labs.blueprint.installation import RootJsonValue, JsonObject, JsonValue
 from databricks.labs.blueprint.tui import Prompts
 
@@ -26,10 +27,12 @@ from databricks.labs.lakebridge.assessments.profiler import Profiler
 
 from databricks.labs.lakebridge.config import TranspileConfig, LSPConfigOptionV1
 from databricks.labs.lakebridge.contexts.application import ApplicationContext
-from databricks.labs.lakebridge.connections.credential_manager import cred_file
+from databricks.labs.lakebridge.connections.credential_manager import cred_file, create_credential_manager
+from databricks.labs.lakebridge.connections.database_manager import DatabaseManager
+from databricks.labs.lakebridge.connections.env_getter import EnvGetter
+from databricks.labs.lakebridge.connections.synapse_connection_helpers import validate_synapse_pools
 from databricks.labs.lakebridge.helpers.recon_config_utils import ReconConfigPrompts
 from databricks.labs.lakebridge.helpers.telemetry_utils import make_alphanum_or_semver
-from databricks.labs.lakebridge.install import installer
 from databricks.labs.lakebridge.reconcile.runner import ReconcileRunner
 from databricks.labs.lakebridge.lineage import lineage_generator
 from databricks.labs.lakebridge.reconcile.recon_config import RECONCILE_OPERATION_NAME, AGG_RECONCILE_OPERATION_NAME
@@ -47,7 +50,6 @@ from databricks.labs.switch.lsp import get_switch_dialects
 
 # Subclass to allow controlled access to protected methods.
 class Lakebridge(App):
-    _logger_instance: logging.Logger | None = None
 
     def create_workspace_client(self) -> WorkspaceClient:
         """Create a workspace client, with the appropriate product and version information.
@@ -57,15 +59,25 @@ class Lakebridge(App):
         self._patch_databricks_host()
         return self._workspace_client()
 
-    def get_logger(self) -> logging.Logger:
-        if self._logger_instance is None:
-            self._logger_instance = self._logger
-            self._logger_instance.setLevel(logging.INFO)
-        return self._logger_instance
+    def _log_level(self, raw: str) -> int:
+        """Convert the log-level provided by the Databricks CLI into a logging level supported by Python."""
+        log_level = super()._log_level(raw)
+        # Due to an issue in the handoff of the intended logging level from the Databricks CLI to our
+        # application, we can't currently distinguish between --log-level=WARN and nothing at all, where we
+        # prefer (and the application logging expects) INFO.
+        #
+        # Rather than default to only have WARNING logs show, it's preferable to default to INFO and have
+        # --log-level=WARN not work for now.
+        #
+        # See: https://github.com/databrickslabs/lakebridge/issues/2167
+        # TODO: Remove this once #2167 has been resolved.
+        if log_level == logging.WARNING:
+            log_level = logging.INFO
+        return log_level
 
 
 lakebridge = Lakebridge(__file__)
-logger = lakebridge.get_logger()
+logger = get_logger(__file__)
 
 
 def raise_validation_exception(msg: str) -> NoReturn:
@@ -642,34 +654,41 @@ def _override_workspace_client_config(ctx: ApplicationContext, overrides: dict[s
 
 
 @lakebridge.command
-def reconcile(*, w: WorkspaceClient) -> None:
+def reconcile(
+    *, w: WorkspaceClient, ctx_factory: Callable[[WorkspaceClient], ApplicationContext] = ApplicationContext
+) -> None:
     """[EXPERIMENTAL] Reconciles source to Databricks datasets"""
-    ctx = ApplicationContext(w)
+    ctx = ctx_factory(w)
     ctx.add_user_agent_extra("cmd", "execute-reconcile")
     user = ctx.current_user
     logger.debug(f"User: {user}")
     recon_runner = ReconcileRunner(
         ctx.workspace_client,
         ctx.install_state,
-        ctx.prompts,
     )
-    recon_runner.run(operation_name=RECONCILE_OPERATION_NAME)
+
+    _, job_run_url = recon_runner.run(operation_name=RECONCILE_OPERATION_NAME)
+    if ctx.prompts.confirm(f"Would you like to open the job run URL `{job_run_url}` in the browser?"):
+        webbrowser.open(job_run_url)
 
 
 @lakebridge.command
-def aggregates_reconcile(*, w: WorkspaceClient) -> None:
+def aggregates_reconcile(
+    *, w: WorkspaceClient, ctx_factory: Callable[[WorkspaceClient], ApplicationContext] = ApplicationContext
+) -> None:
     """[EXPERIMENTAL] Reconciles Aggregated source to Databricks datasets"""
-    ctx = ApplicationContext(w)
+    ctx = ctx_factory(w)
     ctx.add_user_agent_extra("cmd", "execute-aggregates-reconcile")
     user = ctx.current_user
     logger.debug(f"User: {user}")
     recon_runner = ReconcileRunner(
         ctx.workspace_client,
         ctx.install_state,
-        ctx.prompts,
     )
 
-    recon_runner.run(operation_name=AGG_RECONCILE_OPERATION_NAME)
+    _, job_run_url = recon_runner.run(operation_name=AGG_RECONCILE_OPERATION_NAME)
+    if ctx.prompts.confirm(f"Would you like to open the job run URL `{job_run_url}` in the browser?"):
+        webbrowser.open(job_run_url)
 
 
 @lakebridge.command
@@ -737,21 +756,31 @@ def install_transpile(
     transpiler_repository: TranspilerRepository = TranspilerRepository.user_home(),
 ) -> None:
     """Install or upgrade the Lakebridge transpilers."""
+    # Avoid circular imports.
+    from databricks.labs.lakebridge.install import installer  # pylint: disable=cyclic-import, import-outside-toplevel
+
     is_interactive = interactive_mode(interactive)
     ctx = ApplicationContext(w)
     ctx.add_user_agent_extra("cmd", "install-transpile")
     if artifact:
         ctx.add_user_agent_extra("artifact-overload", Path(artifact).name)
+    # Internal: use LAKEBRIDGE_CLUSTER_TYPE=CLASSIC env var to use classic job cluster
+    switch_use_serverless = os.environ.get("LAKEBRIDGE_CLUSTER_TYPE", "").upper() != "CLASSIC"
     if include_llm_transpiler:
         ctx.add_user_agent_extra("include-llm-transpiler", "true")
         # Decision was made not to prompt when include_llm_transpiler is set, and we expect users to use llm-transpile
         # and pass all the arguments.
         logger.info("Including LLM transpiler as part of install, interactive mode disabled: will skip questionnaire.")
         is_interactive = False
+
     user = w.current_user
     logger.debug(f"User: {user}")
     transpile_installer = installer(
-        w, transpiler_repository, is_interactive=is_interactive, include_llm=include_llm_transpiler
+        w,
+        transpiler_repository,
+        is_interactive=is_interactive,
+        include_llm=include_llm_transpiler,
+        switch_use_serverless=switch_use_serverless,
     )
     transpile_installer.run(module="transpile", artifact=artifact)
 
@@ -796,6 +825,9 @@ def configure_reconcile(
     transpiler_repository: TranspilerRepository = TranspilerRepository.user_home(),
 ) -> None:
     """Configure the Lakebridge reconciliation module"""
+    # Avoid circular imports.
+    from databricks.labs.lakebridge.install import installer  # pylint: disable=cyclic-import, import-outside-toplevel
+
     ctx = ApplicationContext(w)
     ctx.add_user_agent_extra("cmd", "configure-reconcile")
     user = w.current_user
@@ -1008,9 +1040,83 @@ def create_profiler_dashboard(
     ctx.dashboard_manager.create_profiler_summary_dashboard(source_tech, catalog_name, schema_name)
 
 
+def _test_database_connection(source_tech: str, raw_config: dict) -> None:
+    """Test connection to the source database with appropriate error handling."""
+    # Handle synapse-specific validation using dedicated helper
+    if source_tech == "synapse":
+        validate_synapse_pools(raw_config)
+        logger.info("Connection to the source system successful")
+        return
+
+    # For other source technologies, use DatabaseManager directly
+    with DatabaseManager(source_tech, raw_config) as db_manager:
+        response = db_manager.check_connection()
+    logger.debug(f"Connection response: {response}")
+    logger.info("Connection to the source system successful")
+
+
+@lakebridge.command()
+def test_profiler_connection(
+    *,
+    w: WorkspaceClient,
+    source_tech: str | None = None,
+    cred_file_path: str | None = None,
+) -> None:
+    """[Internal] Test the connection to the source database for profiling"""
+    ctx = ApplicationContext(w)
+    ctx.add_user_agent_extra("cmd", "test-profiler-connection")
+    prompts = ctx.prompts
+
+    source_tech = (
+        source_tech.lower()
+        if source_tech
+        else prompts.choice("Select the source technology", PROFILER_SOURCE_SYSTEM).lower()
+    )
+
+    if source_tech not in PROFILER_SOURCE_SYSTEM:
+        logger.error(f"Only the following source systems are supported: {PROFILER_SOURCE_SYSTEM}")
+        raise_validation_exception(f"Invalid source technology {source_tech}")
+
+    ctx.add_user_agent_extra("profiler_source_tech", make_alphanum_or_semver(source_tech))
+    logger.debug(f"User: {ctx.current_user}")
+
+    # Use provided credential file path or fall back to default
+    credential_file = Path(cred_file_path) if cred_file_path else cred_file(PRODUCT_NAME)
+
+    # Check if credential file exists
+    if not credential_file.exists():
+        raise_validation_exception(
+            f"Connection details not found. Please run `databricks labs lakebridge configure-database-profiler` "
+            f"to set up connection details for {source_tech}."
+        )
+
+    logger.info(f"Testing connection for source technology: {source_tech}")
+
+    cred_manager = create_credential_manager(PRODUCT_NAME, EnvGetter(), creds_path=credential_file)
+
+    try:
+        raw_config = cred_manager.get_credentials(source_tech)
+    except KeyError as e:
+        logger.error(f"Credential configuration error: {e}")
+        logger.fatal(
+            f"Invalid credentials for {source_tech}. Please run `databricks labs lakebridge configure-database-profiler`."
+        )
+        return
+
+    try:
+        _test_database_connection(source_tech, raw_config)
+    except ConnectionError as e:
+        logger.error(f"Failed to connect to the source system: {e}")
+        error_msg = str(e).lower()
+        if any(pattern in error_msg for pattern in ("im002", "odbc driver not found", "can't open lib")):
+            logger.fatal("Missing ODBC driver, Please install pre-req. Exiting...")
+        else:
+            logger.fatal("Connection validation failed. Exiting...")
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        # Catch all exceptions to provide user-friendly error messages for CLI
+        logger.error(f"Unexpected error during connection test: {e}")
+        logger.fatal("Connection test failed. Exiting...")
+
+
 if __name__ == "__main__":
-    app = lakebridge
-    logger = app.get_logger()
-    if is_in_debug():
-        logger.setLevel(logging.DEBUG)
-    app()
+    lakebridge()

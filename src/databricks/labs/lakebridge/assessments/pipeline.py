@@ -1,24 +1,22 @@
-from pathlib import Path
-from subprocess import run, CalledProcessError, Popen, PIPE, STDOUT, DEVNULL
-from dataclasses import dataclass
-from enum import Enum
-
-import sys
-import os
-import venv
-import tempfile
 import json
 import logging
-import yaml
-import duckdb
+import os
+import sys
+import venv
+import tempfile
+from dataclasses import dataclass
+from enum import Enum
+from pathlib import Path
+from subprocess import CalledProcessError, PIPE, Popen, STDOUT, run
 
-from databricks.labs.lakebridge.connections.credential_manager import cred_file
+import duckdb
+import yaml
 
 from databricks.labs.lakebridge.assessments.profiler_config import PipelineConfig, Step
+from databricks.labs.lakebridge.connections.credential_manager import cred_file
 from databricks.labs.lakebridge.connections.database_manager import DatabaseManager, FetchResult
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
 
 DB_NAME = "profiler_extract.db"
 
@@ -40,7 +38,7 @@ class PipelineClass:
     def __init__(self, config: PipelineConfig, executor: DatabaseManager | None):
         self.config = config
         self.executor = executor
-        self.db_path_prefix = Path(config.extract_folder)
+        self.db_path_prefix = Path(config.extract_folder).expanduser()
         self._create_dir(self.db_path_prefix)
 
     def execute(self) -> list[StepExecutionResult]:
@@ -151,6 +149,7 @@ class PipelineClass:
         logging.info(f"Installing dependencies: {', '.join(dependencies)}")
         try:
             logging.debug("Upgrading local pip")
+            is_debug = logging.getLogger(__name__).isEnabledFor(logging.DEBUG)
             run(
                 [
                     venv_exec_cmd,
@@ -160,14 +159,14 @@ class PipelineClass:
                     "--upgrade",
                     "pip",
                     "--require-virtualenv",
-                    "--quiet",
                     "--no-input",
                     "--disable-pip-version-check",
                 ],
                 check=True,
-                stdout=DEVNULL,
-                stderr=DEVNULL,
+                capture_output=not is_debug,
+                text=True,
             )
+
             run(
                 [
                     venv_exec_cmd,
@@ -176,15 +175,18 @@ class PipelineClass:
                     "install",
                     *dependencies,
                     "--require-virtualenv",
-                    "--quiet",
                     "--no-input",
                     "--disable-pip-version-check",
                 ],
                 check=True,
-                stdout=DEVNULL,
-                stderr=DEVNULL,
+                capture_output=not is_debug,
+                text=True,
             )
         except CalledProcessError as e:
+            # Log detailed output at debug level for troubleshooting
+            logging.debug(
+                f"Failed to install dependencies (exit code {e.returncode})\n" f"stdout: {e.stdout}\nstderr: {e.stderr}"
+            )
             logging.error(f"Failed to install dependencies: {e.stderr}")
             raise RuntimeError(f"Failed to install dependencies: {e.stderr}") from e
 
@@ -236,21 +238,29 @@ class PipelineClass:
     def _save_to_db(self, result: FetchResult, step_name: str, mode: str):
         db_path = str(self.db_path_prefix / DB_NAME)
 
+        # Check row count and log appropriately and skip data insertion if 0 rows
+        if not result.rows:
+            logging.warning(
+                f"Query for step '{step_name}' returned 0 rows. Skipping table creation and data insertion."
+            )
+            return
+
+        row_count = len(result.rows)
+        logging.info(f"Query for step '{step_name}' returned {row_count} rows.")
+        # TODO: Add support for figuring out data types from SQLALCHEMY result object result.cursor.description is not reliable
+        _result_frame = result.to_df().astype(str)
+
         with duckdb.connect(db_path) as conn:
-            # TODO: Add support for figuring out data types from SQLALCHEMY result object result.cursor.description is not reliable
-            schema = ' STRING, '.join(result.columns) + ' STRING'
-
-            # Handle write modes
+            # DuckDB can access _result_frame from the local scope automatically.
             if mode == 'overwrite':
-                conn.execute(f"CREATE OR REPLACE TABLE {step_name} ({schema})")
+                statement = f"CREATE OR REPLACE TABLE {step_name} AS SELECT * FROM _result_frame"
             elif mode == 'append' and step_name not in conn.get_table_names(""):
-                conn.execute(f"CREATE TABLE {step_name} ({schema})")
-
-            # Batch insert using prepared statements
-            placeholders = ', '.join(['?' for _ in result.columns])
-            insert_query = f"INSERT INTO {step_name} VALUES ({placeholders})"
-
-            conn.executemany(insert_query, result.rows)
+                statement = f"CREATE TABLE {step_name} AS SELECT * FROM _result_frame"
+            else:
+                statement = f"INSERT INTO {step_name} SELECT * FROM _result_frame"
+            logging.debug(f"Inserting {row_count} rows: {statement}")
+            conn.execute(statement)
+        logging.info(f"Successfully inserted {row_count} rows into table '{step_name}'.")
 
     @staticmethod
     def _create_dir(dir_path: Path):

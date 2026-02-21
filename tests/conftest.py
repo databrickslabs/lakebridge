@@ -33,6 +33,18 @@ from databricks.labs.lakebridge.reconcile.recon_config import (
 from databricks.labs.lakebridge.reconcile.normalize_recon_config_service import NormalizeReconConfigService
 
 
+@pytest.fixture(scope="session")
+def project_path(pytestconfig: pytest.Config) -> Path:
+    """The path of the directory where this project is located."""
+    return pytestconfig.rootpath
+
+
+@pytest.fixture(scope="session")
+def test_resources(project_path: Path) -> Path:
+    """Obtain the path to where resources used by tests are stored."""
+    return project_path / "tests" / "resources"
+
+
 @pytest.fixture()
 def mock_workspace_client():
     client = create_autospec(WorkspaceClient)
@@ -178,6 +190,8 @@ def report_tables_schema():
                 "recon_metrics",
                 StructType(
                     [
+                        StructField("source_record_count", LongType()),
+                        StructField("target_record_count", LongType()),
                         StructField(
                             "row_comparison",
                             StructType(
@@ -285,45 +299,18 @@ def mock_data_source():
 
 
 @pytest.fixture(scope="session")
-def bladebridge_artifact() -> Path:
+def bladebridge_artifact(test_resources: Path) -> Path:
     artifact = (
-        Path(__file__).parent
-        / "resources"
-        / "transpiler_configs"
-        / "bladebridge"
-        / "wheel"
-        / "databricks_bb_plugin-0.1.9-py3-none-any.whl"
+        test_resources / "transpiler_configs" / "bladebridge" / "wheel" / "databricks_bb_plugin-0.1.9-py3-none-any.whl"
     )
     assert artifact.exists()
     return artifact
 
 
 @pytest.fixture(scope="session")
-def morpheus_artifact() -> Path:
-    artifact = (
-        Path(__file__).parent
-        / "resources"
-        / "transpiler_configs"
-        / "morpheus"
-        / "jar"
-        / "databricks-morph-plugin-0.4.0.jar"
-    )
+def morpheus_artifact(test_resources: Path) -> Path:
+    artifact = test_resources / "transpiler_configs" / "morpheus" / "jar" / "databricks-morph-plugin-0.4.0.jar"
     assert artifact.exists()
-    return artifact
-
-
-@pytest.fixture
-def switch_artifact() -> Path:
-    """Get Switch wheel for testing."""
-    artifact = (
-        Path(__file__).parent
-        / "resources"
-        / "transpiler_configs"
-        / "switch"
-        / "wheel"
-        / "databricks_switch_plugin-0.1.2-py3-none-any.whl"
-    )
-    assert artifact.exists(), f"Switch artifact not found: {artifact}"
     return artifact
 
 

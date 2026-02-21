@@ -21,15 +21,20 @@ from lsprotocol import types as types_module
 from lsprotocol.types import (
     CLIENT_REGISTER_CAPABILITY,
     METHOD_TO_TYPES,
+    WORKSPACE_APPLY_EDIT,
+    ApplyWorkspaceEditParams,
+    ApplyWorkspaceEditResult,
     ClientCapabilities,
     ClientInfo,
     Diagnostic,
     DiagnosticSeverity,
     DidCloseTextDocumentParams,
     DidOpenTextDocumentParams,
+    GeneralClientCapabilities,
     InitializeParams,
     InitializeResult,
     LanguageKind,
+    WorkspaceClientCapabilities,
 )
 from lsprotocol.types import Position as LSPPosition
 from lsprotocol.types import Range as LSPRange
@@ -38,10 +43,12 @@ from pygls.exceptions import FeatureRequestError
 from pygls.lsp.client import LanguageClient
 
 from databricks.labs.blueprint.installation import JsonValue, RootJsonValue
+from databricks.labs.blueprint.logger import readlines
 from databricks.labs.blueprint.wheels import ProductInfo
 from databricks.labs.lakebridge.config import LSPConfigOptionV1, TranspileConfig, TranspileResult, extract_string_field
 from databricks.labs.lakebridge.errors.exceptions import IllegalStateException
 from databricks.labs.lakebridge.helpers.file_utils import is_dbt_project_file, is_sql_file
+from databricks.labs.lakebridge.transpiler.lsp.editing import Editor, LakebridgeEditor
 from databricks.labs.lakebridge.transpiler.transpile_engine import TranspileEngine
 from databricks.labs.lakebridge.transpiler.transpile_status import (
     CodePosition,
@@ -330,8 +337,11 @@ class ExtendableLanguageClient(LanguageClient):
 
 class LakebridgeLanguageClient(ExtendableLanguageClient):
 
+    _editor: Editor | None
+
     def __init__(self, name: str, version: str) -> None:
         super().__init__(name, version)
+        self._editor = None
         self._transpile_to_databricks_capability: Registration | None = None
 
     @property
@@ -376,86 +386,45 @@ class LakebridgeLanguageClient(ExtendableLanguageClient):
         await super().start_io(cmd, *args, limit=limit, **kwargs)
         # forward stderr
         task = asyncio.create_task(self.pipe_stderr(limit=limit), name="pipe-lsp-stderr")
-        task.add_done_callback(self._detect_pipe_stderr_exception)
         self._async_tasks.append(task)
 
     async def pipe_stderr(self, *, limit: int = _DEFAULT_LIMIT) -> None:
         assert (server := self._server) is not None
         assert (stderr := server.stderr) is not None
 
-        return await self.pipe_stream(stream=stderr, limit=limit)
+        try:
+            async for line in readlines(stream=stderr, limit=limit):
+                logger.debug(str(line))
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            logger.critical("An error occurred while reading LSP server output; now draining.", exc_info=e)
+            # Drain to prevent blocking of the subprocess if the pipe is unread.
+            try:
+                while await stderr.read(limit):
+                    pass
+            except Exception as drain_error:  # pylint: disable=broad-exception-caught
+                # Exception while draining, situation seems unrecoverable.
+                logger.warning(
+                    "Uncoverable error draining LSP server output; beware of deadlock.", exc_info=drain_error
+                )
+        else:
+            if not self._stop_event.is_set():
+                logger.warning("LSP server stderr closed prematurely, no more output will be logged.")
+        logger.debug("Finished piping stderr from subprocess.")
 
-    @staticmethod
-    async def pipe_stream(*, stream: asyncio.StreamReader, limit: int) -> None:
-        """Read lines from the LSP server's stderr and log them.
+    @property
+    def editor(self) -> Editor:
+        if (editor := self._editor) is None:
+            raise AttributeError("Editor has not been set", name="editor", obj=self)
+        return editor
 
-        The lines will be logged in real-time as they arrive, once the newline character is seen. Trailing whitespace
-        is stripped from each line before logging, and empty lines are ignored.
+    @editor.setter
+    def editor(self, editor: Editor) -> None:
+        self._editor = editor
 
-        On EOF any pending line will be logged, even if it is incomplete (i.e. does not end with a newline).
-
-        Logs are treated as UTF-8, with invalid byte sequences replaced with the Unicode replacement character.
-
-        Long lines will be split into chunks with a maximum length of the limit. If the split falls in the middle of a
-        multi-byte UTF-8 character, the bytes on either side of the boundary will likely be invalid and logged as such.
-
-        Args:
-              stream: The stream to mirror as logger output.
-              limit: The maximum number of bytes for a line to be logged as a single line. Longer lines will be split
-                into chunks and logged as each chunk arrives.
-        """
-        # Maximum size of pending buffer is the limit argument.
-        pending_buffer = bytearray()
-
-        # Loop, reading whatever data is available as it arrives.
-        while chunk := await stream.read(limit - len(pending_buffer)):
-            # Process the chunk we've read, line by line.
-            line_from = 0
-            while -1 != (idx := chunk.find(b"\n", line_from)):
-                # Figure out the slice corresponding to this line, accounting for any pending data the last read.
-                line_chunk = memoryview(chunk)[line_from:idx]
-                line_bytes: bytearray | bytes
-                if pending_buffer:
-                    pending_buffer.extend(line_chunk)
-                    line_bytes = pending_buffer
-                else:
-                    line_bytes = bytes(line_chunk)
-                del line_chunk
-
-                # Invalid UTF-8 isn't great, but we can at least log it with the replacement character rather than
-                # dropping it silently or triggering an exception.
-                message = line_bytes.decode("utf-8", errors="replace").rstrip()
-                if message:
-                    logger.debug(message)
-                del line_bytes, message
-
-                # Set up for handling the next line of this chunk.
-                pending_buffer.clear()
-                line_from = idx + 1
-            # Anything remaining in this chunk is pending data for the next read.
-            if remaining := memoryview(chunk)[line_from:]:
-                pending_buffer.extend(remaining)
-                if len(pending_buffer) >= limit:
-                    # Line too long, log what we have and reset.
-                    log_now = pending_buffer[:limit]
-                    message = log_now.decode("utf-8", errors="replace").rstrip()
-                    if message:
-                        # Note: the very next character might be a '\n', but we don't know that yet. So might be more
-                        # for this line, might not be.
-                        logger.debug(f"{message}[..?]")
-                    del log_now, message, pending_buffer[:limit]
-            del remaining
-        if pending_buffer:
-            # Here we've hit EOF but have an incomplete line pending. Log it anyway.
-            message = pending_buffer.decode("utf-8", errors="replace").rstrip()
-            if message:
-                logger.debug(f"{message} <missing EOL at EOF>")
-
-    def _detect_pipe_stderr_exception(self, task: asyncio.Task) -> None:
-        if (err := task.exception()) is not None:
-            logger.critical("An error occurred while processing LSP server output", exc_info=err)
-        elif not self._stop_event.is_set():
-            logger.warning("LSP server stderr closed prematurely, no more output will be logged.")
+    @lsp_feature(WORKSPACE_APPLY_EDIT)
+    async def edit(self, params: ApplyWorkspaceEditParams) -> ApplyWorkspaceEditResult:
+        logger.debug(f"Applying edit: {params}")
+        return self.editor.apply(params.edit)
 
 
 class ChangeManager(abc.ABC):
@@ -617,6 +586,10 @@ class LSPEngine(TranspileEngine):
         await self._start_server()
         input_path = config.input_path
         root_path = input_path if input_path.is_dir() else input_path.parent
+        output_path = config.output_path
+        if output_path is None:
+            raise ValueError("Missing config output location, must be set.")
+        self._client.editor = LakebridgeEditor.retargeting_editor(base=root_path, target=output_path)
         params = InitializeParams(
             capabilities=self._client_capabilities(),
             client_info=ClientInfo(name=self._client.name, version=self._client.version),
@@ -691,7 +664,7 @@ class LSPEngine(TranspileEngine):
         return executable, context.bin_path
 
     async def _launch_executable(self, executable: str, args: Sequence[str], env: Mapping[str, str]) -> None:
-        log_level = logging.getLevelName(logging.getLogger("databricks").level)
+        log_level = logging.getLevelName(logging.getLogger("databricks").getEffectiveLevel())
         # TODO: Remove the --log_level argument once all our transpilers support the environment variable.
         args = [*args, f"--log_level={log_level}"]
         env = {**env, "DATABRICKS_LAKEBRIDGE_LOG_LEVEL": log_level}
@@ -699,7 +672,12 @@ class LSPEngine(TranspileEngine):
         await self._client.start_io(executable, *args, env=env, cwd=self._workdir)
 
     def _client_capabilities(self):
-        return ClientCapabilities()  # TODO do we need to refine this ?
+        return ClientCapabilities(
+            general=GeneralClientCapabilities(position_encodings=["utf-8", "utf-16"]),
+            # TODO: Support progress reporting.
+            # window=WindowClientCapabilities(work_done_progress=True),
+            workspace=WorkspaceClientCapabilities(apply_edit=True, workspace_edit=self._client.editor.capabilities()),
+        )
 
     def _initialization_options(self, config: TranspileConfig):
         return {

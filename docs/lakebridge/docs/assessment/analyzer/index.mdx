@@ -53,25 +53,24 @@ Global Flags:
 To prepare to use Analyzer the metadata needs to be extracted from the legacy system(s). This is done by exporting the metadata to a file system and ultimately making it available in a folder accessible by Analyzer. For a SQL database this is typically done by exporting the SQL files out of the database platform. For ETL/ELT solutions this is done by exporting their repository objects, this usually exports to some kind of *XML* or *JSON* format.
 For examples and instructions of the metadata export process, please refer to the page Exporting Legacy Metadata.
 
-
-
 ## Execution Pre-Set Up
 The analyzer takes a folder path containing source files to be scanned and the source technology type as inputs, then generates an Excel report with analysis results of all files and subfolders.
 
-Below is the detailed explanation on the optional inputs for Analyzer (if you use inputs then all are required).
-- `Source directory [Optional]` - Absolute folder path containing the legacy artifacts.
-- `Report file name [Optional]` - Enter a custom report name or path if you want to save the analysis report in a different location from the source directory. **IMPORTANT**: Provide the full path + filename without extension - ensure the target directory exists beforehand.
-- `Source technology [Optional]` - Select the underlying technology platform of the source files being analyzed.
-#### If no arguments are passed, Analyzer will prompt for the Source directory, Report file name and Source Technology.
-#### If you plan to use arguments all will be required.
+Below is an explanation of the settings needed for the analyzer:
+
+ - _Source directory_: The path of the folder containing the artifacts to analyze.
+ - _Report file_: The path of the Excel file into which the analyzer results will be written. (The parent directory of this file must already exist.)
+ - _Source technology_: The underlying technology platform of the files in the source directory that need to be analyzed.
 
 ## Execution
-Execute the below command to initialize the analyze process.
+Execute the below command to start the analyzer:
 ```bash
- databricks labs lakebridge analyze [--source-directory <absolute-path>] [--report-file <absolute-path>] [--source-tech <string>]
+ databricks labs lakebridge analyze [--source-directory <path>] [--report-file <path>] [--source-tech <string>]
 ```
 
-<img src={useBaseUrl('img/remorph-analyzer-run.gif')} alt="transpile-run" />
+_Note: Any settings that are not provided as arguments will trigger a prompt for the missing setting(s)._
+
+<img src={useBaseUrl('img/remorph-analyzer-run.gif')} alt="Command-line, showing the analyzer being started and running." />
 
 ## Supported dialects
 

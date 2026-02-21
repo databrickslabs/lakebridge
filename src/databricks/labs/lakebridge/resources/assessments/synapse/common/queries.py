@@ -59,9 +59,9 @@ class SynapseQueries:
                """
 
     @staticmethod
-    def list_views(pool_name, redact_sql_text: bool = False) -> str:
+    def list_views(pool_name: str) -> str:
         """Get list of views"""
-        return """
+        return f"""
                SELECT
                    TABLE_CATALOG,
                    TABLE_SCHEMA,
@@ -74,7 +74,7 @@ class SynapseQueries:
                """
 
     @staticmethod
-    def list_routines(pool_name, redact_sql_text: bool = False) -> str:
+    def list_routines(pool_name: str) -> str:
         """Get list of routines (functions + procedures)"""
         return f"""
                SELECT
@@ -128,7 +128,7 @@ class SynapseQueries:
                      """
 
     @staticmethod
-    def list_serverless_sessions(pool_name, min_last_request_start_time: str | None = None) -> str:
+    def list_serverless_sessions(pool_name: str, min_last_request_start_time: str | None = None) -> str:
         """Get session list with transformed login names and client IDs"""
         cond = (
             "AND last_request_start_time > '" + min_last_request_start_time + "'" if min_last_request_start_time else ""
@@ -299,7 +299,7 @@ class SynapseQueries:
         """
 
     @staticmethod
-    def get_db_storage_info(pool_name) -> str:
+    def get_db_storage_info(pool_name: str) -> str:
         """Get database storage information"""
         return f"""SELECT
                        PDW_NODE_ID AS NODE_ID,
@@ -312,7 +312,7 @@ class SynapseQueries:
                """
 
     @staticmethod
-    def list_serverless_requests(pool_name, min_start_time):
+    def list_serverless_requests(pool_name: str, min_start_time: str | None):
         """
         Get list of requests with start time filter
         """
@@ -515,7 +515,7 @@ class SynapseQueries:
         {"WHERE end_time > '"+min_end_time+"'" if min_end_time else ""}"""
 
     @staticmethod
-    def data_processed(pool_name):
+    def data_processed(pool_name: str) -> str:
         return f"""
         SELECT
             DATA_PROCESSED_MB,

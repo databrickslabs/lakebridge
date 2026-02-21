@@ -51,18 +51,8 @@ Internally, Lakebridge can use three different transpilers:
  - *Morpheus*, a next-generation transpiler that currently handles a smaller set of dialects, but includes experimental support for dbt.
  - *Switch*, an LLM-powered transpiler that uses Large Language Models to convert SQL and other source formats to Databricks notebooks.
 
-The table below summarizes the source platforms that we currently support:
 
-| Source Platform               | BladeBridge | Morpheus |   SQL    | ETL/Orchestration | dbt Repointing (Experimental) |
-|:------------------------------|:-----------:|:--------:|:--------:|:-----------------:|:-----------------------------:|
-| DataStage                     |  &#x2705;   |          | &#x2705; |     &#x2705;      |                               |
-| Netezza                       |  &#x2705;   |          | &#x2705; |                   |                               |
-| Oracle (incl. ADS & Exadata)  |  &#x2705;   |          | &#x2705; |                   |                               |
-| Snowflake                     |             | &#x2705; | &#x2705; |                   |           &#x2705;            |
-| MS SQL Server (incl. Synapse) |  &#x2705;   |          | &#x2705; |                   |                               |
-| Teradata                      |  &#x2705;   |          | &#x2705; |                   |                               |
-
-For more information on using the transpiler, refer to the [Transpile][3] documentation.
+For more information on using the transpilers, refer to the [Transpile][3] documentation.
 
 Post-migration Reconciliation
 -----------------------------
@@ -70,6 +60,281 @@ Post-migration Reconciliation
 During the migration process, datasets are often transferred from the existing source platform into Databricks. Lakebridge's reconciler is designed to help you ensure that the data in Databricks matches that of the source system, bearing in mind that both might be part of live environments.
 
 For more information on using the data reconciliation tools, refer to the [Reconcile][4] documentation.
+
+Supported sources
+----------------------------
+<table>
+  <thead>
+    <tr>
+      <th>Source system type</th>
+      <th>Source Technology</th>
+      <th>Assessment - Profiler</th>
+      <th>Assessment - Analyzer</th>
+      <th>Converter</th>
+      <th>Reconcile</th>
+    </tr>
+  </thead>
+  <tbody>
+    <!-- SQL -->
+    <tr>
+      <td rowspan="17">SQL</td>
+      <td>athena</td>
+      <td></td>
+      <td>&#x2705;</td>
+      <td></td>
+      <td></td>
+    </tr>
+    <tr>
+      <td>big query</td>
+      <td></td>
+      <td>&#x2705;</td>
+      <td></td>
+      <td></td>
+    </tr>
+    <tr>
+      <td>db2</td>
+      <td></td>
+      <td>&#x2705;</td>
+      <td></td>
+      <td></td>
+    </tr>
+    <tr>
+      <td>greenplum</td>
+      <td></td>
+      <td>&#x2705;</td>
+      <td></td>
+      <td></td>
+    </tr>
+    <tr>
+      <td>hive</td>
+      <td></td>
+      <td>&#x2705;</td>
+      <td></td>
+      <td></td>
+    </tr>
+    <tr>
+      <td>mssql</td>
+      <td></td>
+      <td>&#x2705;</td>
+      <td>&#x2705;</td>
+      <td>&#x2705;</td>
+    </tr>
+    <tr>
+      <td>mysql</td>
+      <td></td>
+      <td>&#x2705;</td>
+      <td>&#x2705;</td>
+      <td></td>
+    </tr>
+    <tr>
+      <td>netezza</td>
+      <td></td>
+      <td>&#x2705;</td>
+      <td>&#x2705;</td>
+      <td></td>
+    </tr>
+    <tr>
+      <td>oracle</td>
+      <td></td>
+      <td>&#x2705;</td>
+      <td>&#x2705;</td>
+      <td>&#x2705;</td>
+    </tr>
+    <tr>
+      <td>postgresql</td>
+      <td></td>
+      <td>&#x2705;</td>
+      <td>&#x2705;</td>
+      <td></td>
+    </tr>
+    <tr>
+      <td>presto</td>
+      <td></td>
+      <td>&#x2705;</td>
+      <td></td>
+      <td></td>
+    </tr>
+    <tr>
+      <td>redshift</td>
+      <td></td>
+      <td>&#x2705;</td>
+      <td>&#x2705;</td>
+      <td></td>
+    </tr>
+    <tr>
+      <td>sap hana (calc views)</td>
+      <td></td>
+      <td>&#x2705;</td>
+      <td></td>
+      <td></td>
+    </tr>
+    <tr>
+      <td>snowflake</td>
+      <td></td>
+      <td>&#x2705;</td>
+      <td>&#x2705;</td>
+      <td>&#x2705;</td>
+    </tr>
+    <tr>
+      <td>synapse</td>
+      <td>&#x2705;</td>
+      <td>&#x2705;</td>
+      <td>&#x2705;</td>
+      <td>&#x2705;</td>
+    </tr>
+    <tr>
+      <td>teradata</td>
+      <td></td>
+      <td>&#x2705;</td>
+      <td>&#x2705;</td>
+      <td></td>
+    </tr>
+    <tr>
+      <td>vertica</td>
+      <td></td>
+      <td>&#x2705;</td>
+      <td></td>
+      <td></td>
+    </tr>
+
+    <!-- ETL -->
+    <tr>
+      <td rowspan="10">ETL</td>
+      <td>abinitio</td>
+      <td></td>
+      <td>&#x2705;</td>
+      <td></td>
+      <td></td>
+    </tr>
+    <tr>
+      <td>alteryx</td>
+      <td></td>
+      <td>&#x2705;</td>
+      <td></td>
+      <td></td>
+    </tr>
+    <tr>
+      <td>datastage</td>
+      <td></td>
+      <td>&#x2705;</td>
+      <td>&#x2705;</td>
+      <td></td>
+    </tr>
+    <tr>
+      <td>pentahodi</td>
+      <td></td>
+      <td>&#x2705;</td>
+      <td></td>
+      <td></td>
+    </tr>
+    <tr>
+      <td>pig</td>
+      <td></td>
+      <td>&#x2705;</td>
+      <td></td>
+      <td></td>
+    </tr>
+    <tr>
+      <td>pyspark</td>
+      <td></td>
+      <td>&#x2705;</td>
+      <td></td>
+      <td></td>
+    </tr>
+    <tr>
+      <td>sas</td>
+      <td></td>
+      <td>&#x2705;</td>
+      <td></td>
+      <td></td>
+    </tr>
+    <tr>
+      <td>sqoop</td>
+      <td></td>
+      <td>&#x2705;</td>
+      <td></td>
+      <td></td>
+    </tr>
+    <tr>
+      <td>ssis</td>
+      <td></td>
+      <td>&#x2705;</td>
+      <td>&#x2705;</td>
+      <td></td>
+    </tr>
+    <tr>
+      <td>talend</td>
+      <td></td>
+      <td>&#x2705;</td>
+      <td></td>
+      <td></td>
+    </tr>
+
+    <!-- Orchestration -->
+    <tr>
+      <td rowspan="3">Orchestration</td>
+      <td>airflow</td>
+      <td></td>
+      <td></td>
+      <td>&#x2705;</td>
+      <td></td>
+    </tr>
+    <tr>
+      <td>adf</td>
+      <td></td>
+      <td>&#x2705;</td>
+      <td></td>
+      <td></td>
+    </tr>
+    <tr>
+      <td>oozie</td>
+      <td></td>
+      <td>&#x2705;</td>
+      <td></td>
+      <td></td>
+    </tr>
+
+    <!-- Generic/Other -->
+    <tr>
+      <td rowspan="5">Generic/Other</td>
+      <td>cloudera (impala)</td>
+      <td></td>
+      <td>&#x2705;</td>
+      <td></td>
+      <td></td>
+    </tr>
+    <tr>
+      <td>python</td>
+      <td></td>
+      <td>&#x2705;</td>
+      <td>&#x2705;</td>
+      <td></td>
+    </tr>
+    <tr>
+      <td>scala</td>
+      <td></td>
+      <td>&#x2705;</td>
+      <td>&#x2705;</td>
+      <td></td>
+    </tr>
+    <tr>
+      <td>spss</td>
+      <td></td>
+      <td>&#x2705;</td>
+      <td></td>
+      <td></td>
+    </tr>
+    <tr>
+      <td>ssrs</td>
+      <td></td>
+      <td>&#x2705;</td>
+      <td></td>
+      <td></td>
+    </tr>
+  </tbody>
+</table>
+
+
 
 [1]: ../assessment/profiler/
 [2]: ../assessment/analyzer/

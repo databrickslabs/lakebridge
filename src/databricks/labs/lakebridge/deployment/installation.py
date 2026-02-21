@@ -3,7 +3,6 @@ from ast import literal_eval
 from pathlib import Path
 
 from databricks.labs.blueprint.installation import Installation
-from databricks.labs.blueprint.tui import Prompts
 from databricks.labs.blueprint.upgrades import Upgrades
 from databricks.labs.blueprint.wheels import ProductInfo, Version
 from databricks.sdk import WorkspaceClient
@@ -22,7 +21,6 @@ class WorkspaceInstallation:
     def __init__(
         self,
         ws: WorkspaceClient,
-        prompts: Prompts,
         installation: Installation,
         recon_deployment: ReconDeployment,
         switch_deployment: SwitchDeployment,
@@ -30,16 +28,14 @@ class WorkspaceInstallation:
         upgrades: Upgrades,
     ):
         self._ws = ws
-        self._prompts = prompts
         self._installation = installation
         self._recon_deployment = recon_deployment
         self._switch_deployment = switch_deployment
         self._product_info = product_info
         self._upgrades = upgrades
 
-    def _get_local_version_file_path(self):
-        user_home = f"{Path(__file__).home()}"
-        return Path(f"{user_home}/.databricks/labs/{self._product_info.product_name()}/state/version.json")
+    def _get_local_version_file_path(self) -> Path:
+        return Path.home() / ".databricks" / "labs" / self._product_info.product_name() / "state" / "version.json"
 
     def _get_local_version_file(self, file_path: Path):
         data = None
@@ -101,15 +97,10 @@ class WorkspaceInstallation:
             self._recon_deployment.install(config.reconcile, wheel_path)
         if config.include_switch:
             logger.info("Installing Switch transpiler to workspace.")
-            self._switch_deployment.install()
+            self._switch_deployment.install(use_serverless=config.switch_use_serverless)
 
     def uninstall(self, config: LakebridgeConfiguration):
         # This will remove all the Lakebridge modules
-        if not self._prompts.confirm(
-            "Do you want to uninstall Lakebridge from the workspace too, this would "
-            "remove Lakebridge project folder, jobs, metadata and dashboards"
-        ):
-            return
         logger.info(f"Uninstalling Lakebridge from {self._ws.config.host}.")
         try:
             self._installation.files()

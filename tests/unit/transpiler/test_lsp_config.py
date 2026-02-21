@@ -8,12 +8,11 @@ import yaml
 
 from databricks.labs.blueprint.installation import JsonValue
 from databricks.labs.lakebridge.transpiler.lsp.lsp_engine import LSPEngine
-from tests.unit.conftest import path_to_resource
 
 
-def test_valid_config():
-    config = path_to_resource("lsp_transpiler", "lsp_config.yml")
-    engine = LSPEngine.from_config_path(Path(config))
+def test_valid_config(test_resources: Path) -> None:
+    config = test_resources / "lsp_transpiler" / "lsp_config.yml"
+    engine = LSPEngine.from_config_path(config)
     assert engine.supported_dialects == ["snowflake"]
 
 
