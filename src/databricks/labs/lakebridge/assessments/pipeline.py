@@ -12,6 +12,7 @@ from subprocess import CalledProcessError, PIPE, Popen, STDOUT, run
 import duckdb
 import yaml
 
+from databricks.labs.blueprint.paths import read_text
 from databricks.labs.lakebridge.assessments.profiler_config import PipelineConfig, Step
 from databricks.labs.lakebridge.connections.credential_manager import cred_file
 from databricks.labs.lakebridge.connections.database_manager import DatabaseManager, FetchResult
@@ -104,8 +105,7 @@ class PipelineClass:
 
     def _execute_sql_step(self, step: Step):
         logging.debug(f"Reading query from file: {step.extract_source}")
-        with open(step.extract_source, 'r', encoding='utf-8') as file:
-            query = file.read()
+        query = read_text(Path(step.extract_source))
 
         if self.executor is None:
             logging.error("DatabaseManager executor is not set.")
@@ -124,12 +124,14 @@ class PipelineClass:
 
     def _execute_ddl_step(self, step: Step):
         logging.debug(f"Reading DDL from file: {step.extract_source}")
-        with open(step.extract_source, 'r', encoding='utf-8') as file:
-            ddl = file.read().strip()
+        ddl = read_text(Path(step.extract_source)).strip()
 
         logging.info(f"Executing DDL for table '{step.name}'")
 
         try:
+            # TODO: Handle schema evolution
+            # Current implementation just checks for table existence;
+            # mode logic becomes irrelevant for ddl step.
             with duckdb.connect(self._db_path) as conn:
                 if step.mode == 'overwrite':
                     # Overwrite mode: drop existing table first
@@ -137,7 +139,11 @@ class PipelineClass:
                     conn.execute(f"DROP TABLE IF EXISTS {step.name}")
                     logging.debug(f"Dropped existing table '{step.name}' for overwrite mode")
                     # Execute the DDL statement
+                conn.begin()
+                if not self._table_exists(conn, step.name):
                     conn.execute(ddl)
+                    conn.commit()
+                    logging.debug(f"Created new table '{step.name}'")
                 else:
                     # Non-overwrite mode: only create if table doesn't exist
                     # Check if table exists using information_schema
@@ -157,6 +163,7 @@ class PipelineClass:
                 # Explicit commit before context exit
                 conn.commit()
                 logging.info(f"Successfully handled DDL for table '{step.name}'")
+                    logging.debug(f"Table '{step.name}' already exists, skipping DDL execution")
         except Exception as e:
             logging.error(f"DDL execution failed: {str(e)}")
             raise RuntimeError(f"DDL execution failed: {str(e)}") from e
@@ -302,8 +309,11 @@ class PipelineClass:
             ).fetchone()
             table_exists = table_check[0] > 0 if table_check else False
 
+            # TODO: SQL injection vulnerability - use parameterized query with ?
+            table_exists = self._table_exists(conn, step_name)
+            conn.begin()
             if table_exists and mode == 'overwrite':
-                # Table exists and overwrite mode: replace the table with cursor data (preserve existing schema)
+                # Table exists and overwrite mode: Truncate then insert within a transaction to preserve existing DDL schema
                 _result_frame = result.to_df()
                 # Note: step_name is validated to be SQL-safe by Step.__post_init__
                 statement = f"CREATE OR REPLACE TABLE {step_name} AS SELECT * FROM _result_frame"
@@ -314,20 +324,39 @@ class PipelineClass:
                 # Note: step_name is validated to be SQL-safe by Step.__post_init__
                 statement = f"INSERT INTO {step_name} SELECT * FROM _result_frame"
                 logging.debug(f"Appending to existing table '{step_name}'")
-            else:
-                # Table doesn't exist: create table with native types from query result
-                # Use DDL steps for explicit type control when needed
-                _result_frame = result.to_df()
                 # TODO: SQL injection vulnerability - use quote_identifier(step_name)
-                statement = f"CREATE TABLE {step_name} AS SELECT * FROM _result_frame"
-                logging.debug(f"Creating new table '{step_name}' with native types")
+                logging.debug(f"Overwriting existing table '{step_name}'")
+                conn.execute(f"TRUNCATE {step_name}")
+                conn.execute(f"INSERT INTO {step_name} SELECT * FROM _result_frame")
+            else:
+                if table_exists:
+                    # Table exists and append mode: insert into existing table (DuckDB handles type conversion)
+                    _result_frame = result.to_df()
+                    # TODO: SQL injection vulnerability - use quote_identifier(step_name)
+                    statement = f"INSERT INTO {step_name} SELECT * FROM _result_frame"
+                    logging.debug(f"Appending to existing table '{step_name}'")
+                else:
+                    # Table doesn't exist: create table with native types from query result
+                    # Use DDL steps for explicit type control when needed
+                    _result_frame = result.to_df()
+                    # TODO: SQL injection vulnerability - use quote_identifier(step_name)
+                    statement = f"CREATE TABLE {step_name} AS SELECT * FROM _result_frame"
+                    logging.debug(f"Creating new table '{step_name}' with native types")
 
-            logging.debug(f"Executing: {statement}")
-            conn.execute(statement)
+                logging.debug(f"Executing: {statement}")
+                conn.execute(statement)
 
             # Explicit commit before context exit
             conn.commit()
             logging.info(f"Successfully processed {row_count} rows for table '{step_name}'.")
+
+    @staticmethod
+    def _table_exists(conn: duckdb.DuckDBPyConnection, table_name: str) -> bool:
+        # TODO: SQL injection vulnerability - use parameterized query with ?
+        result = conn.execute(
+            f"SELECT COUNT(*) FROM information_schema.tables WHERE table_name = '{table_name}'"
+        ).fetchone()
+        return result[0] > 0 if result else False
 
     @staticmethod
     def _create_dir(dir_path: Path):

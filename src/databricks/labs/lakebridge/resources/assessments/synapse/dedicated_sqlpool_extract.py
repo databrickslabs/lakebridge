@@ -8,7 +8,7 @@ from databricks.labs.lakebridge import initialize_logging
 from databricks.labs.lakebridge.assessments import PRODUCT_NAME
 from databricks.labs.lakebridge.connections.credential_manager import create_credential_manager
 from databricks.labs.lakebridge.connections.env_getter import EnvGetter
-from databricks.labs.lakebridge.resources.assessments.synapse.common.connector import get_sqlpool_reader
+from databricks.labs.lakebridge.connections.synapse_connection_helpers import create_synapse_connection
 from databricks.labs.lakebridge.resources.assessments.synapse.common.duckdb_helpers import (
     save_resultset_to_db,
     get_max_column_value_duckdb,
@@ -74,7 +74,12 @@ def execute():
             # tables
             table_name = "dedicated_tables"
             table_query = SynapseQueries.list_tables(pool_name)
-            connection = get_sqlpool_reader(config, pool_name, auth_type=auth_type)
+            connection = create_synapse_connection(
+                workspace_config=config,
+                database=pool_name,
+                endpoint_key="dedicated_sql_endpoint",
+                auth_type=auth_type,
+            )
             logger.info(f"Loading '{table_name}' for pool: %s", pool_name)
             result = connection.fetch(table_query)
             save_resultset_to_db(result, table_name, db_path, mode=mode)
@@ -117,7 +122,12 @@ def execute():
         ]
         for idx, sqlpool_name in enumerate(sqlpool_names_to_profile_list):
             # print(f"INFO: sqlpool_name:{sqlpool_name}")
-            connection = get_sqlpool_reader(config, sqlpool_name, auth_type=auth_type)
+            connection = create_synapse_connection(
+                workspace_config=config,
+                database=sqlpool_name,
+                endpoint_key="dedicated_sql_endpoint",
+                auth_type=auth_type,
+            )
 
             table_name = "dedicated_sessions"
             prev_max_login_time = get_max_column_value_duckdb("login_time", table_name, db_path)

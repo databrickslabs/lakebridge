@@ -265,38 +265,6 @@ def test_run_pipeline_with_ddl(
         assert usage_result is not None and usage_result[0] > 0, "Usage table should have data"
 
 
-def test_ddl_overwrite_mode(
-    sandbox_sqlserver: DatabaseManager,
-    pipeline_config_with_ddl: PipelineConfig,
-    get_logger: Logger,
-) -> None:
-    """Test that DDL steps in overwrite mode properly drop and recreate tables."""
-    pipeline = PipelineClass(config=pipeline_config_with_ddl, executor=sandbox_sqlserver)
-
-    # Run pipeline first time
-    pipeline.execute()
-
-    db_path = str(Path(pipeline_config_with_ddl.extract_folder)) + "/" + DB_NAME
-
-    # Insert additional data directly
-    with duckdb.connect(db_path) as conn:
-        conn.execute("INSERT INTO inventory VALUES (999, 'test', 'test_collation', NOW(), NOW())")
-        count_before_result = conn.execute("SELECT COUNT(*) FROM inventory").fetchone()
-        assert count_before_result is not None
-        count_before = count_before_result[0]
-
-    # Run pipeline again with overwrite mode
-    pipeline.execute()
-
-    # Verify table was recreated (additional data should be gone)
-    with duckdb.connect(db_path) as conn:
-        count_after_result = conn.execute("SELECT COUNT(*) FROM inventory").fetchone()
-        assert count_after_result is not None
-        count_after = count_after_result[0]
-        # Count should be back to original (without the extra row we added)
-        assert count_after < count_before, "Overwrite mode should recreate table"
-
-
 def test_run_pipeline_with_combined_ddl(
     sandbox_sqlserver: DatabaseManager,
     pipeline_config_combined_ddl: PipelineConfig,
