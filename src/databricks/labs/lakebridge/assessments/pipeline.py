@@ -133,36 +133,12 @@ class PipelineClass:
             # Current implementation just checks for table existence;
             # mode logic becomes irrelevant for ddl step.
             with duckdb.connect(self._db_path) as conn:
-                if step.mode == 'overwrite':
-                    # Overwrite mode: drop existing table first
-                    # Note: step.name is validated to be SQL-safe by Step.__post_init__
-                    conn.execute(f"DROP TABLE IF EXISTS {step.name}")
-                    logging.debug(f"Dropped existing table '{step.name}' for overwrite mode")
-                    # Execute the DDL statement
                 conn.begin()
                 if not self._table_exists(conn, step.name):
                     conn.execute(ddl)
                     conn.commit()
                     logging.debug(f"Created new table '{step.name}'")
                 else:
-                    # Non-overwrite mode: only create if table doesn't exist
-                    # Check if table exists using information_schema
-                    # Note: step.name is validated to be SQL-safe by Step.__post_init__
-                    result = conn.execute(
-                        f"SELECT COUNT(*) FROM information_schema.tables WHERE table_name = '{step.name}'"
-                    ).fetchone()
-                    table_exists = result[0] > 0 if result else False
-
-                    if not table_exists:
-                        conn.execute(ddl)
-                        logging.debug(f"Created new table '{step.name}'")
-                    else:
-                        # Table already exists in non-overwrite mode, skip
-                        logging.debug(f"Table '{step.name}' already exists, skipping DDL execution")
-
-                # Explicit commit before context exit
-                conn.commit()
-                logging.info(f"Successfully handled DDL for table '{step.name}'")
                     logging.debug(f"Table '{step.name}' already exists, skipping DDL execution")
         except Exception as e:
             logging.error(f"DDL execution failed: {str(e)}")
@@ -302,29 +278,13 @@ class PipelineClass:
         logging.info(f"Query for step '{step_name}' returned {row_count} rows.")
 
         with duckdb.connect(self._db_path) as conn:
-            # Check if table exists using information_schema
             # Note: step_name is validated to be SQL-safe by Step.__post_init__
-            table_check = conn.execute(
-                f"SELECT COUNT(*) FROM information_schema.tables WHERE table_name = '{step_name}'"
-            ).fetchone()
-            table_exists = table_check[0] > 0 if table_check else False
-
-            # TODO: SQL injection vulnerability - use parameterized query with ?
             table_exists = self._table_exists(conn, step_name)
             conn.begin()
             if table_exists and mode == 'overwrite':
                 # Table exists and overwrite mode: Truncate then insert within a transaction to preserve existing DDL schema
                 _result_frame = result.to_df()
                 # Note: step_name is validated to be SQL-safe by Step.__post_init__
-                statement = f"CREATE OR REPLACE TABLE {step_name} AS SELECT * FROM _result_frame"
-                logging.debug(f"Overwriting existing table '{step_name}'")
-            elif table_exists:
-                # Table exists and append mode: insert into existing table (DuckDB handles type conversion)
-                _result_frame = result.to_df()
-                # Note: step_name is validated to be SQL-safe by Step.__post_init__
-                statement = f"INSERT INTO {step_name} SELECT * FROM _result_frame"
-                logging.debug(f"Appending to existing table '{step_name}'")
-                # TODO: SQL injection vulnerability - use quote_identifier(step_name)
                 logging.debug(f"Overwriting existing table '{step_name}'")
                 conn.execute(f"TRUNCATE {step_name}")
                 conn.execute(f"INSERT INTO {step_name} SELECT * FROM _result_frame")
@@ -332,14 +292,14 @@ class PipelineClass:
                 if table_exists:
                     # Table exists and append mode: insert into existing table (DuckDB handles type conversion)
                     _result_frame = result.to_df()
-                    # TODO: SQL injection vulnerability - use quote_identifier(step_name)
+                    # Note: step_name is validated to be SQL-safe by Step.__post_init__
                     statement = f"INSERT INTO {step_name} SELECT * FROM _result_frame"
                     logging.debug(f"Appending to existing table '{step_name}'")
                 else:
                     # Table doesn't exist: create table with native types from query result
                     # Use DDL steps for explicit type control when needed
                     _result_frame = result.to_df()
-                    # TODO: SQL injection vulnerability - use quote_identifier(step_name)
+                    # Note: step_name is validated to be SQL-safe by Step.__post_init__
                     statement = f"CREATE TABLE {step_name} AS SELECT * FROM _result_frame"
                     logging.debug(f"Creating new table '{step_name}' with native types")
 
@@ -352,9 +312,8 @@ class PipelineClass:
 
     @staticmethod
     def _table_exists(conn: duckdb.DuckDBPyConnection, table_name: str) -> bool:
-        # TODO: SQL injection vulnerability - use parameterized query with ?
         result = conn.execute(
-            f"SELECT COUNT(*) FROM information_schema.tables WHERE table_name = '{table_name}'"
+            "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = ?", [table_name]
         ).fetchone()
         return result[0] > 0 if result else False
 
