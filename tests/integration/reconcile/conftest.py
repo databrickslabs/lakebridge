@@ -208,7 +208,7 @@ def tsql_recon_config(recon_cluster: ClusterDetails, recon_schema: SchemaInfo, m
     assert recon_schema.name
     return ReconcileConfig(
         data_source="tsql",
-        report_type="all",
+        report_type="row",
         secret_scope="labs_azure_sandbox_sql_server_secrets",
         database_config=DatabaseConfig(
             source_catalog=TSQL_CATALOG,
