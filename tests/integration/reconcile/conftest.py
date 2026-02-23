@@ -50,7 +50,7 @@ DIAMONDS_ROWS_SQL = """
 
 TSQL_CATALOG = "labs_azure_sandbox_remorph"
 TSQL_SCHEMA = "dbo"
-TSQL_TABLE = "diamonds"
+TSQL_TABLE = "diamonds_big_column"
 
 
 @pytest.fixture
