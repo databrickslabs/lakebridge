@@ -156,7 +156,7 @@ def tsql_recon_table_config(recon_schema: SchemaInfo, recon_tables: tuple[TableI
     )
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture
 def recon_cluster(make_cluster) -> ClusterDetails:
     return make_cluster(
         data_security_mode=DataSecurityMode.DATA_SECURITY_MODE_AUTO,
