@@ -3,6 +3,7 @@ import logging
 import tempfile
 import uuid
 from collections.abc import Generator
+from contextlib import contextmanager
 from dataclasses import asdict
 from pathlib import Path
 
@@ -14,7 +15,7 @@ from databricks.labs.blueprint.paths import WorkspacePath
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.errors.platform import PermissionDenied
 from databricks.sdk.service.catalog import TableInfo, SchemaInfo
-from databricks.sdk.service.compute import DataSecurityMode, Kind
+from databricks.sdk.service.compute import DataSecurityMode, Kind, ClusterDetails
 
 from databricks.labs.lakebridge.config import (
     DatabaseConfig,
@@ -46,6 +47,10 @@ DIAMONDS_ROWS_SQL = """
                         (0.29, 'Gold', 'Invariant', 'VS22'),
                         (0.31, 'Good', 'J', 'SI2'); \
                     """
+
+TSQL_CATALOG = "labs_azure_sandbox_remorph"
+TSQL_SCHEMA = "dbo"
+TSQL_TABLE = "diamonds"
 
 
 @pytest.fixture
@@ -119,7 +124,7 @@ def recon_metadata(mock_spark, report_tables_schema) -> Generator[ReconcileMetad
 
 
 @pytest.fixture
-def recon_table_config(recon_schema: SchemaInfo, recon_tables: tuple[TableInfo, TableInfo]) -> TableRecon:
+def databricks_recon_table_config(recon_schema: SchemaInfo, recon_tables: tuple[TableInfo, TableInfo]) -> TableRecon:
     (src_table, tgt_table) = recon_tables
     assert src_table.name
     assert tgt_table.name
@@ -136,20 +141,36 @@ def recon_table_config(recon_schema: SchemaInfo, recon_tables: tuple[TableInfo, 
 
 
 @pytest.fixture
-def recon_config(make_cluster, recon_schema: SchemaInfo, make_volume) -> ReconcileConfig:
+def tsql_recon_table_config(recon_schema: SchemaInfo, recon_tables: tuple[TableInfo, TableInfo]) -> TableRecon:
+    (_, tgt_table) = recon_tables
+    assert tgt_table.name
+
+    return TableRecon(
+        [
+            Table(
+                source_name=TSQL_TABLE,
+                target_name=tgt_table.name,
+                join_columns=["color", "clarity"],
+            )
+        ]
+    )
+
+
+@pytest.fixture(scope="session")
+def recon_cluster(make_cluster) -> ClusterDetails:
+    return make_cluster(
+        data_security_mode=DataSecurityMode.DATA_SECURITY_MODE_AUTO,
+        kind=Kind.CLASSIC_PREVIEW,
+        num_workers=2,
+    ).result()
+
+
+@pytest.fixture
+def databricks_recon_config(recon_cluster: ClusterDetails, recon_schema: SchemaInfo, make_volume) -> ReconcileConfig:
     volume = make_volume(catalog_name=recon_schema.catalog_name, schema_name=recon_schema.name, name=recon_schema.name)
 
-    cluster = (
-        make_cluster(
-            data_security_mode=DataSecurityMode.DATA_SECURITY_MODE_AUTO,
-            kind=Kind.CLASSIC_PREVIEW,
-            num_workers=2,
-        )
-        .result()
-        .cluster_id
-    )
     deployment_overrides = ReconcileJobConfig(
-        existing_cluster_id=cluster,
+        existing_cluster_id=recon_cluster.cluster_id or "bogus",
         tags={"lakebridge": "reconcile_test"},
     )
     logger.info(f"Using recon job overrides: {deployment_overrides}")
@@ -174,6 +195,34 @@ def recon_config(make_cluster, recon_schema: SchemaInfo, make_volume) -> Reconci
 
 
 @pytest.fixture
+def tsql_recon_config(recon_cluster: ClusterDetails, recon_schema: SchemaInfo, make_volume) -> ReconcileConfig:
+    volume = make_volume(catalog_name=recon_schema.catalog_name, schema_name=recon_schema.name, name=recon_schema.name)
+
+    deployment_overrides = ReconcileJobConfig(
+        existing_cluster_id=recon_cluster.cluster_id or "bogus",
+        tags={"lakebridge": "reconcile_test"},
+    )
+    logger.info(f"Using recon job overrides: {deployment_overrides}")
+
+    assert recon_schema.catalog_name
+    assert recon_schema.name
+    return ReconcileConfig(
+        data_source="tsql",
+        report_type="all",
+        secret_scope="labs_azure_sandbox_sql_server_secrets",
+        database_config=DatabaseConfig(
+            source_catalog=TSQL_CATALOG,
+            source_schema=TSQL_SCHEMA,
+            target_catalog=recon_schema.catalog_name,
+            target_schema=recon_schema.name,
+        ),
+        metadata_config=ReconcileMetadataConfig(
+            catalog=recon_schema.catalog_name, schema=recon_schema.name, volume=volume.name
+        ),
+        job_overrides=deployment_overrides,
+    )
+
+
 def recon_config_filename(recon_config: ReconcileConfig) -> str:
     source_catalog_or_schema = (
         recon_config.database_config.source_catalog
@@ -183,11 +232,10 @@ def recon_config_filename(recon_config: ReconcileConfig) -> str:
     return f"recon_config_{recon_config.data_source}_{source_catalog_or_schema}_{recon_config.report_type}.json"
 
 
-@pytest.fixture
-def application_context(
+@contextmanager
+def generate_recon_application_context(
     application_ctx: ApplicationContext,
     recon_config: ReconcileConfig,
-    recon_config_filename: str,
     recon_table_config: TableRecon,
 ) -> Generator[ApplicationContext, None, None]:
     logger.info("Setting up application context for recon tests")
@@ -195,7 +243,8 @@ def application_context(
     ws = application_ctx.workspace_client
     logger.info("Installing app and recon configuration into workspace")
     application_ctx.installation.save(recon_config)
-    application_ctx.installation.upload(recon_config_filename, json.dumps(asdict(recon_table_config)).encode())
+    filename = recon_config_filename(recon_config)
+    application_ctx.installation.upload(filename, json.dumps(asdict(recon_table_config)).encode())
     application_ctx.workspace_installation.install(config)
 
     logger.info("Application context setup complete for recon tests")

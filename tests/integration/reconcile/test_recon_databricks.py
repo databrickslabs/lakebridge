@@ -4,14 +4,16 @@ import logging
 from databricks.sdk.service.jobs import TerminationTypeType
 from databricks.sdk.core import DatabricksError
 
+from databricks.labs.lakebridge.config import ReconcileConfig, TableRecon
 from databricks.labs.lakebridge.contexts.application import ApplicationContext
 from databricks.labs.lakebridge.reconcile.recon_config import RECONCILE_OPERATION_NAME
 from databricks.labs.lakebridge.reconcile.runner import ReconcileRunner
+from tests.integration.reconcile.conftest import generate_recon_application_context
 
 logger = logging.getLogger(__name__)
 
 
-def debug_run_output(ctx: ApplicationContext, run_id: int) -> None:
+def _debug_run_output(ctx: ApplicationContext, run_id: int) -> None:
     _ansi_escape = re.compile(r"\x1B\[[0-?]*[ -/]*[@-~]")
 
     def strip_ansi(unescaped: str) -> str:
@@ -34,10 +36,10 @@ def debug_run_output(ctx: ApplicationContext, run_id: int) -> None:
         logger.exception("Failed to fetch run output")
 
 
-def test_recon_databricks_job_succeeds(application_context: ApplicationContext) -> None:
+def _run_recon_e2e_spec(app_ctx: ApplicationContext):
     recon_runner = ReconcileRunner(
-        application_context.workspace_client,
-        application_context.install_state,
+        app_ctx.workspace_client,
+        app_ctx.install_state,
     )
 
     run = None
@@ -46,7 +48,7 @@ def test_recon_databricks_job_succeeds(application_context: ApplicationContext) 
         result = run.result()
     except Exception:
         if run:
-            debug_run_output(application_context, run.run_id)
+            _debug_run_output(app_ctx, run.run_id)
         raise
 
     logger.info(f"Reconcile job run result: {result.status}")
@@ -54,3 +56,21 @@ def test_recon_databricks_job_succeeds(application_context: ApplicationContext) 
     assert result.status.termination_details
     assert result.status.termination_details.type
     assert result.status.termination_details.type.value == TerminationTypeType.SUCCESS.value
+
+
+def test_recon_databricks_job_succeeds(
+    application_ctx: ApplicationContext,
+    databricks_recon_config: ReconcileConfig,
+    databricks_recon_table_config: TableRecon,
+) -> None:
+    with generate_recon_application_context(
+        application_ctx, databricks_recon_config, databricks_recon_table_config
+    ) as app_ctx:
+        _run_recon_e2e_spec(app_ctx)
+
+
+def test_recon_sql_server_job_succeeds(
+    application_ctx: ApplicationContext, tsql_recon_config: ReconcileConfig, tsql_recon_table_config: TableRecon
+) -> None:
+    with generate_recon_application_context(application_ctx, tsql_recon_config, tsql_recon_table_config) as app_ctx:
+        _run_recon_e2e_spec(app_ctx)
