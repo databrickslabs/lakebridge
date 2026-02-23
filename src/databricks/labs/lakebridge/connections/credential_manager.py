@@ -1,7 +1,11 @@
-from pathlib import Path
+from __future__ import annotations
+
+import json
 import logging
+from pathlib import Path
 from typing import Any, Protocol
 
+import boto3  # type: ignore[import-untyped]
 import yaml
 
 from databricks.labs.lakebridge.connections.env_getter import EnvGetter
@@ -37,8 +41,57 @@ class DatabricksSecretProvider:
 
 
 class AwsSecretsManagerProvider:
+    def __init__(
+        self,
+        region_name: str | None = None,
+        profile_name: str | None = None,
+        assume_role_arn: str | None = None,
+    ):
+        self._region_name = region_name
+        self._profile_name = profile_name
+        self._assume_role_arn = assume_role_arn
+        self._client: Any = None
+
+    def _get_client(self) -> Any:
+        if self._client is not None:
+            return self._client
+
+        session = boto3.Session(
+            region_name=self._region_name,
+            profile_name=self._profile_name,
+        )
+
+        if self._assume_role_arn:
+            sts = session.client("sts")
+            assumed = sts.assume_role(
+                RoleArn=self._assume_role_arn,
+                RoleSessionName="lakebridge-secrets-manager",
+            )
+            creds = assumed["Credentials"]
+            session = boto3.Session(
+                aws_access_key_id=creds["AccessKeyId"],
+                aws_secret_access_key=creds["SecretAccessKey"],
+                aws_session_token=creds["SessionToken"],
+                region_name=self._region_name,
+            )
+
+        self._client = session.client("secretsmanager")
+        return self._client
+
     def get_secret(self, key: str) -> str:
-        raise NotImplementedError("AWS Secrets Manager provider not implemented")
+        secret_name, _, json_key = key.partition("#")
+        response = self._get_client().get_secret_value(SecretId=secret_name)
+
+        if "SecretString" in response:
+            secret_value = response["SecretString"]
+        else:
+            secret_value = response["SecretBinary"].decode("utf-8")
+
+        if json_key:
+            parsed = json.loads(secret_value)
+            return str(parsed[json_key])
+
+        return secret_value
 
 
 class CredentialManager:
@@ -111,11 +164,16 @@ def create_credential_manager(
         creds_path = cred_file(product_name)
     creds = _load_credentials(creds_path)
 
+    aws_cfg = creds.get('aws_secrets_manager') or {}
     secret_providers = {
         'local': LocalSecretProvider(),
         'env': EnvSecretProvider(env_getter),
         'databricks': DatabricksSecretProvider(),
-        'aws_secrets_manager': AwsSecretsManagerProvider(),
+        'aws_secrets_manager': AwsSecretsManagerProvider(
+            region_name=aws_cfg.get('region_name'),
+            profile_name=aws_cfg.get('profile_name'),
+            assume_role_arn=aws_cfg.get('assume_role_arn'),
+        ),
     }
 
     return CredentialManager(creds, secret_providers)
