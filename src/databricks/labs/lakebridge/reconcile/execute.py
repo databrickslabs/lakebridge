@@ -23,7 +23,9 @@ def main(*argv: str) -> None:
     w = WorkspaceClient()
     installation: Installation | None = None
     operation_name: str | None = None
-    match argv[1:]:
+    # sys.arg is used when running the script as an entry point which is how we trigger the job.
+    args = argv[1:] if argv else tuple(sys.argv[1:])
+    match args:
         case [operation_name, install_folder] if operation_name in {
             RECONCILE_OPERATION_NAME,
             AGG_RECONCILE_OPERATION_NAME,
@@ -36,7 +38,7 @@ def main(*argv: str) -> None:
             installation = Installation.assume_user_home(w, "lakebridge")
         case _:
             raise ValueError(
-                f"Invalid arguments: {argv[1:]}. Expected [operation_name, install_folder] "
+                f"Invalid arguments: {args}. Expected [operation_name, install_folder] "
                 f"where operation_name is one of: {RECONCILE_OPERATION_NAME!r}, {AGG_RECONCILE_OPERATION_NAME!r}."
             )
 
