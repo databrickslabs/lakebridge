@@ -36,6 +36,11 @@ class DatabricksSecretProvider:
         raise NotImplementedError("Databricks secret vault not implemented")
 
 
+class AwsSecretsManagerProvider:
+    def get_secret(self, key: str) -> str:
+        raise NotImplementedError("AWS Secrets Manager provider not implemented")
+
+
 class CredentialManager:
     def __init__(self, credentials: dict, secret_providers: dict[str, SecretProvider]):
         self._credentials = credentials
@@ -110,6 +115,7 @@ def create_credential_manager(
         'local': LocalSecretProvider(),
         'env': EnvSecretProvider(env_getter),
         'databricks': DatabricksSecretProvider(),
+        'aws_secrets_manager': AwsSecretsManagerProvider(),
     }
 
     return CredentialManager(creds, secret_providers)
