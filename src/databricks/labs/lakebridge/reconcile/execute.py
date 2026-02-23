@@ -23,7 +23,7 @@ def main(*argv: str) -> None:
     w = WorkspaceClient()
     installation: Installation | None = None
     operation_name: str | None = None
-    match sys.argv[1:]:
+    match argv[1:]:
         case [operation_name, install_folder] if operation_name in {
             RECONCILE_OPERATION_NAME,
             AGG_RECONCILE_OPERATION_NAME,
@@ -36,7 +36,7 @@ def main(*argv: str) -> None:
             installation = Installation.assume_user_home(w, "lakebridge")
         case _:
             raise ValueError(
-                f"Invalid arguments: {sys.argv[1:]}. Expected [operation_name, install_folder] "
+                f"Invalid arguments: {argv[1:]}. Expected [operation_name, install_folder] "
                 f"where operation_name is one of: {RECONCILE_OPERATION_NAME!r}, {AGG_RECONCILE_OPERATION_NAME!r}."
             )
 

@@ -136,7 +136,7 @@ def recon_table_config(recon_schema: SchemaInfo, recon_tables: tuple[TableInfo, 
 
 
 @pytest.fixture
-def recon_config(make_cluster, watchdog_remove_after: str, recon_schema: SchemaInfo, make_volume) -> ReconcileConfig:
+def recon_config(make_cluster, recon_schema: SchemaInfo, make_volume) -> ReconcileConfig:
     volume = make_volume(catalog_name=recon_schema.catalog_name, schema_name=recon_schema.name, name=recon_schema.name)
 
     cluster = (
@@ -150,7 +150,7 @@ def recon_config(make_cluster, watchdog_remove_after: str, recon_schema: SchemaI
     )
     deployment_overrides = ReconcileJobConfig(
         existing_cluster_id=cluster,
-        tags={"lakebridge": "reconcile_test", "RemoveAfter": watchdog_remove_after},
+        tags={"lakebridge": "reconcile_test"},
     )
     logger.info(f"Using recon job overrides: {deployment_overrides}")
 
