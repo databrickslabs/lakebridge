@@ -3,7 +3,6 @@ import shutil
 import tempfile
 from pathlib import Path
 from collections.abc import Callable
-from typing import cast
 
 from databricks.labs.blueprint.entrypoint import get_logger
 from databricks.labs.blueprint.tui import Prompts
@@ -61,7 +60,7 @@ class AnalyzerRunner:
 
     @classmethod
     def create(cls, is_debug: bool = False) -> "AnalyzerRunner":
-        return cls(cast(Callable[[Path, Path, str, bool, Path | None], None], Analyzer.analyze), is_debug)
+        return cls(Analyzer.analyze, is_debug)
 
     def run(
         self, source_dir: Path, results_file_path: Path, platform: str, generate_json: bool = False
@@ -108,16 +107,11 @@ class AnalyzerRunner:
         # TODO: Move this workaround to bladespector, so this can be eliminated here.
         with tempfile.TemporaryDirectory() as tmp_dir:
             staging_path = Path(tmp_dir) / "staging-report.xlsx"
-            staging_json = Path(tmp_dir) / "staging-report.json" if json_result else None
-            self._runnable(source_dir, staging_path, platform, is_debug, staging_json)
+            self._runnable(source_dir, staging_path, platform, is_debug, json_result)
             # On Windows, can't overwrite via move() so first need to remove the target if it exists.
             results_file_path.unlink(missing_ok=True)
             shutil.move(staging_path, results_file_path)
             logger.debug(f"Report moved from staging to requested location: {staging_path} -> {results_file_path}")
-            if json_result and staging_json and staging_json.exists():
-                json_result.unlink(missing_ok=True)
-                shutil.move(staging_json, json_result)
-                logger.debug(f"JSON report moved: {staging_json} -> {json_result}")
 
 
 class LakebridgeAnalyzer:
