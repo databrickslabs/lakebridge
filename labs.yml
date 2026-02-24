@@ -121,3 +121,11 @@ commands:
     flags:
       - name: source-tech
         description: (Optional) The technology/platform of the sources to Profile
+
+  - name: test-profiler-connection
+    description: (Internal) Test the connection to the source database for profiling
+    flags:
+      - name: source-tech
+        description: Database platform/technology of source connection
+      - name: cred-file-path
+        description: (Optional) Local `path` of the credential file to use for testing the connection

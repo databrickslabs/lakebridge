@@ -20,18 +20,27 @@ def main(*argv: str) -> None:
     initialize_logging()
 
     logger.debug(f"Arguments received: {argv}")
-
-    assert len(sys.argv) == 2, f"Invalid number of arguments: {len(sys.argv)}," f" Operation name must be specified."
-    operation_name = sys.argv[1]
-
-    assert operation_name in {
-        RECONCILE_OPERATION_NAME,
-        AGG_RECONCILE_OPERATION_NAME,
-    }, f"Invalid option: {operation_name}"
-
     w = WorkspaceClient()
-
-    installation = Installation.assume_user_home(w, "lakebridge")
+    installation: Installation | None = None
+    operation_name: str | None = None
+    # sys.arg is used when running the script as an entry point which is how we trigger the job.
+    args = argv[1:] if argv else tuple(sys.argv[1:])
+    match args:
+        case [operation_name, install_folder] if operation_name in {
+            RECONCILE_OPERATION_NAME,
+            AGG_RECONCILE_OPERATION_NAME,
+        }:
+            installation = Installation(w, "lakebridge", install_folder=install_folder)
+        case [operation_name] if operation_name in {
+            RECONCILE_OPERATION_NAME,
+            AGG_RECONCILE_OPERATION_NAME,
+        }:
+            installation = Installation.assume_user_home(w, "lakebridge")
+        case _:
+            raise ValueError(
+                f"Invalid arguments: {args}. Expected [operation_name, install_folder] "
+                f"where operation_name is one of: {RECONCILE_OPERATION_NAME!r}, {AGG_RECONCILE_OPERATION_NAME!r}."
+            )
 
     reconcile_config = installation.load(ReconcileConfig)
 
