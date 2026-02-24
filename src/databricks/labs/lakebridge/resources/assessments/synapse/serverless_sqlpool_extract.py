@@ -120,9 +120,9 @@ def execute():
                     mode = "append"
 
             # Reconnect to master for server-level DMVs
-            connection = get_sqlpool_reader(
-                config,
-                'master',
+            connection = create_synapse_connection(
+                workspace_config=config,
+                database='master',
                 endpoint_key='serverless_sql_endpoint',
                 auth_type=auth_type,
             )
