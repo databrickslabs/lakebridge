@@ -7,13 +7,14 @@ from databricks.labs.blueprint.entrypoint import get_logger
 from databricks.labs.lakebridge import initialize_logging
 from databricks.labs.lakebridge.assessments import PRODUCT_NAME
 from databricks.labs.lakebridge.connections.credential_manager import create_credential_manager
+from databricks.labs.lakebridge.connections.env_getter import EnvGetter
+from databricks.labs.lakebridge.connections.synapse_connection_helpers import create_synapse_connection
 from databricks.labs.lakebridge.resources.assessments.synapse.common.duckdb_helpers import (
     save_resultset_to_db,
     get_max_column_value_duckdb,
 )
 from databricks.labs.lakebridge.resources.assessments.synapse.common.functions import arguments_loader
 from databricks.labs.lakebridge.resources.assessments.synapse.common.queries import SynapseQueries
-from databricks.labs.lakebridge.resources.assessments.synapse.common.connector import get_sqlpool_reader
 
 
 logger = get_logger(__file__)
@@ -30,7 +31,7 @@ def get_serverless_database_groups(
     and applies inclusion/exclusion filters.
 
     Returns:
-        (serverless_database_groups, serverless_database_groups_in_scope)
+        (serverless_database_groups, serverless_db_groups_in_scope)
     """
     with duckdb.connect(db_path) as conn:
         rows = conn.execute(f"SELECT name, collation_name FROM {table_name}").fetchall()
@@ -42,19 +43,19 @@ def get_serverless_database_groups(
     inclusion_list = inclusion_list or []
     exclusion_list = exclusion_list or []
 
-    serverless_database_groups_in_scope = {}
+    serverless_db_groups_in_scope = {}
     for collation_name, dbs in serverless_database_groups.items():
-        for db in dbs:
-            if (not inclusion_list or db in inclusion_list) and db not in exclusion_list:
-                serverless_database_groups_in_scope.setdefault(collation_name, []).append(db)
+        for database in dbs:
+            if (not inclusion_list or database in inclusion_list) and database not in exclusion_list:
+                serverless_db_groups_in_scope.setdefault(collation_name, []).append(database)
 
-    return serverless_database_groups_in_scope
+    return serverless_db_groups_in_scope
 
 
 def execute():
     db_path, creds_file = arguments_loader(desc="Synapse Synapse Serverless SQL Pool Extract Script")
 
-    cred_manager = create_credential_manager(PRODUCT_NAME, creds_file)
+    cred_manager = create_credential_manager(PRODUCT_NAME, EnvGetter())
     synapse_workspace_settings = cred_manager.get_credentials("synapse")
     config = synapse_workspace_settings["workspace"]
     auth_type = synapse_workspace_settings["jdbc"].get("auth_type", "sql_authentication")
@@ -65,26 +66,26 @@ def execute():
         if not synapse_profiler_settings.get("exclude_serverless_sql_pool", False):
             # Databases
             database_query = SynapseQueries.list_databases()
-            connection = get_sqlpool_reader(
-                config,
-                'master',
+            connection = create_synapse_connection(
+                workspace_config=config,
+                database='master',
                 endpoint_key='serverless_sql_endpoint',
                 auth_type=auth_type,
             )
             result = connection.fetch(database_query)
             save_resultset_to_db(result, "serverless_databases", db_path, mode="overwrite")
 
-            serverless_database_groups_in_scope = get_serverless_database_groups(db_path)
-            logger.info(f"serverless db in scope: {serverless_database_groups_in_scope}")
+            serverless_db_groups_in_scope = get_serverless_database_groups(db_path)
+            logger.info(f"serverless db in scope: {serverless_db_groups_in_scope}")
 
-            for idx, collation_name in enumerate(serverless_database_groups_in_scope):
+            for idx, collation_name in enumerate(serverless_db_groups_in_scope):
                 mode = "overwrite" if idx == 0 else "append"
-                databases = serverless_database_groups_in_scope[collation_name]
+                databases = serverless_db_groups_in_scope[collation_name]
 
                 for db_name in databases:
-                    connection = get_sqlpool_reader(
-                        config,
-                        db_name,
+                    connection = create_synapse_connection(
+                        workspace_config=config,
+                        database=db_name,
                         endpoint_key='serverless_sql_endpoint',
                         auth_type=auth_type,
                     )
@@ -111,7 +112,7 @@ def execute():
 
                     # Routines
                     table_name = "serverless_routines"
-                    view_query = SynapseQueries.list_routines(db_name, True)
+                    view_query = SynapseQueries.list_routines(db_name)
                     logger.info(f"Loading '{table_name}' for pool: %s", db_name)
                     result = connection.fetch(view_query)
                     save_resultset_to_db(result, table_name, db_path, mode=mode)

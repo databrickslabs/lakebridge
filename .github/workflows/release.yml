@@ -41,7 +41,7 @@ jobs:
         name: Publish package distributions to PyPI
 
       - name: Sign artifacts with Sigstore
-        uses: sigstore/gh-action-sigstore-python@v3.0.1
+        uses: sigstore/gh-action-sigstore-python@v3.2.0
         with:
           inputs: |
             dist/databricks_*.whl

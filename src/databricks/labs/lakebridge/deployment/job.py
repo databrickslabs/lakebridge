@@ -93,7 +93,10 @@ class JobDeployment:
                 ),
             ],
             "max_concurrent_runs": 2,
-            "parameters": [JobParameterDefinition(name="operation_name", default="reconcile")],
+            "parameters": [
+                JobParameterDefinition(name="operation_name", default="reconcile"),
+                JobParameterDefinition(name="install_folder", default=self._installation.install_folder()),
+            ],
         }
 
     def _job_recon_task(
@@ -123,7 +126,7 @@ class JobDeployment:
             python_wheel_task=PythonWheelTask(
                 package_name=self.parse_package_name(lakebridge_wheel_path),
                 entry_point="reconcile",
-                parameters=["{{job.parameters.[operation_name]}}"],
+                parameters=["{{job.parameters.[operation_name]}}", "{{job.parameters.[install_folder]}}"],
             ),
         )
         logger.debug(
