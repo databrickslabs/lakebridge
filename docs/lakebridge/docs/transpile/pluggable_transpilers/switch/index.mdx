@@ -108,7 +108,9 @@ Convert ETL workloads to Spark Declarative Pipeline (SDP) in Python or SQL.
 | Source Technology | Source → Target |
 |--------------|-----------------|
 | `pyspark` | PySpark ETL → Databricks Notebook in Python or SQL for SDP |
+| `informatica` | Informatica ETL → Databricks Notebook in Python or SQL for SDP |
 | `unknown_etl` | If the source type is not supported as a built-in option, Switch will use the LLM's prior knowledge to identify the source technology and perform the conversion |
+| `custom_etl` | Enables you to define your own ETL conversion rules by editing the `custom_etl.yml` file located within the switch configuration. For details, see Example 6 below. |
 
 ### Custom Prompts: Any Source Format
 
@@ -287,9 +289,9 @@ databricks labs lakebridge llm-transpile \
   --accept-terms true
 ```
 
-### Example 5: PySpark ETL to Databricks SDP in SQL 
+### Example 5: Informatica ETL to Databricks SDP in SQL 
 
-Convert PySpark ETL workload to Databricks Spark Declarative Pipeline in SQL:
+Convert Informatica ETL workload to Databricks Spark Declarative Pipeline in SQL:
 
 First, edit `switch_config.yml` (leave other parameters unchanged):
 ```yaml
@@ -302,7 +304,29 @@ Then run:
 databricks labs lakebridge llm-transpile \
   --input-source /local/path/to/input \
   --output-ws-folder /Workspace/path/to/output \
-  --source-dialect pyspark \
+  --source-dialect informatica \
+  --profile profile_name \
+  --accept-terms true
+```
+
+### Example 6: Custom ETL to Databricks SDP in Python 
+
+Convert ETL workload to Databricks Spark Declarative Pipeline in Python with custom instructions:
+
+First, edit `switch_config.yml` (leave other parameters unchanged):
+```yaml
+target_type: "sdp"
+sdp_language: "python"
+```
+
+Next, edit `custom_etl.yml` (located in `.lakebridge/switch/resources/builtin_prompts/` in your workspace root) to include your custom instructions. You can use other prompt yaml files as examples.
+
+Then run:
+```bash
+databricks labs lakebridge llm-transpile \
+  --input-source /local/path/to/input \
+  --output-ws-folder /Workspace/path/to/output \
+  --source-dialect custom_etl \
   --profile profile_name \
   --accept-terms true
 ```
