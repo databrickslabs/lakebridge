@@ -144,34 +144,16 @@ class RedshiftConnector(DatabaseConnector):
 
         return redshift_connector.connect(**connect_kwargs)
 
-    def _execute_with_cursor(self, cursor, query: str) -> FetchResult:
-        """Run query (single or multi-statement) and return the last result set."""
-        if ";\n" not in query:
+    def fetch(self, query: str) -> FetchResult:
+        cursor = self._conn.cursor()
+        try:
             cursor.execute(query)
+            # DDL (e.g. DROP, CREATE VIEW) has no result set; return empty result
+            if cursor.description is None:
+                return FetchResult(set(), [])
             rows = cursor.fetchall()
             columns = {desc[0] for desc in cursor.description} if cursor.description else set()
             return FetchResult(columns, rows)
-        statements = [s.strip().rstrip(";").strip() for s in query.split(";\n") if s.strip()]
-        last_result = FetchResult(set(), [])
-        for stmt in statements:
-            cursor.execute(stmt)
-            if cursor.description:
-                last_result = FetchResult(
-                    {desc[0] for desc in cursor.description},
-                    cursor.fetchall(),
-                )
-        return last_result
-
-    def fetch(self, query: str) -> FetchResult:
-        """Execute query. For multi-statement (e.g. 0_query_view.sql: DDL then SELECT),
-        runs each statement and returns the last result set.
-        """
-        cursor = self._conn.cursor()
-        try:
-            return self._execute_with_cursor(cursor, query)
-        except Exception:
-            self._conn.rollback()
-            raise
         finally:
             cursor.close()
 
