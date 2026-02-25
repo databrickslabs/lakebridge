@@ -37,7 +37,8 @@ Usage:
     databricks labs lakebridge analyze [flags]
 
 Flags:
-    -h, --help help for analyze
+    --generate-json true|false    (Optional) Generate JSON file alongside the Excel report
+    -h, --help                help for analyze
     --report-file path        (Optional) Local filesystem path of the analysis report file to write
     --source-directory path   (Optional) Local filesystem path of a directory containing sources to analyze
     --source-tech string      (Optional) The technology/platform of the sources to analyze
@@ -61,6 +62,7 @@ Below is an explanation of the settings needed for the analyzer:
  - _Source directory_: The path of the folder containing the artifacts to analyze.
  - _Report file_: The path of the Excel file into which the analyzer results will be written. (The parent directory of this file must already exist.)
  - _Source technology_: The underlying technology platform of the files in the source directory that need to be analyzed.
+ - _Generate JSON_ (optional): When set to `true`, generates a JSON file alongside the Excel report. This is useful for programmatic processing and integration with other tools.
 
 ## Execution
 Execute the below command to start the analyzer:
@@ -69,6 +71,17 @@ Execute the below command to start the analyzer:
 ```
 
 _Note: Any settings that are not provided as arguments will trigger a prompt for the missing setting(s)._
+
+To generate both Excel and JSON output:
+```bash
+ databricks labs lakebridge analyze [--source-directory <path>] [--report-file <path>] [--source-tech <string>] --generate-json true
+```
+
+### Output Files
+- **Excel Report** (`.xlsx`) - Always generated. Contains formatted analysis results with multiple worksheets for different aspects of the analysis.
+- **JSON Report** (`.json`) - Generated when `--generate-json true` is specified. Contains the same analysis data in JSON format for programmatic access and integration with other tools.
+
+Both files will be written to the location specified by `--report-file` with their respective extensions.
 
 <img src={useBaseUrl('img/remorph-analyzer-run.gif')} alt="Command-line, showing the analyzer being started and running." />
 

@@ -31,7 +31,7 @@ classifiers = [
 dependencies = [
   "databricks-sdk~=0.85.0",
   "standard-distutils~=3.11.9; python_version>='3.11'",
-  "databricks-bb-analyzer~=0.2.2",
+  "databricks-bb-analyzer~=0.3.0",
   "sqlglot==28.5.0",
   "databricks-labs-blueprint[yaml]>=0.12.0,<0.13.0",
   "databricks-labs-lsql==0.16.0",
