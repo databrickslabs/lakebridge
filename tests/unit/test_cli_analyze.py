@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 from unittest.mock import patch
 
@@ -91,7 +92,6 @@ def test_analyze_generate_json(
     assert report_path.exists(), "Excel report was not created"
     assert expected_json.exists(), "JSON report was not created"
     with expected_json.open("r", encoding="utf-8") as f:
-        import json
         data = json.load(f)
     assert isinstance(data, dict), "JSON report is not a valid JSON object"
 
