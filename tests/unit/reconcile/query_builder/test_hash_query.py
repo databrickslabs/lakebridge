@@ -379,3 +379,60 @@ def test_hash_query_builder_sort_column(
 
     assert src_actual == src_expected
     assert tgt_actual == tgt_expected
+
+
+def test_hash_query_builder_tsql_date_time_columns(
+    fake_tsql_datasource,
+    fake_databricks_datasource,
+):
+    """Test that TSQL date/time/datetime columns are converted to VARCHAR for concatenation compatibility."""
+    src_schema = [
+        tsql_schema_fixture_factory("id", "number"),
+        tsql_schema_fixture_factory("birth_date", "date"),
+        tsql_schema_fixture_factory("created_time", "time"),
+        tsql_schema_fixture_factory("created_date", "datetime"),
+        tsql_schema_fixture_factory("name", "varchar"),
+    ]
+
+    tgt_schema = [
+        ansi_schema_fixture_factory("id", "number"),
+        ansi_schema_fixture_factory("birth_date", "date"),
+        ansi_schema_fixture_factory("created_time", "timestamp"),
+        ansi_schema_fixture_factory("created_date", "timestamp"),
+        ansi_schema_fixture_factory("name", "string"),
+    ]
+
+    table_conf = Table(
+        source_name="customer",
+        target_name="customer",
+        join_columns=["id"],
+        select_columns=["id", "birth_date", "created_time", "created_date", "name"],
+    )
+
+    normalize_service = NormalizeReconConfigService(fake_tsql_datasource, fake_databricks_datasource)
+    normalized_conf = normalize_service.normalize_recon_table_config(table_conf)
+
+    src_actual = HashQueryBuilder(
+        normalized_conf,
+        src_schema,
+        "source",
+        get_dialect("tsql"),
+        fake_tsql_datasource,
+    ).build_query(report_type="data")
+
+    # Verify that date/time/datetime columns use CONVERT(VARCHAR(MAX), ...) not CONVERT(DATE/TIME/DATETIME, ...)
+    assert "CONVERT(DATE," not in src_actual
+    assert "CONVERT(TIME," not in src_actual
+    assert "CONVERT(DATETIME," not in src_actual
+
+    src_expected = (
+        "SELECT LOWER(CONVERT(VARCHAR(64), HASHBYTES('SHA2_256', "
+        "CONVERT(VARCHAR(MAX),COALESCE(CONVERT(VARCHAR(MAX), [birth_date], 101), '1900-01-01') + "
+        "COALESCE(CONVERT(VARCHAR(MAX), [created_date], 120), '1900-01-01 00:00:00') + "
+        "COALESCE(CONVERT(VARCHAR(MAX), [created_time], 108), '00:00:00') + "
+        "COALESCE(TRIM(CAST([id] AS VARCHAR(MAX))), '_null_recon_') + "
+        "COALESCE(TRIM(CAST([name] AS VARCHAR(MAX))), '_null_recon_'))), 2)) AS "
+        "hash_value_recon, [id] AS [id] FROM :tbl"
+    )
+
+    assert src_actual == src_expected
