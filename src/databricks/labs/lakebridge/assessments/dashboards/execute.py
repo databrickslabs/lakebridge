@@ -76,7 +76,7 @@ def _validate_profiler_extract(
 ) -> bool:
     logger.info("Validating the profiler extract file.")
     validation_checks: list[EmptyTableValidationCheck | ExtractSchemaValidationCheck] = []
-    schema_def = resources.files(assessment_resources).joinpath(f"{source_tech}_extract_schema.yml")
+    schema_def = resources.files(assessment_resources).joinpath(f"validation/{source_tech}_extract_schema.yml")
     tables = _get_extract_tables(schema_def)
     try:
         with duckdb.connect(database=extract_location) as duck_conn, resources.as_file(schema_def) as schema_def_path:
@@ -94,7 +94,23 @@ def _validate_profiler_extract(
                     schema_path=str(schema_def_path),
                 )
                 validation_checks.append(schema_check)
+
             report = build_validation_report(validation_checks, duck_conn)
+
+            # Save validation report to table
+            report_df = build_validation_report_dataframe(validation_checks, duck_conn)
+            validation_report_table = f"{target_catalog_name}.{target_schema_name}.validation_report"
+            logger.info(f"Saving extract validation report to '{validation_report_table}' to Unity Catalog.")
+            report_df.write.format("delta").mode("overwrite").saveAsTable(validation_report_table)
+
+            if len(report) > 0:
+                report_errors = list(filter(lambda x: x.outcome == "FAIL" and x.severity == "ERROR", report))
+                num_errors = len(report_errors)
+                logger.info(f"There are {num_errors} validation errors in the profiler extract.")
+
+            else:
+                raise ValueError("Profiler extract validation report is empty.")
+
     except duckdb.IOException as e:
         logger.exception(f"Could not access the profiler extract: '{extract_location}'.")
         raise e
@@ -102,19 +118,6 @@ def _validate_profiler_extract(
         logger.exception(f"Unable to validate the profiler extract: '{extract_location}'.")
         raise e
 
-    # Save validation report to table
-    report_df = build_validation_report_dataframe(validation_checks, duck_conn)
-    validation_report_table = f"{target_catalog_name}.{target_schema_name}.validation_report"
-    logger.info(f"Saving extract validation report to '{validation_report_table}' to Unity Catalog.")
-    report_df.write.format("delta").mode("overwrite").saveAsTable(validation_report_table)
-
-    if len(report) > 0:
-        report_errors = list(filter(lambda x: x.outcome == "FAIL" and x.severity == "ERROR", report))
-        num_errors = len(report_errors)
-        logger.info(f"There are {num_errors} validation errors in the profiler extract.")
-
-    else:
-        raise ValueError("Profiler extract validation report is empty.")
     return num_errors == 0
 
 
