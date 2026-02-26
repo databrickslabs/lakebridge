@@ -150,10 +150,9 @@ def _ingest_profiler_tables(catalog_name: str, schema_name: str, extract_locatio
         except duckdb.Error as e:
             logger.error(f"Failed to ingest table from profiler database: {e}")
             unsuccessful_tables.append(source_table)
-        except RuntimeError as e:
-            logger.error(f"Unknown error while ingested table from profiler database: {e}")
+        except Exception as e:
+            logger.error(f"Unable to read tables from profiler extract: '{extract_location}': {e}")
             unsuccessful_tables.append(source_table)
-
     logger.info(f"Ingested {len(successful_tables)} tables from profiler extract.")
     logger.info(",".join(successful_tables))
 
