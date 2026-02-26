@@ -29,12 +29,15 @@ def main(*argv: str) -> None:
     initialize_logging()
 
     logger.debug(f"Arguments received: {argv}")
+
     assert len(sys.argv) == 5, f"Invalid number of arguments: {len(sys.argv)}"
     logger.info(f"Received the following inputs: {', '.join(sys.argv)}")
+
     catalog_name = sys.argv[1]
     schema_name = sys.argv[2]
     extract_location = sys.argv[3]
     source_tech = sys.argv[4]
+
     logger.info(f"Validating {source_tech} profiler extract located at '{extract_location}'.")
     valid_extract = _validate_profiler_extract(catalog_name, schema_name, extract_location, source_tech)
     if valid_extract:
@@ -73,7 +76,6 @@ def _validate_profiler_extract(
 ) -> bool:
     logger.info("Validating the profiler extract file.")
     validation_checks: list[EmptyTableValidationCheck | ExtractSchemaValidationCheck] = []
-    # TODO: Verify this, I don't think it works? (These files are part of the test resources.)
     schema_def = resources.files(assessment_resources).joinpath(f"{source_tech}_extract_schema.yml")
     tables = _get_extract_tables(schema_def)
     try:
