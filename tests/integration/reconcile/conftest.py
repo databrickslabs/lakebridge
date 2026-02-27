@@ -37,15 +37,16 @@ DIAMONDS_COLUMNS = [
     ("cut", "STRING"),
     ("color", "STRING"),
     ("clarity", "STRING"),
+    ("mined_at", "DATE"),
 ]
 DIAMONDS_ROWS_SQL = """
-                    INSERT INTO {catalog}.{schema}.{table} (carat, cut, color, clarity) VALUES
-                        (0.23, 'Ideal', 'E', 'SI2'),
-                        (0.21, 'Premium', 'E', 'SI1'),
-                        (0.23, 'Good', 'E', 'VS1'),
-                        (0.29, 'Premium', 'I', 'VS2'),
-                        (0.29, 'Gold', 'Invariant', 'VS22'),
-                        (0.31, 'Good', 'J', 'SI2'); \
+                    INSERT INTO {catalog}.{schema}.{table} (carat, cut, color, clarity, mined_at) VALUES
+                        (0.23, 'Ideal', 'E', 'SI2', '2000-01-01'),
+                        (0.21, 'Premium', 'E', 'SI1', '2000-01-01'),
+                        (0.23, 'Good', 'E', 'VS1', '2000-01-01'),
+                        (0.29, 'Premium', 'I', 'VS2', NULL),
+                        (0.29, 'Gold', 'Invariant', 'VS22', '2000-01-01'),
+                        (0.31, 'Good', 'J', 'SI2', '2000-01-01'); \
                     """
 
 TSQL_CATALOG = "labs_azure_sandbox_remorph"
