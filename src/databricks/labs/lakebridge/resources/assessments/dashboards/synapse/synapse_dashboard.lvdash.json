@@ -96,7 +96,7 @@
         "\n",
         "\n",
         "use catalog `PROFILER_CATALOG`;\n",
-        "use schema IDENTIFIER(PROFILER_SCHEMA);\n",
+        "use schema `PROFILER_SCHEMA`;\n",
         "\n",
         "select  pool_name, name, date(`timestamp`) date, max(average) as avg, avg(maximum) as avg_max, max(maximum) as max_max\n",
         "from metrics_dedicated_sql_pool_metrics\n",
@@ -114,14 +114,14 @@
               "dataType": "STRING",
               "values": [
                 {
-                  "value": "beone_test_run2"
+                  "value": "initial_run"
                 }
               ]
             }
           }
         }
       ],
-      "schema": "_fivetran_setup_test"
+      "schema": "PROFILER_SCHEMA"
     },
     {
       "name": "3d2f9598",
@@ -279,7 +279,7 @@
               "dataType": "STRING",
               "values": [
                 {
-                  "value": "beone_test_run2"
+                  "value": "initial_run"
                 }
               ]
             }
@@ -302,33 +302,7 @@
         "  'utils'\n",
         ")\n",
         "order by 1\n",
-        ";\n",
-        "\n",
-        "-- WITH \n",
-        "-- workspace_workspace_info as (select * from IDENTIFIER('`PROFILER_CATALOG`.`PROFILER_SCHEMA`.workspace_workspace_info')),\n",
-        "-- workspace_name_region as (\n",
-        "--     select distinct name, location from workspace_workspace_info limit 1\n",
-        "--     ),\n",
-        "-- dedicated_session_requests as (\n",
-        "--     select * \n",
-        "--     from IDENTIFIER('`PROFILER_CATALOG`.`PROFILER_SCHEMA`.dedicated_session_requests')\n",
-        "--     qualify row_number() over (PARTITION BY pool_name, session_id, request_id order by end_time desc) = 1\n",
-        "-- )\n",
-        "\n",
-        "-- select *\n",
-        "-- from \n",
-        "-- workspace_name_region,\n",
-        "-- (\n",
-        "--     select \n",
-        "--         pool_name, \n",
-        "--         min(start_time) as start_ts, \n",
-        "--         max(end_time) as end_ts,\n",
-        "--         count(distinct to_date(start_time)) as days,\n",
-        "--         count(distinct session_id) as sessions,\n",
-        "--         count(*) as requests\n",
-        "--     from dedicated_session_requests\n",
-        "--     group by 1\n",
-        "-- ) X"
+        ";\n"
       ]
     },
     {
@@ -349,7 +323,7 @@
         ";"
       ],
       "catalog": "main",
-      "schema": "_fivetran_setup_test"
+      "schema": "PROFILER_SCHEMA"
     },
     {
       "name": "87f64dc8",
@@ -409,7 +383,7 @@
               "dataType": "STRING",
               "values": [
                 {
-                  "value": "beone_test_run2"
+                  "value": "initial_run"
                 }
               ]
             }
@@ -422,7 +396,7 @@
       "displayName": "synapse_dsp_dwu_used",
       "queryLines": [
         "use catalog `PROFILER_CATALOG`;\n",
-        "use schema IDENTIFIER(PROFILER_SCHEMA);\n",
+        "use schema `PROFILER_SCHEMA`;\n",
         "\n",
         "select concat(pool_name,'_',coalesce(cast(floor(maximum) as string),'Inactive')) as pool_dwulimit, date(CAST(timestamp AS TIMESTAMP)) as day, count(*) as cnt_slots_used, 24*4 as total_15min_slots, cnt_slots_used/total_15min_slots*100 perc_used_slots\n",
         "from metrics_dedicated_sql_pool_metrics\n",
@@ -472,7 +446,7 @@
               "dataType": "STRING",
               "values": [
                 {
-                  "value": "beone_test_run2"
+                  "value": "initial_run"
                 }
               ]
             }
@@ -485,7 +459,7 @@
       "displayName": "synapse_dsp_storage_size",
       "queryLines": [
         "use catalog `PROFILER_CATALOG`;\n",
-        "use schema IDENTIFIER(PROFILER_SCHEMA);\n",
+        "use schema `PROFILER_SCHEMA`;\n",
         "\n",
         "\n",
         "select avg(UsedSpaceMB/1024/1024) as avg_data_size_tb\n",
@@ -501,7 +475,7 @@
               "dataType": "STRING",
               "values": [
                 {
-                  "value": "beone_test_run2"
+                  "value": "initial_run"
                 }
               ]
             }
@@ -569,7 +543,7 @@
               "dataType": "STRING",
               "values": [
                 {
-                  "value": "beone_test_run2"
+                  "value": "initial_run"
                 }
               ]
             }
@@ -685,7 +659,7 @@
               "dataType": "STRING",
               "values": [
                 {
-                  "value": "beone_test_run2"
+                  "value": "initial_run"
                 }
               ]
             }
@@ -771,21 +745,21 @@
               "dataType": "STRING",
               "values": [
                 {
-                  "value": "beone_test_run2"
+                  "value": "initial_run"
                 }
               ]
             }
           }
         }
       ],
-      "schema": "_fivetran_setup_test"
+      "schema": "PROFILER_SCHEMA"
     },
     {
       "name": "d25873f9",
       "displayName": "synapse_dsp_storage_size 1",
       "queryLines": [
         "use catalog `PROFILER_CATALOG`;\n",
-        "use schema IDENTIFIER(PROFILER_SCHEMA);\n",
+        "use schema `PROFILER_SCHEMA`;\n",
         "\n",
         "\n",
         "select *\n",
@@ -2015,7 +1989,7 @@
                     "dataType": "STRING",
                     "values": [
                       {
-                        "value": "beone_test_run1"
+                        "value": "initial_run"
                       }
                     ]
                   }
