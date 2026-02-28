@@ -1,0 +1,26 @@
+name: PipelineWithDDL
+version: "1.0"
+# Value replaced prior to actual use:
+extract_folder: /replaced/after/loading/
+steps:
+  # DDL step creates table with proper data types
+  - name: inventory
+    type: ddl
+    extract_source: assessments/inventory_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  # SQL step inserts data into the table created by DDL
+  - name: inventory
+    type: sql
+    extract_source: assessments/inventory.sql
+    mode: append
+    frequency: daily
+    flag: active
+  # Regular SQL step without DDL (backwards compatibility)
+  - name: usage
+    type: sql
+    extract_source: assessments/usage.sql
+    mode: overwrite
+    frequency: weekly
+    flag: active

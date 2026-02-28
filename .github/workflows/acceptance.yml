@@ -38,7 +38,8 @@ jobs:
           python-version: '3.10'
 
       - name: Install hatch
-        run: pip install hatch==1.14.2
+        # see here for more details https://github.com/pypa/hatch/issues/2193
+        run: pip install hatch==1.14.2 "virtualenv<21"
 
       - name: Install MSSQL ODBC Driver
         run: |
