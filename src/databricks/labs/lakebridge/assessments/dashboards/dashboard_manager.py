@@ -63,8 +63,8 @@ class DashboardManager:
         serialized_dashboard: str,
         new_catalog: str,
         new_schema: str,
-        old_catalog: str = "`PROFILER_CATALOG`",
-        old_schema: str = "`PROFILER_SCHEMA`",
+        old_catalog: str = "<CATALOG_NAME>",
+        old_schema: str = "<SCHEMA_NAME>",
     ):
         """Given a serialized JSON dashboard, replaces all catalog and schema references with the
         provided catalog and schema names."""
