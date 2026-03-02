@@ -2,7 +2,7 @@ from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dial
 from databricks.labs.lakebridge.reconcile.query_builder.hash_query import HashQueryBuilder
 from databricks.labs.lakebridge.reconcile.recon_config import Filters, ColumnMapping, Transformation, Table
 from databricks.labs.lakebridge.reconcile.normalize_recon_config_service import NormalizeReconConfigService
-from tests.conftest import tsql_schema_fixture_factory, ansi_schema_fixture_factory
+from tests.conftest import tsql_schema_fixture_factory, ansi_schema_fixture_factory, FakeDataSource
 
 
 def test_hash_query_builder_for_snowflake_src(
@@ -382,9 +382,9 @@ def test_hash_query_builder_sort_column(
 
 
 def test_hash_query_builder_tsql_date_time_columns(
-    fake_tsql_datasource,
-    fake_databricks_datasource,
-):
+    fake_tsql_datasource: FakeDataSource,
+    fake_databricks_datasource: FakeDataSource,
+) -> None:
     src_schema = [
         tsql_schema_fixture_factory("id", "number"),
         tsql_schema_fixture_factory("created_date", "date"),
