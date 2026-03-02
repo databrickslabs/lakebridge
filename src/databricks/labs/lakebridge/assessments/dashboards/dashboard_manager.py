@@ -35,7 +35,7 @@ class DashboardTemplateLoader:
         if self.templates_dir is None:
             raise ValueError("Dashboard template path cannot be empty.")
 
-        filename = f"{source_system.lower()}_dashboard.lvdash.json"
+        filename = f"lakebridge_{source_system.lower()}_profiler_summary.lvdash.json"
         filepath = os.path.join(self.templates_dir, filename)
         if not os.path.exists(filepath):
             raise FileNotFoundError(f"Could not find dashboard template matching {source_system}.")
