@@ -11,8 +11,11 @@ from databricks.sdk.service.iam import User
 
 from databricks.labs.blueprint.installation import MockInstallation
 from databricks.labs.blueprint.installer import InstallState
-from databricks.labs.lakebridge.assessments.dashboards.dashboard_manager import DashboardManager
-
+from databricks.labs.lakebridge.config import (
+    ProfilerDashboardConfig,
+    ProfilerDashboardMetadataConfig,
+)
+from databricks.labs.lakebridge.deployment.dashboard import ProfilerDashboardManager
 
 @pytest.fixture
 def mocked_workspace_client() -> WorkspaceClient:
@@ -25,6 +28,17 @@ def mocked_workspace_client() -> WorkspaceClient:
 
 
 @pytest.fixture
+def profiler_dashboard_config() -> ProfilerDashboardConfig:
+    return ProfilerDashboardConfig(
+        source_tech="synapse",
+        extract_file_path="/tmp/data/synapse_assessment/profiler_extract.db",
+        metadata_config=ProfilerDashboardMetadataConfig(
+            catalog="lakebridge", schema="profiler", volume="ingestion_volume"
+        ),
+    )
+
+
+@pytest.fixture
 def dashboard_manager(mocked_workspace_client: WorkspaceClient):
     """Create a DashboardManager that uses the mocked WorkspaceClient from conftest.
     We pass the client.current_user.me() value as the current_user to avoid mocking User directly.
@@ -32,11 +46,11 @@ def dashboard_manager(mocked_workspace_client: WorkspaceClient):
     workspace_client = mocked_workspace_client
     installation = MockInstallation(is_global=False)
     install_state = InstallState.from_installation(installation)
-    return DashboardManager(workspace_client, installation, install_state, is_debug=True)
+    return ProfilerDashboardManager(workspace_client, installation, install_state, is_debug=True)
 
 
 def test_upload_duckdb_to_uc_volume_file_not_found(
-    dashboard_manager: DashboardManager,
+    dashboard_manager: ProfilerDashboardManager,
     mocked_workspace_client: WorkspaceClient,
 ):
     # Use a path that does not exist on disk; do not mock os.path.exists per new requirement.
@@ -49,7 +63,7 @@ def test_upload_duckdb_to_uc_volume_file_not_found(
 
 
 def test_upload_duckdb_to_uc_volume_invalid_volume_path(
-    dashboard_manager: DashboardManager,
+    dashboard_manager: ProfilerDashboardManager,
     mocked_workspace_client: WorkspaceClient,
 ):
     ws = mocked_workspace_client
@@ -62,7 +76,7 @@ def test_upload_duckdb_to_uc_volume_invalid_volume_path(
 
 def test_upload_duckdb_to_uc_volume_success(
     tmp_path: Path,
-    dashboard_manager: DashboardManager,
+    dashboard_manager: ProfilerDashboardManager,
     mocked_workspace_client: WorkspaceClient,
 ):
     # Create a real temporary file so we don't mock filesystem calls
@@ -80,7 +94,7 @@ def test_upload_duckdb_to_uc_volume_success(
 
 def test_upload_duckdb_to_uc_volume_failure(
     tmp_path: Path,
-    dashboard_manager: DashboardManager,
+    dashboard_manager: ProfilerDashboardManager,
     mocked_workspace_client: WorkspaceClient,
 ):
     local_file = tmp_path / "file.duckdb"
@@ -105,7 +119,7 @@ def test_upload_duckdb_to_uc_volume_failure(
 )
 def test_upload_duckdb_to_uc_volume_databricks_errors(
     tmp_path: Path,
-    dashboard_manager: DashboardManager,
+    dashboard_manager: ProfilerDashboardManager,
     mocked_workspace_client: WorkspaceClient,
     error_class,
     error_message,

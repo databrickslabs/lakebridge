@@ -298,6 +298,7 @@ class ProfilerDashboardConfig:
 class LakebridgeConfiguration:
     transpile: TranspileConfig | None
     reconcile: ReconcileConfig | None
+    profiler_dashboard: ProfilerDashboardConfig | None
     # Temporary flag, indicating whether to include the LLM-based Switch transpiler.
     include_switch: bool = False
     # Internal: Use serverless compute for Switch job. Set via LAKEBRIDGE_CLUSTER_TYPE env var.
