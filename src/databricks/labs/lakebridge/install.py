@@ -24,7 +24,9 @@ from databricks.labs.lakebridge.config import (
     ReconcileConfig,
     LakebridgeConfiguration,
     ReconcileMetadataConfig,
-    TranspileConfig, ProfilerDashboardConfig, ProfilerDashboardMetadataConfig,
+    TranspileConfig,
+    ProfilerDashboardConfig,
+    ProfilerDashboardMetadataConfig,
 )
 from databricks.labs.lakebridge.contexts.application import ApplicationContext
 from databricks.labs.lakebridge.deployment.configurator import ResourceConfigurator
