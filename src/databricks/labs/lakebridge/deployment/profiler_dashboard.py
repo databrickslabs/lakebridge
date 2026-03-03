@@ -55,7 +55,7 @@ class ProfilerDashboardDeployment:
         logger.info("Uninstalling profiler dashboard components.")
         self._remove_dashboards()
         self._remove_jobs()
-        logging.info(
+        logger.info(
             f"Won't remove profiler extract schema `{profiler_dashboard_config.metadata_config.schema}` "
             f"from catalog `{profiler_dashboard_config.metadata_config.catalog}`. "
             f"Please remove it and the tables inside manually."

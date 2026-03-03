@@ -885,6 +885,8 @@ def test_configure_all_override_installation(
             r"Enter source schema name for .*": "tpch_sf1000",
             r"Enter target catalog name for Databricks": "tpch",
             r"Enter target schema name for Databricks": "1000gb",
+            r"Enter the source tech:": "snowflake",
+            r"Enter the path to the profiler extract file:": "",
         }
     )
     installation = MockInstallation(
@@ -980,9 +982,9 @@ def test_configure_all_override_installation(
         source_tech="snowflake",
         extract_file_path="/tmp/data/synapse_assessment/profiler_extract.db",
         metadata_config=ProfilerDashboardMetadataConfig(
-            catalog="lakebridge",
-            schema="profiler",
-            volume="ingestion_volume",
+            catalog="remorph",
+            schema="reconcile",
+            volume="reconcile_volume",
         ),
     )
 
