@@ -1025,7 +1025,7 @@ def execute_database_profiler(w: WorkspaceClient, source_tech: str | None = None
 
 
 @lakebridge.command()
-def create_profiler_dashboard(
+def visualize_profiler_results(
     *,
     w: WorkspaceClient,
     transpiler_repository: TranspilerRepository = TranspilerRepository.user_home(),
@@ -1034,7 +1034,7 @@ def create_profiler_dashboard(
     from databricks.labs.lakebridge.install import installer  # pylint: disable=cyclic-import, import-outside-toplevel
 
     ctx = ApplicationContext(w)
-    ctx.add_user_agent_extra("cmd", "create-profiler-dashboard")
+    ctx.add_user_agent_extra("cmd", "visualize-profiler-results")
 
     # Deploy the profiler dashboard and ingestion job
     if not w.config.warehouse_id:

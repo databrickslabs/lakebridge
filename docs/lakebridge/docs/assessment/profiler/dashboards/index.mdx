@@ -13,7 +13,7 @@ feel free to reach out via Github issues.
 
 ## Overview
 
-The `create-profiler-dashboard` command uploads a DuckDB profiler extract file to a Unity Catalog Volume,
+The `visualize-profiler-results` command uploads a DuckDB profiler extract file to a Unity Catalog Volume,
 deploys a source-specific Lakeview dashboard template to your Databricks workspace, and triggers an ingestion job
 that loads the extract data into Delta tables. The result is a live dashboard you can open immediately in your browser.
 
@@ -41,7 +41,7 @@ that loads the extract data into Delta tables. The result is a live dashboard yo
 ## Running the Command
 
 ```bash
-databricks labs lakebridge create-profiler-dashboard
+databricks labs lakebridge visualize-profiler-results
 ```
 
 The command is fully interactive — there are no CLI flags. It walks you through the following prompts:

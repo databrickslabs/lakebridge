@@ -78,7 +78,7 @@ commands:
   - name: configure-database-profiler
     description: (Experimental) Configure database profiler
 
-  - name: create-profiler-dashboard
+  - name: visualize-profiler-results
     description: (Experimental) Deploy a the profiler results as a Databricks dashboard.
 
   - name: install-transpile
