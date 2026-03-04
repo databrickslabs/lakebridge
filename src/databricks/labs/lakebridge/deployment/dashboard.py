@@ -195,7 +195,7 @@ class ProfilerDashboardManager:
         return updated_dashboard.replace(old_schema, f"`{new_schema}`")
 
     def _create_or_replace_dashboard(
-        self, folder: Path, ws_parent_path: str, dest_catalog: str, dest_schema: str
+        self, folder: Path, ws_parent_path: str, dest_catalog: str, dest_schema: str, source_system: str
     ) -> Dashboard:
         """
         Creates or updates a profiler summary dashboard in the current user’s Databricks workspace home.
@@ -206,7 +206,7 @@ class ProfilerDashboardManager:
         logging.info(f"Loading dashboard template from folder: {folder}")
         dash_reference = f"{folder.stem}".lower()
         dashboard_loader = ProfilerDashboardTemplateLoader(folder)
-        dashboard_json = dashboard_loader.load(source_system="synapse")
+        dashboard_json = dashboard_loader.load(source_system)
         dashboard_str = json.dumps(dashboard_json)
 
         # Replace catalog and schema placeholders
@@ -255,7 +255,11 @@ class ProfilerDashboardManager:
         except ResourceAlreadyExists:
             logger.info(f"Workspace parent path already exists for dashboards: {ws_parent_path}")
         self._create_or_replace_dashboard(
-            folder=template_folder, ws_parent_path=ws_parent_path, dest_catalog=catalog_name, dest_schema=schema_name
+            folder=template_folder,
+            ws_parent_path=ws_parent_path,
+            dest_catalog=catalog_name,
+            dest_schema=schema_name,
+            source_system=source_tech,
         )
 
     @staticmethod
