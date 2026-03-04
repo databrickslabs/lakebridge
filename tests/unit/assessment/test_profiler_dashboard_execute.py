@@ -137,7 +137,7 @@ def test_ingest_table_spark_error_raises_extract_ingest_error(duckdb_with_table)
 
 
 def test_ingest_profiler_tables_calls_ingest_for_each_table(duckdb_with_two_tables):
-    with patch("databricks.labs.lakebridge.assessments.dashboards.execute._ingest_table") as mock_ingest:
+    with patch("databricks.labs.lakebridge.assessments.dashboards.execute.ingest_table") as mock_ingest:
         ingest_profiler_tables("my_catalog", "my_schema", duckdb_with_two_tables)
 
     assert mock_ingest.call_count == 2
@@ -165,7 +165,7 @@ def test_ingest_profiler_tables_per_table_error_does_not_abort(duckdb_with_two_t
             raise ExtractIngestionError("table1 failed")
 
     with patch(
-        "databricks.labs.lakebridge.assessments.dashboards.execute._ingest_table",
+        "databricks.labs.lakebridge.assessments.dashboards.execute.ingest_table",
         side_effect=failing_first_table,
     ):
         ingest_profiler_tables("catalog", "schema", duckdb_with_two_tables)
@@ -183,7 +183,7 @@ def test_ingest_profiler_tables_duckdb_error_per_table_continues(duckdb_with_two
             raise duckdb.Error("duckdb error")
 
     with patch(
-        "databricks.labs.lakebridge.assessments.dashboards.execute._ingest_table",
+        "databricks.labs.lakebridge.assessments.dashboards.execute.ingest_table",
         side_effect=failing_first_table,
     ):
         ingest_profiler_tables("catalog", "schema", duckdb_with_two_tables)

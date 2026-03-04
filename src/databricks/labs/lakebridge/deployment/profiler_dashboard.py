@@ -10,7 +10,6 @@ from databricks.sdk.errors import InvalidParameterValue, NotFound
 from databricks.labs.lakebridge.config import ProfilerDashboardConfig
 from databricks.labs.lakebridge.deployment.dashboard import ProfilerDashboardManager
 from databricks.labs.lakebridge.deployment.job import JobDeployment
-from databricks.labs.lakebridge.deployment.table import TableDeployment
 
 logger = logging.getLogger(__name__)
 
@@ -40,11 +39,18 @@ class ProfilerDashboardDeployment:
             logger.warning("Profiler Dashboard Config is empty.")
             return
         logger.info("Installing the profiler dashboard components.")
-        self._upload_profiler_extract(profiler_dashboard_config)
-        self._deploy_dashboards(profiler_dashboard_config)
-        self._deploy_jobs(profiler_dashboard_config, wheel_path)
-        self._install_state.save()
-        logger.info("Installation of the profiler dashboard components completed successfully.")
+        try:
+            if not self._upload_profiler_extract(profiler_dashboard_config):
+                logger.error("Profiler extract upload failed. Aborting installation.")
+                return
+            self._deploy_dashboards(profiler_dashboard_config)
+            self._deploy_jobs(profiler_dashboard_config, wheel_path)
+            self._install_state.save()
+            logger.info("Installation of the profiler dashboard components completed successfully.")
+        except (RuntimeError, ValueError, InvalidParameterValue, NotFound) as e:
+            error_msg = f"Failed to deploy profiler dashboard and ingestion job: {e}"
+            logger.error(error_msg)
+            raise SystemExit(error_msg) from e
 
     def uninstall(self, profiler_dashboard_config: ProfilerDashboardConfig | None):
         if not profiler_dashboard_config:
@@ -59,9 +65,9 @@ class ProfilerDashboardDeployment:
             f"Please remove it and the tables inside manually."
         )
 
-    def _upload_profiler_extract(self, profiler_dashboard_config: ProfilerDashboardConfig):
+    def _upload_profiler_extract(self, profiler_dashboard_config: ProfilerDashboardConfig) -> bool:
         logger.info("Uploading the profiler extract file to UC Volume.")
-        self._dashboard_deployer.upload_duckdb_to_uc_volume(profiler_dashboard_config)
+        return self._dashboard_deployer.upload_duckdb_to_uc_volume(profiler_dashboard_config)
 
     def _deploy_dashboards(self, profiler_dashboard_config: ProfilerDashboardConfig):
         logger.info("Deploying the profiler dashboard.")
