@@ -7,7 +7,7 @@ from pathlib import Path
 
 from databricks.labs.blueprint.installation import Installation
 from databricks.labs.blueprint.installer import InstallState
-from databricks.labs.blueprint.wheels import find_project_root
+from databricks.labs.lakebridge.assessments._constants import PRODUCT_PATH_PREFIX
 from databricks.labs.lsql.dashboards import DashboardMetadata, Dashboards
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.errors import InvalidParameterValue, NotFound, DeadlineExceeded, InternalError, PermissionDenied
@@ -245,7 +245,7 @@ class ProfilerDashboardManager:
         schema_name = profiler_dashboard_config.metadata_config.schema
         # Load the dashboard template for the source system
         template_folder = (
-            find_project_root(__file__)
+            PRODUCT_PATH_PREFIX
             / f"src/databricks/labs/lakebridge/resources/assessments/dashboards/{source_tech}"
         )
         logger.info(f"Deploying profiler dashboard from template folder: {template_folder}")
