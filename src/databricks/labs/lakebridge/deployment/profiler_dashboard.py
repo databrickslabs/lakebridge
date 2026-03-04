@@ -25,7 +25,6 @@ class ProfilerDashboardDeployment:
         installation: Installation,
         install_state: InstallState,
         product_info: ProductInfo,
-        table_deployer: TableDeployment,
         job_deployer: JobDeployment,
         profiler_dashboard_manager: ProfilerDashboardManager,
     ):
@@ -33,7 +32,6 @@ class ProfilerDashboardDeployment:
         self._installation = installation
         self._install_state = install_state
         self._product_info = product_info
-        self._table_deployer = table_deployer
         self._job_deployer = job_deployer
         self._dashboard_deployer = profiler_dashboard_manager
 

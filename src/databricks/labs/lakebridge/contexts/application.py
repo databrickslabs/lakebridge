@@ -158,7 +158,6 @@ class ApplicationContext:
             self.installation,
             self.install_state,
             self.product_info,
-            self.table_deployment,
             self.job_deployment,
             self.dashboard_manager,
         )
