@@ -245,8 +245,7 @@ class ProfilerDashboardManager:
         schema_name = profiler_dashboard_config.metadata_config.schema
         # Load the dashboard template for the source system
         template_folder = (
-            PRODUCT_PATH_PREFIX
-            / f"src/databricks/labs/lakebridge/resources/assessments/dashboards/{source_tech}"
+            PRODUCT_PATH_PREFIX / f"src/databricks/labs/lakebridge/resources/assessments/dashboards/{source_tech}"
         )
         logger.info(f"Deploying profiler dashboard from template folder: {template_folder}")
         ws_parent_path = f"{self._installation.install_folder()}/dashboards"
