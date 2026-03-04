@@ -124,6 +124,9 @@ class WorkspaceInstallation:
         if config.reconcile:
             self._recon_deployment.uninstall(config.reconcile)
 
+        if config.profiler_dashboard:
+            self._profiler_dashboard_deployment.uninstall(config.profiler_dashboard)
+
         self._installation.remove()
         logger.info("Uninstallation completed successfully.")
 
