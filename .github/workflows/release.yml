@@ -27,7 +27,8 @@ jobs:
 
       - name: Build wheels
         run: |
-          pip install hatch==1.14.2
+          # see here for more details https://github.com/pypa/hatch/issues/2193
+          pip install hatch==1.14.2 "virtualenv<21"
           hatch build
 
       - name: Draft release

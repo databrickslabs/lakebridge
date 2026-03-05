@@ -112,15 +112,23 @@ def execute():
 
                     # Routines
                     table_name = "serverless_routines"
-                    view_query = SynapseQueries.list_routines(db_name)
+                    view_query = SynapseQueries.list_serverless_routines(db_name, True)
                     logger.info(f"Loading '{table_name}' for pool: %s", db_name)
                     result = connection.fetch(view_query)
                     save_resultset_to_db(result, table_name, db_path, mode=mode)
 
                     mode = "append"
 
+            # Reconnect to master for server-level DMVs
+            connection = create_synapse_connection(
+                workspace_config=config,
+                database='master',
+                endpoint_key='serverless_sql_endpoint',
+                auth_type=auth_type,
+            )
+
             pool_name = "serverless"
-            # Data Processed
+            # Data Processed - server-level DMV, must be queried from master database
             table_name = "serverless_data_processed"
             logger.info(f"Loading '{table_name}' for pool: %s", pool_name)
             data_processed_query = SynapseQueries.data_processed(pool_name)

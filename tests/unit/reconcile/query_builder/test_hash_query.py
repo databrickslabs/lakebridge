@@ -2,7 +2,7 @@ from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dial
 from databricks.labs.lakebridge.reconcile.query_builder.hash_query import HashQueryBuilder
 from databricks.labs.lakebridge.reconcile.recon_config import Filters, ColumnMapping, Transformation, Table
 from databricks.labs.lakebridge.reconcile.normalize_recon_config_service import NormalizeReconConfigService
-from tests.conftest import tsql_schema_fixture_factory, ansi_schema_fixture_factory
+from tests.conftest import tsql_schema_fixture_factory, ansi_schema_fixture_factory, FakeDataSource
 
 
 def test_hash_query_builder_for_snowflake_src(
@@ -379,3 +379,44 @@ def test_hash_query_builder_sort_column(
 
     assert src_actual == src_expected
     assert tgt_actual == tgt_expected
+
+
+def test_hash_query_builder_tsql_date_time_columns(
+    fake_tsql_datasource: FakeDataSource,
+    fake_databricks_datasource: FakeDataSource,
+) -> None:
+    src_schema = [
+        tsql_schema_fixture_factory("id", "number"),
+        tsql_schema_fixture_factory("created_date", "date"),
+        tsql_schema_fixture_factory("event_time", "time"),
+        tsql_schema_fixture_factory("updated_at", "datetime"),
+    ]
+
+    table_conf = Table(
+        source_name="events",
+        target_name="events",
+        join_columns=["id"],
+        select_columns=["id", "created_date", "event_time", "updated_at"],
+    )
+
+    normalize_service = NormalizeReconConfigService(fake_tsql_datasource, fake_databricks_datasource)
+    normalized_conf = normalize_service.normalize_recon_table_config(table_conf)
+
+    src_actual = HashQueryBuilder(
+        normalized_conf,
+        src_schema,
+        "source",
+        get_dialect("tsql"),
+        fake_tsql_datasource,
+    ).build_query(report_type="data")
+
+    src_expected = (
+        "SELECT LOWER(CONVERT(VARCHAR(64), HASHBYTES('SHA2_256', "
+        "CONVERT(VARCHAR(MAX),COALESCE(CONVERT(VARCHAR(10), [created_date], 101), '1900-01-01') + "
+        "COALESCE(CONVERT(VARCHAR(12), [event_time], 108), '00:00:00') + "
+        "COALESCE(TRIM(CAST([id] AS VARCHAR(MAX))), '_null_recon_') + "
+        "COALESCE(CONVERT(VARCHAR(23), [updated_at], 120), '1900-01-01 00:00:00'))), 2)) AS "
+        "hash_value_recon, [id] AS [id] FROM :tbl"
+    )
+
+    assert src_actual == src_expected
