@@ -73,7 +73,7 @@ class SnowflakeDataSourceUnderTest(SnowflakeDataSource):
             "sfDatabase": parsed.get("db"),
             "sfSchema": parsed.get("schema"),
             "sfWarehouse": parsed.get("warehouse"),
-            "sfRole": parsed.get("role"),
+            "sfRole": "LABS",
             "pem_private_key": SnowflakeDataSource._get_private_key(
                 self._test_env.get("TEST_SNOWFLAKE_PRIVATE_KEY"), None
             ),
@@ -132,13 +132,9 @@ def test_oracle_read_schema_happy(mock_spark: SparkSession) -> None:
     assert columns
 
 
-# FIXME
-#  1. the test pem key does not have access to LABS schema as it should
-#  2. complete jdbc url
-@pytest.mark.skip(reason="Missing Access to LABS schema")
 def test_snowflake_read_schema_happy(mock_spark: SparkSession) -> None:
     mock_ws = create_autospec(WorkspaceClient)
     connector = SnowflakeDataSourceUnderTest(mock_spark, mock_ws)
 
-    columns = connector.get_schema('"sandbox"', "LABS", "diamonds")
+    columns = connector.get_schema('remorph', "sandbox", "diamonds")
     assert columns
