@@ -418,7 +418,6 @@ class WorkspaceInstaller:
 
     def _configure_profiler_dashboard(self) -> ProfilerDashboardConfig:
         try:
-                    try:
             existing = self._installation.load(ProfilerDashboardConfig)
             logger.info("Lakebridge profiler dashboard is already installed on this workspace.")
             if not self._prompts.confirm("Do you want to override the existing installation?"):
