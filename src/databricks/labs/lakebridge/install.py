@@ -418,13 +418,11 @@ class WorkspaceInstaller:
 
     def _configure_profiler_dashboard(self) -> ProfilerDashboardConfig:
         try:
-            self._installation.load(ProfilerDashboardConfig)
+                    try:
+            existing = self._installation.load(ProfilerDashboardConfig)
             logger.info("Lakebridge profiler dashboard is already installed on this workspace.")
             if not self._prompts.confirm("Do you want to override the existing installation?"):
-                # TODO: Exit gracefully, without raising SystemExit
-                raise SystemExit(
-                    "Lakebridge profiler dashboard is already installed and no override has been requested. Exiting..."
-                )
+                return existing
         except NotFound:
             logger.info("Couldn't find existing profiler dashboard installation")
         except (PermissionDenied, SerdeError, ValueError, AttributeError):
