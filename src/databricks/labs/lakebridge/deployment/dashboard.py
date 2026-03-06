@@ -158,10 +158,11 @@ class ProfilerDashboardTemplateLoader:
 
         filename = f"{source_system.lower()}_dashboard.lvdash.json"
         filepath = os.path.join(self.templates_dir, filename)
-        if not os.path.exists(filepath):
-            raise FileNotFoundError(f"Could not find dashboard template matching {source_system}.")
-        with open(filepath, "r", encoding="utf-8") as f:
-            return json.load(f)
+        try:
+            with open(filepath, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except FileNotFoundError as e:
+            raise FileNotFoundError(f"Could not find dashboard template matching {source_system}.") from e
 
 
 class ProfilerDashboardManager:
