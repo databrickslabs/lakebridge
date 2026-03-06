@@ -80,7 +80,7 @@ class DashboardManager:
         """
 
         # Load the dashboard template
-        logging.info(f"Loading dashboard template from folder: {folder}")
+        logger.info(f"Loading dashboard template from folder: {folder}")
         dash_reference = f"{folder.stem}".lower()
         dashboard_loader = DashboardTemplateLoader(folder)
         dashboard_json = dashboard_loader.load(source_system="synapse")
@@ -101,15 +101,15 @@ class DashboardManager:
         try:
             dashboard = self._ws.lakeview.create(dashboard=dashboard)
         except ResourceAlreadyExists:
-            logging.info("Dashboard already exists! Removing dashboard from workspace location.")
+            logger.info("Dashboard already exists! Removing dashboard from workspace location.")
             dashboard_ws_path = str(Path(ws_parent_path) / f"{self._DASHBOARD_NAME}.lvdash.json")
             self._ws.workspace.delete(dashboard_ws_path)
             dashboard = self._ws.lakeview.create(dashboard=dashboard)
         except DatabricksError as e:
-            logging.error(f"Could not create profiler summary dashboard: {e}")
+            logger.error(f"Could not create profiler summary dashboard: {e}")
 
         assert dashboard.dashboard_id is not None
-        logging.info(f"Created dashboard '{dashboard.dashboard_id}' in workspace location {ws_parent_path}.")
+        logger.info(f"Created dashboard '{dashboard.dashboard_id}' in workspace location {ws_parent_path}.")
         self._install_state.dashboards[dash_reference] = dashboard.dashboard_id
         return dashboard
 
