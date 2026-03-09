@@ -80,6 +80,18 @@ def _curr_time():
     return "date_format(current_timestamp(), 'HH:mm:ss')"
 
 
+def _greatest_sql(self, expression: exp.Greatest) -> str:
+    """Simplify GREATEST with a single argument to just that argument.
+
+    Spark SQL requires GREATEST to have more than one argument. When a source
+    dialect uses GREATEST with a single argument (e.g., Oracle allows it),
+    the wrapper is redundant and must be removed.
+    """
+    if not expression.args.get("expressions"):
+        return self.sql(expression, "this")
+    return self.func("GREATEST", expression.this, *expression.expressions)
+
+
 def _select_contains_index(expression: exp.Select) -> bool:
     for expr in expression.expressions:
         column = expr.unalias() if isinstance(expr, exp.Alias) else expr
@@ -470,6 +482,7 @@ class Databricks(SqlglotDatabricks):  #
             local_expression.ArrayExists: rename_func("EXISTS"),
             exp.GroupConcat: groupconcat_sql_databricks,
             exp.GetExtract: rename_func("GET"),
+            exp.Greatest: _greatest_sql,
         }
 
         def preprocess(self, expression: exp.Expression) -> exp.Expression:
