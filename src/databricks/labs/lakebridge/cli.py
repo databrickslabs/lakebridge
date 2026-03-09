@@ -225,12 +225,16 @@ class _TranspileConfigChecker:
     """The source dialect provided on the command-line, if any."""
     _transpiler_repository: TranspilerRepository
     """The repository where available transpilers are installed."""
+    _is_interactive: bool
+    """Whether the CLI is running interactively (stdin is a TTY). When False, prompting is disabled."""
 
     def __init__(
         self,
         config: TranspileConfig | None,
         prompts: Prompts,
         transpiler_repository: TranspilerRepository,
+        *,
+        is_interactive: bool | None = None,
     ) -> None:
         if config is None:
             logger.debug("No workspace transpile configuration, starting from defaults.")
@@ -239,6 +243,16 @@ class _TranspileConfigChecker:
         self._prompts = prompts
         self._transpiler_repository = transpiler_repository
         self._source_dialect_override = None
+        self._is_interactive = sys.stdin.isatty() if is_interactive is None else is_interactive
+
+    def _require_interactive(self, msg: str) -> None:
+        """Raise a validation error if the CLI is not running interactively.
+
+        Call this before any prompt to ensure a clear error is raised instead of hanging when stdin is not a TTY
+        (e.g. when run non-interactively via the Databricks CLI).
+        """
+        if not self._is_interactive:
+            raise_validation_exception(msg)
 
     @staticmethod
     def _validate_transpiler_config_path(transpiler_config_path: str, msg: str) -> None:
@@ -317,6 +331,9 @@ class _TranspileConfigChecker:
     def _check_input_source(self) -> None:
         config_input_source = self._config.input_source
         if config_input_source is None:
+            self._require_interactive(
+                "Missing required value for '--input-source': use '--input-source' to specify the SQL file or directory to convert."
+            )
             self._prompt_input_source()
         else:
             self._validate_input_source(
@@ -348,6 +365,9 @@ class _TranspileConfigChecker:
     def _check_output_folder(self) -> None:
         config_output_folder = self._config.output_folder
         if config_output_folder is None:
+            self._require_interactive(
+                "Missing required value for '--output-folder': use '--output-folder' to specify the output directory."
+            )
             self._prompt_output_folder()
         else:
             self._validate_output_folder(
@@ -426,6 +446,9 @@ class _TranspileConfigChecker:
                 logger.debug(
                     f"Multiple transpilers available for dialect {source_dialect!r}: {compatible_transpilers!r}"
                 )
+                self._require_interactive(
+                    f"Multiple transpilers are available for dialect {source_dialect!r}: use '--transpiler-config-path' to specify which one to use."
+                )
                 transpiler_name = self._prompts.choice("Select the transpiler:", list(compatible_transpilers))
         transpiler_config_path = self._transpiler_repository.transpiler_config_path(transpiler_name)
         logger.info(f"Lakebridge will use the {transpiler_name} transpiler.")
@@ -467,6 +490,9 @@ class _TranspileConfigChecker:
             case _:
                 # Multiple dialects available, prompt for which to use.
                 logger.debug(f"Multiple source dialects available, choice required: {supported_dialects!r}")
+                self._require_interactive(
+                    f"Multiple source dialects are available: use '--source-dialect' to specify one of: {', '.join(sorted(supported_dialects))}."
+                )
                 source_dialect = self._prompts.choice("Select the source dialect:", list(supported_dialects))
         engine = self._configure_transpiler_config_path(source_dialect)
         assert engine is not None, "No transpiler engine available for a supported dialect; configuration is invalid."
@@ -572,14 +598,22 @@ class _TranspileConfigChecker:
         #  - If the option has a default of <none> that means that no value is required, no further action is required.
         #  - Otherwise, a value is required: prompt for it.
         #
-        # TODO: When adding non-interactive support, the otherwise branch need to be modified:
-        #     1. If it can be provided by the command-line, fail and ask the user to provide it.
-        #     2. If it cannot be provided by the command-line, prompt for it if we are running interactively.
-        #     3. If we cannot prompt because we are not running interactively, use the default if there is one.
-        #     4. Fail: the only way to provide a value is via the config.yml, which can be set via 'install-transpile'.
-
         if option.is_optional():
             return None
+        # Known mappings from transpiler option flag to CLI argument name.
+        _flag_to_cli_arg: dict[str, str] = {
+            "overrides-file": "--overrides-file",
+            "target-tech": "--target-technology",
+        }
+        cli_arg = _flag_to_cli_arg.get(option.flag)
+        if cli_arg is not None:
+            self._require_interactive(
+                f"Missing required transpiler option {option.flag!r}: use '{cli_arg}' to provide it."
+            )
+        else:
+            self._require_interactive(
+                f"Missing required transpiler option {option.flag!r}: run 'install-transpile' to configure it."
+            )
         return option.prompt_for_value(self._prompts)
 
     def check(self) -> tuple[TranspileConfig, TranspileEngine]:
