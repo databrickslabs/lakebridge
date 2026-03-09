@@ -227,6 +227,11 @@ class _TranspileConfigChecker:
     """The repository where available transpilers are installed."""
     _is_interactive: bool
     """Whether the CLI is running interactively (stdin is a TTY). When False, prompting is disabled."""
+    _TRANSPILER_OPTION_CLI_ARGS: dict[str, str] = {
+        "overrides-file": "--overrides-file",
+        "target-tech": "--target-technology",
+    }
+    """Mapping from transpiler option flag names to their corresponding CLI argument names."""
 
     def __init__(
         self,
@@ -600,12 +605,7 @@ class _TranspileConfigChecker:
         #
         if option.is_optional():
             return None
-        # Known mappings from transpiler option flag to CLI argument name.
-        _flag_to_cli_arg: dict[str, str] = {
-            "overrides-file": "--overrides-file",
-            "target-tech": "--target-technology",
-        }
-        cli_arg = _flag_to_cli_arg.get(option.flag)
+        cli_arg = self._TRANSPILER_OPTION_CLI_ARGS.get(option.flag)
         if cli_arg is not None:
             self._require_interactive(
                 f"Missing required transpiler option {option.flag!r}: use '{cli_arg}' to provide it."
