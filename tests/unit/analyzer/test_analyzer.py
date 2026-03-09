@@ -13,7 +13,9 @@ from databricks.labs.lakebridge.analyzer.lakebridge_analyzer import (
 from databricks.labs.lakebridge.helpers.file_utils import chdir
 
 
-def _mock_analyze(_directory: Path, result: Path, _platform: str, _is_debug: bool = False) -> None:
+def _mock_analyze(
+    _directory: Path, result: Path, _platform: str, _is_debug: bool = False, _json_result: Path | None = None
+) -> None:
     # Nothing really needed here, except a result needs to be created.
     result.touch()
 

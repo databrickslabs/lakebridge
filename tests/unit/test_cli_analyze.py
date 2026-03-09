@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 from unittest.mock import patch
 
@@ -69,6 +70,30 @@ def test_analyze_arguments_wrong_tech(
             report_file=str(tmp_path / "sample.xlsx"),
             source_tech="Informatica",
         )
+
+
+def test_analyze_generate_json(
+    mock_workspace_client: WorkspaceClient,
+    test_resources: Path,
+    tmp_path: Path,
+) -> None:
+    input_path = test_resources / "functional" / "snowflake" / "integration"
+    report_path = tmp_path / "report.xlsx"
+    expected_json = tmp_path / "report.json"
+
+    cli.analyze(
+        w=mock_workspace_client,
+        source_directory=str(input_path),
+        report_file=str(report_path),
+        source_tech="Snowflake",
+        generate_json=True,
+    )
+
+    assert report_path.exists(), "Excel report was not created"
+    assert expected_json.exists(), "JSON report was not created"
+    with expected_json.open("r", encoding="utf-8") as f:
+        data = json.load(f)
+    assert isinstance(data, dict), "JSON report is not a valid JSON object"
 
 
 def test_analyze_prompts(mock_workspace_client: WorkspaceClient, test_resources: Path, tmp_path: Path) -> None:

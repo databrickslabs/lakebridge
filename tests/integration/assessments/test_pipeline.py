@@ -37,6 +37,16 @@ def pipeline_config(pipeline_configuration_loader: _Loader) -> PipelineConfig:
 
 
 @pytest.fixture
+def pipeline_config_with_ddl(pipeline_configuration_loader: _Loader) -> PipelineConfig:
+    return pipeline_configuration_loader(Path("pipeline_config_with_ddl.yml"))
+
+
+@pytest.fixture
+def pipeline_config_combined_ddl(pipeline_configuration_loader: _Loader) -> PipelineConfig:
+    return pipeline_configuration_loader(Path("pipeline_config_with_combined_ddl.yml"))
+
+
+@pytest.fixture
 def pipeline_dep_failure_config(pipeline_configuration_loader: _Loader) -> PipelineConfig:
     return pipeline_configuration_loader(Path("pipeline_config_failure_dependency.yml"))
 
@@ -210,3 +220,105 @@ def test_run_empty_result_pipeline(
 
     # Table should NOT be created when resultset is empty
     assert "empty_result_step" not in table_names, "Empty resultset should skip table creation"
+
+
+def test_run_pipeline_with_ddl(
+    sandbox_sqlserver: DatabaseManager,
+    pipeline_config_with_ddl: PipelineConfig,
+    get_logger: Logger,
+) -> None:
+    """Test pipeline execution with DDL steps that create tables with proper data types."""
+    pipeline = PipelineClass(config=pipeline_config_with_ddl, executor=sandbox_sqlserver)
+    results = pipeline.execute()
+
+    # Verify all steps completed successfully
+    for result in results:
+        assert result.status in (
+            StepExecutionStatus.COMPLETE,
+            StepExecutionStatus.SKIPPED,
+        ), f"Step {result.step_name} failed with status {result.status}"
+
+    # Verify tables exist and have proper data types
+    db_path = str(Path(pipeline_config_with_ddl.extract_folder)) + "/" + DB_NAME
+    with duckdb.connect(db_path) as conn:
+        # Check inventory table schema (created from DDL)
+        inventory_schema = conn.execute("DESCRIBE inventory").fetchall()
+        get_logger.info(f"Inventory schema: {inventory_schema}")
+
+        # Verify column types match DDL definition
+        schema_dict = {col[0]: col[1] for col in inventory_schema}
+        assert schema_dict["db_id"] == "INTEGER", "db_id should be INTEGER from DDL"
+        assert "VARCHAR" in schema_dict["name"], "name should be VARCHAR"
+        assert "TIMESTAMP" in schema_dict["create_date"], "create_date should be TIMESTAMP"
+
+        # Check usage table schema (created without DDL, preserves native types)
+        usage_schema = conn.execute("DESCRIBE usage").fetchall()
+        get_logger.info(f"Usage schema: {usage_schema}")
+
+        # Verify table was created successfully (native types are preserved)
+        assert len(usage_schema) > 0, "Usage table should have columns"
+
+        # Verify data was inserted
+        inventory_result = conn.execute("SELECT COUNT(*) FROM inventory").fetchone()
+        usage_result = conn.execute("SELECT COUNT(*) FROM usage").fetchone()
+        assert inventory_result is not None and inventory_result[0] > 0, "Inventory table should have data"
+        assert usage_result is not None and usage_result[0] > 0, "Usage table should have data"
+
+
+def test_run_pipeline_with_combined_ddl(
+    sandbox_sqlserver: DatabaseManager,
+    pipeline_config_combined_ddl: PipelineConfig,
+    get_logger: Logger,
+) -> None:
+    """Test pipeline execution with a single DDL file containing multiple CREATE TABLE statements."""
+    pipeline = PipelineClass(config=pipeline_config_combined_ddl, executor=sandbox_sqlserver)
+    results = pipeline.execute()
+
+    # Verify all steps completed successfully
+    for result in results:
+        assert result.status in (
+            StepExecutionStatus.COMPLETE,
+            StepExecutionStatus.SKIPPED,
+        ), f"Step {result.step_name} failed with status {result.status}"
+
+    # Verify all tables from combined DDL were created
+    db_path = str(Path(pipeline_config_combined_ddl.extract_folder)) + "/" + DB_NAME
+    with duckdb.connect(db_path) as conn:
+        # Check that all three tables exist
+        tables = conn.execute("SHOW TABLES").fetchall()
+        table_names = [table[0] for table in tables]
+        get_logger.info(f"Created tables: {table_names}")
+
+        assert "inventory" in table_names, "inventory table should exist"
+        assert "usage" in table_names, "usage table should exist"
+        assert "metadata" in table_names, "metadata table should exist"
+
+        # Verify inventory table schema
+        inventory_schema = conn.execute("DESCRIBE inventory").fetchall()
+        get_logger.info(f"Inventory schema: {inventory_schema}")
+        schema_dict = {col[0]: col[1] for col in inventory_schema}
+        assert schema_dict["db_id"] == "INTEGER", "db_id should be INTEGER from combined DDL"
+        assert "VARCHAR" in schema_dict["name"], "name should be VARCHAR"
+
+        # Verify usage table schema
+        usage_schema = conn.execute("DESCRIBE usage").fetchall()
+        get_logger.info(f"Usage schema: {usage_schema}")
+        usage_schema_dict = {col[0]: col[1] for col in usage_schema}
+        assert "VARCHAR" in usage_schema_dict["sql_handle"], "sql_handle should be VARCHAR"
+        assert "BIGINT" in usage_schema_dict["execution_count"], "execution_count should be BIGINT"
+        assert "BIGINT" in usage_schema_dict["total_rows"], "total_rows should be BIGINT"
+
+        # Verify metadata table schema (created but not populated)
+        metadata_schema = conn.execute("DESCRIBE metadata").fetchall()
+        get_logger.info(f"Metadata schema: {metadata_schema}")
+        metadata_schema_dict = {col[0]: col[1] for col in metadata_schema}
+        assert "VARCHAR" in metadata_schema_dict["pipeline_name"], "pipeline_name should be VARCHAR"
+
+        # Verify data was inserted into inventory and usage tables
+        inventory_result = conn.execute("SELECT COUNT(*) FROM inventory").fetchone()
+        usage_result = conn.execute("SELECT COUNT(*) FROM usage").fetchone()
+        metadata_result = conn.execute("SELECT COUNT(*) FROM metadata").fetchone()
+
+        assert inventory_result is not None and inventory_result[0] > 0, "Inventory table should have data"
+        assert usage_result is not None and usage_result[0] > 0, "Usage table should have data"
+        assert metadata_result is not None and metadata_result[0] == 0, "Metadata table should be empty (no data step)"

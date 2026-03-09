@@ -1,13 +1,20 @@
 import logging
+from collections.abc import Generator
+from functools import cached_property
 from urllib.parse import urlparse
 from uuid import UUID
 
 import pytest
 from pyspark.sql import SparkSession
 
+from databricks.labs.blueprint.paths import WorkspacePath
+from databricks.labs.blueprint.wheels import ProductInfo
 from databricks.labs.blueprint.installation import JsonObject
 from databricks.labs.lakebridge.__about__ import __version__
 from databricks.labs.lakebridge.connections.database_manager import DatabaseManager
+from databricks.labs.lakebridge.contexts.application import ApplicationContext
+from databricks.sdk import WorkspaceClient
+
 from tests.integration.debug_envgetter import TestEnvGetter
 
 logging.getLogger("tests").setLevel(logging.DEBUG)
@@ -15,6 +22,23 @@ logging.getLogger("databricks.labs.lakebridge").setLevel(logging.DEBUG)
 logging.getLogger("databricks.labs.pytester").setLevel(logging.DEBUG)
 
 logger = logging.getLogger(__name__)
+
+
+class MockApplicationContext(ApplicationContext):
+    """A mock application context that uses a unique installation path."""
+
+    @cached_property
+    def product_info(self) -> ProductInfo:
+        return ProductInfo.for_testing(ApplicationContext)
+
+
+@pytest.fixture
+def application_ctx(ws: WorkspaceClient) -> Generator[ApplicationContext, None, None]:
+    """A mock application context with a unique installation path, cleaned up after the test."""
+    ctx = MockApplicationContext(ws)
+    yield ctx
+    if WorkspacePath(ws, ctx.installation.install_folder()).exists():
+        ctx.installation.remove()
 
 
 @pytest.fixture
