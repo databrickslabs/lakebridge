@@ -37,6 +37,5 @@ def lineage_generator(engine: SqlglotEngine, source_dialect: str, input_source: 
     if output_filename.exists():
         logger.warning(f'The output file already exists and will be replaced: {output_filename}')
     logger.info(f"Attempting to write the lineage to {output_filename}")
-    with output_filename.open('w', encoding='utf-8') as f:
-        f.write(lineage_file_content)
+    output_filename.write_text(lineage_file_content, encoding='utf-8')
     logger.info(f"Succeeded to write the lineage to {output_filename}")

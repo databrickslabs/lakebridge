@@ -64,7 +64,7 @@ def _test_pool_connection(
                 return True, None
             logger.error(f"✗ {pool_name.capitalize()} SQL pool connection failed")
             return False, f"{pool_name.capitalize()} SQL pool connection check failed"
-    except Exception as e:  # pylint: disable=broad-exception-caught
+    except Exception as e:
         # Catch all exceptions to gracefully handle any connection failure (network, auth, config, etc.)
         error_msg = f"Failed to connect to {pool_name} SQL pool: {e}"
         logger.error(f"✗ {error_msg}")

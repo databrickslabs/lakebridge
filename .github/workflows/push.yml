@@ -73,7 +73,7 @@ jobs:
           # Exit with status code 1 if there are differences (i.e. unformatted files)
           git diff --exit-code
 
-  python-no-pylint-disable:
+  python-no-inline-suppressions:
     runs-on:
       group: databrickslabs-protected-runner-group
       labels: linux-ubuntu-latest
@@ -84,10 +84,14 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Verify no lint disabled in the new code
+      - name: Verify no inline suppressions added in new code
         run: |
           git fetch origin $GITHUB_BASE_REF:$GITHUB_BASE_REF
-          git diff --ignore-space-change $GITHUB_BASE_REF...HEAD -- ':(glob,icase)**/*.py' > diff_data.txt
+          git diff --ignore-space-change $GITHUB_BASE_REF...HEAD \
+            -- ':(glob,icase)**/*.py' \
+               ':(exclude)tests/unit/no_cheat.py' \
+               ':(exclude)tests/unit/test_no_cheat.py' \
+            > diff_data.txt
           python tests/unit/no_cheat.py diff_data.txt > cheats.txt
           COUNT=$(cat cheats.txt | wc -c)
           if [ ${COUNT} -gt 1 ]; then

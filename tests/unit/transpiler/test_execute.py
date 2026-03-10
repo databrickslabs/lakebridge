@@ -39,9 +39,6 @@ from databricks.labs.lakebridge.transpiler.sqlglot.sqlglot_engine import Sqlglot
 from databricks.labs.lakebridge.transpiler.transpile_engine import TranspileEngine
 
 
-# pylint: disable=unspecified-encoding
-
-
 def transpile(
     workspace_client: WorkspaceClient, engine: TranspileEngine, config: TranspileConfig
 ) -> tuple[JsonObject, list[TranspileError]]:
@@ -82,7 +79,7 @@ def check_status(
 
 def check_error_lines(error_file_path: str, expected_errors: list[dict[str, str]]):
     pattern = r"TranspileError\(code=(?P<code>[^,]+), kind=(?P<kind>[^,]+), severity=(?P<severity>[^,]+), path='(?P<path>[^']+)', message='(?P<message>[^']+)('\))?"
-    with open(Path(error_file_path)) as file:
+    with open(Path(error_file_path), encoding="utf-8") as file:
         error_count = 0
         match_count = 0
         for line in file:

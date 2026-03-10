@@ -39,7 +39,7 @@ class WorkspaceInstallation:
 
     def _get_local_version_file(self, file_path: Path):
         data = None
-        with file_path.open("r") as f:
+        with file_path.open("r", encoding="utf-8") as f:
             data = literal_eval(f.read())
         assert data, "Unable to read local version file."
         local_installed_version = data["version"]

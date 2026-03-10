@@ -146,7 +146,7 @@ class LSPConfig:
 
     @classmethod
     def load(cls, path: Path) -> LSPConfig:
-        yaml_text = path.read_text()
+        yaml_text = path.read_text(encoding="utf-8")
         data: RootJsonValue = yaml.safe_load(yaml_text)
         if not isinstance(data, Mapping):
             msg = f"Invalid transpiler configuration, expecting a root object but got: {data}"
@@ -208,7 +208,6 @@ class TranspileDocumentParams:
 @attrs.define
 class TranspileDocumentRequest:
     # 'id' is mandated by LSP
-    # pylint: disable=invalid-name
     id: int | str = attrs.field()
     params: TranspileDocumentParams = attrs.field()
     method: Literal["document/transpileToDatabricks"] = "document/transpileToDatabricks"
@@ -226,7 +225,6 @@ class TranspileDocumentResult:
 @attrs.define
 class TranspileDocumentResponse:
     # 'id' is mandated by LSP
-    # pylint: disable=invalid-name
     id: int | str = attrs.field()
     result: TranspileDocumentResult = attrs.field()
     jsonrpc: str = attrs.field(default="2.0")
@@ -395,13 +393,13 @@ class LakebridgeLanguageClient(ExtendableLanguageClient):
         try:
             async for line in readlines(stream=stderr, limit=limit):
                 logger.debug(str(line))
-        except Exception as e:  # pylint: disable=broad-exception-caught
+        except Exception as e:
             logger.critical("An error occurred while reading LSP server output; now draining.", exc_info=e)
             # Drain to prevent blocking of the subprocess if the pipe is unread.
             try:
                 while await stderr.read(limit):
                     pass
-            except Exception as drain_error:  # pylint: disable=broad-exception-caught
+            except Exception as drain_error:
                 # Exception while draining, situation seems unrecoverable.
                 logger.warning(
                     "Uncoverable error draining LSP server output; beware of deadlock.", exc_info=drain_error
@@ -579,7 +577,7 @@ class LSPEngine(TranspileEngine):
             await self._do_initialize(config)
             await self._await_for_transpile_capability()
         # it is good practice to catch broad exceptions raised by launching a child process
-        except Exception as e:  # pylint: disable=broad-exception-caught
+        except Exception as e:
             logger.error("LSP initialization failed", exc_info=e)
 
     async def _do_initialize(self, config: TranspileConfig) -> None:

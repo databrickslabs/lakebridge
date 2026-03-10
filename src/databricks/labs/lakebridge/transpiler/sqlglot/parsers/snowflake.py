@@ -14,7 +14,6 @@ from sqlglot.trie import new_trie
 from databricks.labs.lakebridge.transpiler.sqlglot import local_expression
 
 logger = logging.getLogger(__name__)
-# pylint: disable=protected-access
 """ SF Supported Date and Time Parts:
     https://docs.snowflake.com/en/sql-reference/functions-date-time#label-supported-date-time-parts
     Covers DATEADD, DATEDIFF, DATE_TRUNC, LAST_DAY

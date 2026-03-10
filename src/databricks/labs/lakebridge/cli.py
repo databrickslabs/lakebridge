@@ -108,7 +108,7 @@ def _remove_warehouse(ws: WorkspaceClient, warehouse_id: str):
 
 
 @lakebridge.command
-def transpile(  # pylint: disable=too-many-arguments
+def transpile(
     *,
     w: WorkspaceClient,
     transpiler_config_path: str | None = None,
@@ -757,7 +757,7 @@ def install_transpile(
 ) -> None:
     """Install or upgrade the Lakebridge transpilers."""
     # Avoid circular imports.
-    from databricks.labs.lakebridge.install import installer  # pylint: disable=cyclic-import, import-outside-toplevel
+    from databricks.labs.lakebridge.install import installer
 
     is_interactive = interactive_mode(interactive)
     ctx = ApplicationContext(w)
@@ -826,7 +826,7 @@ def configure_reconcile(
 ) -> None:
     """Configure the Lakebridge reconciliation module"""
     # Avoid circular imports.
-    from databricks.labs.lakebridge.install import installer  # pylint: disable=cyclic-import, import-outside-toplevel
+    from databricks.labs.lakebridge.install import installer
 
     ctx = ApplicationContext(w)
     ctx.add_user_agent_extra("cmd", "configure-reconcile")
@@ -1113,7 +1113,7 @@ def test_profiler_connection(
             logger.fatal("Missing ODBC driver, Please install pre-req. Exiting...")
         else:
             logger.fatal("Connection validation failed. Exiting...")
-    except Exception as e:  # pylint: disable=broad-exception-caught
+    except Exception as e:
         # Catch all exceptions to provide user-friendly error messages for CLI
         logger.error(f"Unexpected error during connection test: {e}")
         logger.fatal("Connection test failed. Exiting...")

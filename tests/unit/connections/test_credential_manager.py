@@ -260,7 +260,7 @@ def test_mixed_data_types_preserved():
     # Verify each data type is preserved correctly
     assert creds['string_value'] == 'test_string'
     assert creds['int_value'] == 42
-    assert creds['float_value'] == 3.14
+    assert creds['float_value'] == pytest.approx(3.14)
     assert creds['bool_true'] is True
     assert creds['bool_false'] is False
     assert creds['none_value'] is None

@@ -330,6 +330,6 @@ select cole(hello) world from table;
     )
 
     # Verify the errors that were reported.
-    reported_errors = list(errors_path.open())
+    reported_errors = list(errors_path.open(encoding="utf-8"))
     [only_error] = reported_errors
     assert "[UNRESOLVED_ROUTINE] Cannot resolve routine `cole` on search path" in only_error

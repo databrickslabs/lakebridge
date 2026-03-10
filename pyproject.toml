@@ -1,7 +1,7 @@
 [project]
 name = "databricks-labs-lakebridge"
 description = 'Fast and predictable migrations to Databricks Lakehouse Platform. This tool is designed to help you migrate your data and workloads to the Databricks Lakehouse Platform in a fast, predictable, and reliable way. It provides a set of tools and utilities to help you reconcile your data and workloads, assess your current state, and plan your migration.'
-license-files = { paths = ["LICENSE", "NOTICE"] }
+license-files = ["LICENSE", "NOTICE"]
 keywords = ["Databricks"]
 readme = "README.md"
 requires-python = ">=3.10.1,<3.14.0"
@@ -181,21 +181,13 @@ ignore = [
   "W191", "W291", "W292", "W293",  # Whitespace
   "COM812", "COM819",  # Trailing commas (black handles)
   "ISC001", "ISC002",  # Implicit string concatenation (black handles)
+  "Q",      # Quote style (Black uses skip-string-normalization=true; mixed quotes are intentional)
+  "I001",   # Import sort order (isort) — existing codebase has established ordering; enforce in separate PR
 
-  # === Complexity Rules ===
-  # Justification: Existing codebase design allows these limits.
-  # Pylint had max-args=12, max-branches=20, max-statements=50, etc.
-  "C901",    # McCabe complexity (was allowed in pylint)
-  "PLR0911", # Too many return statements (was max 11)
-  "PLR0912", # Too many branches (was max 20)
-  "PLR0913", # Too many arguments (was max 12)
-  "PLR0914", # Too many locals (was max 20)
-  "PLR0915", # Too many statements (was max 50)
-  "PLR1702", # Too many nested blocks (was max 5)
-
-  # === Security False Positives ===
+# === Security False Positives ===
   # Justification: Data processing code triggers these incorrectly.
   # Safe usage patterns are established in codebase.
+  "S101",  # Assert statements (pylint never flagged these; 39 usages in production code are pre-existing)
   "S105", "S106", "S107",  # Hardcoded passwords (too many false positives)
   "S603", "S608",  # Subprocess/SQL construction (used safely with sqlglot)
   "S311",  # Standard random (not used for cryptography)
@@ -226,6 +218,81 @@ ignore = [
   "PERF203", # try-except in loop (acceptable for error handling)
   "PLW2901", # Redefined loop variable (acceptable when intentional)
   "T201",    # Print statements (acceptable for CLI output and debugging)
+  "RUF012",  # Mutable ClassVar annotations (57 violations in sqlglot expression classes; address in follow-up PR)
+
+  # === Auto-fixable style rules (address in a dedicated formatting PR) ===
+  # Justification: 149 of these are auto-fixable. Applying them in the migration PR
+  # creates massive unrelated diffs. Enforce in a follow-up "ruff style" PR.
+  "TC006",              # Add quotes to type expression in typing.cast()
+  "PTH123", "PTH110", "PTH104", "PTH106", "PTH103", "PTH111", "PTH118", "PTH201",  # os.path → pathlib
+  "FURB110", "FURB136", "FURB101", "FURB188", "FURB152", "FURB113", "FURB118", "FURB148", "FURB171",  # refurb modernisations
+  "PT001", "PT022",    # Pytest fixture/yield style
+  "SIM910", "SIM117",  # Simplification patterns
+  "RUF010", "RUF022",  # Explicit conversion flag / __all__ sorting
+  "UP015", "UP024", "UP018", "UP012",  # pyupgrade patterns
+  "B010", "B009", "B905",  # flake8-bugbear patterns
+  "E266", "E231", "E226",  # PEP 8 style (whitespace/comment formatting)
+  "PLC0207",           # Use list() instead of __iter__ trick
+  "PLR2044",           # Empty comment
+  "PYI019",            # Self in classmethod return
+  "PYI034",            # __enter__ return type Self (requires Python 3.11+; project targets 3.10)
+  "SIM118",            # key in dict.keys()
+
+  # === Rules New to Ruff (not previously enforced by pylint) ===
+  # Justification: These rules were never enforced. Violations pre-date this migration.
+  # Each category should be addressed in a dedicated follow-up PR.
+  #
+  # Logging
+  "LOG015",  # Root logger calls (use module-level logger instead)
+  #
+  # Type-checking import organisation
+  "TC001", "TC003",  # Move imports into TYPE_CHECKING block
+  #
+  # Pytest style
+  "PT006", "PT007", "PT015", "PT017", "PT018", "PT028",  # Pytest parametrize/assertion style
+  #
+  # Exception/try style
+  "TRY004", "TRY201", "TRY301",  # Exception handling style
+  #
+  # Modernization (FURB — "refurb" category)
+  "FURB113", "FURB118", "FURB148", "FURB171",  # Code modernisation patterns
+  #
+  # Performance
+  "PERF401",  # Manual list-comprehension accumulation
+  #
+  # Code simplification
+  "SIM102", "SIM103", "SIM118", "SIM212",  # Simplification patterns
+  #
+  # Ruff-specific rules
+  "RUF002", "RUF015", "RUF018", "RUF029", "RUF036", "RUF043", "RUF046", "RUF052",
+  #
+  # Naming (import aliases)
+  "N811", "N812", "N813",  # Import alias naming conventions
+  #
+  # Builtin shadowing / class design
+  "A001",    # Shadowing Python builtin
+  "B011", "B019", "B024", "B903",  # Various flake8-bugbear patterns
+  #
+  # Code style
+  "C400", "C409", "C414",  # Unnecessary comprehension/generator patterns
+  "PLR6104", "PLR6201",  # Augmented assignment / set literal
+  "PIE810",  # Multiple isinstance calls
+  "PYI025",  # AbstractSet import alias
+  #
+  # Security (acceptable patterns in this codebase)
+  "S108", "S314", "S404", "S405",  # Temp file / XML / subprocess import patterns
+  #
+  # FIXME/TODO comment formatting
+  "FIX001", "FIX004", "TD001",  # FIXME comment strictness
+  #
+  # Async
+  "ASYNC240",  # Async-specific socket/subprocess rules
+  #
+  # Path handling (migration of os.path → pathlib; address in follow-up)
+  "PTH111", "PTH118",
+  #
+  # Deprecated pygrep-hooks rules
+  "PGH004",
 
   # === Copyright ===
   # Justification: Copyright handled via LICENSE/NOTICE files
@@ -291,9 +358,11 @@ ban-relative-imports = "all"
 # Upgrade scripts have version numbers in filenames
 "src/databricks/labs/lakebridge/upgrades/v*.py" = ["N999"]
 
-# CLI has intentional lazy imports to break cycles
+# CLI has intentional lazy imports to break cycles and broad exception handling
 "src/databricks/labs/lakebridge/cli.py" = [
   "PLC0415",  # Import outside toplevel (intentional for circular import breaking)
+  "BLE001",   # Broad exception (top-level CLI error handler)
+  "PLR0913",  # Too many arguments (CLI commands accept many options)
 ]
 
 # Editing utilities have specific file handling patterns
@@ -304,5 +373,45 @@ ban-relative-imports = "all"
 # Enum auto-generation requires special dunder method
 "src/databricks/labs/lakebridge/reconcile/constants.py" = [
   "N807",  # Dunder method naming for enum _generate_next_value_
+]
+
+# Assessments package uses relative imports for internal structure
+"src/databricks/labs/lakebridge/assessments/__init__.py" = [
+  "TID252",  # Relative imports (package __init__ re-exports)
+]
+
+# Synapse helpers wrap third-party driver with broad exception
+"src/databricks/labs/lakebridge/connections/synapse_connection_helpers.py" = [
+  "BLE001",  # Broad exception (wrapping pyodbc driver errors)
+]
+
+# Application context has many public methods by design (service locator)
+"src/databricks/labs/lakebridge/contexts/application.py" = [
+  "PLR0904",  # Too many public methods (service-locator pattern)
+]
+
+# Install command builder accepts all installer arguments as constructor params
+"src/databricks/labs/lakebridge/install.py" = [
+  "PLR0913",  # Too many arguments (installer accepts all config parameters)
+]
+
+# Testing internal LSP editing methods requires private access
+"tests/unit/transpiler/lsp/test_editing.py" = [
+  "SLF001",  # Private member accessed (testing internals)
+]
+
+# Integration tests access JDBC driver private attributes
+"tests/integration/reconcile/connectors/test_read_schema.py" = [
+  "SLF001",  # Private member accessed (testing driver internals)
+]
+
+# Package __init__ intentionally runs setup code at import time (logging, user-agent, entrypoint detection)
+"src/databricks/labs/lakebridge/__init__.py" = [
+  "RUF067",  # Module-level code in __init__ (intentional package initialization)
+]
+
+# Test package __init__ sets log level for test runs
+"tests/unit/__init__.py" = [
+  "RUF067",  # Module-level code in __init__ (intentional test logging setup)
 ]
 

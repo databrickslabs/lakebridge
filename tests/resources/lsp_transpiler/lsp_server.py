@@ -56,7 +56,6 @@ class TranspileDocumentParams:
 @attrs.define
 class TranspileDocumentRequest:
     # 'id' is mandated by LSP
-    # pylint: disable=invalid-name
     id: int | str = attrs.field()
     params: TranspileDocumentParams = attrs.field()
     method: Literal["document/transpileToDatabricks"] = "document/transpileToDatabricks"
@@ -74,7 +73,6 @@ class TranspileDocumentResult:
 @attrs.define
 class TranspileDocumentResponse:
     # 'id' is mandated by LSP
-    # pylint: disable=invalid-name
     id: int | str = attrs.field()
     result: TranspileDocumentResult = attrs.field()
     jsonrpc: str = attrs.field(default="2.0")

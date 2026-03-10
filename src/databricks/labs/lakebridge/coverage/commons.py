@@ -1,4 +1,3 @@
-# pylint: disable=all
 import collections
 import dataclasses
 import json

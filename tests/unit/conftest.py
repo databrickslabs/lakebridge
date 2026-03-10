@@ -284,7 +284,7 @@ def safe_remove_file(file_path: Path):
 
 def write_data_to_file(path: Path, content: str):
     make_dir(path.parent)
-    with path.open("w") as writable:
+    with path.open("w", encoding="utf-8") as writable:
         # added encoding to avoid UnicodeEncodeError while writing to file for token error test
         writable.write(content.encode("utf-8", "ignore").decode("utf-8"))
 

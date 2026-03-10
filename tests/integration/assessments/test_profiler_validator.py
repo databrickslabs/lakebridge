@@ -33,8 +33,7 @@ def mock_synapse_profiler_extract() -> Generator[Path]:
     # Use context manager for automatic cleanup
     with tempfile.TemporaryDirectory(prefix="lakebridge_test_") as temp_dir:
         extract_dir = Path(temp_dir) / "synapse_assessment"
-        synapse_extract_path = build_mock_synapse_extract("mock_profiler_extract", path_prefix=extract_dir)
-        yield synapse_extract_path
+        yield build_mock_synapse_extract("mock_profiler_extract", path_prefix=extract_dir)
 
 
 def test_get_profiler_extract_path(pipeline_config_path: Path, failure_pipeline_config_path: Path) -> None:
