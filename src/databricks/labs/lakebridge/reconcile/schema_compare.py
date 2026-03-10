@@ -47,6 +47,21 @@ class SchemaCompare:
             SchemaCompare.match_source_target_schemas(s, target_column_map, databricks_types_map) for s in master_schema
         ]
 
+        # Detect target-only columns (missing in source)
+        source_col_names = {m.databricks_column for m in master_schema_match_res}
+        for col in databricks_schema:
+            if col.ansi_normalized_column_name not in source_col_names:
+                master_schema_match_res.append(
+                    SchemaMatchResult(
+                        source_column_normalized="",
+                        source_column_normalized_ansi="",
+                        source_datatype="N/A",
+                        databricks_column=col.ansi_normalized_column_name,
+                        databricks_datatype=col.data_type,
+                        is_valid=False,
+                    )
+                )
+
         return master_schema_match_res
 
     @staticmethod
@@ -163,7 +178,9 @@ class SchemaCompare:
         """
         master_schema = self._build_master_schema(source_schema, databricks_schema, table_conf)
         for master in master_schema:
-            if not isinstance(source, Databricks):
+            if master.databricks_datatype == "Unknown":
+                master.is_valid = False  # Column missing in target
+            elif not isinstance(source, Databricks):
                 self._validate_parsed_query(source, master)
             elif master.source_datatype.lower() != master.databricks_datatype.lower():
                 master.is_valid = False

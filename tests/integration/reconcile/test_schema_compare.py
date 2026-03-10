@@ -427,3 +427,72 @@ def test_schema_compare(mock_spark):
     assert df.count() == 2
     assert df.filter("is_valid = 'true'").count() == 2
     assert df.filter("is_valid = 'false'").count() == 0
+
+
+def test_schema_compare_source_extra_column(mock_spark):
+    """Source has column D missing in target → is_valid=False, datatype='Unknown'."""
+    src_schema = [
+        schema_fixture_factory("col1", "int", "`col1`", "`col1`"),
+        schema_fixture_factory("col2", "string", "`col2`", "`col2`"),
+        schema_fixture_factory("col_d", "double", "`col_d`", "`col_d`"),
+    ]
+    tgt_schema = [
+        schema_fixture_factory("col1", "int", "`col1`", "`col1`"),
+        schema_fixture_factory("col2", "string", "`col2`", "`col2`"),
+    ]
+    table_conf = Table(source_name="t1", target_name="t1")
+
+    output = SchemaCompare(mock_spark).compare(src_schema, tgt_schema, get_dialect("databricks"), table_conf)
+    df = output.compare_df
+
+    assert not output.is_valid
+    assert df.count() == 3
+    assert df.filter("is_valid = 'true'").count() == 2
+    assert df.filter("is_valid = 'false'").count() == 1
+    assert df.filter("databricks_datatype = 'Unknown'").count() == 1
+
+
+def test_schema_compare_target_extra_column(mock_spark):
+    """Target has column D missing in source → is_valid=False, reported in output."""
+    src_schema = [
+        schema_fixture_factory("col1", "int", "`col1`", "`col1`"),
+        schema_fixture_factory("col2", "string", "`col2`", "`col2`"),
+    ]
+    tgt_schema = [
+        schema_fixture_factory("col1", "int", "`col1`", "`col1`"),
+        schema_fixture_factory("col2", "string", "`col2`", "`col2`"),
+        schema_fixture_factory("col_d", "double", "`col_d`", "`col_d`"),
+    ]
+    table_conf = Table(source_name="t1", target_name="t1")
+
+    output = SchemaCompare(mock_spark).compare(src_schema, tgt_schema, get_dialect("databricks"), table_conf)
+    df = output.compare_df
+
+    assert not output.is_valid
+    assert df.count() == 3
+    assert df.filter("is_valid = 'true'").count() == 2
+    assert df.filter("is_valid = 'false'").count() == 1
+    assert df.filter("source_datatype = 'N/A'").count() == 1
+
+
+def test_schema_compare_both_extra_columns(mock_spark):
+    """Source has extra col_s, target has extra col_t → both reported as invalid."""
+    src_schema = [
+        schema_fixture_factory("col1", "int", "`col1`", "`col1`"),
+        schema_fixture_factory("col_s", "string", "`col_s`", "`col_s`"),
+    ]
+    tgt_schema = [
+        schema_fixture_factory("col1", "int", "`col1`", "`col1`"),
+        schema_fixture_factory("col_t", "double", "`col_t`", "`col_t`"),
+    ]
+    table_conf = Table(source_name="t1", target_name="t1")
+
+    output = SchemaCompare(mock_spark).compare(src_schema, tgt_schema, get_dialect("databricks"), table_conf)
+    df = output.compare_df
+
+    assert not output.is_valid
+    assert df.count() == 3
+    assert df.filter("is_valid = 'true'").count() == 1
+    assert df.filter("is_valid = 'false'").count() == 2
+    assert df.filter("databricks_datatype = 'Unknown'").count() == 1
+    assert df.filter("source_datatype = 'N/A'").count() == 1
