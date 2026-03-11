@@ -18,6 +18,10 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  HATCH_VERBOSE: "2"
+  HATCH_VERSION: "1.16.5"
+
 jobs:
   integration:
     environment: tool
@@ -38,8 +42,7 @@ jobs:
           python-version: '3.10'
 
       - name: Install hatch
-        # see here for more details https://github.com/pypa/hatch/issues/2193
-        run: pip install hatch==1.14.2 "virtualenv<21"
+        run: pip install "hatch==${HATCH_VERSION}"
 
       - name: Install MSSQL ODBC Driver
         run: |

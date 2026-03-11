@@ -15,7 +15,8 @@ on:
       - main
 
 env:
-  HATCH_VERSION: 1.16.5
+  HATCH_VERBOSE: "2"
+  HATCH_VERSION: "1.16.5"
 
 jobs:
   test-python:
@@ -34,7 +35,7 @@ jobs:
           python-version: '3.10'
 
       - name: Install hatch
-        run: pip install hatch==$HATCH_VERSION
+        run: pip install "hatch==${HATCH_VERSION}"
 
       - name: Run unit tests
         run: hatch run test
@@ -61,7 +62,7 @@ jobs:
           python-version: 3.10.x
 
       - name: Install hatch
-        run: pip install hatch==$HATCH_VERSION
+        run: pip install "hatch==${HATCH_VERSION}"
 
       - name: Reformat code
         run: make fmt
@@ -114,7 +115,7 @@ jobs:
           python-version: 3.10.x
 
       - name: Install hatch
-        run: pip install hatch==$HATCH_VERSION
+        run: pip install "hatch==${HATCH_VERSION}"
 
       - name: Install Databricks CLI
         uses: databricks/setup-cli@main

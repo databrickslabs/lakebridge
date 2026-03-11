@@ -5,6 +5,10 @@ on:
     tags:
       - 'v*'
 
+env:
+  HATCH_VERBOSE: "2"
+  HATCH_VERSION: "1.16.5"
+
 jobs:
   publish:
     runs-on:
@@ -27,8 +31,7 @@ jobs:
 
       - name: Build wheels
         run: |
-          # see here for more details https://github.com/pypa/hatch/issues/2193
-          pip install hatch==1.14.2 "virtualenv<21"
+          pip install "hatch==${HATCH_VERSION}"
           hatch build
 
       - name: Draft release
