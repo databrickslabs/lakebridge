@@ -108,7 +108,7 @@ def recon_tables(ws: WorkspaceClient, recon_schema: SchemaInfo, make_table) -> t
 
 
 @pytest.fixture
-def recon_metadata(mock_spark, report_tables_schema) -> Generator[ReconcileMetadataConfig, None, None]:
+def recon_metadata(mock_spark, report_tables_schema) -> Generator[ReconcileMetadataConfig]:
     rand = uuid.uuid4().hex
     schema = f"recon_schema_{rand}"
     mock_spark.sql(f"CREATE SCHEMA {schema}")
@@ -286,7 +286,7 @@ def generate_recon_application_context(
     application_ctx: ApplicationContext,
     recon_config: ReconcileConfig,
     recon_table_config: TableRecon,
-) -> Generator[ApplicationContext, None, None]:
+) -> Generator[ApplicationContext]:
     logger.info("Setting up application context for recon tests")
     config = LakebridgeConfiguration(None, recon_config)
     ws = application_ctx.workspace_client

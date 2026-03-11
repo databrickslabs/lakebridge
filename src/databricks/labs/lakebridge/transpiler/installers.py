@@ -173,7 +173,7 @@ class WheelInstaller(ArtifactInstaller):
             return None
         logger.debug(f"PyPI metadata for {artifact_id}: {data}")
         match data:
-            case {"info": {"version": str(version), **_ignored}, **_also_ignored}:
+            case {"info": {"version": str() as version, **_ignored}, **_also_ignored}:
                 return version
             case _:
                 return None
@@ -487,12 +487,12 @@ class MorpheusInstaller(TranspilerInstaller):
             case (java_executable, None):
                 logger.warning(f"Java found, but could not determine the version: {java_executable}.")
                 return False
-            case (java_executable, bytes(raw_version)):
+            case (java_executable, bytes() as raw_version):
                 # Strip leading/trailing b' and ' from the repr.
                 display_version = repr(raw_version)[2:-1]  # Strip b'' from the repr.
                 logger.warning(f"Java found ({java_executable}), but could not parse the version:\n{display_version}")
                 return False
-            case (java_executable, tuple(old_version)) if old_version < (11, 0, 0, 0):
+            case (java_executable, tuple() as old_version) if old_version < (11, 0, 0, 0):
                 version_str = ".".join(str(v) for v in old_version)
                 logger.warning(f"Java found ({java_executable}), but version {version_str} is too old.")
                 return False

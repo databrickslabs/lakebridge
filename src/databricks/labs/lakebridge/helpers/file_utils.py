@@ -46,7 +46,7 @@ def dir_walk(root: Path):
         yield from dir_walk(each_dir)
 
 
-def get_sql_file(input_path: str | Path) -> Generator[Path, None, None]:
+def get_sql_file(input_path: str | Path) -> Generator[Path]:
     """
     Returns Generator that yields the names of all SQL files in the given directory.
     :param input_path: Path
@@ -59,7 +59,7 @@ def get_sql_file(input_path: str | Path) -> Generator[Path, None, None]:
 
 
 @contextlib.contextmanager
-def chdir(new_path: Path) -> Generator[None, None, None]:
+def chdir(new_path: Path) -> Generator[None]:
     saved_path = Path.cwd()
     try:
         os.chdir(new_path)

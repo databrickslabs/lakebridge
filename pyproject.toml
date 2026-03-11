@@ -68,8 +68,8 @@ python="3.10"
 path = ".venv"
 
 dependencies = [
-  "pylint~=3.2.2",
-  "pylint-pytest==2.0.0a0",
+  "pylint~=4.0.5",
+  "pylint-pytest==2.0.0a1",
   "coverage[toml]~=7.10.7",
   "pytest~=9.0.2",
   "pytest-cov~=7.0.0",
@@ -280,10 +280,6 @@ py-version = "3.10"
 # source root.
 # source-roots =
 
-# When enabled, pylint would attempt to guess common misconfiguration and emit
-# user-friendly hints instead of false-positive error messages.
-suggestion-mode = true
-
 # Allow loading of arbitrary C extensions. Extensions are imported into the
 # active Python interpreter and may run arbitrary code.
 # unsafe-load-any-extension =
@@ -456,6 +452,7 @@ bad-functions = ["map", "input"]
 
 # Maximum number of arguments for function / method.
 max-args = 12
+max-positional-arguments = 12
 
 # Maximum number of attributes for a class (see R0902).
 max-attributes = 13

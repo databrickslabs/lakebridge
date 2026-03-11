@@ -60,7 +60,7 @@ def _capture_transpiler_logs(transpiler_repository: TranspilerRepository) -> Non
 
 
 @pytest.fixture(name="transpiler_repository")
-def log_capturing_transpiler_repository(tmp_path: Path) -> Generator[TranspilerRepository, None, None]:
+def log_capturing_transpiler_repository(tmp_path: Path) -> Generator[TranspilerRepository]:
     labs_path = tmp_path / "labs"
     transpiler_repository = TranspilerRepository(labs_path=labs_path)
     yield transpiler_repository
