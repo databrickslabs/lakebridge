@@ -3,7 +3,6 @@ import os
 import sys
 from collections.abc import Sequence
 from importlib import resources
-from importlib.abc import Traversable
 from pathlib import Path
 
 import duckdb
@@ -20,6 +19,11 @@ from databricks.labs.lakebridge.assessments.profiler_validator import (
     build_validation_report_dataframe,
 )
 from databricks.labs.lakebridge import initialize_logging
+
+if sys.version_info >= (3, 11):
+    from importlib.resources.abc import Traversable
+else:
+    from importlib.abc import Traversable
 
 logger = logging.getLogger(__name__)
 
