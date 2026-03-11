@@ -1,4 +1,5 @@
-.venv
+.venv/
+.venv-*/
 .python-version
 .sdkmanrc
 .DS_Store

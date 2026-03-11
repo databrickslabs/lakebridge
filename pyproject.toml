@@ -64,7 +64,7 @@ path = "src/databricks/labs/lakebridge/__about__.py"
 [tool.hatch.envs.default]
 python="3.10"
 
-# store virtual env as the child of this folder. Helps VSCode to run better
+# Fixed path expected by the `labs` tool to run acceptance tests.
 path = ".venv"
 
 dependencies = [
@@ -124,6 +124,27 @@ dependencies = [
   "sqlglot",
 ]
 
+[tool.hatch.envs.test.env-vars]
+MYPY_CACHE_DIR = ".venv-py{matrix:python}/mypy-cache"
+PYTEST_ADDOPTS = "-o cache_dir=.venv-py{matrix:python}/pytest-cache"
+RUFF_CACHE_DIR = ".venv-py{matrix:python}/ruff-cache"
+
+[tool.hatch.envs.test.overrides]
+matrix.python.path = [
+    # Sadly no way to interpolate this.
+    { value = ".venv-py3.10", if = ["3.10" ]},
+    { value = ".venv-py3.11", if = ["3.11" ]},
+    { value = ".venv-py3.12", if = ["3.12" ]},
+    { value = ".venv-py3.13", if = ["3.13" ]},
+]
+
+[[tool.hatch.envs.test.matrix]]
+python = [
+    "3.10",
+    "3.11",
+    "3.12",
+    "3.13",
+]
 
 [tool.pytest.ini_options]
 addopts = "-s -p no:warnings -vv --cache-clear"
