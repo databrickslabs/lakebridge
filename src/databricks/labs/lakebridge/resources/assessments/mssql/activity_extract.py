@@ -1,16 +1,19 @@
 import json
 import sys
 
+from databricks.labs.blueprint.entrypoint import get_logger
+
 from databricks.labs.lakebridge.connections.credential_manager import create_credential_manager
 from databricks.labs.lakebridge.assessments import PRODUCT_NAME
 from databricks.labs.lakebridge.resources.assessments.mssql.common.connector import get_sqlserver_reader
 from databricks.labs.lakebridge.resources.assessments.mssql.common.queries import MSSQLQueries
 from databricks.labs.lakebridge.resources.assessments.synapse.common.duckdb_helpers import save_resultset_to_db
-from databricks.labs.lakebridge.resources.assessments.synapse.common.functions import arguments_loader, set_logger
+from databricks.labs.lakebridge.resources.assessments.synapse.common.functions import arguments_loader
+
+logger = get_logger(__file__)
 
 
 def execute():
-    logger = set_logger(__file__)
 
     db_path, creds_file = arguments_loader(desc="MSSQL Server Activity Extract Script")
     cred_manager = create_credential_manager(PRODUCT_NAME, creds_file)
