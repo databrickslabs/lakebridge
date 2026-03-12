@@ -132,17 +132,17 @@ reconcile_config = ReconcileConfig(
 
 ## Configure Table Properties
 
-We use the class `TableRecon` to configure the properties of the source & target tables to be reconciled.
+We use the class `TableRecon` to configure the tables to be reconciled.
 
 ```python
 @dataclass
 class TableRecon:
-    source_schema: str
-    target_catalog: str
-    target_schema: str
     tables: list[Table]
-    source_catalog: str | None = None
 ```
+
+:::note
+Schema and catalog information are configured using `DatabaseConfig` inside `ReconcileConfig` (see above).
+:::
 
 An Example Table properties for reconciliation:
 
@@ -160,9 +160,6 @@ from databricks.labs.lakebridge.reconcile.recon_config import (
 )
 
 table_recon = TableRecon(
-    source_schema="source_sf_schema",
-    target_catalog="target_databricks_catalog",
-    target_schema="target_databricks_schema",
     tables=[
         Table(
             source_name="source_table_name",
