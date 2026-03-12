@@ -24,10 +24,16 @@ env:
 
 jobs:
   integration:
+    strategy:
+      fail-fast: false
+      matrix:
+        python: [ '3.10', '3.11', '3.12', '3.13', '3.14' ]
     environment: tool
     runs-on:
       group: larger-runners
       labels: larger
+    env:
+      HATCH_ENV: "test.py${{ matrix.python }}"
     steps:
       - name: Checkout Code
         uses: actions/checkout@v6
@@ -39,9 +45,10 @@ jobs:
         with:
           cache: 'pip'
           cache-dependency-path: '**/pyproject.toml'
+          # The version under test, as well as Python 3.14 for Hatch.
           python-version: |
-            3.10
-            3.14
+            ${{ matrix.python }}
+            ${{ matrix.python != '3.14' && '3.14' || '' }}
 
       - name: Install hatch
         run: pip install "hatch==${HATCH_VERSION}"
