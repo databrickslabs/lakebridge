@@ -2,81 +2,37 @@ name: mssql_assessment
 version: "1.0"
 extract_folder: "/tmp/data/mssql_assessment"
 steps:
-  - name: get_query_stats
-    type: sql
-    extract_source: src/databricks/labs/lakebridge/resources/assessments/mssql/query_stats.sql
+  - name: activity_extract
+    type: python
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/mssql/activity_extract.py
     mode: overwrite
     frequency: once
     flag: active
-  - name: get_procedure_stats
-    type: sql
-    extract_source: src/databricks/labs/lakebridge/resources/assessments/mssql/procedure_stats.sql
+    dependencies:
+      - pandas
+      - duckdb
+      - databricks-sdk
+      - databricks-labs-blueprint[yaml]>=0.10.1
+      - sqlalchemy
+      - azure-synapse-artifacts
+      - azure-mgmt-sql
+      - azure-identity
+      - azure-monitor-query==1.3.0b1
+      - pyodbc
+  - name: info_extract
+    type: python
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/mssql/info_extract.py
     mode: overwrite
     frequency: once
     flag: active
-  - name: get_sessions
-    type: sql
-    extract_source: src/databricks/labs/lakebridge/resources/assessments/mssql/sessions.sql
-    mode: overwrite
-    frequency: once
-    flag: active
-  - name: get_cpu_utilization
-    type: sql
-    extract_source: src/databricks/labs/lakebridge/resources/assessments/mssql/cpu_utilization.sql
-    mode: overwrite
-    frequency: once
-    flag: active
-  - name: get_sys_info
-    type: sql
-    extract_source: src/databricks/labs/lakebridge/resources/assessments/mssql/sys_info.sql
-    mode: overwrite
-    frequency: once
-    flag: active
-  - name: get_databases
-    type: sql
-    extract_source: src/databricks/labs/lakebridge/resources/assessments/mssql/databases.sql
-    mode: overwrite
-    frequency: once
-    flag: active
-  - name: get_tables
-    type: sql
-    extract_source: src/databricks/labs/lakebridge/resources/assessments/mssql/tables.sql
-    mode: overwrite
-    frequency: once
-    flag: active
-  - name: get_views
-    type: sql
-    extract_source: src/databricks/labs/lakebridge/resources/assessments/mssql/views.sql
-    mode: overwrite
-    frequency: once
-    flag: active
-  - name: get_columns
-    type: sql
-    extract_source: src/databricks/labs/lakebridge/resources/assessments/mssql/columns.sql
-    mode: overwrite
-    frequency: once
-    flag: active
-  - name: get_indexed_views
-    type: sql
-    extract_source: src/databricks/labs/lakebridge/resources/assessments/mssql/indexed_views.sql
-    mode: overwrite
-    frequency: once
-    flag: active
-  - name: get_routines
-    type: sql
-    extract_source: src/databricks/labs/lakebridge/resources/assessments/mssql/routines.sql
-    mode: overwrite
-    frequency: once
-    flag: active
-  - name: get_db_sizes
-    type: sql
-    extract_source: src/databricks/labs/lakebridge/resources/assessments/mssql/database_sizes.sql
-    mode: overwrite
-    frequency: once
-    flag: active
-  - name: get_table_sizes
-    type: sql
-    extract_source: src/databricks/labs/lakebridge/resources/assessments/mssql/table_sizes.sql
-    mode: overwrite
-    frequency: once
-    flag: active
+    dependencies:
+      - pandas
+      - duckdb
+      - databricks-sdk
+      - databricks-labs-blueprint[yaml]>=0.10.1
+      - sqlalchemy
+      - azure-synapse-artifacts
+      - azure-mgmt-sql
+      - azure-identity
+      - azure-monitor-query==1.3.0b1
+      - pyodbc
