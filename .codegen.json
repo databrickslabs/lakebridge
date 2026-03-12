@@ -4,8 +4,11 @@
   },
   "toolchain": {
     "required": ["hatch"],
-    "pre_setup": ["hatch env create"],
-    "prepend_path": ".venv/bin",
+    "pre_setup": [
+      "hatch env create \"${HATCH_ENV:-default}\"",
+      "ln -sfn \"$(hatch env find \"${HATCH_ENV:-default}\")\" .venv-py3.xx"
+    ],
+    "prepend_path": ".venv-py3.xx/bin",
     "acceptance_path": "tests/integration"
   }
 }
