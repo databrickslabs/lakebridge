@@ -1,4 +1,5 @@
 import logging
+import sys
 from collections.abc import Generator
 from pathlib import Path
 from email import policy
@@ -85,6 +86,8 @@ async def run_lsp_operations(
 
 
 # TODO: Remove this test? We really want to test the latest published version.
+@pytest.mark.skipif(sys.version_info >= (3, 14),
+                    reason="Embedded BB wheel does not support Python 3.14+")
 async def test_installs_and_runs_local_bladebridge(
     bladebridge_artifact: Path,
     transpiler_repository: TranspilerRepository,
