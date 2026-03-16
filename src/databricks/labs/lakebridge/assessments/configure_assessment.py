@@ -120,31 +120,39 @@ class ConfigureSynapseAssessment(AssessmentConfigurator):
         secret_vault_type = str(self.prompts.choice("Enter secret vault type (local | env)", ["local", "env"])).lower()
         secret_vault_name = None
 
+        # JDBC Settings
+        logger.info("Please select JDBC authentication type:")
+        auth_type = self.prompts.choice(
+            "Select authentication type", ["sql_authentication", "ad_passwd_authentication", "spn_authentication"]
+        )
+
         # Synapse Workspace Settings
         logger.info("Please provide Synapse Workspace settings:")
         workspace_name = self.prompts.question("Enter Synapse workspace name")
-        synapse_workspace = {
+        synapse_workspace: dict = {
             "name": workspace_name,
             "dedicated_sql_endpoint": f"{workspace_name}.sql.azuresynapse.net",
             "serverless_sql_endpoint": f"{workspace_name}-ondemand.sql.azuresynapse.net",
-            "sql_user": self.prompts.question("Enter SQL user"),
-            "sql_password": self.prompts.password("Enter SQL password"),
             "tz_info": self.prompts.question("Enter timezone (e.g. America/New_York)", default="UTC"),
             "driver": self.prompts.question(
                 "Enter the ODBC driver installed locally", default="ODBC Driver 18 for SQL Server"
             ),
         }
 
+        if auth_type == "spn_authentication":
+            logger.info(
+                "SPN authentication selected. "
+                "Ensure AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, and AZURE_TENANT_ID "
+                "are set as environment variables before running the profiler."
+            )
+        else:
+            synapse_workspace["sql_user"] = self.prompts.question("Enter SQL user")
+            synapse_workspace["sql_password"] = self.prompts.password("Enter SQL password")
+
         # Azure API Access Settings
         logger.info("Please provide Azure access settings:")
         # Users use az cli to login to their Azure account and we just need the endpoint
         azure_api_access = {"development_endpoint": self.prompts.question("Enter development endpoint")}
-
-        # JDBC Settings
-        logger.info("Please select JDBC authentication type:")
-        auth_type = self.prompts.choice(
-            "Select authentication type", ["sql_authentication", "ad_passwd_authentication", "spn_authentication"]
-        )
 
         synapse_jdbc = {
             "auth_type": auth_type,

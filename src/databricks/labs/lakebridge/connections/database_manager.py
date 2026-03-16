@@ -1,6 +1,7 @@
 import contextlib
 import dataclasses
 import logging
+import os
 from abc import abstractmethod
 from types import TracebackType
 from typing import Any
@@ -105,18 +106,29 @@ class MSSQLConnector(_BaseConnector):
             "loginTimeout": "30",
         }
 
+        username: str | None = None
+        password: str | None = None
+
         if auth_type == "ad_passwd_authentication":
             query_params = {
                 **query_params,
                 "authentication": "ActiveDirectoryPassword",
             }
         elif auth_type == "spn_authentication":
-            raise NotImplementedError("SPN Authentication not implemented yet")
+            missing = [v for v in ("AZURE_CLIENT_ID", "AZURE_CLIENT_SECRET") if not os.environ.get(v)]
+            if missing:
+                raise EnvironmentError(f"SPN authentication requires env vars: {', '.join(missing)}")
+            query_params = {
+                **query_params,
+                "authentication": "ActiveDirectoryServicePrincipal",
+            }
+            username = os.environ["AZURE_CLIENT_ID"]
+            password = os.environ["AZURE_CLIENT_SECRET"]
 
         connection_string = URL.create(
             drivername="mssql+pyodbc",
-            username=str(self.config['user']),
-            password=str(self.config['password']),
+            username=username if username is not None else str(self.config['user']),
+            password=password if password is not None else str(self.config['password']),
             host=str(self.config['server']),
             port=int(str(self.config.get('port', '1433'))),
             database=db_name,

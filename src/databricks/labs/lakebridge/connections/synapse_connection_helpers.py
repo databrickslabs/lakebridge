@@ -23,15 +23,17 @@ def create_synapse_connection(
     if not server:
         raise ValueError(f"Endpoint '{endpoint_key}' not found in workspace config")
 
-    config = {
+    config: dict = {
         "driver": workspace_config['driver'],
         "server": server,
         "database": database,
-        "user": workspace_config['sql_user'],
-        "password": workspace_config['sql_password'],
         "port": workspace_config.get('port', 1433),
         "auth_type": auth_type,
     }
+
+    if auth_type != "spn_authentication":
+        config["user"] = workspace_config['sql_user']
+        config["password"] = workspace_config['sql_password']
 
     return DatabaseManager(db_type="synapse", config=config)
 

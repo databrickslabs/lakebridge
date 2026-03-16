@@ -152,6 +152,15 @@ def sandbox_synapse_cred_config(sandbox_sqlserver_config: JsonObject) -> JsonObj
 
 
 @pytest.fixture()
+def sandbox_spn_sqlserver_config(sandbox_sqlserver_config: JsonObject, monkeypatch: pytest.MonkeyPatch) -> JsonObject:
+    env = TestEnvGetter(True)
+    monkeypatch.setenv("AZURE_CLIENT_ID", env.get("TOOLS_CLIENT_ID"))
+    monkeypatch.setenv("AZURE_CLIENT_SECRET", env.get("TOOLS_CLIENT_SECRET"))
+    config = {k: v for k, v in sandbox_sqlserver_config.items() if k not in ("user", "password")}
+    return {**config, "auth_type": "spn_authentication"}
+
+
+@pytest.fixture()
 def sandbox_synapse(sandbox_synapse_config: JsonObject) -> DatabaseManager:
     """Create a DatabaseManager for Synapse (uses MSSQLConnector via factory method)."""
     return DatabaseManager("synapse", sandbox_synapse_config)
