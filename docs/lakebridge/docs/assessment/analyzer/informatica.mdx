@@ -1,0 +1,146 @@
+---
+sidebar_position: 3
+title: Informatica Workloads
+---
+import useBaseUrl from '@docusaurus/useBaseUrl';
+
+# Analyzing Informatica Workloads
+
+- [Prerequisites](#prerequisites)
+- [Export Informatica Repository Objects](#export-informatica-repository-objects)
+- [Run the Analyzer](#run-the-analyzer)
+- [Sample Informatica Workload](#sample-informatica-workload)
+
+## Prerequisites
+
+1. **Lakebridge CLI** must be installed and configured. Verify by running:
+   ```bash
+   databricks labs lakebridge analyze --help
+   ```
+
+2. **Informatica PowerCenter repository objects** must be exported as XML files. The analyzer
+   supports the standard PowerCenter XML export format (`.XML` files conforming to the `powrmart.dtd` schema).
+
+3. **Local directory** containing the exported XML files must be accessible from the machine running the analyzer.
+
+## Export Informatica Repository Objects
+
+Before running the analyzer, you need to export your Informatica PowerCenter workflows, mappings, and sessions
+as XML files. There are two common approaches:
+
+### Option 1: Export from PowerCenter Designer/Workflow Manager
+
+1. Open **PowerCenter Designer** or **Workflow Manager**.
+2. Select the folder(s) containing the objects you want to analyze.
+3. Right-click and choose **Export Objects**.
+4. In the export dialog, select the objects to include (workflows, mappings, sessions, etc.).
+5. Choose **XML** as the export format.
+6. Save the exported `.XML` files to a local directory.
+
+### Option 2: Export using `pmrep`
+
+Use the Informatica command-line utility `pmrep` to export repository objects:
+
+```bash
+pmrep connect -r <repository_name> -d <domain> -n <username> -x <password>
+pmrep objectexport -o folder -n <folder_name> -u <output_directory>/export.xml
+```
+
+Place all exported `.XML` files into a single directory (or subdirectories) that the analyzer can scan.
+
+## Run the Analyzer
+
+### Using Command-Line Arguments
+
+```bash
+databricks labs lakebridge analyze \
+  --source-directory ./informatica_exports \
+  --report-file ./informatica-analysis.xlsx \
+  --source-tech "Informatica - PC"
+```
+
+### Using Interactive Prompts
+
+If you omit arguments, the CLI will prompt you for each setting:
+
+```console
+databricks labs lakebridge analyze
+
+Enter the source directory path: ./informatica_exports
+Enter the report file path (default: lakebridge-analyzer-results.xlsx): ./informatica-analysis.xlsx
+Select the source technology:
+ [0] ABInitio
+ ...
+ [12] Informatica - Big Data Edition
+ [13] Informatica - PC
+ [14] Informatica Cloud
+ ...
+Enter a number between 0 and 36: 13
+```
+
+### Supported Informatica Variants
+
+| Source Technology | Description |
+|:--|:--|
+| `Informatica - PC` | Informatica PowerCenter (most common) |
+| `Informatica - Big Data Edition` | Informatica Big Data Edition |
+| `Informatica Cloud` | Informatica Cloud (IICS) |
+
+### Expected Output
+
+The analyzer produces an Excel (`.xlsx`) report containing:
+
+- **Job inventory** — all workflows, mappings, sessions, and transformations found in the exported XML files
+- **Complexity scoring** — each component is scored as LOW, MEDIUM, COMPLEX, or VERY COMPLEX based on transformation types, number of ports, expressions, and data flow patterns
+- **Component metadata** — sources, targets, transformation types (Expression, Filter, Aggregator, Lookup, etc.), and mapping variables
+- **Interdependency mapping** — relationships between workflows, sessions, and mappings
+
+```console
+databricks labs lakebridge analyze \
+  --source-directory ./informatica_exports \
+  --report-file ./informatica-analysis.xlsx \
+  --source-tech "Informatica - PC"
+
+Analysis complete. Report written to: ./informatica-analysis.xlsx
+```
+
+## Sample Informatica Workload
+
+A sample Informatica PowerCenter workflow XML file is available for testing the analyzer:
+
+<a href={useBaseUrl('downloads/informatica_sample/wf_customer_orders_load.XML')} download>
+  Download Sample Informatica Workflow
+</a>
+
+This sample workflow (`wf_customer_orders_load.XML`) contains:
+
+- **2 source tables**: `Customers` and `Orders` (Oracle)
+- **1 target table**: `fact_customer_orders`
+- **1 mapping** (`m_customer_orders_load`) with 5 transformations:
+  - Source Qualifier with a user-defined join and source filter
+  - Expression for building a customer full name
+  - Filter for excluding invalid orders and a parameterized region
+  - Aggregator for summarizing orders by customer (COUNT, SUM, MAX)
+  - Expression for adding an audit timestamp
+- **1 workflow** with a session and scheduler configuration
+- **Mapping parameter**: `$$EXCLUDED_REGION`
+
+### Try It
+
+1. Download the sample file and place it in a directory:
+   ```bash
+   mkdir -p ./informatica_sample
+   # Move the downloaded file to this directory
+   ```
+
+2. Run the analyzer:
+   ```bash
+   databricks labs lakebridge analyze \
+     --source-directory ./informatica_sample \
+     --report-file ./informatica-sample-results.xlsx \
+     --source-tech "Informatica - PC"
+   ```
+
+3. Open `informatica-sample-results.xlsx` to review the analysis results.
+
+[Back to Analyzer Guide](../)
