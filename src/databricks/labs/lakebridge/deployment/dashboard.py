@@ -156,7 +156,7 @@ class ProfilerDashboardTemplateLoader:
         if self.templates_dir is None:
             raise ValueError("Dashboard template path cannot be empty.")
 
-        filename = f"{source_system.lower()}_dashboard.lvdash.json"
+        filename = f"lakebridge_{source_system.lower()}_profiler_summary.lvdash.json"
         filepath = os.path.join(self.templates_dir, filename)
         try:
             with open(filepath, "r", encoding="utf-8") as f:
@@ -187,8 +187,8 @@ class ProfilerDashboardManager:
         serialized_dashboard: str,
         new_catalog: str,
         new_schema: str,
-        old_catalog: str = "`PROFILER_CATALOG`",
-        old_schema: str = "`PROFILER_SCHEMA`",
+        old_catalog: str = "<CATALOG_NAME>",
+        old_schema: str = "<SCHEMA_NAME>",
     ):
         """Given a serialized JSON dashboard, replaces all catalog and schema references with the
         provided catalog and schema names."""
