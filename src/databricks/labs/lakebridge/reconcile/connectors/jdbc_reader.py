@@ -12,6 +12,7 @@ class JDBCReaderMixin:
     def _get_jdbc_reader(self, query, jdbc_url, driver, additional_options: dict | None = None):
         driver_class = {
             "oracle": "oracle.jdbc.OracleDriver",
+            "redshift": "com.amazon.redshift.Driver",
             "snowflake": "net.snowflake.client.jdbc.SnowflakeDriver",
             "sqlserver": "com.microsoft.sqlserver.jdbc.SQLServerDriver",
         }
