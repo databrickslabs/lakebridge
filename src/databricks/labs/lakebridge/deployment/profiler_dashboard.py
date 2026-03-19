@@ -108,11 +108,7 @@ class ProfilerDashboardDeployment:
         ]
 
     def _get_deprecated_jobs(self) -> list[tuple[str, int]]:
-        return [
-            (job_name, int(job_id))
-            for job_name, job_id in self._install_state.jobs.items()
-            if job_name.startswith(_PROFILER_DASHBOARD_PREFIX) and job_name != PROFILER_INGESTION_JOB_NAME
-        ]
+        return [(name, job_id) for name, job_id in self._get_jobs() if name != PROFILER_INGESTION_JOB_NAME]
 
     def _remove_jobs(self):
         for job_name, job_id in self._get_jobs():
