@@ -29,7 +29,11 @@ You must use **SQL Authentication** (username and password) to connect to the SQ
 The SQL user configured for the profiler must have read access to the system catalog views and Dynamic Management Views (DMVs)
 listed in [Profiled Tables and Views](#profiled-tables-and-views).
 
-A SQL Server administrator can grant the minimum required privileges by executing the following statements:
+Permissions differ depending on whether you are running against an **on-premises SQL Server** or **Azure SQL Database**.
+
+#### On-Premises SQL Server
+
+On a self-hosted SQL Server instance, a server-level grant is sufficient:
 
 ```sql
 -- Grant access to Dynamic Management Views (DMVs)
@@ -46,6 +50,41 @@ GRANT SELECT ON SCHEMA::INFORMATION_SCHEMA TO [<user_name>];
 `VIEW SERVER STATE` is a server-level permission required to query `sys.dm_*` Dynamic Management Views.
 `VIEW DEFINITION` allows the user to see the definitions of stored procedures and views.
 These grants should be executed by a `sysadmin` or a login with `CONTROL SERVER` permission.
+:::
+
+#### Azure SQL Database
+
+:::warning Attention:
+`VIEW SERVER STATE` is **not supported** on Azure SQL Database. You must use `VIEW DATABASE STATE` instead,
+which must be granted **per database** — including the `master` database.
+:::
+
+First, identify your target database(s) by connecting as an admin and running:
+
+```sql
+SELECT name FROM sys.databases WHERE database_id > 4;
+```
+
+Then grant permissions in both `master` and each target database:
+
+```sql
+-- In the master database (required for server-level DMVs like sys.databases, sys.dm_os_sys_info)
+USE master;
+CREATE USER [<user_name>] FROM LOGIN [<user_name>];
+GRANT VIEW DATABASE STATE TO [<user_name>];
+
+-- In each target database
+USE [<target_database>];
+CREATE USER [<user_name>] FROM LOGIN [<user_name>];
+GRANT VIEW DATABASE STATE TO [<user_name>];
+GRANT VIEW DEFINITION TO [<user_name>];
+GRANT SELECT ON SCHEMA::INFORMATION_SCHEMA TO [<user_name>];
+```
+
+:::tip
+On Azure SQL Database, `VIEW DATABASE STATE` is scoped to a single database. The profiler queries
+server-level DMVs (e.g., `sys.databases`, `sys.dm_os_sys_info`) in the `master` database context, so
+the user must have `VIEW DATABASE STATE` granted there in addition to the target database(s).
 :::
 
 ## Profiled Tables and Views
