@@ -432,7 +432,6 @@ class WorkspaceInstaller:
             )
 
         config = self._configure_new_profiler_dashboard_installation()
-        self._save_config(config)
         logger.info("Finished configuring Lakebridge profiler dashboard.")
         return config
 
