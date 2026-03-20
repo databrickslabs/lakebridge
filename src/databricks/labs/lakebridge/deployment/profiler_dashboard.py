@@ -65,11 +65,11 @@ class ProfilerDashboardDeployment:
             return
         job_run_url = f"{self._ws.config.host}/jobs/{job_id}/runs/{wait.run_id}"
         logger.info(f"Triggered profiler ingestion job. Job run URL: {job_run_url}")
-        logger.info("It may take a few minutes for the ingestion job to complete and for the dashboard to populate with data.")
+        logger.info(
+            "It may take a few minutes for the ingestion job to complete and for the dashboard to populate with data."
+        )
         for dashboard_id in self._install_state.dashboards.values():
-            logger.info(
-                f"Profiler dashboard URL: {self._ws.config.host}/sql/dashboardsv3/{dashboard_id}"
-            )
+            logger.info(f"Profiler dashboard URL: {self._ws.config.host}/sql/dashboardsv3/{dashboard_id}")
 
     def uninstall(self, profiler_dashboard_config: ProfilerDashboardConfig | None):
         if not profiler_dashboard_config:

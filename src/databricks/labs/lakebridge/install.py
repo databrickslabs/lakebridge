@@ -445,7 +445,9 @@ class WorkspaceInstaller:
         source_tech = self._prompts.question("Enter the source tech:", default="synapse")
         extract_file_path = self._prompts.question(
             "Enter the path to the profiler extract file:",
-            default="~/.databricks/labs/lakebridge_profilers/synapse_assessment/profiler_extract.db",
+            default=str(
+                Path("~/.databricks/labs/lakebridge_profilers/synapse_assessment/profiler_extract.db").expanduser()
+            ),
         )
 
         metadata_config = self._prompt_for_profiler_dashboard_metadata_config()
