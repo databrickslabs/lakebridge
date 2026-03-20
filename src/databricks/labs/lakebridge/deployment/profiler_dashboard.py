@@ -46,11 +46,30 @@ class ProfilerDashboardDeployment:
             self._deploy_dashboards(profiler_dashboard_config)
             self._deploy_jobs(profiler_dashboard_config, wheel_path)
             self._install_state.save()
+            self._trigger_ingestion_job()
             logger.info("Installation of the profiler dashboard components completed successfully.")
         except (RuntimeError, ValueError, InvalidParameterValue, NotFound) as e:
             error_msg = f"Failed to deploy profiler dashboard and ingestion job: {e}"
             logger.error(error_msg)
             raise SystemExit(error_msg) from e
+
+    def _trigger_ingestion_job(self) -> None:
+        job_id_str = self._install_state.jobs.get(PROFILER_INGESTION_JOB_NAME)
+        if not job_id_str:
+            logger.warning("Profiler ingestion job ID not found; skipping auto-trigger.")
+            return
+        job_id = int(job_id_str)
+        wait = self._ws.jobs.run_now(job_id)
+        if not wait.run_id:
+            logger.warning(f"Could not retrieve run ID for profiler ingestion job {job_id}.")
+            return
+        job_run_url = f"{self._ws.config.host}/jobs/{job_id}/runs/{wait.run_id}"
+        logger.info(f"Triggered profiler ingestion job. Job run URL: {job_run_url}")
+        logger.info("It may take a few minutes for the ingestion job to complete and for the dashboard to populate with data.")
+        for dashboard_id in self._install_state.dashboards.values():
+            logger.info(
+                f"Profiler dashboard URL: {self._ws.config.host}/sql/dashboardsv3/{dashboard_id}"
+            )
 
     def uninstall(self, profiler_dashboard_config: ProfilerDashboardConfig | None):
         if not profiler_dashboard_config:
