@@ -39,10 +39,10 @@ class ProfilerDashboardDeployment:
             logger.warning("Profiler Dashboard Config is empty.")
             return
         logger.info("Installing the profiler dashboard components.")
+        if not self._upload_profiler_extract(profiler_dashboard_config):
+            logger.error("Profiler extract upload failed. Aborting installation.")
+            return
         try:
-            if not self._upload_profiler_extract(profiler_dashboard_config):
-                logger.error("Profiler extract upload failed. Aborting installation.")
-                return
             self._deploy_dashboards(profiler_dashboard_config)
             self._deploy_jobs(profiler_dashboard_config, wheel_path)
             self._install_state.save()
