@@ -16,22 +16,24 @@ import Admonition from '@theme/Admonition';
 
 - Network access to the Teradata system.
 - Python package dependency used by Lakebridge: `teradatasqlalchemy`.
-- A Teradata user with `SELECT` access to base objects:
-  - `DBC.DBCInfoTbl`
-  - `DBC.ResUsageSpma`
-  - `DBC.DiskSpaceV`
-  - `DBC.TablesV`
-  - `DBC.FunctionsV`
-  - `DBC.ColumnsV`
-  - `DBC.DatabasesV`
-  - `DBC.DBQLogTbl`
-  - `DBC.DBQLSQLTbl`
+- Access to Teradata database with appropriate permissions.
 
-### 2. Optional PDCR access for longer-history analysis
+### 2. Required permissions on system views
+
+Grant `SELECT` access to:
+
+- `DBC.DBCInfoTbl`
+- `DBC.ResUsageSpma`
+- `DBC.DiskSpaceV`
+- `DBC.TablesV`
+- `DBC.FunctionsV`
+- `DBC.ColumnsV`
+
+### 3. Optional PDCR access for longer-history analysis
 
 For richer, aggregated history (up to 180 days in the default extraction), grant `SELECT` access to:
 
-- `PDCRINFO.DBQLogTbl_Hst`
+- `PDCRINFO.DBQlogTbl_Hst`
 - `PDCRINFO.DBQLSummaryTbl_Hst`
 - `PDCRINFO.UserInfo`
 
