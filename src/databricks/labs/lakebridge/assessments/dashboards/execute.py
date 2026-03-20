@@ -72,8 +72,7 @@ def _validate_profiler_extract(
 ) -> bool:
     logger.info("Validating the profiler extract file.")
     validation_checks: list[EmptyTableValidationCheck | ExtractSchemaValidationCheck] = []
-    # TODO: Verify this, I don't think it works? (These files are part of the test resources.)
-    schema_def = resources.files(assessment_resources).joinpath(f"{source_tech}_schema_def.yml")
+    schema_def = _resolve_schema_definition(source_tech)
     tables = _get_extract_tables(schema_def)
     try:
         with duckdb.connect(database=extract_location) as duck_conn, resources.as_file(schema_def) as schema_def_path:
@@ -113,6 +112,28 @@ def _validate_profiler_extract(
     else:
         raise ValueError("Profiler extract validation report is empty.")
     return num_errors == 0
+
+
+def _resolve_schema_definition(source_tech: str) -> Traversable:
+    """
+    Resolve schema definition file for a profiler source technology.
+
+    Preferred path: <source>_schema_def.yml
+    Backward compatible path: validation/<source>_extract_schema.yml
+    """
+    root = resources.files(assessment_resources)
+    direct_schema = root.joinpath(f"{source_tech}_schema_def.yml")
+    if direct_schema.is_file():
+        return direct_schema
+
+    validation_schema = root.joinpath("validation").joinpath(f"{source_tech}_extract_schema.yml")
+    if validation_schema.is_file():
+        return validation_schema
+
+    raise FileNotFoundError(
+        f"Schema definition not found for source '{source_tech}'. "
+        f"Checked '{source_tech}_schema_def.yml' and 'validation/{source_tech}_extract_schema.yml'."
+    )
 
 
 def _ingest_profiler_tables(catalog_name: str, schema_name: str, extract_location: str) -> None:

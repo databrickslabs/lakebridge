@@ -2,6 +2,7 @@
 from unittest.mock import MagicMock, create_autospec
 from pathlib import Path
 from typing import cast, Any
+from types import SimpleNamespace
 
 import pytest
 
@@ -11,7 +12,7 @@ from databricks.sdk.service.iam import User
 
 from databricks.labs.blueprint.installation import MockInstallation
 from databricks.labs.blueprint.installer import InstallState
-from databricks.labs.lakebridge.assessments.dashboards.dashboard_manager import DashboardManager
+from databricks.labs.lakebridge.assessments.dashboards.dashboard_manager import DashboardManager, DashboardTemplateLoader
 
 
 @pytest.fixture
@@ -121,3 +122,30 @@ def test_upload_duckdb_to_uc_volume_databricks_errors(
     )
     assert result is False
     ws.files.upload.assert_called_once()
+
+
+def test_create_profiler_summary_dashboard_uses_teradata_template_loader(
+    dashboard_manager: DashboardManager,
+    mocked_workspace_client: WorkspaceClient,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    ws = mocked_workspace_client
+    ws.config = SimpleNamespace(warehouse_id="test-wh")
+    ws.workspace.mkdirs.return_value = None
+    ws.lakeview.create.return_value = SimpleNamespace(dashboard_id="dash-123")
+
+    captured: dict[str, str] = {}
+
+    def _fake_load(self, source_system: str) -> dict:
+        captured["source_system"] = source_system
+        return {"datasets": [], "pages": []}
+
+    monkeypatch.setattr(DashboardTemplateLoader, "load", _fake_load)
+
+    dashboard_manager.create_profiler_summary_dashboard(
+        source_tech="teradata",
+        catalog_name="lakebridge_profiler",
+        schema_name="profiler_runs",
+    )
+
+    assert captured.get("source_system") == "teradata"

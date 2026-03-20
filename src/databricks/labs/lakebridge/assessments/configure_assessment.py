@@ -178,6 +178,41 @@ class ConfigureSynapseAssessment(AssessmentConfigurator):
         return source
 
 
+class ConfigureTeradataAssessment(AssessmentConfigurator):
+    """Teradata specific assessment configuration."""
+
+    def _configure_credentials(self) -> str:
+        cred_file = self._credential_file
+        source = self._source_name
+
+        logger.info(
+            "\n(local | env) \nlocal means values are read as plain text \nenv means values are read "
+            "from environment variables fall back to plain text if not variable is not found\n",
+        )
+        secret_vault_type = str(self.prompts.choice("Enter secret vault type (local | env)", ["local", "env"])).lower()
+        secret_vault_name = None
+
+        logger.info("Please refer to the documentation to understand the difference between local and env.")
+
+        credential = {
+            "secret_vault_type": secret_vault_type,
+            "secret_vault_name": secret_vault_name,
+            source: {
+                "host": self.prompts.question("Enter the Teradata server or host details"),
+                "user": self.prompts.question("Enter the user details"),
+                "password": self.prompts.password("Enter the password details"),
+                "database": self.prompts.question("Enter the default database name", default="DBC"),
+                "profiler": {
+                    "use_pdcr": self.prompts.confirm("Use PDCR tables for extended history profiling?"),
+                },
+            },
+        }
+
+        _save_to_disk(credential, cred_file)
+        logger.info(f"Credential template created for {source}.")
+        return source
+
+
 def create_assessment_configurator(
     source_system: str, product_name: str, prompts: Prompts, credential_file=None
 ) -> AssessmentConfigurator:
@@ -185,6 +220,7 @@ def create_assessment_configurator(
     configurators = {
         "mssql": ConfigureSqlServerAssessment,
         "synapse": ConfigureSynapseAssessment,
+        "teradata": ConfigureTeradataAssessment,
     }
 
     if source_system not in configurators:

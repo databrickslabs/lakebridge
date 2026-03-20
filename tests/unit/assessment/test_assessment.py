@@ -4,6 +4,7 @@ from databricks.labs.lakebridge.assessments.configure_assessment import (
     create_assessment_configurator,
     ConfigureSqlServerAssessment,
     ConfigureSynapseAssessment,
+    ConfigureTeradataAssessment,
 )
 
 
@@ -126,9 +127,53 @@ def test_create_assessment_configurator():
     )
     assert isinstance(synapse_configurator, ConfigureSynapseAssessment)
 
+    # Test Teradata configurator
+    teradata_configurator = create_assessment_configurator(
+        source_system="teradata", product_name="lakebridge", prompts=prompts
+    )
+    assert isinstance(teradata_configurator, ConfigureTeradataAssessment)
+
     # Test invalid source system
     try:
         create_assessment_configurator(source_system="invalid", product_name="lakebridge", prompts=prompts)
         assert False, "Expected ValueError for invalid source system"
     except ValueError as e:
         assert str(e) == "Unsupported source system: invalid"
+
+
+def test_configure_teradata_credentials(tmp_path):
+    prompts = MockPrompts(
+        {
+            r"Enter secret vault type \(local \| env\)": sorted(['local', 'env']).index("env"),
+            r"Enter the Teradata server or host details": "TERADATA_HOST",
+            r"Enter the user details": "TERADATA_USER",
+            r"Enter the password details": "TERADATA_PASSWORD",
+            r"Enter the default database name": "DBC",
+            r"Use PDCR tables for extended history profiling\?": "yes",
+            r"Do you want to test the connection to teradata\?": "no",
+        }
+    )
+    file = tmp_path / ".credentials.yml"
+    assessment = ConfigureTeradataAssessment(
+        product_name="lakebridge", source_name="teradata", prompts=prompts, credential_file=file
+    )
+    assessment.run()
+
+    expected_credentials = {
+        'secret_vault_type': 'env',
+        'secret_vault_name': None,
+        'teradata': {
+            'host': 'TERADATA_HOST',
+            'user': 'TERADATA_USER',
+            'password': 'TERADATA_PASSWORD',
+            'database': 'DBC',
+            'profiler': {
+                'use_pdcr': True,
+            },
+        },
+    }
+
+    with open(file, 'r', encoding='utf-8') as handle:
+        credentials = yaml.safe_load(handle)
+
+    assert credentials == expected_credentials

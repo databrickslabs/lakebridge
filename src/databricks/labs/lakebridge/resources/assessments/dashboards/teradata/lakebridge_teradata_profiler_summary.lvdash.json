@@ -1,0 +1,398 @@
+{
+  "datasets": [
+    {
+      "name": "td_overview_ds",
+      "displayName": "Profiler Extract Overview",
+      "queryLines": [
+        "with sys_info as (\n",
+        "  select count(*) as cnt from IDENTIFIER(:td_sys_info_table)\n",
+        "),\n",
+        "pdcr as (\n",
+        "  select count(*) as cnt from IDENTIFIER(:td_pdcr_table)\n",
+        "),\n",
+        "dbql as (\n",
+        "  select count(*) as cnt from IDENTIFIER(:td_dbql_table)\n",
+        ")\n",
+        "select 'System info rows' as metric, cnt as value from sys_info\n",
+        "union all\n",
+        "select 'PDCR query rows' as metric, cnt as value from pdcr\n",
+        "union all\n",
+        "select 'DBQL fallback rows' as metric, cnt as value from dbql"
+      ],
+      "parameters": [
+        {
+          "displayName": "td_sys_info_table",
+          "keyword": "td_sys_info_table",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": "<CATALOG_NAME>.<SCHEMA_NAME>.td_sys_info"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "displayName": "td_pdcr_table",
+          "keyword": "td_pdcr_table",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": "<CATALOG_NAME>.<SCHEMA_NAME>.td_pdcr_info_agg_extract"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "displayName": "td_dbql_table",
+          "keyword": "td_dbql_table",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": "<CATALOG_NAME>.<SCHEMA_NAME>.td_dbql_core_info_extract"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "td_storage_ds",
+      "displayName": "Top Databases by Storage",
+      "queryLines": [
+        "select\n",
+        "  DATABASENAME,\n",
+        "  round(CURRENT_PERM_MB / 1024.0, 2) as used_gb\n",
+        "from IDENTIFIER(:td_disk_table)\n",
+        "where DATABASENAME is not null\n",
+        "order by used_gb desc\n",
+        "limit 20"
+      ],
+      "parameters": [
+        {
+          "displayName": "td_disk_table",
+          "keyword": "td_disk_table",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": "<CATALOG_NAME>.<SCHEMA_NAME>.td_sys_disk_utilization"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "td_query_type_ds",
+      "displayName": "Query Type Distribution",
+      "queryLines": [
+        "with pdcr as (\n",
+        "  select QueryType as query_type, cast(sum(QryCNT) as double) as query_count\n",
+        "  from IDENTIFIER(:td_pdcr_table)\n",
+        "  group by 1\n",
+        "),\n",
+        "dbql as (\n",
+        "  select 'DBQL_CORE' as query_type, cast(count(*) as double) as query_count\n",
+        "  from IDENTIFIER(:td_dbql_table)\n",
+        "),\n",
+        "combined as (\n",
+        "  select * from pdcr\n",
+        "  union all\n",
+        "  select * from dbql\n",
+        ")\n",
+        "select query_type, sum(query_count) as query_count\n",
+        "from combined\n",
+        "group by 1\n",
+        "order by 2 desc"
+      ],
+      "parameters": [
+        {
+          "displayName": "td_pdcr_table",
+          "keyword": "td_pdcr_table",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": "<CATALOG_NAME>.<SCHEMA_NAME>.td_pdcr_info_agg_extract"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "displayName": "td_dbql_table",
+          "keyword": "td_dbql_table",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": "<CATALOG_NAME>.<SCHEMA_NAME>.td_dbql_core_info_extract"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "td_objects_ds",
+      "displayName": "Object Type Inventory",
+      "queryLines": [
+        "select\n",
+        "  TableKind,\n",
+        "  sum(TableKindCount) as object_count\n",
+        "from IDENTIFIER(:td_objects_table)\n",
+        "group by 1\n",
+        "order by 2 desc"
+      ],
+      "parameters": [
+        {
+          "displayName": "td_objects_table",
+          "keyword": "td_objects_table",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": "<CATALOG_NAME>.<SCHEMA_NAME>.td_db_object_types"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "pages": [
+    {
+      "name": "teradata_summary_page",
+      "displayName": "Teradata Results",
+      "layout": [
+        {
+          "widget": {
+            "name": "title_widget",
+            "multilineTextboxSpec": {
+              "lines": [
+                "# Teradata Profiler Summary"
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 12,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "overview_table",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "td_overview_ds",
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "table",
+              "frame": {
+                "title": "Extract Coverage",
+                "showTitle": true
+              },
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "metric"
+                  },
+                  {
+                    "fieldName": "value"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 2,
+            "width": 4,
+            "height": 7
+          }
+        },
+        {
+          "widget": {
+            "name": "storage_bar",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "td_storage_ds",
+                  "fields": [
+                    {
+                      "name": "DATABASENAME",
+                      "expression": "`DATABASENAME`"
+                    },
+                    {
+                      "name": "used_gb",
+                      "expression": "`used_gb`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "frame": {
+                "title": "Top Databases by Used Space (GB)",
+                "showTitle": true
+              },
+              "encodings": {
+                "x": {
+                  "fieldName": "DATABASENAME",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "y": {
+                  "fieldName": "used_gb",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 4,
+            "y": 2,
+            "width": 8,
+            "height": 7
+          }
+        },
+        {
+          "widget": {
+            "name": "query_type_bar",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "td_query_type_ds",
+                  "fields": [
+                    {
+                      "name": "query_type",
+                      "expression": "`query_type`"
+                    },
+                    {
+                      "name": "query_count",
+                      "expression": "`query_count`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "frame": {
+                "title": "Query Type Distribution (PDCR + DBQL Fallback)",
+                "showTitle": true
+              },
+              "encodings": {
+                "x": {
+                  "fieldName": "query_type",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "y": {
+                  "fieldName": "query_count",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 9,
+            "width": 8,
+            "height": 8
+          }
+        },
+        {
+          "widget": {
+            "name": "objects_table",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "td_objects_ds",
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "table",
+              "frame": {
+                "title": "Database Object Inventory",
+                "showTitle": true
+              },
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "TableKind"
+                  },
+                  {
+                    "fieldName": "object_count"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 8,
+            "y": 9,
+            "width": 4,
+            "height": 8
+          }
+        }
+      ],
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layoutVersion": "GRID_V1"
+    }
+  ],
+  "uiSettings": {
+    "theme": {
+      "widgetHeaderAlignment": "ALIGNMENT_UNSPECIFIED"
+    },
+    "applyModeEnabled": false
+  }
+}

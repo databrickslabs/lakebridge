@@ -1,8 +1,9 @@
 import logging
 from pathlib import Path
+from collections.abc import Mapping
 
 from databricks.labs.lakebridge.assessments.pipeline import PipelineClass
-from databricks.labs.lakebridge.assessments.profiler_config import PipelineConfig
+from databricks.labs.lakebridge.assessments.profiler_config import PipelineConfig, Step
 from databricks.labs.lakebridge.connections.database_manager import DatabaseManager
 from databricks.labs.lakebridge.connections.credential_manager import (
     create_credential_manager,
@@ -65,10 +66,40 @@ class Profiler:
         connect_config = cred_manager.get_credentials(platform)
         return DatabaseManager(platform, connect_config)
 
+    @staticmethod
+    def _configure_teradata_pipeline(pipeline_config: PipelineConfig, connect_config: Mapping[str, object]) -> PipelineConfig:
+        profiler_config = connect_config.get("profiler")
+        use_pdcr = True
+        if isinstance(profiler_config, Mapping):
+            use_pdcr = bool(profiler_config.get("use_pdcr", True))
+
+        if use_pdcr:
+            return pipeline_config
+
+        updated_steps: list[Step] = []
+        for step in pipeline_config.steps:
+            if step.name in {"td_pdcr_info_agg_extract", "td_pdcr_sp_exe_info_agg_extract"}:
+                updated_steps.append(step.copy(flag="inactive"))
+            elif step.name == "td_dbql_core_info_extract":
+                updated_steps.append(step.copy(flag="active"))
+            else:
+                updated_steps.append(step)
+        logger.info("Teradata profiler configured without PDCR; using DBQL core fallback extract.")
+        return pipeline_config.copy(steps=updated_steps)
+
     def _execute(self, platform: str, pipeline_config: PipelineConfig, extractor=None) -> None:
         try:
+            connect_config = None
             if extractor is None:
-                extractor = Profiler._setup_extractor(platform)
+                if CONNECTOR_REQUIRED[platform]:
+                    cred_manager = create_credential_manager(PRODUCT_NAME, EnvGetter())
+                    connect_config = cred_manager.get_credentials(platform)
+                    extractor = DatabaseManager(platform, connect_config)
+                else:
+                    extractor = None
+
+            if platform == "teradata" and connect_config is not None:
+                pipeline_config = self._configure_teradata_pipeline(pipeline_config, connect_config)
 
             result = PipelineClass(pipeline_config, extractor).execute()
             logger.info(f"Profile execution has completed successfully for {platform} for more info check: {result}.")

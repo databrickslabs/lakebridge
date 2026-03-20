@@ -1,0 +1,94 @@
+---
+sidebar_position: 2
+title: Teradata Profiler Details
+---
+import Admonition from '@theme/Admonition';
+
+# Teradata Profiler Details
+
+- [Prerequisites](#prerequisites)
+- [Configure Connection to Teradata](#configure-connection-to-teradata)
+- [PDCR Optional Mode](#pdcr-optional-mode)
+
+## Prerequisites
+
+### 1. Teradata connectivity and driver
+
+- Network access to the Teradata system.
+- Python package dependency used by Lakebridge: `teradatasqlalchemy`.
+- A Teradata user with `SELECT` access to base objects:
+  - `DBC.DBCInfoTbl`
+  - `DBC.ResUsageSpma`
+  - `DBC.DiskSpaceV`
+  - `DBC.TablesV`
+  - `DBC.FunctionsV`
+  - `DBC.ColumnsV`
+  - `DBC.DatabasesV`
+  - `DBC.DBQLogTbl`
+  - `DBC.DBQLSQLTbl`
+
+### 2. Optional PDCR access for longer-history analysis
+
+For richer, aggregated history (up to 180 days in the default extraction), grant `SELECT` access to:
+
+- `PDCRINFO.DBQLogTbl_Hst`
+- `PDCRINFO.DBQLSummaryTbl_Hst`
+- `PDCRINFO.UserInfo`
+
+<Admonition type="info" title="PDCR is optional">
+If PDCR is not enabled in the customer environment, Lakebridge can run in fallback mode using core DBQL tables only.
+</Admonition>
+
+## Configure Connection to Teradata
+
+```console
+databricks labs lakebridge configure-database-profiler
+
+Select the source technology
+[0] synapse
+[1] teradata
+Enter a number between 0 and 1: 1
+
+(local | env)
+local means values are read as plain text
+env means values are read from environment variables fall back to plain text if not variable is not found
+
+Enter secret vault type (local | env)
+[0] env
+[1] local
+Enter a number between 0 and 1: 1
+Enter the Teradata server or host details: td-host.example.com
+Enter the user details: dbc_user
+Enter the password details:
+Enter the default database name (default: DBC):
+Use PDCR tables for extended history profiling? (default: yes):
+```
+
+The generated credential block includes:
+
+- `teradata.host`
+- `teradata.user`
+- `teradata.password`
+- `teradata.database`
+- `teradata.profiler.use_pdcr`
+
+## PDCR Optional Mode
+
+When `teradata.profiler.use_pdcr = true`:
+
+- Lakebridge extracts PDCR aggregated datasets:
+  - `td_pdcr_info_agg_extract`
+  - `td_pdcr_sp_exe_info_agg_extract`
+
+When `teradata.profiler.use_pdcr = false`:
+
+- Lakebridge disables PDCR extraction steps.
+- Lakebridge enables DBQL fallback extraction:
+  - `td_dbql_core_info_extract`
+
+### Fallback data limitations
+
+Without PDCR, available data is typically narrower (for example, recent days from DBQL instead of long historical aggregates).
+This can reduce long-horizon trend analysis and may underrepresent short-query aggregate metrics.
+
+[Back to Configure Profiler](../#configure-profiler)

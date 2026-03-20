@@ -8,6 +8,19 @@ from databricks.labs.lakebridge.assessments.pipeline import PipelineClass
 from databricks.labs.lakebridge.assessments.profiler import Profiler
 
 
+def test_teradata_as_supported_source_technologies() -> None:
+    profiler = Profiler("teradata", None)
+    supported_platforms = profiler.supported_platforms()
+    assert isinstance(supported_platforms, list)
+    assert "teradata" in supported_platforms
+
+
+def test_teradata_profile_missing_platform_config() -> None:
+    with pytest.raises(ValueError, match="Cannot Proceed without a valid pipeline configuration for teradata"):
+        profiler = Profiler("teradata", None)
+        profiler.profile()
+
+
 def test_supported_source_technologies() -> None:
     """Test that supported source technologies are correctly returned"""
     profiler = Profiler("synapse", None)

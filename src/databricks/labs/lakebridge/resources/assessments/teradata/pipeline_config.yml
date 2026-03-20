@@ -1,0 +1,133 @@
+name: teradata_assessment
+version: "1.0"
+extract_folder: "~/.databricks/labs/lakebridge_profilers/teradata_assessment"
+steps:
+  - name: td_sys_info
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/teradata/td_sys_info_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: td_sys_info
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/teradata/td_sys_info.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+
+  - name: td_sys_nodes_info
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/teradata/td_sys_nodes_info_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: td_sys_nodes_info
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/teradata/td_sys_nodes_info.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+
+  - name: td_sys_usage_agg
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/teradata/td_sys_usage_agg_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: td_sys_usage_agg
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/teradata/td_sys_usage_agg.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+
+  - name: td_sys_disk_utilization
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/teradata/td_sys_disk_utilization_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: td_sys_disk_utilization
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/teradata/td_sys_disk_utilization.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+
+  - name: td_db_object_types
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/teradata/td_db_object_types_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: td_db_object_types
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/teradata/td_db_object_types.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+
+  - name: td_user_databases
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/teradata/td_user_databases_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: td_user_databases
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/teradata/td_user_databases.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+
+  - name: td_dwh_udf
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/teradata/td_dwh_udf_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: td_dwh_udf
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/teradata/td_dwh_udf.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+
+  - name: td_pdcr_info_agg_extract
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/teradata/td_pdcr_info_agg_extract_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: td_pdcr_info_agg_extract
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/teradata/td_pdcr_info_agg_extract.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+
+  - name: td_pdcr_sp_exe_info_agg_extract
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/teradata/td_pdcr_sp_exe_info_agg_extract_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: td_pdcr_sp_exe_info_agg_extract
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/teradata/td_pdcr_sp_exe_info_agg_extract.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+
+  - name: td_dbql_core_info_extract
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/teradata/td_dbql_core_info_extract_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: td_dbql_core_info_extract
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/teradata/td_dbql_core_info_extract.sql
+    mode: overwrite
+    frequency: once
+    flag: inactive

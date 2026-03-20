@@ -80,6 +80,7 @@ def _create_connector(db_type: str, config: JsonObject) -> DatabaseConnector:
         "mssql": MSSQLConnector,
         "tsql": MSSQLConnector,
         "synapse": MSSQLConnector,  # Synapse uses MSSQL protocol
+        "teradata": TeradataConnector,
     }
 
     connector_class = connectors.get(db_type.lower())
@@ -120,6 +121,22 @@ class MSSQLConnector(_BaseConnector):
             host=str(self.config['server']),
             port=int(str(self.config.get('port', '1433'))),
             database=db_name,
+            query=query_params,
+        )
+        return create_engine(connection_string)
+
+
+class TeradataConnector(_BaseConnector):
+    def _connect(self) -> Engine:
+        query_params: dict[str, str] = {}
+        if self.config.get("database"):
+            query_params["database"] = str(self.config["database"])
+
+        connection_string = URL.create(
+            drivername="teradatasql",
+            username=str(self.config['user']),
+            password=str(self.config['password']),
+            host=str(self.config['host']),
             query=query_params,
         )
         return create_engine(connection_string)

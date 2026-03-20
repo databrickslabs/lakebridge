@@ -61,3 +61,14 @@ def test_fetch_commit(mock_mssql_connector) -> None:
 
     assert mutate_result == mock_result
     mock_connector_instance.fetch.assert_called_once_with(mutate_query)
+
+
+@patch('databricks.labs.lakebridge.connections.database_manager.TeradataConnector')
+def test_teradata_connector(mock_teradata_connector) -> None:
+    mock_connector_instance = MagicMock()
+    mock_teradata_connector.return_value = mock_connector_instance
+
+    db_manager = DatabaseManager("teradata", sample_config)
+
+    assert db_manager.connector == mock_connector_instance
+    mock_teradata_connector.assert_called_once_with(sample_config)

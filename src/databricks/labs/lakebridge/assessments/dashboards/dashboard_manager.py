@@ -72,7 +72,7 @@ class DashboardManager:
         return updated_dashboard.replace(old_schema, f"`{new_schema}`")
 
     def _create_or_replace_dashboard(
-        self, folder: Path, ws_parent_path: str, dest_catalog: str, dest_schema: str
+        self, folder: Path, ws_parent_path: str, source_tech: str, dest_catalog: str, dest_schema: str
     ) -> Dashboard:
         """
         Creates or updates a profiler summary dashboard in the current user’s Databricks workspace home.
@@ -83,7 +83,7 @@ class DashboardManager:
         logger.info(f"Loading dashboard template from folder: {folder}")
         dash_reference = f"{folder.stem}".lower()
         dashboard_loader = DashboardTemplateLoader(folder)
-        dashboard_json = dashboard_loader.load(source_system="synapse")
+        dashboard_json = dashboard_loader.load(source_system=source_tech)
         dashboard_str = json.dumps(dashboard_json)
 
         # Replace catalog and schema placeholders
@@ -135,7 +135,11 @@ class DashboardManager:
         except ResourceAlreadyExists:
             logger.info(f"Workspace parent path already exists for dashboards: {ws_parent_path}")
         self._create_or_replace_dashboard(
-            folder=template_folder, ws_parent_path=ws_parent_path, dest_catalog=catalog_name, dest_schema=schema_name
+            folder=template_folder,
+            ws_parent_path=ws_parent_path,
+            source_tech=source_tech,
+            dest_catalog=catalog_name,
+            dest_schema=schema_name,
         )
 
     def upload_duckdb_to_uc_volume(self, local_file_path, volume_path):
