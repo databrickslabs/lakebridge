@@ -885,7 +885,8 @@ def test_configure_all_override_installation(
             r"Enter source schema name for .*": "tpch_sf1000",
             r"Enter target catalog name for Databricks": "tpch",
             r"Enter target schema name for Databricks": "1000gb",
-            r"Enter the source tech:": "snowflake",
+            # Profiler Configuration Prompts
+            r"Select the source technology": "0",
             r"Enter the path to the profiler extract file:": "",
         }
     )
@@ -979,8 +980,10 @@ def test_configure_all_override_installation(
     )
 
     expected_profiler_dash_config = ProfilerDashboardConfig(
-        source_tech="snowflake",
-        extract_file_path="/tmp/data/synapse_assessment/profiler_extract.db",
+        source_tech="synapse",
+        extract_file_path=str(
+            Path("~/.databricks/labs/lakebridge_profilers/synapse_assessment/profiler_extract.db").expanduser()
+        ),
         metadata_config=ProfilerDashboardMetadataConfig(
             catalog="remorph",
             schema="reconcile",
