@@ -31,6 +31,7 @@ from databricks.labs.lakebridge.config import (
 from databricks.labs.lakebridge.contexts.application import ApplicationContext
 from databricks.labs.lakebridge.deployment.configurator import ResourceConfigurator
 from databricks.labs.lakebridge.deployment.installation import WorkspaceInstallation
+from databricks.labs.lakebridge.assessments import PROFILER_SOURCE_SYSTEM
 from databricks.labs.lakebridge.reconcile.constants import ReconReportType, ReconSourceType
 from databricks.labs.lakebridge.transpiler.installers import (
     BladebridgeInstaller,
@@ -442,7 +443,7 @@ class WorkspaceInstaller:
 
     def _prompt_for_new_profiler_dashboard_installation(self) -> ProfilerDashboardConfig:
         logger.info("Please answer a few questions to configure the Lakebridge profiler dashboard.")
-        source_tech = self._prompts.question("Enter the source tech:", default="synapse")
+        source_tech = self._prompts.choice("Select the source technology", PROFILER_SOURCE_SYSTEM)
         extract_file_path = self._prompts.question(
             "Enter the path to the profiler extract file:",
             default=str(

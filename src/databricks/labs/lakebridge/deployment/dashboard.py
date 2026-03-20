@@ -237,8 +237,9 @@ class ProfilerDashboardManager:
         self._install_state.dashboards[dash_reference] = dashboard.dashboard_id
         return dashboard
 
-    def deploy(self, profiler_dashboard_config: ProfilerDashboardConfig) -> None:
-        """Deploys a profiler summary dashboard to the current Databricks user’s workspace home."""
+    def deploy(self, profiler_dashboard_config: ProfilerDashboardConfig) -> str:
+        """Deploys a profiler summary dashboard to the current Databricks user’s workspace home.
+        Returns the deployed dashboard ID."""
 
         logger.info("Deploying profiler summary dashboard.")
         source_tech = profiler_dashboard_config.source_tech
@@ -254,13 +255,18 @@ class ProfilerDashboardManager:
             self._ws.workspace.mkdirs(ws_parent_path)
         except ResourceAlreadyExists:
             logger.info(f"Workspace parent path already exists for dashboards: {ws_parent_path}")
-        self._create_or_replace_dashboard(
+        dashboard = self._create_or_replace_dashboard(
             folder=template_folder,
             ws_parent_path=ws_parent_path,
             dest_catalog=catalog_name,
             dest_schema=schema_name,
             source_system=source_tech,
         )
+        if dashboard.dashboard_id is None:
+            msg = "Dashboard deployment failed to return dashboard ID"
+            logger.error(msg)
+            raise ValueError(msg)
+        return dashboard.dashboard_id
 
     @staticmethod
     def resolve_volume_path(local_file_path: str, volume_path: str) -> str:

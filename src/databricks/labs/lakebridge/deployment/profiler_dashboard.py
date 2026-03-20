@@ -43,17 +43,17 @@ class ProfilerDashboardDeployment:
             logger.error("Profiler extract upload failed. Aborting installation.")
             return
         try:
-            self._deploy_dashboards(profiler_dashboard_config)
+            dashboard_id = self._deploy_dashboards(profiler_dashboard_config)
             self._deploy_jobs(profiler_dashboard_config, wheel_path)
             self._install_state.save()
-            self._trigger_ingestion_job()
+            self._trigger_ingestion_job(dashboard_id)
             logger.info("Installation of the profiler dashboard components completed successfully.")
         except (RuntimeError, ValueError, InvalidParameterValue, NotFound) as e:
             error_msg = f"Failed to deploy profiler dashboard and ingestion job: {e}"
             logger.error(error_msg)
             raise SystemExit(error_msg) from e
 
-    def _trigger_ingestion_job(self) -> None:
+    def _trigger_ingestion_job(self, dashboard_id: str) -> None:
         job_id_str = self._install_state.jobs.get(PROFILER_INGESTION_JOB_NAME)
         if not job_id_str:
             logger.warning("Profiler ingestion job ID not found; skipping auto-trigger.")
@@ -68,8 +68,7 @@ class ProfilerDashboardDeployment:
         logger.info(
             "It may take a few minutes for the ingestion job to complete and for the dashboard to populate with data."
         )
-        for dashboard_id in self._install_state.dashboards.values():
-            logger.info(f"Profiler dashboard URL: {self._ws.config.host}/sql/dashboardsv3/{dashboard_id}")
+        logger.info(f"Profiler dashboard URL: {self._ws.config.host}/sql/dashboardsv3/{dashboard_id}")
 
     def uninstall(self, profiler_dashboard_config: ProfilerDashboardConfig | None):
         if not profiler_dashboard_config:
@@ -88,9 +87,9 @@ class ProfilerDashboardDeployment:
         logger.info("Uploading the profiler extract file to UC Volume.")
         return self._dashboard_deployer.upload_duckdb_to_uc_volume(profiler_dashboard_config)
 
-    def _deploy_dashboards(self, profiler_dashboard_config: ProfilerDashboardConfig):
+    def _deploy_dashboards(self, profiler_dashboard_config: ProfilerDashboardConfig) -> str:
         logger.info("Deploying the profiler dashboard.")
-        self._dashboard_deployer.deploy(profiler_dashboard_config)
+        return self._dashboard_deployer.deploy(profiler_dashboard_config)
 
     def _get_dashboards(self) -> list[tuple[str, str]]:
         return list(self._install_state.dashboards.items())
