@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import MagicMock, patch
 from databricks.labs.blueprint.installation import JsonObject
-from databricks.labs.lakebridge.connections.database_manager import DatabaseManager
+from databricks.labs.lakebridge.connections.database_manager import DatabaseManager, FetchResult
 
 sample_config: JsonObject = {
     'user': 'test_user',
@@ -72,3 +72,15 @@ def test_teradata_connector(mock_teradata_connector) -> None:
 
     assert db_manager.connector == mock_connector_instance
     mock_teradata_connector.assert_called_once_with(sample_config)
+
+
+def test_fetch_result_to_df_normalizes_utf8_text() -> None:
+    # Includes Japanese + Thai text and malformed surrogate text to validate normalization path.
+    raw_rows = [("こんにちは", "สวัสดี".encode("utf-8"), "\udcff")]
+    result = FetchResult(columns={"col1", "col2", "col3"}, rows=raw_rows)
+
+    frame = result.to_df()
+
+    assert frame.iloc[0, 0] == "こんにちは"
+    assert frame.iloc[0, 1] == "สวัสดี"
+    assert frame.iloc[0, 2] == "?"

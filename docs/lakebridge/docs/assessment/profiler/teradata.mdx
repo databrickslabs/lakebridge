@@ -9,6 +9,7 @@ import Admonition from '@theme/Admonition';
 - [Prerequisites](#prerequisites)
 - [Configure Connection to Teradata](#configure-connection-to-teradata)
 - [PDCR Optional Mode](#pdcr-optional-mode)
+- [International Character Support](#international-character-support)
 
 ## Prerequisites
 
@@ -92,5 +93,13 @@ When `teradata.profiler.use_pdcr = false`:
 
 Without PDCR, available data is typically narrower (for example, recent days from DBQL instead of long historical aggregates).
 This can reduce long-horizon trend analysis and may underrepresent short-query aggregate metrics.
+
+## International Character Support
+
+Lakebridge supports multilingual query text and metadata (for example Japanese, Korean, and Thai text) in Teradata profiler extracts.
+
+- Teradata extraction runs over UTF-8-capable driver paths.
+- During extraction and dashboard ingestion, Lakebridge normalizes text values to UTF-8-safe strings.
+- Invalid byte sequences are safely replaced instead of failing the profiler run.
 
 [Back to Configure Profiler](../#configure-profiler)

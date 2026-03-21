@@ -5,8 +5,10 @@ from collections.abc import Sequence
 from importlib import resources
 from importlib.abc import Traversable
 from pathlib import Path
+from typing import Any
 
 import duckdb
+import pandas as pd
 import yaml
 from pyspark.sql import SparkSession
 from yaml.parser import ParserError
@@ -22,6 +24,23 @@ from databricks.labs.lakebridge.assessments.profiler_validator import (
 from databricks.labs.lakebridge import initialize_logging
 
 logger = logging.getLogger(__name__)
+
+def _normalize_text(value: Any) -> Any:
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    if isinstance(value, str):
+        return value.encode("utf-8", errors="replace").decode("utf-8")
+    return value
+
+
+def _normalize_dataframe_text(pdf: pd.DataFrame) -> pd.DataFrame:
+    """
+    Ensure object columns can be safely serialized as UTF-8 for Spark ingestion.
+    """
+    for column in pdf.columns:
+        if pdf[column].dtype == "object":
+            pdf[column] = pdf[column].map(_normalize_text)
+    return pdf
 
 
 def main(*argv: str) -> None:
@@ -184,7 +203,7 @@ def _ingest_table(extract_location: str, source_table_name: str, target_table_na
     try:
         with duckdb.connect(database=extract_location, read_only=True) as duck_conn:
             query = f"SELECT * FROM {source_table_name}"
-            pdf = duck_conn.execute(query).df()
+            pdf = _normalize_dataframe_text(duck_conn.execute(query).df())
             # Save table as a managed Delta table in Unity Catalog
             logger.info(f"Saving profiler table '{target_table_name}' to Unity Catalog.")
             spark = SparkSession.builder.getOrCreate()

@@ -25,11 +25,30 @@ class FetchResult:
     columns: Set[str]
     rows: Sequence[Row[Any]]
 
+    @staticmethod
+    def _normalize_text(value: Any) -> Any:
+        """
+        Normalize textual values to UTF-8-safe strings.
+
+        - bytes are decoded as UTF-8 with replacement
+        - str values are re-encoded/decoded with replacement to guard against malformed surrogates
+        - non-text values are returned as-is
+        """
+        if isinstance(value, bytes):
+            return value.decode("utf-8", errors="replace")
+        if isinstance(value, str):
+            return value.encode("utf-8", errors="replace").decode("utf-8")
+        return value
+
     def to_df(self) -> pd.DataFrame:
         """Create a pandas dataframe based on these results."""
         # Row emulates a named tuple, which Pandas understands natively. So the columns are safely inferred unless
         # we have an empty result-set.
-        return pd.DataFrame(data=self.rows) if self.rows else pd.DataFrame(columns=list(self.columns))
+        frame = pd.DataFrame(data=self.rows) if self.rows else pd.DataFrame(columns=list(self.columns))
+        for column in frame.columns:
+            if frame[column].dtype == "object":
+                frame[column] = frame[column].map(self._normalize_text)
+        return frame
 
 
 class DatabaseConnector(contextlib.AbstractContextManager):

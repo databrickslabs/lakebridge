@@ -320,7 +320,7 @@
               "version": 3,
               "widgetType": "bar",
               "frame": {
-                "title": "Query Type Distribution (PDCR + DBQL Fallback)",
+                "title": "Query Type Distribution",
                 "showTitle": true
               },
               "encodings": {
