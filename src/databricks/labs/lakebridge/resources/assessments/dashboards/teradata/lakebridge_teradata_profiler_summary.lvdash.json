@@ -70,21 +70,28 @@
       "name": "ds_obj_types",
       "displayName": "Object Types",
       "queryLines": [
-        "SELECT CASE TRIM(TableKind) WHEN 'T' THEN 'Table' WHEN 'V' THEN 'View' WHEN 'O' THEN 'Volatile Table' WHEN 'P' THEN 'Procedure' WHEN 'E' THEN 'External SP' WHEN 'M' THEN 'Macro' WHEN 'G' THEN 'Trigger' WHEN 'D' THEN 'JAR' WHEN 'F' THEN 'Standard Function' WHEN 'L' THEN 'Lifecycle Table' WHEN 'C' THEN 'Combined Aggregate' WHEN 'X' THEN 'Auth Object' ELSE TRIM(TableKind) END AS `Object Type`, CAST(CAST(SUM(TableKindCount) AS INT) AS STRING) AS `Count` FROM <CATALOG_NAME>.<SCHEMA_NAME>.td_db_object_types GROUP BY 1 ORDER BY SUM(TableKindCount) DESC"
+        "SELECT CASE TRIM(TableKind) WHEN 'T' THEN 'Table' WHEN 'V' THEN 'View' WHEN 'O' THEN 'NoPI Table' WHEN 'P' THEN 'Procedure' WHEN 'E' THEN 'External SP' WHEN 'M' THEN 'Macro' WHEN 'G' THEN 'Trigger' WHEN 'D' THEN 'JAR' WHEN 'F' THEN 'Standard Function' WHEN 'R' THEN 'Table Function' WHEN 'B' THEN 'Combined Aggregate' WHEN 'N' THEN 'Hash Index' WHEN 'Q' THEN 'Queue Table' WHEN 'L' THEN 'Lifecycle Table' WHEN 'C' THEN 'Combined Aggregate' WHEN 'X' THEN 'Auth Object' ELSE TRIM(TableKind) END AS `Object Type`, CAST(CAST(SUM(TableKindCount) AS INT) AS STRING) AS `Count` FROM <CATALOG_NAME>.<SCHEMA_NAME>.td_db_object_types GROUP BY 1 ORDER BY SUM(TableKindCount) DESC"
       ]
     },
     {
       "name": "ds_obj_by_db",
       "displayName": "Objects by DB",
       "queryLines": [
-        "SELECT DatabaseName AS `Database`, CASE TRIM(TableKind) WHEN 'T' THEN 'Table' WHEN 'V' THEN 'View' WHEN 'P' THEN 'Procedure' WHEN 'E' THEN 'External SP' WHEN 'L' THEN 'Lifecycle' WHEN 'C' THEN 'Combined Agg' WHEN 'D' THEN 'JAR' WHEN 'X' THEN 'Auth' WHEN 'F' THEN 'Function' ELSE TRIM(TableKind) END AS `Object Type`, CAST(CAST(TableKindCount AS INT) AS STRING) AS `Count` FROM <CATALOG_NAME>.<SCHEMA_NAME>.td_db_object_types ORDER BY DatabaseName, TableKindCount DESC"
+        "SELECT DatabaseName AS `Database`, CASE TRIM(TableKind) WHEN 'T' THEN 'Table' WHEN 'V' THEN 'View' WHEN 'P' THEN 'Procedure' WHEN 'O' THEN 'NoPI Table' WHEN 'E' THEN 'External SP' WHEN 'M' THEN 'Macro' WHEN 'G' THEN 'Trigger' WHEN 'L' THEN 'Lifecycle' WHEN 'C' THEN 'Combined Agg' WHEN 'D' THEN 'JAR' WHEN 'X' THEN 'Auth' WHEN 'F' THEN 'Function' WHEN 'R' THEN 'Table Function' WHEN 'N' THEN 'Hash Index' WHEN 'Q' THEN 'Queue Table' ELSE TRIM(TableKind) END AS `Object Type`, CAST(CAST(TableKindCount AS INT) AS STRING) AS `Count` FROM <CATALOG_NAME>.<SCHEMA_NAME>.td_db_object_types ORDER BY DatabaseName, TableKindCount DESC"
       ]
     },
     {
       "name": "ds_udfs",
       "displayName": "UDFs",
       "queryLines": [
-        "SELECT FunctionLanguage AS `Language`, FunctionType AS `Function Type`, CAST(COUNT(*) AS STRING) AS `Count` FROM <CATALOG_NAME>.<SCHEMA_NAME>.td_dwh_udf GROUP BY 1, 2 ORDER BY COUNT(*) DESC"
+        "SELECT COALESCE(DatabaseName, 'SYSTEM') AS `Database`, FunctionName AS `UDF Name`, FunctionLanguage AS `Language`, FunctionType AS `Function Type`, CAST(NumParameters AS STRING) AS `Params`, COALESCE(TRIM(ReturnType), '-') AS `Return Type` FROM <CATALOG_NAME>.<SCHEMA_NAME>.td_dwh_udf ORDER BY DatabaseName IS NULL, DatabaseName, FunctionName"
+      ]
+    },
+    {
+      "name": "ds_udf_summary",
+      "displayName": "UDF Summary",
+      "queryLines": [
+        "SELECT FunctionLanguage AS `Language`, CAST(COUNT(*) AS STRING) AS `Count` FROM <CATALOG_NAME>.<SCHEMA_NAME>.td_dwh_udf GROUP BY 1 ORDER BY COUNT(*) DESC"
       ]
     },
     {
@@ -1027,7 +1034,7 @@
               {
                 "name": "main_query",
                 "query": {
-                  "datasetName": "ds_udfs",
+                  "datasetName": "ds_udf_summary",
                   "fields": [
                     {
                       "name": "Language",
@@ -1084,6 +1091,14 @@
                   "datasetName": "ds_udfs",
                   "fields": [
                     {
+                      "name": "Database",
+                      "expression": "`Database`"
+                    },
+                    {
+                      "name": "UDF Name",
+                      "expression": "`UDF Name`"
+                    },
+                    {
                       "name": "Language",
                       "expression": "`Language`"
                     },
@@ -1092,8 +1107,12 @@
                       "expression": "`Function Type`"
                     },
                     {
-                      "name": "Count",
-                      "expression": "`Count`"
+                      "name": "Params",
+                      "expression": "`Params`"
+                    },
+                    {
+                      "name": "Return Type",
+                      "expression": "`Return Type`"
                     }
                   ],
                   "disaggregated": true
@@ -1110,13 +1129,22 @@
               "encodings": {
                 "columns": [
                   {
+                    "fieldName": "Database"
+                  },
+                  {
+                    "fieldName": "UDF Name"
+                  },
+                  {
                     "fieldName": "Language"
                   },
                   {
                     "fieldName": "Function Type"
                   },
                   {
-                    "fieldName": "Count"
+                    "fieldName": "Params"
+                  },
+                  {
+                    "fieldName": "Return Type"
                   }
                 ]
               }
