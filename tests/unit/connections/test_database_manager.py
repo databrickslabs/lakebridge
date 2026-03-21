@@ -75,12 +75,35 @@ def test_teradata_connector(mock_teradata_connector) -> None:
 
 
 def test_fetch_result_to_df_normalizes_utf8_text() -> None:
-    # Includes Japanese + Thai text and malformed surrogate text to validate normalization path.
-    raw_rows = [("こんにちは", "สวัสดี".encode("utf-8"), "\udcff")]
-    result = FetchResult(columns={"col1", "col2", "col3"}, rows=raw_rows)
+    # Includes APJ + European-language text and malformed surrogate text to validate normalization path.
+    raw_rows = [
+        (
+            "こんにちは",  # Japanese
+            "안녕하세요",  # Korean
+            "สวัสดี".encode("utf-8"),  # Thai bytes
+            "Bonjour",  # French
+            "Müller",  # German
+            "Ciao",  # Italian
+            "José García",  # Spanish
+            "João Silva",  # Portuguese
+            "Pieter de Vries",  # Dutch
+            "\udcff",  # malformed surrogate
+        )
+    ]
+    result = FetchResult(
+        columns={"ja", "ko", "th", "fr", "de", "it", "es", "pt", "nl", "bad_text"},
+        rows=raw_rows,
+    )
 
     frame = result.to_df()
 
     assert frame.iloc[0, 0] == "こんにちは"
-    assert frame.iloc[0, 1] == "สวัสดี"
-    assert frame.iloc[0, 2] == "?"
+    assert frame.iloc[0, 1] == "안녕하세요"
+    assert frame.iloc[0, 2] == "สวัสดี"
+    assert frame.iloc[0, 3] == "Bonjour"
+    assert frame.iloc[0, 4] == "Müller"
+    assert frame.iloc[0, 5] == "Ciao"
+    assert frame.iloc[0, 6] == "José García"
+    assert frame.iloc[0, 7] == "João Silva"
+    assert frame.iloc[0, 8] == "Pieter de Vries"
+    assert frame.iloc[0, 9] == "?"
