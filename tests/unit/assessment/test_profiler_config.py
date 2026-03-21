@@ -153,6 +153,42 @@ def test_pipeline_config_with_valid_steps() -> None:
     assert len(config.steps) == 2
 
 
+def test_pipeline_config_comments() -> None:
+    pipeline_w_comments = PipelineConfig(
+        name="warehouse_profiler",
+        version="1.0",
+        extract_folder="/the/output/path",
+        comment="A pipeline for extracting warehouse usage.",
+    )
+    pipeline_wo_comments = PipelineConfig(
+        name="another_warehouse_profiler", version="1.0", extract_folder="/the/output/path"
+    )
+    assert pipeline_w_comments.comment == "A pipeline for extracting warehouse usage."
+    assert pipeline_wo_comments.comment is None
+
+
+def test_pipeline_step_comments() -> None:
+    step_w_comment = Step(
+        name="step_w_comment",
+        type="sql",
+        extract_source="path/to/extract/source.sql",
+        mode="append",
+        frequency="once",
+        flag="active",
+        comment="This is a step comment.",
+    )
+    step_wo_comment = Step(
+        name="step_wo_comment",
+        type="python",
+        extract_source="path/to/extract/source.py",
+        mode="overwrite",
+        frequency="daily",
+        flag="inactive",
+    )
+    assert step_w_comment.comment == "This is a step comment."
+    assert step_wo_comment.comment is None
+
+
 def test_error_message_is_helpful() -> None:
     """Test that validation errors provide helpful messages."""
     with pytest.raises(ValueError) as exc_info:

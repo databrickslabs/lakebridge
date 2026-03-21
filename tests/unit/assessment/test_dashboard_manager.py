@@ -149,3 +149,34 @@ def test_create_profiler_summary_dashboard_uses_teradata_template_loader(
     )
 
     assert captured.get("source_system") == "teradata"
+
+
+def test_teradata_dashboard_template_loads_and_has_datasets():
+    """The actual Teradata dashboard template should load and contain expected datasets."""
+    from databricks.labs.blueprint.wheels import find_project_root
+
+    template_folder = (
+        find_project_root(__file__)
+        / "src/databricks/labs/lakebridge/resources/assessments/dashboards/teradata"
+    )
+    loader = DashboardTemplateLoader(template_folder)
+    dashboard_json = loader.load(source_system="teradata")
+
+    assert "datasets" in dashboard_json
+    assert "pages" in dashboard_json
+    ds_names = {ds["name"] for ds in dashboard_json["datasets"]}
+    assert "ds_kpi" in ds_names
+    assert "ds_sys_info" in ds_names
+    assert "ds_nodes" in ds_names
+    assert "ds_udfs" in ds_names
+    assert len(dashboard_json["pages"]) >= 4
+
+
+def test_replace_catalog_schema_substitutes_placeholders():
+    """_replace_catalog_schema should replace both <CATALOG_NAME> and <SCHEMA_NAME>."""
+    serialized = '{"query": "SELECT * FROM <CATALOG_NAME>.<SCHEMA_NAME>.my_table"}'
+    result = DashboardManager._replace_catalog_schema(serialized, "my_catalog", "my_schema")
+    assert "`my_catalog`" in result
+    assert "`my_schema`" in result
+    assert "<CATALOG_NAME>" not in result
+    assert "<SCHEMA_NAME>" not in result

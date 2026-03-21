@@ -110,6 +110,7 @@ def _validate_profiler_extract(
                 )
                 validation_checks.append(schema_check)
             report = build_validation_report(validation_checks, duck_conn)
+            report_df = build_validation_report_dataframe(validation_checks, duck_conn)
     except duckdb.IOException as e:
         logger.exception(f"Could not access the profiler extract: '{extract_location}'.")
         raise e
@@ -118,7 +119,6 @@ def _validate_profiler_extract(
         raise e
 
     # Save validation report to table
-    report_df = build_validation_report_dataframe(validation_checks, duck_conn)
     validation_report_table = f"{target_catalog_name}.{target_schema_name}.validation_report"
     logger.info(f"Saving extract validation report to '{validation_report_table}' to Unity Catalog.")
     report_df.write.format("delta").mode("overwrite").saveAsTable(validation_report_table)

@@ -160,3 +160,44 @@ def sandbox_synapse(sandbox_synapse_config: JsonObject) -> DatabaseManager:
 @pytest.fixture()
 def recon_id() -> UUID:
     return UUID("00112233-4455-6677-8899-aabbccddeeff")
+
+
+@pytest.fixture()
+def sandbox_teradata_config() -> JsonObject:
+    env = TestEnvGetter(True)
+    try:
+        config: JsonObject = {
+            "host": env.get("TERADATA_HOST"),
+            "user": env.get("TERADATA_USER"),
+            "password": env.get("TERADATA_PASSWORD"),
+        }
+    except KeyError:
+        pytest.skip("Teradata/ClearScape credentials not configured (TERADATA_HOST)")
+    try:
+        config["database"] = env.get("TERADATA_DATABASE")
+    except KeyError:
+        pass
+    return config
+
+
+@pytest.fixture()
+def sandbox_teradata(sandbox_teradata_config: JsonObject) -> DatabaseManager:
+    return DatabaseManager("teradata", sandbox_teradata_config)
+
+
+@pytest.fixture()
+def sandbox_teradata_cred_config(sandbox_teradata_config: JsonObject) -> JsonObject:
+    """Credential structure matching configure-database-profiler output for Teradata."""
+    return {
+        "secret_vault_type": "local",
+        "secret_vault_name": None,
+        "teradata": {
+            "host": sandbox_teradata_config["host"],
+            "user": sandbox_teradata_config["user"],
+            "password": sandbox_teradata_config["password"],
+            "database": sandbox_teradata_config.get("database"),
+            "profiler": {
+                "use_pdcr": False,
+            },
+        },
+    }

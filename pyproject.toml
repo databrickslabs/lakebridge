@@ -126,6 +126,9 @@ addopts = "-s -p no:warnings -vv --cache-clear"
 cache_dir = ".venv/pytest-cache"
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope="function"
+markers = [
+    "teradata: tests requiring a live Teradata / ClearScape instance",
+]
 
 [tool.mypy]
 exclude = ["tests/resources/.*"]
