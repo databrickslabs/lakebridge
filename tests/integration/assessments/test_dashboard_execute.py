@@ -54,7 +54,13 @@ def test_ingest_table_preserves_multilingual_text(tmp_path: Path, monkeypatch) -
             INSERT INTO td_multilingual VALUES
               ('jp-app', '山田太郎', 'SELECT ''こんにちは'' AS msg'),
               ('kr-app', '홍길동', 'SELECT ''안녕하세요'' AS msg'),
-              ('th-app', 'สมชาย', 'SELECT ''สวัสดี'' AS msg')
+              ('th-app', 'สมชาย', 'SELECT ''สวัสดี'' AS msg'),
+              ('fr-app', 'Jean Dupont', 'SELECT ''Bonjour'' AS msg'),
+              ('de-app', 'Müller', 'SELECT ''Guten Tag'' AS msg'),
+              ('it-app', 'Giovanni Rossi', 'SELECT ''Ciao'' AS msg'),
+              ('es-app', 'José García', 'SELECT ''Hola'' AS msg'),
+              ('pt-app', 'João Silva', 'SELECT ''Olá'' AS msg'),
+              ('nl-app', 'Pieter de Vries', 'SELECT ''Hallo'' AS msg')
             """
         )
 
@@ -75,5 +81,15 @@ def test_ingest_table_preserves_multilingual_text(tmp_path: Path, monkeypatch) -
 
     assert spark_stub.last_pdf is not None
     extracted = list(spark_stub.last_pdf["user_name"])
-    assert extracted == ["山田太郎", "홍길동", "สมชาย"]
+    assert extracted == [
+        "山田太郎",
+        "홍길동",
+        "สมชาย",
+        "Jean Dupont",
+        "Müller",
+        "Giovanni Rossi",
+        "José García",
+        "João Silva",
+        "Pieter de Vries",
+    ]
     assert spark_stub.writer.saved_table == "lakebridge_profiler.profiler_runs.td_multilingual"
