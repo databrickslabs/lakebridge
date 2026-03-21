@@ -1,199 +1,142 @@
 {
   "datasets": [
     {
-      "name": "td_overview_ds",
-      "displayName": "Profiler Extract Overview",
+      "name": "ds_kpi",
+      "displayName": "Key Metrics",
       "queryLines": [
-        "with sys_info as (\n",
-        "  select count(*) as cnt from IDENTIFIER(:td_sys_info_table)\n",
-        "),\n",
-        "pdcr as (\n",
-        "  select count(*) as cnt from IDENTIFIER(:td_pdcr_table)\n",
-        "),\n",
-        "dbql as (\n",
-        "  select count(*) as cnt from IDENTIFIER(:td_dbql_table)\n",
+        "SELECT 'User Databases' AS Metric, CAST((SELECT COUNT(DISTINCT DatabaseName) FROM <CATALOG_NAME>.<SCHEMA_NAME>.td_user_databases) AS STRING) AS Value\n",
+        "UNION ALL SELECT 'Total Objects', CAST((SELECT SUM(TableKindCount) FROM <CATALOG_NAME>.<SCHEMA_NAME>.td_db_object_types) AS STRING)\n",
+        "UNION ALL SELECT 'UDFs', CAST((SELECT COUNT(*) FROM <CATALOG_NAME>.<SCHEMA_NAME>.td_dwh_udf) AS STRING)\n",
+        "UNION ALL SELECT 'Queries Captured', CAST((SELECT COUNT(*) FROM <CATALOG_NAME>.<SCHEMA_NAME>.td_dbql_core_info_extract) AS STRING)\n",
+        "UNION ALL SELECT 'Storage Used (GB)', CAST((SELECT ROUND(SUM(CURRENT_PERM_MB)/1024.0,1) FROM <CATALOG_NAME>.<SCHEMA_NAME>.td_sys_disk_utilization) AS STRING)"
+      ]
+    },
+    {
+      "name": "ds_sys_info",
+      "displayName": "System Info",
+      "queryLines": [
+        "SELECT MAX(CASE WHEN K='VERSION' THEN V END) AS `Version`, CAST(MAX(CASE WHEN K='# of AMPs' THEN CAST(V AS INT) END) AS STRING) AS `AMPs`, MAX(CASE WHEN K='LANGUAGE SUPPORT MODE' THEN V END) AS `Language Mode`, MAX(CASE WHEN K='RELEASE' THEN V END) AS `Release` FROM <CATALOG_NAME>.<SCHEMA_NAME>.td_sys_info"
+      ]
+    },
+    {
+      "name": "ds_nodes",
+      "displayName": "Node Hardware",
+      "queryLines": [
+        "SELECT CAST(NodeID AS STRING) AS `Node ID`, TRIM(NodeType) AS `Node Type`, CAST(NCPUs AS STRING) AS `CPUs`, CAST(Vproc1 AS STRING) AS `Vprocs`, CAST(ROUND(MemSize/1024.0,1) AS STRING) AS `Memory (GB)`, CAST(ROUND(NodeNormFactor,0) AS STRING) AS `Norm Factor` FROM <CATALOG_NAME>.<SCHEMA_NAME>.td_sys_nodes_info"
+      ]
+    },
+    {
+      "name": "ds_avg_util",
+      "displayName": "Avg Utilization",
+      "queryLines": [
+        "SELECT 'CPU' AS `Resource`,\n",
+        "  CONCAT(CAST(ROUND(AVG((totCPUUExec+totCPUUServ)/(totCPUUExec+totCPUUServ+totCPUIdle)*100),1) AS STRING), ' %') AS `Average`,\n",
+        "  CONCAT(CAST(ROUND(MAX((totCPUUExec+totCPUUServ)/(totCPUUExec+totCPUUServ+totCPUIdle)*100),1) AS STRING), ' %') AS `Peak`\n",
+        "FROM <CATALOG_NAME>.<SCHEMA_NAME>.td_sys_usage_agg\n",
+        "UNION ALL SELECT 'Memory',\n",
+        "  CONCAT(CAST(ROUND(AVG((totMemSizeMB-totMemFreeMB)/totMemSizeMB*100),1) AS STRING), ' %'),\n",
+        "  CONCAT(CAST(ROUND(MAX((totMemSizeMB-totMemFreeMB)/totMemSizeMB*100),1) AS STRING), ' %')\n",
+        "FROM <CATALOG_NAME>.<SCHEMA_NAME>.td_sys_usage_agg\n",
+        "UNION ALL SELECT 'I/O Wait',\n",
+        "  CONCAT(CAST(ROUND(AVG(totCPUIoWait/(totCPUUExec+totCPUUServ+totCPUIdle)*100),1) AS STRING), ' %'), NULL\n",
+        "FROM <CATALOG_NAME>.<SCHEMA_NAME>.td_sys_usage_agg"
+      ]
+    },
+    {
+      "name": "ds_cpu",
+      "displayName": "CPU Hourly",
+      "queryLines": [
+        "SELECT CONCAT(DATE_FORMAT(TheDate,'yyyy-MM-dd'),' ',LPAD(CAST(hour_of_day AS STRING),2,'0'),':00') AS `Hour`,\n",
+        "  ROUND((totCPUUExec+totCPUUServ)/(totCPUUExec+totCPUUServ+totCPUIdle)*100,1) AS `CPU %`,\n",
+        "  ROUND((totMemSizeMB-totMemFreeMB)/totMemSizeMB*100,1) AS `Memory %`\n",
+        "FROM <CATALOG_NAME>.<SCHEMA_NAME>.td_sys_usage_agg ORDER BY TheDate, hour_of_day"
+      ]
+    },
+    {
+      "name": "ds_storage",
+      "displayName": "Storage",
+      "queryLines": [
+        "SELECT DATABASENAME AS `Database`, CAST(ROUND(CURRENT_PERM_MB/1024.0,2) AS STRING) AS `Used (GB)`, CAST(ROUND(MAX_PERM_MB/1024.0,2) AS STRING) AS `Allocated (GB)`, CAST(CASE WHEN MAX_PERM_MB>0 THEN ROUND(CURRENT_PERM_MB/MAX_PERM_MB*100,1) ELSE 0 END AS STRING) AS `Utilization %` FROM <CATALOG_NAME>.<SCHEMA_NAME>.td_sys_disk_utilization WHERE CURRENT_PERM_MB > 0 ORDER BY CURRENT_PERM_MB DESC LIMIT 15"
+      ]
+    },
+    {
+      "name": "ds_db_alloc",
+      "displayName": "DB Allocation",
+      "queryLines": [
+        "SELECT DatabaseName AS `Database`, CAST(ROUND(PermSpace/1073741824.0,2) AS STRING) AS `Perm (GB)`, CAST(ROUND(SpoolSpace/1073741824.0,2) AS STRING) AS `Spool (GB)`, CAST(ROUND(TempSpace/1073741824.0,2) AS STRING) AS `Temp (GB)`, TRIM(ProtectionType) AS `Protection`, TRIM(JournalFlag) AS `Journal` FROM <CATALOG_NAME>.<SCHEMA_NAME>.td_user_databases ORDER BY PermSpace DESC LIMIT 15"
+      ]
+    },
+    {
+      "name": "ds_obj_types",
+      "displayName": "Object Types",
+      "queryLines": [
+        "SELECT CASE TRIM(TableKind) WHEN 'T' THEN 'Table' WHEN 'V' THEN 'View' WHEN 'O' THEN 'Volatile Table' WHEN 'P' THEN 'Procedure' WHEN 'E' THEN 'External SP' WHEN 'M' THEN 'Macro' WHEN 'G' THEN 'Trigger' WHEN 'D' THEN 'JAR' WHEN 'F' THEN 'Standard Function' WHEN 'L' THEN 'Lifecycle Table' WHEN 'C' THEN 'Combined Aggregate' WHEN 'X' THEN 'Auth Object' ELSE TRIM(TableKind) END AS `Object Type`, CAST(CAST(SUM(TableKindCount) AS INT) AS STRING) AS `Count` FROM <CATALOG_NAME>.<SCHEMA_NAME>.td_db_object_types GROUP BY 1 ORDER BY SUM(TableKindCount) DESC"
+      ]
+    },
+    {
+      "name": "ds_obj_by_db",
+      "displayName": "Objects by DB",
+      "queryLines": [
+        "SELECT DatabaseName AS `Database`, CASE TRIM(TableKind) WHEN 'T' THEN 'Table' WHEN 'V' THEN 'View' WHEN 'P' THEN 'Procedure' WHEN 'E' THEN 'External SP' WHEN 'L' THEN 'Lifecycle' WHEN 'C' THEN 'Combined Agg' WHEN 'D' THEN 'JAR' WHEN 'X' THEN 'Auth' WHEN 'F' THEN 'Function' ELSE TRIM(TableKind) END AS `Object Type`, CAST(CAST(TableKindCount AS INT) AS STRING) AS `Count` FROM <CATALOG_NAME>.<SCHEMA_NAME>.td_db_object_types ORDER BY DatabaseName, TableKindCount DESC"
+      ]
+    },
+    {
+      "name": "ds_udfs",
+      "displayName": "UDFs",
+      "queryLines": [
+        "SELECT FunctionLanguage AS `Language`, FunctionType AS `Function Type`, CAST(COUNT(*) AS STRING) AS `Count` FROM <CATALOG_NAME>.<SCHEMA_NAME>.td_dwh_udf GROUP BY 1, 2 ORDER BY COUNT(*) DESC"
+      ]
+    },
+    {
+      "name": "ds_q_user",
+      "displayName": "Queries by User",
+      "queryLines": [
+        "WITH combined AS (\n",
+        "  SELECT UserName, 1 AS queries, TotalCPUTime AS cpu, TotalIOCount AS io, COALESCE(SpoolUsage,0) AS spool FROM <CATALOG_NAME>.<SCHEMA_NAME>.td_dbql_core_info_extract\n",
+        "  UNION ALL SELECT Username, QryCNT, SumCPU, SumIO, 0 FROM <CATALOG_NAME>.<SCHEMA_NAME>.td_pdcr_info_agg_extract\n",
         ")\n",
-        "select 'System info rows' as metric, cnt as value from sys_info\n",
-        "union all\n",
-        "select 'PDCR query rows' as metric, cnt as value from pdcr\n",
-        "union all\n",
-        "select 'DBQL fallback rows' as metric, cnt as value from dbql"
-      ],
-      "parameters": [
-        {
-          "displayName": "td_sys_info_table",
-          "keyword": "td_sys_info_table",
-          "dataType": "STRING",
-          "defaultSelection": {
-            "values": {
-              "dataType": "STRING",
-              "values": [
-                {
-                  "value": "<CATALOG_NAME>.<SCHEMA_NAME>.td_sys_info"
-                }
-              ]
-            }
-          }
-        },
-        {
-          "displayName": "td_pdcr_table",
-          "keyword": "td_pdcr_table",
-          "dataType": "STRING",
-          "defaultSelection": {
-            "values": {
-              "dataType": "STRING",
-              "values": [
-                {
-                  "value": "<CATALOG_NAME>.<SCHEMA_NAME>.td_pdcr_info_agg_extract"
-                }
-              ]
-            }
-          }
-        },
-        {
-          "displayName": "td_dbql_table",
-          "keyword": "td_dbql_table",
-          "dataType": "STRING",
-          "defaultSelection": {
-            "values": {
-              "dataType": "STRING",
-              "values": [
-                {
-                  "value": "<CATALOG_NAME>.<SCHEMA_NAME>.td_dbql_core_info_extract"
-                }
-              ]
-            }
-          }
-        }
+        "SELECT UserName AS `User`, CAST(CAST(SUM(queries) AS INT) AS STRING) AS `Queries`, CAST(ROUND(SUM(cpu),2) AS STRING) AS `CPU (sec)`, CAST(CAST(SUM(io) AS BIGINT) AS STRING) AS `Total I/O`, CAST(ROUND(SUM(spool)/1048576.0,1) AS STRING) AS `Spool (MB)` FROM combined GROUP BY UserName ORDER BY SUM(cpu) DESC"
       ]
     },
     {
-      "name": "td_storage_ds",
-      "displayName": "Top Databases by Storage",
+      "name": "ds_q_app",
+      "displayName": "Queries by App",
       "queryLines": [
-        "select\n",
-        "  DATABASENAME,\n",
-        "  round(CURRENT_PERM_MB / 1024.0, 2) as used_gb\n",
-        "from IDENTIFIER(:td_disk_table)\n",
-        "where DATABASENAME is not null\n",
-        "order by used_gb desc\n",
-        "limit 20"
-      ],
-      "parameters": [
-        {
-          "displayName": "td_disk_table",
-          "keyword": "td_disk_table",
-          "dataType": "STRING",
-          "defaultSelection": {
-            "values": {
-              "dataType": "STRING",
-              "values": [
-                {
-                  "value": "<CATALOG_NAME>.<SCHEMA_NAME>.td_sys_disk_utilization"
-                }
-              ]
-            }
-          }
-        }
-      ]
-    },
-    {
-      "name": "td_query_type_ds",
-      "displayName": "Query Type Distribution",
-      "queryLines": [
-        "with pdcr as (\n",
-        "  select QueryType as query_type, cast(sum(QryCNT) as double) as query_count\n",
-        "  from IDENTIFIER(:td_pdcr_table)\n",
-        "  group by 1\n",
-        "),\n",
-        "dbql as (\n",
-        "  select 'DBQL_CORE' as query_type, cast(count(*) as double) as query_count\n",
-        "  from IDENTIFIER(:td_dbql_table)\n",
-        "),\n",
-        "combined as (\n",
-        "  select * from pdcr\n",
-        "  union all\n",
-        "  select * from dbql\n",
+        "WITH combined AS (\n",
+        "  SELECT TRIM(AppID) AS app, 1 AS q_cnt, TotalCPUTime AS cpu FROM <CATALOG_NAME>.<SCHEMA_NAME>.td_dbql_core_info_extract\n",
+        "  UNION ALL SELECT TRIM(AppId), QryCNT, SumCPU FROM <CATALOG_NAME>.<SCHEMA_NAME>.td_pdcr_info_agg_extract\n",
         ")\n",
-        "select query_type, sum(query_count) as query_count\n",
-        "from combined\n",
-        "group by 1\n",
-        "order by 2 desc"
-      ],
-      "parameters": [
-        {
-          "displayName": "td_pdcr_table",
-          "keyword": "td_pdcr_table",
-          "dataType": "STRING",
-          "defaultSelection": {
-            "values": {
-              "dataType": "STRING",
-              "values": [
-                {
-                  "value": "<CATALOG_NAME>.<SCHEMA_NAME>.td_pdcr_info_agg_extract"
-                }
-              ]
-            }
-          }
-        },
-        {
-          "displayName": "td_dbql_table",
-          "keyword": "td_dbql_table",
-          "dataType": "STRING",
-          "defaultSelection": {
-            "values": {
-              "dataType": "STRING",
-              "values": [
-                {
-                  "value": "<CATALOG_NAME>.<SCHEMA_NAME>.td_dbql_core_info_extract"
-                }
-              ]
-            }
-          }
-        }
+        "SELECT CASE WHEN app='-' THEN 'Direct SQL' WHEN app='' OR app IS NULL THEN 'Unknown' ELSE app END AS `Application`, CAST(CAST(SUM(q_cnt) AS INT) AS STRING) AS `Queries`, CAST(ROUND(SUM(cpu),2) AS STRING) AS `CPU (sec)` FROM combined GROUP BY 1 ORDER BY SUM(q_cnt) DESC"
       ]
     },
     {
-      "name": "td_objects_ds",
-      "displayName": "Object Type Inventory",
+      "name": "ds_top_q",
+      "displayName": "Top Queries",
       "queryLines": [
-        "select\n",
-        "  TableKind,\n",
-        "  sum(TableKindCount) as object_count\n",
-        "from IDENTIFIER(:td_objects_table)\n",
-        "group by 1\n",
-        "order by 2 desc"
-      ],
-      "parameters": [
-        {
-          "displayName": "td_objects_table",
-          "keyword": "td_objects_table",
-          "dataType": "STRING",
-          "defaultSelection": {
-            "values": {
-              "dataType": "STRING",
-              "values": [
-                {
-                  "value": "<CATALOG_NAME>.<SCHEMA_NAME>.td_db_object_types"
-                }
-              ]
-            }
-          }
-        }
+        "SELECT UserName AS `User`, CAST(ROUND(TotalCPUTime,3) AS STRING) AS `CPU (sec)`, CAST(CAST(TotalIOCount AS BIGINT) AS STRING) AS `I/O Count`, CAST(ROUND(COALESCE(SpoolUsage,0)/1048576.0,1) AS STRING) AS `Spool (MB)`, CAST(ROUND(TotalFirstRespTime,2) AS STRING) AS `Response (sec)`, LEFT(SQLTextInfo,120) AS `SQL Preview` FROM <CATALOG_NAME>.<SCHEMA_NAME>.td_dbql_core_info_extract ORDER BY TotalCPUTime DESC LIMIT 20"
+      ]
+    },
+    {
+      "name": "ds_migration",
+      "displayName": "Migration",
+      "queryLines": [
+        "WITH obj AS (SELECT SUM(CASE WHEN TRIM(TableKind)='T' THEN TableKindCount ELSE 0 END) AS t, SUM(CASE WHEN TRIM(TableKind)='V' THEN TableKindCount ELSE 0 END) AS v, SUM(CASE WHEN TRIM(TableKind)='P' THEN TableKindCount ELSE 0 END) AS p, SUM(CASE WHEN TRIM(TableKind) IN ('E','D') THEN TableKindCount ELSE 0 END) AS e, SUM(CASE WHEN TRIM(TableKind)='M' THEN TableKindCount ELSE 0 END) AS m FROM <CATALOG_NAME>.<SCHEMA_NAME>.td_db_object_types),\n",
+        "u AS (SELECT COUNT(*) AS n FROM <CATALOG_NAME>.<SCHEMA_NAME>.td_dwh_udf), d AS (SELECT COUNT(*) AS n FROM <CATALOG_NAME>.<SCHEMA_NAME>.td_user_databases)\n",
+        "SELECT 'Tables' AS `Category`, CAST(CAST(t AS INT) AS STRING) AS `Count`, 'Low' AS `Complexity` FROM obj UNION ALL SELECT 'Views', CAST(CAST(v AS INT) AS STRING), 'Low' FROM obj UNION ALL SELECT 'Stored Procedures', CAST(CAST(p AS INT) AS STRING), 'Medium' FROM obj UNION ALL SELECT 'External / JARs', CAST(CAST(e AS INT) AS STRING), 'High' FROM obj UNION ALL SELECT 'Macros', CAST(CAST(m AS INT) AS STRING), 'Medium' FROM obj UNION ALL SELECT 'UDFs', CAST(CAST(n AS INT) AS STRING), 'High' FROM u UNION ALL SELECT 'User Databases', CAST(CAST(n AS INT) AS STRING), 'Low' FROM d"
       ]
     }
   ],
   "pages": [
     {
-      "name": "teradata_summary_page",
-      "displayName": "Teradata Results",
+      "name": "p1",
+      "displayName": "Executive Summary",
       "layout": [
         {
           "widget": {
-            "name": "title_widget",
+            "name": "t1",
             "multilineTextboxSpec": {
               "lines": [
-                "# Teradata Profiler Summary"
+                "# Teradata System Assessment"
               ]
             }
           },
@@ -201,35 +144,61 @@
             "x": 0,
             "y": 0,
             "width": 12,
-            "height": 2
+            "height": 1
           }
         },
         {
           "widget": {
-            "name": "overview_table",
+            "name": "t1b",
+            "multilineTextboxSpec": {
+              "lines": [
+                "*Platform health, capacity, and migration readiness at a glance.*"
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 1,
+            "width": 12,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "w_kpi",
             "queries": [
               {
                 "name": "main_query",
                 "query": {
-                  "datasetName": "td_overview_ds",
+                  "datasetName": "ds_kpi",
+                  "fields": [
+                    {
+                      "name": "Metric",
+                      "expression": "`Metric`"
+                    },
+                    {
+                      "name": "Value",
+                      "expression": "`Value`"
+                    }
+                  ],
                   "disaggregated": true
                 }
               }
             ],
             "spec": {
               "version": 2,
-              "widgetType": "table",
               "frame": {
-                "title": "Extract Coverage",
-                "showTitle": true
+                "showTitle": true,
+                "title": "Key Metrics"
               },
+              "widgetType": "table",
               "encodings": {
                 "columns": [
                   {
-                    "fieldName": "metric"
+                    "fieldName": "Metric"
                   },
                   {
-                    "fieldName": "value"
+                    "fieldName": "Value"
                   }
                 ]
               }
@@ -238,78 +207,46 @@
           "position": {
             "x": 0,
             "y": 2,
-            "width": 4,
-            "height": 7
+            "width": 12,
+            "height": 6
           }
         },
         {
           "widget": {
-            "name": "storage_bar",
-            "queries": [
-              {
-                "name": "main_query",
-                "query": {
-                  "datasetName": "td_storage_ds",
-                  "fields": [
-                    {
-                      "name": "DATABASENAME",
-                      "expression": "`DATABASENAME`"
-                    },
-                    {
-                      "name": "used_gb",
-                      "expression": "`used_gb`"
-                    }
-                  ],
-                  "disaggregated": true
-                }
-              }
-            ],
-            "spec": {
-              "version": 3,
-              "widgetType": "bar",
-              "frame": {
-                "title": "Top Databases by Used Space (GB)",
-                "showTitle": true
-              },
-              "encodings": {
-                "x": {
-                  "fieldName": "DATABASENAME",
-                  "scale": {
-                    "type": "categorical"
-                  }
-                },
-                "y": {
-                  "fieldName": "used_gb",
-                  "scale": {
-                    "type": "quantitative"
-                  }
-                }
-              }
+            "name": "s1a",
+            "multilineTextboxSpec": {
+              "lines": [
+                "### System Utilization"
+              ]
             }
           },
           "position": {
-            "x": 4,
-            "y": 2,
-            "width": 8,
-            "height": 7
+            "x": 0,
+            "y": 8,
+            "width": 12,
+            "height": 1
           }
         },
         {
           "widget": {
-            "name": "query_type_bar",
+            "name": "w_util",
             "queries": [
               {
                 "name": "main_query",
                 "query": {
-                  "datasetName": "td_query_type_ds",
+                  "datasetName": "ds_avg_util",
                   "fields": [
                     {
-                      "name": "query_type",
-                      "expression": "`query_type`"
+                      "name": "Resource",
+                      "expression": "`Resource`"
                     },
                     {
-                      "name": "query_count",
-                      "expression": "`query_count`"
+                      "name": "Average",
+                      "expression": "`Average`"
+                    },
+                    {
+                      "name": "Peak",
+                      "expression": "`Peak`"
                     }
                   ],
                   "disaggregated": true
@@ -317,82 +254,1153 @@
               }
             ],
             "spec": {
-              "version": 3,
-              "widgetType": "bar",
+              "version": 2,
               "frame": {
-                "title": "Query Type Distribution",
-                "showTitle": true
+                "showTitle": true,
+                "title": "Average vs Peak Utilization"
               },
+              "widgetType": "table",
               "encodings": {
-                "x": {
-                  "fieldName": "query_type",
-                  "scale": {
-                    "type": "categorical"
+                "columns": [
+                  {
+                    "fieldName": "Resource"
+                  },
+                  {
+                    "fieldName": "Average"
+                  },
+                  {
+                    "fieldName": "Peak"
                   }
-                },
-                "y": {
-                  "fieldName": "query_count",
-                  "scale": {
-                    "type": "quantitative"
-                  }
-                }
+                ]
               }
             }
           },
           "position": {
             "x": 0,
             "y": 9,
-            "width": 8,
+            "width": 12,
+            "height": 4
+          }
+        },
+        {
+          "widget": {
+            "name": "s1b",
+            "multilineTextboxSpec": {
+              "lines": [
+                "### Infrastructure"
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 13,
+            "width": 12,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "w_sys",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_sys_info",
+                  "fields": [
+                    {
+                      "name": "Version",
+                      "expression": "`Version`"
+                    },
+                    {
+                      "name": "AMPs",
+                      "expression": "`AMPs`"
+                    },
+                    {
+                      "name": "Language Mode",
+                      "expression": "`Language Mode`"
+                    },
+                    {
+                      "name": "Release",
+                      "expression": "`Release`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "showTitle": true,
+                "title": "System Identity"
+              },
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "Version"
+                  },
+                  {
+                    "fieldName": "AMPs"
+                  },
+                  {
+                    "fieldName": "Language Mode"
+                  },
+                  {
+                    "fieldName": "Release"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 14,
+            "width": 12,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "w_nodes",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_nodes",
+                  "fields": [
+                    {
+                      "name": "Node ID",
+                      "expression": "`Node ID`"
+                    },
+                    {
+                      "name": "Node Type",
+                      "expression": "`Node Type`"
+                    },
+                    {
+                      "name": "CPUs",
+                      "expression": "`CPUs`"
+                    },
+                    {
+                      "name": "Vprocs",
+                      "expression": "`Vprocs`"
+                    },
+                    {
+                      "name": "Memory (GB)",
+                      "expression": "`Memory (GB)`"
+                    },
+                    {
+                      "name": "Norm Factor",
+                      "expression": "`Norm Factor`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "showTitle": true,
+                "title": "Node Hardware"
+              },
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "Node ID"
+                  },
+                  {
+                    "fieldName": "Node Type"
+                  },
+                  {
+                    "fieldName": "CPUs"
+                  },
+                  {
+                    "fieldName": "Vprocs"
+                  },
+                  {
+                    "fieldName": "Memory (GB)"
+                  },
+                  {
+                    "fieldName": "Norm Factor"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 17,
+            "width": 12,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "s1c",
+            "multilineTextboxSpec": {
+              "lines": [
+                "### Resource Trend"
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 20,
+            "width": 12,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "w_cpu",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_cpu",
+                  "fields": [
+                    {
+                      "name": "Hour",
+                      "expression": "`Hour`"
+                    },
+                    {
+                      "name": "CPU %",
+                      "expression": "`CPU %`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "Hour",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "displayName": "Hour"
+                },
+                "y": {
+                  "fieldName": "CPU %",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "CPU %"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "CPU Utilization by Hour"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 21,
+            "width": 12,
             "height": 8
           }
         },
         {
           "widget": {
-            "name": "objects_table",
+            "name": "s1d",
+            "multilineTextboxSpec": {
+              "lines": [
+                "### Migration Readiness"
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 29,
+            "width": 12,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "w_mig",
             "queries": [
               {
                 "name": "main_query",
                 "query": {
-                  "datasetName": "td_objects_ds",
+                  "datasetName": "ds_migration",
+                  "fields": [
+                    {
+                      "name": "Category",
+                      "expression": "`Category`"
+                    },
+                    {
+                      "name": "Count",
+                      "expression": "`Count`"
+                    },
+                    {
+                      "name": "Complexity",
+                      "expression": "`Complexity`"
+                    }
+                  ],
                   "disaggregated": true
                 }
               }
             ],
             "spec": {
               "version": 2,
-              "widgetType": "table",
               "frame": {
-                "title": "Database Object Inventory",
-                "showTitle": true
+                "showTitle": true,
+                "title": "Object Complexity for Databricks Migration"
               },
+              "widgetType": "table",
               "encodings": {
                 "columns": [
                   {
-                    "fieldName": "TableKind"
+                    "fieldName": "Category"
                   },
                   {
-                    "fieldName": "object_count"
+                    "fieldName": "Count"
+                  },
+                  {
+                    "fieldName": "Complexity"
                   }
                 ]
               }
             }
           },
           "position": {
-            "x": 8,
-            "y": 9,
-            "width": 4,
+            "x": 0,
+            "y": 30,
+            "width": 12,
             "height": 8
           }
         }
       ],
-      "pageType": "PAGE_TYPE_CANVAS",
-      "layoutVersion": "GRID_V1"
-    }
-  ],
-  "uiSettings": {
-    "theme": {
-      "widgetHeaderAlignment": "ALIGNMENT_UNSPECIFIED"
+      "pageType": "PAGE_TYPE_CANVAS"
     },
-    "applyModeEnabled": false
-  }
+    {
+      "name": "p2",
+      "displayName": "Storage & Databases",
+      "layout": [
+        {
+          "widget": {
+            "name": "t2",
+            "multilineTextboxSpec": {
+              "lines": [
+                "# Storage & Database Analysis"
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 12,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "t2b",
+            "multilineTextboxSpec": {
+              "lines": [
+                "*Disk allocation, space usage, and database configuration.*"
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 1,
+            "width": 12,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "w_s_bar",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_storage",
+                  "fields": [
+                    {
+                      "name": "Database",
+                      "expression": "`Database`"
+                    },
+                    {
+                      "name": "Used (GB)",
+                      "expression": "`Used (GB)`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "Database",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "displayName": "Database"
+                },
+                "y": {
+                  "fieldName": "Used (GB)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Used (GB)"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Top Databases by Used Space (GB)"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 2,
+            "width": 12,
+            "height": 8
+          }
+        },
+        {
+          "widget": {
+            "name": "s2a",
+            "multilineTextboxSpec": {
+              "lines": [
+                "### Storage Detail"
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 10,
+            "width": 12,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "w_s_tbl",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_storage",
+                  "fields": [
+                    {
+                      "name": "Database",
+                      "expression": "`Database`"
+                    },
+                    {
+                      "name": "Used (GB)",
+                      "expression": "`Used (GB)`"
+                    },
+                    {
+                      "name": "Allocated (GB)",
+                      "expression": "`Allocated (GB)`"
+                    },
+                    {
+                      "name": "Utilization %",
+                      "expression": "`Utilization %`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "showTitle": true,
+                "title": "Storage Utilization"
+              },
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "Database"
+                  },
+                  {
+                    "fieldName": "Used (GB)"
+                  },
+                  {
+                    "fieldName": "Allocated (GB)"
+                  },
+                  {
+                    "fieldName": "Utilization %"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 11,
+            "width": 12,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "s2b",
+            "multilineTextboxSpec": {
+              "lines": [
+                "### Database Configuration"
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 17,
+            "width": 12,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "w_alloc",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_db_alloc",
+                  "fields": [
+                    {
+                      "name": "Database",
+                      "expression": "`Database`"
+                    },
+                    {
+                      "name": "Perm (GB)",
+                      "expression": "`Perm (GB)`"
+                    },
+                    {
+                      "name": "Spool (GB)",
+                      "expression": "`Spool (GB)`"
+                    },
+                    {
+                      "name": "Temp (GB)",
+                      "expression": "`Temp (GB)`"
+                    },
+                    {
+                      "name": "Protection",
+                      "expression": "`Protection`"
+                    },
+                    {
+                      "name": "Journal",
+                      "expression": "`Journal`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "showTitle": true,
+                "title": "Space Allocation & Settings"
+              },
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "Database"
+                  },
+                  {
+                    "fieldName": "Perm (GB)"
+                  },
+                  {
+                    "fieldName": "Spool (GB)"
+                  },
+                  {
+                    "fieldName": "Temp (GB)"
+                  },
+                  {
+                    "fieldName": "Protection"
+                  },
+                  {
+                    "fieldName": "Journal"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 18,
+            "width": 12,
+            "height": 8
+          }
+        }
+      ],
+      "pageType": "PAGE_TYPE_CANVAS"
+    },
+    {
+      "name": "p3",
+      "displayName": "Objects & UDFs",
+      "layout": [
+        {
+          "widget": {
+            "name": "t3",
+            "multilineTextboxSpec": {
+              "lines": [
+                "# Database Objects & UDFs"
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 12,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "t3b",
+            "multilineTextboxSpec": {
+              "lines": [
+                "*Inventory of tables, views, procedures, and user-defined functions.*"
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 1,
+            "width": 12,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "w_o_bar",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_obj_types",
+                  "fields": [
+                    {
+                      "name": "Object Type",
+                      "expression": "`Object Type`"
+                    },
+                    {
+                      "name": "Count",
+                      "expression": "`Count`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "Object Type",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "displayName": "Object Type"
+                },
+                "y": {
+                  "fieldName": "Count",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Count"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Object Type Distribution"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 2,
+            "width": 12,
+            "height": 8
+          }
+        },
+        {
+          "widget": {
+            "name": "s3a",
+            "multilineTextboxSpec": {
+              "lines": [
+                "### Per-Database Breakdown"
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 10,
+            "width": 12,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "w_o_db",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_obj_by_db",
+                  "fields": [
+                    {
+                      "name": "Database",
+                      "expression": "`Database`"
+                    },
+                    {
+                      "name": "Object Type",
+                      "expression": "`Object Type`"
+                    },
+                    {
+                      "name": "Count",
+                      "expression": "`Count`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "showTitle": true,
+                "title": "Objects by Database"
+              },
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "Database"
+                  },
+                  {
+                    "fieldName": "Object Type"
+                  },
+                  {
+                    "fieldName": "Count"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 11,
+            "width": 12,
+            "height": 8
+          }
+        },
+        {
+          "widget": {
+            "name": "s3b",
+            "multilineTextboxSpec": {
+              "lines": [
+                "### User-Defined Functions"
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 19,
+            "width": 12,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "w_u_bar",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_udfs",
+                  "fields": [
+                    {
+                      "name": "Language",
+                      "expression": "`Language`"
+                    },
+                    {
+                      "name": "Count",
+                      "expression": "`Count`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "Language",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "displayName": "Language"
+                },
+                "y": {
+                  "fieldName": "Count",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Count"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "UDFs by Language"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 20,
+            "width": 12,
+            "height": 8
+          }
+        },
+        {
+          "widget": {
+            "name": "w_u_tbl",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_udfs",
+                  "fields": [
+                    {
+                      "name": "Language",
+                      "expression": "`Language`"
+                    },
+                    {
+                      "name": "Function Type",
+                      "expression": "`Function Type`"
+                    },
+                    {
+                      "name": "Count",
+                      "expression": "`Count`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "showTitle": true,
+                "title": "UDF Detail"
+              },
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "Language"
+                  },
+                  {
+                    "fieldName": "Function Type"
+                  },
+                  {
+                    "fieldName": "Count"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 28,
+            "width": 12,
+            "height": 6
+          }
+        }
+      ],
+      "pageType": "PAGE_TYPE_CANVAS"
+    },
+    {
+      "name": "p4",
+      "displayName": "Workload Analysis",
+      "layout": [
+        {
+          "widget": {
+            "name": "t4",
+            "multilineTextboxSpec": {
+              "lines": [
+                "# Workload Analysis"
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 12,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "t4b",
+            "multilineTextboxSpec": {
+              "lines": [
+                "*Query patterns, user activity, and resource-intensive operations.*"
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 1,
+            "width": 12,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "w_qu",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_q_user",
+                  "fields": [
+                    {
+                      "name": "User",
+                      "expression": "`User`"
+                    },
+                    {
+                      "name": "Queries",
+                      "expression": "`Queries`"
+                    },
+                    {
+                      "name": "CPU (sec)",
+                      "expression": "`CPU (sec)`"
+                    },
+                    {
+                      "name": "Total I/O",
+                      "expression": "`Total I/O`"
+                    },
+                    {
+                      "name": "Spool (MB)",
+                      "expression": "`Spool (MB)`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "showTitle": true,
+                "title": "Query Load by User"
+              },
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "User"
+                  },
+                  {
+                    "fieldName": "Queries"
+                  },
+                  {
+                    "fieldName": "CPU (sec)"
+                  },
+                  {
+                    "fieldName": "Total I/O"
+                  },
+                  {
+                    "fieldName": "Spool (MB)"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 2,
+            "width": 12,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "s4a",
+            "multilineTextboxSpec": {
+              "lines": [
+                "### Application Mix"
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 8,
+            "width": 12,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "w_qa",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_q_app",
+                  "fields": [
+                    {
+                      "name": "Application",
+                      "expression": "`Application`"
+                    },
+                    {
+                      "name": "Queries",
+                      "expression": "`Queries`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "Application",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "displayName": "Application"
+                },
+                "y": {
+                  "fieldName": "Queries",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Queries"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Queries by Application"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 9,
+            "width": 12,
+            "height": 8
+          }
+        },
+        {
+          "widget": {
+            "name": "s4b",
+            "multilineTextboxSpec": {
+              "lines": [
+                "### Heavy Queries"
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 17,
+            "width": 12,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "w_tq",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_top_q",
+                  "fields": [
+                    {
+                      "name": "User",
+                      "expression": "`User`"
+                    },
+                    {
+                      "name": "CPU (sec)",
+                      "expression": "`CPU (sec)`"
+                    },
+                    {
+                      "name": "I/O Count",
+                      "expression": "`I/O Count`"
+                    },
+                    {
+                      "name": "Spool (MB)",
+                      "expression": "`Spool (MB)`"
+                    },
+                    {
+                      "name": "Response (sec)",
+                      "expression": "`Response (sec)`"
+                    },
+                    {
+                      "name": "SQL Preview",
+                      "expression": "`SQL Preview`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "showTitle": true,
+                "title": "Top 20 Queries by CPU"
+              },
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "User"
+                  },
+                  {
+                    "fieldName": "CPU (sec)"
+                  },
+                  {
+                    "fieldName": "I/O Count"
+                  },
+                  {
+                    "fieldName": "Spool (MB)"
+                  },
+                  {
+                    "fieldName": "Response (sec)"
+                  },
+                  {
+                    "fieldName": "SQL Preview"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 18,
+            "width": 12,
+            "height": 10
+          }
+        }
+      ],
+      "pageType": "PAGE_TYPE_CANVAS"
+    }
+  ]
 }
