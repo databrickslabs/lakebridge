@@ -76,9 +76,10 @@ class Profiler:
         if use_pdcr:
             return pipeline_config
 
+        pdcr_step_names = {"td_pdcr_info_agg_extract", "td_pdcr_sp_exe_info_agg_extract"}
         updated_steps: list[Step] = []
         for step in pipeline_config.steps:
-            if step.name in {"td_pdcr_info_agg_extract", "td_pdcr_sp_exe_info_agg_extract"}:
+            if step.name in pdcr_step_names and step.type != "ddl":
                 updated_steps.append(step.copy(flag="inactive"))
             elif step.name == "td_dbql_core_info_extract":
                 updated_steps.append(step.copy(flag="active"))

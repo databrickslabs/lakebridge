@@ -75,18 +75,24 @@ def test_configure_teradata_pipeline_disables_pdcr_steps() -> None:
         version="1.0",
         extract_folder="~/.databricks/labs/lakebridge_profilers/teradata_assessment",
         steps=[
+            Step(name="td_pdcr_info_agg_extract", type="ddl", extract_source="a_ddl.sql", flag="active"),
             Step(name="td_pdcr_info_agg_extract", type="sql", extract_source="a.sql", flag="active"),
+            Step(name="td_pdcr_sp_exe_info_agg_extract", type="ddl", extract_source="b_ddl.sql", flag="active"),
             Step(name="td_pdcr_sp_exe_info_agg_extract", type="sql", extract_source="b.sql", flag="active"),
+            Step(name="td_dbql_core_info_extract", type="ddl", extract_source="c_ddl.sql", flag="active"),
             Step(name="td_dbql_core_info_extract", type="sql", extract_source="c.sql", flag="inactive"),
         ],
     )
 
     updated = Profiler._configure_teradata_pipeline(config, {"profiler": {"use_pdcr": False}})
-    steps_by_name = {step.name: step for step in updated.steps}
+    steps_by_key = {(step.name, step.type): step for step in updated.steps}
 
-    assert steps_by_name["td_pdcr_info_agg_extract"].flag == "inactive"
-    assert steps_by_name["td_pdcr_sp_exe_info_agg_extract"].flag == "inactive"
-    assert steps_by_name["td_dbql_core_info_extract"].flag == "active"
+    assert steps_by_key[("td_pdcr_info_agg_extract", "ddl")].flag == "active"
+    assert steps_by_key[("td_pdcr_info_agg_extract", "sql")].flag == "inactive"
+    assert steps_by_key[("td_pdcr_sp_exe_info_agg_extract", "ddl")].flag == "active"
+    assert steps_by_key[("td_pdcr_sp_exe_info_agg_extract", "sql")].flag == "inactive"
+    assert steps_by_key[("td_dbql_core_info_extract", "ddl")].flag == "active"
+    assert steps_by_key[("td_dbql_core_info_extract", "sql")].flag == "active"
 
 
 def test_supported_source_technologies() -> None:
