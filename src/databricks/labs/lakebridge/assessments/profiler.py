@@ -88,6 +88,30 @@ class Profiler:
         logger.info("Teradata profiler configured without PDCR; using DBQL core fallback extract.")
         return pipeline_config.copy(steps=updated_steps)
 
+    @staticmethod
+    def _is_pdcr_requested(connect_config: Mapping[str, object] | None) -> bool:
+        if not connect_config:
+            return True
+        profiler_config = connect_config.get("profiler")
+        if isinstance(profiler_config, Mapping):
+            return bool(profiler_config.get("use_pdcr", True))
+        return True
+
+    @staticmethod
+    def _has_pdcr_access(extractor: DatabaseManager) -> bool:
+        # Lightweight probes: if these relations are inaccessible/missing, fallback to DBQL core.
+        probes = (
+            "SELECT TOP 1 1 AS pdcr_probe FROM PDCRINFO.DBQLogTbl_Hst",
+            "SELECT TOP 1 1 AS pdcr_probe FROM PDCRINFO.UserInfo",
+        )
+        try:
+            for query in probes:
+                extractor.fetch(query)
+            return True
+        except Exception as e:  # noqa: BLE001 - fallback logic intentionally catches connector/SQL errors
+            logger.warning(f"PDCR preflight check failed; using DBQL core fallback. Details: {e}")
+            return False
+
     def _execute(self, platform: str, pipeline_config: PipelineConfig, extractor=None) -> None:
         try:
             connect_config = None
@@ -100,7 +124,14 @@ class Profiler:
                     extractor = None
 
             if platform == "teradata" and connect_config is not None:
-                pipeline_config = self._configure_teradata_pipeline(pipeline_config, connect_config)
+                pdcr_requested = self._is_pdcr_requested(connect_config)
+                if pdcr_requested and extractor is not None and not self._has_pdcr_access(extractor):
+                    # Autodetect runtime capability and fallback when PDCR tables are unavailable.
+                    pipeline_config = self._configure_teradata_pipeline(
+                        pipeline_config, {"profiler": {"use_pdcr": False}}
+                    )
+                else:
+                    pipeline_config = self._configure_teradata_pipeline(pipeline_config, connect_config)
 
             result = PipelineClass(pipeline_config, extractor).execute()
             logger.info(f"Profile execution has completed successfully for {platform} for more info check: {result}.")

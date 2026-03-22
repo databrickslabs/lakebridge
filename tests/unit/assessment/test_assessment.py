@@ -149,7 +149,6 @@ def test_configure_teradata_credentials(tmp_path):
             r"Enter the user details": "TERADATA_USER",
             r"Enter the password details": "TERADATA_PASSWORD",
             r"Enter the default database name": "DBC",
-            r"Use PDCR tables for extended history profiling\?": "yes",
             r"Do you want to test the connection to teradata\?": "no",
         }
     )
@@ -167,9 +166,6 @@ def test_configure_teradata_credentials(tmp_path):
             'user': 'TERADATA_USER',
             'password': 'TERADATA_PASSWORD',
             'database': 'DBC',
-            'profiler': {
-                'use_pdcr': True,
-            },
         },
     }
 

@@ -50,6 +50,12 @@ class DashboardManager:
 
     _DASHBOARD_NAME = "Lakebridge Profiler Assessment"
 
+    @staticmethod
+    def _dashboard_name_for_source(source_tech: str) -> str:
+        if source_tech.lower() == "teradata":
+            return "Lakebridge Teradata Profiler Dashboard"
+        return DashboardManager._DASHBOARD_NAME
+
     def __init__(
         self, ws: WorkspaceClient, installation: Installation, install_state: InstallState, is_debug: bool = False
     ):
@@ -90,8 +96,9 @@ class DashboardManager:
         updated_dashboard_str = self._replace_catalog_schema(
             dashboard_str, new_catalog=dest_catalog, new_schema=dest_schema
         )
+        dashboard_name = self._dashboard_name_for_source(source_tech)
         dashboard = Dashboard(
-            display_name=self._DASHBOARD_NAME,
+            display_name=dashboard_name,
             parent_path=ws_parent_path,
             warehouse_id=self._ws.config.warehouse_id,
             serialized_dashboard=updated_dashboard_str,
@@ -102,7 +109,7 @@ class DashboardManager:
             dashboard = self._ws.lakeview.create(dashboard=dashboard)
         except ResourceAlreadyExists:
             logger.info("Dashboard already exists! Removing dashboard from workspace location.")
-            dashboard_ws_path = str(Path(ws_parent_path) / f"{self._DASHBOARD_NAME}.lvdash.json")
+            dashboard_ws_path = str(Path(ws_parent_path) / f"{dashboard_name}.lvdash.json")
             self._ws.workspace.delete(dashboard_ws_path)
             dashboard = self._ws.lakeview.create(dashboard=dashboard)
         except DatabricksError as e:

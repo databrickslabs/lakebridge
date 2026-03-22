@@ -202,9 +202,6 @@ class ConfigureTeradataAssessment(AssessmentConfigurator):
                 "user": self.prompts.question("Enter the user details"),
                 "password": self.prompts.password("Enter the password details"),
                 "database": self.prompts.question("Enter the default database name", default="DBC"),
-                "profiler": {
-                    "use_pdcr": self.prompts.confirm("Use PDCR tables for extended history profiling?"),
-                },
             },
         }
 

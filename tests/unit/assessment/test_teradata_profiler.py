@@ -8,6 +8,7 @@ from unittest.mock import MagicMock
 from databricks.labs.lakebridge.assessments.pipeline import PipelineClass
 from databricks.labs.lakebridge.assessments.profiler_config import PipelineConfig, Step
 from databricks.labs.lakebridge.assessments.profiler import Profiler
+import databricks.labs.lakebridge.assessments.profiler as profiler_module
 
 
 def test_teradata_as_supported_source_technologies() -> None:
@@ -136,3 +137,54 @@ def test_configure_teradata_pipeline_defaults_to_pdcr() -> None:
     updated = Profiler._configure_teradata_pipeline(config, {"profiler": {}})
     assert updated.steps[0].flag == "active"
     assert updated.steps[1].flag == "inactive"
+
+
+def test_has_pdcr_access_true() -> None:
+    extractor = MagicMock()
+    extractor.fetch.return_value = MagicMock()
+    assert Profiler._has_pdcr_access(extractor) is True
+    assert extractor.fetch.call_count == 2
+
+
+def test_has_pdcr_access_false_on_probe_error() -> None:
+    extractor = MagicMock()
+    extractor.fetch.side_effect = RuntimeError("relation does not exist")
+    assert Profiler._has_pdcr_access(extractor) is False
+
+
+def test_execute_teradata_auto_fallbacks_when_pdcr_unavailable(monkeypatch) -> None:
+    config = PipelineConfig(
+        name="teradata_assessment",
+        version="1.0",
+        extract_folder="/tmp/teradata_assessment",
+        steps=[
+            Step(name="td_pdcr_info_agg_extract", type="sql", extract_source="a.sql", flag="active"),
+            Step(name="td_pdcr_sp_exe_info_agg_extract", type="sql", extract_source="b.sql", flag="active"),
+            Step(name="td_dbql_core_info_extract", type="sql", extract_source="c.sql", flag="inactive"),
+        ],
+    )
+
+    fake_cred_manager = MagicMock()
+    fake_cred_manager.get_credentials.return_value = {"profiler": {"use_pdcr": True}}
+    fake_extractor = MagicMock()
+    captured: dict[str, PipelineConfig] = {}
+
+    class _FakePipeline:
+        def __init__(self, pipeline_config, executor):
+            captured["config"] = pipeline_config
+            self._executor = executor
+
+        def execute(self):
+            return []
+
+    monkeypatch.setattr(profiler_module, "create_credential_manager", lambda *args, **kwargs: fake_cred_manager)
+    monkeypatch.setattr(profiler_module, "DatabaseManager", lambda *args, **kwargs: fake_extractor)
+    monkeypatch.setattr(Profiler, "_has_pdcr_access", lambda *args, **kwargs: False)
+    monkeypatch.setattr(profiler_module, "PipelineClass", _FakePipeline)
+
+    Profiler("teradata").profile(pipeline_config=config)
+
+    steps_by_name = {(step.name, step.type): step for step in captured["config"].steps}
+    assert steps_by_name[("td_pdcr_info_agg_extract", "sql")].flag == "inactive"
+    assert steps_by_name[("td_pdcr_sp_exe_info_agg_extract", "sql")].flag == "inactive"
+    assert steps_by_name[("td_dbql_core_info_extract", "sql")].flag == "active"

@@ -44,12 +44,48 @@
     },
     {
       "name": "ds_cpu",
-      "displayName": "CPU Hourly",
+      "displayName": "Average CPU Utilization",
       "queryLines": [
-        "SELECT CONCAT(DATE_FORMAT(TheDate,'yyyy-MM-dd'),' ',LPAD(CAST(hour_of_day AS STRING),2,'0'),':00') AS `Hour`,\n",
-        "  ROUND((totCPUUExec+totCPUUServ)/(totCPUUExec+totCPUUServ+totCPUIdle)*100,1) AS `CPU %`,\n",
-        "  ROUND((totMemSizeMB-totMemFreeMB)/totMemSizeMB*100,1) AS `Memory %`\n",
-        "FROM <CATALOG_NAME>.<SCHEMA_NAME>.td_sys_usage_agg ORDER BY TheDate, hour_of_day"
+        "WITH usage_base AS (\n",
+        "  SELECT\n",
+        "    TheDate,\n",
+        "    hour_of_day,\n",
+        "    (totCPUUExec + totCPUUServ) / NULLIF((totCPUUExec + totCPUUServ + totCPUIdle), 0) * 100 AS cpu_pct\n",
+        "  FROM <CATALOG_NAME>.<SCHEMA_NAME>.td_sys_usage_agg\n",
+        "), bucketed AS (\n",
+        "  SELECT\n",
+        "    CASE\n",
+        "      WHEN LOWER(:cpu_granularity) = 'daily' THEN DATE_FORMAT(TheDate, 'yyyy-MM-dd')\n",
+        "      WHEN LOWER(:cpu_granularity) = 'weekly' THEN CONCAT(CAST(YEAR(TheDate) AS STRING), '-W', LPAD(CAST(WEEKOFYEAR(TheDate) AS STRING), 2, '0'))\n",
+        "      WHEN LOWER(:cpu_granularity) = 'monthly' THEN DATE_FORMAT(TheDate, 'yyyy-MM')\n",
+        "      ELSE CONCAT(DATE_FORMAT(TheDate, 'yyyy-MM-dd'), ' ', LPAD(CAST(hour_of_day AS STRING), 2, '0'), ':00')\n",
+        "    END AS Period,\n",
+        "    cpu_pct\n",
+        "  FROM usage_base\n",
+        ")\n",
+        "SELECT\n",
+        "  Period,\n",
+        "  ROUND(AVG(cpu_pct), 1) AS `Avg CPU %`\n",
+        "FROM bucketed\n",
+        "GROUP BY Period\n",
+        "ORDER BY Period"
+      ],
+      "parameters": [
+        {
+          "displayName": "cpu_granularity",
+          "keyword": "cpu_granularity",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": "hourly"
+                }
+              ]
+            }
+          }
+        }
       ]
     },
     {
@@ -469,12 +505,12 @@
                   "datasetName": "ds_cpu",
                   "fields": [
                     {
-                      "name": "Hour",
-                      "expression": "`Hour`"
+                      "name": "Period",
+                      "expression": "`Period`"
                     },
                     {
-                      "name": "CPU %",
-                      "expression": "`CPU %`"
+                      "name": "Avg CPU %",
+                      "expression": "`Avg CPU %`"
                     }
                   ],
                   "disaggregated": true
@@ -486,23 +522,23 @@
               "widgetType": "bar",
               "encodings": {
                 "x": {
-                  "fieldName": "Hour",
+                  "fieldName": "Period",
                   "scale": {
                     "type": "categorical"
                   },
-                  "displayName": "Hour"
+                  "displayName": "Period"
                 },
                 "y": {
-                  "fieldName": "CPU %",
+                  "fieldName": "Avg CPU %",
                   "scale": {
                     "type": "quantitative"
                   },
-                  "displayName": "CPU %"
+                  "displayName": "Avg CPU %"
                 }
               },
               "frame": {
                 "showTitle": true,
-                "title": "CPU Utilization by Hour"
+                "title": "Average CPU Utilization"
               }
             }
           },

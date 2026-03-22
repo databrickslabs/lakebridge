@@ -64,7 +64,6 @@ Enter the Teradata server or host details: td-host.example.com
 Enter the user details: dbc_user
 Enter the password details:
 Enter the default database name (default: DBC):
-Use PDCR tables for extended history profiling? (default: yes):
 ```
 
 The generated credential block includes:
@@ -73,15 +72,18 @@ The generated credential block includes:
 - `teradata.user`
 - `teradata.password`
 - `teradata.database`
-- `teradata.profiler.use_pdcr`
+- Optional override: `teradata.profiler.use_pdcr`
 
 ## PDCR Optional Mode
 
-When `teradata.profiler.use_pdcr = true`:
+Default behavior (when `teradata.profiler.use_pdcr` is omitted or `true`):
 
-- Lakebridge extracts PDCR aggregated datasets:
+- Lakebridge first checks PDCR accessibility.
+- If accessible, Lakebridge extracts PDCR aggregated datasets:
   - `td_pdcr_info_agg_extract`
   - `td_pdcr_sp_exe_info_agg_extract`
+- If PDCR is unavailable, Lakebridge automatically falls back to DBQL core extraction:
+  - `td_dbql_core_info_extract`
 
 When `teradata.profiler.use_pdcr = false`:
 
