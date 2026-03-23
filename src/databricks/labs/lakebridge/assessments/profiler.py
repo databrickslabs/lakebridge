@@ -67,7 +67,9 @@ class Profiler:
         return DatabaseManager(platform, connect_config)
 
     @staticmethod
-    def _configure_teradata_pipeline(pipeline_config: PipelineConfig, connect_config: Mapping[str, object]) -> PipelineConfig:
+    def _configure_teradata_pipeline(
+        pipeline_config: PipelineConfig, connect_config: Mapping[str, object]
+    ) -> PipelineConfig:
         profiler_config = connect_config.get("profiler")
         use_pdcr = True
         if isinstance(profiler_config, Mapping):

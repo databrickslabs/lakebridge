@@ -102,9 +102,7 @@ def _apply_sensitive_column_mask(spark: SparkSession, fq_table_name: str, table_
         )
     else:
         function_sql = (
-            f"CREATE FUNCTION IF NOT EXISTS {function_name}(v STRING) "
-            "RETURNS STRING "
-            "RETURN '[REDACTED_SQL_TEXT]'"
+            f"CREATE FUNCTION IF NOT EXISTS {function_name}(v STRING) " "RETURNS STRING " "RETURN '[REDACTED_SQL_TEXT]'"
         )
 
     try:

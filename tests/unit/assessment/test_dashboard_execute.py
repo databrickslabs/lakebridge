@@ -1,44 +1,12 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import duckdb
 
 from databricks.labs.lakebridge.assessments.dashboards import execute as dashboard_execute
-
-
-class _WriterStub:
-    def __init__(self) -> None:
-        self.saved_table: str | None = None
-
-    def format(self, _fmt: str) -> "_WriterStub":
-        return self
-
-    def mode(self, _mode: str) -> "_WriterStub":
-        return self
-
-    def saveAsTable(self, table_name: str) -> None:
-        self.saved_table = table_name
-
-
-class _SparkDfStub:
-    def __init__(self, writer: _WriterStub) -> None:
-        self.write = writer
-
-
-class _SparkSessionStub:
-    def __init__(self) -> None:
-        self.last_pdf: Any = None
-        self.writer = _WriterStub()
-        self.sql_commands: list[str] = []
-
-    def createDataFrame(self, pdf: Any) -> _SparkDfStub:  # noqa: N802
-        self.last_pdf = pdf
-        return _SparkDfStub(self.writer)
-
-    def sql(self, statement: str) -> None:
-        self.sql_commands.append(statement)
+from tests.unit.spark_test_stubs import SparkSessionStub
 
 
 def test_ingest_table_preserves_multilingual_text(tmp_path: Path, monkeypatch) -> None:
@@ -68,11 +36,11 @@ def test_ingest_table_preserves_multilingual_text(tmp_path: Path, monkeypatch) -
             """
         )
 
-    spark_stub = _SparkSessionStub()
+    spark_stub = SparkSessionStub()
 
     class _BuilderStub:
         @staticmethod
-        def getOrCreate() -> _SparkSessionStub:  # noqa: N802
+        def getOrCreate() -> SparkSessionStub:  # noqa: N802
             return spark_stub
 
     monkeypatch.setattr(dashboard_execute.SparkSession, "builder", _BuilderStub())
@@ -100,12 +68,12 @@ def test_ingest_table_preserves_multilingual_text(tmp_path: Path, monkeypatch) -
 
 
 def test_apply_sensitive_mask_enabled_adds_mask(monkeypatch) -> None:
-    spark_stub = _SparkSessionStub()
+    spark_stub = SparkSessionStub()
     monkeypatch.setenv("LAKEBRIDGE_ENABLE_SQLTEXT_MASK", "true")
     monkeypatch.setenv("LAKEBRIDGE_SQLTEXT_MASK_BYPASS_GROUP", "data-governance-admins")
 
     dashboard_execute._apply_sensitive_column_mask(
-        spark=spark_stub,
+        spark=cast(Any, spark_stub),
         fq_table_name="ad_demo_catalog.bronze.td_dbql_core_info_extract",
         table_name="td_dbql_core_info_extract",
     )
@@ -120,11 +88,11 @@ def test_apply_sensitive_mask_enabled_adds_mask(monkeypatch) -> None:
 
 
 def test_apply_sensitive_mask_disabled_noop(monkeypatch) -> None:
-    spark_stub = _SparkSessionStub()
+    spark_stub = SparkSessionStub()
     monkeypatch.delenv("LAKEBRIDGE_ENABLE_SQLTEXT_MASK", raising=False)
 
     dashboard_execute._apply_sensitive_column_mask(
-        spark=spark_stub,
+        spark=cast(Any, spark_stub),
         fq_table_name="ad_demo_catalog.bronze.td_dbql_core_info_extract",
         table_name="td_dbql_core_info_extract",
     )
@@ -160,11 +128,11 @@ def test_ingest_table_applies_sqltextinfo_governance_controls(tmp_path: Path, mo
             """
         )
 
-    spark_stub = _SparkSessionStub()
+    spark_stub = SparkSessionStub()
 
     class _BuilderStub:
         @staticmethod
-        def getOrCreate() -> _SparkSessionStub:  # noqa: N802
+        def getOrCreate() -> SparkSessionStub:  # noqa: N802
             return spark_stub
 
     monkeypatch.setattr(dashboard_execute.SparkSession, "builder", _BuilderStub())

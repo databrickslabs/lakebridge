@@ -1,5 +1,6 @@
 import pytest
 from unittest.mock import MagicMock, patch
+from typing import Any, cast
 from databricks.labs.blueprint.installation import JsonObject
 from databricks.labs.lakebridge.connections.database_manager import DatabaseManager, FetchResult
 
@@ -92,7 +93,7 @@ def test_fetch_result_to_df_normalizes_utf8_text() -> None:
     ]
     result = FetchResult(
         columns={"ja", "ko", "th", "fr", "de", "it", "es", "pt", "nl", "bad_text"},
-        rows=raw_rows,
+        rows=cast(Any, raw_rows),
     )
 
     frame = result.to_df()

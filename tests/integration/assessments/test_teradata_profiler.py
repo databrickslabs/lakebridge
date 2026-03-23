@@ -15,6 +15,7 @@ ClearScape does **not** include PDCR tables, so all pipeline tests run with
 
 from pathlib import Path
 from unittest.mock import patch
+from typing import Any, cast
 
 import duckdb
 import pytest
@@ -33,6 +34,8 @@ from databricks.labs.lakebridge.cli import (
     test_profiler_connection as cli_test_profiler_connection,
 )
 from databricks.labs.lakebridge.connections.database_manager import DatabaseManager
+from databricks.labs.lakebridge.connections.env_getter import EnvGetter
+from tests.unit.teradata_test_helpers import TERADATA_TABLES
 
 pytestmark = pytest.mark.teradata
 
@@ -45,18 +48,7 @@ _TERADATA_PIPELINE_CFG = "src/databricks/labs/lakebridge/resources/assessments/t
 
 # Tables expected after a non-PDCR pipeline run.
 # PDCR data steps are inactive; their DDL still creates the (empty) tables.
-_EXPECTED_TABLES_NO_PDCR = {
-    "td_sys_info",
-    "td_sys_nodes_info",
-    "td_sys_usage_agg",
-    "td_sys_disk_utilization",
-    "td_db_object_types",
-    "td_user_databases",
-    "td_dwh_udf",
-    "td_pdcr_info_agg_extract",
-    "td_pdcr_sp_exe_info_agg_extract",
-    "td_dbql_core_info_extract",
-}
+_EXPECTED_TABLES_NO_PDCR = set(TERADATA_TABLES)
 
 # Tables that should have data when run against ClearScape.
 # PDCR tables will be empty (DDL-only); DBQL core may or may not have data
@@ -148,9 +140,7 @@ def test_teradata_profiler_pipeline_no_pdcr(
     results = pipeline.execute()
 
     for r in results:
-        assert r.status.value in ("COMPLETE", "SKIPPED"), (
-            f"Step {r.step_name} failed: {r.error_message}"
-        )
+        assert r.status.value in ("COMPLETE", "SKIPPED"), f"Step {r.step_name} failed: {r.error_message}"
 
     db_path = extract_folder / DB_NAME
     assert db_path.exists(), "Profiler extract database should be created"
@@ -199,15 +189,31 @@ def test_teradata_profiler_extract_schema(
         "td_sys_info": {"K", "V"},
         "td_db_object_types": {"DatabaseName", "TableKind", "TableKindCount"},
         "td_dwh_udf": {
-            "DatabaseName", "FunctionName", "NumParameters",
-            "ParameterDataTypes", "FunctionLanguage", "FunctionType", "ReturnType",
+            "DatabaseName",
+            "FunctionName",
+            "NumParameters",
+            "ParameterDataTypes",
+            "FunctionLanguage",
+            "FunctionType",
+            "ReturnType",
         },
         "td_user_databases": {
-            "DatabaseName", "CreatorName", "CreateTimeStamp", "LastAlterTimeStamp",
-            "ProtectionType", "JournalFlag", "PermSpace", "SpoolSpace", "TempSpace",
+            "DatabaseName",
+            "CreatorName",
+            "CreateTimeStamp",
+            "LastAlterTimeStamp",
+            "ProtectionType",
+            "JournalFlag",
+            "PermSpace",
+            "SpoolSpace",
+            "TempSpace",
         },
         "td_sys_disk_utilization": {
-            "DATABASENAME", "MAX_PERM_MB", "CURRENT_PERM_MB", "MAX_SPOOL_MB", "CURRENT_SPOOL_MB",
+            "DATABASENAME",
+            "MAX_PERM_MB",
+            "CURRENT_PERM_MB",
+            "MAX_SPOOL_MB",
+            "CURRENT_SPOOL_MB",
         },
     }
 
@@ -248,17 +254,18 @@ def test_teradata_profiler_class_execution(
 
 def _write_teradata_cred_file(path: Path, config: JsonObject) -> Path:
     """Write a .credentials.yml file matching the format used by configure-database-profiler."""
-    cred = {
+    cfg = cast(dict[str, Any], config)
+    cred: dict[str, Any] = {
         "secret_vault_type": "local",
         "secret_vault_name": None,
         "teradata": {
-            "host": config["host"],
-            "user": config["user"],
-            "password": config["password"],
+            "host": cfg["host"],
+            "user": cfg["user"],
+            "password": cfg["password"],
         },
     }
-    if config.get("database"):
-        cred["teradata"]["database"] = config["database"]
+    if cfg.get("database"):
+        cred["teradata"]["database"] = cfg["database"]
     cred["teradata"]["profiler"] = {"use_pdcr": False}
 
     cred_file = path / ".credentials.yml"
@@ -313,9 +320,7 @@ def test_cli_execute_database_profiler(
             create_credential_manager,
         )
 
-        mock_cred_mgr.return_value = create_credential_manager(
-            "lakebridge", None, creds_path=cred_file
-        )
+        mock_cred_mgr.return_value = create_credential_manager("lakebridge", EnvGetter(), creds_path=cred_file)
 
         profiler = Profiler.create("teradata")
         config = profiler._pipeline_config
@@ -479,9 +484,7 @@ def test_deploy_teradata_dashboard(application_ctx) -> None:
     )
 
     dash_ref = "teradata"
-    assert dash_ref in application_ctx.install_state.dashboards, (
-        "Dashboard should be registered in install state"
-    )
+    assert dash_ref in application_ctx.install_state.dashboards, "Dashboard should be registered in install state"
     dashboard_id = application_ctx.install_state.dashboards[dash_ref]
 
     dashboard = application_ctx.workspace_client.lakeview.get(dashboard_id)

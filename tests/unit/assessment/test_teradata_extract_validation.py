@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
 
 import duckdb
 import pytest
@@ -15,6 +14,8 @@ from databricks.labs.lakebridge.assessments.profiler_validator import (
     build_validation_report,
 )
 from .teradata_extract_utils import build_mock_teradata_extract
+from tests.unit.spark_test_stubs import SparkSessionStub
+from tests.unit.teradata_test_helpers import TERADATA_TABLES
 
 
 @pytest.fixture()
@@ -32,20 +33,6 @@ def teradata_schema_def_path() -> Path:
     assert schema_def.is_file(), "teradata_extract_schema.yml must exist"
     with resources.as_file(schema_def) as p:
         return Path(p)
-
-
-TERADATA_TABLES = [
-    "td_sys_info",
-    "td_sys_nodes_info",
-    "td_sys_usage_agg",
-    "td_sys_disk_utilization",
-    "td_db_object_types",
-    "td_user_databases",
-    "td_dwh_udf",
-    "td_pdcr_info_agg_extract",
-    "td_pdcr_sp_exe_info_agg_extract",
-    "td_dbql_core_info_extract",
-]
 
 
 def test_teradata_extract_has_all_expected_tables(teradata_extract: Path) -> None:
@@ -66,12 +53,10 @@ def test_teradata_extract_tables_are_non_empty(teradata_extract: Path) -> None:
         report = build_validation_report(validation_checks, conn)
 
     failures = [r for r in report if r.outcome == "FAIL"]
-    assert len(failures) == 0, f"Tables with no rows: {[f.table_name for f in failures]}"
+    assert len(failures) == 0, f"Tables with no rows: {[f.table for f in failures]}"
 
 
-def test_teradata_extract_schema_matches_definition(
-    teradata_extract: Path, teradata_schema_def_path: Path
-) -> None:
+def test_teradata_extract_schema_matches_definition(teradata_extract: Path, teradata_schema_def_path: Path) -> None:
     """Every table should match the column types defined in teradata_extract_schema.yml."""
     with duckdb.connect(str(teradata_extract)) as conn:
         validation_checks = []
@@ -87,9 +72,7 @@ def test_teradata_extract_schema_matches_definition(
         report = build_validation_report(validation_checks, conn)
 
     failures = [r for r in report if r.outcome == "FAIL"]
-    assert len(failures) == 0, (
-        f"Schema mismatches: {[(f.table_name, f.summary) for f in failures]}"
-    )
+    assert len(failures) == 0, f"Schema mismatches: {[(f.table, f.summary) for f in failures]}"
 
 
 def test_teradata_extract_schema_wrong_source_tech_rejected(
@@ -108,43 +91,13 @@ def test_teradata_extract_schema_wrong_source_tech_rejected(
             build_validation_report([check], conn)
 
 
-class _WriterStub:
-    def __init__(self) -> None:
-        self.saved_table: str | None = None
-
-    def format(self, _fmt: str) -> "_WriterStub":
-        return self
-
-    def mode(self, _mode: str) -> "_WriterStub":
-        return self
-
-    def saveAsTable(self, table_name: str) -> None:
-        self.saved_table = table_name
-
-
-class _SparkDfStub:
-    def __init__(self, writer: _WriterStub) -> None:
-        self.write = writer
-
-
-class _SparkSessionStub:
-    def __init__(self) -> None:
-        self.ingested: list[tuple[Any, str]] = []
-        self._writer = _WriterStub()
-
-    def createDataFrame(self, pdf: Any) -> _SparkDfStub:  # noqa: N802
-        writer = _WriterStub()
-        self.ingested.append((pdf, writer))
-        return _SparkDfStub(writer)
-
-
 def test_ingest_teradata_tables_ingests_all(teradata_extract: Path, monkeypatch) -> None:
     """_ingest_profiler_tables should ingest all 10 Teradata tables."""
-    spark_stub = _SparkSessionStub()
+    spark_stub = SparkSessionStub()
 
     class _BuilderStub:
         @staticmethod
-        def getOrCreate() -> _SparkSessionStub:  # noqa: N802
+        def getOrCreate() -> SparkSessionStub:  # noqa: N802
             return spark_stub
 
     monkeypatch.setattr(dashboard_execute.SparkSession, "builder", _BuilderStub())
@@ -159,11 +112,11 @@ def test_ingest_teradata_tables_ingests_all(teradata_extract: Path, monkeypatch)
 
 def test_ingest_teradata_table_preserves_null_database_in_udf(teradata_extract: Path, monkeypatch) -> None:
     """UDFs with NULL DatabaseName should be ingested without errors."""
-    spark_stub = _SparkSessionStub()
+    spark_stub = SparkSessionStub()
 
     class _BuilderStub:
         @staticmethod
-        def getOrCreate() -> _SparkSessionStub:  # noqa: N802
+        def getOrCreate() -> SparkSessionStub:  # noqa: N802
             return spark_stub
 
     monkeypatch.setattr(dashboard_execute.SparkSession, "builder", _BuilderStub())

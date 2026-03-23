@@ -214,13 +214,10 @@ def create_assessment_configurator(
     source_system: str, product_name: str, prompts: Prompts, credential_file=None
 ) -> AssessmentConfigurator:
     """Factory function to create the appropriate assessment configurator."""
-    configurators = {
-        "mssql": ConfigureSqlServerAssessment,
-        "synapse": ConfigureSynapseAssessment,
-        "teradata": ConfigureTeradataAssessment,
-    }
-
-    if source_system not in configurators:
-        raise ValueError(f"Unsupported source system: {source_system}")
-
-    return configurators[source_system](product_name, prompts, source_system, credential_file)
+    if source_system == "mssql":
+        return ConfigureSqlServerAssessment(product_name, prompts, source_system, credential_file)
+    if source_system == "synapse":
+        return ConfigureSynapseAssessment(product_name, prompts, source_system, credential_file)
+    if source_system == "teradata":
+        return ConfigureTeradataAssessment(product_name, prompts, source_system, credential_file)
+    raise ValueError(f"Unsupported source system: {source_system}")

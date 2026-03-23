@@ -12,7 +12,10 @@ from databricks.sdk.service.iam import User
 
 from databricks.labs.blueprint.installation import MockInstallation
 from databricks.labs.blueprint.installer import InstallState
-from databricks.labs.lakebridge.assessments.dashboards.dashboard_manager import DashboardManager, DashboardTemplateLoader
+from databricks.labs.lakebridge.assessments.dashboards.dashboard_manager import (
+    DashboardManager,
+    DashboardTemplateLoader,
+)
 
 
 @pytest.fixture
@@ -130,7 +133,7 @@ def test_create_profiler_summary_dashboard_uses_teradata_template_loader(
     monkeypatch: pytest.MonkeyPatch,
 ):
     ws = mocked_workspace_client
-    ws.config = SimpleNamespace(warehouse_id="test-wh")
+    cast(Any, ws).config = SimpleNamespace(warehouse_id="test-wh")
     ws.workspace.mkdirs.return_value = None
     ws.lakeview.create.return_value = SimpleNamespace(dashboard_id="dash-123")
 
@@ -156,8 +159,7 @@ def test_teradata_dashboard_template_loads_and_has_datasets():
     from databricks.labs.blueprint.wheels import find_project_root
 
     template_folder = (
-        find_project_root(__file__)
-        / "src/databricks/labs/lakebridge/resources/assessments/dashboards/teradata"
+        find_project_root(__file__) / "src/databricks/labs/lakebridge/resources/assessments/dashboards/teradata"
     )
     loader = DashboardTemplateLoader(template_folder)
     dashboard_json = loader.load(source_system="teradata")
