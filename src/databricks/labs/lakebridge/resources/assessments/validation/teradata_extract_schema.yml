@@ -188,6 +188,11 @@ schemas:
             type: BIGINT
           - name: SQLTextInfo
             type: VARCHAR
+            sensitivity: confidential
+            description: >
+              Raw SQL query text captured from Teradata DBQL. May contain proprietary
+              business logic, table/column names, filter predicates, and sensitive
+              identifiers. Access should be governed via Unity Catalog column masking policies.
           - name: StartTime
             type: TIMESTAMP
           - name: FirstRespTime

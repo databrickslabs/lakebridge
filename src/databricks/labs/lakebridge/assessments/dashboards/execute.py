@@ -25,6 +25,102 @@ from databricks.labs.lakebridge import initialize_logging
 
 logger = logging.getLogger(__name__)
 
+# Columns that contain potentially sensitive data and require a UC column comment
+# and tag after ingestion. Key: table_name, Value: {col_name: comment}.
+_SENSITIVE_COLUMNS: dict[str, dict[str, str]] = {
+    "td_dbql_core_info_extract": {
+        "SQLTextInfo": (
+            "CONFIDENTIAL: Raw SQL query text captured from Teradata DBQL. "
+            "May contain proprietary business logic, table/column names, filter predicates, "
+            "and sensitive identifiers. Govern access via Unity Catalog column masking policies."
+        )
+    }
+}
+
+
+def _is_truthy_env(var_name: str, default: bool = False) -> bool:
+    raw = os.getenv(var_name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "y", "on"}
+
+
+def _apply_sensitive_column_metadata(spark: SparkSession, fq_table_name: str, table_name: str) -> None:
+    """
+    Applies a column COMMENT and a 'sensitivity' UC tag to any columns declared
+    in _SENSITIVE_COLUMNS for the given table.  Both operations are best-effort —
+    failures are logged as warnings so that a missing governance permission does
+    not abort the entire ingestion job.
+    """
+    for col_name, comment in _SENSITIVE_COLUMNS.get(table_name, {}).items():
+        safe_comment = comment.replace("'", "\\'")
+        try:
+            spark.sql(f"ALTER TABLE {fq_table_name} ALTER COLUMN {col_name} COMMENT '{safe_comment}'")
+            logger.info(f"Applied sensitivity comment to '{fq_table_name}.{col_name}'.")
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"Could not set column comment on '{fq_table_name}.{col_name}': {e}")
+        try:
+            spark.sql(f"ALTER TABLE {fq_table_name} ALTER COLUMN {col_name} SET TAGS ('sensitivity' = 'confidential')")
+            logger.info(f"Applied sensitivity tag to '{fq_table_name}.{col_name}'.")
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"Could not set column tag on '{fq_table_name}.{col_name}': {e}")
+
+
+def _apply_sensitive_column_mask(spark: SparkSession, fq_table_name: str, table_name: str) -> None:
+    """
+    Best-effort masking policy application for sensitive columns.
+
+    Feature flag:
+      - LAKEBRIDGE_ENABLE_SQLTEXT_MASK=true|false (default: false)
+
+    Optional behavior:
+      - LAKEBRIDGE_SQLTEXT_MASK_BYPASS_GROUP=<group-name>
+        Members of this account group see unmasked SQL text.
+        If unset/empty, all users see masked SQL text.
+    """
+    if not _is_truthy_env("LAKEBRIDGE_ENABLE_SQLTEXT_MASK", default=False):
+        return
+
+    # Currently this policy is only relevant for the DBQL SQL text column.
+    if table_name != "td_dbql_core_info_extract":
+        return
+
+    parts = fq_table_name.split(".")
+    if len(parts) != 3:
+        logger.warning(f"Skipping SQL text masking for unexpected table format: '{fq_table_name}'")
+        return
+    catalog_name, schema_name, _ = parts
+    function_name = f"{catalog_name}.{schema_name}.mask_sql_textinfo"
+
+    bypass_group = os.getenv("LAKEBRIDGE_SQLTEXT_MASK_BYPASS_GROUP", "data-governance-admins").strip()
+    if bypass_group:
+        safe_group = bypass_group.replace("'", "\\'")
+        function_sql = (
+            f"CREATE FUNCTION IF NOT EXISTS {function_name}(v STRING) "
+            "RETURNS STRING "
+            f"RETURN CASE WHEN is_account_group_member('{safe_group}') THEN v ELSE '[REDACTED_SQL_TEXT]' END"
+        )
+    else:
+        function_sql = (
+            f"CREATE FUNCTION IF NOT EXISTS {function_name}(v STRING) "
+            "RETURNS STRING "
+            "RETURN '[REDACTED_SQL_TEXT]'"
+        )
+
+    try:
+        spark.sql(function_sql)
+        logger.info(f"Created/verified SQL masking function '{function_name}'.")
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"Could not create masking function '{function_name}': {e}")
+        return
+
+    try:
+        spark.sql(f"ALTER TABLE {fq_table_name} ALTER COLUMN SQLTextInfo SET MASK {function_name}")
+        logger.info(f"Applied SQL text mask on '{fq_table_name}.SQLTextInfo'.")
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"Could not apply SQL text mask on '{fq_table_name}.SQLTextInfo': {e}")
+
+
 def _normalize_text(value: Any) -> Any:
     if isinstance(value, bytes):
         return value.decode("utf-8", errors="replace")
@@ -199,16 +295,20 @@ def _ingest_profiler_tables(catalog_name: str, schema_name: str, extract_locatio
 def _ingest_table(extract_location: str, source_table_name: str, target_table_name: str) -> None:
     """
     Ingest a table from a DuckDB profiler extract into a managed Delta table in Unity Catalog.
+    After writing, applies sensitivity column comments and UC tags to any columns
+    declared in _SENSITIVE_COLUMNS (e.g. SQLTextInfo on td_dbql_core_info_extract).
     """
     try:
         with duckdb.connect(database=extract_location, read_only=True) as duck_conn:
             query = f"SELECT * FROM {source_table_name}"
             pdf = _normalize_dataframe_text(duck_conn.execute(query).df())
-            # Save table as a managed Delta table in Unity Catalog
             logger.info(f"Saving profiler table '{target_table_name}' to Unity Catalog.")
             spark = SparkSession.builder.getOrCreate()
             df = spark.createDataFrame(pdf)
             df.write.format("delta").mode("overwrite").saveAsTable(target_table_name)
+            table_name = source_table_name.split(".")[-1]
+            _apply_sensitive_column_metadata(spark, target_table_name, table_name)
+            _apply_sensitive_column_mask(spark, target_table_name, table_name)
     except duckdb.CatalogException as e:
         logger.error(f"Could not find source table '{source_table_name}' in profiler extract: {e}")
         raise duckdb.CatalogException(f"Could not find source table '{source_table_name}' in profiler extract.") from e

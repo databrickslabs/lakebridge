@@ -10,6 +10,7 @@ import Admonition from '@theme/Admonition';
 - [Configure Connection to Teradata](#configure-connection-to-teradata)
 - [PDCR Optional Mode](#pdcr-optional-mode)
 - [International Character Support](#international-character-support)
+- [Security/Governance options](#securitygovernance-options)
 
 ## Prerequisites
 
@@ -103,5 +104,33 @@ Lakebridge supports multilingual query text and metadata (for example Japanese, 
 - Teradata extraction runs over UTF-8-capable driver paths.
 - During extraction and dashboard ingestion, Lakebridge normalizes text values to UTF-8-safe strings.
 - Invalid byte sequences are safely replaced instead of failing the profiler run.
+
+## Security/Governance options
+
+`td_dbql_core_info_extract.SQLTextInfo` can contain raw SQL text and may include sensitive identifiers.
+
+Lakebridge provides two governance layers:
+
+1. **Column metadata (always-on):**
+   - During ingestion, Lakebridge applies a column comment and `sensitivity=confidential` UC tag to `SQLTextInfo` (best effort).
+2. **Column masking (opt-in):**
+   - Lakebridge can automatically apply a Unity Catalog column mask after ingestion.
+   - This is best-effort (warnings are logged if governance privileges are missing, ingestion continues).
+
+### Enable automatic SQL text masking
+
+Set these environment variables on the Databricks job or cluster running dashboard ingestion:
+
+- `LAKEBRIDGE_ENABLE_SQLTEXT_MASK=true`
+- Optional: `LAKEBRIDGE_SQLTEXT_MASK_BYPASS_GROUP=<account-group-name>`
+  - Default: `data-governance-admins`
+  - Members of this group see unmasked SQL text; others see masked values.
+
+### Optional: Databricks Data Classification
+
+In addition to explicit Lakebridge tagging, you can enable Databricks Data Classification in Unity Catalog for catalog-wide automated discovery and tagging. This complements explicit tags and masking policies.
+
+- Data Classification docs: https://docs.databricks.com/aws/en/data-governance/unity-catalog/data-classification
+- Row filters and column masks docs: https://docs.databricks.com/aws/en/data-governance/unity-catalog/filters-and-masks
 
 [Back to Configure Profiler](../#configure-profiler)
