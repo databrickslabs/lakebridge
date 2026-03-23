@@ -74,16 +74,16 @@ def test_apply_sensitive_mask_enabled_adds_mask(monkeypatch) -> None:
 
     dashboard_execute._apply_sensitive_column_mask(
         spark=cast(Any, spark_stub),
-        fq_table_name="ad_demo_catalog.bronze.td_dbql_core_info_extract",
+        fq_table_name="test_catalog.test_schema.td_dbql_core_info_extract",
         table_name="td_dbql_core_info_extract",
     )
 
     assert len(spark_stub.sql_commands) == 2
-    assert "CREATE FUNCTION IF NOT EXISTS ad_demo_catalog.bronze.mask_sql_textinfo" in spark_stub.sql_commands[0]
+    assert "CREATE FUNCTION IF NOT EXISTS test_catalog.test_schema.mask_sql_textinfo" in spark_stub.sql_commands[0]
     assert "is_account_group_member('data-governance-admins')" in spark_stub.sql_commands[0]
     assert (
-        "ALTER TABLE ad_demo_catalog.bronze.td_dbql_core_info_extract "
-        "ALTER COLUMN SQLTextInfo SET MASK ad_demo_catalog.bronze.mask_sql_textinfo"
+        "ALTER TABLE test_catalog.test_schema.td_dbql_core_info_extract "
+        "ALTER COLUMN SQLTextInfo SET MASK test_catalog.test_schema.mask_sql_textinfo"
     ) in spark_stub.sql_commands[1]
 
 
@@ -93,7 +93,7 @@ def test_apply_sensitive_mask_disabled_noop(monkeypatch) -> None:
 
     dashboard_execute._apply_sensitive_column_mask(
         spark=cast(Any, spark_stub),
-        fq_table_name="ad_demo_catalog.bronze.td_dbql_core_info_extract",
+        fq_table_name="test_catalog.test_schema.td_dbql_core_info_extract",
         table_name="td_dbql_core_info_extract",
     )
 
@@ -142,12 +142,44 @@ def test_ingest_table_applies_sqltextinfo_governance_controls(tmp_path: Path, mo
     dashboard_execute._ingest_table(
         extract_location=str(extract_path),
         source_table_name="main.td_dbql_core_info_extract",
-        target_table_name="ad_demo_catalog.bronze.td_dbql_core_info_extract",
+        target_table_name="test_catalog.test_schema.td_dbql_core_info_extract",
     )
 
     sql_script = "\n".join(spark_stub.sql_commands)
-    assert "ALTER TABLE ad_demo_catalog.bronze.td_dbql_core_info_extract ALTER COLUMN SQLTextInfo COMMENT" in sql_script
-    assert "ALTER COLUMN SQLTextInfo SET TAGS ('sensitivity' = 'confidential')" in sql_script
-    assert "CREATE FUNCTION IF NOT EXISTS ad_demo_catalog.bronze.mask_sql_textinfo" in sql_script
+    assert "ALTER TABLE test_catalog.test_schema.td_dbql_core_info_extract ALTER COLUMN SQLTextInfo COMMENT" in sql_script
+    assert "ALTER COLUMN SQLTextInfo SET TAGS ('sensitivity' = 'pii')" in sql_script
+    assert "CREATE FUNCTION IF NOT EXISTS test_catalog.test_schema.mask_sql_textinfo" in sql_script
     assert "is_account_group_member('data-governance-admins')" in sql_script
-    assert "ALTER COLUMN SQLTextInfo SET MASK ad_demo_catalog.bronze.mask_sql_textinfo" in sql_script
+    assert "ALTER COLUMN SQLTextInfo SET MASK test_catalog.test_schema.mask_sql_textinfo" in sql_script
+
+
+def test_ingest_table_handles_empty_dataframe_with_explicit_schema(tmp_path: Path, monkeypatch) -> None:
+    extract_path = tmp_path / "profiler_extract.db"
+    with duckdb.connect(str(extract_path)) as conn:
+        conn.execute(
+            """
+            CREATE TABLE td_pdcr_info_agg_extract (
+                LogDate DATE,
+                ApplicationID VARCHAR,
+                QueryCount BIGINT
+            )
+            """
+        )
+
+    spark_stub = SparkSessionStub()
+
+    class _BuilderStub:
+        @staticmethod
+        def getOrCreate() -> SparkSessionStub:  # noqa: N802
+            return spark_stub
+
+    monkeypatch.setattr(dashboard_execute.SparkSession, "builder", _BuilderStub())
+
+    dashboard_execute._ingest_table(
+        extract_location=str(extract_path),
+        source_table_name="main.td_pdcr_info_agg_extract",
+        target_table_name="test_catalog.test_schema.td_pdcr_info_agg_extract",
+    )
+
+    assert spark_stub.last_schema is not None
+    assert spark_stub.writer.saved_table == "test_catalog.test_schema.td_pdcr_info_agg_extract"

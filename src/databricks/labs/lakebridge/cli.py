@@ -31,7 +31,12 @@ from databricks.labs.lakebridge.assessments import (
 from databricks.labs.lakebridge.assessments.profiler import Profiler
 from databricks.labs.lakebridge.assessments.pipeline import PipelineClass
 
-from databricks.labs.lakebridge.config import TranspileConfig, LSPConfigOptionV1
+from databricks.labs.lakebridge.config import (
+    LSPConfigOptionV1,
+    ProfilerDashboardConfig,
+    ProfilerDashboardMetadataConfig,
+    TranspileConfig,
+)
 from databricks.labs.lakebridge.contexts.application import ApplicationContext
 from databricks.labs.lakebridge.connections.credential_manager import cred_file, create_credential_manager
 from databricks.labs.lakebridge.connections.database_manager import DatabaseManager
@@ -1031,6 +1036,27 @@ def execute_database_profiler(w: WorkspaceClient, source_tech: str | None = None
 
 
 @lakebridge.command()
+def visualize_profiler_results(
+    *,
+    w: WorkspaceClient,
+    transpiler_repository: TranspilerRepository = TranspilerRepository.user_home(),
+) -> None:
+    """Deploys a profiler summary as a Databricks dashboard"""
+    from databricks.labs.lakebridge.install import installer  # pylint: disable=cyclic-import, import-outside-toplevel
+
+    ctx = ApplicationContext(w)
+    ctx.add_user_agent_extra("cmd", "visualize-profiler-results")
+
+    # Deploy the profiler dashboard and ingestion job
+    if not w.config.warehouse_id:
+        dbsql_id = _create_warehouse(w)
+        w.config.warehouse_id = dbsql_id
+    logger.debug(f"Warehouse ID used for running the profiler dashboard: {w.config.warehouse_id}.")
+    profiler_dashboard_installer = installer(w, transpiler_repository, is_interactive=True)
+    profiler_dashboard_installer.run(module="profiler_dashboard")
+
+
+@lakebridge.command()
 def create_profiler_dashboard(
     *,
     w: WorkspaceClient,
@@ -1040,15 +1066,35 @@ def create_profiler_dashboard(
     schema_name: str,
     extract_file: str | None = None,
 ) -> None:
-    """Deploys a profiler summary as a Databricks dashboard"""
+    """Backward-compatible non-interactive profiler dashboard deployment command."""
     ctx = ApplicationContext(w)
     ctx.add_user_agent_extra("cmd", "create-profiler-dashboard")
     if extract_file is None:
         config_path = PRODUCT_PATH_PREFIX / PLATFORM_TO_SOURCE_TECHNOLOGY_CFG[source_tech]
         pipeline_config = PipelineClass.load_config_from_yaml(config_path)
         extract_file = str(Path(pipeline_config.extract_folder).expanduser() / "profiler_extract.db")
-    ctx.dashboard_manager.upload_duckdb_to_uc_volume(extract_file, volume_path)
-    ctx.dashboard_manager.create_profiler_summary_dashboard(source_tech, catalog_name, schema_name)
+
+    volume_name = volume_path
+    if volume_path.startswith("/Volumes/"):
+        parts = Path(volume_path).parts
+        if len(parts) < 5:
+            raise_validation_exception(
+                "Invalid '--volume-path'. Expected '/Volumes/<catalog>/<schema>/<volume>[/optional-file]'."
+            )
+        volume_name = parts[4]
+
+    cfg = ProfilerDashboardConfig(
+        source_tech=source_tech,
+        extract_file_path=extract_file,
+        metadata_config=ProfilerDashboardMetadataConfig(
+            catalog=catalog_name,
+            schema=schema_name,
+            volume=volume_name,
+        ),
+    )
+    if not ctx.dashboard_manager.upload_duckdb_to_uc_volume(cfg):
+        raise RuntimeError("Failed to upload profiler extract to UC volume.")
+    ctx.dashboard_manager.deploy(cfg)
 
 
 def _test_database_connection(source_tech: str, raw_config: dict) -> None:

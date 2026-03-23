@@ -13,6 +13,8 @@ from databricks.labs.lakebridge.config import (
     ReconcileConfig,
     DatabaseConfig,
     ReconcileMetadataConfig,
+    ProfilerDashboardConfig,
+    ProfilerDashboardMetadataConfig,
 )
 from databricks.labs.lakebridge.deployment.job import JobDeployment
 
@@ -130,13 +132,18 @@ def test_deploy_new_profiler_ingestion_job():
     install_state = InstallState.from_installation(installation)
     product_info = ProductInfo.from_class(LakebridgeConfiguration)
     name = "Profiler Ingestion Job"
+    config = ProfilerDashboardConfig(
+        source_tech="synapse",
+        extract_file_path="/tmp/data/synapse_assessment/profiler_extract.db",
+        metadata_config=ProfilerDashboardMetadataConfig(
+            catalog="lakebridge_profiler", schema="profiler_runs", volume="synapse-extract"
+        ),
+        job_overrides=None,
+    )
     job_deployer = JobDeployment(workspace_client, installation, install_state, product_info)
     job_deployer.deploy_profiler_ingestion_job(
         name,
-        catalog_name="lakebridge_profiler",
-        schema_name="profiler_runs",
-        volume_location="/Volumes/lakebridge-profiler/default/synapse-extract",
-        source_tech="Synapse",
+        config,
         lakebridge_wheel_path="lakebridge-x.y.z-py3-none-any.whl",
     )
     workspace_client.jobs.create.assert_called_once()
@@ -152,13 +159,18 @@ def test_deploy_existing_profiler_ingestion_job():
     installation = MockInstallation({"state.json": {"resources": {"jobs": {name: str(job_id)}}, "version": 1}})
     install_state = InstallState.from_installation(installation)
     product_info = ProductInfo.for_testing(LakebridgeConfiguration)
+    config = ProfilerDashboardConfig(
+        source_tech="synapse",
+        extract_file_path="/tmp/data/synapse_assessment/profiler_extract.db",
+        metadata_config=ProfilerDashboardMetadataConfig(
+            catalog="lakebridge_profiler", schema="profiler_runs", volume="synapse-extract"
+        ),
+        job_overrides=None,
+    )
     job_deployer = JobDeployment(workspace_client, installation, install_state, product_info)
     job_deployer.deploy_profiler_ingestion_job(
         name,
-        catalog_name="lakebridge_profiler",
-        schema_name="profiler_runs",
-        volume_location="/Volumes/lakebridge-profiler/default/synapse-extract",
-        source_tech="Synapse",
+        config,
         lakebridge_wheel_path="lakebridge-x.y.z-py3-none-any.whl",
     )
     workspace_client.jobs.reset.assert_called_once()
@@ -175,14 +187,86 @@ def test_deploy_missing_profiler_ingestion_job():
     installation = MockInstallation({"state.json": {"resources": {"jobs": {name: "9012"}}, "version": 1}})
     install_state = InstallState.from_installation(installation)
     product_info = ProductInfo.for_testing(LakebridgeConfiguration)
+    config = ProfilerDashboardConfig(
+        source_tech="synapse",
+        extract_file_path="/tmp/data/synapse_assessment/profiler_extract.db",
+        metadata_config=ProfilerDashboardMetadataConfig(
+            catalog="lakebridge_profiler", schema="profiler_runs", volume="synapse-extract"
+        ),
+        job_overrides=None,
+    )
     job_deployer = JobDeployment(workspace_client, installation, install_state, product_info)
     job_deployer.deploy_profiler_ingestion_job(
         name,
-        catalog_name="lakebridge_profiler",
-        schema_name="profiler_runs",
-        volume_location="/Volumes/lakebridge-profiler/default/synapse-extract",
-        source_tech="Synapse",
+        config,
         lakebridge_wheel_path="lakebridge-x.y.z-py3-none-any.whl",
     )
     workspace_client.jobs.create.assert_called_once()
     assert install_state.jobs[name] == str(job.job_id)
+
+
+def test_deploy_profiler_ingestion_job_uses_serverless_by_default(monkeypatch):
+    monkeypatch.delenv("LAKEBRIDGE_PROFILER_INGESTION_USE_SERVERLESS", raising=False)
+    workspace_client = create_autospec(WorkspaceClient)
+    job = Job(job_id=5678)
+    workspace_client.jobs.create.return_value = job
+    installation = MockInstallation(is_global=False)
+    install_state = InstallState.from_installation(installation)
+    product_info = ProductInfo.from_class(LakebridgeConfiguration)
+    config = ProfilerDashboardConfig(
+        source_tech="synapse",
+        extract_file_path="/tmp/data/synapse_assessment/profiler_extract.db",
+        metadata_config=ProfilerDashboardMetadataConfig(
+            catalog="lakebridge_profiler", schema="profiler_runs", volume="synapse-extract"
+        ),
+        job_overrides=None,
+    )
+    job_deployer = JobDeployment(workspace_client, installation, install_state, product_info)
+    job_deployer.deploy_profiler_ingestion_job(
+        "Profiler Ingestion Job",
+        config,
+        lakebridge_wheel_path="lakebridge-x.y.z-py3-none-any.whl",
+    )
+
+    call_kwargs = workspace_client.jobs.create.call_args.kwargs
+    assert "job_clusters" not in call_kwargs
+    assert "environments" in call_kwargs
+    assert len(call_kwargs["environments"]) == 1
+    assert call_kwargs["environments"][0].environment_key == "Lakebridge_Profiler_Ingest_Environment"
+    assert call_kwargs["tasks"][0].job_cluster_key is None
+    assert call_kwargs["tasks"][0].environment_key == "Lakebridge_Profiler_Ingest_Environment"
+    assert call_kwargs["tasks"][0].libraries is None
+
+
+def test_deploy_profiler_ingestion_job_can_use_classic_cluster(monkeypatch):
+    monkeypatch.setenv("LAKEBRIDGE_PROFILER_INGESTION_USE_SERVERLESS", "false")
+    workspace_client = create_autospec(WorkspaceClient)
+    workspace_client.clusters.select_spark_version.return_value = "15.4.x-scala2.12"
+    workspace_client.clusters.select_node_type.return_value = "m5.xlarge"
+    job = Job(job_id=5678)
+    workspace_client.jobs.create.return_value = job
+    installation = MockInstallation(is_global=False)
+    install_state = InstallState.from_installation(installation)
+    product_info = ProductInfo.from_class(LakebridgeConfiguration)
+    config = ProfilerDashboardConfig(
+        source_tech="synapse",
+        extract_file_path="/tmp/data/synapse_assessment/profiler_extract.db",
+        metadata_config=ProfilerDashboardMetadataConfig(
+            catalog="lakebridge_profiler", schema="profiler_runs", volume="synapse-extract"
+        ),
+        job_overrides=None,
+    )
+    job_deployer = JobDeployment(workspace_client, installation, install_state, product_info)
+    job_deployer.deploy_profiler_ingestion_job(
+        "Profiler Ingestion Job",
+        config,
+        lakebridge_wheel_path="lakebridge-x.y.z-py3-none-any.whl",
+    )
+
+    call_kwargs = workspace_client.jobs.create.call_args.kwargs
+    assert "environments" not in call_kwargs
+    assert "job_clusters" in call_kwargs
+    assert len(call_kwargs["job_clusters"]) == 1
+    assert call_kwargs["job_clusters"][0].job_cluster_key == "Lakebridge_Profiler_Ingest_Cluster"
+    assert call_kwargs["tasks"][0].job_cluster_key == "Lakebridge_Profiler_Ingest_Cluster"
+    assert call_kwargs["tasks"][0].environment_key is None

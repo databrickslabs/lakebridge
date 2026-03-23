@@ -27,13 +27,15 @@ class SparkDfStub:
 class SparkSessionStub:
     def __init__(self) -> None:
         self.last_pdf: Any = None
+        self.last_schema: Any = None
         self.writer = WriterStub()
         self.sql_commands: list[str] = []
         self.ingested: list[tuple[Any, WriterStub]] = []
 
-    def createDataFrame(self, pdf: Any) -> SparkDfStub:  # noqa: N802
+    def createDataFrame(self, pdf: Any, schema: Any = None) -> SparkDfStub:  # noqa: N802
         writer = WriterStub()
         self.last_pdf = pdf
+        self.last_schema = schema
         self.writer = writer
         self.ingested.append((pdf, writer))
         return SparkDfStub(writer)

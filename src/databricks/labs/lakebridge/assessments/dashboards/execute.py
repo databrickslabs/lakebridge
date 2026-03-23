@@ -11,6 +11,17 @@ import duckdb
 import pandas as pd
 import yaml
 from pyspark.sql import SparkSession
+from pyspark.sql.types import (
+    BinaryType,
+    BooleanType,
+    DateType,
+    DoubleType,
+    LongType,
+    StringType,
+    StructField,
+    StructType,
+    TimestampType,
+)
 from yaml.parser import ParserError
 from yaml.scanner import ScannerError
 
@@ -45,6 +56,17 @@ def _is_truthy_env(var_name: str, default: bool = False) -> bool:
     return raw.strip().lower() in {"1", "true", "yes", "y", "on"}
 
 
+def _sqltext_sensitivity_tag_value() -> str:
+    """
+    Returns the UC tag value to use for SQLTextInfo sensitivity tagging.
+
+    Default is 'pii' to align with common workspace tag policies.
+    Can be overridden via LAKEBRIDGE_SQLTEXT_SENSITIVITY_TAG.
+    """
+    value = os.getenv("LAKEBRIDGE_SQLTEXT_SENSITIVITY_TAG", "pii").strip().lower()
+    return value or "pii"
+
+
 def _apply_sensitive_column_metadata(spark: SparkSession, fq_table_name: str, table_name: str) -> None:
     """
     Applies a column COMMENT and a 'sensitivity' UC tag to any columns declared
@@ -52,6 +74,7 @@ def _apply_sensitive_column_metadata(spark: SparkSession, fq_table_name: str, ta
     failures are logged as warnings so that a missing governance permission does
     not abort the entire ingestion job.
     """
+    sensitivity_tag_value = _sqltext_sensitivity_tag_value()
     for col_name, comment in _SENSITIVE_COLUMNS.get(table_name, {}).items():
         safe_comment = comment.replace("'", "\\'")
         try:
@@ -60,7 +83,10 @@ def _apply_sensitive_column_metadata(spark: SparkSession, fq_table_name: str, ta
         except Exception as e:  # noqa: BLE001
             logger.warning(f"Could not set column comment on '{fq_table_name}.{col_name}': {e}")
         try:
-            spark.sql(f"ALTER TABLE {fq_table_name} ALTER COLUMN {col_name} SET TAGS ('sensitivity' = 'confidential')")
+            spark.sql(
+                f"ALTER TABLE {fq_table_name} ALTER COLUMN {col_name} "
+                f"SET TAGS ('sensitivity' = '{sensitivity_tag_value}')"
+            )
             logger.info(f"Applied sensitivity tag to '{fq_table_name}.{col_name}'.")
         except Exception as e:  # noqa: BLE001
             logger.warning(f"Could not set column tag on '{fq_table_name}.{col_name}': {e}")
@@ -137,16 +163,69 @@ def _normalize_dataframe_text(pdf: pd.DataFrame) -> pd.DataFrame:
     return pdf
 
 
+def _spark_type_from_duckdb(duckdb_type: str) -> Any:
+    normalized = duckdb_type.upper()
+    if normalized in {"BOOLEAN", "BOOL"}:
+        return BooleanType()
+    if normalized in {"TINYINT", "SMALLINT", "INTEGER", "INT", "BIGINT", "HUGEINT", "UBIGINT"}:
+        return LongType()
+    if normalized in {"FLOAT", "REAL", "DOUBLE", "DECIMAL", "NUMERIC"}:
+        return DoubleType()
+    if normalized.startswith("TIMESTAMP"):
+        return TimestampType()
+    if normalized == "DATE":
+        return DateType()
+    if normalized in {"BLOB", "BYTEA"}:
+        return BinaryType()
+    return StringType()
+
+
+def _spark_schema_from_duckdb(duck_conn: duckdb.DuckDBPyConnection, source_table_name: str) -> StructType:
+    table_parts = source_table_name.split(".")
+    if len(table_parts) == 3:
+        _, table_schema, table_name = table_parts
+    elif len(table_parts) == 2:
+        table_schema, table_name = table_parts
+    elif len(table_parts) == 1:
+        table_schema, table_name = "main", table_parts[0]
+    else:
+        raise ValueError(
+            f"Unexpected source table format: '{source_table_name}'. Expected <catalog>.<schema>.<table> "
+            f"or <schema>.<table>."
+        )
+
+    query = """
+        SELECT column_name, data_type
+        FROM information_schema.columns
+        WHERE table_schema = ? AND table_name = ?
+        ORDER BY ordinal_position
+    """
+    columns = duck_conn.execute(query, [table_schema, table_name]).fetchall()
+    if not columns:
+        raise ValueError(f"No columns found in profiler extract for source table '{source_table_name}'.")
+
+    fields = [StructField(str(col_name), _spark_type_from_duckdb(str(data_type)), True) for col_name, data_type in columns]
+    return StructType(fields)
+
+
+class ExtractIngestionError(Exception):
+    """Raised when the profiler extract ingestion fails due to unexpected errors."""
+
+
 def main(*argv: str) -> None:
     """Lakeview Jobs task entry point: profiler_dashboards"""
     initialize_logging()
 
     logger.debug(f"Arguments received: {argv}")
-    assert len(sys.argv) == 4, f"Invalid number of arguments: {len(sys.argv)}"
-    catalog_name = sys.argv[0]
-    schema_name = sys.argv[1]
-    extract_location = sys.argv[2]
-    source_tech = sys.argv[3]
+
+    assert len(sys.argv) == 5, f"Invalid number of arguments: {len(sys.argv)}"
+    logger.info(f"Received the following inputs: {', '.join(sys.argv)}")
+
+    catalog_name = sys.argv[1]
+    schema_name = sys.argv[2]
+    extract_location = sys.argv[3]
+    source_tech = sys.argv[4]
+
     logger.info(f"Validating {source_tech} profiler extract located at '{extract_location}'.")
     valid_extract = _validate_profiler_extract(catalog_name, schema_name, extract_location, source_tech)
     if valid_extract:
@@ -190,9 +269,9 @@ def _validate_profiler_extract(
     try:
         with duckdb.connect(database=extract_location) as duck_conn, resources.as_file(schema_def) as schema_def_path:
             for table_info in tables:
+
                 # Ensure that the table contains data
                 empty_check = EmptyTableValidationCheck(table_info[2])
-                validation_checks.append(empty_check)
 
                 # Ensure that the table conforms to the expected schema
                 schema_check = ExtractSchemaValidationCheck(
@@ -202,7 +281,8 @@ def _validate_profiler_extract(
                     extract_path=extract_location,
                     schema_path=str(schema_def_path),
                 )
-                validation_checks.append(schema_check)
+                validation_checks += [empty_check, schema_check]
+
             report = build_validation_report(validation_checks, duck_conn)
             report_df = build_validation_report_dataframe(validation_checks, duck_conn)
     except duckdb.IOException as e:
@@ -221,7 +301,6 @@ def _validate_profiler_extract(
         report_errors = list(filter(lambda x: x.outcome == "FAIL" and x.severity == "ERROR", report))
         num_errors = len(report_errors)
         logger.info(f"There are {num_errors} validation errors in the profiler extract.")
-
     else:
         raise ValueError("Profiler extract validation report is empty.")
     return num_errors == 0
@@ -278,10 +357,9 @@ def _ingest_profiler_tables(catalog_name: str, schema_name: str, extract_locatio
         except duckdb.Error as e:
             logger.error(f"Failed to ingest table from profiler database: {e}")
             unsuccessful_tables.append(source_table)
-        except RuntimeError as e:
+        except ExtractIngestionError as e:
             logger.error(f"Unknown error while ingested table from profiler database: {e}")
             unsuccessful_tables.append(source_table)
-
     logger.info(f"Ingested {len(successful_tables)} tables from profiler extract.")
     logger.info(",".join(successful_tables))
 
@@ -302,7 +380,11 @@ def _ingest_table(extract_location: str, source_table_name: str, target_table_na
             pdf = _normalize_dataframe_text(duck_conn.execute(query).df())
             logger.info(f"Saving profiler table '{target_table_name}' to Unity Catalog.")
             spark = SparkSession.builder.getOrCreate()
-            df = spark.createDataFrame(pdf)
+            if pdf.empty:
+                schema = _spark_schema_from_duckdb(duck_conn, source_table_name)
+                df = spark.createDataFrame([], schema=schema)
+            else:
+                df = spark.createDataFrame(pdf)
             df.write.format("delta").mode("overwrite").saveAsTable(target_table_name)
             table_name = source_table_name.split(".")[-1]
             _apply_sensitive_column_metadata(spark, target_table_name, table_name)
@@ -315,7 +397,7 @@ def _ingest_table(extract_location: str, source_table_name: str, target_table_na
         raise duckdb.IOException(f"Could not access the profiler extract: '{extract_location}'.") from e
     except Exception as e:
         logger.error(f"Unable to ingest table '{source_table_name}' from profiler extract: {e}")
-        raise e
+        raise ExtractIngestionError(f"Unable to ingest table '{source_table_name}' from profiler extract: {e}") from e
 
 
 if __name__ == "__main__":

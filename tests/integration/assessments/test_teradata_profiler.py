@@ -13,6 +13,7 @@ ClearScape does **not** include PDCR tables, so all pipeline tests run with
 ``use_pdcr=False`` which activates the DBQL-core fallback extract.
 """
 
+import os
 from pathlib import Path
 from unittest.mock import patch
 from typing import Any, cast
@@ -35,6 +36,7 @@ from databricks.labs.lakebridge.cli import (
 )
 from databricks.labs.lakebridge.connections.database_manager import DatabaseManager
 from databricks.labs.lakebridge.connections.env_getter import EnvGetter
+from databricks.labs.lakebridge.config import ProfilerDashboardConfig, ProfilerDashboardMetadataConfig
 from tests.unit.teradata_test_helpers import TERADATA_TABLES
 
 pytestmark = pytest.mark.teradata
@@ -445,7 +447,8 @@ def test_ingest_teradata_extract(
             def getOrCreate():
                 return _SparkStub()
 
-        def createDataFrame(self, pdf):
+        def createDataFrame(self, pdf, schema=None):
+            row_count = len(pdf) if hasattr(pdf, "__len__") else 0
             df = _DFStub(pdf)
 
             class _TrackingWriter:
@@ -456,7 +459,7 @@ def test_ingest_teradata_extract(
                     return self
 
                 def saveAsTable(self, name):
-                    ingested_tables[name] = len(pdf)
+                    ingested_tables[name] = row_count
 
             df._writer = _TrackingWriter()
             return df
@@ -474,14 +477,31 @@ def test_ingest_teradata_extract(
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.skipif(
+    os.getenv("RUN_WORKSPACE_DASHBOARD_TESTS", "").lower() not in {"1", "true", "yes"},
+    reason="Set RUN_WORKSPACE_DASHBOARD_TESTS=true to run workspace dashboard deployment tests.",
+)
 def test_deploy_teradata_dashboard(application_ctx) -> None:
     """Deploy the Teradata profiler dashboard to the workspace and verify it exists."""
     mgr = application_ctx.dashboard_manager
-    mgr.create_profiler_summary_dashboard(
+    if not application_ctx.workspace_client.config.warehouse_id:
+        pytest.skip("Workspace warehouse_id is required to deploy Lakeview dashboards.")
+    catalog = os.getenv("TEST_PROFILER_CATALOG")
+    schema = os.getenv("TEST_PROFILER_SCHEMA")
+    volume = os.getenv("TEST_PROFILER_VOLUME")
+    if not catalog or not schema or not volume:
+        pytest.skip("Set TEST_PROFILER_CATALOG/TEST_PROFILER_SCHEMA/TEST_PROFILER_VOLUME to run deploy test.")
+
+    dashboard_cfg = ProfilerDashboardConfig(
         source_tech="teradata",
-        catalog_name="lakebridge_profiler",
-        schema_name="profiler_runs",
+        extract_file_path="/tmp/profiler_extract.db",
+        metadata_config=ProfilerDashboardMetadataConfig(
+            catalog=catalog,
+            schema=schema,
+            volume=volume,
+        ),
     )
+    mgr.deploy(dashboard_cfg)
 
     dash_ref = "teradata"
     assert dash_ref in application_ctx.install_state.dashboards, "Dashboard should be registered in install state"
@@ -492,10 +512,14 @@ def test_deploy_teradata_dashboard(application_ctx) -> None:
     assert dashboard.serialized_dashboard is not None
     assert "<CATALOG_NAME>" not in dashboard.serialized_dashboard
     assert "<SCHEMA_NAME>" not in dashboard.serialized_dashboard
-    assert "`lakebridge_profiler`" in dashboard.serialized_dashboard
-    assert "`profiler_runs`" in dashboard.serialized_dashboard
+    assert f"`{catalog}`" in dashboard.serialized_dashboard
+    assert f"`{schema}`" in dashboard.serialized_dashboard
 
 
+@pytest.mark.skipif(
+    os.getenv("RUN_WORKSPACE_DASHBOARD_TESTS", "").lower() not in {"1", "true", "yes"},
+    reason="Set RUN_WORKSPACE_DASHBOARD_TESTS=true to run workspace dashboard upload tests.",
+)
 def test_upload_teradata_extract_to_volume(
     sandbox_teradata: DatabaseManager,
     application_ctx,
@@ -505,8 +529,16 @@ def test_upload_teradata_extract_to_volume(
     """Upload a real ClearScape extract to a UC Volume in the workspace."""
     extract_folder = tmp_path / "upload_extract"
     db_path = _run_pipeline_and_get_extract(sandbox_teradata, project_path, extract_folder)
-
-    volume_path = f"{application_ctx.installation.install_folder()}/profiler_extract.db"
+    catalog = os.getenv("TEST_PROFILER_CATALOG")
+    schema = os.getenv("TEST_PROFILER_SCHEMA")
+    volume = os.getenv("TEST_PROFILER_VOLUME")
+    if not catalog or not schema or not volume:
+        pytest.skip("Set TEST_PROFILER_CATALOG/TEST_PROFILER_SCHEMA/TEST_PROFILER_VOLUME to run upload test.")
 
     mgr = application_ctx.dashboard_manager
-    mgr.upload_duckdb_to_uc_volume(local_file_path=str(db_path), volume_path=volume_path)
+    upload_cfg = ProfilerDashboardConfig(
+        source_tech="teradata",
+        extract_file_path=str(db_path),
+        metadata_config=ProfilerDashboardMetadataConfig(catalog=catalog, schema=schema, volume=volume),
+    )
+    assert mgr.upload_duckdb_to_uc_volume(upload_cfg)
