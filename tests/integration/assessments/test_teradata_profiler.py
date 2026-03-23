@@ -503,11 +503,7 @@ def test_upload_teradata_extract_to_volume(
     extract_folder = tmp_path / "upload_extract"
     db_path = _run_pipeline_and_get_extract(sandbox_teradata, project_path, extract_folder)
 
-    ws = application_ctx.workspace_client
     volume_path = f"{application_ctx.installation.install_folder()}/profiler_extract.db"
 
     mgr = application_ctx.dashboard_manager
-    result = mgr.upload_duckdb_to_uc_volume(
-        local_file_path=str(db_path),
-        volume_path=volume_path,
-    )
+    mgr.upload_duckdb_to_uc_volume(local_file_path=str(db_path), volume_path=volume_path)
