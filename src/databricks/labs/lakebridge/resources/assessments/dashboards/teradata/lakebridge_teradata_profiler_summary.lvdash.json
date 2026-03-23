@@ -156,7 +156,7 @@
       "name": "ds_top_q",
       "displayName": "Top Queries",
       "queryLines": [
-        "SELECT UserName AS `User`, CAST(ROUND(TotalCPUTime,3) AS STRING) AS `CPU (sec)`, CAST(CAST(TotalIOCount AS BIGINT) AS STRING) AS `I/O Count`, CAST(ROUND(COALESCE(SpoolUsage,0)/1048576.0,1) AS STRING) AS `Spool (MB)`, CAST(ROUND(TotalFirstRespTime,2) AS STRING) AS `Response (sec)`, LEFT(SQLTextInfo,120) AS `SQL Preview` FROM <CATALOG_NAME>.<SCHEMA_NAME>.td_dbql_core_info_extract ORDER BY TotalCPUTime DESC LIMIT 20"
+        "SELECT UserName AS `User`, CAST(ROUND(TotalCPUTime,3) AS STRING) AS `CPU (sec)`, CAST(CAST(TotalIOCount AS BIGINT) AS STRING) AS `I/O Count`, CAST(ROUND(COALESCE(SpoolUsage,0)/1048576.0,1) AS STRING) AS `Spool (MB)`, CAST(ROUND(TotalFirstRespTime,2) AS STRING) AS `Response (sec)`, LEFT(SQLTextInfo,300) AS `SQL Preview` FROM <CATALOG_NAME>.<SCHEMA_NAME>.td_dbql_core_info_extract ORDER BY TotalCPUTime DESC LIMIT 20"
       ]
     },
     {

@@ -22,8 +22,14 @@ from databricks.labs.blueprint.tui import Prompts
 
 
 from databricks.labs.lakebridge.assessments.configure_assessment import create_assessment_configurator
-from databricks.labs.lakebridge.assessments import PROFILER_SOURCE_SYSTEM, PRODUCT_NAME
+from databricks.labs.lakebridge.assessments import (
+    PLATFORM_TO_SOURCE_TECHNOLOGY_CFG,
+    PRODUCT_NAME,
+    PRODUCT_PATH_PREFIX,
+    PROFILER_SOURCE_SYSTEM,
+)
 from databricks.labs.lakebridge.assessments.profiler import Profiler
+from databricks.labs.lakebridge.assessments.pipeline import PipelineClass
 
 from databricks.labs.lakebridge.config import TranspileConfig, LSPConfigOptionV1
 from databricks.labs.lakebridge.contexts.application import ApplicationContext
@@ -1028,15 +1034,19 @@ def execute_database_profiler(w: WorkspaceClient, source_tech: str | None = None
 def create_profiler_dashboard(
     *,
     w: WorkspaceClient,
-    extract_file: str,
     source_tech: str,
     volume_path: str,
     catalog_name: str,
     schema_name: str,
+    extract_file: str | None = None,
 ) -> None:
     """Deploys a profiler summary as a Databricks dashboard"""
     ctx = ApplicationContext(w)
     ctx.add_user_agent_extra("cmd", "create-profiler-dashboard")
+    if extract_file is None:
+        config_path = PRODUCT_PATH_PREFIX / PLATFORM_TO_SOURCE_TECHNOLOGY_CFG[source_tech]
+        pipeline_config = PipelineClass.load_config_from_yaml(config_path)
+        extract_file = str(Path(pipeline_config.extract_folder).expanduser() / "profiler_extract.db")
     ctx.dashboard_manager.upload_duckdb_to_uc_volume(extract_file, volume_path)
     ctx.dashboard_manager.create_profiler_summary_dashboard(source_tech, catalog_name, schema_name)
 
