@@ -114,6 +114,7 @@ class DashboardManager:
             dashboard = self._ws.lakeview.create(dashboard=dashboard)
         except DatabricksError as e:
             logger.error(f"Could not create profiler summary dashboard: {e}")
+            raise
 
         assert dashboard.dashboard_id is not None
         logger.info(f"Created dashboard '{dashboard.dashboard_id}' in workspace location {ws_parent_path}.")
