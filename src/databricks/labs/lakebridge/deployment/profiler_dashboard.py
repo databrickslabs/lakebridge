@@ -39,18 +39,36 @@ class ProfilerDashboardDeployment:
             logger.warning("Profiler Dashboard Config is empty.")
             return
         logger.info("Installing the profiler dashboard components.")
+        if not self._upload_profiler_extract(profiler_dashboard_config):
+            logger.error("Profiler extract upload failed. Aborting installation.")
+            return
         try:
-            if not self._upload_profiler_extract(profiler_dashboard_config):
-                logger.error("Profiler extract upload failed. Aborting installation.")
-                return
-            self._deploy_dashboards(profiler_dashboard_config)
+            dashboard_id = self._deploy_dashboards(profiler_dashboard_config)
             self._deploy_jobs(profiler_dashboard_config, wheel_path)
             self._install_state.save()
+            self._trigger_ingestion_job(dashboard_id)
             logger.info("Installation of the profiler dashboard components completed successfully.")
         except (RuntimeError, ValueError, InvalidParameterValue, NotFound) as e:
             error_msg = f"Failed to deploy profiler dashboard and ingestion job: {e}"
             logger.error(error_msg)
             raise SystemExit(error_msg) from e
+
+    def _trigger_ingestion_job(self, dashboard_id: str) -> None:
+        job_id_str = self._install_state.jobs.get(PROFILER_INGESTION_JOB_NAME)
+        if not job_id_str:
+            logger.warning("Profiler ingestion job ID not found; skipping auto-trigger.")
+            return
+        job_id = int(job_id_str)
+        wait = self._ws.jobs.run_now(job_id)
+        if not wait.run_id:
+            logger.warning(f"Could not retrieve run ID for profiler ingestion job {job_id}.")
+            return
+        job_run_url = f"{self._ws.config.host}/jobs/{job_id}/runs/{wait.run_id}"
+        logger.info(f"Triggered profiler ingestion job. Job run URL: {job_run_url}")
+        logger.info(
+            "It may take a few minutes for the ingestion job to complete and for the dashboard to populate with data."
+        )
+        logger.info(f"Profiler dashboard URL: {self._ws.config.host}/sql/dashboardsv3/{dashboard_id}")
 
     def uninstall(self, profiler_dashboard_config: ProfilerDashboardConfig | None):
         if not profiler_dashboard_config:
@@ -69,9 +87,9 @@ class ProfilerDashboardDeployment:
         logger.info("Uploading the profiler extract file to UC Volume.")
         return self._dashboard_deployer.upload_duckdb_to_uc_volume(profiler_dashboard_config)
 
-    def _deploy_dashboards(self, profiler_dashboard_config: ProfilerDashboardConfig):
+    def _deploy_dashboards(self, profiler_dashboard_config: ProfilerDashboardConfig) -> str:
         logger.info("Deploying the profiler dashboard.")
-        self._dashboard_deployer.deploy(profiler_dashboard_config)
+        return self._dashboard_deployer.deploy(profiler_dashboard_config)
 
     def _get_dashboards(self) -> list[tuple[str, str]]:
         return list(self._install_state.dashboards.items())
