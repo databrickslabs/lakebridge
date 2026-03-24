@@ -1097,7 +1097,7 @@ def create_profiler_dashboard(
     ctx.dashboard_manager.deploy(cfg)
 
 
-def _test_database_connection(source_tech: str, raw_config: dict) -> None:
+def check_database_connection(source_tech: str, raw_config: dict) -> None:
     """Test connection to the source database with appropriate error handling."""
     # Handle synapse-specific validation using dedicated helper
     if source_tech == "synapse":
@@ -1161,7 +1161,7 @@ def test_profiler_connection(
         return
 
     try:
-        _test_database_connection(source_tech, raw_config)
+        check_database_connection(source_tech, raw_config)
     except ConnectionError as e:
         logger.error(f"Failed to connect to the source system: {e}")
         error_msg = str(e).lower()

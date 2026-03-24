@@ -24,16 +24,17 @@ import yaml
 
 from databricks.labs.blueprint.installation import JsonObject
 from databricks.labs.lakebridge.assessments.dashboards.execute import (
-    _validate_profiler_extract,
-    _ingest_profiler_tables,
+    validate_profiler_extract,
+    ingest_profiler_tables,
 )
 from databricks.labs.lakebridge.assessments.pipeline import PipelineClass, DB_NAME
 from databricks.labs.lakebridge.assessments.profiler import Profiler
 from databricks.labs.lakebridge.assessments.profiler_config import PipelineConfig
 from databricks.labs.lakebridge.cli import (
-    _test_database_connection,
+    check_database_connection,
     test_profiler_connection as cli_test_profiler_connection,
 )
+from databricks.labs.lakebridge.connections.credential_manager import create_credential_manager
 from databricks.labs.lakebridge.connections.database_manager import DatabaseManager
 from databricks.labs.lakebridge.connections.env_getter import EnvGetter
 from databricks.labs.lakebridge.config import ProfilerDashboardConfig, ProfilerDashboardMetadataConfig
@@ -75,7 +76,7 @@ def _load_teradata_pipeline_config(project_root: Path, extract_folder: Path) -> 
 def _apply_no_pdcr(config: PipelineConfig) -> PipelineConfig:
     """Disable PDCR data steps and activate the DBQL-core fallback."""
     connect_config = {"profiler": {"use_pdcr": False}}
-    return Profiler._configure_teradata_pipeline(config, connect_config)
+    return Profiler.configure_teradata_pipeline(config, connect_config)
 
 
 # ---------------------------------------------------------------------------
@@ -141,8 +142,8 @@ def test_teradata_profiler_pipeline_no_pdcr(
     pipeline = PipelineClass(config=config, executor=sandbox_teradata)
     results = pipeline.execute()
 
-    for r in results:
-        assert r.status.value in {"COMPLETE", "SKIPPED"}, f"Step {r.step_name} failed: {r.error_message}"
+    for result in results:
+        assert result.status.value in {"COMPLETE", "SKIPPED"}, f"Step {result.step_name} failed: {result.error_message}"
 
     db_path = extract_folder / DB_NAME
     assert db_path.exists(), "Profiler extract database should be created"
@@ -276,9 +277,9 @@ def _write_teradata_cred_file(path: Path, config: JsonObject) -> Path:
     return cred_file
 
 
-def test_cli_test_database_connection(sandbox_teradata_config: JsonObject) -> None:
-    """_test_database_connection should succeed for Teradata against ClearScape."""
-    _test_database_connection("teradata", sandbox_teradata_config)
+def test_clitest_database_connection(sandbox_teradata_config: JsonObject) -> None:
+    """check_database_connection should succeed for Teradata against ClearScape."""
+    check_database_connection("teradata", sandbox_teradata_config)
 
 
 def test_cli_test_profiler_connection(
@@ -318,14 +319,10 @@ def test_cli_execute_database_profiler(
             "databricks.labs.lakebridge.assessments.profiler.create_credential_manager",
         ) as mock_cred_mgr,
     ):
-        from databricks.labs.lakebridge.connections.credential_manager import (
-            create_credential_manager,
-        )
-
         mock_cred_mgr.return_value = create_credential_manager("lakebridge", EnvGetter(), creds_path=cred_file)
 
         profiler = Profiler.create("teradata")
-        config = profiler._pipeline_config
+        config = profiler.pipeline_config
         assert config is not None
         config = config.copy(extract_folder=str(extract_folder))
         config = _apply_no_pdcr(config)
@@ -368,7 +365,7 @@ def test_validate_teradata_extract(
     project_path: Path,
     tmp_path: Path,
 ) -> None:
-    """_validate_profiler_extract should pass on a real ClearScape extract."""
+    """validate_profiler_extract should pass on a real ClearScape extract."""
     extract_folder = tmp_path / "validate_extract"
     db_path = _run_pipeline_and_get_extract(sandbox_teradata, project_path, extract_folder)
 
@@ -395,11 +392,14 @@ def test_validate_teradata_extract(
         def createDataFrame(self, *_args, **_kwargs):
             return _DFStub()
 
+        def sql(self, _statement):
+            return None
+
     with (
         patch("databricks.labs.lakebridge.assessments.dashboards.execute.SparkSession", _SparkStub),
         patch("databricks.labs.lakebridge.assessments.profiler_validator.SparkSession", _SparkStub),
     ):
-        valid = _validate_profiler_extract(
+        valid = validate_profiler_extract(
             target_catalog_name="test_cat",
             target_schema_name="test_schema",
             extract_location=str(db_path),
@@ -408,65 +408,80 @@ def test_validate_teradata_extract(
     assert valid, "ClearScape extract should pass validation"
 
 
+class _IngestWriterStub:
+    def __init__(self):
+        self._table_name: str | None = None
+
+    def format(self, _fmt):
+        return self
+
+    def mode(self, _mode):
+        return self
+
+    def saveAsTable(self, name):
+        self._table_name = name
+
+
+class _IngestDFStub:
+    def __init__(self, pdf, writer=None):
+        self._pdf = pdf
+        self._writer = writer or _IngestWriterStub()
+
+    @property
+    def write(self):
+        return self._writer
+
+
+class _TrackingWriter:
+    def __init__(self, ingested_tables: dict[str, int], row_count: int):
+        self._ingested_tables = ingested_tables
+        self._row_count = row_count
+
+    def format(self, _fmt):
+        return self
+
+    def mode(self, _mode):
+        return self
+
+    def saveAsTable(self, name):
+        self._ingested_tables[name] = self._row_count
+
+
+def _build_spark_stub(ingested_tables: dict[str, int]):
+    """Build a SparkSession stub that tracks ingested tables and row counts."""
+
+    class SparkStub:
+        class builder:
+            @staticmethod
+            def getOrCreate():
+                return SparkStub()
+
+        def createDataFrame(self, pdf, **kwargs):
+            _ = kwargs.get("schema")
+            row_count = len(pdf) if hasattr(pdf, "__len__") else 0
+            stub = _IngestDFStub(pdf, writer=_TrackingWriter(ingested_tables, row_count))
+            return stub
+
+        def sql(self, _statement):
+            return None
+
+    return SparkStub
+
+
 def test_ingest_teradata_extract(
     sandbox_teradata: DatabaseManager,
     project_path: Path,
     tmp_path: Path,
 ) -> None:
-    """_ingest_profiler_tables should successfully read all tables from the extract."""
+    """ingest_profiler_tables should successfully read all tables from the extract."""
     extract_folder = tmp_path / "ingest_extract"
     db_path = _run_pipeline_and_get_extract(sandbox_teradata, project_path, extract_folder)
 
     ingested_tables: dict[str, int] = {}
+    spark_stub = _build_spark_stub(ingested_tables)
 
-    class _WriterStub:
-        def __init__(self):
-            self._table_name: str | None = None
-
-        def format(self, _fmt):
-            return self
-
-        def mode(self, _mode):
-            return self
-
-        def saveAsTable(self, name):
-            self._table_name = name
-
-    class _DFStub:
-        def __init__(self, pdf):
-            self._pdf = pdf
-            self._writer = _WriterStub()
-
-        @property
-        def write(self):
-            return self._writer
-
-    class _SparkStub:
-        class builder:
-            @staticmethod
-            def getOrCreate():
-                return _SparkStub()
-
-        def createDataFrame(self, pdf, **kwargs):
-            _ = kwargs.get("schema")
-            row_count = len(pdf) if hasattr(pdf, "__len__") else 0
-            df = _DFStub(pdf)
-
-            class _TrackingWriter:
-                def format(self, _fmt):
-                    return self
-
-                def mode(self, _mode):
-                    return self
-
-                def saveAsTable(self, name):
-                    ingested_tables[name] = row_count
-
-            df._writer = _TrackingWriter()
-            return df
-
-    with patch("databricks.labs.lakebridge.assessments.dashboards.execute.SparkSession", _SparkStub):
-        _ingest_profiler_tables("test_cat", "test_schema", str(db_path))
+    with patch("databricks.labs.lakebridge.assessments.dashboards.execute.SparkSession", spark_stub):
+        ingest_profiler_tables("test_cat", "test_schema", str(db_path))
 
     for table in _EXPECTED_TABLES_NO_PDCR:
         uc_name = f"test_cat.test_schema.{table}"

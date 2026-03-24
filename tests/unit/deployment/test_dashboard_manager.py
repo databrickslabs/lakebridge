@@ -211,20 +211,20 @@ def test_teradata_dashboard_template_loads_and_has_datasets():
     assert len(dashboard_json["pages"]) >= 4
 
 
-def test_replace_catalog_schema_substitutes_placeholders():
-    """_replace_catalog_schema should replace both <CATALOG_NAME> and <SCHEMA_NAME>."""
+def testreplace_catalog_schema_substitutes_placeholders():
+    """replace_catalog_schema should replace both <CATALOG_NAME> and <SCHEMA_NAME>."""
     serialized = '{"query": "SELECT * FROM <CATALOG_NAME>.<SCHEMA_NAME>.my_table"}'
-    result = ProfilerDashboardManager._replace_catalog_schema(serialized, "my_catalog", "my_schema")
+    result = ProfilerDashboardManager.replace_catalog_schema(serialized, "my_catalog", "my_schema")
     assert "`my_catalog`" in result
     assert "`my_schema`" in result
     assert "<CATALOG_NAME>" not in result
     assert "<SCHEMA_NAME>" not in result
 
 
-def test_create_or_replace_dashboard_reraises_databricks_error(
+def testcreate_or_replace_dashboard_reraises_databricks_error(
     tmp_path: Path,
-    dashboard_manager: ProfilerDashboardManager,
-    mocked_workspace_client: WorkspaceClient,
+    dashboard_manager: ProfilerDashboardManager,  # pylint: disable=redefined-outer-name
+    mocked_workspace_client: WorkspaceClient,  # pylint: disable=redefined-outer-name
     monkeypatch: pytest.MonkeyPatch,
 ):
     ws = mocked_workspace_client
@@ -234,7 +234,7 @@ def test_create_or_replace_dashboard_reraises_databricks_error(
     monkeypatch.setattr(ProfilerDashboardTemplateLoader, "load", lambda _self, _source_system: {"datasets": []})
 
     with pytest.raises(DatabricksError):
-        dashboard_manager._create_or_replace_dashboard(
+        dashboard_manager.create_or_replace_dashboard(
             folder=tmp_path,
             ws_parent_path="/Workspace/Users/test/.lakebridge/dashboards",
             dest_catalog="lakebridge_profiler",

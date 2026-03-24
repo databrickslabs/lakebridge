@@ -60,7 +60,7 @@ def test_teradata_profile_execution_config_override(test_resources: Path, tmp_pa
     assert (extract_folder / "profiler_extract.db").exists(), "Profiler extract database should be created"
 
 
-def test_configure_teradata_pipeline_disables_pdcr_steps() -> None:
+def testconfigure_teradata_pipeline_disables_pdcr_steps() -> None:
     config = PipelineConfig(
         name="teradata_assessment",
         version="1.0",
@@ -75,7 +75,7 @@ def test_configure_teradata_pipeline_disables_pdcr_steps() -> None:
         ],
     )
 
-    updated = Profiler._configure_teradata_pipeline(config, {"profiler": {"use_pdcr": False}})
+    updated = Profiler.configure_teradata_pipeline(config, {"profiler": {"use_pdcr": False}})
     steps_by_key = {(step.name, step.type): step for step in updated.steps}
 
     assert steps_by_key[("td_pdcr_info_agg_extract", "ddl")].flag == "active"
@@ -86,7 +86,7 @@ def test_configure_teradata_pipeline_disables_pdcr_steps() -> None:
     assert steps_by_key[("td_dbql_core_info_extract", "sql")].flag == "active"
 
 
-def test_configure_teradata_pipeline_keeps_pdcr_when_enabled() -> None:
+def testconfigure_teradata_pipeline_keeps_pdcr_when_enabled() -> None:
     config = PipelineConfig(
         name="teradata_assessment",
         version="1.0",
@@ -98,7 +98,7 @@ def test_configure_teradata_pipeline_keeps_pdcr_when_enabled() -> None:
         ],
     )
 
-    updated = Profiler._configure_teradata_pipeline(config, {"profiler": {"use_pdcr": True}})
+    updated = Profiler.configure_teradata_pipeline(config, {"profiler": {"use_pdcr": True}})
     steps_by_key = {(step.name, step.type): step for step in updated.steps}
 
     assert steps_by_key[("td_pdcr_info_agg_extract", "ddl")].flag == "active"
@@ -106,7 +106,7 @@ def test_configure_teradata_pipeline_keeps_pdcr_when_enabled() -> None:
     assert steps_by_key[("td_dbql_core_info_extract", "sql")].flag == "inactive"
 
 
-def test_configure_teradata_pipeline_defaults_to_pdcr() -> None:
+def testconfigure_teradata_pipeline_defaults_to_pdcr() -> None:
     """When profiler config is missing or doesn't specify use_pdcr, default to PDCR enabled."""
     config = PipelineConfig(
         name="teradata_assessment",
@@ -119,27 +119,27 @@ def test_configure_teradata_pipeline_defaults_to_pdcr() -> None:
     )
 
     # No profiler key at all
-    updated = Profiler._configure_teradata_pipeline(config, {})
+    updated = Profiler.configure_teradata_pipeline(config, {})
     assert updated.steps[0].flag == "active"
     assert updated.steps[1].flag == "inactive"
 
     # Empty profiler config
-    updated = Profiler._configure_teradata_pipeline(config, {"profiler": {}})
+    updated = Profiler.configure_teradata_pipeline(config, {"profiler": {}})
     assert updated.steps[0].flag == "active"
     assert updated.steps[1].flag == "inactive"
 
 
-def test_has_pdcr_access_true() -> None:
+def testhas_pdcr_access_true() -> None:
     extractor = MagicMock()
     extractor.fetch.return_value = MagicMock()
-    assert Profiler._has_pdcr_access(extractor) is True
+    assert Profiler.has_pdcr_access(extractor) is True
     assert extractor.fetch.call_count == 2
 
 
-def test_has_pdcr_access_false_on_probe_error() -> None:
+def testhas_pdcr_access_false_on_probe_error() -> None:
     extractor = MagicMock()
     extractor.fetch.side_effect = RuntimeError("relation does not exist")
-    assert Profiler._has_pdcr_access(extractor) is False
+    assert Profiler.has_pdcr_access(extractor) is False
 
 
 def test_execute_teradata_auto_fallbacks_when_pdcr_unavailable(monkeypatch) -> None:
@@ -169,7 +169,7 @@ def test_execute_teradata_auto_fallbacks_when_pdcr_unavailable(monkeypatch) -> N
 
     monkeypatch.setattr(profiler_module, "create_credential_manager", lambda *args, **kwargs: fake_cred_manager)
     monkeypatch.setattr(profiler_module, "DatabaseManager", lambda *args, **kwargs: fake_extractor)
-    monkeypatch.setattr(Profiler, "_has_pdcr_access", lambda *args, **kwargs: False)
+    monkeypatch.setattr(Profiler, "has_pdcr_access", lambda *args, **kwargs: False)
     monkeypatch.setattr(profiler_module, "PipelineClass", _FakePipeline)
 
     Profiler("teradata").profile(pipeline_config=config)

@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+from importlib import resources
 from pathlib import Path
 
 import duckdb
 import pytest
 
+import databricks.labs.lakebridge.resources.assessments as assessment_resources
 from databricks.labs.lakebridge.assessments.dashboards import execute as dashboard_execute
 from databricks.labs.lakebridge.assessments.profiler_validator import (
     EmptyTableValidationCheck,
@@ -15,10 +17,6 @@ from databricks.labs.lakebridge.assessments.profiler_validator import (
 )
 from tests.unit.spark_test_stubs import SparkSessionStub
 from tests.unit.teradata_test_helpers import TERADATA_TABLES
-
-from importlib import resources
-
-import databricks.labs.lakebridge.resources.assessments as assessment_resources
 
 from .teradata_extract_utils import build_mock_teradata_extract
 
@@ -94,7 +92,7 @@ def test_teradata_extract_schema_wrong_source_tech_rejected(
 
 
 def test_ingest_teradata_tables_ingests_all(teradata_extract: Path, monkeypatch) -> None:
-    """_ingest_profiler_tables should ingest all 10 Teradata tables."""
+    """ingest_profiler_tables should ingest all 10 Teradata tables."""
     spark_stub = SparkSessionStub()
 
     class _BuilderStub:
@@ -104,7 +102,7 @@ def test_ingest_teradata_tables_ingests_all(teradata_extract: Path, monkeypatch)
 
     monkeypatch.setattr(dashboard_execute.SparkSession, "builder", _BuilderStub())
 
-    dashboard_execute._ingest_profiler_tables("test_catalog", "test_schema", str(teradata_extract))
+    dashboard_execute.ingest_profiler_tables("test_catalog", "test_schema", str(teradata_extract))
 
     saved_tables = {item[1].saved_table for item in spark_stub.ingested if item[1].saved_table}
     for table in TERADATA_TABLES:
@@ -123,7 +121,7 @@ def test_ingest_teradata_table_preserves_null_database_in_udf(teradata_extract: 
 
     monkeypatch.setattr(dashboard_execute.SparkSession, "builder", _BuilderStub())
 
-    dashboard_execute._ingest_table(
+    dashboard_execute.ingest_table(
         extract_location=str(teradata_extract),
         source_table_name="main.td_dwh_udf",
         target_table_name="cat.schema.td_dwh_udf",

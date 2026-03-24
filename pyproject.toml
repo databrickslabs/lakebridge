@@ -332,7 +332,8 @@ class-naming-style = "PascalCase"
 
 # Regular expression matching correct class names. Overrides class-naming-style.
 # If left empty, class names will be checked with the set naming style.
-class-rgx = "[A-Z_][a-zA-Z0-9]+$"
+# Also allows lowercase names for PySpark API stubs (e.g. builder).
+class-rgx = "[A-Za-z_][a-zA-Z0-9]+$"
 
 # Naming style matching correct constant names.
 const-naming-style = "UPPER_CASE"
@@ -384,7 +385,8 @@ method-naming-style = "snake_case"
 
 # Regular expression matching correct method names. Overrides method-naming-
 # style. If left empty, method names will be checked with the set naming style.
-method-rgx = "[a-z_][a-z0-9_]{2,}$"
+# Also allows camelCase for PySpark API stubs (saveAsTable, createDataFrame, getOrCreate).
+method-rgx = "([a-z_][a-z0-9_]{2,}|[a-z][a-zA-Z]{2,})$"
 
 # Naming style matching correct module names.
 module-naming-style = "snake_case"

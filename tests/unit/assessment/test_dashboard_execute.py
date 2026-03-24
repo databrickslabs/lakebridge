@@ -9,7 +9,7 @@ from databricks.labs.lakebridge.assessments.dashboards import execute as dashboa
 from tests.unit.spark_test_stubs import SparkSessionStub
 
 
-def test_ingest_table_preserves_multilingual_text(tmp_path: Path, monkeypatch) -> None:
+def testingest_table_preserves_multilingual_text(tmp_path: Path, monkeypatch) -> None:
     extract_path = tmp_path / "profiler_extract.db"
     with duckdb.connect(str(extract_path)) as conn:
         conn.execute(
@@ -45,7 +45,7 @@ def test_ingest_table_preserves_multilingual_text(tmp_path: Path, monkeypatch) -
 
     monkeypatch.setattr(dashboard_execute.SparkSession, "builder", _BuilderStub())
 
-    dashboard_execute._ingest_table(
+    dashboard_execute.ingest_table(
         extract_location=str(extract_path),
         source_table_name="main.td_multilingual",
         target_table_name="lakebridge_profiler.profiler_runs.td_multilingual",
@@ -72,7 +72,7 @@ def test_apply_sensitive_mask_enabled_adds_mask(monkeypatch) -> None:
     monkeypatch.setenv("LAKEBRIDGE_ENABLE_SQLTEXT_MASK", "true")
     monkeypatch.setenv("LAKEBRIDGE_SQLTEXT_MASK_BYPASS_GROUP", "data-governance-admins")
 
-    dashboard_execute._apply_sensitive_column_mask(
+    dashboard_execute.apply_sensitive_column_mask(
         spark=cast(Any, spark_stub),
         fq_table_name="test_catalog.test_schema.td_dbql_core_info_extract",
         table_name="td_dbql_core_info_extract",
@@ -91,7 +91,7 @@ def test_apply_sensitive_mask_disabled_noop(monkeypatch) -> None:
     spark_stub = SparkSessionStub()
     monkeypatch.delenv("LAKEBRIDGE_ENABLE_SQLTEXT_MASK", raising=False)
 
-    dashboard_execute._apply_sensitive_column_mask(
+    dashboard_execute.apply_sensitive_column_mask(
         spark=cast(Any, spark_stub),
         fq_table_name="test_catalog.test_schema.td_dbql_core_info_extract",
         table_name="td_dbql_core_info_extract",
@@ -100,7 +100,7 @@ def test_apply_sensitive_mask_disabled_noop(monkeypatch) -> None:
     assert not spark_stub.sql_commands
 
 
-def test_ingest_table_applies_sqltextinfo_governance_controls(tmp_path: Path, monkeypatch) -> None:
+def testingest_table_applies_sqltextinfo_governance_controls(tmp_path: Path, monkeypatch) -> None:
     extract_path = tmp_path / "profiler_extract.db"
     with duckdb.connect(str(extract_path)) as conn:
         conn.execute(
@@ -139,7 +139,7 @@ def test_ingest_table_applies_sqltextinfo_governance_controls(tmp_path: Path, mo
     monkeypatch.setenv("LAKEBRIDGE_ENABLE_SQLTEXT_MASK", "true")
     monkeypatch.setenv("LAKEBRIDGE_SQLTEXT_MASK_BYPASS_GROUP", "data-governance-admins")
 
-    dashboard_execute._ingest_table(
+    dashboard_execute.ingest_table(
         extract_location=str(extract_path),
         source_table_name="main.td_dbql_core_info_extract",
         target_table_name="test_catalog.test_schema.td_dbql_core_info_extract",
@@ -155,7 +155,7 @@ def test_ingest_table_applies_sqltextinfo_governance_controls(tmp_path: Path, mo
     assert "ALTER COLUMN SQLTextInfo SET MASK test_catalog.test_schema.mask_sql_textinfo" in sql_script
 
 
-def test_ingest_table_handles_empty_dataframe_with_explicit_schema(tmp_path: Path, monkeypatch) -> None:
+def testingest_table_handles_empty_dataframe_with_explicit_schema(tmp_path: Path, monkeypatch) -> None:
     extract_path = tmp_path / "profiler_extract.db"
     with duckdb.connect(str(extract_path)) as conn:
         conn.execute(
@@ -177,7 +177,7 @@ def test_ingest_table_handles_empty_dataframe_with_explicit_schema(tmp_path: Pat
 
     monkeypatch.setattr(dashboard_execute.SparkSession, "builder", _BuilderStub())
 
-    dashboard_execute._ingest_table(
+    dashboard_execute.ingest_table(
         extract_location=str(extract_path),
         source_table_name="main.td_pdcr_info_agg_extract",
         target_table_name="test_catalog.test_schema.td_pdcr_info_agg_extract",

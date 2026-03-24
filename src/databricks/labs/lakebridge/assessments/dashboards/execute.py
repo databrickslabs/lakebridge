@@ -3,13 +3,17 @@ import os
 import sys
 from collections.abc import Sequence
 from importlib import resources
-from importlib.abc import Traversable
+try:
+    from importlib.resources.abc import Traversable
+except ModuleNotFoundError:
+    from importlib.abc import Traversable  # Python < 3.12
 from pathlib import Path
 from typing import Any
 
 import duckdb
 import pandas as pd
 import yaml
+from pyspark.errors import PySparkException
 from pyspark.sql import SparkSession
 from pyspark.sql.types import (
     BinaryType,
@@ -80,7 +84,7 @@ def _apply_sensitive_column_metadata(spark: SparkSession, fq_table_name: str, ta
         try:
             spark.sql(f"ALTER TABLE {fq_table_name} ALTER COLUMN {col_name} COMMENT '{safe_comment}'")
             logger.info(f"Applied sensitivity comment to '{fq_table_name}.{col_name}'.")
-        except Exception as e:  # noqa: BLE001
+        except PySparkException as e:
             logger.warning(f"Could not set column comment on '{fq_table_name}.{col_name}': {e}")
         try:
             spark.sql(
@@ -88,11 +92,11 @@ def _apply_sensitive_column_metadata(spark: SparkSession, fq_table_name: str, ta
                 f"SET TAGS ('sensitivity' = '{sensitivity_tag_value}')"
             )
             logger.info(f"Applied sensitivity tag to '{fq_table_name}.{col_name}'.")
-        except Exception as e:  # noqa: BLE001
+        except PySparkException as e:
             logger.warning(f"Could not set column tag on '{fq_table_name}.{col_name}': {e}")
 
 
-def _apply_sensitive_column_mask(spark: SparkSession, fq_table_name: str, table_name: str) -> None:
+def apply_sensitive_column_mask(spark: SparkSession, fq_table_name: str, table_name: str) -> None:
     """
     Best-effort masking policy application for sensitive columns.
 
@@ -134,14 +138,14 @@ def _apply_sensitive_column_mask(spark: SparkSession, fq_table_name: str, table_
     try:
         spark.sql(function_sql)
         logger.info(f"Created/verified SQL masking function '{function_name}'.")
-    except Exception as e:  # noqa: BLE001
+    except PySparkException as e:
         logger.warning(f"Could not create masking function '{function_name}': {e}")
         return
 
     try:
         spark.sql(f"ALTER TABLE {fq_table_name} ALTER COLUMN SQLTextInfo SET MASK {function_name}")
         logger.info(f"Applied SQL text mask on '{fq_table_name}.SQLTextInfo'.")
-    except Exception as e:  # noqa: BLE001
+    except PySparkException as e:
         logger.warning(f"Could not apply SQL text mask on '{fq_table_name}.SQLTextInfo': {e}")
 
 
@@ -229,9 +233,9 @@ def main(*argv: str) -> None:
     source_tech = sys.argv[4]
 
     logger.info(f"Validating {source_tech} profiler extract located at '{extract_location}'.")
-    valid_extract = _validate_profiler_extract(catalog_name, schema_name, extract_location, source_tech)
+    valid_extract = validate_profiler_extract(catalog_name, schema_name, extract_location, source_tech)
     if valid_extract:
-        _ingest_profiler_tables(catalog_name, schema_name, extract_location)
+        ingest_profiler_tables(catalog_name, schema_name, extract_location)
     else:
         raise ValueError("Corrupt or invalid profiler extract.")
 
@@ -261,7 +265,7 @@ def _get_extract_tables(schema_def_path: Path | Traversable) -> Sequence[tuple[s
     return extracted_tables
 
 
-def _validate_profiler_extract(
+def validate_profiler_extract(
     target_catalog_name: str, target_schema_name: str, extract_location: str, source_tech: str
 ) -> bool:
     logger.info("Validating the profiler extract file.")
@@ -330,7 +334,7 @@ def _resolve_schema_definition(source_tech: str) -> Traversable:
     )
 
 
-def _ingest_profiler_tables(catalog_name: str, schema_name: str, extract_location: str) -> None:
+def ingest_profiler_tables(catalog_name: str, schema_name: str, extract_location: str) -> None:
     try:
         with duckdb.connect(database=extract_location) as duck_conn:
             tables_to_ingest = duck_conn.execute("SHOW ALL TABLES").fetchall()
@@ -351,7 +355,7 @@ def _ingest_profiler_tables(catalog_name: str, schema_name: str, extract_locatio
             fq_source_table_name = f"{source_table[0]}.{source_table[1]}.{source_table[2]}"
             fq_delta_table_name = f"{catalog_name}.{schema_name}.{source_table[2]}"
             logger.info(f"Ingesting profiler table: '{fq_source_table_name}'")
-            _ingest_table(extract_location, fq_source_table_name, fq_delta_table_name)
+            ingest_table(extract_location, fq_source_table_name, fq_delta_table_name)
             successful_tables.append(fq_source_table_name)
         except (ValueError, IndexError, TypeError) as e:
             logger.error(f"Failed to construct source and destination table names: {e}")
@@ -384,10 +388,10 @@ def _read_and_write_table(extract_location: str, source_table_name: str, target_
         df.write.format("delta").mode("overwrite").saveAsTable(target_table_name)
         table_name = source_table_name.split(".")[-1]
         _apply_sensitive_column_metadata(spark, target_table_name, table_name)
-        _apply_sensitive_column_mask(spark, target_table_name, table_name)
+        apply_sensitive_column_mask(spark, target_table_name, table_name)
 
 
-def _ingest_table(extract_location: str, source_table_name: str, target_table_name: str) -> None:
+def ingest_table(extract_location: str, source_table_name: str, target_table_name: str) -> None:
     """
     Ingest a table from a DuckDB profiler extract into a managed Delta table in Unity Catalog.
     After writing, applies sensitivity column comments and UC tags to any columns

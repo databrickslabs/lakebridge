@@ -189,7 +189,7 @@ class ProfilerDashboardManager:
         self._install_state = install_state
 
     @staticmethod
-    def _replace_catalog_schema(
+    def replace_catalog_schema(
         serialized_dashboard: str,
         new_catalog: str,
         new_schema: str,
@@ -201,7 +201,7 @@ class ProfilerDashboardManager:
         updated_dashboard = serialized_dashboard.replace(old_catalog, f"`{new_catalog}`")
         return updated_dashboard.replace(old_schema, f"`{new_schema}`")
 
-    def _create_or_replace_dashboard(
+    def create_or_replace_dashboard(
         self, folder: Path, ws_parent_path: str, dest_catalog: str, dest_schema: str, source_system: str
     ) -> Dashboard:
         """
@@ -217,7 +217,7 @@ class ProfilerDashboardManager:
         dashboard_str = json.dumps(dashboard_json)
 
         # Replace catalog and schema placeholders
-        updated_dashboard_str = self._replace_catalog_schema(
+        updated_dashboard_str = self.replace_catalog_schema(
             dashboard_str, new_catalog=dest_catalog, new_schema=dest_schema
         )
         dashboard_name = self._dashboard_name_for_source(source_system)
@@ -263,7 +263,7 @@ class ProfilerDashboardManager:
             self._ws.workspace.mkdirs(ws_parent_path)
         except ResourceAlreadyExists:
             logger.info(f"Workspace parent path already exists for dashboards: {ws_parent_path}")
-        dashboard = self._create_or_replace_dashboard(
+        dashboard = self.create_or_replace_dashboard(
             folder=template_folder,
             ws_parent_path=ws_parent_path,
             dest_catalog=catalog_name,
