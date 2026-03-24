@@ -3,10 +3,7 @@ import os
 import sys
 from collections.abc import Sequence
 from importlib import resources
-try:
-    from importlib.resources.abc import Traversable
-except ModuleNotFoundError:
-    from importlib.abc import Traversable  # Python < 3.12
+from importlib.abc import Traversable
 from pathlib import Path
 from typing import Any
 

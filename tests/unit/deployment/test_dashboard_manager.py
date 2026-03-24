@@ -223,8 +223,8 @@ def testreplace_catalog_schema_substitutes_placeholders():
 
 def testcreate_or_replace_dashboard_reraises_databricks_error(
     tmp_path: Path,
-    dashboard_manager: ProfilerDashboardManager,  # pylint: disable=redefined-outer-name
-    mocked_workspace_client: WorkspaceClient,  # pylint: disable=redefined-outer-name
+    dashboard_manager: ProfilerDashboardManager,
+    mocked_workspace_client: WorkspaceClient,
     monkeypatch: pytest.MonkeyPatch,
 ):
     ws = mocked_workspace_client
