@@ -142,7 +142,7 @@ def test_teradata_profiler_pipeline_no_pdcr(
     results = pipeline.execute()
 
     for r in results:
-        assert r.status.value in ("COMPLETE", "SKIPPED"), f"Step {r.step_name} failed: {r.error_message}"
+        assert r.status.value in {"COMPLETE", "SKIPPED"}, f"Step {r.step_name} failed: {r.error_message}"
 
     db_path = extract_folder / DB_NAME
     assert db_path.exists(), "Profiler extract database should be created"

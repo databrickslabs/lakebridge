@@ -97,7 +97,7 @@ def test_apply_sensitive_mask_disabled_noop(monkeypatch) -> None:
         table_name="td_dbql_core_info_extract",
     )
 
-    assert spark_stub.sql_commands == []
+    assert not spark_stub.sql_commands
 
 
 def test_ingest_table_applies_sqltextinfo_governance_controls(tmp_path: Path, monkeypatch) -> None:

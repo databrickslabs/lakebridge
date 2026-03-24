@@ -32,9 +32,7 @@ class SparkSessionStub:
         self.sql_commands: list[str] = []
         self.ingested: list[tuple[Any, WriterStub]] = []
 
-    def createDataFrame(
-        self, pdf: Any, schema: Any = None
-    ) -> SparkDfStub:  # noqa: N802
+    def createDataFrame(self, pdf: Any, schema: Any = None) -> SparkDfStub:  # noqa: N802
         writer = WriterStub()
         self.last_pdf = pdf
         self.last_schema = schema

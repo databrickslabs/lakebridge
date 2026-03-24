@@ -370,6 +370,23 @@ def _ingest_profiler_tables(catalog_name: str, schema_name: str, extract_locatio
     logger.warning(",".join(str(t) for t in unsuccessful_tables))
 
 
+def _read_and_write_table(extract_location: str, source_table_name: str, target_table_name: str) -> None:
+    with duckdb.connect(database=extract_location, read_only=True) as duck_conn:
+        query = f"SELECT * FROM {source_table_name}"
+        pdf = _normalize_dataframe_text(duck_conn.execute(query).df())
+        logger.info(f"Saving profiler table '{target_table_name}' to Unity Catalog.")
+        spark = SparkSession.builder.getOrCreate()
+        if pdf.empty:
+            schema = _spark_schema_from_duckdb(duck_conn, source_table_name)
+            df = spark.createDataFrame([], schema=schema)
+        else:
+            df = spark.createDataFrame(pdf)
+        df.write.format("delta").mode("overwrite").saveAsTable(target_table_name)
+        table_name = source_table_name.split(".")[-1]
+        _apply_sensitive_column_metadata(spark, target_table_name, table_name)
+        _apply_sensitive_column_mask(spark, target_table_name, table_name)
+
+
 def _ingest_table(extract_location: str, source_table_name: str, target_table_name: str) -> None:
     """
     Ingest a table from a DuckDB profiler extract into a managed Delta table in Unity Catalog.
@@ -377,20 +394,7 @@ def _ingest_table(extract_location: str, source_table_name: str, target_table_na
     declared in _SENSITIVE_COLUMNS (e.g. SQLTextInfo on td_dbql_core_info_extract).
     """
     try:
-        with duckdb.connect(database=extract_location, read_only=True) as duck_conn:
-            query = f"SELECT * FROM {source_table_name}"
-            pdf = _normalize_dataframe_text(duck_conn.execute(query).df())
-            logger.info(f"Saving profiler table '{target_table_name}' to Unity Catalog.")
-            spark = SparkSession.builder.getOrCreate()
-            if pdf.empty:
-                schema = _spark_schema_from_duckdb(duck_conn, source_table_name)
-                df = spark.createDataFrame([], schema=schema)
-            else:
-                df = spark.createDataFrame(pdf)
-            df.write.format("delta").mode("overwrite").saveAsTable(target_table_name)
-            table_name = source_table_name.split(".")[-1]
-            _apply_sensitive_column_metadata(spark, target_table_name, table_name)
-            _apply_sensitive_column_mask(spark, target_table_name, table_name)
+        _read_and_write_table(extract_location, source_table_name, target_table_name)
     except duckdb.CatalogException as e:
         logger.error(f"Could not find source table '{source_table_name}' in profiler extract: {e}")
         raise duckdb.CatalogException(f"Could not find source table '{source_table_name}' in profiler extract.") from e

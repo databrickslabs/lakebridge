@@ -17,6 +17,7 @@ from databricks.labs.lakebridge.config import (
     ProfilerDashboardConfig,
     ProfilerDashboardMetadataConfig,
 )
+from databricks.labs.blueprint.wheels import find_project_root
 from databricks.labs.lakebridge.deployment.dashboard import ProfilerDashboardManager, ProfilerDashboardTemplateLoader
 
 
@@ -171,7 +172,7 @@ def test_create_profiler_summary_dashboard_uses_teradata_template_loader(
 
     captured: dict[str, str] = {}
 
-    def _fake_load(self, source_system: str) -> dict:
+    def _fake_load(_self, source_system: str) -> dict:
         captured["source_system"] = source_system
         return {"datasets": [], "pages": []}
 
@@ -194,8 +195,6 @@ def test_create_profiler_summary_dashboard_uses_teradata_template_loader(
 
 def test_teradata_dashboard_template_loads_and_has_datasets():
     """The actual Teradata dashboard template should load and contain expected datasets."""
-    from databricks.labs.blueprint.wheels import find_project_root
-
     template_folder = (
         find_project_root(__file__) / "src/databricks/labs/lakebridge/resources/assessments/dashboards/teradata"
     )

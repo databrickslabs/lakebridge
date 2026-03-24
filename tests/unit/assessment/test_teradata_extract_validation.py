@@ -13,9 +13,14 @@ from databricks.labs.lakebridge.assessments.profiler_validator import (
     ExtractSchemaValidationCheck,
     build_validation_report,
 )
-from .teradata_extract_utils import build_mock_teradata_extract
 from tests.unit.spark_test_stubs import SparkSessionStub
 from tests.unit.teradata_test_helpers import TERADATA_TABLES
+
+from importlib import resources
+
+import databricks.labs.lakebridge.resources.assessments as assessment_resources
+
+from .teradata_extract_utils import build_mock_teradata_extract
 
 
 @pytest.fixture()
@@ -25,14 +30,11 @@ def teradata_extract(tmp_path: Path) -> Path:
 
 @pytest.fixture()
 def teradata_schema_def_path() -> Path:
-    from importlib import resources
-    import databricks.labs.lakebridge.resources.assessments as assessment_resources
-
     root = resources.files(assessment_resources)
     schema_def = root.joinpath("validation").joinpath("teradata_extract_schema.yml")
     assert schema_def.is_file(), "teradata_extract_schema.yml must exist"
-    with resources.as_file(schema_def) as p:
-        return Path(p)
+    with resources.as_file(schema_def) as schema_path:
+        return Path(schema_path)
 
 
 def test_teradata_extract_has_all_expected_tables(teradata_extract: Path) -> None:

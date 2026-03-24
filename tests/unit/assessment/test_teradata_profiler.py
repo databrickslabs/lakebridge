@@ -1,7 +1,8 @@
 from pathlib import Path
 
-import pytest
 from unittest.mock import MagicMock
+
+import pytest
 
 from databricks.labs.lakebridge.assessments.pipeline import PipelineClass
 from databricks.labs.lakebridge.assessments.profiler_config import PipelineConfig, Step

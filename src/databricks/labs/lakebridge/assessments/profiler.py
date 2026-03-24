@@ -114,29 +114,29 @@ class Profiler:
             logger.warning(f"PDCR preflight check failed; using DBQL core fallback. Details: {e}")
             return False
 
+    def _prepare_extractor_and_config(
+        self, platform: str, pipeline_config: PipelineConfig, extractor
+    ) -> tuple[PipelineConfig, DatabaseManager | None]:
+        connect_config = None
+        if extractor is None and CONNECTOR_REQUIRED[platform]:
+            cred_manager = create_credential_manager(PRODUCT_NAME, EnvGetter())
+            connect_config = cred_manager.get_credentials(platform)
+            extractor = DatabaseManager(platform, connect_config)
+
+        if platform == "teradata" and connect_config is not None:
+            pdcr_requested = self._is_pdcr_requested(connect_config)
+            if pdcr_requested and extractor is not None and not self._has_pdcr_access(extractor):
+                pipeline_config = self._configure_teradata_pipeline(pipeline_config, {"profiler": {"use_pdcr": False}})
+            else:
+                pipeline_config = self._configure_teradata_pipeline(pipeline_config, connect_config)
+
+        return pipeline_config, extractor
+
     def _execute(self, platform: str, pipeline_config: PipelineConfig, extractor=None) -> None:
         # Keeping a broad execution guard here ensures the CLI returns a stable,
         # user-facing RuntimeError regardless of underlying connector/runtime failures.
         try:
-            connect_config = None
-            if extractor is None:
-                if CONNECTOR_REQUIRED[platform]:
-                    cred_manager = create_credential_manager(PRODUCT_NAME, EnvGetter())
-                    connect_config = cred_manager.get_credentials(platform)
-                    extractor = DatabaseManager(platform, connect_config)
-                else:
-                    extractor = None
-
-            if platform == "teradata" and connect_config is not None:
-                pdcr_requested = self._is_pdcr_requested(connect_config)
-                if pdcr_requested and extractor is not None and not self._has_pdcr_access(extractor):
-                    # Autodetect runtime capability and fallback when PDCR tables are unavailable.
-                    pipeline_config = self._configure_teradata_pipeline(
-                        pipeline_config, {"profiler": {"use_pdcr": False}}
-                    )
-                else:
-                    pipeline_config = self._configure_teradata_pipeline(pipeline_config, connect_config)
-
+            pipeline_config, extractor = self._prepare_extractor_and_config(platform, pipeline_config, extractor)
             result = PipelineClass(pipeline_config, extractor).execute()
             logger.info(f"Profile execution has completed successfully for {platform} for more info check: {result}.")
         except FileNotFoundError as e:
