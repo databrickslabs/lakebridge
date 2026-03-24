@@ -9,8 +9,6 @@ from databricks.labs.lakebridge.assessments.profiler import Profiler
 import databricks.labs.lakebridge.assessments.profiler as profiler_module
 from tests.unit.profiler_test_helpers import build_overridden_pipeline_config
 
-# pylint: disable=protected-access
-
 
 def test_teradata_as_supported_source_technologies() -> None:
     profiler = Profiler("teradata", None)

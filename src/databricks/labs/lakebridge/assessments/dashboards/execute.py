@@ -80,7 +80,7 @@ def _apply_sensitive_column_metadata(spark: SparkSession, fq_table_name: str, ta
         try:
             spark.sql(f"ALTER TABLE {fq_table_name} ALTER COLUMN {col_name} COMMENT '{safe_comment}'")
             logger.info(f"Applied sensitivity comment to '{fq_table_name}.{col_name}'.")
-        except Exception as e:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+        except Exception as e:  # noqa: BLE001
             logger.warning(f"Could not set column comment on '{fq_table_name}.{col_name}': {e}")
         try:
             spark.sql(
@@ -88,7 +88,7 @@ def _apply_sensitive_column_metadata(spark: SparkSession, fq_table_name: str, ta
                 f"SET TAGS ('sensitivity' = '{sensitivity_tag_value}')"
             )
             logger.info(f"Applied sensitivity tag to '{fq_table_name}.{col_name}'.")
-        except Exception as e:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+        except Exception as e:  # noqa: BLE001
             logger.warning(f"Could not set column tag on '{fq_table_name}.{col_name}': {e}")
 
 
@@ -134,14 +134,14 @@ def _apply_sensitive_column_mask(spark: SparkSession, fq_table_name: str, table_
     try:
         spark.sql(function_sql)
         logger.info(f"Created/verified SQL masking function '{function_name}'.")
-    except Exception as e:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+    except Exception as e:  # noqa: BLE001
         logger.warning(f"Could not create masking function '{function_name}': {e}")
         return
 
     try:
         spark.sql(f"ALTER TABLE {fq_table_name} ALTER COLUMN SQLTextInfo SET MASK {function_name}")
         logger.info(f"Applied SQL text mask on '{fq_table_name}.SQLTextInfo'.")
-    except Exception as e:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+    except Exception as e:  # noqa: BLE001
         logger.warning(f"Could not apply SQL text mask on '{fq_table_name}.SQLTextInfo': {e}")
 
 
@@ -376,7 +376,6 @@ def _ingest_table(extract_location: str, source_table_name: str, target_table_na
     After writing, applies sensitivity column comments and UC tags to any columns
     declared in _SENSITIVE_COLUMNS (e.g. SQLTextInfo on td_dbql_core_info_extract).
     """
-    # pylint: disable=too-many-try-statements
     try:
         with duckdb.connect(database=extract_location, read_only=True) as duck_conn:
             query = f"SELECT * FROM {source_table_name}"
@@ -398,7 +397,7 @@ def _ingest_table(extract_location: str, source_table_name: str, target_table_na
     except duckdb.IOException as e:
         logger.error(f"Could not access the profiler extract: '{extract_location}': {e}")
         raise duckdb.IOException(f"Could not access the profiler extract: '{extract_location}'.") from e
-    except Exception as e:  # pylint: disable=broad-exception-caught
+    except Exception as e:
         logger.error(f"Unable to ingest table '{source_table_name}' from profiler extract: {e}")
         raise ExtractIngestionError(f"Unable to ingest table '{source_table_name}' from profiler extract: {e}") from e
 

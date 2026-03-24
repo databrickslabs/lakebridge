@@ -117,7 +117,6 @@ class Profiler:
     def _execute(self, platform: str, pipeline_config: PipelineConfig, extractor=None) -> None:
         # Keeping a broad execution guard here ensures the CLI returns a stable,
         # user-facing RuntimeError regardless of underlying connector/runtime failures.
-        # pylint: disable=too-many-try-statements
         try:
             connect_config = None
             if extractor is None:
@@ -143,7 +142,7 @@ class Profiler:
         except FileNotFoundError as e:
             logger.error(f"Configuration file not found for source {platform}: {e}")
             raise FileNotFoundError(f"Configuration file not found for source {platform}: {e}") from e
-        except Exception as e:  # pylint: disable=broad-exception-caught
+        except Exception as e:
             logger.error(f"Error executing pipeline for source {platform}: {e}")
             raise RuntimeError(f"Pipeline execution failed for source {platform} : {e}") from e
 
