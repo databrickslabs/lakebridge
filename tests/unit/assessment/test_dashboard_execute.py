@@ -146,7 +146,9 @@ def test_ingest_table_applies_sqltextinfo_governance_controls(tmp_path: Path, mo
     )
 
     sql_script = "\n".join(spark_stub.sql_commands)
-    assert "ALTER TABLE test_catalog.test_schema.td_dbql_core_info_extract ALTER COLUMN SQLTextInfo COMMENT" in sql_script
+    assert (
+        "ALTER TABLE test_catalog.test_schema.td_dbql_core_info_extract ALTER COLUMN SQLTextInfo COMMENT" in sql_script
+    )
     assert "ALTER COLUMN SQLTextInfo SET TAGS ('sensitivity' = 'pii')" in sql_script
     assert "CREATE FUNCTION IF NOT EXISTS test_catalog.test_schema.mask_sql_textinfo" in sql_script
     assert "is_account_group_member('data-governance-admins')" in sql_script

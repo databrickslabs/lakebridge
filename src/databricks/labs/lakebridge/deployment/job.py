@@ -26,8 +26,8 @@ logger = logging.getLogger(__name__)
 class JobDeployment:
 
     DEFAULT_CLUSTER_NAME = "Remorph_Reconciliation_Cluster"
-    DEFAULT_PROFILER_INGESTION_CLUSTER_NAME = "Lakebridge_Profiler_Ingest_Cluster"
-    DEFAULT_PROFILER_INGESTION_ENVIRONMENT_KEY = "Lakebridge_Profiler_Ingest_Environment"
+    PROFILER_INGEST_CLUSTER_KEY = "Lakebridge_Profiler_Ingest_Cluster"
+    PROFILER_INGEST_ENV_KEY = "Lakebridge_Profiler_Ingest_Environment"
 
     def __init__(
         self,
@@ -264,7 +264,7 @@ class JobDeployment:
         if use_serverless:
             settings["environments"] = [
                 JobEnvironment(
-                    environment_key=self.DEFAULT_PROFILER_INGESTION_ENVIRONMENT_KEY,
+                    environment_key=self.PROFILER_INGEST_ENV_KEY,
                     spec=compute.Environment(
                         environment_version="1",
                         dependencies=[
@@ -278,7 +278,7 @@ class JobDeployment:
             latest_lts_spark = self._ws.clusters.select_spark_version(latest=True, long_term_support=True)
             settings["job_clusters"] = [
                 JobCluster(
-                    job_cluster_key=self.DEFAULT_PROFILER_INGESTION_CLUSTER_NAME,
+                    job_cluster_key=self.PROFILER_INGEST_CLUSTER_KEY,
                     new_cluster=compute.ClusterSpec(
                         data_security_mode=compute.DataSecurityMode.USER_ISOLATION,
                         spark_conf={},
@@ -296,7 +296,7 @@ class JobDeployment:
         libraries = None
         environment_key = None
         if use_serverless:
-            environment_key = self.DEFAULT_PROFILER_INGESTION_ENVIRONMENT_KEY
+            environment_key = self.PROFILER_INGEST_ENV_KEY
         else:
             libraries = [
                 compute.Library(whl=lakebridge_wheel_path),
@@ -306,7 +306,7 @@ class JobDeployment:
         return Task(
             task_key=task_key,
             description=description,
-            job_cluster_key=None if use_serverless else self.DEFAULT_PROFILER_INGESTION_CLUSTER_NAME,
+            job_cluster_key=None if use_serverless else self.PROFILER_INGEST_CLUSTER_KEY,
             environment_key=environment_key,
             libraries=libraries,
             python_wheel_task=PythonWheelTask(

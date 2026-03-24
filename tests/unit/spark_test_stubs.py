@@ -15,7 +15,7 @@ class WriterStub:
     def mode(self, _mode: str) -> "WriterStub":
         return self
 
-    def saveAsTable(self, table_name: str) -> None:  # noqa: N802
+    def saveAsTable(self, table_name: str) -> None:  # noqa: N802  # pylint: disable=invalid-name
         self.saved_table = table_name
 
 
@@ -32,7 +32,9 @@ class SparkSessionStub:
         self.sql_commands: list[str] = []
         self.ingested: list[tuple[Any, WriterStub]] = []
 
-    def createDataFrame(self, pdf: Any, schema: Any = None) -> SparkDfStub:  # noqa: N802
+    def createDataFrame(
+        self, pdf: Any, schema: Any = None
+    ) -> SparkDfStub:  # noqa: N802  # pylint: disable=invalid-name
         writer = WriterStub()
         self.last_pdf = pdf
         self.last_schema = schema

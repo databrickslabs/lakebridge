@@ -392,7 +392,7 @@ def test_validate_teradata_extract(
             def getOrCreate():
                 return _SparkStub()
 
-        def createDataFrame(self, *args, **kwargs):
+        def createDataFrame(self, *_args, **_kwargs):  # pylint: disable=invalid-name
             return _DFStub()
 
     with (
@@ -447,7 +447,8 @@ def test_ingest_teradata_extract(
             def getOrCreate():
                 return _SparkStub()
 
-        def createDataFrame(self, pdf, schema=None):
+        def createDataFrame(self, pdf, **kwargs):  # pylint: disable=invalid-name
+            _ = kwargs.get("schema")
             row_count = len(pdf) if hasattr(pdf, "__len__") else 0
             df = _DFStub(pdf)
 
@@ -458,10 +459,10 @@ def test_ingest_teradata_extract(
                 def mode(self, _mode):
                     return self
 
-                def saveAsTable(self, name):
+                def saveAsTable(self, name):  # pylint: disable=invalid-name
                     ingested_tables[name] = row_count
 
-            df._writer = _TrackingWriter()
+            df._writer = _TrackingWriter()  # pylint: disable=protected-access
             return df
 
     with patch("databricks.labs.lakebridge.assessments.dashboards.execute.SparkSession", _SparkStub):
