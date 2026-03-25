@@ -135,10 +135,10 @@ def test_hash_query_builder_for_tsql_src(
     ).build_query(report_type="data")
     src_expected = (
         "SELECT LOWER(CONVERT(VARCHAR(64), HASHBYTES('SHA2_256', "
-        'CONVERT(VARCHAR(MAX),SUBSTRING([s_address], 1, 11) + UPPER([s_name]) + '
-        "COALESCE(TRIM(CAST([s_nationkey] AS VARCHAR(MAX))), '_null_recon_') + "
-        "COALESCE(TRIM(CAST([s_phone] AS VARCHAR(MAX))), '_null_recon_') + "
-        "COALESCE(TRIM(CAST([s_suppkey] AS VARCHAR(MAX))), '_null_recon_'))), 2)) AS "
+        "CONVERT(NVARCHAR(MAX),SUBSTRING([s_address], 1, 11) + UPPER([s_name]) + "
+        "COALESCE(TRIM(CAST([s_nationkey] AS NVARCHAR(MAX))), N'_null_recon_') + "
+        "COALESCE(TRIM(CAST([s_phone] AS NVARCHAR(MAX))), N'_null_recon_') + "
+        "COALESCE(TRIM(CAST([s_suppkey] AS NVARCHAR(MAX))), N'_null_recon_'))), 2)) AS "
         'hash_value_recon, [s_nationkey] AS [s_nationkey], [s_suppkey] AS [s_suppkey] '
         "FROM :tbl WHERE [s_name] = 't' AND [s_address] = 'a'"
     )
@@ -360,11 +360,11 @@ def test_hash_query_builder_sort_column(
     # Verify columns are in alphabetical order: id, month, month_num, revenue, year
     src_expected = (
         "SELECT LOWER(CONVERT(VARCHAR(64), HASHBYTES('SHA2_256', "
-        "CONVERT(VARCHAR(MAX),COALESCE(TRIM(CAST([id] AS VARCHAR(MAX))), '_null_recon_') + "
-        "COALESCE(TRIM(CAST([month] AS VARCHAR(MAX))), '_null_recon_') + "
-        "COALESCE(TRIM(CAST([month_num] AS VARCHAR(MAX))), '_null_recon_') + "
-        "COALESCE(TRIM(CAST([revenue] AS VARCHAR(MAX))), '_null_recon_') + "
-        "COALESCE(TRIM(CAST([year] AS VARCHAR(MAX))), '_null_recon_'))), 2)) AS "
+        "CONVERT(NVARCHAR(MAX),COALESCE(TRIM(CAST([id] AS NVARCHAR(MAX))), N'_null_recon_') + "
+        "COALESCE(TRIM(CAST([month] AS NVARCHAR(MAX))), N'_null_recon_') + "
+        "COALESCE(TRIM(CAST([month_num] AS NVARCHAR(MAX))), N'_null_recon_') + "
+        "COALESCE(TRIM(CAST([revenue] AS NVARCHAR(MAX))), N'_null_recon_') + "
+        "COALESCE(TRIM(CAST([year] AS NVARCHAR(MAX))), N'_null_recon_'))), 2)) AS "
         "hash_value_recon, [id] AS [id] FROM :tbl"
     )
 
@@ -412,9 +412,9 @@ def test_hash_query_builder_tsql_date_time_columns(
 
     src_expected = (
         "SELECT LOWER(CONVERT(VARCHAR(64), HASHBYTES('SHA2_256', "
-        "CONVERT(VARCHAR(MAX),COALESCE(CONVERT(VARCHAR(10), [created_date], 101), '1900-01-01') + "
+        "CONVERT(NVARCHAR(MAX),COALESCE(CONVERT(VARCHAR(10), [created_date], 101), '1900-01-01') + "
         "COALESCE(CONVERT(VARCHAR(12), [event_time], 108), '00:00:00') + "
-        "COALESCE(TRIM(CAST([id] AS VARCHAR(MAX))), '_null_recon_') + "
+        "COALESCE(TRIM(CAST([id] AS NVARCHAR(MAX))), N'_null_recon_') + "
         "COALESCE(CONVERT(VARCHAR(23), [updated_at], 120), '1900-01-01 00:00:00'))), 2)) AS "
         "hash_value_recon, [id] AS [id] FROM :tbl"
     )

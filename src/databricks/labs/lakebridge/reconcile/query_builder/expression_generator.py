@@ -264,7 +264,7 @@ DataType_transform_mapping: dict[str, dict[str, list[partial[exp.Expression]]]] 
         ],
     },
     "tsql": {
-        "default": [partial(anonymous, func="COALESCE(TRIM(CAST({} AS VARCHAR(MAX))), '_null_recon_')")],
+        "default": [partial(anonymous, func="COALESCE(TRIM(CAST({} AS NVARCHAR(MAX))), N'_null_recon_')")],
         exp.DataType.Type.DATE.value: [
             partial(anonymous, func="COALESCE(CONVERT(VARCHAR(10), {0}, 101), '1900-01-01')")
         ],
@@ -277,6 +277,14 @@ DataType_transform_mapping: dict[str, dict[str, list[partial[exp.Expression]]]] 
 
 sha256_partial = partial(sha2, num_bits="256", is_expr=True)
 md5_partial = partial(md5, is_expr=True)
+# T-SQL target: encode to UTF-16LE before hashing so Databricks produces the same
+# hash as SQL Server HASHBYTES on NVARCHAR (which operates on UTF-16LE bytes).
+_tsql_target_sha256_partial = partial(
+    anonymous,
+    func="sha2(encode({}, 'UTF-16LE'), 256)",
+    is_expr=True,
+    dialect=get_dialect("databricks"),
+)
 Dialect_hash_algo_mapping: dict[Dialect, HashAlgoMapping] = {
     get_dialect("snowflake"): HashAlgoMapping(
         source=sha256_partial,
@@ -300,10 +308,10 @@ Dialect_hash_algo_mapping: dict[Dialect, HashAlgoMapping] = {
     get_dialect("tsql"): HashAlgoMapping(
         source=partial(
             anonymous,
-            func="CONVERT(VARCHAR(64), HASHBYTES('SHA2_256', CONVERT(VARCHAR(MAX),{})), 2)",
+            func="CONVERT(VARCHAR(64), HASHBYTES('SHA2_256', CONVERT(NVARCHAR(MAX),{})), 2)",
             is_expr=True,
             dialect=get_dialect("tsql"),
         ),
-        target=sha256_partial,
+        target=_tsql_target_sha256_partial,
     ),
 }
