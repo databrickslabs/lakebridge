@@ -49,6 +49,7 @@ Below is the default secret naming convention for managing connection properties
 | databricks    | lakebridge_databricks |
 | mssql         | lakebridge_mssql      |
 | synapse       | lakebridge_synapse    |
+| redshift      | lakebridge_redshift   |
 
 Below are the connection properties required for each source:
 
@@ -94,6 +95,15 @@ Below are the connection properties required for each source:
         database = [database/SID]
         encrypt = [true/false]
         trustServerCertificate = [true/false]
+        ```
+    </TabItem>
+    <TabItem value="redshift" label="Redshift">
+        ```yaml
+        user = [user]
+        password = [password]
+        host = [host]
+        port = [port]
+        database = [database]
         ```
     </TabItem>
 </Tabs>
