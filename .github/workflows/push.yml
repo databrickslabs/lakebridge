@@ -40,7 +40,7 @@ jobs:
         run: hatch run test
 
       - name: Publish test coverage
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@b9fd7d16f6d7d1b5d2bec1a2887e65ceed900238 # v4.6.0
         with:
           codecov_yml_path: codecov.yml
           token: ${{ secrets.CODECOV_TOKEN }}
