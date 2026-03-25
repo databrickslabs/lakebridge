@@ -8,6 +8,7 @@ from pyspark.sql import DataFrameReader, SparkSession
 from databricks.sdk.service.catalog import TableInfo
 from databricks.labs.lakebridge.reconcile.connectors.databricks import DatabricksDataSource
 from databricks.labs.lakebridge.reconcile.connectors.oracle import OracleDataSource
+from databricks.labs.lakebridge.reconcile.connectors.redshift import RedshiftDataSource
 from databricks.labs.lakebridge.reconcile.connectors.snowflake import SnowflakeDataSource
 from databricks.labs.lakebridge.reconcile.connectors.tsql import TSQLServerDataSource
 from databricks.labs.lakebridge.reconcile.recon_config import OptionalPrimitiveType
@@ -129,6 +130,37 @@ def test_oracle_read_schema_happy(mock_spark: SparkSession) -> None:
     connector = OracleDataSourceUnderTest(mock_spark, mock_ws)
 
     columns = connector.get_schema(None, "SYSTEM", "help")
+    assert columns
+
+
+class RedshiftDataSourceUnderTest(RedshiftDataSource):
+    def __init__(self, spark, ws):
+        super().__init__(get_dialect("redshift"), spark, ws, "secret_scope")
+        self._test_env = TestEnvGetter(True)
+
+    @property
+    def get_jdbc_url(self) -> str:
+        return self._test_env.get("TEST_REDSHIFT_JDBC")
+
+    def reader(self, query: str, options: Mapping[str, OptionalPrimitiveType] | None = None) -> DataFrameReader:
+        if options is None:
+            options = {}
+        user = self._test_env.get("TEST_REDSHIFT_USER")
+        password = self._test_env.get("TEST_REDSHIFT_PASS")
+        return self._get_jdbc_reader(
+            query, self.get_jdbc_url, RedshiftDataSource._DRIVER, {**options, "user": user, "password": password}
+        )
+
+
+# FIXME
+# 1. Deploy Redshift
+# 2. Add credentials to the test env getter
+@pytest.mark.skip(reason="Requires Redshift JDBC driver on Databricks cluster.")
+def test_redshift_read_schema_happy(mock_spark: SparkSession) -> None:
+    mock_ws = create_autospec(WorkspaceClient)
+    connector = RedshiftDataSourceUnderTest(mock_spark, mock_ws)
+
+    columns = connector.get_schema(None, "public", "diamonds")
     assert columns
 
 

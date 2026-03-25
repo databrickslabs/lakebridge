@@ -55,6 +55,9 @@ TSQL_TABLE = "diamonds_big_column"
 SNOWFLAKE_CATALOG = "REMORPH"
 SNOWFLAKE_SCHEMA = "SANDBOX"
 SNOWFLAKE_TABLE = "DIAMONDS"
+REDSHIFT_CATALOG = "dev"
+REDSHIFT_SCHEMA = "public"
+REDSHIFT_TABLE = "diamonds"
 
 
 @pytest.fixture
@@ -262,6 +265,51 @@ def snowflake_recon_config(recon_cluster: ClusterDetails, recon_schema: SchemaIn
         database_config=DatabaseConfig(
             source_catalog=SNOWFLAKE_CATALOG,
             source_schema=SNOWFLAKE_SCHEMA,
+            target_catalog=recon_schema.catalog_name,
+            target_schema=recon_schema.name,
+        ),
+        metadata_config=ReconcileMetadataConfig(
+            catalog=recon_schema.catalog_name, schema=recon_schema.name, volume=volume.name
+        ),
+        job_overrides=deployment_overrides,
+    )
+
+
+@pytest.fixture
+def redshift_recon_table_config(recon_schema: SchemaInfo, recon_tables: tuple[TableInfo, TableInfo]) -> TableRecon:
+    (_, tgt_table) = recon_tables
+    assert tgt_table.name
+
+    return TableRecon(
+        [
+            Table(
+                source_name=REDSHIFT_TABLE,
+                target_name=tgt_table.name,
+                join_columns=["color", "clarity"],
+            )
+        ]
+    )
+
+
+@pytest.fixture
+def redshift_recon_config(recon_cluster: ClusterDetails, recon_schema: SchemaInfo, make_volume) -> ReconcileConfig:
+    volume = make_volume(catalog_name=recon_schema.catalog_name, schema_name=recon_schema.name, name=recon_schema.name)
+
+    deployment_overrides = ReconcileJobConfig(
+        existing_cluster_id=recon_cluster.cluster_id or "bogus",
+        tags={"lakebridge": "reconcile_test"},
+    )
+    logger.info(f"Using recon job overrides: {deployment_overrides}")
+
+    assert recon_schema.catalog_name
+    assert recon_schema.name
+    return ReconcileConfig(
+        data_source="redshift",
+        report_type="all",
+        secret_scope="labs_redshift_sandbox_secrets",
+        database_config=DatabaseConfig(
+            source_catalog=REDSHIFT_CATALOG,
+            source_schema=REDSHIFT_SCHEMA,
             target_catalog=recon_schema.catalog_name,
             target_schema=recon_schema.name,
         ),
