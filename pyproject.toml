@@ -85,7 +85,6 @@ dependencies = [
   "databricks-labs-pylint~=0.5.0",
   "databricks-labs-pytester>=0.3.0",
   "mypy~=1.18.2",
-  "numpy~=1.26.4",
   "pandas-stubs~=2.3.0.250703",
   "cattrs>=25.2.0",
   "faker",
