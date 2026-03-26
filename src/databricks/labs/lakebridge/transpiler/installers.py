@@ -162,7 +162,8 @@ class WheelInstaller(ArtifactInstaller):
 
     @classmethod
     def get_latest_artifact_version_from_pypi(cls, artifact_id: str) -> str | None:
-        url = f"https://pypi.org/pypi/{artifact_id}/json"
+        _pypi_base = os.environ.get("PYPI_MIRROR", "https://pypi.org")
+        url = f"{_pypi_base}/pypi/{artifact_id}/json"
         try:
             # TODO: Use a user-agent that identifies this application.
             response = requests.get(url, timeout=_DEFAULT_HTTP_TIMEOUT)
@@ -285,7 +286,7 @@ class WheelInstaller(ArtifactInstaller):
 
 class MavenInstaller(ArtifactInstaller):
     # Maven Central, base URL.
-    _maven_central_repo: str = "https://repo.maven.apache.org/maven2/"
+    _maven_central_repo: str = os.environ.get("MAVEN_CENTRAL_MIRROR", "https://repo.maven.apache.org/maven2/")
 
     @classmethod
     def _artifact_base_url(cls, group_id: str, artifact_id: str) -> str:
