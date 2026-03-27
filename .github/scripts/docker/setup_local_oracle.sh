@@ -3,13 +3,18 @@ set -Eeuo pipefail
 
 # Config
 ORACLE_CONTAINER="${ORACLE_CONTAINER:-oracle-free}"
-ORACLE_IMAGE="${ORACLE_IMAGE:-container-registry.oracle.com/database/free:latest-lite}"
+ORACLE_TAG="${ORACLE_TAG:-sha256:481dbb4a1ea7cac6aadd354ff42b48fb7e4df955725158f237ad58c8fca1f458}" # 23.7.0.0-lite
+ORACLE_IMAGE="${ORACLE_IMAGE:-container-registry.oracle.com/database/free}@${ORACLE_TAG}"
 ORACLE_PORT="${ORACLE_PORT:-1521}"
 ORACLE_PWD="${ORACLE_PWD:?export ORACLE_PWD for SYS}"
 ORACLE_SID="${ORACLE_SID:-FREEPDB1}"
+DOCKER_NETWORK="${DOCKER_NETWORK:-lakebridge}"
 
 # Dependencies
 command -v docker >/dev/null || { echo "Docker not installed" >&2; exit 2; }
+
+# Shared network for inter-container communication
+docker network inspect "${DOCKER_NETWORK}" >/dev/null 2>&1 || docker network create "${DOCKER_NETWORK}"
 
 # Image present?
 docker image inspect "${ORACLE_IMAGE}" >/dev/null 2>&1 || docker pull "${ORACLE_IMAGE}"
@@ -21,6 +26,7 @@ elif docker ps -a --format '{{.Names}}' | grep -qx "${ORACLE_CONTAINER}"; then
   docker start "${ORACLE_CONTAINER}" >/dev/null
 else
   docker run --name "${ORACLE_CONTAINER}" \
+    --network "${DOCKER_NETWORK}" \
     -p "${ORACLE_PORT}:1521" \
     -e ORACLE_PWD="${ORACLE_PWD}" \
     -d "${ORACLE_IMAGE}" >/dev/null
@@ -37,6 +43,10 @@ while :; do
   sleep "$WAIT_INTERVAL"; waited=$((waited + WAIT_INTERVAL))
 done
 echo "Oracle is fully started."
+
+# ORACLE_PWD env var is not reliably applied on first start — reset via OS auth
+docker exec "${ORACLE_CONTAINER}" bash -c \
+  "printf 'ALTER USER sys IDENTIFIED BY ${ORACLE_PWD};\nALTER USER system IDENTIFIED BY ${ORACLE_PWD};\n' | sqlplus -L -s / as sysdba"
 
 # SQL bootstrap as SYSDBA, target SYSTEM schema
 docker exec -i "${ORACLE_CONTAINER}" bash -lc \

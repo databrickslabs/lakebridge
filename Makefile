@@ -28,7 +28,7 @@ fmt:
 	hatch run fmt
 
 setup_spark_remote:
-	.github/scripts/setup_spark_remote.sh
+	.github/scripts/docker/setup_spark_remote.sh
 
 test:
 	hatch run test

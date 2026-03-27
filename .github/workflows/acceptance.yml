@@ -47,10 +47,23 @@ jobs:
           $GITHUB_WORKSPACE/.github/scripts/setup_mssql_odbc.sh
 
       # TODO: Migrate tests to use Databricks clusters instead of Spark local mode
-      - name: Setup spark
-        run: |
-          chmod +x $GITHUB_WORKSPACE/.github/scripts/setup_spark_remote.sh
-          $GITHUB_WORKSPACE/.github/scripts/setup_spark_remote.sh
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd  # v4.0.0
+        with:
+          driver: docker-container
+
+      - name: Build Spark Connect image
+        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294  # v7.0.0
+        with:
+          context: .github/scripts/docker
+          file: .github/scripts/docker/spark-connect.Dockerfile
+          tags: lakebridge-spark-connect:latest
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Setup Spark Connect
+        run: .github/scripts/docker/setup_spark_remote.sh
 
       - name: Run integration tests
         uses: databrickslabs/sandbox/acceptance@acceptance/v0.4.4
