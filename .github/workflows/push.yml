@@ -117,7 +117,7 @@ jobs:
         run: pip install hatch==$HATCH_VERSION
 
       - name: Install Databricks CLI
-        uses: databricks/setup-cli@main
+        uses: databricks/setup-cli@8db12393ac48926ab0074f3928f36c7abc441f90  # v0.292.0
 
       - name: Initialize Python virtual environment
         run: make dev
