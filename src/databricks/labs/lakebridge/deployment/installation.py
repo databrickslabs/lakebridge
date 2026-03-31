@@ -100,7 +100,10 @@ class WorkspaceInstallation:
             self._recon_deployment.install(config.reconcile, wheel_path)
         if config.include_switch:
             logger.info("Installing Switch transpiler to workspace.")
-            self._switch_deployment.install(use_serverless=config.switch_use_serverless)
+            self._switch_deployment.install(
+                use_serverless=config.switch_use_serverless,
+                lakebridge_wheel_path=wheel_path,
+            )
         if config.profiler_dashboard:
             logger.info("Installing Lakebridge profiler dashboard components.")
             self._profiler_dashboard_deployment.install(config.profiler_dashboard, wheel_path)

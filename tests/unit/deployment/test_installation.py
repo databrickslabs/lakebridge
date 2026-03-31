@@ -250,3 +250,6 @@ class TestSwitchInstallation:
         ws_installation.install(config)
 
         switch_deployment.install.assert_called_once()
+        _args, skwargs = switch_deployment.install.call_args
+        assert skwargs.get("use_serverless") is True
+        assert skwargs.get("lakebridge_wheel_path")

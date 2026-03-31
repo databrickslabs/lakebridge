@@ -13,7 +13,15 @@ from databricks.labs.blueprint.paths import WorkspacePath
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.errors import InvalidParameterValue, NotFound
 from databricks.sdk.service import compute
-from databricks.sdk.service.jobs import JobCluster, JobParameterDefinition, JobSettings, NotebookTask, Source, Task
+from databricks.sdk.service.jobs import (
+    JobCluster,
+    JobParameterDefinition,
+    JobSettings,
+    NotebookTask,
+    Source,
+    Task,
+    TaskDependency,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -33,12 +41,13 @@ class SwitchDeployment:
         self._installation = installation
         self._install_state = install_state
 
-    def install(self, use_serverless: bool = True) -> None:
+    def install(self, use_serverless: bool = True, lakebridge_wheel_path: str | None = None) -> None:
         """Deploy Switch to workspace and configure resources."""
         logger.debug("Deploying Switch resources to workspace...")
         try:
             self._deploy_resources_to_workspace()
-            self._setup_job(use_serverless)
+            self._deploy_lakebridge_switch_notebook()
+            self._setup_job(use_serverless, lakebridge_wheel_path)
             logger.debug("Switch deployment completed")
         except (RuntimeError, ValueError, InvalidParameterValue) as e:
             msg = f"Failed to setup required resources for Switch llm transpiler: {e}"
@@ -65,6 +74,10 @@ class SwitchDeployment:
         installation_root = self._installation.install_folder()
         return WorkspacePath(self._ws, installation_root) / "switch"
 
+    def _get_lakebridge_switch_workspace_path(self) -> WorkspacePath:
+        installation_root = self._installation.install_folder()
+        return WorkspacePath(self._ws, installation_root) / "lakebridge" / "switch"
+
     def _deploy_resources_to_workspace(self) -> None:
         """Replicate the Switch package sources to the workspace."""
         # TODO: This is temporary, instead the jobs should directly run the code from the deployed wheel/package.
@@ -86,6 +99,17 @@ class SwitchDeployment:
             logger.debug(f"Uploading: {resource_path} -> {upload_path}")
             upload_path.write_bytes(resource.read_bytes())
         logger.debug(f"Resources copied to workspace: {resource_root}")
+
+    def _deploy_lakebridge_switch_notebook(self) -> None:
+        """Upload Lakebridge schema remapping notebook (outside the Switch package tree)."""
+        root = self._get_lakebridge_switch_workspace_path()
+        nb_dir = root / "notebooks"
+        nb_dir.mkdir(parents=True, exist_ok=True)
+        src = importlib.resources.files("databricks.labs.lakebridge.notebooks.switch").joinpath("schema_remap.ipynb")
+        data = src.read_bytes()
+        dest = nb_dir / "schema_remap"
+        logger.info(f"Uploading schema remapping notebook to {dest}")
+        dest.write_bytes(data)
 
     @staticmethod
     def _enumerate_package_files(package) -> Generator[tuple[PurePosixPath, Traversable]]:
@@ -109,11 +133,11 @@ class SwitchDeployment:
 
         yield from _enumerate_resources(root)
 
-    def _setup_job(self, use_serverless: bool = True) -> None:
+    def _setup_job(self, use_serverless: bool = True, lakebridge_wheel_path: str | None = None) -> None:
         """Create or update Switch job."""
         existing_job_id = self._get_existing_job_id()
         logger.debug("Setting up Switch job in workspace...")
-        job_id = self._create_or_update_switch_job(existing_job_id, use_serverless)
+        job_id = self._create_or_update_switch_job(existing_job_id, use_serverless, lakebridge_wheel_path)
         self._install_state.jobs[self._INSTALL_STATE_KEY] = job_id
         self._install_state.save()
         job_url = f"{self._ws.config.host}/jobs/{job_id}"
@@ -130,9 +154,11 @@ class SwitchDeployment:
         except (InvalidParameterValue, NotFound, ValueError):
             return None
 
-    def _create_or_update_switch_job(self, job_id: str | None, use_serverless: bool = True) -> str:
+    def _create_or_update_switch_job(
+        self, job_id: str | None, use_serverless: bool = True, lakebridge_wheel_path: str | None = None
+    ) -> str:
         """Create or update Switch job, returning job ID."""
-        job_settings = self._get_switch_job_settings(use_serverless)
+        job_settings = self._get_switch_job_settings(use_serverless, lakebridge_wheel_path)
 
         # Try to update existing job
         if job_id:
@@ -150,21 +176,48 @@ class SwitchDeployment:
         assert new_job_id is not None
         return new_job_id
 
-    def _get_switch_job_settings(self, use_serverless: bool = True) -> dict[str, Any]:
+    def _get_switch_job_settings(
+        self, use_serverless: bool = True, lakebridge_wheel_path: str | None = None
+    ) -> dict[str, Any]:
         """Build job settings for Switch transpiler."""
         job_name = "Lakebridge_Switch"
         notebook_path = self._get_switch_workspace_path() / "notebooks" / "00_main"
 
-        task = Task(
+        transpile_task = Task(
             task_key="run_transpilation",
             notebook_task=NotebookTask(notebook_path=str(notebook_path), source=Source.WORKSPACE),
             disable_auto_optimization=True,  # To disable retries on failure
         )
 
+        tasks: list[Task] = [transpile_task]
+
+        if lakebridge_wheel_path:
+            remap_notebook = self._get_lakebridge_switch_workspace_path() / "notebooks" / "schema_remap"
+            remap_task = Task(
+                task_key="apply_schema_remap",
+                depends_on=[TaskDependency(task_key="run_transpilation")],
+                notebook_task=NotebookTask(
+                    notebook_path=str(remap_notebook),
+                    source=Source.WORKSPACE,
+                    base_parameters={
+                        "output_dir": "{{job.parameters.[output_dir]}}",
+                        "namespace_remap_csv_path": "{{job.parameters.[namespace_remap_csv_path]}}",
+                        "column_remap_csv_path": "{{job.parameters.[column_remap_csv_path]}}",
+                        "default_catalog": "{{job.parameters.[default_catalog]}}",
+                        "default_schema": "{{job.parameters.[default_schema]}}",
+                        "apply_schema_remap": "{{job.parameters.[apply_schema_remap]}}",
+                        "remap_max_workers": "{{job.parameters.[remap_max_workers]}}",
+                    },
+                ),
+                libraries=[compute.Library(whl=lakebridge_wheel_path)],
+                disable_auto_optimization=True,
+            )
+            tasks.append(remap_task)
+
         settings: dict[str, Any] = {
             "name": job_name,
             "tags": {"created_by": self._ws.current_user.me().user_name, "switch_version": f"v{switch_version}"},
-            "tasks": [task],
+            "tasks": tasks,
             "parameters": self._generate_switch_job_parameters(),
             "max_concurrent_runs": 100,  # Allow simultaneous transpilations
         }
@@ -182,7 +235,8 @@ class SwitchDeployment:
                     ),
                 )
             ]
-            task.job_cluster_key = job_cluster_key
+            for t in tasks:
+                t.job_cluster_key = job_cluster_key
 
         return settings
 
@@ -196,5 +250,11 @@ class SwitchDeployment:
             "foundation_model": "databricks-claude-sonnet-4-5",
             "catalog": "lakebridge",
             "schema": "switch",
+            "apply_schema_remap": "false",
+            "namespace_remap_csv_path": "",
+            "column_remap_csv_path": "",
+            "default_catalog": "",
+            "default_schema": "",
+            "remap_max_workers": "16",
         }
         return [JobParameterDefinition(name=key, default=value) for key, value in parameters.items()]

@@ -11,7 +11,8 @@ from databricks.labs.lakebridge.deployment.switch import SwitchDeployment
 from databricks.sdk import WorkspaceClient, JobsExt
 from databricks.sdk.errors import NotFound, InvalidParameterValue
 from databricks.sdk.service import compute
-from databricks.sdk.service.jobs import CreateResponse
+from databricks.sdk.service.compute import Library
+from databricks.sdk.service.jobs import CreateResponse, TaskDependency
 from databricks.sdk.service.iam import User
 
 
@@ -186,7 +187,20 @@ def test_install_configures_job_with_correct_parameters(
 
     # Verify parameters
     param_names = {param.name for param in call_kwargs["parameters"]}
-    assert param_names == {"catalog", "output_dir", "foundation_model", "schema", "source_tech", "input_dir"}
+    assert param_names == {
+        "catalog",
+        "output_dir",
+        "foundation_model",
+        "schema",
+        "source_tech",
+        "input_dir",
+        "apply_schema_remap",
+        "namespace_remap_csv_path",
+        "column_remap_csv_path",
+        "default_catalog",
+        "default_schema",
+        "remap_max_workers",
+    }
 
     # Verify max concurrent runs
     assert call_kwargs["max_concurrent_runs"] == 100
@@ -379,3 +393,31 @@ def test_install_with_classic_cluster_configures_correct_cluster_spec(
     # Verify cluster selection methods were called with correct parameters
     mock_workspace_client.clusters.select_spark_version.assert_called_once_with(latest=True, long_term_support=True)
     mock_workspace_client.clusters.select_node_type.assert_called_once_with(local_disk=True, min_memory_gb=16)
+
+
+def test_install_with_wheel_adds_remap_task(switch_deployment: SwitchDeployment, mock_workspace_client: Any) -> None:
+    new_job = CreateResponse(job_id=123)
+    mock_workspace_client.jobs.create.return_value = new_job
+
+    switch_deployment.install(
+        lakebridge_wheel_path="/Workspace/wheels/databricks_labs_lakebridge-0.0.0-py3-none-any.whl"
+    )
+
+    call_kwargs = mock_workspace_client.jobs.create.call_args.kwargs
+    assert len(call_kwargs["tasks"]) == 2
+    transpile, remap = call_kwargs["tasks"]
+    assert transpile.task_key == "run_transpilation"
+    assert remap.task_key == "apply_schema_remap"
+    assert remap.depends_on == [TaskDependency(task_key="run_transpilation")]
+    assert remap.notebook_task.base_parameters == {
+        "output_dir": "{{job.parameters.[output_dir]}}",
+        "namespace_remap_csv_path": "{{job.parameters.[namespace_remap_csv_path]}}",
+        "column_remap_csv_path": "{{job.parameters.[column_remap_csv_path]}}",
+        "default_catalog": "{{job.parameters.[default_catalog]}}",
+        "default_schema": "{{job.parameters.[default_schema]}}",
+        "apply_schema_remap": "{{job.parameters.[apply_schema_remap]}}",
+        "remap_max_workers": "{{job.parameters.[remap_max_workers]}}",
+    }
+    assert len(remap.libraries) == 1
+    assert isinstance(remap.libraries[0], Library)
+    assert remap.libraries[0].whl == "/Workspace/wheels/databricks_labs_lakebridge-0.0.0-py3-none-any.whl"
