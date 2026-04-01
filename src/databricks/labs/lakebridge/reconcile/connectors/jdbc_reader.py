@@ -2,6 +2,7 @@ from typing import Any
 
 from pyspark.sql import SparkSession
 
+from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import DialectUtils
 from databricks.labs.lakebridge.reconcile.recon_config import JdbcReaderOptions
 
 
@@ -31,7 +32,7 @@ class JDBCReaderMixin:
         if options.number_partitions:
             option_dict["numPartitions"] = options.number_partitions
         if options.partition_column:
-            option_dict["partitionColumn"] = options.partition_column
+            option_dict["partitionColumn"] = DialectUtils.unnormalize_identifier(options.partition_column)
         if options.lower_bound:
             option_dict["lowerBound"] = options.lower_bound
         if options.upper_bound:

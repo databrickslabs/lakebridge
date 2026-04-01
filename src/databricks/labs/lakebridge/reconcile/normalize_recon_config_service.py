@@ -124,7 +124,7 @@ class NormalizeReconConfigService:
         if table.jdbc_reader_options:
             normalized = dataclasses.replace(table.jdbc_reader_options)
             normalized.partition_column = (
-                self.source.normalize_identifier(normalized.partition_column).ansi_normalized
+                self.source.normalize_identifier(normalized.partition_column).source_normalized
                 if normalized.partition_column
                 else None
             )
