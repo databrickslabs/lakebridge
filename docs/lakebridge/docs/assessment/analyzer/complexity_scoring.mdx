@@ -4,6 +4,31 @@ title: Complexity Scoring
 ---
 import useBaseUrl from '@docusaurus/useBaseUrl';
 
+## Overview
+
+The Lakebridge Analyzer assigns a complexity level to each SQL object or ETL job it processes. Complexity scores help you prioritize migration effort, estimate timelines, and identify which objects will require manual review after transpilation.
+
+Each object receives one of four levels: **LOW**, **MEDIUM**, **COMPLEX**, or **VERY COMPLEX**.
+
+## How to Interpret Your Scores
+
+| Level | What it means | Typical action |
+|---|---|---|
+| **LOW** | Simple object — few statements, no loops, no complex constructs | Transpile directly; little or no manual review expected |
+| **MEDIUM** | Moderate complexity — some loops, 10–30 statements, limited use of advanced SQL | Transpile; review transpiler warnings before deploying |
+| **COMPLEX** | High complexity — many loops, 30–50 statements, or advanced constructs (XML, PIVOT) | Plan for manual review after transpilation; test thoroughly |
+| **VERY COMPLEX** | Highest complexity — heavy loop nesting, 50+ statements, or extreme PIVOT/XML usage | Allocate dedicated review time; consider using Switch for intent-aware conversion |
+
+**Planning guidance:**
+
+- If more than 50% of your objects score COMPLEX or VERY COMPLEX, plan for at least two manual review passes before deploying.
+- Objects scored LOW and MEDIUM typically transpile cleanly with Morpheus or BladeBridge.
+- COMPLEX and VERY COMPLEX objects are strong candidates for Switch, which handles business logic that deterministic transpilers struggle with.
+
+The scoring rules for each source system are detailed below.
+
+---
+
 ## SQL Code Analysis
 At the beginning of script analysis, mark a script with complexity level of **LOW**
 
