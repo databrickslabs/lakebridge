@@ -1,0 +1,241 @@
+---
+sidebar_position: 2
+title: Running Reconcile
+---
+
+import useBaseUrl from '@docusaurus/useBaseUrl';
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+import CodeBlock from '@theme/CodeBlock';
+
+# Running Reconcile
+
+This page covers how to run Lakebridge Reconcile via the CLI and via Databricks notebooks. For configuration options, see [Configuration Reference](/docs/reconcile/configuration).
+
+---
+
+## CLI Execution
+
+After completing [setup](/docs/reconcile#setup), run reconciliation with:
+
+```bash
+databricks labs lakebridge reconcile
+```
+
+Results are written to the reconciliation dashboard deployed in your workspace.
+
+---
+
+## Notebook Execution
+
+Use the notebook approach when you need fine-grained control over reconcile configuration, or when running from within a Databricks notebook workflow.
+
+### Step 1: Install
+
+<Tabs>
+    <TabItem value="github" label="GitHub" default>
+        ```python
+        %pip install git+https://github.com/databrickslabs/lakebridge
+        dbutils.library.restartPython()
+        ```
+    </TabItem>
+    <TabItem value="pypi" label="PyPI">
+        ```python
+        %pip install databricks-labs-lakebridge
+        dbutils.library.restartPython()
+        ```
+    </TabItem>
+</Tabs>
+
+### Step 2: Import
+
+```python
+from databricks.sdk import WorkspaceClient
+
+from databricks.labs.lakebridge.config import (
+    DatabaseConfig,
+    ReconcileConfig,
+    ReconcileMetadataConfig,
+    TableRecon
+)
+from databricks.labs.lakebridge.reconcile.recon_config import (
+    Table,
+    ColumnMapping,
+    ColumnThresholds,
+    Transformation,
+    JdbcReaderOptions,
+    Aggregate,
+    Filters
+)
+from databricks.labs.lakebridge.reconcile.trigger_recon_service import TriggerReconService
+from databricks.labs.lakebridge.reconcile.exception import ReconciliationException
+```
+
+### Step 3: Configure ReconcileConfig
+
+```python
+reconcile_config = ReconcileConfig(
+    data_source="snowflake",        # snowflake, oracle, mssql, synapse, databricks
+    report_type="all",              # schema, row, data, all
+    secret_scope="snowflake-credential",
+    database_config=DatabaseConfig(
+        source_catalog="source_sf_catalog",
+        source_schema="source_sf_schema",
+        target_catalog="target_databricks_catalog",
+        target_schema="target_databricks_schema"
+    ),
+    metadata_config=ReconcileMetadataConfig(
+        catalog="lakebridge_metadata",
+        schema="reconcile"
+        # volume defaults to "reconcile_volume"
+    )
+)
+```
+
+`ReconcileMetadataConfig` defaults: `catalog="lakebridge"`, `schema="reconcile"`, `volume="reconcile_volume"`.
+
+### Step 4: Configure TableRecon
+
+```python
+table_recon = TableRecon(
+    tables=[
+        Table(
+            source_name="source_table_name",
+            target_name="target_table_name",
+            join_columns=["store_id", "account_id"],
+            column_mapping=[
+                ColumnMapping(source_name="dept_id", target_name="department_id"),
+            ],
+            column_thresholds=[
+                ColumnThresholds(column_name="unit_price", upper_bound="-5", lower_bound="5", type="float")
+            ],
+            table_thresholds=[
+                TableThresholds(lower_bound="0%", upper_bound="5%", model="mismatch")
+            ],
+            transformations=[
+                Transformation(
+                    column_name="inventory_units",
+                    source="coalesce(cast(cast(inventory_units as decimal(38,10)) as string), '_null_recon_')",
+                    target='coalesce(replace(cast(format_number(cast(inventory_units as decimal(38, 10)), 10) as string), ",", ""), "_null_recon_")'
+                )
+            ],
+            jdbc_reader_options=JdbcReaderOptions(
+                number_partitions=50,
+                partition_column="lct_nbr",
+                lower_bound="1",
+                upper_bound="50000"
+            ),
+            filters=Filters(
+                source="lower(dept_name)='finance'",
+                target="lower(department_name)='finance'"
+            )
+        )
+    ]
+)
+```
+
+### Step 5: Run
+
+```python
+from databricks.labs.lakebridge import __version__
+from databricks.sdk import WorkspaceClient
+from databricks.labs.lakebridge.reconcile.trigger_recon_service import TriggerReconService
+from databricks.labs.lakebridge.reconcile.exception import ReconciliationException
+
+ws = WorkspaceClient(product="lakebridge", product_version=__version__)
+
+try:
+    result = TriggerReconService.trigger_recon(
+        ws=ws,
+        spark=spark,
+        table_recon=table_recon,
+        reconcile_config=reconcile_config
+    )
+    print(result.recon_id)
+    print(result)
+except ReconciliationException as e:
+    print(f"Failed: {e.reconcile_output.recon_id}")
+    print(e)
+```
+
+### Visualization
+
+After running, use the `recon_id` to drill into the results on the AI/BI Dashboard deployed in your workspace during installation.
+
+---
+
+## Automation
+
+For bulk reconciliation across many tables, use the automation utility.
+
+### Prerequisites
+
+Create these tables in your Lakebridge catalog and schema:
+
+**`table_configs`** — stores per-table reconciliation config:
+
+```sql
+CREATE TABLE <catalog>.<schema>.table_configs (
+    label STRING,
+    source_catalog STRING,
+    source_schema STRING,
+    source_table STRING,
+    databricks_catalog STRING,
+    databricks_schema STRING,
+    databricks_table STRING,
+    primary_key ARRAY<STRING>,
+    source_filters STRING,
+    databricks_filters STRING,
+    federated_source_catalog STRING,
+    select_columns STRING,
+    drop_columns STRING
+) USING DELTA;
+```
+
+**`table_recon_summary`** — stores run results:
+
+```sql
+CREATE TABLE <catalog>.<schema>.table_recon_summary (
+    timestamp TIMESTAMP,
+    label STRING,
+    databricks_catalog STRING,
+    databricks_schema STRING,
+    databicks_table STRING,
+    status STRING,
+    recon_id STRING,
+    row_status STRING,
+    column_status STRING,
+    schema_status STRING,
+    error STRING
+) USING DELTA;
+```
+
+### Notebooks
+
+The automation utility uses three notebooks:
+
+| Notebook | Role |
+|---|---|
+| `recon_wrapper_nb` | Main orchestrator — reads `table_configs` and triggers reconciliation per table |
+| `lakebridge_recon_main` | Core reconciliation — row, column, schema comparisons, computes `recon_id` |
+| `transformation_query_generator` | Source-specific transformation script (customize per source system) |
+
+<a href={useBaseUrl('/lakebridge_reconciliation.dbc')} target="_blank" rel="noopener noreferrer">Download the automation notebooks</a> — unzip and upload to your Databricks workspace.
+
+### Parameters
+
+Set these parameters when running the automation notebooks:
+
+| Parameter | Description |
+|---|---|
+| `label` | Filter value from `table_configs` — only tables with this label are reconciled |
+| `remorph_catalog` | Catalog configured during CLI setup |
+| `remorph_schema` | Schema configured during CLI setup |
+| `remorph_config_table` | The `table_configs` table created above |
+| `secret_scope` | Databricks secret scope for source system credentials |
+| `source_system` | Source system for reconciliation |
+| `table_recon_summary` | The `table_recon_summary` table created above |
+
+:::note
+The `<source_system>_transformation_query_generator` notebook must be created or modified for your specific source system. The included example is for Snowflake.
+:::
