@@ -96,14 +96,6 @@ Available options per ETL dialect:
 
 Use a custom JSON override file. Pass it via `--overrides-file` or set it during `install-transpile`. See [BladeBridge Configuration](/docs/transpile/pluggable_transpilers/bladebridge/bladebridge_configuration) for the full config reference.
 
-#### Install Databricks CLI on Linux without brew
-
-```bash
-#!/usr/bin/env bash
-apt update && apt install -y curl sudo unzip
-curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/v0.242.0/install.sh | sudo sh
-```
-
 ### Switch
 
 #### Can Switch support my source system if it's not in the built-in list?
@@ -179,6 +171,14 @@ Use `drop_columns`:
 ---
 
 ## Troubleshooting
+
+### Install Databricks CLI on Linux without brew
+
+```bash
+#!/usr/bin/env bash
+apt update && apt install -y curl sudo unzip
+curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/v0.242.0/install.sh | sudo sh
+```
 
 ### The `configure-reconcile` command fails because I can't create SQL warehouses.
 

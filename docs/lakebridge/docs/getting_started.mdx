@@ -3,8 +3,6 @@ sidebar_position: 1
 title: Getting Started
 ---
 
-import useBaseUrl from '@docusaurus/useBaseUrl';
-
 # Getting Started with Lakebridge
 
 This guide walks you through a complete end-to-end migration using **SQL Server as the source** and **Databricks SQL as the target**. You will assess your SQL code, transpile it, and validate the output — in about 15 minutes.
@@ -33,18 +31,18 @@ Splitting first gives the Analyzer more granular, per-object results and gives t
 
 ---
 
-## Step 2: Assess Your SQL Code
+## Step 2: Assess Your SQL Code _(optional but recommended)_
 
 Run the Analyzer on the split files to understand complexity and identify patterns the transpiler may need help with.
 
 ```bash
 databricks labs lakebridge analyze \
-  --source-dialect mssql \
-  --input-source /path/to/split/output \
-  --output-folder /path/to/analysis/results
+  --source-tech mssql \
+  --source-directory /path/to/split/output \
+  --report-file /path/to/analysis/results.xlsx
 ```
 
-The Analyzer produces a complexity report per SQL object. Objects flagged as `COMPLEX` or `VERY COMPLEX` may need manual review after transpilation.
+The Analyzer produces a complexity report saved as an Excel file (`.xlsx`). Objects flagged as `COMPLEX` or `VERY COMPLEX` may need manual review after transpilation.
 
 See [Assessment Guide](/docs/assessment) for more details.
 
