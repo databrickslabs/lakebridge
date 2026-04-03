@@ -6,6 +6,30 @@ import useBaseUrl from '@docusaurus/useBaseUrl';
 
 #  Transpile Guide
 
+Lakebridge comes with three transpilation plugins: [Morpheus](/docs/transpile/pluggable_transpilers/morpheus), [BladeBridge](/docs/transpile/pluggable_transpilers/bladebridge), and [Switch](/docs/transpile/pluggable_transpilers/switch). Not sure which to use? See [Which Tool Do I Use?](/docs/choosing_tools#transpiler-bladebridge-vs-morpheus-vs-switch).
+
+## Transpiler Selection Guide
+
+Lakebridge offers both deterministic and LLM-powered transpilers, each optimized for different conversion scenarios.
+
+### Deterministic Conversion (BladeBridge & Morpheus)
+
+Deterministic transpilers excel in scenarios requiring consistency and speed:
+- **Deterministic output with guaranteed syntax equivalence** — Every conversion produces the same predictable result
+- **High-volume batch processing** — Efficiently handle thousands of files without API rate limits
+- **Fast local execution without API dependencies** — Sub-minute processing with no external service calls
+- **Production-grade SQL aligned with Databricks SQL evolution** — Leverages SQL Scripting, Stored Procedures, and latest DBSQL features
+
+### LLM-Powered Conversion (Switch)
+
+Switch is best suited for scenarios requiring semantic understanding and flexibility:
+- **Complex logic requiring contextual understanding** — Stored procedures and business logic where intent matters more than syntax
+- **Source formats not covered by deterministic transpilers** — Any SQL dialect or programming language through custom prompts
+- **Extensible conversion through custom YAML prompts** — Adapt to proprietary or uncommon source formats
+- **Python notebook output for SQL beyond ANSI SQL/PSM standards** — Complex transformations that benefit from procedural code
+
+---
+
 ## Supported dialects
 
 <table>
