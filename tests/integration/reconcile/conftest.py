@@ -18,11 +18,12 @@ from databricks.sdk.service.catalog import TableInfo, SchemaInfo
 from databricks.sdk.service.compute import DataSecurityMode, Kind, ClusterDetails
 
 from databricks.labs.lakebridge.config import (
-    DatabaseConfig,
     LakebridgeConfiguration,
     ReconcileConfig,
     ReconcileJobConfig,
     ReconcileMetadataConfig,
+    SourceConnectionConfig,
+    TargetConnectionConfig,
     TableRecon,
 )
 from databricks.labs.lakebridge.contexts.application import ApplicationContext
@@ -198,14 +199,15 @@ def databricks_recon_config(recon_cluster: ClusterDetails, recon_schema: SchemaI
     assert recon_schema.catalog_name
     assert recon_schema.name
     return ReconcileConfig(
-        data_source="databricks",
         report_type="all",
-        secret_scope="NOT_NEEDED",
-        database_config=DatabaseConfig(
-            source_catalog=recon_schema.catalog_name,
-            source_schema=recon_schema.name,
-            target_catalog=recon_schema.catalog_name,
-            target_schema=recon_schema.name,
+        source=SourceConnectionConfig(
+            dialect="databricks",
+            catalog=recon_schema.catalog_name,
+            schema=recon_schema.name,
+        ),
+        target=TargetConnectionConfig(
+            catalog=recon_schema.catalog_name,
+            schema=recon_schema.name,
         ),
         metadata_config=ReconcileMetadataConfig(
             catalog=recon_schema.catalog_name, schema=recon_schema.name, volume=volume.name
@@ -227,14 +229,16 @@ def tsql_recon_config(recon_cluster: ClusterDetails, recon_schema: SchemaInfo, m
     assert recon_schema.catalog_name
     assert recon_schema.name
     return ReconcileConfig(
-        data_source="tsql",
         report_type="row",
-        secret_scope="labs_azure_sandbox_sql_server_secrets",
-        database_config=DatabaseConfig(
-            source_catalog=TSQL_CATALOG,
-            source_schema=TSQL_SCHEMA,
-            target_catalog=recon_schema.catalog_name,
-            target_schema=recon_schema.name,
+        source=SourceConnectionConfig(
+            dialect="tsql",
+            catalog=TSQL_CATALOG,
+            schema=TSQL_SCHEMA,
+            uc_connection_name="labs_azure_sandbox_sql_server_secrets",
+        ),
+        target=TargetConnectionConfig(
+            catalog=recon_schema.catalog_name,
+            schema=recon_schema.name,
         ),
         metadata_config=ReconcileMetadataConfig(
             catalog=recon_schema.catalog_name, schema=recon_schema.name, volume=volume.name
@@ -256,14 +260,16 @@ def snowflake_recon_config(recon_cluster: ClusterDetails, recon_schema: SchemaIn
     assert recon_schema.catalog_name
     assert recon_schema.name
     return ReconcileConfig(
-        data_source="snowflake",
         report_type="all",
-        secret_scope="labs_snowflake_sandbox_secrets",
-        database_config=DatabaseConfig(
-            source_catalog=SNOWFLAKE_CATALOG,
-            source_schema=SNOWFLAKE_SCHEMA,
-            target_catalog=recon_schema.catalog_name,
-            target_schema=recon_schema.name,
+        source=SourceConnectionConfig(
+            dialect="snowflake",
+            catalog=SNOWFLAKE_CATALOG,
+            schema=SNOWFLAKE_SCHEMA,
+            uc_connection_name="labs_snowflake_sandbox_secrets",
+        ),
+        target=TargetConnectionConfig(
+            catalog=recon_schema.catalog_name,
+            schema=recon_schema.name,
         ),
         metadata_config=ReconcileMetadataConfig(
             catalog=recon_schema.catalog_name, schema=recon_schema.name, volume=volume.name
@@ -273,12 +279,8 @@ def snowflake_recon_config(recon_cluster: ClusterDetails, recon_schema: SchemaIn
 
 
 def recon_config_filename(recon_config: ReconcileConfig) -> str:
-    source_catalog_or_schema = (
-        recon_config.database_config.source_catalog
-        if recon_config.database_config.source_catalog
-        else recon_config.database_config.source_schema
-    )
-    return f"recon_config_{recon_config.data_source}_{source_catalog_or_schema}_{recon_config.report_type}.json"
+    source_catalog_or_schema = recon_config.source.catalog or recon_config.source.schema
+    return f"recon_config_{recon_config.source.dialect}_{source_catalog_or_schema}_{recon_config.report_type}.json"
 
 
 @contextmanager

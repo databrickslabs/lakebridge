@@ -208,7 +208,9 @@ def test_recon_capture_start_snowflake_all(mock_workspace_client, mock_spark, re
 
 
 def test_test_recon_capture_start_databricks_data(mock_workspace_client, mock_spark, recon_metadata):
-    database_config = DatabaseConfig("source_test_schema", "target_test_catalog", "target_test_schema")
+    database_config = DatabaseConfig(
+        "source_test_catalog", "source_test_schema", "target_test_catalog", "target_test_schema"
+    )
     ws = mock_workspace_client
     source_type = get_dialect("databricks")
     spark = mock_spark
@@ -433,6 +435,7 @@ def test_recon_capture_start_with_exception(mock_workspace_client, mock_spark):
 
 def test_generate_final_reconcile_output_row(mock_workspace_client, mock_spark, recon_metadata):
     database_config = DatabaseConfig(
+        "source_test_catalog",
         "source_test_schema",
         "target_test_catalog",
         "target_test_schema",
@@ -481,6 +484,7 @@ def test_generate_final_reconcile_output_row(mock_workspace_client, mock_spark, 
 
 def test_generate_final_reconcile_output_data(mock_workspace_client, mock_spark, recon_metadata):
     database_config = DatabaseConfig(
+        "source_test_catalog",
         "source_test_schema",
         "target_test_catalog",
         "target_test_schema",
@@ -529,6 +533,7 @@ def test_generate_final_reconcile_output_data(mock_workspace_client, mock_spark,
 
 def test_generate_final_reconcile_output_schema(mock_workspace_client, mock_spark, recon_metadata):
     database_config = DatabaseConfig(
+        "source_test_catalog",
         "source_test_schema",
         "target_test_catalog",
         "target_test_schema",
@@ -577,6 +582,7 @@ def test_generate_final_reconcile_output_schema(mock_workspace_client, mock_spar
 
 def test_generate_final_reconcile_output_all(mock_workspace_client, mock_spark, recon_metadata):
     database_config = DatabaseConfig(
+        "source_test_catalog",
         "source_test_schema",
         "target_test_catalog",
         "target_test_schema",
@@ -626,6 +632,7 @@ def test_generate_final_reconcile_output_all(mock_workspace_client, mock_spark, 
 
 def test_generate_final_reconcile_output_exception(mock_workspace_client, mock_spark, recon_metadata):
     database_config = DatabaseConfig(
+        "source_test_catalog",
         "source_test_schema",
         "target_test_catalog",
         "target_test_schema",

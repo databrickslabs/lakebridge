@@ -42,7 +42,7 @@ def test_create_adapter_for_databricks_dialect():
     scope = "scope"
 
     data_source = create_adapter(engine, spark, ws, scope)
-    databricks_data_source = DatabricksDataSource(engine, spark, ws, scope).__class__
+    databricks_data_source = DatabricksDataSource(engine, spark, ws).__class__
 
     assert isinstance(data_source, databricks_data_source)
 

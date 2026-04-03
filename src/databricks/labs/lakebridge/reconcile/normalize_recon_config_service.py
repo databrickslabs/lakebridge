@@ -26,7 +26,6 @@ class NormalizeReconConfigService:
         self._normalize_col_mappings(normalized_table)
         self._normalize_transformations(normalized_table)
         self._normalize_col_thresholds(normalized_table)
-        self._normalize_jdbc_options(normalized_table)
 
         return normalized_table
 
@@ -119,15 +118,3 @@ class NormalizeReconConfigService:
         normalized = dataclasses.replace(threshold)
         normalized.column_name = self.source.normalize_identifier(threshold.column_name).ansi_normalized
         return normalized
-
-    def _normalize_jdbc_options(self, table: Table):
-        if table.jdbc_reader_options:
-            normalized = dataclasses.replace(table.jdbc_reader_options)
-            normalized.partition_column = (
-                self.source.normalize_identifier(normalized.partition_column).ansi_normalized
-                if normalized.partition_column
-                else None
-            )
-            table.jdbc_reader_options = normalized
-
-        return table

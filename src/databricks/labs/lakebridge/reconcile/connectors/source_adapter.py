@@ -13,18 +13,19 @@ from databricks.labs.lakebridge.transpiler.sqlglot.parsers.tsql import Tsql
 from databricks.sdk import WorkspaceClient
 
 
+# TODO add assertion connection exists
 def create_adapter(
     engine: Dialect,
     spark: SparkSession,
     ws: WorkspaceClient,
-    secret_scope: str,
+    connection_name: str,
 ) -> DataSource:
     if isinstance(engine, Snowflake):
-        return SnowflakeDataSource(engine, spark, ws, secret_scope)
+        return SnowflakeDataSource(engine, spark, ws, connection_name)
     if isinstance(engine, Oracle):
-        return OracleDataSource(engine, spark, ws, secret_scope)
+        return OracleDataSource(engine, spark, ws, connection_name)
     if isinstance(engine, Databricks):
-        return DatabricksDataSource(engine, spark, ws, secret_scope)
+        return DatabricksDataSource(engine, spark, ws)
     if isinstance(engine, Tsql):
-        return TSQLServerDataSource(engine, spark, ws, secret_scope)
+        return TSQLServerDataSource(engine, spark, ws, connection_name)
     raise ValueError(f"Unsupported source type --> {engine}")

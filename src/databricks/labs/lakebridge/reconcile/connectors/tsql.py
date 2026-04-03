@@ -1,19 +1,17 @@
 import re
 import logging
 from datetime import datetime
-from collections.abc import Mapping
 
 from pyspark.errors import PySparkException
-from pyspark.sql import DataFrame, DataFrameReader, SparkSession
+from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql.functions import col
 from sqlglot import Dialect
 
 from databricks.labs.lakebridge.reconcile.connectors.data_source import DataSource
-from databricks.labs.lakebridge.reconcile.connectors.jdbc_reader import JDBCReaderMixin
 from databricks.labs.lakebridge.reconcile.connectors.models import NormalizedIdentifier
-from databricks.labs.lakebridge.reconcile.connectors.secrets import SecretsMixin
+from databricks.labs.lakebridge.reconcile.connectors.remote_query_reader import RemoteQueryReaderMixin
 from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import DialectUtils
-from databricks.labs.lakebridge.reconcile.recon_config import JdbcReaderOptions, Schema, OptionalPrimitiveType
+from databricks.labs.lakebridge.reconcile.recon_config import JdbcReaderOptions, Schema
 from databricks.sdk import WorkspaceClient
 
 logger = logging.getLogger(__name__)
@@ -50,7 +48,7 @@ _SCHEMA_QUERY = """SELECT
               """
 
 
-class TSQLServerDataSource(DataSource, SecretsMixin, JDBCReaderMixin):
+class TSQLServerDataSource(DataSource):
     _DRIVER = "sqlserver"
     _IDENTIFIER_DELIMITER = {"prefix": "[", "suffix": "]"}
 
@@ -59,53 +57,32 @@ class TSQLServerDataSource(DataSource, SecretsMixin, JDBCReaderMixin):
         engine: Dialect,
         spark: SparkSession,
         ws: WorkspaceClient,
-        secret_scope: str,
+        connection_name: str,
     ):
         self._engine = engine
         self._spark = spark
         self._ws = ws
-        self._secret_scope = secret_scope
-
-    @property
-    def get_jdbc_url(self) -> str:
-        # Construct the JDBC URL
-        return (
-            f"jdbc:{self._DRIVER}://{self._get_secret('host')}:{self._get_secret('port')};"
-            f"databaseName={self._get_secret('database')};"
-            f"encrypt={self._get_secret('encrypt')};"
-            f"trustServerCertificate={self._get_secret('trustServerCertificate')};"
-        )
+        self._connection_name = connection_name
 
     def read_data(
         self,
-        catalog: str | None,
+        catalog: str,
         schema: str,
         table: str,
         query: str,
         options: JdbcReaderOptions | None,
     ) -> DataFrame:
-        table_query = query.replace(":tbl", f"{catalog}.{schema}.{self.normalize_identifier(table).source_normalized}")
-        with_clause_pattern = re.compile(r'WITH\s+.*?\)\s*(?=SELECT)', re.IGNORECASE | re.DOTALL)
-        match = with_clause_pattern.search(table_query)
-        if match:
-            prepare_query_string = match.group(0)
-            query = table_query.replace(match.group(0), '')
-        else:
-            query = table_query
-            prepare_query_string = ""
+        table_query = query.replace(":tbl", f"{schema}.{self.normalize_identifier(table).source_normalized}")
+        query = self._build_query(table_query, catalog, options)
         try:
-            if options is None:
-                df = self.reader(query, {"prepareQuery": prepare_query_string}).load()
-            else:
-                spark_options = self._get_jdbc_reader_options(options)
-                df = self.reader(table_query, spark_options).load()
+            df = self._spark.sql(query)
             return df.select([col(column).alias(column.lower()) for column in df.columns])
         except (RuntimeError, PySparkException) as e:
-            return self.log_and_throw_exception(e, "data", table_query)
+            return self.log_and_throw_exception(e, "data", query)
 
     def get_schema(
         self,
-        catalog: str | None,
+        catalog: str,
         schema: str,
         table: str,
         normalize: bool = True,
@@ -122,28 +99,25 @@ class TSQLServerDataSource(DataSource, SecretsMixin, JDBCReaderMixin):
             ' ',
             _SCHEMA_QUERY.format(catalog=catalog, schema=schema, table=table),
         )
+        query = self._build_query(schema_query, catalog, None)
         try:
-            logger.debug(f"Fetching schema using query: \n`{schema_query}`")
-            logger.info(f"Fetching Schema: Started at: {datetime.now()}")
-            df = self.reader(schema_query).load()
+            logger.debug(f"Fetching schema using query: \n`{query}`")
+            logger.debug(f"Fetching Schema: Started at: {datetime.now()}")
+            df = self._spark.sql(query)
             schema_metadata = df.select([col(c).alias(c.lower()) for c in df.columns]).collect()
-            logger.info(f"Schema fetched successfully. Completed at: {datetime.now()}")
+            logger.debug(f"Schema fetched successfully. Completed at: {datetime.now()}")
             return [self._map_meta_column(field, normalize) for field in schema_metadata]
         except (RuntimeError, PySparkException) as e:
-            return self.log_and_throw_exception(e, "schema", schema_query)
+            return self.log_and_throw_exception(e, "schema", query)
 
-    def reader(self, query: str, options: Mapping[str, OptionalPrimitiveType] | None = None) -> DataFrameReader:
-        if options is None:
-            options = {}
-
-        creds = self._get_user_password()
-        return self._get_jdbc_reader(query, self.get_jdbc_url, self._DRIVER, {**options, **creds})
-
-    def _get_user_password(self) -> Mapping[str, str]:
-        return {
-            "user": self._get_secret("user"),
-            "password": self._get_secret("password"),
-        }
+    def _build_query(
+        self,
+        source_query: str,
+        catalog: str,
+        options: JdbcReaderOptions | None,
+    ) -> str:
+        query_opts = RemoteQueryReaderMixin.build_remote_query_options(catalog, "database", options)
+        return RemoteQueryReaderMixin.build_remote_query(self._connection_name, query_opts, source_query, "query")
 
     def normalize_identifier(self, identifier: str) -> NormalizedIdentifier:
         return DialectUtils.normalize_identifier(

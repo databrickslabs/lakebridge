@@ -47,18 +47,6 @@ def initial_setup():
     return engine, spark, ws, scope
 
 
-def test_get_jdbc_url_happy():
-    # initial setup
-    engine, spark, ws, scope = initial_setup()
-    # create object for TSQLServerDataSource
-    data_source = TSQLServerDataSource(engine, spark, ws, scope)
-    url = data_source.get_jdbc_url
-    # Assert that the URL is generated correctly
-    assert url == (
-        """jdbc:sqlserver://my_host:777;databaseName=my_database;encrypt=true;trustServerCertificate=true;"""
-    )
-
-
 def test_read_data_with_options():
     # initial setup
     engine, spark, ws, scope = initial_setup()

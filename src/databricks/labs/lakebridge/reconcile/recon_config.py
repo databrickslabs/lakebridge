@@ -83,11 +83,11 @@ class SamplingOptions:
 
 @dataclass
 class JdbcReaderOptions:
-    number_partitions: int | None = None
-    partition_column: str | None = None
-    lower_bound: str | None = None
-    upper_bound: str | None = None
-    fetch_size: int = 100
+    partition_column: str  # if used, other props here have to be set as well
+    number_partitions: int
+    lower_bound: str
+    upper_bound: str
+    fetch_size: int = 0  # this uses driver default
 
     def __post_init__(self):
         self.partition_column = self.partition_column.lower() if self.partition_column else None

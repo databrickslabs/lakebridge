@@ -91,37 +91,6 @@ def initial_setup():
     return engine, spark, ws, scope
 
 
-def test_get_jdbc_url_happy():
-    # initial setup
-    engine, spark, ws, scope = initial_setup()
-    # create object for SnowflakeDataSource
-    dfds = SnowflakeDataSource(engine, spark, ws, scope)
-    url = dfds.get_jdbc_url
-    # Assert that the URL is generated correctly
-    assert url == (
-        "jdbc:snowflake://my_account.snowflakecomputing.com"
-        "/?user=my_user&password=my_password"
-        "&db=my_database&schema=my_schema"
-        "&warehouse=my_warehouse&role=my_role"
-    )
-
-
-def test_get_jdbc_url_fail():
-    # initial setup
-    engine, spark, ws, scope = initial_setup()
-    ws.secrets.get_secret.side_effect = mock_secret
-    # create object for SnowflakeDataSource
-    dfds = SnowflakeDataSource(engine, spark, ws, scope)
-    url = dfds.get_jdbc_url
-    # Assert that the URL is generated correctly
-    assert url == (
-        "jdbc:snowflake://my_account.snowflakecomputing.com"
-        "/?user=my_user&password=my_password"
-        "&db=my_database&schema=my_schema"
-        "&warehouse=my_warehouse&role=my_role"
-    )
-
-
 def test_read_data_with_out_options():
     # initial setup
     engine, spark, ws, scope = initial_setup()

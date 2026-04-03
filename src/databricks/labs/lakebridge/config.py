@@ -223,12 +223,33 @@ class TableRecon:
         return raw
 
 
-@dataclass
+@dataclass(frozen=True)
 class DatabaseConfig:
+    """Internal: provides the 4 namespace fields consumed by reconciliation and capture layers."""
+
+    source_catalog: str
     source_schema: str
     target_catalog: str
     target_schema: str
-    source_catalog: str | None = None
+
+
+@dataclass
+class SourceConnectionConfig:
+    dialect: str
+    catalog: str
+    schema: str
+    uc_connection_name: str | None = None
+
+    def __post_init__(self):
+        self.dialect = self.dialect.lower()
+        if self.dialect != "databricks" and not self.uc_connection_name:
+            raise ValueError(f"uc_connection_name is required for non-databricks sources (dialect={self.dialect})")
+
+
+@dataclass
+class TargetConnectionConfig:
+    catalog: str
+    schema: str
 
 
 @dataclass
@@ -260,14 +281,41 @@ class ReconcileJobConfig:
 @dataclass
 class ReconcileConfig:
     __file__ = "reconcile.yml"
-    __version__ = 1
+    __version__ = 2
 
-    data_source: str
     report_type: str
-    secret_scope: str
-    database_config: DatabaseConfig
+    source: SourceConnectionConfig
+    target: TargetConnectionConfig
     metadata_config: ReconcileMetadataConfig
     job_overrides: ReconcileJobConfig | None = None
+
+    @classmethod
+    def v1_migrate(cls, raw: dict[str, Any]) -> dict[str, Any]:
+        db_config = raw.pop("database_config")
+        data_source = raw.pop("data_source")
+
+        raw["source"] = {
+            "dialect": data_source,
+            "catalog": db_config.get("source_catalog"),
+            "schema": db_config.get("source_schema"),
+            "uc_connection_name": "TODO",
+        }
+
+        raw["target"] = {
+            "catalog": db_config.get("target_catalog"),
+            "schema": db_config.get("target_schema"),
+        }
+        raw["version"] = 2
+        return raw
+
+    @property
+    def database_config(self) -> DatabaseConfig:
+        return DatabaseConfig(
+            source_catalog=self.source.catalog,
+            source_schema=self.source.schema,
+            target_catalog=self.target.catalog,
+            target_schema=self.target.schema,
+        )
 
 
 @dataclass
