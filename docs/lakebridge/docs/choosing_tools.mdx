@@ -1,0 +1,76 @@
+---
+sidebar_position: 2
+title: Which Tool Do I Use?
+---
+
+# Which Tool Do I Use?
+
+Lakebridge provides multiple tools for assessment and transpilation. Use this guide to choose the right one for your migration.
+
+---
+
+## Assessment: Profiler vs Analyzer
+
+| | Profiler | Analyzer |
+|---|---|---|
+| **Purpose** | Understand data volumes, query complexity, and workload patterns | Analyze SQL code complexity and compatibility |
+| **Input** | Live database connections or query history exports | SQL code files (local filesystem) |
+| **Output** | Interactive dashboard with complexity scores and TCO metrics | Per-object complexity report (LOW / MEDIUM / COMPLEX / VERY COMPLEX) |
+| **When to use** | Early-stage scoping, executive reporting, sizing estimates | Pre-migration planning, identifying which files need manual review |
+| **Requires DB connection** | Yes | No |
+
+**Quick decision:**
+- If you need to **scope the migration and communicate to stakeholders**, use the **Profiler**.
+- If you have SQL files and want to know **how hard each one will be to transpile**, use the **Analyzer**.
+- **Run both** when you have access to the database — Profiler for sizing, Analyzer for developer planning.
+
+---
+
+## Transpiler: BladeBridge vs Morpheus vs Switch {#transpiler-bladebridge-vs-morpheus-vs-switch}
+
+| | Morpheus | BladeBridge | Switch (Experimental) |
+|---|---|---|---|
+| **Approach** | AST-based (ANTLR grammar → IR tree → code gen) | Config/pattern-based converter | LLM-powered (Mosaic AI Model Serving) |
+| **Best for** | SQL migration where correctness guarantees matter | ETL platforms + broad SQL dialect coverage | Complex logic, unsupported constructs, or any format via custom prompts |
+| **Source dialects** | `mssql` (SQL Server, Azure SQL, RDS for SQL Server), `snowflake` (including dbt repointing), `synapse` (Azure Synapse Analytics dedicated SQL pools) | DataStage, SSIS, Oracle, Teradata, Netezza, Synapse, Redshift, and more | Any SQL dialect or programming language (via built-in or custom YAML prompts) |
+| **Output formats** | Databricks SQL only | SQL, SparkSQL, PySpark, notebooks, workflow definitions | Python/SQL notebooks; any text-based format |
+| **Accuracy** | Strong guarantee: errors or warns rather than silently producing wrong output | Deterministic and repeatable; extensible via config | Semantic/intent-aware; handles edge cases deterministic transpilers miss |
+| **Speed** | Fast — local execution, no API calls | Fast — local execution, no API calls | Slower — requires LLM API calls per file |
+| **Cost** | Free | Free | Token costs apply (Databricks Foundation Model API) |
+| **Scalability** | Thousands of files locally | Thousands of files locally | Rate-limited by model serving; scales via Lakeflow Jobs |
+| **Configuration** | Simple: `source-dialect` flag + I/O paths | Two-layer: LSP params + JSON override files | YAML prompt files; configurable model endpoint |
+| **Extensibility** | Not extensible (fixed grammar) | Fully extensible via JSON config | Fully extensible via custom YAML prompts |
+
+### When to choose Morpheus
+
+Use Morpheus when:
+- You are migrating SQL code from **SQL Server, Snowflake, or Azure Synapse Analytics**
+- You need **correctness guarantees** — you want to know immediately when a construct cannot be translated, rather than getting silently wrong output
+- You do not need ETL platform support
+
+### When to choose BladeBridge
+
+Use BladeBridge when:
+- You are migrating **ETL workloads** (DataStage, SSIS)
+- You need **broad SQL dialect coverage** (Oracle, Teradata, Netezza, Redshift, Synapse) with customizable output formats
+- You need output as PySpark, SparkSQL notebooks, or workflow definitions — not just Databricks SQL
+
+### When to choose Switch
+
+Use Switch when:
+- You have **stored procedures with complex business logic** that rely heavily on context and intent
+- Your source dialect is **not covered by Morpheus or BladeBridge** (Switch supports any format via custom YAML prompts)
+- You want **Python notebook output** for logic that is difficult to express in pure SQL
+- You want to convert non-SQL sources (Python scripts, Airflow DAGs, etc.)
+
+:::note
+Switch is currently **Experimental**. Generated notebooks may require manual adjustments.
+:::
+
+---
+
+## Still not sure?
+
+Start with **Morpheus** if your source is SQL Server, Snowflake, or Synapse. Its correctness guarantee makes it the lowest-risk choice when it supports your dialect.
+
+For everything else, check the [supported dialects table](/docs/transpile/#supported-dialects) and pick the transpiler that covers your source.
