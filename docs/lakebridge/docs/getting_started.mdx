@@ -1,0 +1,145 @@
+---
+sidebar_position: 1
+title: Getting Started
+---
+
+import useBaseUrl from '@docusaurus/useBaseUrl';
+
+# Getting Started with Lakebridge
+
+This guide walks you through a complete end-to-end migration using **SQL Server as the source** and **Databricks SQL as the target**. You will assess your SQL code, transpile it, and validate the output — in about 15 minutes.
+
+**Prerequisites:** Lakebridge must already be installed. If not, see [Installation](/docs/installation) first.
+
+---
+
+## Step 1: Split Your SQL Files
+
+If your SQL code lives in monolithic files that contain multiple objects (stored procedures, tables, views, functions), split them first. The transpiler and analyzer both work at the individual-object level.
+
+```bash
+./sqlsplit -d /path/to/your/sql -o /path/to/split/output
+```
+
+- `-d` accepts a directory of `.sql` files
+- `-o` must be a directory that already exists
+- Output is organized into subfolders: `/PROCEDURE`, `/FUNCTION`, `/TABLE`, `/VIEW`
+
+See [SQL Splitter](/docs/sql_splitter) for full usage and download.
+
+:::tip
+Splitting first gives the Analyzer more granular, per-object results and gives the transpiler a cleaner input.
+:::
+
+---
+
+## Step 2: Assess Your SQL Code
+
+Run the Analyzer on the split files to understand complexity and identify patterns the transpiler may need help with.
+
+```bash
+databricks labs lakebridge analyze \
+  --source-dialect mssql \
+  --input-source /path/to/split/output \
+  --output-folder /path/to/analysis/results
+```
+
+The Analyzer produces a complexity report per SQL object. Objects flagged as `COMPLEX` or `VERY COMPLEX` may need manual review after transpilation.
+
+See [Assessment Guide](/docs/assessment) for more details.
+
+---
+
+## Step 3: Install the Transpiler
+
+Configure Lakebridge to use **Morpheus** for SQL Server → Databricks SQL transpilation:
+
+```bash
+databricks labs lakebridge install-transpile
+```
+
+When prompted:
+- **Source dialect:** `mssql`
+- **Input source:** `/path/to/split/output`
+- **Output folder:** `/path/to/transpiled/output`
+
+Morpheus is the recommended transpiler for SQL Server migrations — it provides strong correctness guarantees and warns you when it cannot fully guarantee equivalence.
+
+See [Which transpiler should I use?](/docs/choosing_tools#transpiler-bladebridge-vs-morpheus-vs-switch) if you are migrating from a different source.
+
+---
+
+## Step 4: Transpile
+
+Run the transpilation:
+
+```bash
+databricks labs lakebridge transpile
+```
+
+Or pass all parameters inline:
+
+```bash
+databricks labs lakebridge transpile \
+  --source-dialect mssql \
+  --input-source /path/to/split/output \
+  --output-folder /path/to/transpiled/output \
+  --skip-validation false
+```
+
+**Reading the output:**
+
+Each transpiled file contains a header comment. A successful transpile looks like:
+
+```sql
+/*
+    Successfully transpiled from /path/to/input/my_procedure.sql
+*/
+CREATE PROCEDURE ...
+```
+
+If a file could not be fully transpiled, the header lists the specific errors:
+
+```sql
+/*
+   Failed transpilation of /path/to/input/broken.sql
+
+   The following errors were found while transpiling:
+     - [12:5] Function XYZ cannot be translated to Databricks SQL
+*/
+```
+
+Files with errors still contain as much translated output as possible. Review the flagged positions and fix manually.
+
+---
+
+## Step 5: Reconcile
+
+After deploying your transpiled SQL to Databricks, use the Reconciler to validate that the data output matches the source.
+
+**Configure reconcile:**
+
+```bash
+databricks labs lakebridge configure-reconcile
+```
+
+**Run reconcile:**
+
+```bash
+databricks labs lakebridge reconcile
+```
+
+The Reconciler compares row counts, schema, and data values between your source system and the Databricks target. Results are written to a dashboard in your workspace.
+
+See [Reconcile Guide](/docs/reconcile) for configuration details.
+
+---
+
+## What's Next
+
+| Next step | Guide |
+|-----------|-------|
+| Understand transpiler differences | [Which Tool Do I Use?](/docs/choosing_tools) |
+| Migrate ETL workloads (DataStage, SSIS) | [Source Systems](/docs/transpile/source_systems/) |
+| Customize transpiler output | [BladeBridge Configuration](/docs/transpile/pluggable_transpilers/bladebridge/bladebridge_configuration) |
+| Use the LLM transpiler for complex logic | [Switch](/docs/transpile/pluggable_transpilers/switch) |
