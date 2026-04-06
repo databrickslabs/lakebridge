@@ -24,7 +24,7 @@ class RemoteQueryReader:
         return self._spark.sql(query)
 
     def _build_query(self, query_options: str, source_query: str, source_query_key: str) -> str:
-        escaped = source_query.replace("'", "\\'")
+        escaped = source_query.replace("'", "\'")
         return (
             f"SELECT * FROM remote_query('{self._connection_name}', {source_query_key} => '{escaped}', {query_options})"
         )
