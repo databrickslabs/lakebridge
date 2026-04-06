@@ -11,7 +11,11 @@ from databricks.sdk.service.iam import User
 
 from databricks.labs.blueprint.installation import MockInstallation
 from databricks.labs.blueprint.installer import InstallState
-from databricks.labs.lakebridge.assessments.dashboards.dashboard_manager import DashboardManager
+from databricks.labs.lakebridge.config import (
+    ProfilerDashboardConfig,
+    ProfilerDashboardMetadataConfig,
+)
+from databricks.labs.lakebridge.deployment.dashboard import ProfilerDashboardManager
 
 
 @pytest.fixture
@@ -25,6 +29,17 @@ def mocked_workspace_client() -> WorkspaceClient:
 
 
 @pytest.fixture
+def profiler_dashboard_config() -> ProfilerDashboardConfig:
+    return ProfilerDashboardConfig(
+        source_tech="synapse",
+        extract_file_path="/tmp/data/synapse_assessment/profiler_extract.db",
+        metadata_config=ProfilerDashboardMetadataConfig(
+            catalog="lakebridge", schema="profiler", volume="ingestion_volume"
+        ),
+    )
+
+
+@pytest.fixture
 def dashboard_manager(mocked_workspace_client: WorkspaceClient):
     """Create a DashboardManager that uses the mocked WorkspaceClient from conftest.
     We pass the client.current_user.me() value as the current_user to avoid mocking User directly.
@@ -32,37 +47,44 @@ def dashboard_manager(mocked_workspace_client: WorkspaceClient):
     workspace_client = mocked_workspace_client
     installation = MockInstallation(is_global=False)
     install_state = InstallState.from_installation(installation)
-    return DashboardManager(workspace_client, installation, install_state, is_debug=True)
+    return ProfilerDashboardManager(workspace_client, installation, install_state)
 
 
 def test_upload_duckdb_to_uc_volume_file_not_found(
-    dashboard_manager: DashboardManager,
+    dashboard_manager: ProfilerDashboardManager,
     mocked_workspace_client: WorkspaceClient,
+    profiler_dashboard_config,
 ):
     # Use a path that does not exist on disk; do not mock os.path.exists per new requirement.
     ws = mocked_workspace_client
-    result = dashboard_manager.upload_duckdb_to_uc_volume(
-        local_file_path="non_existent_file.duckdb", volume_path="/Volumes/catalog/schema/volume/myfile.duckdb"
+    config = ProfilerDashboardConfig(
+        source_tech="synapse",
+        extract_file_path="non_existent_file.duckdb",
+        metadata_config=ProfilerDashboardMetadataConfig(catalog="lakebridge", schema="profiler", volume="volume"),
     )
+    result = dashboard_manager.upload_duckdb_to_uc_volume(config)
     assert result is False
     ws.files.upload.assert_not_called()
 
 
 def test_upload_duckdb_to_uc_volume_invalid_volume_path(
-    dashboard_manager: DashboardManager,
+    dashboard_manager: ProfilerDashboardManager,
     mocked_workspace_client: WorkspaceClient,
 ):
     ws = mocked_workspace_client
-    result = dashboard_manager.upload_duckdb_to_uc_volume(
-        local_file_path="file.duckdb", volume_path="invalid_path/myfile.duckdb"
+    config = ProfilerDashboardConfig(
+        source_tech="synapse",
+        extract_file_path="file.duckdb",
+        metadata_config=ProfilerDashboardMetadataConfig(catalog="lakebridge", schema="profiler", volume="invalid_path"),
     )
+    result = dashboard_manager.upload_duckdb_to_uc_volume(config)
     assert result is False
     ws.files.upload.assert_not_called()
 
 
 def test_upload_duckdb_to_uc_volume_success(
     tmp_path: Path,
-    dashboard_manager: DashboardManager,
+    dashboard_manager: ProfilerDashboardManager,
     mocked_workspace_client: WorkspaceClient,
 ):
     # Create a real temporary file so we don't mock filesystem calls
@@ -70,17 +92,21 @@ def test_upload_duckdb_to_uc_volume_success(
     local_file.write_bytes(b"test_data")
 
     ws = mocked_workspace_client
-
-    result = dashboard_manager.upload_duckdb_to_uc_volume(
-        local_file_path=str(local_file), volume_path="/Volumes/catalog/schema/volume/myfile.duckdb"
+    config = ProfilerDashboardConfig(
+        source_tech="synapse",
+        extract_file_path=str(local_file),
+        metadata_config=ProfilerDashboardMetadataConfig(
+            catalog="lakebridge", schema="profiler", volume="ingestion_volume"
+        ),
     )
+    result = dashboard_manager.upload_duckdb_to_uc_volume(config)
     assert result is True
     ws.files.upload.assert_called_once()
 
 
 def test_upload_duckdb_to_uc_volume_failure(
     tmp_path: Path,
-    dashboard_manager: DashboardManager,
+    dashboard_manager: ProfilerDashboardManager,
     mocked_workspace_client: WorkspaceClient,
 ):
     local_file = tmp_path / "file.duckdb"
@@ -88,11 +114,15 @@ def test_upload_duckdb_to_uc_volume_failure(
 
     ws = mocked_workspace_client
     ws.files.upload.side_effect = Exception("Upload failed")
-
+    config = ProfilerDashboardConfig(
+        source_tech="synapse",
+        extract_file_path=str(local_file),
+        metadata_config=ProfilerDashboardMetadataConfig(
+            catalog="lakebridge", schema="profiler", volume="ingestion_volume"
+        ),
+    )
     with pytest.raises(Exception, match="Upload failed"):
-        dashboard_manager.upload_duckdb_to_uc_volume(
-            local_file_path=str(local_file), volume_path="/Volumes/catalog/schema/volume/myfile.duckdb"
-        )
+        dashboard_manager.upload_duckdb_to_uc_volume(config)
 
 
 @pytest.mark.parametrize(
@@ -105,7 +135,7 @@ def test_upload_duckdb_to_uc_volume_failure(
 )
 def test_upload_duckdb_to_uc_volume_databricks_errors(
     tmp_path: Path,
-    dashboard_manager: DashboardManager,
+    dashboard_manager: ProfilerDashboardManager,
     mocked_workspace_client: WorkspaceClient,
     error_class,
     error_message,
@@ -115,9 +145,13 @@ def test_upload_duckdb_to_uc_volume_databricks_errors(
 
     ws = mocked_workspace_client
     ws.files.upload.side_effect = error_class(error_message)
-
-    result = dashboard_manager.upload_duckdb_to_uc_volume(
-        local_file_path=str(local_file), volume_path="/Volumes/catalog/schema/volume/myfile.duckdb"
+    config = ProfilerDashboardConfig(
+        source_tech="synapse",
+        extract_file_path=str(local_file),
+        metadata_config=ProfilerDashboardMetadataConfig(
+            catalog="lakebridge", schema="profiler", volume="ingestion_volume"
+        ),
     )
+    result = dashboard_manager.upload_duckdb_to_uc_volume(config)
     assert result is False
     ws.files.upload.assert_called_once()

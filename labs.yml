@@ -78,19 +78,8 @@ commands:
   - name: configure-database-profiler
     description: (Experimental) Configure database profiler
 
-  - name: create-profiler-dashboard
-    description: (Experimental) Upload the profiler results as a Databricks dashboard.
-    flags:
-      - name: extract-file
-        description: Path Location of the Profiler Extract File
-      - name: source-tech
-        description: Name of the Source System Technology that was Profiled
-      - name: volume-path
-        description: Unity Catalog Volume to upload the profiler extract
-      - name: catalog-name
-        description: (Optional) Name of the Catalog that extract data will be uploaded to
-      - name: schema-name
-        description: (Optional) Name of the Schema that the extract tables will be uploaded to
+  - name: visualize-profiler-results
+    description: (Experimental) Visualize profiler results as a Databricks Lakeview dashboard
 
   - name: install-transpile
     description: Install & optionally configure 'transpile' dependencies
