@@ -1,7 +1,8 @@
 """
 Post-transpile SQL remapping for Switch: qualified table namespaces and column names.
 
-Config is CSV only. Uses sqlglot (Databricks dialect). Optional text fallback when parsing fails.
+Config is CSV only. Uses regex with exclusion zones (comments, string literals) for formatting-preserving
+renames. No sqlglot dependency — works on any SQL dialect including PL/SQL, Oracle, and mixed output.
 """
 
 from __future__ import annotations
@@ -9,18 +10,13 @@ from __future__ import annotations
 import csv
 import io
 import logging
+import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Protocol
 
-from sqlglot import exp, parse
-from sqlglot.dialects.databricks import Databricks
-from sqlglot.errors import ParseError
-
 logger = logging.getLogger(__name__)
-
-_DATABRICKS = Databricks
 
 
 def _normalize_header(name: str) -> str:
@@ -117,120 +113,144 @@ def load_remap_config_from_csv(
     )
 
 
-def _qualified_table_name(table: exp.Table) -> str:
-    parts: list[str] = []
-    if table.catalog:
-        parts.append(table.catalog)
-    if table.db:
-        parts.append(table.db)
-    if table.name:
-        parts.append(table.name)
-    return ".".join(parts)
+# ---------------------------------------------------------------------------
+# Exclusion-zone scanner
+# ---------------------------------------------------------------------------
 
 
-def _column_table_qualifier(column: exp.Column) -> str | None:
-    parts: list[str] = []
-    for p in (column.catalog, column.db, column.table):
-        if p:
-            parts.append(str(p))
-    return ".".join(parts) if parts else None
+def _scan_exclusion_zones(text: str) -> list[tuple[int, int]]:
+    """Return (start, end) byte ranges for single-quoted strings, line/block comments, and # comments.
+
+    These regions are skipped during regex-based renaming to avoid modifying string literals and comments.
+    """
+    zones: list[tuple[int, int]] = []
+    i, n = 0, len(text)
+    while i < n:
+        c = text[i]
+        if c == "-" and i + 1 < n and text[i + 1] == "-":
+            start = i
+            i += 2
+            while i < n and text[i] != "\n":
+                i += 1
+            zones.append((start, i))
+        elif c == "/" and i + 1 < n and text[i + 1] == "*":
+            start = i
+            i += 2
+            while i < n:
+                if text[i] == "*" and i + 1 < n and text[i + 1] == "/":
+                    i += 2
+                    break
+                i += 1
+            zones.append((start, i))
+        elif c == "'":
+            start = i
+            i += 1
+            while i < n:
+                if text[i] == "'" and i + 1 < n and text[i + 1] == "'":
+                    i += 2
+                elif text[i] == "'":
+                    i += 1
+                    break
+                else:
+                    i += 1
+            zones.append((start, i))
+        elif c == "#":
+            start = i
+            i += 1
+            while i < n and text[i] != "\n":
+                i += 1
+            zones.append((start, i))
+        else:
+            i += 1
+    return zones
 
 
-def _parse_target_table(qualified: str) -> tuple[str | None, str | None, str]:
-    parts = [p for p in qualified.split(".") if p]
-    if len(parts) == 1:
-        return None, None, parts[0]
-    if len(parts) == 2:
-        return None, parts[0], parts[1]
-    return parts[0], parts[1], ".".join(parts[2:])
+def _in_exclusion_zone(pos: int, zones: list[tuple[int, int]]) -> bool:
+    for zs, ze in zones:
+        if zs <= pos < ze:
+            return True
+        if zs > pos:
+            break
+    return False
 
 
-def _build_table_expression(catalog: str | None, db: str | None, name: str) -> exp.Table:
-    kwargs: dict[str, Any] = {"this": exp.to_identifier(name)}
-    if db:
-        kwargs["db"] = exp.to_identifier(db)
-    if catalog:
-        kwargs["catalog"] = exp.to_identifier(catalog)
-    return exp.Table(**kwargs)
+def _rename_text(text: str, rules: list[tuple[re.Pattern, str]]) -> tuple[str, int]:
+    """Apply compiled rename rules to text. Returns (new_text, replacement_count).
+
+    Preserves all formatting. Skips matches inside comments and string literals.
+    """
+    zones = _scan_exclusion_zones(text)
+    replacements: list[tuple[int, int, str]] = []
+    occupied: list[tuple[int, int]] = []
+
+    for pattern, new_name in rules:
+        for m in pattern.finditer(text):
+            start, end = m.start(1), m.end(1)
+            if _in_exclusion_zone(start, zones):
+                continue
+            if any(os <= start < oe for os, oe in occupied):
+                continue
+            replacements.append((start, end, new_name))
+            occupied.append((start, end))
+
+    replacements.sort(key=lambda r: r[0], reverse=True)
+    chars = list(text)
+    for start, end, new in replacements:
+        chars[start:end] = list(new)
+    return "".join(chars), len(replacements)
 
 
-def _namespace_dict(pairs: list[tuple[str, str]]) -> dict[str, str]:
-    return dict(pairs)
+def _compile_rules(cfg: RemapConfig) -> list[tuple[re.Pattern, str]]:
+    """Build compiled regex rules from config, sorted longest-first to prevent partial matches."""
+    rules: list[tuple[str, str]] = []
 
-
-def _remap_statement(statement: exp.Expression, cfg: RemapConfig, ns: dict[str, str]) -> exp.Expression:
-    def pass_rename_columns(node: exp.Expression) -> exp.Expression:
-        if not isinstance(node, exp.Column):
-            return node
-        qual = _column_table_qualifier(node)
-        new_name: str | None = None
-        if qual and qual in cfg.column_map_by_table:
-            new_name = cfg.column_map_by_table[qual].get(node.name)
-        if new_name is None and node.name in cfg.column_map:
-            new_name = cfg.column_map[node.name]
-        if new_name is None:
-            return node
-        new_args = dict(node.args)
-        new_args["this"] = exp.to_identifier(new_name)
-        return exp.Column(**new_args)
-
-    s = statement.transform(pass_rename_columns)
-
-    def pass_namespace_tables(node: exp.Expression) -> exp.Expression:
-        if isinstance(node, exp.Table):
-            q = _qualified_table_name(node)
-            if q in ns:
-                cat, db, name = _parse_target_table(ns[q])
-                return _build_table_expression(cat, db, name)
-        return node
-
-    s = s.transform(pass_namespace_tables)
-
-    def pass_namespace_columns(node: exp.Expression) -> exp.Expression:
-        if not isinstance(node, exp.Column):
-            return node
-        qual = _column_table_qualifier(node)
-        if qual and qual in ns:
-            cat, db, tname = _parse_target_table(ns[qual])
-            return exp.Column(
-                this=node.this,
-                table=exp.to_identifier(tname) if tname else None,
-                db=exp.to_identifier(db) if db else None,
-                catalog=exp.to_identifier(cat) if cat else None,
-            )
-        return node
-
-    return s.transform(pass_namespace_columns)
-
-
-def _text_fallback(sql: str, cfg: RemapConfig) -> str:
-    out = sql
+    # Namespace (table) renames
     for old, new in cfg.namespace_map:
-        out = out.replace(old, new)
-    return out
+        rules.append((old, new))
+
+    # Table-scoped column renames (qualified_table.column)
+    for table, col_map in cfg.column_map_by_table.items():
+        for old_col, new_col in col_map.items():
+            rules.append((f"{table}.{old_col}", f"{table}.{new_col}"))
+            rules.append((old_col, new_col))
+
+    # Global column renames
+    for old_col, new_col in cfg.column_map.items():
+        rules.append((old_col, new_col))
+
+    # Sort longest first, deduplicate
+    seen: set[str] = set()
+    sorted_rules: list[tuple[re.Pattern, str]] = []
+    for old, new in sorted(rules, key=lambda r: len(r[0]), reverse=True):
+        if old in seen:
+            continue
+        seen.add(old)
+        escaped = re.escape(old)
+        pattern = re.compile(
+            r"(?<![a-zA-Z0-9_])(" + escaped + r")(?![a-zA-Z0-9_])",
+            re.IGNORECASE,
+        )
+        sorted_rules.append((pattern, new))
+    return sorted_rules
+
+
+# ---------------------------------------------------------------------------
+# Core remap function
+# ---------------------------------------------------------------------------
 
 
 def remap_sql(sql: str, cfg: RemapConfig) -> tuple[str, bool]:
     """
-    Rewrite SQL using sqlglot. Returns (new_sql, used_sqlglot).
+    Rewrite SQL using regex with exclusion zones. Returns (new_sql, success).
 
-    On parse failure: if text_fallback_on_parse_error, returns (fallback_sql, False);
-    otherwise (original_sql, False).
+    Always succeeds (no parse failures) — returns ``(new_sql, True)``.
+    Preserves all original formatting. Skips matches inside comments and string literals.
     """
-    ns = _namespace_dict(cfg.namespace_map)
-    try:
-        statements = parse(sql, dialect=_DATABRICKS)
-    except ParseError as e:
-        logger.warning("sqlglot parse failed: %s", e)
-        if cfg.text_fallback_on_parse_error:
-            return _text_fallback(sql, cfg), False
-        return sql, False
-
-    out: list[str] = []
-    for stmt in statements:
-        remapped = _remap_statement(stmt, cfg, ns)
-        out.append(remapped.sql(dialect=_DATABRICKS, pretty=False))
-    return ";\n".join(out), True
+    rules = _compile_rules(cfg)
+    if not rules:
+        return sql, True
+    new_sql, _ = _rename_text(sql, rules)
+    return new_sql, True
 
 
 @dataclass
