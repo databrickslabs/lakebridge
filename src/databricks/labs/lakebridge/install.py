@@ -360,20 +360,18 @@ class WorkspaceInstaller:
     def _prompt_for_source_connection_config(self, dialect: str) -> SourceConnectionConfig:
         uc_connection_name: str | None = None
         if dialect != ReconSourceType.DATABRICKS.value:
-            uc_connection_name = self._prompts.question(f"Enter UC connection name for `{dialect.capitalize()}`")
+            uc_connection_name = self._prompts.question(f"Enter Unity Catalog {dialect.capitalize()} connection name")
 
         if dialect == ReconSourceType.ORACLE.value:
-            catalog = self._prompts.question(f"Enter source service name for `{dialect.capitalize()}`")
+            catalog = self._prompts.question("Enter Oracle service name")
         elif dialect == ReconSourceType.DATABRICKS.value:
-            catalog = self._prompts.question(
-                f"Enter source catalog name for `{dialect.capitalize()}`", default="hive_metastore"
-            )
+            catalog = self._prompts.question("Enter source Databricks catalog name", default="hive_metastore")
         else:
-            catalog = self._prompts.question(f"Enter source database name for `{dialect.capitalize()}`")
+            catalog = self._prompts.question(f"Enter {dialect.capitalize()} database name")
 
-        schema_prompt = f"Enter source schema name for `{dialect.capitalize()}`"
+        schema_prompt = f"Enter source {dialect.capitalize()} schema name"
         if dialect == ReconSourceType.ORACLE.value:
-            schema_prompt = f"Enter source database name for `{dialect.capitalize()}`"
+            schema_prompt = "Enter Oracle database name"
 
         schema = self._prompts.question(schema_prompt)
 
@@ -385,8 +383,8 @@ class WorkspaceInstaller:
         )
 
     def _prompt_for_target_connection_config(self) -> TargetConnectionConfig:
-        target_catalog = self._prompts.question("Enter target catalog name for Databricks")
-        target_schema = self._prompts.question("Enter target schema name for Databricks")
+        target_catalog = self._prompts.question("Enter target Databricks catalog name")
+        target_schema = self._prompts.question("Enter target Databricks schema name")
         return TargetConnectionConfig(catalog=target_catalog, schema=target_schema)
 
     def _prompt_for_reconcile_metadata_config(self) -> ReconcileMetadataConfig:

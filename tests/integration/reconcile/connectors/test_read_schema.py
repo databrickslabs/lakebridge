@@ -14,22 +14,10 @@ from tests.integration.reconcile.test_oracle_reconcile import OracleDataSourceUn
 from tests.integration.debug_envgetter import TestEnvGetter
 
 
-class TSQLServerDataSourceUnderTest(TSQLServerDataSource):
-    def __init__(self, spark):
-        connection = TestEnvGetter(False).get("TEST_TSQL_CONNECTION")
-        reader = RemoteQueryReader(spark, connection)
-        super().__init__(get_dialect("tsql"), reader)
-
-
-class SnowflakeDataSourceUnderTest(SnowflakeDataSource):
-    def __init__(self, spark):
-        connection = TestEnvGetter(False).get("TEST_SNOWFLAKE_CONNECTION")
-        reader = RemoteQueryReader(spark, connection)
-        super().__init__(get_dialect("snowflake"), reader)
-
-
 def test_sql_server_read_schema_happy(mock_spark: SparkSession) -> None:
-    connector = TSQLServerDataSourceUnderTest(mock_spark)
+    connection = TestEnvGetter(False).get("TEST_TSQL_CONNECTION")
+    reader = RemoteQueryReader(mock_spark, connection)
+    connector = TSQLServerDataSource(get_dialect("tsql"), reader)
 
     columns = connector.get_schema("labs_azure_sandbox_remorph", "dbo", "reconcile_in")
     assert columns
@@ -78,7 +66,9 @@ def test_oracle_read_schema_happy(mock_spark: SparkSession) -> None:
 
 
 def test_snowflake_read_schema_happy(mock_spark: SparkSession) -> None:
-    connector = SnowflakeDataSourceUnderTest(mock_spark)
+    connection = TestEnvGetter(False).get("TEST_SNOWFLAKE_CONNECTION")
+    reader = RemoteQueryReader(mock_spark, connection)
+    connector = SnowflakeDataSource(get_dialect("snowflake"), reader)
 
     columns = connector.get_schema('remorph', "sandbox", "diamonds")
     assert columns

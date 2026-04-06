@@ -37,7 +37,7 @@ def test_read_data_with_out_options():
         "select 1 from org.data.employee",
         "org",
         "database",
-        "dbtable",
+        "query",
     )
 
 
@@ -72,7 +72,7 @@ def test_read_data_with_options():
         "select 1 from org.data.employee",
         "org",
         "database",
-        "dbtable",
+        "query",
     )
 
 
@@ -90,16 +90,16 @@ def test_get_schema():
     expected_query = re.sub(
         r'\s+',
         ' ',
-        """(select column_name, case when numeric_precision is not null and numeric_scale is not null then
+        """select column_name, case when numeric_precision is not null and numeric_scale is not null then
         concat(data_type, '(', numeric_precision, ',' , numeric_scale, ')') when lower(data_type) = 'text' then
         concat('varchar', '(', CHARACTER_MAXIMUM_LENGTH, ')')  else data_type end as data_type from
         catalog.INFORMATION_SCHEMA.COLUMNS where lower(table_name)='supplier' and table_schema = 'SCHEMA'
-        order by ordinal_position) as tmp""",
+        order by ordinal_position""",
     )
     assert source_query == expected_query
     assert call_args[0][1] == "catalog"
     assert call_args[0][2] == "database"
-    assert call_args[0][3] == "dbtable"
+    assert call_args[0][3] == "query"
 
 
 def test_read_data_exception_handling():
@@ -143,11 +143,11 @@ def test_get_schema_exception_handling():
     with pytest.raises(
         DataSourceRuntimeException,
         match=re.escape(
-            "Runtime exception occurred while fetching schema using (select column_name, case when numeric_precision "
+            "Runtime exception occurred while fetching schema using select column_name, case when numeric_precision "
             "is not null and numeric_scale is not null then concat(data_type, '(', numeric_precision, ',' , "
             "numeric_scale, ')') when lower(data_type) = 'text' then concat('varchar', '(', "
             "CHARACTER_MAXIMUM_LENGTH, ')') else data_type end as data_type from catalog.INFORMATION_SCHEMA.COLUMNS "
-            "where lower(table_name)='supplier' and table_schema = 'SCHEMA' order by ordinal_position) as tmp : Test "
+            "where lower(table_name)='supplier' and table_schema = 'SCHEMA' order by ordinal_position : Test "
             "Exception"
         ),
     ):

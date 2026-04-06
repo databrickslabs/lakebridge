@@ -608,11 +608,11 @@ def test_configure_reconcile_installation_config_error_continue_install(ws: Work
         {
             r"Select the Data Source": str(RECONCILE_DATA_SOURCES.index("oracle")),
             r"Select the report type": str(RECONCILE_REPORT_TYPES.index("all")),
-            r"Enter UC connection name for .*": "my_oracle_conn",
-            r"Enter source service name for .*": "ORCL",
-            r"Enter source database name for .*": "tpch_sf1000",
-            r"Enter target catalog name for Databricks": "tpch",
-            r"Enter target schema name for Databricks": "1000gb",
+            r"Enter Unity Catalog .* connection name": "my_oracle_conn",
+            r"Enter Oracle service name": "ORCL",
+            r"Enter .* database name": "tpch_sf1000",
+            r"Enter target Databricks catalog name": "tpch",
+            r"Enter target Databricks schema name": "1000gb",
             r"Open .* in the browser?": "no",
         }
     )
@@ -718,11 +718,11 @@ def test_configure_reconcile_no_existing_installation(ws: WorkspaceClient) -> No
         {
             r"Select the Data Source": str(RECONCILE_DATA_SOURCES.index("snowflake")),
             r"Select the report type": str(RECONCILE_REPORT_TYPES.index("all")),
-            r"Enter UC connection name for .*": "my_snowflake_conn",
-            r"Enter source database name for .*": "snowflake_sample_data",
-            r"Enter source schema name for .*": "tpch_sf1000",
-            r"Enter target catalog name for Databricks": "tpch",
-            r"Enter target schema name for Databricks": "1000gb",
+            r"Enter Unity Catalog .* connection name": "my_snowflake_conn",
+            r"Enter .* database name": "snowflake_sample_data",
+            r"Enter .* schema name": "tpch_sf1000",
+            r"Enter target Databricks catalog name": "tpch",
+            r"Enter target Databricks schema name": "1000gb",
             r"Open .* in the browser?": "yes",
         }
     )
@@ -804,10 +804,10 @@ def test_configure_reconcile_databricks_no_existing_installation(ws: WorkspaceCl
         {
             r"Select the Data Source": str(RECONCILE_DATA_SOURCES.index("databricks")),
             r"Select the report type": str(RECONCILE_REPORT_TYPES.index("all")),
-            r"Enter source catalog name for .*": "databricks_catalog",
-            r"Enter source schema name for .*": "some_schema",
-            r"Enter target catalog name for Databricks": "tpch",
-            r"Enter target schema name for Databricks": "1000gb",
+            r"Enter .* catalog name": "databricks_catalog",
+            r"Enter .* schema name": "some_schema",
+            r"Enter target Databricks catalog name": "tpch",
+            r"Enter target Databricks schema name": "1000gb",
             r"Open .* in the browser?": "yes",
         }
     )
@@ -897,11 +897,11 @@ def test_configure_all_override_installation(
             r"Open .* in the browser?": "no",
             r"Select the Data Source": str(RECONCILE_DATA_SOURCES.index("snowflake")),
             r"Select the report type": str(RECONCILE_REPORT_TYPES.index("all")),
-            r"Enter UC connection name for .*": "my_snowflake_conn",
-            r"Enter source database name for .*": "snowflake_sample_data",
-            r"Enter source schema name for .*": "tpch_sf1000",
-            r"Enter target catalog name for Databricks": "tpch",
-            r"Enter target schema name for Databricks": "1000gb",
+            r"Enter Unity Catalog .* connection name": "my_snowflake_conn",
+            r"Enter .* database name": "snowflake_sample_data",
+            r"Enter .* schema name": "tpch_sf1000",
+            r"Enter target Databricks catalog name": "tpch",
+            r"Enter target Databricks schema name": "1000gb",
             # Profiler Configuration Prompts
             r"Select the source technology": "0",
             r"Enter the path to the profiler extract file:": "",

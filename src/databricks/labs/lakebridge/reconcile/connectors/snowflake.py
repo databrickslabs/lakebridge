@@ -64,7 +64,7 @@ class SnowflakeDataSource(DataSource):
         table_query = query.replace(":tbl", f"{catalog}.{schema}.{table}")
         try:
             logger.info(f"Fetching data using query: \n`{table_query}`")
-            df = self._reader.read_data(table_query, catalog, "database", "dbtable")
+            df = self._reader.read_data(table_query, catalog, "database", "query")
             return df.select([col(column).alias(column.lower()) for column in df.columns])
         except (RuntimeError, PySparkException) as e:
             return self.log_and_throw_exception(e, "data", table_query)
@@ -88,16 +88,15 @@ class SnowflakeDataSource(DataSource):
             ' ',
             SnowflakeDataSource._SCHEMA_QUERY.format(catalog=catalog, schema=schema.upper(), table=table),
         )
-        source_query = f"({schema_query}) as tmp"
         try:
-            logger.debug(f"Fetching schema using query: \n`{source_query}`")
+            logger.debug(f"Fetching schema using query: \n`{schema_query}`")
             logger.info(f"Fetching Schema: Started at: {datetime.now()}")
-            df = self._reader.read_data(source_query, catalog, "database", "dbtable")
+            df = self._reader.read_data(schema_query, catalog, "database", "query")
             schema_metadata = df.select([col(c).alias(c.lower()) for c in df.columns]).collect()
             logger.info(f"Schema fetched successfully. Completed at: {datetime.now()}")
             return [self._map_meta_column(field, normalize) for field in schema_metadata]
         except (RuntimeError, PySparkException) as e:
-            return self.log_and_throw_exception(e, "schema", source_query)
+            return self.log_and_throw_exception(e, "schema", schema_query)
 
     def normalize_identifier(self, identifier: str) -> NormalizedIdentifier:
         normalized = DialectUtils.normalize_identifier(
