@@ -1,21 +1,36 @@
 from dataclasses import asdict
+
+from pyspark.sql import DataFrame, SparkSession
+
 from databricks.labs.lakebridge.reconcile.recon_config import JdbcReaderOptions
 
 
-class RemoteQueryReaderMixin:
+class RemoteQueryReader:
 
-    @staticmethod
-    def build_remote_query(
-        connection_name: str, query_options: str, source_query: str, source_query_key: str = "query"
-    ) -> str:
+    def __init__(self, spark: SparkSession, connection_name: str):
+        self._spark = spark
+        self._connection_name = connection_name
+
+    def read_data(
+        self,
+        source_query: str,
+        catalog: str,
+        catalog_key: str = "database",
+        source_query_key: str = "query",
+        options: JdbcReaderOptions | None = None,
+    ) -> DataFrame:
+        query_options = self._build_options(catalog, catalog_key, options)
+        query = self._build_query(query_options, source_query, source_query_key)
+        return self._spark.sql(query)
+
+    def _build_query(self, query_options: str, source_query: str, source_query_key: str) -> str:
         escaped = source_query.replace("'", "\\'")
-        sql = f"SELECT * FROM remote_query('{connection_name}', {source_query_key} => '{escaped}', {query_options})"
-        return sql
+        return (
+            f"SELECT * FROM remote_query('{self._connection_name}', {source_query_key} => '{escaped}', {query_options})"
+        )
 
     @staticmethod
-    def build_remote_query_options(
-        catalog: str, catalog_key: str = "database", options: JdbcReaderOptions | None = None
-    ) -> str:
+    def _build_options(catalog: str, catalog_key: str, options: JdbcReaderOptions | None = None) -> str:
         def camelcase(underscored):
             parts = underscored.split('_')
             return parts[0] + ''.join(word.capitalize() for word in parts[1:])

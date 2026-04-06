@@ -3,16 +3,15 @@ import logging
 from datetime import datetime
 
 from pyspark.errors import PySparkException
-from pyspark.sql import DataFrame, SparkSession
+from pyspark.sql import DataFrame
 from pyspark.sql.functions import col
 from sqlglot import Dialect
 
 from databricks.labs.lakebridge.reconcile.connectors.data_source import DataSource
 from databricks.labs.lakebridge.reconcile.connectors.models import NormalizedIdentifier
-from databricks.labs.lakebridge.reconcile.connectors.remote_query_reader import RemoteQueryReaderMixin
+from databricks.labs.lakebridge.reconcile.connectors.remote_query_reader import RemoteQueryReader
 from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import DialectUtils
 from databricks.labs.lakebridge.reconcile.recon_config import JdbcReaderOptions, Schema
-from databricks.sdk import WorkspaceClient
 
 logger = logging.getLogger(__name__)
 
@@ -55,14 +54,10 @@ class TSQLServerDataSource(DataSource):
     def __init__(
         self,
         engine: Dialect,
-        spark: SparkSession,
-        ws: WorkspaceClient,
-        connection_name: str,
+        reader: RemoteQueryReader,
     ):
         self._engine = engine
-        self._spark = spark
-        self._ws = ws
-        self._connection_name = connection_name
+        self._reader = reader
 
     def read_data(
         self,
@@ -73,12 +68,11 @@ class TSQLServerDataSource(DataSource):
         options: JdbcReaderOptions | None,
     ) -> DataFrame:
         table_query = query.replace(":tbl", f"{schema}.{self.normalize_identifier(table).source_normalized}")
-        query = self._build_query(table_query, catalog, options)
         try:
-            df = self._spark.sql(query)
+            df = self._reader.read_data(table_query, catalog, "database", "query", options)
             return df.select([col(column).alias(column.lower()) for column in df.columns])
         except (RuntimeError, PySparkException) as e:
-            return self.log_and_throw_exception(e, "data", query)
+            return self.log_and_throw_exception(e, "data", table_query)
 
     def get_schema(
         self,
@@ -99,25 +93,15 @@ class TSQLServerDataSource(DataSource):
             ' ',
             _SCHEMA_QUERY.format(catalog=catalog, schema=schema, table=table),
         )
-        query = self._build_query(schema_query, catalog, None)
         try:
-            logger.debug(f"Fetching schema using query: \n`{query}`")
-            logger.debug(f"Fetching Schema: Started at: {datetime.now()}")
-            df = self._spark.sql(query)
+            logger.debug(f"Fetching schema using query: \n`{schema_query}`")
+            logger.info(f"Fetching Schema: Started at: {datetime.now()}")
+            df = self._reader.read_data(schema_query, catalog, "database", "query")
             schema_metadata = df.select([col(c).alias(c.lower()) for c in df.columns]).collect()
-            logger.debug(f"Schema fetched successfully. Completed at: {datetime.now()}")
+            logger.info(f"Schema fetched successfully. Completed at: {datetime.now()}")
             return [self._map_meta_column(field, normalize) for field in schema_metadata]
         except (RuntimeError, PySparkException) as e:
-            return self.log_and_throw_exception(e, "schema", query)
-
-    def _build_query(
-        self,
-        source_query: str,
-        catalog: str,
-        options: JdbcReaderOptions | None,
-    ) -> str:
-        query_opts = RemoteQueryReaderMixin.build_remote_query_options(catalog, "database", options)
-        return RemoteQueryReaderMixin.build_remote_query(self._connection_name, query_opts, source_query, "query")
+            return self.log_and_throw_exception(e, "schema", schema_query)
 
     def normalize_identifier(self, identifier: str) -> NormalizedIdentifier:
         return DialectUtils.normalize_identifier(

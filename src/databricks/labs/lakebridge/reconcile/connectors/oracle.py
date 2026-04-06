@@ -3,16 +3,15 @@ import logging
 from datetime import datetime
 
 from pyspark.errors import PySparkException
-from pyspark.sql import DataFrame, SparkSession
+from pyspark.sql import DataFrame
 from pyspark.sql.functions import col
 from sqlglot import Dialect
 
 from databricks.labs.lakebridge.reconcile.connectors.data_source import DataSource
 from databricks.labs.lakebridge.reconcile.connectors.models import NormalizedIdentifier
-from databricks.labs.lakebridge.reconcile.connectors.remote_query_reader import RemoteQueryReaderMixin
+from databricks.labs.lakebridge.reconcile.connectors.remote_query_reader import RemoteQueryReader
 from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import DialectUtils
 from databricks.labs.lakebridge.reconcile.recon_config import JdbcReaderOptions, Schema
-from databricks.sdk import WorkspaceClient
 
 logger = logging.getLogger(__name__)
 
@@ -35,14 +34,10 @@ class OracleDataSource(DataSource):
     def __init__(
         self,
         engine: Dialect,
-        spark: SparkSession,
-        ws: WorkspaceClient,
-        connection_name: str,
+        reader: RemoteQueryReader,
     ):
         self._engine = engine
-        self._spark = spark
-        self._ws = ws
-        self._connection_name = connection_name
+        self._reader = reader
 
     def read_data(
         self,
@@ -52,17 +47,11 @@ class OracleDataSource(DataSource):
         query: str,
         options: JdbcReaderOptions | None,
     ) -> DataFrame:
-        query_opts = RemoteQueryReaderMixin.build_remote_query_options(catalog, "service_name", options)
-        table_query = RemoteQueryReaderMixin.build_remote_query(
-            self._connection_name, query_opts, query.replace(":tbl", f"{schema}.{table}"), "dbtable"
-        )
+        table_query = query.replace(":tbl", f"{schema}.{table}")
         try:
-            logger.warning(f"Fetching data using query: \n`{table_query}`")
-            df = self._spark.sql(table_query)
-
-            # Convert all column names to lower case
-            df = df.select([col(c).alias(c.lower()) for c in df.columns])
-            return df
+            logger.info(f"Fetching data using query: \n`{table_query}`")
+            df = self._reader.read_data(table_query, catalog, "service_name", "dbtable", options)
+            return df.select([col(c).alias(c.lower()) for c in df.columns])
         except (RuntimeError, PySparkException) as e:
             return self.log_and_throw_exception(e, "data", table_query)
 
@@ -78,18 +67,16 @@ class OracleDataSource(DataSource):
             ' ',
             OracleDataSource._SCHEMA_QUERY.format(table=table.lower(), owner=schema.lower()),
         )
-        query_opts = RemoteQueryReaderMixin.build_remote_query_options(catalog, "service_name")
-        query = RemoteQueryReaderMixin.build_remote_query(self._connection_name, query_opts, schema_query, "query")
         try:
-            logger.debug(f"Fetching schema using query: \n`{query}`")
-            logger.debug(f"Fetching Schema: Started at: {datetime.now()}")
-            df = self._spark.sql(query)
+            logger.debug(f"Fetching schema using query: \n`{schema_query}`")
+            logger.info(f"Fetching Schema: Started at: {datetime.now()}")
+            df = self._reader.read_data(schema_query, catalog, "service_name", "query")
             schema_metadata = df.select([col(c).alias(c.lower()) for c in df.columns]).collect()
-            logger.debug(f"Schema fetched successfully. Completed at: {datetime.now()}")
+            logger.info(f"Schema fetched successfully. Completed at: {datetime.now()}")
             logger.debug(f"schema_metadata: {schema_metadata}")
             return [self._map_meta_column(field, normalize) for field in schema_metadata]
         except (RuntimeError, PySparkException) as e:
-            return self.log_and_throw_exception(e, "schema", query)
+            return self.log_and_throw_exception(e, "schema", schema_query)
 
     def normalize_identifier(self, identifier: str) -> NormalizedIdentifier:
         normalized = DialectUtils.normalize_identifier(

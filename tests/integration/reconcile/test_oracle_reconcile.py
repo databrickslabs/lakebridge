@@ -11,6 +11,7 @@ from databricks.labs.lakebridge.config import (
     TargetConnectionConfig,
 )
 from databricks.labs.lakebridge.reconcile.connectors.databricks import DatabricksDataSource
+from databricks.labs.lakebridge.reconcile.connectors.remote_query_reader import RemoteQueryReader
 from databricks.labs.lakebridge.reconcile.recon_capture import ReconCapture
 from databricks.labs.lakebridge.reconcile.recon_config import Table, JdbcReaderOptions
 from databricks.labs.lakebridge.reconcile.connectors.oracle import OracleDataSource
@@ -24,15 +25,18 @@ from tests.integration.debug_envgetter import TestEnvGetter
 
 
 class OracleDataSourceUnderTest(OracleDataSource):
-    def __init__(self, spark, ws):
-        super().__init__(get_dialect("oracle"), spark, ws, "NOT USED")
+    def __init__(self, spark):
+        # reader is unused — this subclass fully overrides read_data/get_schema with JDBC
+        reader = RemoteQueryReader(spark, "NOT USED")
+        super().__init__(get_dialect("oracle"), reader)
+        self._spark = spark
         self._test_env = TestEnvGetter(False)
 
     @property
     def _get_jdbc_url(self) -> str:
         return self._test_env.get("TEST_ORACLE_JDBC")
 
-    def _reader(self, query: str) -> DataFrameReader:
+    def _jdbc_reader(self, query: str) -> DataFrameReader:
         user = self._test_env.get("TEST_ORACLE_USER")
         password = self._test_env.get("TEST_ORACLE_PASSWORD")
         return self._spark.read.format("JDBC").options(
@@ -48,7 +52,7 @@ class OracleDataSourceUnderTest(OracleDataSource):
         options: JdbcReaderOptions | None,
     ):
         table_query = query.replace(":tbl", table)
-        return self._reader(table_query).load().collect()
+        return self._jdbc_reader(table_query).load().collect()
 
     def get_schema(
         self,
@@ -57,7 +61,7 @@ class OracleDataSourceUnderTest(OracleDataSource):
         table: str,
         normalize: bool = True,
     ) -> list[Schema]:
-        rows = self._reader(OracleDataSource._SCHEMA_QUERY).load().collect()
+        rows = self._jdbc_reader(OracleDataSource._SCHEMA_QUERY).load().collect()
         return [self._map_meta_column(r, normalize) for r in rows]
 
 
@@ -85,7 +89,7 @@ def test_oracle_db_reconcile(mock_spark, mock_workspace_client, tmp_path):
     host = test_env.get("DATABRICKS_HOST")
     databricks = DatabricksSession.builder.host(host).clusterId(cluster).getOrCreate()
     databricks_data_source = DatabricksDataSourceUnderTest(databricks, mock_workspace_client, mock_spark)
-    oracle_data_source = OracleDataSourceUnderTest(mock_spark, mock_workspace_client)
+    oracle_data_source = OracleDataSourceUnderTest(mock_spark)
     report = "row"
     db_config = DatabaseConfig(
         source_catalog="",

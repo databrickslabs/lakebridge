@@ -3,16 +3,15 @@ import re
 from datetime import datetime
 
 from pyspark.errors import PySparkException
-from pyspark.sql import DataFrame, SparkSession
+from pyspark.sql import DataFrame
 from pyspark.sql.functions import col
 from sqlglot import Dialect
 
 from databricks.labs.lakebridge.reconcile.connectors.data_source import DataSource
 from databricks.labs.lakebridge.reconcile.connectors.models import NormalizedIdentifier
-from databricks.labs.lakebridge.reconcile.connectors.remote_query_reader import RemoteQueryReaderMixin
+from databricks.labs.lakebridge.reconcile.connectors.remote_query_reader import RemoteQueryReader
 from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import DialectUtils
 from databricks.labs.lakebridge.reconcile.recon_config import JdbcReaderOptions, Schema
-from databricks.sdk import WorkspaceClient
 
 logger = logging.getLogger(__name__)
 
@@ -49,14 +48,10 @@ class SnowflakeDataSource(DataSource):
     def __init__(
         self,
         engine: Dialect,
-        spark: SparkSession,
-        ws: WorkspaceClient,
-        connection_name: str,
+        reader: RemoteQueryReader,
     ):
         self._engine = engine
-        self._spark = spark
-        self._ws = ws
-        self._connection_name = connection_name
+        self._reader = reader
 
     def read_data(
         self,
@@ -67,13 +62,12 @@ class SnowflakeDataSource(DataSource):
         options: JdbcReaderOptions | None,
     ) -> DataFrame:
         table_query = query.replace(":tbl", f"{catalog}.{schema}.{table}")
-        query = self._build_query(table_query, catalog)
         try:
-            logger.info(f"Fetching data using query: \n`{query}`")
-            df = self._spark.sql(query)
+            logger.info(f"Fetching data using query: \n`{table_query}`")
+            df = self._reader.read_data(table_query, catalog, "database", "dbtable")
             return df.select([col(column).alias(column.lower()) for column in df.columns])
         except (RuntimeError, PySparkException) as e:
-            return self.log_and_throw_exception(e, "data", query)
+            return self.log_and_throw_exception(e, "data", table_query)
 
     def get_schema(
         self,
@@ -94,20 +88,16 @@ class SnowflakeDataSource(DataSource):
             ' ',
             SnowflakeDataSource._SCHEMA_QUERY.format(catalog=catalog, schema=schema.upper(), table=table),
         )
-        query = self._build_query(f"({schema_query}) as tmp", catalog)
+        source_query = f"({schema_query}) as tmp"
         try:
-            logger.info(f"Fetching schema using query: \n`{query}`")
-            logger.debug(f"Fetching Schema: Started at: {datetime.now()}")
-            df = self._spark.sql(query)
+            logger.debug(f"Fetching schema using query: \n`{source_query}`")
+            logger.info(f"Fetching Schema: Started at: {datetime.now()}")
+            df = self._reader.read_data(source_query, catalog, "database", "dbtable")
             schema_metadata = df.select([col(c).alias(c.lower()) for c in df.columns]).collect()
-            logger.debug(f"Schema fetched successfully. Completed at: {datetime.now()}")
+            logger.info(f"Schema fetched successfully. Completed at: {datetime.now()}")
             return [self._map_meta_column(field, normalize) for field in schema_metadata]
         except (RuntimeError, PySparkException) as e:
-            return self.log_and_throw_exception(e, "schema", query)
-
-    def _build_query(self, source_query: str, catalog: str) -> str:
-        query_opts = RemoteQueryReaderMixin.build_remote_query_options(catalog, "database", None)
-        return RemoteQueryReaderMixin.build_remote_query(self._connection_name, query_opts, source_query, "dbtable")
+            return self.log_and_throw_exception(e, "schema", source_query)
 
     def normalize_identifier(self, identifier: str) -> NormalizedIdentifier:
         normalized = DialectUtils.normalize_identifier(

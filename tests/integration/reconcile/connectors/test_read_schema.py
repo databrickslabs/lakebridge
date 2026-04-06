@@ -6,6 +6,7 @@ from pyspark.sql import SparkSession
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.service.catalog import TableInfo
 from databricks.labs.lakebridge.reconcile.connectors.databricks import DatabricksDataSource
+from databricks.labs.lakebridge.reconcile.connectors.remote_query_reader import RemoteQueryReader
 from databricks.labs.lakebridge.reconcile.connectors.snowflake import SnowflakeDataSource
 from databricks.labs.lakebridge.reconcile.connectors.tsql import TSQLServerDataSource
 from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
@@ -14,20 +15,21 @@ from tests.integration.debug_envgetter import TestEnvGetter
 
 
 class TSQLServerDataSourceUnderTest(TSQLServerDataSource):
-    def __init__(self, spark, ws):
+    def __init__(self, spark):
         connection = TestEnvGetter(False).get("TEST_TSQL_CONNECTION")
-        super().__init__(get_dialect("tsql"), spark, ws, connection)
+        reader = RemoteQueryReader(spark, connection)
+        super().__init__(get_dialect("tsql"), reader)
 
 
 class SnowflakeDataSourceUnderTest(SnowflakeDataSource):
-    def __init__(self, spark, ws):
+    def __init__(self, spark):
         connection = TestEnvGetter(False).get("TEST_SNOWFLAKE_CONNECTION")
-        super().__init__(get_dialect("snowflake"), spark, ws, connection)
+        reader = RemoteQueryReader(spark, connection)
+        super().__init__(get_dialect("snowflake"), reader)
 
 
 def test_sql_server_read_schema_happy(mock_spark: SparkSession) -> None:
-    mock_ws = create_autospec(WorkspaceClient)
-    connector = TSQLServerDataSourceUnderTest(mock_spark, mock_ws)
+    connector = TSQLServerDataSourceUnderTest(mock_spark)
 
     columns = connector.get_schema("labs_azure_sandbox_remorph", "dbo", "reconcile_in")
     assert columns
@@ -69,16 +71,14 @@ def test_databricks_read_schema_happy_sandbox(
 # 2. Add credentials to the test env getter
 @pytest.mark.skip(reason="Not Ready! Deploy Infra")
 def test_oracle_read_schema_happy(mock_spark: SparkSession) -> None:
-    mock_ws = create_autospec(WorkspaceClient)
-    connector = OracleDataSourceUnderTest(mock_spark, mock_ws)
+    connector = OracleDataSourceUnderTest(mock_spark)
 
     columns = connector.get_schema("ORCL", "SYSTEM", "help")
     assert columns
 
 
 def test_snowflake_read_schema_happy(mock_spark: SparkSession) -> None:
-    mock_ws = create_autospec(WorkspaceClient)
-    connector = SnowflakeDataSourceUnderTest(mock_spark, mock_ws)
+    connector = SnowflakeDataSourceUnderTest(mock_spark)
 
     columns = connector.get_schema('remorph', "sandbox", "diamonds")
     assert columns

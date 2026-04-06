@@ -1875,16 +1875,12 @@ def test_data_recon_with_source_exception(
 
 
 def test_initialise_data_source(mock_workspace_client, mock_spark):
-    src_engine = get_dialect("snowflake")
     conn = "test"
 
     source, target = initialise_data_source(mock_workspace_client, mock_spark, "snowflake", conn)
 
-    snowflake_data_source = SnowflakeDataSource(src_engine, mock_spark, mock_workspace_client, conn).__class__
-    databricks_data_source = DatabricksDataSource(src_engine, mock_spark, mock_workspace_client).__class__
-
-    assert isinstance(source, snowflake_data_source)
-    assert isinstance(target, databricks_data_source)
+    assert isinstance(source, SnowflakeDataSource)
+    assert isinstance(target, DatabricksDataSource)
 
 
 def test_recon_for_wrong_report_type(mock_workspace_client, mock_spark, mock_for_report_type_row):

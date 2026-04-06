@@ -4,6 +4,7 @@ from sqlglot import Dialect
 from databricks.labs.lakebridge.reconcile.connectors.data_source import DataSource
 from databricks.labs.lakebridge.reconcile.connectors.databricks import DatabricksDataSource
 from databricks.labs.lakebridge.reconcile.connectors.oracle import OracleDataSource
+from databricks.labs.lakebridge.reconcile.connectors.remote_query_reader import RemoteQueryReader
 from databricks.labs.lakebridge.reconcile.connectors.snowflake import SnowflakeDataSource
 from databricks.labs.lakebridge.reconcile.connectors.tsql import TSQLServerDataSource
 from databricks.labs.lakebridge.transpiler.sqlglot.generator.databricks import Databricks
@@ -13,19 +14,20 @@ from databricks.labs.lakebridge.transpiler.sqlglot.parsers.tsql import Tsql
 from databricks.sdk import WorkspaceClient
 
 
-# TODO add assertion connection exists
+# TODO add checks connection exists
 def create_adapter(
     engine: Dialect,
     spark: SparkSession,
     ws: WorkspaceClient,
     connection_name: str,
 ) -> DataSource:
+    reader = RemoteQueryReader(spark, connection_name)
     if isinstance(engine, Snowflake):
-        return SnowflakeDataSource(engine, spark, ws, connection_name)
+        return SnowflakeDataSource(engine, reader)
     if isinstance(engine, Oracle):
-        return OracleDataSource(engine, spark, ws, connection_name)
+        return OracleDataSource(engine, reader)
     if isinstance(engine, Databricks):
         return DatabricksDataSource(engine, spark, ws)
     if isinstance(engine, Tsql):
-        return TSQLServerDataSource(engine, spark, ws, connection_name)
+        return TSQLServerDataSource(engine, reader)
     raise ValueError(f"Unsupported source type --> {engine}")
