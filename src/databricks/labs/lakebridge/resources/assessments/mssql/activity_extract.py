@@ -6,8 +6,7 @@ from databricks.labs.blueprint.entrypoint import get_logger
 from databricks.labs.lakebridge.connections.credential_manager import create_credential_manager
 from databricks.labs.lakebridge.connections.env_getter import EnvGetter
 from databricks.labs.lakebridge.assessments import PRODUCT_NAME
-from databricks.labs.lakebridge.resources.assessments.mssql.common.connector import get_sqlserver_reader
-from databricks.labs.lakebridge.resources.assessments.mssql.common.queries import MSSQLQueries
+from databricks.labs.lakebridge.resources.assessments.mssql.common.connector import get_sqlserver_reader, get_query_class
 from databricks.labs.lakebridge.resources.assessments.synapse.common.duckdb_helpers import save_resultset_to_db
 from databricks.labs.lakebridge.resources.assessments.synapse.common.functions import arguments_loader
 
@@ -36,30 +35,32 @@ def execute():
             mssql_settings, db_name="master", server_name=server_name, auth_type=auth_type
         )
 
+        queries = get_query_class(connection)
+
         # Query stats
         table_name = "query_stats"
-        table_query = MSSQLQueries.get_query_stats(last_execution_time)
+        table_query = queries.get_query_stats(last_execution_time)
         logger.info(f"Loading '{table_name}' for SQL server: {server_name}")
         result = connection.fetch(table_query)
         save_resultset_to_db(result, f"mssql_{table_name}", db_path, mode=mode)
 
         # Stored procedure stats
         table_name = "proc_stats"
-        table_query = MSSQLQueries.get_procedure_stats(last_execution_time)
+        table_query = queries.get_procedure_stats(last_execution_time)
         logger.info(f"Loading '{table_name}' for SQL server: {server_name}")
         result = connection.fetch(table_query)
         save_resultset_to_db(result, f"mssql_{table_name}", db_path, mode=mode)
 
         # Session info
         table_name = "sessions"
-        table_query = MSSQLQueries.get_sessions(last_execution_time)
+        table_query = queries.get_sessions(last_execution_time)
         logger.info(f"Loading '{table_name}' for SQL server: {server_name}")
         result = connection.fetch(table_query)
         save_resultset_to_db(result, f"mssql_{table_name}", db_path, mode=mode)
 
         # CPU Utilization
         table_name = "cpu_utilization"
-        table_query = MSSQLQueries.get_cpu_utilization(last_execution_time)
+        table_query = queries.get_cpu_utilization(last_execution_time)
         logger.info(f"Loading '{table_name}' for SQL server: {server_name}")
         result = connection.fetch(table_query)
         save_resultset_to_db(result, f"mssql_{table_name}", db_path, mode=mode)

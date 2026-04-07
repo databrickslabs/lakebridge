@@ -1,3 +1,11 @@
+class AzureSQLDetect:
+    """Detect whether the target is Azure SQL Database vs on-prem / VM SQL Server."""
+
+    @staticmethod
+    def is_azure_sql_db() -> str:
+        return "SELECT CAST(SERVERPROPERTY('EngineEdition') AS INT) AS engine_edition"
+
+
 class MSSQLQueries:
 
     @staticmethod
@@ -382,4 +390,166 @@ class MSSQLQueries:
           JOIN  sys.objects AS o ON ps.object_id = o.object_id
           WHERE o.type = 'U'
           GROUP BY schema_name(o.schema_id), o.name
+        """
+
+
+class AzureSQLQueries(MSSQLQueries):
+    """Azure SQL Database compatible overrides for DMVs not available in Azure SQL DB.
+
+    Azure SQL DB (EngineEdition = 5) does not support:
+      - sys.dm_os_ring_buffers
+      - Server-scoped DMVs (VIEW SERVER PERFORMANCE STATE)
+      - Cross-database name resolution via DB_NAME(database_id)
+
+    Only overrides methods that differ from MSSQLQueries. Inherits:
+      get_sys_info, get_databases, get_tables, get_views, get_columns,
+      get_indexed_views, get_routines, get_db_sizes, get_table_sizes
+    """
+
+    @staticmethod
+    def get_query_stats(last_execution_time: str | None) -> str:
+        """Uses DB_ID() instead of st.dbid (cross-db resolution unavailable on Azure SQL DB)."""
+        predicate = (
+            f"WHERE qs.last_execution_time > CAST('{last_execution_time}' AS DATETIME2(6))"
+            if last_execution_time
+            else ""
+        )
+
+        return f"""
+          with query_stats as (
+            SELECT
+                CONVERT(VARCHAR(64), HASHBYTES('SHA2_256', qs.sql_handle), 1) as sql_handle,
+                DB_ID() as dbid,
+                qs.creation_time,
+                qs.last_execution_time,
+                qs.execution_count,
+                qs.total_worker_time,
+                qs.total_elapsed_time,
+                qs.total_rows,
+                SUBSTRING(st.text, (qs.statement_start_offset/2) + 1,
+                    ((CASE statement_end_offset
+                        WHEN -1 THEN DATALENGTH(st.text)
+                        ELSE qs.statement_end_offset END
+                        - qs.statement_start_offset)/2) + 1) AS statement_text
+            FROM sys.dm_exec_query_stats AS qs
+            CROSS APPLY sys.dm_exec_sql_text(qs.sql_handle) AS st
+            {predicate}
+          ),
+          query_stats_ex as (
+            select
+              dbid,
+              creation_time,
+              last_execution_time,
+              execution_count,
+              total_worker_time,
+              total_elapsed_time,
+              total_rows,
+              UPPER(SUBSTRING(LTRIM(RTRIM(statement_text)), 1, 40)) as command
+            from query_stats
+          )
+          SELECT
+            *,
+            CASE
+              WHEN command like 'SELECT%' THEN 'QUERY'
+              WHEN command like 'WITH%' THEN 'QUERY'
+              WHEN command like 'INSERT%' THEN 'DML'
+              WHEN command like 'UPDATE%' THEN 'DML'
+              WHEN command like 'MERGE%' THEN 'DML'
+              WHEN command like 'DELETE%' THEN 'DML'
+              WHEN command like 'TRUNCATE%' THEN 'DML'
+              WHEN command like 'COPY%' THEN 'DML'
+              WHEN command like 'IF%' THEN 'DML'
+              WHEN command like 'BEGIN%' THEN 'DML'
+              WHEN command like 'DECLARE%' THEN 'DML'
+              WHEN command like 'BUILDREPLICATEDTABLECACHE%' THEN 'DML'
+              WHEN command like 'CREATE%' THEN 'DDL'
+              WHEN command like 'DROP%' THEN 'DDL'
+              WHEN command like 'ALTER%' THEN 'DDL'
+              WHEN command like 'EXEC%' THEN 'ROUTINE'
+              WHEN command like 'EXECUTE %' THEN 'ROUTINE'
+              WHEN command like 'BEGIN%TRAN%' THEN 'TRANSACTION_CONTROL'
+              WHEN command like 'END%TRAN%' THEN 'TRANSACTION_CONTROL'
+              WHEN command like 'COMMIT%' THEN 'TRANSACTION_CONTROL'
+              WHEN command like 'ROLLBACK%' THEN 'TRANSACTION_CONTROL'
+              ELSE 'OTHER'
+            END as command_type,
+            SYSDATETIME() as extract_ts
+          FROM query_stats_ex
+          ORDER BY last_execution_time
+        """
+
+    @staticmethod
+    def get_procedure_stats(last_execution_time: str | None):
+        """Uses DB_NAME() and OBJECT_NAME() without cross-db params."""
+        predicate = (
+            f"WHERE last_execution_time > CAST('{last_execution_time}' AS DATETIME2(6))" if last_execution_time else ""
+        )
+        return f"""
+            SELECT
+              database_id,
+              DB_NAME() AS db_name,
+              object_id,
+              OBJECT_NAME(object_id) AS object_name,
+              type,
+              last_execution_time,
+              execution_count,
+              total_worker_time,
+              total_elapsed_time,
+              SYSDATETIME() as extract_ts
+            FROM
+              sys.dm_exec_procedure_stats
+            {predicate}
+            ORDER BY
+              last_execution_time
+        """
+
+    @staticmethod
+    def get_sessions(last_execution_time: str | None):
+        """Uses DB_NAME() instead of DB_NAME(database_id) for current database context."""
+        predicate = (
+            f"AND last_request_end_time > CAST('{last_execution_time}' AS DATETIME2(6))" if last_execution_time else ""
+        )
+        return f"""
+        SELECT
+          session_id,
+          login_time,
+          program_name,
+          client_interface_name,
+          CONVERT(VARCHAR(64), HASHBYTES('SHA2_256', login_name), 1) as login_name,
+          status,
+          cpu_time,
+          memory_usage,
+          total_scheduled_time,
+          total_elapsed_time,
+          last_request_start_time,
+          last_request_end_time,
+          is_user_process,
+          row_count,
+          database_id,
+          DB_NAME() AS db_name,
+          SYSDATETIME() as extract_ts
+        FROM
+          sys.dm_exec_sessions
+        WHERE
+          is_user_process <> 0 {predicate}
+        ORDER BY
+          last_request_end_time
+        """
+
+    @staticmethod
+    def get_cpu_utilization(last_execution_time: str | None):
+        """Uses sys.dm_db_resource_stats instead of dm_os_ring_buffers (unavailable on Azure SQL DB)."""
+        predicate = (
+            f"WHERE end_time > CAST('{last_execution_time}' AS DATETIME2(6))" if last_execution_time else ""
+        )
+        return f"""
+            SELECT
+                NULL AS record_id,
+                end_time AS EventTime,
+                CAST(100 - avg_cpu_percent AS INT) AS SystemIdle,
+                CAST(avg_cpu_percent AS INT) AS SQLProcessUtilization,
+                SYSDATETIME() AS extract_ts
+            FROM sys.dm_db_resource_stats
+            {predicate}
+            ORDER BY end_time
         """

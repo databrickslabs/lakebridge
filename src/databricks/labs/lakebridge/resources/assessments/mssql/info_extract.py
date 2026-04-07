@@ -6,8 +6,7 @@ from databricks.labs.blueprint.entrypoint import get_logger
 from databricks.labs.lakebridge.connections.credential_manager import create_credential_manager
 from databricks.labs.lakebridge.connections.env_getter import EnvGetter
 from databricks.labs.lakebridge.assessments import PRODUCT_NAME
-from databricks.labs.lakebridge.resources.assessments.mssql.common.connector import get_sqlserver_reader
-from databricks.labs.lakebridge.resources.assessments.mssql.common.queries import MSSQLQueries
+from databricks.labs.lakebridge.resources.assessments.mssql.common.connector import get_sqlserver_reader, get_query_class
 from databricks.labs.lakebridge.resources.assessments.synapse.common.duckdb_helpers import save_resultset_to_db
 from databricks.labs.lakebridge.resources.assessments.synapse.common.functions import arguments_loader
 
@@ -34,9 +33,11 @@ def execute():
             mssql_settings, db_name="master", server_name=server_name, auth_type=auth_type
         )
 
+        queries = get_query_class(connection)
+
         # System info
         table_name = "sys_info"
-        table_query = MSSQLQueries.get_sys_info()
+        table_query = queries.get_sys_info()
         logger.info(f"Loading '{table_name}' for SQL server: {server_name}")
         print(f"Loading '{table_name}' for SQL server: {server_name}")
         result = connection.fetch(table_query)
@@ -44,56 +45,56 @@ def execute():
 
         # Databases
         table_name = "databases"
-        table_query = MSSQLQueries.get_databases()
+        table_query = queries.get_databases()
         logger.info(f"Loading '{table_name}' for SQL server: {server_name}")
         result = connection.fetch(table_query)
         save_resultset_to_db(result, f"mssql_{table_name}", db_path, mode=mode)
 
         # Tables
         table_name = "tables"
-        table_query = MSSQLQueries.get_tables()
+        table_query = queries.get_tables()
         logger.info(f"Loading '{table_name}' for SQL server: {server_name}")
         result = connection.fetch(table_query)
         save_resultset_to_db(result, f"mssql_{table_name}", db_path, mode=mode)
 
         # Views
         table_name = "views"
-        table_query = MSSQLQueries.get_views()
+        table_query = queries.get_views()
         logger.info(f"Loading '{table_name}' for SQL server: {server_name}")
         result = connection.fetch(table_query)
         save_resultset_to_db(result, f"mssql_{table_name}", db_path, mode=mode)
 
         # Columns
         table_name = "columns"
-        table_query = MSSQLQueries.get_columns()
+        table_query = queries.get_columns()
         logger.info(f"Loading '{table_name}' for SQL server: {server_name}")
         result = connection.fetch(table_query)
         save_resultset_to_db(result, f"mssql_{table_name}", db_path, mode=mode)
 
         # Indexed views
         table_name = "indexed_views"
-        table_query = MSSQLQueries.get_indexed_views()
+        table_query = queries.get_indexed_views()
         logger.info(f"Loading '{table_name}' for SQL server: {server_name}")
         result = connection.fetch(table_query)
         save_resultset_to_db(result, f"mssql_{table_name}", db_path, mode=mode)
 
         # Routines
         table_name = "routines"
-        table_query = MSSQLQueries.get_routines()
+        table_query = queries.get_routines()
         logger.info(f"Loading '{table_name}' for SQL server: {server_name}")
         result = connection.fetch(table_query)
         save_resultset_to_db(result, f"mssql_{table_name}", db_path, mode=mode)
 
         # Database sizes
         table_name = "db_sizes"
-        table_query = MSSQLQueries.get_db_sizes()
+        table_query = queries.get_db_sizes()
         logger.info(f"Loading '{table_name}' for SQL server: {server_name}")
         result = connection.fetch(table_query)
         save_resultset_to_db(result, f"mssql_{table_name}", db_path, mode=mode)
 
         # Table sizes
         table_name = "table_sizes"
-        table_query = MSSQLQueries.get_table_sizes()
+        table_query = queries.get_table_sizes()
         logger.info(f"Loading '{table_name}' for SQL server: {server_name}")
         result = connection.fetch(table_query)
         save_resultset_to_db(result, f"mssql_{table_name}", db_path, mode=mode)
