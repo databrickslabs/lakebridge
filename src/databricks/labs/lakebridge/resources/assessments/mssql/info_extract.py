@@ -4,6 +4,7 @@ import sys
 from databricks.labs.blueprint.entrypoint import get_logger
 
 from databricks.labs.lakebridge.connections.credential_manager import create_credential_manager
+from databricks.labs.lakebridge.connections.env_getter import EnvGetter
 from databricks.labs.lakebridge.assessments import PRODUCT_NAME
 from databricks.labs.lakebridge.resources.assessments.common.cli import arguments_loader
 from databricks.labs.lakebridge.resources.assessments.common.duckdb_helpers import save_to_duckdb
@@ -16,7 +17,7 @@ logger = get_logger(__file__)
 
 def execute():
     db_path, creds_file = arguments_loader(desc="MSSQL Server Info Extract Script")
-    cred_manager = create_credential_manager(PRODUCT_NAME, creds_file)
+    cred_manager = create_credential_manager(PRODUCT_NAME, EnvGetter())
     mssql_settings = cred_manager.get_credentials("mssql")
     auth_type = mssql_settings.get("auth_type", "sql_authentication")
     server_name = mssql_settings.get("server", "")
