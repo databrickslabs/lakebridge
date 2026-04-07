@@ -88,11 +88,12 @@ class MSSQLConnector(_BaseConnector):
     def _connect(self) -> Engine:
         auth_type = self.config.get('auth_type', 'sql_authentication')
         db_value = self.config.get('database')
-        db_name = str(db_value) if db_value else None
+        db_name = str(db_value) if db_value else 'master'
 
         query_params: dict[str, str] = {
             "driver": str(self.config['driver']),
             "loginTimeout": "30",
+            "TrustServerCertificate": str(self.config.get('trust_server_certificate', 'no')),
         }
 
         if auth_type == "ad_passwd_authentication":

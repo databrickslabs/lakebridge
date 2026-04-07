@@ -137,6 +137,7 @@ class ConfigureSqlServerAssessment(AssessmentConfigurator):
                 "driver": self.prompts.question(
                     "Enter the ODBC driver installed locally", default="ODBC Driver 18 for SQL Server"
                 ),
+                "trust_server_certificate": "yes",
             },
         }
 
