@@ -8,8 +8,7 @@ from databricks.labs.lakebridge.connections.env_getter import EnvGetter
 from databricks.labs.lakebridge.assessments import PRODUCT_NAME
 from databricks.labs.lakebridge.resources.assessments.common.cli import arguments_loader
 from databricks.labs.lakebridge.resources.assessments.common.duckdb_helpers import save_to_duckdb
-from databricks.labs.lakebridge.resources.assessments.mssql.common.connector import get_sqlserver_reader
-from databricks.labs.lakebridge.resources.assessments.mssql.common.queries import MSSQLQueries
+from databricks.labs.lakebridge.resources.assessments.mssql.common.connector import get_sqlserver_reader, get_query_class
 from databricks.labs.lakebridge.resources.assessments.mssql.common.schemas import MSSQL_SCHEMAS
 
 logger = get_logger(__file__)
@@ -35,9 +34,11 @@ def execute():
             mssql_settings, db_name="master", server_name=server_name, auth_type=auth_type
         )
 
+        queries = get_query_class(connection)
+
         # System info
         table_name = "sys_info"
-        table_query = MSSQLQueries.get_sys_info()
+        table_query = queries.get_sys_info()
         logger.info(f"Loading '{table_name}' for SQL server: {server_name}")
         print(f"Loading '{table_name}' for SQL server: {server_name}")
         result = connection.fetch(table_query)
@@ -47,7 +48,7 @@ def execute():
 
         # Databases
         table_name = "databases"
-        table_query = MSSQLQueries.get_databases()
+        table_query = queries.get_databases()
         logger.info(f"Loading '{table_name}' for SQL server: {server_name}")
         result = connection.fetch(table_query)
         save_to_duckdb(
@@ -56,7 +57,7 @@ def execute():
 
         # Tables
         table_name = "tables"
-        table_query = MSSQLQueries.get_tables()
+        table_query = queries.get_tables()
         logger.info(f"Loading '{table_name}' for SQL server: {server_name}")
         result = connection.fetch(table_query)
         save_to_duckdb(
@@ -65,7 +66,7 @@ def execute():
 
         # Views
         table_name = "views"
-        table_query = MSSQLQueries.get_views()
+        table_query = queries.get_views()
         logger.info(f"Loading '{table_name}' for SQL server: {server_name}")
         result = connection.fetch(table_query)
         save_to_duckdb(
@@ -74,7 +75,7 @@ def execute():
 
         # Columns
         table_name = "columns"
-        table_query = MSSQLQueries.get_columns()
+        table_query = queries.get_columns()
         logger.info(f"Loading '{table_name}' for SQL server: {server_name}")
         result = connection.fetch(table_query)
         save_to_duckdb(
@@ -83,7 +84,7 @@ def execute():
 
         # Indexed views
         table_name = "indexed_views"
-        table_query = MSSQLQueries.get_indexed_views()
+        table_query = queries.get_indexed_views()
         logger.info(f"Loading '{table_name}' for SQL server: {server_name}")
         result = connection.fetch(table_query)
         save_to_duckdb(
@@ -92,7 +93,7 @@ def execute():
 
         # Routines
         table_name = "routines"
-        table_query = MSSQLQueries.get_routines()
+        table_query = queries.get_routines()
         logger.info(f"Loading '{table_name}' for SQL server: {server_name}")
         result = connection.fetch(table_query)
         save_to_duckdb(
@@ -101,7 +102,7 @@ def execute():
 
         # Database sizes
         table_name = "db_sizes"
-        table_query = MSSQLQueries.get_db_sizes()
+        table_query = queries.get_db_sizes()
         logger.info(f"Loading '{table_name}' for SQL server: {server_name}")
         result = connection.fetch(table_query)
         save_to_duckdb(
@@ -110,7 +111,7 @@ def execute():
 
         # Table sizes
         table_name = "table_sizes"
-        table_query = MSSQLQueries.get_table_sizes()
+        table_query = queries.get_table_sizes()
         logger.info(f"Loading '{table_name}' for SQL server: {server_name}")
         result = connection.fetch(table_query)
         save_to_duckdb(
