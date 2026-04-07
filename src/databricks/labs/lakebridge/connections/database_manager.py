@@ -98,11 +98,12 @@ class SnowflakeConnector(_BaseConnector):
 class MSSQLConnector(_BaseConnector):
     def _connect(self) -> Engine:
         auth_type = self.config.get('auth_type', 'sql_authentication')
-        db_name = str(self.config.get('database'))
+        db_name = self.config.get('database') or 'master'
 
         query_params: dict[str, str] = {
             "driver": str(self.config['driver']),
             "loginTimeout": "30",
+            "TrustServerCertificate": str(self.config.get('trust_server_certificate', 'no')),
         }
 
         if auth_type == "ad_passwd_authentication":
