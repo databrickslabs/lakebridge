@@ -11,7 +11,7 @@ This guide walks you through a complete end-to-end migration using **SQL Server 
 
 ---
 
-## Step 1: Split Your SQL Files
+## _(Optional)_ Step 1: Split Your SQL Files
 
 If your SQL code lives in monolithic files that contain multiple objects (stored procedures, tables, views, functions), split them first. The transpiler and analyzer both work at the individual-object level.
 
@@ -31,9 +31,9 @@ Splitting first gives the Analyzer more granular, per-object results and gives t
 
 ---
 
-## Step 2: Assess Your SQL Code _(optional but recommended)_
+## _(Optional)_ Step 2: Assess Your Code
 
-Run the Analyzer on the split files to understand complexity and identify patterns the transpiler may need help with.
+Run the Analyzer on the (optionally split) files to understand complexity and identify patterns the transpiler may need help with.
 
 ```bash
 databricks labs lakebridge analyze \
@@ -42,7 +42,8 @@ databricks labs lakebridge analyze \
   --report-file /path/to/analysis/results.xlsx
 ```
 
-The Analyzer produces a complexity report saved as an Excel file (`.xlsx`). Objects flagged as `COMPLEX` or `VERY COMPLEX` may need manual review after transpilation.
+The Analyzer produces a complexity report saved as an Excel file (`.xlsx`). Objects flagged as `HIGH` or `VERY HIGH`
+complexity may need manual review after transpilation.
 
 See [Assessment Guide](/docs/assessment) for more details.
 

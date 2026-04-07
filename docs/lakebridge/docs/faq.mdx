@@ -40,10 +40,10 @@ Short answer: use the Profiler for executive-level scoping; use the Analyzer for
 
 ### How do I interpret complexity scores?
 
-The Analyzer classifies each SQL object as LOW, MEDIUM, COMPLEX, or VERY COMPLEX. As a rule of thumb:
+The Analyzer classifies each SQL object as LOW, MEDIUM, HIGH, or VERY HIGH. As a rule of thumb:
 - **LOW / MEDIUM** objects typically transpile cleanly with no manual review required
-- **COMPLEX** objects should be reviewed after transpilation for any warnings
-- **VERY COMPLEX** objects (>50% of total) suggest you should plan for 2+ manual review passes before deploying
+- **HIGH** objects should be reviewed after transpilation for any warnings
+- **VERY HIGH** objects (>50% of total) suggest you should plan for 2+ manual review passes before deploying
 
 See [Complexity Scoring](/docs/assessment/analyzer/complexity_scoring) for the exact thresholds by source system.
 
