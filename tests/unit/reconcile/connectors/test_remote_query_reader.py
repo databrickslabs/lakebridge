@@ -58,9 +58,7 @@ def test_read_data_escapes_single_quotes():
     reader.read_data("SELECT * FROM t WHERE name = 'val'", "db", "database")
 
     spark.sql.assert_called_once_with(
-        "SELECT * FROM remote_query('my_conn', "
-        "query => 'SELECT * FROM t WHERE name = \'val\'', "
-        "database => 'db')"
+        "SELECT * FROM remote_query('my_conn', query => 'SELECT * FROM t WHERE name = \'val\'', database => 'db')"
     )
 
 

@@ -2,6 +2,7 @@ from dataclasses import asdict
 
 from pyspark.sql import DataFrame, SparkSession
 
+from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import DialectUtils
 from databricks.labs.lakebridge.reconcile.recon_config import JdbcReaderOptions
 
 
@@ -36,6 +37,8 @@ class RemoteQueryReader:
             return parts[0] + ''.join(word.capitalize() for word in parts[1:])
 
         def encode(key, value):
+            if key == "partition_column":
+                value = DialectUtils.unnormalize_identifier(value)  # revert to original value without backticks
             return f"{camelcase(key)} => '{value}'"
 
         opts = {catalog_key: catalog, **(asdict(options) if options else {})}
