@@ -7,11 +7,12 @@ import tempfile
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from subprocess import CalledProcessError, DEVNULL, PIPE, Popen, STDOUT, run
+from subprocess import CalledProcessError, PIPE, Popen, STDOUT, run
 
 import duckdb
 import yaml
 
+from databricks.labs.blueprint.paths import read_text
 from databricks.labs.lakebridge.assessments.profiler_config import PipelineConfig, Step
 from databricks.labs.lakebridge.connections.credential_manager import cred_file
 from databricks.labs.lakebridge.connections.database_manager import DatabaseManager, FetchResult
@@ -38,64 +39,73 @@ class PipelineClass:
     def __init__(self, config: PipelineConfig, executor: DatabaseManager | None):
         self.config = config
         self.executor = executor
-        self.db_path_prefix = Path(config.extract_folder).expanduser()
-        self._create_dir(self.db_path_prefix)
+        self._db_path_prefix = Path(config.extract_folder).expanduser()
+        self._create_dir(self._db_path_prefix)
+        self._db_path = str(self._db_path_prefix / DB_NAME)
 
     def execute(self) -> list[StepExecutionResult]:
         logging.info(f"Pipeline initialized with config: {self.config.name}, version: {self.config.version}")
         execution_results: list[StepExecutionResult] = []
-        error_flag = False
+
         for step in self.config.steps:
-            logger.info(f"Executing step: {step.name}")
             result = self._process_step(step)
             execution_results.append(result)
-            logger.info(f"Step '{step.name}' completed with status: {result.status}")
+            self._log_step_result(result)
 
-            # Check step execution status
-            if result.status == StepExecutionStatus.ERROR:
-                logger.error(f"Step {result.step_name} failed with error: {result.error_message}")
-                error_flag = True
-            elif result.status == StepExecutionStatus.SKIPPED:
-                logger.info(f"Step {result.step_name} was skipped.")
-            else:
-                logger.info(f"Step {result.step_name} has completed successfully.")
+            # Fail immediately if DDL step failed
+            if step.type == "ddl" and result.status == StepExecutionStatus.ERROR:
+                error_msg = f"Pipeline execution failed due to error in DDL step: {result.step_name}"
+                if result.error_message:
+                    error_msg += f" - {result.error_message}"
+                logger.error(error_msg)
+                raise RuntimeError(error_msg)
 
-        if error_flag:
-            failed_steps = [r for r in execution_results if r.status == StepExecutionStatus.ERROR]
+        # Check if any non-DDL steps failed
+        failed_steps = [r for r in execution_results if r.status == StepExecutionStatus.ERROR]
+        if failed_steps:
             error_msg = (
                 f"Pipeline execution failed due to errors in steps: {', '.join(r.step_name for r in failed_steps)}"
             )
             logger.error(error_msg)
             raise RuntimeError(error_msg)
+
         return execution_results
 
     def _process_step(self, step: Step) -> StepExecutionResult:
+        logger.info(f"Executing step: {step.name}")
+
         if step.flag != "active":
             logging.info(f"Skipping step: {step.name} as it is not active")
             return StepExecutionResult(step_name=step.name, status=StepExecutionStatus.SKIPPED)
-        logging.debug(f"Executing step: {step.name}")
+
         try:
-            status = self._execute_step(step)
-            return StepExecutionResult(step_name=step.name, status=status)
+            # Execute based on step type
+            match step.type:
+                case "sql":
+                    self._execute_sql_step(step)
+                case "ddl":
+                    self._execute_ddl_step(step)
+                case "python":
+                    self._execute_python_step(step)
+                case _:
+                    raise RuntimeError(f"Unsupported step type: {step.type}")
+
+            return StepExecutionResult(step_name=step.name, status=StepExecutionStatus.COMPLETE)
         except RuntimeError as e:
             return StepExecutionResult(step_name=step.name, status=StepExecutionStatus.ERROR, error_message=str(e))
 
-    def _execute_step(self, step: Step) -> StepExecutionStatus:
-        if step.type == "sql":
-            logging.info(f"Executing SQL step {step.name}")
-            self._execute_sql_step(step)
-            return StepExecutionStatus.COMPLETE
-        if step.type == "python":
-            logging.info(f"Executing Python step {step.name}")
-            self._execute_python_step(step)
-            return StepExecutionStatus.COMPLETE
-        logging.error(f"Unsupported step type: {step.type}")
-        raise RuntimeError(f"Unsupported step type: {step.type}")
+    def _log_step_result(self, result: StepExecutionResult):
+        match result.status:
+            case StepExecutionStatus.ERROR:
+                logger.error(f"Step {result.step_name} failed with error: {result.error_message}")
+            case StepExecutionStatus.SKIPPED:
+                logger.info(f"Step {result.step_name} was skipped.")
+            case StepExecutionStatus.COMPLETE:
+                logger.info(f"Step {result.step_name} has completed successfully.")
 
     def _execute_sql_step(self, step: Step):
         logging.debug(f"Reading query from file: {step.extract_source}")
-        with open(step.extract_source, 'r', encoding='utf-8') as file:
-            query = file.read()
+        query = read_text(Path(step.extract_source))
 
         if self.executor is None:
             logging.error("DatabaseManager executor is not set.")
@@ -112,10 +122,31 @@ class PipelineClass:
             logging.error(f"SQL execution failed: {str(e)}")
             raise RuntimeError(f"SQL execution failed: {str(e)}") from e
 
+    def _execute_ddl_step(self, step: Step):
+        logging.debug(f"Reading DDL from file: {step.extract_source}")
+        ddl = read_text(Path(step.extract_source)).strip()
+
+        logging.info(f"Executing DDL for table '{step.name}'")
+
+        try:
+            # TODO: Handle schema evolution
+            # Current implementation just checks for table existence;
+            # mode logic becomes irrelevant for ddl step.
+            with duckdb.connect(self._db_path) as conn:
+                conn.begin()
+                if not self._table_exists(conn, step.name):
+                    conn.execute(ddl)
+                    conn.commit()
+                    logging.debug(f"Created new table '{step.name}'")
+                else:
+                    logging.debug(f"Table '{step.name}' already exists, skipping DDL execution")
+        except Exception as e:
+            logging.error(f"DDL execution failed: {str(e)}")
+            raise RuntimeError(f"DDL execution failed: {str(e)}") from e
+
     def _execute_python_step(self, step: Step):
 
         logging.debug(f"Executing Python script: {step.extract_source}")
-        db_path = str(self.db_path_prefix / DB_NAME)
         credential_config = str(cred_file("lakebridge"))
         venv_path_prefix = Path.home() / ".databricks" / "labs" / "lakebridge_profilers"
         os.makedirs(venv_path_prefix, exist_ok=True)
@@ -142,13 +173,14 @@ class PipelineClass:
             if step.dependencies:
                 self._install_dependencies(venv_exec_cmd, step.dependencies)
 
-            self._run_python_script(venv_exec_cmd, step.extract_source, db_path, credential_config)
+            self._run_python_script(venv_exec_cmd, step.extract_source, self._db_path, credential_config)
 
     @staticmethod
     def _install_dependencies(venv_exec_cmd, dependencies):
         logging.info(f"Installing dependencies: {', '.join(dependencies)}")
         try:
             logging.debug("Upgrading local pip")
+            is_debug = logging.getLogger(__name__).isEnabledFor(logging.DEBUG)
             run(
                 [
                     venv_exec_cmd,
@@ -158,14 +190,14 @@ class PipelineClass:
                     "--upgrade",
                     "pip",
                     "--require-virtualenv",
-                    "--quiet",
                     "--no-input",
                     "--disable-pip-version-check",
                 ],
                 check=True,
-                stdout=DEVNULL,
-                stderr=DEVNULL,
+                capture_output=not is_debug,
+                text=True,
             )
+
             run(
                 [
                     venv_exec_cmd,
@@ -174,15 +206,18 @@ class PipelineClass:
                     "install",
                     *dependencies,
                     "--require-virtualenv",
-                    "--quiet",
                     "--no-input",
                     "--disable-pip-version-check",
                 ],
                 check=True,
-                stdout=DEVNULL,
-                stderr=DEVNULL,
+                capture_output=not is_debug,
+                text=True,
             )
         except CalledProcessError as e:
+            # Log detailed output at debug level for troubleshooting
+            logging.debug(
+                f"Failed to install dependencies (exit code {e.returncode})\n" f"stdout: {e.stdout}\nstderr: {e.stderr}"
+            )
             logging.error(f"Failed to install dependencies: {e.stderr}")
             raise RuntimeError(f"Failed to install dependencies: {e.stderr}") from e
 
@@ -232,8 +267,6 @@ class PipelineClass:
             raise RuntimeError(f"Script execution failed with exit code {process.returncode}")
 
     def _save_to_db(self, result: FetchResult, step_name: str, mode: str):
-        db_path = str(self.db_path_prefix / DB_NAME)
-
         # Check row count and log appropriately and skip data insertion if 0 rows
         if not result.rows:
             logging.warning(
@@ -243,20 +276,46 @@ class PipelineClass:
 
         row_count = len(result.rows)
         logging.info(f"Query for step '{step_name}' returned {row_count} rows.")
-        # TODO: Add support for figuring out data types from SQLALCHEMY result object result.cursor.description is not reliable
-        _result_frame = result.to_df().astype(str)
 
-        with duckdb.connect(db_path) as conn:
-            # DuckDB can access _result_frame from the local scope automatically.
-            if mode == 'overwrite':
-                statement = f"CREATE OR REPLACE TABLE {step_name} AS SELECT * FROM _result_frame"
-            elif mode == 'append' and step_name not in conn.get_table_names(""):
-                statement = f"CREATE TABLE {step_name} AS SELECT * FROM _result_frame"
+        with duckdb.connect(self._db_path) as conn:
+            # Note: step_name is validated to be SQL-safe by Step.__post_init__
+            table_exists = self._table_exists(conn, step_name)
+            conn.begin()
+            if table_exists and mode == 'overwrite':
+                # Table exists and overwrite mode: Truncate then insert within a transaction to preserve existing DDL schema
+                _result_frame = result.to_df()
+                # Note: step_name is validated to be SQL-safe by Step.__post_init__
+                logging.debug(f"Overwriting existing table '{step_name}'")
+                conn.execute(f"TRUNCATE {step_name}")
+                conn.execute(f"INSERT INTO {step_name} SELECT * FROM _result_frame")
             else:
-                statement = f"INSERT INTO {step_name} SELECT * FROM _result_frame"
-            logging.debug(f"Inserting {row_count} rows: {statement}")
-            conn.execute(statement)
-        logging.info(f"Successfully inserted {row_count} rows into table '{step_name}'.")
+                if table_exists:
+                    # Table exists and append mode: insert into existing table (DuckDB handles type conversion)
+                    _result_frame = result.to_df()
+                    # Note: step_name is validated to be SQL-safe by Step.__post_init__
+                    statement = f"INSERT INTO {step_name} SELECT * FROM _result_frame"
+                    logging.debug(f"Appending to existing table '{step_name}'")
+                else:
+                    # Table doesn't exist: create table with native types from query result
+                    # Use DDL steps for explicit type control when needed
+                    _result_frame = result.to_df()
+                    # Note: step_name is validated to be SQL-safe by Step.__post_init__
+                    statement = f"CREATE TABLE {step_name} AS SELECT * FROM _result_frame"
+                    logging.debug(f"Creating new table '{step_name}' with native types")
+
+                logging.debug(f"Executing: {statement}")
+                conn.execute(statement)
+
+            # Explicit commit before context exit
+            conn.commit()
+            logging.info(f"Successfully processed {row_count} rows for table '{step_name}'.")
+
+    @staticmethod
+    def _table_exists(conn: duckdb.DuckDBPyConnection, table_name: str) -> bool:
+        result = conn.execute(
+            "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = ?", [table_name]
+        ).fetchone()
+        return result[0] > 0 if result else False
 
     @staticmethod
     def _create_dir(dir_path: Path):

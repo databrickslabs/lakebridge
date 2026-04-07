@@ -24,16 +24,24 @@ from databricks.labs.lakebridge import initialize_logging
 logger = logging.getLogger(__name__)
 
 
+class ExtractIngestionError(Exception):
+    """Raised when the profiler extract ingestion fails due to unexpected errors."""
+
+
 def main(*argv: str) -> None:
     """Lakeview Jobs task entry point: profiler_dashboards"""
     initialize_logging()
 
     logger.debug(f"Arguments received: {argv}")
-    assert len(sys.argv) == 4, f"Invalid number of arguments: {len(sys.argv)}"
-    catalog_name = sys.argv[0]
-    schema_name = sys.argv[1]
-    extract_location = sys.argv[2]
-    source_tech = sys.argv[3]
+
+    assert len(sys.argv) == 5, f"Invalid number of arguments: {len(sys.argv)}"
+    logger.info(f"Received the following inputs: {', '.join(sys.argv)}")
+
+    catalog_name = sys.argv[1]
+    schema_name = sys.argv[2]
+    extract_location = sys.argv[3]
+    source_tech = sys.argv[4]
+
     logger.info(f"Validating {source_tech} profiler extract located at '{extract_location}'.")
     valid_extract = _validate_profiler_extract(catalog_name, schema_name, extract_location, source_tech)
     if valid_extract:
@@ -72,15 +80,14 @@ def _validate_profiler_extract(
 ) -> bool:
     logger.info("Validating the profiler extract file.")
     validation_checks: list[EmptyTableValidationCheck | ExtractSchemaValidationCheck] = []
-    # TODO: Verify this, I don't think it works? (These files are part of the test resources.)
-    schema_def = resources.files(assessment_resources).joinpath(f"{source_tech}_schema_def.yml")
+    schema_def = resources.files(assessment_resources).joinpath(f"validation/{source_tech}_extract_schema.yml")
     tables = _get_extract_tables(schema_def)
     try:
         with duckdb.connect(database=extract_location) as duck_conn, resources.as_file(schema_def) as schema_def_path:
             for table_info in tables:
+
                 # Ensure that the table contains data
                 empty_check = EmptyTableValidationCheck(table_info[2])
-                validation_checks.append(empty_check)
 
                 # Ensure that the table conforms to the expected schema
                 schema_check = ExtractSchemaValidationCheck(
@@ -90,8 +97,10 @@ def _validate_profiler_extract(
                     extract_path=extract_location,
                     schema_path=str(schema_def_path),
                 )
-                validation_checks.append(schema_check)
+                validation_checks += [empty_check, schema_check]
+
             report = build_validation_report(validation_checks, duck_conn)
+            report_df = build_validation_report_dataframe(validation_checks, duck_conn)
     except duckdb.IOException as e:
         logger.exception(f"Could not access the profiler extract: '{extract_location}'.")
         raise e
@@ -100,7 +109,6 @@ def _validate_profiler_extract(
         raise e
 
     # Save validation report to table
-    report_df = build_validation_report_dataframe(validation_checks, duck_conn)
     validation_report_table = f"{target_catalog_name}.{target_schema_name}.validation_report"
     logger.info(f"Saving extract validation report to '{validation_report_table}' to Unity Catalog.")
     report_df.write.format("delta").mode("overwrite").saveAsTable(validation_report_table)
@@ -109,7 +117,6 @@ def _validate_profiler_extract(
         report_errors = list(filter(lambda x: x.outcome == "FAIL" and x.severity == "ERROR", report))
         num_errors = len(report_errors)
         logger.info(f"There are {num_errors} validation errors in the profiler extract.")
-
     else:
         raise ValueError("Profiler extract validation report is empty.")
     return num_errors == 0
@@ -144,10 +151,9 @@ def _ingest_profiler_tables(catalog_name: str, schema_name: str, extract_locatio
         except duckdb.Error as e:
             logger.error(f"Failed to ingest table from profiler database: {e}")
             unsuccessful_tables.append(source_table)
-        except RuntimeError as e:
+        except ExtractIngestionError as e:
             logger.error(f"Unknown error while ingested table from profiler database: {e}")
             unsuccessful_tables.append(source_table)
-
     logger.info(f"Ingested {len(successful_tables)} tables from profiler extract.")
     logger.info(",".join(successful_tables))
 
@@ -177,7 +183,7 @@ def _ingest_table(extract_location: str, source_table_name: str, target_table_na
         raise duckdb.IOException(f"Could not access the profiler extract: '{extract_location}'.") from e
     except Exception as e:
         logger.error(f"Unable to ingest table '{source_table_name}' from profiler extract: {e}")
-        raise e
+        raise ExtractIngestionError(f"Unable to ingest table '{source_table_name}' from profiler extract: {e}") from e
 
 
 if __name__ == "__main__":

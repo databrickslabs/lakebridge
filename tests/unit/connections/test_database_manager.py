@@ -1,8 +1,9 @@
 import pytest
 from unittest.mock import MagicMock, patch
+from databricks.labs.blueprint.installation import JsonObject
 from databricks.labs.lakebridge.connections.database_manager import DatabaseManager
 
-sample_config = {
+sample_config: JsonObject = {
     'user': 'test_user',
     'password': 'test_pass',
     'server': 'test_server',
