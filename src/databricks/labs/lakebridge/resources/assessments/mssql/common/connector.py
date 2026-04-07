@@ -40,6 +40,7 @@ def get_sqlserver_reader(
         "password": input_cred['password'],
         "port": input_cred.get('port', 1433),
         "auth_type": auth_type,
+        "trust_server_certificate": input_cred.get('trust_server_certificate', 'no'),
     }
     source = "mssql"
 
