@@ -1,6 +1,6 @@
 name: mssql_assessment
 version: "1.0"
-extract_folder: "/tmp/data/mssql_assessment"
+extract_folder: "~/.databricks/labs/lakebridge_profilers/mssql_assessment"
 steps:
   - name: activity_extract
     type: python
