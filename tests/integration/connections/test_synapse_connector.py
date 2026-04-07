@@ -1,5 +1,16 @@
+import pytest
 from databricks.labs.blueprint.installation import JsonObject
 from databricks.labs.lakebridge.connections.database_manager import DatabaseManager, MSSQLConnector
+from databricks.labs.lakebridge.connections.synapse_connection_helpers import create_synapse_connection
+from tests.integration.debug_envgetter import TestEnvGetter
+
+
+def _get_synapse_workspace(cred_config: JsonObject) -> dict:
+    synapse = cred_config["synapse"]
+    assert isinstance(synapse, dict)
+    workspace_config = synapse["workspace"]
+    assert isinstance(workspace_config, dict)
+    return workspace_config
 
 
 def test_synapse_connector_connection(sandbox_synapse: DatabaseManager) -> None:
@@ -46,6 +57,47 @@ def test_synapse_with_credential_format(sandbox_synapse_cred_config: JsonObject)
     assert isinstance(manager, DatabaseManager)
     assert isinstance(manager.connector, MSSQLConnector)
     assert manager.check_connection()
+
+
+def test_create_synapse_connection_sql_auth(sandbox_synapse_cred_config: JsonObject) -> None:
+    """create_synapse_connection remaps sql_user/sql_password to user/password and connects."""
+    workspace_config = _get_synapse_workspace(sandbox_synapse_cred_config)
+
+    database_manager = create_synapse_connection(workspace_config, "master", auth_type="sql_authentication")
+
+    assert isinstance(database_manager.connector, MSSQLConnector)
+    assert database_manager.connector.config["user"] == workspace_config["sql_user"]
+    assert database_manager.check_connection()
+
+
+def test_create_synapse_connection_spn(
+    sandbox_synapse_cred_config: JsonObject, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """create_synapse_connection omits user/password from config for SPN auth."""
+    env = TestEnvGetter(True)
+    monkeypatch.setenv("AZURE_CLIENT_ID", env.get("TOOLS_CLIENT_ID"))
+    monkeypatch.setenv("AZURE_CLIENT_SECRET", env.get("TOOLS_CLIENT_SECRET"))
+    workspace_config = _get_synapse_workspace(sandbox_synapse_cred_config)
+
+    database_manager = create_synapse_connection(workspace_config, "master", auth_type="spn_authentication")
+
+    assert isinstance(database_manager.connector, MSSQLConnector)
+    assert "user" not in database_manager.connector.config
+    assert "password" not in database_manager.connector.config
+    assert database_manager.check_connection()
+
+
+def test_create_synapse_connection_endpoint_key(sandbox_synapse_cred_config: JsonObject) -> None:
+    """create_synapse_connection routes to the server specified by endpoint_key."""
+    workspace_config = dict(_get_synapse_workspace(sandbox_synapse_cred_config))
+    # Sandbox has one server; point serverless to the same endpoint to exercise the routing
+    workspace_config["serverless_sql_endpoint"] = workspace_config["dedicated_sql_endpoint"]
+
+    database_manager = create_synapse_connection(workspace_config, "master", endpoint_key="serverless_sql_endpoint")
+
+    assert isinstance(database_manager.connector, MSSQLConnector)
+    assert database_manager.connector.config["server"] == workspace_config["serverless_sql_endpoint"]
+    assert database_manager.check_connection()
 
 
 def test_synapse_query_execution(sandbox_synapse_cred_config: JsonObject) -> None:

@@ -142,7 +142,7 @@ class ConfigureSynapseAssessment(AssessmentConfigurator):
         if auth_type == "spn_authentication":
             logger.info(
                 "SPN authentication selected. "
-                "Ensure AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, and AZURE_TENANT_ID "
+                "Ensure AZURE_CLIENT_ID and AZURE_CLIENT_SECRET "
                 "are set as environment variables before running the profiler."
             )
         else:
