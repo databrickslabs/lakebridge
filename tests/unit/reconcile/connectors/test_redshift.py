@@ -66,7 +66,7 @@ def test_read_data_with_out_options():
         "url",
         "jdbc:redshift://my_host:5439/my_database",
     )
-    spark.read.format().option().option.assert_called_with("driver", "com.amazon.redshift.jdbc42.Driver")
+    spark.read.format().option().option.assert_called_with("driver", "com.amazon.redshift.Driver")
     spark.read.format().option().option().option.assert_called_with("dbtable", "(select 1 from data.employee) tmp")
     actual_args = spark.read.format().option().option().option().options.call_args.kwargs
     expected_args = {
@@ -96,7 +96,7 @@ def test_read_data_with_options():
         "url",
         "jdbc:redshift://my_host:5439/my_database",
     )
-    spark.read.format().option().option.assert_called_with("driver", "com.amazon.redshift.jdbc42.Driver")
+    spark.read.format().option().option.assert_called_with("driver", "com.amazon.redshift.Driver")
     spark.read.format().option().option().option.assert_called_with("dbtable", "(select 1 from data.employee) tmp")
     jdbc_actual_args = spark.read.format().option().option().option().options.call_args.kwargs
     jdbc_expected_args = {
@@ -127,15 +127,11 @@ def test_get_schema():
                      CASE
                         WHEN data_type = 'numeric' AND numeric_precision IS NOT NULL
                             THEN 'decimal(' || numeric_precision || ',' || numeric_scale || ')'
-                        WHEN data_type = 'real'
-                            THEN 'float'
-                        WHEN data_type = 'double precision'
-                            THEN 'double'
                         WHEN data_type = 'character varying' AND character_maximum_length IS NOT NULL
                             THEN 'varchar(' || character_maximum_length || ')'
                         WHEN data_type = 'character' AND character_maximum_length IS NOT NULL
                             THEN 'char(' || character_maximum_length || ')'
-                        WHEN data_type IN ('varbyte')
+                        WHEN data_type IN ('binary varying')
                             THEN 'binary'
                         ELSE data_type
                     END AS data_type
@@ -179,11 +175,10 @@ def test_get_schema_exception_handling():
         match=re.escape(
             "Runtime exception occurred while fetching schema using SELECT column_name, CASE WHEN data_type = "
             "'numeric' AND numeric_precision IS NOT NULL THEN 'decimal(' || numeric_precision || ',' || "
-            "numeric_scale || ')' WHEN data_type = 'real' THEN 'float' WHEN data_type = 'double precision' "
-            "THEN 'double' WHEN data_type = 'character varying' AND character_maximum_length IS NOT NULL "
+            "numeric_scale || ')' WHEN data_type = 'character varying' AND character_maximum_length IS NOT NULL "
             "THEN 'varchar(' || character_maximum_length || ')' WHEN data_type = 'character' AND "
             "character_maximum_length IS NOT NULL THEN 'char(' || character_maximum_length || ')' WHEN "
-            "data_type IN ('varbyte') THEN 'binary' ELSE data_type END AS data_type FROM "
+            "data_type IN ('binary varying') THEN 'binary' ELSE data_type END AS data_type FROM "
             "information_schema.columns WHERE LOWER(table_name) = LOWER('employee') AND "
             "LOWER(table_schema) = LOWER('data') ORDER BY ordinal_position  : Test Exception"
         ),
