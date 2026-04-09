@@ -120,6 +120,44 @@ def test_get_schema_exception_handling():
     )
 
 
+def test_get_schema_foreign_catalog_fallback():
+    """Foreign Catalogs lack the full_data_type column; get_schema should fall back to DESCRIBE TABLE."""
+    engine, spark, ws, scope = initial_setup()
+    ddds = DatabricksDataSource(engine, spark, ws, scope)
+
+    # First call (information_schema query) raises an error mentioning full_data_type
+    full_data_type_error = RuntimeError(
+        "[UNRESOLVED_COLUMN.WITH_SUGGESTION] A column, variable, or function parameter "
+        "with name `full_data_type` cannot be resolved."
+    )
+    describe_result = MagicMock()
+    spark.sql.side_effect = [full_data_type_error, describe_result]
+
+    ddds.get_schema("foreign_catalog", "public", "customers")
+
+    # Verify the fallback DESCRIBE TABLE query was issued
+    assert spark.sql.call_count == 2
+    spark.sql.assert_called_with("describe table foreign_catalog.public.customers")
+
+
+def test_get_schema_foreign_catalog_fallback_also_fails():
+    """When both the information_schema query and DESCRIBE TABLE fallback fail, raise the fallback error."""
+    engine, spark, ws, scope = initial_setup()
+    ddds = DatabricksDataSource(engine, spark, ws, scope)
+
+    full_data_type_error = RuntimeError(
+        "[UNRESOLVED_COLUMN.WITH_SUGGESTION] A column with name `full_data_type` cannot be resolved."
+    )
+    describe_error = RuntimeError("DESCRIBE TABLE failed")
+    spark.sql.side_effect = [full_data_type_error, describe_error]
+
+    with pytest.raises(DataSourceRuntimeException) as exception:
+        ddds.get_schema("foreign_catalog", "public", "customers")
+
+    assert "DESCRIBE TABLE failed" in str(exception.value)
+    assert "describe table foreign_catalog.public.customers" in str(exception.value)
+
+
 def test_normalize_identifier():
     engine, spark, ws, scope = initial_setup()
     data_source = DatabricksDataSource(engine, spark, ws, scope)

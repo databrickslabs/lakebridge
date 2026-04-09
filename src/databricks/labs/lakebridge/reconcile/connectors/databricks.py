@@ -36,6 +36,10 @@ def _get_schema_query(catalog: str, schema: str, table: str):
     return re.sub(r'\s+', ' ', query)
 
 
+def _get_describe_table_query(catalog: str, schema: str, table: str):
+    return f"describe table {catalog}.{schema}.{table}"
+
+
 class DatabricksDataSource(DataSource, SecretsMixin):
     _IDENTIFIER_DELIMITER = "`"
 
@@ -94,7 +98,27 @@ class DatabricksDataSource(DataSource, SecretsMixin):
             logger.info(f"Schema fetched successfully. Completed at: {datetime.now()}")
             return [self._map_meta_column(field, normalize) for field in schema_metadata]
         except (RuntimeError, PySparkException) as e:
-            return self.log_and_throw_exception(e, "schema", schema_query)
+            if "full_data_type" not in str(e):
+                return self.log_and_throw_exception(e, "schema", schema_query)
+
+        # Fallback to DESCRIBE TABLE for catalogs that lack the full_data_type column
+        # (e.g. Foreign Catalogs created via Lakehouse Federation).
+        describe_query = _get_describe_table_query(catalog_str, schema, table)
+        try:
+            logger.info(
+                f"Retrying schema fetch with DESCRIBE TABLE fallback for {catalog_str}.{schema}.{table}"
+            )
+            schema_metadata = (
+                self._spark.sql(describe_query)
+                .selectExpr("col_name as column_name", "data_type")
+                .where("column_name not like '#%'")
+                .distinct()
+                .collect()
+            )
+            logger.info(f"Schema fetched successfully via DESCRIBE TABLE. Completed at: {datetime.now()}")
+            return [self._map_meta_column(field, normalize) for field in schema_metadata]
+        except (RuntimeError, PySparkException) as e:
+            return self.log_and_throw_exception(e, "schema", describe_query)
 
     def normalize_identifier(self, identifier: str) -> NormalizedIdentifier:
         return DialectUtils.normalize_identifier(
