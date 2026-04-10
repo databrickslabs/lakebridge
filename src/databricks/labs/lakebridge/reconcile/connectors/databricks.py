@@ -17,12 +17,12 @@ from databricks.sdk import WorkspaceClient
 logger = logging.getLogger(__name__)
 
 
-def _get_schema_query(catalog: str, schema: str, table: str):
+def _get_schema_query(catalog: str, schema: str, table: str, force_describe: bool = False):
     # TODO: Ensure that the target_catalog in the configuration is not set to "hive_metastore". The source_catalog
     #  can only be set to "hive_metastore" if the source type is "databricks".
     if schema == "global_temp":
         return f"describe table global_temp.{table}"
-    if catalog == "hive_metastore":
+    if catalog == "hive_metastore" or force_describe:
         return f"describe table {catalog}.{schema}.{table}"
 
     query = f"""select
@@ -34,10 +34,6 @@ def _get_schema_query(catalog: str, schema: str, table: str):
                                      and lower(table_name) ='{table}'
                        order by col_name"""
     return re.sub(r'\s+', ' ', query)
-
-
-def _get_describe_table_query(catalog: str, schema: str, table: str):
-    return f"describe table {catalog}.{schema}.{table}"
 
 
 class DatabricksDataSource(DataSource, SecretsMixin):
@@ -103,7 +99,7 @@ class DatabricksDataSource(DataSource, SecretsMixin):
 
         # Fallback to DESCRIBE TABLE for catalogs that lack the full_data_type column
         # (e.g. Foreign Catalogs created via Lakehouse Federation).
-        describe_query = _get_describe_table_query(catalog_str, schema, table)
+        describe_query = _get_schema_query(catalog_str, schema, table, force_describe=True)
         try:
             logger.info(
                 f"Retrying schema fetch with DESCRIBE TABLE fallback for {catalog_str}.{schema}.{table}"
