@@ -1,5 +1,6 @@
 import abc
 import datetime as dt
+import json
 import logging
 import os
 import re
@@ -160,24 +161,6 @@ class WheelInstaller(ArtifactInstaller):
     _site_packages: Path
     """Once created, the path to the site-packages directory in the virtual environment."""
 
-    @classmethod
-    def get_latest_artifact_version_from_pypi(cls, artifact_id: str) -> str | None:
-        url = f"https://pypi.org/pypi/{artifact_id}/json"
-        try:
-            # TODO: Use a user-agent that identifies this application.
-            response = requests.get(url, timeout=_DEFAULT_HTTP_TIMEOUT)
-            response.raise_for_status()
-            data: RootJsonValue = response.json()
-        except RequestException as e:
-            logger.error(f"Error while fetching PyPI metadata: {artifact_id}", exc_info=e)
-            return None
-        logger.debug(f"PyPI metadata for {artifact_id}: {data}")
-        match data:
-            case {"info": {"version": str(version), **_ignored}, **_also_ignored}:
-                return version
-            case _:
-                return None
-
     def __init__(
         self,
         repository: TranspilerRepository,
@@ -191,6 +174,26 @@ class WheelInstaller(ArtifactInstaller):
 
     def install(self) -> Path | None:
         return self._install_checking_versions()
+
+    def get_latest_artifact_version_from_pypi(self, artifact_id: str) -> str | None:
+        command: list[Path | str] = [
+            self._venv_exec_cmd,
+            "-m",
+            "pip",
+            "index",
+            "versions",
+            "--json",
+            artifact_id,
+        ]
+        if logger.isEnabledFor(logging.DEBUG):
+            command.append("--verbose")
+        try:
+            result = subprocess.run(command, stdin=sys.stdin, check=True, capture_output=True, text=True)
+            logger.debug(f"PyPI version metadata for {artifact_id}: {result.stdout}")
+            return json.loads(result.stdout)["versions"][0]
+        except (subprocess.CalledProcessError, json.decoder.JSONDecodeError, KeyError, IndexError) as e:
+            logger.error(f"Failed to query PyPi version metadata for {artifact_id}", exc_info=e)
+            return None
 
     def _install_checking_versions(self) -> Path | None:
         latest_version = (
