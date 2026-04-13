@@ -142,7 +142,10 @@ class RedshiftConnector(DatabaseConnector):
         else:
             raise ConnectionError(f"Invalid Redshift auth_type: {auth_type}")
 
-        return redshift_connector.connect(**connect_kwargs)
+        try:
+            return redshift_connector.connect(**connect_kwargs)
+        except Exception as e:
+            raise ConnectionError(f"Failed to connect to Redshift at {connect_kwargs['host']}: {type(e).__name__}") from None
 
     def fetch(self, query: str) -> FetchResult:
         cursor = self._conn.cursor()
