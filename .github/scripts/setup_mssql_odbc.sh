@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 
 set -xve
 #Repurposed from https://github.com/Yarden-zamir/install-mssql-odbc
