@@ -84,8 +84,8 @@ jobs:
 
       - name: Verify no lint disabled in the new code
         run: |
-          git fetch origin $GITHUB_BASE_REF:$GITHUB_BASE_REF
-          git diff --ignore-space-change $GITHUB_BASE_REF...HEAD -- ':(glob,icase)**/*.py' > diff_data.txt
+          git fetch origin "${GITHUB_BASE_REF}:${GITHUB_BASE_REF}"
+          git diff --ignore-space-change "${GITHUB_BASE_REF}...HEAD" -- ':(glob,icase)**/*.py' > diff_data.txt
           python tests/unit/no_cheat.py diff_data.txt > cheats.txt
           COUNT=$(cat cheats.txt | wc -c)
           if [ ${COUNT} -gt 1 ]; then
@@ -124,10 +124,10 @@ jobs:
 
       - name: Create dummy test file
         run: |
-          mkdir $INPUT_DIR_PARENT/snowflake
-          mkdir $INPUT_DIR_PARENT/tsql
-          echo "SELECT * FROM t;" >> $INPUT_DIR_PARENT/snowflake/dummy_test.sql
-          echo "SELECT * FROM t;" >> $INPUT_DIR_PARENT/tsql/dummy_test.sql
+          mkdir "${INPUT_DIR_PARENT}/snowflake"
+          mkdir "${INPUT_DIR_PARENT}/tsql"
+          echo "SELECT * FROM t;" >> "${INPUT_DIR_PARENT}/snowflake/dummy_test.sql"
+          echo "SELECT * FROM t;" >> "${INPUT_DIR_PARENT}/tsql/dummy_test.sql"
         shell: bash
 
       - name: Dry run coverage tests with make
