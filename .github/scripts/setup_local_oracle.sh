@@ -3,7 +3,7 @@ set -Eeuo pipefail
 
 # Config
 ORACLE_CONTAINER="${ORACLE_CONTAINER:-oracle-free}"
-ORACLE_IMAGE="${ORACLE_IMAGE:-container-registry.oracle.com/database/free:latest-lite}"
+ORACLE_IMAGE="${ORACLE_IMAGE:-container-registry.oracle.com/database/free@sha256:481dbb4a1ea7cac6aadd354ff42b48fb7e4df955725158f237ad58c8fca1f458}"  # latest-lite
 ORACLE_PORT="${ORACLE_PORT:-1521}"
 ORACLE_PWD="${ORACLE_PWD:?export ORACLE_PWD for SYS}"
 ORACLE_SID="${ORACLE_SID:-FREEPDB1}"
