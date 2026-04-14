@@ -39,6 +39,7 @@ else
   tar -xf "${spark_tarball}"
 fi
 
+printf "Downloading JDBC JARs and dependencies via Maven...\n"
 
 for artifact in \
   com.microsoft.azure:adal4j:1.6.4:jar \
@@ -64,7 +65,7 @@ printf '%s  %s\n' "${mssql_jdbc_sha256}" "$JARS_DIR/${mssql_jdbc}.jar" | sha256s
 # --- Start Spark Connect server ---
 
 rm -rf "${HOME}"/spark/"${spark}"/spark-warehouse
-echo "Cleared old spark warehouse default directory"
+printf "Cleared old spark warehouse default directory\n"
 
 cd "${spark}" || exit 1
 result=$(${SERVER_SCRIPT} --packages "org.apache.spark:${spark_connect}:${spark_version}" > "$HOME"/spark/log.out; echo $?)
@@ -72,23 +73,23 @@ result=$(${SERVER_SCRIPT} --packages "org.apache.spark:${spark_connect}:${spark_
 if [ "$result" -ne 0 ]; then
     count=$(tail "${HOME}"/spark/log.out | grep -c "SparkConnectServer running as process")
     if [ "${count}" == "0" ]; then
-            echo "Failed to start the server"
+            printf "Failed to start the server\n"
         exit 1
     fi
     # Wait for the server to start by pinging localhost:4040
-    echo "Waiting for the server to start..."
+    printf "Waiting for the server to start...\n"
     for i in {1..30}; do
         if nc -z localhost 4040; then
-            echo "Server is up and running"
+            printf "Server is up and running\n"
             break
         fi
-        echo "Server not yet available, retrying in 5 seconds..."
+        printf "Server not yet available, retrying in 5 seconds...\n"
         sleep 5
     done
 
     if ! nc -z localhost 4040; then
-        echo "Failed to start the server within the expected time"
+        printf "Failed to start the server within the expected time\n"
         exit 1
     fi
 fi
-echo "Started the Server"
+printf "Started the Server\n"
