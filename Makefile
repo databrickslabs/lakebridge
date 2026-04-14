@@ -66,17 +66,8 @@ python_coverage_report:
 dialect_coverage_report: clean_coverage_dir python_coverage_report
 	$(UV_RUN) python src/databricks/labs/lakebridge/coverage/local_report.py
 
-docs-build:
-	yarn --cwd docs/lakebridge build
-
-docs-serve-dev:
-	yarn --cwd docs/lakebridge start
-
-docs-install:
-	yarn --cwd docs/lakebridge install
-
-docs-serve: docs-build
-	yarn --cwd docs/lakebridge serve
+docs-build docs-serve-dev docs-install docs-serve:
+	$(MAKE) -C docs/lakebridge $(@:docs-%=%)
 
 .DEFAULT: all
 .PHONY: all clean dev lint fmt test integration coverage build lock-dependencies \
