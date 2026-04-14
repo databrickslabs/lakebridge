@@ -9,11 +9,11 @@ PKG_NAME="packages-microsoft-prod.deb"
 FILE_MANIFEST_URL="https://packages.microsoft.com/config/ubuntu/${VERSION_ID}/FILE_MANIFEST"
 FILE_MANIFEST="hashes.txt"
 
-curl -sSL -o "${FILE_MANIFEST}" "${FILE_MANIFEST_URL}"
+curl -fsSL -o "${FILE_MANIFEST}" "${FILE_MANIFEST_URL}"
 
 expected_hash=$(grep "${PKG_NAME}" "${FILE_MANIFEST}" | cut -d',' -f2)
 
-curl -sSL -O "https://packages.microsoft.com/config/ubuntu/${VERSION_ID}/${PKG_NAME}"
+curl -fsSL -O "https://packages.microsoft.com/config/ubuntu/${VERSION_ID}/${PKG_NAME}"
 printf "%s *packages-microsoft-prod.deb\n" "${expected_hash}" | sha256sum -c -
 
 # Install the Microsoft package repository configuration file using dpkg.
