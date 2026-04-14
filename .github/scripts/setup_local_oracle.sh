@@ -1,4 +1,5 @@
 #!/bin/bash
+# TODO: Replace this script with a GHA service container on the workflow.
 set -Eeuo pipefail
 
 # Config

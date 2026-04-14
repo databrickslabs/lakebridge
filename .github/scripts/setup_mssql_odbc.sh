@@ -1,5 +1,7 @@
 #!/bin/bash
 #
+# TODO: Replace with a job container that has msodbcsql18 pre-installed.
+#
 # Install the Microsoft ODBC driver for SQL Server.
 #
 # The FILE_MANIFEST from Microsoft is verified against a pinned checksum

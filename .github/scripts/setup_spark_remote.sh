@@ -1,5 +1,7 @@
 #!/bin/bash
 #
+# TODO: Replace this script with a GHA service container on the workflow.
+#
 # Set up Apache Spark in local Connect mode for integration tests.
 #
 # All downloads are pinned to exact versions and verified against embedded
