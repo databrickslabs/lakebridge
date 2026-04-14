@@ -11,7 +11,7 @@ FILE_MANIFEST="hashes.txt"
 
 curl -fsSL -o "${FILE_MANIFEST}" "${FILE_MANIFEST_URL}"
 
-expected_hash=$(grep "${PKG_NAME}" "${FILE_MANIFEST}" | cut -d',' -f2)
+expected_hash="$(awk -F, -v pkg="${PKG_NAME}" '$1==pkg {print $2}' "${FILE_MANIFEST}")"
 
 curl -fsSL -O "https://packages.microsoft.com/config/ubuntu/${VERSION_ID}/${PKG_NAME}"
 printf "%s *packages-microsoft-prod.deb\n" "${expected_hash}" | sha256sum -c -
