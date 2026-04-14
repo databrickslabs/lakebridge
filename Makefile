@@ -40,7 +40,8 @@ coverage:
 	hatch run coverage && open htmlcov/index.html
 
 clean_coverage_dir:
-	rm -fr ${OUTPUT_DIR}
+	@printf "Deleting: %s\n" "$${OUTPUT_DIR:?must be set}"
+	@rm -fr "$${OUTPUT_DIR}"
 
 python_coverage_report:
 	hatch run python src/databricks/labs/lakebridge/coverage/lakebridge_snow_transpilation_coverage.py
