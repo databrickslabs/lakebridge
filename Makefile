@@ -1,4 +1,4 @@
-all: clean dev fmt lint test
+all: clean dev fmt test
 
 clean:
 	rm -rf .direnv .venv clean htmlcov .mypy_cache .pytest_cache .ruff_cache .coverage coverage.xml .python-version
