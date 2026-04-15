@@ -1,124 +1,97 @@
-#!/usr/bin/env bash
-
-set -xve
+#!/bin/bash
+#
+# TODO: Replace this script with a GHA service container on the workflow.
+#
+# Set up Apache Spark in local Connect mode for integration tests.
+#
+# All downloads are pinned to exact versions and verified against embedded
+# cryptographic checksums before use.
+#
+set -eu
 
 mkdir -p "$HOME"/spark
 cd "$HOME"/spark || exit 1
 
-version=$(wget -O - https://downloads.apache.org/spark/ | grep 'href="spark-3\.[0-9.]*/"' | sed 's:</a>:\n:g' | sed -n 's/.*>//p' | tr -d spark/- | sort -r --version-sort | head -1)
-if [ -z "$version" ]; then
-  echo "Failed to extract Spark version"
-   exit 1
-fi
-
-spark=spark-${version}-bin-hadoop3
+# Spark Connect server still points to 3.5.5
+spark_version="3.5.5"
+spark="spark-${spark_version}-bin-hadoop3"
 spark_connect="spark-connect_2.12"
-mkdir -p "${spark}"
+spark_sha256='8daa3f7fb0af2670fe11beb8a2ac79d908a534d7298353ec4746025b102d5e31'
 
-SERVER_SCRIPT=$HOME/spark/${spark}/sbin/start-connect-server.sh
-
-## check the spark version already exist ,if not download the respective version
-if [ -f "${SERVER_SCRIPT}" ];then
-  echo "Spark Version already exists"
-else
-  if [ -f "${spark}.tgz" ];then
-    echo "${spark}.tgz already exists"
-  else
-    wget "https://downloads.apache.org/spark/spark-${version}/${spark}.tgz"
-  fi
-  tar -xvf "${spark}.tgz"
-fi
-
-JARS_DIR=$HOME/spark/${spark}/jars
 mssql_jdbc_version="1.4.0"
 mssql_jdbc="spark-mssql-connector_2.12-${mssql_jdbc_version}-BETA"
-MSSQL_JDBC_JAR=$JARS_DIR/${mssql_jdbc}.jar
+mssql_jdbc_sha256="1057e93d946dffd2ecac1c11bcc40fdf51110c5a99e9e7379a9568584cc3de7f"
 ORACLE_JDBC_VERSION="19.28.0.0"
-ORACLE_JDBC_JAR="ojdbc8-${ORACLE_JDBC_VERSION}.jar"
 SNOWFLAKE_JDBC_VERSION="3.26.1"
-SNOWFLAKE_JDBC_JAR="snowflake-jdbc-${SNOWFLAKE_JDBC_VERSION}.jar"
-SNOWFLAKE_JDBC_JAR_PATH="$JARS_DIR/$SNOWFLAKE_JDBC_JAR"
 SNOWFLAKE_SPARK_VERSION="2.11.2-spark_3.3"
-SNOWFLAKE_SPARK_JAR="spark-snowflake_2.12-${SNOWFLAKE_SPARK_VERSION}.jar"
-SNOWFLAKE_SPARK_JAR_PATH="$JARS_DIR/$SNOWFLAKE_SPARK_JAR"
 
-if [ -f "${MSSQL_JDBC_JAR}" ];then
-  echo "MSSQL JAR already exists"
+mkdir -p "${spark}"
+SERVER_SCRIPT=$HOME/spark/${spark}/sbin/start-connect-server.sh
+JARS_DIR=$HOME/spark/${spark}/jars
+
+if [ -f "${SERVER_SCRIPT}" ]; then
+  printf "Spark %s already exists\n" "${spark_version}"
 else
-  echo "Downloading MSSQL JAR and dependencies"
-  ## fixes ClassNotFoundException: com.microsoft.sqlserver.jdbc.SQLServerDriver
-  ## per https://github.com/microsoft/sql-spark-connector/issues/26#issuecomment-686155736
-  wget https://repo1.maven.org/maven2/com/microsoft/azure/adal4j/1.6.4/adal4j-1.6.4.jar -O "$JARS_DIR"/adal4j-1.6.4.jar
-  wget https://repo1.maven.org/maven2/com/nimbusds/oauth2-oidc-sdk/6.5/oauth2-oidc-sdk-6.5.jar -O "$JARS_DIR"/oauth2-oidc-sdk-6.5.jar
-  wget https://repo1.maven.org/maven2/com/google/code/gson/gson/2.8.0/gson-2.8.0.jar -O "$JARS_DIR"/gson-2.8.0.jar
-  wget https://repo1.maven.org/maven2/net/minidev/json-smart/1.3.1/json-smart-1.3.1.jar -O "$JARS_DIR"/json-smart-1.3.1.jar
-  wget https://repo1.maven.org/maven2/com/nimbusds/nimbus-jose-jwt/8.2.1/nimbus-jose-jwt-8.2.1.jar -O "$JARS_DIR"/nimbus-jose-jwt-8.2.1.jar
-  wget https://repo1.maven.org/maven2/org/slf4j/slf4j-api/1.7.21/slf4j-api-1.7.21.jar -O "$JARS_DIR"/slf4j-api-1.7.21.jar
-  wget https://repo1.maven.org/maven2/com/microsoft/sqlserver/mssql-jdbc/6.4.0.jre8/mssql-jdbc-6.4.0.jre8.jar -O "$JARS_DIR"/mssql-jdbc-6.4.0.jre8.jar
-  wget "https://github.com/microsoft/sql-spark-connector/releases/download/v${mssql_jdbc_version}/${mssql_jdbc}.jar" -O "$JARS_DIR"/${mssql_jdbc}.jar
-fi
-
-if [ -f "$JARS_DIR/$ORACLE_JDBC_JAR" ]; then
-  echo "Oracle JDBC JAR already exists"
-else
-  echo "Downloading Oracle JDBC JAR"
-  wget "https://repo1.maven.org/maven2/com/oracle/database/jdbc/ojdbc8/${ORACLE_JDBC_VERSION}/ojdbc8-${ORACLE_JDBC_VERSION}.jar" -O "$JARS_DIR/$ORACLE_JDBC_JAR"
-  if [ $? -ne 0 ]; then
-      echo "Failed to download Oracle JDBC JAR"
-      exit 1
-    fi
-fi
-
-
-if [ -f "${SNOWFLAKE_JDBC_JAR_PATH}" ]; then
-  echo "Snowflake JDBC JAR already exists"
-else
-  echo "Downloading Snowflake JDBC JAR"
-  wget "https://repo1.maven.org/maven2/net/snowflake/snowflake-jdbc/${SNOWFLAKE_JDBC_VERSION}/${SNOWFLAKE_JDBC_JAR}" -O "${SNOWFLAKE_JDBC_JAR_PATH}"
-  if [ $? -ne 0 ]; then
-    echo "Failed to download Snowflake JDBC JAR"
-    exit 1
+  spark_tarball="${spark}.tgz"
+  if [ ! -f "${spark_tarball}" ]; then
+    printf "Downloading Spark %s...\n" "${spark_version}"
+    curl -fsSL "https://archive.apache.org/dist/spark/spark-${spark_version}/${spark_tarball}" -o "${spark_tarball}"
   fi
+  printf '%s  %s\n' "${spark_sha256}" "${spark_tarball}" | sha256sum -c >/dev/null
+  tar -xf "${spark_tarball}"
 fi
-if [ -f "${SNOWFLAKE_SPARK_JAR_PATH}" ]; then
-  echo "Snowflake Spark Connector JAR already exists"
-else
-  echo "Downloading Snowflake Spark Connector JAR"
-  wget "https://repo1.maven.org/maven2/net/snowflake/spark-snowflake_2.12/${SNOWFLAKE_SPARK_VERSION}/${SNOWFLAKE_SPARK_JAR}" -O "${SNOWFLAKE_SPARK_JAR_PATH}"
-  if [ $? -ne 0 ]; then
-    echo "Failed to download Snowflake Spark Connector JAR"
-    exit 1
-  fi
-fi
+
+printf "Downloading JDBC JARs and dependencies via Maven...\n"
+
+for artifact in \
+  com.microsoft.azure:adal4j:1.6.4:jar \
+  com.nimbusds:oauth2-oidc-sdk:6.5:jar \
+  com.google.code.gson:gson:2.8.0:jar \
+  net.minidev:json-smart:1.3.1:jar \
+  com.nimbusds:nimbus-jose-jwt:8.2.1:jar \
+  org.slf4j:slf4j-api:1.7.21:jar \
+  com.microsoft.sqlserver:mssql-jdbc:6.4.0.jre8:jar \
+  com.oracle.database.jdbc:ojdbc8:${ORACLE_JDBC_VERSION}:jar \
+  net.snowflake:snowflake-jdbc:${SNOWFLAKE_JDBC_VERSION}:jar \
+  net.snowflake:spark-snowflake_2.12:${SNOWFLAKE_SPARK_VERSION}:jar
+do
+  mvn dependency:copy -q --strict-checksums -DoutputDirectory="$JARS_DIR" -Dartifact="${artifact}" &
+done
+wait
+
+# The sql-spark-connector is not on Maven Central; download from GitHub.
+curl -fsSL -o "$JARS_DIR/${mssql_jdbc}.jar" \
+  "https://github.com/microsoft/sql-spark-connector/releases/download/v${mssql_jdbc_version}/${mssql_jdbc}.jar"
+printf '%s  %s\n' "${mssql_jdbc_sha256}" "$JARS_DIR/${mssql_jdbc}.jar" | sha256sum -c >/dev/null
+
+# --- Start Spark Connect server ---
 
 rm -rf "${HOME}"/spark/"${spark}"/spark-warehouse
-echo "Cleared old spark warehouse default directory"
+printf "Cleared old spark warehouse default directory\n"
 
 cd "${spark}" || exit 1
-## check spark remote is running,if not start the spark remote
-## Temporary workaround for Spark Connect server still points to 3.5.5
-result=$(${SERVER_SCRIPT} --packages org.apache.spark:${spark_connect}:"3.5.5" > "$HOME"/spark/log.out; echo $?)
+result=$(${SERVER_SCRIPT} --packages "org.apache.spark:${spark_connect}:${spark_version}" > "$HOME"/spark/log.out; echo $?)
 
 if [ "$result" -ne 0 ]; then
     count=$(tail "${HOME}"/spark/log.out | grep -c "SparkConnectServer running as process")
     if [ "${count}" == "0" ]; then
-            echo "Failed to start the server"
+            printf "Failed to start the server\n"
         exit 1
     fi
     # Wait for the server to start by pinging localhost:4040
-    echo "Waiting for the server to start..."
+    printf "Waiting for the server to start...\n"
     for i in {1..30}; do
         if nc -z localhost 4040; then
-            echo "Server is up and running"
+            printf "Server is up and running\n"
             break
         fi
-        echo "Server not yet available, retrying in 5 seconds..."
+        printf "Server not yet available, retrying in 5 seconds...\n"
         sleep 5
     done
 
     if ! nc -z localhost 4040; then
-        echo "Failed to start the server within the expected time"
+        printf "Failed to start the server within the expected time\n"
         exit 1
     fi
 fi
-echo "Started the Server"
+printf "Started the Server\n"

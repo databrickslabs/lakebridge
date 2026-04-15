@@ -6,6 +6,9 @@ on:
       - 'v[0-9]+.[0-9]+.[0-9]+' # Must match semantic version tags like 'v1.2.3'
   workflow_dispatch: # Allows manual triggering of the workflow
 
+permissions:
+  contents: read
+
 jobs:
   build:
     name: Build Docusaurus
@@ -26,10 +29,11 @@ jobs:
           cache: yarn
           cache-dependency-path: docs/lakebridge/yarn.lock # need to put the lockfile path explicitly
 
-      - name: Install dependencies
-        run: yarn install --frozen-lockfile
+      - name: Configure documentation environment
+        run: make dev
+
       - name: Build website
-        run: yarn build
+        run: make build
 
       - name: Upload Build Artifact
         uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4.0.0

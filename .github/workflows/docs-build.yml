@@ -10,6 +10,9 @@ on:
     paths:
       - 'docs/**'
 
+permissions:
+  contents: read
+
 jobs:
   build:
     name: Build Docusaurus
@@ -29,7 +32,8 @@ jobs:
           cache: yarn
           cache-dependency-path: docs/lakebridge/yarn.lock # need to put the lockfile path explicitly
 
-      - name: Install dependencies
-        run: yarn install --frozen-lockfile
+      - name: Configure documentation environment
+        run: make dev
+
       - name: Build website
         run: yarn build

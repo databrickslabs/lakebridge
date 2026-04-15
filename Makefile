@@ -1,65 +1,75 @@
-all: clean dev fmt lint test
+all: clean dev fmt test
 
-clean:
-	rm -rf .direnv .venv clean htmlcov .mypy_cache .pytest_cache .ruff_cache .coverage coverage.xml .python-version
+# Ensure that all uv commands don't automatically update the lock file: instead they use the locked dependencies.
+export UV_FROZEN := 1
+# Ensure that hatchling is pinned when builds are needed.
+export UV_BUILD_CONSTRAINT := .build-constraints.txt
 
-setup_python:
-	@echo "You have selected python setup with pyenv. It will install pyenv on your system."
-	brew list pyenv &>/dev/null || brew install pyenv
-	pyenv install -s 3.10
-	pyenv local 3.10
-	pyenv init - | grep PATH | tail -1
-	@echo "Append the above line (export PATH...) to your profile i.e ~/.zshrc or ~/.bash_profile or ~/.profile and resource your profile for the changes in PATH variable to take effect."
+UV_RUN := uv run --exact --all-extras
+UV_TEST := $(UV_RUN) pytest --timeout 30 --durations 20 --cov=src
 
+clean: docs-clean
+	rm -fr .venv clean htmlcov .mypy_cache .pytest_cache .ruff_cache .coverage coverage.xml
+	find . -name '__pycache__' -print0 | xargs -0 rm -fr
 
 dev:
-	which hatch > /dev/null || pip3 install hatch
-	hatch env create
-	hatch run pip3 install --upgrade pip
-	hatch run pip3 install -e '.[test]'
-	hatch run which python
-	@echo "Hatch has created the above virtual environment. Please activate it using 'source .venv/bin/activate' and also select the .venv/bin/python interpreter in your IDE."
-
+	uv sync --all-extras
 
 lint:
-	hatch run verify
+	$(UV_RUN) black --check .
+	$(UV_RUN) ruff check .
+	$(UV_RUN) mypy --disable-error-code 'annotation-unchecked' .
+	$(UV_RUN) pylint --output-format=colorized -j 0 src tests
 
 fmt:
-	hatch run fmt
+	$(UV_RUN) black .
+	$(UV_RUN) ruff check . --fix
+	$(UV_RUN) mypy --disable-error-code 'annotation-unchecked' .
+	$(UV_RUN) pylint --output-format=colorized -j 0 src tests
 
 setup_spark_remote:
 	.github/scripts/setup_spark_remote.sh
 
 test:
-	hatch run test
+	$(UV_TEST) --cov-report=xml tests/unit
 
 integration: setup_spark_remote
-	hatch run integration
+	$(UV_TEST) tests/integration
 
 coverage:
-	hatch run coverage && open htmlcov/index.html
+	$(UV_TEST) --cov-report=html tests \
+	           --ignore=tests/integration/install \
+	           --ignore=tests/integration/connections \
+	           --ignore=tests/integration/assessments
+	open htmlcov/index.html
+
+build:
+	uv build --require-hashes --build-constraints=.build-constraints.txt
+
+lock-dependencies: UV_FROZEN := 0
+lock-dependencies:
+	uv lock
+	$(UV_RUN) --group yq tomlq -r '.["build-system"].requires[]' pyproject.toml | \
+	    uv pip compile --generate-hashes --universal --no-header --quiet - > build-constraints-new.txt
+	mv build-constraints-new.txt .build-constraints.txt
+	perl -pi -e 's|registry = "https://[^"]*"|registry = "https://pypi.org/simple/"|g' uv.lock
 
 clean_coverage_dir:
-	rm -fr ${OUTPUT_DIR}
+	@printf "Deleting: %s\n" "$${OUTPUT_DIR:?must be set}"
+	@rm -fr "$${OUTPUT_DIR}"
 
 python_coverage_report:
-	hatch run python src/databricks/labs/lakebridge/coverage/lakebridge_snow_transpilation_coverage.py
-	hatch run pip install --upgrade sqlglot
-	hatch -e sqlglot-latest run python src/databricks/labs/lakebridge/coverage/sqlglot_snow_transpilation_coverage.py
-	hatch -e sqlglot-latest run python src/databricks/labs/lakebridge/coverage/sqlglot_tsql_transpilation_coverage.py
+	$(UV_RUN) python src/databricks/labs/lakebridge/coverage/lakebridge_snow_transpilation_coverage.py
+	$(UV_RUN) --group sqlglot python src/databricks/labs/lakebridge/coverage/sqlglot_snow_transpilation_coverage.py
+	$(UV_RUN) --group sqlglot python src/databricks/labs/lakebridge/coverage/sqlglot_tsql_transpilation_coverage.py
 
 dialect_coverage_report: clean_coverage_dir python_coverage_report
-	hatch run python src/databricks/labs/lakebridge/coverage/local_report.py
+	$(UV_RUN) python src/databricks/labs/lakebridge/coverage/local_report.py
 
+docs-clean docs-dev docs-build docs-serve-dev docs-serve docs-lock-dependencies:
+	$(MAKE) -C docs/lakebridge $(@:docs-%=%)
 
-docs-build:
-	yarn --cwd docs/lakebridge build
-
-docs-serve-dev:
-	yarn --cwd docs/lakebridge start
-
-docs-install:
-	yarn --cwd docs/lakebridge install
-
-docs-serve: docs-build
-	yarn --cwd docs/lakebridge serve
+.DEFAULT: all
+.PHONY: all clean dev lint fmt test integration coverage build lock-dependencies \
+	setup_spark_remote clean_coverage_dir python_coverage_report dialect_coverage_report \
+	docs-clean docs-dev docs-build docs-serve-dev docs-serve docs-lock-dependencies
