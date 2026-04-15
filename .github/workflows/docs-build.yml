@@ -25,7 +25,9 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
         with:
-          sparse-checkout: docs
+          sparse-checkout: |
+            .github/actions
+            docs
           sparse-checkout-cone-mode: 'true'
 
       - uses: oven-sh/setup-bun@ecf28ddc73e819eb6fa29df6b34ef8921c743461  # v2.1.3
