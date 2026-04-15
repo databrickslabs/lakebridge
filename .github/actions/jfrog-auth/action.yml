@@ -1,5 +1,10 @@
 name: 'Authenticate for JFrog'
 description: 'Authenticate with JFrog using OIDC based on the GitHub repository.'
+# Some things to note:
+#  - Run this _after_ installing any tools that need to use JFrog; auth is configured all the (supported) tools that it detects.
+#  - Where possible we avoid presenting tokens in environment variables, preferring to write them into files instead.
+#    (Tokens in environment variables tend to be more exposed and easier to leak than those written into files.)
+#
 # TODO: Factor out into an external action, once releases are allowed.
 outputs:
   jfrog-access-token:
