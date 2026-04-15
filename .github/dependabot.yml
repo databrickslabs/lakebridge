@@ -8,3 +8,9 @@ updates:
         - "databricks*"
     schedule:
       interval: "daily"
+  - package-ecosystem: "npm"
+    directory: "/docs/lakebridge"
+    cooldown:
+      default-days: 7
+    schedule:
+      interval: "daily"
