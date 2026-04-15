@@ -45,7 +45,7 @@ runs:
         # Environment variables loaded by bun.
         jfrog_access_token='${JFROG_ACCESS_TOKEN}'
         EOF
-        printf '%s=%s\n' 'BUN_OPTIONS' "--env-file=${RUNNER_TEMP}/.bun.env --use-system-ca" >> "${GITHUB_ENV}"
+        printf '%s=%s\n' 'BUN_OPTIONS' "--env-file=${RUNNER_TEMP}/.bun.env --use-openssl-ca" >> "${GITHUB_ENV}"
 
     - name: Configure pip for JFrog
       if: "${{ steps.detect-cmds.outputs.command_pip3 == 'true' }}"
