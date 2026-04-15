@@ -37,6 +37,10 @@ jobs:
       - name: Setup for JFrog
         uses: ./.github/actions/jfrog-auth
 
+      - name: Debugging
+        run: |
+          curl -k -v -I https://databricks.jfrog.io/artifactory/api/npm/db-npm/
+
       - name: Configure documentation environment
         run: make docs-dev
 
