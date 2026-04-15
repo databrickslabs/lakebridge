@@ -121,9 +121,9 @@ This section provides a step-by-step guide to set up and start working on the pr
 To begin, install prerequisites:
 
 ```shell
-brew install uv
+brew tap oven-sh/bun
+brew install bun uv
 ```
-
 
 ### Python Configuration
 
