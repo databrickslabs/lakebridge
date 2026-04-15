@@ -8,7 +8,7 @@ export UV_BUILD_CONSTRAINT := .build-constraints.txt
 UV_RUN := uv run --exact --all-extras
 UV_TEST := $(UV_RUN) pytest --timeout 30 --durations 20 --cov=src
 
-clean:
+clean: docs-clean
 	rm -fr .venv clean htmlcov .mypy_cache .pytest_cache .ruff_cache .coverage coverage.xml
 	find . -name '__pycache__' -print0 | xargs -0 rm -fr
 
@@ -66,10 +66,10 @@ python_coverage_report:
 dialect_coverage_report: clean_coverage_dir python_coverage_report
 	$(UV_RUN) python src/databricks/labs/lakebridge/coverage/local_report.py
 
-docs-build docs-serve-dev docs-install docs-serve:
+docs-clean docs-dev docs-build docs-serve-dev docs-serve docs-lock-dependencies:
 	$(MAKE) -C docs/lakebridge $(@:docs-%=%)
 
 .DEFAULT: all
 .PHONY: all clean dev lint fmt test integration coverage build lock-dependencies \
 	setup_spark_remote clean_coverage_dir python_coverage_report dialect_coverage_report \
-	docs-build docs-serve-dev docs-install docs-serve
+	docs-clean docs-dev docs-build docs-serve-dev docs-serve docs-lock-dependencies
