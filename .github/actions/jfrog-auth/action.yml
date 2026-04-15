@@ -18,12 +18,29 @@ runs:
       name: Detecting python package/project managers.
       shell: bash
       run: |
-        for cmd in pip3 uv
+        for cmd in bun pip3 uv
         do
           command -v "${cmd}" > /dev/null && found=true || found=false
           printf '::debug::%s\n' "Found ${cmd}: ${found}"
           printf '%s=%s\n' "command_${cmd}" "${found}" >> "${GITHUB_OUTPUT}"
         done
+
+    - name: Configure bun for JFrog
+      if: "${{ steps.detect-cmds.outputs.command_bun == 'true' }}"
+      shell: bash
+      env:
+        JFROG_ACCESS_TOKEN: "${{ steps.jfrog-auth.outputs.jfrog-access-token }}"
+      run: |
+        umask 077
+        cat > "${HOME}"/.bunfig.toml << EOF
+        [install]
+        registry = { url = "https://databricks.jfrog.io/artifactory/api/npm/db-npm/", token = "$jfrog_access_token" }
+        EOF
+        cat > "$RUNNER_TEMP/.bun.env" << EOF
+        # Environment variables loaded by bun.
+        jfrog_access_token='${JFROG_ACCESS_TOKEN}'
+        EOF
+        printf '%s=%s\n' 'BUN_OPTIONS' "--env-file=${RUNNER_TEMP}/.bun.env" >> "${GITHUB_ENV}"
 
     - name: Configure pip for JFrog
       if: "${{ steps.detect-cmds.outputs.command_pip3 == 'true' }}"
