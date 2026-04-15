@@ -40,6 +40,8 @@ jobs:
       - name: Debugging
         run: |
           curl -k -v -I https://databricks.jfrog.io/artifactory/api/npm/db-npm/
+          printenv
+          curl -v -I https://databricks.jfrog.io/artifactory/api/npm/db-npm/
 
       - name: Configure documentation environment
         run: make docs-dev
