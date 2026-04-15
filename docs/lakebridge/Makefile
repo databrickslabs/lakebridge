@@ -4,21 +4,22 @@ clean:
 	rm -fr node_modules build .docusaurus
 
 dev:
-	yarn install --frozen-lockfile
+	bun install
 
 build:
-	yarn build
+	bun run build
 
 serve-dev:
-	yarn start
+	bun run start
 
 serve: build
-	yarn serve
+	bun run serve
 
 lock-dependencies:
-	rm -f yarn.lock
-	yarn install
-	perl -pi -e 's|resolved "https://[^/]+/|resolved "https://registry.yarnpkg.com/|' yarn.lock
+	@rm -f bun.lock
+	bun install --lockfile-only
+	@perl -pi -e 's|"https://[^/]+/([^"]*\.tgz)"|""|g' bun.lock
+	@printf 'Stripped repository references from bun.lock.\n'
 
 .DEFAULT: all
 .PHONY: all clean dev build serve-dev serve lock-dependencies
