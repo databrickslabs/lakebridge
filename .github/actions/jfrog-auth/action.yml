@@ -24,7 +24,7 @@ runs:
       name: Detecting python package/project managers.
       shell: bash
       run: |
-        for cmd in bun pip3 uv
+        for cmd in bun npm pip3 uv
         do
           command -v "${cmd}" > /dev/null && found=true || found=false
           printf '::debug::%s\n' "Found ${cmd}: ${found}"
@@ -78,3 +78,17 @@ runs:
         printf '%s=%s\n' 'UV_INDEX_URL' "${UV_INDEX_URL}" >> "${GITHUB_ENV}"
         printf '%s=%s\n' 'UV_FROZEN' '1' >> "${GITHUB_ENV}"
         printf '::notice::%s\n' 'Configured JFrog access for uv.'
+
+    - name: Configure npm/yarn (classic) for JFrog
+      if: "${{ steps.detect-cmds.outputs.command_npm == 'true' }}"
+      shell: bash
+      env:
+        JFROG_ACCESS_TOKEN: "${{ steps.jfrog-auth.outputs.jfrog-access-token }}"
+      run: |
+        umask 077
+        cat > "${HOME}/.npmrc" << EOF
+        registry=https://databricks.jfrog.io/artifactory/api/npm/db-npm/
+        ignore-scripts=true
+        //databricks.jfrog.io/artifactory/api/npm/db-npm/:_authToken=${JFROG_ACCESS_TOKEN}
+        EOF
+        printf '::notice::%s\n' 'Configured JFrog access for npm/yarn (classic).'
