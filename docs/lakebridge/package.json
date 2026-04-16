@@ -59,8 +59,9 @@
     ]
   },
   "engines": {
-    "node": ">=18.0"
+    "node": ">=25.0 <26"
   },
+  "engineStrict": true,
   "resolutions": {
     "ajv": ">=8.18.0",
     "brace-expansion": "^1.1.12",
