@@ -30,7 +30,7 @@ jobs:
         with:
           node-version: 24.14.1
           cache: yarn
-          cache-dependency-path: docs/lakebridge/yarn.lock # need to put the lockfile path explicitly
+          cache-dependency-path: docs/lakebridge/yarn.lock
 
       - name: Configure documentation environment
         run: make dev
