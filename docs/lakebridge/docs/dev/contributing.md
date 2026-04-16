@@ -120,9 +120,8 @@ This section provides a step-by-step guide to set up and start working on the pr
 
 To begin, install prerequisites:
 
-`wget` is used for downloading tools required by remote spark test suite.
 ```shell
-brew install wget
+brew install uv
 ```
 
 
@@ -131,49 +130,30 @@ brew install wget
 Once you are done with cloning this project to your local machine, you may follow the steps
 mentioned below.
 
-* We recommend using `pyenv` as Python Version Manager. While Lakebridge is currently developed and built on
-`Python 3.10`, having a version management tool like `pyenv` gives us the flexibility to manage the python versions easily for
-future enhancements while maintaining the standards.
-
-If you don't already have `pyenv` installed on your local machine, you can run the below command from
-the project directory to install it.
+* Install [uv](https://docs.astral.sh/uv/) if you don't have it already:
 
 ```shell
-make setup_python
+brew install uv
 ```
-This installation uses python version `3.10`. After you run the above command, The Terminal output will contain and export command
-to update your PATH variable. Append the line (export PATH...) to your profile i.e `~/.zshrc` or `~/.bash_profile` or `~/.profile` and resource your profile for the changes in PATH variable to take effect.
-you might have to restart your terminal to reflect the changes (While it depends on the type of shell, restarting the terminal is always a best practice after updating a Profile variable).
 
-* Once you have `pyenv` installed on your local machine, you may run the below command which will setup the development environment for you
-with all the necessary dependencies required to build and compile your project.
+* Run the following command to set up the development environment with all the necessary dependencies:
 
 ```shell
 make dev
 ```
 
-The above statement  installs `Hatch` (Python Project Manager) which is used
-to create a virtual environment (`.venv/bin/python`) for your project inside the project directory with all
-the necessary libraries and project dependencies.
+This creates a virtual environment (`.venv/`) with all libraries and project dependencies.
 
-* If you don't want to use `pyenv`, make sure you have `python3.10` installed on you system. You can use your system `python3.10` interpreter to
-directly run `make dev`.
+* You can verify the installation with:
 
-* Once your virtual environment creation is complete. Make sure you have activated that on your terminal
-to start working on the project.
-
-```shell
-source .venv/bin/activate
-```
-
-You can verify installation with
 ```shell
 make test
 ```
 
-To ensure your integrated development environment (IDE) uses the newly created virtual environment, you can retrieve the Python path with this command:
+* To check the Python version and path being used:
+
 ```shell
-hatch run python -c "import sys; print(sys.version); print(sys.executable)"
+uv run python -c "import sys; print(sys.version); print(sys.executable)"
 ```
 
 While you may choose an IDE of your choice (PyCharm, VS Code, IntelliJ IDEA), the below IDE configuration is in reference with IntelliJ IDEA CE.

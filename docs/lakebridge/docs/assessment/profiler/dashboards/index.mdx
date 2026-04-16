@@ -1,0 +1,121 @@
+---
+sidebar_position: 1
+title: Profiler Summary Dashboard
+---
+import Admonition from '@theme/Admonition';
+
+# Profiler Summary Dashboard
+
+:::warning Attention:
+The Profiler Summary Dashboard is currently an Experimental feature in Lakebridge. For any feedback and/or issues,
+feel free to reach out via Github issues.
+:::
+
+## Overview
+
+The `visualize-profiler-results` command uploads a DuckDB profiler extract file to a Unity Catalog Volume,
+deploys a source-specific Lakeview dashboard template to your Databricks workspace, and triggers an ingestion job
+that loads the extract data into Delta tables. The result is a live dashboard you can open immediately in your browser.
+
+## Prerequisites
+
+- Unity Catalog must be enabled on your Databricks workspace.
+- Your user account must have sufficient privileges on the target catalog, schema, and volume:
+  - `CREATE CATALOG` (or `USE CATALOG` on an existing catalog)
+  - `CREATE SCHEMA` (or `USE SCHEMA` on an existing schema)
+  - `CREATE VOLUME` (or `READ VOLUME` + `WRITE VOLUME` on an existing volume)
+- At least one **PRO** or **SERVERLESS** SQL warehouse must be available in the workspace.
+- A profiler extract file (`.db`) must already exist locally, produced by a previous
+  `execute-database-profiler` run.
+
+## Supported Sources
+
+| Source Platform | Configuration Status |
+|:---------------:|:-------------------:|
+| <a href="../synapse" style={{ fontWeight: 'bold', color: '#1976d2', textDecoration: 'underline' }}>Azure Synapse</a> | &#x2705; |
+| Amazon Redshift | &#x274C; |
+| Oracle | &#x1F538; Coming Soon |
+| Microsoft SQL Server | &#x1F538; Coming Soon |
+| Snowflake | &#x1F538; Coming Soon |
+
+## Running the Command
+
+```bash
+databricks labs lakebridge visualize-profiler-results
+```
+
+The command is fully interactive — there are no CLI flags. It walks you through the following prompts:
+
+```console
+# Shown only when a profiler dashboard is already installed
+Do you want to override the existing installation? [y/n]:
+
+Enter the source tech: [synapse]
+Enter the path to the profiler extract file: [/tmp/data/synapse_assessment/profiler_extract.db]
+Enter catalog name [remorph]:
+Enter schema name [profiler]:
+Enter volume name [ingestion_volume]:
+
+# Shown if the catalog does not exist
+Catalog `<name>` doesn't exist. Create it? [y/n]:
+
+# Shown if the schema does not exist in the catalog
+Schema `<name>` doesn't exist in catalog `<catalog>`. Create it? [y/n]:
+
+# Shown if the volume does not exist in the catalog and schema
+Volume `<name>` doesn't exist in catalog `<catalog>` and schema `<schema>`. Create it? [y/n]:
+```
+
+Default values are shown in brackets `[…]`. Press **Enter** to accept a default.
+
+## What Happens After You Run
+
+1. **Extract uploaded** — the local file is uploaded to the UC Volume at
+   `/Volumes/<catalog>/<schema>/<volume>/<filename>`.
+2. **Dashboard deployed** — a Lakeview dashboard is created from the source-specific template.
+   The placeholders `` `PROFILER_CATALOG` `` and `` `PROFILER_SCHEMA` `` in the template are substituted
+   with the catalog and schema names you provided.
+3. **Ingestion job created and run** — a Databricks job named `"Profiler Dashboard Ingestion Job"` is
+   created in your workspace and immediately executed. It **overwrites** all profiler Delta tables with
+   the data from the extract file you specified. Existing table data is not preserved.
+4. **Configuration saved** — your choices are persisted to `profiler_dashboard.yml` in the Lakebridge
+   install folder for future reference.
+
+## Data Behavior Details
+
+**Volume path resolution**
+The extract file is uploaded to `/Volumes/<catalog>/<schema>/<volume>`. If the resolved UC Volume path
+already ends with a file suffix (e.g. `.db`), that path is used as-is. Otherwise the extract filename
+is automatically appended to the volume path.
+
+**Re-running the command**
+
+:::caution Data overwrite — no append support
+Each run **completely replaces** the profiler Delta tables with the contents of the extract file you
+provide. Data from previous runs is not preserved or merged. If you have run `execute-database-profiler`
+multiple times and want to keep historical data, you must manage that yourself before re-running this
+command.
+:::
+
+In addition to the table overwrite, any previously deployed profiler dashboard is automatically deleted
+and replaced with the latest template. You will be prompted to confirm the override before any changes
+are made.
+
+**Configuration persistence**
+Answers to all prompts are saved as `profiler_dashboard.yml` in the Lakebridge install folder. On
+subsequent runs the command detects this file and asks `Do you want to override the existing installation?`
+before proceeding.
+
+## Error Reference
+
+| Condition | Logged Message | Remediation |
+|-----------|----------------|-------------|
+| Local extract file missing | `Local file not found: <path>` | Verify the path; run `execute-database-profiler` first to generate the extract |
+| Volume path invalid | `Invalid Volume path provided` | Ensure the volume exists and that the path resolves to a location starting with `/Volumes/` |
+| Insufficient permissions | `Insufficient privileges detected while accessing Volume path` | Grant `CREATE`/`WRITE` privileges on the catalog, schema, and volume to your user |
+| Databricks internal error | `Internal Databricks error while uploading extract file` | Retry the command; contact Databricks support if the error persists |
+
+## Related Commands
+
+- [Configure Profiler](../#configure-profiler) — set up connection details before profiling
+- [Execute Profiler](../#execute-profiler) — run the profiler to generate the extract file consumed by this command
