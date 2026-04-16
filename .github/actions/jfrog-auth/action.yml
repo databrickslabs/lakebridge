@@ -47,7 +47,7 @@ runs:
         jfrog_access_token='${JFROG_ACCESS_TOKEN}'
         EOF
         printf '%s=%s\n' 'BUN_OPTIONS' "--env-file=${RUNNER_TEMP}/.bun.env" >> "${GITHUB_ENV}"
-        printf '::notice::%s\n' 'Configured JFrog access for bun.'
+        printf '::debug::%s\n' 'Configured JFrog access for bun.'
         # There are currently the following issues with JFrog:
         #  - The default set of CAs doesn't seem to cover the ones used by our JFrog instance.
         #  - The JSON metadata returned for some NPM artefacts can be invalid JSON.
@@ -65,7 +65,7 @@ runs:
         index-url = https://gha-service-account:${JFROG_ACCESS_TOKEN}@databricks.jfrog.io/artifactory/api/pypi/db-pypi/simple
         EOF
         printf '%s=%s\n' 'PIP_CONFIG_FILE' "${RUNNER_TEMP}/.pip.conf" >> "${GITHUB_ENV}"
-        printf '::notice::%s\n' 'Configured JFrog access for pip.'
+        printf '::debug::%s\n' 'Configured JFrog access for pip.'
 
     - name: Configure uv for JFrog
       if: "${{ steps.detect-cmds.outputs.command_uv == 'true' }}"
@@ -77,7 +77,7 @@ runs:
         uv auth login "${UV_INDEX_URL}" --username gha-service-account --password "${JFROG_ACCESS_TOKEN}"
         printf '%s=%s\n' 'UV_INDEX_URL' "${UV_INDEX_URL}" >> "${GITHUB_ENV}"
         printf '%s=%s\n' 'UV_FROZEN' '1' >> "${GITHUB_ENV}"
-        printf '::notice::%s\n' 'Configured JFrog access for uv.'
+        printf '::debug::%s\n' 'Configured JFrog access for uv.'
 
     - name: Configure npm/yarn (classic) for JFrog
       if: "${{ steps.detect-cmds.outputs.command_npm == 'true' }}"
@@ -92,4 +92,4 @@ runs:
         ignore-scripts=true
         //databricks.jfrog.io/artifactory/api/npm/db-npm/:_authToken=${JFROG_ACCESS_TOKEN}
         EOF
-        printf '::notice::%s\n' 'Configured JFrog access for npm/yarn (classic).'
+        printf '::debug::%s\n' 'Configured JFrog access for npm/yarn (classic).'
