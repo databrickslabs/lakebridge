@@ -5,7 +5,7 @@
 "@algolia/abtesting@1.16.1":
   version "1.16.1"
   resolved "https://registry.yarnpkg.com/@algolia/abtesting/-/abtesting-1.16.1.tgz#036ddd7ca49a4f5ba20ced09b9e0e5b913ccf6e8"
-  integrity sha512-Xxk4l00pYI+jE0QNw8y0MvsQWh5278WRtZQav8/BMMi3HKi2xmeuqe11WJ3y8/6nuBHdv39w76OpJb09TMfAVQ==
+  integrity sha512-Xxk4l00pYI+jE0PNw8y0MvsQWh5278WRtZQav8/BMMi3HKi2xmeuqe11WJ3y8/6nuBHdv39w76OpJb09TMfAVQ==
   dependencies:
     "@algolia/client-common" "5.50.1"
     "@algolia/requester-browser-xhr" "5.50.1"
