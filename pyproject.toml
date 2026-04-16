@@ -52,7 +52,9 @@ Issues = "https://github.com/databrickslabs/lakebridge/issues"
 Source = "https://github.com/databrickslabs/lakebridge"
 
 [build-system]
-requires = ["hatchling"]
+requires = [
+    "hatchling~=1.29.0"
+]
 build-backend = "hatchling.build"
 
 [tool.hatch.build]
