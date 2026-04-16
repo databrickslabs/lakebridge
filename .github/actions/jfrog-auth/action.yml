@@ -38,7 +38,7 @@ runs:
         JFROG_ACCESS_TOKEN: "${{ steps.jfrog-auth.outputs.jfrog-access-token }}"
       run: |
         umask 077
-        cat > "${HOME}/.bunfig.toml" << EOF
+        cat > ~/.bunfig.toml << EOF
         [install]
         registry = { url = "https://databricks.jfrog.io/artifactory/api/npm/db-npm/", token = "$jfrog_access_token" }
         EOF
@@ -86,7 +86,7 @@ runs:
         JFROG_ACCESS_TOKEN: "${{ steps.jfrog-auth.outputs.jfrog-access-token }}"
       run: |
         umask 077
-        cat > "${HOME}/.npmrc" << EOF
+        cat > ~/.npmrc << EOF
         registry=https://databricks.jfrog.io/artifactory/api/npm/db-npm/
         always-auth=true
         ignore-scripts=true
