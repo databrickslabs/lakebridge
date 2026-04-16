@@ -48,6 +48,10 @@ runs:
         EOF
         printf '%s=%s\n' 'BUN_OPTIONS' "--env-file=${RUNNER_TEMP}/.bun.env" >> "${GITHUB_ENV}"
         printf '::notice::%s\n' 'Configured JFrog access for bun.'
+        # There are currently the following issues with JFrog:
+        #  - The default set of CAs doesn't seem to cover the ones used by our JFrog instance.
+        #  - The JSON metadata returned for some NPM artefacts can be invalid JSON.
+        printf '::warning::%s\n' 'JFrog has compatibility issues with bun; it probably won't work.'
 
     - name: Configure pip for JFrog
       if: "${{ steps.detect-cmds.outputs.command_pip3 == 'true' }}"
