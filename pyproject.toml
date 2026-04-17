@@ -52,7 +52,9 @@ Issues = "https://github.com/databrickslabs/lakebridge/issues"
 Source = "https://github.com/databrickslabs/lakebridge"
 
 [build-system]
-requires = ["hatchling"]
+requires = [
+    "hatchling~=1.29.0"
+]
 build-backend = "hatchling.build"
 
 [tool.hatch.build]
@@ -122,6 +124,19 @@ databricks-labs-pylint = false
 databricks-labs-pytester = false
 databricks-sdk = false
 databricks-switch-plugin = false
+
+# These packages are here because the backend (hatchling) depends on them, but backend dependencies are not covered
+# by uv.lock. To load the project these must always be resolved, including under CI/CD where JFrog is used. However
+# JFrog does not provide timestamp metadata, which leads to uv excluding them from resolution. The only way to deal
+# with this currently is to exempt them from the 'exclude-newer' policy: the only alternative would be to not have
+# them at all.
+editables = false
+hatchling = false
+packaging = false
+pathspec = false
+pluggy = false
+tomli = false
+trove-classifiers = false
 
 [tool.pytest.ini_options]
 addopts = "-s -p no:warnings -vv --cache-clear"
