@@ -48,7 +48,9 @@ jobs:
           $GITHUB_WORKSPACE/.github/scripts/setup_mssql_odbc.sh
 
       # TODO: Migrate tests to use Databricks clusters instead of Spark local mode
+      # Currently disabled because archive.apache.org is blocked on runners; need an alternative source for Spark 3.5.5.
       - name: Setup spark
+        if: false
         run: |
           chmod +x $GITHUB_WORKSPACE/.github/scripts/setup_spark_remote.sh
           $GITHUB_WORKSPACE/.github/scripts/setup_spark_remote.sh
