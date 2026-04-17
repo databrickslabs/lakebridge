@@ -10,9 +10,7 @@ on:
       - main
 
 permissions:
-  id-token: write
   contents: read
-  pull-requests: write
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -21,6 +19,11 @@ concurrency:
 jobs:
   integration:
     environment: tool
+    permissions:
+      # Access to the integration testing infrastructure.
+      id-token: write
+      # Write test results to the PR.
+      pull-requests: write
     runs-on:
       group: larger-runners
       labels: larger
@@ -30,16 +33,14 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+      - name: Setup uv
+        uses: astral-sh/setup-uv@5a095e7a2014a4212f075830d4f7277575a9d098  # v7.3.1
         with:
-          cache: 'pip'
-          cache-dependency-path: '**/pyproject.toml'
-          python-version: '3.10'
+          version: "0.11.2"
+          checksum: "7ac2ca0449c8d68dae9b99e635cd3bc9b22a4cb1de64b7c43716398447d42981"
 
-      - name: Install hatch
-        # see here for more details https://github.com/pypa/hatch/issues/2193
-        run: pip install hatch==1.14.2 "virtualenv<21"
+      - name: Setup for JFrog
+        uses: ./.github/actions/jfrog-auth
 
       - name: Install MSSQL ODBC Driver
         run: |

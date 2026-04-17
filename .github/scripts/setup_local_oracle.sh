@@ -1,15 +1,16 @@
-#!/usr/bin/env bash
+#!/bin/bash
+# TODO: Replace this script with a GHA service container on the workflow.
 set -Eeuo pipefail
 
 # Config
 ORACLE_CONTAINER="${ORACLE_CONTAINER:-oracle-free}"
-ORACLE_IMAGE="${ORACLE_IMAGE:-container-registry.oracle.com/database/free:latest-lite}"
+ORACLE_IMAGE="${ORACLE_IMAGE:-container-registry.oracle.com/database/free@sha256:481dbb4a1ea7cac6aadd354ff42b48fb7e4df955725158f237ad58c8fca1f458}"  # latest-lite
 ORACLE_PORT="${ORACLE_PORT:-1521}"
 ORACLE_PWD="${ORACLE_PWD:?export ORACLE_PWD for SYS}"
 ORACLE_SID="${ORACLE_SID:-FREEPDB1}"
 
 # Dependencies
-command -v docker >/dev/null || { echo "Docker not installed" >&2; exit 2; }
+command -v docker >/dev/null || { printf "Docker not installed\n" >&2; exit 2; }
 
 # Image present?
 docker image inspect "${ORACLE_IMAGE}" >/dev/null 2>&1 || docker pull "${ORACLE_IMAGE}"
@@ -24,19 +25,19 @@ else
     -p "${ORACLE_PORT}:1521" \
     -e ORACLE_PWD="${ORACLE_PWD}" \
     -d "${ORACLE_IMAGE}" >/dev/null
-  echo "Starting Oracle container..."
+  printf "Starting Oracle container...\n"
 fi
 
-echo "Waiting up to 5 minutes for Oracle to be healthy..."
+printf "Waiting up to 5 minutes for Oracle to be healthy...\n"
 MAX_WAIT=300; WAIT_INTERVAL=5; waited=0
 while :; do
   state="$(docker inspect -f '{{.State.Health.Status}}' "${ORACLE_CONTAINER}" 2>/dev/null || true)"
-  echo "health=${state:-unknown} waited=${waited}s"
+  printf "health=%s waited=%ss\n" "${state:-unknown}" "${waited}"
   [[ "$state" == "healthy" ]] && break
-  (( waited >= MAX_WAIT )) && { echo "ERROR: Oracle not healthy in 300s" >&2; exit 1; }
+  (( waited >= MAX_WAIT )) && { printf "ERROR: Oracle not healthy in 300s\n" >&2; exit 1; }
   sleep "$WAIT_INTERVAL"; waited=$((waited + WAIT_INTERVAL))
 done
-echo "Oracle is fully started."
+printf "Oracle is fully started.\n"
 
 # SQL bootstrap as SYSDBA, target SYSTEM schema
 docker exec -i "${ORACLE_CONTAINER}" bash -lc \
@@ -92,4 +93,4 @@ WHEN NOT MATCHED THEN INSERT (ID, DESCR, YEAR, DATEE)
 COMMIT;
 SQL
 
-echo "Oracle DDL/DML completed."
+printf "Oracle DDL/DML completed.\n"
