@@ -20,9 +20,8 @@ dev:
                   .venv/lib/python*/site-packages/databricks/labs/__init__.py; \
 	do \
 	    grep -q 'extend_path' "$$f" 2>/dev/null || { \
-	        printf '# Workaround analyzer packaging bug\n' > "$$f"; \
 	        printf '__path__ = __import__("pkgutil").extend_path(__path__, __name__)\n' > "$$f"; \
-	        printf 'Warning: workaround needed (and configured) for analyzer packaging bug!\n'; \
+	        printf 'Warning: workaround needed (and configured) for analyzer packaging bug: %s\n' "$$f"; \
 	    } \
 	done
 
