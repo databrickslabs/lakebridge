@@ -14,6 +14,16 @@ clean: docs-clean
 
 dev:
 	uv sync --all-extras
+# Workaround: databricks-bb-analyzer is missing databricks/__init__.py in its wheel.
+# If it's installed last the namespace package breaks. Ensure the file exists.
+	@for f in .venv/lib/python*/site-packages/databricks/__init__.py; \
+	do \
+	    grep -q 'extend_path' "$$f" 2>/dev/null || { \
+	        printf '# Workaround analyzer packaging bug\n' > "$$f"; \
+	        printf '__path__ = __import__("pkgutil").extend_path(__path__, __name__)\n' > "$$f"; \
+	        printf 'Warning: workaround needed (and configured) for analyzer packaging bug!\n'; \
+	    } \
+	done
 
 lint:
 	$(UV_RUN) black --check .

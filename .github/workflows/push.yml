@@ -38,6 +38,9 @@ jobs:
       - name: Setup for JFrog
         uses: ./.github/actions/jfrog-auth
 
+      - name: Pre-sync environment to work around analyzer bug
+        run: make dev
+
       - name: Run unit tests
         run: make test
 
