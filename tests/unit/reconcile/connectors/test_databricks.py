@@ -5,7 +5,10 @@ import pytest
 
 from databricks.labs.lakebridge.reconcile.connectors.models import NormalizedIdentifier
 from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
-from databricks.labs.lakebridge.reconcile.connectors.databricks import DatabricksDataSource
+from databricks.labs.lakebridge.reconcile.connectors.databricks import (
+    DatabricksSourceDataSource,
+    DatabricksTargetDataSource,
+)
 from databricks.labs.lakebridge.reconcile.exception import DataSourceRuntimeException
 from databricks.sdk import WorkspaceClient
 
@@ -21,12 +24,12 @@ def initial_setup():
     return engine, spark, ws, scope
 
 
-def test_get_schema():
-    # initial setup
+def test_get_schema_target():
+    """Target uses information_schema with full_data_type for native UC catalogs."""
     engine, spark, ws, scope = initial_setup()
+    ddds = DatabricksTargetDataSource(engine, spark, ws, scope)
 
     # catalog as catalog
-    ddds = DatabricksDataSource(engine, spark, ws, scope)
     ddds.get_schema("catalog", "schema", "supplier")
     spark.sql.assert_called_with(
         re.sub(
@@ -54,12 +57,34 @@ def test_get_schema():
     spark.sql().selectExpr().where.assert_called_with("column_name not like '#%'")
 
 
+def test_get_schema_source():
+    """Source always uses DESCRIBE TABLE, which works for hive, global_temp, and Foreign Catalogs."""
+    engine, spark, ws, scope = initial_setup()
+    ddds = DatabricksSourceDataSource(engine, spark, ws, scope)
+
+    # UC catalog — source uses DESCRIBE TABLE (not information_schema)
+    ddds.get_schema("catalog", "schema", "supplier")
+    spark.sql.assert_called_with("describe table catalog.schema.supplier")
+
+    # hive_metastore
+    ddds.get_schema("hive_metastore", "schema", "supplier")
+    spark.sql.assert_called_with("describe table hive_metastore.schema.supplier")
+
+    # global_temp
+    ddds.get_schema("hive_metastore", "global_temp", "supplier")
+    spark.sql.assert_called_with("describe table global_temp.supplier")
+
+    # Foreign Catalog
+    ddds.get_schema("foreign_catalog", "public", "customers")
+    spark.sql.assert_called_with("describe table foreign_catalog.public.customers")
+
+
 def test_read_data_from_uc():
     # initial setup
     engine, spark, ws, scope = initial_setup()
 
-    # create object for DatabricksDataSource
-    ddds = DatabricksDataSource(engine, spark, ws, scope)
+    # read_data is inherited from DatabricksDataSource; test with source subclass
+    ddds = DatabricksSourceDataSource(engine, spark, ws, scope)
 
     # Test with query
     ddds.read_data("org", "data", "employee", "select id as id, name as name from :tbl", None)
@@ -74,8 +99,7 @@ def test_read_data_from_hive():
     # initial setup
     engine, spark, ws, scope = initial_setup()
 
-    # create object for DatabricksDataSource
-    ddds = DatabricksDataSource(engine, spark, ws, scope)
+    ddds = DatabricksSourceDataSource(engine, spark, ws, scope)
 
     # Test with query
     ddds.read_data("hive_metastore", "data", "employee", "select id as id, name as name from :tbl", None)
@@ -90,8 +114,7 @@ def test_read_data_exception_handling():
     # initial setup
     engine, spark, ws, scope = initial_setup()
 
-    # create object for DatabricksDataSource
-    ddds = DatabricksDataSource(engine, spark, ws, scope)
+    ddds = DatabricksSourceDataSource(engine, spark, ws, scope)
     spark.sql.side_effect = RuntimeError("Test Exception")
 
     with pytest.raises(
@@ -102,12 +125,11 @@ def test_read_data_exception_handling():
         ddds.read_data("org", "data", "employee", "select id as id, ename as name from :tbl", None)
 
 
-def test_get_schema_exception_handling():
-    # initial setup
+def test_get_schema_target_exception_handling():
+    """Target schema fetch exception includes the information_schema query in the error."""
     engine, spark, ws, scope = initial_setup()
 
-    # create object for DatabricksDataSource
-    ddds = DatabricksDataSource(engine, spark, ws, scope)
+    ddds = DatabricksTargetDataSource(engine, spark, ws, scope)
     spark.sql.side_effect = RuntimeError("Test Exception")
     with pytest.raises(DataSourceRuntimeException) as exception:
         ddds.get_schema("org", "data", "employee")
@@ -120,47 +142,34 @@ def test_get_schema_exception_handling():
     )
 
 
-def test_get_schema_foreign_catalog_fallback():
-    """Foreign Catalogs lack the full_data_type column; get_schema should fall back to DESCRIBE TABLE."""
+def test_get_schema_source_exception_handling():
+    """Source schema fetch exception includes the DESCRIBE TABLE query in the error."""
     engine, spark, ws, scope = initial_setup()
-    ddds = DatabricksDataSource(engine, spark, ws, scope)
 
-    # First call (information_schema query) raises an error mentioning full_data_type
-    full_data_type_error = RuntimeError(
-        "[UNRESOLVED_COLUMN.WITH_SUGGESTION] A column, variable, or function parameter "
-        "with name `full_data_type` cannot be resolved."
-    )
-    describe_result = MagicMock()
-    spark.sql.side_effect = [full_data_type_error, describe_result]
+    ddds = DatabricksSourceDataSource(engine, spark, ws, scope)
+    spark.sql.side_effect = RuntimeError("Test Exception")
+    with pytest.raises(DataSourceRuntimeException) as exception:
+        ddds.get_schema("org", "data", "employee")
+
+    assert "describe table org.data.employee" in str(exception.value)
+    assert "Test Exception" in str(exception.value)
+
+
+def test_get_schema_source_foreign_catalog():
+    """Source correctly uses DESCRIBE TABLE for Foreign Catalogs without needing fallback."""
+    engine, spark, ws, scope = initial_setup()
+    ddds = DatabricksSourceDataSource(engine, spark, ws, scope)
 
     ddds.get_schema("foreign_catalog", "public", "customers")
 
-    # Verify the fallback DESCRIBE TABLE query was issued
-    assert spark.sql.call_count == 2
+    # Only one SQL call — no fallback needed since source always uses DESCRIBE TABLE
+    assert spark.sql.call_count == 1
     spark.sql.assert_called_with("describe table foreign_catalog.public.customers")
-
-
-def test_get_schema_foreign_catalog_fallback_also_fails():
-    """When both the information_schema query and DESCRIBE TABLE fallback fail, raise the fallback error."""
-    engine, spark, ws, scope = initial_setup()
-    ddds = DatabricksDataSource(engine, spark, ws, scope)
-
-    full_data_type_error = RuntimeError(
-        "[UNRESOLVED_COLUMN.WITH_SUGGESTION] A column with name `full_data_type` cannot be resolved."
-    )
-    describe_error = RuntimeError("DESCRIBE TABLE failed")
-    spark.sql.side_effect = [full_data_type_error, describe_error]
-
-    with pytest.raises(DataSourceRuntimeException) as exception:
-        ddds.get_schema("foreign_catalog", "public", "customers")
-
-    assert "DESCRIBE TABLE failed" in str(exception.value)
-    assert "describe table foreign_catalog.public.customers" in str(exception.value)
 
 
 def test_normalize_identifier():
     engine, spark, ws, scope = initial_setup()
-    data_source = DatabricksDataSource(engine, spark, ws, scope)
+    data_source = DatabricksSourceDataSource(engine, spark, ws, scope)
 
     assert data_source.normalize_identifier("a") == NormalizedIdentifier("`a`", '`a`')
     assert data_source.normalize_identifier('`b`') == NormalizedIdentifier("`b`", '`b`')

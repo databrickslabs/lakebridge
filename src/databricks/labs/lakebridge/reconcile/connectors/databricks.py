@@ -17,14 +17,13 @@ from databricks.sdk import WorkspaceClient
 logger = logging.getLogger(__name__)
 
 
-def _get_schema_query(catalog: str, schema: str, table: str, force_describe: bool = False):
-    # TODO: Ensure that the target_catalog in the configuration is not set to "hive_metastore". The source_catalog
-    #  can only be set to "hive_metastore" if the source type is "databricks".
+def _get_describe_query(catalog: str, schema: str, table: str):
     if schema == "global_temp":
         return f"describe table global_temp.{table}"
-    if catalog == "hive_metastore" or force_describe:
-        return f"describe table {catalog}.{schema}.{table}"
+    return f"describe table {catalog}.{schema}.{table}"
 
+
+def _get_information_schema_query(catalog: str, schema: str, table: str):
     query = f"""select
                             lower(column_name) as col_name,
                              full_data_type as data_type
@@ -72,6 +71,43 @@ class DatabricksDataSource(DataSource, SecretsMixin):
         except (RuntimeError, PySparkException) as e:
             return self.log_and_throw_exception(e, "data", table_query)
 
+    def _fetch_schema(self, schema_query: str, normalize: bool) -> list[Schema]:
+        logger.debug(f"Fetching schema using query: \n`{schema_query}`")
+        logger.info(f"Fetching Schema: Started at: {datetime.now()}")
+        schema_metadata = (
+            self._spark.sql(schema_query)
+            .selectExpr("col_name as column_name", "data_type")
+            .where("column_name not like '#%'")
+            .distinct()
+            .collect()
+        )
+        logger.info(f"Schema fetched successfully. Completed at: {datetime.now()}")
+        return [self._map_meta_column(field, normalize) for field in schema_metadata]
+
+    def get_schema(
+        self,
+        catalog: str | None,
+        schema: str,
+        table: str,
+        normalize: bool = True,
+    ) -> list[Schema]:
+        raise NotImplementedError("Use DatabricksSourceDataSource or DatabricksTargetDataSource")
+
+    def normalize_identifier(self, identifier: str) -> NormalizedIdentifier:
+        return DialectUtils.normalize_identifier(
+            identifier,
+            source_start_delimiter=DatabricksDataSource._IDENTIFIER_DELIMITER,
+            source_end_delimiter=DatabricksDataSource._IDENTIFIER_DELIMITER,
+        )
+
+
+class DatabricksSourceDataSource(DatabricksDataSource):
+    """Databricks data source for the source side of reconciliation.
+
+    Uses DESCRIBE TABLE for schema fetching, which works for hive_metastore,
+    global_temp views, and Foreign Catalogs (Lakehouse Federation).
+    """
+
     def get_schema(
         self,
         catalog: str | None,
@@ -80,45 +116,33 @@ class DatabricksDataSource(DataSource, SecretsMixin):
         normalize: bool = True,
     ) -> list[Schema]:
         catalog_str = catalog if catalog else "hive_metastore"
-        schema_query = _get_schema_query(catalog_str, schema, table)
+        schema_query = _get_describe_query(catalog_str, schema, table)
         try:
-            logger.debug(f"Fetching schema using query: \n`{schema_query}`")
-            logger.info(f"Fetching Schema: Started at: {datetime.now()}")
-            schema_metadata = (
-                self._spark.sql(schema_query)
-                .selectExpr("col_name as column_name", "data_type")
-                .where("column_name not like '#%'")
-                .distinct()
-                .collect()
-            )
-            logger.info(f"Schema fetched successfully. Completed at: {datetime.now()}")
-            return [self._map_meta_column(field, normalize) for field in schema_metadata]
+            return self._fetch_schema(schema_query, normalize)
         except (RuntimeError, PySparkException) as e:
-            if "full_data_type" not in str(e):
-                return self.log_and_throw_exception(e, "schema", schema_query)
+            return self.log_and_throw_exception(e, "schema", schema_query)
 
-        # Fallback to DESCRIBE TABLE for catalogs that lack the full_data_type column
-        # (e.g. Foreign Catalogs created via Lakehouse Federation).
-        describe_query = _get_schema_query(catalog_str, schema, table, force_describe=True)
+
+class DatabricksTargetDataSource(DatabricksDataSource):
+    """Databricks data source for the target side of reconciliation.
+
+    Uses information_schema.columns with full_data_type for schema fetching,
+    which provides precise type information for native Unity Catalog tables.
+    """
+
+    def get_schema(
+        self,
+        catalog: str | None,
+        schema: str,
+        table: str,
+        normalize: bool = True,
+    ) -> list[Schema]:
+        catalog_str = catalog if catalog else "hive_metastore"
+        if catalog_str == "hive_metastore" or schema == "global_temp":
+            schema_query = _get_describe_query(catalog_str, schema, table)
+        else:
+            schema_query = _get_information_schema_query(catalog_str, schema, table)
         try:
-            logger.info(
-                f"Retrying schema fetch with DESCRIBE TABLE fallback for {catalog_str}.{schema}.{table}"
-            )
-            schema_metadata = (
-                self._spark.sql(describe_query)
-                .selectExpr("col_name as column_name", "data_type")
-                .where("column_name not like '#%'")
-                .distinct()
-                .collect()
-            )
-            logger.info(f"Schema fetched successfully via DESCRIBE TABLE. Completed at: {datetime.now()}")
-            return [self._map_meta_column(field, normalize) for field in schema_metadata]
+            return self._fetch_schema(schema_query, normalize)
         except (RuntimeError, PySparkException) as e:
-            return self.log_and_throw_exception(e, "schema", describe_query)
-
-    def normalize_identifier(self, identifier: str) -> NormalizedIdentifier:
-        return DialectUtils.normalize_identifier(
-            identifier,
-            source_start_delimiter=DatabricksDataSource._IDENTIFIER_DELIMITER,
-            source_end_delimiter=DatabricksDataSource._IDENTIFIER_DELIMITER,
-        )
+            return self.log_and_throw_exception(e, "schema", schema_query)

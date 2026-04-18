@@ -18,7 +18,7 @@ def initialise_data_source(
     secret_scope: str,
 ):
     source = create_adapter(engine=get_dialect(engine), spark=spark, ws=ws, secret_scope=secret_scope)
-    target = create_adapter(engine=get_dialect("databricks"), spark=spark, ws=ws, secret_scope=secret_scope)
+    target = create_adapter(engine=get_dialect("databricks"), spark=spark, ws=ws, secret_scope=secret_scope, is_target=True)
 
     return source, target
 
