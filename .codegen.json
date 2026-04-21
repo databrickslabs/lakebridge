@@ -3,9 +3,12 @@
     "src/databricks/labs/lakebridge/__about__.py": "__version__ = \"$VERSION\""
   },
   "toolchain": {
-    "required": ["hatch"],
-    "pre_setup": ["hatch env create"],
+    "required": ["make", "uv"],
+    "pre_setup": ["make dev"],
     "prepend_path": ".venv/bin",
-    "acceptance_path": "tests/integration"
+    "acceptance_path": "tests/integration",
+    "test": [
+      "make test"
+    ]
   }
 }
