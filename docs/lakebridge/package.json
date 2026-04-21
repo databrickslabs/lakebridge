@@ -59,8 +59,9 @@
     ]
   },
   "engines": {
-    "node": ">=18.0"
+    "node": ">=25.0 <26"
   },
+  "engineStrict": true,
   "resolutions": {
     "ajv": ">=8.18.0",
     "brace-expansion": "^1.1.12",
@@ -74,6 +75,7 @@
     "schema-utils": ">=4.0.0",
     "serialize-javascript": ">=7.0.3",
     "svgo": ">=3.3.3",
+    "webpack": "~5.97.0",
     "webpack-dev-server": "^5.2.1"
   }
 }

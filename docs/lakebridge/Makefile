@@ -18,7 +18,8 @@ serve: build
 lock-dependencies:
 	rm -f yarn.lock
 	yarn install
-	perl -pi -e 's|resolved "https://[^/]+/|resolved "https://registry.yarnpkg.com/|' yarn.lock
+	@perl -ni -e 'print unless /^\s*resolved\s+"https:/' yarn.lock
+	@printf 'Stripped repository references from yarn.lock.\n'
 
 .DEFAULT: all
 .PHONY: all clean dev build serve-dev serve lock-dependencies

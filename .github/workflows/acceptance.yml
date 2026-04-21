@@ -20,7 +20,7 @@ jobs:
   integration:
     environment: tool
     permissions:
-      # Access to the integration testing infrastructure.
+      # Access to JFrog and the integration testing infrastructure.
       id-token: write
       # Write test results to the PR.
       pull-requests: write
@@ -48,7 +48,10 @@ jobs:
           $GITHUB_WORKSPACE/.github/scripts/setup_mssql_odbc.sh
 
       # TODO: Migrate tests to use Databricks clusters instead of Spark local mode
+      # Disabled for now, because access to archives.apache.org is blocked; a new approach will be needed for this.
+      # (The integration tests will still run, but many will fail due to this.)
       - name: Setup spark
+        if: false
         run: |
           chmod +x $GITHUB_WORKSPACE/.github/scripts/setup_spark_remote.sh
           $GITHUB_WORKSPACE/.github/scripts/setup_spark_remote.sh
