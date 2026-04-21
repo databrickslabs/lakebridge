@@ -73,3 +73,39 @@ def test_fetch_commit(mock_mssql_connector) -> None:
 
     assert mutate_result == mock_result
     mock_connector_instance.fetch.assert_called_once_with(mutate_query)
+
+
+def _mssql_config_without(key: str) -> dict:
+    cfg = dict(sample_config)
+    cfg.pop(key, None)
+    return cfg
+
+
+@patch('databricks.labs.lakebridge.connections.database_manager.create_engine')
+def test_mssql_default_database_is_master(mock_create_engine) -> None:
+    DatabaseManager("mssql", _mssql_config_without('database'))
+    url = mock_create_engine.call_args.args[0]
+    assert url.database == 'master'
+
+
+@patch('databricks.labs.lakebridge.connections.database_manager.create_engine')
+def test_mssql_empty_database_falls_back_to_master(mock_create_engine) -> None:
+    cfg = dict(sample_config, database='')
+    DatabaseManager("mssql", cfg)
+    url = mock_create_engine.call_args.args[0]
+    assert url.database == 'master'
+
+
+@patch('databricks.labs.lakebridge.connections.database_manager.create_engine')
+def test_mssql_trust_server_certificate_passed_through(mock_create_engine) -> None:
+    cfg = dict(sample_config, trust_server_certificate='yes')
+    DatabaseManager("mssql", cfg)
+    url = mock_create_engine.call_args.args[0]
+    assert url.query.get('TrustServerCertificate') == 'yes'
+
+
+@patch('databricks.labs.lakebridge.connections.database_manager.create_engine')
+def test_mssql_trust_server_certificate_defaults_to_no(mock_create_engine) -> None:
+    DatabaseManager("mssql", sample_config)
+    url = mock_create_engine.call_args.args[0]
+    assert url.query.get('TrustServerCertificate') == 'no'
