@@ -33,70 +33,13 @@ eg:
 
 Refer to [Reconcile Configuration Guide](reconcile_configuration) for detailed instructions and [example configurations](example_config)
 
-> 2. Setup the connection properties
+> 2. Setup the source connection
 
-Lakebridge-Reconcile manages connection properties by utilizing secrets stored in the Databricks workspace.
-Below is the default secret naming convention for managing connection properties.
+- [Create a connection](https://docs.databricks.com/aws/en/query-federation/remote-queries#create-a-connection)
+- [Grant connection access](https://docs.databricks.com/aws/en/query-federation/remote-queries#grant-connection-access)
 
-**Note: When both the source and target are Databricks, a secret scope is not required.**
+**Note: You do not have to create a foreign catalog.**
 
-**Default Secret Scope:** lakebridge_data_source
-
-| source        | scope                 |
-|---------------|-----------------------|
-| snowflake     | lakebridge_snowflake  |
-| oracle        | lakebridge_oracle     |
-| databricks    | lakebridge_databricks |
-| mssql         | lakebridge_mssql      |
-| synapse       | lakebridge_synapse    |
-
-Below are the connection properties required for each source:
-
-<Tabs>
-    <TabItem value="snowflake" label="Snowflake">
-        ```yaml
-        sfUrl = https://[acount_name].snowflakecomputing.com
-        account = [acount_name]
-        sfUser = [user]
-        sfPassword = [password]
-        sfDatabase = [database]
-        sfSchema = [schema]
-        sfWarehouse = [warehouse_name]
-        sfRole = [role_name]
-        pem_private_key = [pkcs8_pem_private_key]
-        pem_private_key_password = [pkcs8_pem_private_key]
-        ```
-
-        :::note
-        For Snowflake authentication, either sfPassword or pem_private_key is required.
-        Priority is given to pem_private_key, and if it is not found, sfPassword will be used.
-        If neither is available, an exception will be raised.
-
-        When using an encrypted pem_private_key, you'll need to provide the pem_private_key_password.
-        This password is used to decrypt the private key for authentication.
-        :::
-    </TabItem>
-    <TabItem value="oracle" label="Oracle">
-        ```yaml
-        user = [user]
-        password = [password]
-        host = [host]
-        port = [port]
-        database = [database/SID]
-        ```
-    </TabItem>
-    <TabItem value="mssql" label="MS SQL Server (incl. Synapse)">
-        ```yaml
-        user = [user]
-        password = [password]
-        host = [host]
-        port = [port]
-        database = [database/SID]
-        encrypt = [true/false]
-        trustServerCertificate = [true/false]
-        ```
-    </TabItem>
-</Tabs>
 
 >3. Databricks permissions required
 

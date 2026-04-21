@@ -86,39 +86,40 @@ Please find the `Table Recon` filename examples below for the `Snowflake`, `Orac
 
 <Tabs>
     <TabItem value="snowflake" label="Snowflake" default>
-        ``` yaml title="recon_config_snowflake_sample_data_all.json"
-        database_config:
-          source_catalog: sample_data
-          source_schema: default
+        ``` yaml title="recon_config_snowflake_example_connection_snowflake_all.json"
+        source:
+          dialect: snowflake
+          catalog: sample_data
+          schema: default
+          uc_connection_name: example_connection_snowflake
           ...
         metadata_config:
           ...
-        data_source: snowflake
         report_type: all
         ...
         ```
     </TabItem>
     <TabItem value="oracle" label="Oracle">
-        ``` yaml title="recon_config_oracle_orc_data.json"
-        database_config:
-          source_schema: orc
+        ``` yaml title="recon_config_oracle_example_connection_oracle_data.json"
+        source:
+          dialect: oracle
+          uc_connection_name: example_connection_oracle
           ...
         metadata_config:
           ...
-        data_source: oracle
         report_type: data
         ...
         ```
 
     </TabItem>
     <TabItem value="tsql" label="MS SQL Server (incl. Synapse)">
-        ``` yaml title="recon_config_tsql_silver_data.json"
+        ``` yaml title="recon_config_tsql_example_connection_mssql_data.json"
         database_config:
-          source_schema: silver
+          dialect: mssql
+          uc_connection_name: example_connection_mssql
           ...
         metadata_config:
           ...
-        data_source: mssql
         report_type: data
         ...
         ```
@@ -127,11 +128,11 @@ Please find the `Table Recon` filename examples below for the `Snowflake`, `Orac
     <TabItem value="databricks" label="Databricks">
         ``` yaml title="recon_config_databricks_hms_schema.json"
         database_config:
-          source_schema: hms
+          dialect: databricks
+          catalog: hms
           ...
         metadata_config:
           ...
-        data_source: databricks
         report_type: schema
         ...
         ```
@@ -139,8 +140,8 @@ Please find the `Table Recon` filename examples below for the `Snowflake`, `Orac
 </Tabs>
 
 
-> **Note:** the filename must be created in the same case as [SOURCE_CATALOG_OR_SCHEMA] is defined.
-> For example, if the source schema is defined as `ORC` in the `reconcile` config, the filename should be `recon_config_oracle_ORC_data.json`.
+> **Note:** the filename must be created in the same case as `uc_connection_name` is defined. Or `catalog` for databricks sources
+> For example, if the source connection name is defined as `ORC_connection` in the `reconcile` config, the filename should be `recon_config_oracle_ORC_connection_data.json`.
 
 
 [[back to top](#types-of-report-supported)]
@@ -220,7 +221,7 @@ Please find the `Table Recon` filename examples below for the `Snowflake`, `Orac
         partition_column: str
         lower_bound: str
         upper_bound: str
-        fetch_size: int = 100
+        fetch_size: int = 0
     ```
   </TabItem>
   <TabItem value="json" label="JSON">
@@ -242,19 +243,8 @@ Please find the `Table Recon` filename examples below for the `Snowflake`, `Orac
 | partition_column  | string    | Int/date/timestamp parameter defining the column used for partitioning, typically the primary key of the source table. Note that this parameter accepts only one column, which is especially crucial when dealing with a composite primary key. In such cases, provide the column with higher cardinality.                                                                                                                                                              | required                | "employee_id" |
 | upper_bound       | string    | integer or date or timestamp without time zone value as string), that should be set appropriately (usually the maximum value in case of non-skew data) so the data read from the source should be approximately equally distributed                                                                                                                                                                                                                                     | required                | "1"           |
 | lower_bound       | string    | integer or date or timestamp without time zone value as string), that should be set appropriately (usually the minimum value in case of non-skew data) so the data read from the source should be approximately equally distributed                                                                                                                                                                                                                                     | required                | "100000"      |
-| fetch_size        | string    | This parameter influences the number of rows fetched per round-trip between Spark and the JDBC database, optimising data retrieval performance. Adjusting this option significantly impacts the efficiency of data extraction, controlling the volume of data retrieved in each fetch operation. More details on configuring fetch size can be found [here](https://docs.databricks.com/en/connect/external-systems/jdbc.html#control-number-of-rows-fetched-per-query) | optional(default="100") | "10000"       |
+| fetch_size        | string    | This parameter influences the number of rows fetched per round-trip between Spark and the JDBC database, optimising data retrieval performance. Adjusting this option significantly impacts the efficiency of data extraction, controlling the volume of data retrieved in each fetch operation. More details on configuring fetch size can be found [here](https://docs.databricks.com/en/connect/external-systems/jdbc.html#control-number-of-rows-fetched-per-query) | optional(default="0") | "10000"       |
 
-
-:::tip
-#### Key Considerations for Oracle JDBC Reader Options:
-For Oracle source, the following Spark Configurations are automatically set:
-```json
-"oracle.jdbc.mapDateToTimestamp": "False",
-"sessionInitStatement": "BEGIN dbms_session.set_nls('nls_date_format', '''YYYY-MM-DD''');dbms_session.set_nls('nls_timestamp_format', '''YYYY-MM-DD HH24:MI:SS''');END;"
-```
-
-While configuring Recon for Oracle source, the above options should be taken into consideration.
-:::
 
 [[back to top](#types-of-report-supported)]
 
