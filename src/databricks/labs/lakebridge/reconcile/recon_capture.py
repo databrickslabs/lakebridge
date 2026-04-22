@@ -8,6 +8,7 @@ from pathlib import Path
 
 from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql.functions import col, collect_list, create_map, lit
+from pyspark.sql.types import StringType
 from pyspark.errors import PySparkException
 from sqlglot import Dialect
 
@@ -87,8 +88,23 @@ class ReconIntermediatePersist(AbstractReconIntermediatePersist):
             f"{self._metadata_config.volume}"
         )
 
+    @staticmethod
+    def _strip_char_varchar_constraints(df: DataFrame) -> DataFrame:
+        """Strip CHAR(n)/VARCHAR(n) length constraints from DataFrame columns.
+
+        When reconciling data from external sources (e.g., Teradata via Lakehouse Federation),
+        CHAR columns may contain space-padded values that exceed the declared length limit,
+        causing DELTA_EXCEED_CHAR_VARCHAR_LIMIT errors when writing to Delta.
+
+        Delta enforces length constraints via column metadata (__CHAR_VARCHAR_TYPE_STRING),
+        not just the column type. This method strips all column metadata to remove those
+        constraints.
+        """
+        return df.select(*[col(f.name).alias(f.name, metadata={}) for f in df.schema.fields])
+
     def _write_df_to_volumes(self, df: DataFrame, path: str) -> None:
         logger.debug(f"Writing DF on {self._format} to path: {path}")
+        df = self._strip_char_varchar_constraints(df)
         df.write.format(self._format).save(path)
         logger.info(f"Wrote DF on {self._format}")
 
@@ -114,6 +130,7 @@ class ReconIntermediatePersist(AbstractReconIntermediatePersist):
 
 def _write_df_to_delta(df: DataFrame, table_name: str, mode="append"):
     try:
+        df = ReconIntermediatePersist._strip_char_varchar_constraints(df)
         df.write.mode(mode).saveAsTable(table_name)
         logger.info(f"Data written to {table_name} successfully.")
     except Exception as e:
