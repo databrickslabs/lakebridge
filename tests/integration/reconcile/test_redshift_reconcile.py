@@ -1,5 +1,3 @@
-from unittest.mock import patch
-
 import pytest
 from pyspark.sql import DataFrame
 
@@ -10,9 +8,8 @@ from databricks.labs.lakebridge.reconcile.recon_capture import ReconCapture
 from databricks.labs.lakebridge.reconcile.recon_config import Table, JdbcReaderOptions
 from databricks.labs.lakebridge.reconcile.reconciliation import Reconciliation
 from databricks.labs.lakebridge.reconcile.schema_compare import SchemaCompare
-from databricks.labs.lakebridge.reconcile.trigger_recon_service import TriggerReconService
 from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
-from tests.integration.reconcile.conftest import FakeReconIntermediatePersist
+from tests.integration.reconcile.conftest import FakeReconIntermediatePersist, run_recon_one
 from tests.integration.debug_envgetter import TestEnvGetter
 from tests.integration.reconcile.connectors.test_read_schema import RedshiftDataSourceUnderTest
 
@@ -43,6 +40,8 @@ def test_redshift_db_reconcile(mock_spark, mock_workspace_client, tmp_path):
     databricks_data_source = DatabricksDataSourceUnderTest(databricks, mock_workspace_client, mock_spark)
     redshift_data_source = RedshiftDataSourceUnderTest(mock_spark, mock_workspace_client)
     report = "row"
+    source_dialect = get_dialect("redshift")
+    metadata_config = ReconcileMetadataConfig(catalog="tmp", schema="reconcile")
     db_config = DatabaseConfig(
         source_schema="public",
         target_catalog="lakebridge",
@@ -53,7 +52,7 @@ def test_redshift_db_reconcile(mock_spark, mock_workspace_client, tmp_path):
         report_type=report,
         secret_scope="not used",
         database_config=db_config,
-        metadata_config=ReconcileMetadataConfig(catalog="tmp", schema="reconcile"),
+        metadata_config=metadata_config,
     )
     recon = Reconciliation(
         source=redshift_data_source,
@@ -61,32 +60,34 @@ def test_redshift_db_reconcile(mock_spark, mock_workspace_client, tmp_path):
         database_config=db_config,
         report_type=report,
         schema_comparator=SchemaCompare(mock_spark),
-        source_engine=get_dialect("redshift"),
+        source_engine=source_dialect,
         spark=mock_spark,
-        metadata_config=ReconcileMetadataConfig(catalog="tmp", schema="reconcile"),
+        metadata_config=metadata_config,
         intermediate_persist=FakeReconIntermediatePersist(),
     )
     recon_capture = ReconCapture(
         database_config=db_config,
         recon_id="test_redshift_db_reconcile",
         report_type=report,
-        source_dialect=get_dialect("redshift"),
+        source_dialect=source_dialect,
         ws=mock_workspace_client,
         spark=mock_spark,
-        metadata_config=ReconcileMetadataConfig(catalog="tmp", schema="reconcile"),
+        metadata_config=metadata_config,
         local_test_run=True,
     )
-    with patch("databricks.labs.lakebridge.reconcile.utils.generate_volume_path", return_value=str(tmp_path)):
-        _, data_reconcile_output = TriggerReconService.recon_one(
-            reconciler=recon,
-            recon_capture=recon_capture,
-            reconcile_config=reconcile_config,
-            table_conf=Table(
-                source_name="diamonds",
-                target_name="diamonds",
-                join_columns=["color", "clarity"],
-            ),
-        )
+    table_conf = Table(
+        source_name="diamonds",
+        target_name="diamonds",
+        join_columns=["color", "clarity"],
+    )
 
-        assert not data_reconcile_output.missing_in_src_count
-        assert not data_reconcile_output.missing_in_tgt_count
+    data_reconcile_output = run_recon_one(
+        recon=recon,
+        recon_capture=recon_capture,
+        reconcile_config=reconcile_config,
+        table_conf=table_conf,
+        tmp_path=tmp_path,
+    )
+
+    assert not data_reconcile_output.missing_in_src_count
+    assert not data_reconcile_output.missing_in_tgt_count

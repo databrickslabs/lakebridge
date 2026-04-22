@@ -6,6 +6,7 @@ from collections.abc import Generator
 from contextlib import contextmanager
 from dataclasses import asdict
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -28,6 +29,8 @@ from databricks.labs.lakebridge.config import (
 from databricks.labs.lakebridge.contexts.application import ApplicationContext
 from databricks.labs.lakebridge.reconcile.recon_capture import AbstractReconIntermediatePersist
 from databricks.labs.lakebridge.reconcile.recon_config import Table
+from databricks.labs.lakebridge.reconcile.reconciliation import Reconciliation
+from databricks.labs.lakebridge.reconcile.trigger_recon_service import TriggerReconService
 from tests.integration.debug_envgetter import TestEnvGetter
 
 logger = logging.getLogger(__name__)
@@ -352,6 +355,27 @@ def generate_recon_application_context(
     if WorkspacePath(ws, application_ctx.installation.install_folder()).exists():
         application_ctx.installation.remove()
     logger.info("Application context teardown complete for recon tests")
+
+
+def run_recon_one(
+    *,
+    recon: Reconciliation,
+    recon_capture,
+    reconcile_config: ReconcileConfig,
+    table_conf: Table,
+    tmp_path: Path,
+):
+    with patch(
+        "databricks.labs.lakebridge.reconcile.utils.generate_volume_path",
+        return_value=str(tmp_path),
+    ):
+        _, output = TriggerReconService.recon_one(
+            reconciler=recon,
+            recon_capture=recon_capture,
+            reconcile_config=reconcile_config,
+            table_conf=table_conf,
+        )
+    return output
 
 
 class FakeReconIntermediatePersist(AbstractReconIntermediatePersist):

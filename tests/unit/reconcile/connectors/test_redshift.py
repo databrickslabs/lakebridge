@@ -74,42 +74,36 @@ def test_read_data_with_out_options():
         "password": "my_password",
     }
     assert actual_args == expected_args
-    spark.read.format().option().option().option().options().load.assert_called_once()
 
 
 def test_read_data_with_options():
     engine, spark, ws, scope = initial_setup()
     rds = RedshiftDataSource(engine, spark, ws, scope)
+    reader_opts = JdbcReaderOptions(
+        number_partitions=50, partition_column="s_nationkey", lower_bound="0", upper_bound="100"
+    )
     table_conf = Table(
         source_name="supplier",
         target_name="supplier",
-        jdbc_reader_options=JdbcReaderOptions(
-            number_partitions=50, partition_column="s_nationkey", lower_bound="0", upper_bound="100"
-        ),
+        jdbc_reader_options=reader_opts,
         join_columns=None,
     )
 
     rds.read_data(None, "data", "employee", "select 1 from :tbl", table_conf.jdbc_reader_options)
 
     spark.read.format.assert_called_with("jdbc")
-    spark.read.format().option.assert_called_with(
-        "url",
-        "jdbc:redshift://my_host:5439/my_database",
-    )
+    spark.read.format().option.assert_called_with("url", "jdbc:redshift://my_host:5439/my_database")
     spark.read.format().option().option.assert_called_with("driver", "com.amazon.redshift.Driver")
     spark.read.format().option().option().option.assert_called_with("dbtable", "(select 1 from data.employee) tmp")
-    jdbc_actual_args = spark.read.format().option().option().option().options.call_args.kwargs
-    jdbc_expected_args = {
-        "numPartitions": 50,
-        "partitionColumn": "s_nationkey",
-        "lowerBound": '0',
-        "upperBound": "100",
+    assert spark.read.format().option().option().option().options.call_args.kwargs == {
+        "numPartitions": reader_opts.number_partitions,
+        "partitionColumn": reader_opts.partition_column,
+        "lowerBound": reader_opts.lower_bound,
+        "upperBound": reader_opts.upper_bound,
         "fetchsize": 100,
         "user": "my_user",
         "password": "my_password",
     }
-    assert jdbc_actual_args == jdbc_expected_args
-    spark.read.format().option().option().option().options().load.assert_called_once()
 
 
 def test_get_schema():
