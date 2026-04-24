@@ -35,7 +35,11 @@ from databricks.labs.lakebridge.helpers.recon_config_utils import ReconConfigPro
 from databricks.labs.lakebridge.helpers.telemetry_utils import make_alphanum_or_semver
 from databricks.labs.lakebridge.reconcile.runner import ReconcileRunner
 from databricks.labs.lakebridge.lineage import lineage_generator
-from databricks.labs.lakebridge.reconcile.recon_config import RECONCILE_OPERATION_NAME, AGG_RECONCILE_OPERATION_NAME
+from databricks.labs.lakebridge.reconcile.recon_config import (
+    AGG_RECONCILE_OPERATION_NAME,
+    CONFIGURE_TABLES_OPERATION_NAME,
+    RECONCILE_OPERATION_NAME,
+)
 from databricks.labs.lakebridge.transpiler.describe import TranspilersDescription
 from databricks.labs.lakebridge.transpiler.execute import transpile as do_transpile
 from databricks.labs.lakebridge.transpiler.lsp.lsp_engine import LSPEngine
@@ -668,6 +672,29 @@ def reconcile(
     )
 
     _, job_run_url = recon_runner.run(operation_name=RECONCILE_OPERATION_NAME)
+    if ctx.prompts.confirm(f"Would you like to open the job run URL `{job_run_url}` in the browser?"):
+        webbrowser.open(job_run_url)
+
+
+@lakebridge.command
+def configure_recon_tables(
+    *, w: WorkspaceClient, ctx_factory: Callable[[WorkspaceClient], ApplicationContext] = ApplicationContext
+) -> None:
+    """[EXPERIMENTAL] Auto-discover source/target tables and generate a draft reconcile config"""
+    ctx = ctx_factory(w)
+    ctx.add_user_agent_extra("cmd", "configure-recon-tables")
+    user = ctx.current_user
+    logger.debug(f"User: {user}")
+    recon_runner = ReconcileRunner(
+        ctx.workspace_client,
+        ctx.install_state,
+    )
+
+    _, job_run_url = recon_runner.run(operation_name=CONFIGURE_TABLES_OPERATION_NAME)
+    logger.info(
+        f"When the job finishes, the draft table mappings will be saved to the Lakebridge install folder. "
+        f"Edit the draft to add join columns, fill in unmatched tables, and review."
+    )
     if ctx.prompts.confirm(f"Would you like to open the job run URL `{job_run_url}` in the browser?"):
         webbrowser.open(job_run_url)
 

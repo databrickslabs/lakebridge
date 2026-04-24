@@ -8,7 +8,12 @@ from databricks.sdk import WorkspaceClient
 
 from databricks.labs.lakebridge import initialize_logging
 from databricks.labs.lakebridge.config import ReconcileConfig, TableRecon
-from databricks.labs.lakebridge.reconcile.recon_config import AGG_RECONCILE_OPERATION_NAME, RECONCILE_OPERATION_NAME
+from databricks.labs.lakebridge.reconcile.config_generator.configure import configure_tables
+from databricks.labs.lakebridge.reconcile.recon_config import (
+    AGG_RECONCILE_OPERATION_NAME,
+    CONFIGURE_TABLES_OPERATION_NAME,
+    RECONCILE_OPERATION_NAME,
+)
 from databricks.labs.lakebridge.reconcile.trigger_recon_aggregate_service import TriggerReconAggregateService
 from databricks.labs.lakebridge.reconcile.trigger_recon_service import TriggerReconService
 
@@ -25,24 +30,27 @@ def main(*argv: str) -> None:
     operation_name: str | None = None
     # sys.arg is used when running the script as an entry point which is how we trigger the job.
     args = argv[1:] if argv else tuple(sys.argv[1:])
+    supported_operations = {
+        RECONCILE_OPERATION_NAME,
+        AGG_RECONCILE_OPERATION_NAME,
+        CONFIGURE_TABLES_OPERATION_NAME,
+    }
     match args:
-        case [operation_name, install_folder] if operation_name in {
-            RECONCILE_OPERATION_NAME,
-            AGG_RECONCILE_OPERATION_NAME,
-        }:
+        case [operation_name, install_folder] if operation_name in supported_operations:
             installation = Installation(w, "lakebridge", install_folder=install_folder)
-        case [operation_name] if operation_name in {
-            RECONCILE_OPERATION_NAME,
-            AGG_RECONCILE_OPERATION_NAME,
-        }:
+        case [operation_name] if operation_name in supported_operations:
             installation = Installation.assume_user_home(w, "lakebridge")
         case _:
             raise ValueError(
                 f"Invalid arguments: {args}. Expected [operation_name, install_folder] "
-                f"where operation_name is one of: {RECONCILE_OPERATION_NAME!r}, {AGG_RECONCILE_OPERATION_NAME!r}."
+                f"where operation_name is one of: {sorted(supported_operations)!r}."
             )
 
     reconcile_config = installation.load(ReconcileConfig)
+
+    if operation_name == CONFIGURE_TABLES_OPERATION_NAME:
+        configure_tables(ws=w, installation=installation, reconcile_config=reconcile_config)
+        return None
 
     connection_or_catalog = reconcile_config.source.uc_connection_name or reconcile_config.source.catalog
     filename = (

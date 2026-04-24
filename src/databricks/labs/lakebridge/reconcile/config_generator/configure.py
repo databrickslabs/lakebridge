@@ -26,10 +26,11 @@ def configure_tables(
 ) -> TableRecon:
     """Discover source/target tables, generate a draft `TableRecon`, and save it.
 
-    The draft is saved under the canonical filename used by the reconcile
-    runtime, so a subsequent `databricks labs lakebridge reconcile` will pick
-    it up. The user is expected to edit the draft to fill in joins, missing
-    column mappings, and any tables that could not be auto-matched.
+    Runs inside the reconcile job (where Spark + foreign-connection access are
+    available). The draft is saved under the canonical filename used by the
+    reconcile runtime, so a subsequent `databricks labs lakebridge reconcile`
+    will pick it up. The user edits the draft to fill in joins, missing column
+    mappings, and any tables that could not be auto-matched.
     """
     spark = spark or DatabricksSession.builder.getOrCreate()
 

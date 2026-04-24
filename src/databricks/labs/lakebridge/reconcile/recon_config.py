@@ -26,6 +26,7 @@ _SUPPORTED_AGG_TYPES: set[str] = {
 
 RECONCILE_OPERATION_NAME = "reconcile"
 AGG_RECONCILE_OPERATION_NAME = "aggregates-reconcile"
+CONFIGURE_TABLES_OPERATION_NAME = "configure-tables"
 
 PrimitiveType = bool | int | float | str
 OptionalPrimitiveType = PrimitiveType | None

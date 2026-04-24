@@ -33,7 +33,6 @@ from databricks.labs.lakebridge.contexts.application import ApplicationContext
 from databricks.labs.lakebridge.deployment.configurator import ResourceConfigurator
 from databricks.labs.lakebridge.deployment.installation import WorkspaceInstallation
 from databricks.labs.lakebridge.assessments import PROFILER_SOURCE_SYSTEM
-from databricks.labs.lakebridge.reconcile.config_generator.configure import configure_tables, draft_filename
 from databricks.labs.lakebridge.reconcile.constants import ReconReportType, ReconSourceType
 from databricks.labs.lakebridge.transpiler.installers import (
     BladebridgeInstaller,
@@ -336,29 +335,7 @@ class WorkspaceInstaller:
     def _configure_new_reconcile_installation(self) -> ReconcileConfig:
         default_config = self._prompt_for_new_reconcile_installation()
         self._save_config(default_config)
-        self._maybe_autoconfigure_tables(default_config)
         return default_config
-
-    def _maybe_autoconfigure_tables(self, config: ReconcileConfig) -> None:
-        if not self._prompts.confirm(
-            "Do you want to auto-discover source/target tables and pre-fill the table mappings file now?"
-        ):
-            return
-        try:
-            table_recon = configure_tables(
-                ws=self._ws,
-                installation=self._installation,
-                reconcile_config=config,
-            )
-        except Exception as e:  # pylint: disable=broad-exception-caught
-            logger.warning(f"Auto-discovery failed; you'll need to write the table mappings manually: {e}")
-            return
-        filename = draft_filename(config)
-        ws_url = self._installation.workspace_link(filename)
-        logger.info(
-            f"Drafted {len(table_recon.tables)} table mapping(s) at {ws_url}. "
-            "Edit the file to add join columns, fill in unmatched tables/columns, and review."
-        )
 
     def _prompt_for_new_reconcile_installation(self) -> ReconcileConfig:
         logger.info("Please answer a few questions to configure lakebridge `reconcile`")
