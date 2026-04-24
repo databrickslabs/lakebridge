@@ -73,3 +73,82 @@ def test_snowflake_read_schema_happy(spark: SparkSession) -> None:
 
     columns = connector.get_schema('remorph', "sandbox", "diamonds")
     assert columns
+
+
+def test_sql_server_list_schemas_happy(mock_spark: SparkSession) -> None:
+    connection = TestEnvGetter(False).get("TEST_TSQL_CONNECTION")
+    reader = RemoteQueryReader(mock_spark, connection)
+    connector = TSQLServerDataSource(get_dialect("tsql"), reader)
+
+    schemas = connector.list_schemas("labs_azure_sandbox_remorph")
+    assert "dbo" in schemas
+
+
+def test_sql_server_list_tables_happy(mock_spark: SparkSession) -> None:
+    connection = TestEnvGetter(False).get("TEST_TSQL_CONNECTION")
+    reader = RemoteQueryReader(mock_spark, connection)
+    connector = TSQLServerDataSource(get_dialect("tsql"), reader)
+
+    tables = connector.list_tables("labs_azure_sandbox_remorph", "dbo")
+    assert "reconcile_in" in tables
+
+
+def test_snowflake_list_schemas_happy(mock_spark: SparkSession) -> None:
+    connection = TestEnvGetter(False).get("TEST_SNOWFLAKE_CONNECTION")
+    reader = RemoteQueryReader(mock_spark, connection)
+    connector = SnowflakeDataSource(get_dialect("snowflake"), reader)
+
+    schemas = connector.list_schemas("remorph")
+    assert "SANDBOX" in schemas
+
+
+def test_snowflake_list_tables_happy(mock_spark: SparkSession) -> None:
+    connection = TestEnvGetter(False).get("TEST_SNOWFLAKE_CONNECTION")
+    reader = RemoteQueryReader(mock_spark, connection)
+    connector = SnowflakeDataSource(get_dialect("snowflake"), reader)
+
+    tables = connector.list_tables("remorph", "sandbox")
+    assert "DIAMONDS" in tables
+
+
+def test_databricks_list_schemas_happy_sandbox(
+    spark: SparkSession, ws: WorkspaceClient, recon_tables: tuple[TableInfo, TableInfo]
+) -> None:
+    test_table, _ = recon_tables
+    connector = DatabricksDataSource(get_dialect("databricks"), spark, ws)
+
+    assert test_table.catalog_name
+    assert test_table.schema_name
+
+    schemas = connector.list_schemas(test_table.catalog_name)
+    assert test_table.schema_name in schemas
+
+
+def test_databricks_list_tables_happy_sandbox(
+    spark: SparkSession, ws: WorkspaceClient, recon_tables: tuple[TableInfo, TableInfo]
+) -> None:
+    test_table, _ = recon_tables
+    connector = DatabricksDataSource(get_dialect("databricks"), spark, ws)
+
+    assert test_table.catalog_name
+    assert test_table.schema_name
+    assert test_table.name
+
+    tables = connector.list_tables(test_table.catalog_name, test_table.schema_name)
+    assert test_table.name in tables
+
+
+@pytest.mark.skip(reason="Not Ready! Deploy Infra")
+def test_oracle_list_schemas_happy(mock_spark: SparkSession) -> None:
+    connector = OracleDataSourceUnderTest(mock_spark)
+
+    schemas = connector.list_schemas("ORCL")
+    assert "SYSTEM" in schemas
+
+
+@pytest.mark.skip(reason="Not Ready! Deploy Infra")
+def test_oracle_list_tables_happy(mock_spark: SparkSession) -> None:
+    connector = OracleDataSourceUnderTest(mock_spark)
+
+    tables = connector.list_tables("ORCL", "SYSTEM")
+    assert tables

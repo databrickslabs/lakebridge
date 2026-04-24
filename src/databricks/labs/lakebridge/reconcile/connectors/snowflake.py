@@ -31,6 +31,13 @@ class SnowflakeDataSource(DataSource):
           - indicates the sequential order of a column within a table or view,
              starting from 1 based on the order of column definition.
     """
+    _LIST_SCHEMAS_QUERY = (
+        "select schema_name from {catalog}.INFORMATION_SCHEMA.SCHEMATA order by schema_name"
+    )
+    _LIST_TABLES_QUERY = (
+        "select table_name from {catalog}.INFORMATION_SCHEMA.TABLES "
+        "where table_schema = '{schema}' order by table_name"
+    )
     _SCHEMA_QUERY = """select column_name,
                                                       case
                                                             when numeric_precision is not null and numeric_scale is not null
@@ -97,6 +104,22 @@ class SnowflakeDataSource(DataSource):
             return [self._map_meta_column(field, normalize) for field in schema_metadata]
         except (RuntimeError, PySparkException) as e:
             return self.log_and_throw_exception(e, "schema", schema_query)
+
+    def list_schemas(self, catalog: str) -> list[str]:
+        query = SnowflakeDataSource._LIST_SCHEMAS_QUERY.format(catalog=catalog)
+        try:
+            df = self._reader.read_data(query, catalog, "database", "query")
+            return [row.schema_name for row in df.select(col("SCHEMA_NAME").alias("schema_name")).collect()]
+        except (RuntimeError, PySparkException) as e:
+            return self.log_and_throw_exception(e, "schemas", query)
+
+    def list_tables(self, catalog: str, schema: str) -> list[str]:
+        query = SnowflakeDataSource._LIST_TABLES_QUERY.format(catalog=catalog, schema=schema.upper())
+        try:
+            df = self._reader.read_data(query, catalog, "database", "query")
+            return [row.table_name for row in df.select(col("TABLE_NAME").alias("table_name")).collect()]
+        except (RuntimeError, PySparkException) as e:
+            return self.log_and_throw_exception(e, "tables", query)
 
     def normalize_identifier(self, identifier: str) -> NormalizedIdentifier:
         normalized = DialectUtils.normalize_identifier(
