@@ -46,7 +46,6 @@ from databricks.labs.lakebridge.reconcile.schema_compare import SchemaCompare
 from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
 
 logger = logging.getLogger(__name__)
-_SAMPLE_ROWS = 50
 
 
 class Reconciliation:
@@ -153,6 +152,7 @@ class Reconciliation:
             key_columns=table_conf.join_columns,
             report_type=self._report_type,
             persistence=self.intermediate_persist,
+            max_sample_size=table_conf.get_max_sample_size(),
         )
 
     def _get_reconcile_aggregate_output(
@@ -314,6 +314,7 @@ class Reconciliation:
                     table_conf.source_name,
                     table_conf.target_name,
                     table_conf.sampling_options,
+                    table_conf.get_max_sample_size(),
                 )
 
             if reconcile_output.missing_in_src_count > 0:
@@ -355,6 +356,7 @@ class Reconciliation:
         src_table: str,
         tgt_table: str,
         sampling_options: SamplingOptions,
+        max_sample_size: int,
     ):
 
         tgt_sampling_query = tgt_sampler.build_query_with_alias()
@@ -368,7 +370,7 @@ class Reconciliation:
         )
 
         # Uses pre-calculated `mismatch_count` from `reconcile_output.mismatch_count` to avoid from recomputing `mismatch` for RandomSampler.
-        mismatch_sampler = SamplerFactory.get_sampler(sampling_options)
+        mismatch_sampler = SamplerFactory.get_sampler(sampling_options, max_sample_size=max_sample_size)
         df = mismatch_sampler.sample(mismatch, mismatch_count, key_columns, sampling_model_target)
         if not self.intermediate_persist.is_serverless:
             df = df.cache()
@@ -463,7 +465,7 @@ class Reconciliation:
         mismatched_count = mismatched_df.count()
         threshold_df = None
         if mismatched_count > 0:
-            threshold_df = mismatched_df.limit(_SAMPLE_ROWS)
+            threshold_df = mismatched_df.limit(table_conf.get_max_sample_size())
 
         return ThresholdOutput(threshold_df=threshold_df, threshold_mismatch_count=mismatched_count)
 

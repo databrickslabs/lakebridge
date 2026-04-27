@@ -10,7 +10,7 @@ from databricks.labs.lakebridge.reconcile.recon_config import SamplingOptions, S
 logger = logging.getLogger(__name__)
 
 _MIN_SAMPLE_COUNT = 50
-_MAX_SAMPLE_COUNT = 400
+_MAX_SAMPLE_COUNT = 50_000
 
 _MIN_BUCKET_LIMIT = 2
 _MAX_BUCKET_LIMIT = 50
@@ -210,12 +210,14 @@ class StratifiedSampler(Sampler):
 # TODO: Move away from SamplerFactory to a context-driven approach
 class SamplerFactory:
     @staticmethod
-    def get_sampler(sampling_options: SamplingOptions, seed: int = 100) -> Sampler:
+    def get_sampler(
+        sampling_options: SamplingOptions, max_sample_size: int = _MIN_SAMPLE_COUNT, seed: int = 100
+    ) -> Sampler:
         # If no sampling options provided, use default
         if sampling_options is None:
             default_sampling_options = SamplingOptions(
                 method=SamplingOptionMethod.RANDOM,
-                specifications=SamplingSpecifications(type=SamplingSpecificationsType.COUNT, value=_MIN_SAMPLE_COUNT),
+                specifications=SamplingSpecifications(type=SamplingSpecificationsType.COUNT, value=max_sample_size),
                 stratified_columns=None,
                 stratified_buckets=None,
             )

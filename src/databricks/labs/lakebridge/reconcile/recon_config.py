@@ -24,6 +24,10 @@ _SUPPORTED_AGG_TYPES: set[str] = {
     "median",
 }
 
+_MAX_SAMPLE_SIZE_MIN = 50
+_MAX_SAMPLE_SIZE_MAX = 50_000
+_DEFAULT_MAX_SAMPLE_SIZE = 50
+
 RECONCILE_OPERATION_NAME = "reconcile"
 AGG_RECONCILE_OPERATION_NAME = "aggregates-reconcile"
 
@@ -37,6 +41,10 @@ class TableThresholdBoundsException(ValueError):
 
 class InvalidModelForTableThreshold(ValueError):
     """Raise the error when the model for table threshold is invalid"""
+
+
+class InvalidMaxSampleSizeException(ValueError):
+    """Raise the error when max_sample_size is out of allowed bounds"""
 
 
 @dataclass
@@ -192,6 +200,7 @@ class Table:
     column_thresholds: list[ColumnThresholds] | None = None
     filters: Filters | None = None
     table_thresholds: list[TableThresholds] | None = None
+    max_sample_size: int | None = None
 
     def __post_init__(self):
         self.source_name = self.source_name.lower()
@@ -199,6 +208,31 @@ class Table:
         self.select_columns = to_lower_case(self.select_columns) if self.select_columns else None
         self.drop_columns = to_lower_case(self.drop_columns) if self.drop_columns else None
         self.join_columns = to_lower_case(self.join_columns) if self.join_columns else None
+        self._validate_max_sample_size()
+
+    def _validate_max_sample_size(self):
+        if self.max_sample_size is None:
+            self.max_sample_size = _DEFAULT_MAX_SAMPLE_SIZE
+            return
+        if isinstance(self.max_sample_size, bool) or not isinstance(self.max_sample_size, int):
+            raise InvalidMaxSampleSizeException(
+                f"max_sample_size must be an int, got {type(self.max_sample_size).__name__}"
+            )
+        if self.max_sample_size < _MAX_SAMPLE_SIZE_MIN:
+            logger.info(
+                f"max_sample_size must be >= {_MAX_SAMPLE_SIZE_MIN}, "
+                f"flooring to {_MAX_SAMPLE_SIZE_MIN}"
+            )
+            self.max_sample_size = _MAX_SAMPLE_SIZE_MIN
+        elif self.max_sample_size > _MAX_SAMPLE_SIZE_MAX:
+            logger.info(
+                f"max_sample_size must be <= {_MAX_SAMPLE_SIZE_MAX}, "
+                f"capping to {_MAX_SAMPLE_SIZE_MAX}"
+            )
+            self.max_sample_size = _MAX_SAMPLE_SIZE_MAX
+
+    def get_max_sample_size(self) -> int:
+        return self.max_sample_size
 
     @property
     def to_src_col_map(self):
