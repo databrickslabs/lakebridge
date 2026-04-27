@@ -38,11 +38,17 @@ from databricks.labs.lakebridge.lineage import lineage_generator
 from databricks.labs.lakebridge.reconcile.recon_config import RECONCILE_OPERATION_NAME, AGG_RECONCILE_OPERATION_NAME
 from databricks.labs.lakebridge.transpiler.describe import TranspilersDescription
 from databricks.labs.lakebridge.transpiler.execute import transpile as do_transpile
+from databricks.labs.lakebridge.transpiler.glue.glue_engine import GlueEngine
 from databricks.labs.lakebridge.transpiler.lsp.lsp_engine import LSPEngine
 from databricks.labs.lakebridge.transpiler.repository import TranspilerRepository
 from databricks.labs.lakebridge.transpiler.sqlglot.sqlglot_engine import SqlglotEngine
 from databricks.labs.lakebridge.transpiler.switch_runner import SwitchRunner
 from databricks.labs.lakebridge.transpiler.transpile_engine import TranspileEngine
+
+# Built-in engine sentinels — do not require a config file on disk
+_BUILTIN_ENGINES: dict[str, type[TranspileEngine]] = {
+    "glue": GlueEngine,
+}
 
 from databricks.labs.lakebridge.transpiler.transpile_status import ErrorSeverity
 from databricks.labs.switch.lsp import get_switch_dialects
@@ -243,6 +249,9 @@ class _TranspileConfigChecker:
     @staticmethod
     def _validate_transpiler_config_path(transpiler_config_path: str, msg: str) -> None:
         """Validate the transpiler config path: it must be a valid path that exists."""
+        # Built-in engine sentinels don't require a file on disk.
+        if transpiler_config_path in _BUILTIN_ENGINES:
+            return
         # Note: the content is not validated here, but during loading of the engine.
         if not Path(transpiler_config_path).exists():
             raise_validation_exception(msg)
@@ -508,8 +517,11 @@ class _TranspileConfigChecker:
                 transpiler_config_path,
                 f"Error: Invalid value for '--transpiler-config-path': '{str(transpiler_config_path)}', file does not exist.",
             )
-            path = Path(transpiler_config_path)
-            engine = LSPEngine.from_config_path(path)
+            if transpiler_config_path in _BUILTIN_ENGINES:
+                engine = _BUILTIN_ENGINES[transpiler_config_path]()
+            else:
+                path = Path(transpiler_config_path)
+                engine = LSPEngine.from_config_path(path)
         else:
             engine = None
         del transpiler_config_path
