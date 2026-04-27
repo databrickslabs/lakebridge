@@ -61,14 +61,13 @@ def agg_data_prep(spark: SparkSession):
     return agg_reconcile_output, table_conf, reconcile_process_duration
 
 
-def test_aggregates_reconcile_store_aggregate_metrics(mock_workspace_client, mock_spark):
+def test_aggregates_reconcile_store_aggregate_metrics(mock_workspace_client, spark):
     database_config = DatabaseConfig(
         "source_test_schema", "target_test_catalog", "target_test_schema", "source_test_catalog"
     )
 
     source_type = get_dialect("snowflake")
-    spark = mock_spark
-    agg_reconcile_output, table_conf, reconcile_process_duration = agg_data_prep(mock_spark)
+    agg_reconcile_output, table_conf, reconcile_process_duration = agg_data_prep(spark)
 
     recon_id = "999fygdrs-dbb7-489f-bad1-6a7e8f4821b1"
 
@@ -130,7 +129,7 @@ def test_aggregates_reconcile_store_aggregate_metrics(mock_workspace_client, moc
 
     reconcile_output = generate_final_reconcile_aggregate_output(
         recon_id=recon_id,
-        spark=mock_spark,
+        spark=spark,
         metadata_config=ReconcileMetadataConfig(schema="default"),
         local_test_run=True,
     )

@@ -108,15 +108,15 @@ def recon_tables(ws: WorkspaceClient, recon_schema: SchemaInfo, make_table) -> t
 
 
 @pytest.fixture
-def recon_metadata(mock_spark, report_tables_schema) -> Generator[ReconcileMetadataConfig, None, None]:
+def recon_metadata(spark, report_tables_schema) -> Generator[ReconcileMetadataConfig, None, None]:
     rand = uuid.uuid4().hex
     schema = f"recon_schema_{rand}"
-    mock_spark.sql(f"CREATE SCHEMA {schema}")
+    spark.sql(f"CREATE SCHEMA {schema}")
     main_schema, metrics_schema, details_schema = report_tables_schema
 
-    mock_spark.createDataFrame(data=[], schema=main_schema).write.saveAsTable(f"{schema}.MAIN")
-    mock_spark.createDataFrame(data=[], schema=metrics_schema).write.saveAsTable(f"{schema}.METRICS")
-    mock_spark.createDataFrame(data=[], schema=details_schema).write.saveAsTable(f"{schema}.DETAILS")
+    spark.createDataFrame(data=[], schema=main_schema).write.saveAsTable(f"{schema}.MAIN")
+    spark.createDataFrame(data=[], schema=metrics_schema).write.saveAsTable(f"{schema}.METRICS")
+    spark.createDataFrame(data=[], schema=details_schema).write.saveAsTable(f"{schema}.DETAILS")
 
     yield ReconcileMetadataConfig(
         catalog=f"recon_catalog_{rand}",
@@ -124,7 +124,7 @@ def recon_metadata(mock_spark, report_tables_schema) -> Generator[ReconcileMetad
         volume=f"recon_volume_{rand}",
     )
 
-    mock_spark.sql(f"DROP SCHEMA {schema} CASCADE")
+    spark.sql(f"DROP SCHEMA {schema} CASCADE")
 
 
 @pytest.fixture

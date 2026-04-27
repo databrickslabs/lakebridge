@@ -98,7 +98,7 @@ class QueryStore:
 
 
 @pytest.fixture
-def query_store(mock_spark):
+def query_store(spark):
     source_hash_query = "SELECT LOWER(SHA2(TRIM(s_address) || TRIM(s_name) || COALESCE(TRIM(`s_nationkey`), '_null_recon_') || TRIM(s_phone) || COALESCE(TRIM(`s_suppkey`), '_null_recon_'), 256)) AS hash_value_recon, `s_nationkey` AS `s_nationkey`, `s_suppkey` AS `s_suppkey` FROM :tbl WHERE s_name = 't' AND s_address = 'a'"
     target_hash_query = "SELECT LOWER(SHA2(TRIM(s_address_t) || TRIM(s_name) || COALESCE(TRIM(`s_nationkey_t`), '_null_recon_') || TRIM(s_phone_t) || COALESCE(TRIM(`s_suppkey_t`), '_null_recon_'), 256)) AS hash_value_recon, `s_nationkey_t` AS `s_nationkey`, `s_suppkey_t` AS `s_suppkey` FROM :tbl WHERE s_name = 't' AND s_address_t = 'a'"
     source_mismatch_query = "WITH recon AS (SELECT CAST(22 AS number) AS `s_nationkey`, CAST(2 AS number) AS `s_suppkey`), src AS (SELECT TRIM(s_address) AS `s_address`, TRIM(s_name) AS `s_name`, COALESCE(TRIM(`s_nationkey`), '_null_recon_') AS `s_nationkey`, TRIM(s_phone) AS `s_phone`, COALESCE(TRIM(`s_suppkey`), '_null_recon_') AS `s_suppkey` FROM :tbl WHERE s_name = 't' AND s_address = 'a') SELECT src.`s_address`, src.`s_name`, src.`s_nationkey`, src.`s_phone`, src.`s_suppkey` FROM src INNER JOIN recon AS recon ON src.`s_nationkey` = recon.`s_nationkey` AND src.`s_suppkey` = recon.`s_suppkey`"
@@ -151,7 +151,7 @@ def query_store(mock_spark):
 
 
 def test_reconcile_data_with_mismatches_and_missing(
-    mock_spark,
+    spark,
     normalized_table_conf_with_opts,
     table_schema_ansi_ansi,
     query_store,
@@ -164,20 +164,20 @@ def test_reconcile_data_with_mismatches_and_missing(
             CATALOG,
             SCHEMA,
             query_store.hash_queries.source_hash_query,
-        ): mock_spark.createDataFrame(
+        ): spark.createDataFrame(
             [
                 Row(hash_value_recon="a1b", s_nationkey=11, s_suppkey=1),
                 Row(hash_value_recon="c2d", s_nationkey=22, s_suppkey=2),
                 Row(hash_value_recon="e3g", s_nationkey=33, s_suppkey=3),
             ]
         ),
-        (CATALOG, SCHEMA, query_store.mismatch_queries.source_mismatch_query): mock_spark.createDataFrame(
+        (CATALOG, SCHEMA, query_store.mismatch_queries.source_mismatch_query): spark.createDataFrame(
             [Row(s_address="address-2", s_name="name-2", s_nationkey=22, s_phone="222-2", s_suppkey=2)]
         ),
-        (CATALOG, SCHEMA, query_store.missing_queries.target_missing_query): mock_spark.createDataFrame(
+        (CATALOG, SCHEMA, query_store.missing_queries.target_missing_query): spark.createDataFrame(
             [Row(s_address="address-3", s_name="name-3", s_nationkey=33, s_phone="333", s_suppkey=3)]
         ),
-        (CATALOG, SCHEMA, query_store.threshold_queries.source_threshold_query): mock_spark.createDataFrame(
+        (CATALOG, SCHEMA, query_store.threshold_queries.source_threshold_query): spark.createDataFrame(
             [Row(s_nationkey=11, s_suppkey=1, s_acctbal=100)]
         ),
     }
@@ -187,7 +187,7 @@ def test_reconcile_data_with_mismatches_and_missing(
             CATALOG,
             SCHEMA,
             query_store.hash_queries.target_hash_query,
-        ): mock_spark.createDataFrame(
+        ): spark.createDataFrame(
             [
                 Row(hash_value_recon="a1b", s_nationkey=11, s_suppkey=1),
                 Row(hash_value_recon="c2de", s_nationkey=22, s_suppkey=2),
@@ -198,23 +198,23 @@ def test_reconcile_data_with_mismatches_and_missing(
             CATALOG,
             SCHEMA,
             query_store.sampling_queries.target_sampling_query,
-        ): mock_spark.createDataFrame(
+        ): spark.createDataFrame(
             [
                 Row(hash_value_recon="a1b", s_nationkey=11, s_suppkey=1),
                 Row(hash_value_recon="c2de", s_nationkey=22, s_suppkey=2),
                 Row(hash_value_recon="k4l", s_nationkey=44, s_suppkey=4),
             ]
         ),
-        (CATALOG, SCHEMA, query_store.mismatch_queries.target_mismatch_query): mock_spark.createDataFrame(
+        (CATALOG, SCHEMA, query_store.mismatch_queries.target_mismatch_query): spark.createDataFrame(
             [Row(s_address="address-22", s_name="name-2", s_nationkey=22, s_phone="222", s_suppkey=2)]
         ),
-        (CATALOG, SCHEMA, query_store.missing_queries.source_missing_query): mock_spark.createDataFrame(
+        (CATALOG, SCHEMA, query_store.missing_queries.source_missing_query): spark.createDataFrame(
             [Row(s_address="address-4", s_name="name-4", s_nationkey=44, s_phone="444", s_suppkey=4)]
         ),
-        (CATALOG, SCHEMA, query_store.threshold_queries.target_threshold_query): mock_spark.createDataFrame(
+        (CATALOG, SCHEMA, query_store.threshold_queries.target_threshold_query): spark.createDataFrame(
             [Row(s_nationkey=11, s_suppkey=1, s_acctbal=210)]
         ),
-        (CATALOG, SCHEMA, query_store.threshold_queries.threshold_comparison_query): mock_spark.createDataFrame(
+        (CATALOG, SCHEMA, query_store.threshold_queries.threshold_comparison_query): spark.createDataFrame(
             [
                 Row(
                     s_acctbal_source=100,
@@ -233,7 +233,7 @@ def test_reconcile_data_with_mismatches_and_missing(
         target_catalog=CATALOG,
         target_schema=SCHEMA,
     )
-    schema_comparator = SchemaCompare(mock_spark)
+    schema_comparator = SchemaCompare(spark)
     source = MockDataSource(source_dataframe_repository, source_schema_repository)
     target = MockDataSource(target_dataframe_repository, target_schema_repository)
     actual_data_reconcile = Reconciliation(
@@ -243,7 +243,7 @@ def test_reconcile_data_with_mismatches_and_missing(
         "data",
         schema_comparator,
         get_dialect("databricks"),
-        mock_spark,
+        spark,
         recon_metadata,
         FakeReconIntermediatePersist(),
     ).reconcile_data(normalized_table_conf_with_opts, src_schema, tgt_schema)
@@ -251,14 +251,14 @@ def test_reconcile_data_with_mismatches_and_missing(
         mismatch_count=1,
         missing_in_src_count=1,
         missing_in_tgt_count=1,
-        missing_in_src=mock_spark.createDataFrame(
+        missing_in_src=spark.createDataFrame(
             [Row(s_address="address-4", s_name="name-4", s_nationkey=44, s_phone="444", s_suppkey=4)]
         ),
-        missing_in_tgt=mock_spark.createDataFrame(
+        missing_in_tgt=spark.createDataFrame(
             [Row(s_address="address-3", s_name="name-3", s_nationkey=33, s_phone="333", s_suppkey=3)]
         ),
         mismatch=MismatchOutput(
-            mismatch_df=mock_spark.createDataFrame(
+            mismatch_df=spark.createDataFrame(
                 [
                     Row(
                         s_suppkey=2,
@@ -278,7 +278,7 @@ def test_reconcile_data_with_mismatches_and_missing(
             mismatch_columns=["s_address", "s_phone"],
         ),
         threshold_output=ThresholdOutput(
-            threshold_df=mock_spark.createDataFrame(
+            threshold_df=spark.createDataFrame(
                 [
                     Row(
                         s_acctbal_source=100,
@@ -313,11 +313,11 @@ def test_reconcile_data_with_mismatches_and_missing(
         "data",
         schema_comparator,
         get_dialect("databricks"),
-        mock_spark,
+        spark,
         recon_metadata,
         FakeReconIntermediatePersist(),
     ).reconcile_schema(src_schema, tgt_schema, normalized_table_conf_with_opts)
-    expected_schema_reconcile = mock_spark.createDataFrame(
+    expected_schema_reconcile = spark.createDataFrame(
         [
             Row(
                 source_column="s_suppkey",
@@ -368,7 +368,7 @@ def test_reconcile_data_with_mismatches_and_missing(
     assert actual_data_reconcile.threshold_output.threshold_df is not None
     assertDataFrameEqual(
         actual_data_reconcile.threshold_output.threshold_df,
-        mock_spark.createDataFrame(
+        spark.createDataFrame(
             [
                 Row(
                     s_acctbal_source=100,
@@ -384,7 +384,7 @@ def test_reconcile_data_with_mismatches_and_missing(
 
 
 def test_reconcile_data_without_mismatches_and_missing(
-    mock_spark,
+    spark,
     normalized_table_conf_with_opts,
     table_schema_ansi_ansi,
     query_store,
@@ -397,13 +397,13 @@ def test_reconcile_data_without_mismatches_and_missing(
             CATALOG,
             SCHEMA,
             query_store.hash_queries.source_hash_query,
-        ): mock_spark.createDataFrame(
+        ): spark.createDataFrame(
             [
                 Row(hash_value_recon="a1b", s_nationkey=11, s_suppkey=1),
                 Row(hash_value_recon="c2d", s_nationkey=22, s_suppkey=2),
             ]
         ),
-        (CATALOG, SCHEMA, query_store.threshold_queries.source_threshold_query): mock_spark.createDataFrame(
+        (CATALOG, SCHEMA, query_store.threshold_queries.source_threshold_query): spark.createDataFrame(
             [Row(s_nationkey=11, s_suppkey=1, s_acctbal=100)]
         ),
     }
@@ -413,16 +413,16 @@ def test_reconcile_data_without_mismatches_and_missing(
             CATALOG,
             SCHEMA,
             query_store.hash_queries.target_hash_query,
-        ): mock_spark.createDataFrame(
+        ): spark.createDataFrame(
             [
                 Row(hash_value_recon="a1b", s_nationkey=11, s_suppkey=1),
                 Row(hash_value_recon="c2d", s_nationkey=22, s_suppkey=2),
             ]
         ),
-        (CATALOG, SCHEMA, query_store.threshold_queries.target_threshold_query): mock_spark.createDataFrame(
+        (CATALOG, SCHEMA, query_store.threshold_queries.target_threshold_query): spark.createDataFrame(
             [Row(s_nationkey=11, s_suppkey=1, s_acctbal=110)]
         ),
-        (CATALOG, SCHEMA, query_store.threshold_queries.threshold_comparison_query): mock_spark.createDataFrame(
+        (CATALOG, SCHEMA, query_store.threshold_queries.threshold_comparison_query): spark.createDataFrame(
             [
                 Row(
                     s_acctbal_source=100,
@@ -441,7 +441,7 @@ def test_reconcile_data_without_mismatches_and_missing(
         target_catalog=CATALOG,
         target_schema=SCHEMA,
     )
-    schema_comparator = SchemaCompare(mock_spark)
+    schema_comparator = SchemaCompare(spark)
     source = MockDataSource(source_dataframe_repository, source_schema_repository)
     target = MockDataSource(target_dataframe_repository, target_schema_repository)
     actual = Reconciliation(
@@ -451,7 +451,7 @@ def test_reconcile_data_without_mismatches_and_missing(
         "data",
         schema_comparator,
         get_dialect("databricks"),
-        mock_spark,
+        spark,
         recon_metadata,
         FakeReconIntermediatePersist(),
     ).reconcile_data(normalized_table_conf_with_opts, src_schema, tgt_schema)
@@ -466,7 +466,7 @@ def test_reconcile_data_without_mismatches_and_missing(
 
 
 def test_reconcile_data_with_mismatch_and_no_missing(
-    mock_spark,
+    spark,
     normalized_table_conf_with_opts,
     table_schema_ansi_ansi,
     query_store,
@@ -481,13 +481,13 @@ def test_reconcile_data_with_mismatch_and_no_missing(
             CATALOG,
             SCHEMA,
             query_store.hash_queries.source_hash_query,
-        ): mock_spark.createDataFrame(
+        ): spark.createDataFrame(
             [
                 Row(hash_value_recon="a1b", s_nationkey=11, s_suppkey=1),
                 Row(hash_value_recon="c2d", s_nationkey=22, s_suppkey=2),
             ]
         ),
-        (CATALOG, SCHEMA, query_store.mismatch_queries.source_mismatch_query): mock_spark.createDataFrame(
+        (CATALOG, SCHEMA, query_store.mismatch_queries.source_mismatch_query): spark.createDataFrame(
             [Row(s_address="address-2", s_name="name-2", s_nationkey=22, s_phone="222-2", s_suppkey=2)]
         ),
     }
@@ -497,7 +497,7 @@ def test_reconcile_data_with_mismatch_and_no_missing(
             CATALOG,
             SCHEMA,
             query_store.hash_queries.target_hash_query,
-        ): mock_spark.createDataFrame(
+        ): spark.createDataFrame(
             [
                 Row(hash_value_recon="a1b", s_nationkey=11, s_suppkey=1),
                 Row(hash_value_recon="c2de", s_nationkey=22, s_suppkey=2),
@@ -507,13 +507,13 @@ def test_reconcile_data_with_mismatch_and_no_missing(
             CATALOG,
             SCHEMA,
             query_store.sampling_queries.target_sampling_query,
-        ): mock_spark.createDataFrame(
+        ): spark.createDataFrame(
             [
                 Row(hash_value_recon="a1b", s_nationkey=11, s_suppkey=1),
                 Row(hash_value_recon="c2de", s_nationkey=22, s_suppkey=2),
             ]
         ),
-        (CATALOG, SCHEMA, query_store.mismatch_queries.target_mismatch_query): mock_spark.createDataFrame(
+        (CATALOG, SCHEMA, query_store.mismatch_queries.target_mismatch_query): spark.createDataFrame(
             [Row(s_address="address-22", s_name="name-2", s_nationkey=22, s_phone="222", s_suppkey=2)]
         ),
     }
@@ -524,7 +524,7 @@ def test_reconcile_data_with_mismatch_and_no_missing(
         target_catalog=CATALOG,
         target_schema=SCHEMA,
     )
-    schema_comparator = SchemaCompare(mock_spark)
+    schema_comparator = SchemaCompare(spark)
     source = MockDataSource(source_dataframe_repository, source_schema_repository)
     target = MockDataSource(target_dataframe_repository, target_schema_repository)
     actual = Reconciliation(
@@ -534,7 +534,7 @@ def test_reconcile_data_with_mismatch_and_no_missing(
         "data",
         schema_comparator,
         get_dialect("databricks"),
-        mock_spark,
+        spark,
         recon_metadata,
         FakeReconIntermediatePersist(),
     ).reconcile_data(normalized_table_conf_with_opts, src_schema, tgt_schema)
@@ -545,7 +545,7 @@ def test_reconcile_data_with_mismatch_and_no_missing(
         missing_in_src=None,
         missing_in_tgt=None,
         mismatch=MismatchOutput(
-            mismatch_df=mock_spark.createDataFrame(
+            mismatch_df=spark.createDataFrame(
                 [
                     Row(
                         s_suppkey=2,
@@ -577,7 +577,7 @@ def test_reconcile_data_with_mismatch_and_no_missing(
 
 
 def test_reconcile_data_missing_and_no_mismatch(
-    mock_spark,
+    spark,
     normalized_table_conf_with_opts,
     table_schema_ansi_ansi,
     query_store,
@@ -592,14 +592,14 @@ def test_reconcile_data_missing_and_no_mismatch(
             CATALOG,
             SCHEMA,
             query_store.hash_queries.source_hash_query,
-        ): mock_spark.createDataFrame(
+        ): spark.createDataFrame(
             [
                 Row(hash_value_recon="a1b", s_nationkey=11, s_suppkey=1),
                 Row(hash_value_recon="c2d", s_nationkey=22, s_suppkey=2),
                 Row(hash_value_recon="e3g", s_nationkey=33, s_suppkey=3),
             ]
         ),
-        (CATALOG, SCHEMA, query_store.missing_queries.target_missing_query): mock_spark.createDataFrame(
+        (CATALOG, SCHEMA, query_store.missing_queries.target_missing_query): spark.createDataFrame(
             [Row(s_address="address-3", s_name="name-3", s_nationkey=33, s_phone="333", s_suppkey=3)]
         ),
     }
@@ -609,14 +609,14 @@ def test_reconcile_data_missing_and_no_mismatch(
             CATALOG,
             SCHEMA,
             query_store.hash_queries.target_hash_query,
-        ): mock_spark.createDataFrame(
+        ): spark.createDataFrame(
             [
                 Row(hash_value_recon="a1b", s_nationkey=11, s_suppkey=1),
                 Row(hash_value_recon="c2d", s_nationkey=22, s_suppkey=2),
                 Row(hash_value_recon="k4l", s_nationkey=44, s_suppkey=4),
             ]
         ),
-        (CATALOG, SCHEMA, query_store.missing_queries.source_missing_query): mock_spark.createDataFrame(
+        (CATALOG, SCHEMA, query_store.missing_queries.source_missing_query): spark.createDataFrame(
             [Row(s_address="address-4", s_name="name-4", s_nationkey=44, s_phone="444", s_suppkey=4)]
         ),
     }
@@ -627,7 +627,7 @@ def test_reconcile_data_missing_and_no_mismatch(
         target_catalog=CATALOG,
         target_schema=SCHEMA,
     )
-    schema_comparator = SchemaCompare(mock_spark)
+    schema_comparator = SchemaCompare(spark)
     source = MockDataSource(source_dataframe_repository, source_schema_repository)
     target = MockDataSource(target_dataframe_repository, target_schema_repository)
     actual = Reconciliation(
@@ -637,7 +637,7 @@ def test_reconcile_data_missing_and_no_mismatch(
         "data",
         schema_comparator,
         get_dialect("databricks"),
-        mock_spark,
+        spark,
         recon_metadata,
         FakeReconIntermediatePersist(),
     ).reconcile_data(normalized_table_conf_with_opts, src_schema, tgt_schema)
@@ -645,10 +645,10 @@ def test_reconcile_data_missing_and_no_mismatch(
         mismatch_count=0,
         missing_in_src_count=1,
         missing_in_tgt_count=1,
-        missing_in_src=mock_spark.createDataFrame(
+        missing_in_src=spark.createDataFrame(
             [Row(s_address="address-4", s_name="name-4", s_nationkey=44, s_phone="444", s_suppkey=4)]
         ),
-        missing_in_tgt=mock_spark.createDataFrame(
+        missing_in_tgt=spark.createDataFrame(
             [Row(s_address="address-3", s_name="name-3", s_nationkey=33, s_phone="333", s_suppkey=3)]
         ),
         mismatch=MismatchOutput(),
@@ -667,7 +667,7 @@ def mock_for_report_type_data(
     table_schema_ansi_ansi,
     query_store,
     recon_metadata,
-    mock_spark,
+    spark,
 ):
     normalized_table_conf_with_opts.drop_columns = ["`s_acctbal`"]
     normalized_table_conf_with_opts.column_thresholds = None
@@ -680,20 +680,20 @@ def mock_for_report_type_data(
             CATALOG,
             SCHEMA,
             query_store.hash_queries.source_hash_query,
-        ): mock_spark.createDataFrame(
+        ): spark.createDataFrame(
             [
                 Row(hash_value_recon="a1b", s_nationkey=11, s_suppkey=1),
                 Row(hash_value_recon="c2d", s_nationkey=22, s_suppkey=2),
                 Row(hash_value_recon="e3g", s_nationkey=33, s_suppkey=3),
             ]
         ),
-        (CATALOG, SCHEMA, query_store.mismatch_queries.source_mismatch_query): mock_spark.createDataFrame(
+        (CATALOG, SCHEMA, query_store.mismatch_queries.source_mismatch_query): spark.createDataFrame(
             [Row(s_address="address-2", s_name="name-2", s_nationkey=22, s_phone="222-2", s_suppkey=2)]
         ),
-        (CATALOG, SCHEMA, query_store.missing_queries.target_missing_query): mock_spark.createDataFrame(
+        (CATALOG, SCHEMA, query_store.missing_queries.target_missing_query): spark.createDataFrame(
             [Row(s_address="address-3", s_name="name-3", s_nationkey=33, s_phone="333", s_suppkey=3)]
         ),
-        (CATALOG, SCHEMA, query_store.record_count_queries.source_record_count_query): mock_spark.createDataFrame(
+        (CATALOG, SCHEMA, query_store.record_count_queries.source_record_count_query): spark.createDataFrame(
             [Row(count=3)]
         ),
     }
@@ -703,7 +703,7 @@ def mock_for_report_type_data(
             CATALOG,
             SCHEMA,
             query_store.hash_queries.target_hash_query,
-        ): mock_spark.createDataFrame(
+        ): spark.createDataFrame(
             [
                 Row(hash_value_recon="a1b", s_nationkey=11, s_suppkey=1),
                 Row(hash_value_recon="c2de", s_nationkey=22, s_suppkey=2),
@@ -714,20 +714,20 @@ def mock_for_report_type_data(
             CATALOG,
             SCHEMA,
             query_store.sampling_queries.target_sampling_query,
-        ): mock_spark.createDataFrame(
+        ): spark.createDataFrame(
             [
                 Row(hash_value_recon="a1b", s_nationkey=11, s_suppkey=1),
                 Row(hash_value_recon="c2de", s_nationkey=22, s_suppkey=2),
                 Row(hash_value_recon="k4l", s_nationkey=44, s_suppkey=4),
             ]
         ),
-        (CATALOG, SCHEMA, query_store.mismatch_queries.target_mismatch_query): mock_spark.createDataFrame(
+        (CATALOG, SCHEMA, query_store.mismatch_queries.target_mismatch_query): spark.createDataFrame(
             [Row(s_address="address-22", s_name="name-2", s_nationkey=22, s_phone="222", s_suppkey=2)]
         ),
-        (CATALOG, SCHEMA, query_store.missing_queries.source_missing_query): mock_spark.createDataFrame(
+        (CATALOG, SCHEMA, query_store.missing_queries.source_missing_query): spark.createDataFrame(
             [Row(s_address="address-4", s_name="name-4", s_nationkey=44, s_phone="444", s_suppkey=4)]
         ),
-        (CATALOG, SCHEMA, query_store.record_count_queries.target_record_count_query): mock_spark.createDataFrame(
+        (CATALOG, SCHEMA, query_store.record_count_queries.target_record_count_query): spark.createDataFrame(
             [Row(count=3)]
         ),
     }
@@ -750,7 +750,7 @@ def mock_for_report_type_data(
 
 
 def test_recon_for_report_type_is_data(
-    mock_workspace_client, mock_spark, report_tables_schema, mock_for_report_type_data, tmp_path: Path, recon_id: UUID
+    mock_workspace_client, spark, report_tables_schema, mock_for_report_type_data, tmp_path: Path, recon_id: UUID
 ):
     recon_schema, metrics_schema, details_schema = report_tables_schema
     table_recon, source, target, reconcile_config_data = mock_for_report_type_data
@@ -772,12 +772,12 @@ def test_recon_for_report_type_is_data(
         recon_datetime.now.return_value = datetime(2024, 5, 23, 9, 21, 25, 122185)
 
         reconcile_output = TriggerReconService.trigger_recon(
-            mock_workspace_client, mock_spark, table_recon, reconcile_config_data, local_test_run=True
+            mock_workspace_client, spark, table_recon, reconcile_config_data, local_test_run=True
         )
 
         assert reconcile_output.recon_id == recon_id.hex
 
-    expected_remorph_recon = mock_spark.createDataFrame(
+    expected_remorph_recon = spark.createDataFrame(
         data=[
             (
                 11111,
@@ -793,7 +793,7 @@ def test_recon_for_report_type_is_data(
         ],
         schema=recon_schema,
     )
-    expected_remorph_recon_metrics = mock_spark.createDataFrame(
+    expected_remorph_recon_metrics = spark.createDataFrame(
         data=[
             (
                 11111,
@@ -804,7 +804,7 @@ def test_recon_for_report_type_is_data(
         ],
         schema=metrics_schema,
     )
-    expected_remorph_recon_details = mock_spark.createDataFrame(
+    expected_remorph_recon_details = spark.createDataFrame(
         data=[
             (
                 11111,
@@ -861,12 +861,12 @@ def test_recon_for_report_type_is_data(
         schema=details_schema,
     )
 
-    assertDataFrameEqual(mock_spark.sql(f"SELECT * FROM {schema}.MAIN"), expected_remorph_recon, ignoreNullable=True)
+    assertDataFrameEqual(spark.sql(f"SELECT * FROM {schema}.MAIN"), expected_remorph_recon, ignoreNullable=True)
     assertDataFrameEqual(
-        mock_spark.sql(f"SELECT * FROM {schema}.METRICS"), expected_remorph_recon_metrics, ignoreNullable=True
+        spark.sql(f"SELECT * FROM {schema}.METRICS"), expected_remorph_recon_metrics, ignoreNullable=True
     )
     assertDataFrameEqual(
-        mock_spark.sql(f"SELECT * FROM {schema}.DETAILS"), expected_remorph_recon_details, ignoreNullable=True
+        spark.sql(f"SELECT * FROM {schema}.DETAILS"), expected_remorph_recon_details, ignoreNullable=True
     )
 
 
@@ -875,7 +875,7 @@ def mock_for_report_type_schema(
     normalized_table_conf_with_opts,
     table_schema_ansi_ansi,
     query_store,
-    mock_spark,
+    spark,
     recon_metadata: ReconcileMetadataConfig,
 ):
     table_recon = TableRecon(
@@ -887,20 +887,20 @@ def mock_for_report_type_schema(
             CATALOG,
             SCHEMA,
             query_store.hash_queries.source_hash_query,
-        ): mock_spark.createDataFrame(
+        ): spark.createDataFrame(
             [
                 Row(hash_value_recon="a1b", s_nationkey=11, s_suppkey=1),
                 Row(hash_value_recon="c2d", s_nationkey=22, s_suppkey=2),
                 Row(hash_value_recon="e3g", s_nationkey=33, s_suppkey=3),
             ]
         ),
-        (CATALOG, SCHEMA, query_store.mismatch_queries.source_mismatch_query): mock_spark.createDataFrame(
+        (CATALOG, SCHEMA, query_store.mismatch_queries.source_mismatch_query): spark.createDataFrame(
             [Row(s_address="address-2", s_name="name-2", s_nationkey=22, s_phone="222-2", s_suppkey=2)]
         ),
-        (CATALOG, SCHEMA, query_store.missing_queries.target_missing_query): mock_spark.createDataFrame(
+        (CATALOG, SCHEMA, query_store.missing_queries.target_missing_query): spark.createDataFrame(
             [Row(s_address="address-3", s_name="name-3", s_nationkey=33, s_phone="333", s_suppkey=3)]
         ),
-        (CATALOG, SCHEMA, query_store.record_count_queries.source_record_count_query): mock_spark.createDataFrame(
+        (CATALOG, SCHEMA, query_store.record_count_queries.source_record_count_query): spark.createDataFrame(
             [Row(count=3)]
         ),
     }
@@ -911,20 +911,20 @@ def mock_for_report_type_schema(
             CATALOG,
             SCHEMA,
             query_store.hash_queries.target_hash_query,
-        ): mock_spark.createDataFrame(
+        ): spark.createDataFrame(
             [
                 Row(hash_value_recon="a1b", s_nationkey=11, s_suppkey=1),
                 Row(hash_value_recon="c2de", s_nationkey=22, s_suppkey=2),
                 Row(hash_value_recon="k4l", s_nationkey=44, s_suppkey=4),
             ]
         ),
-        (CATALOG, SCHEMA, query_store.mismatch_queries.target_mismatch_query): mock_spark.createDataFrame(
+        (CATALOG, SCHEMA, query_store.mismatch_queries.target_mismatch_query): spark.createDataFrame(
             [Row(s_address="address-22", s_name="name-2", s_nationkey=22, s_phone="222", s_suppkey=2)]
         ),
-        (CATALOG, SCHEMA, query_store.missing_queries.source_missing_query): mock_spark.createDataFrame(
+        (CATALOG, SCHEMA, query_store.missing_queries.source_missing_query): spark.createDataFrame(
             [Row(s_address="address-4", s_name="name-4", s_nationkey=44, s_phone="444", s_suppkey=4)]
         ),
-        (CATALOG, SCHEMA, query_store.record_count_queries.target_record_count_query): mock_spark.createDataFrame(
+        (CATALOG, SCHEMA, query_store.record_count_queries.target_record_count_query): spark.createDataFrame(
             [Row(count=3)]
         ),
     }
@@ -947,7 +947,7 @@ def mock_for_report_type_schema(
 
 
 def test_recon_for_report_type_schema(
-    mock_workspace_client, mock_spark, report_tables_schema, mock_for_report_type_schema, tmp_path: Path, recon_id: UUID
+    mock_workspace_client, spark, report_tables_schema, mock_for_report_type_schema, tmp_path: Path, recon_id: UUID
 ):
     recon_schema, metrics_schema, details_schema = report_tables_schema
     table_recon, source, target, reconcile_config_schema = mock_for_report_type_schema
@@ -965,10 +965,10 @@ def test_recon_for_report_type_schema(
         mock_datetime.now.return_value = datetime(2024, 5, 23, 9, 21, 25, 122185)
         recon_datetime.now.return_value = datetime(2024, 5, 23, 9, 21, 25, 122185)
         final_reconcile_output = TriggerReconService.trigger_recon(
-            mock_workspace_client, mock_spark, table_recon, reconcile_config_schema, local_test_run=True
+            mock_workspace_client, spark, table_recon, reconcile_config_schema, local_test_run=True
         )
 
-    expected_remorph_recon = mock_spark.createDataFrame(
+    expected_remorph_recon = spark.createDataFrame(
         data=[
             (
                 22222,
@@ -984,11 +984,11 @@ def test_recon_for_report_type_schema(
         ],
         schema=recon_schema,
     )
-    expected_remorph_recon_metrics = mock_spark.createDataFrame(
+    expected_remorph_recon_metrics = spark.createDataFrame(
         data=[(22222, (0, 0, None, None, True), (True, "remorph", ""), datetime(2024, 5, 23, 9, 21, 25, 122185))],
         schema=metrics_schema,
     )
-    expected_remorph_recon_details = mock_spark.createDataFrame(
+    expected_remorph_recon_details = spark.createDataFrame(
         data=[
             (
                 22222,
@@ -1044,12 +1044,12 @@ def test_recon_for_report_type_schema(
         schema=details_schema,
     )
 
-    assertDataFrameEqual(mock_spark.sql(f"SELECT * FROM {schema}.MAIN"), expected_remorph_recon, ignoreNullable=True)
+    assertDataFrameEqual(spark.sql(f"SELECT * FROM {schema}.MAIN"), expected_remorph_recon, ignoreNullable=True)
     assertDataFrameEqual(
-        mock_spark.sql(f"SELECT * FROM {schema}.METRICS"), expected_remorph_recon_metrics, ignoreNullable=True
+        spark.sql(f"SELECT * FROM {schema}.METRICS"), expected_remorph_recon_metrics, ignoreNullable=True
     )
     assertDataFrameEqual(
-        mock_spark.sql(f"SELECT * FROM {schema}.DETAILS"), expected_remorph_recon_details, ignoreNullable=True
+        spark.sql(f"SELECT * FROM {schema}.DETAILS"), expected_remorph_recon_details, ignoreNullable=True
     )
 
     assert final_reconcile_output.recon_id == recon_id.hex
@@ -1060,7 +1060,7 @@ def mock_for_report_type_all(
     mock_workspace_client,
     normalized_table_conf_with_opts,
     table_schema_oracle_ansi,
-    mock_spark,
+    spark,
     query_store,
     recon_metadata,
 ):
@@ -1076,24 +1076,24 @@ def mock_for_report_type_all(
             CATALOG,
             SCHEMA,
             snowflake_query_store.hash_queries.source_hash_query,
-        ): mock_spark.createDataFrame(
+        ): spark.createDataFrame(
             [
                 Row(hash_value_recon="a1b", s_nationkey=11, s_suppkey=1),
                 Row(hash_value_recon="c2d", s_nationkey=22, s_suppkey=2),
                 Row(hash_value_recon="e3g", s_nationkey=33, s_suppkey=3),
             ]
         ),
-        (CATALOG, SCHEMA, snowflake_query_store.mismatch_queries.source_mismatch_query): mock_spark.createDataFrame(
+        (CATALOG, SCHEMA, snowflake_query_store.mismatch_queries.source_mismatch_query): spark.createDataFrame(
             [Row(s_address="address-2", s_name="name-2", s_nationkey=22, s_phone="222-2", s_suppkey=2)]
         ),
-        (CATALOG, SCHEMA, snowflake_query_store.missing_queries.target_missing_query): mock_spark.createDataFrame(
+        (CATALOG, SCHEMA, snowflake_query_store.missing_queries.target_missing_query): spark.createDataFrame(
             [Row(s_address="address-3", s_name="name-3", s_nationkey=33, s_phone="333", s_suppkey=3)]
         ),
         (
             CATALOG,
             SCHEMA,
             snowflake_query_store.record_count_queries.source_record_count_query,
-        ): mock_spark.createDataFrame([Row(count=3)]),
+        ): spark.createDataFrame([Row(count=3)]),
     }
     source_schema_repository = {(CATALOG, SCHEMA, SRC_TABLE): src_schema}
 
@@ -1102,7 +1102,7 @@ def mock_for_report_type_all(
             CATALOG,
             SCHEMA,
             snowflake_query_store.hash_queries.target_hash_query,
-        ): mock_spark.createDataFrame(
+        ): spark.createDataFrame(
             [
                 Row(hash_value_recon="a1b", s_nationkey=11, s_suppkey=1),
                 Row(hash_value_recon="c2de", s_nationkey=22, s_suppkey=2),
@@ -1113,24 +1113,24 @@ def mock_for_report_type_all(
             CATALOG,
             SCHEMA,
             snowflake_query_store.sampling_queries.target_sampling_query,
-        ): mock_spark.createDataFrame(
+        ): spark.createDataFrame(
             [
                 Row(hash_value_recon="a1b", s_nationkey=11, s_suppkey=1),
                 Row(hash_value_recon="c2de", s_nationkey=22, s_suppkey=2),
                 Row(hash_value_recon="k4l", s_nationkey=44, s_suppkey=4),
             ]
         ),
-        (CATALOG, SCHEMA, snowflake_query_store.mismatch_queries.target_mismatch_query): mock_spark.createDataFrame(
+        (CATALOG, SCHEMA, snowflake_query_store.mismatch_queries.target_mismatch_query): spark.createDataFrame(
             [Row(s_address="address-22", s_name="name-2", s_nationkey=22, s_phone="222", s_suppkey=2)]
         ),
-        (CATALOG, SCHEMA, snowflake_query_store.missing_queries.source_missing_query): mock_spark.createDataFrame(
+        (CATALOG, SCHEMA, snowflake_query_store.missing_queries.source_missing_query): spark.createDataFrame(
             [Row(s_address="address-4", s_name="name-4", s_nationkey=44, s_phone="444", s_suppkey=4)]
         ),
         (
             CATALOG,
             SCHEMA,
             snowflake_query_store.record_count_queries.target_record_count_query,
-        ): mock_spark.createDataFrame([Row(count=3)]),
+        ): spark.createDataFrame([Row(count=3)]),
     }
 
     target_schema_repository = {(CATALOG, SCHEMA, TGT_TABLE): tgt_schema}
@@ -1154,7 +1154,7 @@ def mock_for_report_type_all(
 @pytest.mark.skip(reason="Will be fixed in a following PR")
 def test_recon_for_report_type_all(
     mock_workspace_client,
-    mock_spark,
+    spark,
     report_tables_schema,
     mock_for_report_type_all,
     tmp_path: Path,
@@ -1181,12 +1181,12 @@ def test_recon_for_report_type_all(
         recon_datetime.now.return_value = datetime(2024, 5, 23, 9, 21, 25, 122185)
         with pytest.raises(ReconciliationException) as exc_info:
             TriggerReconService.trigger_recon(
-                mock_workspace_client, mock_spark, table_recon, reconcile_config_all, local_test_run=True
+                mock_workspace_client, spark, table_recon, reconcile_config_all, local_test_run=True
             )
         if exc_info.value.reconcile_output is not None:
             assert exc_info.value.reconcile_output.recon_id == "00112233-4455-6677-8899-aabbccddeeff"
 
-    expected_remorph_recon = mock_spark.createDataFrame(
+    expected_remorph_recon = spark.createDataFrame(
         data=[
             (
                 33333,
@@ -1202,7 +1202,7 @@ def test_recon_for_report_type_all(
         ],
         schema=recon_schema,
     )
-    expected_remorph_recon_metrics = mock_spark.createDataFrame(
+    expected_remorph_recon_metrics = spark.createDataFrame(
         data=[
             (
                 33333,
@@ -1213,7 +1213,7 @@ def test_recon_for_report_type_all(
         ],
         schema=metrics_schema,
     )
-    expected_remorph_recon_details = mock_spark.createDataFrame(
+    expected_remorph_recon_details = spark.createDataFrame(
         data=[
             (
                 33333,
@@ -1313,18 +1313,18 @@ def test_recon_for_report_type_all(
         schema=details_schema,
     )
 
-    assertDataFrameEqual(mock_spark.sql(f"SELECT * FROM {schema}.MAIN"), expected_remorph_recon, ignoreNullable=True)
+    assertDataFrameEqual(spark.sql(f"SELECT * FROM {schema}.MAIN"), expected_remorph_recon, ignoreNullable=True)
     assertDataFrameEqual(
-        mock_spark.sql(f"SELECT * FROM {schema}.METRICS"), expected_remorph_recon_metrics, ignoreNullable=True
+        spark.sql(f"SELECT * FROM {schema}.METRICS"), expected_remorph_recon_metrics, ignoreNullable=True
     )
     assertDataFrameEqual(
-        mock_spark.sql(f"SELECT * FROM {schema}.DETAILS"), expected_remorph_recon_details, ignoreNullable=True
+        spark.sql(f"SELECT * FROM {schema}.DETAILS"), expected_remorph_recon_details, ignoreNullable=True
     )
 
 
 @pytest.fixture
 def mock_for_report_type_row(
-    normalized_table_conf_with_opts, table_schema_ansi_ansi, mock_spark, query_store, recon_metadata
+    normalized_table_conf_with_opts, table_schema_ansi_ansi, spark, query_store, recon_metadata
 ):
     normalized_table_conf_with_opts.drop_columns = ["`s_acctbal`"]
     normalized_table_conf_with_opts.column_thresholds = None
@@ -1337,7 +1337,7 @@ def mock_for_report_type_row(
             CATALOG,
             SCHEMA,
             query_store.row_queries.source_row_query,
-        ): mock_spark.createDataFrame(
+        ): spark.createDataFrame(
             [
                 Row(
                     hash_value_recon="a1b",
@@ -1365,7 +1365,7 @@ def mock_for_report_type_row(
                 ),
             ]
         ),
-        (CATALOG, SCHEMA, query_store.record_count_queries.source_record_count_query): mock_spark.createDataFrame(
+        (CATALOG, SCHEMA, query_store.record_count_queries.source_record_count_query): spark.createDataFrame(
             [Row(count=3)]
         ),
     }
@@ -1376,7 +1376,7 @@ def mock_for_report_type_row(
             CATALOG,
             SCHEMA,
             query_store.row_queries.target_row_query,
-        ): mock_spark.createDataFrame(
+        ): spark.createDataFrame(
             [
                 Row(
                     hash_value_recon="a1b",
@@ -1404,7 +1404,7 @@ def mock_for_report_type_row(
                 ),
             ]
         ),
-        (CATALOG, SCHEMA, query_store.record_count_queries.target_record_count_query): mock_spark.createDataFrame(
+        (CATALOG, SCHEMA, query_store.record_count_queries.target_record_count_query): spark.createDataFrame(
             [Row(count=3)]
         ),
     }
@@ -1431,7 +1431,7 @@ def mock_for_report_type_row(
 @pytest.mark.skip(reason="Will be fixed in a following PR")
 def test_recon_for_report_type_is_row(
     mock_workspace_client,
-    mock_spark,
+    spark,
     mock_for_report_type_row,
     report_tables_schema,
     tmp_path: Path,
@@ -1457,13 +1457,13 @@ def test_recon_for_report_type_is_row(
         recon_datetime.now.return_value = datetime(2024, 5, 23, 9, 21, 25, 122185)
         with pytest.raises(ReconciliationException) as exc_info:
             TriggerReconService.trigger_recon(
-                mock_workspace_client, mock_spark, table_recon, reconcile_config_row, local_test_run=True
+                mock_workspace_client, spark, table_recon, reconcile_config_row, local_test_run=True
             )
 
         if exc_info.value.reconcile_output is not None:
             assert exc_info.value.reconcile_output.recon_id == "00112233-4455-6677-8899-aabbccddeeff"
 
-    expected_remorph_recon = mock_spark.createDataFrame(
+    expected_remorph_recon = spark.createDataFrame(
         data=[
             (
                 33333,
@@ -1479,7 +1479,7 @@ def test_recon_for_report_type_is_row(
         ],
         schema=recon_schema,
     )
-    expected_remorph_recon_metrics = mock_spark.createDataFrame(
+    expected_remorph_recon_metrics = spark.createDataFrame(
         data=[
             (
                 33333,
@@ -1490,7 +1490,7 @@ def test_recon_for_report_type_is_row(
         ],
         schema=metrics_schema,
     )
-    expected_remorph_recon_details = mock_spark.createDataFrame(
+    expected_remorph_recon_details = spark.createDataFrame(
         data=[
             (
                 33333,
@@ -1540,12 +1540,12 @@ def test_recon_for_report_type_is_row(
         schema=details_schema,
     )
 
-    assertDataFrameEqual(mock_spark.sql(f"SELECT * FROM {schema}.MAIN"), expected_remorph_recon, ignoreNullable=True)
+    assertDataFrameEqual(spark.sql(f"SELECT * FROM {schema}.MAIN"), expected_remorph_recon, ignoreNullable=True)
     assertDataFrameEqual(
-        mock_spark.sql(f"SELECT * FROM {schema}.METRICS"), expected_remorph_recon_metrics, ignoreNullable=True
+        spark.sql(f"SELECT * FROM {schema}.METRICS"), expected_remorph_recon_metrics, ignoreNullable=True
     )
     assertDataFrameEqual(
-        mock_spark.sql(f"SELECT * FROM {schema}.DETAILS"), expected_remorph_recon_details, ignoreNullable=True
+        spark.sql(f"SELECT * FROM {schema}.DETAILS"), expected_remorph_recon_details, ignoreNullable=True
     )
 
 
@@ -1576,7 +1576,7 @@ def mock_for_recon_exception(normalized_table_conf_with_opts, recon_metadata):
 
 
 def test_schema_recon_with_data_source_exception(
-    mock_workspace_client, mock_spark, report_tables_schema, mock_for_recon_exception, tmp_path: Path, recon_id: UUID
+    mock_workspace_client, spark, report_tables_schema, mock_for_recon_exception, tmp_path: Path, recon_id: UUID
 ):
     recon_schema, metrics_schema, details_schema = report_tables_schema
     table_recon, source, target, reconcile_config_exception = mock_for_recon_exception
@@ -1599,10 +1599,10 @@ def test_schema_recon_with_data_source_exception(
         mock_datetime.now.return_value = datetime(2024, 5, 23, 9, 21, 25, 122185)
         recon_datetime.now.return_value = datetime(2024, 5, 23, 9, 21, 25, 122185)
         TriggerReconService.trigger_recon(
-            mock_workspace_client, mock_spark, table_recon, reconcile_config_exception, local_test_run=True
+            mock_workspace_client, spark, table_recon, reconcile_config_exception, local_test_run=True
         )
 
-    expected_remorph_recon = mock_spark.createDataFrame(
+    expected_remorph_recon = spark.createDataFrame(
         data=[
             (
                 33333,
@@ -1618,7 +1618,7 @@ def test_schema_recon_with_data_source_exception(
         ],
         schema=recon_schema,
     )
-    expected_remorph_recon_metrics = mock_spark.createDataFrame(
+    expected_remorph_recon_metrics = spark.createDataFrame(
         data=[
             (
                 33333,
@@ -1633,19 +1633,19 @@ def test_schema_recon_with_data_source_exception(
         ],
         schema=metrics_schema,
     )
-    expected_remorph_recon_details = mock_spark.createDataFrame(data=[], schema=details_schema)
+    expected_remorph_recon_details = spark.createDataFrame(data=[], schema=details_schema)
 
-    assertDataFrameEqual(mock_spark.sql(f"SELECT * FROM {schema}.MAIN"), expected_remorph_recon, ignoreNullable=True)
+    assertDataFrameEqual(spark.sql(f"SELECT * FROM {schema}.MAIN"), expected_remorph_recon, ignoreNullable=True)
     assertDataFrameEqual(
-        mock_spark.sql(f"SELECT * FROM {schema}.METRICS"), expected_remorph_recon_metrics, ignoreNullable=True
+        spark.sql(f"SELECT * FROM {schema}.METRICS"), expected_remorph_recon_metrics, ignoreNullable=True
     )
     assertDataFrameEqual(
-        mock_spark.sql(f"SELECT * FROM {schema}.DETAILS"), expected_remorph_recon_details, ignoreNullable=True
+        spark.sql(f"SELECT * FROM {schema}.DETAILS"), expected_remorph_recon_details, ignoreNullable=True
     )
 
 
 def test_schema_recon_with_general_exception(
-    mock_workspace_client, mock_spark, report_tables_schema, mock_for_report_type_schema, tmp_path: Path, recon_id: UUID
+    mock_workspace_client, spark, report_tables_schema, mock_for_report_type_schema, tmp_path: Path, recon_id: UUID
 ):
     recon_schema, metrics_schema, details_schema = report_tables_schema
     table_recon, source, target, reconcile_config_schema = mock_for_report_type_schema
@@ -1673,10 +1673,10 @@ def test_schema_recon_with_general_exception(
         mock_datetime.now.return_value = datetime(2024, 5, 23, 9, 21, 25, 122185)
         recon_datetime.now.return_value = datetime(2024, 5, 23, 9, 21, 25, 122185)
         TriggerReconService.trigger_recon(
-            mock_workspace_client, mock_spark, table_recon, reconcile_config_schema, local_test_run=True
+            mock_workspace_client, spark, table_recon, reconcile_config_schema, local_test_run=True
         )
 
-    expected_remorph_recon = mock_spark.createDataFrame(
+    expected_remorph_recon = spark.createDataFrame(
         data=[
             (
                 33333,
@@ -1692,7 +1692,7 @@ def test_schema_recon_with_general_exception(
         ],
         schema=recon_schema,
     )
-    expected_remorph_recon_metrics = mock_spark.createDataFrame(
+    expected_remorph_recon_metrics = spark.createDataFrame(
         data=[
             (
                 33333,
@@ -1707,19 +1707,19 @@ def test_schema_recon_with_general_exception(
         ],
         schema=metrics_schema,
     )
-    expected_remorph_recon_details = mock_spark.createDataFrame(data=[], schema=details_schema)
+    expected_remorph_recon_details = spark.createDataFrame(data=[], schema=details_schema)
 
-    assertDataFrameEqual(mock_spark.sql(f"SELECT * FROM {schema}.MAIN"), expected_remorph_recon, ignoreNullable=True)
+    assertDataFrameEqual(spark.sql(f"SELECT * FROM {schema}.MAIN"), expected_remorph_recon, ignoreNullable=True)
     assertDataFrameEqual(
-        mock_spark.sql(f"SELECT * FROM {schema}.METRICS"), expected_remorph_recon_metrics, ignoreNullable=True
+        spark.sql(f"SELECT * FROM {schema}.METRICS"), expected_remorph_recon_metrics, ignoreNullable=True
     )
     assertDataFrameEqual(
-        mock_spark.sql(f"SELECT * FROM {schema}.DETAILS"), expected_remorph_recon_details, ignoreNullable=True
+        spark.sql(f"SELECT * FROM {schema}.DETAILS"), expected_remorph_recon_details, ignoreNullable=True
     )
 
 
 def test_data_recon_with_general_exception(
-    mock_workspace_client, mock_spark, report_tables_schema, mock_for_report_type_schema, tmp_path: Path, recon_id: UUID
+    mock_workspace_client, spark, report_tables_schema, mock_for_report_type_schema, tmp_path: Path, recon_id: UUID
 ):
     recon_schema, metrics_schema, details_schema = report_tables_schema
     table_recon, source, target, reconcile_config = mock_for_report_type_schema
@@ -1746,10 +1746,10 @@ def test_data_recon_with_general_exception(
         mock_datetime.now.return_value = datetime(2024, 5, 23, 9, 21, 25, 122185)
         recon_datetime.now.return_value = datetime(2024, 5, 23, 9, 21, 25, 122185)
         TriggerReconService.trigger_recon(
-            mock_workspace_client, mock_spark, table_recon, reconcile_config, local_test_run=True
+            mock_workspace_client, spark, table_recon, reconcile_config, local_test_run=True
         )
 
-    expected_remorph_recon = mock_spark.createDataFrame(
+    expected_remorph_recon = spark.createDataFrame(
         data=[
             (
                 33333,
@@ -1765,7 +1765,7 @@ def test_data_recon_with_general_exception(
         ],
         schema=recon_schema,
     )
-    expected_remorph_recon_metrics = mock_spark.createDataFrame(
+    expected_remorph_recon_metrics = spark.createDataFrame(
         data=[
             (
                 33333,
@@ -1780,19 +1780,19 @@ def test_data_recon_with_general_exception(
         ],
         schema=metrics_schema,
     )
-    expected_remorph_recon_details = mock_spark.createDataFrame(data=[], schema=details_schema)
+    expected_remorph_recon_details = spark.createDataFrame(data=[], schema=details_schema)
 
-    assertDataFrameEqual(mock_spark.sql(f"SELECT * FROM {schema}.MAIN"), expected_remorph_recon, ignoreNullable=True)
+    assertDataFrameEqual(spark.sql(f"SELECT * FROM {schema}.MAIN"), expected_remorph_recon, ignoreNullable=True)
     assertDataFrameEqual(
-        mock_spark.sql(f"SELECT * FROM {schema}.METRICS"), expected_remorph_recon_metrics, ignoreNullable=True
+        spark.sql(f"SELECT * FROM {schema}.METRICS"), expected_remorph_recon_metrics, ignoreNullable=True
     )
     assertDataFrameEqual(
-        mock_spark.sql(f"SELECT * FROM {schema}.DETAILS"), expected_remorph_recon_details, ignoreNullable=True
+        spark.sql(f"SELECT * FROM {schema}.DETAILS"), expected_remorph_recon_details, ignoreNullable=True
     )
 
 
 def test_data_recon_with_source_exception(
-    mock_workspace_client, mock_spark, report_tables_schema, mock_for_report_type_schema, tmp_path: Path, recon_id: UUID
+    mock_workspace_client, spark, report_tables_schema, mock_for_report_type_schema, tmp_path: Path, recon_id: UUID
 ):
     recon_schema, metrics_schema, details_schema = report_tables_schema
     table_recon, source, target, reconcile_config = mock_for_report_type_schema
@@ -1819,10 +1819,10 @@ def test_data_recon_with_source_exception(
         mock_datetime.now.return_value = datetime(2024, 5, 23, 9, 21, 25, 122185)
         recon_datetime.now.return_value = datetime(2024, 5, 23, 9, 21, 25, 122185)
         TriggerReconService.trigger_recon(
-            mock_workspace_client, mock_spark, table_recon, reconcile_config, local_test_run=True
+            mock_workspace_client, spark, table_recon, reconcile_config, local_test_run=True
         )
 
-    expected_remorph_recon = mock_spark.createDataFrame(
+    expected_remorph_recon = spark.createDataFrame(
         data=[
             (
                 33333,
@@ -1838,7 +1838,7 @@ def test_data_recon_with_source_exception(
         ],
         schema=recon_schema,
     )
-    expected_remorph_recon_metrics = mock_spark.createDataFrame(
+    expected_remorph_recon_metrics = spark.createDataFrame(
         data=[
             (
                 33333,
@@ -1853,31 +1853,31 @@ def test_data_recon_with_source_exception(
         ],
         schema=metrics_schema,
     )
-    expected_remorph_recon_details = mock_spark.createDataFrame(data=[], schema=details_schema)
+    expected_remorph_recon_details = spark.createDataFrame(data=[], schema=details_schema)
 
-    assertDataFrameEqual(mock_spark.sql(f"SELECT * FROM {schema}.MAIN"), expected_remorph_recon, ignoreNullable=True)
+    assertDataFrameEqual(spark.sql(f"SELECT * FROM {schema}.MAIN"), expected_remorph_recon, ignoreNullable=True)
     assertDataFrameEqual(
-        mock_spark.sql(f"SELECT * FROM {schema}.METRICS"), expected_remorph_recon_metrics, ignoreNullable=True
+        spark.sql(f"SELECT * FROM {schema}.METRICS"), expected_remorph_recon_metrics, ignoreNullable=True
     )
     assertDataFrameEqual(
-        mock_spark.sql(f"SELECT * FROM {schema}.DETAILS"), expected_remorph_recon_details, ignoreNullable=True
+        spark.sql(f"SELECT * FROM {schema}.DETAILS"), expected_remorph_recon_details, ignoreNullable=True
     )
 
 
-def test_initialise_data_source(mock_workspace_client, mock_spark):
+def test_initialise_data_source(mock_workspace_client, spark):
     src_engine = get_dialect("snowflake")
     secret_scope = "test"
 
-    source, target = initialise_data_source(mock_workspace_client, mock_spark, src_engine, secret_scope)
+    source, target = initialise_data_source(mock_workspace_client, spark, src_engine, secret_scope)
 
-    snowflake_data_source = SnowflakeDataSource(src_engine, mock_spark, mock_workspace_client, secret_scope).__class__
-    databricks_data_source = DatabricksDataSource(src_engine, mock_spark, mock_workspace_client, secret_scope).__class__
+    snowflake_data_source = SnowflakeDataSource(src_engine, spark, mock_workspace_client, secret_scope).__class__
+    databricks_data_source = DatabricksDataSource(src_engine, spark, mock_workspace_client, secret_scope).__class__
 
     assert isinstance(source, snowflake_data_source)
     assert isinstance(target, databricks_data_source)
 
 
-def test_recon_for_wrong_report_type(mock_workspace_client, mock_spark, mock_for_report_type_row):
+def test_recon_for_wrong_report_type(mock_workspace_client, spark, mock_for_report_type_row):
     source, target, table_recon, reconcile_config = mock_for_report_type_row
     reconcile_config.report_type = "ro"
     with (
@@ -1897,12 +1897,12 @@ def test_recon_for_wrong_report_type(mock_workspace_client, mock_spark, mock_for
         mock_datetime.now.return_value = datetime(2024, 5, 23, 9, 21, 25, 122185)
         recon_datetime.now.return_value = datetime(2024, 5, 23, 9, 21, 25, 122185)
         TriggerReconService.trigger_recon(
-            mock_workspace_client, mock_spark, table_recon, reconcile_config, local_test_run=True
+            mock_workspace_client, spark, table_recon, reconcile_config, local_test_run=True
         )
 
 
 def test_reconcile_data_with_threshold_and_row_report_type(
-    mock_spark, normalized_table_conf_with_opts, table_schema_ansi_ansi, query_store, tmp_path: Path
+    spark, normalized_table_conf_with_opts, table_schema_ansi_ansi, query_store, tmp_path: Path
 ):
     src_schema, tgt_schema = table_schema_ansi_ansi
     source_dataframe_repository = {
@@ -1910,13 +1910,13 @@ def test_reconcile_data_with_threshold_and_row_report_type(
             CATALOG,
             SCHEMA,
             query_store.row_queries.source_row_query,
-        ): mock_spark.createDataFrame(
+        ): spark.createDataFrame(
             [
                 Row(hash_value_recon="a1b", s_nationkey=11, s_suppkey=1),
                 Row(hash_value_recon="c2d", s_nationkey=22, s_suppkey=2),
             ]
         ),
-        (CATALOG, SCHEMA, query_store.threshold_queries.source_threshold_query): mock_spark.createDataFrame(
+        (CATALOG, SCHEMA, query_store.threshold_queries.source_threshold_query): spark.createDataFrame(
             [Row(s_nationkey=11, s_suppkey=1, s_acctbal=100)]
         ),
     }
@@ -1927,16 +1927,16 @@ def test_reconcile_data_with_threshold_and_row_report_type(
             CATALOG,
             SCHEMA,
             query_store.row_queries.target_row_query,
-        ): mock_spark.createDataFrame(
+        ): spark.createDataFrame(
             [
                 Row(hash_value_recon="a1b", s_nationkey=11, s_suppkey=1),
                 Row(hash_value_recon="c2d", s_nationkey=22, s_suppkey=2),
             ]
         ),
-        (CATALOG, SCHEMA, query_store.threshold_queries.target_threshold_query): mock_spark.createDataFrame(
+        (CATALOG, SCHEMA, query_store.threshold_queries.target_threshold_query): spark.createDataFrame(
             [Row(s_nationkey=11, s_suppkey=1, s_acctbal=110)]
         ),
-        (CATALOG, SCHEMA, query_store.threshold_queries.threshold_comparison_query): mock_spark.createDataFrame(
+        (CATALOG, SCHEMA, query_store.threshold_queries.threshold_comparison_query): spark.createDataFrame(
             [
                 Row(
                     s_acctbal_source=100,
@@ -1956,7 +1956,7 @@ def test_reconcile_data_with_threshold_and_row_report_type(
         target_catalog=CATALOG,
         target_schema=SCHEMA,
     )
-    schema_comparator = SchemaCompare(mock_spark)
+    schema_comparator = SchemaCompare(spark)
     source = MockDataSource(source_dataframe_repository, source_schema_repository)
     target = MockDataSource(target_dataframe_repository, target_schema_repository)
 
@@ -1967,7 +1967,7 @@ def test_reconcile_data_with_threshold_and_row_report_type(
         "row",
         schema_comparator,
         get_dialect("databricks"),
-        mock_spark,
+        spark,
         ReconcileMetadataConfig(),
         FakeReconIntermediatePersist(),
     ).reconcile_data(normalized_table_conf_with_opts, src_schema, tgt_schema)
@@ -1982,7 +1982,7 @@ def test_reconcile_data_with_threshold_and_row_report_type(
 @patch('databricks.labs.lakebridge.reconcile.recon_capture.generate_final_reconcile_output')
 def test_recon_output_without_exception(mock_gen_final_recon_output):
     mock_workspace_client = MagicMock()
-    mock_spark = MagicMock()
+    spark = MagicMock()
     mock_table_recon = MagicMock()
     mock_gen_final_recon_output.return_value = ReconcileOutput(
         recon_id="00112233-4455-6677-8899-aabbccddeeff",
@@ -2015,7 +2015,7 @@ def test_recon_output_without_exception(mock_gen_final_recon_output):
     try:
         TriggerReconService.trigger_recon(
             mock_workspace_client,
-            mock_spark,
+            spark,
             mock_table_recon,
             reconcile_config,
         )
