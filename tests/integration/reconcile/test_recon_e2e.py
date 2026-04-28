@@ -72,9 +72,7 @@ def test_recon_databricks_job_succeeds(
         _run_recon_e2e_spec(app_ctx)
 
 
-pytest.mark.skip(reason="Sandbox SQL Server credentials are stale.")
-
-
+@pytest.mark.skip(reason="Sandbox SQL Server credentials are stale.")
 def test_recon_sql_server_job_succeeds(
     application_ctx: ApplicationContext, tsql_recon_config: ReconcileConfig, tsql_recon_table_config: TableRecon
 ) -> None:

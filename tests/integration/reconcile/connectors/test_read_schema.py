@@ -81,9 +81,7 @@ class SnowflakeDataSourceUnderTest(SnowflakeDataSource):
         return opts
 
 
-pytest.mark.skip(reason="Sandbox SQL Server credentials are stale.")
-
-
+@pytest.mark.skip(reason="Sandbox SQL Server credentials are stale.")
 def test_sql_server_read_schema_happy(spark: SparkSession) -> None:
     mock_ws = create_autospec(WorkspaceClient)
     connector = TSQLServerDataSourceUnderTest(spark, mock_ws)

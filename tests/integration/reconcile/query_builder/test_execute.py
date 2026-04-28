@@ -1593,7 +1593,7 @@ def test_schema_recon_with_data_source_exception(
     reconcile_config_exception.report_type = "schema"
     with (
         patch("databricks.labs.lakebridge.reconcile.trigger_recon_service.datetime") as mock_datetime,
-        patch("databricks.labs.lakebridge.reconcile.recon_Ïcapture.datetime") as recon_datetime,
+        patch("databricks.labs.lakebridge.reconcile.recon_capture.datetime") as recon_datetime,
         patch("databricks.labs.lakebridge.reconcile.utils.initialise_data_source", return_value=(source, target)),
         patch(
             "databricks.labs.lakebridge.reconcile.trigger_recon_service.uuid4",
