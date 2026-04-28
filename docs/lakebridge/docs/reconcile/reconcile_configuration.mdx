@@ -166,6 +166,7 @@ Please find the `Table Recon` filename examples below for the `Snowflake`, `Orac
         column_thresholds: list[ColumnThresholds] | None = None
         filters: Filters | None = None
         table_thresholds: list[TableThresholds] | None = None
+        max_sample_size: int | None = None
         ```
     </TabItem>
     <TabItem value="json" label="Json">
@@ -182,7 +183,8 @@ Please find the `Table Recon` filename examples below for the `Snowflake`, `Orac
             "transformation": null,
             "column_thresholds": null,
             "filters": null,
-            "table_thresholds": null
+            "table_thresholds": null,
+            "max_sample_size": null
         }
         ```
 
@@ -206,6 +208,7 @@ Please find the `Table Recon` filename examples below for the `Snowflake`, `Orac
 | `column_thresholds`     | `list[ColumnThresholds]` | Column-level variance thresholds (see [column_thresholds](#column-thresholds)) | Optional    | <CodeBlock language="json">{`{"column_thresholds": {"column_name": "price", "lower_bound": "-5%", "upper_bound": "+10%"}}`}</CodeBlock>                 |
 | `table_thresholds`      | `list[TableThresholds]`  | Table-level mismatch thresholds (see [table_thresholds](#table-thresholds))    | Optional    | <CodeBlock language="json">{`{"table_thresholds": {"model": "mismatch", "lower_bound": "0%", "upper_bound": "5%"}}`}</CodeBlock>                        |
 | `filters`               | `Filters`                | Source/target filter expressions                                               | Optional    | <CodeBlock language="json">{`{"filters": {"source": "quantity > 100", "target": "stock_quantity >= 100"}}`}</CodeBlock>                                 |
+| `max_sample_size`       | `int`                    | Per-table cap on sample rows persisted to the `details` table for each recon category — mismatch, missing_in_source, missing_in_target, threshold (see [max_sample_size](#max-sample-size)) | Optional    | <CodeBlock language="json">{`{"max_sample_size": 200}`}</CodeBlock>                                                                                     |
 
 [[back to top](#types-of-report-supported)]
 
@@ -583,6 +586,40 @@ you may search the reconciliation log with the following string:
 | target     | string    | the sql expression to filter the data from target | optional(default=None) | <CodeBlock language="sql">"lower(dept_name)='finance'"</CodeBlock> |
 
 
+## Max Sample Size
+
+Per-table cap on how many sample rows are persisted to the `details` table for each recon category — `mismatch`, `missing_in_source`, `missing_in_target`, and `threshold_mismatch`. The recon `metrics` table always stores the **true total counts**; this knob only controls how many example rows are kept for drill-down.
+
+<Tabs>
+  <TabItem value="python" label="Python" default>
+    ```python
+    @dataclass
+    class Table:
+        ...
+        max_sample_size: int | None = None
+    ```
+  </TabItem>
+  <TabItem value="json" label="JSON">
+    ```json
+    {
+      "max_sample_size": 200
+    }
+    ```
+  </TabItem>
+</Tabs>
+
+### Behavior
+
+| Input                                           | Result                                                            |
+|-------------------------------------------------|-------------------------------------------------------------------|
+| Not provided / `null`                           | Defaults to `50`                                                  |
+| Integer in `[50, 50000]`                        | Used as-is                                                        |
+| Integer below `50` (incl. `0`, negative values) | Floored to `50`; an `INFO` log line is emitted                    |
+| Integer above `50000`                           | Capped to `50000`; an `INFO` log line is emitted                  |
+| Boolean (`true` / `false`)                      | Raises `InvalidMaxSampleSizeException` at config load             |
+| String, float, or any non-int                   | Raises `InvalidMaxSampleSizeException` at config load             |
+
+[[back to top](#types-of-report-supported)]
 
 
 :::note Key Considerations:
