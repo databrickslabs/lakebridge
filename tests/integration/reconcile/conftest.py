@@ -1,7 +1,6 @@
 import json
 import logging
 import tempfile
-import uuid
 from collections.abc import Generator
 from contextlib import contextmanager
 from dataclasses import asdict
@@ -112,9 +111,7 @@ def recon_metadata(recon_schema, make_volume) -> ReconcileMetadataConfig:
     assert recon_schema.catalog_name
     assert recon_schema.name
     volume = make_volume(catalog_name=recon_schema.catalog_name, schema_name=recon_schema.name, name=recon_schema.name)
-    return ReconcileMetadataConfig(
-        catalog=recon_schema.catalog_name, schema=recon_schema.name, volume=volume.name
-    )
+    return ReconcileMetadataConfig(catalog=recon_schema.catalog_name, schema=recon_schema.name, volume=volume.name)
 
 
 @pytest.fixture
@@ -176,7 +173,9 @@ def recon_cluster(make_cluster) -> ClusterDetails:
 
 
 @pytest.fixture
-def databricks_recon_config(recon_cluster: ClusterDetails, recon_schema: SchemaInfo, recon_metadata: ReconcileMetadataConfig) -> ReconcileConfig:
+def databricks_recon_config(
+    recon_cluster: ClusterDetails, recon_schema: SchemaInfo, recon_metadata: ReconcileMetadataConfig
+) -> ReconcileConfig:
     deployment_overrides = ReconcileJobConfig(
         existing_cluster_id=recon_cluster.cluster_id or "bogus",
         tags={"lakebridge": "reconcile_test"},

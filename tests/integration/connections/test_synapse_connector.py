@@ -3,9 +3,7 @@ import pytest
 from databricks.labs.blueprint.installation import JsonObject
 from databricks.labs.lakebridge.connections.database_manager import DatabaseManager, MSSQLConnector
 
-pytestmark = pytest.mark.skip(
-    reason="Sandbox SQL Server credentials are stale; login fails for labs-azure-sandbox-admin."
-)
+pytestmark = pytest.mark.skip(reason="Sandbox SQL Server credentials are stale.")
 
 
 def test_synapse_connector_connection(sandbox_synapse: DatabaseManager) -> None:

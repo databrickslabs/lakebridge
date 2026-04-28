@@ -7,9 +7,7 @@ import pytest
 from databricks.labs.lakebridge.assessments.pipeline import PipelineClass
 from databricks.labs.lakebridge.assessments.profiler import Profiler
 
-_skip_sqlserver = pytest.mark.skip(
-    reason="Sandbox SQL Server credentials are stale; Synapse profiler cannot connect."
-)
+_skip_sqlserver = pytest.mark.skip(reason="Synapse credentials are stale.")
 
 
 def test_supported_source_technologies() -> None:

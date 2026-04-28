@@ -19,9 +19,7 @@ from databricks.labs.lakebridge.connections.database_manager import DatabaseMana
 
 _Loader: TypeAlias = Callable[[Path], PipelineConfig]
 
-_skip_sqlserver = pytest.mark.skip(
-    reason="Sandbox SQL Server credentials are stale; sandbox_sqlserver fixture cannot connect."
-)
+_skip_sqlserver = pytest.mark.skip(reason="Sandbox SQL Server credentials are stale.")
 
 
 @pytest.fixture

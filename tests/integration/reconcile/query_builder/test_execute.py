@@ -1187,9 +1187,7 @@ def test_recon_for_report_type_all(
         mock_datetime.now.return_value = datetime(2024, 5, 23, 9, 21, 25, 122185)
         recon_datetime.now.return_value = datetime(2024, 5, 23, 9, 21, 25, 122185)
         with pytest.raises(ReconciliationException) as exc_info:
-            TriggerReconService.trigger_recon(
-                mock_workspace_client, spark, table_recon, reconcile_config_all
-            )
+            TriggerReconService.trigger_recon(mock_workspace_client, spark, table_recon, reconcile_config_all)
         if exc_info.value.reconcile_output is not None:
             assert exc_info.value.reconcile_output.recon_id == "00112233-4455-6677-8899-aabbccddeeff"
 
@@ -1466,9 +1464,7 @@ def test_recon_for_report_type_is_row(
         mock_datetime.now.return_value = datetime(2024, 5, 23, 9, 21, 25, 122185)
         recon_datetime.now.return_value = datetime(2024, 5, 23, 9, 21, 25, 122185)
         with pytest.raises(ReconciliationException) as exc_info:
-            TriggerReconService.trigger_recon(
-                mock_workspace_client, spark, table_recon, reconcile_config_row
-            )
+            TriggerReconService.trigger_recon(mock_workspace_client, spark, table_recon, reconcile_config_row)
 
         if exc_info.value.reconcile_output is not None:
             assert exc_info.value.reconcile_output.recon_id == "00112233-4455-6677-8899-aabbccddeeff"
@@ -1611,9 +1607,7 @@ def test_schema_recon_with_data_source_exception(
     ):
         mock_datetime.now.return_value = datetime(2024, 5, 23, 9, 21, 25, 122185)
         recon_datetime.now.return_value = datetime(2024, 5, 23, 9, 21, 25, 122185)
-        TriggerReconService.trigger_recon(
-            mock_workspace_client, spark, table_recon, reconcile_config_exception
-        )
+        TriggerReconService.trigger_recon(mock_workspace_client, spark, table_recon, reconcile_config_exception)
 
     expected_remorph_recon = spark.createDataFrame(
         data=[
@@ -1688,9 +1682,7 @@ def test_schema_recon_with_general_exception(
         schema_source_mock.side_effect = PySparkException("Unknown Error")
         mock_datetime.now.return_value = datetime(2024, 5, 23, 9, 21, 25, 122185)
         recon_datetime.now.return_value = datetime(2024, 5, 23, 9, 21, 25, 122185)
-        TriggerReconService.trigger_recon(
-            mock_workspace_client, spark, table_recon, reconcile_config_schema
-        )
+        TriggerReconService.trigger_recon(mock_workspace_client, spark, table_recon, reconcile_config_schema)
 
     expected_remorph_recon = spark.createDataFrame(
         data=[
@@ -1764,9 +1756,7 @@ def test_data_recon_with_general_exception(
         data_source_mock.side_effect = DataSourceRuntimeException("Unknown Error")
         mock_datetime.now.return_value = datetime(2024, 5, 23, 9, 21, 25, 122185)
         recon_datetime.now.return_value = datetime(2024, 5, 23, 9, 21, 25, 122185)
-        TriggerReconService.trigger_recon(
-            mock_workspace_client, spark, table_recon, reconcile_config
-        )
+        TriggerReconService.trigger_recon(mock_workspace_client, spark, table_recon, reconcile_config)
 
     expected_remorph_recon = spark.createDataFrame(
         data=[
@@ -1840,9 +1830,7 @@ def test_data_recon_with_source_exception(
         data_source_mock.side_effect = DataSourceRuntimeException("Source Runtime Error")
         mock_datetime.now.return_value = datetime(2024, 5, 23, 9, 21, 25, 122185)
         recon_datetime.now.return_value = datetime(2024, 5, 23, 9, 21, 25, 122185)
-        TriggerReconService.trigger_recon(
-            mock_workspace_client, spark, table_recon, reconcile_config
-        )
+        TriggerReconService.trigger_recon(mock_workspace_client, spark, table_recon, reconcile_config)
 
     expected_remorph_recon = spark.createDataFrame(
         data=[
@@ -1920,9 +1908,7 @@ def test_recon_for_wrong_report_type(mock_workspace_client, spark, mock_for_repo
     ):
         mock_datetime.now.return_value = datetime(2024, 5, 23, 9, 21, 25, 122185)
         recon_datetime.now.return_value = datetime(2024, 5, 23, 9, 21, 25, 122185)
-        TriggerReconService.trigger_recon(
-            mock_workspace_client, spark, table_recon, reconcile_config
-        )
+        TriggerReconService.trigger_recon(mock_workspace_client, spark, table_recon, reconcile_config)
 
 
 def test_reconcile_data_with_threshold_and_row_report_type(
