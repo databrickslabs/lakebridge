@@ -42,10 +42,9 @@ class TriggerReconService:
         spark: SparkSession,
         table_recon: TableRecon,
         reconcile_config: ReconcileConfig,
-        local_test_run: bool = False,
     ) -> ReconcileOutput:
         reconciler, recon_capture = TriggerReconService.create_recon_dependencies(
-            ws, spark, reconcile_config, local_test_run
+            ws, spark, reconcile_config
         )
 
         try:
@@ -57,7 +56,6 @@ class TriggerReconService:
                     recon_id=recon_capture.recon_id,
                     spark=spark,
                     metadata_config=reconcile_config.metadata_config,
-                    local_test_run=local_test_run,
                 ),
                 reconcile_config.report_type,
             )
@@ -69,7 +67,7 @@ class TriggerReconService:
 
     @staticmethod
     def create_recon_dependencies(
-        ws: WorkspaceClient, spark: SparkSession, reconcile_config: ReconcileConfig, local_test_run: bool = False
+        ws: WorkspaceClient, spark: SparkSession, reconcile_config: ReconcileConfig
     ) -> tuple[Reconciliation, ReconCapture]:
         ws_client: WorkspaceClient = verify_workspace_client(ws)
 
@@ -107,7 +105,6 @@ class TriggerReconService:
             ws=ws_client,
             spark=spark,
             metadata_config=reconcile_config.metadata_config,
-            local_test_run=local_test_run,
         )
 
         return reconciler, recon_capture

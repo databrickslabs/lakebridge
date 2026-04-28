@@ -79,7 +79,6 @@ def test_aggregates_reconcile_store_aggregate_metrics(mock_workspace_client, spa
         mock_workspace_client,
         spark,
         metadata_config=ReconcileMetadataConfig(schema="default"),
-        local_test_run=False,
     )
     recon_capture.store_aggregates_metrics(table_conf, reconcile_process_duration, agg_reconcile_output)
 
@@ -131,7 +130,6 @@ def test_aggregates_reconcile_store_aggregate_metrics(mock_workspace_client, spa
         recon_id=recon_id,
         spark=spark,
         metadata_config=ReconcileMetadataConfig(schema="default"),
-        local_test_run=False,
     )
     assert len(reconcile_output.results) == 1
     assert not reconcile_output.results[0].exception_message

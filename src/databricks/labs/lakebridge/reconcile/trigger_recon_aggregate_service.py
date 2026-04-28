@@ -31,10 +31,9 @@ class TriggerReconAggregateService:
         spark: SparkSession,
         table_recon: TableRecon,
         reconcile_config: ReconcileConfig,
-        local_test_run: bool = False,
     ) -> ReconcileOutput:
         reconciler, recon_capture = TriggerReconService.create_recon_dependencies(
-            ws, spark, reconcile_config, local_test_run
+            ws, spark, reconcile_config
         )
 
         try:
@@ -48,7 +47,6 @@ class TriggerReconAggregateService:
                     recon_id=recon_capture.recon_id,
                     spark=spark,
                     metadata_config=reconcile_config.metadata_config,
-                    local_test_run=local_test_run,
                 ),
                 report_type="aggregate",
             )
