@@ -754,6 +754,7 @@ def test_recon_for_report_type_is_data(
 ):
     recon_schema, metrics_schema, details_schema = report_tables_schema
     table_recon, source, target, reconcile_config_data = mock_for_report_type_data
+    catalog = reconcile_config_data.metadata_config.catalog
     schema = reconcile_config_data.metadata_config.schema
     with (
         patch("databricks.labs.lakebridge.reconcile.trigger_recon_service.datetime") as mock_datetime,
@@ -861,12 +862,14 @@ def test_recon_for_report_type_is_data(
         schema=details_schema,
     )
 
-    assertDataFrameEqual(spark.sql(f"SELECT * FROM {schema}.MAIN"), expected_remorph_recon, ignoreNullable=True)
     assertDataFrameEqual(
-        spark.sql(f"SELECT * FROM {schema}.METRICS"), expected_remorph_recon_metrics, ignoreNullable=True
+        spark.sql(f"SELECT * FROM {catalog}.{schema}.MAIN"), expected_remorph_recon, ignoreNullable=True
     )
     assertDataFrameEqual(
-        spark.sql(f"SELECT * FROM {schema}.DETAILS"), expected_remorph_recon_details, ignoreNullable=True
+        spark.sql(f"SELECT * FROM {catalog}.{schema}.METRICS"), expected_remorph_recon_metrics, ignoreNullable=True
+    )
+    assertDataFrameEqual(
+        spark.sql(f"SELECT * FROM {catalog}.{schema}.DETAILS"), expected_remorph_recon_details, ignoreNullable=True
     )
 
 
@@ -951,6 +954,7 @@ def test_recon_for_report_type_schema(
 ):
     recon_schema, metrics_schema, details_schema = report_tables_schema
     table_recon, source, target, reconcile_config_schema = mock_for_report_type_schema
+    catalog = reconcile_config_schema.metadata_config.catalog
     schema = reconcile_config_schema.metadata_config.schema
     with (
         patch("databricks.labs.lakebridge.reconcile.trigger_recon_service.datetime") as mock_datetime,
@@ -1044,12 +1048,14 @@ def test_recon_for_report_type_schema(
         schema=details_schema,
     )
 
-    assertDataFrameEqual(spark.sql(f"SELECT * FROM {schema}.MAIN"), expected_remorph_recon, ignoreNullable=True)
     assertDataFrameEqual(
-        spark.sql(f"SELECT * FROM {schema}.METRICS"), expected_remorph_recon_metrics, ignoreNullable=True
+        spark.sql(f"SELECT * FROM {catalog}.{schema}.MAIN"), expected_remorph_recon, ignoreNullable=True
     )
     assertDataFrameEqual(
-        spark.sql(f"SELECT * FROM {schema}.DETAILS"), expected_remorph_recon_details, ignoreNullable=True
+        spark.sql(f"SELECT * FROM {catalog}.{schema}.METRICS"), expected_remorph_recon_metrics, ignoreNullable=True
+    )
+    assertDataFrameEqual(
+        spark.sql(f"SELECT * FROM {catalog}.{schema}.DETAILS"), expected_remorph_recon_details, ignoreNullable=True
     )
 
     assert final_reconcile_output.recon_id == recon_id.hex
@@ -1161,6 +1167,7 @@ def test_recon_for_report_type_all(
 ):
     recon_schema, metrics_schema, details_schema = report_tables_schema
     table_recon, source, target, reconcile_config_all = mock_for_report_type_all
+    catalog = reconcile_config_all.metadata_config.catalog
     schema = reconcile_config_all.metadata_config.schema
 
     with (
@@ -1313,12 +1320,14 @@ def test_recon_for_report_type_all(
         schema=details_schema,
     )
 
-    assertDataFrameEqual(spark.sql(f"SELECT * FROM {schema}.MAIN"), expected_remorph_recon, ignoreNullable=True)
     assertDataFrameEqual(
-        spark.sql(f"SELECT * FROM {schema}.METRICS"), expected_remorph_recon_metrics, ignoreNullable=True
+        spark.sql(f"SELECT * FROM {catalog}.{schema}.MAIN"), expected_remorph_recon, ignoreNullable=True
     )
     assertDataFrameEqual(
-        spark.sql(f"SELECT * FROM {schema}.DETAILS"), expected_remorph_recon_details, ignoreNullable=True
+        spark.sql(f"SELECT * FROM {catalog}.{schema}.METRICS"), expected_remorph_recon_metrics, ignoreNullable=True
+    )
+    assertDataFrameEqual(
+        spark.sql(f"SELECT * FROM {catalog}.{schema}.DETAILS"), expected_remorph_recon_details, ignoreNullable=True
     )
 
 
@@ -1438,6 +1447,7 @@ def test_recon_for_report_type_is_row(
 ):
     recon_schema, metrics_schema, details_schema = report_tables_schema
     source, target, table_recon, reconcile_config_row = mock_for_report_type_row
+    catalog = reconcile_config_row.metadata_config.catalog
     schema = reconcile_config_row.metadata_config.schema
     with (
         patch("databricks.labs.lakebridge.reconcile.trigger_recon_service.datetime") as mock_datetime,
@@ -1540,12 +1550,14 @@ def test_recon_for_report_type_is_row(
         schema=details_schema,
     )
 
-    assertDataFrameEqual(spark.sql(f"SELECT * FROM {schema}.MAIN"), expected_remorph_recon, ignoreNullable=True)
     assertDataFrameEqual(
-        spark.sql(f"SELECT * FROM {schema}.METRICS"), expected_remorph_recon_metrics, ignoreNullable=True
+        spark.sql(f"SELECT * FROM {catalog}.{schema}.MAIN"), expected_remorph_recon, ignoreNullable=True
     )
     assertDataFrameEqual(
-        spark.sql(f"SELECT * FROM {schema}.DETAILS"), expected_remorph_recon_details, ignoreNullable=True
+        spark.sql(f"SELECT * FROM {catalog}.{schema}.METRICS"), expected_remorph_recon_metrics, ignoreNullable=True
+    )
+    assertDataFrameEqual(
+        spark.sql(f"SELECT * FROM {catalog}.{schema}.DETAILS"), expected_remorph_recon_details, ignoreNullable=True
     )
 
 
@@ -1580,11 +1592,12 @@ def test_schema_recon_with_data_source_exception(
 ):
     recon_schema, metrics_schema, details_schema = report_tables_schema
     table_recon, source, target, reconcile_config_exception = mock_for_recon_exception
+    catalog = reconcile_config_exception.metadata_config.catalog
     schema = reconcile_config_exception.metadata_config.schema
     reconcile_config_exception.report_type = "schema"
     with (
         patch("databricks.labs.lakebridge.reconcile.trigger_recon_service.datetime") as mock_datetime,
-        patch("databricks.labs.lakebridge.reconcile.recon_capture.datetime") as recon_datetime,
+        patch("databricks.labs.lakebridge.reconcile.recon_Ïcapture.datetime") as recon_datetime,
         patch("databricks.labs.lakebridge.reconcile.utils.initialise_data_source", return_value=(source, target)),
         patch(
             "databricks.labs.lakebridge.reconcile.trigger_recon_service.uuid4",
@@ -1635,12 +1648,14 @@ def test_schema_recon_with_data_source_exception(
     )
     expected_remorph_recon_details = spark.createDataFrame(data=[], schema=details_schema)
 
-    assertDataFrameEqual(spark.sql(f"SELECT * FROM {schema}.MAIN"), expected_remorph_recon, ignoreNullable=True)
     assertDataFrameEqual(
-        spark.sql(f"SELECT * FROM {schema}.METRICS"), expected_remorph_recon_metrics, ignoreNullable=True
+        spark.sql(f"SELECT * FROM {catalog}.{schema}.MAIN"), expected_remorph_recon, ignoreNullable=True
     )
     assertDataFrameEqual(
-        spark.sql(f"SELECT * FROM {schema}.DETAILS"), expected_remorph_recon_details, ignoreNullable=True
+        spark.sql(f"SELECT * FROM {catalog}.{schema}.METRICS"), expected_remorph_recon_metrics, ignoreNullable=True
+    )
+    assertDataFrameEqual(
+        spark.sql(f"SELECT * FROM {catalog}.{schema}.DETAILS"), expected_remorph_recon_details, ignoreNullable=True
     )
 
 
@@ -1651,6 +1666,7 @@ def test_schema_recon_with_general_exception(
     table_recon, source, target, reconcile_config_schema = mock_for_report_type_schema
     reconcile_config_schema.data_source = "snowflake"
     reconcile_config_schema.secret_scope = "remorph_snowflake"
+    catalog = reconcile_config_schema.metadata_config.catalog
     schema = reconcile_config_schema.metadata_config.schema
     with (
         patch("databricks.labs.lakebridge.reconcile.trigger_recon_service.datetime") as mock_datetime,
@@ -1709,12 +1725,14 @@ def test_schema_recon_with_general_exception(
     )
     expected_remorph_recon_details = spark.createDataFrame(data=[], schema=details_schema)
 
-    assertDataFrameEqual(spark.sql(f"SELECT * FROM {schema}.MAIN"), expected_remorph_recon, ignoreNullable=True)
     assertDataFrameEqual(
-        spark.sql(f"SELECT * FROM {schema}.METRICS"), expected_remorph_recon_metrics, ignoreNullable=True
+        spark.sql(f"SELECT * FROM {catalog}.{schema}.MAIN"), expected_remorph_recon, ignoreNullable=True
     )
     assertDataFrameEqual(
-        spark.sql(f"SELECT * FROM {schema}.DETAILS"), expected_remorph_recon_details, ignoreNullable=True
+        spark.sql(f"SELECT * FROM {catalog}.{schema}.METRICS"), expected_remorph_recon_metrics, ignoreNullable=True
+    )
+    assertDataFrameEqual(
+        spark.sql(f"SELECT * FROM {catalog}.{schema}.DETAILS"), expected_remorph_recon_details, ignoreNullable=True
     )
 
 
@@ -1723,6 +1741,7 @@ def test_data_recon_with_general_exception(
 ):
     recon_schema, metrics_schema, details_schema = report_tables_schema
     table_recon, source, target, reconcile_config = mock_for_report_type_schema
+    catalog = reconcile_config.metadata_config.catalog
     schema = reconcile_config.metadata_config.schema
     reconcile_config.data_source = "snowflake"
     reconcile_config.secret_scope = "remorph_snowflake"
@@ -1782,12 +1801,14 @@ def test_data_recon_with_general_exception(
     )
     expected_remorph_recon_details = spark.createDataFrame(data=[], schema=details_schema)
 
-    assertDataFrameEqual(spark.sql(f"SELECT * FROM {schema}.MAIN"), expected_remorph_recon, ignoreNullable=True)
     assertDataFrameEqual(
-        spark.sql(f"SELECT * FROM {schema}.METRICS"), expected_remorph_recon_metrics, ignoreNullable=True
+        spark.sql(f"SELECT * FROM {catalog}.{schema}.MAIN"), expected_remorph_recon, ignoreNullable=True
     )
     assertDataFrameEqual(
-        spark.sql(f"SELECT * FROM {schema}.DETAILS"), expected_remorph_recon_details, ignoreNullable=True
+        spark.sql(f"SELECT * FROM {catalog}.{schema}.METRICS"), expected_remorph_recon_metrics, ignoreNullable=True
+    )
+    assertDataFrameEqual(
+        spark.sql(f"SELECT * FROM {catalog}.{schema}.DETAILS"), expected_remorph_recon_details, ignoreNullable=True
     )
 
 
@@ -1796,6 +1817,7 @@ def test_data_recon_with_source_exception(
 ):
     recon_schema, metrics_schema, details_schema = report_tables_schema
     table_recon, source, target, reconcile_config = mock_for_report_type_schema
+    catalog = reconcile_config.metadata_config.catalog
     schema = reconcile_config.metadata_config.schema
     reconcile_config.data_source = "snowflake"
     reconcile_config.secret_scope = "remorph_snowflake"
@@ -1855,12 +1877,14 @@ def test_data_recon_with_source_exception(
     )
     expected_remorph_recon_details = spark.createDataFrame(data=[], schema=details_schema)
 
-    assertDataFrameEqual(spark.sql(f"SELECT * FROM {schema}.MAIN"), expected_remorph_recon, ignoreNullable=True)
     assertDataFrameEqual(
-        spark.sql(f"SELECT * FROM {schema}.METRICS"), expected_remorph_recon_metrics, ignoreNullable=True
+        spark.sql(f"SELECT * FROM {catalog}.{schema}.MAIN"), expected_remorph_recon, ignoreNullable=True
     )
     assertDataFrameEqual(
-        spark.sql(f"SELECT * FROM {schema}.DETAILS"), expected_remorph_recon_details, ignoreNullable=True
+        spark.sql(f"SELECT * FROM {catalog}.{schema}.METRICS"), expected_remorph_recon_metrics, ignoreNullable=True
+    )
+    assertDataFrameEqual(
+        spark.sql(f"SELECT * FROM {catalog}.{schema}.DETAILS"), expected_remorph_recon_details, ignoreNullable=True
     )
 
 
