@@ -936,9 +936,7 @@ def test_apply_threshold_for_mismatch_with_invalid_bounds(mock_workspace_client,
         )
 
 
-def test_apply_threshold_for_only_threshold_mismatch_with_true_absolute(
-    mock_workspace_client, spark, recon_metadata
-):
+def test_apply_threshold_for_only_threshold_mismatch_with_true_absolute(mock_workspace_client, spark, recon_metadata):
     database_config = DatabaseConfig(
         "source_test_schema", "target_test_catalog", "target_test_schema", "source_test_catalog"
     )
