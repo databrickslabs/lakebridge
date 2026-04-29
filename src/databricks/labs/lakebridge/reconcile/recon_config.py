@@ -82,12 +82,12 @@ class SamplingOptions:
 
 
 @dataclass
-class JdbcReaderOptions:
+class JdbcReaderOptions:  # This class follows the same naming as db `remote_query` options
     partition_column: str  # if used, other props here have to be set as well
-    number_partitions: int
+    num_partitions: int
     lower_bound: str
     upper_bound: str
-    fetch_size: int = 0  # this uses driver default
+    fetchsize: int = 0  # this uses driver default
 
     def __post_init__(self):
         self.partition_column = self.partition_column.lower() if self.partition_column else None

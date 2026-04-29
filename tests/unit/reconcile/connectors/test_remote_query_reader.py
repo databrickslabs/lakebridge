@@ -30,11 +30,11 @@ def test_read_data_with_options():
     spark = MagicMock()
     reader = RemoteQueryReader(spark, "tsql_conn")
     options = JdbcReaderOptions(
-        number_partitions=10,
+        num_partitions=10,
         partition_column="id",
         lower_bound="0",
         upper_bound="1000",
-        fetch_size=500,
+        fetchsize=500,
     )
 
     reader.read_data("SELECT * FROM orders", "my_db", "database", "dbtable", options)

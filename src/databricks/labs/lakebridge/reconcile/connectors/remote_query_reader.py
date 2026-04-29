@@ -42,6 +42,6 @@ class RemoteQueryReader:
             return f"{camelcase(key)} => '{value}'"
 
         opts = {catalog_key: catalog, **(asdict(options) if options else {})}
-
         encoded = [encode(k, v) for k, v in opts.items()]
+
         return ", ".join(encoded)

@@ -207,7 +207,7 @@ table_recon = TableRecon(
               )
             ],
             jdbc_reader_options=JdbcReaderOptions(
-                number_partitions=50,
+                num_partitions=50,
                 partition_column="lct_nbr",
                 lower_bound="1",
                 upper_bound="50000",

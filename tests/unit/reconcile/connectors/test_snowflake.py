@@ -52,7 +52,7 @@ def test_read_data_with_options():
         source_name="supplier",
         target_name="supplier",
         jdbc_reader_options=JdbcReaderOptions(
-            number_partitions=100, partition_column="s_nationkey", lower_bound="0", upper_bound="100"
+            num_partitions=100, partition_column="s_nationkey", lower_bound="0", upper_bound="100"
         ),
         select_columns=None,
         drop_columns=None,

@@ -28,7 +28,7 @@ def test_read_data_with_options():
         source_name="src_supplier",
         target_name="tgt_supplier",
         jdbc_reader_options=JdbcReaderOptions(
-            number_partitions=100, partition_column="s_partition_key", lower_bound="0", upper_bound="100"
+            num_partitions=100, partition_column="s_partition_key", lower_bound="0", upper_bound="100"
         ),
     )
 
