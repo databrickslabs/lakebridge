@@ -219,19 +219,14 @@ class Table:
                 f"max_sample_size must be an int, got {type(self.max_sample_size).__name__}"
             )
         if self.max_sample_size < _MAX_SAMPLE_SIZE_MIN:
-            logger.info(
-                f"max_sample_size must be >= {_MAX_SAMPLE_SIZE_MIN}, "
-                f"flooring to {_MAX_SAMPLE_SIZE_MIN}"
-            )
+            logger.info(f"max_sample_size must be >= {_MAX_SAMPLE_SIZE_MIN}, " f"flooring to {_MAX_SAMPLE_SIZE_MIN}")
             self.max_sample_size = _MAX_SAMPLE_SIZE_MIN
         elif self.max_sample_size > _MAX_SAMPLE_SIZE_MAX:
-            logger.info(
-                f"max_sample_size must be <= {_MAX_SAMPLE_SIZE_MAX}, "
-                f"capping to {_MAX_SAMPLE_SIZE_MAX}"
-            )
+            logger.info(f"max_sample_size must be <= {_MAX_SAMPLE_SIZE_MAX}, " f"capping to {_MAX_SAMPLE_SIZE_MAX}")
             self.max_sample_size = _MAX_SAMPLE_SIZE_MAX
 
     def get_max_sample_size(self) -> int:
+        assert self.max_sample_size is not None, "max_sample_size must be set after __post_init__"
         return self.max_sample_size
 
     @property
