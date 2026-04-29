@@ -1,6 +1,6 @@
 from pathlib import Path
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from unittest.mock import patch, MagicMock
 from uuid import UUID
 
@@ -766,7 +766,7 @@ def test_recon_for_report_type_is_data(
         ),
         patch(
             "databricks.labs.lakebridge.reconcile.recon_capture.ReconCapture._generate_recon_main_id",
-            return_value=11111,
+            return_value=11111111111,
         ),
     ):
         mock_datetime.now.return_value = datetime(2024, 5, 23, 9, 21, 25, 122185)
@@ -781,7 +781,7 @@ def test_recon_for_report_type_is_data(
     expected_remorph_recon = spark.createDataFrame(
         data=[
             (
-                11111,
+                11111111111,
                 recon_id.hex,
                 "Databricks",
                 ("org", "data", "supplier"),
@@ -797,7 +797,7 @@ def test_recon_for_report_type_is_data(
     expected_remorph_recon_metrics = spark.createDataFrame(
         data=[
             (
-                11111,
+                11111111111,
                 (3, 3, (1, 1), (1, 0, "s_address,s_phone"), None),
                 (False, "remorph", ""),
                 datetime(2024, 5, 23, 9, 21, 25, 122185),
@@ -808,7 +808,7 @@ def test_recon_for_report_type_is_data(
     expected_remorph_recon_details = spark.createDataFrame(
         data=[
             (
-                11111,
+                11111111111,
                 "mismatch",
                 False,
                 [
@@ -829,7 +829,7 @@ def test_recon_for_report_type_is_data(
                 datetime(2024, 5, 23, 9, 21, 25, 122185),
             ),
             (
-                11111,
+                11111111111,
                 "missing_in_source",
                 False,
                 [
@@ -844,7 +844,7 @@ def test_recon_for_report_type_is_data(
                 datetime(2024, 5, 23, 9, 21, 25, 122185),
             ),
             (
-                11111,
+                11111111111,
                 "missing_in_target",
                 False,
                 [
@@ -963,7 +963,7 @@ def test_recon_for_report_type_schema(
         patch("databricks.labs.lakebridge.reconcile.trigger_recon_service.uuid4", return_value=recon_id),
         patch(
             "databricks.labs.lakebridge.reconcile.recon_capture.ReconCapture._generate_recon_main_id",
-            return_value=22222,
+            return_value=22222222222,
         ),
     ):
         mock_datetime.now.return_value = datetime(2024, 5, 23, 9, 21, 25, 122185)
@@ -975,7 +975,7 @@ def test_recon_for_report_type_schema(
     expected_remorph_recon = spark.createDataFrame(
         data=[
             (
-                22222,
+                22222222222,
                 recon_id.hex,
                 "Databricks",
                 ("org", "data", "supplier"),
@@ -989,13 +989,13 @@ def test_recon_for_report_type_schema(
         schema=recon_schema,
     )
     expected_remorph_recon_metrics = spark.createDataFrame(
-        data=[(22222, (0, 0, None, None, True), (True, "remorph", ""), datetime(2024, 5, 23, 9, 21, 25, 122185))],
+        data=[(22222222222, (0, 0, None, None, True), (True, "remorph", ""), datetime(2024, 5, 23, 9, 21, 25, 122185))],
         schema=metrics_schema,
     )
     expected_remorph_recon_details = spark.createDataFrame(
         data=[
             (
-                22222,
+                22222222222,
                 "schema",
                 True,
                 [
@@ -1180,7 +1180,7 @@ def test_recon_for_report_type_all(
         ),
         patch(
             "databricks.labs.lakebridge.reconcile.recon_capture.ReconCapture._generate_recon_main_id",
-            return_value=33333,
+            return_value=33333333333,
         ),
         patch("databricks.labs.lakebridge.reconcile.utils.generate_volume_path", return_value=str(tmp_path)),
     ):
@@ -1194,7 +1194,7 @@ def test_recon_for_report_type_all(
     expected_remorph_recon = spark.createDataFrame(
         data=[
             (
-                33333,
+                33333333333,
                 "00112233-4455-6677-8899-aabbccddeeff",
                 "Snowflake",
                 ("org", "data", "supplier"),
@@ -1210,7 +1210,7 @@ def test_recon_for_report_type_all(
     expected_remorph_recon_metrics = spark.createDataFrame(
         data=[
             (
-                33333,
+                33333333333,
                 (3, 3, (1, 1), (1, 0, "s_address,s_phone"), False),
                 (False, "remorph", ""),
                 datetime(2024, 5, 23, 9, 21, 25, 122185),
@@ -1221,7 +1221,7 @@ def test_recon_for_report_type_all(
     expected_remorph_recon_details = spark.createDataFrame(
         data=[
             (
-                33333,
+                33333333333,
                 "mismatch",
                 False,
                 [
@@ -1242,7 +1242,7 @@ def test_recon_for_report_type_all(
                 datetime(2024, 5, 23, 9, 21, 25, 122185),
             ),
             (
-                33333,
+                33333333333,
                 "missing_in_source",
                 False,
                 [
@@ -1257,7 +1257,7 @@ def test_recon_for_report_type_all(
                 datetime(2024, 5, 23, 9, 21, 25, 122185),
             ),
             (
-                33333,
+                33333333333,
                 "missing_in_target",
                 False,
                 [
@@ -1272,7 +1272,7 @@ def test_recon_for_report_type_all(
                 datetime(2024, 5, 23, 9, 21, 25, 122185),
             ),
             (
-                33333,
+                33333333333,
                 "schema",
                 False,
                 [
@@ -1457,7 +1457,7 @@ def test_recon_for_report_type_is_row(
         ),
         patch(
             "databricks.labs.lakebridge.reconcile.recon_capture.ReconCapture._generate_recon_main_id",
-            return_value=33333,
+            return_value=33333333333,
         ),
         patch("databricks.labs.lakebridge.reconcile.utils.generate_volume_path", return_value=str(tmp_path)),
     ):
@@ -1472,7 +1472,7 @@ def test_recon_for_report_type_is_row(
     expected_remorph_recon = spark.createDataFrame(
         data=[
             (
-                33333,
+                33333333333,
                 "00112233-4455-6677-8899-aabbccddeeff",
                 "Snowflake",
                 ("org", "data", "supplier"),
@@ -1488,7 +1488,7 @@ def test_recon_for_report_type_is_row(
     expected_remorph_recon_metrics = spark.createDataFrame(
         data=[
             (
-                33333,
+                33333333333,
                 (3, 3, (2, 2), None, None),
                 (False, "remorph", ""),
                 datetime(2024, 5, 23, 9, 21, 25, 122185),
@@ -1499,7 +1499,7 @@ def test_recon_for_report_type_is_row(
     expected_remorph_recon_details = spark.createDataFrame(
         data=[
             (
-                33333,
+                33333333333,
                 "missing_in_source",
                 False,
                 [
@@ -1521,7 +1521,7 @@ def test_recon_for_report_type_is_row(
                 datetime(2024, 5, 23, 9, 21, 25, 122185),
             ),
             (
-                33333,
+                33333333333,
                 "missing_in_target",
                 False,
                 [
@@ -1601,26 +1601,26 @@ def test_schema_recon_with_data_source_exception(
         ),
         patch(
             "databricks.labs.lakebridge.reconcile.recon_capture.ReconCapture._generate_recon_main_id",
-            return_value=33333,
+            return_value=33333333333,
         ),
         pytest.raises(ReconciliationException, match=recon_id.hex),
     ):
-        mock_datetime.now.return_value = datetime(2024, 5, 23, 9, 21, 25, 122185)
-        recon_datetime.now.return_value = datetime(2024, 5, 23, 9, 21, 25, 122185)
+        mock_datetime.now.return_value = datetime(2024, 5, 23, 9, 21, 25, 122185, tzinfo=timezone.utc)
+        recon_datetime.now.return_value = datetime(2024, 5, 23, 9, 21, 25, 122185, tzinfo=timezone.utc)
         TriggerReconService.trigger_recon(mock_workspace_client, spark, table_recon, reconcile_config_exception)
 
     expected_remorph_recon = spark.createDataFrame(
         data=[
             (
-                33333,
+                33333333333,
                 recon_id.hex,
                 "Snowflake",
                 ("org", "data", "supplier"),
                 ("org", "data", "target_supplier"),
                 "schema",
                 "reconcile",
-                datetime(2024, 5, 23, 9, 21, 25, 122185),
-                datetime(2024, 5, 23, 9, 21, 25, 122185),
+                datetime(2024, 5, 23, 9, 21, 25, 122185, tzinfo=timezone.utc),
+                datetime(2024, 5, 23, 9, 21, 25, 122185, tzinfo=timezone.utc),
             )
         ],
         schema=recon_schema,
@@ -1628,14 +1628,14 @@ def test_schema_recon_with_data_source_exception(
     expected_remorph_recon_metrics = spark.createDataFrame(
         data=[
             (
-                33333,
+                33333333333,
                 (0, 0, None, None, None),
                 (
                     False,
                     "remorph",
                     "Runtime exception occurred while fetching schema using (org, data, supplier) : Mock Exception",
                 ),
-                datetime(2024, 5, 23, 9, 21, 25, 122185),
+                datetime(2024, 5, 23, 9, 21, 25, 122185, tzinfo=timezone.utc),
             )
         ],
         schema=metrics_schema,
@@ -1672,7 +1672,7 @@ def test_schema_recon_with_general_exception(
         ),
         patch(
             "databricks.labs.lakebridge.reconcile.recon_capture.ReconCapture._generate_recon_main_id",
-            return_value=33333,
+            return_value=33333333333,
         ),
         patch(
             "databricks.labs.lakebridge.reconcile.reconciliation.Reconciliation.reconcile_schema"
@@ -1687,7 +1687,7 @@ def test_schema_recon_with_general_exception(
     expected_remorph_recon = spark.createDataFrame(
         data=[
             (
-                33333,
+                33333333333,
                 recon_id.hex,
                 "Snowflake",
                 ("org", "data", "supplier"),
@@ -1703,7 +1703,7 @@ def test_schema_recon_with_general_exception(
     expected_remorph_recon_metrics = spark.createDataFrame(
         data=[
             (
-                33333,
+                33333333333,
                 (0, 0, None, None, None),
                 (
                     False,
@@ -1748,7 +1748,7 @@ def test_data_recon_with_general_exception(
         ),
         patch(
             "databricks.labs.lakebridge.reconcile.recon_capture.ReconCapture._generate_recon_main_id",
-            return_value=33333,
+            return_value=33333333333,
         ),
         patch("databricks.labs.lakebridge.reconcile.reconciliation.Reconciliation.reconcile_data") as data_source_mock,
         pytest.raises(ReconciliationException, match=recon_id.hex),
@@ -1761,7 +1761,7 @@ def test_data_recon_with_general_exception(
     expected_remorph_recon = spark.createDataFrame(
         data=[
             (
-                33333,
+                33333333333,
                 recon_id.hex,
                 "Snowflake",
                 ("org", "data", "supplier"),
@@ -1777,7 +1777,7 @@ def test_data_recon_with_general_exception(
     expected_remorph_recon_metrics = spark.createDataFrame(
         data=[
             (
-                33333,
+                33333333333,
                 (3, 3, None, None, None),
                 (
                     False,
@@ -1822,7 +1822,7 @@ def test_data_recon_with_source_exception(
         ),
         patch(
             "databricks.labs.lakebridge.reconcile.recon_capture.ReconCapture._generate_recon_main_id",
-            return_value=33333,
+            return_value=33333333333,
         ),
         patch("databricks.labs.lakebridge.reconcile.reconciliation.Reconciliation.reconcile_data") as data_source_mock,
         pytest.raises(ReconciliationException, match=recon_id.hex),
@@ -1835,7 +1835,7 @@ def test_data_recon_with_source_exception(
     expected_remorph_recon = spark.createDataFrame(
         data=[
             (
-                33333,
+                33333333333,
                 recon_id.hex,
                 "Snowflake",
                 ("org", "data", "supplier"),
@@ -1851,7 +1851,7 @@ def test_data_recon_with_source_exception(
     expected_remorph_recon_metrics = spark.createDataFrame(
         data=[
             (
-                33333,
+                33333333333,
                 (3, 3, None, None, None),
                 (
                     False,
@@ -1902,7 +1902,7 @@ def test_recon_for_wrong_report_type(mock_workspace_client, spark, mock_for_repo
         ),
         patch(
             "databricks.labs.lakebridge.reconcile.recon_capture.ReconCapture._generate_recon_main_id",
-            return_value=33333,
+            return_value=33333333333,
         ),
         pytest.raises(InvalidInputException),
     ):

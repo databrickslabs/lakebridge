@@ -107,9 +107,16 @@ def recon_tables(ws: WorkspaceClient, recon_schema: SchemaInfo, make_table) -> t
 
 
 @pytest.fixture
-def recon_metadata(recon_schema, make_volume) -> ReconcileMetadataConfig:
+def recon_metadata(spark, recon_schema, make_volume, report_tables_schema) -> ReconcileMetadataConfig:
     assert recon_schema.catalog_name
     assert recon_schema.name
+
+    prefix = f"{recon_schema.catalog_name}.{recon_schema.name}"
+    main_schema, metrics_schema, details_schema = report_tables_schema
+    spark.createDataFrame(data=[], schema=main_schema).write.saveAsTable(f"{prefix}.MAIN")
+    spark.createDataFrame(data=[], schema=metrics_schema).write.saveAsTable(f"{prefix}.METRICS")
+    spark.createDataFrame(data=[], schema=details_schema).write.saveAsTable(f"{prefix}.DETAILS")
+
     volume = make_volume(catalog_name=recon_schema.catalog_name, schema_name=recon_schema.name, name=recon_schema.name)
     return ReconcileMetadataConfig(catalog=recon_schema.catalog_name, schema=recon_schema.name, volume=volume.name)
 
