@@ -44,10 +44,10 @@ def test_read_data_with_options():
         "dbtable => 'SELECT * FROM orders', "
         "database => 'my_db', "
         "partitionColumn => 'id', "
-        "numberPartitions => '10', "
+        "numPartitions => '10', "
         "lowerBound => '0', "
         "upperBound => '1000', "
-        "fetchSize => '500')"
+        "fetchsize => '500')"
     )
 
 
@@ -58,7 +58,7 @@ def test_read_data_escapes_single_quotes():
     reader.read_data("SELECT * FROM t WHERE name = 'val'", "db", "database")
 
     spark.sql.assert_called_once_with(
-        "SELECT * FROM remote_query('my_conn', query => 'SELECT * FROM t WHERE name = \'val\'', database => 'db')"
+        r"SELECT * FROM remote_query('my_conn', query => 'SELECT * FROM t WHERE name = \'val\'', database => 'db')"
     )
 
 
