@@ -24,7 +24,7 @@ runs:
       name: Detecting python package/project managers.
       shell: bash
       run: |
-        for cmd in bun npm pip3 uv
+        for cmd in bun mvn npm pip3 uv
         do
           command -v "${cmd}" > /dev/null && found=true || found=false
           printf '::debug::%s\n' "Found ${cmd}: ${found}"
@@ -66,6 +66,34 @@ runs:
         EOF
         printf '%s=%s\n' 'PIP_CONFIG_FILE' "${RUNNER_TEMP}/.pip.conf" >> "${GITHUB_ENV}"
         printf '::debug::%s\n' 'Configured JFrog access for pip.'
+
+    - name: Configure Maven for JFrog
+      if: "${{ steps.detect-cmds.outputs.command_uv == 'true' }}"
+      shell: bash
+      env:
+        JFROG_ACCESS_TOKEN: "${{ steps.jfrog-auth.outputs.jfrog-access-token }}"
+      run: |
+        umask 077
+        mkdir -p ~/.m2
+        cat > ~/.m2/settings.xml << EOF
+        <settings>
+          <mirrors>
+            <mirror>
+              <id>jfrog-central</id>
+              <mirrorOf>*</mirrorOf>
+              <url>https://databricks.jfrog.io/artifactory/db-maven/</url>
+            </mirror>
+          </mirrors>
+          <servers>
+            <server>
+              <id>jfrog-central</id>
+              <username>gha-service-account</username>
+              <password>${JFROG_ACCESS_TOKEN}</password>
+            </server>
+          </servers>
+        </settings>
+        EOF
+        printf '::debug::%s\n' 'Configured JFrog access for maven.'
 
     - name: Configure uv for JFrog
       if: "${{ steps.detect-cmds.outputs.command_uv == 'true' }}"
