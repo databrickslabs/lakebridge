@@ -1,15 +1,15 @@
-# pylint: disable=protected-access
 from unittest.mock import MagicMock, patch
 
 from databricks.labs.lakebridge.config import DatabaseConfig, ReconcileMetadataConfig
 from databricks.labs.lakebridge.reconcile.recon_config import ColumnThresholds, Schema, Table
+from databricks.labs.lakebridge.reconcile.recon_output_config import DataReconcileOutput, MismatchOutput
 from databricks.labs.lakebridge.reconcile.reconciliation import Reconciliation
 from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
 
 
-def _build_reconciliation(source=None, target=None):
+def _build_reconciliation(target=None):
     return Reconciliation(
-        source=source or MagicMock(),
+        source=MagicMock(),
         target=target or MagicMock(),
         database_config=DatabaseConfig(
             source_schema="src_schema",
@@ -25,10 +25,34 @@ def _build_reconciliation(source=None, target=None):
     )
 
 
-def test_get_mismatch_data_passes_max_sample_size_to_sampler_factory():
+def test_reconcile_data_passes_max_sample_size_to_sampler_factory():
     recon = _build_reconciliation()
+    table_conf = Table(
+        source_name="src",
+        target_name="tgt",
+        join_columns=["id"],
+        max_sample_size=999,
+    )
+    schema_item = Schema(
+        column_name="id",
+        data_type="int",
+        ansi_normalized_column_name="`id`",
+        source_normalized_column_name="`id`",
+    )
+    mocked_output = DataReconcileOutput(
+        mismatch_count=1,
+        missing_in_src_count=0,
+        missing_in_tgt_count=0,
+        mismatch=MismatchOutput(mismatch_df=MagicMock(), mismatch_columns=[]),
+    )
 
     with (
+        patch("databricks.labs.lakebridge.reconcile.reconciliation.HashQueryBuilder"),
+        patch(
+            "databricks.labs.lakebridge.reconcile.reconciliation.reconcile_data",
+            return_value=mocked_output,
+        ),
+        patch("databricks.labs.lakebridge.reconcile.reconciliation.SamplingQueryBuilder"),
         patch("databricks.labs.lakebridge.reconcile.reconciliation.SamplerFactory") as factory_mock,
         patch(
             "databricks.labs.lakebridge.reconcile.reconciliation.capture_mismatch_data_and_columns",
@@ -36,24 +60,13 @@ def test_get_mismatch_data_passes_max_sample_size_to_sampler_factory():
         ),
     ):
         factory_mock.get_sampler.return_value.sample.return_value = MagicMock()
-
-        recon._get_mismatch_data(
-            src_sampler=MagicMock(),
-            tgt_sampler=MagicMock(),
-            mismatch_count=1,
-            mismatch=MagicMock(),
-            key_columns=["id"],
-            src_table="src",
-            tgt_table="tgt",
-            sampling_options=None,
-            max_sample_size=999,
-        )
+        recon.reconcile_data(table_conf, [schema_item], [schema_item])
 
     _, kwargs = factory_mock.get_sampler.call_args
     assert kwargs["max_sample_size"] == 999
 
 
-def test_compute_threshold_comparison_limits_with_max_sample_size():
+def test_reconcile_data_limits_threshold_df_with_max_sample_size():
     mismatched_df = MagicMock()
     mismatched_df.count.return_value = 10
     threshold_result = MagicMock()
@@ -72,18 +85,29 @@ def test_compute_threshold_comparison_limits_with_max_sample_size():
         ],
         max_sample_size=200,
     )
-    src_schema = [
-        Schema(
-            column_name="s_acctbal",
-            data_type="int",
-            ansi_normalized_column_name="`s_acctbal`",
-            source_normalized_column_name="`s_acctbal`",
-        )
-    ]
+    schema_item = Schema(
+        column_name="s_acctbal",
+        data_type="int",
+        ansi_normalized_column_name="`s_acctbal`",
+        source_normalized_column_name="`s_acctbal`",
+    )
+    mocked_output = DataReconcileOutput(
+        mismatch_count=0,
+        missing_in_src_count=0,
+        missing_in_tgt_count=0,
+        mismatch=MismatchOutput(mismatch_df=None, mismatch_columns=[]),
+    )
 
-    with patch("databricks.labs.lakebridge.reconcile.reconciliation.ThresholdQueryBuilder") as builder_mock:
+    with (
+        patch("databricks.labs.lakebridge.reconcile.reconciliation.HashQueryBuilder"),
+        patch(
+            "databricks.labs.lakebridge.reconcile.reconciliation.reconcile_data",
+            return_value=mocked_output,
+        ),
+        patch("databricks.labs.lakebridge.reconcile.reconciliation.ThresholdQueryBuilder") as builder_mock,
+    ):
+        builder_mock.return_value.build_threshold_query.return_value = "SELECT 1"
         builder_mock.return_value.build_comparison_query.return_value = "SELECT 1"
-        result = recon._compute_threshold_comparison(table_conf, src_schema)
+        recon.reconcile_data(table_conf, [schema_item], [schema_item])
 
     mismatched_df.limit.assert_called_once_with(200)
-    assert result.threshold_mismatch_count == 10
