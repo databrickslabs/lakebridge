@@ -31,9 +31,7 @@ class SnowflakeDataSource(DataSource):
           - indicates the sequential order of a column within a table or view,
              starting from 1 based on the order of column definition.
     """
-    _LIST_SCHEMAS_QUERY = (
-        "select schema_name from {catalog}.INFORMATION_SCHEMA.SCHEMATA order by schema_name"
-    )
+    _LIST_SCHEMAS_QUERY = "select schema_name from {catalog}.INFORMATION_SCHEMA.SCHEMATA order by schema_name"
     _LIST_TABLES_QUERY = (
         "select table_name from {catalog}.INFORMATION_SCHEMA.TABLES "
         "where table_schema = '{schema}' order by table_name"

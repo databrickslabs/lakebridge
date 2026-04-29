@@ -66,10 +66,9 @@ def generate_table_recon(
         )
 
     if unmatched:
+        unmatched_str = ", ".join(unmatched)
         logger.warning(
-            "Could not auto-match %d source table(s); add manually to the draft: %s",
-            len(unmatched),
-            ", ".join(unmatched),
+            f"Could not auto-match {len(unmatched)} source table(s); add manually to the draft: {unmatched_str}"
         )
 
     return TableRecon(tables=tables)
@@ -106,12 +105,9 @@ def _build_column_mapping(
             mappings.append(ColumnMapping(source_name=src_col, target_name=tgt_col))
 
     if unmatched:
+        unmatched_str = ", ".join(unmatched)
         logger.warning(
-            "Could not auto-match %d column(s) for %s -> %s: %s",
-            len(unmatched),
-            source_table,
-            target_table,
-            ", ".join(unmatched),
+            f"Could not auto-match {len(unmatched)} column(s) for {source_table} -> {target_table}: {unmatched_str}"
         )
 
     return mappings

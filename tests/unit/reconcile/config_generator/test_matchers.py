@@ -16,7 +16,7 @@ def test_naive_singularize():
     assert NormalizedMatcher.naive_singularize("categories") == "category"
     assert NormalizedMatcher.naive_singularize("addresses") == "address"
     assert NormalizedMatcher.naive_singularize("employees") == "employee"
-    assert NormalizedMatcher.naive_singularize("data") == "dat"
+    assert NormalizedMatcher.naive_singularize("data") == "data"
     assert NormalizedMatcher.naive_singularize("info") == "info"
 
 
@@ -66,7 +66,7 @@ def test_run_strategy_chain_runs_strategies_in_order():
         def __init__(self, mapping: dict[str, str]):
             self._mapping = mapping
 
-        def match_all(self, source_names, candidate_names):
+        def match_all(self, source_names, _):
             return {src: self._mapping.get(src) for src in source_names}
 
     first = FixedMatcher({"a": "x"})

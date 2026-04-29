@@ -19,9 +19,7 @@ logger = logging.getLogger(__name__)
 class OracleDataSource(DataSource):
     _IDENTIFIER_DELIMITER = "\""
     _LIST_SCHEMAS_QUERY = "select username from ALL_USERS order by username"
-    _LIST_TABLES_QUERY = (
-        "select table_name from ALL_TABLES where lower(owner) = '{owner}' order by table_name"
-    )
+    _LIST_TABLES_QUERY = "select table_name from ALL_TABLES where lower(owner) = '{owner}' order by table_name"
     _SCHEMA_QUERY = """select column_name, case when (data_precision is not null
                                               and data_scale <> 0)
                                               then data_type || '(' || data_precision || ',' || data_scale || ')'

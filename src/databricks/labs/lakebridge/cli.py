@@ -692,8 +692,8 @@ def configure_recon_tables(
 
     _, job_run_url = recon_runner.run(operation_name=CONFIGURE_TABLES_OPERATION_NAME)
     logger.info(
-        f"When the job finishes, the draft table mappings will be saved to the Lakebridge install folder. "
-        f"Edit the draft to add join columns, fill in unmatched tables, and review."
+        "When the job finishes, the draft table mappings will be saved to the Lakebridge install folder. "
+        "Edit the draft to add join columns, fill in unmatched tables, and review."
     )
     if ctx.prompts.confirm(f"Would you like to open the job run URL `{job_run_url}` in the browser?"):
         webbrowser.open(job_run_url)

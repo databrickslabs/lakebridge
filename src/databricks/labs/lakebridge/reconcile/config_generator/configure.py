@@ -4,10 +4,10 @@ import json
 import logging
 from dataclasses import asdict
 
+from pyspark.sql import SparkSession
 from databricks.connect import DatabricksSession
 from databricks.labs.blueprint.installation import Installation
 from databricks.sdk import WorkspaceClient
-from pyspark.sql import SparkSession
 
 from databricks.labs.lakebridge.config import ReconcileConfig, TableRecon
 from databricks.labs.lakebridge.reconcile.config_generator.generator import generate_table_recon
