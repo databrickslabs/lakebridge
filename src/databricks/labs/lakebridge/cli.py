@@ -14,6 +14,7 @@ from typing import NoReturn, TextIO
 
 from databricks.sdk.service.sql import CreateWarehouseRequestWarehouseType
 from databricks.sdk import WorkspaceClient
+from databricks.sdk.errors import NotFound
 
 from databricks.labs.blueprint.cli import App
 from databricks.labs.blueprint.entrypoint import get_logger
@@ -25,7 +26,7 @@ from databricks.labs.lakebridge.assessments.configure_assessment import create_a
 from databricks.labs.lakebridge.assessments import PROFILER_SOURCE_SYSTEM, PRODUCT_NAME
 from databricks.labs.lakebridge.assessments.profiler import Profiler
 
-from databricks.labs.lakebridge.config import TranspileConfig, LSPConfigOptionV1
+from databricks.labs.lakebridge.config import TableRecon, TranspileConfig, LSPConfigOptionV1
 from databricks.labs.lakebridge.contexts.application import ApplicationContext
 from databricks.labs.lakebridge.connections.credential_manager import cred_file, create_credential_manager
 from databricks.labs.lakebridge.connections.database_manager import DatabaseManager
@@ -680,11 +681,26 @@ def reconcile(
 def configure_recon_tables(
     *, w: WorkspaceClient, ctx_factory: Callable[[WorkspaceClient], ApplicationContext] = ApplicationContext
 ) -> None:
-    """[EXPERIMENTAL] Auto-discover source/target tables and generate a draft reconcile config"""
+    """[EXPERIMENTAL] Auto-discover source/target tables and generate the reconcile table mappings"""
     ctx = ctx_factory(w)
     ctx.add_user_agent_extra("cmd", "configure-recon-tables")
     user = ctx.current_user
     logger.debug(f"User: {user}")
+    _run_configure_recon_tables(ctx)
+
+
+def _run_configure_recon_tables(ctx: ApplicationContext) -> None:
+    recon_config = ctx.recon_config
+    if recon_config is None:
+        raise SystemExit("Reconcile is not configured. Run `databricks labs lakebridge configure-reconcile` first.")
+
+    filename = recon_config.table_recon_filename
+    if _table_recon_exists(ctx, filename):
+        ws_url = ctx.installation.workspace_link(filename)
+        if not ctx.prompts.confirm(f"Table mappings `{ws_url}` already exist. Overwrite?"):
+            logger.info("Aborted; existing table mappings preserved.")
+            return
+
     recon_runner = ReconcileRunner(
         ctx.workspace_client,
         ctx.install_state,
@@ -692,11 +708,19 @@ def configure_recon_tables(
 
     _, job_run_url = recon_runner.run(operation_name=CONFIGURE_TABLES_OPERATION_NAME)
     logger.info(
-        "When the job finishes, the draft table mappings will be saved to the Lakebridge install folder. "
-        "Edit the draft to add join columns, fill in unmatched tables, and review."
+        "When the job finishes, the table mappings will be saved to the Lakebridge install folder. "
+        "Edit the file to add join columns, fill in unmatched tables, and review."
     )
     if ctx.prompts.confirm(f"Would you like to open the job run URL `{job_run_url}` in the browser?"):
         webbrowser.open(job_run_url)
+
+
+def _table_recon_exists(ctx: ApplicationContext, filename: str) -> bool:
+    try:
+        ctx.installation.load(type_ref=TableRecon, filename=filename)
+        return True
+    except NotFound:
+        return False
 
 
 @lakebridge.command
@@ -865,6 +889,9 @@ def configure_reconcile(
     logger.debug(f"Warehouse ID used for configuring reconcile: {w.config.warehouse_id}.")
     reconcile_installer = installer(w, transpiler_repository, is_interactive=True)
     reconcile_installer.run(module="reconcile")
+
+    if ctx.prompts.confirm("Auto-discover source/target tables and pre-fill the table mappings now?"):
+        _run_configure_recon_tables(ApplicationContext(w))
 
 
 @lakebridge.command

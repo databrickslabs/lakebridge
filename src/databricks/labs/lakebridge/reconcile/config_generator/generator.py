@@ -24,13 +24,13 @@ def generate_table_recon(
     target_schema: str,
     strategies: list[ReconcileStrategy] | None = None,
 ) -> TableRecon:
-    """Generate a draft `TableRecon` by discovering and matching tables/columns.
+    """Generate a `TableRecon` by discovering and matching tables/columns.
 
     Tables are matched by name across the source and target schemas using the
     given strategy chain (defaults to `NormalizedMatcher`). For each matched
     pair, columns are also matched by name and emitted as `ColumnMapping`
     entries when names differ. Unmatched source tables are omitted from the
-    draft and logged for the user to add manually.
+    output and logged for the user to add manually.
     """
     strategies = strategies or [NormalizedMatcher()]
 
@@ -68,7 +68,7 @@ def generate_table_recon(
     if unmatched:
         unmatched_str = ", ".join(unmatched)
         logger.warning(
-            f"Could not auto-match {len(unmatched)} source table(s); add manually to the draft: {unmatched_str}"
+            f"Could not auto-match {len(unmatched)} source table(s); add manually: {unmatched_str}"
         )
 
     return TableRecon(tables=tables)

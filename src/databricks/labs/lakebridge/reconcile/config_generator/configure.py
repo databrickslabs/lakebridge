@@ -24,12 +24,12 @@ def configure_tables(
     reconcile_config: ReconcileConfig,
     spark: SparkSession | None = None,
 ) -> TableRecon:
-    """Discover source/target tables, generate a draft `TableRecon`, and save it.
+    """Discover source/target tables, generate a `TableRecon` config, and save it.
 
     Runs inside the reconcile job (where Spark + foreign-connection access are
-    available). The draft is saved under the canonical filename used by the
+    available). The config is saved under the canonical filename used by the
     reconcile runtime, so a subsequent `databricks labs lakebridge reconcile`
-    will pick it up. The user edits the draft to fill in joins, missing column
+    will pick it up. The user edits it to fill in joins, missing column
     mappings, and any tables that could not be auto-matched.
     """
     spark = spark or DatabricksSession.builder.getOrCreate()
@@ -59,14 +59,7 @@ def configure_tables(
         target_schema=tgt.schema,
     )
 
-    filename = draft_filename(reconcile_config)
+    filename = reconcile_config.table_recon_filename
     installation.upload(filename, json.dumps(asdict(table_recon), indent=2).encode())
-    logger.info(f"Saved draft table mappings to {filename} ({len(table_recon.tables)} table(s))")
+    logger.info(f"Saved table mappings to {filename} ({len(table_recon.tables)} table(s))")
     return table_recon
-
-
-def draft_filename(reconcile_config: ReconcileConfig) -> str:
-    """Canonical filename the reconcile runtime loads via `Installation.load`."""
-    src = reconcile_config.source
-    connection_or_catalog = src.uc_connection_name or src.catalog
-    return f"recon_config_{src.dialect}_{connection_or_catalog}_{reconcile_config.report_type}.json"

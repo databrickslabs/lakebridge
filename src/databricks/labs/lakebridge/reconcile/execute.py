@@ -52,11 +52,7 @@ def main(*argv: str) -> None:
         configure_tables(ws=w, installation=installation, reconcile_config=reconcile_config)
         return None
 
-    connection_or_catalog = reconcile_config.source.uc_connection_name or reconcile_config.source.catalog
-    filename = (
-        f"recon_config_{reconcile_config.source.dialect}_{connection_or_catalog}_{reconcile_config.report_type}.json"
-    )
-
+    filename = reconcile_config.table_recon_filename
     logger.info(f"Loading {filename} from Databricks Workspace...")
 
     table_recon = installation.load(type_ref=TableRecon, filename=filename)
