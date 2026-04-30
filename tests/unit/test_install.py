@@ -42,6 +42,7 @@ def ws() -> WorkspaceClient:
     w.current_user.me.side_effect = lambda: iam.User(
         user_name="me@example.com", groups=[iam.ComplexValue(display="admins")]
     )
+    w.config.host = "https://example.cloud.databricks.com"
     return w
 
 
@@ -713,7 +714,7 @@ def test_configure_reconcile_installation_config_error_continue_install(ws: Work
 
 
 @patch("webbrowser.open")
-def test_configure_reconcile_no_existing_installation(ws: WorkspaceClient) -> None:
+def test_configure_reconcile_no_existing_installation(_, ws: WorkspaceClient) -> None:
     prompts = MockPrompts(
         {
             r"Select the Data Source": str(RECONCILE_DATA_SOURCES.index("snowflake")),
@@ -799,7 +800,7 @@ def test_configure_reconcile_no_existing_installation(ws: WorkspaceClient) -> No
 
 
 @patch("webbrowser.open")
-def test_configure_reconcile_databricks_no_existing_installation(ws: WorkspaceClient) -> None:
+def test_configure_reconcile_databricks_no_existing_installation(_, ws: WorkspaceClient) -> None:
     prompts = MockPrompts(
         {
             r"Select the Data Source": str(RECONCILE_DATA_SOURCES.index("databricks")),
@@ -1663,6 +1664,154 @@ def test_installer_upgrade_configure_if_changed(
             "error_file_path": "/something/updated",
         }
         mock_installation.assert_file_written("config.yml", expected_configuration)
+
+
+def _v2_reconcile_yaml(uc_connection_name: str = "my_conn") -> JsonObject:
+    return {
+        "version": 2,
+        "report_type": "all",
+        "source": {
+            "dialect": "snowflake",
+            "catalog": "src_db",
+            "schema": "src_schema",
+            "uc_connection_name": uc_connection_name,
+        },
+        "target": {"catalog": "tgt_cat", "schema": "tgt_schema"},
+        "metadata_config": {"catalog": "remorph", "schema": "reconcile", "volume": "reconcile_volume"},
+    }
+
+
+def test_upgrade_reconcile_config_if_needed_no_existing_config(
+    ws_installer: Callable[..., WorkspaceInstaller], ws: WorkspaceClient
+) -> None:
+    """When there is no reconcile config, the upgrade is a no-op."""
+    ctx = ApplicationContext(ws).replace(
+        product_info=ProductInfo.for_testing(LakebridgeConfiguration),
+        installation=MockInstallation({}),
+    )
+    installer = ws_installer(
+        ctx.workspace_client,
+        ctx.prompts,
+        ctx.installation,
+        ctx.install_state,
+        ctx.product_info,
+        ctx.resource_configurator,
+        ctx.workspace_installation,
+    )
+
+    assert installer.upgrade_recon_config_to_uc_connections() is False
+
+
+def test_upgrade_reconcile_config_if_needed_skips_valid_v2(
+    ws_installer: Callable[..., WorkspaceInstaller], ws: WorkspaceClient
+) -> None:
+    """A v2 config with a real UC connection name needs no upgrade."""
+    ctx = ApplicationContext(ws).replace(
+        product_info=ProductInfo.for_testing(LakebridgeConfiguration),
+        installation=MockInstallation({"reconcile.yml": _v2_reconcile_yaml("real_connection")}),
+    )
+    installer = ws_installer(
+        ctx.workspace_client,
+        ctx.prompts,
+        ctx.installation,
+        ctx.install_state,
+        ctx.product_info,
+        ctx.resource_configurator,
+        ctx.workspace_installation,
+    )
+
+    assert installer.upgrade_recon_config_to_uc_connections() is False
+
+
+def test_upgrade_reconcile_config_if_needed_skips_databricks_dialect(
+    ws_installer: Callable[..., WorkspaceInstaller], ws: WorkspaceClient
+) -> None:
+    """A migrated v1 config for the databricks dialect needs no UC connection."""
+    v1_databricks: JsonObject = {
+        "version": 1,
+        "data_source": "databricks",
+        "secret_scope": "anything",
+        "report_type": "all",
+        "database_config": {
+            "source_catalog": "src_cat",
+            "source_schema": "src_schema",
+            "target_catalog": "tgt_cat",
+            "target_schema": "tgt_schema",
+        },
+        "metadata_config": {"catalog": "remorph", "schema": "reconcile", "volume": "reconcile_volume"},
+    }
+    ctx = ApplicationContext(ws).replace(
+        product_info=ProductInfo.for_testing(LakebridgeConfiguration),
+        installation=MockInstallation({"reconcile.yml": v1_databricks}),
+    )
+    installer = ws_installer(
+        ctx.workspace_client,
+        ctx.prompts,
+        ctx.installation,
+        ctx.install_state,
+        ctx.product_info,
+        ctx.resource_configurator,
+        ctx.workspace_installation,
+    )
+
+    assert installer.upgrade_recon_config_to_uc_connections() is False
+
+
+def test_upgrade_reconcile_config_if_needed_reconfigures_v1_external_source(
+    ws_installer: Callable[..., WorkspaceInstaller], ws: WorkspaceClient
+) -> None:
+    """A migrated v1 config with the TODO placeholder triggers a fresh reconcile prompt sequence."""
+    mock_installation = MockInstallation({"reconcile.yml": _v2_reconcile_yaml("TODO")})
+    resource_configurator = create_autospec(ResourceConfigurator)
+    resource_configurator.prompt_for_catalog_setup.return_value = "remorph"
+    resource_configurator.prompt_for_schema_setup.return_value = "reconcile"
+    resource_configurator.prompt_for_volume_setup.return_value = "reconcile_volume"
+
+    ctx = ApplicationContext(ws).replace(
+        product_info=ProductInfo.for_testing(LakebridgeConfiguration),
+        installation=mock_installation,
+        resource_configurator=resource_configurator,
+        prompts=MockPrompts(
+            {
+                r"Select the Data Source": str(RECONCILE_DATA_SOURCES.index("snowflake")),
+                r"Select the report type": str(RECONCILE_REPORT_TYPES.index("all")),
+                r"Enter Unity Catalog .* connection name": "real_uc_connection",
+                r"Enter .* database name": "new_db",
+                r"Enter .* schema name": "new_schema",
+                r"Enter target Databricks catalog name": "new_target_cat",
+                r"Enter target Databricks schema name": "new_target_schema",
+                r"Open .* in the browser?": "no",
+            }
+        ),
+    )
+    installer = ws_installer(
+        ctx.workspace_client,
+        ctx.prompts,
+        ctx.installation,
+        ctx.install_state,
+        ctx.product_info,
+        ctx.resource_configurator,
+        ctx.workspace_installation,
+    )
+
+    upgraded = installer.upgrade_recon_config_to_uc_connections()
+
+    assert upgraded is True
+    mock_installation.assert_file_written(
+        "reconcile.yml",
+        {
+            "version": 2,
+            "report_type": "all",
+            "source": {
+                "dialect": "snowflake",
+                "catalog": "new_db",
+                "schema": "new_schema",
+                "uc_connection_name": "real_uc_connection",
+            },
+            "target": {"catalog": "new_target_cat", "schema": "new_target_schema"},
+            "metadata_config": {"catalog": "remorph", "schema": "reconcile", "volume": "reconcile_volume"},
+        },
+    )
 
 
 def test_no_reconfigure_if_noninteractive(

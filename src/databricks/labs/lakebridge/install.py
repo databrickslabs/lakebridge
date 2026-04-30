@@ -6,6 +6,7 @@ import webbrowser
 from collections.abc import Callable, Sequence, Set
 from pathlib import Path
 from typing import Any
+from urllib.parse import urljoin
 
 from databricks.labs.blueprint.entrypoint import get_logger
 from databricks.labs.blueprint.installation import Installation, JsonValue, SerdeError
@@ -44,6 +45,7 @@ from databricks.labs.lakebridge.transpiler.repository import TranspilerRepositor
 logger = logging.getLogger(__name__)
 
 TRANSPILER_WAREHOUSE_PREFIX = "Lakebridge Transpiler Validation"
+CREATE_UC_CONNECTIONS_PAGE = "explore/connections/create"
 
 
 class WorkspaceInstaller:
@@ -130,6 +132,34 @@ class WorkspaceInstaller:
             if not self._is_testing():
                 self._ws_installation.install(config)
         return upgraded
+
+    def upgrade_recon_config_to_uc_connections(self) -> bool:
+        """Detect a reconcile config that pre-dates Unity Catalog connections and reconfigure it.
+
+        v1 configs used JDBC connections via secret scopes; v2 uses UC connections. The v1->v2
+        migration leaves a placeholder for `uc_connection_name` that the user must replace. This
+        method detects that case and re-runs the reconcile configuration prompts. The standard
+        `_configure_reconcile()` "do you want to override?" prompt is intentionally bypassed —
+        the user has already opted into the upgrade by running this command.
+        """
+        try:
+            reconcile_config = self._installation.load(ReconcileConfig)
+        except (NotFound, SerdeError):
+            return False
+        if not self._reconcile_needs_upgrade(reconcile_config):
+            return False
+        logger.info("Reconcile configuration needs a Unity Catalog connection. Reconfiguring now...")
+        new_reconcile = self._configure_new_reconcile_installation()
+        if not self._is_testing():
+            self._ws_installation.install(LakebridgeConfiguration(None, new_reconcile, None))
+        return True
+
+    @staticmethod
+    def _reconcile_needs_upgrade(config: ReconcileConfig) -> bool:
+        if config.source.dialect == ReconSourceType.DATABRICKS.value:
+            return False
+        # Marker left by ReconcileConfig.v1_migrate; the user must supply the real connection name.
+        return not config.source.uc_connection_name or config.source.uc_connection_name == "TODO"
 
     def _install_artifact(self, artifact: str) -> None:
         path = Path(artifact)
@@ -360,6 +390,8 @@ class WorkspaceInstaller:
     def _prompt_for_source_connection_config(self, dialect: str) -> SourceConnectionConfig:
         uc_connection_name: str | None = None
         if dialect != ReconSourceType.DATABRICKS.value:
+            url = urljoin(self._ws.config.host, CREATE_UC_CONNECTIONS_PAGE)
+            logger.info(f"**Create a new connection using: {url}**")
             uc_connection_name = self._prompts.question(f"Enter Unity Catalog {dialect.capitalize()} connection name")
 
         if dialect == ReconSourceType.ORACLE.value:
@@ -523,6 +555,7 @@ if __name__ == "__main__":
     )
     if not app_installer.upgrade_installed_transpilers():
         logger.debug("No existing Lakebridge transpilers detected; assuming fresh installation.")
+    app_installer.upgrade_recon_config_to_uc_connections()
 
     logger.info("Successfully Setup Lakebridge Components Locally")
     logger.info("For more information, please visit https://databrickslabs.github.io/lakebridge/")
