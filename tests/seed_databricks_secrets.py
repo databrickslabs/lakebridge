@@ -20,6 +20,7 @@ import json
 import logging
 import os
 import sys
+from collections.abc import Mapping
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -32,7 +33,7 @@ DEBUG_ENV_FILE = Path.home() / ".databricks" / "debug-env.json"
 DEBUG_ENV_PROFILE = "ucws"
 
 
-def _load_env() -> dict[str, str]:
+def _load_env() -> Mapping[str, str]:
     """Return env vars, layered: process env wins, debug-env.json fills gaps."""
     env = dict(os.environ)
     if DEBUG_ENV_FILE.exists():
@@ -45,7 +46,7 @@ def _load_env() -> dict[str, str]:
     return env
 
 
-def _snowflake_secrets(env: dict[str, str]) -> dict[str, str] | None:
+def _snowflake_secrets(env: Mapping[str, str]) -> Mapping[str, str] | None:
     """Build the Snowflake secret payload from ``TEST_SNOWFLAKE_*`` env vars.
 
     Parses ``jdbc:snowflake://account.snowflakecomputing.com/?user=...&db=...&schema=...&warehouse=...``.
@@ -72,7 +73,7 @@ def _snowflake_secrets(env: dict[str, str]) -> dict[str, str] | None:
     }
 
 
-def _tsql_secrets(env: dict[str, str]) -> dict[str, str] | None:
+def _tsql_secrets(env: Mapping[str, str]) -> Mapping[str, str] | None:
     """Build the SQL Server secret payload from ``TEST_TSQL_*`` env vars.
 
     Parses ``jdbc:sqlserver://host:port;database=...;encrypt=...;trustServerCertificate=...``.
@@ -86,7 +87,7 @@ def _tsql_secrets(env: dict[str, str]) -> dict[str, str] | None:
     parsed = urlparse(base)
     if not parsed.hostname:
         raise ValueError(f"Could not parse hostname from TEST_TSQL_JDBC: {jdbc!r}")
-    out: dict[str, str] = {
+    out = {
         "host": parsed.hostname,
         "port": str(parsed.port or 1433),
         "user": user,
@@ -103,16 +104,15 @@ def _tsql_secrets(env: dict[str, str]) -> dict[str, str] | None:
     return out
 
 
-def _redshift_secrets(env: dict[str, str]) -> dict[str, str] | None:
+def _redshift_secrets(env: Mapping[str, str]) -> Mapping[str, str] | None:
     """Build the Redshift secret payload from ``REDSHIFT_*`` env vars."""
     mapping = {
         "host": "REDSHIFT_HOST",
         "port": "REDSHIFT_PORT",
-        "database": "REDSHIFT_DATABASE",
         "user": "REDSHIFT_USER",
         "password": "REDSHIFT_PASS",
     }
-    out: dict[str, str] = {}
+    out = {"database": "labs"}
     for secret_key, env_key in mapping.items():
         value = env.get(env_key)
         if value is None:
@@ -129,7 +129,7 @@ def _ensure_scope(ws: WorkspaceClient, scope: str) -> None:
         logger.info(f"Secret scope {scope} already exists")
 
 
-def _put_secrets(ws: WorkspaceClient, scope: str, secrets: dict[str, str]) -> None:
+def _put_secrets(ws: WorkspaceClient, scope: str, secrets: Mapping[str, str]) -> None:
     for key, value in secrets.items():
         ws.secrets.put_secret(scope=scope, key=key, string_value=value)
         logger.info(f"Wrote {scope}/{key}")
