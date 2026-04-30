@@ -10,17 +10,11 @@ on:
       - main
 
 permissions:
-  id-token: write
   contents: read
-  pull-requests: write
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
-
-env:
-  HATCH_VERBOSE: "2"
-  HATCH_VERSION: "1.16.5"
 
 jobs:
   integration:
@@ -29,29 +23,30 @@ jobs:
       matrix:
         python: [ '3.10', '3.11', '3.12', '3.13', '3.14' ]
     environment: tool
+    permissions:
+      # Access to JFrog and the integration testing infrastructure.
+      id-token: write
+      # Write test results to the PR.
+      pull-requests: write
     runs-on:
       group: larger-runners
       labels: larger
     env:
-      HATCH_ENV: "test.py${{ matrix.python }}"
+      UV_PYTHON: "${{ matrix.python }}"
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
         with:
           fetch-depth: 0
 
-      - name: Install Python
-        uses: actions/setup-python@v6
+      - name: Setup uv
+        uses: astral-sh/setup-uv@5a095e7a2014a4212f075830d4f7277575a9d098  # v7.3.1
         with:
-          cache: 'pip'
-          cache-dependency-path: '**/pyproject.toml'
-          # The version under test, as well as Python 3.14 for Hatch.
-          python-version: |
-            ${{ matrix.python }}
-            ${{ matrix.python != '3.14' && '3.14' || '' }}
+          version: "0.11.2"
+          checksum: "7ac2ca0449c8d68dae9b99e635cd3bc9b22a4cb1de64b7c43716398447d42981"
 
-      - name: Install hatch
-        run: pip install "hatch==${HATCH_VERSION}"
+      - name: Setup for JFrog
+        uses: ./.github/actions/jfrog-auth
 
       - name: Install MSSQL ODBC Driver
         run: |
@@ -59,13 +54,16 @@ jobs:
           $GITHUB_WORKSPACE/.github/scripts/setup_mssql_odbc.sh
 
       # TODO: Migrate tests to use Databricks clusters instead of Spark local mode
+      # Disabled for now, because access to archives.apache.org is blocked; a new approach will be needed for this.
+      # (The integration tests will still run, but many will fail due to this.)
       - name: Setup spark
+        if: false
         run: |
           chmod +x $GITHUB_WORKSPACE/.github/scripts/setup_spark_remote.sh
           $GITHUB_WORKSPACE/.github/scripts/setup_spark_remote.sh
 
       - name: Run integration tests
-        uses: databrickslabs/sandbox/acceptance@acceptance/v0.4.4
+        uses: databrickslabs/sandbox/acceptance@3313d06ce86227537b3f37f5974f7eecb2a8e59a  # acceptance/v0.4.4
         with:
           vault_uri: ${{ secrets.VAULT_URI }}
           directory: ${{ github.workspace }}

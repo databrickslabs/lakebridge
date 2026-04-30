@@ -14,9 +14,8 @@ on:
     branches:
       - main
 
-env:
-  HATCH_VERBOSE: "2"
-  HATCH_VERSION: "1.16.5"
+permissions:
+  contents: read
 
 jobs:
   test-python:
@@ -27,30 +26,32 @@ jobs:
     runs-on:
       group: databrickslabs-protected-runner-group
       labels: linux-ubuntu-latest
+    permissions:
+      # JFrog OIDC authentication.
+      id-token: write
     env:
-      HATCH_ENV: "test.py${{ matrix.python }}"
+      UV_PYTHON: "${{ matrix.python }}"
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
 
-      - name: Install Python
-        uses: actions/setup-python@v6
+      - name: Setup uv
+        uses: astral-sh/setup-uv@5a095e7a2014a4212f075830d4f7277575a9d098  # v7.3.1
         with:
-          cache: 'pip'
-          cache-dependency-path: '**/pyproject.toml'
-          # The version under test, as well as Python 3.14 for Hatch.
-          python-version: |
-            ${{ matrix.python }}
-            ${{ matrix.python != '3.14' && '3.14' || '' }}
+          version: "0.11.2"
+          checksum: "7ac2ca0449c8d68dae9b99e635cd3bc9b22a4cb1de64b7c43716398447d42981"
 
-      - name: Install hatch
-        run: pip install "hatch==${HATCH_VERSION}"
+      - name: Setup for JFrog
+        uses: ./.github/actions/jfrog-auth
+
+      - name: Pre-sync environment to work around analyzer bug
+        run: make dev
 
       - name: Run unit tests
         run: make test
 
       - name: Publish test coverage
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@671740ac38dd9b0130fbe1cec585b89eea48d3de  # v5.5.2
         with:
           codecov_yml_path: codecov.yml
           token: ${{ secrets.CODECOV_TOKEN }}
@@ -59,21 +60,21 @@ jobs:
     runs-on:
       group: databrickslabs-protected-runner-group
       labels: linux-ubuntu-latest
+    permissions:
+      # JFrog OIDC authentication.
+      id-token: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
 
-      - name: Install Python
-        uses: actions/setup-python@v6
+      - name: Setup uv
+        uses: astral-sh/setup-uv@5a095e7a2014a4212f075830d4f7277575a9d098  # v7.3.1
         with:
-          cache: 'pip'
-          cache-dependency-path: '**/pyproject.toml'
-          python-version: |
-            3.10
-            3.14
+          version: "0.11.2"
+          checksum: "7ac2ca0449c8d68dae9b99e635cd3bc9b22a4cb1de64b7c43716398447d42981"
 
-      - name: Install hatch
-        run: pip install "hatch==${HATCH_VERSION}"
+      - name: Setup for JFrog
+        uses: ./.github/actions/jfrog-auth
 
       - name: Reformat code
         run: make fmt
@@ -90,14 +91,14 @@ jobs:
     if: github.event_name == 'pull_request' && (github.event.action == 'opened' || github.event.action == 'synchronize')
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
         with:
           fetch-depth: 0
 
       - name: Verify no lint disabled in the new code
         run: |
-          git fetch origin $GITHUB_BASE_REF:$GITHUB_BASE_REF
-          git diff --ignore-space-change $GITHUB_BASE_REF...HEAD -- ':(glob,icase)**/*.py' > diff_data.txt
+          git fetch origin "${GITHUB_BASE_REF}:${GITHUB_BASE_REF}"
+          git diff --ignore-space-change "${GITHUB_BASE_REF}...HEAD" -- ':(glob,icase)**/*.py' > diff_data.txt
           python tests/unit/no_cheat.py diff_data.txt > cheats.txt
           COUNT=$(cat cheats.txt | wc -c)
           if [ ${COUNT} -gt 1 ]; then
@@ -109,39 +110,39 @@ jobs:
     runs-on:
       group: databrickslabs-protected-runner-group
       labels: linux-ubuntu-latest
+    permissions:
+      # JFrog OIDC authentication.
+      id-token: write
     env:
       INPUT_DIR_PARENT: .
       OUTPUT_DIR: ./test-reports
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
         with:
           fetch-depth: 0
 
-      - name: Install Python
-        uses: actions/setup-python@v6
+      - name: Setup uv
+        uses: astral-sh/setup-uv@5a095e7a2014a4212f075830d4f7277575a9d098  # v7.3.1
         with:
-          cache: 'pip'
-          cache-dependency-path: '**/pyproject.toml'
-          python-version: |
-            3.10
-            3.14
+          version: "0.11.2"
+          checksum: "7ac2ca0449c8d68dae9b99e635cd3bc9b22a4cb1de64b7c43716398447d42981"
 
-      - name: Install hatch
-        run: pip install "hatch==${HATCH_VERSION}"
+      - name: Setup for JFrog
+        uses: ./.github/actions/jfrog-auth
 
       - name: Install Databricks CLI
-        uses: databricks/setup-cli@main
+        uses: databricks/setup-cli@8db12393ac48926ab0074f3928f36c7abc441f90  # v0.292.0
 
       - name: Initialize Python virtual environment
         run: make dev
 
       - name: Create dummy test file
         run: |
-          mkdir $INPUT_DIR_PARENT/snowflake
-          mkdir $INPUT_DIR_PARENT/tsql
-          echo "SELECT * FROM t;" >> $INPUT_DIR_PARENT/snowflake/dummy_test.sql
-          echo "SELECT * FROM t;" >> $INPUT_DIR_PARENT/tsql/dummy_test.sql
+          mkdir "${INPUT_DIR_PARENT}/snowflake"
+          mkdir "${INPUT_DIR_PARENT}/tsql"
+          echo "SELECT * FROM t;" >> "${INPUT_DIR_PARENT}/snowflake/dummy_test.sql"
+          echo "SELECT * FROM t;" >> "${INPUT_DIR_PARENT}/tsql/dummy_test.sql"
         shell: bash
 
       - name: Dry run coverage tests with make

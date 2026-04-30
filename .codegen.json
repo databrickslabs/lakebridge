@@ -3,12 +3,12 @@
     "src/databricks/labs/lakebridge/__about__.py": "__version__ = \"$VERSION\""
   },
   "toolchain": {
-    "required": ["hatch"],
-    "pre_setup": [
-      "hatch env create \"${HATCH_ENV:-default}\"",
-      "ln -sfn \"$(hatch env find \"${HATCH_ENV:-default}\")\" .venv-py3.xx"
-    ],
-    "prepend_path": ".venv-py3.xx/bin",
-    "acceptance_path": "tests/integration"
+    "required": ["make", "uv"],
+    "pre_setup": ["make dev"],
+    "prepend_path": ".venv/bin",
+    "acceptance_path": "tests/integration",
+    "test": [
+      "make test"
+    ]
   }
 }
