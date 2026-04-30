@@ -47,7 +47,6 @@ def _create_credentials_file(
     return cred_path
 
 
-@pytest.mark.skip(reason="Sandbox Synapse credentials are stale; Synapse connection fails.")
 def test_profiler_connection_synapse_success(
     sandbox_synapse_cred_config: JsonObject,
     tmp_path: Path,
