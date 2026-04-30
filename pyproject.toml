@@ -96,10 +96,12 @@ pytest = [
 ]
 test = [
     { include-group = "pytest" },
-    "databricks-connect==15.1",
+    "databricks-connect~=16.1.7; python_version < '3.12'",
+    "databricks-connect~=18.1.2; python_version >= '3.12'",
     "databricks-labs-pytester>=0.3.0,<0.8.0",
     "cattrs>=25.2.0,<26.0.0",
     "faker~=40.12.0",
+    "numpy>=2.0.0,<3.0.0; python_version >= '3.12.0'",  # Needed for binary packages to be available.
 ]
 sqlglot = [
     "sqlglot~=28.0",
