@@ -74,12 +74,12 @@ flowchart TD
 [[back to top](#types-of-report-supported)]
 
 ## TABLE Config Json filename:
-The config file must be named as `recon_config_[DATA_SOURCE]_[SOURCE_CATALOG_OR_SCHEMA]_[REPORT_TYPE].json` and should be placed in the Lakebridge root directory `.lakebridge` within the Databricks Workspace.
+The config file must be named as `recon_config_[DATA_SOURCE]_[SOURCE_UNITY_CATALOG_CONNECTION_NAME]_[REPORT_TYPE].json` and should be placed in the Lakebridge root directory `.lakebridge` within the Databricks Workspace.
 
 > The filename pattern would remain the same for all the data_sources.
 
 ``` shell
-recon_config_${DATA_SOURCE}_${SOURCE_CATALOG_OR_SCHEMA}_${REPORT_TYPE}.json
+recon_config_${DATA_SOURCE}_${SOURCE_UNITY_CATALOG_CONNECTION_NAME}_${REPORT_TYPE}.json
 ```
 
 Please find the `Table Recon` filename examples below for the `Snowflake`, `Oracle`, `` and `Databricks` source systems.
