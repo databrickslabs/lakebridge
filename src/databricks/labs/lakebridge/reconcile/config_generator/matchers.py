@@ -86,6 +86,28 @@ class NormalizedMatcher:
         return word
 
 
+class LlmMatcher:
+    """Match source names against candidate target names using an LLM.
+
+    Implement `ReconcileStrategy` so it can slot into
+    `run_strategy_chain` after `NormalizedMatcher`. Plug it in **after** the
+    deterministic matcher so the LLM is only asked about names that simple
+    normalisation could not resolve.
+    """
+
+    def match_all(self, source_names: list[str], candidate_names: list[str]) -> dict[str, str | None]:
+        # TODO: implement.
+        # Sketch:
+        #   1. Build a prompt that lists `source_names` and `candidate_names` and asks for an
+        #      assignment of each source to at most one candidate (or `null`).
+        #   2. Call the serving endpoint, e.g.
+        #      `self._ws.serving_endpoints.query(name=self._endpoint_name, ...)`.
+        #   3. Parse the response into `{source: candidate | None}`.
+        #   4. Drop / null-out any candidate the model returned that is not in `candidate_names`,
+        #      so `run_strategy_chain.remaining_candidates.remove(matched)` cannot fail.
+        raise NotImplementedError("LLM-assisted reconcile strategy is not yet implemented")
+
+
 def run_strategy_chain(
     strategies: list[ReconcileStrategy],
     source_names: list[str],
