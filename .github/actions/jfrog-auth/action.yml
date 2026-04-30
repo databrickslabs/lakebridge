@@ -1,0 +1,123 @@
+name: 'Authenticate for JFrog'
+description: 'Authenticate with JFrog using OIDC based on the GitHub repository.'
+# Some things to note:
+#  - Run this _after_ installing any tools that need to use JFrog; auth is configured all the (supported) tools that it
+#    detects.
+#  - Where possible we avoid exposing tokens in environment variables, preferring to write them into files instead.
+#    (Tokens in environment variables tend to be more exposed and easier to leak than those written into files.)
+#
+# TODO: Factor out into an external action, once releases are allowed.
+outputs:
+  jfrog-access-token:
+    description: "Access token for JFrog"
+    value: "${{ steps.jfrog-auth.outputs.jfrog-access-token }}"
+runs:
+  using: "composite"
+  steps:
+    - id: jfrog-auth
+      name: Authenticate against JFrog
+      shell: bash
+      run: |
+        "${GITHUB_ACTION_PATH}/jfrog-auth" "${ACTIONS_ID_TOKEN_REQUEST_URL}" "${ACTIONS_ID_TOKEN_REQUEST_TOKEN}"
+
+    - id: detect-cmds
+      name: Detecting python package/project managers.
+      shell: bash
+      run: |
+        for cmd in bun mvn npm pip3 uv
+        do
+          command -v "${cmd}" > /dev/null && found=true || found=false
+          printf '::debug::%s\n' "Found ${cmd}: ${found}"
+          printf '%s=%s\n' "command_${cmd}" "${found}" >> "${GITHUB_OUTPUT}"
+        done
+
+    - name: Configure bun for JFrog
+      if: "${{ steps.detect-cmds.outputs.command_bun == 'true' }}"
+      shell: bash
+      env:
+        JFROG_ACCESS_TOKEN: "${{ steps.jfrog-auth.outputs.jfrog-access-token }}"
+      run: |
+        umask 077
+        cat > ~/.bunfig.toml << EOF
+        [install]
+        registry = { url = "https://databricks.jfrog.io/artifactory/api/npm/db-npm/", token = "$jfrog_access_token" }
+        EOF
+        cat > "${RUNNER_TEMP}/.bun.env" << EOF
+        # Environment variables loaded by bun.
+        jfrog_access_token='${JFROG_ACCESS_TOKEN}'
+        EOF
+        printf '%s=%s\n' 'BUN_OPTIONS' "--env-file=${RUNNER_TEMP}/.bun.env" >> "${GITHUB_ENV}"
+        printf '::debug::%s\n' 'Configured JFrog access for bun.'
+        # There are currently the following issues with JFrog:
+        #  - The default set of CAs doesn't seem to cover the ones used by our JFrog instance.
+        #  - The JSON metadata returned for some NPM artefacts can be invalid JSON.
+        printf '::warning::%s\n' 'JFrog has compatibility issues with bun; it probably won't work.'
+
+    - name: Configure pip for JFrog
+      if: "${{ steps.detect-cmds.outputs.command_pip3 == 'true' }}"
+      shell: bash
+      env:
+        JFROG_ACCESS_TOKEN: "${{ steps.jfrog-auth.outputs.jfrog-access-token }}"
+      run: |
+        umask 077
+        cat > "$RUNNER_TEMP/.pip.conf" <<EOF
+        [global]
+        index-url = https://gha-service-account:${JFROG_ACCESS_TOKEN}@databricks.jfrog.io/artifactory/api/pypi/db-pypi/simple
+        EOF
+        printf '%s=%s\n' 'PIP_CONFIG_FILE' "${RUNNER_TEMP}/.pip.conf" >> "${GITHUB_ENV}"
+        printf '::debug::%s\n' 'Configured JFrog access for pip.'
+
+    - name: Configure Maven for JFrog
+      if: "${{ steps.detect-cmds.outputs.command_uv == 'true' }}"
+      shell: bash
+      env:
+        JFROG_ACCESS_TOKEN: "${{ steps.jfrog-auth.outputs.jfrog-access-token }}"
+      run: |
+        umask 077
+        mkdir -p ~/.m2
+        cat > ~/.m2/settings.xml << EOF
+        <settings>
+          <mirrors>
+            <mirror>
+              <id>jfrog-central</id>
+              <mirrorOf>*</mirrorOf>
+              <url>https://databricks.jfrog.io/artifactory/db-maven/</url>
+            </mirror>
+          </mirrors>
+          <servers>
+            <server>
+              <id>jfrog-central</id>
+              <username>gha-service-account</username>
+              <password>${JFROG_ACCESS_TOKEN}</password>
+            </server>
+          </servers>
+        </settings>
+        EOF
+        printf '::debug::%s\n' 'Configured JFrog access for maven.'
+
+    - name: Configure uv for JFrog
+      if: "${{ steps.detect-cmds.outputs.command_uv == 'true' }}"
+      shell: bash
+      env:
+        JFROG_ACCESS_TOKEN: "${{ steps.jfrog-auth.outputs.jfrog-access-token }}"
+        UV_INDEX_URL: 'https://databricks.jfrog.io/artifactory/api/pypi/db-pypi/simple'
+      run: |
+        uv auth login "${UV_INDEX_URL}" --username gha-service-account --password "${JFROG_ACCESS_TOKEN}"
+        printf '%s=%s\n' 'UV_INDEX_URL' "${UV_INDEX_URL}" >> "${GITHUB_ENV}"
+        printf '%s=%s\n' 'UV_FROZEN' '1' >> "${GITHUB_ENV}"
+        printf '::debug::%s\n' 'Configured JFrog access for uv.'
+
+    - name: Configure npm/yarn (classic) for JFrog
+      if: "${{ steps.detect-cmds.outputs.command_npm == 'true' }}"
+      shell: bash
+      env:
+        JFROG_ACCESS_TOKEN: "${{ steps.jfrog-auth.outputs.jfrog-access-token }}"
+      run: |
+        umask 077
+        cat > ~/.npmrc << EOF
+        registry=https://databricks.jfrog.io/artifactory/api/npm/db-npm/
+        always-auth=true
+        ignore-scripts=true
+        //databricks.jfrog.io/artifactory/api/npm/db-npm/:_authToken=${JFROG_ACCESS_TOKEN}
+        EOF
+        printf '::debug::%s\n' 'Configured JFrog access for npm/yarn (classic).'
