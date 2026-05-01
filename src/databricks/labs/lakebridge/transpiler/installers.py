@@ -1,5 +1,6 @@
 import abc
 import datetime as dt
+import json
 import logging
 import os
 import re
@@ -8,7 +9,6 @@ import subprocess
 import sys
 import venv
 import xml.etree.ElementTree as ET
-from json import dump
 from pathlib import Path
 from shutil import rmtree
 from types import SimpleNamespace
@@ -119,7 +119,7 @@ class ArtifactInstaller(abc.ABC):
         version_data = {"version": f"v{version}", "date": dt.datetime.now(dt.timezone.utc).isoformat()}
         version_path = state_path / "version.json"
         with version_path.open("w", encoding="utf-8") as f:
-            dump(version_data, f)
+            json.dump(version_data, f)
             f.write("\n")
 
     def _install_version_with_backup(self, version: str) -> Path | None:
@@ -162,18 +162,31 @@ class WheelInstaller(ArtifactInstaller):
 
     @classmethod
     def get_latest_artifact_version_from_pypi(cls, artifact_id: str) -> str | None:
-        url = f"https://pypi.org/pypi/{artifact_id}/json"
-        try:
-            # TODO: Use a user-agent that identifies this application.
-            response = requests.get(url, timeout=_DEFAULT_HTTP_TIMEOUT)
-            response.raise_for_status()
-            data: RootJsonValue = response.json()
-        except RequestException as e:
-            logger.error(f"Error while fetching PyPI metadata: {artifact_id}", exc_info=e)
+        command: list[Path | str] = [
+            # Pre-venv, so use this python instead of the python in the (not-yet-created) venv.
+            sys.executable,
+            "-m",
+            "pip",
+            "--disable-pip-version-check",
+            "index",
+            "versions",
+            artifact_id,
+            "--json",
+        ]
+        logger.debug(f"Querying artifact version information: {command}")
+        result = subprocess.run(command, check=False, capture_output=True, text=True, timeout=60.0)
+        if result.returncode != 0:
+            logger.debug(f"pip query failed: {result}")
+            logger.error(f"Error querying PyPI version information: {artifact_id}")
             return None
-        logger.debug(f"PyPI metadata for {artifact_id}: {data}")
+        try:
+            data: RootJsonValue = json.loads(result.stdout)
+        except json.JSONDecodeError as e:
+            logger.debug(f"Unable to decode pip artifact version results: {result.stdout}", exc_info=e)
+            logger.error(f"Error processing PyPI version information: {artifact_id}")
+            return None
         match data:
-            case {"info": {"version": str(version), **_ignored}, **_also_ignored}:
+            case {"name": name, "latest": str(version), **_ignored} if name == artifact_id:
                 return version
             case _:
                 return None
