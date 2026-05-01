@@ -2,7 +2,7 @@ import pytest
 
 from databricks.labs.lakebridge.connections.database_manager import MSSQLConnector
 
-pytestmark = pytest.mark.skip(reason="Sandbox SQL Server credentials are stale.")
+pytestmark = pytest.mark.xfail(reason="Sandbox SQL Server credentials are stale.", strict=True)
 
 
 def test_mssql_connector_connection(sandbox_sqlserver):
