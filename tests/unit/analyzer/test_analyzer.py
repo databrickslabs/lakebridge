@@ -56,9 +56,7 @@ def test_analyze_json_output(
     if omit_generate_json_kw:
         result = analyzer.run_analyzer(source=str(path), report_file=str(file), platform="Synapse")
     else:
-        result = analyzer.run_analyzer(
-            source=str(path), report_file=str(file), platform="Synapse", generate_json=False
-        )
+        result = analyzer.run_analyzer(source=str(path), report_file=str(file), platform="Synapse", generate_json=False)
 
     assert result == expected_result
     assert file.exists()
