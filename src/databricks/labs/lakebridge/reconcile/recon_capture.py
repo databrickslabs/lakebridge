@@ -2,7 +2,7 @@ import logging
 import os
 import tempfile
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from functools import reduce, cached_property
 from pathlib import Path
 
@@ -379,7 +379,7 @@ class ReconCapture:
         if data_reconcile_output.exception is not None:
             exception_msg = data_reconcile_output.exception.replace("'", '').replace('"', '')
 
-        insertion_time = str(datetime.now())
+        insertion_time = str(datetime.now(tz=timezone.utc))
         mismatch_columns = []
         if data_reconcile_output.mismatch and data_reconcile_output.mismatch.mismatch_columns:
             mismatch_columns = data_reconcile_output.mismatch.mismatch_columns
@@ -436,7 +436,7 @@ class ReconCapture:
             df.withColumn("recon_table_id", lit(recon_table_id))
             .withColumn("recon_type", lit(recon_type))
             .withColumn("status", lit(status))
-            .withColumn("inserted_ts", lit(datetime.now()))
+            .withColumn("inserted_ts", lit(datetime.now(tz=timezone.utc)))
         )
         return (
             df.groupBy("recon_table_id", "recon_type", "status", "inserted_ts")
@@ -552,7 +552,7 @@ class ReconCapture:
             if agg_data.exception is not None:
                 exception_msg = agg_data.exception.replace("'", '').replace('"', '')
 
-            insertion_time = str(datetime.now())
+            insertion_time = str(datetime.now(tz=timezone.utc))
 
             # If there is any exception while running the Query,
             # each rule is stored, with the Exception message in the metrics table
@@ -662,7 +662,7 @@ class ReconCapture:
             rule_query = agg_output.rule.get_rule_query(rule_id)
             rule_df_list.append(
                 self.spark.sql(rule_query)
-                .withColumn("inserted_ts", lit(datetime.now()))
+                .withColumn("inserted_ts", lit(datetime.now(tz=timezone.utc)))
                 .select("rule_id", "rule_type", "rule_info", "inserted_ts")
             )
 

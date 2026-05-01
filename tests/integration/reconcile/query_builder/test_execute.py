@@ -43,6 +43,8 @@ SCHEMA = "data"
 SRC_TABLE = "supplier"
 TGT_TABLE = "target_supplier"
 
+MOCK_TIMESTAMP = datetime(2024, 5, 23, 9, 21, 25, 122185, tzinfo=timezone.utc)
+
 
 @dataclass
 class SamplingQueries:
@@ -769,8 +771,8 @@ def test_recon_for_report_type_is_data(
             return_value=11111111111,
         ),
     ):
-        mock_datetime.now.return_value = datetime(2024, 5, 23, 9, 21, 25, 122185)
-        recon_datetime.now.return_value = datetime(2024, 5, 23, 9, 21, 25, 122185)
+        mock_datetime.now.return_value = MOCK_TIMESTAMP
+        recon_datetime.now.return_value = MOCK_TIMESTAMP
 
         reconcile_output = TriggerReconService.trigger_recon(
             mock_workspace_client, spark, table_recon, reconcile_config_data
@@ -788,8 +790,8 @@ def test_recon_for_report_type_is_data(
                 ("org", "data", "target_supplier"),
                 "data",
                 "reconcile",
-                datetime(2024, 5, 23, 9, 21, 25, 122185),
-                datetime(2024, 5, 23, 9, 21, 25, 122185),
+                MOCK_TIMESTAMP,
+                MOCK_TIMESTAMP,
             )
         ],
         schema=recon_schema,
@@ -800,7 +802,7 @@ def test_recon_for_report_type_is_data(
                 11111111111,
                 (3, 3, (1, 1), (1, 0, "s_address,s_phone"), None),
                 (False, "remorph", ""),
-                datetime(2024, 5, 23, 9, 21, 25, 122185),
+                MOCK_TIMESTAMP,
             )
         ],
         schema=metrics_schema,
@@ -826,7 +828,7 @@ def test_recon_for_report_type_is_data(
                         "s_phone_match": "false",
                     }
                 ],
-                datetime(2024, 5, 23, 9, 21, 25, 122185),
+                MOCK_TIMESTAMP,
             ),
             (
                 11111111111,
@@ -841,7 +843,7 @@ def test_recon_for_report_type_is_data(
                         "s_suppkey": "4",
                     }
                 ],
-                datetime(2024, 5, 23, 9, 21, 25, 122185),
+                MOCK_TIMESTAMP,
             ),
             (
                 11111111111,
@@ -856,7 +858,7 @@ def test_recon_for_report_type_is_data(
                         "s_suppkey": "3",
                     }
                 ],
-                datetime(2024, 5, 23, 9, 21, 25, 122185),
+                MOCK_TIMESTAMP,
             ),
         ],
         schema=details_schema,
@@ -966,8 +968,8 @@ def test_recon_for_report_type_schema(
             return_value=22222222222,
         ),
     ):
-        mock_datetime.now.return_value = datetime(2024, 5, 23, 9, 21, 25, 122185)
-        recon_datetime.now.return_value = datetime(2024, 5, 23, 9, 21, 25, 122185)
+        mock_datetime.now.return_value = MOCK_TIMESTAMP
+        recon_datetime.now.return_value = MOCK_TIMESTAMP
         final_reconcile_output = TriggerReconService.trigger_recon(
             mock_workspace_client, spark, table_recon, reconcile_config_schema
         )
@@ -982,14 +984,21 @@ def test_recon_for_report_type_schema(
                 ("org", "data", "target_supplier"),
                 "schema",
                 "reconcile",
-                datetime(2024, 5, 23, 9, 21, 25, 122185),
-                datetime(2024, 5, 23, 9, 21, 25, 122185),
+                MOCK_TIMESTAMP,
+                MOCK_TIMESTAMP,
             )
         ],
         schema=recon_schema,
     )
     expected_remorph_recon_metrics = spark.createDataFrame(
-        data=[(22222222222, (0, 0, None, None, True), (True, "remorph", ""), datetime(2024, 5, 23, 9, 21, 25, 122185))],
+        data=[
+            (
+                22222222222,
+                (0, 0, None, None, True),
+                (True, "remorph", ""),
+                MOCK_TIMESTAMP,
+            )
+        ],
         schema=metrics_schema,
     )
     expected_remorph_recon_details = spark.createDataFrame(
@@ -1042,7 +1051,7 @@ def test_recon_for_report_type_schema(
                         "is_valid": "true",
                     },
                 ],
-                datetime(2024, 5, 23, 9, 21, 25, 122185),
+                MOCK_TIMESTAMP,
             )
         ],
         schema=details_schema,
@@ -1184,8 +1193,8 @@ def test_recon_for_report_type_all(
         ),
         patch("databricks.labs.lakebridge.reconcile.utils.generate_volume_path", return_value=str(tmp_path)),
     ):
-        mock_datetime.now.return_value = datetime(2024, 5, 23, 9, 21, 25, 122185)
-        recon_datetime.now.return_value = datetime(2024, 5, 23, 9, 21, 25, 122185)
+        mock_datetime.now.return_value = MOCK_TIMESTAMP
+        recon_datetime.now.return_value = MOCK_TIMESTAMP
         with pytest.raises(ReconciliationException) as exc_info:
             TriggerReconService.trigger_recon(mock_workspace_client, spark, table_recon, reconcile_config_all)
         if exc_info.value.reconcile_output is not None:
@@ -1201,8 +1210,8 @@ def test_recon_for_report_type_all(
                 ("org", "data", "target_supplier"),
                 "all",
                 "reconcile",
-                datetime(2024, 5, 23, 9, 21, 25, 122185),
-                datetime(2024, 5, 23, 9, 21, 25, 122185),
+                MOCK_TIMESTAMP,
+                MOCK_TIMESTAMP,
             )
         ],
         schema=recon_schema,
@@ -1213,7 +1222,7 @@ def test_recon_for_report_type_all(
                 33333333333,
                 (3, 3, (1, 1), (1, 0, "s_address,s_phone"), False),
                 (False, "remorph", ""),
-                datetime(2024, 5, 23, 9, 21, 25, 122185),
+                MOCK_TIMESTAMP,
             )
         ],
         schema=metrics_schema,
@@ -1239,7 +1248,7 @@ def test_recon_for_report_type_all(
                         "s_phone_match": "false",
                     }
                 ],
-                datetime(2024, 5, 23, 9, 21, 25, 122185),
+                MOCK_TIMESTAMP,
             ),
             (
                 33333333333,
@@ -1254,7 +1263,7 @@ def test_recon_for_report_type_all(
                         "s_suppkey": "4",
                     }
                 ],
-                datetime(2024, 5, 23, 9, 21, 25, 122185),
+                MOCK_TIMESTAMP,
             ),
             (
                 33333333333,
@@ -1269,7 +1278,7 @@ def test_recon_for_report_type_all(
                         "s_suppkey": "3",
                     }
                 ],
-                datetime(2024, 5, 23, 9, 21, 25, 122185),
+                MOCK_TIMESTAMP,
             ),
             (
                 33333333333,
@@ -1312,7 +1321,7 @@ def test_recon_for_report_type_all(
                         "is_valid": "false",
                     },
                 ],
-                datetime(2024, 5, 23, 9, 21, 25, 122185),
+                MOCK_TIMESTAMP,
             ),
         ],
         schema=details_schema,
@@ -1461,8 +1470,8 @@ def test_recon_for_report_type_is_row(
         ),
         patch("databricks.labs.lakebridge.reconcile.utils.generate_volume_path", return_value=str(tmp_path)),
     ):
-        mock_datetime.now.return_value = datetime(2024, 5, 23, 9, 21, 25, 122185)
-        recon_datetime.now.return_value = datetime(2024, 5, 23, 9, 21, 25, 122185)
+        mock_datetime.now.return_value = MOCK_TIMESTAMP
+        recon_datetime.now.return_value = MOCK_TIMESTAMP
         with pytest.raises(ReconciliationException) as exc_info:
             TriggerReconService.trigger_recon(mock_workspace_client, spark, table_recon, reconcile_config_row)
 
@@ -1479,8 +1488,8 @@ def test_recon_for_report_type_is_row(
                 ("org", "data", "target_supplier"),
                 "row",
                 "reconcile",
-                datetime(2024, 5, 23, 9, 21, 25, 122185),
-                datetime(2024, 5, 23, 9, 21, 25, 122185),
+                MOCK_TIMESTAMP,
+                MOCK_TIMESTAMP,
             )
         ],
         schema=recon_schema,
@@ -1491,7 +1500,7 @@ def test_recon_for_report_type_is_row(
                 33333333333,
                 (3, 3, (2, 2), None, None),
                 (False, "remorph", ""),
-                datetime(2024, 5, 23, 9, 21, 25, 122185),
+                MOCK_TIMESTAMP,
             )
         ],
         schema=metrics_schema,
@@ -1518,7 +1527,7 @@ def test_recon_for_report_type_is_row(
                         's_suppkey': '4',
                     },
                 ],
-                datetime(2024, 5, 23, 9, 21, 25, 122185),
+                MOCK_TIMESTAMP,
             ),
             (
                 33333333333,
@@ -1540,7 +1549,7 @@ def test_recon_for_report_type_is_row(
                         's_suppkey': '3',
                     },
                 ],
-                datetime(2024, 5, 23, 9, 21, 25, 122185),
+                MOCK_TIMESTAMP,
             ),
         ],
         schema=details_schema,
@@ -1605,8 +1614,8 @@ def test_schema_recon_with_data_source_exception(
         ),
         pytest.raises(ReconciliationException, match=recon_id.hex),
     ):
-        mock_datetime.now.return_value = datetime(2024, 5, 23, 9, 21, 25, 122185, tzinfo=timezone.utc)
-        recon_datetime.now.return_value = datetime(2024, 5, 23, 9, 21, 25, 122185, tzinfo=timezone.utc)
+        mock_datetime.now.return_value = MOCK_TIMESTAMP
+        recon_datetime.now.return_value = MOCK_TIMESTAMP
         TriggerReconService.trigger_recon(mock_workspace_client, spark, table_recon, reconcile_config_exception)
 
     expected_remorph_recon = spark.createDataFrame(
@@ -1619,8 +1628,8 @@ def test_schema_recon_with_data_source_exception(
                 ("org", "data", "target_supplier"),
                 "schema",
                 "reconcile",
-                datetime(2024, 5, 23, 9, 21, 25, 122185, tzinfo=timezone.utc),
-                datetime(2024, 5, 23, 9, 21, 25, 122185, tzinfo=timezone.utc),
+                MOCK_TIMESTAMP,
+                MOCK_TIMESTAMP,
             )
         ],
         schema=recon_schema,
@@ -1635,7 +1644,7 @@ def test_schema_recon_with_data_source_exception(
                     "remorph",
                     "Runtime exception occurred while fetching schema using (org, data, supplier) : Mock Exception",
                 ),
-                datetime(2024, 5, 23, 9, 21, 25, 122185, tzinfo=timezone.utc),
+                MOCK_TIMESTAMP,
             )
         ],
         schema=metrics_schema,
@@ -1680,8 +1689,8 @@ def test_schema_recon_with_general_exception(
         pytest.raises(ReconciliationException, match=recon_id.hex),
     ):
         schema_source_mock.side_effect = PySparkException("Unknown Error")
-        mock_datetime.now.return_value = datetime(2024, 5, 23, 9, 21, 25, 122185)
-        recon_datetime.now.return_value = datetime(2024, 5, 23, 9, 21, 25, 122185)
+        mock_datetime.now.return_value = MOCK_TIMESTAMP
+        recon_datetime.now.return_value = MOCK_TIMESTAMP
         TriggerReconService.trigger_recon(mock_workspace_client, spark, table_recon, reconcile_config_schema)
 
     expected_remorph_recon = spark.createDataFrame(
@@ -1694,8 +1703,8 @@ def test_schema_recon_with_general_exception(
                 ("org", "data", "target_supplier"),
                 "schema",
                 "reconcile",
-                datetime(2024, 5, 23, 9, 21, 25, 122185),
-                datetime(2024, 5, 23, 9, 21, 25, 122185),
+                MOCK_TIMESTAMP,
+                MOCK_TIMESTAMP,
             )
         ],
         schema=recon_schema,
@@ -1710,7 +1719,7 @@ def test_schema_recon_with_general_exception(
                     "remorph",
                     "Unknown Error",
                 ),
-                datetime(2024, 5, 23, 9, 21, 25, 122185),
+                MOCK_TIMESTAMP,
             )
         ],
         schema=metrics_schema,
@@ -1754,8 +1763,8 @@ def test_data_recon_with_general_exception(
         pytest.raises(ReconciliationException, match=recon_id.hex),
     ):
         data_source_mock.side_effect = DataSourceRuntimeException("Unknown Error")
-        mock_datetime.now.return_value = datetime(2024, 5, 23, 9, 21, 25, 122185)
-        recon_datetime.now.return_value = datetime(2024, 5, 23, 9, 21, 25, 122185)
+        mock_datetime.now.return_value = MOCK_TIMESTAMP
+        recon_datetime.now.return_value = MOCK_TIMESTAMP
         TriggerReconService.trigger_recon(mock_workspace_client, spark, table_recon, reconcile_config)
 
     expected_remorph_recon = spark.createDataFrame(
@@ -1768,8 +1777,8 @@ def test_data_recon_with_general_exception(
                 ("org", "data", "target_supplier"),
                 "data",
                 "reconcile",
-                datetime(2024, 5, 23, 9, 21, 25, 122185),
-                datetime(2024, 5, 23, 9, 21, 25, 122185),
+                MOCK_TIMESTAMP,
+                MOCK_TIMESTAMP,
             )
         ],
         schema=recon_schema,
@@ -1784,7 +1793,7 @@ def test_data_recon_with_general_exception(
                     "remorph",
                     "Unknown Error",
                 ),
-                datetime(2024, 5, 23, 9, 21, 25, 122185),
+                MOCK_TIMESTAMP,
             )
         ],
         schema=metrics_schema,
@@ -1828,8 +1837,8 @@ def test_data_recon_with_source_exception(
         pytest.raises(ReconciliationException, match=recon_id.hex),
     ):
         data_source_mock.side_effect = DataSourceRuntimeException("Source Runtime Error")
-        mock_datetime.now.return_value = datetime(2024, 5, 23, 9, 21, 25, 122185)
-        recon_datetime.now.return_value = datetime(2024, 5, 23, 9, 21, 25, 122185)
+        mock_datetime.now.return_value = MOCK_TIMESTAMP
+        recon_datetime.now.return_value = MOCK_TIMESTAMP
         TriggerReconService.trigger_recon(mock_workspace_client, spark, table_recon, reconcile_config)
 
     expected_remorph_recon = spark.createDataFrame(
@@ -1842,8 +1851,8 @@ def test_data_recon_with_source_exception(
                 ("org", "data", "target_supplier"),
                 "data",
                 "reconcile",
-                datetime(2024, 5, 23, 9, 21, 25, 122185),
-                datetime(2024, 5, 23, 9, 21, 25, 122185),
+                MOCK_TIMESTAMP,
+                MOCK_TIMESTAMP,
             )
         ],
         schema=recon_schema,
@@ -1858,7 +1867,7 @@ def test_data_recon_with_source_exception(
                     "remorph",
                     "Source Runtime Error",
                 ),
-                datetime(2024, 5, 23, 9, 21, 25, 122185),
+                MOCK_TIMESTAMP,
             )
         ],
         schema=metrics_schema,
@@ -1906,8 +1915,8 @@ def test_recon_for_wrong_report_type(mock_workspace_client, spark, mock_for_repo
         ),
         pytest.raises(InvalidInputException),
     ):
-        mock_datetime.now.return_value = datetime(2024, 5, 23, 9, 21, 25, 122185)
-        recon_datetime.now.return_value = datetime(2024, 5, 23, 9, 21, 25, 122185)
+        mock_datetime.now.return_value = MOCK_TIMESTAMP
+        recon_datetime.now.return_value = MOCK_TIMESTAMP
         TriggerReconService.trigger_recon(mock_workspace_client, spark, table_recon, reconcile_config)
 
 

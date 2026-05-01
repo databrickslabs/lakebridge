@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import uuid4
 
 from pyspark.errors import PySparkException
@@ -134,7 +134,7 @@ class TriggerReconService:
 
     @staticmethod
     def _do_recon_one(reconciler: Reconciliation, reconcile_config: ReconcileConfig, table_conf: Table):
-        recon_process_duration = ReconcileProcessDuration(start_ts=str(datetime.now()), end_ts=None)
+        recon_process_duration = ReconcileProcessDuration(start_ts=str(datetime.now(tz=timezone.utc)), end_ts=None)
         schema_reconcile_output = SchemaReconcileOutput(is_valid=True)
         data_reconcile_output = DataReconcileOutput()
 
@@ -163,7 +163,7 @@ class TriggerReconService:
                 )
                 logger.info(f"Reconciliation for '{reconciler.report_type}' report completed.")
 
-        recon_process_duration.end_ts = str(datetime.now())
+        recon_process_duration.end_ts = str(datetime.now(tz=timezone.utc))
         return schema_reconcile_output, data_reconcile_output, recon_process_duration
 
     @staticmethod
