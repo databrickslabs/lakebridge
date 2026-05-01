@@ -38,7 +38,7 @@ Lakebridge provides multiple tools for assessment and transpilation. Use this gu
 | **Speed** | Fast — local execution, no API calls | Fast — local execution, no API calls | Slower — requires LLM API calls per file |
 | **Cost** | Free | Free | Token costs apply (Databricks Foundation Model API) |
 | **Scalability** | Thousands of files locally | Thousands of files locally | Rate-limited by model serving; scales via Lakeflow Jobs |
-| **Configuration** | Simple: `source-dialect` flag + I/O paths | Two-layer: LSP params + JSON override files | YAML prompt files; configurable model endpoint |
+| **Configuration** | Simple: `source-dialect` flag + I/O paths | Simple: `source-dialect` flag + I/O paths + Optional JSON override files | YAML prompt files; configurable model endpoint |
 | **Extensibility** | Not extensible (fixed grammar) | Fully extensible via JSON config | Fully extensible via custom YAML prompts |
 
 ### When to choose Morpheus
@@ -52,8 +52,7 @@ Use Morpheus when:
 
 Use BladeBridge when:
 - You are migrating **ETL workloads** (DataStage, SSIS)
-- You need **broad SQL dialect coverage** (Oracle, Teradata, Netezza, Redshift, Synapse) with customizable output formats
-- You need output as PySpark, SparkSQL notebooks, or workflow definitions — not just Databricks SQL
+- You need **broad SQL dialect coverage** (Oracle, Teradata, Netezza, Redshift, Synapse) with customizable configurations
 
 ### When to choose Switch
 

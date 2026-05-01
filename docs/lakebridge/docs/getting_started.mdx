@@ -88,14 +88,7 @@ databricks labs lakebridge transpile \
 
 **Reading the output:**
 
-Each transpiled file contains a header comment. A successful transpile looks like:
-
-```sql
-/*
-    Successfully transpiled from /path/to/input/my_procedure.sql
-*/
-CREATE PROCEDURE ...
-```
+In the command output, you will see a final summary with all filees converted and whether any errors were found.
 
 If a file could not be fully transpiled, the header lists the specific errors:
 
@@ -107,6 +100,8 @@ If a file could not be fully transpiled, the header lists the specific errors:
      - [12:5] Function XYZ cannot be translated to Databricks SQL
 */
 ```
+
+You may also find inline comments prefixed with "FIXME" that you'll need to review.
 
 Files with errors still contain as much translated output as possible. Review the flagged positions and fix manually.
 

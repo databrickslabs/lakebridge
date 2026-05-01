@@ -53,13 +53,12 @@ See [Configuration Reference](/docs/reconcile/configuration) for the full schema
 
 Lakebridge uses Databricks secrets for source connection credentials.
 
-**Default secret scope:** `lakebridge_data_source`
+**Default secret scope:** `lakebridge_<data_source>`
 
 | Source | Secret scope |
 |---|---|
 | snowflake | lakebridge_snowflake |
 | oracle | lakebridge_oracle |
-| databricks | lakebridge_databricks |
 | mssql | lakebridge_mssql |
 | synapse | lakebridge_synapse |
 
