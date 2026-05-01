@@ -12,7 +12,7 @@ from databricks.labs.lakebridge.reconcile.recon_config import Schema
 
 @pytest.fixture
 def make_data_source():
-    def _make_data_source(
+    def _factory(
         tables: dict[tuple[str, str], list[str]] | None = None,
         columns: dict[tuple[str, str, str], list[Schema]] | None = None,
     ) -> MockDataSource:
@@ -23,12 +23,12 @@ def make_data_source():
             tables_repository=tables or {},
         )
 
-    return _make_data_source
+    return _factory
 
 
 @pytest.fixture
 def reconcile_config():
-    def _reconcile_config(**kwargs) -> ReconcileConfig:
+    def _factory(**kwargs) -> ReconcileConfig:
         return ReconcileConfig(
             report_type=kwargs.get("report_type", "all"),
             source=SourceConnectionConfig(
@@ -44,4 +44,4 @@ def reconcile_config():
             metadata_config=ReconcileMetadataConfig(catalog="meta_cat", schema="meta_schema", volume="meta_vol"),
         )
 
-    return _reconcile_config
+    return _factory

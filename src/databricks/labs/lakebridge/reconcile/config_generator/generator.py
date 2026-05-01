@@ -67,9 +67,7 @@ def generate_table_recon(
 
     if unmatched:
         unmatched_str = ", ".join(unmatched)
-        logger.warning(
-            f"Could not auto-match {len(unmatched)} source table(s); add manually: {unmatched_str}"
-        )
+        logger.warning(f"Could not auto-match {len(unmatched)} source table(s); add manually: {unmatched_str}")
 
     return TableRecon(tables=tables)
 
