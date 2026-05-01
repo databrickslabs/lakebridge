@@ -72,7 +72,7 @@ def test_recon_databricks_job_succeeds(
         _run_recon_e2e_spec(app_ctx)
 
 
-@pytest.mark.skip(reason="Sandbox SQL Server credentials are stale.")
+@pytest.mark.xfail(reason="Workspace cannot connect to sandbox SQL Server. IP Whitelisting needed.", strict=True)
 def test_recon_sql_server_job_succeeds(
     application_ctx: ApplicationContext, tsql_recon_config: ReconcileConfig, tsql_recon_table_config: TableRecon
 ) -> None:
@@ -80,7 +80,7 @@ def test_recon_sql_server_job_succeeds(
         _run_recon_e2e_spec(app_ctx)
 
 
-@pytest.mark.skip(reason="Snowflake account suspended")
+@pytest.mark.xfail(reason="Snowflake account unavailable", strict=True)
 def test_recon_snowflake_job_succeeds(
     application_ctx: ApplicationContext,
     snowflake_recon_config: ReconcileConfig,
