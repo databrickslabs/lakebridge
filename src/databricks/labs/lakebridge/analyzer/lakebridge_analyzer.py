@@ -63,7 +63,7 @@ class AnalyzerRunner:
         return cls(Analyzer.analyze, is_debug)
 
     def run(
-        self, source_dir: Path, results_file_path: Path, platform: str, generate_json: bool = False
+        self, source_dir: Path, results_file_path: Path, platform: str, generate_json: bool = True
     ) -> AnalyzerResult:
         logger.debug(f"Starting analyzer execution for {platform}: {source_dir}")
 
@@ -125,7 +125,7 @@ class LakebridgeAnalyzer:
         source: str | None = None,
         report_file: str | None = None,
         platform: str | None = None,
-        generate_json: bool = False,
+        generate_json: bool = True,
     ) -> AnalyzerResult:
         source_dir = self._prompts.get_source_directory() if source is None else Path(source)
         results_file_path = self._prompts.get_result_file_path() if report_file is None else Path(report_file)
