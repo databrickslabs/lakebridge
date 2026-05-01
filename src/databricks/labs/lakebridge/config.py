@@ -291,16 +291,17 @@ class ReconcileConfig:
 
     @classmethod
     def v1_migrate(cls, raw: dict[str, Any]) -> dict[str, Any]:
-        db_config = raw.pop("database_config", {}) or {}
-        dialect = raw.pop("data_source", "databricks")
+        db_config = raw.pop("database_config")
+        dialect = raw.pop("data_source")
         # Drop fields no longer recognised by the v2 schema.
         raw.pop("secret_scope", None)
         raw.pop("tables", None)
 
         source = {
             "dialect": dialect,
-            "catalog": db_config.get("source_catalog") or ("hive_metastore" if dialect == "databricks" else ""),
-            "schema": db_config.get("source_schema", ""),
+            # source_catalog was optional in v1 (Oracle service name could be omitted); default Oracle to ORCL.
+            "catalog": db_config.get("source_catalog") or ("ORCL" if dialect == "oracle" else ""),
+            "schema": db_config["source_schema"],
         }
         if dialect != "databricks":
             # Marker consumed by upgrade_reconcile_config_if_needed; user must supply the real UC connection name.
@@ -308,8 +309,8 @@ class ReconcileConfig:
 
         raw["source"] = source
         raw["target"] = {
-            "catalog": db_config.get("target_catalog", ""),
-            "schema": db_config.get("target_schema", ""),
+            "catalog": db_config["target_catalog"],
+            "schema": db_config["target_schema"],
         }
         raw["version"] = 2
         return raw

@@ -166,16 +166,16 @@ def test_reconcile_v1_migrate_databricks() -> None:
     assert loaded.source.catalog == "src_catalog"
 
 
-def test_reconcile_v1_migrate_databricks_missing_source_catalog_defaults_to_hive_metastore() -> None:
-    """Old databricks configs allowed source_catalog=None; migrate defaults to hive_metastore."""
+def test_reconcile_v1_migrate_oracle_without_source_catalog() -> None:
+    """In v1 source_catalog was optional for Oracle (service name); migrate defaults to ORCL."""
     installation = MockInstallation(
         {
             "reconcile.yml": {
-                "data_source": "databricks",
-                "secret_scope": "NOT_NEEDED",
+                "data_source": "oracle",
+                "secret_scope": "remorph_oracle",
                 "report_type": "all",
                 "database_config": {
-                    "source_schema": "src_schema",
+                    "source_schema": "HR",
                     "target_catalog": "tgt_catalog",
                     "target_schema": "tgt_schema",
                 },
@@ -187,7 +187,9 @@ def test_reconcile_v1_migrate_databricks_missing_source_catalog_defaults_to_hive
 
     loaded = installation.load(ReconcileConfig)
 
-    assert loaded.source.catalog == "hive_metastore"
+    assert loaded.source.dialect == "oracle"
+    assert loaded.source.catalog == "ORCL"
+    assert loaded.source.uc_connection_name == "TODO"
 
 
 def test_reconcile_v1_migrate_drops_orphan_fields() -> None:
