@@ -44,6 +44,24 @@ class TriggerReconService:
         reconcile_config: ReconcileConfig,
         local_test_run: bool = False,
     ) -> ReconcileOutput:
+        # When report_type is "aggregate", forward to the dedicated aggregate
+        # service. _do_recon_one only branches on {"schema","all"} and
+        # {"data","row","all"}, so an unforwarded aggregate request would
+        # silently no-op and return status=true without comparing anything.
+        # Deferred import to avoid circular import with trigger_recon_aggregate_service.
+        if reconcile_config.report_type.lower() == "aggregate":
+            from databricks.labs.lakebridge.reconcile.trigger_recon_aggregate_service import (
+                TriggerReconAggregateService,
+            )
+
+            return TriggerReconAggregateService.trigger_recon_aggregates(
+                ws=ws,
+                spark=spark,
+                table_recon=table_recon,
+                reconcile_config=reconcile_config,
+                local_test_run=local_test_run,
+            )
+
         reconciler, recon_capture = TriggerReconService.create_recon_dependencies(
             ws, spark, reconcile_config, local_test_run
         )
