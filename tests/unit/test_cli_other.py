@@ -5,6 +5,7 @@ from unittest.mock import Mock, patch, MagicMock, create_autospec, PropertyMock
 import pytest
 
 from databricks.sdk import WorkspaceClient
+from databricks.sdk.errors import NotFound
 
 from databricks.labs.blueprint.tui import MockPrompts
 from databricks.labs.lakebridge import cli
@@ -98,8 +99,6 @@ def _configure_recon_tables_factory(
     table_recon_exists: bool,
     prompts: MockPrompts,
 ):
-    from databricks.sdk.errors import NotFound
-
     def _factory(w: WorkspaceClient) -> ApplicationContext:
         ctx_mock = create_autospec(spec=ApplicationContext, spec_set=True)
         type(ctx_mock).workspace_client = PropertyMock(return_value=w)
