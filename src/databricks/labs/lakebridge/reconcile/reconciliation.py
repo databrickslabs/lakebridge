@@ -314,7 +314,6 @@ class Reconciliation:
                     table_conf.source_name,
                     table_conf.target_name,
                     table_conf.sampling_options,
-                    table_conf.get_max_sample_size(),
                 )
 
             if reconcile_output.missing_in_src_count > 0:
@@ -356,7 +355,6 @@ class Reconciliation:
         src_table: str,
         tgt_table: str,
         sampling_options: SamplingOptions,
-        max_sample_size: int,
     ):
 
         tgt_sampling_query = tgt_sampler.build_query_with_alias()
@@ -370,7 +368,7 @@ class Reconciliation:
         )
 
         # Uses pre-calculated `mismatch_count` from `reconcile_output.mismatch_count` to avoid from recomputing `mismatch` for RandomSampler.
-        mismatch_sampler = SamplerFactory.get_sampler(sampling_options, max_sample_size=max_sample_size)
+        mismatch_sampler = SamplerFactory.get_sampler(sampling_options)
         df = mismatch_sampler.sample(mismatch, mismatch_count, key_columns, sampling_model_target)
         if not self.intermediate_persist.is_serverless:
             df = df.cache()

@@ -5,7 +5,7 @@ from pyspark.sql import DataFrame
 from pyspark.sql import functions as F
 
 from databricks.labs.lakebridge.reconcile.constants import SamplingOptionMethod, SamplingSpecificationsType
-from databricks.labs.lakebridge.reconcile.recon_config import SamplingOptions, SamplingSpecifications
+from databricks.labs.lakebridge.reconcile.recon_config import SamplingOptions
 
 logger = logging.getLogger(__name__)
 
@@ -210,24 +210,14 @@ class StratifiedSampler(Sampler):
 # TODO: Move away from SamplerFactory to a context-driven approach
 class SamplerFactory:
     @staticmethod
-    def get_sampler(
-        sampling_options: SamplingOptions, max_sample_size: int = _MIN_SAMPLE_COUNT, seed: int = 100
-    ) -> Sampler:
-        # If no sampling options provided, use default
+    def get_sampler(sampling_options: SamplingOptions, seed: int = 100) -> Sampler:
+        # If no sampling options provided, build a default — SamplingOptions.__post_init__
+        # fills in method, specifications and max_sample_size.
         if sampling_options is None:
-            default_sampling_options = SamplingOptions(
-                method=SamplingOptionMethod.RANDOM,
-                specifications=SamplingSpecifications(type=SamplingSpecificationsType.COUNT, value=max_sample_size),
-                stratified_columns=None,
-                stratified_buckets=None,
-            )
-            logger.info(
-                f"SamplerFactory: No sampling options provided, using default options: " f"{default_sampling_options}"
-            )
-            sampling_options = default_sampling_options
-
+            sampling_options = SamplingOptions()
+            logger.info(f"SamplerFactory: No sampling options provided, using default options: {sampling_options}")
         else:
-            logger.info(f"SamplerFactory: Creating sampler using provided options: " f"{sampling_options}")
+            logger.info(f"SamplerFactory: Creating sampler using provided options: {sampling_options}")
 
         # Use a dictionary-based dispatch for better extensibility
         sampler_map = {SamplingOptionMethod.RANDOM: RandomSampler, SamplingOptionMethod.STRATIFIED: StratifiedSampler}
