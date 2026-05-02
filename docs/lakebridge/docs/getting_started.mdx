@@ -1,5 +1,5 @@
 ---
-sidebar_position: 1
+sidebar_position: 2
 title: Getting Started
 ---
 
@@ -49,18 +49,15 @@ See [Assessment Guide](/docs/assessment) for more details.
 
 ---
 
-## Step 3: Install the Transpiler
+## Step 3: Configure Transpilation
 
-Configure Lakebridge to use **Morpheus** for SQL Server → Databricks SQL transpilation:
+During `install-transpile` (covered in [Installation](/docs/installation#install-transpile)), you were prompted for your migration parameters. For this SQL Server → Databricks SQL guide, the values to use are:
 
-```bash
-databricks labs lakebridge install-transpile
-```
-
-When prompted:
 - **Source dialect:** `mssql`
-- **Input source:** `/path/to/split/output`
-- **Output folder:** `/path/to/transpiled/output`
+- **Input path:** `/path/to/split/output`
+- **Output directory:** `/path/to/transpiled/output`
+
+If you need to change these settings, re-run `install-transpile`.
 
 Morpheus is the recommended transpiler for SQL Server migrations — it provides strong correctness guarantees and warns you when it cannot fully guarantee equivalence.
 
@@ -70,7 +67,7 @@ See [Which transpiler should I use?](/docs/choosing_tools#transpiler-bladebridge
 
 ## Step 4: Transpile
 
-Run the transpilation:
+Run the transpilation (if params already configured in previous step):
 
 ```bash
 databricks labs lakebridge transpile
@@ -82,26 +79,14 @@ Or pass all parameters inline:
 databricks labs lakebridge transpile \
   --source-dialect mssql \
   --input-source /path/to/split/output \
-  --output-folder /path/to/transpiled/output \
-  --skip-validation false
+  --output-folder /path/to/transpiled/output
 ```
 
 **Reading the output:**
 
-In the command output, you will see a final summary with all filees converted and whether any errors were found.
+In the command output, you will see a final summary with all files converted and whether any errors were found.
 
-If a file could not be fully transpiled, the header lists the specific errors:
-
-```sql
-/*
-   Failed transpilation of /path/to/input/broken.sql
-
-   The following errors were found while transpiling:
-     - [12:5] Function XYZ cannot be translated to Databricks SQL
-*/
-```
-
-You may also find inline comments prefixed with "FIXME" that you'll need to review.
+You may also find inline comments in the output files prefixed with "FIXME" that you'll need to review.
 
 Files with errors still contain as much translated output as possible. Review the flagged positions and fix manually.
 
@@ -109,15 +94,7 @@ Files with errors still contain as much translated output as possible. Review th
 
 ## Step 5: Reconcile
 
-After deploying your transpiled SQL to Databricks, use the Reconciler to validate that the data output matches the source.
-
-**Configure reconcile:**
-
-```bash
-databricks labs lakebridge configure-reconcile
-```
-
-**Run reconcile:**
+After deploying your transpiled SQL to Databricks, run the Reconciler to validate that the data output matches the source.
 
 ```bash
 databricks labs lakebridge reconcile
@@ -125,7 +102,7 @@ databricks labs lakebridge reconcile
 
 The Reconciler compares row counts, schema, and data values between your source system and the Databricks target. Results are written to a dashboard in your workspace.
 
-See [Reconcile Guide](/docs/reconcile) for configuration details.
+See [Reconcile Guide](/docs/reconcile) for full configuration details, or [Installation](/docs/installation#configure-reconcile) if you have not set up reconcile yet.
 
 ---
 
@@ -134,6 +111,5 @@ See [Reconcile Guide](/docs/reconcile) for configuration details.
 | Next step | Guide |
 |-----------|-------|
 | Understand transpiler differences | [Which Tool Do I Use?](/docs/choosing_tools) |
-| Migrate ETL workloads (DataStage, SSIS) | [Source Systems](/docs/transpile/source_systems/) |
-| Customize transpiler output | [BladeBridge Configuration](/docs/transpile/pluggable_transpilers/bladebridge/bladebridge_configuration) |
-| Use the LLM transpiler for complex logic | [Switch](/docs/transpile/pluggable_transpilers/switch) |
+| Migrate ETL workloads | [Source Systems](/docs/transpile/source_systems/) |
+| Customize transpiler output | [BladeBridge Configuration](/docs/transpile/pluggable_transpilers/bladebridge/bladebridge_configuration), [Switch Configuration](/docs/transpile/pluggable_transpilers/switch/customizing_switch/) |

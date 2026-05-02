@@ -1,5 +1,5 @@
 ---
-sidebar_position: 4
+sidebar_position: 5
 title: Transpile Guide
 ---
 import useBaseUrl from '@docusaurus/useBaseUrl';
@@ -156,6 +156,23 @@ Switch is best suited for scenarios requiring semantic understanding and flexibi
   </tbody>
 </table>
 
+## Execution Pre-Set Up
+When you run `install-transpile`, you will be prompted for settings to use when transpiling your sources. You can
+choose to provide these at the time of installation, or to provide them later as arguments when transpiling.
+
+The `transpile` command will trigger the conversion of the specified code. These settings provided during `install-transpile` can be overridden (or provided if unavailable) using the command-line options:
+ - `input-source`: The local filesystem path to the sources that should be transpiled. This must be provided if not set during `install-transpile`.
+ - `output-folder`: The local filesystem path where converted code will be written. This must be provided if not set during `install-transpile`.
+ - `source-dialect`: Dialect name (ex: snowflake, oracle, datastage, etc). This must be provided if not set during `install-transpile`.
+ - `overrides-file`: An optional local path to a JSON file containing custom overrides for the transpilation process, if the underlying transpiler supports this. (Refer to [this documentation](pluggable_transpilers/bladebridge/bladebridge_configuration) for more details on custom overrides.)
+ - `target-technology`: The target technology to use for conversion output. This must be provided if not set during `install-transpile` and the underlying transpiler requires it for the source dialect in use.
+- `error-file-path`: The path to the file where a log of conversion errors will be stored. If not provided here or during `install-transpile` no error log will be written.
+ - `skip-validation`: Whether the transpiler will skip the validation of transpiled SQL sources. If not provided here or during `install-transpile` validation will be attempted by default.
+ - `catalog-name`: The name of the catalog in Databricks to use when validating transpiled SQL sources. If not specified, `remorph` will be used as the default catalog.
+ - `schema-name`: The name of the schema in Databricks to use when validating transpiled SQL sources. If not specified, `transpiler` will be used as the default schema.
+ - `transpiler-config-path`: This path of the configuration file for the transpiler to use for conversion. This is normally inferred from the source dialect or chosen during `install-transpile` if multiple transpilers support the source dialect.
+
+
 ## Verify Installation
 Verify the successful installation by executing the provided command; confirmation of a successful installation is indicated when the displayed output aligns with the example screenshot provided:
 
@@ -188,22 +205,6 @@ Global Flags:
   -p, --profile string   ~/.databrickscfg profile
   -t, --target string    bundle target to use (if applicable)
 ```
-
-## Execution Pre-Set Up
-When you run `install-transpile`, you will be prompted for settings to use when transpiling your sources. You can
-choose to provide these at the time of installation, or to provide them later as arguments when transpiling.
-
-The `transpile` command will trigger the conversion of the specified code. These settings provided during `install-transpile` can be overridden (or provided if unavailable) using the command-line options:
- - `input-source`: The local filesystem path to the sources that should be transpiled. This must be provided if not set during `install-transpile`.
- - `output-folder`: The local filesystem path where converted code will be written. This must be provided if not set during `install-transpile`.
- - `source-dialect`: Dialect name (ex: snowflake, oracle, datastage, etc). This must be provided if not set during `install-transpile`.
- - `overrides-file`: An optional local path to a JSON file containing custom overrides for the transpilation process, if the underlying transpiler supports this. (Refer to [this documentation](pluggable_transpilers/bladebridge/bladebridge_configuration) for more details on custom overrides.)
- - `target-technology`: The target technology to use for conversion output. This must be provided if not set during `install-transpile` and the underlying transpiler requires it for the source dialect in use.
-- `error-file-path`: The path to the file where a log of conversion errors will be stored. If not provided here or during `install-transpile` no error log will be written.
- - `skip-validation`: Whether the transpiler will skip the validation of transpiled SQL sources. If not provided here or during `install-transpile` validation will be attempted by default.
- - `catalog-name`: The name of the catalog in Databricks to use when validating transpiled SQL sources. If not specified, `remorph` will be used as the default catalog.
- - `schema-name`: The name of the schema in Databricks to use when validating transpiled SQL sources. If not specified, `transpiler` will be used as the default schema.
- - `transpiler-config-path`: This path of the configuration file for the transpiler to use for conversion. This is normally inferred from the source dialect or chosen during `install-transpile` if multiple transpilers support the source dialect.
 
 ## Execution
 Execute the below command to initialize the transpile process passing the arguments to the command directly in the call.
