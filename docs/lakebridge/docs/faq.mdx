@@ -10,22 +10,22 @@ import CodeBlock from '@theme/CodeBlock';
 ### What is Lakebridge?
 
 Lakebridge is a Databricks toolkit for migrating data workloads to Databricks. It covers three phases:
-1. **Assessment** — analyze your existing SQL or ETL code to understand complexity and effort
+1. **Assessment** — analyze your existing SQL or ETL environment and code to understand complexity and effort
 2. **Transpilation** — convert source SQL or ETL code to Databricks-compatible SQL, PySpark, or notebooks
 3. **Reconciliation** — validate that the migrated data matches the source
 
 ### Do I need to run all three phases?
 
 No. Use the phases you need:
+- **Assess only** if you are scoping a migration before committing to it
 - **Transpile only** if you are migrating code and do not need pre-migration analysis or post-migration validation
 - **Reconcile only** if you have already migrated data and want to validate row/column fidelity
-- **Assess only** if you are scoping a migration before committing to it
 
 ### Which source systems are supported?
 
 See the [supported dialects table](/docs/transpile/#supported-dialects) for a full list. In summary:
 - **SQL sources:** SQL Server, Snowflake, Azure Synapse Analytics, Oracle, Teradata, Netezza, Redshift, MySQL, PostgreSQL
-- **ETL sources:** DataStage, SSIS
+- **ETL sources:** DataStage, SSIS, others
 - **Other:** Airflow, Python, Scala (via Switch)
 
 ---

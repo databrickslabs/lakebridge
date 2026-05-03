@@ -49,7 +49,7 @@ databricks labs lakebridge transpile \
 The transpiler recursively scans the input directory for `.dtsx` files and generates Databricks notebook equivalents in the output folder.
 
 :::warning Script Component Limitations
-SSIS **Script Task** and **Script Component** contain C# or VB.NET code bodies that cannot be automatically converted. The converter preserves the logic structure, but the actual implementation must be rewritten in Python. See [Supported Components](/docs/transpile/source_systems/ssis_supported_components#control-flow-orchestration---unsupported) for details.
+SSIS **Script Task** and **Script Component** contain C# or VB.NET code bodies that cannot be automatically converted. The converter preserves the logic structure, but the actual implementation must be rewritten in Python. See [Supported Components](/docs/transpile/source_systems/ssis/supported_components#control-flow-orchestration---unsupported) for details.
 :::
 
 ---
@@ -66,9 +66,9 @@ SSIS **Script Task** and **Script Component** contain C# or VB.NET code bodies t
 | ForEach Loop | Wildcard file reads with `input_file_name()` |
 | Script Task | Python with `dbutils` |
 
-For the full list of supported and unsupported components, see [SSIS Supported Components](/docs/transpile/source_systems/ssis_supported_components).
+For the full list of supported and unsupported components, see [SSIS Supported Components](/docs/transpile/source_systems/ssis/supported_components).
 
-For conversion examples with before/after code, see [SSIS Conversion Examples](/docs/transpile/source_systems/ssis_examples).
+For conversion examples with before/after code, see [SSIS Conversion Examples](/docs/transpile/source_systems/ssis/examples).
 
 ---
 
@@ -82,6 +82,6 @@ For conversion examples with before/after code, see [SSIS Conversion Examples](/
 6. Deploy workflows to production
 
 For more information, see:
-- [SSIS Supported Components](/docs/transpile/source_systems/ssis_supported_components)
-- [SSIS Conversion Examples](/docs/transpile/source_systems/ssis_examples)
+- [SSIS Supported Components](/docs/transpile/source_systems/ssis/supported_components)
+- [SSIS Conversion Examples](/docs/transpile/source_systems/ssis/examples)
 - [BladeBridge Configuration](/docs/transpile/pluggable_transpilers/bladebridge/bladebridge_configuration)
