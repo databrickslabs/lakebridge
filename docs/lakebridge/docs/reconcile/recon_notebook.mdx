@@ -113,15 +113,7 @@ class ReconcileMetadataConfig:
 ```
 If not set the default values will be used to store the metadata. The default resources are created during the installation
 of Lakebridge.
-- `job_overrides`: Optional configuration to override reconcile deployment.
-    - `existing_cluster_id`: the id of an existing cluster to use for running the reconcile job
-    - `tags`: extra tags to apply to the job and tasks
-```python
-@dataclass
-class ReconcileJobConfig:
-    existing_cluster_id: str
-    tags: dict[str, str]
-```
+
 
 An Example of configuring the Reconcile properties:
 
