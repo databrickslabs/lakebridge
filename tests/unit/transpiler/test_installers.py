@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from databricks.labs.lakebridge.transpiler.installers import ArtifactInstaller, MorpheusInstaller
+from databricks.labs.lakebridge.transpiler.installers import ArtifactInstaller, MavenLite, MorpheusInstaller
 
 
 def test_store_product_state(tmp_path) -> None:
@@ -38,6 +38,26 @@ def test_store_product_state(tmp_path) -> None:
         "date": stored_date,
     }
     assert stored_state == expected_state
+
+
+def test_maven_lite_artifact_metadata_url() -> None:
+    repo = "https://maven-proxy.some.example.com/prefix"
+    group_id, artifactid = ("org.apache.maven", "apache-maven")
+    url = MavenLite(repo).artifact_metadata_url(group_id, artifactid)
+    assert url == "https://maven-proxy.some.example.com/prefix/org/apache/maven/apache-maven/maven-metadata.xml"
+
+
+def test_maven_lite_artifact_url() -> None:
+    repo = "https://maven-proxy.some.example.com/prefix"
+    group_id, artifactid = ("org.apache.maven", "apache-maven")
+    version = "3.8.4"
+    classifier = "bin"
+    extension = "tar.gz"
+    url = MavenLite(repo).artifact_url(group_id, artifactid, version, classifier, extension)
+    assert (
+        url
+        == "https://maven-proxy.some.example.com/prefix/org/apache/maven/apache-maven/3.8.4/apache-maven-3.8.4-bin.tar.gz"
+    )
 
 
 @pytest.fixture

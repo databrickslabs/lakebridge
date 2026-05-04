@@ -335,14 +335,12 @@ class MavenLite(MavenClient):
 
     def artifact_metadata_url(self, group_id: str, artifact_id: str) -> str:
         """Get the metadata URL for a Maven artifact."""
-        # TODO: Unit test this method.
         return f"{self._artifact_base_url(group_id, artifact_id)}maven-metadata.xml"
 
     def artifact_url(
         self, group_id: str, artifact_id: str, version: str, classifier: str | None = None, extension: str = "jar"
     ) -> str:
         """Get the URL for a versioned Maven artifact."""
-        # TODO: Unit test this method, including classifier and extension.
         _classifier = f"-{classifier}" if classifier else ""
         artifact_base_url = self._artifact_base_url(group_id, artifact_id)
         return f"{artifact_base_url}{version}/{artifact_id}-{version}{_classifier}.{extension}"
