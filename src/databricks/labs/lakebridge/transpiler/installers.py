@@ -312,11 +312,19 @@ class MavenClient(ABC):
         extension: str = "jar",
     ) -> bool: ...
 
+    @classmethod
+    def default(cls) -> "MavenClient":
+        return MavenLite()
+
 
 class MavenLite(MavenClient):
     """Lightweight non-mvn-based client for installing artifacts from Maven Central.
 
     This client uses direct HTTP calls, instead of the mvn command-line tool.
+
+    By default Maven Central will be used: https://repo.maven.apache.org/maven2
+    This can be overridden by setting LAKEBRIDGE_MAVEN_URL in the environment to a mirror. (Credentials will be sourced
+    if necessary via ~/.netrc, or the alternate location referred to by the NETRC environment variable.)
     """
 
     # Maven Central, base URL.
@@ -401,7 +409,12 @@ class MavenLite(MavenClient):
         logger.info(f"Successfully installed: {group_id}:{artifact_id}:{version}")
         return True
 
-    def __init__(self, maven_repo_url: str = _maven_central_repo) -> None:
+    def __init__(self, maven_repo_url: str | None = None) -> None:
+        if maven_repo_url is None:
+            if (maven_repo_url := os.environ.get("LAKEBRIDGE_MAVEN_URL")) is not None:
+                logger.debug(f"Using LAKEBRIDGE_MAVEN_URL override for maven artifacts: {maven_repo_url}")
+            else:
+                maven_repo_url = self._maven_central_repo
         self._maven_repo_url = self._normalise_maven_url(maven_repo_url)
 
 
@@ -413,12 +426,14 @@ class MavenInstaller(ArtifactInstaller):
         group_id: str,
         artifact: Path | None = None,
         *,
-        maven_client: MavenClient = MavenLite(),
+        maven_client: MavenClient | None = None,
     ) -> None:
         super().__init__(repository, artifact_id)
-        self._maven_client = maven_client
+        if maven_client is None:
+            maven_client = MavenClient.default()
         self._group_id = group_id
         self._artifact = artifact
+        self._maven_client = maven_client
 
     def install(self) -> Path | None:
         return self._install_checking_versions()
