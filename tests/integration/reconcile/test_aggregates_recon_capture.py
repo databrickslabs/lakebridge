@@ -1,4 +1,4 @@
-import datetime
+from datetime import datetime, timezone
 
 from pyspark.sql import Row, SparkSession
 
@@ -19,7 +19,7 @@ from tests.unit.conftest import get_dialect
 def agg_data_prep(spark: SparkSession):
     table_conf = Table(source_name="supplier", target_name="target_supplier")
     reconcile_process_duration = ReconcileProcessDuration(
-        start_ts=str(datetime.datetime.now()), end_ts=str(datetime.datetime.now())
+        start_ts=str(datetime.now(tz=timezone.utc)), end_ts=str(datetime.now(tz=timezone.utc))
     )
 
     agg_reconcile_output = [

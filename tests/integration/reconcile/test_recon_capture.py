@@ -1,4 +1,4 @@
-import datetime
+from datetime import datetime, timezone
 import json
 import tempfile
 
@@ -112,7 +112,7 @@ def data_prep(spark: SparkSession):
     schema_output = SchemaReconcileOutput(is_valid=True, compare_df=schema_df)
     table_conf = Table(source_name="supplier", target_name="target_supplier")
     reconcile_process = ReconcileProcessDuration(
-        start_ts=str(datetime.datetime.now()), end_ts=str(datetime.datetime.now())
+        start_ts=str(datetime.now(tz=timezone.utc)), end_ts=str(datetime.now(tz=timezone.utc))
     )
 
     row_count = ReconcileRecordCount(source=5, target=5)
