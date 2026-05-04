@@ -81,7 +81,6 @@ class SnowflakeDataSourceUnderTest(SnowflakeDataSource):
         return opts
 
 
-@pytest.mark.skip(reason="Sandbox SQL Server credentials are stale.")
 def test_sql_server_read_schema_happy(spark: SparkSession) -> None:
     mock_ws = create_autospec(WorkspaceClient)
     connector = TSQLServerDataSourceUnderTest(spark, mock_ws)
@@ -133,7 +132,7 @@ def test_oracle_read_schema_happy(spark: SparkSession) -> None:
     assert columns
 
 
-@pytest.mark.skip(reason="Snowflake account suspended")
+@pytest.mark.xfail(reason="Snowflake account unavailable", strict=True)
 def test_snowflake_read_schema_happy(spark: SparkSession) -> None:
     mock_ws = create_autospec(WorkspaceClient)
     connector = SnowflakeDataSourceUnderTest(spark, mock_ws)
