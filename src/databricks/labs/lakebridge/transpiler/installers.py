@@ -13,7 +13,7 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from shutil import rmtree
 from types import SimpleNamespace
-from typing import Literal
+from typing import Literal, ClassVar
 from zipfile import ZipFile
 
 import requests
@@ -320,7 +320,7 @@ class MavenLite(MavenClient):
     """
 
     # Maven Central, base URL.
-    _maven_central_repo: str = "https://repo.maven.apache.org/maven2"
+    _maven_central_repo: ClassVar[str] = "https://repo.maven.apache.org/maven2"
 
     @classmethod
     def _normalise_maven_url(cls, url: str) -> str:
