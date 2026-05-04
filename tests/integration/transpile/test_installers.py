@@ -4,8 +4,6 @@ import pytest
 
 from databricks.labs.lakebridge.transpiler.installers import MavenInstaller, MorpheusInstaller, WheelInstaller
 
-# TODO: These should run as part of the integration tests, not a separate test suite.
-
 
 def test_gets_maven_artifact_version() -> None:
     version = MavenInstaller.get_current_maven_artifact_version("com.databricks", "databricks-connect")
