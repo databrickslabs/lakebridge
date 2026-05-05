@@ -1,7 +1,6 @@
 import json
 import logging
 import tempfile
-import uuid
 from collections.abc import Generator
 from contextlib import contextmanager
 from dataclasses import asdict
@@ -108,23 +107,18 @@ def recon_tables(ws: WorkspaceClient, recon_schema: SchemaInfo, make_table) -> t
 
 
 @pytest.fixture
-def recon_metadata(mock_spark, report_tables_schema) -> Generator[ReconcileMetadataConfig, None, None]:
-    rand = uuid.uuid4().hex
-    schema = f"recon_schema_{rand}"
-    mock_spark.sql(f"CREATE SCHEMA {schema}")
+def recon_metadata(spark, recon_schema, make_volume, report_tables_schema) -> ReconcileMetadataConfig:
+    assert recon_schema.catalog_name
+    assert recon_schema.name
+
+    prefix = f"{recon_schema.catalog_name}.{recon_schema.name}"
     main_schema, metrics_schema, details_schema = report_tables_schema
+    spark.createDataFrame(data=[], schema=main_schema).write.saveAsTable(f"{prefix}.MAIN")
+    spark.createDataFrame(data=[], schema=metrics_schema).write.saveAsTable(f"{prefix}.METRICS")
+    spark.createDataFrame(data=[], schema=details_schema).write.saveAsTable(f"{prefix}.DETAILS")
 
-    mock_spark.createDataFrame(data=[], schema=main_schema).write.saveAsTable(f"{schema}.MAIN")
-    mock_spark.createDataFrame(data=[], schema=metrics_schema).write.saveAsTable(f"{schema}.METRICS")
-    mock_spark.createDataFrame(data=[], schema=details_schema).write.saveAsTable(f"{schema}.DETAILS")
-
-    yield ReconcileMetadataConfig(
-        catalog=f"recon_catalog_{rand}",
-        schema=schema,
-        volume=f"recon_volume_{rand}",
-    )
-
-    mock_spark.sql(f"DROP SCHEMA {schema} CASCADE")
+    volume = make_volume(catalog_name=recon_schema.catalog_name, schema_name=recon_schema.name, name=recon_schema.name)
+    return ReconcileMetadataConfig(catalog=recon_schema.catalog_name, schema=recon_schema.name, volume=volume.name)
 
 
 @pytest.fixture
@@ -186,9 +180,9 @@ def recon_cluster(make_cluster) -> ClusterDetails:
 
 
 @pytest.fixture
-def databricks_recon_config(recon_cluster: ClusterDetails, recon_schema: SchemaInfo, make_volume) -> ReconcileConfig:
-    volume = make_volume(catalog_name=recon_schema.catalog_name, schema_name=recon_schema.name, name=recon_schema.name)
-
+def databricks_recon_config(
+    recon_cluster: ClusterDetails, recon_schema: SchemaInfo, recon_metadata: ReconcileMetadataConfig
+) -> ReconcileConfig:
     deployment_overrides = ReconcileJobConfig(
         existing_cluster_id=recon_cluster.cluster_id or "bogus",
         tags={"lakebridge": "reconcile_test"},
@@ -207,9 +201,7 @@ def databricks_recon_config(recon_cluster: ClusterDetails, recon_schema: SchemaI
             target_catalog=recon_schema.catalog_name,
             target_schema=recon_schema.name,
         ),
-        metadata_config=ReconcileMetadataConfig(
-            catalog=recon_schema.catalog_name, schema=recon_schema.name, volume=volume.name
-        ),
+        metadata_config=recon_metadata,
         job_overrides=deployment_overrides,
     )
 

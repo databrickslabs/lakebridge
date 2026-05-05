@@ -277,9 +277,8 @@ def schemas():
     }
 
 
-def test_snowflake_schema_compare(schemas, mock_spark):
+def test_snowflake_schema_compare(schemas, spark):
     src_schema, tgt_schema = schemas["snowflake_databricks_schema"]
-    spark = mock_spark
     table_conf = Table(
         source_name="supplier",
         target_name="supplier",
@@ -303,9 +302,8 @@ def test_snowflake_schema_compare(schemas, mock_spark):
     assert df.filter("is_valid = 'false'").count() == 1
 
 
-def test_databricks_schema_compare(schemas, mock_spark):
+def test_databricks_schema_compare(schemas, spark):
     src_schema, tgt_schema = schemas["databricks_databricks_schema"]
-    spark = mock_spark
     table_conf = Table(
         source_name="supplier",
         target_name="supplier",
@@ -344,9 +342,8 @@ def test_databricks_schema_compare(schemas, mock_spark):
     assert df.filter("is_valid = 'false'").count() == 1
 
 
-def test_oracle_schema_compare(schemas, mock_spark):
+def test_oracle_schema_compare(schemas, spark):
     src_schema, tgt_schema = schemas["oracle_databricks_schema"]
-    spark = mock_spark
     table_conf = Table(
         source_name="supplier",
         target_name="supplier",
@@ -370,9 +367,8 @@ def test_oracle_schema_compare(schemas, mock_spark):
     assert df.filter("is_valid = 'false'").count() == 0
 
 
-def test_tsql_schema_compare(schemas, mock_spark):
+def test_tsql_schema_compare(schemas, spark):
     src_schema, tgt_schema = schemas["tsql_databricks_schema"]
-    spark = mock_spark
     table_conf = Table(
         source_name="supplier",
         target_name="supplier",
@@ -395,7 +391,7 @@ def test_tsql_schema_compare(schemas, mock_spark):
     assert df.filter("is_valid = 'false'").count() == 3
 
 
-def test_schema_compare(mock_spark):
+def test_schema_compare(spark):
     src_schema = [
         schema_fixture_factory("col1", "int", "`col1`", "`col1`"),
         schema_fixture_factory("col2", "string", "`col2`", "`col2`"),
@@ -404,7 +400,6 @@ def test_schema_compare(mock_spark):
         schema_fixture_factory("col1", "int", "`col1`", "`col1`"),
         schema_fixture_factory("col2", "string", "`col2`", "`col2`"),
     ]
-    spark = mock_spark
     table_conf = Table(
         source_name="supplier",
         target_name="supplier",
