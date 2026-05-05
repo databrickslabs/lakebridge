@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 
 from pyspark.sql import SparkSession
 from databricks.sdk import WorkspaceClient
@@ -31,11 +31,8 @@ class TriggerReconAggregateService:
         spark: SparkSession,
         table_recon: TableRecon,
         reconcile_config: ReconcileConfig,
-        local_test_run: bool = False,
     ) -> ReconcileOutput:
-        reconciler, recon_capture = TriggerReconService.create_recon_dependencies(
-            ws, spark, reconcile_config, local_test_run
-        )
+        reconciler, recon_capture = TriggerReconService.create_recon_dependencies(ws, spark, reconcile_config)
 
         try:
             for table_conf in table_recon.tables:
@@ -48,7 +45,6 @@ class TriggerReconAggregateService:
                     recon_id=recon_capture.recon_id,
                     spark=spark,
                     metadata_config=reconcile_config.metadata_config,
-                    local_test_run=local_test_run,
                 ),
                 report_type="aggregate",
             )
@@ -68,7 +64,7 @@ class TriggerReconAggregateService:
         if not normalized_table_conf.aggregates:
             raise ValueError("Aggregates must be defined for Aggregates Reconciliation")
 
-        recon_process_duration = ReconcileProcessDuration(start_ts=str(datetime.now()), end_ts=None)
+        recon_process_duration = ReconcileProcessDuration(start_ts=str(datetime.now(tz=timezone.utc)), end_ts=None)
         try:
             src_schema, tgt_schema = TriggerReconService.get_schemas(
                 reconciler.source, reconciler.target, normalized_table_conf, reconcile_config.database_config, True
@@ -82,7 +78,7 @@ class TriggerReconAggregateService:
                 AggregateQueryOutput(reconcile_output=DataReconcileOutput(exception=str(e)), rule=None)
             ]
 
-        recon_process_duration.end_ts = str(datetime.now())
+        recon_process_duration.end_ts = str(datetime.now(tz=timezone.utc))
 
         recon_capture.store_aggregates_metrics(
             reconcile_agg_output_list=table_reconcile_agg_output_list,

@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import uuid4
 
 from pyspark.errors import PySparkException
@@ -42,11 +42,8 @@ class TriggerReconService:
         spark: SparkSession,
         table_recon: TableRecon,
         reconcile_config: ReconcileConfig,
-        local_test_run: bool = False,
     ) -> ReconcileOutput:
-        reconciler, recon_capture = TriggerReconService.create_recon_dependencies(
-            ws, spark, reconcile_config, local_test_run
-        )
+        reconciler, recon_capture = TriggerReconService.create_recon_dependencies(ws, spark, reconcile_config)
 
         try:
             for table_conf in table_recon.tables:
@@ -57,7 +54,6 @@ class TriggerReconService:
                     recon_id=recon_capture.recon_id,
                     spark=spark,
                     metadata_config=reconcile_config.metadata_config,
-                    local_test_run=local_test_run,
                 ),
                 reconcile_config.report_type,
             )
@@ -69,7 +65,7 @@ class TriggerReconService:
 
     @staticmethod
     def create_recon_dependencies(
-        ws: WorkspaceClient, spark: SparkSession, reconcile_config: ReconcileConfig, local_test_run: bool = False
+        ws: WorkspaceClient, spark: SparkSession, reconcile_config: ReconcileConfig
     ) -> tuple[Reconciliation, ReconCapture]:
         ws_client: WorkspaceClient = verify_workspace_client(ws)
 
@@ -107,7 +103,6 @@ class TriggerReconService:
             ws=ws_client,
             spark=spark,
             metadata_config=reconcile_config.metadata_config,
-            local_test_run=local_test_run,
         )
 
         return reconciler, recon_capture
@@ -139,7 +134,7 @@ class TriggerReconService:
 
     @staticmethod
     def _do_recon_one(reconciler: Reconciliation, reconcile_config: ReconcileConfig, table_conf: Table):
-        recon_process_duration = ReconcileProcessDuration(start_ts=str(datetime.now()), end_ts=None)
+        recon_process_duration = ReconcileProcessDuration(start_ts=str(datetime.now(tz=timezone.utc)), end_ts=None)
         schema_reconcile_output = SchemaReconcileOutput(is_valid=True)
         data_reconcile_output = DataReconcileOutput()
 
@@ -168,7 +163,7 @@ class TriggerReconService:
                 )
                 logger.info(f"Reconciliation for '{reconciler.report_type}' report completed.")
 
-        recon_process_duration.end_ts = str(datetime.now())
+        recon_process_duration.end_ts = str(datetime.now(tz=timezone.utc))
         return schema_reconcile_output, data_reconcile_output, recon_process_duration
 
     @staticmethod

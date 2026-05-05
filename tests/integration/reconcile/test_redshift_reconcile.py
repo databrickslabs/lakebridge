@@ -32,13 +32,13 @@ class DatabricksDataSourceUnderTest(DatabricksDataSource):
 
 
 @pytest.mark.skip(reason="Requires Redshift connectivity and a Databricks cluster.")
-def test_redshift_db_reconcile(mock_spark, mock_workspace_client, tmp_path):
+def test_redshift_db_reconcile(spark, mock_workspace_client, tmp_path):
     test_env = TestEnvGetter(True)
     cluster = test_env.get("TEST_REDSHIFT_CLUSTER_ID")
     host = test_env.get("TEST_REDSHIFT_DATABRICKS_HOST")
     databricks = DatabricksSession.builder.host(host).clusterId(cluster).profile("redshift_test").getOrCreate()
-    databricks_data_source = DatabricksDataSourceUnderTest(databricks, mock_workspace_client, mock_spark)
-    redshift_data_source = RedshiftDataSourceUnderTest(mock_spark, mock_workspace_client)
+    databricks_data_source = DatabricksDataSourceUnderTest(databricks, mock_workspace_client, spark)
+    redshift_data_source = RedshiftDataSourceUnderTest(spark, mock_workspace_client)
     report = "row"
     source_dialect = get_dialect("redshift")
     metadata_config = ReconcileMetadataConfig(catalog="tmp", schema="reconcile")
@@ -59,9 +59,9 @@ def test_redshift_db_reconcile(mock_spark, mock_workspace_client, tmp_path):
         target=databricks_data_source,
         database_config=db_config,
         report_type=report,
-        schema_comparator=SchemaCompare(mock_spark),
+        schema_comparator=SchemaCompare(spark),
         source_engine=source_dialect,
-        spark=mock_spark,
+        spark=spark,
         metadata_config=metadata_config,
         intermediate_persist=FakeReconIntermediatePersist(),
     )
@@ -71,9 +71,8 @@ def test_redshift_db_reconcile(mock_spark, mock_workspace_client, tmp_path):
         report_type=report,
         source_dialect=source_dialect,
         ws=mock_workspace_client,
-        spark=mock_spark,
+        spark=spark,
         metadata_config=metadata_config,
-        local_test_run=True,
     )
     table_conf = Table(
         source_name="diamonds",

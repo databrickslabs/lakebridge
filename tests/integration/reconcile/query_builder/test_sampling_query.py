@@ -14,9 +14,8 @@ from tests.conftest import oracle_schema_fixture_factory, ansi_schema_fixture_fa
 
 
 def test_build_query_for_snowflake_src(
-    mock_spark, table_conf, table_schema_oracle_ansi, fake_oracle_datasource, fake_databricks_datasource
+    spark, table_conf, table_schema_oracle_ansi, fake_oracle_datasource, fake_databricks_datasource
 ):
-    spark = mock_spark
     sch, sch_with_alias = table_schema_oracle_ansi
     df_schema = StructType(
         [
@@ -97,14 +96,13 @@ def test_build_query_for_snowflake_src(
 
 
 def test_build_query_for_oracle_src(
-    mock_spark,
+    spark,
     table_conf,
     table_schema_oracle_ansi,
     normalized_column_mapping,
     fake_oracle_datasource,
     fake_databricks_datasource,
 ):
-    spark = mock_spark
     _, sch_with_alias = table_schema_oracle_ansi
     df_schema = StructType(
         [
@@ -186,8 +184,7 @@ def test_build_query_for_oracle_src(
     assert tgt_actual == tgt_expected
 
 
-def test_build_query_for_databricks_src(mock_spark, table_conf, fake_databricks_datasource):
-    spark = mock_spark
+def test_build_query_for_databricks_src(spark, table_conf, fake_databricks_datasource):
     df_schema = StructType(
         [
             StructField('s_suppkey', IntegerType()),
@@ -234,9 +231,8 @@ def test_build_query_for_databricks_src(mock_spark, table_conf, fake_databricks_
 
 
 def test_build_query_for_snowflake_without_transformations(
-    mock_spark, table_conf, table_schema_oracle_ansi, fake_oracle_datasource, fake_databricks_datasource
+    spark, table_conf, table_schema_oracle_ansi, fake_oracle_datasource, fake_databricks_datasource
 ):
-    spark = mock_spark
     sch, sch_with_alias = table_schema_oracle_ansi
     df_schema = StructType(
         [
@@ -314,9 +310,8 @@ def test_build_query_for_snowflake_without_transformations(
 
 
 def test_build_query_for_snowflake_src_for_non_integer_primary_keys(
-    mock_spark, table_conf, fake_oracle_datasource, fake_databricks_datasource
+    spark, table_conf, fake_oracle_datasource, fake_databricks_datasource
 ):
-    spark = mock_spark
     sch = [
         oracle_schema_fixture_factory("s_suppkey", "varchar"),
         oracle_schema_fixture_factory("s_name", "varchar"),

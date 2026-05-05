@@ -9,7 +9,6 @@ from pyspark.sql.types import (
     LongType,
     StringType,
     TimestampType,
-    IntegerType,
     BooleanType,
     ArrayType,
     MapType,
@@ -196,8 +195,8 @@ def report_tables_schema():
                             "row_comparison",
                             StructType(
                                 [
-                                    StructField("missing_in_source", IntegerType()),
-                                    StructField("missing_in_target", IntegerType()),
+                                    StructField("missing_in_source", LongType()),
+                                    StructField("missing_in_target", LongType()),
                                 ]
                             ),
                         ),
@@ -205,8 +204,8 @@ def report_tables_schema():
                             "column_comparison",
                             StructType(
                                 [
-                                    StructField("absolute_mismatch", IntegerType()),
-                                    StructField("threshold_mismatch", IntegerType()),
+                                    StructField("absolute_mismatch", LongType()),
+                                    StructField("threshold_mismatch", LongType()),
                                     StructField("mismatch_columns", StringType()),
                                 ]
                             ),

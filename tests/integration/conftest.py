@@ -5,7 +5,6 @@ from urllib.parse import urlparse
 from uuid import UUID
 
 import pytest
-from pyspark.sql import SparkSession
 
 from databricks.labs.blueprint.paths import WorkspacePath
 from databricks.labs.blueprint.wheels import ProductInfo
@@ -54,15 +53,6 @@ def product_info() -> tuple[str, str]:
 @pytest.fixture
 def get_logger():
     return logger
-
-
-@pytest.fixture(scope="session")
-def mock_spark() -> SparkSession:
-    """
-    Method helps to create spark session
-    :return: returns the spark session
-    """
-    return SparkSession.builder.appName("Remorph Reconcile Test").remote("sc://localhost").getOrCreate()
 
 
 @pytest.fixture()
