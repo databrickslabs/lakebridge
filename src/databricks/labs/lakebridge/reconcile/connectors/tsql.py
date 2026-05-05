@@ -69,7 +69,7 @@ class TSQLServerDataSource(DataSource):
     ) -> DataFrame:
         table_query = query.replace(":tbl", f"{schema}.{self.normalize_identifier(table).source_normalized}")
         try:
-            df = self._reader.read_data(table_query, catalog, "database", "dbtable", options)
+            df = self._reader.read_data(table_query, catalog, "database", "query", options)
             return df.select([col(column).alias(column.lower()) for column in df.columns])
         except (RuntimeError, PySparkException) as e:
             return self.log_and_throw_exception(e, "data", table_query)

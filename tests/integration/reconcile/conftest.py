@@ -226,7 +226,7 @@ def tsql_recon_config(recon_cluster: ClusterDetails, recon_schema: SchemaInfo, m
             dialect="tsql",
             catalog=TSQL_CATALOG,
             schema=TSQL_SCHEMA,
-            uc_connection_name="labs_azure_sandbox_sql_server_secrets",
+            uc_connection_name="sqlserver_sandbox",
         ),
         target=TargetConnectionConfig(
             catalog=recon_schema.catalog_name,
@@ -257,7 +257,7 @@ def snowflake_recon_config(recon_cluster: ClusterDetails, recon_schema: SchemaIn
             dialect="snowflake",
             catalog=SNOWFLAKE_CATALOG,
             schema=SNOWFLAKE_SCHEMA,
-            uc_connection_name="labs_snowflake_sandbox_secrets",
+            uc_connection_name="snowflake_sandbox",
         ),
         target=TargetConnectionConfig(
             catalog=recon_schema.catalog_name,
@@ -271,9 +271,8 @@ def snowflake_recon_config(recon_cluster: ClusterDetails, recon_schema: SchemaIn
 
 
 def recon_config_filename(recon_config: ReconcileConfig) -> str:
-    source_catalog_or_schema = recon_config.source.catalog or recon_config.source.schema
-    return f"recon_config_{recon_config.source.dialect}_{source_catalog_or_schema}_{recon_config.report_type}.json"
-
+    connection_or_catalog = recon_config.source.uc_connection_name or recon_config.source.catalog
+    return f"recon_config_{recon_config.source.dialect}_{connection_or_catalog}_{recon_config.report_type}.json"
 
 @contextmanager
 def generate_recon_application_context(
