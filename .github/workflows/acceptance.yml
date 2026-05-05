@@ -59,4 +59,3 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           LAKEBRIDGE_MAVEN_URL: "https://databricks.jfrog.io/artifactory/db-maven"
           TEST_ENV: 'ACCEPTANCE'
-          TEST_TSQL_CONNECTION: 'sqlserver_sandbox'
