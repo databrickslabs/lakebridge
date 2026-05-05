@@ -1677,8 +1677,7 @@ def test_schema_recon_with_general_exception(
 ):
     recon_schema, metrics_schema, details_schema = report_tables_schema
     table_recon, source, target, reconcile_config_schema = mock_for_report_type_schema
-    reconcile_config_schema.data_source = "snowflake"
-    reconcile_config_schema.secret_scope = "remorph_snowflake"
+    reconcile_config_schema.source.dialect = "snowflake"
     catalog = reconcile_config_schema.metadata_config.catalog
     schema = reconcile_config_schema.metadata_config.schema
     with (
@@ -1754,8 +1753,7 @@ def test_data_recon_with_general_exception(
     table_recon, source, target, reconcile_config = mock_for_report_type_schema
     catalog = reconcile_config.metadata_config.catalog
     schema = reconcile_config.metadata_config.schema
-    reconcile_config.data_source = "snowflake"
-    reconcile_config.secret_scope = "remorph_snowflake"
+    reconcile_config.source.dialect = "snowflake"
     reconcile_config.report_type = "data"
     with (
         patch("databricks.labs.lakebridge.reconcile.trigger_recon_service.datetime") as mock_datetime,
@@ -1828,8 +1826,7 @@ def test_data_recon_with_source_exception(
     table_recon, source, target, reconcile_config = mock_for_report_type_schema
     catalog = reconcile_config.metadata_config.catalog
     schema = reconcile_config.metadata_config.schema
-    reconcile_config.data_source = "snowflake"
-    reconcile_config.secret_scope = "remorph_snowflake"
+    reconcile_config.source.dialect = "snowflake"
     reconcile_config.report_type = "data"
     with (
         patch("databricks.labs.lakebridge.reconcile.trigger_recon_service.datetime") as mock_datetime,

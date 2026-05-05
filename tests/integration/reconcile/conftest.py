@@ -307,7 +307,9 @@ class FakeReconIntermediatePersist(AbstractReconIntermediatePersist):
 
     @property
     def is_serverless(self) -> bool:
-        return False
+        return True
+        # treat everything as serverless to avoid using cache completely.
+        # the fallback to cache is stubbed as well
 
     def write_and_read_df_with_volumes(
         self,

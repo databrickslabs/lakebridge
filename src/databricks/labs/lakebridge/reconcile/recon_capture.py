@@ -75,7 +75,10 @@ class ReconIntermediatePersist(AbstractReconIntermediatePersist):
 
     @cached_property
     def is_serverless(self) -> bool:
-        is_serverless = os.getenv("IS_SERVERLESS", "").lower() == "true"
+        is_serverless = (
+            os.getenv("IS_SERVERLESS", "").lower() == "true"
+            or os.getenv("DATABRICKS_SERVERLESS_COMPUTE_ID", "").lower() == "auto"
+        )
         return is_serverless
 
     @property
