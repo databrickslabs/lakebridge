@@ -58,3 +58,4 @@ jobs:
           ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
           ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
           TEST_ENV: 'ACCEPTANCE'
+          TEST_TSQL_CONNECTION: 'sqlserver_sandbox'
