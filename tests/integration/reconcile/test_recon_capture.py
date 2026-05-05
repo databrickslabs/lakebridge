@@ -235,7 +235,7 @@ def test_test_recon_capture_start_databricks_data(mock_workspace_client, spark, 
     remorph_recon_df = spark.sql(f"select * from {recon_metadata.catalog}.{recon_metadata.schema}.main")
     row = remorph_recon_df.collect()[0]
     assert remorph_recon_df.count() == 1
-    assert row.source_table.catalog is None
+    assert row.source_table.catalog == "source_test_catalog"
     assert row.report_type == "data"
     assert row.source_type == "Databricks"
 
@@ -460,7 +460,7 @@ def test_generate_final_reconcile_output_row(mock_workspace_client, spark, recon
         results=[
             ReconcileTableOutput(
                 target_table_name='target_test_catalog.target_test_schema.target_supplier',
-                source_table_name='source_test_schema.supplier',
+                source_table_name='source_test_catalog.source_test_schema.supplier',
                 status=StatusOutput(row=False, column=None, schema=None),
                 exception_message='',
             )
@@ -506,7 +506,7 @@ def test_generate_final_reconcile_output_data(mock_workspace_client, spark, reco
         results=[
             ReconcileTableOutput(
                 target_table_name='target_test_catalog.target_test_schema.target_supplier',
-                source_table_name='source_test_schema.supplier',
+                source_table_name='source_test_catalog.source_test_schema.supplier',
                 status=StatusOutput(row=False, column=False, schema=None),
                 exception_message='',
             )
@@ -552,7 +552,7 @@ def test_generate_final_reconcile_output_schema(mock_workspace_client, spark, re
         results=[
             ReconcileTableOutput(
                 target_table_name='target_test_catalog.target_test_schema.target_supplier',
-                source_table_name='source_test_schema.supplier',
+                source_table_name='source_test_catalog.source_test_schema.supplier',
                 status=StatusOutput(row=None, column=None, schema=True),
                 exception_message='',
             )
@@ -599,7 +599,7 @@ def test_generate_final_reconcile_output_all(mock_workspace_client, spark, recon
         results=[
             ReconcileTableOutput(
                 target_table_name='target_test_catalog.target_test_schema.target_supplier',
-                source_table_name='source_test_schema.supplier',
+                source_table_name='source_test_catalog.source_test_schema.supplier',
                 status=StatusOutput(row=False, column=False, schema=True),
                 exception_message='',
             )
@@ -647,7 +647,7 @@ def test_generate_final_reconcile_output_exception(mock_workspace_client, spark,
         results=[
             ReconcileTableOutput(
                 target_table_name='target_test_catalog.target_test_schema.target_supplier',
-                source_table_name='source_test_schema.supplier',
+                source_table_name='source_test_catalog.source_test_schema.supplier',
                 status=StatusOutput(row=None, column=None, schema=None),
                 exception_message='Test exception',
             )
