@@ -42,7 +42,7 @@ def test_read_data_with_options():
         "WITH tmp AS (SELECT * from data.[employee]) select 1 from tmp",
         "org",
         "database",
-        "dbtable",
+        "query",
         table_conf.jdbc_reader_options,
     )
 
