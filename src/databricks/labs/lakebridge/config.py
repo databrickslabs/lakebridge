@@ -225,7 +225,7 @@ class TableRecon:
 
 @dataclass(frozen=True)
 class DatabaseConfig:
-    """Internal: provides the 4 namespace fields consumed by reconciliation and capture layers."""
+    """TODO remove. this was kept for backwards compatibility while migrating to ReconcileConfig v2"""
 
     source_catalog: str
     source_schema: str
@@ -317,6 +317,7 @@ class ReconcileConfig:
 
     @property
     def database_config(self) -> DatabaseConfig:
+        """TODO remove. this was kept for backwards compatibility while migrating to ReconcileConfig v2"""
         return DatabaseConfig(
             source_catalog=self.source.catalog,
             source_schema=self.source.schema,
