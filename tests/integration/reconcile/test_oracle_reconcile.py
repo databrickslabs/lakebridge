@@ -35,13 +35,13 @@ class DatabricksDataSourceUnderTest(DatabricksDataSource):
 
 
 @pytest.mark.skip(reason="Requires Oracle DB running locally and a databricks cluster to connect to.")
-def test_oracle_db_reconcile(mock_spark, mock_workspace_client, tmp_path):
+def test_oracle_db_reconcile(spark, mock_workspace_client, tmp_path):
     test_env = TestEnvGetter(True)
     cluster = test_env.get("TEST_USER_ISOLATION_CLUSTER_ID")
     host = test_env.get("DATABRICKS_HOST")
     databricks = DatabricksSession.builder.host(host).clusterId(cluster).getOrCreate()
-    databricks_data_source = DatabricksDataSourceUnderTest(databricks, mock_workspace_client, mock_spark)
-    oracle_data_source = OracleDataSourceUnderTest(mock_spark, mock_workspace_client)
+    databricks_data_source = DatabricksDataSourceUnderTest(databricks, mock_workspace_client, spark)
+    oracle_data_source = OracleDataSourceUnderTest(spark, mock_workspace_client)
     report = "row"
     db_config = DatabaseConfig(
         source_schema="SYSTEM",
@@ -60,9 +60,9 @@ def test_oracle_db_reconcile(mock_spark, mock_workspace_client, tmp_path):
         target=databricks_data_source,
         database_config=db_config,
         report_type=report,
-        schema_comparator=SchemaCompare(mock_spark),
+        schema_comparator=SchemaCompare(spark),
         source_engine=get_dialect("oracle"),
-        spark=mock_spark,
+        spark=spark,
         metadata_config=ReconcileMetadataConfig(catalog="tmp", schema="reconcile"),
         intermediate_persist=FakeReconIntermediatePersist(),
     )
@@ -72,9 +72,8 @@ def test_oracle_db_reconcile(mock_spark, mock_workspace_client, tmp_path):
         report_type=report,
         source_dialect=get_dialect("oracle"),
         ws=mock_workspace_client,
-        spark=mock_spark,
+        spark=spark,
         metadata_config=ReconcileMetadataConfig(catalog="tmp", schema="reconcile"),
-        local_test_run=True,
     )
     with patch("databricks.labs.lakebridge.reconcile.utils.generate_volume_path", return_value=str(tmp_path)):
         _, data_reconcile_output = TriggerReconService.recon_one(
