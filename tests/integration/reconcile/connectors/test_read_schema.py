@@ -15,7 +15,7 @@ from tests.integration.debug_envgetter import TestEnvGetter
 
 
 def test_sql_server_read_schema_happy(spark: SparkSession) -> None:
-    connection = TestEnvGetter(False).get("TEST_TSQL_CONNECTION")
+    connection = "sqlserver_sandbox"
     reader = RemoteQueryReader(spark, connection)
     connector = TSQLServerDataSource(get_dialect("tsql"), reader)
 

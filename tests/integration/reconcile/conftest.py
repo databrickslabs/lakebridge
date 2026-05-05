@@ -14,7 +14,6 @@ from databricks.labs.blueprint.paths import WorkspacePath
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.errors.platform import PermissionDenied
 from databricks.sdk.service.catalog import TableInfo, SchemaInfo
-from databricks.sdk.service.compute import DataSecurityMode, Kind, ClusterDetails
 
 from databricks.labs.lakebridge.config import (
     LakebridgeConfiguration,
@@ -28,7 +27,6 @@ from databricks.labs.lakebridge.config import (
 from databricks.labs.lakebridge.contexts.application import ApplicationContext
 from databricks.labs.lakebridge.reconcile.recon_capture import AbstractReconIntermediatePersist
 from databricks.labs.lakebridge.reconcile.recon_config import Table
-from tests.integration.debug_envgetter import TestEnvGetter
 
 logger = logging.getLogger(__name__)
 
@@ -78,7 +76,7 @@ def recon_schema(recon_catalog, make_schema) -> SchemaInfo:
 
 
 @pytest.fixture
-def recon_tables(ws: WorkspaceClient, recon_schema: SchemaInfo, make_table) -> tuple[TableInfo, TableInfo]:
+def recon_tables(ws: WorkspaceClient, recon_schema: SchemaInfo, make_table, test_env) -> tuple[TableInfo, TableInfo]:
     src_table = make_table(
         catalog_name=recon_schema.catalog_name, schema_name=recon_schema.name, columns=DIAMONDS_COLUMNS
     )
@@ -87,7 +85,6 @@ def recon_tables(ws: WorkspaceClient, recon_schema: SchemaInfo, make_table) -> t
     )
     logger.info(f"Created recon tables {src_table.name}, {tgt_table.name} in schema {recon_schema.name}")
 
-    test_env = TestEnvGetter(True)
     warehouse = test_env.get("TEST_DEFAULT_WAREHOUSE_ID")
 
     for tbl in (src_table, tgt_table):
@@ -172,20 +169,16 @@ def snowflake_recon_table_config(recon_schema: SchemaInfo, recon_tables: tuple[T
 
 
 @pytest.fixture
-def recon_cluster(make_cluster) -> ClusterDetails:
-    return make_cluster(
-        data_security_mode=DataSecurityMode.DATA_SECURITY_MODE_AUTO,
-        kind=Kind.CLASSIC_PREVIEW,
-        num_workers=2,
-    ).result()
+def recon_cluster(test_env) -> str:
+    return test_env.get("DATABRICKS_DQX_CLUSTER_ID")
 
 
 @pytest.fixture
 def databricks_recon_config(
-    recon_cluster: ClusterDetails, recon_schema: SchemaInfo, recon_metadata: ReconcileMetadataConfig
+    recon_cluster: str, recon_schema: SchemaInfo, recon_metadata: ReconcileMetadataConfig
 ) -> ReconcileConfig:
     deployment_overrides = ReconcileJobConfig(
-        existing_cluster_id=recon_cluster.cluster_id or "bogus",
+        existing_cluster_id=recon_cluster,
         tags={"lakebridge": "reconcile_test"},
     )
     logger.info(f"Using recon job overrides: {deployment_overrides}")
@@ -209,11 +202,11 @@ def databricks_recon_config(
 
 
 @pytest.fixture
-def tsql_recon_config(recon_cluster: ClusterDetails, recon_schema: SchemaInfo, make_volume) -> ReconcileConfig:
+def tsql_recon_config(recon_cluster: str, recon_schema: SchemaInfo, make_volume) -> ReconcileConfig:
     volume = make_volume(catalog_name=recon_schema.catalog_name, schema_name=recon_schema.name, name=recon_schema.name)
 
     deployment_overrides = ReconcileJobConfig(
-        existing_cluster_id=recon_cluster.cluster_id or "bogus",
+        existing_cluster_id=recon_cluster,
         tags={"lakebridge": "reconcile_test"},
     )
     logger.info(f"Using recon job overrides: {deployment_overrides}")
@@ -240,11 +233,11 @@ def tsql_recon_config(recon_cluster: ClusterDetails, recon_schema: SchemaInfo, m
 
 
 @pytest.fixture
-def snowflake_recon_config(recon_cluster: ClusterDetails, recon_schema: SchemaInfo, make_volume) -> ReconcileConfig:
+def snowflake_recon_config(recon_cluster: str, recon_schema: SchemaInfo, make_volume) -> ReconcileConfig:
     volume = make_volume(catalog_name=recon_schema.catalog_name, schema_name=recon_schema.name, name=recon_schema.name)
 
     deployment_overrides = ReconcileJobConfig(
-        existing_cluster_id=recon_cluster.cluster_id or "bogus",
+        existing_cluster_id=recon_cluster,
         tags={"lakebridge": "reconcile_test"},
     )
     logger.info(f"Using recon job overrides: {deployment_overrides}")
@@ -273,6 +266,7 @@ def snowflake_recon_config(recon_cluster: ClusterDetails, recon_schema: SchemaIn
 def recon_config_filename(recon_config: ReconcileConfig) -> str:
     connection_or_catalog = recon_config.source.uc_connection_name or recon_config.source.catalog
     return f"recon_config_{recon_config.source.dialect}_{connection_or_catalog}_{recon_config.report_type}.json"
+
 
 @contextmanager
 def generate_recon_application_context(
