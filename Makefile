@@ -14,6 +14,16 @@ clean: docs-clean
 
 dev:
 	uv sync --all-extras
+# Workaround: databricks-bb-analyzer is missing databricks/__init__.py in its wheel.
+# If it's installed last the namespace package breaks. Ensure the file exists.
+	@for f in .venv/lib/python*/site-packages/databricks/__init__.py \
+                  .venv/lib/python*/site-packages/databricks/labs/__init__.py; \
+	do \
+	    grep -q 'extend_path' "$$f" 2>/dev/null || { \
+	        printf '__path__ = __import__("pkgutil").extend_path(__path__, __name__)\n' > "$$f"; \
+	        printf 'Warning: workaround needed (and configured) for analyzer packaging bug: %s\n' "$$f"; \
+	    } \
+	done
 
 lint:
 	$(UV_RUN) black --check .
@@ -27,13 +37,10 @@ fmt:
 	$(UV_RUN) mypy --disable-error-code 'annotation-unchecked' .
 	$(UV_RUN) pylint --output-format=colorized -j 0 src tests
 
-setup_spark_remote:
-	.github/scripts/setup_spark_remote.sh
-
 test:
 	$(UV_TEST) --cov-report=xml tests/unit
 
-integration: setup_spark_remote
+integration:
 	$(UV_TEST) tests/integration
 
 coverage:
@@ -52,7 +59,8 @@ lock-dependencies:
 	$(UV_RUN) --group yq tomlq -r '.["build-system"].requires[]' pyproject.toml | \
 	    uv pip compile --generate-hashes --universal --no-header --quiet - > build-constraints-new.txt
 	mv build-constraints-new.txt .build-constraints.txt
-	perl -pi -e 's|registry = "https://[^"]*"|registry = "https://pypi.org/simple/"|g' uv.lock
+	@perl -pi -e 's|registry = "https://[^"]*"|registry = "https://pypi.org/simple/"|g' uv.lock
+	@printf 'Stripped registry references from uv.lock.\n'
 
 clean_coverage_dir:
 	@printf "Deleting: %s\n" "$${OUTPUT_DIR:?must be set}"

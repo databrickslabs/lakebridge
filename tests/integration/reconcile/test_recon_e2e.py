@@ -1,6 +1,7 @@
 import re
 import logging
 
+import pytest
 from databricks.sdk.service.jobs import TerminationTypeType
 from databricks.sdk.core import DatabricksError
 
@@ -11,6 +12,8 @@ from databricks.labs.lakebridge.reconcile.runner import ReconcileRunner
 from tests.integration.reconcile.conftest import generate_recon_application_context
 
 logger = logging.getLogger(__name__)
+
+pytestmark = pytest.mark.timeout(1800)
 
 
 def _debug_run_output(ctx: ApplicationContext, run_id: int) -> None:
@@ -76,6 +79,7 @@ def test_recon_sql_server_job_succeeds(
         _run_recon_e2e_spec(app_ctx)
 
 
+@pytest.mark.xfail(reason="Snowflake account unavailable", strict=True)
 def test_recon_snowflake_job_succeeds(
     application_ctx: ApplicationContext,
     snowflake_recon_config: ReconcileConfig,
