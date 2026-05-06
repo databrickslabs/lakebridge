@@ -13,7 +13,7 @@ from databricks.sdk import WorkspaceClient
 from databricks.sdk.errors import InvalidParameterValue, NotFound, DeadlineExceeded, InternalError, PermissionDenied
 from databricks.sdk.retries import retried
 from databricks.sdk.service.dashboards import LifecycleState, Dashboard
-from databricks.sdk.errors.platform import ResourceAlreadyExists, DatabricksError
+from databricks.sdk.errors.platform import AlreadyExists, DatabricksError, ResourceAlreadyExists
 from databricks.labs.lakebridge.config import ReconcileMetadataConfig, ProfilerDashboardConfig
 
 logger = logging.getLogger(__name__)
@@ -228,13 +228,27 @@ class ProfilerDashboardManager:
             serialized_dashboard=updated_dashboard_str,
         )
 
-        # Create dashboard or replace if previously deployed
+        # Create dashboard or replace if previously deployed. Lakeview may raise AlreadyExists or
+        # ResourceAlreadyExists when a DASHBOARD_V3 with the same .lvdash.json name still exists.
         try:
             dashboard = self._ws.lakeview.create(dashboard=dashboard)
-        except ResourceAlreadyExists:
-            logger.info("Dashboard already exists! Removing dashboard from workspace location.")
+        except (ResourceAlreadyExists, AlreadyExists):
+            logger.info(
+                "Profiler summary dashboard already exists; trashing prior dashboard (if known) "
+                "and removing workspace file before recreate."
+            )
+            existing_id = self._install_state.dashboards.get(dash_reference)
+            if existing_id:
+                try:
+                    self._ws.lakeview.trash(existing_id)
+                except (NotFound, InvalidParameterValue):
+                    logger.debug("Could not trash prior dashboard id %s (may already be removed).", existing_id)
+                self._install_state.dashboards.pop(dash_reference, None)
             dashboard_ws_path = str(Path(ws_parent_path) / f"{dashboard_name}.lvdash.json")
-            self._ws.workspace.delete(dashboard_ws_path)
+            try:
+                self._ws.workspace.delete(dashboard_ws_path)
+            except NotFound:
+                logger.debug("Workspace dashboard file already absent: %s", dashboard_ws_path)
             dashboard = self._ws.lakeview.create(dashboard=dashboard)
         except DatabricksError as e:
             logger.error(f"Could not create profiler summary dashboard: {e}")

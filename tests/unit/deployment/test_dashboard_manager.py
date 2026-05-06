@@ -7,7 +7,7 @@ import pytest
 
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.errors import PermissionDenied, NotFound, InternalError
-from databricks.sdk.errors.platform import DatabricksError
+from databricks.sdk.errors.platform import AlreadyExists, DatabricksError
 
 from databricks.labs.blueprint.wheels import find_project_root
 from databricks.labs.lakebridge.config import (
@@ -205,3 +205,37 @@ def testcreate_or_replace_dashboard_reraises_databricks_error(
             dest_schema="profiler_runs",
             source_system="teradata",
         )
+
+
+def test_create_or_replace_dashboard_retries_on_already_exists(
+    tmp_path: Path,
+    dashboard_manager: ProfilerDashboardManager,
+    mocked_workspace_client: WorkspaceClient,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """Lakeview raises AlreadyExists (not ResourceAlreadyExists) when a same-named .lvdash.json exists."""
+    ws = mocked_workspace_client
+    cast(Any, ws).config = SimpleNamespace(warehouse_id="test-wh")
+    folder = tmp_path / "teradata"
+    folder.mkdir()
+    monkeypatch.setattr(ProfilerDashboardTemplateLoader, "load", lambda _self, _source_system: {"datasets": []})
+
+    dashboard_manager._install_state.dashboards["teradata"] = "old-dashboard-id"
+    ws.lakeview.create.side_effect = [
+        AlreadyExists("duplicate name"),
+        SimpleNamespace(dashboard_id="new-dashboard-id"),
+    ]
+
+    result = dashboard_manager.create_or_replace_dashboard(
+        folder=folder,
+        ws_parent_path="/Workspace/Users/test/.lakebridge/dashboards",
+        dest_catalog="lakebridge_profiler",
+        dest_schema="profiler_runs",
+        source_system="teradata",
+    )
+
+    assert result.dashboard_id == "new-dashboard-id"
+    ws.lakeview.trash.assert_called_once_with("old-dashboard-id")
+    ws.workspace.delete.assert_called_once()
+    assert ws.lakeview.create.call_count == 2
+    assert dashboard_manager._install_state.dashboards["teradata"] == "new-dashboard-id"

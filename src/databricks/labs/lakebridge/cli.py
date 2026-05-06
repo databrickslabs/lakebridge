@@ -1135,18 +1135,18 @@ def test_profiler_connection(
         raise_validation_exception(f"Invalid source technology {source_tech}")
 
     ctx.add_user_agent_extra("profiler_source_tech", make_alphanum_or_semver(source_tech))
-    logger.debug(f"User: {ctx.current_user}")
 
     # Use provided credential file path or fall back to default
     credential_file = Path(cred_file_path) if cred_file_path else cred_file(PRODUCT_NAME)
 
-    # Check if credential file exists
+    # Check if credential file exists before any workspace API calls (e.g. current_user).
     if not credential_file.exists():
         raise_validation_exception(
             f"Connection details not found. Please run `databricks labs lakebridge configure-database-profiler` "
             f"to set up connection details for {source_tech}."
         )
 
+    logger.debug(f"User: {ctx.current_user}")
     logger.info(f"Testing connection for source technology: {source_tech}")
 
     cred_manager = create_credential_manager(PRODUCT_NAME, EnvGetter(), creds_path=credential_file)
