@@ -160,6 +160,7 @@ Switch creates Delta tables with the following complete schema:
 | `input_file_token_count_preprocessed` | int | Token count of preprocessed content (SQL comments removed for SQL files, original count for generic files) |
 | `input_file_content` | string | Entire content of the input file |
 | `input_file_content_preprocessed` | string | Preprocessed content (SQL comments removed for SQL files, original content for generic files) |
+| `input_file_relative_path` | string | Relative path of the input file from the input directory root, used to preserve directory hierarchy in output (e.g., subdir1/subdir2/file.sql) |
 | `is_conversion_target` | boolean | Whether file should be processed (updated during conversion) |
 | `model_serving_endpoint_for_conversion` | string | Model endpoint used for conversion |
 | `model_serving_endpoint_for_fix` | string | Model endpoint used for syntax error fixing |

@@ -1,6 +1,5 @@
-from databricks.sdk import WorkspaceClient
-
 from databricks.labs.blueprint.tui import MockPrompts
+
 from databricks.labs.lakebridge.config import TranspileConfig, ReconcileConfig
 from databricks.labs.lakebridge.contexts.application import ApplicationContext
 from databricks.labs.lakebridge.install import WorkspaceInstaller
@@ -12,21 +11,20 @@ class _WorkspaceInstaller(WorkspaceInstaller):
         self._save_config(config)
 
 
-def test_stores_and_fetches_config(ws: WorkspaceClient) -> None:
+def test_stores_and_fetches_config(application_ctx: ApplicationContext) -> None:
     prompts = MockPrompts(
         {
             r"Open .* in the browser?": "no",
         }
     )
-    context = ApplicationContext(ws)
     installer = _WorkspaceInstaller(
-        context.workspace_client,
+        application_ctx.workspace_client,
         prompts,
-        context.installation,
-        context.install_state,
-        context.product_info,
-        context.resource_configurator,
-        context.workspace_installation,
+        application_ctx.installation,
+        application_ctx.install_state,
+        application_ctx.product_info,
+        application_ctx.resource_configurator,
+        application_ctx.workspace_installation,
     )
     config = TranspileConfig(
         transpiler_config_path="some_path",
@@ -41,5 +39,5 @@ def test_stores_and_fetches_config(ws: WorkspaceClient) -> None:
         schema_name="some_schema",
     )
     installer.save_config(config)
-    retrieved = ApplicationContext(ws).transpile_config
+    retrieved = application_ctx.transpile_config
     assert retrieved == config

@@ -73,7 +73,7 @@ class SnowflakeDataSourceUnderTest(SnowflakeDataSource):
             "sfDatabase": parsed.get("db"),
             "sfSchema": parsed.get("schema"),
             "sfWarehouse": parsed.get("warehouse"),
-            "sfRole": parsed.get("role"),
+            "sfRole": "LABS",
             "pem_private_key": SnowflakeDataSource._get_private_key(
                 self._test_env.get("TEST_SNOWFLAKE_PRIVATE_KEY"), None
             ),
@@ -81,29 +81,29 @@ class SnowflakeDataSourceUnderTest(SnowflakeDataSource):
         return opts
 
 
-def test_sql_server_read_schema_happy(mock_spark: SparkSession) -> None:
+def test_sql_server_read_schema_happy(spark: SparkSession) -> None:
     mock_ws = create_autospec(WorkspaceClient)
-    connector = TSQLServerDataSourceUnderTest(mock_spark, mock_ws)
+    connector = TSQLServerDataSourceUnderTest(spark, mock_ws)
 
     columns = connector.get_schema("labs_azure_sandbox_remorph", "dbo", "reconcile_in")
     assert columns
 
 
-def test_databricks_read_schema_happy(mock_spark: SparkSession) -> None:
+def test_databricks_read_schema_happy(spark: SparkSession) -> None:
     mock_ws = create_autospec(WorkspaceClient)
-    connector = DatabricksDataSource(get_dialect("databricks"), mock_spark, mock_ws, "my_secret")
+    connector = DatabricksDataSource(get_dialect("databricks"), spark, mock_ws, "my_secret")
     random_view = f"test_view_{uuid.uuid4().hex}"
 
     try:
-        mock_spark.sql("CREATE DATABASE IF NOT EXISTS my_test_db")
-        mock_spark.sql("CREATE TABLE IF NOT EXISTS my_test_db.my_test_table (id INT, name STRING) USING parquet")
-        df = mock_spark.sql("SELECT * FROM my_test_db.my_test_table")
+        spark.sql("CREATE DATABASE IF NOT EXISTS my_test_db")
+        spark.sql("CREATE TABLE IF NOT EXISTS my_test_db.my_test_table (id INT, name STRING) USING parquet")
+        df = spark.sql("SELECT * FROM my_test_db.my_test_table")
         df.createGlobalTempView(random_view)
         columns = connector.get_schema(None, "global_temp", random_view)
 
         assert columns
     finally:
-        assert mock_spark.catalog.dropGlobalTempView(random_view)
+        assert spark.catalog.dropGlobalTempView(random_view)
 
 
 def test_databricks_read_schema_happy_sandbox(
@@ -124,21 +124,18 @@ def test_databricks_read_schema_happy_sandbox(
 # 1. Deploy Oracle Free
 # 2. Add credentials to the test env getter
 @pytest.mark.skip(reason="Not Ready! Deploy Infra")
-def test_oracle_read_schema_happy(mock_spark: SparkSession) -> None:
+def test_oracle_read_schema_happy(spark: SparkSession) -> None:
     mock_ws = create_autospec(WorkspaceClient)
-    connector = OracleDataSourceUnderTest(mock_spark, mock_ws)
+    connector = OracleDataSourceUnderTest(spark, mock_ws)
 
     columns = connector.get_schema(None, "SYSTEM", "help")
     assert columns
 
 
-# FIXME
-#  1. the test pem key does not have access to LABS schema as it should
-#  2. complete jdbc url
-@pytest.mark.skip(reason="Missing Access to LABS schema")
-def test_snowflake_read_schema_happy(mock_spark: SparkSession) -> None:
+@pytest.mark.xfail(reason="Snowflake account unavailable", strict=True)
+def test_snowflake_read_schema_happy(spark: SparkSession) -> None:
     mock_ws = create_autospec(WorkspaceClient)
-    connector = SnowflakeDataSourceUnderTest(mock_spark, mock_ws)
+    connector = SnowflakeDataSourceUnderTest(spark, mock_ws)
 
-    columns = connector.get_schema('"sandbox"', "LABS", "diamonds")
+    columns = connector.get_schema('remorph', "sandbox", "diamonds")
     assert columns

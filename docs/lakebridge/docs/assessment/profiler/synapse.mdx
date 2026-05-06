@@ -20,6 +20,20 @@ import Admonition from '@theme/Admonition';
 ```bash
 az login
 ```
+
+The profiler uses Azure SDK's `DefaultAzureCredential` which attempts authentication in this order:
+1. **Environment Variables** (Service Principal):
+   - `AZURE_TENANT_ID`
+   - `AZURE_CLIENT_ID`
+   - `AZURE_CLIENT_SECRET`
+2. **Managed Identity** (if running on Azure VM/App Service)
+3. **Azure CLI** (from `az login`)
+4. **Visual Studio Code**
+5. **Azure PowerShell**
+
+Ensure your user/service principal account has the required roles listed below. See [Azure documentation](https://learn.microsoft.com/en-us/cli/azure/authenticate-azure-cli?view=azure-cli-latest) for more details.
+
+
 ### 3. Required Access to Synapse Workspace
 
 :::warning Attention:
@@ -27,7 +41,7 @@ Skip this prerequisite if you are using a standalone SQL Dedicated Pool (formerl
 :::
 
 - Profiler uses the Python version of Azure SDK libraries to extract information about target Synapse Workspace.
-- For making the Azure API calls using Azure SDK you need an Azure Service Principal with the following role assignments.
+- For making the Azure API calls using Azure SDK, the authenticated identity (user or service principal) needs the following role assignments.
 Just giving the Synapse Administrator role is not enough. The below roles must be explicitly assigned.
     - Synapse Artifact User.
         - Assign from Synapse Workspace → Manage Access → Access Control [Refer to Azure documentation](https://learn.microsoft.com/en-us/azure/synapse-analytics/security/how-to-manage-synapse-rbac-role-assignments)
@@ -41,12 +55,22 @@ Create/Use a user with access to query the following tables in Synapse.
 The user should not have Multi-factor Authentication (MFA) enabled as ODBC does not support MFA
 :::
 
-This user id needs to have read access (`SELECT grants`) on the following tables. The permissions `VIEW DATABASE STATE`
-and `VIEW DEFINITION` grants are required for Dynamic Management Views (DMVs)
+This user id needs to have read access (`SELECT grants`) on the following tables. The following permissions are required for Dynamic Management Views (DMVs):
+
+- **`VIEW DATABASE STATE`** - Required for database-scoped DMVs (queries within specific databases)
+- **`VIEW SERVER STATE`** - Required for server-level DMVs (queries in the `master` database)
+- **`VIEW DEFINITION`** - Required to view metadata definitions
 
 ```sql
+-- Grant database-level permissions
 GRANT VIEW DATABASE STATE TO <user_id>
 GRANT VIEW DEFINITION TO <user_id>
+
+-- Grant server-level permissions (CRITICAL for serverless pool DMVs)
+-- Connect to master database first
+USE master
+GO
+GRANT VIEW SERVER STATE TO <user_id>
 ```
 
 <table>
@@ -74,23 +98,22 @@ GRANT VIEW DEFINITION TO <user_id>
       <td>
         sys.dm_pdw_exec_sessions <br/>
         sys.dm_pdw_exec_requests <br/>
-        sys.dm_pdw_nodes_db_partition_stats <br/>
-        sys.dm_pdw_nodes_exec_query_stats
+        sys.dm_pdw_nodes_db_partition_stats
       </td>
     </tr>
     <tr>
       <td rowspan="2">Serverless SQL Pool</td>
-      <td>Tables</td>
+      <td>Catalog Views</td>
       <td>
         sys.databases <br/>
         information_schema.tables <br/>
         information_schema.columns <br/>
         information_schema.views <br/>
-        information_schema.routines
+        sys.objects (for routines)
       </td>
     </tr>
     <tr>
-      <td>DMVs</td>
+      <td>Server DMVs<br/></td>
       <td>
         sys.dm_exec_sessions <br/>
         sys.dm_exec_requests <br/>

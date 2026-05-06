@@ -2,13 +2,9 @@ import contextlib
 import json
 import logging
 from collections.abc import Generator
-from functools import cached_property
 from pathlib import Path
 
 import pytest
-from databricks.labs.blueprint.wheels import ProductInfo
-from databricks.labs.blueprint.paths import WorkspacePath
-from databricks.sdk import WorkspaceClient
 
 from databricks.labs.lakebridge import cli
 from databricks.labs.lakebridge.config import TranspileConfig
@@ -60,23 +56,6 @@ def capture_bladebridge_logs(
         for line in log_file.open(encoding="utf-8", errors="replace"):
             logger.log(level, f"{log_file.name}: {line.strip()}")
         logger.log(level, f"============ Bladebridge log: {log_file.name} finished. ====================")
-
-
-class MockApplicationContext(ApplicationContext):
-    """A mock application context that uses a unique installation path."""
-
-    @cached_property
-    def product_info(self) -> ProductInfo:
-        return ProductInfo.for_testing(ApplicationContext)
-
-
-@pytest.fixture
-def application_ctx(ws: WorkspaceClient) -> Generator[ApplicationContext, None, None]:
-    """A mock application context with a unique installation path, cleaned up after the test."""
-    ctx = MockApplicationContext(ws)
-    yield ctx
-    if WorkspacePath(ws, ctx.installation.install_folder()).exists():
-        ctx.installation.remove()
 
 
 @pytest.fixture(name="errors_path")

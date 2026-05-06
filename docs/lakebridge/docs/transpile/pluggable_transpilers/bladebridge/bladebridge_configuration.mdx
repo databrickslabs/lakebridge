@@ -523,6 +523,10 @@ ETL configuration thus serves as the orchestration layer that combines rule-base
 | ddl_statement_wrap                            | Wraps DDL statements in a Spark SQL invocation.                                        | spark.sql(f"""%INNER_SQL%"""%FORMAT_SPEC%).display()                   |
 | etl_converter_config_file                     | Points to a secondary config file for ETL expression conversion.                       | base_datastage2databricks_pyspark.json                                                   |
 | commands | section on how to generate various read and write statements for different system types |
+| use_native_database_connections_source | When `true`, Source components use native JDBC/ODBC connection templates instead of default commands | true |
+| use_native_database_connections_lookup | When `true`, Lookup components use native JDBC/ODBC connection templates | true |
+| use_native_database_connections_target | When `true`, Target components use native JDBC/ODBC connection templates | true |
+| native_database_connection_commands | Section containing JDBC/ODBC connection templates for different database types (e.g., `READER_ORACLE`, `WRITER_MSSQL`) | See Native Database Connection Support section |
 | system_type_class | system type classifications |
 | conform_source_columns | instructs the writer to generate column-conforming statement for sources |
 | conform_columns_call_template | template for conforming the column list | "%DF%_conformed_cols = \[%COLUMN_LIST%\]\n%DF% = DatabricksConversionSupplements. conform_df_columns(%DF%,%DF%_conformed_cols) |
@@ -572,6 +576,89 @@ This section holds templates on read and write instructions for each system clas
 	"WRITER_RELATIONAL": "my_end_point.write_to_db(%DF%, \"%TABLE_NAME%\", username=\"%LOGIN%\", password=\"%PASSWORD%\")"
 },
 ```
+
+### Native Database Connection Support
+
+When converting ETL components that connect to external databases (e.g., Oracle, SQL Server, Redshift, Synapse), you can configure the converter to use native JDBC/ODBC connections instead of Databricks native connectors. This is useful when you need direct database access or when migrating from platforms like Informatica Cloud or DataStage.
+
+#### Configuration Flags
+
+Enable native database connections separately for different component types:
+
+```json
+{
+  "use_native_database_connections_source": true,
+  "use_native_database_connections_lookup": true,
+  "use_native_database_connections_target": true
+}
+```
+
+- **`use_native_database_connections_source`**: When `true`, Source components will use native connection templates instead of default commands
+- **`use_native_database_connections_lookup`**: When `true`, Lookup components will use native connection templates
+- **`use_native_database_connections_target`**: When `true`, Target components will use native connection templates
+
+> **Note:** Native connections are only used when the flag is enabled **and** the component's `SYSTEM_TYPE` is not `'DATABRICKS'`. The converter will fall back to the default `commands` section if a native connection template is not found.
+
+#### Native Connection Command Templates
+
+Define connection templates in the `native_database_connection_commands` section. Templates follow the pattern `READER_<SYSTEM_TYPE>` for readers and `WRITER_<SYSTEM_TYPE>` for writers, where `<SYSTEM_TYPE>` matches the component's system type (e.g., `ORACLE`, `MSSQL`, `SYNAPSE`, `REDSHIFT`):
+
+```json
+{
+  "native_database_connection_commands": {
+    "READER_ORACLE": "spark.read \~
+      .format(\"jdbc\") \~
+      .option(\"url\", \"%URL%\") \~
+      .option(\"dbtable\", f\"\"\"(%SQL%) t\"\"\") \~
+      .option(\"user\", \"%USERNAME%\") \~
+      .option(\"password\", \"%PASSWORD%\") \~
+      .option(\"driver\", \"oracle.jdbc.driver.OracleDriver\") \~
+      .load()",
+    "WRITER_ORACLE": "%DF%.write \~
+      .format(\"jdbc\") \~
+      .option(\"url\", \"%URL%\") \~
+      .option(\"dbtable\", \"%TABLE_NAME%\") \~
+      .option(\"user\", \"%USERNAME%\") \~
+      .option(\"password\", \"%PASSWORD%\") \~
+      .option(\"driver\", \"oracle.jdbc.driver.OracleDriver\") \~
+      .mode(\"%WRITE_MODE%\") \~
+      .save()",
+    "READER_MSSQL": "spark.read \~
+      .format(\"jdbc\") \~
+      .option(\"url\", \"jdbc:sqlserver://%HOST%:%PORT%;databaseName=%DATABASE%\") \~
+      .option(\"dbtable\", f\"\"\"(%SQL%) t\"\"\") \~
+      .option(\"user\", \"%USERNAME%\") \~
+      .option(\"password\", \"%PASSWORD%\") \~
+      .option(\"driver\", \"com.microsoft.sqlserver.jdbc.SQLServerDriver\") \~
+      .load()",
+    "WRITER_MSSQL": "%DF%.write \~
+      .format(\"jdbc\") \~
+      .option(\"url\", \"jdbc:sqlserver://%HOST%:%PORT%;databaseName=%DATABASE%\") \~
+      .option(\"dbtable\", \"%TABLE_NAME%\") \~
+      .option(\"user\", \"%USERNAME%\") \~
+      .option(\"password\", \"%PASSWORD%\") \~
+      .option(\"driver\", \"com.microsoft.sqlserver.jdbc.SQLServerDriver\") \~
+      .mode(\"%WRITE_MODE%\") \~
+      .save()"
+  }
+}
+```
+
+#### Available Template Tokens
+
+Native connection templates support the following substitution tokens:
+
+- `%URL%` - JDBC connection URL (e.g., `jdbc:oracle:thin:@//host:port/service`)
+- `%HOST%` - Database hostname
+- `%PORT%` - Database port number
+- `%DATABASE%` - Database name
+- `%SERVICE_NAME%` - Oracle service name
+- `%SQL%` - SQL query for readers (SELECT statement)
+- `%TABLE_NAME%` - Target table name for writers
+- `%USERNAME%` - Database username
+- `%PASSWORD%` - Database password
+- `%WRITE_MODE%` - Write mode for targets (e.g., `overwrite`, `append`, `ignore`)
+- `%DF%` - DataFrame variable name
 
 ### Substitution Tokens
 Templates above use the following placeholders that get substituted at conversion time:

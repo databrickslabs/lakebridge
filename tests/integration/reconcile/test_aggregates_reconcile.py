@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 from pyspark.testing import assertDataFrameEqual
-from pyspark.sql import Row
+from pyspark.sql import Row, SparkSession
 
 from tests.integration.reconcile.conftest import FakeReconIntermediatePersist
 from tests.conftest import ansi_schema_fixture_factory
@@ -18,6 +18,8 @@ from databricks.labs.lakebridge.reconcile.execute import main
 from databricks.labs.lakebridge.reconcile.recon_config import (
     Aggregate,
     AggregateRule,
+    Schema,
+    Table,
 )
 from databricks.labs.lakebridge.reconcile.recon_output_config import (
     AggregateQueryOutput,
@@ -44,7 +46,7 @@ class AggregateQueryStore:
 
 
 @pytest.fixture
-def query_store(mock_spark):
+def query_store() -> AggregateQueryStore:
     agg_queries = AggregateQueries(
         source_agg_query="SELECT min(`s_acctbal`) AS `source_min_s_acctbal` FROM :tbl WHERE s_name = 't' AND s_address = 'a'",
         target_agg_query="SELECT min(`s_acctbal_t`) AS `target_min_s_acctbal` FROM :tbl WHERE s_name = 't' AND s_address_t = 'a'",
@@ -56,7 +58,7 @@ def query_store(mock_spark):
 
 
 @pytest.fixture
-def query_store_special_char(mock_spark):
+def query_store_special_char() -> AggregateQueryStore:
     agg_queries = AggregateQueries(
         source_agg_query=""" SELECT sum("s_acctbal") AS "source_sum_s_acctbal", count(TRIM(s_name)) AS "source_count_s_name", min("$carat$") AS "source_min_$carat$", max("$carat$") AS "source_max_$carat$", "s_nationkey" AS "source_group_by_s_nationkey" FROM :tbl WHERE s_name = 't' AND s_address = 'a' GROUP BY "s_nationkey" """.strip(),
         target_agg_query="SELECT sum(`s_acctbal_t`) AS `target_sum_s_acctbal`, count(TRIM(s_name)) AS `target_count_s_name`, min(`$carat$`) AS `target_min_$carat$`, max(`$carat$`) AS `target_max_$carat$`, `s_nationkey_t` AS `target_group_by_s_nationkey` FROM :tbl WHERE s_name = 't' AND s_address_t = 'a' GROUP BY `s_nationkey_t`",
@@ -68,12 +70,12 @@ def query_store_special_char(mock_spark):
 
 
 def test_reconcile_aggregate_data_missing_records(
-    mock_spark,
-    normalized_table_conf_with_opts,
-    table_schema_ansi_ansi,
-    query_store,
+    spark: SparkSession,
+    normalized_table_conf_with_opts: Table,
+    table_schema_ansi_ansi: tuple[list[Schema], list[Schema]],
+    query_store: AggregateQueryStore,
     tmp_path: Path,
-):
+) -> None:
     src_schema, tgt_schema = table_schema_ansi_ansi
     normalized_table_conf_with_opts.drop_columns = ["`s_acctbal`"]
     normalized_table_conf_with_opts.column_thresholds = None
@@ -84,7 +86,7 @@ def test_reconcile_aggregate_data_missing_records(
             CATALOG,
             SCHEMA,
             query_store.agg_queries.source_agg_query,
-        ): mock_spark.createDataFrame(
+        ): spark.createDataFrame(
             [
                 Row(source_min_s_acctbal=11),
             ]
@@ -97,7 +99,7 @@ def test_reconcile_aggregate_data_missing_records(
             CATALOG,
             SCHEMA,
             query_store.agg_queries.target_agg_query,
-        ): mock_spark.createDataFrame(
+        ): spark.createDataFrame(
             [
                 Row(target_min_s_acctbal=10),
             ]
@@ -118,9 +120,9 @@ def test_reconcile_aggregate_data_missing_records(
         target,
         database_config,
         "",
-        SchemaCompare(mock_spark),
+        SchemaCompare(spark),
         get_dialect("databricks"),
-        mock_spark,
+        spark,
         ReconcileMetadataConfig(),
         FakeReconIntermediatePersist(),
     ).reconcile_aggregates(normalized_table_conf_with_opts, src_schema, tgt_schema)
@@ -146,7 +148,7 @@ def test_reconcile_aggregate_data_missing_records(
         missing_in_tgt_count=0,
         mismatch=MismatchOutput(
             mismatch_columns=None,
-            mismatch_df=mock_spark.createDataFrame(
+            mismatch_df=spark.createDataFrame(
                 [
                     Row(
                         source_min_s_acctbal=11,
@@ -167,7 +169,7 @@ def test_reconcile_aggregate_data_missing_records(
     assertDataFrameEqual(actual[0].reconcile_output.mismatch.mismatch_df, expected.mismatch.mismatch_df)
 
 
-def expected_rule_output():
+def expected_rule_output() -> dict[str, AggregateRule]:
     count_rule_output = AggregateRule(
         agg_type="count",
         agg_column="s_name",
@@ -199,7 +201,7 @@ def expected_rule_output():
     return {"count": count_rule_output, "sum": sum_rule_output, "min": min_carat_output, "max": max_carat_output}
 
 
-def expected_reconcile_output_dict(spark):
+def expected_reconcile_output_dict(spark: SparkSession) -> dict[str, DataReconcileOutput]:
     count_reconcile_output = DataReconcileOutput(
         mismatch_count=1,
         missing_in_src_count=1,
@@ -251,7 +253,9 @@ def expected_reconcile_output_dict(spark):
     return {"count": count_reconcile_output, "sum": sum_reconcile_output}
 
 
-def _compare_reconcile_output(actual_reconcile_output: DataReconcileOutput, expected_reconcile: DataReconcileOutput):
+def _compare_reconcile_output(
+    actual_reconcile_output: DataReconcileOutput, expected_reconcile: DataReconcileOutput | None
+) -> None:
     # Reconcile Output validations
     if actual_reconcile_output and expected_reconcile:
         assert actual_reconcile_output.mismatch.mismatch_df, "Mismatch dataframe must be present"
@@ -285,15 +289,16 @@ def _compare_reconcile_output(actual_reconcile_output: DataReconcileOutput, expe
 
 
 def test_reconcile_aggregate_data_mismatch_and_missing_records(
-    mock_spark,
-    normalized_table_conf_with_opts,
-    table_schema_oracle_ansi,
-    query_store_special_char,
+    spark: SparkSession,
+    normalized_table_conf_with_opts: Table,
+    table_schema_oracle_ansi: tuple[list[Schema], list[Schema]],
+    query_store_special_char: AggregateQueryStore,
     tmp_path: Path,
-):
+) -> None:
     src_schema, tgt_schema = table_schema_oracle_ansi
     src_schema.append(ansi_schema_fixture_factory("$carat$", "number"))
     tgt_schema.append(ansi_schema_fixture_factory("$carat$", "number"))
+    assert normalized_table_conf_with_opts.select_columns is not None
     normalized_table_conf_with_opts.select_columns.append("`$carat$`")
     normalized_table_conf_with_opts.drop_columns = ["`s_acctbal`"]
     normalized_table_conf_with_opts.column_thresholds = None
@@ -316,7 +321,7 @@ def test_reconcile_aggregate_data_mismatch_and_missing_records(
             CATALOG,
             SCHEMA,
             query_store_special_char.agg_queries.source_agg_query,
-        ): mock_spark.createDataFrame(
+        ): spark.createDataFrame(
             [
                 source_df_model(101, 13, 1, 2, 11),
                 source_df_model(23, 11, 0, 1, 12),
@@ -338,7 +343,7 @@ def test_reconcile_aggregate_data_mismatch_and_missing_records(
             CATALOG,
             SCHEMA,
             query_store_special_char.agg_queries.target_agg_query,
-        ): mock_spark.createDataFrame(
+        ): spark.createDataFrame(
             [
                 target_df_model(101, 13, 1, 2, 11),
                 target_df_model(43, 9, 0, 1, 12),
@@ -361,9 +366,9 @@ def test_reconcile_aggregate_data_mismatch_and_missing_records(
         target,
         db_config,
         "",
-        SchemaCompare(mock_spark),
+        SchemaCompare(spark),
         get_dialect("snowflake"),
-        mock_spark,
+        spark,
         ReconcileMetadataConfig(),
         FakeReconIntermediatePersist(),
     ).reconcile_aggregates(normalized_table_conf_with_opts, src_schema, tgt_schema)
@@ -389,24 +394,24 @@ def test_reconcile_aggregate_data_mismatch_and_missing_records(
 
         # Reconcile Output validations
         _compare_reconcile_output(
-            actual.reconcile_output, expected_reconcile_output_dict(mock_spark).get(actual.rule.agg_type)
+            actual.reconcile_output, expected_reconcile_output_dict(spark).get(actual.rule.agg_type)
         )
 
 
-def test_run_with_invalid_operation_name(monkeypatch):
+def test_run_with_invalid_operation_name(monkeypatch: pytest.MonkeyPatch) -> None:
     test_args = ["databricks_labs_remorph", "invalid-operation"]
     monkeypatch.setattr(sys, 'argv', test_args)
-    with pytest.raises(AssertionError, match="Invalid option:"):
+    with pytest.raises(ValueError, match="Invalid arguments:"):
         main()
 
 
-def test_aggregates_reconcile_invalid_aggregates():
+def test_aggregates_reconcile_invalid_aggregates() -> None:
     invalid_agg_type_message = "Invalid aggregate type: std, only .* are supported."
     with pytest.raises(AssertionError, match=invalid_agg_type_message):
         Aggregate(agg_columns=["discount"], group_by_columns=["p_id"], type="STD")
 
 
-def test_aggregates_reconcile_aggregate_columns():
+def test_aggregates_reconcile_aggregate_columns() -> None:
     agg = Aggregate(agg_columns=["discount", "price"], group_by_columns=["p_dept_id", "p_sub_dept"], type="STDDEV")
 
     assert agg.get_agg_type() == "stddev"
@@ -419,7 +424,7 @@ def test_aggregates_reconcile_aggregate_columns():
     assert agg1.agg_columns_as_str == "discount"
 
 
-def test_aggregates_reconcile_aggregate_rule():
+def test_aggregates_reconcile_aggregate_rule() -> None:
     agg_rule = AggregateRule(
         agg_column="discount",
         group_by_columns=["p_dept_id", "p_sub_dept"],

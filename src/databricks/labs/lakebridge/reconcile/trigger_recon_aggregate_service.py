@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 
 from pyspark.sql import SparkSession
 from databricks.sdk import WorkspaceClient
@@ -11,11 +11,12 @@ from databricks.labs.lakebridge.reconcile.recon_capture import (
     generate_final_reconcile_aggregate_output,
     ReconCapture,
 )
-from databricks.labs.lakebridge.reconcile.recon_config import AGG_RECONCILE_OPERATION_NAME, Table
+from databricks.labs.lakebridge.reconcile.recon_config import Table
 from databricks.labs.lakebridge.reconcile.recon_output_config import (
     ReconcileProcessDuration,
     AggregateQueryOutput,
     DataReconcileOutput,
+    ReconcileOutput,
 )
 from databricks.labs.lakebridge.reconcile.reconciliation import Reconciliation
 from databricks.labs.lakebridge.reconcile.trigger_recon_service import TriggerReconService
@@ -30,11 +31,8 @@ class TriggerReconAggregateService:
         spark: SparkSession,
         table_recon: TableRecon,
         reconcile_config: ReconcileConfig,
-        local_test_run: bool = False,
-    ):
-        reconciler, recon_capture = TriggerReconService.create_recon_dependencies(
-            ws, spark, reconcile_config, local_test_run
-        )
+    ) -> ReconcileOutput:
+        reconciler, recon_capture = TriggerReconService.create_recon_dependencies(ws, spark, reconcile_config)
 
         try:
             for table_conf in table_recon.tables:
@@ -47,9 +45,8 @@ class TriggerReconAggregateService:
                     recon_id=recon_capture.recon_id,
                     spark=spark,
                     metadata_config=reconcile_config.metadata_config,
-                    local_test_run=local_test_run,
                 ),
-                operation_name=AGG_RECONCILE_OPERATION_NAME,
+                report_type="aggregate",
             )
         finally:
             try:
@@ -60,14 +57,14 @@ class TriggerReconAggregateService:
     @staticmethod
     def recon_aggregate_one(
         reconciler: Reconciliation, table_conf: Table, reconcile_config: ReconcileConfig, recon_capture: ReconCapture
-    ):
+    ) -> None:
         normalized_table_conf = NormalizeReconConfigService(
             reconciler.source, reconciler.target
         ).normalize_recon_table_config(table_conf)
         if not normalized_table_conf.aggregates:
             raise ValueError("Aggregates must be defined for Aggregates Reconciliation")
 
-        recon_process_duration = ReconcileProcessDuration(start_ts=str(datetime.now()), end_ts=None)
+        recon_process_duration = ReconcileProcessDuration(start_ts=str(datetime.now(tz=timezone.utc)), end_ts=None)
         try:
             src_schema, tgt_schema = TriggerReconService.get_schemas(
                 reconciler.source, reconciler.target, normalized_table_conf, reconcile_config.database_config, True
@@ -81,7 +78,7 @@ class TriggerReconAggregateService:
                 AggregateQueryOutput(reconcile_output=DataReconcileOutput(exception=str(e)), rule=None)
             ]
 
-        recon_process_duration.end_ts = str(datetime.now())
+        recon_process_duration.end_ts = str(datetime.now(tz=timezone.utc))
 
         recon_capture.store_aggregates_metrics(
             reconcile_agg_output_list=table_reconcile_agg_output_list,

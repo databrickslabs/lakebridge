@@ -97,8 +97,13 @@ def _load_credentials(path: Path) -> dict:
         raise FileNotFoundError(f"Credentials file not found at {path}") from e
 
 
-def create_credential_manager(product_name: str, env_getter: EnvGetter) -> CredentialManager:
-    creds_path = cred_file(product_name)
+def create_credential_manager(
+    product_name: str,
+    env_getter: EnvGetter,
+    creds_path: Path | None = None,
+) -> CredentialManager:
+    if creds_path is None:
+        creds_path = cred_file(product_name)
     creds = _load_credentials(creds_path)
 
     secret_providers = {

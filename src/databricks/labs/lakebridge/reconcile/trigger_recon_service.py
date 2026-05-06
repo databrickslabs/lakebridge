@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import uuid4
 
 from pyspark.errors import PySparkException
@@ -22,6 +22,7 @@ from databricks.labs.lakebridge.reconcile.recon_output_config import (
     ReconcileProcessDuration,
     SchemaReconcileOutput,
     DataReconcileOutput,
+    ReconcileTableOutput,
 )
 from databricks.labs.lakebridge.reconcile.reconciliation import Reconciliation
 from databricks.labs.lakebridge.reconcile.schema_compare import SchemaCompare
@@ -41,11 +42,8 @@ class TriggerReconService:
         spark: SparkSession,
         table_recon: TableRecon,
         reconcile_config: ReconcileConfig,
-        local_test_run: bool = False,
     ) -> ReconcileOutput:
-        reconciler, recon_capture = TriggerReconService.create_recon_dependencies(
-            ws, spark, reconcile_config, local_test_run
-        )
+        reconciler, recon_capture = TriggerReconService.create_recon_dependencies(ws, spark, reconcile_config)
 
         try:
             for table_conf in table_recon.tables:
@@ -56,8 +54,8 @@ class TriggerReconService:
                     recon_id=recon_capture.recon_id,
                     spark=spark,
                     metadata_config=reconcile_config.metadata_config,
-                    local_test_run=local_test_run,
-                )
+                ),
+                reconcile_config.report_type,
             )
         finally:
             try:
@@ -67,7 +65,7 @@ class TriggerReconService:
 
     @staticmethod
     def create_recon_dependencies(
-        ws: WorkspaceClient, spark: SparkSession, reconcile_config: ReconcileConfig, local_test_run: bool = False
+        ws: WorkspaceClient, spark: SparkSession, reconcile_config: ReconcileConfig
     ) -> tuple[Reconciliation, ReconCapture]:
         ws_client: WorkspaceClient = verify_workspace_client(ws)
 
@@ -105,7 +103,6 @@ class TriggerReconService:
             ws=ws_client,
             spark=spark,
             metadata_config=reconcile_config.metadata_config,
-            local_test_run=local_test_run,
         )
 
         return reconciler, recon_capture
@@ -137,7 +134,7 @@ class TriggerReconService:
 
     @staticmethod
     def _do_recon_one(reconciler: Reconciliation, reconcile_config: ReconcileConfig, table_conf: Table):
-        recon_process_duration = ReconcileProcessDuration(start_ts=str(datetime.now()), end_ts=None)
+        recon_process_duration = ReconcileProcessDuration(start_ts=str(datetime.now(tz=timezone.utc)), end_ts=None)
         schema_reconcile_output = SchemaReconcileOutput(is_valid=True)
         data_reconcile_output = DataReconcileOutput()
 
@@ -166,7 +163,7 @@ class TriggerReconService:
                 )
                 logger.info(f"Reconciliation for '{reconciler.report_type}' report completed.")
 
-        recon_process_duration.end_ts = str(datetime.now())
+        recon_process_duration.end_ts = str(datetime.now(tz=timezone.utc))
         return schema_reconcile_output, data_reconcile_output, recon_process_duration
 
     @staticmethod
@@ -218,21 +215,46 @@ class TriggerReconService:
             return DataReconcileOutput(exception=str(e))
 
     @staticmethod
-    def verify_successful_reconciliation(
-        reconcile_output: ReconcileOutput, operation_name: str = "reconcile"
-    ) -> ReconcileOutput:
-        for table_output in reconcile_output.results:
-            if table_output.exception_message or (
+    def verify_successful_reconciliation(reconcile_output: ReconcileOutput, report_type: str) -> ReconcileOutput:
+        def is_table_recon_mismatch(table_output: ReconcileTableOutput):
+            is_mismatch = (
                 table_output.status.column is False
                 or table_output.status.row is False
                 or table_output.status.schema is False
                 or table_output.status.aggregate is False
-            ):
-                raise ReconciliationException(
-                    f" Reconciliation failed for one or more tables. Please check the recon metrics for more details."
-                    f" **{operation_name}** failed.",
-                    reconcile_output=reconcile_output,
+            )
+            if is_mismatch:
+                logger.debug(
+                    f"Mismatches found between source and target tables:"
+                    f" ({table_output.source_table_name}, {table_output.target_table_name})."
                 )
 
-        logger.info("Reconciliation completed successfully.")
+            return is_mismatch
+
+        exceptions = [r for r in reconcile_output.results if r.exception_message]
+        mismatched = [r for r in reconcile_output.results if is_table_recon_mismatch(r)]
+
+        (total_count, exc_count, mismatched_count) = (len(reconcile_output.results), len(exceptions), len(mismatched))
+        success_count = max(0, total_count - exc_count + mismatched_count)
+
+        logger.info(
+            f"Reconciliation **{report_type}** with id: {reconcile_output.recon_id} ran for total {total_count} source tables and their targets."
+            f" {success_count} tables succeeded, {exc_count} tables failed with exceptions and {mismatched_count} tables mismatched."
+        )
+
+        if exceptions:
+            raise ReconciliationException(
+                f"Reconciliation **{report_type}** with id: {reconcile_output.recon_id} failed with exceptions for {exc_count} table(s). Please check recon metrics for details.",
+                reconcile_output=reconcile_output,
+            )
+
+        if mismatched:
+            logger.error(
+                f"Reconciliation **{report_type}** with id: {reconcile_output.recon_id} found mismatches in {mismatched_count} table(s). Please check recon metrics for details."
+            )
+        else:
+            logger.info(
+                f"Reconciliation **{report_type}** with id: {reconcile_output.recon_id} completed successfully. Please check recon metrics for details."
+            )
+
         return reconcile_output

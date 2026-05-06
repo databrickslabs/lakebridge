@@ -2,7 +2,7 @@ import logging
 import os
 import tempfile
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from functools import reduce, cached_property
 from pathlib import Path
 
@@ -45,6 +45,10 @@ class AbstractReconIntermediatePersist:
     def base_dir(self) -> Path:
         raise NotImplementedError
 
+    @property
+    def is_serverless(self) -> bool:
+        raise NotImplementedError
+
     def write_and_read_df_with_volumes(
         self,
         df: DataFrame,
@@ -68,6 +72,11 @@ class ReconIntermediatePersist(AbstractReconIntermediatePersist):
     @property
     def base_dir(self) -> Path:
         return Path(self._base_dir)
+
+    @cached_property
+    def is_serverless(self) -> bool:
+        is_serverless = os.getenv("IS_SERVERLESS", "").lower() == "true"
+        return is_serverless
 
     @property
     def _get_uc_volume_path(self):
@@ -117,9 +126,8 @@ def generate_final_reconcile_output(
     recon_id: str,
     spark: SparkSession,
     metadata_config: ReconcileMetadataConfig = ReconcileMetadataConfig(),
-    local_test_run: bool = False,
 ) -> ReconcileOutput:
-    _db_prefix = metadata_config.schema if local_test_run else f"{metadata_config.catalog}.{metadata_config.schema}"
+    _db_prefix = f"{metadata_config.catalog}.{metadata_config.schema}"
     recon_df = spark.sql(
         f"""
     SELECT
@@ -187,9 +195,8 @@ def generate_final_reconcile_aggregate_output(
     recon_id: str,
     spark: SparkSession,
     metadata_config: ReconcileMetadataConfig = ReconcileMetadataConfig(),
-    local_test_run: bool = False,
 ) -> ReconcileOutput:
-    _db_prefix = "default" if local_test_run else f"{metadata_config.catalog}.{metadata_config.schema}"
+    _db_prefix = f"{metadata_config.catalog}.{metadata_config.schema}"
     recon_df = spark.sql(
         f"""
         SELECT source_table,
@@ -253,7 +260,6 @@ class ReconCapture:
         ws: WorkspaceClient,
         spark: SparkSession,
         metadata_config: ReconcileMetadataConfig = ReconcileMetadataConfig(),
-        local_test_run: bool = False,
     ):
         self.database_config = database_config
         self.recon_id = recon_id
@@ -261,9 +267,7 @@ class ReconCapture:
         self.source_dialect = source_dialect
         self.ws = ws
         self.spark = spark
-        self._db_prefix = (
-            metadata_config.schema if local_test_run else f"{metadata_config.catalog}.{metadata_config.schema}"
-        )
+        self._db_prefix = f"{metadata_config.catalog}.{metadata_config.schema}"
 
     def _generate_recon_main_id(
         self,
@@ -375,7 +379,7 @@ class ReconCapture:
         if data_reconcile_output.exception is not None:
             exception_msg = data_reconcile_output.exception.replace("'", '').replace('"', '')
 
-        insertion_time = str(datetime.now())
+        insertion_time = str(datetime.now(tz=timezone.utc))
         mismatch_columns = []
         if data_reconcile_output.mismatch and data_reconcile_output.mismatch.mismatch_columns:
             mismatch_columns = data_reconcile_output.mismatch.mismatch_columns
@@ -384,6 +388,8 @@ class ReconCapture:
             f"""
                 select {recon_table_id} as recon_table_id,
                 named_struct(
+                    'source_record_count', cast({record_count.source} as bigint),
+                    'target_record_count', cast({record_count.target} as bigint),
                     'row_comparison', case when '{self.report_type.lower()}' in ('all', 'row', 'data')
                         and '{exception_msg}' = '' then
                      named_struct(
@@ -430,7 +436,7 @@ class ReconCapture:
             df.withColumn("recon_table_id", lit(recon_table_id))
             .withColumn("recon_type", lit(recon_type))
             .withColumn("status", lit(status))
-            .withColumn("inserted_ts", lit(datetime.now()))
+            .withColumn("inserted_ts", lit(datetime.now(tz=timezone.utc)))
         )
         return (
             df.groupBy("recon_table_id", "recon_type", "status", "inserted_ts")
@@ -546,7 +552,7 @@ class ReconCapture:
             if agg_data.exception is not None:
                 exception_msg = agg_data.exception.replace("'", '').replace('"', '')
 
-            insertion_time = str(datetime.now())
+            insertion_time = str(datetime.now(tz=timezone.utc))
 
             # If there is any exception while running the Query,
             # each rule is stored, with the Exception message in the metrics table
@@ -656,7 +662,7 @@ class ReconCapture:
             rule_query = agg_output.rule.get_rule_query(rule_id)
             rule_df_list.append(
                 self.spark.sql(rule_query)
-                .withColumn("inserted_ts", lit(datetime.now()))
+                .withColumn("inserted_ts", lit(datetime.now(tz=timezone.utc)))
                 .select("rule_id", "rule_type", "rule_info", "inserted_ts")
             )
 
