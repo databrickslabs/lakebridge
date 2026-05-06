@@ -9,6 +9,8 @@ from databricks.sdk import WorkspaceClient
 from databricks.sdk.errors import PermissionDenied, NotFound, InternalError
 from databricks.sdk.errors.platform import AlreadyExists, DatabricksError
 
+from databricks.labs.blueprint.installation import MockInstallation
+from databricks.labs.blueprint.installer import InstallState
 from databricks.labs.blueprint.wheels import find_project_root
 from databricks.labs.lakebridge.config import (
     ProfilerDashboardConfig,
@@ -209,7 +211,6 @@ def testcreate_or_replace_dashboard_reraises_databricks_error(
 
 def test_create_or_replace_dashboard_retries_on_already_exists(
     tmp_path: Path,
-    dashboard_manager: ProfilerDashboardManager,
     mocked_workspace_client: WorkspaceClient,
     monkeypatch: pytest.MonkeyPatch,
 ):
@@ -220,13 +221,17 @@ def test_create_or_replace_dashboard_retries_on_already_exists(
     folder.mkdir()
     monkeypatch.setattr(ProfilerDashboardTemplateLoader, "load", lambda _self, _source_system: {"datasets": []})
 
-    dashboard_manager._install_state.dashboards["teradata"] = "old-dashboard-id"
+    installation = MockInstallation(is_global=False)
+    install_state = InstallState.from_installation(installation)
+    install_state.dashboards["teradata"] = "old-dashboard-id"
+    manager = ProfilerDashboardManager(ws, installation, install_state)
+
     ws.lakeview.create.side_effect = [
         AlreadyExists("duplicate name"),
         SimpleNamespace(dashboard_id="new-dashboard-id"),
     ]
 
-    result = dashboard_manager.create_or_replace_dashboard(
+    result = manager.create_or_replace_dashboard(
         folder=folder,
         ws_parent_path="/Workspace/Users/test/.lakebridge/dashboards",
         dest_catalog="lakebridge_profiler",
@@ -238,4 +243,4 @@ def test_create_or_replace_dashboard_retries_on_already_exists(
     ws.lakeview.trash.assert_called_once_with("old-dashboard-id")
     ws.workspace.delete.assert_called_once()
     assert ws.lakeview.create.call_count == 2
-    assert dashboard_manager._install_state.dashboards["teradata"] == "new-dashboard-id"
+    assert install_state.dashboards["teradata"] == "new-dashboard-id"

@@ -242,13 +242,13 @@ class ProfilerDashboardManager:
                 try:
                     self._ws.lakeview.trash(existing_id)
                 except (NotFound, InvalidParameterValue):
-                    logger.debug("Could not trash prior dashboard id %s (may already be removed).", existing_id)
+                    logger.debug(f"Could not trash prior dashboard id {existing_id} (may already be removed).")
                 self._install_state.dashboards.pop(dash_reference, None)
             dashboard_ws_path = str(Path(ws_parent_path) / f"{dashboard_name}.lvdash.json")
             try:
                 self._ws.workspace.delete(dashboard_ws_path)
             except NotFound:
-                logger.debug("Workspace dashboard file already absent: %s", dashboard_ws_path)
+                logger.debug(f"Workspace dashboard file already absent: {dashboard_ws_path}")
             dashboard = self._ws.lakeview.create(dashboard=dashboard)
         except DatabricksError as e:
             logger.error(f"Could not create profiler summary dashboard: {e}")
