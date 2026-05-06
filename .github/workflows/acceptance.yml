@@ -54,7 +54,8 @@ jobs:
           directory: ${{ github.workspace }}
           timeout: 2h
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
           ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LAKEBRIDGE_MAVEN_URL: "https://databricks.jfrog.io/artifactory/db-maven"
           TEST_ENV: 'ACCEPTANCE'
