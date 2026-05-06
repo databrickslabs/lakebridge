@@ -47,11 +47,13 @@ DIAMONDS_ROWS_SQL = """
                         (0.31, 'Good', 'J', 'SI2', '2000-01-01'); \
                     """
 
+TSQL_CONNECTION = "sqlserver_sandbox"
 TSQL_CATALOG = "labs_azure_sandbox_remorph"
 TSQL_SCHEMA = "dbo"
 TSQL_TABLE = "diamonds_big_column"
-SNOWFLAKE_CATALOG = "REMORPH"
-SNOWFLAKE_SCHEMA = "SANDBOX"
+SNOWFLAKE_CONNECTION = "sf_sandbox"
+SNOWFLAKE_CATALOG = "INTEGRATION"
+SNOWFLAKE_SCHEMA = "LAKEBRIDGE"
 SNOWFLAKE_TABLE = "DIAMONDS"
 
 
@@ -219,7 +221,7 @@ def tsql_recon_config(recon_cluster: str, recon_schema: SchemaInfo, make_volume)
             dialect="tsql",
             catalog=TSQL_CATALOG,
             schema=TSQL_SCHEMA,
-            uc_connection_name="sqlserver_sandbox",
+            uc_connection_name=TSQL_CONNECTION,
         ),
         target=TargetConnectionConfig(
             catalog=recon_schema.catalog_name,
@@ -250,7 +252,7 @@ def snowflake_recon_config(recon_cluster: str, recon_schema: SchemaInfo, make_vo
             dialect="snowflake",
             catalog=SNOWFLAKE_CATALOG,
             schema=SNOWFLAKE_SCHEMA,
-            uc_connection_name="snowflake_sandbox",
+            uc_connection_name=SNOWFLAKE_CONNECTION,
         ),
         target=TargetConnectionConfig(
             catalog=recon_schema.catalog_name,
