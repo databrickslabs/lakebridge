@@ -216,7 +216,7 @@ def tsql_recon_config(recon_cluster: str, recon_schema: SchemaInfo, make_volume)
     assert recon_schema.catalog_name
     assert recon_schema.name
     return ReconcileConfig(
-        report_type="row",
+        report_type="all",
         source=SourceConnectionConfig(
             dialect="tsql",
             catalog=TSQL_CATALOG,
