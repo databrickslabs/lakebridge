@@ -18,50 +18,6 @@ import CodeBlock from '@theme/CodeBlock';
 
 [[back to top](#types-of-report-supported)]
 
-## Report Type-Flow Chart
----
-```mermaid
-flowchart TD
-    REPORT_TYPE --> DATA
-    REPORT_TYPE --> SCHEMA
-    REPORT_TYPE --> ROW
-    REPORT_TYPE --> ALL
-```
-
----
-
-```mermaid
-flowchart TD
-    SCHEMA --> SCHEMA_VALIDATION
-```
----
-
-```mermaid
-flowchart TD
-    ROW --> MISSING_IN_SRC
-    ROW --> MISSING_IN_TGT
-```
----
-
-```mermaid
-flowchart TD
-   DATA --> MISMATCH_ROWS
-   DATA --> MISSING_IN_SRC
-   DATA --> MISSING_IN_TGT
-```
----
-
-```mermaid
-flowchart TD
-    ALL --> MISMATCH_ROWS
-    ALL --> MISSING_IN_SRC
-    ALL --> MISSING_IN_TGT
-    ALL --> SCHEMA_VALIDATION
-```
----
-
-[[back to top](#types-of-report-supported)]
-
 ## Supported Source System
 
 | Source                        | Schema | Row | Data | All |
@@ -599,6 +555,50 @@ on top of this.
 
 [[back to top](#types-of-report-supported)]
 
+## Report Type-Flow Chart
+---
+```mermaid
+flowchart TD
+    REPORT_TYPE --> DATA
+    REPORT_TYPE --> SCHEMA
+    REPORT_TYPE --> ROW
+    REPORT_TYPE --> ALL
+```
+
+---
+
+```mermaid
+flowchart TD
+    SCHEMA --> SCHEMA_VALIDATION
+```
+---
+
+```mermaid
+flowchart TD
+    ROW --> MISSING_IN_SRC
+    ROW --> MISSING_IN_TGT
+```
+---
+
+```mermaid
+flowchart TD
+   DATA --> MISMATCH_ROWS
+   DATA --> MISSING_IN_SRC
+   DATA --> MISSING_IN_TGT
+```
+---
+
+```mermaid
+flowchart TD
+    ALL --> MISMATCH_ROWS
+    ALL --> MISSING_IN_SRC
+    ALL --> MISSING_IN_TGT
+    ALL --> SCHEMA_VALIDATION
+```
+---
+
+[[back to top](#types-of-report-supported)]
+
 ## Aggregates Reconciliation
 
 Aggregates Reconcile is an utility to streamline the reconciliation process, specific aggregate metric is compared
@@ -632,21 +632,6 @@ between source and target data residing on Databricks.
 [[back to aggregates-reconciliation](#aggregates-reconciliation)]
 
 [[back to top](#types-of-report-supported)]
-
-### Flow Chart
-
-```mermaid
-flowchart TD
-   Aggregates-Reconcile --> MISMATCH_ROWS
-   Aggregates-Reconcile --> MISSING_IN_SRC
-   Aggregates-Reconcile --> MISSING_IN_TGT
-```
-
-
-[[back to aggregates-reconciliation](#aggregates-reconciliation)]
-
-[[back to top](#types-of-report-supported)]
-
 
 ### Aggregate
 
@@ -748,6 +733,21 @@ Key Considerations:
 [[back to aggregates-reconciliation](#aggregates-reconciliation)]
 
 [[back to top](#types-of-report-supported)]
+
+### Flow Chart
+
+```mermaid
+flowchart TD
+   Aggregates-Reconcile --> MISMATCH_ROWS
+   Aggregates-Reconcile --> MISSING_IN_SRC
+   Aggregates-Reconcile --> MISSING_IN_TGT
+```
+
+
+[[back to aggregates-reconciliation](#aggregates-reconciliation)]
+
+[[back to top](#types-of-report-supported)]
+
 
 
 

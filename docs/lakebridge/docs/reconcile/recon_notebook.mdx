@@ -45,8 +45,7 @@ from databricks.labs.lakebridge.config import (
     ReconcileMetadataConfig,
     TableRecon,
     SourceConnectionConfig,
-    TargetConnectionConfig,
-    ReconcileJobConfig
+    TargetConnectionConfig
 )
 from databricks.labs.lakebridge.reconcile.recon_config import (
     Table,
@@ -73,7 +72,6 @@ class ReconcileConfig:
     source: SourceConnectionConfig
     target: TargetConnectionConfig
     metadata_config: ReconcileMetadataConfig
-    job_overrides: ReconcileJobConfig | None = None
 ```
 Parameters:
 
