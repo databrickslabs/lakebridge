@@ -41,10 +41,11 @@ Import all the necessary modules.
 from databricks.sdk import WorkspaceClient
 
 from databricks.labs.lakebridge.config import (
-    DatabaseConfig,
     ReconcileConfig,
     ReconcileMetadataConfig,
-    TableRecon
+    TableRecon,
+    SourceConnectionConfig,
+    TargetConnectionConfig
 )
 from databricks.labs.lakebridge.reconcile.recon_config import (
     Table,
@@ -67,29 +68,35 @@ We use the class `ReconcileConfig` to configure the properties required for reco
 ```python
 @dataclass
 class ReconcileConfig:
-    data_source: str
     report_type: str
-    secret_scope: str
-    database_config: DatabaseConfig
+    source: SourceConnectionConfig
+    target: TargetConnectionConfig
     metadata_config: ReconcileMetadataConfig
 ```
 Parameters:
 
-- `data_source`: The data source to be reconciled. Supported values: `snowflake`, `oracle`, `mssql`, `synapse`, `databricks`.
 - `report_type`: The type of report to be generated. Available report types are `schema`, `row`, `data` or `all`. For details check [here](./dataflow_example.mdx).
-- `secret_scope`: The secret scope name used to store the connection credentials for the source database system.
-- `database_config`: The database configuration for connecting to the source database. expects a `DatabaseConfig` object.
-    - `source_schema`: The source schema name.
-    - `target_catalog`: The target catalog name.
-    - `target_schema`: The target schema name (Databricks).
-    - `source_catalog`: The source catalog name. (Optional and is applied to the source system that support catalog).
+- `source`: The configuration for connecting to the source database to be reconciled.
+    - `dialect`: The dialect of the source. Supported values: `snowflake`, `oracle`, `mssql`, `synapse`, `databricks`.
+    - `catalog`: The source database/catalog name. catalog is used for consistency in naming
+    - `schema`: The source schema name.
+    - `uc_connection_name`: the connection name for the source as configured in workspace `Connections`. Not allowed for `databricks`
 ```python
 @dataclass
-class DatabaseConfig:
-    source_schema: str
-    target_catalog: str
-    target_schema: str
-    source_catalog: str | None = None
+class SourceConnectionConfig:
+    dialect: str
+    catalog: str
+    schema: str
+    uc_connection_name: str | None = None
+```
+- `target`: The specs of the target databricks catalog to be reconciled.
+    - `catalog`: The target catalog name.
+    - `schema`: The target schema name.
+```python
+@dataclass
+class TargetConnectionConfig:
+    catalog: str
+    schema: str
 ```
 - `metadata_config`: The metadata configuration. Reconcile uses this catalog & Schema on Databricks to store all the backend
 metadata details for reconciliation. expects a `ReconcileMetadataConfig` object.
@@ -105,28 +112,33 @@ class ReconcileMetadataConfig:
 If not set the default values will be used to store the metadata. The default resources are created during the installation
 of Lakebridge.
 
+
 An Example of configuring the Reconcile properties:
 
 ```python
 from databricks.labs.lakebridge.config import (
-    DatabaseConfig,
     ReconcileConfig,
-    ReconcileMetadataConfig
+    ReconcileMetadataConfig,
+    SourceConnectionConfig,
+    TargetConnectionConfig,
 )
 
-reconcile_config = ReconcileConfig(
-         data_source = "snowflake",
-         report_type = "all",
-         secret_scope = "snowflake-credential",
-         database_config= DatabaseConfig(source_catalog="source_sf_catalog",
-                                         source_schema="source_sf_schema",
-                                         target_catalog="target_databricks_catalog",
-                                         target_schema="target_databricks_schema"
-                          ),
-         metadata_config = ReconcileMetadataConfig(
+ReconcileConfig(
+        report_type="all",
+        source=SourceConnectionConfig(
+            dialect="snowflake",
+            catalog="source_sf_catalog",
+            schema="source_sf_schema",
+            uc_connection_name="source_connection_name"
+        ),
+        target=TargetConnectionConfig(
+            catalog="target_databricks_catalog",
+            schema="target_databricks_schema",
+        ),
+        metadata_config = ReconcileMetadataConfig(
               catalog = "lakebridge_metadata",
               schema= "reconcile"
-         )
+         ),
     )
 ```
 
@@ -139,10 +151,6 @@ We use the class `TableRecon` to configure the tables to be reconciled.
 class TableRecon:
     tables: list[Table]
 ```
-
-:::note
-Schema and catalog information are configured using `DatabaseConfig` inside `ReconcileConfig` (see above).
-:::
 
 An Example Table properties for reconciliation:
 
@@ -189,7 +197,7 @@ table_recon = TableRecon(
               )
             ],
             jdbc_reader_options=JdbcReaderOptions(
-                number_partitions=50,
+                num_partitions=50,
                 partition_column="lct_nbr",
                 lower_bound="1",
                 upper_bound="50000",

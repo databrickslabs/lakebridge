@@ -112,7 +112,7 @@ def test_build_threshold_query_with_multiple_threshold(
 ):
     table_conf = normalized_table_conf_with_opts
     table_conf.jdbc_reader_options = JdbcReaderOptions(
-        number_partitions=100, partition_column="`s_phone`", lower_bound="0", upper_bound="100"
+        num_partitions=100, partition_column="`s_phone`", lower_bound="0", upper_bound="100"
     )
     table_conf.column_thresholds = [
         ColumnThresholds(column_name="`s_acctbal`", lower_bound="5%", upper_bound="-5%", type="float"),

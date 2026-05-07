@@ -1103,10 +1103,9 @@ def test_profiler_connection(
         raw_config = cred_manager.get_credentials(source_tech)
     except KeyError as e:
         logger.error(f"Credential configuration error: {e}")
-        logger.fatal(
+        raise SystemExit(
             f"Invalid credentials for {source_tech}. Please run `databricks labs lakebridge configure-database-profiler`."
-        )
-        return
+        ) from e
 
     try:
         _test_database_connection(source_tech, raw_config)
@@ -1114,13 +1113,11 @@ def test_profiler_connection(
         logger.error(f"Failed to connect to the source system: {e}")
         error_msg = str(e).lower()
         if any(pattern in error_msg for pattern in ("im002", "odbc driver not found", "can't open lib")):
-            logger.fatal("Missing ODBC driver, Please install pre-req. Exiting...")
-        else:
-            logger.fatal("Connection validation failed. Exiting...")
-    except Exception as e:  # pylint: disable=broad-exception-caught
-        # Catch all exceptions to provide user-friendly error messages for CLI
+            raise SystemExit("Missing ODBC driver, Please install pre-req. Exiting...") from e
+        raise SystemExit("Connection validation failed. Exiting...") from e
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Unexpected error during connection test: {e}")
-        logger.fatal("Connection test failed. Exiting...")
+        raise SystemExit("Connection test failed. Exiting...") from e
 
 
 if __name__ == "__main__":

@@ -4,10 +4,11 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from databricks.labs.lakebridge.config import (
-    DatabaseConfig,
     ReconcileConfig,
     ReconcileMetadataConfig,
+    SourceConnectionConfig,
     TableRecon,
+    TargetConnectionConfig,
 )
 from databricks.labs.lakebridge.reconcile.exception import ReconciliationException
 from databricks.labs.lakebridge.reconcile.recon_output_config import ReconcileTableOutput, ReconcileOutput, StatusOutput
@@ -75,12 +76,9 @@ def test_raises_on_exception_message() -> None:
 
 def _build_aggregate_reconcile_config() -> ReconcileConfig:
     return ReconcileConfig(
-        data_source="databricks",
         report_type="aggregate",
-        secret_scope="scope",
-        database_config=DatabaseConfig(
-            source_catalog="cat", source_schema="src", target_catalog="cat", target_schema="tgt"
-        ),
+        source=SourceConnectionConfig(dialect="databricks", catalog="cat", schema="src"),
+        target=TargetConnectionConfig(catalog="cat", schema="tgt"),
         metadata_config=ReconcileMetadataConfig(catalog="cat", schema="recon", volume="vol"),
     )
 
@@ -105,14 +103,12 @@ def test_trigger_recon_dispatches_aggregate_to_aggregate_service() -> None:
                 spark=spark,
                 table_recon=table_recon,
                 reconcile_config=reconcile_config,
-                local_test_run=True,
             )
 
     mock_aggregate.assert_called_once()
     _, kwargs = mock_aggregate.call_args
     assert kwargs["reconcile_config"] is reconcile_config
     assert kwargs["table_recon"] is table_recon
-    assert kwargs["local_test_run"] is True
     # Aggregate path must not touch the data-path setup
     mock_deps.assert_not_called()
     assert result is expected

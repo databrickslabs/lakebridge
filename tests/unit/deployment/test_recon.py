@@ -11,7 +11,8 @@ from databricks.sdk.service import iam
 from databricks.labs.lakebridge.config import (
     LakebridgeConfiguration,
     ReconcileConfig,
-    DatabaseConfig,
+    SourceConnectionConfig,
+    TargetConnectionConfig,
     ReconcileMetadataConfig,
 )
 from databricks.labs.lakebridge.deployment.dashboard import DashboardDeployment
@@ -54,14 +55,16 @@ def test_install_missing_config(ws):
 
 def test_install(ws):
     reconcile_config = ReconcileConfig(
-        data_source="snowflake",
         report_type="all",
-        secret_scope="remorph_snowflake4",
-        database_config=DatabaseConfig(
-            source_catalog="snowflake_sample_data4",
-            source_schema="tpch_sf10004",
-            target_catalog="tpch4",
-            target_schema="1000gb4",
+        source=SourceConnectionConfig(
+            dialect="snowflake",
+            catalog="snowflake_sample_data4",
+            schema="tpch_sf10004",
+            uc_connection_name="remorph_snowflake4",
+        ),
+        target=TargetConnectionConfig(
+            catalog="tpch4",
+            schema="1000gb4",
         ),
         metadata_config=ReconcileMetadataConfig(
             catalog="remorph4",
@@ -147,14 +150,16 @@ def test_uninstall_missing_config(ws):
 
 def test_uninstall(ws):
     recon_config = ReconcileConfig(
-        data_source="snowflake",
         report_type="all",
-        secret_scope="remorph_snowflake5",
-        database_config=DatabaseConfig(
-            source_catalog="snowflake_sample_data5",
-            source_schema="tpch_sf10005",
-            target_catalog="tpch5",
-            target_schema="1000gb5",
+        source=SourceConnectionConfig(
+            dialect="snowflake",
+            catalog="snowflake_sample_data5",
+            schema="tpch_sf10005",
+            uc_connection_name="remorph_snowflake5",
+        ),
+        target=TargetConnectionConfig(
+            catalog="tpch5",
+            schema="1000gb5",
         ),
         metadata_config=ReconcileMetadataConfig(
             catalog="remorph5",
