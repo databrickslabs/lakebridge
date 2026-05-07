@@ -37,13 +37,10 @@ fmt:
 	$(UV_RUN) mypy --disable-error-code 'annotation-unchecked' .
 	$(UV_RUN) pylint --output-format=colorized -j 0 src tests
 
-setup_spark_remote:
-	.github/scripts/setup_spark_remote.sh
-
 test:
 	$(UV_TEST) --cov-report=xml tests/unit
 
-integration: setup_spark_remote
+integration:
 	$(UV_TEST) tests/integration
 
 coverage:

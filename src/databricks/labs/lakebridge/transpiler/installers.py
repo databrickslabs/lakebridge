@@ -9,10 +9,11 @@ import subprocess
 import sys
 import venv
 import xml.etree.ElementTree as ET
+from abc import ABC, abstractmethod
 from pathlib import Path
 from shutil import rmtree
 from types import SimpleNamespace
-from typing import Literal
+from typing import Literal, ClassVar
 from zipfile import ZipFile
 
 import requests
@@ -296,38 +297,65 @@ class WheelInstaller(ArtifactInstaller):
         subprocess.run(args, stdin=sys.stdin, stdout=sys.stdout, stderr=sys.stderr, cwd=self._install_path, check=True)
 
 
-class MavenInstaller(ArtifactInstaller):
-    # Maven Central, base URL.
-    _maven_central_repo: str = "https://repo.maven.apache.org/maven2/"
+class MavenClient(ABC):
+    @abstractmethod
+    def get_current_maven_artifact_version(self, group_id: str, artifact_id: str) -> str | None: ...
+
+    @abstractmethod
+    def download_artifact_from_maven(
+        self,
+        group_id: str,
+        artifact_id: str,
+        version: str,
+        target: Path,
+        classifier: str | None = None,
+        extension: str = "jar",
+    ) -> bool: ...
 
     @classmethod
-    def _artifact_base_url(cls, group_id: str, artifact_id: str) -> str:
+    def default(cls) -> "MavenClient":
+        return MavenLite()
+
+
+class MavenLite(MavenClient):
+    """Lightweight non-mvn-based client for installing artifacts from Maven Central.
+
+    This client uses direct HTTP calls, instead of the mvn command-line tool.
+
+    By default Maven Central will be used: https://repo.maven.apache.org/maven2
+    This can be overridden by setting LAKEBRIDGE_MAVEN_URL in the environment to a mirror. (Credentials will be sourced
+    if necessary via ~/.netrc, or the alternate location referred to by the NETRC environment variable.)
+    """
+
+    # Maven Central, base URL.
+    _maven_central_repo: ClassVar[str] = "https://repo.maven.apache.org/maven2"
+
+    @classmethod
+    def _normalise_maven_url(cls, url: str) -> str:
+        # Ensure URL ends with '/' so that concatenation builds a path.
+        return url if url.endswith("/") else f"{url}/"
+
+    def _artifact_base_url(self, group_id: str, artifact_id: str) -> str:
         """Construct the base URL for a Maven artifact."""
         # Reference: https://maven.apache.org/repositories/layout.html
         group_path = group_id.replace(".", "/")
-        return f"{cls._maven_central_repo}{group_path}/{artifact_id}/"
+        return f"{self._maven_repo_url}{group_path}/{artifact_id}/"
 
-    @classmethod
-    def artifact_metadata_url(cls, group_id: str, artifact_id: str) -> str:
+    def artifact_metadata_url(self, group_id: str, artifact_id: str) -> str:
         """Get the metadata URL for a Maven artifact."""
-        # TODO: Unit test this method.
-        return f"{cls._artifact_base_url(group_id, artifact_id)}maven-metadata.xml"
+        return f"{self._artifact_base_url(group_id, artifact_id)}maven-metadata.xml"
 
-    @classmethod
     def artifact_url(
-        cls, group_id: str, artifact_id: str, version: str, classifier: str | None = None, extension: str = "jar"
+        self, group_id: str, artifact_id: str, version: str, classifier: str | None = None, extension: str = "jar"
     ) -> str:
         """Get the URL for a versioned Maven artifact."""
-        # TODO: Unit test this method, including classifier and extension.
         _classifier = f"-{classifier}" if classifier else ""
-        artifact_base_url = cls._artifact_base_url(group_id, artifact_id)
+        artifact_base_url = self._artifact_base_url(group_id, artifact_id)
         return f"{artifact_base_url}{version}/{artifact_id}-{version}{_classifier}.{extension}"
 
-    @classmethod
-    def get_current_maven_artifact_version(cls, group_id: str, artifact_id: str) -> str | None:
-        url = cls.artifact_metadata_url(group_id, artifact_id)
+    def get_current_maven_artifact_version(self, group_id: str, artifact_id: str) -> str | None:
+        url = self.artifact_metadata_url(group_id, artifact_id)
         try:
-            # TODO: Use a user-agent that identifies this application.
             response = requests.get(url, timeout=_DEFAULT_HTTP_TIMEOUT)
             response.raise_for_status()
             # Content will be XML.
@@ -336,7 +364,7 @@ class MavenInstaller(ArtifactInstaller):
             logger.error(f"Error while fetching maven metadata: {group_id}:{artifact_id}", exc_info=e)
             return None
         logger.debug(f"Maven metadata for {group_id}:{artifact_id}: {text}")
-        return cls._extract_latest_release_version(text)
+        return self._extract_latest_release_version(text)
 
     @classmethod
     def _extract_latest_release_version(cls, maven_metadata: str) -> str | None:
@@ -350,9 +378,8 @@ class MavenInstaller(ArtifactInstaller):
                 return version
         return root.findtext("./versioning/versions/version[last()]")
 
-    @classmethod
     def download_artifact_from_maven(
-        cls,
+        self,
         group_id: str,
         artifact_id: str,
         version: str,
@@ -363,7 +390,7 @@ class MavenInstaller(ArtifactInstaller):
         if target.exists():
             logger.warning(f"Skipping download of {group_id}:{artifact_id}:{version}; target already exists: {target}")
             return True
-        url = cls.artifact_url(group_id, artifact_id, version, classifier, extension)
+        url = self.artifact_url(group_id, artifact_id, version, classifier, extension)
         tmp_target = target.parent / f".{target.name}.download"
         try:
             # TODO: Use a user-agent that identifies this application.
@@ -382,16 +409,31 @@ class MavenInstaller(ArtifactInstaller):
         logger.info(f"Successfully installed: {group_id}:{artifact_id}:{version}")
         return True
 
+    def __init__(self, maven_repo_url: str | None = None) -> None:
+        if maven_repo_url is None:
+            if (maven_repo_url := os.environ.get("LAKEBRIDGE_MAVEN_URL")) is not None:
+                logger.debug(f"Using LAKEBRIDGE_MAVEN_URL override for maven artifacts: {maven_repo_url}")
+            else:
+                maven_repo_url = self._maven_central_repo
+        self._maven_repo_url = self._normalise_maven_url(maven_repo_url)
+
+
+class MavenInstaller(ArtifactInstaller):
     def __init__(
         self,
         repository: TranspilerRepository,
         artifact_id: str,
         group_id: str,
         artifact: Path | None = None,
+        *,
+        maven_client: MavenClient | None = None,
     ) -> None:
         super().__init__(repository, artifact_id)
+        if maven_client is None:
+            maven_client = MavenClient.default()
         self._group_id = group_id
         self._artifact = artifact
+        self._maven_client = maven_client
 
     def install(self) -> Path | None:
         return self._install_checking_versions()
@@ -400,7 +442,7 @@ class MavenInstaller(ArtifactInstaller):
         if self._artifact:
             latest_version = self.get_local_artifact_version(self._artifact)
         else:
-            latest_version = self.get_current_maven_artifact_version(self._group_id, self._artifact_id)
+            latest_version = self._maven_client.get_current_maven_artifact_version(self._group_id, self._artifact_id)
         if latest_version is None:
             logger.warning(f"Could not determine the latest version of Databricks {self._artifact_id} transpiler")
             logger.error(f"Failed to install transpiler: Databricks {self._artifact_id} transpiler")
@@ -416,7 +458,9 @@ class MavenInstaller(ArtifactInstaller):
         if self._artifact:
             logger.debug(f"Copying: {self._artifact} -> {jar_file_path}")
             shutil.copyfile(self._artifact, jar_file_path)
-        elif not self.download_artifact_from_maven(self._group_id, self._artifact_id, version, jar_file_path):
+        elif not self._maven_client.download_artifact_from_maven(
+            self._group_id, self._artifact_id, version, jar_file_path
+        ):
             logger.error(f"Failed to install Databricks {self._artifact_id} transpiler (v{version})")
             return False
         self._copy_lsp_config(jar_file_path)
