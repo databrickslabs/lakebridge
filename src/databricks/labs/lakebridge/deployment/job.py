@@ -107,7 +107,7 @@ class JobDeployment:
             compute.Library(whl=lakebridge_wheel_path),
         ]
 
-        if recon_config.data_source == ReconSourceType.ORACLE.value:
+        if recon_config.source.dialect == ReconSourceType.ORACLE.value:
             # TODO: Automatically fetch a version list for `ojdbc8`
             oracle_driver_version = "23.4.0.24.05"
             libraries.append(

@@ -71,14 +71,16 @@ class TriggerReconService:
 
         # validate the report type
         report_type = reconcile_config.report_type.lower()
-        logger.info(f"report_type: {report_type}, data_source: {reconcile_config.data_source} ")
+        source_dialect = reconcile_config.source.dialect
+        logger.info(f"report_type: {report_type}, data_source: {source_dialect} ")
         utils.validate_input(report_type, _RECON_REPORT_TYPES, "Invalid report type")
 
+        # validate the connection
         source, target = utils.initialise_data_source(
-            engine=reconcile_config.data_source,
+            source_dialect=reconcile_config.source.dialect,
             spark=spark,
             ws=ws_client,
-            secret_scope=reconcile_config.secret_scope,
+            connection_name=reconcile_config.source.uc_connection_name,
         )
 
         recon_id = uuid4().hex
@@ -89,7 +91,7 @@ class TriggerReconService:
             reconcile_config.database_config,
             report_type,
             SchemaCompare(spark=spark),
-            get_dialect(reconcile_config.data_source),
+            get_dialect(source_dialect),
             spark,
             metadata_config=reconcile_config.metadata_config,
             intermediate_persist=ReconIntermediatePersist(spark, reconcile_config.metadata_config),
@@ -99,7 +101,7 @@ class TriggerReconService:
             database_config=reconcile_config.database_config,
             recon_id=recon_id,
             report_type=report_type,
-            source_dialect=get_dialect(reconcile_config.data_source),
+            source_dialect=get_dialect(source_dialect),
             ws=ws_client,
             spark=spark,
             metadata_config=reconcile_config.metadata_config,

@@ -14,20 +14,19 @@ from databricks.labs.blueprint.paths import WorkspacePath
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.errors.platform import PermissionDenied
 from databricks.sdk.service.catalog import TableInfo, SchemaInfo
-from databricks.sdk.service.compute import DataSecurityMode, Kind, ClusterDetails
 
 from databricks.labs.lakebridge.config import (
-    DatabaseConfig,
     LakebridgeConfiguration,
     ReconcileConfig,
     ReconcileJobConfig,
     ReconcileMetadataConfig,
+    SourceConnectionConfig,
+    TargetConnectionConfig,
     TableRecon,
 )
 from databricks.labs.lakebridge.contexts.application import ApplicationContext
 from databricks.labs.lakebridge.reconcile.recon_capture import AbstractReconIntermediatePersist
 from databricks.labs.lakebridge.reconcile.recon_config import Table
-from tests.integration.debug_envgetter import TestEnvGetter
 
 logger = logging.getLogger(__name__)
 
@@ -48,11 +47,13 @@ DIAMONDS_ROWS_SQL = """
                         (0.31, 'Good', 'J', 'SI2', '2000-01-01'); \
                     """
 
+TSQL_CONNECTION = "sqlserver_sandbox"
 TSQL_CATALOG = "labs_azure_sandbox_remorph"
 TSQL_SCHEMA = "dbo"
-TSQL_TABLE = "diamonds_big_column"
-SNOWFLAKE_CATALOG = "REMORPH"
-SNOWFLAKE_SCHEMA = "SANDBOX"
+TSQL_TABLE = "diamonds"
+SNOWFLAKE_CONNECTION = "sf_sandbox"
+SNOWFLAKE_CATALOG = "INTEGRATION"
+SNOWFLAKE_SCHEMA = "LAKEBRIDGE"
 SNOWFLAKE_TABLE = "DIAMONDS"
 
 
@@ -77,7 +78,7 @@ def recon_schema(recon_catalog, make_schema) -> SchemaInfo:
 
 
 @pytest.fixture
-def recon_tables(ws: WorkspaceClient, recon_schema: SchemaInfo, make_table) -> tuple[TableInfo, TableInfo]:
+def recon_tables(ws: WorkspaceClient, recon_schema: SchemaInfo, make_table, test_env) -> tuple[TableInfo, TableInfo]:
     src_table = make_table(
         catalog_name=recon_schema.catalog_name, schema_name=recon_schema.name, columns=DIAMONDS_COLUMNS
     )
@@ -86,7 +87,6 @@ def recon_tables(ws: WorkspaceClient, recon_schema: SchemaInfo, make_table) -> t
     )
     logger.info(f"Created recon tables {src_table.name}, {tgt_table.name} in schema {recon_schema.name}")
 
-    test_env = TestEnvGetter(True)
     warehouse = test_env.get("TEST_DEFAULT_WAREHOUSE_ID")
 
     for tbl in (src_table, tgt_table):
@@ -171,20 +171,16 @@ def snowflake_recon_table_config(recon_schema: SchemaInfo, recon_tables: tuple[T
 
 
 @pytest.fixture
-def recon_cluster(make_cluster) -> ClusterDetails:
-    return make_cluster(
-        data_security_mode=DataSecurityMode.DATA_SECURITY_MODE_AUTO,
-        kind=Kind.CLASSIC_PREVIEW,
-        num_workers=2,
-    ).result()
+def recon_cluster(test_env) -> str:
+    return test_env.get("DATABRICKS_DQX_CLUSTER_ID")
 
 
 @pytest.fixture
 def databricks_recon_config(
-    recon_cluster: ClusterDetails, recon_schema: SchemaInfo, recon_metadata: ReconcileMetadataConfig
+    recon_cluster: str, recon_schema: SchemaInfo, recon_metadata: ReconcileMetadataConfig
 ) -> ReconcileConfig:
     deployment_overrides = ReconcileJobConfig(
-        existing_cluster_id=recon_cluster.cluster_id or "bogus",
+        existing_cluster_id=recon_cluster,
         tags={"lakebridge": "reconcile_test"},
     )
     logger.info(f"Using recon job overrides: {deployment_overrides}")
@@ -192,14 +188,15 @@ def databricks_recon_config(
     assert recon_schema.catalog_name
     assert recon_schema.name
     return ReconcileConfig(
-        data_source="databricks",
         report_type="all",
-        secret_scope="NOT_NEEDED",
-        database_config=DatabaseConfig(
-            source_catalog=recon_schema.catalog_name,
-            source_schema=recon_schema.name,
-            target_catalog=recon_schema.catalog_name,
-            target_schema=recon_schema.name,
+        source=SourceConnectionConfig(
+            dialect="databricks",
+            catalog=recon_schema.catalog_name,
+            schema=recon_schema.name,
+        ),
+        target=TargetConnectionConfig(
+            catalog=recon_schema.catalog_name,
+            schema=recon_schema.name,
         ),
         metadata_config=recon_metadata,
         job_overrides=deployment_overrides,
@@ -207,11 +204,11 @@ def databricks_recon_config(
 
 
 @pytest.fixture
-def tsql_recon_config(recon_cluster: ClusterDetails, recon_schema: SchemaInfo, make_volume) -> ReconcileConfig:
+def tsql_recon_config(recon_cluster: str, recon_schema: SchemaInfo, make_volume) -> ReconcileConfig:
     volume = make_volume(catalog_name=recon_schema.catalog_name, schema_name=recon_schema.name, name=recon_schema.name)
 
     deployment_overrides = ReconcileJobConfig(
-        existing_cluster_id=recon_cluster.cluster_id or "bogus",
+        existing_cluster_id=recon_cluster,
         tags={"lakebridge": "reconcile_test"},
     )
     logger.info(f"Using recon job overrides: {deployment_overrides}")
@@ -219,14 +216,16 @@ def tsql_recon_config(recon_cluster: ClusterDetails, recon_schema: SchemaInfo, m
     assert recon_schema.catalog_name
     assert recon_schema.name
     return ReconcileConfig(
-        data_source="tsql",
-        report_type="row",
-        secret_scope="labs_azure_sandbox_sql_server_secrets",
-        database_config=DatabaseConfig(
-            source_catalog=TSQL_CATALOG,
-            source_schema=TSQL_SCHEMA,
-            target_catalog=recon_schema.catalog_name,
-            target_schema=recon_schema.name,
+        report_type="all",
+        source=SourceConnectionConfig(
+            dialect="tsql",
+            catalog=TSQL_CATALOG,
+            schema=TSQL_SCHEMA,
+            uc_connection_name=TSQL_CONNECTION,
+        ),
+        target=TargetConnectionConfig(
+            catalog=recon_schema.catalog_name,
+            schema=recon_schema.name,
         ),
         metadata_config=ReconcileMetadataConfig(
             catalog=recon_schema.catalog_name, schema=recon_schema.name, volume=volume.name
@@ -236,11 +235,11 @@ def tsql_recon_config(recon_cluster: ClusterDetails, recon_schema: SchemaInfo, m
 
 
 @pytest.fixture
-def snowflake_recon_config(recon_cluster: ClusterDetails, recon_schema: SchemaInfo, make_volume) -> ReconcileConfig:
+def snowflake_recon_config(recon_cluster: str, recon_schema: SchemaInfo, make_volume) -> ReconcileConfig:
     volume = make_volume(catalog_name=recon_schema.catalog_name, schema_name=recon_schema.name, name=recon_schema.name)
 
     deployment_overrides = ReconcileJobConfig(
-        existing_cluster_id=recon_cluster.cluster_id or "bogus",
+        existing_cluster_id=recon_cluster,
         tags={"lakebridge": "reconcile_test"},
     )
     logger.info(f"Using recon job overrides: {deployment_overrides}")
@@ -248,14 +247,16 @@ def snowflake_recon_config(recon_cluster: ClusterDetails, recon_schema: SchemaIn
     assert recon_schema.catalog_name
     assert recon_schema.name
     return ReconcileConfig(
-        data_source="snowflake",
         report_type="all",
-        secret_scope="labs_snowflake_sandbox_secrets",
-        database_config=DatabaseConfig(
-            source_catalog=SNOWFLAKE_CATALOG,
-            source_schema=SNOWFLAKE_SCHEMA,
-            target_catalog=recon_schema.catalog_name,
-            target_schema=recon_schema.name,
+        source=SourceConnectionConfig(
+            dialect="snowflake",
+            catalog=SNOWFLAKE_CATALOG,
+            schema=SNOWFLAKE_SCHEMA,
+            uc_connection_name=SNOWFLAKE_CONNECTION,
+        ),
+        target=TargetConnectionConfig(
+            catalog=recon_schema.catalog_name,
+            schema=recon_schema.name,
         ),
         metadata_config=ReconcileMetadataConfig(
             catalog=recon_schema.catalog_name, schema=recon_schema.name, volume=volume.name
@@ -265,12 +266,8 @@ def snowflake_recon_config(recon_cluster: ClusterDetails, recon_schema: SchemaIn
 
 
 def recon_config_filename(recon_config: ReconcileConfig) -> str:
-    source_catalog_or_schema = (
-        recon_config.database_config.source_catalog
-        if recon_config.database_config.source_catalog
-        else recon_config.database_config.source_schema
-    )
-    return f"recon_config_{recon_config.data_source}_{source_catalog_or_schema}_{recon_config.report_type}.json"
+    connection_or_catalog = recon_config.source.uc_connection_name or recon_config.source.catalog
+    return f"recon_config_{recon_config.source.dialect}_{connection_or_catalog}_{recon_config.report_type}.json"
 
 
 @contextmanager
@@ -305,7 +302,9 @@ class FakeReconIntermediatePersist(AbstractReconIntermediatePersist):
 
     @property
     def is_serverless(self) -> bool:
-        return False
+        return True
+        # treat everything as serverless to avoid using cache completely.
+        # the fallback to cache is stubbed as well
 
     def write_and_read_df_with_volumes(
         self,
