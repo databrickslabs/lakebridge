@@ -46,7 +46,7 @@ class AggregateQueryStore:
 
 
 @pytest.fixture
-def query_store(mock_spark: SparkSession) -> AggregateQueryStore:
+def query_store() -> AggregateQueryStore:
     agg_queries = AggregateQueries(
         source_agg_query="SELECT min(`s_acctbal`) AS `source_min_s_acctbal` FROM :tbl WHERE s_name = 't' AND s_address = 'a'",
         target_agg_query="SELECT min(`s_acctbal_t`) AS `target_min_s_acctbal` FROM :tbl WHERE s_name = 't' AND s_address_t = 'a'",
@@ -58,7 +58,7 @@ def query_store(mock_spark: SparkSession) -> AggregateQueryStore:
 
 
 @pytest.fixture
-def query_store_special_char(mock_spark: SparkSession) -> AggregateQueryStore:
+def query_store_special_char() -> AggregateQueryStore:
     agg_queries = AggregateQueries(
         source_agg_query=""" SELECT sum("s_acctbal") AS "source_sum_s_acctbal", count(TRIM(s_name)) AS "source_count_s_name", min("$carat$") AS "source_min_$carat$", max("$carat$") AS "source_max_$carat$", "s_nationkey" AS "source_group_by_s_nationkey" FROM :tbl WHERE s_name = 't' AND s_address = 'a' GROUP BY "s_nationkey" """.strip(),
         target_agg_query="SELECT sum(`s_acctbal_t`) AS `target_sum_s_acctbal`, count(TRIM(s_name)) AS `target_count_s_name`, min(`$carat$`) AS `target_min_$carat$`, max(`$carat$`) AS `target_max_$carat$`, `s_nationkey_t` AS `target_group_by_s_nationkey` FROM :tbl WHERE s_name = 't' AND s_address_t = 'a' GROUP BY `s_nationkey_t`",
@@ -70,7 +70,7 @@ def query_store_special_char(mock_spark: SparkSession) -> AggregateQueryStore:
 
 
 def test_reconcile_aggregate_data_missing_records(
-    mock_spark: SparkSession,
+    spark: SparkSession,
     normalized_table_conf_with_opts: Table,
     table_schema_ansi_ansi: tuple[list[Schema], list[Schema]],
     query_store: AggregateQueryStore,
@@ -86,7 +86,7 @@ def test_reconcile_aggregate_data_missing_records(
             CATALOG,
             SCHEMA,
             query_store.agg_queries.source_agg_query,
-        ): mock_spark.createDataFrame(
+        ): spark.createDataFrame(
             [
                 Row(source_min_s_acctbal=11),
             ]
@@ -99,7 +99,7 @@ def test_reconcile_aggregate_data_missing_records(
             CATALOG,
             SCHEMA,
             query_store.agg_queries.target_agg_query,
-        ): mock_spark.createDataFrame(
+        ): spark.createDataFrame(
             [
                 Row(target_min_s_acctbal=10),
             ]
@@ -120,9 +120,9 @@ def test_reconcile_aggregate_data_missing_records(
         target,
         database_config,
         "",
-        SchemaCompare(mock_spark),
+        SchemaCompare(spark),
         get_dialect("databricks"),
-        mock_spark,
+        spark,
         ReconcileMetadataConfig(),
         FakeReconIntermediatePersist(),
     ).reconcile_aggregates(normalized_table_conf_with_opts, src_schema, tgt_schema)
@@ -148,7 +148,7 @@ def test_reconcile_aggregate_data_missing_records(
         missing_in_tgt_count=0,
         mismatch=MismatchOutput(
             mismatch_columns=None,
-            mismatch_df=mock_spark.createDataFrame(
+            mismatch_df=spark.createDataFrame(
                 [
                     Row(
                         source_min_s_acctbal=11,
@@ -289,7 +289,7 @@ def _compare_reconcile_output(
 
 
 def test_reconcile_aggregate_data_mismatch_and_missing_records(
-    mock_spark: SparkSession,
+    spark: SparkSession,
     normalized_table_conf_with_opts: Table,
     table_schema_oracle_ansi: tuple[list[Schema], list[Schema]],
     query_store_special_char: AggregateQueryStore,
@@ -321,7 +321,7 @@ def test_reconcile_aggregate_data_mismatch_and_missing_records(
             CATALOG,
             SCHEMA,
             query_store_special_char.agg_queries.source_agg_query,
-        ): mock_spark.createDataFrame(
+        ): spark.createDataFrame(
             [
                 source_df_model(101, 13, 1, 2, 11),
                 source_df_model(23, 11, 0, 1, 12),
@@ -343,7 +343,7 @@ def test_reconcile_aggregate_data_mismatch_and_missing_records(
             CATALOG,
             SCHEMA,
             query_store_special_char.agg_queries.target_agg_query,
-        ): mock_spark.createDataFrame(
+        ): spark.createDataFrame(
             [
                 target_df_model(101, 13, 1, 2, 11),
                 target_df_model(43, 9, 0, 1, 12),
@@ -366,9 +366,9 @@ def test_reconcile_aggregate_data_mismatch_and_missing_records(
         target,
         db_config,
         "",
-        SchemaCompare(mock_spark),
+        SchemaCompare(spark),
         get_dialect("snowflake"),
-        mock_spark,
+        spark,
         ReconcileMetadataConfig(),
         FakeReconIntermediatePersist(),
     ).reconcile_aggregates(normalized_table_conf_with_opts, src_schema, tgt_schema)
@@ -394,7 +394,7 @@ def test_reconcile_aggregate_data_mismatch_and_missing_records(
 
         # Reconcile Output validations
         _compare_reconcile_output(
-            actual.reconcile_output, expected_reconcile_output_dict(mock_spark).get(actual.rule.agg_type)
+            actual.reconcile_output, expected_reconcile_output_dict(spark).get(actual.rule.agg_type)
         )
 
 

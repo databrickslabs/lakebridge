@@ -16,7 +16,7 @@ class DataSource(ABC):
     @abstractmethod
     def read_data(
         self,
-        catalog: str | None,
+        catalog: str,
         schema: str,
         table: str,
         query: str,
@@ -27,7 +27,7 @@ class DataSource(ABC):
     @abstractmethod
     def get_schema(
         self,
-        catalog: str | None,
+        catalog: str,
         schema: str,
         table: str,
         normalize: bool = True,
