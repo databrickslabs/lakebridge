@@ -5,8 +5,8 @@ import pytest
 from databricks.connect import DatabricksSession
 from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
 from databricks.labs.lakebridge.reconcile.connectors.databricks import (
-    DatabricksSourceDataSource,
-    DatabricksTargetDataSource,
+    DatabricksDataSource,
+    DatabricksNonUnityCatalogDataSource,
 )
 from databricks.labs.lakebridge.reconcile.connectors.oracle import OracleDataSource
 from databricks.labs.lakebridge.reconcile.connectors.snowflake import SnowflakeDataSource
@@ -43,7 +43,7 @@ def test_create_adapter_for_databricks_dialect_source():
     connection_name = "databricks"
 
     data_source = create_adapter(engine, spark, ws, connection_name)
-    assert isinstance(data_source, DatabricksSourceDataSource)
+    assert isinstance(data_source, DatabricksNonUnityCatalogDataSource)
 
 
 def test_create_adapter_for_databricks_dialect_target():
@@ -53,7 +53,9 @@ def test_create_adapter_for_databricks_dialect_target():
     connection_name = "databricks"
 
     data_source = create_adapter(engine, spark, ws, connection_name, is_target=True)
-    assert isinstance(data_source, DatabricksTargetDataSource)
+    assert isinstance(data_source, DatabricksDataSource)
+    # Target uses the base class directly, not the non-UC subclass
+    assert not isinstance(data_source, DatabricksNonUnityCatalogDataSource)
 
 
 def test_raise_exception_for_unknown_dialect():

@@ -35,6 +35,15 @@ def _get_information_schema_query(catalog: str, schema: str, table: str):
 
 
 class DatabricksDataSource(DataSource):
+    """Databricks data source backed by Unity Catalog `information_schema`.
+
+    Reads schema metadata from `information_schema.columns` (with `full_data_type`),
+    which is only available for native Unity Catalog catalogs. Use
+    `DatabricksNonUnityCatalogDataSource` for hive_metastore, global_temp views,
+    or Foreign Catalogs (Lakehouse Federation), where `information_schema` is
+    either missing or lacks the `full_data_type` column.
+    """
+
     _IDENTIFIER_DELIMITER = "`"
 
     def __init__(
@@ -49,17 +58,16 @@ class DatabricksDataSource(DataSource):
 
     def read_data(
         self,
-        catalog: str | None,
+        catalog: str,
         schema: str,
         table: str,
         query: str,
         options: JdbcReaderOptions | None,
     ) -> DataFrame:
-        namespace_catalog = "hive_metastore" if not catalog else catalog
         if schema == "global_temp":
             namespace_catalog = "global_temp"
         else:
-            namespace_catalog = f"{namespace_catalog}.{schema}"
+            namespace_catalog = f"{catalog}.{schema}"
         table_with_namespace = f"{namespace_catalog}.{table}"
         table_query = query.replace(":tbl", table_with_namespace)
         try:
@@ -83,12 +91,16 @@ class DatabricksDataSource(DataSource):
 
     def get_schema(
         self,
-        catalog: str | None,
+        catalog: str,
         schema: str,
         table: str,
         normalize: bool = True,
     ) -> list[Schema]:
-        raise NotImplementedError("Use DatabricksSourceDataSource or DatabricksTargetDataSource")
+        schema_query = _get_information_schema_query(catalog, schema, table)
+        try:
+            return self._fetch_schema(schema_query, normalize)
+        except (RuntimeError, PySparkException) as e:
+            return self.log_and_throw_exception(e, "schema", schema_query)
 
     def normalize_identifier(self, identifier: str) -> NormalizedIdentifier:
         return DialectUtils.normalize_identifier(
@@ -98,47 +110,23 @@ class DatabricksDataSource(DataSource):
         )
 
 
-class DatabricksSourceDataSource(DatabricksDataSource):
-    """Databricks data source for the source side of reconciliation.
+class DatabricksNonUnityCatalogDataSource(DatabricksDataSource):
+    """Databricks data source for catalogs outside Unity Catalog `information_schema`.
 
-    Uses DESCRIBE TABLE for schema fetching, which works for hive_metastore,
-    global_temp views, and Foreign Catalogs (Lakehouse Federation).
+    Uses `DESCRIBE TABLE` for schema fetching, which works for hive_metastore,
+    global_temp views, and Foreign Catalogs (Lakehouse Federation) — none of
+    which expose the Databricks-specific `full_data_type` column on
+    `information_schema.columns`.
     """
 
     def get_schema(
         self,
-        catalog: str | None,
+        catalog: str,
         schema: str,
         table: str,
         normalize: bool = True,
     ) -> list[Schema]:
-        catalog_str = catalog if catalog else "hive_metastore"
-        schema_query = _get_describe_query(catalog_str, schema, table)
-        try:
-            return self._fetch_schema(schema_query, normalize)
-        except (RuntimeError, PySparkException) as e:
-            return self.log_and_throw_exception(e, "schema", schema_query)
-
-
-class DatabricksTargetDataSource(DatabricksDataSource):
-    """Databricks data source for the target side of reconciliation.
-
-    Uses information_schema.columns with full_data_type for schema fetching,
-    which provides precise type information for native Unity Catalog tables.
-    """
-
-    def get_schema(
-        self,
-        catalog: str | None,
-        schema: str,
-        table: str,
-        normalize: bool = True,
-    ) -> list[Schema]:
-        catalog_str = catalog if catalog else "hive_metastore"
-        if catalog_str == "hive_metastore" or schema == "global_temp":
-            schema_query = _get_describe_query(catalog_str, schema, table)
-        else:
-            schema_query = _get_information_schema_query(catalog_str, schema, table)
+        schema_query = _get_describe_query(catalog, schema, table)
         try:
             return self._fetch_schema(schema_query, normalize)
         except (RuntimeError, PySparkException) as e:

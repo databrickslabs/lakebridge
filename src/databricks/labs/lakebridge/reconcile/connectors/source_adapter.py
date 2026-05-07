@@ -3,8 +3,8 @@ from sqlglot import Dialect
 
 from databricks.labs.lakebridge.reconcile.connectors.data_source import DataSource
 from databricks.labs.lakebridge.reconcile.connectors.databricks import (
-    DatabricksSourceDataSource,
-    DatabricksTargetDataSource,
+    DatabricksDataSource,
+    DatabricksNonUnityCatalogDataSource,
 )
 from databricks.labs.lakebridge.reconcile.connectors.oracle import OracleDataSource
 from databricks.labs.lakebridge.reconcile.connectors.remote_query_reader import RemoteQueryReader
@@ -32,8 +32,8 @@ def create_adapter(
         return OracleDataSource(engine, reader)
     if isinstance(engine, Databricks):
         if is_target:
-            return DatabricksTargetDataSource(engine, spark, ws)
-        return DatabricksSourceDataSource(engine, spark, ws)
+            return DatabricksDataSource(engine, spark, ws)
+        return DatabricksNonUnityCatalogDataSource(engine, spark, ws)
     if isinstance(engine, Tsql):
         return TSQLServerDataSource(engine, reader)
     raise ValueError(f"Unsupported source type --> {engine}")
