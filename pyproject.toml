@@ -64,8 +64,8 @@ only-include = [
     "/LICEN[CS]E",
     "/NOTICE",
     "/pyproject.toml",
-    "/src",
-    "/tests",
+    "/src/",
+    "/tests/",
     "/uv.lock",
 ]
 
