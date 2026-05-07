@@ -17,17 +17,15 @@ def initial_setup():
     pyspark_sql_session = MagicMock()
     spark = pyspark_sql_session.SparkSession.builder.getOrCreate()
 
-    # Define the source, workspace, and scope
     engine = get_dialect("databricks")
     ws = create_autospec(WorkspaceClient)
-    scope = "scope"
-    return engine, spark, ws, scope
+    return engine, spark, ws
 
 
 def test_get_schema_target():
     """Target uses information_schema with full_data_type for native UC catalogs."""
-    engine, spark, ws, scope = initial_setup()
-    ddds = DatabricksTargetDataSource(engine, spark, ws, scope)
+    engine, spark, ws = initial_setup()
+    ddds = DatabricksTargetDataSource(engine, spark, ws)
 
     # catalog as catalog
     ddds.get_schema("catalog", "schema", "supplier")
@@ -59,8 +57,8 @@ def test_get_schema_target():
 
 def test_get_schema_source():
     """Source always uses DESCRIBE TABLE, which works for hive, global_temp, and Foreign Catalogs."""
-    engine, spark, ws, scope = initial_setup()
-    ddds = DatabricksSourceDataSource(engine, spark, ws, scope)
+    engine, spark, ws = initial_setup()
+    ddds = DatabricksSourceDataSource(engine, spark, ws)
 
     # UC catalog — source uses DESCRIBE TABLE (not information_schema)
     ddds.get_schema("catalog", "schema", "supplier")
@@ -80,11 +78,10 @@ def test_get_schema_source():
 
 
 def test_read_data_from_uc():
-    # initial setup
-    engine, spark, ws, scope = initial_setup()
+    engine, spark, ws = initial_setup()
 
     # read_data is inherited from DatabricksDataSource; test with source subclass
-    ddds = DatabricksSourceDataSource(engine, spark, ws, scope)
+    ddds = DatabricksSourceDataSource(engine, spark, ws)
 
     # Test with query
     ddds.read_data("org", "data", "employee", "select id as id, name as name from :tbl", None)
@@ -96,10 +93,9 @@ def test_read_data_from_uc():
 
 
 def test_read_data_from_hive():
-    # initial setup
-    engine, spark, ws, scope = initial_setup()
+    engine, spark, ws = initial_setup()
 
-    ddds = DatabricksSourceDataSource(engine, spark, ws, scope)
+    ddds = DatabricksSourceDataSource(engine, spark, ws)
 
     # Test with query
     ddds.read_data("hive_metastore", "data", "employee", "select id as id, name as name from :tbl", None)
@@ -111,10 +107,9 @@ def test_read_data_from_hive():
 
 
 def test_read_data_exception_handling():
-    # initial setup
-    engine, spark, ws, scope = initial_setup()
+    engine, spark, ws = initial_setup()
 
-    ddds = DatabricksSourceDataSource(engine, spark, ws, scope)
+    ddds = DatabricksSourceDataSource(engine, spark, ws)
     spark.sql.side_effect = RuntimeError("Test Exception")
 
     with pytest.raises(
@@ -127,9 +122,9 @@ def test_read_data_exception_handling():
 
 def test_get_schema_target_exception_handling():
     """Target schema fetch exception includes the information_schema query in the error."""
-    engine, spark, ws, scope = initial_setup()
+    engine, spark, ws = initial_setup()
 
-    ddds = DatabricksTargetDataSource(engine, spark, ws, scope)
+    ddds = DatabricksTargetDataSource(engine, spark, ws)
     spark.sql.side_effect = RuntimeError("Test Exception")
     with pytest.raises(DataSourceRuntimeException) as exception:
         ddds.get_schema("org", "data", "employee")
@@ -144,9 +139,9 @@ def test_get_schema_target_exception_handling():
 
 def test_get_schema_source_exception_handling():
     """Source schema fetch exception includes the DESCRIBE TABLE query in the error."""
-    engine, spark, ws, scope = initial_setup()
+    engine, spark, ws = initial_setup()
 
-    ddds = DatabricksSourceDataSource(engine, spark, ws, scope)
+    ddds = DatabricksSourceDataSource(engine, spark, ws)
     spark.sql.side_effect = RuntimeError("Test Exception")
     with pytest.raises(DataSourceRuntimeException) as exception:
         ddds.get_schema("org", "data", "employee")
@@ -157,8 +152,8 @@ def test_get_schema_source_exception_handling():
 
 def test_get_schema_source_foreign_catalog():
     """Source correctly uses DESCRIBE TABLE for Foreign Catalogs without needing fallback."""
-    engine, spark, ws, scope = initial_setup()
-    ddds = DatabricksSourceDataSource(engine, spark, ws, scope)
+    engine, spark, ws = initial_setup()
+    ddds = DatabricksSourceDataSource(engine, spark, ws)
 
     ddds.get_schema("foreign_catalog", "public", "customers")
 
@@ -168,8 +163,8 @@ def test_get_schema_source_foreign_catalog():
 
 
 def test_normalize_identifier():
-    engine, spark, ws, scope = initial_setup()
-    data_source = DatabricksSourceDataSource(engine, spark, ws, scope)
+    engine, spark, ws = initial_setup()
+    data_source = DatabricksSourceDataSource(engine, spark, ws)
 
     assert data_source.normalize_identifier("a") == NormalizedIdentifier("`a`", '`a`')
     assert data_source.normalize_identifier('`b`') == NormalizedIdentifier("`b`", '`b`')
