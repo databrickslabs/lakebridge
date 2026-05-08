@@ -149,21 +149,21 @@ Use JDBC reader options to parallelize reads from large tables.
     ```python
     @dataclass
     class JdbcReaderOptions:
-        number_partitions: int
+        num_partitions: int
         partition_column: str
         lower_bound: str
         upper_bound: str
-        fetch_size: int = 100
+        fetch_size: int = 0
     ```
   </TabItem>
   <TabItem value="json" label="JSON">
     ```json
     "jdbc_reader_options": {
-        "number_partitions": 10,
+        "num_partitions": 10,
         "partition_column": "id",
         "lower_bound": "1",
         "upper_bound": "100000",
-        "fetch_size": 1000
+        "fetch_size": 0
     }
     ```
   </TabItem>

@@ -46,83 +46,50 @@ This sets up Lakebridge workspace resources and deploys the reconciliation dashb
 After running `configure-reconcile`, a `.lakebridge` folder is created in your Databricks workspace home. Create your reconcile config file inside it:
 
 ```
-.lakebridge/recon_config_<SOURCE>_<CATALOG_OR_SCHEMA>_<REPORT_TYPE>.json
+.lakebridge/recon_config_<SOURCE>_<UNITY_CATALOG_CONNECTION_NAME_OR_CATALOG>_<REPORT_TYPE>.json
 ```
-
+Note: For UNITY_CATALOG_CONNECTION_NAME_OR_CATALOG , if databricks is the source then CATALOG else connection name
 Examples:
 
-| source_type | catalog_or_schema | report_type | file_name |
-|---|---|---|---|
-| databricks | tpch | all | recon_config_databricks_tpch_all.json |
-| snowflake | sample_data | row | recon_config_snowflake_sample_data_row.json |
-| oracle | orc | data | recon_config_oracle_orc_data.json |
+| source_type | connection_name_or_catalog | report_type | file_name                             |
+|-------------|-------------------|-------------|---------------------------------------|
+| databricks  | tpch              | all         | recon_config_databricks_tpch_all.json |
+| source1     | conn1              | row         | recon_config_source1_conn1_row.json    |
+| source2     | conn2              | schema      | recon_config_source2_conn2_schema.json |
+
 
 See [Configuration Reference](/docs/reconcile/configuration) for the full schema and examples.
 
-### Step 2: Configure connection properties
+### Step 2: Setup the source connection
 
-Lakebridge uses Databricks secrets for source connection credentials.
+Follow the official Databricks docs to:
+- [Create a connection](https://docs.databricks.com/aws/en/query-federation/remote-queries#create-a-connection)
+- [Grant connection access](https://docs.databricks.com/aws/en/query-federation/remote-queries#grant-connection-access)
 
-**Default secret scope:** `lakebridge_<data_source>`
+:::note
+You do not have to create a foreign catalog.
+:::
 
-| Source | Secret scope |
-|---|---|
-| snowflake | lakebridge_snowflake |
-| oracle | lakebridge_oracle |
-| mssql | lakebridge_mssql |
-| synapse | lakebridge_synapse |
 
-**Note:** When both source and target are Databricks, no secret scope is required.
+### Step 3. Databricks permissions required
 
-Required connection properties per source:
-
-<Tabs>
-    <TabItem value="snowflake" label="Snowflake">
-        ```yaml
-        sfUrl = https://[account_name].snowflakecomputing.com
-        account = [account_name]
-        sfUser = [user]
-        sfPassword = [password]
-        sfDatabase = [database]
-        sfSchema = [schema]
-        sfWarehouse = [warehouse_name]
-        sfRole = [role_name]
-        pem_private_key = [pkcs8_pem_private_key]
-        pem_private_key_password = [pkcs8_pem_private_key_password]
-        ```
-        :::note
-        Either `sfPassword` or `pem_private_key` is required. `pem_private_key` takes priority.
-        :::
-    </TabItem>
-    <TabItem value="oracle" label="Oracle">
-        ```yaml
-        user = [user]
-        password = [password]
-        host = [host]
-        port = [port]
-        database = [database/SID]
-        ```
-    </TabItem>
-    <TabItem value="mssql" label="SQL Server">
-        ```yaml
-        user = [user]
-        password = [password]
-        host = [host]
-        port = [port]
-        database = [database/SID]
-        encrypt = [true/false]
-        trustServerCertificate = [true/false]
-        ```
-    </TabItem>
-</Tabs>
-
-### Step 3: Check permissions
-
-- User must have permission to create Data Warehouses
+The User configuring reconcile must have permission to:
+- Create Data Warehouses
 - `USE CATALOG` and `CREATE SCHEMA` on the target catalog
 - `CREATE VOLUME` if using a pre-existing schema on a serverless cluster
 
-### Step 4: Serverless cluster support
+### Step 4. Serverless cluster support
+
+Reconcile automatically detects the cluster type and optimizes intermediate data persistence accordingly:
+- **On Serverless clusters**: Reconcile uses Unity Catalog volumes for intermediate data persistence
+- **On Standard clusters**: Reconcile uses DataFrame caching for better performance
+
+:::note
+- On serverless clusters, the configured volume (from `metadata_config.volume`) is automatically used
+- The volume must be created in the metadata catalog and schema specified in your `ReconcileMetadataConfig`
+- Ensure you have the necessary permissions to write to the volume on serverless clusters
+:::
+
 
 Reconcile automatically adapts to the cluster type:
 - **Serverless clusters:** Uses Unity Catalog volumes for intermediate data persistence (`metadata_config.volume`)

@@ -17,16 +17,15 @@ def initial_setup():
     # Define the source, workspace, and scope
     engine = get_dialect("databricks")
     ws = create_autospec(WorkspaceClient)
-    scope = "scope"
-    return engine, spark, ws, scope
+    return engine, spark, ws
 
 
 def test_get_schema():
     # initial setup
-    engine, spark, ws, scope = initial_setup()
+    engine, spark, ws = initial_setup()
 
     # catalog as catalog
-    ddds = DatabricksDataSource(engine, spark, ws, scope)
+    ddds = DatabricksDataSource(engine, spark, ws)
     ddds.get_schema("catalog", "schema", "supplier")
     spark.sql.assert_called_with(
         re.sub(
@@ -56,10 +55,10 @@ def test_get_schema():
 
 def test_read_data_from_uc():
     # initial setup
-    engine, spark, ws, scope = initial_setup()
+    engine, spark, ws = initial_setup()
 
     # create object for DatabricksDataSource
-    ddds = DatabricksDataSource(engine, spark, ws, scope)
+    ddds = DatabricksDataSource(engine, spark, ws)
 
     # Test with query
     ddds.read_data("org", "data", "employee", "select id as id, name as name from :tbl", None)
@@ -72,10 +71,10 @@ def test_read_data_from_uc():
 
 def test_read_data_from_hive():
     # initial setup
-    engine, spark, ws, scope = initial_setup()
+    engine, spark, ws = initial_setup()
 
     # create object for DatabricksDataSource
-    ddds = DatabricksDataSource(engine, spark, ws, scope)
+    ddds = DatabricksDataSource(engine, spark, ws)
 
     # Test with query
     ddds.read_data("hive_metastore", "data", "employee", "select id as id, name as name from :tbl", None)
@@ -88,10 +87,10 @@ def test_read_data_from_hive():
 
 def test_read_data_exception_handling():
     # initial setup
-    engine, spark, ws, scope = initial_setup()
+    engine, spark, ws = initial_setup()
 
     # create object for DatabricksDataSource
-    ddds = DatabricksDataSource(engine, spark, ws, scope)
+    ddds = DatabricksDataSource(engine, spark, ws)
     spark.sql.side_effect = RuntimeError("Test Exception")
 
     with pytest.raises(
@@ -104,10 +103,10 @@ def test_read_data_exception_handling():
 
 def test_get_schema_exception_handling():
     # initial setup
-    engine, spark, ws, scope = initial_setup()
+    engine, spark, ws = initial_setup()
 
     # create object for DatabricksDataSource
-    ddds = DatabricksDataSource(engine, spark, ws, scope)
+    ddds = DatabricksDataSource(engine, spark, ws)
     spark.sql.side_effect = RuntimeError("Test Exception")
     with pytest.raises(DataSourceRuntimeException) as exception:
         ddds.get_schema("org", "data", "employee")
@@ -121,8 +120,8 @@ def test_get_schema_exception_handling():
 
 
 def test_normalize_identifier():
-    engine, spark, ws, scope = initial_setup()
-    data_source = DatabricksDataSource(engine, spark, ws, scope)
+    engine, spark, ws = initial_setup()
+    data_source = DatabricksDataSource(engine, spark, ws)
 
     assert data_source.normalize_identifier("a") == NormalizedIdentifier("`a`", '`a`')
     assert data_source.normalize_identifier('`b`') == NormalizedIdentifier("`b`", '`b`')

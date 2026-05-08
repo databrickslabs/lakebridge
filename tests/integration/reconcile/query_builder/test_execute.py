@@ -14,14 +14,16 @@ from databricks.labs.lakebridge.config import (
     TableRecon,
     ReconcileMetadataConfig,
     ReconcileConfig,
+    SourceConnectionConfig,
+    TargetConnectionConfig,
 )
+from databricks.labs.lakebridge.reconcile.connectors.databricks import DatabricksDataSource
+from databricks.labs.lakebridge.reconcile.connectors.snowflake import SnowflakeDataSource
 from databricks.labs.lakebridge.reconcile.reconciliation import Reconciliation
 from databricks.labs.lakebridge.reconcile.trigger_recon_service import TriggerReconService
 from databricks.labs.lakebridge.reconcile.utils import initialise_data_source
 from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
 from databricks.labs.lakebridge.reconcile.connectors.data_source import MockDataSource
-from databricks.labs.lakebridge.reconcile.connectors.databricks import DatabricksDataSource
-from databricks.labs.lakebridge.reconcile.connectors.snowflake import SnowflakeDataSource
 from databricks.labs.lakebridge.reconcile.exception import (
     DataSourceRuntimeException,
     InvalidInputException,
@@ -737,14 +739,15 @@ def mock_for_report_type_data(
     source = MockDataSource(source_dataframe_repository, source_schema_repository)
     target = MockDataSource(target_dataframe_repository, target_schema_repository)
     reconcile_config_data = ReconcileConfig(
-        data_source="databricks",
         report_type="data",
-        secret_scope="remorph_databricks",
-        database_config=DatabaseConfig(
-            source_catalog=CATALOG,
-            source_schema=SCHEMA,
-            target_catalog=CATALOG,
-            target_schema=SCHEMA,
+        source=SourceConnectionConfig(
+            dialect="databricks",
+            catalog=CATALOG,
+            schema=SCHEMA,
+        ),
+        target=TargetConnectionConfig(
+            catalog=CATALOG,
+            schema=SCHEMA,
         ),
         metadata_config=recon_metadata,
     )
@@ -937,14 +940,15 @@ def mock_for_report_type_schema(
     source = MockDataSource(source_dataframe_repository, source_schema_repository)
     target = MockDataSource(target_dataframe_repository, target_schema_repository)
     reconcile_config_schema = ReconcileConfig(
-        data_source="databricks",
         report_type="schema",
-        secret_scope="remorph_databricks",
-        database_config=DatabaseConfig(
-            source_catalog=CATALOG,
-            source_schema=SCHEMA,
-            target_catalog=CATALOG,
-            target_schema=SCHEMA,
+        source=SourceConnectionConfig(
+            dialect="databricks",
+            catalog=CATALOG,
+            schema=SCHEMA,
+        ),
+        target=TargetConnectionConfig(
+            catalog=CATALOG,
+            schema=SCHEMA,
         ),
         metadata_config=recon_metadata,
     )
@@ -1152,14 +1156,16 @@ def mock_for_report_type_all(
     source = MockDataSource(source_dataframe_repository, source_schema_repository)
     target = MockDataSource(target_dataframe_repository, target_schema_repository)
     reconcile_config_all = ReconcileConfig(
-        data_source="snowflake",
         report_type="all",
-        secret_scope="remorph_snowflake",
-        database_config=DatabaseConfig(
-            source_catalog=CATALOG,
-            source_schema=SCHEMA,
-            target_catalog=CATALOG,
-            target_schema=SCHEMA,
+        source=SourceConnectionConfig(
+            dialect="snowflake",
+            catalog=CATALOG,
+            schema=SCHEMA,
+            uc_connection_name="remorph_snowflake",
+        ),
+        target=TargetConnectionConfig(
+            catalog=CATALOG,
+            schema=SCHEMA,
         ),
         metadata_config=recon_metadata,
     )
@@ -1429,14 +1435,16 @@ def mock_for_report_type_row(
     source = MockDataSource(source_dataframe_repository, source_schema_repository)
     target = MockDataSource(target_dataframe_repository, target_schema_repository)
     reconcile_config_row = ReconcileConfig(
-        data_source="snowflake",
         report_type="row",
-        secret_scope="remorph_snowflake",
-        database_config=DatabaseConfig(
-            source_catalog=CATALOG,
-            source_schema=SCHEMA,
-            target_catalog=CATALOG,
-            target_schema=SCHEMA,
+        source=SourceConnectionConfig(
+            dialect="snowflake",
+            catalog=CATALOG,
+            schema=SCHEMA,
+            uc_connection_name="remorph_snowflake",
+        ),
+        target=TargetConnectionConfig(
+            catalog=CATALOG,
+            schema=SCHEMA,
         ),
         metadata_config=recon_metadata,
     )
@@ -1577,14 +1585,16 @@ def mock_for_recon_exception(normalized_table_conf_with_opts, recon_metadata):
     source = MockDataSource({}, {})
     target = MockDataSource({}, {})
     reconcile_config_exception = ReconcileConfig(
-        data_source="snowflake",
         report_type="all",
-        secret_scope="remorph_snowflake",
-        database_config=DatabaseConfig(
-            source_catalog=CATALOG,
-            source_schema=SCHEMA,
-            target_catalog=CATALOG,
-            target_schema=SCHEMA,
+        source=SourceConnectionConfig(
+            dialect="snowflake",
+            catalog=CATALOG,
+            schema=SCHEMA,
+            uc_connection_name="remorph_snowflake",
+        ),
+        target=TargetConnectionConfig(
+            catalog=CATALOG,
+            schema=SCHEMA,
         ),
         metadata_config=recon_metadata,
     )
@@ -1667,8 +1677,7 @@ def test_schema_recon_with_general_exception(
 ):
     recon_schema, metrics_schema, details_schema = report_tables_schema
     table_recon, source, target, reconcile_config_schema = mock_for_report_type_schema
-    reconcile_config_schema.data_source = "snowflake"
-    reconcile_config_schema.secret_scope = "remorph_snowflake"
+    reconcile_config_schema.source.dialect = "snowflake"
     catalog = reconcile_config_schema.metadata_config.catalog
     schema = reconcile_config_schema.metadata_config.schema
     with (
@@ -1744,8 +1753,7 @@ def test_data_recon_with_general_exception(
     table_recon, source, target, reconcile_config = mock_for_report_type_schema
     catalog = reconcile_config.metadata_config.catalog
     schema = reconcile_config.metadata_config.schema
-    reconcile_config.data_source = "snowflake"
-    reconcile_config.secret_scope = "remorph_snowflake"
+    reconcile_config.source.dialect = "snowflake"
     reconcile_config.report_type = "data"
     with (
         patch("databricks.labs.lakebridge.reconcile.trigger_recon_service.datetime") as mock_datetime,
@@ -1818,8 +1826,7 @@ def test_data_recon_with_source_exception(
     table_recon, source, target, reconcile_config = mock_for_report_type_schema
     catalog = reconcile_config.metadata_config.catalog
     schema = reconcile_config.metadata_config.schema
-    reconcile_config.data_source = "snowflake"
-    reconcile_config.secret_scope = "remorph_snowflake"
+    reconcile_config.source.dialect = "snowflake"
     reconcile_config.report_type = "data"
     with (
         patch("databricks.labs.lakebridge.reconcile.trigger_recon_service.datetime") as mock_datetime,
@@ -1886,16 +1893,12 @@ def test_data_recon_with_source_exception(
 
 
 def test_initialise_data_source(mock_workspace_client, spark):
-    src_engine = get_dialect("snowflake")
-    secret_scope = "test"
+    conn = "test"
 
-    source, target = initialise_data_source(mock_workspace_client, spark, src_engine, secret_scope)
+    source, target = initialise_data_source(mock_workspace_client, spark, "snowflake", conn)
 
-    snowflake_data_source = SnowflakeDataSource(src_engine, spark, mock_workspace_client, secret_scope).__class__
-    databricks_data_source = DatabricksDataSource(src_engine, spark, mock_workspace_client, secret_scope).__class__
-
-    assert isinstance(source, snowflake_data_source)
-    assert isinstance(target, databricks_data_source)
+    assert isinstance(source, SnowflakeDataSource)
+    assert isinstance(target, DatabricksDataSource)
 
 
 def test_recon_for_wrong_report_type(mock_workspace_client, spark, mock_for_report_type_row):
@@ -2019,14 +2022,16 @@ def test_recon_output_without_exception(mock_gen_final_recon_output):
         ],
     )
     reconcile_config = ReconcileConfig(
-        data_source="snowflake",
         report_type="all",
-        secret_scope="remorph_snowflake",
-        database_config=DatabaseConfig(
-            source_catalog=CATALOG,
-            source_schema=SCHEMA,
-            target_catalog=CATALOG,
-            target_schema=SCHEMA,
+        source=SourceConnectionConfig(
+            dialect="snowflake",
+            catalog=CATALOG,
+            schema=SCHEMA,
+            uc_connection_name="remorph_snowflake",
+        ),
+        target=TargetConnectionConfig(
+            catalog=CATALOG,
+            schema=SCHEMA,
         ),
         metadata_config=ReconcileMetadataConfig(),
     )
