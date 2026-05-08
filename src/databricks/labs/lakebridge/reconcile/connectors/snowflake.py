@@ -34,7 +34,7 @@ class SnowflakeDataSource(DataSource):
     _LIST_SCHEMAS_QUERY = "select schema_name from {catalog}.INFORMATION_SCHEMA.SCHEMATA order by schema_name"
     _LIST_TABLES_QUERY = (
         "select table_name from {catalog}.INFORMATION_SCHEMA.TABLES "
-        "where table_schema = '{schema}' order by table_name"
+        "where lower(table_schema) = lower('{schema}') order by table_name"
     )
     _SCHEMA_QUERY = """select column_name,
                                                       case
@@ -47,7 +47,7 @@ class SnowflakeDataSource(DataSource):
                                                             else data_type
                                                       end as data_type
                                                       from {catalog}.INFORMATION_SCHEMA.COLUMNS
-                                                      where lower(table_name)='{table}' and table_schema = '{schema}'
+                                                      where lower(table_name)=lower('{table}') and lower(table_schema) = lower('{schema}')
                                                       order by ordinal_position"""
 
     def __init__(

@@ -64,12 +64,11 @@ def test_oracle_read_schema_happy(spark: SparkSession) -> None:
     assert columns
 
 
-@pytest.mark.xfail(reason="Snowflake account unavailable", strict=True)
 def test_snowflake_read_schema_happy(spark: SparkSession) -> None:
     reader = RemoteQueryReader(spark, "sf_sandbox")
     connector = SnowflakeDataSource(get_dialect("snowflake"), reader)
 
-    columns = connector.get_schema('remorph', "sandbox", "diamonds")
+    columns = connector.get_schema("INTEGRATION", "LAKEBRIDGE", "DIAMONDS")
     assert columns
 
 
@@ -93,15 +92,15 @@ def test_snowflake_list_schemas_happy(spark: SparkSession) -> None:
     reader = RemoteQueryReader(spark, "sf_sandbox")
     connector = SnowflakeDataSource(get_dialect("snowflake"), reader)
 
-    schemas = connector.list_schemas("remorph")
-    assert "SANDBOX" in schemas
+    schemas = connector.list_schemas("INTEGRATION")
+    assert "LAKEBRIDGE" in schemas
 
 
 def test_snowflake_list_tables_happy(spark: SparkSession) -> None:
     reader = RemoteQueryReader(spark, "sf_sandbox")
     connector = SnowflakeDataSource(get_dialect("snowflake"), reader)
 
-    tables = connector.list_tables("remorph", "sandbox")
+    tables = connector.list_tables("INTEGRATION", "LAKEBRIDGE")
     assert "DIAMONDS" in tables
 
 
