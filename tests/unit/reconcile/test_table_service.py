@@ -57,9 +57,7 @@ def test_normalize_recon_table_config_uses_data_source(normalize_service, table_
         (1_000_000, 50_000),
     ],
 )
-def test_databricks_source_keeps_or_caps_max_sample_size(
-    databricks_normalize_service, table_conf, requested, expected
-):
+def test_databricks_source_keeps_or_caps_max_sample_size(databricks_normalize_service, table_conf, requested, expected):
     raw = table_conf(sampling_options=SamplingOptions(max_sample_size=requested))
     result = databricks_normalize_service.normalize_recon_table_config(raw)
     assert result.sampling_options.max_sample_size == expected
@@ -67,9 +65,7 @@ def test_databricks_source_keeps_or_caps_max_sample_size(
 
 
 @pytest.mark.parametrize("requested", [0, -1, -100])
-def test_databricks_source_floors_non_positive_to_default(
-    databricks_normalize_service, table_conf, requested
-):
+def test_databricks_source_floors_non_positive_to_default(databricks_normalize_service, table_conf, requested):
     raw = table_conf(sampling_options=SamplingOptions(max_sample_size=requested))
     result = databricks_normalize_service.normalize_recon_table_config(raw)
     assert result.sampling_options.max_sample_size == 50

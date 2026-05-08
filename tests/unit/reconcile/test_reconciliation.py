@@ -12,6 +12,7 @@ def _build_reconciliation(target=None):
         source=MagicMock(),
         target=target or MagicMock(),
         database_config=DatabaseConfig(
+            source_catalog="src_catalog",
             source_schema="src_schema",
             target_catalog="tgt_catalog",
             target_schema="tgt_schema",

@@ -6,6 +6,7 @@ from collections.abc import Generator
 from contextlib import contextmanager
 from dataclasses import asdict
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -31,6 +32,24 @@ from databricks.labs.lakebridge.reconcile.recon_config import Table
 from tests.integration.debug_envgetter import TestEnvGetter
 
 logger = logging.getLogger(__name__)
+
+_FIXED_RECON_VIEW_HEX = "0" * 32
+
+
+@pytest.fixture
+def fixed_recon_view_uuid(monkeypatch):
+    """Pin uuid.uuid4().hex inside sampling_query so the temp-view name is predictable in tests.
+
+    Returns the fixed hex; tests can build expected SQL containing `recon_keys_<hex>`.
+    """
+    fake = MagicMock()
+    fake.uuid4.return_value.hex = _FIXED_RECON_VIEW_HEX
+    monkeypatch.setattr(
+        "databricks.labs.lakebridge.reconcile.query_builder.sampling_query.uuid",
+        fake,
+    )
+    return _FIXED_RECON_VIEW_HEX
+
 
 DIAMONDS_COLUMNS = [
     ("carat", "DOUBLE"),

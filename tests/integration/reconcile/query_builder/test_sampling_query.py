@@ -14,7 +14,12 @@ from tests.conftest import oracle_schema_fixture_factory, ansi_schema_fixture_fa
 
 
 def test_build_query_for_snowflake_src(
-    mock_spark, table_conf, table_schema_oracle_ansi, fake_oracle_datasource, fake_databricks_datasource
+    mock_spark,
+    table_conf,
+    table_schema_oracle_ansi,
+    fake_oracle_datasource,
+    fake_databricks_datasource,
+    fixed_recon_view_uuid,
 ):
     spark = mock_spark
     sch, sch_with_alias = table_schema_oracle_ansi
@@ -78,8 +83,7 @@ def test_build_query_for_snowflake_src(
     ).build_query(df)
 
     tgt_expected = (
-        'WITH recon AS (SELECT 11 AS `s_nationkey`, 1 AS `s_suppkey` UNION SELECT 22 '
-        'AS `s_nationkey`, 2 AS `s_suppkey`), src AS (SELECT '
+        f'WITH recon AS (SELECT * FROM recon_keys_{fixed_recon_view_uuid}), src AS (SELECT '
         "COALESCE(TRIM(`s_acctbal_t`), '_null_recon_') AS `s_acctbal`, "
         'TRIM(s_address_t) AS `s_address`, COALESCE(TRIM(`s_comment_t`), '
         "'_null_recon_') AS `s_comment`, COALESCE(TRIM(`s_name`), '_null_recon_') AS "
@@ -103,6 +107,7 @@ def test_build_query_for_oracle_src(
     normalized_column_mapping,
     fake_oracle_datasource,
     fake_databricks_datasource,
+    fixed_recon_view_uuid,
 ):
     spark = mock_spark
     _, sch_with_alias = table_schema_oracle_ansi
@@ -167,11 +172,10 @@ def test_build_query_for_oracle_src(
         conf, sch_with_alias, "target", get_dialect("databricks"), fake_databricks_datasource
     ).build_query(df)
     tgt_expected = (
-        'WITH recon AS (SELECT 11 AS `s_nationkey`, 1 AS `s_suppkey` UNION SELECT 22 '
-        'AS `s_nationkey`, 2 AS `s_suppkey` UNION SELECT 33 AS `s_nationkey`, 3 AS '
-        "`s_suppkey`), src AS (SELECT COALESCE(TRIM(`s_acctbal_t`), '_null_recon_') "
-        "AS `s_acctbal`, COALESCE(TRIM(`s_address_t`), '_null_recon_') AS "
-        "`s_address`, COALESCE(TRIM(`s_comment_t`), '_null_recon_') AS `s_comment`, "
+        f'WITH recon AS (SELECT * FROM recon_keys_{fixed_recon_view_uuid}), src AS '
+        "(SELECT COALESCE(TRIM(`s_acctbal_t`), '_null_recon_') AS `s_acctbal`, "
+        "COALESCE(TRIM(`s_address_t`), '_null_recon_') AS `s_address`, "
+        "COALESCE(TRIM(`s_comment_t`), '_null_recon_') AS `s_comment`, "
         "COALESCE(TRIM(`s_name`), '_null_recon_') AS `s_name`, "
         "COALESCE(TRIM(`s_nationkey_t`), '_null_recon_') AS `s_nationkey`, "
         "COALESCE(TRIM(`s_phone_t`), '_null_recon_') AS `s_phone`, "
@@ -186,7 +190,7 @@ def test_build_query_for_oracle_src(
     assert tgt_actual == tgt_expected
 
 
-def test_build_query_for_databricks_src(mock_spark, table_conf, fake_databricks_datasource):
+def test_build_query_for_databricks_src(mock_spark, table_conf, fake_databricks_datasource, fixed_recon_view_uuid):
     spark = mock_spark
     df_schema = StructType(
         [
@@ -217,9 +221,9 @@ def test_build_query_for_databricks_src(mock_spark, table_conf, fake_databricks_
         conf, schema, "source", get_dialect("databricks"), fake_databricks_datasource
     ).build_query(df)
     src_expected = (
-        'WITH recon AS (SELECT CAST(11 AS bigint) AS `s_nationkey`, CAST(1 AS bigint) '
-        "AS `s_suppkey`), src AS (SELECT COALESCE(TRIM(`s_acctbal`), '_null_recon_') "
-        "AS `s_acctbal`, COALESCE(TRIM(`s_address`), '_null_recon_') AS `s_address`, "
+        f'WITH recon AS (SELECT * FROM recon_keys_{fixed_recon_view_uuid}), src AS '
+        "(SELECT COALESCE(TRIM(`s_acctbal`), '_null_recon_') AS `s_acctbal`, "
+        "COALESCE(TRIM(`s_address`), '_null_recon_') AS `s_address`, "
         "COALESCE(TRIM(`s_comment`), '_null_recon_') AS `s_comment`, "
         "COALESCE(TRIM(`s_name`), '_null_recon_') AS `s_name`, "
         "COALESCE(TRIM(`s_nationkey`), '_null_recon_') AS `s_nationkey`, "
@@ -234,7 +238,12 @@ def test_build_query_for_databricks_src(mock_spark, table_conf, fake_databricks_
 
 
 def test_build_query_for_snowflake_without_transformations(
-    mock_spark, table_conf, table_schema_oracle_ansi, fake_oracle_datasource, fake_databricks_datasource
+    mock_spark,
+    table_conf,
+    table_schema_oracle_ansi,
+    fake_oracle_datasource,
+    fake_databricks_datasource,
+    fixed_recon_view_uuid,
 ):
     spark = mock_spark
     sch, sch_with_alias = table_schema_oracle_ansi
@@ -296,8 +305,7 @@ def test_build_query_for_snowflake_without_transformations(
         conf, sch_with_alias, "target", get_dialect("databricks"), fake_databricks_datasource
     ).build_query(df)
     tgt_expected = (
-        'WITH recon AS (SELECT 11 AS `s_nationkey`, 1 AS `s_suppkey` UNION SELECT 22 '
-        'AS `s_nationkey`, 2 AS `s_suppkey`), src AS (SELECT '
+        f'WITH recon AS (SELECT * FROM recon_keys_{fixed_recon_view_uuid}), src AS (SELECT '
         "COALESCE(TRIM(`s_acctbal_t`), '_null_recon_') AS `s_acctbal`, "
         'TRIM(s_address_t) AS `s_address`, COALESCE(TRIM(`s_comment_t`), '
         "'_null_recon_') AS `s_comment`, `s_name` AS `s_name`, "
@@ -314,7 +322,7 @@ def test_build_query_for_snowflake_without_transformations(
 
 
 def test_build_query_for_snowflake_src_for_non_integer_primary_keys(
-    mock_spark, table_conf, fake_oracle_datasource, fake_databricks_datasource
+    mock_spark, table_conf, fake_oracle_datasource, fake_databricks_datasource, fixed_recon_view_uuid
 ):
     spark = mock_spark
     sch = [
@@ -373,8 +381,7 @@ def test_build_query_for_snowflake_src_for_non_integer_primary_keys(
         conf, sch_with_alias, "target", get_dialect("databricks"), fake_databricks_datasource
     ).build_query(df)
     tgt_expected = (
-        "WITH recon AS (SELECT 11 AS `s_nationkey`, 'a' AS `s_suppkey` UNION SELECT "
-        "22 AS `s_nationkey`, 'b' AS `s_suppkey`), src AS (SELECT "
+        f'WITH recon AS (SELECT * FROM recon_keys_{fixed_recon_view_uuid}), src AS (SELECT '
         "COALESCE(TRIM(`s_name`), '_null_recon_') AS `s_name`, "
         "COALESCE(TRIM(`s_nationkey_t`), '_null_recon_') AS `s_nationkey`, "
         "COALESCE(TRIM(`s_suppkey_t`), '_null_recon_') AS `s_suppkey` FROM :tbl) "
