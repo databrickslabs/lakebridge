@@ -37,11 +37,8 @@ def _get_information_schema_query(catalog: str, schema: str, table: str):
 class DatabricksDataSource(DataSource):
     """Databricks data source backed by Unity Catalog `information_schema`.
 
-    Reads schema metadata from `information_schema.columns` (with `full_data_type`),
-    which is only available for native Unity Catalog catalogs. Use
-    `DatabricksNonUnityCatalogDataSource` for hive_metastore, global_temp views,
-    or Foreign Catalogs (Lakehouse Federation), where `information_schema` is
-    either missing or lacks the `full_data_type` column.
+    Use `DatabricksNonUnityCatalogDataSource` for hive_metastore, global views,
+    or Foreign Catalogs
     """
 
     _IDENTIFIER_DELIMITER = "`"
@@ -76,19 +73,6 @@ class DatabricksDataSource(DataSource):
         except (RuntimeError, PySparkException) as e:
             return self.log_and_throw_exception(e, "data", table_query)
 
-    def _fetch_schema(self, schema_query: str, normalize: bool) -> list[Schema]:
-        logger.debug(f"Fetching schema using query: \n`{schema_query}`")
-        logger.info(f"Fetching Schema: Started at: {datetime.now()}")
-        schema_metadata = (
-            self._spark.sql(schema_query)
-            .selectExpr("col_name as column_name", "data_type")
-            .where("column_name not like '#%'")
-            .distinct()
-            .collect()
-        )
-        logger.info(f"Schema fetched successfully. Completed at: {datetime.now()}")
-        return [self._map_meta_column(field, normalize) for field in schema_metadata]
-
     def get_schema(
         self,
         catalog: str,
@@ -98,7 +82,17 @@ class DatabricksDataSource(DataSource):
     ) -> list[Schema]:
         schema_query = _get_information_schema_query(catalog, schema, table)
         try:
-            return self._fetch_schema(schema_query, normalize)
+            logger.debug(f"Fetching schema using query: \n`{schema_query}`")
+            logger.info(f"Fetching Schema: Started at: {datetime.now()}")
+            schema_metadata = (
+                self._spark.sql(schema_query)
+                .selectExpr("col_name as column_name", "data_type")
+                .where("column_name not like '#%'")
+                .distinct()
+                .collect()
+            )
+            logger.info(f"Schema fetched successfully. Completed at: {datetime.now()}")
+            return [self._map_meta_column(field, normalize) for field in schema_metadata]
         except (RuntimeError, PySparkException) as e:
             return self.log_and_throw_exception(e, "schema", schema_query)
 
@@ -111,13 +105,6 @@ class DatabricksDataSource(DataSource):
 
 
 class DatabricksNonUnityCatalogDataSource(DatabricksDataSource):
-    """Databricks data source for catalogs outside Unity Catalog `information_schema`.
-
-    Uses `DESCRIBE TABLE` for schema fetching, which works for hive_metastore,
-    global_temp views, and Foreign Catalogs (Lakehouse Federation) — none of
-    which expose the Databricks-specific `full_data_type` column on
-    `information_schema.columns`.
-    """
 
     def get_schema(
         self,
@@ -128,6 +115,16 @@ class DatabricksNonUnityCatalogDataSource(DatabricksDataSource):
     ) -> list[Schema]:
         schema_query = _get_describe_query(catalog, schema, table)
         try:
-            return self._fetch_schema(schema_query, normalize)
+            logger.debug(f"Fetching schema using query: \n`{schema_query}`")
+            logger.info(f"Fetching Schema: Started at: {datetime.now()}")
+            schema_metadata = (
+                self._spark.sql(schema_query)
+                .selectExpr("col_name as column_name", "data_type")
+                .where("column_name not like '#%'")
+                .distinct()
+                .collect()
+            )
+            logger.info(f"Schema fetched successfully. Completed at: {datetime.now()}")
+            return [self._map_meta_column(field, normalize) for field in schema_metadata]
         except (RuntimeError, PySparkException) as e:
             return self.log_and_throw_exception(e, "schema", schema_query)
