@@ -5,7 +5,10 @@ import pytest
 from pyspark.sql import SparkSession
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.service.catalog import TableInfo
-from databricks.labs.lakebridge.reconcile.connectors.databricks import DatabricksDataSource
+from databricks.labs.lakebridge.reconcile.connectors.databricks import (
+    DatabricksDataSource,
+    DatabricksNonUnityCatalogDataSource,
+)
 from databricks.labs.lakebridge.reconcile.connectors.remote_query_reader import RemoteQueryReader
 from databricks.labs.lakebridge.reconcile.connectors.snowflake import SnowflakeDataSource
 from databricks.labs.lakebridge.reconcile.connectors.tsql import TSQLServerDataSource
@@ -25,7 +28,8 @@ def test_sql_server_read_schema_happy(spark: SparkSession) -> None:
 
 def test_databricks_read_schema_happy(spark: SparkSession) -> None:
     mock_ws = create_autospec(WorkspaceClient)
-    connector = DatabricksDataSource(get_dialect("databricks"), spark, mock_ws)
+    # global_temp views are not in Unity Catalog's information_schema, so use the non-UC variant.
+    connector = DatabricksNonUnityCatalogDataSource(get_dialect("databricks"), spark, mock_ws)
     random_view = f"test_view_{uuid.uuid4().hex}"
 
     try:
@@ -33,7 +37,8 @@ def test_databricks_read_schema_happy(spark: SparkSession) -> None:
         spark.sql("CREATE TABLE IF NOT EXISTS my_test_db.my_test_table (id INT, name STRING) USING parquet")
         df = spark.sql("SELECT * FROM my_test_db.my_test_table")
         df.createGlobalTempView(random_view)
-        columns = connector.get_schema(None, "global_temp", random_view)
+        # global_temp short-circuits the catalog, so the value here is ignored by the DESCRIBE query.
+        columns = connector.get_schema("hive_metastore", "global_temp", random_view)
 
         assert columns
     finally:
