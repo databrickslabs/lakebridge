@@ -11,7 +11,6 @@ from databricks.labs.lakebridge.reconcile.connectors.snowflake import SnowflakeD
 from databricks.labs.lakebridge.reconcile.connectors.tsql import TSQLServerDataSource
 from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
 from tests.integration.reconcile.test_oracle_reconcile import OracleDataSourceUnderTest
-from tests.integration.debug_envgetter import TestEnvGetter
 
 
 def test_sql_server_read_schema_happy(spark: SparkSession) -> None:
@@ -67,8 +66,7 @@ def test_oracle_read_schema_happy(spark: SparkSession) -> None:
 
 @pytest.mark.xfail(reason="Snowflake account unavailable", strict=True)
 def test_snowflake_read_schema_happy(spark: SparkSession) -> None:
-    connection = TestEnvGetter(False).get("TEST_SNOWFLAKE_CONNECTION")
-    reader = RemoteQueryReader(spark, connection)
+    reader = RemoteQueryReader(spark, "sf_sandbox")
     connector = SnowflakeDataSource(get_dialect("snowflake"), reader)
 
     columns = connector.get_schema('remorph', "sandbox", "diamonds")
@@ -76,8 +74,7 @@ def test_snowflake_read_schema_happy(spark: SparkSession) -> None:
 
 
 def test_sql_server_list_schemas_happy(spark: SparkSession) -> None:
-    connection = TestEnvGetter(False).get("TEST_TSQL_CONNECTION")
-    reader = RemoteQueryReader(spark, connection)
+    reader = RemoteQueryReader(spark, "sqlserver_sandbox")
     connector = TSQLServerDataSource(get_dialect("tsql"), reader)
 
     schemas = connector.list_schemas("labs_azure_sandbox_remorph")
@@ -85,8 +82,7 @@ def test_sql_server_list_schemas_happy(spark: SparkSession) -> None:
 
 
 def test_sql_server_list_tables_happy(spark: SparkSession) -> None:
-    connection = TestEnvGetter(False).get("TEST_TSQL_CONNECTION")
-    reader = RemoteQueryReader(spark, connection)
+    reader = RemoteQueryReader(spark, "sqlserver_sandbox")
     connector = TSQLServerDataSource(get_dialect("tsql"), reader)
 
     tables = connector.list_tables("labs_azure_sandbox_remorph", "dbo")
@@ -94,8 +90,7 @@ def test_sql_server_list_tables_happy(spark: SparkSession) -> None:
 
 
 def test_snowflake_list_schemas_happy(spark: SparkSession) -> None:
-    connection = TestEnvGetter(False).get("TEST_SNOWFLAKE_CONNECTION")
-    reader = RemoteQueryReader(spark, connection)
+    reader = RemoteQueryReader(spark, "sf_sandbox")
     connector = SnowflakeDataSource(get_dialect("snowflake"), reader)
 
     schemas = connector.list_schemas("remorph")
@@ -103,8 +98,7 @@ def test_snowflake_list_schemas_happy(spark: SparkSession) -> None:
 
 
 def test_snowflake_list_tables_happy(spark: SparkSession) -> None:
-    connection = TestEnvGetter(False).get("TEST_SNOWFLAKE_CONNECTION")
-    reader = RemoteQueryReader(spark, connection)
+    reader = RemoteQueryReader(spark, "sf_sandbox")
     connector = SnowflakeDataSource(get_dialect("snowflake"), reader)
 
     tables = connector.list_tables("remorph", "sandbox")
