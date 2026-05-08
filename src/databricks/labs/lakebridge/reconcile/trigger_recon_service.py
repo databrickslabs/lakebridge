@@ -49,6 +49,7 @@ class TriggerReconService:
         # silently no-op and return status=true without comparing anything.
         # Deferred import to avoid circular import with trigger_recon_aggregate_service.
         if reconcile_config.report_type.lower() == "aggregate":
+            # pylint: disable=cyclic-import,import-outside-toplevel
             from databricks.labs.lakebridge.reconcile.trigger_recon_aggregate_service import (
                 TriggerReconAggregateService,
             )
