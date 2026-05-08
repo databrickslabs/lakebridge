@@ -3,7 +3,7 @@ sidebar_position: 3
 title: Which Tool Do I Use?
 ---
 
-# Which Tool Do I Use?
+# Which Tool Should I Use?
 
 Lakebridge provides multiple tools for assessment and transpilation. Use this guide to choose the right one for your migration.
 
@@ -32,7 +32,7 @@ Lakebridge provides multiple tools for assessment and transpilation. Use this gu
 |---|---|---|---|
 | **Approach** | AST-based (ANTLR grammar → IR tree → code gen) | Config/pattern-based converter | LLM-powered  |
 | **Best for** | SQL migration where correctness guarantees and reproducibility matter | ETL platforms + broader SQL dialect coverage | Complex logic, unsupported constructs, or any format via custom prompts |
-| **Source dialects** | MSSql (SQL Server, Azure SQL, RDS for SQL Server), Snowflake (including dbt repointing), Synapse (Azure Synapse Analytics dedicated SQL pools) | DataStage, SSIS, Oracle, Teradata, Netezza, Synapse, Redshift, and more | Any SQL dialect or programming language. Either via built-in (MSSQL, MySQL, Netezza, Oracle, PostgreSQL, Redshift, Snowflake, Teradata, Airflow, Python, Scala) or custom YAML prompts) |
+| **Source dialects** | MSSql (SQL Server, Azure SQL, RDS for SQL Server), Snowflake (including dbt repointing), Synapse (Azure Synapse Analytics dedicated SQL pools) | DataStage, SSIS, Oracle, Teradata, Netezza, Synapse, Redshift, and more | Any SQL dialect or programming language. Either via built-in (MSSQL, MySQL, Netezza, Oracle, PostgreSQL, Redshift, Snowflake, Teradata, Airflow, Python, Scala) or custom YAML prompts |
 | **Output formats** | Databricks SQL only | Databricks SQL, SparkSQL, PySpark, notebooks, workflow definitions | Python/SQL notebooks; any text-based format |
 | **Accuracy** | Strong guarantee: errors or warns rather than silently producing wrong output | Deterministic and repeatable; extensible via config | Semantic/intent-aware; handles edge cases deterministic transpilers miss |
 | **Speed** | Fast — local execution, no API calls | Fast — local execution, no API calls | Slower — requires LLM API calls per file |

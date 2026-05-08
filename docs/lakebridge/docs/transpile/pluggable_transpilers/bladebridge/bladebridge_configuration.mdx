@@ -13,14 +13,14 @@ BladeBridge uses a **two-layer configuration model**:
 
 | Layer | What it controls | How to set it |
 |---|---|---|
-| **Layer 1 — LSP parameters** | Source dialect, target output format, override file path | Set via `install-transpile` prompts or `transpile` CLI flags |
+| **Layer 1 — CLI parameters** | Source dialect, target output format, override file path | Set via `install-transpile` prompts or `transpile` CLI flags |
 | **Layer 2 — JSON override files** | Conversion rules, naming conventions, source/target mappings | Create a custom JSON file and reference it via `--overrides-file` |
 
 You can use Layer 1 alone (most migrations), or combine both layers for advanced customization.
 
 ---
 
-## Layer 1: LSP Parameters
+## Layer 1: CLI Parameters
 
 These parameters are set when you run `install-transpile` (or passed directly to the `transpile` command):
 

@@ -177,7 +177,7 @@ make lint test
 
 ## Developer Documentation
 
-The developer guide is available at `https://databrickslabs.github.io/lakebridge/docs/dev/` — it is intentionally excluded from the site navigation but accessible via this direct URL. It covers local setup, code organization, JVM proxy configuration, and troubleshooting the development environment.
+The developer documentation covers local setup, code organization, JVM proxy configuration, and troubleshooting the development environment.
 
 ## First contribution
 

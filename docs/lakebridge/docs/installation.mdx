@@ -18,7 +18,16 @@ import TabItem from '@theme/TabItem';
 | **Network access** | GitHub, Maven Central (`repo1.maven.org`), PyPI |
 
 :::warning Restricted environments
-If your environment has firewall rules, whitelist `github.com`, `raw.githubusercontent.com`, `repo1.maven.org`, `central.sonatype.com`, `pypi.org`, and `files.pythonhosted.org` before installing.
+Hardened & Security-Restricted Environments
+If you are operating in a hardened environment with internet restrictions, firewall rules, or security policies, you must whitelist the following resources before installation:
+
+- **GitHub:** `github.com`, `raw.githubusercontent.com` - For Lakebridge source code
+- **Maven Central:** `repo1.maven.org`, `central.sonatype.com` - For transpiler plugins
+- **PyPI:** `pypi.org`, `files.pythonhosted.org` - For Python packages
+- **Python Downloads:** `python.org` - If installing Python
+- **Java Downloads:** `oracle.com` or OpenJDK mirrors - If installing Java
+
+Action Required: Contact your IT Security, CyberSecOps, or Infrastructure team to request whitelisting. Consider setting up a private repository/artifact mirror for organizations with strict internet access policies.
 :::
 
 ### Configure the Databricks CLI
@@ -26,8 +35,11 @@ If your environment has firewall rules, whitelist `github.com`, `raw.githubuserc
 Install and authenticate the CLI:
 
 <Tabs>
-    <TabItem value="macos" label="MacOS & Linux" default>
-        <img src={useBaseUrl('img/macos-databricks-cli-install.gif')} alt="macos-databricks-cli-install" />
+    <TabItem value="macos" label="MacOS" default>
+        ```shell
+        brew tap databricks/tap
+        brew install databricks
+        ```
     </TabItem>
     <TabItem value="windows" label="Windows">
         <img src={useBaseUrl('img/windows-databricks-cli-install.gif')} alt="windows-databricks-cli-install" />
@@ -36,15 +48,15 @@ Install and authenticate the CLI:
         ```bash
         #!/usr/bin/env bash
         apt update && apt install -y curl sudo unzip
-        curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/v0.242.0/install.sh | sudo sh
+        curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/v0.299.0/install.sh | sudo sh
         ```
     </TabItem>
 </Tabs>
 
-Lakebridge requires a `cluster_id` in the CLI profile:
+Authenticate the CLI:
 
 ```bash
-databricks configure --host <host> --configure-cluster --profile <profile_name>
+databricks configure
 ```
 
 Verify connectivity: `databricks clusters list`
@@ -79,14 +91,7 @@ databricks labs lakebridge --help
 databricks labs lakebridge install-transpile
 ```
 
-The command will prompt for your source dialect, input/output paths, and target technology. You can also pass all settings inline:
-
-```bash
-databricks labs lakebridge transpile \
-  --source-dialect mssql \
-  --input-source /path/to/sql \
-  --output-folder /path/to/output
-```
+The command will prompt for your source dialect, input/output paths, and target technology.
 
 To install Switch (the LLM transpiler):
 
@@ -115,14 +120,13 @@ databricks labs lakebridge transpile --help
 databricks labs lakebridge configure-reconcile
 ```
 
-<img src={useBaseUrl('img/recon-install.png')} alt="reconcile-configure" />
-
-If you don't have permission to create SQL warehouses, add a `warehouse_id` to your Databricks CLI profile:
+If you don't have permission to create SQL warehouses or clusters, add a `warehouse_id` or a `cluster_id` to your Databricks CLI profile:
 
 ```
 [profile-name]
 host         = <your-workspace-url>
 warehouse_id = <your-warehouse-id>
+cluster_id = <your-cluster-id>
 ```
 
 Verify:

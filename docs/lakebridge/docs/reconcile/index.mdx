@@ -31,9 +31,19 @@ Lakebridge Reconcile validates data fidelity after migration by comparing your s
 
 ## Setup
 
+### Step 0: Run `configure-reconcile`
+
+If you haven't already, complete the initial setup:
+
+```bash
+databricks labs lakebridge configure-reconcile
+```
+
+This sets up Lakebridge workspace resources and deploys the reconciliation dashboard. See [Installation → Configure Reconcile](/docs/installation#configure-reconcile) for details.
+
 ### Step 1: Create a configuration file
 
-After [installation](/docs/installation#configure-reconcile), a `.lakebridge` folder is created in your Databricks workspace home. Create your reconcile config file inside it:
+After running `configure-reconcile`, a `.lakebridge` folder is created in your Databricks workspace home. Create your reconcile config file inside it:
 
 ```
 .lakebridge/recon_config_<SOURCE>_<CATALOG_OR_SCHEMA>_<REPORT_TYPE>.json

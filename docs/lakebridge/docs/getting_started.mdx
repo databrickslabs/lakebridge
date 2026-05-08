@@ -13,7 +13,7 @@ This guide walks you through a complete end-to-end migration using **SQL Server 
 
 ## _(Optional)_ Step 1: Split Your SQL Files
 
-If your SQL code lives in monolithic files that contain multiple objects (stored procedures, tables, views, functions), split them first. The transpiler and analyzer both work at the individual-object level.
+If your SQL code lives in monolithic files that contain multiple objects (stored procedures, tables, views, functions), it is recommended to split them first.
 
 ```bash
 ./sqlsplit -d /path/to/your/sql -o /path/to/split/output
@@ -34,13 +34,15 @@ Splitting first gives the Analyzer more granular, per-object results and gives t
 ## _(Optional)_ Step 2: Assess Your Code
 
 Run the Analyzer on the (optionally split) files to understand complexity and identify patterns the transpiler may need help with.
-
 ```bash
-databricks labs lakebridge analyze \
-  --source-tech mssql \
-  --source-directory /path/to/split/output \
-  --report-file /path/to/analysis/results.xlsx
+databricks labs lakebridge analyze
 ```
+
+When prompted, enter the following details:
+- **Input path:** `/path/to/split/output`
+- **Source dialect:** `mssql`
+- **Report file:** `/path/to/transpiled/output/output.xlsx`
+- **Source technology:** Select the number corresponding to `MS SQL Server`
 
 The Analyzer produces a complexity report saved as an Excel file (`.xlsx`). Objects flagged as `HIGH` or `VERY HIGH`
 complexity may need manual review after transpilation.
@@ -51,11 +53,12 @@ See [Assessment Guide](/docs/assessment) for more details.
 
 ## Step 3: Configure Transpilation
 
-During `install-transpile` (covered in [Installation](/docs/installation#install-transpile)), you were prompted for your migration parameters. For this SQL Server → Databricks SQL guide, the values to use are:
+During `install-transpile` (covered in [Installation](/docs/installation#install-transpile)), you are prompted for your migration parameters. For this _Getting Started_ guide, the values to use are:
 
-- **Source dialect:** `mssql`
+- **Source dialect:** Select the number corresponding to `mssql`
 - **Input path:** `/path/to/split/output`
 - **Output directory:** `/path/to/transpiled/output`
+- **Transpiler:** Select the number corresponding to `Morpheus` (both Morpheus and BladeBridge support SQL Server, but this guide assumes Morpheus)
 
 If you need to change these settings, re-run `install-transpile`.
 
@@ -94,6 +97,10 @@ Files with errors still contain as much translated output as possible. Review th
 
 ## Step 5: Reconcile
 
+:::note Prerequisite
+This step requires `configure-reconcile` to have been completed during installation. If you skipped it, run it now — see [Installation → Configure Reconcile](/docs/installation#configure-reconcile).
+:::
+
 After deploying your transpiled SQL to Databricks, run the Reconciler to validate that the data output matches the source.
 
 ```bash
@@ -102,7 +109,7 @@ databricks labs lakebridge reconcile
 
 The Reconciler compares row counts, schema, and data values between your source system and the Databricks target. Results are written to a dashboard in your workspace.
 
-See [Reconcile Guide](/docs/reconcile) for full configuration details, or [Installation](/docs/installation#configure-reconcile) if you have not set up reconcile yet.
+See [Reconcile Guide](/docs/reconcile) for full configuration details.
 
 ---
 

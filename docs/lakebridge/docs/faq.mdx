@@ -129,16 +129,6 @@ Check the `export_error` column in the result table. Common causes:
 
 ## Reconciliation
 
-### Guidance for Oracle as a source
-
-#### Option 1: Download `ojdbc8.jar` manually
-
-Download from the [Oracle website](https://www.oracle.com/database/technologies/appdev/jdbc-downloads.html) and [install on your cluster](https://docs.databricks.com/en/libraries/cluster-libraries.html).
-
-#### Option 2: Install via Maven
-
-Follow the [Maven library guide](https://docs.databricks.com/en/libraries/package-repositories.html#maven-or-spark-package) using [these Maven coordinates](https://mvnrepository.com/artifact/com.oracle.database.jdbc/ojdbc8).
-
 ### Commonly used custom transformations
 
 | source_type | data_type | source_transformation | target_transformation | comments |
@@ -177,17 +167,18 @@ Use `drop_columns`:
 ```bash
 #!/usr/bin/env bash
 apt update && apt install -y curl sudo unzip
-curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/v0.242.0/install.sh | sudo sh
+curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/v0.299.0/install.sh | sudo sh
 ```
 
-### The `configure-reconcile` command fails because I can't create SQL warehouses.
+### The `configure-reconcile` command fails because I can't create SQL warehouses or clusters.
 
-Add your existing warehouse ID to your Databricks CLI profile:
+Add your existing warehouse or cluster ID to your Databricks CLI profile:
 
 ```
 [profile-name]
 host         = <your-workspace-url>
 warehouse_id = <your-warehouse-id>
+cluster_id   = <your-cluster-id>
 ```
 
 ### Transpilation produces output files with headers but no SQL.
