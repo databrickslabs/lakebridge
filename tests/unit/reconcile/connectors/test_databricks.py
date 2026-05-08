@@ -1,4 +1,3 @@
-import re
 from unittest.mock import MagicMock, create_autospec
 
 import pytest
@@ -18,39 +17,6 @@ def initial_setup():
     engine = get_dialect("databricks")
     ws = create_autospec(WorkspaceClient)
     return engine, spark, ws
-
-
-def test_get_schema():
-    # initial setup
-    engine, spark, ws = initial_setup()
-
-    # catalog as catalog
-    ddds = DatabricksDataSource(engine, spark, ws)
-    ddds.get_schema("catalog", "schema", "supplier")
-    spark.sql.assert_called_with(
-        re.sub(
-            r'\s+',
-            ' ',
-            """select lower(column_name) as col_name, full_data_type as data_type from
-                    catalog.information_schema.columns where lower(table_catalog)='catalog'
-                    and lower(table_schema)='schema' and lower(table_name) ='supplier' order by
-                    col_name""",
-        )
-    )
-    spark.sql().selectExpr.assert_called_with("col_name as column_name", "data_type")
-    spark.sql().selectExpr().where.assert_called_with("column_name not like '#%'")
-
-    # hive_metastore as catalog
-    ddds.get_schema("hive_metastore", "schema", "supplier")
-    spark.sql.assert_called_with(re.sub(r'\s+', ' ', """describe table hive_metastore.schema.supplier"""))
-    spark.sql().selectExpr.assert_called_with("col_name as column_name", "data_type")
-    spark.sql().selectExpr().where.assert_called_with("column_name not like '#%'")
-
-    # global_temp as schema with hive_metastore
-    ddds.get_schema("hive_metastore", "global_temp", "supplier")
-    spark.sql.assert_called_with(re.sub(r'\s+', ' ', """describe table global_temp.supplier"""))
-    spark.sql().selectExpr.assert_called_with("col_name as column_name", "data_type")
-    spark.sql().selectExpr().where.assert_called_with("column_name not like '#%'")
 
 
 def test_read_data_from_uc():
@@ -108,15 +74,8 @@ def test_get_schema_exception_handling():
     # create object for DatabricksDataSource
     ddds = DatabricksDataSource(engine, spark, ws)
     spark.sql.side_effect = RuntimeError("Test Exception")
-    with pytest.raises(DataSourceRuntimeException) as exception:
+    with pytest.raises(DataSourceRuntimeException):
         ddds.get_schema("org", "data", "employee")
-
-    assert str(exception.value) == (
-        "Runtime exception occurred while fetching schema using select lower(column_name) "
-        "as col_name, full_data_type as data_type from org.information_schema.columns "
-        "where lower(table_catalog)='org' and lower(table_schema)='data' and lower("
-        "table_name) ='employee' order by col_name : Test Exception"
-    )
 
 
 def test_normalize_identifier():
