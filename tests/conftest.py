@@ -9,7 +9,6 @@ from pyspark.sql.types import (
     LongType,
     StringType,
     TimestampType,
-    IntegerType,
     BooleanType,
     ArrayType,
     MapType,
@@ -83,7 +82,7 @@ def table_conf_with_opts(column_mapping):
         source_name="supplier",
         target_name="target_supplier",
         jdbc_reader_options=JdbcReaderOptions(
-            number_partitions=100, partition_column="s_nationkey", lower_bound="0", upper_bound="100"
+            num_partitions=100, partition_column="s_nationkey", lower_bound="0", upper_bound="100"
         ),
         join_columns=["s_suppkey", "s_nationkey"],
         select_columns=["s_suppkey", "s_name", "s_address", "s_phone", "s_acctbal", "s_nationkey"],
@@ -201,8 +200,8 @@ def report_tables_schema():
                             "row_comparison",
                             StructType(
                                 [
-                                    StructField("missing_in_source", IntegerType()),
-                                    StructField("missing_in_target", IntegerType()),
+                                    StructField("missing_in_source", LongType()),
+                                    StructField("missing_in_target", LongType()),
                                 ]
                             ),
                         ),
@@ -210,8 +209,8 @@ def report_tables_schema():
                             "column_comparison",
                             StructType(
                                 [
-                                    StructField("absolute_mismatch", IntegerType()),
-                                    StructField("threshold_mismatch", IntegerType()),
+                                    StructField("absolute_mismatch", LongType()),
+                                    StructField("threshold_mismatch", LongType()),
                                     StructField("mismatch_columns", StringType()),
                                 ]
                             ),
