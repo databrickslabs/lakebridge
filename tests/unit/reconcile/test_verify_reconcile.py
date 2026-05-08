@@ -121,10 +121,11 @@ def test_trigger_recon_does_not_dispatch_non_aggregate(report_type: str) -> None
     reconcile_config.report_type = report_type
 
     target = "databricks.labs.lakebridge.reconcile.trigger_recon_aggregate_service.TriggerReconAggregateService.trigger_recon_aggregates"
-    with patch(target) as mock_aggregate, patch.object(
-        TriggerReconService, "create_recon_dependencies"
-    ) as mock_deps, patch.object(TriggerReconService, "verify_successful_reconciliation") as mock_verify, patch(
-        "databricks.labs.lakebridge.reconcile.trigger_recon_service.generate_final_reconcile_output"
+    with (
+        patch(target) as mock_aggregate,
+        patch.object(TriggerReconService, "create_recon_dependencies") as mock_deps,
+        patch.object(TriggerReconService, "verify_successful_reconciliation") as mock_verify,
+        patch("databricks.labs.lakebridge.reconcile.trigger_recon_service.generate_final_reconcile_output"),
     ):
         mock_deps.return_value = (MagicMock(), MagicMock(intermediate_persist=MagicMock(base_dir="/tmp")))
         mock_verify.return_value = ReconcileOutput(recon_id="x", results=[])
