@@ -1,6 +1,9 @@
 import dataclasses
+import logging
 
 from databricks.labs.lakebridge.reconcile.connectors.data_source import DataSource
+from databricks.labs.lakebridge.reconcile.connectors.databricks import DatabricksDataSource
+from databricks.labs.lakebridge.reconcile.constants import SamplingSpecificationsType
 from databricks.labs.lakebridge.reconcile.recon_config import (
     Table,
     Aggregate,
@@ -8,6 +11,11 @@ from databricks.labs.lakebridge.reconcile.recon_config import (
     Transformation,
     ColumnThresholds,
 )
+
+logger = logging.getLogger(__name__)
+
+_DEFAULT_MAX_SAMPLE_SIZE = 50
+_MAX_SAMPLE_SIZE_DATABRICKS = 50_000
 
 
 class NormalizeReconConfigService:
@@ -38,6 +46,22 @@ class NormalizeReconConfigService:
                 if normalized_sampling.stratified_columns
                 else None
             )
+            requested = normalized_sampling.max_sample_size or _DEFAULT_MAX_SAMPLE_SIZE
+            is_databricks = isinstance(self.source, DatabricksDataSource)
+            if requested <= 0:
+                normalized_sampling.max_sample_size = _DEFAULT_MAX_SAMPLE_SIZE
+            elif is_databricks:
+                normalized_sampling.max_sample_size = min(requested, _MAX_SAMPLE_SIZE_DATABRICKS)
+            elif requested > _DEFAULT_MAX_SAMPLE_SIZE:
+                logger.warning(
+                    f"max_sample_size={requested} is only honored for Databricks source; "
+                    f"capping to {_DEFAULT_MAX_SAMPLE_SIZE} for {type(self.source).__name__}."
+                )
+                normalized_sampling.max_sample_size = _DEFAULT_MAX_SAMPLE_SIZE
+            else:
+                normalized_sampling.max_sample_size = requested
+            if normalized_sampling.specifications.type == SamplingSpecificationsType.COUNT:
+                normalized_sampling.specifications.value = normalized_sampling.max_sample_size
             table.sampling_options = normalized_sampling
         return table
 

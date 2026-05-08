@@ -24,8 +24,6 @@ _SUPPORTED_AGG_TYPES: set[str] = {
     "median",
 }
 
-_MAX_SAMPLE_SIZE_MIN = 50
-_MAX_SAMPLE_SIZE_MAX = 50_000
 _DEFAULT_MAX_SAMPLE_SIZE = 50
 
 RECONCILE_OPERATION_NAME = "reconcile"
@@ -102,7 +100,7 @@ class SamplingOptions:
     def _resolve_max_sample_size(self):
         # Source of truth precedence: max_sample_size > specifications.value (COUNT only) > default.
         if self.max_sample_size is None:
-            if self.specifications.type == SamplingSpecificationsType.COUNT:
+            if self.specifications.type == SamplingSpecificationsType.COUNT and self.specifications.value is not None:
                 self.max_sample_size = int(self.specifications.value)
             else:
                 self.max_sample_size = _DEFAULT_MAX_SAMPLE_SIZE
@@ -110,12 +108,6 @@ class SamplingOptions:
             raise InvalidMaxSampleSizeException(
                 f"max_sample_size must be an int, got {type(self.max_sample_size).__name__}"
             )
-        if self.max_sample_size < _MAX_SAMPLE_SIZE_MIN:
-            logger.info(f"max_sample_size must be >= {_MAX_SAMPLE_SIZE_MIN}, flooring to {_MAX_SAMPLE_SIZE_MIN}")
-            self.max_sample_size = _MAX_SAMPLE_SIZE_MIN
-        elif self.max_sample_size > _MAX_SAMPLE_SIZE_MAX:
-            logger.info(f"max_sample_size must be <= {_MAX_SAMPLE_SIZE_MAX}, capping to {_MAX_SAMPLE_SIZE_MAX}")
-            self.max_sample_size = _MAX_SAMPLE_SIZE_MAX
 
 
 @dataclass

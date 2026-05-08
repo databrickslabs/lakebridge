@@ -56,6 +56,9 @@ coverage:
 build:
 	uv build --require-hashes --build-constraints=.build-constraints.txt
 
+wheel:
+	uv build --wheel --require-hashes --build-constraints=.build-constraints.txt
+
 lock-dependencies: UV_FROZEN := 0
 lock-dependencies:
 	uv lock

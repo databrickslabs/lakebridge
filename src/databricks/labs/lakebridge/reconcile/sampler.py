@@ -10,7 +10,6 @@ from databricks.labs.lakebridge.reconcile.recon_config import SamplingOptions
 logger = logging.getLogger(__name__)
 
 _MIN_SAMPLE_COUNT = 50
-_MAX_SAMPLE_COUNT = 50_000
 
 _MIN_BUCKET_LIMIT = 2
 _MAX_BUCKET_LIMIT = 50
@@ -52,21 +51,6 @@ class RandomSampler(Sampler):
     def _validate_sampling_options(self):
         if self._sampling_options.method != SamplingOptionMethod.RANDOM:
             raise ValueError("RandomSampler: Only 'random' sampling method is supported")
-
-        specs = self._sampling_options.specifications
-        if specs.type == SamplingSpecificationsType.COUNT and (
-            specs.value is None or (specs.value < _MIN_SAMPLE_COUNT)
-        ):
-            logger.info(
-                f"RandomSampler: Sample count must be >= {_MIN_SAMPLE_COUNT}, " f"flooring to {_MIN_SAMPLE_COUNT}"
-            )
-            self._sampling_options.specifications.value = _MIN_SAMPLE_COUNT
-
-        elif specs.type == SamplingSpecificationsType.COUNT and specs.value > _MAX_SAMPLE_COUNT:
-            logger.info(
-                f"RandomSampler: Sample count must be <= {_MAX_SAMPLE_COUNT}, " f"capping to {_MAX_SAMPLE_COUNT}"
-            )
-            self._sampling_options.specifications.value = _MAX_SAMPLE_COUNT
 
     def sample(
         self, keys_df: DataFrame, keys_df_count: int, key_columns: list[str], target_table: DataFrame
@@ -118,22 +102,7 @@ class StratifiedSampler(Sampler):
         if self._sampling_options.method != SamplingOptionMethod.STRATIFIED:
             raise ValueError("StratifiedSampler: Only 'stratified' sampling method is supported")
 
-        specs = self._sampling_options.specifications
         stratified_buckets = self._sampling_options.stratified_buckets
-
-        if specs.type == SamplingSpecificationsType.COUNT and (
-            specs.value is None or (specs.value < _MIN_SAMPLE_COUNT)
-        ):
-            logger.info(
-                f"StratifiedSampler: Sample count must be >= {_MIN_SAMPLE_COUNT}, " f"flooring to {_MIN_SAMPLE_COUNT}"
-            )
-            self._sampling_options.specifications.value = _MIN_SAMPLE_COUNT
-
-        elif specs.type == SamplingSpecificationsType.COUNT and specs.value > _MAX_SAMPLE_COUNT:
-            logger.info(
-                f"StratifiedSampler: Sample count must be <= {_MAX_SAMPLE_COUNT}, " f"capping to {_MAX_SAMPLE_COUNT}"
-            )
-            self._sampling_options.specifications.value = _MAX_SAMPLE_COUNT
 
         if stratified_buckets < _MIN_BUCKET_LIMIT:
             logger.info(

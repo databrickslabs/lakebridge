@@ -29,6 +29,7 @@ from databricks.labs.lakebridge.reconcile.recon_config import (
     TableThresholds,
     ColumnMapping,
     Schema,
+    SamplingOptions,
 )
 from databricks.labs.lakebridge.reconcile.normalize_recon_config_service import NormalizeReconConfigService
 
@@ -106,6 +107,9 @@ def table_conf_with_opts(column_mapping):
 @pytest.fixture
 def table_conf():
     def _table_conf(**kwargs):
+        sampling_options = kwargs.get('sampling_options', None)
+        if sampling_options is None and 'max_sample_size' in kwargs:
+            sampling_options = SamplingOptions(max_sample_size=kwargs['max_sample_size'])
         return Table(
             source_name="supplier",
             target_name="supplier",
@@ -117,7 +121,7 @@ def table_conf():
             transformations=kwargs.get('transformations', None),
             column_thresholds=kwargs.get('thresholds', None),
             filters=kwargs.get('filters', None),
-            max_sample_size=kwargs.get('max_sample_size', None),
+            sampling_options=sampling_options,
         )
 
     return _table_conf

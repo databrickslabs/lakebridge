@@ -1,7 +1,7 @@
 from unittest.mock import MagicMock, patch
 
 from databricks.labs.lakebridge.config import DatabaseConfig, ReconcileMetadataConfig
-from databricks.labs.lakebridge.reconcile.recon_config import ColumnThresholds, Schema, Table
+from databricks.labs.lakebridge.reconcile.recon_config import ColumnThresholds, SamplingOptions, Schema, Table
 from databricks.labs.lakebridge.reconcile.recon_output_config import DataReconcileOutput, MismatchOutput
 from databricks.labs.lakebridge.reconcile.reconciliation import Reconciliation
 from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
@@ -31,7 +31,7 @@ def test_reconcile_data_passes_max_sample_size_to_sampler_factory():
         source_name="src",
         target_name="tgt",
         join_columns=["id"],
-        max_sample_size=999,
+        sampling_options=SamplingOptions(max_sample_size=999),
     )
     schema_item = Schema(
         column_name="id",
@@ -62,8 +62,10 @@ def test_reconcile_data_passes_max_sample_size_to_sampler_factory():
         factory_mock.get_sampler.return_value.sample.return_value = MagicMock()
         recon.reconcile_data(table_conf, [schema_item], [schema_item])
 
-    _, kwargs = factory_mock.get_sampler.call_args
-    assert kwargs["max_sample_size"] == 999
+    args, _ = factory_mock.get_sampler.call_args
+    assert isinstance(args[0], SamplingOptions)
+    assert args[0].max_sample_size == 999
+    assert args[0] is table_conf.sampling_options
 
 
 def test_reconcile_data_limits_threshold_df_with_max_sample_size():
@@ -83,7 +85,7 @@ def test_reconcile_data_limits_threshold_df_with_max_sample_size():
         column_thresholds=[
             ColumnThresholds(column_name="s_acctbal", lower_bound="0", upper_bound="100", type="int"),
         ],
-        max_sample_size=200,
+        sampling_options=SamplingOptions(max_sample_size=200),
     )
     schema_item = Schema(
         column_name="s_acctbal",

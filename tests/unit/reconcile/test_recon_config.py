@@ -56,15 +56,6 @@ def test_max_sample_size_at_boundaries_kept_as_is(table_conf):
     assert table_conf(max_sample_size=50_000).get_max_sample_size() == 50_000
 
 
-@pytest.mark.parametrize("value", [49, 0, -1, -100])
-def test_max_sample_size_below_min_is_floored(table_conf, value):
-    assert table_conf(max_sample_size=value).get_max_sample_size() == 50
-
-
-def test_max_sample_size_above_max_is_capped(table_conf):
-    assert table_conf(max_sample_size=50_001).get_max_sample_size() == 50_000
-
-
 @pytest.mark.parametrize("value", [True, False])
 def test_max_sample_size_bool_raises(table_conf, value):
     with pytest.raises(InvalidMaxSampleSizeException):
