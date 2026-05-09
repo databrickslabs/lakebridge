@@ -1,5 +1,4 @@
-import datetime
-from pathlib import Path
+from datetime import datetime, timezone
 
 from pyspark.sql import Row, SparkSession
 
@@ -17,24 +16,12 @@ from tests.integration.reconcile.test_aggregates_reconcile import expected_recon
 from tests.unit.conftest import get_dialect
 
 
-def remove_directory_recursively(directory_path):
-    path = Path(directory_path)
-    if path.is_dir():
-        for item in path.iterdir():
-            if item.is_dir():
-                remove_directory_recursively(item)
-            else:
-                item.unlink()
-        path.rmdir()
-
-
 def agg_data_prep(spark: SparkSession):
     table_conf = Table(source_name="supplier", target_name="target_supplier")
     reconcile_process_duration = ReconcileProcessDuration(
-        start_ts=str(datetime.datetime.now()), end_ts=str(datetime.datetime.now())
+        start_ts=str(datetime.now(tz=timezone.utc)), end_ts=str(datetime.now(tz=timezone.utc))
     )
 
-    # Prepare output dataclasses
     agg_reconcile_output = [
         AggregateQueryOutput(
             rule=expected_rule_output()["count"], reconcile_output=expected_reconcile_output_dict(spark)["count"]
@@ -44,31 +31,18 @@ def agg_data_prep(spark: SparkSession):
         ),
     ]
 
-    # Drop old data
-    spark.sql("DROP TABLE IF EXISTS DEFAULT.main")
-    spark.sql("DROP TABLE IF EXISTS DEFAULT.aggregate_rules")
-    spark.sql("DROP TABLE IF EXISTS DEFAULT.aggregate_metrics")
-    spark.sql("DROP TABLE IF EXISTS DEFAULT.aggregate_details")
-
-    # Get the warehouse location
-    warehouse_location = spark.conf.get("spark.sql.warehouse.dir")
-
-    if warehouse_location and Path(warehouse_location.lstrip('file:')).exists():
-        tables = ["main", "aggregate_rules", "aggregate_metrics", "aggregate_details"]
-        for table in tables:
-            remove_directory_recursively(f"{warehouse_location.lstrip('file:')}/{table}")
-
     return agg_reconcile_output, table_conf, reconcile_process_duration
 
 
-def test_aggregates_reconcile_store_aggregate_metrics(mock_workspace_client, mock_spark):
+def test_aggregates_reconcile_store_aggregate_metrics(
+    mock_workspace_client, spark, recon_metadata: ReconcileMetadataConfig
+):
     database_config = DatabaseConfig(
         "source_test_schema", "target_test_catalog", "target_test_schema", "source_test_catalog"
     )
 
     source_type = get_dialect("snowflake")
-    spark = mock_spark
-    agg_reconcile_output, table_conf, reconcile_process_duration = agg_data_prep(mock_spark)
+    agg_reconcile_output, table_conf, reconcile_process_duration = agg_data_prep(spark)
 
     recon_id = "999fygdrs-dbb7-489f-bad1-6a7e8f4821b1"
 
@@ -79,15 +53,14 @@ def test_aggregates_reconcile_store_aggregate_metrics(mock_workspace_client, moc
         source_type,
         mock_workspace_client,
         spark,
-        metadata_config=ReconcileMetadataConfig(schema="default"),
-        local_test_run=True,
+        metadata_config=recon_metadata,
     )
     recon_capture.store_aggregates_metrics(table_conf, reconcile_process_duration, agg_reconcile_output)
 
-    # Check if the tables are created
+    table_prefix = f"{recon_metadata.catalog}.{recon_metadata.schema}"
 
     # assert main table data
-    remorph_reconcile_df = spark.sql("select * from DEFAULT.main")
+    remorph_reconcile_df = spark.sql(f"select * from {table_prefix}.main")
 
     assert remorph_reconcile_df.count() == 1
     if remorph_reconcile_df.first():
@@ -98,7 +71,7 @@ def test_aggregates_reconcile_store_aggregate_metrics(mock_workspace_client, moc
         assert main.get("operation_name") == "aggregates-reconcile"
 
     # assert rules data
-    agg_reconcile_rules_df = spark.sql("select * from DEFAULT.aggregate_rules")
+    agg_reconcile_rules_df = spark.sql(f"select * from {table_prefix}.aggregate_rules")
 
     assert agg_reconcile_rules_df.count() == 2
     assert agg_reconcile_rules_df.select("rule_type").distinct().count() == 1
@@ -109,7 +82,7 @@ def test_aggregates_reconcile_store_aggregate_metrics(mock_workspace_client, moc
         assert rule["rule_info"].keys() == {"agg_type", "agg_column", "group_by_columns"}
 
     # assert metrics
-    agg_reconcile_metrics_df = spark.sql("select * from DEFAULT.aggregate_metrics")
+    agg_reconcile_metrics_df = spark.sql(f"select * from {table_prefix}.aggregate_metrics")
 
     assert agg_reconcile_metrics_df.count() == 2
     if agg_reconcile_metrics_df.first():
@@ -118,7 +91,7 @@ def test_aggregates_reconcile_store_aggregate_metrics(mock_workspace_client, moc
         assert metric.get("recon_metrics").asDict().keys() == {"mismatch", "missing_in_source", "missing_in_target"}
 
     # assert details
-    agg_reconcile_details_df = spark.sql("select * from DEFAULT.aggregate_details")
+    agg_reconcile_details_df = spark.sql(f"select * from {table_prefix}.aggregate_details")
 
     assert agg_reconcile_details_df.count() == 6
     assert agg_reconcile_details_df.select("recon_type").distinct().count() == 3
@@ -130,9 +103,8 @@ def test_aggregates_reconcile_store_aggregate_metrics(mock_workspace_client, moc
 
     reconcile_output = generate_final_reconcile_aggregate_output(
         recon_id=recon_id,
-        spark=mock_spark,
-        metadata_config=ReconcileMetadataConfig(schema="default"),
-        local_test_run=True,
+        spark=spark,
+        metadata_config=recon_metadata,
     )
     assert len(reconcile_output.results) == 1
     assert not reconcile_output.results[0].exception_message

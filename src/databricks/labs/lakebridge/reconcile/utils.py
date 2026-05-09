@@ -14,11 +14,16 @@ logger = logging.getLogger(__name__)
 def initialise_data_source(
     ws: WorkspaceClient,
     spark: SparkSession,
-    engine: str,
-    secret_scope: str,
+    source_dialect: str,
+    connection_name: str | None,
 ):
-    source = create_adapter(engine=get_dialect(engine), spark=spark, ws=ws, secret_scope=secret_scope)
-    target = create_adapter(engine=get_dialect("databricks"), spark=spark, ws=ws, secret_scope=secret_scope)
+    if not connection_name:
+        validate_input(source_dialect, {"databricks"}, "Please configure connection name")
+        source = create_adapter(engine=get_dialect("databricks"), spark=spark, ws=ws, connection_name="databricks")
+    else:
+        source = create_adapter(engine=get_dialect(source_dialect), spark=spark, ws=ws, connection_name=connection_name)
+
+    target = create_adapter(engine=get_dialect("databricks"), spark=spark, ws=ws, connection_name="databricks")
 
     return source, target
 

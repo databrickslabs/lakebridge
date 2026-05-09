@@ -30,11 +30,11 @@ _MIN_SAMPLE_COUNT = 50
 _MAX_SAMPLE_COUNT = 400
 
 
-def test_random_sampler_count(mock_spark):
-    keys_df = mock_spark.createDataFrame([Row(key=1), Row(key=2), Row(key=3), Row(key=4), Row(key=5)])
+def test_random_sampler_count(spark):
+    keys_df = spark.createDataFrame([Row(key=1), Row(key=2), Row(key=3), Row(key=4), Row(key=5)])
     keys_df_count = keys_df.count()
 
-    target_table_df = mock_spark.createDataFrame(
+    target_table_df = spark.createDataFrame(
         [
             Row(key=1, state="NC", age=25),
             Row(key=2, state="NC", age=30),
@@ -74,7 +74,7 @@ def test_random_sampler_negative_count_floored_via_normalize(mock_spark):
     keys_df = mock_spark.createDataFrame([Row(key=1), Row(key=2), Row(key=3), Row(key=4), Row(key=5)])
     keys_df_count = keys_df.count()
 
-    target_table_df = mock_spark.createDataFrame(
+    target_table_df = spark.createDataFrame(
         [
             Row(key=1, state="NC", age=25),
             Row(key=2, state="NC", age=30),
@@ -108,11 +108,11 @@ def test_random_sampler_invalid_fraction():
         )
 
 
-def test_stratified_sampler_count(mock_spark):
-    keys_df = mock_spark.createDataFrame([Row(key=1), Row(key=2), Row(key=3), Row(key=4), Row(key=5)])
+def test_stratified_sampler_count(spark):
+    keys_df = spark.createDataFrame([Row(key=1), Row(key=2), Row(key=3), Row(key=4), Row(key=5)])
     keys_df_count = keys_df.count()
 
-    target_table_df = mock_spark.createDataFrame(
+    target_table_df = spark.createDataFrame(
         [
             Row(key=1, state="NC", age=25),
             Row(key=2, state="NC", age=30),
@@ -187,7 +187,7 @@ def test_stratified_sampler_negative_count_floored_via_normalize(mock_spark):
     keys_df = mock_spark.createDataFrame([Row(key=1), Row(key=2), Row(key=3), Row(key=4), Row(key=5)])
     keys_df_count = keys_df.count()
 
-    target_table_df = mock_spark.createDataFrame(
+    target_table_df = spark.createDataFrame(
         [
             Row(key=1, state="NC", age=25),
             Row(key=2, state="NC", age=30),
