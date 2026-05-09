@@ -8,7 +8,6 @@ from pathlib import Path
 
 from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql.functions import col, collect_list, create_map, lit
-from pyspark.sql.types import StringType
 from pyspark.errors import PySparkException
 from sqlglot import Dialect
 
