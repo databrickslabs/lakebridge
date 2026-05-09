@@ -1,10 +1,16 @@
 version: 2
 updates:
-  - package-ecosystem: "pip"
+  - package-ecosystem: "uv"
     directory: "/"
+    cooldown:
+      default-days: 7
+      exclude:
+        - "databricks*"
     schedule:
       interval: "daily"
-  - package-ecosystem: "github-actions"
-    directory: "/"
+  - package-ecosystem: "npm"
+    directory: "/docs/lakebridge"
+    cooldown:
+      default-days: 7
     schedule:
       interval: "daily"

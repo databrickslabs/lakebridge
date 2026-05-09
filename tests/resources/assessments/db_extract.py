@@ -1,26 +1,27 @@
-import pandas as pd
-import duckdb
 import argparse
+import datetime as dt
 import json
-import sys
-import numpy as np
 import logging
-from datetime import datetime, timedelta
+import random
+import sys
+
+import duckdb
+import pandas as pd
 
 
-def generate_random_dataset(size=10):
+def generate_random_dataset(size: int = 10, rng=random.Random()) -> pd.DataFrame:
     # Generate dates for the last 30 days
-    end_date = datetime.now()
-    start_date = end_date - timedelta(days=30)
+    end_date = dt.datetime.now()
+    start_date = end_date - dt.timedelta(days=30)
     dates = pd.date_range(start=start_date, end=end_date, periods=size)
 
     data = {
         'id': range(1, size + 1),
         'date': dates,
-        'category': np.random.choice(['Low', 'Medium', 'High'], size),
-        'department': np.random.choice(['Sales', 'Marketing', 'Engineering', 'Support'], size),
-        'is_active': np.random.choice([True, False], size, p=[0.8, 0.2]),
-        'score': np.random.uniform(0, 100, size).round(2),
+        'category': [rng.choice(['Low', 'Medium', 'High']) for _ in range(size)],
+        'department': [rng.choice(['Sales', 'Marketing', 'Engineering', 'Support']) for _ in range(size)],
+        'is_active': [rng.random() < 0.8 for _ in range(size)],
+        'score': [round(rng.uniform(0, 100), 2) for _ in range(size)],
     }
 
     return pd.DataFrame(data)
