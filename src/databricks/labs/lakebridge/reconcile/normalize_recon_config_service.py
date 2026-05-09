@@ -123,11 +123,7 @@ class NormalizeReconConfigService:
     def _normalize_jdbc_options(self, table: Table):
         if table.jdbc_reader_options:
             normalized = dataclasses.replace(table.jdbc_reader_options)
-            normalized.partition_column = (
-                self.source.normalize_identifier(normalized.partition_column).ansi_normalized
-                if normalized.partition_column
-                else None
-            )
+            normalized.partition_column = self.source.normalize_identifier(normalized.partition_column).ansi_normalized
             table.jdbc_reader_options = normalized
 
         return table

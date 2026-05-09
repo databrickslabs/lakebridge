@@ -2,7 +2,7 @@ import logging
 import os
 import tempfile
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from functools import reduce, cached_property
 from pathlib import Path
 
@@ -76,7 +76,10 @@ class ReconIntermediatePersist(AbstractReconIntermediatePersist):
 
     @cached_property
     def is_serverless(self) -> bool:
-        is_serverless = os.getenv("IS_SERVERLESS", "").lower() == "true"
+        is_serverless = (
+            os.getenv("IS_SERVERLESS", "").lower() == "true"
+            or os.getenv("DATABRICKS_SERVERLESS_COMPUTE_ID", "").lower() == "auto"
+        )
         return is_serverless
 
     @property
@@ -143,9 +146,8 @@ def generate_final_reconcile_output(
     recon_id: str,
     spark: SparkSession,
     metadata_config: ReconcileMetadataConfig = ReconcileMetadataConfig(),
-    local_test_run: bool = False,
 ) -> ReconcileOutput:
-    _db_prefix = metadata_config.schema if local_test_run else f"{metadata_config.catalog}.{metadata_config.schema}"
+    _db_prefix = f"{metadata_config.catalog}.{metadata_config.schema}"
     recon_df = spark.sql(
         f"""
     SELECT
@@ -213,9 +215,8 @@ def generate_final_reconcile_aggregate_output(
     recon_id: str,
     spark: SparkSession,
     metadata_config: ReconcileMetadataConfig = ReconcileMetadataConfig(),
-    local_test_run: bool = False,
 ) -> ReconcileOutput:
-    _db_prefix = "default" if local_test_run else f"{metadata_config.catalog}.{metadata_config.schema}"
+    _db_prefix = f"{metadata_config.catalog}.{metadata_config.schema}"
     recon_df = spark.sql(
         f"""
         SELECT source_table,
@@ -279,7 +280,6 @@ class ReconCapture:
         ws: WorkspaceClient,
         spark: SparkSession,
         metadata_config: ReconcileMetadataConfig = ReconcileMetadataConfig(),
-        local_test_run: bool = False,
     ):
         self.database_config = database_config
         self.recon_id = recon_id
@@ -287,9 +287,7 @@ class ReconCapture:
         self.source_dialect = source_dialect
         self.ws = ws
         self.spark = spark
-        self._db_prefix = (
-            metadata_config.schema if local_test_run else f"{metadata_config.catalog}.{metadata_config.schema}"
-        )
+        self._db_prefix = f"{metadata_config.catalog}.{metadata_config.schema}"
 
     def _generate_recon_main_id(
         self,
@@ -401,7 +399,7 @@ class ReconCapture:
         if data_reconcile_output.exception is not None:
             exception_msg = data_reconcile_output.exception.replace("'", '').replace('"', '')
 
-        insertion_time = str(datetime.now())
+        insertion_time = str(datetime.now(tz=timezone.utc))
         mismatch_columns = []
         if data_reconcile_output.mismatch and data_reconcile_output.mismatch.mismatch_columns:
             mismatch_columns = data_reconcile_output.mismatch.mismatch_columns
@@ -458,7 +456,7 @@ class ReconCapture:
             df.withColumn("recon_table_id", lit(recon_table_id))
             .withColumn("recon_type", lit(recon_type))
             .withColumn("status", lit(status))
-            .withColumn("inserted_ts", lit(datetime.now()))
+            .withColumn("inserted_ts", lit(datetime.now(tz=timezone.utc)))
         )
         return (
             df.groupBy("recon_table_id", "recon_type", "status", "inserted_ts")
@@ -574,7 +572,7 @@ class ReconCapture:
             if agg_data.exception is not None:
                 exception_msg = agg_data.exception.replace("'", '').replace('"', '')
 
-            insertion_time = str(datetime.now())
+            insertion_time = str(datetime.now(tz=timezone.utc))
 
             # If there is any exception while running the Query,
             # each rule is stored, with the Exception message in the metrics table
@@ -684,7 +682,7 @@ class ReconCapture:
             rule_query = agg_output.rule.get_rule_query(rule_id)
             rule_df_list.append(
                 self.spark.sql(rule_query)
-                .withColumn("inserted_ts", lit(datetime.now()))
+                .withColumn("inserted_ts", lit(datetime.now(tz=timezone.utc)))
                 .select("rule_id", "rule_type", "rule_info", "inserted_ts")
             )
 
