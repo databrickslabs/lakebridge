@@ -1,6 +1,7 @@
 import re
 import logging
 
+import pytest
 from databricks.sdk.service.jobs import TerminationTypeType
 from databricks.sdk.core import DatabricksError
 
@@ -11,6 +12,8 @@ from databricks.labs.lakebridge.reconcile.runner import ReconcileRunner
 from tests.integration.reconcile.conftest import generate_recon_application_context
 
 logger = logging.getLogger(__name__)
+
+pytestmark = pytest.mark.timeout(1800)
 
 
 def _debug_run_output(ctx: ApplicationContext, run_id: int) -> None:
