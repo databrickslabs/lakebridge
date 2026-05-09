@@ -69,9 +69,9 @@ def test_random_sampler_count(spark):
     )
 
 
-def test_random_sampler_negative_count_floored_via_normalize(mock_spark):
+def test_random_sampler_negative_count_floored_via_normalize(spark):
     """Negative max_sample_size is floored to 50 by NormalizeReconConfigService before reaching sampler."""
-    keys_df = mock_spark.createDataFrame([Row(key=1), Row(key=2), Row(key=3), Row(key=4), Row(key=5)])
+    keys_df = spark.createDataFrame([Row(key=1), Row(key=2), Row(key=3), Row(key=4), Row(key=5)])
     keys_df_count = keys_df.count()
 
     target_table_df = spark.createDataFrame(
@@ -182,9 +182,9 @@ def test_stratified_sampler_missing_columns_buckets():
         )
 
 
-def test_stratified_sampler_negative_count_floored_via_normalize(mock_spark):
+def test_stratified_sampler_negative_count_floored_via_normalize(spark):
     """Negative max_sample_size is floored to 50 by NormalizeReconConfigService before reaching sampler."""
-    keys_df = mock_spark.createDataFrame([Row(key=1), Row(key=2), Row(key=3), Row(key=4), Row(key=5)])
+    keys_df = spark.createDataFrame([Row(key=1), Row(key=2), Row(key=3), Row(key=4), Row(key=5)])
     keys_df_count = keys_df.count()
 
     target_table_df = spark.createDataFrame(

@@ -18,7 +18,7 @@ from tests.conftest import oracle_schema_fixture_factory, ansi_schema_fixture_fa
 
 
 def test_build_query_for_snowflake_src(
-    mock_spark,
+    spark,
     table_conf,
     table_schema_oracle_ansi,
     fake_oracle_datasource,
@@ -37,7 +37,7 @@ def test_build_query_for_snowflake_src(
             StructField('s_comment', StringType()),
         ]
     )
-    df = mock_spark.createDataFrame(
+    df = spark.createDataFrame(
         [
             (1, 'name-1', 'add-1', 11, '1-1', 100, 'c-1'),
             (2, 'name-2', 'add-2', 22, '2-2', 200, 'c-2'),
@@ -124,7 +124,7 @@ def test_build_query_for_oracle_src(
             StructField('s_comment', StringType()),
         ]
     )
-    df = mock_spark.createDataFrame(
+    df = spark.createDataFrame(
         [
             (1, 'name-1', 'add-1', 11, '1-1', 100, 'c-1'),
             (2, 'name-2', 'add-2', 22, '2-2', 200, 'c-2'),
@@ -192,7 +192,7 @@ def test_build_query_for_oracle_src(
     assert tgt_actual == tgt_expected
 
 
-def test_build_query_for_databricks_src(mock_spark, table_conf, fake_databricks_datasource, fixed_recon_view_uuid):
+def test_build_query_for_databricks_src(spark, table_conf, fake_databricks_datasource, fixed_recon_view_uuid):
     df_schema = StructType(
         [
             StructField('s_suppkey', IntegerType()),
@@ -204,7 +204,7 @@ def test_build_query_for_databricks_src(mock_spark, table_conf, fake_databricks_
             StructField('s_comment', StringType()),
         ]
     )
-    df = mock_spark.createDataFrame([(1, 'name-1', 'add-1', 11, '1-1', 100, 'c-1')], schema=df_schema)
+    df = spark.createDataFrame([(1, 'name-1', 'add-1', 11, '1-1', 100, 'c-1')], schema=df_schema)
 
     schema = [
         ansi_schema_fixture_factory("s_suppkey", "bigint"),
@@ -239,7 +239,7 @@ def test_build_query_for_databricks_src(mock_spark, table_conf, fake_databricks_
 
 
 def test_build_query_for_snowflake_without_transformations(
-    mock_spark,
+    spark,
     table_conf,
     table_schema_oracle_ansi,
     fake_oracle_datasource,
@@ -258,7 +258,7 @@ def test_build_query_for_snowflake_without_transformations(
             StructField('s_comment', StringType()),
         ]
     )
-    df = mock_spark.createDataFrame(
+    df = spark.createDataFrame(
         [
             (1, 'name-1', 'add-1', 11, '1-1', 100, 'c-1'),
             (2, 'name-2', 'add-2', 22, '2-2', 200, 'c-2'),
@@ -376,7 +376,7 @@ def test_build_query_for_tsql(spark, fake_tsql_datasource, fake_databricks_datas
 
 
 def test_build_query_for_snowflake_src_for_non_integer_primary_keys(
-    mock_spark, table_conf, fake_oracle_datasource, fake_databricks_datasource, fixed_recon_view_uuid
+    spark, table_conf, fake_oracle_datasource, fake_databricks_datasource, fixed_recon_view_uuid
 ):
     sch = [
         oracle_schema_fixture_factory("s_suppkey", "varchar"),
@@ -396,7 +396,7 @@ def test_build_query_for_snowflake_src_for_non_integer_primary_keys(
             StructField('s_nationkey', IntegerType()),
         ]
     )
-    df = mock_spark.createDataFrame(
+    df = spark.createDataFrame(
         [
             ('a', 'name-1', 11),
             ('b', 'name-2', 22),
