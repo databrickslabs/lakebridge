@@ -164,7 +164,7 @@ def sandbox_redshift_config() -> JsonObject:
         "host": env.get("REDSHIFT_HOST"),
         "user": env.get("REDSHIFT_USER"),
         "password": env.get("REDSHIFT_PASS"),
-        "database": env.get("REDSHIFT_DATABASE"),
+        "database": "labs",
         "port": int(env.get("REDSHIFT_PORT")),
         "auth_type": "sql_authentication",
         "ssl": "true",
