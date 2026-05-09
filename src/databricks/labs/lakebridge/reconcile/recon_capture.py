@@ -91,7 +91,7 @@ class ReconIntermediatePersist(AbstractReconIntermediatePersist):
         )
 
     @staticmethod
-    def _strip_char_varchar_constraints(df: DataFrame) -> DataFrame:
+    def strip_char_varchar_constraints(df: DataFrame) -> DataFrame:
         """Strip CHAR(n)/VARCHAR(n) length constraints from DataFrame columns.
 
         When reconciling data from external sources (e.g., Teradata via Lakehouse Federation),
@@ -106,7 +106,7 @@ class ReconIntermediatePersist(AbstractReconIntermediatePersist):
 
     def _write_df_to_volumes(self, df: DataFrame, path: str) -> None:
         logger.debug(f"Writing DF on {self._format} to path: {path}")
-        df = self._strip_char_varchar_constraints(df)
+        df = self.strip_char_varchar_constraints(df)
         df.write.format(self._format).save(path)
         logger.info(f"Wrote DF on {self._format}")
 
@@ -132,7 +132,7 @@ class ReconIntermediatePersist(AbstractReconIntermediatePersist):
 
 def _write_df_to_delta(df: DataFrame, table_name: str, mode="append"):
     try:
-        df = ReconIntermediatePersist._strip_char_varchar_constraints(df)
+        df = ReconIntermediatePersist.strip_char_varchar_constraints(df)
         df.write.mode(mode).saveAsTable(table_name)
         logger.info(f"Data written to {table_name} successfully.")
     except Exception as e:

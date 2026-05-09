@@ -12,7 +12,7 @@ def _make_df(schema_fields):
     df.schema = schema
     df.columns = [f.name for f in schema_fields]
 
-    def mock_select(*cols):
+    def mock_select(*_cols):
         # select with alias strips metadata — return df with empty metadata on all fields
         stripped_fields = [StructField(f.name, f.dataType, f.nullable, metadata={}) for f in schema_fields]
         return _make_df(stripped_fields)
@@ -30,7 +30,7 @@ def test_strip_char_varchar_constraints_strips_metadata():
         ]
     )
 
-    result = ReconIntermediatePersist._strip_char_varchar_constraints(df)
+    result = ReconIntermediatePersist.strip_char_varchar_constraints(df)
 
     assert result.schema.fields[1].metadata == {}
 
@@ -44,7 +44,7 @@ def test_strip_char_varchar_constraints_preserves_types():
         ]
     )
 
-    result = ReconIntermediatePersist._strip_char_varchar_constraints(df)
+    result = ReconIntermediatePersist.strip_char_varchar_constraints(df)
 
     assert result.schema.fields[0].dataType == IntegerType()
     assert result.schema.fields[1].dataType == StringType()
