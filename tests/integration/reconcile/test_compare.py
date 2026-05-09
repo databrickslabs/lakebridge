@@ -16,10 +16,10 @@ from tests.integration.reconcile.conftest import FakeReconIntermediatePersist
 
 
 def test_compare_data_for_report_all(
-    mock_spark,
+    spark,
     tmp_path: Path,
 ):
-    source = mock_spark.createDataFrame(
+    source = spark.createDataFrame(
         [
             Row(s_suppkey=1, s_nationkey=11, hash_value_recon='1a1'),
             Row(s_suppkey=2, s_nationkey=22, hash_value_recon='2b2'),
@@ -27,7 +27,7 @@ def test_compare_data_for_report_all(
             Row(s_suppkey=5, s_nationkey=55, hash_value_recon='5e5'),
         ]
     )
-    target = mock_spark.createDataFrame(
+    target = spark.createDataFrame(
         [
             Row(s_suppkey=1, s_nationkey=11, hash_value_recon='1a1'),
             Row(s_suppkey=2, s_nationkey=22, hash_value_recon='2b4'),
@@ -36,9 +36,9 @@ def test_compare_data_for_report_all(
         ]
     )
 
-    mismatch = MismatchOutput(mismatch_df=mock_spark.createDataFrame([Row(s_suppkey=2, s_nationkey=22)]))
-    missing_in_src = mock_spark.createDataFrame([Row(s_suppkey=4, s_nationkey=44), Row(s_suppkey=5, s_nationkey=56)])
-    missing_in_tgt = mock_spark.createDataFrame([Row(s_suppkey=3, s_nationkey=33), Row(s_suppkey=5, s_nationkey=55)])
+    mismatch = MismatchOutput(mismatch_df=spark.createDataFrame([Row(s_suppkey=2, s_nationkey=22)]))
+    missing_in_src = spark.createDataFrame([Row(s_suppkey=4, s_nationkey=44), Row(s_suppkey=5, s_nationkey=56)])
+    missing_in_tgt = spark.createDataFrame([Row(s_suppkey=3, s_nationkey=33), Row(s_suppkey=5, s_nationkey=55)])
 
     actual = reconcile_data(
         source=source,
@@ -67,8 +67,8 @@ def test_compare_data_for_report_all(
     assertDataFrameEqual(actual.missing_in_tgt, expected.missing_in_tgt)
 
 
-def test_compare_data_for_report_hash(mock_spark, tmp_path: Path):
-    source = mock_spark.createDataFrame(
+def test_compare_data_for_report_hash(spark, tmp_path: Path):
+    source = spark.createDataFrame(
         [
             Row(s_suppkey=1, s_nationkey=11, hash_value_recon='1a1'),
             Row(s_suppkey=2, s_nationkey=22, hash_value_recon='2b2'),
@@ -76,7 +76,7 @@ def test_compare_data_for_report_hash(mock_spark, tmp_path: Path):
             Row(s_suppkey=5, s_nationkey=55, hash_value_recon='5e5'),
         ]
     )
-    target = mock_spark.createDataFrame(
+    target = spark.createDataFrame(
         [
             Row(s_suppkey=1, s_nationkey=11, hash_value_recon='1a1'),
             Row(s_suppkey=2, s_nationkey=22, hash_value_recon='2b4'),
@@ -85,10 +85,10 @@ def test_compare_data_for_report_hash(mock_spark, tmp_path: Path):
         ]
     )
 
-    missing_in_src = mock_spark.createDataFrame(
+    missing_in_src = spark.createDataFrame(
         [Row(s_suppkey=2, s_nationkey=22), Row(s_suppkey=4, s_nationkey=44), Row(s_suppkey=5, s_nationkey=56)]
     )
-    missing_in_tgt = mock_spark.createDataFrame(
+    missing_in_tgt = spark.createDataFrame(
         [Row(s_suppkey=2, s_nationkey=22), Row(s_suppkey=3, s_nationkey=33), Row(s_suppkey=5, s_nationkey=55)]
     )
 
@@ -118,16 +118,16 @@ def test_compare_data_for_report_hash(mock_spark, tmp_path: Path):
     assertDataFrameEqual(actual.missing_in_tgt, expected.missing_in_tgt)
 
 
-def test_capture_mismatch_data_and_cols(mock_spark):
+def test_capture_mismatch_data_and_cols(spark):
     # these mock dataframes are expected to contain only mismatched rows. Hence, the matching rows between source and target are removed for this test-case.
-    source = mock_spark.createDataFrame(
+    source = spark.createDataFrame(
         [
             Row(s_suppkey=2, s_nationkey=22, s_name='supp-22', s_address='a-2', s_phone='ph-2', s_acctbal=200),
             Row(s_suppkey=3, s_nationkey=33, s_name='supp-3', s_address='a-3', s_phone='ph-3', s_acctbal=300),
             Row(s_suppkey=5, s_nationkey=55, s_name='supp-5', s_address='a-5', s_phone='ph-5', s_acctbal=400),
         ]
     )
-    target = mock_spark.createDataFrame(
+    target = spark.createDataFrame(
         [
             Row(s_suppkey=2, s_nationkey=22, s_name='supp-2', s_address='a-2', s_phone='ph-2', s_acctbal=2000),
             Row(s_suppkey=3, s_nationkey=33, s_name='supp-33', s_address='a-3', s_phone='ph-3', s_acctbal=300),
@@ -137,7 +137,7 @@ def test_capture_mismatch_data_and_cols(mock_spark):
 
     actual = capture_mismatch_data_and_columns(source=source, target=target, key_columns=["s_suppkey", "s_nationkey"])
 
-    expected_df = mock_spark.createDataFrame(
+    expected_df = spark.createDataFrame(
         [
             Row(
                 s_suppkey=2,
@@ -180,15 +180,15 @@ def test_capture_mismatch_data_and_cols(mock_spark):
     assert sorted(actual.mismatch_columns) == ['s_acctbal', 's_name']
 
 
-def test_capture_mismatch_data_and_cols_no_mismatch(mock_spark):
+def test_capture_mismatch_data_and_cols_no_mismatch(spark):
     # this is to test the behaviour of the function `capture_mismatch_data_and_columns` when there is no mismatch in the dataframes.
-    source = mock_spark.createDataFrame(
+    source = spark.createDataFrame(
         [
             Row(s_suppkey=1, s_nationkey=11, s_name='supp-1', s_address='a-1', s_phone='ph-1', s_acctbal=100),
         ]
     )
 
-    target = mock_spark.createDataFrame(
+    target = spark.createDataFrame(
         [
             Row(s_suppkey=1, s_nationkey=11, s_name='supp-1', s_address='a-1', s_phone='ph-1', s_acctbal=100),
         ]
@@ -196,7 +196,7 @@ def test_capture_mismatch_data_and_cols_no_mismatch(mock_spark):
 
     actual = capture_mismatch_data_and_columns(source=source, target=target, key_columns=["s_suppkey", "s_nationkey"])
 
-    expected_df = mock_spark.createDataFrame(
+    expected_df = spark.createDataFrame(
         [
             Row(
                 s_suppkey=1,
@@ -223,8 +223,8 @@ def test_capture_mismatch_data_and_cols_no_mismatch(mock_spark):
     assert sorted(actual.mismatch_columns) == []
 
 
-def test_capture_mismatch_data_and_cols_fail(mock_spark):
-    source = mock_spark.createDataFrame(
+def test_capture_mismatch_data_and_cols_fail(spark):
+    source = spark.createDataFrame(
         [
             Row(s_suppkey=1, s_nationkey=11, s_name='supp-1', s_address='a-1', s_phone='ph-1', s_acctbal=100),
             Row(s_suppkey=2, s_nationkey=22, s_name='supp-22', s_address='a-2', s_phone='ph-2', s_acctbal=200),
@@ -232,7 +232,7 @@ def test_capture_mismatch_data_and_cols_fail(mock_spark):
             Row(s_suppkey=5, s_nationkey=55, s_name='supp-5', s_address='a-5', s_phone='ph-5', s_acctbal=400),
         ]
     )
-    target = mock_spark.createDataFrame(
+    target = spark.createDataFrame(
         [
             Row(s_suppkey=1),
             Row(s_suppkey=2),
@@ -251,10 +251,10 @@ def test_capture_mismatch_data_and_cols_fail(mock_spark):
     )
 
 
-def test_compare_data_special_column_names(mock_spark, tmp_path: Path):
+def test_compare_data_special_column_names(spark, tmp_path: Path):
     model_with_hash = Row("s`supp#", "s_nation#", "hash_value_recon")
     model = Row("s`supp#", "s_nation#")
-    source = mock_spark.createDataFrame(
+    source = spark.createDataFrame(
         [
             model_with_hash(1, 11, '1a1'),
             model_with_hash(2, 22, '2b2'),
@@ -262,7 +262,7 @@ def test_compare_data_special_column_names(mock_spark, tmp_path: Path):
             model_with_hash(5, 55, '5e5'),
         ]
     )
-    target = mock_spark.createDataFrame(
+    target = spark.createDataFrame(
         [
             model_with_hash(1, 11, '1a1'),
             model_with_hash(2, 22, '2b4'),
@@ -271,9 +271,9 @@ def test_compare_data_special_column_names(mock_spark, tmp_path: Path):
         ]
     )
 
-    mismatch = MismatchOutput(mismatch_df=mock_spark.createDataFrame([model(2, 22)]))
-    missing_in_src = mock_spark.createDataFrame([model(4, 44), model(5, 56)])
-    missing_in_tgt = mock_spark.createDataFrame([model(3, 33), model(5, 55)])
+    mismatch = MismatchOutput(mismatch_df=spark.createDataFrame([model(2, 22)]))
+    missing_in_src = spark.createDataFrame([model(4, 44), model(5, 56)])
+    missing_in_tgt = spark.createDataFrame([model(3, 33), model(5, 55)])
 
     actual = reconcile_data(
         source=source,
@@ -302,17 +302,17 @@ def test_compare_data_special_column_names(mock_spark, tmp_path: Path):
     assertDataFrameEqual(actual.missing_in_tgt, expected.missing_in_tgt)
 
 
-def test_capture_mismatch_data_and_cols_special_column_names(mock_spark):
+def test_capture_mismatch_data_and_cols_special_column_names(spark):
     model = Row("s`supp#", "s_nation#", "s`name")
     expected_model = Row("s`supp#", "s_nation#", "s`name_base", "s`name_compare", "s`name_match")
-    source = mock_spark.createDataFrame(
+    source = spark.createDataFrame(
         [
             model(2, 22, '2b2'),
             model(3, 33, '3c3'),
             model(5, 55, '5e5'),
         ]
     )
-    target = mock_spark.createDataFrame(
+    target = spark.createDataFrame(
         [
             model(2, 22, '2b4'),
             model(3, 33, '3c3'),
@@ -322,7 +322,7 @@ def test_capture_mismatch_data_and_cols_special_column_names(mock_spark):
 
     actual = capture_mismatch_data_and_columns(source=source, target=target, key_columns=["`s``supp#`", "`s_nation#`"])
 
-    expected_df = mock_spark.createDataFrame(
+    expected_df = spark.createDataFrame(
         [
             expected_model(
                 2,

@@ -16,24 +16,31 @@ jobs:
       group: databrickslabs-protected-runner-group
       labels: linux-ubuntu-latest
     environment: release
-    defaults:
-      run:
-        working-directory: docs/lakebridge
+    permissions:
+      # JFrog OIDC authentication.
+      id-token: write
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
         with:
-          fetch-depth: 0
+          sparse-checkout: |
+            .github/actions
+            docs
+          sparse-checkout-cone-mode: 'true'
+
       - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
         with:
-          node-version: 20
+          node-version: 25.9.0
           cache: yarn
-          cache-dependency-path: docs/lakebridge/yarn.lock # need to put the lockfile path explicitly
+          cache-dependency-path: docs/lakebridge/yarn.lock
+
+      - name: Setup for JFrog
+        uses: ./.github/actions/jfrog-auth
 
       - name: Configure documentation environment
-        run: make dev
+        run: make docs-dev
 
       - name: Build website
-        run: make build
+        run: make docs-build
 
       - name: Upload Build Artifact
         uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4.0.0
@@ -43,9 +50,6 @@ jobs:
   deploy:
     name: Deploy to GitHub Pages
     needs: build
-    defaults:
-      run:
-        working-directory: docs/lakebridge
 
     # Grant GITHUB_TOKEN the permissions required to make a Pages deployment
     permissions:
