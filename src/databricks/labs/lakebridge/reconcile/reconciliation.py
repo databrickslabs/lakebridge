@@ -379,9 +379,6 @@ class Reconciliation:
         src_mismatch_sample_query = src_sampler.build_query(df)
         tgt_mismatch_sample_query = tgt_sampler.build_query(df)
 
-        logger.info(f"DEBUG src_mismatch_sample_query: {src_mismatch_sample_query!r}")
-        logger.info(f"DEBUG tgt_mismatch_sample_query: {tgt_mismatch_sample_query!r}")
-
         src_data = self._source.read_data(
             catalog=self._database_config.source_catalog,
             schema=self._database_config.source_schema,

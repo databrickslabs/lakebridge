@@ -54,6 +54,12 @@ def test_sampling_specifications_fraction_disabled():
         SamplingSpecifications(type=SamplingSpecificationsType.FRACTION, value=0.5)
 
 
+@pytest.mark.parametrize("bad_value", [None, 0, 1, 2, -0.1])
+def test_sampling_specifications_fraction_rejects_out_of_range_value(bad_value):
+    with pytest.raises(ValueError, match="Fraction value must be greater than"):
+        SamplingSpecifications(type=SamplingSpecificationsType.FRACTION, value=bad_value)
+
+
 def test_sampling_specifications_none_value_defaults_to_50():
     spec = SamplingSpecifications(value=None)
     assert spec.value == 50

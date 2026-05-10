@@ -54,10 +54,10 @@ class SamplingSpecifications:
         if not isinstance(self.type, SamplingSpecificationsType):
             self.type = SamplingSpecificationsType(str(self.type).lower())
         # Disabled
-        if self.type == SamplingSpecificationsType.FRACTION:
-            raise ValueError("SamplingSpecifications: 'FRACTION' type is disabled")
         if self.type == SamplingSpecificationsType.FRACTION and (self.value is None or (not 0 < self.value < 1)):
             raise ValueError("SamplingSpecifications: Fraction value must be greater than  0 and less than 1")
+        if self.type == SamplingSpecificationsType.FRACTION:
+            raise ValueError("SamplingSpecifications: 'FRACTION' type is disabled")
         if self.value is None:
             logger.warning("SamplingSpecifications: value is None; defaulting to 50")
             self.value = 50
