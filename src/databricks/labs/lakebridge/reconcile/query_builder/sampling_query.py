@@ -1,4 +1,5 @@
 import logging
+import uuid
 
 import sqlglot.expressions as exp
 from pyspark.sql import DataFrame
@@ -109,6 +110,17 @@ class SamplingQueryBuilder(QueryBuilder):
         )
 
     def _get_with_clause(self, df: DataFrame) -> exp.Select:
+        if get_key_from_dialect(self.engine) == "databricks":
+            return self._with_clause_from_temp_view(df)
+        return self._with_clause_from_union(df)
+
+    @staticmethod
+    def _with_clause_from_temp_view(df: DataFrame) -> exp.Select:
+        view_name = f"recon_keys_{uuid.uuid4().hex}"
+        df.createOrReplaceTempView(view_name)
+        return exp.Select().with_(alias='recon', as_=select("*").from_(view_name))
+
+    def _with_clause_from_union(self, df: DataFrame) -> exp.Select:
         union_res = []
         for row in df.collect():
             column_types = [(str(f.name).lower(), f.dataType) for f in df.schema.fields]

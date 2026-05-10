@@ -1,12 +1,30 @@
 import pytest
 from pyspark.sql import Row
 
+from databricks.labs.lakebridge.reconcile.connectors.data_source import MockDataSource
 from databricks.labs.lakebridge.reconcile.constants import SamplingOptionMethod, SamplingSpecificationsType
+from databricks.labs.lakebridge.reconcile.normalize_recon_config_service import NormalizeReconConfigService
 from databricks.labs.lakebridge.reconcile.recon_config import (
     SamplingOptions,
     SamplingSpecifications,
+    Table,
 )
 from databricks.labs.lakebridge.reconcile.sampler import SamplerFactory
+
+
+def _normalize(options: SamplingOptions) -> SamplingOptions:
+    """Drive options through NormalizeReconConfigService so engine-aware bounds apply (matches production flow)."""
+    source = MockDataSource({}, {})
+    table = Table(
+        source_name="x",
+        target_name="x",
+        join_columns=["key"],
+        sampling_options=options,
+    )
+    normalized = NormalizeReconConfigService(source, source).normalize_recon_table_config(table)
+    assert normalized.sampling_options is not None
+    return normalized.sampling_options
+
 
 _MIN_SAMPLE_COUNT = 50
 _MAX_SAMPLE_COUNT = 400
@@ -70,11 +88,13 @@ def test_random_sampler_negative_count(spark):
         ]
     )
     sample_count = -2.0
-    random_sampling_options = SamplingOptions(
-        method=SamplingOptionMethod.RANDOM,
-        specifications=SamplingSpecifications(type=SamplingSpecificationsType.COUNT, value=sample_count),
-        stratified_columns=None,
-        stratified_buckets=None,
+    random_sampling_options = _normalize(
+        SamplingOptions(
+            method=SamplingOptionMethod.RANDOM,
+            specifications=SamplingSpecifications(type=SamplingSpecificationsType.COUNT, value=sample_count),
+            stratified_columns=None,
+            stratified_buckets=None,
+        )
     )
 
     # Create RandomSampler instance
@@ -83,11 +103,7 @@ def test_random_sampler_negative_count(spark):
     # Perform random sampling
     random_sample = random_sampler.sample(keys_df, keys_df_count, ["key"], target_table_df)
 
-    assert (
-        random_sample.count() <= (sample_count if sample_count > _MIN_SAMPLE_COUNT else _MIN_SAMPLE_COUNT)
-        if sample_count <= _MAX_SAMPLE_COUNT
-        else _MAX_SAMPLE_COUNT
-    )
+    assert random_sample.count() <= _MIN_SAMPLE_COUNT
 
 
 def test_random_sampler_invalid_fraction():
@@ -193,11 +209,13 @@ def test_stratified_sampler_negative_count(spark):
         ]
     )
     sample_count = -2.0
-    stratified_sampling_options = SamplingOptions(
-        method=SamplingOptionMethod.STRATIFIED,
-        specifications=SamplingSpecifications(type=SamplingSpecificationsType.COUNT, value=sample_count),
-        stratified_columns=["state"],
-        stratified_buckets=3,
+    stratified_sampling_options = _normalize(
+        SamplingOptions(
+            method=SamplingOptionMethod.STRATIFIED,
+            specifications=SamplingSpecifications(type=SamplingSpecificationsType.COUNT, value=sample_count),
+            stratified_columns=["state"],
+            stratified_buckets=3,
+        )
     )
 
     # Create StratifiedSampler instance
@@ -206,11 +224,7 @@ def test_stratified_sampler_negative_count(spark):
     # Perform stratified sampling
     stratified_sample = stratified_sampler.sample(keys_df, keys_df_count, ["key"], target_table_df)
 
-    assert (
-        stratified_sample.count() <= (sample_count if sample_count > _MIN_SAMPLE_COUNT else _MIN_SAMPLE_COUNT)
-        if sample_count <= _MAX_SAMPLE_COUNT
-        else _MAX_SAMPLE_COUNT
-    )
+    assert stratified_sample.count() <= _MIN_SAMPLE_COUNT
 
 
 def test_stratified_sampler_invalid_fraction():

@@ -45,7 +45,24 @@ SCHEMA = "data"
 SRC_TABLE = "supplier"
 TGT_TABLE = "target_supplier"
 
+# Sentinel uuids used in expected sampling SQL strings; tests inject these via `recon_view_uuid_seq`
+# in the order the production sampling_query builder consumes them. See `_get_sample_data` in
+# reconciliation.py for the call order: mismatch (src, tgt), missing-in-src (tgt), missing-in-tgt (src).
+_UUID_SRC_MISMATCH = "a" * 32
+_UUID_TGT_MISMATCH = "b" * 32
+_UUID_SRC_MISSING = "c" * 32  # source_missing_query — fetched from target (uses tgt sampler)
+_UUID_TGT_MISSING = "d" * 32  # target_missing_query — fetched from source (uses src sampler)
+
 MOCK_TIMESTAMP = datetime(2024, 5, 23, 9, 21, 25, 122185, tzinfo=timezone.utc)
+
+
+def _normalize_details_rows(df):
+    """Collect rows as dicts and sort the `data` array by source_column for order-independent comparison."""
+    rows = [row.asDict(recursive=True) for row in df.collect()]
+    for row in rows:
+        if row.get("data"):
+            row["data"] = sorted(row["data"], key=lambda d: d["source_column"])
+    return rows
 
 
 @dataclass
@@ -105,10 +122,10 @@ class QueryStore:
 def query_store(spark):
     source_hash_query = "SELECT LOWER(SHA2(TRIM(s_address) || TRIM(s_name) || COALESCE(TRIM(`s_nationkey`), '_null_recon_') || TRIM(s_phone) || COALESCE(TRIM(`s_suppkey`), '_null_recon_'), 256)) AS hash_value_recon, `s_nationkey` AS `s_nationkey`, `s_suppkey` AS `s_suppkey` FROM :tbl WHERE s_name = 't' AND s_address = 'a'"
     target_hash_query = "SELECT LOWER(SHA2(TRIM(s_address_t) || TRIM(s_name) || COALESCE(TRIM(`s_nationkey_t`), '_null_recon_') || TRIM(s_phone_t) || COALESCE(TRIM(`s_suppkey_t`), '_null_recon_'), 256)) AS hash_value_recon, `s_nationkey_t` AS `s_nationkey`, `s_suppkey_t` AS `s_suppkey` FROM :tbl WHERE s_name = 't' AND s_address_t = 'a'"
-    source_mismatch_query = "WITH recon AS (SELECT CAST(22 AS number) AS `s_nationkey`, CAST(2 AS number) AS `s_suppkey`), src AS (SELECT TRIM(s_address) AS `s_address`, TRIM(s_name) AS `s_name`, COALESCE(TRIM(`s_nationkey`), '_null_recon_') AS `s_nationkey`, TRIM(s_phone) AS `s_phone`, COALESCE(TRIM(`s_suppkey`), '_null_recon_') AS `s_suppkey` FROM :tbl WHERE s_name = 't' AND s_address = 'a') SELECT src.`s_address`, src.`s_name`, src.`s_nationkey`, src.`s_phone`, src.`s_suppkey` FROM src INNER JOIN recon AS recon ON src.`s_nationkey` = recon.`s_nationkey` AND src.`s_suppkey` = recon.`s_suppkey`"
-    target_mismatch_query = "WITH recon AS (SELECT 22 AS `s_nationkey`, 2 AS `s_suppkey`), src AS (SELECT TRIM(s_address_t) AS `s_address`, TRIM(s_name) AS `s_name`, COALESCE(TRIM(`s_nationkey_t`), '_null_recon_') AS `s_nationkey`, TRIM(s_phone_t) AS `s_phone`, COALESCE(TRIM(`s_suppkey_t`), '_null_recon_') AS `s_suppkey` FROM :tbl WHERE s_name = 't' AND s_address_t = 'a') SELECT src.`s_address`, src.`s_name`, src.`s_nationkey`, src.`s_phone`, src.`s_suppkey` FROM src INNER JOIN recon AS recon ON src.`s_nationkey` = recon.`s_nationkey` AND src.`s_suppkey` = recon.`s_suppkey`"
-    source_missing_query = "WITH recon AS (SELECT 44 AS `s_nationkey`, 4 AS `s_suppkey`), src AS (SELECT TRIM(s_address_t) AS `s_address`, TRIM(s_name) AS `s_name`, COALESCE(TRIM(`s_nationkey_t`), '_null_recon_') AS `s_nationkey`, TRIM(s_phone_t) AS `s_phone`, COALESCE(TRIM(`s_suppkey_t`), '_null_recon_') AS `s_suppkey` FROM :tbl WHERE s_name = 't' AND s_address_t = 'a') SELECT src.`s_address`, src.`s_name`, src.`s_nationkey`, src.`s_phone`, src.`s_suppkey` FROM src INNER JOIN recon AS recon ON src.`s_nationkey` = recon.`s_nationkey` AND src.`s_suppkey` = recon.`s_suppkey`"
-    target_missing_query = "WITH recon AS (SELECT CAST(33 AS number) AS `s_nationkey`, CAST(3 AS number) AS `s_suppkey`), src AS (SELECT TRIM(s_address) AS `s_address`, TRIM(s_name) AS `s_name`, COALESCE(TRIM(`s_nationkey`), '_null_recon_') AS `s_nationkey`, TRIM(s_phone) AS `s_phone`, COALESCE(TRIM(`s_suppkey`), '_null_recon_') AS `s_suppkey` FROM :tbl WHERE s_name = 't' AND s_address = 'a') SELECT src.`s_address`, src.`s_name`, src.`s_nationkey`, src.`s_phone`, src.`s_suppkey` FROM src INNER JOIN recon AS recon ON src.`s_nationkey` = recon.`s_nationkey` AND src.`s_suppkey` = recon.`s_suppkey`"
+    source_mismatch_query = f"WITH recon AS (SELECT * FROM recon_keys_{_UUID_SRC_MISMATCH}), src AS (SELECT TRIM(s_address) AS `s_address`, TRIM(s_name) AS `s_name`, COALESCE(TRIM(`s_nationkey`), '_null_recon_') AS `s_nationkey`, TRIM(s_phone) AS `s_phone`, COALESCE(TRIM(`s_suppkey`), '_null_recon_') AS `s_suppkey` FROM :tbl WHERE s_name = 't' AND s_address = 'a') SELECT src.`s_address`, src.`s_name`, src.`s_nationkey`, src.`s_phone`, src.`s_suppkey` FROM src INNER JOIN recon AS recon ON src.`s_nationkey` = recon.`s_nationkey` AND src.`s_suppkey` = recon.`s_suppkey`"
+    target_mismatch_query = f"WITH recon AS (SELECT * FROM recon_keys_{_UUID_TGT_MISMATCH}), src AS (SELECT TRIM(s_address_t) AS `s_address`, TRIM(s_name) AS `s_name`, COALESCE(TRIM(`s_nationkey_t`), '_null_recon_') AS `s_nationkey`, TRIM(s_phone_t) AS `s_phone`, COALESCE(TRIM(`s_suppkey_t`), '_null_recon_') AS `s_suppkey` FROM :tbl WHERE s_name = 't' AND s_address_t = 'a') SELECT src.`s_address`, src.`s_name`, src.`s_nationkey`, src.`s_phone`, src.`s_suppkey` FROM src INNER JOIN recon AS recon ON src.`s_nationkey` = recon.`s_nationkey` AND src.`s_suppkey` = recon.`s_suppkey`"
+    source_missing_query = f"WITH recon AS (SELECT * FROM recon_keys_{_UUID_SRC_MISSING}), src AS (SELECT TRIM(s_address_t) AS `s_address`, TRIM(s_name) AS `s_name`, COALESCE(TRIM(`s_nationkey_t`), '_null_recon_') AS `s_nationkey`, TRIM(s_phone_t) AS `s_phone`, COALESCE(TRIM(`s_suppkey_t`), '_null_recon_') AS `s_suppkey` FROM :tbl WHERE s_name = 't' AND s_address_t = 'a') SELECT src.`s_address`, src.`s_name`, src.`s_nationkey`, src.`s_phone`, src.`s_suppkey` FROM src INNER JOIN recon AS recon ON src.`s_nationkey` = recon.`s_nationkey` AND src.`s_suppkey` = recon.`s_suppkey`"
+    target_missing_query = f"WITH recon AS (SELECT * FROM recon_keys_{_UUID_TGT_MISSING}), src AS (SELECT TRIM(s_address) AS `s_address`, TRIM(s_name) AS `s_name`, COALESCE(TRIM(`s_nationkey`), '_null_recon_') AS `s_nationkey`, TRIM(s_phone) AS `s_phone`, COALESCE(TRIM(`s_suppkey`), '_null_recon_') AS `s_suppkey` FROM :tbl WHERE s_name = 't' AND s_address = 'a') SELECT src.`s_address`, src.`s_name`, src.`s_nationkey`, src.`s_phone`, src.`s_suppkey` FROM src INNER JOIN recon AS recon ON src.`s_nationkey` = recon.`s_nationkey` AND src.`s_suppkey` = recon.`s_suppkey`"
     source_threshold_query = "SELECT `s_nationkey` AS `s_nationkey`, `s_suppkey` AS `s_suppkey`, `s_acctbal` AS `s_acctbal` FROM :tbl WHERE s_name = 't' AND s_address = 'a'"
     target_threshold_query = "SELECT `s_nationkey_t` AS `s_nationkey`, `s_suppkey_t` AS `s_suppkey`, `s_acctbal_t` AS `s_acctbal` FROM :tbl WHERE s_name = 't' AND s_address_t = 'a'"
     threshold_comparison_query = "SELECT COALESCE(source.`s_acctbal`, 0) AS `s_acctbal_source`, COALESCE(databricks.`s_acctbal`, 0) AS `s_acctbal_databricks`, CASE WHEN (COALESCE(source.`s_acctbal`, 0) - COALESCE(databricks.`s_acctbal`, 0)) = 0 THEN 'Match' WHEN (COALESCE(source.`s_acctbal`, 0) - COALESCE(databricks.`s_acctbal`, 0)) BETWEEN 0 AND 100 THEN 'Warning' ELSE 'Failed' END AS `s_acctbal_match`, source.`s_nationkey` AS `s_nationkey_source`, source.`s_suppkey` AS `s_suppkey_source` FROM source_supplier_df_threshold_vw AS source INNER JOIN target_target_supplier_df_threshold_vw AS databricks ON source.`s_nationkey` <=> databricks.`s_nationkey` AND source.`s_suppkey` <=> databricks.`s_suppkey` WHERE (1 = 1 OR 1 = 1) OR (COALESCE(source.`s_acctbal`, 0) - COALESCE(databricks.`s_acctbal`, 0)) <> 0"
@@ -161,7 +178,9 @@ def test_reconcile_data_with_mismatches_and_missing(
     query_store,
     tmp_path: Path,
     recon_metadata: ReconcileMetadataConfig,
+    recon_view_uuid_seq,
 ):
+    recon_view_uuid_seq([_UUID_SRC_MISMATCH, _UUID_TGT_MISMATCH, _UUID_SRC_MISSING, _UUID_TGT_MISSING])
     src_schema, tgt_schema = table_schema_ansi_ansi
     source_dataframe_repository = {
         (
@@ -476,7 +495,9 @@ def test_reconcile_data_with_mismatch_and_no_missing(
     query_store,
     tmp_path: Path,
     recon_metadata: ReconcileMetadataConfig,
+    recon_view_uuid_seq,
 ):
+    recon_view_uuid_seq([_UUID_SRC_MISMATCH, _UUID_TGT_MISMATCH])
     src_schema, tgt_schema = table_schema_ansi_ansi
     normalized_table_conf_with_opts.drop_columns = ["`s_acctbal`"]
     normalized_table_conf_with_opts.column_thresholds = None
@@ -587,7 +608,9 @@ def test_reconcile_data_missing_and_no_mismatch(
     query_store,
     tmp_path: Path,
     recon_metadata: ReconcileMetadataConfig,
+    recon_view_uuid_seq,
 ):
+    recon_view_uuid_seq([_UUID_SRC_MISSING, _UUID_TGT_MISSING])
     src_schema, tgt_schema = table_schema_ansi_ansi
     normalized_table_conf_with_opts.drop_columns = ["`s_acctbal`"]
     normalized_table_conf_with_opts.column_thresholds = None
@@ -755,8 +778,14 @@ def mock_for_report_type_data(
 
 
 def test_recon_for_report_type_is_data(
-    mock_workspace_client, spark, report_tables_schema, mock_for_report_type_data, tmp_path: Path, recon_id: UUID
+    mock_workspace_client,
+    spark,
+    report_tables_schema,
+    mock_for_report_type_data,
+    recon_id: UUID,
+    recon_view_uuid_seq,
 ):
+    recon_view_uuid_seq([_UUID_SRC_MISMATCH, _UUID_TGT_MISMATCH, _UUID_SRC_MISSING, _UUID_TGT_MISSING])
     recon_schema, metrics_schema, details_schema = report_tables_schema
     table_recon, source, target, reconcile_config_data = mock_for_report_type_data
     catalog = reconcile_config_data.metadata_config.catalog
@@ -1067,8 +1096,8 @@ def test_recon_for_report_type_schema(
     assertDataFrameEqual(
         spark.sql(f"SELECT * FROM {catalog}.{schema}.METRICS"), expected_remorph_recon_metrics, ignoreNullable=True
     )
-    assertDataFrameEqual(
-        spark.sql(f"SELECT * FROM {catalog}.{schema}.DETAILS"), expected_remorph_recon_details, ignoreNullable=True
+    assert _normalize_details_rows(spark.sql(f"SELECT * FROM {catalog}.{schema}.DETAILS")) == _normalize_details_rows(
+        expected_remorph_recon_details
     )
 
     assert final_reconcile_output.recon_id == recon_id.hex
@@ -1179,7 +1208,9 @@ def test_recon_for_report_type_all(
     report_tables_schema,
     mock_for_report_type_all,
     tmp_path: Path,
+    recon_view_uuid_seq,
 ):
+    recon_view_uuid_seq([_UUID_SRC_MISMATCH, _UUID_TGT_MISMATCH, _UUID_SRC_MISSING, _UUID_TGT_MISSING])
     recon_schema, metrics_schema, details_schema = report_tables_schema
     table_recon, source, target, reconcile_config_all = mock_for_report_type_all
     catalog = reconcile_config_all.metadata_config.catalog

@@ -5,6 +5,7 @@ from collections.abc import Generator
 from contextlib import contextmanager
 from dataclasses import asdict
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -55,6 +56,47 @@ SNOWFLAKE_CONNECTION = "sf_sandbox"
 SNOWFLAKE_CATALOG = "INTEGRATION"
 SNOWFLAKE_SCHEMA = "LAKEBRIDGE"
 SNOWFLAKE_TABLE = "DIAMONDS"
+
+_FIXED_RECON_VIEW_HEX = "0" * 32
+
+
+@pytest.fixture
+def fixed_recon_view_uuid(monkeypatch):
+    """Pin uuid.uuid4().hex inside sampling_query so the temp-view name is predictable in tests
+    that make a single temp-view build_query call. Returns the fixed hex.
+    """
+    fake = MagicMock()
+    fake.uuid4.return_value.hex = _FIXED_RECON_VIEW_HEX
+    monkeypatch.setattr(
+        "databricks.labs.lakebridge.reconcile.query_builder.sampling_query.uuid",
+        fake,
+    )
+    return _FIXED_RECON_VIEW_HEX
+
+
+@pytest.fixture
+def recon_view_uuid_seq(monkeypatch):
+    """Patch uuid.uuid4 inside sampling_query to return a sequence of hex values, one per call.
+
+    Returns a callable that the test invokes with the list of hex strings to use in order.
+    Use for tests that trigger multiple temp-view build_query calls (e.g. mismatch + missing paths).
+    """
+
+    def _patch(hexes: list[str]) -> list[str]:
+        hex_iter = iter(hexes)
+
+        def _next_uuid():
+            return type("U", (), {"hex": next(hex_iter)})()
+
+        fake = MagicMock()
+        fake.uuid4.side_effect = _next_uuid
+        monkeypatch.setattr(
+            "databricks.labs.lakebridge.reconcile.query_builder.sampling_query.uuid",
+            fake,
+        )
+        return hexes
+
+    return _patch
 
 
 @pytest.fixture

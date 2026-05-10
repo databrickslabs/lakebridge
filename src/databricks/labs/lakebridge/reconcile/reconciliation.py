@@ -153,6 +153,7 @@ class Reconciliation:
             key_columns=table_conf.join_columns,
             report_type=self._report_type,
             persistence=self.intermediate_persist,
+            max_sample_size=table_conf.get_max_sample_size(),
         )
 
     def _get_reconcile_aggregate_output(
@@ -378,6 +379,9 @@ class Reconciliation:
         src_mismatch_sample_query = src_sampler.build_query(df)
         tgt_mismatch_sample_query = tgt_sampler.build_query(df)
 
+        logger.info(f"DEBUG src_mismatch_sample_query: {src_mismatch_sample_query!r}")
+        logger.info(f"DEBUG tgt_mismatch_sample_query: {tgt_mismatch_sample_query!r}")
+
         src_data = self._source.read_data(
             catalog=self._database_config.source_catalog,
             schema=self._database_config.source_schema,
@@ -463,7 +467,7 @@ class Reconciliation:
         mismatched_count = mismatched_df.count()
         threshold_df = None
         if mismatched_count > 0:
-            threshold_df = mismatched_df.limit(_SAMPLE_ROWS)
+            threshold_df = mismatched_df.limit(table_conf.get_max_sample_size())
 
         return ThresholdOutput(threshold_df=threshold_df, threshold_mismatch_count=mismatched_count)
 
