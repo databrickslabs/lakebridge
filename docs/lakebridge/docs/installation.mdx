@@ -122,6 +122,8 @@ databricks labs lakebridge transpile --help
 databricks labs lakebridge configure-reconcile
 ```
 
+The command will prompt for your source connection and Databricks catalog to reconcile, and install Lakebridge and create the required workspace resources to run Reconcile.
+
 If you don't have permission to create SQL warehouses or clusters, add a `warehouse_id` or a `cluster_id` to your Databricks CLI profile:
 
 ```
