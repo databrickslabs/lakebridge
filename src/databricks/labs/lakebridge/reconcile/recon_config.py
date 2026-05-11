@@ -63,8 +63,8 @@ class SamplingSpecifications:
             self.value = 50
         if isinstance(self.value, bool) or not isinstance(self.value, (int, float)):
             raise ValueError(f"SamplingSpecifications: value must be int|float, got {type(self.value).__name__}")
-        if self.type == SamplingSpecificationsType.COUNT:
-            self.value = int(self.value)
+        # Safe today because FRACTION raises above; revisit when FRACTION is enabled.
+        self.value = int(self.value)
 
 
 @dataclass

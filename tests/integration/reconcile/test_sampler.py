@@ -110,7 +110,7 @@ def test_random_sampler_invalid_fraction():
     with pytest.raises(ValueError, match="SamplingSpecifications: 'FRACTION' type is disabled"):
         SamplingOptions(
             method=SamplingOptionMethod.RANDOM,
-            specifications=SamplingSpecifications(type=SamplingSpecificationsType.FRACTION, value=-0.1),
+            specifications=SamplingSpecifications(type=SamplingSpecificationsType.FRACTION, value=0.5),
             stratified_columns=None,
             stratified_buckets=None,
         )
@@ -231,7 +231,7 @@ def test_stratified_sampler_invalid_fraction():
     with pytest.raises(ValueError, match="SamplingSpecifications: 'FRACTION' type is disabled"):
         SamplingOptions(
             method=SamplingOptionMethod.STRATIFIED,
-            specifications=SamplingSpecifications(type=SamplingSpecificationsType.FRACTION, value=-0.1),
+            specifications=SamplingSpecifications(type=SamplingSpecificationsType.FRACTION, value=0.5),
             stratified_columns=["state"],
             stratified_buckets=3,
         )
