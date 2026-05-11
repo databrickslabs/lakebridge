@@ -1,90 +1,24 @@
-from collections.abc import Mapping
 from unittest.mock import create_autospec
 import uuid
 import pytest
 
-from pyspark.sql import DataFrameReader, SparkSession
-
+from pyspark.sql import SparkSession
+from databricks.sdk import WorkspaceClient
 from databricks.sdk.service.catalog import TableInfo
 from databricks.labs.lakebridge.reconcile.connectors.databricks import DatabricksDataSource
-from databricks.labs.lakebridge.reconcile.connectors.oracle import OracleDataSource
 from databricks.labs.lakebridge.reconcile.connectors.redshift import RedshiftDataSource
+from databricks.labs.lakebridge.reconcile.connectors.remote_query_reader import RemoteQueryReader
 from databricks.labs.lakebridge.reconcile.connectors.snowflake import SnowflakeDataSource
 from databricks.labs.lakebridge.reconcile.connectors.tsql import TSQLServerDataSource
-from databricks.labs.lakebridge.reconcile.recon_config import OptionalPrimitiveType
 from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
-
-from databricks.sdk import WorkspaceClient
-
-from tests.integration.debug_envgetter import TestEnvGetter, parse_snowflake_jdbc_url
-
-
-class TSQLServerDataSourceUnderTest(TSQLServerDataSource):
-    def __init__(self, spark, ws):
-        super().__init__(get_dialect("tsql"), spark, ws, "secret_scope")
-        self._test_env = TestEnvGetter(True)
-
-    @property
-    def get_jdbc_url(self) -> str:
-        return self._test_env.get("TEST_TSQL_JDBC")
-
-    def _get_user_password(self) -> dict:
-        user = self._test_env.get("TEST_TSQL_USER")
-        password = self._test_env.get("TEST_TSQL_PASS")
-        return {"user": user, "password": password}
-
-
-class OracleDataSourceUnderTest(OracleDataSource):
-    def __init__(self, spark, ws):
-        super().__init__(get_dialect("oracle"), spark, ws, "secret_scope")
-        self._test_env = TestEnvGetter(False)
-
-    @property
-    def get_jdbc_url(self) -> str:
-        return self._test_env.get("TEST_ORACLE_JDBC")
-
-    def reader(self, query: str, options: Mapping[str, OptionalPrimitiveType] | None = None) -> DataFrameReader:
-        if options is None:
-            options = {}
-        user = self._test_env.get("TEST_ORACLE_USER")
-        password = self._test_env.get("TEST_ORACLE_PASSWORD")
-        return self._get_jdbc_reader(
-            query, self.get_jdbc_url, OracleDataSource._DRIVER, {**options, "user": user, "password": password}
-        )
-
-
-class SnowflakeDataSourceUnderTest(SnowflakeDataSource):
-    def __init__(self, spark, ws):
-        super().__init__(get_dialect("snowflake"), spark, ws, "secret_scope")
-        self._test_env = TestEnvGetter(True)
-
-    @property
-    def get_jdbc_url(self) -> str:
-        raise NotImplementedError("Not needed for this test")
-
-    def reader(self, query: str) -> DataFrameReader:
-        options = self._get_snowflake_options()
-        return self._spark.read.format("snowflake").option("dbtable", f"({query}) as tmp").options(**options)
-
-    def _get_snowflake_options(self):
-        parsed = parse_snowflake_jdbc_url(self._test_env.get("TEST_SNOWFLAKE_JDBC"))
-        opts = {
-            "sfURL": parsed.get("url"),
-            "sfUser": parsed.get("user"),
-            "sfDatabase": parsed.get("db"),
-            "sfSchema": parsed.get("schema"),
-            "sfWarehouse": parsed.get("warehouse"),
-            "sfRole": "LABS",
-            "pem_private_key": SnowflakeDataSource._get_private_key(
-                self._test_env.get("TEST_SNOWFLAKE_PRIVATE_KEY"), None
-            ),
-        }
-        return opts
+from tests.integration.reconcile.test_oracle_reconcile import OracleDataSourceUnderTest
+from tests.integration.debug_envgetter import TestEnvGetter
 
 
 def test_sql_server_read_schema_happy(spark: SparkSession) -> None:
-    mock_ws = create_autospec(WorkspaceClient)
-    connector = TSQLServerDataSourceUnderTest(spark, mock_ws)
+    connection = "sqlserver_sandbox"
+    reader = RemoteQueryReader(spark, connection)
+    connector = TSQLServerDataSource(get_dialect("tsql"), reader)
 
     columns = connector.get_schema("labs_azure_sandbox_remorph", "dbo", "reconcile_in")
     assert columns
@@ -92,7 +26,7 @@ def test_sql_server_read_schema_happy(spark: SparkSession) -> None:
 
 def test_databricks_read_schema_happy(spark: SparkSession) -> None:
     mock_ws = create_autospec(WorkspaceClient)
-    connector = DatabricksDataSource(get_dialect("databricks"), spark, mock_ws, "my_secret")
+    connector = DatabricksDataSource(get_dialect("databricks"), spark, mock_ws)
     random_view = f"test_view_{uuid.uuid4().hex}"
 
     try:
@@ -111,7 +45,7 @@ def test_databricks_read_schema_happy_sandbox(
     spark: SparkSession, ws: WorkspaceClient, recon_tables: tuple[TableInfo, TableInfo]
 ) -> None:
     test_table, _ = recon_tables
-    connector = DatabricksDataSource(get_dialect("databricks"), spark, ws, "my_secret")
+    connector = DatabricksDataSource(get_dialect("databricks"), spark, ws)
 
     assert test_table.catalog_name
     assert test_table.schema_name
@@ -126,45 +60,26 @@ def test_databricks_read_schema_happy_sandbox(
 # 2. Add credentials to the test env getter
 @pytest.mark.skip(reason="Not Ready! Deploy Infra")
 def test_oracle_read_schema_happy(spark: SparkSession) -> None:
-    mock_ws = create_autospec(WorkspaceClient)
-    connector = OracleDataSourceUnderTest(spark, mock_ws)
+    connector = OracleDataSourceUnderTest(spark)
 
-    columns = connector.get_schema(None, "SYSTEM", "help")
+    columns = connector.get_schema("ORCL", "SYSTEM", "help")
     assert columns
 
 
-class RedshiftDataSourceUnderTest(RedshiftDataSource):
-    def __init__(self, spark, ws):
-        super().__init__(get_dialect("redshift"), spark, ws, "secret_scope")
-        self._test_env = TestEnvGetter(True)
-
-    @property
-    def get_jdbc_url(self) -> str:
-        return self._test_env.get("TEST_REDSHIFT_JDBC")
-
-    def reader(self, query: str, options: Mapping[str, OptionalPrimitiveType] | None = None) -> DataFrameReader:
-        if options is None:
-            options = {}
-        user = self._test_env.get("TEST_REDSHIFT_USER")
-        password = self._test_env.get("TEST_REDSHIFT_PASS")
-        return self._get_jdbc_reader(
-            query, self.get_jdbc_url, RedshiftDataSource._DRIVER, {**options, "user": user, "password": password}
-        )
-
-
-@pytest.mark.xfail(reason="Requires Redshift JDBC driver on Databricks cluster.", strict=True)
 def test_redshift_read_schema_happy(spark: SparkSession) -> None:
-    mock_ws = create_autospec(WorkspaceClient)
-    connector = RedshiftDataSourceUnderTest(spark, mock_ws)
+    connection = "redshift_sandbox"
+    reader = RemoteQueryReader(spark, connection)
+    connector = RedshiftDataSource(get_dialect("redshift"), reader)
 
-    columns = connector.get_schema(None, "public", "diamonds")
+    columns = connector.get_schema("dev", "public", "diamonds")
     assert columns
 
 
 @pytest.mark.xfail(reason="Snowflake account unavailable", strict=True)
 def test_snowflake_read_schema_happy(spark: SparkSession) -> None:
-    mock_ws = create_autospec(WorkspaceClient)
-    connector = SnowflakeDataSourceUnderTest(spark, mock_ws)
+    connection = TestEnvGetter(False).get("TEST_SNOWFLAKE_CONNECTION")
+    reader = RemoteQueryReader(spark, connection)
+    connector = SnowflakeDataSource(get_dialect("snowflake"), reader)
 
     columns = connector.get_schema('remorph', "sandbox", "diamonds")
     assert columns

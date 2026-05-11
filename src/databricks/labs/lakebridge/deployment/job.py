@@ -107,22 +107,13 @@ class JobDeployment:
             compute.Library(whl=lakebridge_wheel_path),
         ]
 
-        if recon_config.data_source == ReconSourceType.ORACLE.value:
+        if recon_config.source.dialect == ReconSourceType.ORACLE.value:
             # TODO: Automatically fetch a version list for `ojdbc8`
             logger.debug("Using Oracle JDBC jar")
             oracle_driver_version = "23.4.0.24.05"
             libraries.append(
                 compute.Library(
                     maven=compute.MavenLibrary(f"com.oracle.database.jdbc:ojdbc8:{oracle_driver_version}"),
-                ),
-            )
-
-        if recon_config.data_source == ReconSourceType.REDSHIFT.value:
-            logger.debug("Using Redshift JDBC jar")
-            redshift_driver_version = "2.2.5"
-            libraries.append(
-                compute.Library(
-                    maven=compute.MavenLibrary(f"com.amazon.redshift:redshift-jdbc42:{redshift_driver_version}"),
                 ),
             )
 

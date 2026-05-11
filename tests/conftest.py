@@ -81,7 +81,7 @@ def table_conf_with_opts(column_mapping):
         source_name="supplier",
         target_name="target_supplier",
         jdbc_reader_options=JdbcReaderOptions(
-            number_partitions=100, partition_column="s_nationkey", lower_bound="0", upper_bound="100"
+            num_partitions=100, partition_column="s_nationkey", lower_bound="0", upper_bound="100"
         ),
         join_columns=["s_suppkey", "s_nationkey"],
         select_columns=["s_suppkey", "s_name", "s_address", "s_phone", "s_acctbal", "s_nationkey"],

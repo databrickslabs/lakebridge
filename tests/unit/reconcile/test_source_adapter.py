@@ -19,9 +19,8 @@ def test_create_adapter_for_snowflake_dialect():
     scope = "scope"
 
     data_source = create_adapter(engine, spark, ws, scope)
-    snowflake_data_source = SnowflakeDataSource(engine, spark, ws, scope).__class__
 
-    assert isinstance(data_source, snowflake_data_source)
+    assert isinstance(data_source, SnowflakeDataSource)
 
 
 def test_create_adapter_for_oracle_dialect():
@@ -31,9 +30,8 @@ def test_create_adapter_for_oracle_dialect():
     scope = "scope"
 
     data_source = create_adapter(engine, spark, ws, scope)
-    oracle_data_source = OracleDataSource(engine, spark, ws, scope).__class__
 
-    assert isinstance(data_source, oracle_data_source)
+    assert isinstance(data_source, OracleDataSource)
 
 
 def test_create_adapter_for_databricks_dialect():
@@ -43,9 +41,8 @@ def test_create_adapter_for_databricks_dialect():
     scope = "scope"
 
     data_source = create_adapter(engine, spark, ws, scope)
-    databricks_data_source = DatabricksDataSource(engine, spark, ws, scope).__class__
 
-    assert isinstance(data_source, databricks_data_source)
+    assert isinstance(data_source, DatabricksDataSource)
 
 
 def test_create_adapter_for_redshift_dialect():
@@ -55,9 +52,8 @@ def test_create_adapter_for_redshift_dialect():
     scope = "scope"
 
     data_source = create_adapter(engine, spark, ws, scope)
-    redshift_data_source = RedshiftDataSource(engine, spark, ws, scope).__class__
 
-    assert isinstance(data_source, redshift_data_source)
+    assert isinstance(data_source, RedshiftDataSource)
 
 
 def test_raise_exception_for_unknown_dialect():

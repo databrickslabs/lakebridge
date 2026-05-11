@@ -13,7 +13,8 @@ from databricks.labs.lakebridge.config import (
     TranspileConfig,
     LakebridgeConfiguration,
     ReconcileConfig,
-    DatabaseConfig,
+    SourceConnectionConfig,
+    TargetConnectionConfig,
     ReconcileMetadataConfig,
     ProfilerDashboardConfig,
     ProfilerDashboardMetadataConfig,
@@ -51,13 +52,16 @@ def test_install_all(ws):
         schema_name="transpiler6",
     )
     reconcile_config = ReconcileConfig(
-        data_source="oracle",
         report_type="all",
-        secret_scope="remorph_oracle6",
-        database_config=DatabaseConfig(
-            source_schema="tpch_sf10006",
-            target_catalog="tpch6",
-            target_schema="1000gb6",
+        source=SourceConnectionConfig(
+            dialect="oracle",
+            catalog="ORCL6",
+            schema="tpch_sf10006",
+            uc_connection_name="remorph_oracle6",
+        ),
+        target=TargetConnectionConfig(
+            catalog="tpch6",
+            schema="1000gb6",
         ),
         metadata_config=ReconcileMetadataConfig(
             catalog="remorph6",
@@ -115,13 +119,16 @@ def test_recon_component_installation(ws):
     upgrades = create_autospec(Upgrades)
 
     reconcile_config = ReconcileConfig(
-        data_source="oracle",
         report_type="all",
-        secret_scope="remorph_oracle8",
-        database_config=DatabaseConfig(
-            source_schema="tpch_sf10008",
-            target_catalog="tpch8",
-            target_schema="1000gb8",
+        source=SourceConnectionConfig(
+            dialect="oracle",
+            catalog="ORCL8",
+            schema="tpch_sf10008",
+            uc_connection_name="remorph_oracle8",
+        ),
+        target=TargetConnectionConfig(
+            catalog="tpch8",
+            schema="1000gb8",
         ),
         metadata_config=ReconcileMetadataConfig(
             catalog="remorph8",
@@ -168,14 +175,16 @@ def test_uninstall_configs_exist(ws):
     )
 
     reconcile_config = ReconcileConfig(
-        data_source="snowflake",
         report_type="all",
-        secret_scope="remorph_snowflake1",
-        database_config=DatabaseConfig(
-            source_catalog="snowflake_sample_data1",
-            source_schema="tpch_sf10001",
-            target_catalog="tpch1",
-            target_schema="1000gb1",
+        source=SourceConnectionConfig(
+            dialect="snowflake",
+            catalog="snowflake_sample_data1",
+            schema="tpch_sf10001",
+            uc_connection_name="remorph_snowflake1",
+        ),
+        target=TargetConnectionConfig(
+            catalog="tpch1",
+            schema="1000gb1",
         ),
         metadata_config=ReconcileMetadataConfig(
             catalog="remorph1",

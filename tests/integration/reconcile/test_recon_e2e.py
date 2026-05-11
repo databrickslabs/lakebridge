@@ -79,7 +79,6 @@ def test_recon_sql_server_job_succeeds(
         _run_recon_e2e_spec(app_ctx)
 
 
-@pytest.mark.xfail(reason="Snowflake account unavailable", strict=True)
 def test_recon_snowflake_job_succeeds(
     application_ctx: ApplicationContext,
     snowflake_recon_config: ReconcileConfig,

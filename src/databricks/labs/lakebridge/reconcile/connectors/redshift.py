@@ -1,20 +1,17 @@
 import re
 import logging
-from collections.abc import Mapping
 from datetime import datetime
 
 from pyspark.errors import PySparkException
-from pyspark.sql import DataFrame, DataFrameReader, SparkSession
+from pyspark.sql import DataFrame
 from pyspark.sql.functions import col
 from sqlglot import Dialect
 
 from databricks.labs.lakebridge.reconcile.connectors.data_source import DataSource
-from databricks.labs.lakebridge.reconcile.connectors.jdbc_reader import JDBCReaderMixin
 from databricks.labs.lakebridge.reconcile.connectors.models import NormalizedIdentifier
-from databricks.labs.lakebridge.reconcile.connectors.secrets import SecretsMixin
+from databricks.labs.lakebridge.reconcile.connectors.remote_query_reader import RemoteQueryReader
 from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import DialectUtils
-from databricks.labs.lakebridge.reconcile.recon_config import JdbcReaderOptions, Schema, OptionalPrimitiveType
-from databricks.sdk import WorkspaceClient
+from databricks.labs.lakebridge.reconcile.recon_config import JdbcReaderOptions, Schema
 
 logger = logging.getLogger(__name__)
 
@@ -40,32 +37,20 @@ _SCHEMA_QUERY = """SELECT
               """
 
 
-class RedshiftDataSource(DataSource, SecretsMixin, JDBCReaderMixin):
-    _DRIVER = "redshift"
+class RedshiftDataSource(DataSource):
     _IDENTIFIER_DELIMITER = "\""
 
     def __init__(
         self,
         engine: Dialect,
-        spark: SparkSession,
-        ws: WorkspaceClient,
-        secret_scope: str,
+        reader: RemoteQueryReader,
     ):
         self._engine = engine
-        self._spark = spark
-        self._ws = ws
-        self._secret_scope = secret_scope
-
-    @property
-    def get_jdbc_url(self) -> str:
-        return (
-            f"jdbc:{RedshiftDataSource._DRIVER}://{self._get_secret('host')}"
-            f":{self._get_secret('port')}/{self._get_secret('database')}"
-        )
+        self._reader = reader
 
     def read_data(
         self,
-        catalog: str | None,
+        catalog: str,
         schema: str,
         table: str,
         query: str,
@@ -74,18 +59,15 @@ class RedshiftDataSource(DataSource, SecretsMixin, JDBCReaderMixin):
         # Redshift dialect in SQLGlot converts :tbl to %(tbl)s (PostgreSQL parameter syntax)
         table_query = query.replace("%(tbl)s", f"{schema}.{table}").replace(":tbl", f"{schema}.{table}")
         try:
-            if options is None:
-                df = self.reader(table_query).load()
-            else:
-                reader_options = self._get_jdbc_reader_options(options)
-                df = self.reader(table_query, reader_options).load()
+            logger.info(f"Fetching data using query: \n`{table_query}`")
+            df = self._reader.read_data(table_query, catalog, "database", "query", options)
             return df.select([col(c).alias(c.lower()) for c in df.columns])
         except (RuntimeError, PySparkException) as e:
             return self.log_and_throw_exception(e, "data", table_query)
 
     def get_schema(
         self,
-        catalog: str | None,
+        catalog: str,
         schema: str,
         table: str,
         normalize: bool = True,
@@ -98,21 +80,12 @@ class RedshiftDataSource(DataSource, SecretsMixin, JDBCReaderMixin):
         try:
             logger.debug(f"Fetching schema using query: \n`{schema_query}`")
             logger.info(f"Fetching Schema: Started at: {datetime.now()}")
-            df = self.reader(schema_query).load()
+            df = self._reader.read_data(schema_query, catalog, "database", "query")
             schema_metadata = df.select([col(c).alias(c.lower()) for c in df.columns]).collect()
             logger.info(f"Schema fetched successfully. Completed at: {datetime.now()}")
             return [self._map_meta_column(field, normalize) for field in schema_metadata]
         except (RuntimeError, PySparkException) as e:
             return self.log_and_throw_exception(e, "schema", schema_query)
-
-    def reader(self, query: str, options: Mapping[str, OptionalPrimitiveType] | None = None) -> DataFrameReader:
-        if options is None:
-            options = {}
-        user = self._get_secret('user')
-        password = self._get_secret('password')
-        return self._get_jdbc_reader(
-            query, self.get_jdbc_url, RedshiftDataSource._DRIVER, {**options, "user": user, "password": password}
-        )
 
     def normalize_identifier(self, identifier: str) -> NormalizedIdentifier:
         return DialectUtils.normalize_identifier(
