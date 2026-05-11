@@ -15,30 +15,29 @@ from databricks.labs.lakebridge.reconcile.recon_config import JdbcReaderOptions,
 
 logger = logging.getLogger(__name__)
 
-_SCHEMA_QUERY = """SELECT
-                     column_name,
-                     CASE
-                        WHEN data_type = 'numeric' AND numeric_precision IS NOT NULL
-                            THEN 'decimal(' || numeric_precision || ',' || numeric_scale || ')'
-                        WHEN data_type = 'character varying' AND character_maximum_length IS NOT NULL
-                            THEN 'varchar(' || character_maximum_length || ')'
-                        WHEN data_type = 'character' AND character_maximum_length IS NOT NULL
-                            THEN 'char(' || character_maximum_length || ')'
-                        WHEN data_type IN ('binary varying')
-                            THEN 'binary'
-                        ELSE data_type
-                    END AS data_type
-                    FROM
-                        information_schema.columns
-                    WHERE
-                    LOWER(table_name) = LOWER('{table}')
-                    AND LOWER(table_schema) = LOWER('{schema}')
-                    ORDER BY ordinal_position
-              """
-
 
 class RedshiftDataSource(DataSource):
     _IDENTIFIER_DELIMITER = "\""
+    _SCHEMA_QUERY = """SELECT
+                         column_name,
+                         CASE
+                            WHEN data_type = 'numeric' AND numeric_precision IS NOT NULL
+                                THEN 'decimal(' || numeric_precision || ',' || numeric_scale || ')'
+                            WHEN data_type = 'character varying' AND character_maximum_length IS NOT NULL
+                                THEN 'varchar(' || character_maximum_length || ')'
+                            WHEN data_type = 'character' AND character_maximum_length IS NOT NULL
+                                THEN 'char(' || character_maximum_length || ')'
+                            WHEN data_type IN ('binary varying')
+                                THEN 'binary'
+                            ELSE data_type
+                        END AS data_type
+                        FROM
+                            information_schema.columns
+                        WHERE
+                        LOWER(table_name) = LOWER('{table}')
+                        AND LOWER(table_schema) = LOWER('{schema}')
+                        ORDER BY ordinal_position
+                  """
 
     def __init__(
         self,
@@ -75,7 +74,7 @@ class RedshiftDataSource(DataSource):
         schema_query = re.sub(
             r'\s+',
             ' ',
-            _SCHEMA_QUERY.format(schema=schema, table=table),
+            RedshiftDataSource._SCHEMA_QUERY.format(schema=schema, table=table),
         )
         try:
             logger.debug(f"Fetching schema using query: \n`{schema_query}`")

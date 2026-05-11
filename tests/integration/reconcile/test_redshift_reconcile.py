@@ -1,9 +1,3 @@
-import re
-from unittest.mock import patch
-
-import pytest
-from pyspark.sql import DataFrameReader
-from databricks.connect import DatabricksSession
 from databricks.labs.lakebridge.config import (
     DatabaseConfig,
     ReconcileMetadataConfig,
@@ -11,106 +5,53 @@ from databricks.labs.lakebridge.config import (
     SourceConnectionConfig,
     TargetConnectionConfig,
 )
-from databricks.labs.lakebridge.reconcile.connectors import redshift as redshift_module
+from databricks.labs.lakebridge.reconcile.connectors.databricks import DatabricksDataSource
 from databricks.labs.lakebridge.reconcile.connectors.redshift import RedshiftDataSource
 from databricks.labs.lakebridge.reconcile.connectors.remote_query_reader import RemoteQueryReader
 from databricks.labs.lakebridge.reconcile.recon_capture import ReconCapture
-from databricks.labs.lakebridge.reconcile.recon_config import Table, JdbcReaderOptions, Schema
+from databricks.labs.lakebridge.reconcile.recon_config import Table, Transformation
 from databricks.labs.lakebridge.reconcile.reconciliation import Reconciliation
 from databricks.labs.lakebridge.reconcile.schema_compare import SchemaCompare
 from databricks.labs.lakebridge.reconcile.trigger_recon_service import TriggerReconService
 from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
 from tests.integration.reconcile.conftest import FakeReconIntermediatePersist
-from tests.integration.reconcile.test_oracle_reconcile import DatabricksDataSourceUnderTest
-from tests.integration.debug_envgetter import TestEnvGetter
+
+REDSHIFT_CONNECTION = "sandbox_labs_tool_redshift"
+REDSHIFT_CATALOG = "labs"
+REDSHIFT_SCHEMA = "lakebridge"
+TARGET_CATALOG = "sandbox"
+TARGET_SCHEMA = "test_target"
+TABLE_NAME = "diamonds"
+META_CATALOG = "sandbox"
+META_SCHEMA = "test_target"
 
 
-class RedshiftDataSourceUnderTest(RedshiftDataSource):
-    _DRIVER_CLASS = "com.amazon.redshift.Driver"
-    _DEFAULT_DATABASE = "dev"
-
-    def __init__(self, spark):
-        # reader is unused — this subclass fully overrides read_data/get_schema with JDBC
-        reader = RemoteQueryReader(spark, "NOT USED")
-        super().__init__(get_dialect("redshift"), reader)
-        self._spark = spark
-        self._test_env = TestEnvGetter(True)
-
-    @property
-    def _get_jdbc_url(self) -> str:
-        host = self._test_env.get("REDSHIFT_HOST")
-        port = self._test_env.get("REDSHIFT_PORT")
-        return f"jdbc:redshift://{host}:{port}/{RedshiftDataSourceUnderTest._DEFAULT_DATABASE}"
-
-    def _jdbc_reader(self, query: str) -> DataFrameReader:
-        user = self._test_env.get("REDSHIFT_USER")
-        password = self._test_env.get("REDSHIFT_PASS")
-        return self._spark.read.format("jdbc").options(
-            **{
-                "driver": RedshiftDataSourceUnderTest._DRIVER_CLASS,
-                "url": self._get_jdbc_url,
-                "user": user,
-                "password": password,
-                "dbtable": query,
-            }
-        )
-
-    def read_data(
-        self,
-        catalog: str,
-        schema: str,
-        table: str,
-        query: str,
-        options: JdbcReaderOptions | None,
-    ):
-        table_query = query.replace("%(tbl)s", f"{schema}.{table}").replace(":tbl", f"{schema}.{table}")
-        return self._jdbc_reader(f"({table_query}) as tmp").load()
-
-    def get_schema(
-        self,
-        catalog: str,
-        schema: str,
-        table: str,
-        normalize: bool = True,
-    ) -> list[Schema]:
-        # pylint: disable=protected-access
-        schema_query = re.sub(
-            r'\s+',
-            ' ',
-            redshift_module._SCHEMA_QUERY.format(schema=schema, table=table),
-        )
-        rows = self._jdbc_reader(f"({schema_query}) as tmp").load().collect()
-        return [self._map_meta_column(r, normalize) for r in rows]
-
-
-@pytest.mark.skip(reason="Requires Redshift connectivity and a Databricks cluster.")
-def test_redshift_db_reconcile(spark, mock_workspace_client, tmp_path):
-    test_env = TestEnvGetter(True)
-    cluster = test_env.get("TEST_REDSHIFT_CLUSTER_ID")
-    host = test_env.get("TEST_REDSHIFT_DATABRICKS_HOST")
-    databricks = DatabricksSession.builder.host(host).clusterId(cluster).profile("redshift_test").getOrCreate()
-    databricks_data_source = DatabricksDataSourceUnderTest(databricks, mock_workspace_client, spark)
-    redshift_data_source = RedshiftDataSourceUnderTest(spark)
+def test_redshift_db_reconcile(spark, ws):
+    redshift_data_source = RedshiftDataSource(
+        get_dialect("redshift"),
+        RemoteQueryReader(spark, REDSHIFT_CONNECTION),
+    )
+    databricks_data_source = DatabricksDataSource(get_dialect("databricks"), spark, ws)
     report = "row"
     source_dialect = get_dialect("redshift")
-    metadata_config = ReconcileMetadataConfig(catalog="tmp", schema="reconcile")
+    metadata_config = ReconcileMetadataConfig(catalog=META_CATALOG, schema=META_SCHEMA)
     db_config = DatabaseConfig(
-        source_catalog="dev",
-        source_schema="public",
-        target_catalog="lakebridge",
-        target_schema="default",
+        source_catalog=REDSHIFT_CATALOG,
+        source_schema=REDSHIFT_SCHEMA,
+        target_catalog=TARGET_CATALOG,
+        target_schema=TARGET_SCHEMA,
     )
     reconcile_config = ReconcileConfig(
         report_type=report,
         source=SourceConnectionConfig(
             dialect="redshift",
-            catalog="dev",
-            schema="public",
-            uc_connection_name="not used",
+            catalog=REDSHIFT_CATALOG,
+            schema=REDSHIFT_SCHEMA,
+            uc_connection_name=REDSHIFT_CONNECTION,
         ),
         target=TargetConnectionConfig(
-            catalog="lakebridge",
-            schema="default",
+            catalog=TARGET_CATALOG,
+            schema=TARGET_SCHEMA,
         ),
         metadata_config=metadata_config,
     )
@@ -130,23 +71,32 @@ def test_redshift_db_reconcile(spark, mock_workspace_client, tmp_path):
         recon_id="test_redshift_db_reconcile",
         report_type=report,
         source_dialect=source_dialect,
-        ws=mock_workspace_client,
+        ws=ws,
         spark=spark,
         metadata_config=metadata_config,
     )
     table_conf = Table(
-        source_name="diamonds",
-        target_name="diamonds",
+        source_name=TABLE_NAME,
+        target_name=TABLE_NAME,
         join_columns=["color", "clarity"],
+        # Normalize the float-typed `carat` column so source/target string
+        # representations are identical (Redshift renders 8-digit precision;
+        # Databricks rounds to display). Also exercises the Transformation feature.
+        transformations=[
+            Transformation(
+                column_name="carat",
+                source='CAST("carat" AS DECIMAL(4,2))',
+                target="CAST(`carat` AS DECIMAL(4,2))",
+            ),
+        ],
     )
 
-    with patch("databricks.labs.lakebridge.reconcile.utils.generate_volume_path", return_value=str(tmp_path)):
-        _, data_reconcile_output = TriggerReconService.recon_one(
-            reconciler=recon,
-            recon_capture=recon_capture,
-            reconcile_config=reconcile_config,
-            table_conf=table_conf,
-        )
+    _, data_reconcile_output = TriggerReconService.recon_one(
+        reconciler=recon,
+        recon_capture=recon_capture,
+        reconcile_config=reconcile_config,
+        table_conf=table_conf,
+    )
 
-        assert not data_reconcile_output.missing_in_src_count
-        assert not data_reconcile_output.missing_in_tgt_count
+    assert not data_reconcile_output.missing_in_src_count
+    assert not data_reconcile_output.missing_in_tgt_count
