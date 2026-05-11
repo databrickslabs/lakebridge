@@ -1,0 +1,261 @@
+---
+sidebar_position: 2
+title: MSSQL Profiler Details
+---
+import Admonition from '@theme/Admonition';
+
+# MSSQL Profiler Details
+
+- [Prerequisites](#prerequisites)
+- [Profiled Tables and Views](#profiled-tables-and-views)
+- [Configure Connection to MSSQL](#configure-connection-to-mssql)
+- [Execute the Profiler](#execute-the-profiler)
+
+## Prerequisites
+
+### 1. Download
+- ODBC driver for SQL Server (https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server?view=sql-server-ver18)
+- (Windows only) Visual C++ (https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170)
+
+### 2. SQL Server Authentication
+
+:::warning Attention:
+Multi-factor Authentication (MFA) is **not** supported. The MSSQL profiler connects via ODBC, which does not support MFA.
+You must use **SQL Authentication** (username and password) to connect to the SQL Server instance.
+:::
+
+### 3. Required Database Permissions
+
+The SQL user configured for the profiler must have read access to the system catalog views and Dynamic Management Views (DMVs)
+listed in [Profiled Tables and Views](#profiled-tables-and-views).
+
+Permissions differ depending on whether you are running against an **on-premises SQL Server** or **Azure SQL Database**.
+
+#### On-Premises SQL Server
+
+On a self-hosted SQL Server instance, a server-level grant is sufficient:
+
+```sql
+-- Grant access to Dynamic Management Views (DMVs)
+GRANT VIEW SERVER STATE TO [<user_name>];
+
+-- Grant access to object definitions (routines, views)
+GRANT VIEW DEFINITION TO [<user_name>];
+
+-- Grant read access to INFORMATION_SCHEMA views
+GRANT SELECT ON SCHEMA::INFORMATION_SCHEMA TO [<user_name>];
+```
+
+:::tip
+`VIEW SERVER STATE` is a server-level permission required to query `sys.dm_*` Dynamic Management Views.
+`VIEW DEFINITION` allows the user to see the definitions of stored procedures and views.
+These grants should be executed by a `sysadmin` or a login with `CONTROL SERVER` permission.
+:::
+
+#### Azure SQL Database
+
+:::warning Attention:
+`VIEW SERVER STATE` is **not supported** on Azure SQL Database. You must use `VIEW DATABASE STATE` instead,
+which must be granted **per database** — including the `master` database.
+:::
+
+First, identify your target database(s) by connecting as an admin and running:
+
+```sql
+SELECT name FROM sys.databases WHERE database_id > 4;
+```
+
+Then grant permissions in both `master` and each target database:
+
+```sql
+-- In the master database (required for server-level DMVs like sys.databases, sys.dm_os_sys_info)
+USE master;
+CREATE USER [<user_name>] FROM LOGIN [<user_name>];
+GRANT VIEW DATABASE STATE TO [<user_name>];
+
+-- In each target database
+USE [<target_database>];
+CREATE USER [<user_name>] FROM LOGIN [<user_name>];
+GRANT VIEW DATABASE STATE TO [<user_name>];
+GRANT VIEW DEFINITION TO [<user_name>];
+GRANT SELECT ON SCHEMA::INFORMATION_SCHEMA TO [<user_name>];
+```
+
+:::tip
+On Azure SQL Database, `VIEW DATABASE STATE` is scoped to a single database. The profiler queries
+server-level DMVs (e.g., `sys.databases`, `sys.dm_os_sys_info`) in the `master` database context, so
+the user must have `VIEW DATABASE STATE` granted there in addition to the target database(s).
+:::
+
+## Profiled Tables and Views
+
+The MSSQL profiler executes queries against the following system tables and DMVs. The results are organized into
+two extraction steps: **schema metadata** and **activity metrics**.
+
+### Schema Metadata
+
+<table>
+  <thead>
+    <tr>
+      <th>Query</th>
+      <th>Source Table(s)</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>System Info</td>
+      <td><code>sys.dm_os_sys_info</code></td>
+      <td>Instance-level metadata including memory, CPU count, and scheduler configuration.</td>
+    </tr>
+    <tr>
+      <td>Databases</td>
+      <td><code>sys.databases</code></td>
+      <td>Lists all user databases (excluding system databases) with IDs, names, collation, and creation dates.</td>
+    </tr>
+    <tr>
+      <td>Tables</td>
+      <td><code>INFORMATION_SCHEMA.TABLES</code></td>
+      <td>Extracts table definitions and types from each database.</td>
+    </tr>
+    <tr>
+      <td>Views</td>
+      <td><code>INFORMATION_SCHEMA.VIEWS</code></td>
+      <td>Extracts view definitions (SQL text is redacted for security).</td>
+    </tr>
+    <tr>
+      <td>Columns</td>
+      <td><code>INFORMATION_SCHEMA.COLUMNS</code></td>
+      <td>Column-level metadata including data types, nullability, precision, collation, and domain information.</td>
+    </tr>
+    <tr>
+      <td>Indexed Views</td>
+      <td><code>sys.views</code>, <code>sys.indexes</code></td>
+      <td>Identifies views that have clustered or non-clustered indexes, with index type and IDs.</td>
+    </tr>
+    <tr>
+      <td>Routines</td>
+      <td><code>INFORMATION_SCHEMA.ROUTINES</code></td>
+      <td>Stored procedures and user-defined functions (routine definitions are redacted for security).</td>
+    </tr>
+    <tr>
+      <td>Database Sizes</td>
+      <td><code>sys.database_files</code></td>
+      <td>Database file metadata including current size, free space, and maximum configured size (in MB).</td>
+    </tr>
+    <tr>
+      <td>Table Sizes</td>
+      <td><code>sys.dm_db_partition_stats</code>, <code>sys.objects</code></td>
+      <td>Per-table storage metrics: row counts, reserved/used/unused space, and data vs. index space breakdown.</td>
+    </tr>
+  </tbody>
+</table>
+
+### Activity Metrics
+
+<table>
+  <thead>
+    <tr>
+      <th>Query</th>
+      <th>Source Table(s)</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Query Stats</td>
+      <td><code>sys.dm_exec_query_stats</code>, <code>sys.dm_exec_sql_text</code></td>
+      <td>Recently executed queries classified by command type (QUERY, DML, DDL, ROUTINE, TRANSACTION_CONTROL, OTHER) with execution count, duration, CPU time, and row counts.</td>
+    </tr>
+    <tr>
+      <td>Procedure Stats</td>
+      <td><code>sys.dm_exec_procedure_stats</code></td>
+      <td>Stored procedure execution statistics including execution counts, total CPU time, and elapsed time.</td>
+    </tr>
+    <tr>
+      <td>Sessions</td>
+      <td><code>sys.dm_exec_sessions</code></td>
+      <td>Active user sessions with login info (hashed), program names, CPU/memory usage, and request timing.</td>
+    </tr>
+    <tr>
+      <td>CPU Utilization</td>
+      <td><code>sys.dm_os_ring_buffers</code>, <code>sys.dm_os_sys_info</code></td>
+      <td>CPU utilization over time, including system idle percentage and SQL Server process utilization.</td>
+    </tr>
+  </tbody>
+</table>
+
+## Configure Connection to MSSQL
+
+Run the following command to configure the profiler connection to your SQL Server instance:
+
+```console
+databricks labs lakebridge configure-database-profiler
+
+Please select the source system you want to configure
+[0] synapse
+[1] mssql
+Enter a number between 0 and 1: 1
+
+(local | env)
+local means values are read as plain text
+env means values are read from environment variables, and fall back to plain text if not variable is not found
+
+Enter secret vault type (local | env)
+[0] env
+[1] local
+Enter a number between 0 and 1: 1
+Enter fetch size (default: 1000):
+Enter login timeout (seconds) (default: 30):
+Enter the fully-qualified server name: my-server.database.windows.net
+Enter the port details: 1433
+Enter the SQL username: profiler_user
+Enter the SQL password:
+Enter timezone (e.g. America/New_York) (default: UTC):
+Enter the ODBC driver installed locally (default: ODBC Driver 18 for SQL Server):
+Do you want to test the connection to mssql? (yes/no): yes
+```
+
+### Configuration Parameters
+
+| Parameter | Description | Default |
+|:----------|:------------|:--------|
+| **Secret vault type** | `local` for plain text values, `env` to read from environment variables | — |
+| **Fetch size** | Number of rows fetched per batch from the source | `1000` |
+| **Login timeout** | Connection timeout in seconds | `30` |
+| **Server name** | Fully-qualified SQL Server hostname | — |
+| **Port** | SQL Server port number | — |
+| **SQL username** | SQL Authentication username | — |
+| **SQL password** | SQL Authentication password (hidden input) | — |
+| **Timezone** | Timezone for timestamp normalization | `UTC` |
+| **ODBC driver** | Locally installed ODBC driver name | `ODBC Driver 18 for SQL Server` |
+
+## Execute the Profiler
+
+Once configured, run the profiler to extract metadata and activity metrics from your SQL Server instance:
+
+```bash
+databricks labs lakebridge execute-database-profiler --source-tech mssql
+```
+
+The profiler will:
+1. Connect to your SQL Server instance using the configured credentials
+2. Execute the schema metadata and activity metric extraction queries
+3. Store the results in a local DuckDB extract file
+
+### Publish Profiler Summary Dashboard
+
+After executing the profiler, you can upload the results and deploy a summary dashboard to your Databricks workspace:
+
+```bash
+databricks labs lakebridge create-profiler-dashboard \
+  --extract-file /tmp/data/mssql_assessment/profiler_extract.db \
+  --source-tech mssql \
+  --volume-path /Volumes/lakebridge_profiler/profiler_runs \
+  --catalog-name lakebridge_profiler \
+  --schema-name profiler_runs
+```
+
+Refer to the [Profiler Guide](../#publish-profiler-summary-dashboard) for full details on dashboard deployment options.
+
+[Back to Configure Profiler](../#configure-profiler)
