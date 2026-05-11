@@ -8,7 +8,7 @@ from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dial
 from databricks.labs.lakebridge.reconcile.connectors.redshift import RedshiftDataSource
 from databricks.labs.lakebridge.reconcile.connectors.remote_query_reader import RemoteQueryReader
 from databricks.labs.lakebridge.reconcile.exception import DataSourceRuntimeException
-from databricks.labs.lakebridge.reconcile.recon_config import JdbcReaderOptions, Table
+from databricks.labs.lakebridge.reconcile.recon_config import JdbcReaderOptions
 
 
 def initial_setup():
@@ -21,29 +21,16 @@ def test_read_data_with_options():
     engine, reader = initial_setup()
 
     rds = RedshiftDataSource(engine, reader)
-    table_conf = Table(
-        source_name="supplier",
-        target_name="supplier",
-        jdbc_reader_options=JdbcReaderOptions(
-            num_partitions=50, partition_column="s_nationkey", lower_bound="0", upper_bound="100"
-        ),
-        join_columns=None,
-        select_columns=None,
-        drop_columns=None,
-        column_mapping=None,
-        transformations=None,
-        column_thresholds=None,
-        filters=None,
-    )
+    options = JdbcReaderOptions(num_partitions=50, partition_column="s_nationkey", lower_bound="0", upper_bound="100")
 
-    rds.read_data("dev", "data", "employee", "select 1 from :tbl", table_conf.jdbc_reader_options)
+    rds.read_data("dev", "data", "employee", "select 1 from :tbl", options)
 
     reader.read_data.assert_called_once_with(
         "select 1 from data.employee",
         "dev",
         "database",
         "query",
-        table_conf.jdbc_reader_options,
+        options,
     )
 
 
@@ -105,18 +92,6 @@ def test_get_schema():
 def test_read_data_exception_handling():
     engine, reader = initial_setup()
     rds = RedshiftDataSource(engine, reader)
-    table_conf = Table(
-        source_name="supplier",
-        target_name="supplier",
-        jdbc_reader_options=None,
-        join_columns=None,
-        select_columns=None,
-        drop_columns=None,
-        column_mapping=None,
-        transformations=None,
-        column_thresholds=None,
-        filters=None,
-    )
 
     reader.read_data.side_effect = RuntimeError("Test Exception")
 
@@ -124,7 +99,7 @@ def test_read_data_exception_handling():
         DataSourceRuntimeException,
         match="Runtime exception occurred while fetching data using select 1 from data.employee : Test Exception",
     ):
-        rds.read_data("dev", "data", "employee", "select 1 from :tbl", table_conf.jdbc_reader_options)
+        rds.read_data("dev", "data", "employee", "select 1 from :tbl", None)
 
 
 def test_get_schema_exception_handling():

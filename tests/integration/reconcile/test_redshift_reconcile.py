@@ -1,7 +1,8 @@
+import re
 from unittest.mock import patch
 
 import pytest
-from pyspark.sql import DataFrame, DataFrameReader
+from pyspark.sql import DataFrameReader
 from databricks.connect import DatabricksSession
 from databricks.labs.lakebridge.config import (
     DatabaseConfig,
@@ -10,7 +11,6 @@ from databricks.labs.lakebridge.config import (
     SourceConnectionConfig,
     TargetConnectionConfig,
 )
-from databricks.labs.lakebridge.reconcile.connectors.databricks import DatabricksDataSource
 from databricks.labs.lakebridge.reconcile.connectors import redshift as redshift_module
 from databricks.labs.lakebridge.reconcile.connectors.redshift import RedshiftDataSource
 from databricks.labs.lakebridge.reconcile.connectors.remote_query_reader import RemoteQueryReader
@@ -21,6 +21,7 @@ from databricks.labs.lakebridge.reconcile.schema_compare import SchemaCompare
 from databricks.labs.lakebridge.reconcile.trigger_recon_service import TriggerReconService
 from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
 from tests.integration.reconcile.conftest import FakeReconIntermediatePersist
+from tests.integration.reconcile.test_oracle_reconcile import DatabricksDataSourceUnderTest
 from tests.integration.debug_envgetter import TestEnvGetter
 
 
@@ -72,8 +73,7 @@ class RedshiftDataSourceUnderTest(RedshiftDataSource):
         table: str,
         normalize: bool = True,
     ) -> list[Schema]:
-        import re
-
+        # pylint: disable=protected-access
         schema_query = re.sub(
             r'\s+',
             ' ',
@@ -81,23 +81,6 @@ class RedshiftDataSourceUnderTest(RedshiftDataSource):
         )
         rows = self._jdbc_reader(f"({schema_query}) as tmp").load().collect()
         return [self._map_meta_column(r, normalize) for r in rows]
-
-
-class DatabricksDataSourceUnderTest(DatabricksDataSource):
-    def __init__(self, databricks, ws, local_spark):
-        super().__init__(get_dialect("databricks"), databricks, ws)
-        self._local_spark = local_spark
-
-    def read_data(
-        self,
-        catalog: str | None,
-        schema: str,
-        table: str,
-        query: str,
-        options: JdbcReaderOptions | None,
-    ) -> DataFrame:
-        data = super().read_data(catalog, schema, table, query, options).collect()
-        return self._local_spark.createDataFrame(data)
 
 
 @pytest.mark.skip(reason="Requires Redshift connectivity and a Databricks cluster.")
