@@ -29,51 +29,62 @@ See [Reconcile Data Flow Examples](/docs/reconcile/dataflow_example) for visuali
 ## Config File Naming
 
 ```
-recon_config_<DATA_SOURCE>_<CATALOG_OR_SCHEMA>_<REPORT_TYPE>.json
+recon_config_<DATA_SOURCE>_<UNITY_CATALOG_CONNECTION_NAME_OR_CATALOG>_<REPORT_TYPE>.json
 ```
 
 Place the file in `.lakebridge/` in your Databricks workspace home folder.
 
-> The filename must match the case of `<CATALOG_OR_SCHEMA>` exactly. For example, if the source schema is `ORC`, the filename is `recon_config_oracle_ORC_data.json`.
+> The filename must match the case of `<UNITY_CATALOG_CONNECTION_NAME_OR_CATALOG>` exactly. For example, if the source connection is `conn-oracle-prod`, the filename is `recon_config_oracle_conn-oracle-prod_data.json`.
 
 **Examples by source:**
 
 <Tabs>
     <TabItem value="snowflake" label="Snowflake" default>
         ```yaml title="recon_config_snowflake_sample_data_all.json"
-        database_config:
-          source_catalog: sample_data
-          source_schema: default
-          ...
-        data_source: snowflake
+        source:
+            dialect: snowflake
+            catalog: sample_data
+            schema: default
+            uc_connection_name: example_connection_snowflake
+        target:
+            catalog: migrated
+            schema: migrated
         report_type: all
         ```
     </TabItem>
     <TabItem value="oracle" label="Oracle">
         ```yaml title="recon_config_oracle_orc_data.json"
-        database_config:
-          source_schema: orc
-          ...
-        data_source: oracle
+        source:
+            dialect: oracle
+            uc_connection_name: example_connection_oracle
+        target:
+            catalog: migrated
+            schema: migrated
         report_type: data
         ```
     </TabItem>
     <TabItem value="tsql" label="MS SQL Server (incl. Synapse)">
         ```yaml title="recon_config_tsql_silver_data.json"
-        database_config:
-          source_schema: silver
-          ...
-        data_source: mssql
+        source:
+            dialect: mssql
+            uc_connection_name: example_connection_mssql
+        target:
+            catalog: migrated
+            schema: migrated
         report_type: data
         ```
     </TabItem>
     <TabItem value="databricks" label="Databricks">
         ```yaml title="recon_config_databricks_hms_schema.json"
-        database_config:
-          source_schema: hms
+        source:
+            dialect: databricks
+            catalog: hive_metastore
+            schema: hr
+        target:
+            catalog: migrated
+            schema: migrated
           ...
-        data_source: databricks
-        report_type: schema
+        report_type: data
         ```
     </TabItem>
 </Tabs>
@@ -153,7 +164,7 @@ Use JDBC reader options to parallelize reads from large tables.
         partition_column: str
         lower_bound: str
         upper_bound: str
-        fetch_size: int = 0
+        fetchsize: int = 0
     ```
   </TabItem>
   <TabItem value="json" label="JSON">
@@ -163,7 +174,7 @@ Use JDBC reader options to parallelize reads from large tables.
         "partition_column": "id",
         "lower_bound": "1",
         "upper_bound": "100000",
-        "fetch_size": 0
+        "fetchsize": 0
     }
     ```
   </TabItem>
@@ -171,19 +182,11 @@ Use JDBC reader options to parallelize reads from large tables.
 
 | Field | Type | Required | Description |
 |---|---|---|---|
-| `number_partitions` | int | Yes | Number of Spark partitions for parallel reads |
+| `num_partitions` | int | Yes | Number of Spark partitions for parallel reads |
 | `partition_column` | string | Yes | Column used for partitioning (choose high-cardinality column for composite keys) |
 | `lower_bound` | string | Yes | Minimum value for partitioning |
 | `upper_bound` | string | Yes | Maximum value for partitioning |
-| `fetch_size` | int | No (default: 100) | Rows per JDBC round-trip |
-
-:::tip Oracle JDBC
-For Oracle sources, the following Spark configurations are set automatically:
-```json
-"oracle.jdbc.mapDateToTimestamp": "False",
-"sessionInitStatement": "BEGIN dbms_session.set_nls('nls_date_format', '''YYYY-MM-DD''');...END;"
-```
-:::
+| `fetchsize` | int | No (default: 100) | Rows per JDBC round-trip |
 
 ---
 
@@ -375,7 +378,7 @@ MIN, MAX, COUNT, SUM, AVG, MEAN, MODE, STDDEV, VARIANCE, MEDIAN
       "source_name": "product_prod",
       "target_name": "product",
       "jdbc_reader_options": {
-        "number_partitions": 10,
+        "num_partitions": 10,
         "partition_column": "p_id",
         "lower_bound": "0",
         "upper_bound": "10000000"
@@ -424,7 +427,7 @@ MIN, MAX, COUNT, SUM, AVG, MEAN, MODE, STDDEV, VARIANCE, MEDIAN
         { "type": "SUM", "agg_columns": ["p_id"] }
       ],
       "jdbc_reader_options": {
-        "number_partitions": 10,
+        "num_partitions": 10,
         "partition_column": "p_id",
         "lower_bound": "0",
         "upper_bound": "10000000"
