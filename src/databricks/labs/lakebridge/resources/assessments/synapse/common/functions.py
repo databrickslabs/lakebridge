@@ -4,11 +4,6 @@ from azure.identity import DefaultAzureCredential
 from azure.monitor.query import MetricsQueryClient
 from azure.synapse.artifacts import ArtifactsClient
 
-# Deprecated re-export: ``arguments_loader`` now lives in ``assessments.common.cli``.
-# Kept here so unmigrated callers (Synapse and MSSQL extracts) keep working until
-# they are migrated; the re-export will be removed once all imports are updated.
-from databricks.labs.lakebridge.resources.assessments.common.cli import arguments_loader  # noqa: F401
-
 logger = logging.getLogger(__name__)
 
 
