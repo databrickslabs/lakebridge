@@ -86,18 +86,21 @@ class ConfigureSqlServerAssessment(AssessmentConfigurator):
         secret_vault_type = str(self.prompts.choice("Enter secret vault type (local | env)", ["local", "env"])).lower()
         secret_vault_name = None
 
-        logger.info("Please refer to the documentation to understand the difference between local and env.")
-
         credential = {
             "secret_vault_type": secret_vault_type,
             "secret_vault_name": secret_vault_name,
             source: {
-                "database": self.prompts.question("Enter the database name"),
-                "driver": self.prompts.question("Enter the driver details"),
-                "server": self.prompts.question("Enter the server or host details"),
+                "auth_type": "sql_authentication",
+                "fetch_size": self.prompts.question("Enter fetch size", default="1000"),
+                "login_timeout": self.prompts.question("Enter login timeout (seconds)", default="30"),
+                "server": self.prompts.question("Enter the fully-qualified server name"),
                 "port": int(self.prompts.question("Enter the port details", valid_number=True)),
-                "user": self.prompts.question("Enter the user details"),
-                "password": self.prompts.password("Enter the password details"),
+                "user": self.prompts.question("Enter the SQL username"),
+                "password": self.prompts.password("Enter the SQL password"),
+                "tz_info": self.prompts.question("Enter timezone (e.g. America/New_York)", default="UTC"),
+                "driver": self.prompts.question(
+                    "Enter the ODBC driver installed locally", default="ODBC Driver 18 for SQL Server"
+                ),
             },
         }
 

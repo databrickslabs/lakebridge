@@ -12,12 +12,15 @@ def test_configure_sqlserver_credentials(tmp_path):
         {
             r"Enter secret vault type \(local \| env\)": sorted(['local', 'env']).index("env"),
             r"Enter the database name": "TEST_TSQL_JDBC",
-            r"Enter the driver details": "ODBC Driver 18 for SQL Server",
-            r"Enter the server or host details": "TEST_TSQL_JDBC",
+            r"Enter the ODBC driver installed locally.*": "ODBC Driver 18 for SQL Server",
+            r"Enter the fully-qualified server name": "URL",
             r"Enter the port details": "1433",
-            r"Enter the user details": "TEST_TSQL_USER",
-            r"Enter the password details": "TEST_TSQL_PASS",
-            r"Do you want to test the connection to mssql?": "no",
+            r"Enter the SQL username": "TEST_TSQL_USER",
+            r"Enter the SQL password": "TEST_TSQL_PASS",
+            r"Do you want to test the connection to mssql?.*": "no",
+            r"Enter fetch size": "4000",
+            r"Enter timezone.*": "UTC",
+            r"Enter login timeout.*": 5,
         }
     )
     file = tmp_path / ".credentials.yml"
@@ -30,12 +33,15 @@ def test_configure_sqlserver_credentials(tmp_path):
         'secret_vault_type': 'env',
         'secret_vault_name': None,
         'mssql': {
-            'database': 'TEST_TSQL_JDBC',
+            'auth_type': 'sql_authentication',
             'driver': 'ODBC Driver 18 for SQL Server',
-            'server': 'TEST_TSQL_JDBC',
-            'port': 1433,
-            'user': 'TEST_TSQL_USER',
+            'fetch_size': '4000',
+            'login_timeout': 5,
             'password': 'TEST_TSQL_PASS',
+            'port': 1433,
+            'server': 'URL',
+            'tz_info': 'UTC',
+            'user': 'TEST_TSQL_USER',
         },
     }
 
