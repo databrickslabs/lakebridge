@@ -19,7 +19,12 @@ from databricks.labs.lakebridge.reconcile.recon_output_config import (
     ReconcileOutput,
 )
 from databricks.labs.lakebridge.reconcile.reconciliation import Reconciliation
-from databricks.labs.lakebridge.reconcile.trigger_recon_service import TriggerReconService
+from databricks.labs.lakebridge.reconcile.recon_service_helpers import (
+    cleanup_intermediate_persist,
+    create_recon_dependencies,
+    get_schemas,
+    verify_successful_reconciliation,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +37,7 @@ class TriggerReconAggregateService:
         table_recon: TableRecon,
         reconcile_config: ReconcileConfig,
     ) -> ReconcileOutput:
-        reconciler, recon_capture = TriggerReconService.create_recon_dependencies(ws, spark, reconcile_config)
+        reconciler, recon_capture = create_recon_dependencies(ws, spark, reconcile_config)
 
         try:
             for table_conf in table_recon.tables:
@@ -40,7 +45,7 @@ class TriggerReconAggregateService:
                     reconciler, table_conf, reconcile_config, recon_capture
                 )
 
-            return TriggerReconService.verify_successful_reconciliation(
+            return verify_successful_reconciliation(
                 generate_final_reconcile_aggregate_output(
                     recon_id=recon_capture.recon_id,
                     spark=spark,
@@ -49,10 +54,7 @@ class TriggerReconAggregateService:
                 report_type="aggregate",
             )
         finally:
-            try:
-                ws.dbfs.delete(str(reconciler.intermediate_persist.base_dir), recursive=True)
-            except IOError:
-                logger.exception("Cleaning intermediate storage failed. Resuming program")
+            cleanup_intermediate_persist(ws, reconciler)
 
     @staticmethod
     def recon_aggregate_one(
@@ -66,7 +68,7 @@ class TriggerReconAggregateService:
 
         recon_process_duration = ReconcileProcessDuration(start_ts=str(datetime.now(tz=timezone.utc)), end_ts=None)
         try:
-            src_schema, tgt_schema = TriggerReconService.get_schemas(
+            src_schema, tgt_schema = get_schemas(
                 reconciler.source, reconciler.target, normalized_table_conf, reconcile_config.database_config, True
             )
 

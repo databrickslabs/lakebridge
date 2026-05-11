@@ -12,6 +12,7 @@ from databricks.labs.lakebridge.config import (
 )
 from databricks.labs.lakebridge.reconcile.exception import ReconciliationException
 from databricks.labs.lakebridge.reconcile.recon_output_config import ReconcileTableOutput, ReconcileOutput, StatusOutput
+from databricks.labs.lakebridge.reconcile.recon_service_helpers import verify_successful_reconciliation
 from databricks.labs.lakebridge.reconcile.trigger_recon_service import TriggerReconService
 
 
@@ -24,7 +25,7 @@ def test_success_no_mismatches_and_no_exceptions(caplog: pytest.LogCaptureFixtur
     ]
     reconcile_output = ReconcileOutput(recon_id="mock-id", results=results)
 
-    returned = TriggerReconService.verify_successful_reconciliation(reconcile_output, report_type="daily")
+    returned = verify_successful_reconciliation(reconcile_output, report_type="daily")
 
     assert returned is reconcile_output
     assert any("completed successfully" in rec.message for rec in caplog.records)
@@ -39,7 +40,7 @@ def test_mismatches_but_no_exceptions_logs_warning(caplog: pytest.LogCaptureFixt
     ]
     reconcile_output = ReconcileOutput(recon_id="mock-id", results=results)
 
-    returned = TriggerReconService.verify_successful_reconciliation(reconcile_output, report_type="daily")
+    returned = verify_successful_reconciliation(reconcile_output, report_type="daily")
 
     assert returned is reconcile_output
     assert any("found mismatches in 1 table(s)" in rec.message for rec in caplog.records)
@@ -53,7 +54,7 @@ def test_ignores_none_status_values() -> None:
     reconcile_output = ReconcileOutput(recon_id="mock-id", results=results)
 
     # Should not raise
-    TriggerReconService.verify_successful_reconciliation(reconcile_output, report_type="daily")
+    verify_successful_reconciliation(reconcile_output, report_type="daily")
 
 
 def test_raises_on_exception_message() -> None:
@@ -69,7 +70,7 @@ def test_raises_on_exception_message() -> None:
     reconcile_output = ReconcileOutput(recon_id="mock-id", results=results)
 
     with pytest.raises(ReconciliationException) as excinfo:
-        TriggerReconService.verify_successful_reconciliation(reconcile_output, report_type="all")
+        verify_successful_reconciliation(reconcile_output, report_type="all")
 
     assert "Reconciliation **all** with id: mock-id failed with exceptions for" in str(excinfo.value)
 
@@ -95,9 +96,10 @@ def test_trigger_recon_dispatches_aggregate_to_aggregate_service() -> None:
     spark = MagicMock()
     expected = ReconcileOutput(recon_id="agg-id", results=[])
 
-    target = "databricks.labs.lakebridge.reconcile.trigger_recon_aggregate_service.TriggerReconAggregateService.trigger_recon_aggregates"
-    with patch(target, return_value=expected) as mock_aggregate:
-        with patch.object(TriggerReconService, "create_recon_dependencies") as mock_deps:
+    aggregate_target = "databricks.labs.lakebridge.reconcile.trigger_recon_service.TriggerReconAggregateService.trigger_recon_aggregates"
+    deps_target = "databricks.labs.lakebridge.reconcile.trigger_recon_service.create_recon_dependencies"
+    with patch(aggregate_target, return_value=expected) as mock_aggregate:
+        with patch(deps_target) as mock_deps:
             result = TriggerReconService.trigger_recon(
                 ws=ws,
                 spark=spark,
@@ -120,11 +122,13 @@ def test_trigger_recon_does_not_dispatch_non_aggregate(report_type: str) -> None
     reconcile_config = _build_aggregate_reconcile_config()
     reconcile_config.report_type = report_type
 
-    target = "databricks.labs.lakebridge.reconcile.trigger_recon_aggregate_service.TriggerReconAggregateService.trigger_recon_aggregates"
+    aggregate_target = "databricks.labs.lakebridge.reconcile.trigger_recon_service.TriggerReconAggregateService.trigger_recon_aggregates"
+    deps_target = "databricks.labs.lakebridge.reconcile.trigger_recon_service.create_recon_dependencies"
+    verify_target = "databricks.labs.lakebridge.reconcile.trigger_recon_service.verify_successful_reconciliation"
     with (
-        patch(target) as mock_aggregate,
-        patch.object(TriggerReconService, "create_recon_dependencies") as mock_deps,
-        patch.object(TriggerReconService, "verify_successful_reconciliation") as mock_verify,
+        patch(aggregate_target) as mock_aggregate,
+        patch(deps_target) as mock_deps,
+        patch(verify_target) as mock_verify,
         patch("databricks.labs.lakebridge.reconcile.trigger_recon_service.generate_final_reconcile_output"),
     ):
         mock_deps.return_value = (MagicMock(), MagicMock(intermediate_persist=MagicMock(base_dir="/tmp")))

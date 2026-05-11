@@ -1,20 +1,16 @@
 import logging
 from datetime import datetime, timezone
-from uuid import uuid4
 
 from pyspark.errors import PySparkException
 from pyspark.sql import SparkSession
 
 from databricks.sdk import WorkspaceClient
 
-from databricks.labs.lakebridge.config import ReconcileConfig, TableRecon, DatabaseConfig
-from databricks.labs.lakebridge.reconcile import utils
-from databricks.labs.lakebridge.reconcile.connectors.data_source import DataSource
-from databricks.labs.lakebridge.reconcile.exception import DataSourceRuntimeException, ReconciliationException
+from databricks.labs.lakebridge.config import ReconcileConfig, TableRecon
+from databricks.labs.lakebridge.reconcile.exception import DataSourceRuntimeException
 from databricks.labs.lakebridge.reconcile.recon_capture import (
     ReconCapture,
     generate_final_reconcile_output,
-    ReconIntermediatePersist,
 )
 from databricks.labs.lakebridge.reconcile.recon_config import Table, Schema
 from databricks.labs.lakebridge.reconcile.recon_output_config import (
@@ -22,16 +18,18 @@ from databricks.labs.lakebridge.reconcile.recon_output_config import (
     ReconcileProcessDuration,
     SchemaReconcileOutput,
     DataReconcileOutput,
-    ReconcileTableOutput,
 )
 from databricks.labs.lakebridge.reconcile.reconciliation import Reconciliation
-from databricks.labs.lakebridge.reconcile.schema_compare import SchemaCompare
+from databricks.labs.lakebridge.reconcile.recon_service_helpers import (
+    cleanup_intermediate_persist,
+    create_recon_dependencies,
+    get_schemas,
+    verify_successful_reconciliation,
+)
 from databricks.labs.lakebridge.reconcile.normalize_recon_config_service import NormalizeReconConfigService
-from databricks.labs.lakebridge.transpiler.execute import verify_workspace_client
-from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
+from databricks.labs.lakebridge.reconcile.trigger_recon_aggregate_service import TriggerReconAggregateService
 
 logger = logging.getLogger(__name__)
-_RECON_REPORT_TYPES = {"schema", "data", "row", "all", "aggregate"}
 
 
 class TriggerReconService:
@@ -47,13 +45,7 @@ class TriggerReconService:
         # service. _do_recon_one only branches on {"schema","all"} and
         # {"data","row","all"}, so an unforwarded aggregate request would
         # silently no-op and return status=true without comparing anything.
-        # Deferred import to avoid circular import with trigger_recon_aggregate_service.
         if reconcile_config.report_type.lower() == "aggregate":
-            # pylint: disable=cyclic-import,import-outside-toplevel
-            from databricks.labs.lakebridge.reconcile.trigger_recon_aggregate_service import (
-                TriggerReconAggregateService,
-            )
-
             return TriggerReconAggregateService.trigger_recon_aggregates(
                 ws=ws,
                 spark=spark,
@@ -61,13 +53,13 @@ class TriggerReconService:
                 reconcile_config=reconcile_config,
             )
 
-        reconciler, recon_capture = TriggerReconService.create_recon_dependencies(ws, spark, reconcile_config)
+        reconciler, recon_capture = create_recon_dependencies(ws, spark, reconcile_config)
 
         try:
             for table_conf in table_recon.tables:
                 TriggerReconService.recon_one(reconciler, recon_capture, reconcile_config, table_conf)
 
-            return TriggerReconService.verify_successful_reconciliation(
+            return verify_successful_reconciliation(
                 generate_final_reconcile_output(
                     recon_id=recon_capture.recon_id,
                     spark=spark,
@@ -76,56 +68,7 @@ class TriggerReconService:
                 reconcile_config.report_type,
             )
         finally:
-            try:
-                ws.dbfs.delete(str(reconciler.intermediate_persist.base_dir), recursive=True)
-            except IOError:
-                logger.exception("Cleaning intermediate storage failed. Resuming program")
-
-    @staticmethod
-    def create_recon_dependencies(
-        ws: WorkspaceClient, spark: SparkSession, reconcile_config: ReconcileConfig
-    ) -> tuple[Reconciliation, ReconCapture]:
-        ws_client: WorkspaceClient = verify_workspace_client(ws)
-
-        # validate the report type
-        report_type = reconcile_config.report_type.lower()
-        source_dialect = reconcile_config.source.dialect
-        logger.info(f"report_type: {report_type}, data_source: {source_dialect} ")
-        utils.validate_input(report_type, _RECON_REPORT_TYPES, "Invalid report type")
-
-        # validate the connection
-        source, target = utils.initialise_data_source(
-            source_dialect=reconcile_config.source.dialect,
-            spark=spark,
-            ws=ws_client,
-            connection_name=reconcile_config.source.uc_connection_name,
-        )
-
-        recon_id = uuid4().hex
-        # initialise the Reconciliation
-        reconciler = Reconciliation(
-            source,
-            target,
-            reconcile_config.database_config,
-            report_type,
-            SchemaCompare(spark=spark),
-            get_dialect(source_dialect),
-            spark,
-            metadata_config=reconcile_config.metadata_config,
-            intermediate_persist=ReconIntermediatePersist(spark, reconcile_config.metadata_config),
-        )
-
-        recon_capture = ReconCapture(
-            database_config=reconcile_config.database_config,
-            recon_id=recon_id,
-            report_type=report_type,
-            source_dialect=get_dialect(source_dialect),
-            ws=ws_client,
-            spark=spark,
-            metadata_config=reconcile_config.metadata_config,
-        )
-
-        return reconciler, recon_capture
+            cleanup_intermediate_persist(ws, reconciler)
 
     @staticmethod
     def recon_one(
@@ -159,7 +102,7 @@ class TriggerReconService:
         data_reconcile_output = DataReconcileOutput()
 
         try:
-            src_schema, tgt_schema = TriggerReconService.get_schemas(
+            src_schema, tgt_schema = get_schemas(
                 reconciler.source, reconciler.target, table_conf, reconcile_config.database_config, True
             )
         except DataSourceRuntimeException as e:
@@ -187,30 +130,6 @@ class TriggerReconService:
         return schema_reconcile_output, data_reconcile_output, recon_process_duration
 
     @staticmethod
-    def get_schemas(
-        source: DataSource,
-        target: DataSource,
-        table_conf: Table,
-        database_config: DatabaseConfig,
-        normalize: bool,
-    ) -> tuple[list[Schema], list[Schema]]:
-        src_schema = source.get_schema(
-            catalog=database_config.source_catalog,
-            schema=database_config.source_schema,
-            table=table_conf.source_name,
-            normalize=normalize,
-        )
-
-        tgt_schema = target.get_schema(
-            catalog=database_config.target_catalog,
-            schema=database_config.target_schema,
-            table=table_conf.target_name,
-            normalize=normalize,
-        )
-
-        return src_schema, tgt_schema
-
-    @staticmethod
     def _run_reconcile_schema(
         reconciler: Reconciliation,
         table_conf: Table,
@@ -233,48 +152,3 @@ class TriggerReconService:
             return reconciler.reconcile_data(table_conf=table_conf, src_schema=src_schema, tgt_schema=tgt_schema)
         except DataSourceRuntimeException as e:
             return DataReconcileOutput(exception=str(e))
-
-    @staticmethod
-    def verify_successful_reconciliation(reconcile_output: ReconcileOutput, report_type: str) -> ReconcileOutput:
-        def is_table_recon_mismatch(table_output: ReconcileTableOutput):
-            is_mismatch = (
-                table_output.status.column is False
-                or table_output.status.row is False
-                or table_output.status.schema is False
-                or table_output.status.aggregate is False
-            )
-            if is_mismatch:
-                logger.debug(
-                    f"Mismatches found between source and target tables:"
-                    f" ({table_output.source_table_name}, {table_output.target_table_name})."
-                )
-
-            return is_mismatch
-
-        exceptions = [r for r in reconcile_output.results if r.exception_message]
-        mismatched = [r for r in reconcile_output.results if is_table_recon_mismatch(r)]
-
-        (total_count, exc_count, mismatched_count) = (len(reconcile_output.results), len(exceptions), len(mismatched))
-        success_count = max(0, total_count - exc_count + mismatched_count)
-
-        logger.info(
-            f"Reconciliation **{report_type}** with id: {reconcile_output.recon_id} ran for total {total_count} source tables and their targets."
-            f" {success_count} tables succeeded, {exc_count} tables failed with exceptions and {mismatched_count} tables mismatched."
-        )
-
-        if exceptions:
-            raise ReconciliationException(
-                f"Reconciliation **{report_type}** with id: {reconcile_output.recon_id} failed with exceptions for {exc_count} table(s). Please check recon metrics for details.",
-                reconcile_output=reconcile_output,
-            )
-
-        if mismatched:
-            logger.error(
-                f"Reconciliation **{report_type}** with id: {reconcile_output.recon_id} found mismatches in {mismatched_count} table(s). Please check recon metrics for details."
-            )
-        else:
-            logger.info(
-                f"Reconciliation **{report_type}** with id: {reconcile_output.recon_id} completed successfully. Please check recon metrics for details."
-            )
-
-        return reconcile_output

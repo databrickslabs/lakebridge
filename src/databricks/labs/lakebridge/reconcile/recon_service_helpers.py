@@ -1,0 +1,150 @@
+"""Shared helpers used by both TriggerReconService and TriggerReconAggregateService.
+
+Kept in a separate module so the two services do not need to import each other,
+avoiding a module-level cyclic dependency.
+"""
+
+import logging
+from uuid import uuid4
+
+from pyspark.sql import SparkSession
+from databricks.sdk import WorkspaceClient
+
+from databricks.labs.lakebridge.config import DatabaseConfig, ReconcileConfig
+from databricks.labs.lakebridge.reconcile import utils
+from databricks.labs.lakebridge.reconcile.connectors.data_source import DataSource
+from databricks.labs.lakebridge.reconcile.exception import ReconciliationException
+from databricks.labs.lakebridge.reconcile.recon_capture import (
+    ReconCapture,
+    ReconIntermediatePersist,
+)
+from databricks.labs.lakebridge.reconcile.recon_config import Table, Schema
+from databricks.labs.lakebridge.reconcile.recon_output_config import ReconcileOutput, ReconcileTableOutput
+from databricks.labs.lakebridge.reconcile.reconciliation import Reconciliation
+from databricks.labs.lakebridge.reconcile.schema_compare import SchemaCompare
+from databricks.labs.lakebridge.transpiler.execute import verify_workspace_client
+from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
+
+logger = logging.getLogger(__name__)
+
+_RECON_REPORT_TYPES = {"schema", "data", "row", "all", "aggregate"}
+
+
+def cleanup_intermediate_persist(ws: WorkspaceClient, reconciler: Reconciliation) -> None:
+    """Best-effort cleanup of the reconciler's intermediate storage."""
+    try:
+        ws.dbfs.delete(str(reconciler.intermediate_persist.base_dir), recursive=True)
+    except IOError:
+        logger.exception("Cleaning intermediate storage failed. Resuming program")
+
+
+def create_recon_dependencies(
+    ws: WorkspaceClient, spark: SparkSession, reconcile_config: ReconcileConfig
+) -> tuple[Reconciliation, ReconCapture]:
+    ws_client: WorkspaceClient = verify_workspace_client(ws)
+
+    report_type = reconcile_config.report_type.lower()
+    source_dialect = reconcile_config.source.dialect
+    logger.info(f"report_type: {report_type}, data_source: {source_dialect} ")
+    utils.validate_input(report_type, _RECON_REPORT_TYPES, "Invalid report type")
+
+    source, target = utils.initialise_data_source(
+        source_dialect=reconcile_config.source.dialect,
+        spark=spark,
+        ws=ws_client,
+        connection_name=reconcile_config.source.uc_connection_name,
+    )
+
+    recon_id = uuid4().hex
+    reconciler = Reconciliation(
+        source,
+        target,
+        reconcile_config.database_config,
+        report_type,
+        SchemaCompare(spark=spark),
+        get_dialect(source_dialect),
+        spark,
+        metadata_config=reconcile_config.metadata_config,
+        intermediate_persist=ReconIntermediatePersist(spark, reconcile_config.metadata_config),
+    )
+
+    recon_capture = ReconCapture(
+        database_config=reconcile_config.database_config,
+        recon_id=recon_id,
+        report_type=report_type,
+        source_dialect=get_dialect(source_dialect),
+        ws=ws_client,
+        spark=spark,
+        metadata_config=reconcile_config.metadata_config,
+    )
+
+    return reconciler, recon_capture
+
+
+def get_schemas(
+    source: DataSource,
+    target: DataSource,
+    table_conf: Table,
+    database_config: DatabaseConfig,
+    normalize: bool,
+) -> tuple[list[Schema], list[Schema]]:
+    src_schema = source.get_schema(
+        catalog=database_config.source_catalog,
+        schema=database_config.source_schema,
+        table=table_conf.source_name,
+        normalize=normalize,
+    )
+
+    tgt_schema = target.get_schema(
+        catalog=database_config.target_catalog,
+        schema=database_config.target_schema,
+        table=table_conf.target_name,
+        normalize=normalize,
+    )
+
+    return src_schema, tgt_schema
+
+
+def verify_successful_reconciliation(reconcile_output: ReconcileOutput, report_type: str) -> ReconcileOutput:
+    def is_table_recon_mismatch(table_output: ReconcileTableOutput):
+        is_mismatch = (
+            table_output.status.column is False
+            or table_output.status.row is False
+            or table_output.status.schema is False
+            or table_output.status.aggregate is False
+        )
+        if is_mismatch:
+            logger.debug(
+                f"Mismatches found between source and target tables:"
+                f" ({table_output.source_table_name}, {table_output.target_table_name})."
+            )
+
+        return is_mismatch
+
+    exceptions = [r for r in reconcile_output.results if r.exception_message]
+    mismatched = [r for r in reconcile_output.results if is_table_recon_mismatch(r)]
+
+    (total_count, exc_count, mismatched_count) = (len(reconcile_output.results), len(exceptions), len(mismatched))
+    success_count = max(0, total_count - exc_count + mismatched_count)
+
+    logger.info(
+        f"Reconciliation **{report_type}** with id: {reconcile_output.recon_id} ran for total {total_count} source tables and their targets."
+        f" {success_count} tables succeeded, {exc_count} tables failed with exceptions and {mismatched_count} tables mismatched."
+    )
+
+    if exceptions:
+        raise ReconciliationException(
+            f"Reconciliation **{report_type}** with id: {reconcile_output.recon_id} failed with exceptions for {exc_count} table(s). Please check recon metrics for details.",
+            reconcile_output=reconcile_output,
+        )
+
+    if mismatched:
+        logger.error(
+            f"Reconciliation **{report_type}** with id: {reconcile_output.recon_id} found mismatches in {mismatched_count} table(s). Please check recon metrics for details."
+        )
+    else:
+        logger.info(
+            f"Reconciliation **{report_type}** with id: {reconcile_output.recon_id} completed successfully. Please check recon metrics for details."
+        )
+
+    return reconcile_output
