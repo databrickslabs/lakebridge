@@ -67,7 +67,7 @@ def test_oracle_read_schema_happy(spark: SparkSession) -> None:
 
 
 def test_redshift_read_schema_happy(spark: SparkSession) -> None:
-    connection = "redshift_sandbox"
+    connection = "sandbox_labs_tool_redshift"
     reader = RemoteQueryReader(spark, connection)
     connector = RedshiftDataSource(get_dialect("redshift"), reader)
 
