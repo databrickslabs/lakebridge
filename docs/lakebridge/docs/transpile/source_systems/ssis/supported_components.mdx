@@ -1,0 +1,111 @@
+---
+sidebar_position: 2
+title: SSIS Supported Components
+toc_min_heading_level: 2
+toc_max_heading_level: 3
+---
+
+# SSIS Supported Components
+
+This page lists all SSIS components and their Databricks equivalents. For usage and conversion examples, see [SSIS Conversion Examples](/docs/transpile/source_systems/ssis/examples).
+
+---
+
+## Control Flow (Orchestration) - Supported
+
+| SSIS Component | Microsoft Name | Spark Equivalent | Notes |
+|---|---|---|---|
+| **Data Flow Task** | Microsoft.DataFlowTask | Spark SQL temp views | Core data transformations |
+| **Execute SQL Task** | Microsoft.ExecuteSQLTask | Spark SQL statements | SQL execution with parameter mapping |
+| **Execute Package Task** | Microsoft.ExecutePackageTask | `dbutils.notebook.run()` | Nested notebook execution |
+| **File System Task** | Microsoft.FileSystemTask | `dbutils.fs` commands | File operations (copy, move, delete, rename) |
+| **Script Task** | Microsoft.ScriptTask | Python code with SQL | C#/VB.NET scripts converted to Python/SQL |
+| **For Loop Container** | STOCK:FORLOOP | SQL iteration pattern | Iteration with counter |
+| **Foreach Loop Container** | STOCK:FOREACHLOOP | SQL wildcard file reading | File/folder iteration |
+| **Sequence Container** | STOCK:SEQUENCE | Function or notebook section | Grouping tasks |
+| **Execute Process Task** | Microsoft.ExecuteProcess | `subprocess.run()` | External process execution |
+| **Extensible File Task** | ExtensibleFileTask | `dbutils.fs` commands | Extended file operations |
+
+---
+
+## Control Flow (Orchestration) - Unsupported
+
+The following components are **not supported** and require manual conversion:
+
+| SSIS Component | Microsoft Name | Reason |
+|---|---|---|
+| **Analysis Services Execute DDL** | Microsoft.AnalysisServicesExecuteDDLTask | SSAS-specific; migrate to Delta/SQL manually |
+| **Analysis Services Processing** | Microsoft.AnalysisServicesProcessingTask | SSAS-specific; migrate to Delta/SQL manually |
+| **Bulk Insert Task** | Microsoft.BulkInsertTask | Use Data Flow Task with JDBC/Delta |
+| **Data Profiling Task** | Microsoft.DataProfilingTask | Use Databricks Data Profile UI or custom profiling |
+| **FTP Task** | Microsoft.FTPTask | Implement using Python `ftplib` or `dbutils.fs` |
+| **Message Queue Task** | Microsoft.MessageQueueTask | Requires custom Kafka/Event Hub integration |
+| **Send Mail Task** | Microsoft.SendMailTask | Use Databricks job notifications or Python `smtplib` |
+| **Web Service Task** | Microsoft.WebServiceTask | Implement using Python `requests` |
+| **WMI Data Reader Task** | Microsoft.WMIDataReaderTask | Windows-specific; requires alternative monitoring |
+| **XML Task** | Microsoft.XMLTask | Implement using Python `xml.etree` or PySpark XML |
+
+:::warning Script Task Conversion
+**Script Task** contains C# or VB.NET code bodies that cannot be automatically converted. The converter preserves the logic structure but the implementation must be rewritten in Python manually.
+:::
+
+---
+
+## Data Flow (Transformation) - Supported
+
+### Sources
+
+| SSIS Component | Microsoft Name | Spark Equivalent | Notes |
+|---|---|---|---|
+| **OLE DB Source** | Microsoft.OLEDBSource | `spark.read.format("jdbc")` | Database reads via JDBC |
+| **Flat File Source** | Microsoft.FlatFileSource | `spark.read.csv()` or SQL `csv.\`path\`` | CSV, delimited, fixed-width files |
+| **Excel Source** | Microsoft.ExcelSource | `spark.read.format("excel")` | Excel file reads |
+| **Raw File Source** | Microsoft.RawSource | `spark.read.format("parquet")` | SSIS raw files converted to Parquet |
+
+### Transformations
+
+| SSIS Component | Microsoft Name | Spark Equivalent | Notes |
+|---|---|---|---|
+| **Aggregate** | Microsoft.Aggregate | `GROUP BY` with aggregation | Sum, count, avg, min, max |
+| **Audit** | Microsoft.Audit | Add columns in SELECT | Add audit columns (timestamp, user, etc.) |
+| **Cache Transform** | Microsoft.Cache | Temp views or CTEs | Cache data for lookups |
+| **Character Map** | Microsoft.CharacterMap | String functions | upper, lower, etc. |
+| **Conditional Split** | Microsoft.ConditionalSplit | Multiple `WHERE` clauses | Route rows by conditions |
+| **Copy Column** | Microsoft.CopyColumn | Column in SELECT | Duplicate columns |
+| **Data Conversion** | Microsoft.DataConvert | `CAST()` | Type conversions |
+| **Derived Column** | Microsoft.DerivedColumn | Calculated columns in SELECT | Column transformations |
+| **Lookup** | Microsoft.Lookup | `LEFT JOIN` | Reference data lookup |
+| **Merge** | Microsoft.Merge | `UNION` | Merge sorted datasets |
+| **Merge Join** | Microsoft.MergeJoin | `JOIN` | Sorted input joins |
+| **Multicast** | Microsoft.Multicast | Temp view reuse | Send data to multiple outputs |
+| **OLE DB Command** | Microsoft.OLEDBCommand | Row-by-row SQL execution | Row-level SQL |
+| **Percentage Sampling** | Microsoft.PercentageSampling | `TABLESAMPLE` | Statistical sampling |
+| **Pivot** | Microsoft.Pivot | `PIVOT` clause | Pivot operations |
+| **Row Count** | Microsoft.RowCount | `COUNT(*)` | Count rows into variable |
+| **Script Component** | Microsoft.SqlServer.Dts.Pipeline.ScriptComponentHost | SQL UDFs or CASE statements | Custom transformations |
+| **Slowly Changing Dimension** | Microsoft.SCD | `MERGE` with Delta Lake | SCD Type 1, 2, 3 patterns |
+| **Sort** | Microsoft.Sort | `ORDER BY` | Sorting |
+| **Union All** | Microsoft.UnionAll | `UNION ALL` | Combine datasets |
+| **Unpivot** | Microsoft.UnPivot | `UNPIVOT` or `STACK()` | Unpivot |
+
+### Destinations
+
+| SSIS Component | Microsoft Name | Spark Equivalent | Notes |
+|---|---|---|---|
+| **OLE DB Destination** | Microsoft.OLEDBDestination | `INSERT INTO` SQL or Delta Lake | Database writes |
+| **Flat File Destination** | Microsoft.FlatFileDestination | `df.write.csv()` or SQL INSERT | CSV/delimited writes |
+| **Excel Destination** | Microsoft.ExcelDestination | `df.write.format('excel')` | Excel writes |
+| **Raw File Destination** | Microsoft.RawDestination | `df.write.format('parquet')` | Parquet writes |
+
+---
+
+## Data Flow (Transformation) - Unsupported
+
+| SSIS Component | Microsoft Name | Reason |
+|---|---|---|
+| **Export Column** | Microsoft.ExportColumn | Implement using custom UDF with file writing |
+| **Import Column** | Microsoft.ImportColumn | Implement using custom UDF with file reading |
+
+:::warning Script Component Conversion
+The **Script Component** contains C# or VB.NET row-by-row processing logic that cannot be automatically converted. The converter identifies the component but the actual C#/VB code must be rewritten as SQL UDFs or CASE statements, then tested thoroughly since row-by-row logic often needs redesign for set-based SQL.
+:::
