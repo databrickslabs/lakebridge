@@ -498,13 +498,13 @@ wheels = [
 
 [[package]]
 name = "databricks-bb-analyzer"
-version = "0.3.1"
+version = "0.3.0"
 source = { registry = "https://pypi.org/simple/" }
 dependencies = [
     { name = "jsonschema" },
 ]
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/92/42/6c6b3e56513840cca9f3f35a4e23508f10cf183e01fef971b91f73305f34/databricks_bb_analyzer-0.3.1-py3-none-any.whl", hash = "sha256:4fa0940b2638f5a681ef5f0d6446138575ac78306b4730e6a737f68bdb3f8e4c", size = 29550082, upload-time = "2026-03-24T03:40:49.462Z" },
+    { url = "https://files.pythonhosted.org/packages/95/83/001009fd80d1724ab7ee03f313f3283a25312c05438dd8e12d28115424ec/databricks_bb_analyzer-0.3.0-py3-none-any.whl", hash = "sha256:aaa4951ead4f9c20566c1648b7ba73754be7d3b5750f8b8a0807e21b49270cfe", size = 29330056, upload-time = "2026-02-24T22:23:25.028Z" },
 ]
 
 [[package]]
@@ -638,7 +638,7 @@ yq = [
 [package.metadata]
 requires-dist = [
     { name = "cryptography", specifier = ">=44.0.2,<46.1.0" },
-    { name = "databricks-bb-analyzer", specifier = "~=0.3.0" },
+    { name = "databricks-bb-analyzer", specifier = "~=0.3.0,!=0.3.1" },
     { name = "databricks-labs-blueprint", extras = ["yaml"], specifier = ">=0.12.0,<0.13.0" },
     { name = "databricks-labs-lsql", specifier = "==0.16.0" },
     { name = "databricks-sdk", specifier = "~=0.85.0" },
