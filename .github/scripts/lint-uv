@@ -36,6 +36,9 @@ PROJECT_ROOT="$(git rev-parse --show-toplevel)"
 SCRATCH="$(mktemp -d -t "${PROGNAME}.XXX")"
 trap 'rm -fr "${SCRATCH}"' EXIT
 
+# This script handles the locked/frozen flags for uv itself.
+unset UV_FROZEN UV_LOCKED
+
 tomlq() {
     # Assumes typical project setup: tomlq is present (and locked).
     uv run --frozen --quiet --group yq tomlq "$@"
