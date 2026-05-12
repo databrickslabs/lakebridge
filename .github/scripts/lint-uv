@@ -99,7 +99,7 @@ check_lock_consistency
 
 base_ref() {
     # Figure out the base branch, and verify it's available. (CI checkout might be shallow.)
-    _base_ref="${GITHUB_BASE_REF:-main}"
+    [ -n "${GITHUB_BASE_REF:-}" ] && _base_ref="origin/${GITHUB_BASE_REF}" || _base_ref="main"
     git rev-parse --verify --quiet "${_base_ref}" > /dev/null ||
         die 3 "Base revision of repository is not available: ${_base_ref}"
     printf "%s" "${_base_ref}"
