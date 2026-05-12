@@ -74,12 +74,8 @@ def test_append_creates_table_when_missing(tmp_path: Path) -> None:
 
 def test_append_accumulates_rows(tmp_path: Path) -> None:
     db_path = str(tmp_path / "t.duckdb")
-    save_to_duckdb(
-        pd.DataFrame({"id": [1, 2]}), "t1", db_path, mode="append", schema="id BIGINT"
-    )
-    save_to_duckdb(
-        pd.DataFrame({"id": [3, 4]}), "t1", db_path, mode="append", schema="id BIGINT"
-    )
+    save_to_duckdb(pd.DataFrame({"id": [1, 2]}), "t1", db_path, mode="append", schema="id BIGINT")
+    save_to_duckdb(pd.DataFrame({"id": [3, 4]}), "t1", db_path, mode="append", schema="id BIGINT")
 
     out = _read_table(db_path, "t1").sort_values("id").reset_index(drop=True)
     assert out["id"].tolist() == [1, 2, 3, 4]

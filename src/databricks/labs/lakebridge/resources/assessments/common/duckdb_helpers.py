@@ -83,9 +83,7 @@ def save_to_duckdb(
                     needs_insert = not df.empty
                 else:
                     limit_clause = " LIMIT 0" if df.empty else ""
-                    conn.execute(
-                        f"CREATE TABLE {table_name} AS SELECT * FROM _lakebridge_df{limit_clause}"
-                    )
+                    conn.execute(f"CREATE TABLE {table_name} AS SELECT * FROM _lakebridge_df{limit_clause}")
             else:  # append
                 if not table_exists:
                     if schema is not None:
@@ -93,9 +91,7 @@ def save_to_duckdb(
                         needs_insert = True
                     else:
                         # First batch defines the schema. Brittle for incremental appends.
-                        conn.execute(
-                            f"CREATE TABLE {table_name} AS SELECT * FROM _lakebridge_df"
-                        )
+                        conn.execute(f"CREATE TABLE {table_name} AS SELECT * FROM _lakebridge_df")
                 else:
                     needs_insert = True
 

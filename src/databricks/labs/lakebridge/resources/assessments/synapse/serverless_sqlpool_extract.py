@@ -141,7 +141,9 @@ def execute():
             data_processed_query = SynapseQueries.data_processed(pool_name)
 
             session_result = connection.fetch(data_processed_query)
-            save_to_duckdb(session_result.to_df(), table_name, db_path, mode="append", schema=SYNAPSE_SCHEMAS[table_name])
+            save_to_duckdb(
+                session_result.to_df(), table_name, db_path, mode="append", schema=SYNAPSE_SCHEMAS[table_name]
+            )
 
             # Activity Extract:
             table_name = "serverless_sessions"
@@ -150,7 +152,9 @@ def execute():
             session_query = SynapseQueries.list_serverless_sessions(pool_name, prev_max_login_time)
 
             session_result = connection.fetch(session_query)
-            save_to_duckdb(session_result.to_df(), table_name, db_path, mode="append", schema=SYNAPSE_SCHEMAS[table_name])
+            save_to_duckdb(
+                session_result.to_df(), table_name, db_path, mode="append", schema=SYNAPSE_SCHEMAS[table_name]
+            )
 
             table_name = "serverless_session_requests"
             logger.info(f"Loading '{table_name}' for pool: %s", pool_name)
@@ -158,7 +162,9 @@ def execute():
             session_request_query = SynapseQueries.list_serverless_requests(pool_name, prev_max_end_time)
 
             session_request_result = connection.fetch(session_request_query)
-            save_to_duckdb(session_request_result.to_df(), table_name, db_path, mode="append", schema=SYNAPSE_SCHEMAS[table_name])
+            save_to_duckdb(
+                session_request_result.to_df(), table_name, db_path, mode="append", schema=SYNAPSE_SCHEMAS[table_name]
+            )
 
             table_name = "serverless_query_stats"
             logger.info(f"Loading '{table_name}' for pool: %s", pool_name)
@@ -166,7 +172,9 @@ def execute():
             query_stats = SynapseQueries.list_query_stats(max_last_execution_time)
 
             session_result = connection.fetch(query_stats)
-            save_to_duckdb(session_result.to_df(), table_name, db_path, mode="append", schema=SYNAPSE_SCHEMAS[table_name])
+            save_to_duckdb(
+                session_result.to_df(), table_name, db_path, mode="append", schema=SYNAPSE_SCHEMAS[table_name]
+            )
 
             table_name = "serverless_requests_history"
             logger.info(f"Loading '{table_name}' for pool: %s", pool_name)
@@ -174,7 +182,9 @@ def execute():
             query_history = SynapseQueries.query_requests_history(max_end_time)
 
             session_request_result = connection.fetch(query_history)
-            save_to_duckdb(session_request_result.to_df(), table_name, db_path, mode="append", schema=SYNAPSE_SCHEMAS[table_name])
+            save_to_duckdb(
+                session_request_result.to_df(), table_name, db_path, mode="append", schema=SYNAPSE_SCHEMAS[table_name]
+            )
 
         else:
             logger.info("'exclude_serverless_sql_pool' configuration is set to True.Skipping Serverless Pool extracts.")
