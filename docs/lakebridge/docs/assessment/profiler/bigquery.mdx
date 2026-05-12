@@ -1,0 +1,263 @@
+---
+sidebar_position: 3
+title: BigQuery Profiler Details
+---
+import Admonition from '@theme/Admonition';
+
+# BigQuery Profiler Details
+
+- [Prerequisites](#prerequisites)
+- [Configure Connection to BigQuery](#configure-connection-to-bigquery)
+- [Execute the profiler](#execute-the-profiler)
+- [Pricing and cost projection](#pricing-and-cost-projection)
+- [Generate the dashboard](#generate-the-dashboard)
+
+## Prerequisites
+
+### 1. Download
+- gcloud CLI (https://cloud.google.com/sdk/docs/install)
+
+The BigQuery profiler uses the `google-cloud-bigquery` Python client (installed automatically by the pipeline runner); no ODBC driver or platform-specific binary is required.
+
+### 2. Authenticate to GCP using gcloud CLI
+
+```bash
+gcloud auth application-default login
+```
+
+The profiler uses Google's `google.auth.default()` chain, attempting authentication in this order:
+
+1. **`GOOGLE_APPLICATION_CREDENTIALS`** environment variable pointing at a service-account JSON key.
+2. **Application Default Credentials** (from `gcloud auth application-default login`).
+3. **Compute Engine / Cloud Run / GKE metadata server** (only if you happen to be running the profiler on GCP).
+
+For production engagements, customers typically supply a service-account JSON key file path during `configure-database-profiler`. For local testing, ADC works.
+
+### 3. Required IAM permissions on the target BigQuery project(s)
+
+The executing identity needs the following permissions. The easiest grant is `roles/bigquery.admin` (matches the canonical GCP-native BigQuery profiler) which already covers `bigquery.readSessions.create` (used by the BigQuery Storage Read API for fast result downloads).
+
+For least-privilege deployments, the discrete permissions are:
+
+```
+bigquery.jobs.create
+bigquery.jobs.list
+bigquery.datasets.get
+bigquery.datasets.getIamPolicy
+bigquery.tables.get
+bigquery.tables.getData
+bigquery.routines.list
+bigquery.readSessions.create
+bigquery.reservations.list                  # Editions customers only
+bigquery.reservationAssignments.list        # Editions customers only
+bigquery.capacityCommitments.list           # Editions customers only
+```
+
+Grant via `gcloud`:
+
+```bash
+gcloud projects add-iam-policy-binding <project_id> \
+  --member="user:<email>" \
+  --role="roles/bigquery.admin"
+```
+
+Or using a dedicated service account:
+
+```bash
+gcloud iam service-accounts create lakebridge-profiler \
+  --description="Lakebridge BigQuery profiler" \
+  --display-name="lakebridge-profiler"
+gcloud projects add-iam-policy-binding <project_id> \
+  --member="serviceAccount:lakebridge-profiler@<project_id>.iam.gserviceaccount.com" \
+  --role="roles/bigquery.admin"
+gcloud iam service-accounts keys create ~/lakebridge-profiler-key.json \
+  --iam-account=lakebridge-profiler@<project_id>.iam.gserviceaccount.com
+```
+
+### 4. INFORMATION_SCHEMA / region-scoped views accessed
+
+| Profiler aspect | Region-scoped view | Required permission |
+|---|---|---|
+| Job history (workload, timeline, fulfillment, jobs-by-reservation) | `region-{region}.INFORMATION_SCHEMA.JOBS_BY_PROJECT`, `JOBS_TIMELINE` | `bigquery.jobs.list` (job-owner sees own jobs; admin sees all) |
+| Table storage | `region-{region}.INFORMATION_SCHEMA.TABLE_STORAGE_BY_PROJECT` | `bigquery.tables.get` + `bigquery.tables.getData` |
+| Streaming inserts | `region-{region}.INFORMATION_SCHEMA.STREAMING_TIMELINE_BY_PROJECT` | `bigquery.jobs.list` |
+| Write API | `region-{region}.INFORMATION_SCHEMA.WRITE_API_TIMELINE_BY_PROJECT` | `bigquery.jobs.list` |
+| Reservation timeline | `region-{region}.INFORMATION_SCHEMA.RESERVATIONS_TIMELINE`, `RESERVATION_CHANGES` | `bigquery.reservations.list` |
+| Capacity commitments | `region-{region}.INFORMATION_SCHEMA.CAPACITY_COMMITMENT_CHANGES_BY_PROJECT` | `bigquery.capacityCommitments.list` (admin project only) |
+
+:::warning Attention:
+Skip the reservation/commitment permissions if the customer is on **Pay-as-you-go pricing** rather than BigQuery Editions. The corresponding SQL files will return empty results — harmless — and the dashboard widgets will just be empty. You can also set `exclude_reservations_data: true` during configuration to skip those queries entirely (saves BigQuery slot time; the corresponding DuckDB tables are still created as empty stubs so the dashboard's commitment/consumption widgets resolve cleanly).
+:::
+
+:::tip
+Unlike Synapse, BigQuery uses OAuth bearer tokens via gRPC, so MFA does not interfere with the profiler.
+:::
+
+:::warning Attention:
+Some queries (commitments, capacity commitments) only return data when run against the customer's **administrative project** — the one that owns the BigQuery Edition slot reservations. For non-admin projects they return empty.
+:::
+
+## Configure Connection to BigQuery
+
+```console
+databricks labs lakebridge configure-database-profiler
+
+Please select the source system you want to configure
+[0] bigquery
+[1] mssql
+[2] synapse
+Enter a number between 0 and 2: 0
+
+(local | env)
+local means values are read as plain text
+env means values are read from environment variables, and fall back to plain text if not variable is not found
+
+Enter secret vault type (local | env)
+[0] env
+[1] local
+Enter a number between 0 and 1: 1
+Please provide BigQuery connection settings:
+Enter BigQuery project IDs (comma-separated): customer-prod-1, customer-admin
+Enter BigQuery regions (comma-separated, e.g. us, eu) (default: us): us
+Enter path to service account JSON key (leave blank to use Application Default Credentials):
+Enter profiling window in days (default: 180):
+Enter max parallel SQLs per (project, region) iteration (default: 8):
+Please select target Databricks platform:
+[0] aws
+[1] azure
+[2] gcp
+Enter a number between 0 and 2: 2
+Please configure profiler settings:
+Redact query text in extracted data? (default: no):
+Exclude reservations and commitments data? (default: no):
+Exclude streaming and write API summary? (default: no):
+Exclude pricing analysis (skip step 2)? (default: no):
+```
+
+The resulting `~/.databricks/labs/lakebridge/.credentials.yml` looks like:
+
+```yaml
+secret_vault_type: local
+secret_vault_name: null
+bigquery:
+  projects:
+    - customer-prod-1
+    - customer-admin
+  regions:
+    - us
+  service_account_key_path: null      # null = use ADC
+  profiling_window_days: 180
+  target_cloud: gcp
+  max_parallel_sqls: 8
+  profiler:
+    redact_query_text: false
+    exclude_reservations_data: false
+    exclude_streaming_metrics: false
+    exclude_pricing_analysis: false
+```
+
+## Execute the profiler
+
+```bash
+databricks labs lakebridge execute-database-profiler --source-tech bigquery
+```
+
+The pipeline runs two steps:
+
+1. **`bq_metadata_extract`** — connects to BigQuery and runs 16 vendored SQL queries serially across `(project, region)` pairs and in parallel within each iteration (`max_parallel_sqls` workers). Results land in `~/.databricks/labs/lakebridge_profilers/bigquery_assessment/profiler_extract.db` (DuckDB).
+2. **`compute_pricing_analysis`** — runs in-process via DuckDB on the tables loaded by step 1, producing per-percentile cost projections, monthly weighted pricing, and a `consumption_by_commitment` view.
+
+Final DuckDB contains **18 tables / views** by default:
+- **14 from step 1**: 12 metadata tables (one per `analysis_type`) + 2 reference price tables (`bq_cluster_pricing`, `bq_sqlwarehouse_pricing`).
+- **4 from step 2**: 3 derived pricing tables (`input_params`, `bq_slots_pricing_analysis`, `monthly_weighted_pricing`) + 1 view (`consumption_by_commitment`).
+
+Setting `exclude_reservations_data: true` skips the 6 reservation/commitment BigQuery queries — the corresponding DuckDB tables are still created (empty) so the dashboard renders cleanly. Setting `exclude_pricing_analysis: true` skips step 2 entirely; use this when you only want raw extracts.
+
+## Pricing and cost projection
+
+Step 2 (`compute_pricing_analysis`) joins observed BigQuery slot usage with vendored price tables to produce **per-row cost projections** for the BigQuery → Databricks migration. This is the core of the "migration sizing" story the dashboard tells.
+
+### Where the prices come from
+
+Two reference CSVs are bundled inside the profiler package:
+
+- **`bigquery/data/cluster_pricing.csv`** — ~675 Databricks compute instance types across AWS / Azure / GCP, with `vm_per_hr` (compute price) and `jobs_photon_dbu` (DBU rate) columns.
+- **`bigquery/data/dbsql_pricing.csv`** — 54 Databricks SQL Warehouse SKU × cluster-size combinations with `dbu_per_hr` rates across the 3 clouds.
+
+These are point-in-time snapshots ported from the standalone GCP-native BigQuery profiler. To refresh, simply update the CSVs from Databricks' pricing page and the GCP BigQuery pricing page; no code change is needed.
+
+### What `target_cloud` selects
+
+The `target_cloud` field in `.credentials.yml` (`aws | azure | gcp`) selects **which Databricks deployment cloud the customer is migrating *to*** — not where their BigQuery runs. It drives a per-cloud `TUNING_INPUT_PARAMS` lookup in `bigquery/common/tuning_params.py` for:
+
+- Slot-to-Databricks-cores ratio (`db_cores_to_bq_slots_ratio`)
+- ETL/BI performance factors
+- Default executor count and instance type
+- DBU pricing assumptions
+- `bq_slot_pricing` (assumed BigQuery on-demand slot rate, in USD/slot-hour)
+- `storage_pricing` (Delta/object storage rate in USD per TB-month on the target cloud; used by the dashboard's storage-cost widgets)
+
+A BigQuery customer running on GCP can migrate *to* AWS or Azure — set `target_cloud` accordingly. The numbers in `TUNING_INPUT_PARAMS` are deliberately conservative defaults; tune them in code for what-if comparisons.
+
+### Percentile families
+
+`bq_slots_pricing_analysis` computes **six cost percentiles** per (project, region, time_window, workload_type):
+
+| Percentile | Meaning |
+|---|---|
+| `avg` | Average slot demand over the window |
+| `50th` | Median slot demand |
+| `90th` | 90th-percentile burst capacity |
+| `99th` | 99th-percentile burst capacity |
+| `max` | Peak slot demand |
+| `perf_based` | Derived directly from BigQuery's billed `slot_secs` divided by the `db_etl_effective_price_perf` factor — a "what it would have cost on Databricks at observed efficiency" estimate |
+
+The dashboard's "Estimation approach" filter widget lets you choose which percentile to project. **The default for `monthly_weight_projection` in `TUNING_INPUT_PARAMS` is `db_price_90th`** — a balanced choice between average and peak.
+
+### What the dashboard shows
+
+- BigQuery vs Databricks cost comparison by month, grouped by `workload_type` (BI vs ETL).
+- Per-project-region cost breakdown.
+- Table-storage migration sizing (`TB_to_migrate`, archival storage costs on the target cloud).
+- Reservation / commitment cost flow (when the customer is on BigQuery Editions and `exclude_reservations_data: false`).
+
+## Generate the dashboard
+
+```bash
+databricks labs lakebridge visualize-profiler-results
+```
+
+The catalog and schema you select here are **baked into the dashboard SQL at deploy time** — there are no filter widgets to switch them at runtime (matches the Synapse and MSSQL profiler conventions).
+
+Fully interactive — prompts for source-tech (pick `bigquery`), extract file path, then catalog / schema / volume:
+
+```console
+Select the source technology
+[0] bigquery
+[1] mssql
+[2] synapse
+Enter a number between 0 and 2: 0
+Enter the path to the profiler extract file (default: ~/.databricks/labs/lakebridge_profilers/bigquery_assessment/profiler_extract.db):
+Configuring profiler dashboard metadata.
+Enter catalog name (default: remorph): my_lakebridge_catalog
+Catalog `my_lakebridge_catalog` doesn't exist. Create it? (default: no): yes
+Enter schema name (default: bigquery_profiler):
+Schema `bigquery_profiler` doesn't exist in catalog `my_lakebridge_catalog`. Create it? (default: no): yes
+Enter volume name (default: ingestion_volume):
+Volume `ingestion_volume` doesn't exist in catalog `my_lakebridge_catalog` and schema `bigquery_profiler`. Create it? (default: no): yes
+Open config file https://<workspace>/#workspace/Users/<you>/.lakebridge/profiler_dashboard.yml in the browser? (default: no):
+```
+
+The `Create it?` confirms only appear when the catalog / schema / volume don't already exist — pre-existing resources are detected and reused silently.
+
+:::warning Attention:
+Each source-tech writes to its own default schema (`bigquery_profiler` for BigQuery, `mssql_profiler` for MSSQL, etc.). Reusing one schema across source-techs is not supported and may overwrite tables. Synapse keeps `profiler` as its default for backwards compatibility with existing installations.
+:::
+
+This deploys:
+
+- The Lakeview dashboard `lakebridge_bigquery_profiler_summary` to your workspace.
+- An ingestion job that uploads the DuckDB extract to UC and writes one Delta table per DuckDB table under `<catalog>.<schema>`.
+- A `validation_report` Delta table summarizing extract health (WARN-everywhere — non-blocking).
+
+[Back to Configure Profiler](../#configure-profiler)

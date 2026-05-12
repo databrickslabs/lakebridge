@@ -1,0 +1,254 @@
+source_tech: bigquery
+version: 0.1
+
+# Schemas for the 18 tables/views produced by the BigQuery profiler extract pipeline.
+# - 12 metadata tables from the vendored sql-client-run/ SQL (analysis_types.json).
+# - 2 reference tables shipped as CSVs (cluster_pricing, dbsql_pricing).
+# - 4 derived from the pricing-analysis step (input_params, bq_slots_pricing_analysis,
+#   monthly_weighted_pricing, consumption_by_commitment).
+#
+# Validation severity is WARN-everywhere (matches Synapse). Failures show in the
+# validation_report Delta table and the dashboard's validation health widget rather than
+# blocking ingestion.
+#
+# Per-column types match what DuckDB reports via information_schema.columns after the
+# extract runs. The `source` column (added by bq_metadata_extract.py for traceability) is
+# omitted from the validator's checks — it's a Lakebridge annotation, not source-of-truth
+# data the dashboard reads.
+
+schemas:
+  main:
+    tables:
+      # ─── 12 metadata tables (sql-client-run/*.sql) ───
+      fulfillment_analysis:
+        columns:
+          - name: metadata_level
+            type: VARCHAR
+          - name: time_window
+            type: VARCHAR
+          - name: workload_category
+            type: VARCHAR
+          - name: slots_requested
+            type: DOUBLE
+          - name: slots_fulfilled
+            type: DOUBLE
+      table_storage:
+        columns:
+          - name: metadata_level
+            type: VARCHAR
+          - name: active_logical_tb
+            type: DOUBLE
+          - name: long_term_logical_tb
+            type: DOUBLE
+          - name: active_physical_tb
+            type: DOUBLE
+          - name: active_no_tt_physical_tb
+            type: DOUBLE
+          - name: long_term_physical_tb
+            type: DOUBLE
+          - name: time_travel_physical_tb
+            type: DOUBLE
+          - name: fail_safe_physical_tb
+            type: DOUBLE
+          - name: total_physical_tb_to_migrate
+            type: DOUBLE
+      timeline_analysis:
+        columns:
+          - name: time_window
+            type: VARCHAR
+          - name: metadata_level
+            type: VARCHAR
+          - name: workload_type
+            type: VARCHAR
+          - name: slot_secs
+            type: DOUBLE
+          - name: slots_avg
+            type: DOUBLE
+          - name: slots_perc_50th
+            type: DOUBLE
+          - name: slots_perc_90th
+            type: DOUBLE
+          - name: slots_perc_99th
+            type: DOUBLE
+          - name: slots_max
+            type: DOUBLE
+          - name: cumulative_secs_spent_in_exec
+            type: DOUBLE
+      workload_types:
+        columns:
+          - name: total_jobs
+            type: BIGINT
+          - name: total_slot_hours
+            type: DOUBLE
+          - name: total_tb_processed
+            type: DOUBLE
+          - name: workload_type
+            type: VARCHAR
+          - name: metadata_level
+            type: VARCHAR
+      streaming_summary:
+        columns:
+          - name: metadata_level
+            type: VARCHAR
+          - name: start_timestamp
+            type: TIMESTAMP WITH TIME ZONE
+          - name: total_requests
+            type: BIGINT
+          - name: total_rows
+            type: BIGINT
+          - name: total_input_bytes
+            type: BIGINT
+          - name: quota_error
+            type: BIGINT
+          - name: user_error
+            type: BIGINT
+          - name: server_error
+            type: BIGINT
+          - name: total_error
+            type: BIGINT
+      write_api_summary:
+        columns:
+          - name: metadata_level
+            type: VARCHAR
+          - name: start_timestamp
+            type: TIMESTAMP WITH TIME ZONE
+          - name: total_requests
+            type: BIGINT
+          - name: total_rows
+            type: BIGINT
+          - name: total_input_bytes
+            type: BIGINT
+          - name: user_error
+            type: BIGINT
+          - name: server_error
+            type: BIGINT
+          - name: total_error
+            type: BIGINT
+      # ─── 6 reservation/commitment tables (empty for Pay-as-you-go customers) ───
+      commitments:
+        columns:
+          - name: metadata_level
+            type: VARCHAR
+      commitment_changes:
+        columns:
+          - name: metadata_level
+            type: VARCHAR
+      consumption_beyond_commitments:
+        columns:
+          - name: metadata_level
+            type: VARCHAR
+          - name: edition
+            type: VARCHAR
+          - name: total_slot_seconds
+            type: DOUBLE
+      consumption_through_commitments:
+        columns:
+          - name: metadata_level
+            type: VARCHAR
+          - name: edition
+            type: VARCHAR
+          - name: commitment_plan
+            type: VARCHAR
+          - name: total_slot_seconds
+            type: DOUBLE
+      jobs_timeline_by_reservations:
+        columns:
+          - name: metadata_level
+            type: VARCHAR
+      reservation_timeline_analysis:
+        columns:
+          - name: metadata_level
+            type: VARCHAR
+      # ─── 2 reference tables (vendored CSVs) ───
+      bq_cluster_pricing:
+        columns:
+          - name: cloud
+            type: VARCHAR
+          - name: instance_name
+            type: VARCHAR
+          - name: vcpu
+            type: BIGINT
+          - name: jobs_photon_dbu
+            type: DOUBLE
+          - name: vm_per_hr
+            type: DOUBLE
+      bq_sqlwarehouse_pricing:
+        columns:
+          - name: cloud
+            type: VARCHAR
+          - name: sku
+            type: VARCHAR
+          - name: cluster_size
+            type: VARCHAR
+          - name: worker_cpu_count
+            type: BIGINT
+          - name: dbu_per_hr
+            type: BIGINT
+      # ─── 4 derived tables (pricing-analysis step) ───
+      # input_params columns are pandas-inferred from the TUNING_INPUT_PARAMS dict; the
+      # nullable/numeric promotion behaviour can vary subtly across pandas versions, so we
+      # only validate the one column (target_cloud) we control deterministically.
+      input_params:
+        columns:
+          - name: target_cloud
+            type: VARCHAR
+      bq_slots_pricing_analysis:
+        columns:
+          - name: metadata_level
+            type: VARCHAR
+          - name: workload_type
+            type: VARCHAR
+          - name: year_window
+            type: VARCHAR
+          - name: month_window
+            type: VARCHAR
+          - name: date_window
+            type: VARCHAR
+          - name: slot_secs
+            type: DOUBLE
+          - name: db_price_avg
+            type: DOUBLE
+          - name: db_price_50th
+            type: DOUBLE
+          - name: db_price_90th
+            type: DOUBLE
+          - name: db_price_99th
+            type: DOUBLE
+          - name: db_price_max
+            type: DOUBLE
+          - name: db_price_perf_based
+            type: DOUBLE
+          - name: vm_price_avg
+            type: DOUBLE
+          - name: vm_price_50th
+            type: DOUBLE
+          - name: vm_price_90th
+            type: DOUBLE
+          - name: vm_price_99th
+            type: DOUBLE
+          - name: vm_price_max
+            type: DOUBLE
+      monthly_weighted_pricing:
+        columns:
+          - name: metadata_level
+            type: VARCHAR
+          - name: month_window
+            type: VARCHAR
+          - name: price_percentile
+            type: VARCHAR
+          - name: db_cost
+            type: DOUBLE
+          - name: vm_cost
+            type: DOUBLE
+      consumption_by_commitment:
+        columns:
+          - name: metadata_level
+            type: VARCHAR
+          - name: edition
+            type: VARCHAR
+          - name: total_slot_seconds
+            type: DOUBLE
+          - name: commitment_plan
+            type: VARCHAR
+          - name: commitment_used
+            type: BOOLEAN

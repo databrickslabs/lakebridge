@@ -1,0 +1,4443 @@
+{
+  "datasets": [
+    {
+      "name": "c068fa52",
+      "displayName": "bq_slots_pricing_analysis",
+      "queryLines": [
+        "SELECT *,\n",
+        "bq_estimated_price - IDENTIFIER(:db_price) AS db_savings\n",
+        " FROM \n",
+        "<CATALOG_NAME>.<SCHEMA_NAME>.bq_slots_pricing_analysis\n",
+        "WHERE metadata_level = :metadata_level\n"
+      ],
+      "parameters": [
+        {
+          "displayName": "db_price",
+          "keyword": "db_price",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": "db_price_90th"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "displayName": "metadata_level",
+          "keyword": "metadata_level",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": ""
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "e2f51011",
+      "displayName": "fulfillment_analysis",
+      "queryLines": [
+        "SELECT * FROM <CATALOG_NAME>.<SCHEMA_NAME>.fulfillment_analysis\n",
+        "WHERE metadata_level = :metadata_level\n"
+      ],
+      "parameters": [
+        {
+          "displayName": "metadata_level",
+          "keyword": "metadata_level",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": ""
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "8f634869",
+      "displayName": "table_storage",
+      "queryLines": [
+        "with cloud_storage_pricing as \n",
+        "(\n",
+        "   select storage_pricing as target_cloud_storage_pricing,\n",
+        "   upper(target_cloud) as target_cloud,\n",
+        "   CASE \n",
+        "      WHEN upper(target_cloud) = 'AWS' THEN 3.6 -- S3 Glacier Flexible Retrieval\n",
+        "      WHEN upper(target_cloud) = 'AZURE' THEN 2.0 -- Azure Archive\n",
+        "      ELSE target_cloud_storage_pricing -- No archival in GCP\n",
+        "   END AS target_cloud_storage_archival_pricing\n",
+        "   from <CATALOG_NAME>.<SCHEMA_NAME>.input_params\n",
+        ")\n",
+        "SELECT t.* except (total_physical_tb_to_migrate, source),\n",
+        "target_cloud_storage_pricing,\n",
+        "target_cloud_storage_archival_pricing,\n",
+        "GREATEST((active_logical_tb - 0.01) * 20.0, 0.0)\n",
+        "+ \n",
+        "GREATEST((long_term_logical_tb - 0.01) * 10.0, 0.0)\n",
+        "+ \n",
+        "GREATEST((active_physical_tb + fail_safe_physical_tb - 0.01) * 40.0, 0.0)\n",
+        "+ \n",
+        "GREATEST((long_term_physical_tb - 0.01) * 20.0, 0.0)\n",
+        " as storage_cost_bq,\n",
+        " (\n",
+        "    active_logical_tb +\n",
+        "    active_no_tt_physical_tb\n",
+        " ) as total_tb_to_migrate_as_active_primary,\n",
+        " (long_term_logical_tb + long_term_physical_tb) as total_tb_to_migrate_as_archived_primary,\n",
+        " (total_tb_to_migrate_as_active_primary * target_cloud_storage_pricing) as migrated_active_primary_data_cost,\n",
+        " total_tb_to_migrate_as_archived_primary * target_cloud_storage_archival_pricing as migrated_archived_primary_data_cost,\n",
+        " (migrated_active_primary_data_cost + migrated_archived_primary_data_cost) as migrated_primary_data_cost,\n",
+        " (fail_safe_physical_tb + time_travel_physical_tb) as total_tb_to_migrate_optional,\n",
+        " (total_tb_to_migrate_optional * target_cloud_storage_pricing) as migrated_optional_data_cost\n",
+        "FROM <CATALOG_NAME>.<SCHEMA_NAME>.table_storage t,\n",
+        "cloud_storage_pricing\n",
+        "WHERE metadata_level = :metadata_level\n"
+      ],
+      "parameters": [
+        {
+          "displayName": "metadata_level",
+          "keyword": "metadata_level",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": ""
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4bdd37b3",
+      "displayName": "timeline_analysis",
+      "queryLines": [
+        "SELECT * FROM <CATALOG_NAME>.<SCHEMA_NAME>.timeline_analysis\n",
+        "WHERE metadata_level = :metadata_level\n"
+      ],
+      "parameters": [
+        {
+          "displayName": "metadata_level",
+          "keyword": "metadata_level",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": ""
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "41ad0eca",
+      "displayName": "workload_types",
+      "queryLines": [
+        "SELECT total_jobs,\n",
+        "total_slot_hours,\n",
+        "total_tb_processed,\n",
+        "CASE \n",
+        "    WHEN workload_type IS NULL THEN 'UNDEFINED'\n",
+        "    ELSE workload_type \n",
+        "END AS workload_type,\n",
+        "metadata_level\n",
+        " FROM \n",
+        "<CATALOG_NAME>.<SCHEMA_NAME>.workload_types\n",
+        "WHERE metadata_level = :metadata_level\n"
+      ],
+      "parameters": [
+        {
+          "displayName": "metadata_level",
+          "keyword": "metadata_level",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": ""
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "fedcedc7",
+      "displayName": "CustomerFilter",
+      "queryLines": [
+        "select distinct(schema_name) as schema_name\n",
+        "from <CATALOG_NAME>.information_schema.schemata\n",
+        "where schema_name not in ('information_schema', 'default', 'profiling_data')\n",
+        "order by schema_name;\n"
+      ]
+    },
+    {
+      "name": "2f4ca667",
+      "displayName": "CatalogSelector",
+      "queryLines": [
+        "select catalog_name from `system`.information_schema.catalogs ;\n"
+      ]
+    },
+    {
+      "name": "54626435",
+      "displayName": "fulfillment_rates",
+      "queryLines": [
+        "select date(time_window) as day,\n",
+        "-- fulfillment rate is the ratio of slots_fulfilled to slots_requested\n",
+        "TRY_DIVIDE(SUM(slots_fulfilled), SUM(slots_requested)) * 100.0 as fulfillment_rate\n",
+        "from <CATALOG_NAME>.<SCHEMA_NAME>.fulfillment_analysis\n",
+        "WHERE metadata_level = :metadata_level\n",
+        "GROUP BY \n",
+        "metadata_level,\n",
+        "date(time_window)\n"
+      ],
+      "parameters": [
+        {
+          "displayName": "metadata_level",
+          "keyword": "metadata_level",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": ""
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "df40b20e",
+      "displayName": "merged_pricing_analysis",
+      "queryLines": [
+        "SELECT month_window,\n",
+        "SUM(bq_estimated_price) as bq_estimated_price,\n",
+        "SUM(db_price_perf_based) as db_price_perf_based,\n",
+        "SUM(db_price_avg)+sum(vm_price_avg) as db_price_avg,\n",
+        "SUM(db_price_max) as db_price_max,\n",
+        "SUM(db_price_50th) as db_price_50th,\n",
+        "SUM(db_price_90th) as db_price_90th,\n",
+        "SUM(db_price_99th) as db_price_99th\n",
+        "FROM <CATALOG_NAME>.<SCHEMA_NAME>.bq_slots_pricing_analysis\n",
+        "GROUP BY month_window\n",
+        "order by month_window;\n",
+        "\n",
+        "-- SELECT *\n",
+        "-- FROM <CATALOG_NAME>.<SCHEMA_NAME>.bq_slots_pricing_analysis;\n"
+      ]
+    },
+    {
+      "name": "02d1dd09",
+      "displayName": "slot_estimation_approaches",
+      "queryLines": [
+        "select col1 as slot_estimation_approach from values \n",
+        "    (\"db_price_max\"),\n",
+        "    (\"db_price_99th\"),\n",
+        "    (\"db_price_90th\"),\n",
+        "    (\"db_price_50th\"),\n",
+        "    (\"db_price_avg\"),\n",
+        "    (\"db_price_perf_based\")\n"
+      ]
+    },
+    {
+      "name": "fa1dee34",
+      "displayName": "merged_pricing_analysis_topN",
+      "queryLines": [
+        "with all_regions as (\n",
+        "  SELECT metadata_level,\n",
+        "  month_window,\n",
+        "  :slot_estimation_approach as slot_estimation_approach,\n",
+        "  SUM(IDENTIFIER(:slot_estimation_approach)) as databricks_compute_cost\n",
+        "  FROM <CATALOG_NAME>.<SCHEMA_NAME>.bq_slots_pricing_analysis\n",
+        "  GROUP BY metadata_level, month_window\n",
+        "),\n",
+        "top_project_regions as (\n",
+        "  SELECT metadata_level,\n",
+        "  sum(databricks_compute_cost) as total_databricks_compute_cost\n",
+        "  FROM all_regions\n",
+        "  group by metadata_level\n",
+        "  order by total_databricks_compute_cost desc\n",
+        "  limit 5\n",
+        ")\n",
+        "\n",
+        "SELECT CASE\n",
+        " WHEN top.metadata_level IS NULL THEN 'Others'\n",
+        " ELSE top.metadata_level\n",
+        " END as metadata_level,\n",
+        "all.month_window,\n",
+        "all.slot_estimation_approach,\n",
+        "all.databricks_compute_cost\n",
+        "FROM all_regions all\n",
+        "left join \n",
+        "(select metadata_level from top_project_regions) as top\n",
+        "on all.metadata_level = top.metadata_level\n",
+        "order by month_window, databricks_compute_cost;\n",
+        "\n",
+        "\n",
+        "\n",
+        "-- SELECT metadata_level,\n",
+        "-- month_window,\n",
+        "-- :slot_estimation_approach as slot_estimation_approach,\n",
+        "-- SUM(IDENTIFIER(:slot_estimation_approach)) as databricks_compute_cost\n",
+        "-- FROM <CATALOG_NAME>.<SCHEMA_NAME>.bq_slots_pricing_analysis\n",
+        "-- GROUP BY metadata_level, month_window\n",
+        "-- ORDER by metadata_level, month_window;\n"
+      ],
+      "parameters": [
+        {
+          "displayName": "slot_estimation_approach",
+          "keyword": "slot_estimation_approach",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": "db_price_50th"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "8ad9732b",
+      "displayName": "ProjectRegion",
+      "queryLines": [
+        "select distinct metadata_level\n",
+        "from <CATALOG_NAME>.<SCHEMA_NAME>.bq_slots_pricing_analysis;\n"
+      ]
+    },
+    {
+      "name": "e6c11576",
+      "displayName": "merged_data_cost",
+      "queryLines": [
+        "with cloud_storage_pricing as \n",
+        "(\n",
+        "   select storage_pricing as target_cloud_storage_pricing,\n",
+        "   upper(target_cloud) as target_cloud,\n",
+        "   CASE \n",
+        "      WHEN upper(target_cloud) = 'AWS' THEN 3.6 -- S3 Glacier Flexible Retrieval\n",
+        "      WHEN upper(target_cloud) = 'AZURE' THEN 2.0 -- Azure Archive\n",
+        "      ELSE target_cloud_storage_pricing -- No archival in GCP\n",
+        "   END AS target_cloud_storage_archival_pricing\n",
+        "   from <CATALOG_NAME>.<SCHEMA_NAME>.input_params\n",
+        "),\n",
+        "data_storage_costs as\n",
+        "(\n",
+        "  SELECT t.* except (total_physical_tb_to_migrate, source),\n",
+        "  target_cloud_storage_pricing,\n",
+        "  target_cloud_storage_archival_pricing,\n",
+        "  GREATEST((active_logical_tb - 0.01) * 20.0, 0.0)\n",
+        "  + \n",
+        "  GREATEST((long_term_logical_tb - 0.01) * 10.0, 0.0)\n",
+        "  + \n",
+        "  GREATEST((active_physical_tb + fail_safe_physical_tb - 0.01) * 40.0, 0.0)\n",
+        "  + \n",
+        "  GREATEST((long_term_physical_tb - 0.01) * 20.0, 0.0)\n",
+        "  as storage_cost_bq,\n",
+        "  (\n",
+        "      active_logical_tb +\n",
+        "      active_no_tt_physical_tb\n",
+        "  ) as total_tb_to_migrate_as_active_primary,\n",
+        "  (long_term_logical_tb + long_term_physical_tb) as total_tb_to_migrate_as_archived_primary,\n",
+        "  (total_tb_to_migrate_as_active_primary * target_cloud_storage_pricing) as migrated_active_primary_data_cost,\n",
+        "  total_tb_to_migrate_as_archived_primary * target_cloud_storage_archival_pricing as migrated_archived_primary_data_cost,\n",
+        "  (migrated_active_primary_data_cost + migrated_archived_primary_data_cost) as migrated_primary_data_cost,\n",
+        "  (fail_safe_physical_tb + time_travel_physical_tb) as total_tb_to_migrate_optional,\n",
+        "  (total_tb_to_migrate_optional * target_cloud_storage_pricing) as migrated_optional_data_cost\n",
+        "  FROM <CATALOG_NAME>.<SCHEMA_NAME>.table_storage t,\n",
+        "  cloud_storage_pricing\n",
+        "),\n",
+        "top_project_regions as \n",
+        "(\n",
+        "  select metadata_level,\n",
+        "  sum(storage_cost_bq) as data_cost\n",
+        "  from data_storage_costs\n",
+        "  group by metadata_level\n",
+        "  order by data_cost desc\n",
+        "  limit 5\n",
+        "),\n",
+        "top_groups as\n",
+        "(\n",
+        "SELECT CASE\n",
+        " WHEN top.metadata_level IS NULL THEN 'Others'\n",
+        " ELSE top.metadata_level\n",
+        " END as metadata_level,\n",
+        "all.storage_cost_bq as storage_cost_bq\n",
+        "FROM data_storage_costs all\n",
+        "left join (select metadata_level from top_project_regions) top \n",
+        "on all.metadata_level = top.metadata_level\n",
+        ")\n",
+        "select metadata_level,\n",
+        "sum(storage_cost_bq) as storage_cost_bq\n",
+        "from top_groups\n",
+        "group by metadata_level;\n"
+      ]
+    },
+    {
+      "name": "fd077de1",
+      "displayName": "merged_consumption_beyond_commitments",
+      "queryLines": [
+        "select edition,\n",
+        "round(sum(total_slot_seconds)/3600.0, 2) as slot_hours,\n",
+        "round(slot_hours * 0.06, 2) as consumption_dollars\n",
+        "FROM <CATALOG_NAME>.<SCHEMA_NAME>.consumption_by_commitment\n",
+        "where commitment_used = false\n",
+        "group by edition, commitment_plan\n",
+        "order by consumption_dollars desc\n"
+      ]
+    },
+    {
+      "name": "b626170f",
+      "displayName": "merged_consumption_thru_commitments",
+      "queryLines": [
+        "select edition,\n",
+        "commitment_plan,\n",
+        "round(sum(total_slot_seconds)/3600.0, 2) as slot_hours,\n",
+        "round(slot_hours * 0.06, 2) as consumption_dollars\n",
+        "FROM <CATALOG_NAME>.<SCHEMA_NAME>.consumption_by_commitment\n",
+        "where commitment_used = true\n",
+        "group by edition, commitment_plan\n"
+      ]
+    },
+    {
+      "name": "04e2197e",
+      "displayName": "target_cloud",
+      "queryLines": [
+        "select UPPER(target_cloud) from <CATALOG_NAME>.<SCHEMA_NAME>.input_params\n"
+      ]
+    },
+    {
+      "name": "47191762",
+      "displayName": "merged_table_storage",
+      "queryLines": [
+        "with cloud_storage_pricing as \n",
+        "(\n",
+        "   select storage_pricing as target_cloud_storage_pricing,\n",
+        "   upper(target_cloud) as target_cloud,\n",
+        "   CASE \n",
+        "      WHEN upper(target_cloud) = 'AWS' THEN 3.6 -- S3 Glacier Flexible Retrieval\n",
+        "      WHEN upper(target_cloud) = 'AZURE' THEN 2.0 -- Azure Archive\n",
+        "      ELSE 2.5 -- Archive storage for GCS\n",
+        "   END AS target_cloud_storage_archival_pricing\n",
+        "   from <CATALOG_NAME>.<SCHEMA_NAME>.input_params\n",
+        ")\n",
+        "SELECT t.* except (total_physical_tb_to_migrate, source),\n",
+        "target_cloud_storage_pricing,\n",
+        "target_cloud_storage_archival_pricing,\n",
+        "GREATEST((active_logical_tb - 0.01) * 20.0, 0.0)\n",
+        "+ \n",
+        "GREATEST((long_term_logical_tb - 0.01) * 10.0, 0.0)\n",
+        "+ \n",
+        "GREATEST((active_physical_tb + fail_safe_physical_tb - 0.01) * 40.0, 0.0)\n",
+        "+ \n",
+        "GREATEST((long_term_physical_tb - 0.01) * 20.0, 0.0)\n",
+        " as storage_cost_bq,\n",
+        " (\n",
+        "    active_logical_tb +\n",
+        "    active_no_tt_physical_tb\n",
+        " ) as total_tb_to_migrate_as_active_primary,\n",
+        " (long_term_logical_tb + long_term_physical_tb) as total_tb_to_migrate_as_archived_primary,\n",
+        " (total_tb_to_migrate_as_active_primary * target_cloud_storage_pricing) as migrated_active_primary_data_cost,\n",
+        " total_tb_to_migrate_as_archived_primary * target_cloud_storage_archival_pricing as migrated_archived_primary_data_cost,\n",
+        " (migrated_active_primary_data_cost + migrated_archived_primary_data_cost) as migrated_primary_data_cost,\n",
+        " (fail_safe_physical_tb + time_travel_physical_tb) as total_tb_to_migrate_optional,\n",
+        " (total_tb_to_migrate_optional * target_cloud_storage_pricing) as migrated_optional_data_cost\n",
+        "FROM <CATALOG_NAME>.<SCHEMA_NAME>.table_storage t,\n",
+        "cloud_storage_pricing\n"
+      ]
+    },
+    {
+      "name": "3aefbf3a",
+      "displayName": "streaming_perf",
+      "queryLines": [
+        "select *,\n",
+        "7 as num_vms,\n",
+        "10.0*(3600.0/1000.00)*6.0*vcpu as stream_processing_rate_gb_per_hr, -- 10MB/core/hr\n",
+        "num_vms * jobs_photon_dbu * 0.15 as databricks_dbu_cost_per_hr,\n",
+        "num_vms * vm_per_hr as vm_cost_per_hr,\n",
+        "databricks_dbu_cost_per_hr + vm_cost_per_hr as total_cost_per_hr,\n",
+        "total_cost_per_hr / stream_processing_rate_gb_per_hr as cost_per_gb_processed\n",
+        "from <CATALOG_NAME>.<SCHEMA_NAME>.bq_cluster_pricing\n",
+        "where cloud = 'aws' and instance_name = 'i3.2xlarge'\n"
+      ]
+    },
+    {
+      "name": "67c9a9b6",
+      "displayName": "merged_pricing_analysis_selective",
+      "queryLines": [
+        "with slots_pricing_analysis as\n",
+        "(\n",
+        "    SELECT *,\n",
+        "    0.0 as vm_price_perf_based\n",
+        "    FROM <CATALOG_NAME>.<SCHEMA_NAME>.bq_slots_pricing_analysis\n",
+        ")\n",
+        "SELECT metadata_level,\n",
+        "month_window,\n",
+        "workload_type,\n",
+        "SUM(bq_estimated_price) as bq_cost,\n",
+        "SUM(IDENTIFIER(:slot_estimation_approach)) as databricks_compute_cost,\n",
+        "SUM(IDENTIFIER(replace(:slot_estimation_approach, 'db_', 'vm_'))) as cloud_vm_cost,\n",
+        "SUM(IDENTIFIER(:slot_estimation_approach)) + SUM(IDENTIFIER(replace(:slot_estimation_approach, 'db_', 'vm_'))) as db_total_cost\n",
+        "from slots_pricing_analysis\n",
+        "GROUP BY metadata_level, month_window, workload_type\n",
+        "order by 1, 2, 3\n",
+        "\n",
+        "-- select IDENTIFIER(:slot_estimation_approach) as databricks_compute_cost,\n",
+        "--  IDENTIFIER(replace(:slot_estimation_approach, 'db_', 'vm_')) as cloud_vm_cost\n",
+        "-- FROM <CATALOG_NAME>.<SCHEMA_NAME>.bq_slots_pricing_analysis\n"
+      ],
+      "parameters": [
+        {
+          "displayName": "slot_estimation_approach",
+          "keyword": "slot_estimation_approach",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": "db_price_90th"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "de426e93",
+      "displayName": "merged_pricing_analysis_etl",
+      "queryLines": [
+        "SELECT metadata_level,\n",
+        "month_window,\n",
+        "SUM(bq_estimated_price) as bq_cost,\n",
+        "SUM(IDENTIFIER(:slot_estimation_approach)) as databricks_compute_cost,\n",
+        "SUM(IDENTIFIER(replace(:slot_estimation_approach, 'db_', 'vm_'))) as cloud_vm_cost,\n",
+        "SUM(IDENTIFIER(:slot_estimation_approach)) + SUM(IDENTIFIER(replace(:slot_estimation_approach, 'db_', 'vm_'))) as db_total_cost\n",
+        "FROM <CATALOG_NAME>.<SCHEMA_NAME>.bq_slots_pricing_analysis\n",
+        "where workload_type = 'ETL' OR workload_type is null\n",
+        "GROUP BY metadata_level, month_window\n",
+        "order by 1, 2, 3\n",
+        "\n",
+        "-- select IDENTIFIER(:slot_estimation_approach) as databricks_compute_cost,\n",
+        "--  IDENTIFIER(replace(:slot_estimation_approach, 'db_', 'vm_')) as cloud_vm_cost\n",
+        "-- FROM <CATALOG_NAME>.<SCHEMA_NAME>.bq_slots_pricing_analysis\n"
+      ],
+      "parameters": [
+        {
+          "displayName": "slot_estimation_approach",
+          "keyword": "slot_estimation_approach",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": "db_price_50th"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "dab262a2",
+      "displayName": "merged_pricing_analysis_bi",
+      "queryLines": [
+        "SELECT metadata_level,\n",
+        "month_window,\n",
+        "SUM(bq_estimated_price) as bq_cost,\n",
+        "SUM(IDENTIFIER(:slot_estimation_approach)) as databricks_compute_cost,\n",
+        "SUM(IDENTIFIER(replace(:slot_estimation_approach, 'db_', 'vm_'))) as cloud_vm_cost,\n",
+        "SUM(IDENTIFIER(:slot_estimation_approach)) + SUM(IDENTIFIER(replace(:slot_estimation_approach, 'db_', 'vm_'))) as db_total_cost\n",
+        "FROM <CATALOG_NAME>.<SCHEMA_NAME>.bq_slots_pricing_analysis\n",
+        "where workload_type = 'BI'\n",
+        "GROUP BY metadata_level, month_window\n",
+        "order by 1, 2, 3\n",
+        "\n",
+        "-- select IDENTIFIER(:slot_estimation_approach) as databricks_compute_cost,\n",
+        "--  IDENTIFIER(replace(:slot_estimation_approach, 'db_', 'vm_')) as cloud_vm_cost\n",
+        "-- FROM <CATALOG_NAME>.<SCHEMA_NAME>.bq_slots_pricing_analysis\n"
+      ],
+      "parameters": [
+        {
+          "displayName": "slot_estimation_approach",
+          "keyword": "slot_estimation_approach",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": "db_price_50th"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "1f1957c8",
+      "displayName": "merged_streaming",
+      "queryLines": [
+        "-- Streaming inserts (legacy API): $0.010 per 200 MB, which equals $50 per TB of successfully inserted data.\n",
+        "--\tWrite API (recommended method):\n",
+        "---- Free for up to 2 TB per project per month per region\n",
+        "---- Beyond that: $25 per TB of data successfully ingested.\n",
+        "\n",
+        "with error_adjusted_streaming_inserts as \n",
+        "(\n",
+        "  select date_format(start_timestamp, 'yyyy-MM') as month_window,\n",
+        "  total_input_bytes / (1024.0 * 1024.0 * 1024.0 * 1024.0) as total_input_tb,\n",
+        "  (1 - coalesce(try_divide(total_error, total_requests), 0.0)) as salvage_rate,\n",
+        "  total_input_tb * salvage_rate as total_input_tb_error_adjusted\n",
+        "  from <CATALOG_NAME>.<SCHEMA_NAME>.streaming_summary\n",
+        "),\n",
+        "error_adjusted_write_api as \n",
+        "(\n",
+        "  select date_format(start_timestamp, 'yyyy-MM') as month_window, \n",
+        "  split(metadata_level, \"\\\\.\")[1] as region,\n",
+        "  total_input_bytes / (1024.0 * 1024.0 * 1024.0 * 1024.0) as total_input_tb,\n",
+        "  (1 - coalesce(try_divide(total_error, total_requests), 0.0)) as salvage_rate,\n",
+        "  total_input_tb * salvage_rate as total_input_tb_error_adjusted\n",
+        "  from <CATALOG_NAME>.<SCHEMA_NAME>.write_api_summary\n",
+        "),\n",
+        " error_adjusted_write_api_region_wise as\n",
+        "(\n",
+        "  select month_window, \n",
+        "  region,\n",
+        "  sum(total_input_tb) as total_input_tb,\n",
+        "  sum(total_input_tb_error_adjusted) as total_input_tb_error_adjusted\n",
+        "  from error_adjusted_write_api\n",
+        "  group by month_window, region\n",
+        "),\n",
+        "error_adjusted_write_api_region_wise_billable as\n",
+        "(\n",
+        "  select month_window,\n",
+        "  region,\n",
+        "  total_input_tb,\n",
+        "  case \n",
+        "    when total_input_tb < 2.0 then 0.0 \n",
+        "    else (total_input_tb - 2.0) \n",
+        "    end as total_input_tb_billable,\n",
+        "  total_input_tb_billable * 25.0 as total_input_tb_cost,\n",
+        "  total_input_tb_error_adjusted,\n",
+        "  case \n",
+        "    when total_input_tb_error_adjusted < 2.0 then 0.0 \n",
+        "    else (total_input_tb_error_adjusted - 2.0) \n",
+        "    end as total_input_tb_error_adjusted_billable,\n",
+        "  total_input_tb_error_adjusted_billable * 25.0 as total_input_tb_error_adjusted_cost\n",
+        "  from error_adjusted_write_api_region_wise\n",
+        ")\n",
+        "select month_window,\n",
+        "'Streaming Insert' as streaming_type,\n",
+        "round(sum(total_input_tb), 2) as total_input_tb,\n",
+        "round(sum(total_input_tb_error_adjusted), 2) as total_input_tb_error_adjusted,\n",
+        "round(sum(total_input_tb * 50.0), 2) as total_input_tb_cost,\n",
+        "round(sum(total_input_tb_error_adjusted * 50.0), 2) as total_input_tb_error_adjusted_cost,\n",
+        "round(sum(total_input_tb_error_adjusted * 50.0), 2) * 0.25 as db_streaming_cost\n",
+        "from error_adjusted_streaming_inserts\n",
+        "group by month_window\n",
+        "UNION\n",
+        "select month_window,\n",
+        "'Write API' as streaming_type,\n",
+        "sum(total_input_tb) as total_input_tb,\n",
+        "round(sum(total_input_tb_error_adjusted), 2) as total_input_tb_error_adjusted,\n",
+        "round(sum(total_input_tb_cost), 2) as total_input_tb_cost,\n",
+        "round(sum(total_input_tb_error_adjusted_cost), 2) as total_input_tb_error_adjusted_cost,\n",
+        "round(sum(total_input_tb_error_adjusted_cost), 2) * 0.25 as db_streaming_cost\n",
+        "from error_adjusted_write_api_region_wise_billable\n",
+        "group by month_window;\n"
+      ]
+    },
+    {
+      "name": "e15c98b2",
+      "displayName": "median_monthly_tco",
+      "queryLines": [
+        "with slots_pricing_analysis as\n",
+        "(\n",
+        "    SELECT *,\n",
+        "    0.0 as vm_price_perf_based\n",
+        "    FROM <CATALOG_NAME>.<SCHEMA_NAME>.bq_slots_pricing_analysis\n",
+        "),\n",
+        "monthly_costs as\n",
+        "(\n",
+        "    SELECT \n",
+        "    month_window,\n",
+        "    SUM(bq_estimated_price) as bq_cost,\n",
+        "    SUM(IDENTIFIER(:slot_estimation_approach)) as databricks_compute_cost,\n",
+        "    SUM(IDENTIFIER(replace(:slot_estimation_approach, 'db_', 'vm_'))) as cloud_vm_cost,\n",
+        "    SUM(IDENTIFIER(:slot_estimation_approach)) + SUM(IDENTIFIER(replace(:slot_estimation_approach, 'db_', 'vm_'))) as db_total_cost\n",
+        "    from slots_pricing_analysis\n",
+        "    GROUP BY month_window\n",
+        ")\n",
+        "select median(bq_cost)*12.0 as bq_cost_median,\n",
+        "median(databricks_compute_cost)*12.0 as databricks_compute_cost_median,\n",
+        "median(cloud_vm_cost)*12.0 as cloud_vm_cost_median,\n",
+        "(databricks_compute_cost_median + cloud_vm_cost_median) as db_total_cost_median,\n",
+        "(bq_cost_median - db_total_cost_median) as db_savings,\n",
+        "coalesce(try_divide(bq_cost_median - db_total_cost_median, bq_cost_median), 0.00) as db_savings_perc\n",
+        "from monthly_costs\n"
+      ],
+      "parameters": [
+        {
+          "displayName": "slot_estimation_approach",
+          "keyword": "slot_estimation_approach",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": "db_price_90th"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "validation_health_summary",
+      "displayName": "validation_report",
+      "queryLines": [
+        "SELECT severity, strategy, count(*) AS check_count\n",
+        "FROM <CATALOG_NAME>.<SCHEMA_NAME>.validation_report\n",
+        "GROUP BY severity, strategy\n",
+        "ORDER BY severity, strategy;\n"
+      ]
+    }
+  ],
+  "pages": [
+    {
+      "name": "a3be05ad",
+      "displayName": "All Projects",
+      "layout": [
+        {
+          "widget": {
+            "name": "a53af8fa",
+            "multilineTextboxSpec": {
+              "lines": [
+                "## Combined analysis for all selected BigQuery projects"
+              ]
+            },
+            "queries": []
+          },
+          "position": {
+            "x": 0,
+            "y": 2,
+            "width": 6,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "4dd0b0f7",
+            "multilineTextboxSpec": {
+              "lines": [
+                "### Databricks combined spend split by BQ projects"
+              ]
+            },
+            "queries": []
+          },
+          "position": {
+            "x": 0,
+            "y": 36,
+            "width": 6,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "a1d3e8dc",
+            "queries": [
+              {
+                "name": "dashboards/01efe260c87a1461bc9476769c6d5ee1/datasets/01efe260c87a1b56aab047818370939e_slot_estimation_approach",
+                "query": {
+                  "datasetName": "02d1dd09",
+                  "fields": [
+                    {
+                      "name": "slot_estimation_approach",
+                      "expression": "`slot_estimation_approach`"
+                    },
+                    {
+                      "name": "slot_estimation_approach_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "parameter_dashboards/01efe260c87a1461bc9476769c6d5ee1/datasets/01efe260c87a1b6994193d2e054d6a41_slot_estimation_approach",
+                "query": {
+                  "datasetName": "fa1dee34",
+                  "parameters": [
+                    {
+                      "name": "slot_estimation_approach",
+                      "keyword": "slot_estimation_approach"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "parameter_dashboards/01efe260c87a1461bc9476769c6d5ee1/datasets/01efe260c87a1a76bdff53979d7624b8_db_price",
+                "query": {
+                  "datasetName": "c068fa52",
+                  "parameters": [
+                    {
+                      "name": "db_price",
+                      "keyword": "db_price"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "parameter_dashboards/01efe260c87a1461bc9476769c6d5ee1/datasets/01efe260f1a01a01b99840592e1e118e_slot_estimation_approach",
+                "query": {
+                  "datasetName": "67c9a9b6",
+                  "parameters": [
+                    {
+                      "name": "slot_estimation_approach",
+                      "keyword": "slot_estimation_approach"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "parameter_dashboards/01efe260c87a1461bc9476769c6d5ee1/datasets/01efe27685501c1587f6679bdd0bf76b_slot_estimation_approach",
+                "query": {
+                  "datasetName": "de426e93",
+                  "parameters": [
+                    {
+                      "name": "slot_estimation_approach",
+                      "keyword": "slot_estimation_approach"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "parameter_dashboards/01efe260c87a1461bc9476769c6d5ee1/datasets/01efe276adf31131bd68afd6cbc63e33_slot_estimation_approach",
+                "query": {
+                  "datasetName": "dab262a2",
+                  "parameters": [
+                    {
+                      "name": "slot_estimation_approach",
+                      "keyword": "slot_estimation_approach"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "parameter_dashboards/01efe260c87a1461bc9476769c6d5ee1/datasets/01efefa6184a17abbcd49412442df4ad_slot_estimation_approach",
+                "query": {
+                  "datasetName": "e15c98b2",
+                  "parameters": [
+                    {
+                      "name": "slot_estimation_approach",
+                      "keyword": "slot_estimation_approach"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-single-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "slot_estimation_approach",
+                    "displayName": "slot_estimation_approach",
+                    "queryName": "dashboards/01efe260c87a1461bc9476769c6d5ee1/datasets/01efe260c87a1b56aab047818370939e_slot_estimation_approach"
+                  },
+                  {
+                    "parameterName": "slot_estimation_approach",
+                    "queryName": "parameter_dashboards/01efe260c87a1461bc9476769c6d5ee1/datasets/01efe260c87a1b6994193d2e054d6a41_slot_estimation_approach"
+                  },
+                  {
+                    "parameterName": "slot_estimation_approach",
+                    "queryName": "parameter_dashboards/01efe260c87a1461bc9476769c6d5ee1/datasets/01efe260c87a1b8386b664fdb0191168_slot_estimation_approach"
+                  },
+                  {
+                    "parameterName": "db_price",
+                    "queryName": "parameter_dashboards/01efe260c87a1461bc9476769c6d5ee1/datasets/01efe260c87a1a76bdff53979d7624b8_db_price"
+                  },
+                  {
+                    "parameterName": "slot_estimation_approach",
+                    "queryName": "parameter_dashboards/01efe260c87a1461bc9476769c6d5ee1/datasets/01efe260f1a01a01b99840592e1e118e_slot_estimation_approach"
+                  },
+                  {
+                    "parameterName": "slot_estimation_approach",
+                    "queryName": "parameter_dashboards/01efe260c87a1461bc9476769c6d5ee1/datasets/01efe27685501c1587f6679bdd0bf76b_slot_estimation_approach"
+                  },
+                  {
+                    "parameterName": "slot_estimation_approach",
+                    "queryName": "parameter_dashboards/01efe260c87a1461bc9476769c6d5ee1/datasets/01efe276adf31131bd68afd6cbc63e33_slot_estimation_approach"
+                  },
+                  {
+                    "parameterName": "slot_estimation_approach",
+                    "queryName": "parameter_dashboards/01efe260c87a1461bc9476769c6d5ee1/datasets/01efe300a2d31e2489118ad61b19bee8_slot_estimation_approach"
+                  },
+                  {
+                    "parameterName": "slot_estimation_approach",
+                    "queryName": "parameter_dashboards/01efe260c87a1461bc9476769c6d5ee1/datasets/01efefa6184a17abbcd49412442df4ad_slot_estimation_approach"
+                  }
+                ]
+              },
+              "disallowAll": true,
+              "selection": {
+                "defaultSelection": {
+                  "values": {
+                    "dataType": "STRING",
+                    "values": [
+                      {
+                        "value": "db_price_90th"
+                      }
+                    ]
+                  }
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Estimation approach"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 1,
+            "width": 3,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "7e5342d8",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "fa1dee34",
+                  "fields": [
+                    {
+                      "name": "metadata_level",
+                      "expression": "`metadata_level`"
+                    },
+                    {
+                      "name": "month_window",
+                      "expression": "`month_window`"
+                    },
+                    {
+                      "name": "sum(databricks_compute_cost)",
+                      "expression": "SUM(`databricks_compute_cost`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "area",
+              "encodings": {
+                "x": {
+                  "fieldName": "month_window",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "axis": {
+                    "title": "Month"
+                  },
+                  "displayName": "Month"
+                },
+                "y": {
+                  "fieldName": "sum(databricks_compute_cost)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "axis": {
+                    "title": "Databricks Compute Cost"
+                  },
+                  "format": {
+                    "type": "number-currency",
+                    "currencyCode": "USD",
+                    "abbreviation": "compact",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 2
+                    }
+                  },
+                  "displayName": "Max"
+                },
+                "color": {
+                  "fieldName": "metadata_level",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "displayName": "BQ Project"
+                }
+              },
+              "frame": {
+                "showDescription": true,
+                "showTitle": true,
+                "title": "Databricks Spend Monthly for all selected projects (Retrospectively)",
+                "description": "Estimated Databricks spend per month for similar workloads as BQ "
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 37,
+            "width": 6,
+            "height": 7
+          }
+        },
+        {
+          "widget": {
+            "name": "a508cb5c",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "47191762",
+                  "fields": [
+                    {
+                      "name": "sum(storage_cost_bq)",
+                      "expression": "SUM(`storage_cost_bq`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "sum(storage_cost_bq)",
+                  "displayName": "Sum of storage_cost_bq"
+                }
+              },
+              "frame": {
+                "title": "Monthly storage cost on BQ ($)",
+                "showTitle": true
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 53,
+            "width": 3,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "f0b43d4f",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "e6c11576",
+                  "fields": [
+                    {
+                      "name": "storage_cost_bq",
+                      "expression": "`storage_cost_bq`"
+                    },
+                    {
+                      "name": "metadata_level",
+                      "expression": "`metadata_level`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "pie",
+              "encodings": {
+                "angle": {
+                  "fieldName": "storage_cost_bq",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "axis": {
+                    "title": "Contribution to Data Costs"
+                  },
+                  "displayName": "Data storage (TB)"
+                },
+                "color": {
+                  "fieldName": "metadata_level",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "legend": {
+                    "position": "bottom"
+                  },
+                  "displayName": "Project Region"
+                },
+                "label": {
+                  "show": true
+                }
+              },
+              "frame": {
+                "title": "BQ Storage Cost Breakup",
+                "showTitle": true
+              }
+            }
+          },
+          "position": {
+            "x": 3,
+            "y": 45,
+            "width": 3,
+            "height": 8
+          }
+        },
+        {
+          "widget": {
+            "name": "b8bbda9b",
+            "multilineTextboxSpec": {
+              "lines": [
+                "### Data Storage for all project regions"
+              ]
+            },
+            "queries": []
+          },
+          "position": {
+            "x": 0,
+            "y": 44,
+            "width": 6,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "c5e14457",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "fd077de1",
+                  "fields": [
+                    {
+                      "name": "edition",
+                      "expression": "`edition`"
+                    },
+                    {
+                      "name": "slot_hours",
+                      "expression": "`slot_hours`"
+                    },
+                    {
+                      "name": "consumption_dollars",
+                      "expression": "`consumption_dollars`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 1,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "edition",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "string",
+                    "displayAs": "string",
+                    "visible": true,
+                    "order": 100000,
+                    "title": "Edition",
+                    "allowSearch": false,
+                    "alignContent": "center",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "displayName": "edition"
+                  },
+                  {
+                    "fieldName": "slot_hours",
+                    "numberFormat": "\u20180,0\u2019",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "float",
+                    "displayAs": "number",
+                    "visible": true,
+                    "order": 100001,
+                    "title": "Slot Hours",
+                    "allowSearch": false,
+                    "alignContent": "center",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "displayName": "slot_hours"
+                  },
+                  {
+                    "fieldName": "consumption_dollars",
+                    "numberFormat": "\u2018$0,000.00\u2019",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "float",
+                    "displayAs": "number",
+                    "visible": true,
+                    "order": 100002,
+                    "title": "Consumption ($)",
+                    "allowSearch": false,
+                    "alignContent": "center",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "displayName": "consumption_dollars"
+                  }
+                ]
+              },
+              "invisibleColumns": [],
+              "allowHTMLByDefault": false,
+              "itemsPerPage": 25,
+              "paginationSize": "default",
+              "condensed": true,
+              "withRowNumber": false
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 5,
+            "width": 3,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "05dbfce1",
+            "multilineTextboxSpec": {
+              "lines": [
+                "### Current BQ Consumption"
+              ]
+            },
+            "queries": []
+          },
+          "position": {
+            "x": 0,
+            "y": 3,
+            "width": 6,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "3f4b747c",
+            "multilineTextboxSpec": {
+              "lines": [
+                "### Projected Databricks Costs"
+              ]
+            },
+            "queries": []
+          },
+          "position": {
+            "x": 0,
+            "y": 8,
+            "width": 6,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "b77e5562",
+            "multilineTextboxSpec": {
+              "lines": [
+                "#### Consumption *not* coming from commitments (Last 6 months)"
+              ]
+            },
+            "queries": []
+          },
+          "position": {
+            "x": 0,
+            "y": 4,
+            "width": 3,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "1a2d17aa",
+            "multilineTextboxSpec": {
+              "lines": [
+                "#### Consumption coming from commitments  (Last 6 months)"
+              ]
+            },
+            "queries": []
+          },
+          "position": {
+            "x": 3,
+            "y": 4,
+            "width": 3,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "72b00834",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "b626170f",
+                  "fields": [
+                    {
+                      "name": "edition",
+                      "expression": "`edition`"
+                    },
+                    {
+                      "name": "commitment_plan",
+                      "expression": "`commitment_plan`"
+                    },
+                    {
+                      "name": "slot_hours",
+                      "expression": "`slot_hours`"
+                    },
+                    {
+                      "name": "consumption_dollars",
+                      "expression": "`consumption_dollars`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 1,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "edition",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "string",
+                    "displayAs": "string",
+                    "visible": true,
+                    "order": 100000,
+                    "title": "Edition",
+                    "allowSearch": false,
+                    "alignContent": "center",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "displayName": "edition"
+                  },
+                  {
+                    "fieldName": "commitment_plan",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "string",
+                    "displayAs": "string",
+                    "visible": true,
+                    "order": 100001,
+                    "title": "Commitment Plan",
+                    "allowSearch": false,
+                    "alignContent": "center",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "displayName": "commitment_plan"
+                  },
+                  {
+                    "fieldName": "slot_hours",
+                    "numberFormat": "\u20180,0\u2019",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "float",
+                    "displayAs": "number",
+                    "visible": true,
+                    "order": 100002,
+                    "title": "Slot Hours",
+                    "allowSearch": false,
+                    "alignContent": "right",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "displayName": "slot_hours"
+                  },
+                  {
+                    "fieldName": "consumption_dollars",
+                    "numberFormat": "\u2018$0,000.00\u2019",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "float",
+                    "displayAs": "number",
+                    "visible": true,
+                    "order": 100003,
+                    "title": "Consumption ($)",
+                    "allowSearch": false,
+                    "alignContent": "right",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "displayName": "consumption_dollars"
+                  }
+                ]
+              },
+              "invisibleColumns": [],
+              "allowHTMLByDefault": false,
+              "itemsPerPage": 25,
+              "paginationSize": "default",
+              "condensed": true,
+              "withRowNumber": false
+            }
+          },
+          "position": {
+            "x": 3,
+            "y": 5,
+            "width": 3,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "be08b664",
+            "multilineTextboxSpec": {
+              "lines": [
+                "### Streaming Inserts"
+              ]
+            },
+            "queries": []
+          },
+          "position": {
+            "x": 0,
+            "y": 55,
+            "width": 6,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "67ce01ff",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "04e2197e",
+                  "fields": [
+                    {
+                      "name": "upper(target_cloud)",
+                      "expression": "`upper(target_cloud)`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "upper(target_cloud)",
+                  "displayName": "upper(target_cloud)"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Target Cloud"
+              }
+            }
+          },
+          "position": {
+            "x": 3,
+            "y": 1,
+            "width": 3,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "7a3180ab",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "47191762",
+                  "fields": [
+                    {
+                      "name": "sum(migrated_primary_data_cost)",
+                      "expression": "SUM(`migrated_primary_data_cost`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "sum(migrated_primary_data_cost)",
+                  "displayName": "Sum of migrated_primary_data_cost"
+                }
+              },
+              "frame": {
+                "title": "Monthly storage cost on target cloud ($)",
+                "showTitle": true
+              }
+            }
+          },
+          "position": {
+            "x": 3,
+            "y": 53,
+            "width": 3,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "0e9ea74d",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "47191762",
+                  "fields": [
+                    {
+                      "name": "sum(active_logical_tb)",
+                      "expression": "SUM(`active_logical_tb`)"
+                    },
+                    {
+                      "name": "sum(long_term_logical_tb)",
+                      "expression": "SUM(`long_term_logical_tb`)"
+                    },
+                    {
+                      "name": "sum(active_physical_tb)",
+                      "expression": "SUM(`active_physical_tb`)"
+                    },
+                    {
+                      "name": "sum(long_term_physical_tb)",
+                      "expression": "SUM(`long_term_physical_tb`)"
+                    },
+                    {
+                      "name": "sum(fail_safe_physical_tb)",
+                      "expression": "SUM(`fail_safe_physical_tb`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "fields": [
+                    {
+                      "fieldName": "sum(active_logical_tb)",
+                      "displayName": "Active Logical"
+                    },
+                    {
+                      "fieldName": "sum(long_term_logical_tb)",
+                      "displayName": "Long-term Logical"
+                    },
+                    {
+                      "fieldName": "sum(active_physical_tb)",
+                      "displayName": "Active Physical"
+                    },
+                    {
+                      "fieldName": "sum(long_term_physical_tb)",
+                      "displayName": "Long-term Physical"
+                    },
+                    {
+                      "fieldName": "sum(fail_safe_physical_tb)",
+                      "displayName": "Fail-safe Physical"
+                    }
+                  ],
+                  "axis": {
+                    "title": "Terabytes"
+                  }
+                },
+                "label": {
+                  "show": true
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "showDescription": true,
+                "description": "Active Logical = $20/TB\nLong Term Logical = $10/TB\nActive Physical = $40/TB\nLong Term Physical = $20/TB",
+                "title": "Data Storage in BQ"
+              },
+              "mark": {
+                "layout": "group"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 45,
+            "width": 3,
+            "height": 8
+          }
+        },
+        {
+          "widget": {
+            "name": "291b4451",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "67c9a9b6",
+                  "fields": [
+                    {
+                      "name": "month_window",
+                      "expression": "`month_window`"
+                    },
+                    {
+                      "name": "sum(bq_cost)",
+                      "expression": "SUM(`bq_cost`)"
+                    },
+                    {
+                      "name": "sum(db_total_cost)",
+                      "expression": "SUM(`db_total_cost`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "month_window",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "displayName": "Month"
+                },
+                "y": {
+                  "axis": {
+                    "hideTitle": false,
+                    "title": "Compute"
+                  },
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "fields": [
+                    {
+                      "fieldName": "sum(bq_cost)",
+                      "displayName": "BQ"
+                    },
+                    {
+                      "fieldName": "sum(db_total_cost)",
+                      "displayName": "Databricks"
+                    }
+                  ],
+                  "format": {
+                    "type": "number-currency",
+                    "currencyCode": "USD",
+                    "abbreviation": "compact",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 2
+                    }
+                  }
+                },
+                "label": {
+                  "show": true
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Databricks combined spend for all projects (Retrospectively)",
+                "showDescription": true,
+                "description": "Estimated Databricks spend per month for similar workloads as BQ"
+              },
+              "mark": {
+                "colors": [
+                  "#2f5eab",
+                  "#ff4900",
+                  "#00A972",
+                  "#FF3621",
+                  "#8BCAE7",
+                  "#AB4057",
+                  "#99DDB4",
+                  "#FCA4A1",
+                  "#919191",
+                  "#BF7080"
+                ],
+                "layout": "group"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 10,
+            "width": 6,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "1d89e0a2",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "67c9a9b6",
+                  "fields": [
+                    {
+                      "name": "month_window",
+                      "expression": "`month_window`"
+                    },
+                    {
+                      "name": "sum(cloud_vm_cost)",
+                      "expression": "SUM(`cloud_vm_cost`)"
+                    },
+                    {
+                      "name": "sum(databricks_compute_cost)",
+                      "expression": "SUM(`databricks_compute_cost`)"
+                    },
+                    {
+                      "name": "sum(bq_cost)",
+                      "expression": "SUM(`bq_cost`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 1,
+              "widgetType": "combo",
+              "encodings": {
+                "x": {
+                  "fieldName": "month_window",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "displayName": "Month"
+                },
+                "y": {
+                  "primary": {
+                    "fields": [
+                      {
+                        "fieldName": "sum(cloud_vm_cost)",
+                        "displayName": "VM"
+                      },
+                      {
+                        "fieldName": "sum(databricks_compute_cost)",
+                        "displayName": "DBUs"
+                      }
+                    ]
+                  },
+                  "secondary": {
+                    "fields": [
+                      {
+                        "fieldName": "sum(bq_cost)",
+                        "displayName": "BQ"
+                      }
+                    ]
+                  },
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "axis": {
+                    "title": "Compute"
+                  },
+                  "format": {
+                    "type": "number-currency",
+                    "currencyCode": "USD",
+                    "abbreviation": "compact",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 2
+                    }
+                  }
+                },
+                "label": {
+                  "show": false
+                },
+                "color": {
+                  "legend": {
+                    "position": "right"
+                  }
+                }
+              },
+              "mark": {
+                "colors": [
+                  "#077A9D",
+                  "#FFAB00",
+                  "#2f5eab",
+                  "#FF3621",
+                  "#8BCAE7",
+                  "#AB4057",
+                  "#99DDB4",
+                  "#FCA4A1",
+                  "#919191",
+                  "#BF7080"
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "DB Compute - DBU vs VM Costs",
+                "showDescription": true,
+                "description": "DB Cost split between DBUs and Cloud VMs"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 16,
+            "width": 2,
+            "height": 7
+          }
+        },
+        {
+          "widget": {
+            "name": "1c6cad9d",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "de426e93",
+                  "fields": [
+                    {
+                      "name": "month_window",
+                      "expression": "`month_window`"
+                    },
+                    {
+                      "name": "sum(cloud_vm_cost)",
+                      "expression": "SUM(`cloud_vm_cost`)"
+                    },
+                    {
+                      "name": "sum(databricks_compute_cost)",
+                      "expression": "SUM(`databricks_compute_cost`)"
+                    },
+                    {
+                      "name": "sum(bq_cost)",
+                      "expression": "SUM(`bq_cost`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 1,
+              "widgetType": "combo",
+              "encodings": {
+                "x": {
+                  "fieldName": "month_window",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "displayName": "Month"
+                },
+                "y": {
+                  "primary": {
+                    "fields": [
+                      {
+                        "fieldName": "sum(cloud_vm_cost)",
+                        "displayName": "VM"
+                      },
+                      {
+                        "fieldName": "sum(databricks_compute_cost)",
+                        "displayName": "DBUs"
+                      }
+                    ]
+                  },
+                  "secondary": {
+                    "fields": [
+                      {
+                        "fieldName": "sum(bq_cost)",
+                        "displayName": "BQ"
+                      }
+                    ]
+                  },
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "axis": {
+                    "title": "Compute"
+                  },
+                  "format": {
+                    "type": "number-currency",
+                    "currencyCode": "USD",
+                    "abbreviation": "compact",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 2
+                    }
+                  }
+                },
+                "color": {
+                  "legend": {
+                    "position": "right"
+                  }
+                }
+              },
+              "mark": {
+                "colors": [
+                  "#077A9D",
+                  "#FFAB00",
+                  "#2f5eab",
+                  "#FF3621",
+                  "#8BCAE7",
+                  "#AB4057",
+                  "#99DDB4",
+                  "#FCA4A1",
+                  "#919191",
+                  "#BF7080"
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "DB Compute - ETL Workloads Only",
+                "showDescription": true,
+                "description": "DB Cost split between DBUs and Cloud VMs"
+              }
+            }
+          },
+          "position": {
+            "x": 2,
+            "y": 16,
+            "width": 2,
+            "height": 7
+          }
+        },
+        {
+          "widget": {
+            "name": "925fb5a1",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "dab262a2",
+                  "fields": [
+                    {
+                      "name": "month_window",
+                      "expression": "`month_window`"
+                    },
+                    {
+                      "name": "sum(cloud_vm_cost)",
+                      "expression": "SUM(`cloud_vm_cost`)"
+                    },
+                    {
+                      "name": "sum(databricks_compute_cost)",
+                      "expression": "SUM(`databricks_compute_cost`)"
+                    },
+                    {
+                      "name": "sum(bq_cost)",
+                      "expression": "SUM(`bq_cost`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 1,
+              "widgetType": "combo",
+              "encodings": {
+                "x": {
+                  "fieldName": "month_window",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "displayName": "Month"
+                },
+                "y": {
+                  "primary": {
+                    "fields": [
+                      {
+                        "fieldName": "sum(cloud_vm_cost)",
+                        "displayName": "VM"
+                      },
+                      {
+                        "fieldName": "sum(databricks_compute_cost)",
+                        "displayName": "DBUs"
+                      }
+                    ]
+                  },
+                  "secondary": {
+                    "fields": [
+                      {
+                        "fieldName": "sum(bq_cost)",
+                        "displayName": "BQ"
+                      }
+                    ]
+                  },
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "axis": {
+                    "title": "Compute"
+                  },
+                  "format": {
+                    "type": "number-currency",
+                    "currencyCode": "USD",
+                    "abbreviation": "compact",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 2
+                    }
+                  }
+                },
+                "color": {
+                  "legend": {
+                    "position": "right"
+                  }
+                }
+              },
+              "mark": {
+                "colors": [
+                  "#077A9D",
+                  "#FFAB00",
+                  "#2f5eab",
+                  "#FF3621",
+                  "#8BCAE7",
+                  "#AB4057",
+                  "#99DDB4",
+                  "#FCA4A1",
+                  "#919191",
+                  "#BF7080"
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "DB Compute - BI Workloads Only",
+                "showDescription": true,
+                "description": "Serverless SQL DBUs"
+              }
+            }
+          },
+          "position": {
+            "x": 4,
+            "y": 16,
+            "width": 2,
+            "height": 7
+          }
+        },
+        {
+          "widget": {
+            "name": "3d2d7ae1",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "1f1957c8",
+                  "fields": [
+                    {
+                      "name": "month_window",
+                      "expression": "`month_window`"
+                    },
+                    {
+                      "name": "sum(total_input_tb_error_adjusted_cost)",
+                      "expression": "SUM(`total_input_tb_error_adjusted_cost`)"
+                    },
+                    {
+                      "name": "sum(db_streaming_cost)",
+                      "expression": "SUM(`db_streaming_cost`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "month_window",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "displayName": "Month"
+                },
+                "y": {
+                  "fields": [
+                    {
+                      "fieldName": "sum(total_input_tb_error_adjusted_cost)",
+                      "displayName": "BQ (Error adjusted)"
+                    },
+                    {
+                      "fieldName": "sum(db_streaming_cost)",
+                      "displayName": "DB (including VMs)"
+                    }
+                  ],
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "axis": {
+                    "title": "Compute"
+                  },
+                  "format": {
+                    "type": "number-currency",
+                    "currencyCode": "USD",
+                    "abbreviation": "compact",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 2
+                    }
+                  }
+                },
+                "label": {
+                  "show": true
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Streaming Costs on Databricks",
+                "showDescription": true,
+                "description": "BQ includes Streaming inserts and Write API, and excludes insert errors"
+              },
+              "mark": {
+                "colors": [
+                  "#2f5eab",
+                  "#ff4900",
+                  "#00A972",
+                  "#FF3621",
+                  "#8BCAE7",
+                  "#AB4057",
+                  "#99DDB4",
+                  "#FCA4A1",
+                  "#919191",
+                  "#BF7080"
+                ],
+                "layout": "group"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 62,
+            "width": 6,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "545c3324",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "1f1957c8",
+                  "fields": [
+                    {
+                      "name": "streaming_type",
+                      "expression": "`streaming_type`"
+                    },
+                    {
+                      "name": "month_window",
+                      "expression": "`month_window`"
+                    },
+                    {
+                      "name": "sum(total_input_tb_error_adjusted_cost)",
+                      "expression": "SUM(`total_input_tb_error_adjusted_cost`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "month_window",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "displayName": "Month"
+                },
+                "y": {
+                  "fieldName": "sum(total_input_tb_error_adjusted_cost)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "format": {
+                    "type": "number-currency",
+                    "currencyCode": "USD",
+                    "abbreviation": "compact",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 2
+                    }
+                  },
+                  "displayName": "Compute"
+                },
+                "color": {
+                  "fieldName": "streaming_type",
+                  "scale": {
+                    "type": "categorical",
+                    "mappings": [
+                      {
+                        "value": "Streaming Insert",
+                        "color": "#FCA4A1"
+                      },
+                      {
+                        "value": "Write API",
+                        "color": "#AB4057"
+                      }
+                    ]
+                  },
+                  "displayName": "Streaming Type"
+                },
+                "label": {
+                  "show": true
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "BQ - Streaming data costs"
+              }
+            }
+          },
+          "position": {
+            "x": 3,
+            "y": 56,
+            "width": 3,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "ed7888a6",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "1f1957c8",
+                  "fields": [
+                    {
+                      "name": "streaming_type",
+                      "expression": "`streaming_type`"
+                    },
+                    {
+                      "name": "month_window",
+                      "expression": "`month_window`"
+                    },
+                    {
+                      "name": "sum(total_input_tb_error_adjusted)",
+                      "expression": "SUM(`total_input_tb_error_adjusted`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "month_window",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "displayName": "Month"
+                },
+                "y": {
+                  "fieldName": "sum(total_input_tb_error_adjusted)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "format": {
+                    "type": "number-plain",
+                    "abbreviation": "compact",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 2
+                    }
+                  },
+                  "displayName": "Terabytes"
+                },
+                "color": {
+                  "fieldName": "streaming_type",
+                  "scale": {
+                    "type": "categorical",
+                    "mappings": [
+                      {
+                        "value": "Streaming Insert",
+                        "color": "#FCA4A1"
+                      },
+                      {
+                        "value": "Write API",
+                        "color": "#AB4057"
+                      }
+                    ]
+                  },
+                  "displayName": "Streaming Type"
+                },
+                "label": {
+                  "show": true
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "BQ - Streaming data volume"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 56,
+            "width": 3,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "e1233bc7",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "e15c98b2",
+                  "fields": [
+                    {
+                      "name": "sum(bq_cost_median)",
+                      "expression": "SUM(`bq_cost_median`)"
+                    },
+                    {
+                      "name": "sum(db_total_cost_median)",
+                      "expression": "SUM(`db_total_cost_median`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "y": {
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "fields": [
+                    {
+                      "fieldName": "sum(bq_cost_median)",
+                      "displayName": "BQ"
+                    },
+                    {
+                      "fieldName": "sum(db_total_cost_median)",
+                      "displayName": "Databricks"
+                    }
+                  ],
+                  "axis": {
+                    "title": "Costs"
+                  },
+                  "format": {
+                    "type": "number-currency",
+                    "currencyCode": "USD",
+                    "abbreviation": "compact",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 2
+                    }
+                  }
+                },
+                "label": {
+                  "show": true
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Annual Costs",
+                "showDescription": true,
+                "description": "Based on median BQ costs"
+              },
+              "mark": {
+                "colors": [
+                  "#2f5eab",
+                  "#ff4900",
+                  "#00A972",
+                  "#FF3621",
+                  "#8BCAE7",
+                  "#AB4057",
+                  "#99DDB4",
+                  "#FCA4A1",
+                  "#919191",
+                  "#BF7080"
+                ],
+                "layout": "group"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 24,
+            "width": 2,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "e0ae2530",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "e15c98b2",
+                  "fields": [
+                    {
+                      "name": "sum(databricks_compute_cost_median)",
+                      "expression": "SUM(`databricks_compute_cost_median`)"
+                    },
+                    {
+                      "name": "sum(cloud_vm_cost_median)",
+                      "expression": "SUM(`cloud_vm_cost_median`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "y": {
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "fields": [
+                    {
+                      "fieldName": "sum(databricks_compute_cost_median)",
+                      "displayName": "DBUs"
+                    },
+                    {
+                      "fieldName": "sum(cloud_vm_cost_median)",
+                      "displayName": "VM"
+                    }
+                  ],
+                  "axis": {
+                    "title": "Costs"
+                  },
+                  "format": {
+                    "type": "number-currency",
+                    "currencyCode": "USD",
+                    "abbreviation": "compact",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 2
+                    }
+                  }
+                },
+                "label": {
+                  "show": true
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Annual DB costs (DBUs vs VM split)",
+                "showDescription": true,
+                "description": "Based on median BQ costs"
+              },
+              "mark": {
+                "colors": [
+                  "#FFAB00",
+                  "#077A9D",
+                  "#00A972",
+                  "#FF3621",
+                  "#8BCAE7",
+                  "#AB4057",
+                  "#99DDB4",
+                  "#FCA4A1",
+                  "#919191",
+                  "#BF7080"
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 4,
+            "y": 24,
+            "width": 2,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "0b4d1c53",
+            "multilineTextboxSpec": {
+              "lines": [
+                "#### Monthly Costs"
+              ]
+            },
+            "queries": []
+          },
+          "position": {
+            "x": 0,
+            "y": 9,
+            "width": 6,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "e8a80178",
+            "multilineTextboxSpec": {
+              "lines": [
+                "#### Annual Projections"
+              ]
+            },
+            "queries": []
+          },
+          "position": {
+            "x": 0,
+            "y": 23,
+            "width": 6,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "e9327eec",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "e15c98b2",
+                  "fields": [
+                    {
+                      "name": "db_savings",
+                      "expression": "`db_savings`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "db_savings",
+                  "format": {
+                    "type": "number-currency",
+                    "currencyCode": "USD",
+                    "abbreviation": "compact",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 2
+                    }
+                  },
+                  "displayName": "db_savings"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Annual Savings"
+              }
+            }
+          },
+          "position": {
+            "x": 2,
+            "y": 24,
+            "width": 2,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "4409ce39",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "e15c98b2",
+                  "fields": [
+                    {
+                      "name": "db_savings_perc",
+                      "expression": "`db_savings_perc`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "db_savings_perc",
+                  "format": {
+                    "type": "number-percent",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 2
+                    }
+                  },
+                  "displayName": "db_savings_perc"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Annual Savings %"
+              }
+            }
+          },
+          "position": {
+            "x": 2,
+            "y": 27,
+            "width": 2,
+            "height": 3
+          }
+        }
+      ],
+      "pageType": "PAGE_TYPE_CANVAS"
+    },
+    {
+      "name": "cb919429",
+      "displayName": "Specific Project",
+      "layout": [
+        {
+          "widget": {
+            "name": "b89b2a99",
+            "queries": [
+              {
+                "name": "dashboards/01efe260c87a1461bc9476769c6d5ee1/datasets/01efe260c87a1b779d67bdfe45d6a917_metadata_level",
+                "query": {
+                  "datasetName": "8ad9732b",
+                  "fields": [
+                    {
+                      "name": "metadata_level",
+                      "expression": "`metadata_level`"
+                    },
+                    {
+                      "name": "metadata_level_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "parameter_dashboards/01efe260c87a1461bc9476769c6d5ee1/datasets/01efe260c87a1a76bdff53979d7624b8_metadata_level",
+                "query": {
+                  "datasetName": "c068fa52",
+                  "parameters": [
+                    {
+                      "name": "metadata_level",
+                      "keyword": "metadata_level"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "parameter_dashboards/01efe260c87a1461bc9476769c6d5ee1/datasets/01efe260c87a1aceba7db5f801e206be_metadata_level",
+                "query": {
+                  "datasetName": "e2f51011",
+                  "parameters": [
+                    {
+                      "name": "metadata_level",
+                      "keyword": "metadata_level"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "parameter_dashboards/01efe260c87a1461bc9476769c6d5ee1/datasets/01efe260c87a1adfa7aac89fdc7bb74e_metadata_level",
+                "query": {
+                  "datasetName": "8f634869",
+                  "parameters": [
+                    {
+                      "name": "metadata_level",
+                      "keyword": "metadata_level"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "parameter_dashboards/01efe260c87a1461bc9476769c6d5ee1/datasets/01efe260c87a1aed96644eea307e8245_metadata_level",
+                "query": {
+                  "datasetName": "4bdd37b3",
+                  "parameters": [
+                    {
+                      "name": "metadata_level",
+                      "keyword": "metadata_level"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "parameter_dashboards/01efe260c87a1461bc9476769c6d5ee1/datasets/01efe260c87a1af9a181f9595a989f6b_metadata_level",
+                "query": {
+                  "datasetName": "41ad0eca",
+                  "parameters": [
+                    {
+                      "name": "metadata_level",
+                      "keyword": "metadata_level"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "parameter_dashboards/01efe260c87a1461bc9476769c6d5ee1/datasets/01efe260c87a1b32ae490a079be8b112_metadata_level",
+                "query": {
+                  "datasetName": "54626435",
+                  "parameters": [
+                    {
+                      "name": "metadata_level",
+                      "keyword": "metadata_level"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-single-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "parameterName": "metadata_level",
+                    "queryName": "parameter_dashboards/01efe260c87a1461bc9476769c6d5ee1/datasets/01efe260c87a1a76bdff53979d7624b8_metadata_level"
+                  },
+                  {
+                    "parameterName": "metadata_level",
+                    "queryName": "parameter_dashboards/01efe260c87a1461bc9476769c6d5ee1/datasets/01efe260c87a1aceba7db5f801e206be_metadata_level"
+                  },
+                  {
+                    "parameterName": "metadata_level",
+                    "queryName": "parameter_dashboards/01efe260c87a1461bc9476769c6d5ee1/datasets/01efe260c87a1adfa7aac89fdc7bb74e_metadata_level"
+                  },
+                  {
+                    "parameterName": "metadata_level",
+                    "queryName": "parameter_dashboards/01efe260c87a1461bc9476769c6d5ee1/datasets/01efe260c87a1aed96644eea307e8245_metadata_level"
+                  },
+                  {
+                    "parameterName": "metadata_level",
+                    "queryName": "parameter_dashboards/01efe260c87a1461bc9476769c6d5ee1/datasets/01efe260c87a1af9a181f9595a989f6b_metadata_level"
+                  },
+                  {
+                    "parameterName": "metadata_level",
+                    "queryName": "parameter_dashboards/01efe260c87a1461bc9476769c6d5ee1/datasets/01efe260c87a1b1a95256a14c62f9752_metadata_level"
+                  },
+                  {
+                    "parameterName": "metadata_level",
+                    "queryName": "parameter_dashboards/01efe260c87a1461bc9476769c6d5ee1/datasets/01efe260c87a1b268fbae29c075a0643_metadata_level"
+                  },
+                  {
+                    "parameterName": "metadata_level",
+                    "queryName": "parameter_dashboards/01efe260c87a1461bc9476769c6d5ee1/datasets/01efe260c87a1b32ae490a079be8b112_metadata_level"
+                  },
+                  {
+                    "fieldName": "metadata_level",
+                    "displayName": "metadata_level",
+                    "queryName": "dashboards/01efe260c87a1461bc9476769c6d5ee1/datasets/01efe260c87a1b779d67bdfe45d6a917_metadata_level"
+                  }
+                ]
+              },
+              "disallowAll": true,
+              "selection": {
+                "defaultSelection": {
+                  "operator": {
+                    "operator": "OR",
+                    "args": []
+                  }
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "BQ Project and Region"
+              }
+            }
+          },
+          "position": {
+            "x": 4,
+            "y": 0,
+            "width": 8,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "6ffaa2a0",
+            "multilineTextboxSpec": {
+              "lines": [
+                "# BQ Project Analysis\n",
+                "- How are the workloads split between ETL and BI?\n",
+                "- What portion of job execution time is accounted for by the number of slots used?\n",
+                "- What data volume will be in the scope of migration?"
+              ]
+            },
+            "queries": []
+          },
+          "position": {
+            "x": 0,
+            "y": 1,
+            "width": 12,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "5074c9ee",
+            "multilineTextboxSpec": {
+              "lines": [
+                "## Workload breakdown by ETL / BI"
+              ]
+            },
+            "queries": []
+          },
+          "position": {
+            "x": 0,
+            "y": 4,
+            "width": 12,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "31b51d3a",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "41ad0eca",
+                  "fields": [
+                    {
+                      "name": "sum(total_slot_hours)",
+                      "expression": "SUM(`total_slot_hours`)"
+                    },
+                    {
+                      "name": "workload_type",
+                      "expression": "`workload_type`"
+                    }
+                  ],
+                  "parameterValues": [
+                    {
+                      "keyword": "schema",
+                      "selection": {}
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "pie",
+              "encodings": {
+                "angle": {
+                  "fieldName": "sum(total_slot_hours)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "axis": {
+                    "title": " % of Total Slot hours"
+                  },
+                  "displayName": "Slot Hours"
+                },
+                "color": {
+                  "fieldName": "workload_type",
+                  "scale": {
+                    "type": "categorical",
+                    "mappings": [
+                      {
+                        "value": "BI",
+                        "color": "#FFAB00"
+                      },
+                      {
+                        "value": "ETL",
+                        "color": "#077A9D"
+                      }
+                    ]
+                  },
+                  "displayName": "Workload Type"
+                },
+                "label": {
+                  "show": true
+                }
+              },
+              "frame": {
+                "showDescription": true,
+                "description": "What workload type accounts for what portion of total slot-hours?",
+                "showTitle": true,
+                "title": "Based on Slot hours"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 5,
+            "width": 4,
+            "height": 7
+          }
+        },
+        {
+          "widget": {
+            "name": "cc683b57",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "41ad0eca",
+                  "fields": [
+                    {
+                      "name": "sum(total_jobs)",
+                      "expression": "SUM(`total_jobs`)"
+                    },
+                    {
+                      "name": "workload_type",
+                      "expression": "`workload_type`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "pie",
+              "encodings": {
+                "angle": {
+                  "fieldName": "sum(total_jobs)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "axis": {
+                    "title": "% of Total jobs"
+                  },
+                  "displayName": "% of Total jobs"
+                },
+                "color": {
+                  "fieldName": "workload_type",
+                  "scale": {
+                    "type": "categorical",
+                    "mappings": [
+                      {
+                        "value": "BI",
+                        "color": "#FFAB00"
+                      },
+                      {
+                        "value": "ETL",
+                        "color": "#077A9D"
+                      }
+                    ]
+                  },
+                  "displayName": "Workload Type"
+                },
+                "label": {
+                  "show": true
+                }
+              },
+              "frame": {
+                "showDescription": true,
+                "description": "What workload type accounts for what portion of total jobs executed?",
+                "showTitle": true,
+                "title": "Based on Number of jobs"
+              }
+            }
+          },
+          "position": {
+            "x": 4,
+            "y": 5,
+            "width": 4,
+            "height": 7
+          }
+        },
+        {
+          "widget": {
+            "name": "72d555fa",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "41ad0eca",
+                  "fields": [
+                    {
+                      "name": "sum(total_tb_processed)",
+                      "expression": "SUM(`total_tb_processed`)"
+                    },
+                    {
+                      "name": "workload_type",
+                      "expression": "`workload_type`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "pie",
+              "encodings": {
+                "angle": {
+                  "fieldName": "sum(total_tb_processed)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "axis": {
+                    "title": "% of Data processed"
+                  },
+                  "displayName": "Data processed (TB)"
+                },
+                "color": {
+                  "fieldName": "workload_type",
+                  "scale": {
+                    "type": "categorical",
+                    "mappings": [
+                      {
+                        "value": "BI",
+                        "color": "#FFAB00"
+                      },
+                      {
+                        "value": "ETL",
+                        "color": "#077A9D"
+                      }
+                    ]
+                  },
+                  "displayName": "Workload Type"
+                },
+                "label": {
+                  "show": true
+                }
+              },
+              "frame": {
+                "showDescription": true,
+                "description": "What workload type accounts for what portion of total data processed?",
+                "showTitle": true,
+                "title": "Based on Data processed "
+              }
+            }
+          },
+          "position": {
+            "x": 8,
+            "y": 5,
+            "width": 4,
+            "height": 7
+          }
+        },
+        {
+          "widget": {
+            "name": "d4691c7a",
+            "multilineTextboxSpec": {
+              "lines": [
+                "## Slot Usage over time\n",
+                "Interpretation:\n",
+                "- 50th percentile: 50% of the time when a job was running, the slot usage was at or below this number.\n",
+                "- 90th percentile: 90% of the time when a job was running, the slot usage was at or below this number.\n",
+                "- 99th percentile: 99% of the time when a job was running, the slot usage was at or below this number.\n",
+                "- Max Slots: The slot usage was always at or below this number.\n",
+                "- Average Slots: Slots used on an average basis."
+              ]
+            },
+            "queries": []
+          },
+          "position": {
+            "x": 0,
+            "y": 12,
+            "width": 12,
+            "height": 4
+          }
+        },
+        {
+          "widget": {
+            "name": "6065424f",
+            "multilineTextboxSpec": {
+              "lines": [
+                "### Daily slot usage"
+              ]
+            },
+            "queries": []
+          },
+          "position": {
+            "x": 0,
+            "y": 16,
+            "width": 12,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "f246d89c",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "c068fa52",
+                  "fields": [
+                    {
+                      "name": "date_window",
+                      "expression": "`date_window`"
+                    },
+                    {
+                      "name": "max(slots_max)",
+                      "expression": "MAX(`slots_max`)"
+                    },
+                    {
+                      "name": "max(slots_perc_50th)",
+                      "expression": "MAX(`slots_perc_50th`)"
+                    },
+                    {
+                      "name": "max(slots_perc_90th)",
+                      "expression": "MAX(`slots_perc_90th`)"
+                    },
+                    {
+                      "name": "max(slots_perc_99th)",
+                      "expression": "MAX(`slots_perc_99th`)"
+                    },
+                    {
+                      "name": "max(slots_avg)",
+                      "expression": "MAX(`slots_avg`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "line",
+              "encodings": {
+                "x": {
+                  "fieldName": "date_window",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "displayName": "Day"
+                },
+                "y": {
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "fields": [
+                    {
+                      "fieldName": "max(slots_max)",
+                      "displayName": "Max Slots"
+                    },
+                    {
+                      "fieldName": "max(slots_perc_50th)",
+                      "displayName": "50th Percentile"
+                    },
+                    {
+                      "fieldName": "max(slots_perc_90th)",
+                      "displayName": "90th Percentile"
+                    },
+                    {
+                      "fieldName": "max(slots_perc_99th)",
+                      "displayName": "99th Percentile"
+                    },
+                    {
+                      "fieldName": "max(slots_avg)",
+                      "displayName": "Avg Slots"
+                    }
+                  ],
+                  "axis": {
+                    "title": "Slots Utilized"
+                  }
+                }
+              },
+              "frame": {
+                "showDescription": false,
+                "description": "",
+                "showTitle": true,
+                "title": "Number of slots accounts for x% of job execution time"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 17,
+            "width": 12,
+            "height": 7
+          }
+        },
+        {
+          "widget": {
+            "name": "158e6368",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "c068fa52",
+                  "fields": [
+                    {
+                      "name": "date_window",
+                      "expression": "`date_window`"
+                    },
+                    {
+                      "name": "max(slots_perc_50th)",
+                      "expression": "MAX(`slots_perc_50th`)"
+                    },
+                    {
+                      "name": "max(slots_perc_90th)",
+                      "expression": "MAX(`slots_perc_90th`)"
+                    },
+                    {
+                      "name": "max(slots_perc_99th)",
+                      "expression": "MAX(`slots_perc_99th`)"
+                    },
+                    {
+                      "name": "max(slots_avg)",
+                      "expression": "MAX(`slots_avg`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "line",
+              "encodings": {
+                "x": {
+                  "fieldName": "date_window",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "displayName": "Day"
+                },
+                "y": {
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "fields": [
+                    {
+                      "fieldName": "max(slots_perc_50th)",
+                      "displayName": "50th Percentile"
+                    },
+                    {
+                      "fieldName": "max(slots_perc_90th)",
+                      "displayName": "90th Percentile"
+                    },
+                    {
+                      "fieldName": "max(slots_perc_99th)",
+                      "displayName": "99th Percentile"
+                    },
+                    {
+                      "fieldName": "max(slots_avg)",
+                      "displayName": "Avg Slots"
+                    }
+                  ],
+                  "axis": {
+                    "title": "Slots Utilized"
+                  }
+                }
+              },
+              "frame": {
+                "showDescription": true,
+                "description": "Max slots approach has been excluded to remove outliers",
+                "showTitle": true,
+                "title": "Number of slots accounts for x% of job execution time (Excluding Max slots used)"
+              },
+              "mark": {
+                "colors": [
+                  "#FFAB00",
+                  "#00A972",
+                  "#FF3621",
+                  "#8BCAE7",
+                  "#8BCAE7",
+                  "#AB4057",
+                  "#99DDB4",
+                  "#FCA4A1",
+                  "#919191",
+                  "#BF7080"
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 24,
+            "width": 12,
+            "height": 7
+          }
+        },
+        {
+          "widget": {
+            "name": "6838a349",
+            "multilineTextboxSpec": {
+              "lines": [
+                "### Monthly slot usage"
+              ]
+            },
+            "queries": []
+          },
+          "position": {
+            "x": 0,
+            "y": 31,
+            "width": 12,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "8240dd4f",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "c068fa52",
+                  "fields": [
+                    {
+                      "name": "month_window",
+                      "expression": "`month_window`"
+                    },
+                    {
+                      "name": "max(slots_perc_50th)",
+                      "expression": "MAX(`slots_perc_50th`)"
+                    },
+                    {
+                      "name": "max(slots_perc_90th)",
+                      "expression": "MAX(`slots_perc_90th`)"
+                    },
+                    {
+                      "name": "max(slots_perc_99th)",
+                      "expression": "MAX(`slots_perc_99th`)"
+                    },
+                    {
+                      "name": "max(slots_avg)",
+                      "expression": "MAX(`slots_avg`)"
+                    },
+                    {
+                      "name": "max(slots_max)",
+                      "expression": "MAX(`slots_max`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "line",
+              "encodings": {
+                "x": {
+                  "fieldName": "month_window",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "displayName": "Month"
+                },
+                "y": {
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "fields": [
+                    {
+                      "fieldName": "max(slots_perc_50th)",
+                      "displayName": "50th Percentile"
+                    },
+                    {
+                      "fieldName": "max(slots_perc_90th)",
+                      "displayName": "90th Percentile"
+                    },
+                    {
+                      "fieldName": "max(slots_perc_99th)",
+                      "displayName": "99th Percentile"
+                    },
+                    {
+                      "fieldName": "max(slots_avg)",
+                      "displayName": "Avg Slots"
+                    },
+                    {
+                      "fieldName": "max(slots_max)",
+                      "displayName": "Max Slots"
+                    }
+                  ],
+                  "axis": {
+                    "title": "Slots Utilized"
+                  }
+                },
+                "label": {
+                  "show": false
+                }
+              },
+              "frame": {
+                "showDescription": false,
+                "description": "",
+                "showTitle": true,
+                "title": "Number of slots accounts for x% of job execution time"
+              },
+              "mark": {
+                "colors": [
+                  "#FFAB00",
+                  "#00A972",
+                  "#FF3621",
+                  "#8BCAE7",
+                  "#077A9D",
+                  "#AB4057",
+                  "#99DDB4",
+                  "#FCA4A1",
+                  "#919191",
+                  "#BF7080"
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 32,
+            "width": 12,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "c139ab85",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "c068fa52",
+                  "fields": [
+                    {
+                      "name": "month_window",
+                      "expression": "`month_window`"
+                    },
+                    {
+                      "name": "max(slots_perc_50th)",
+                      "expression": "MAX(`slots_perc_50th`)"
+                    },
+                    {
+                      "name": "max(slots_perc_90th)",
+                      "expression": "MAX(`slots_perc_90th`)"
+                    },
+                    {
+                      "name": "max(slots_perc_99th)",
+                      "expression": "MAX(`slots_perc_99th`)"
+                    },
+                    {
+                      "name": "max(slots_avg)",
+                      "expression": "MAX(`slots_avg`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "line",
+              "encodings": {
+                "x": {
+                  "fieldName": "month_window",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "displayName": "Month"
+                },
+                "y": {
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "fields": [
+                    {
+                      "fieldName": "max(slots_perc_50th)",
+                      "displayName": "50th Percentile"
+                    },
+                    {
+                      "fieldName": "max(slots_perc_90th)",
+                      "displayName": "90th Percentile"
+                    },
+                    {
+                      "fieldName": "max(slots_perc_99th)",
+                      "displayName": "99th Percentile"
+                    },
+                    {
+                      "fieldName": "max(slots_avg)",
+                      "displayName": "Avg Slots"
+                    }
+                  ],
+                  "axis": {
+                    "title": "Slots Utilized"
+                  }
+                },
+                "label": {
+                  "show": false
+                }
+              },
+              "frame": {
+                "showDescription": true,
+                "description": "Number of slots accounts for x% of job execution time (Excluding Max slots used)",
+                "showTitle": true,
+                "title": "Number of slots accounts for x% of job execution time (Excluding Max slots used)"
+              },
+              "mark": {
+                "colors": [
+                  "#FFAB00",
+                  "#00A972",
+                  "#FF3621",
+                  "#8BCAE7",
+                  "#8BCAE7",
+                  "#AB4057",
+                  "#99DDB4",
+                  "#FCA4A1",
+                  "#919191",
+                  "#BF7080"
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 38,
+            "width": 12,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "978dab7f",
+            "multilineTextboxSpec": {
+              "lines": [
+                "### Slot Fulfillment rates\n",
+                "The graph may show up as blank if the available data isn't significant enough."
+              ]
+            },
+            "queries": []
+          },
+          "position": {
+            "x": 0,
+            "y": 44,
+            "width": 12,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "c6a11cb2",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "54626435",
+                  "fields": [
+                    {
+                      "name": "daily(day)",
+                      "expression": "DATE_TRUNC(\"DAY\", `day`)"
+                    },
+                    {
+                      "name": "avg(fulfillment_rate)",
+                      "expression": "AVG(`fulfillment_rate`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "area",
+              "encodings": {
+                "x": {
+                  "fieldName": "daily(day)",
+                  "scale": {
+                    "type": "temporal"
+                  },
+                  "displayName": "day"
+                },
+                "y": {
+                  "fieldName": "avg(fulfillment_rate)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "format": {
+                    "type": "number-plain",
+                    "abbreviation": "compact",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 2
+                    }
+                  },
+                  "displayName": "Average fulfillment rate (%)"
+                },
+                "label": {
+                  "show": false
+                }
+              },
+              "frame": {
+                "title": "Day-wise Proportion of Slots Fulfilled",
+                "showTitle": true,
+                "showDescription": true,
+                "description": "What percentage of slots requested are fulfilled?"
+              },
+              "mark": {
+                "colors": [
+                  "#AB4057",
+                  "#FFAB00",
+                  "#00A972",
+                  "#FF3621",
+                  "#8BCAE7",
+                  "#AB4057",
+                  "#99DDB4",
+                  "#FCA4A1",
+                  "#919191",
+                  "#BF7080"
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 46,
+            "width": 12,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "98ce8abc",
+            "multilineTextboxSpec": {
+              "lines": [
+                "## Data Storage"
+              ]
+            },
+            "queries": []
+          },
+          "position": {
+            "x": 0,
+            "y": 54,
+            "width": 12,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "4fd20545",
+            "multilineTextboxSpec": {
+              "lines": [
+                "# Cost / Usage Projections for Databricks Migration"
+              ]
+            },
+            "queries": []
+          },
+          "position": {
+            "x": 0,
+            "y": 52,
+            "width": 12,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "8bad2819",
+            "multilineTextboxSpec": {
+              "lines": [
+                "## Projected Databricks Costs\n",
+                "Each line in the chart shows the projected Databricks costs based on various approaches to calculate the number of slots."
+              ]
+            },
+            "queries": []
+          },
+          "position": {
+            "x": 0,
+            "y": 61,
+            "width": 12,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "ea08751a",
+            "multilineTextboxSpec": {
+              "lines": [
+                "### If the workloads were already run on Databricks"
+              ]
+            },
+            "queries": []
+          },
+          "position": {
+            "x": 0,
+            "y": 63,
+            "width": 12,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "b4cc9f8a",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "c068fa52",
+                  "fields": [
+                    {
+                      "name": "month_window",
+                      "expression": "`month_window`"
+                    },
+                    {
+                      "name": "sum(db_price_max)",
+                      "expression": "SUM(`db_price_max`)"
+                    },
+                    {
+                      "name": "sum(db_price_99th)",
+                      "expression": "SUM(`db_price_99th`)"
+                    },
+                    {
+                      "name": "sum(db_price_90th)",
+                      "expression": "SUM(`db_price_90th`)"
+                    },
+                    {
+                      "name": "sum(db_price_perf_based)",
+                      "expression": "SUM(`db_price_perf_based`)"
+                    },
+                    {
+                      "name": "sum(db_price_avg)",
+                      "expression": "SUM(`db_price_avg`)"
+                    },
+                    {
+                      "name": "sum(db_price_50th)",
+                      "expression": "SUM(`db_price_50th`)"
+                    },
+                    {
+                      "name": "sum(bq_estimated_price)",
+                      "expression": "SUM(`bq_estimated_price`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 1,
+              "widgetType": "combo",
+              "encodings": {
+                "x": {
+                  "fieldName": "month_window",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "axis": {
+                    "title": "Month"
+                  },
+                  "displayName": "Month"
+                },
+                "label": {
+                  "show": true
+                },
+                "y": {
+                  "primary": {
+                    "fields": [
+                      {
+                        "fieldName": "sum(db_price_max)",
+                        "displayName": "Max Slots"
+                      },
+                      {
+                        "fieldName": "sum(db_price_99th)",
+                        "displayName": "99th Percentile Slots"
+                      },
+                      {
+                        "fieldName": "sum(db_price_90th)",
+                        "displayName": "90th Percentile Slots"
+                      },
+                      {
+                        "fieldName": "sum(db_price_perf_based)",
+                        "displayName": "Based on Price Perf"
+                      },
+                      {
+                        "fieldName": "sum(db_price_avg)",
+                        "displayName": "Based on Avg Slots used"
+                      },
+                      {
+                        "fieldName": "sum(db_price_50th)",
+                        "displayName": "50th Percentile Slots"
+                      }
+                    ]
+                  },
+                  "secondary": {
+                    "fields": [
+                      {
+                        "fieldName": "sum(bq_estimated_price)",
+                        "displayName": "BQ Cost (Estimated)"
+                      }
+                    ]
+                  },
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "axis": {
+                    "title": "Compute Cost ($)"
+                  },
+                  "format": {
+                    "type": "number-currency",
+                    "currencyCode": "USD",
+                    "abbreviation": "compact",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 2
+                    }
+                  }
+                }
+              },
+              "mark": {
+                "layout": "group",
+                "colors": [
+                  "#077A9D",
+                  "#FF3621",
+                  "#00A972",
+                  "#BF7080",
+                  "#8BCAE7",
+                  "#FFAB00",
+                  "#59a8df",
+                  "#FCA4A1",
+                  "#919191",
+                  "#BF7080"
+                ]
+              },
+              "frame": {
+                "showDescription": true,
+                "showTitle": true,
+                "title": "Databricks Spend over Month (Retrospectively)",
+                "description": "Estimated Databricks spend per month for similar workloads as BQ "
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 64,
+            "width": 12,
+            "height": 7
+          }
+        },
+        {
+          "widget": {
+            "name": "13af4e5d",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "8f634869",
+                  "fields": [
+                    {
+                      "name": "storage_cost_bq",
+                      "expression": "`storage_cost_bq`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "storage_cost_bq",
+                  "displayName": "storage_cost_bq"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "showDescription": true,
+                "description": "Monthly in BQ Native Format",
+                "title": "Data storage costs on BQ ($)"
+              }
+            }
+          },
+          "position": {
+            "x": 8,
+            "y": 55,
+            "width": 4,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "4c1a6f57",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "8f634869",
+                  "fields": [
+                    {
+                      "name": "migrated_primary_data_cost",
+                      "expression": "`migrated_primary_data_cost`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "migrated_primary_data_cost",
+                  "displayName": "migrated_primary_data_cost"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "showDescription": true,
+                "description": "Monthly in Delta lake format",
+                "title": "Data storage costs on target cloud ($)"
+              }
+            }
+          },
+          "position": {
+            "x": 8,
+            "y": 58,
+            "width": 4,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "b700e23f",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "8f634869",
+                  "fields": [
+                    {
+                      "name": "sum(active_logical_tb)",
+                      "expression": "SUM(`active_logical_tb`)"
+                    },
+                    {
+                      "name": "sum(long_term_logical_tb)",
+                      "expression": "SUM(`long_term_logical_tb`)"
+                    },
+                    {
+                      "name": "sum(active_physical_tb)",
+                      "expression": "SUM(`active_physical_tb`)"
+                    },
+                    {
+                      "name": "sum(long_term_physical_tb)",
+                      "expression": "SUM(`long_term_physical_tb`)"
+                    },
+                    {
+                      "name": "sum(fail_safe_physical_tb)",
+                      "expression": "SUM(`fail_safe_physical_tb`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "fields": [
+                    {
+                      "fieldName": "sum(active_logical_tb)",
+                      "displayName": "Active Logical"
+                    },
+                    {
+                      "fieldName": "sum(long_term_logical_tb)",
+                      "displayName": "Long-term Logical"
+                    },
+                    {
+                      "fieldName": "sum(active_physical_tb)",
+                      "displayName": "Active Physical"
+                    },
+                    {
+                      "fieldName": "sum(long_term_physical_tb)",
+                      "displayName": "Long-term Physical"
+                    },
+                    {
+                      "fieldName": "sum(fail_safe_physical_tb)",
+                      "displayName": "Fail-safe Physical"
+                    }
+                  ],
+                  "axis": {
+                    "title": "Terabytes"
+                  }
+                },
+                "label": {
+                  "show": true
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "showDescription": true,
+                "description": "Active Logical = $20/TB\nLong Term Logical = $10/TB\nActive Physical = $40/TB\nLong Term Physical = $20/TB",
+                "title": "Data Storage in BQ"
+              },
+              "mark": {
+                "layout": "group"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 55,
+            "width": 8,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "ae302691",
+            "queries": [
+              {
+                "name": "dashboards/01efe260c87a1461bc9476769c6d5ee1/datasets/01efe260c87a1b56aab047818370939e_slot_estimation_approach",
+                "query": {
+                  "datasetName": "02d1dd09",
+                  "fields": [
+                    {
+                      "name": "slot_estimation_approach",
+                      "expression": "`slot_estimation_approach`"
+                    },
+                    {
+                      "name": "slot_estimation_approach_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "parameter_dashboards/01efe260c87a1461bc9476769c6d5ee1/datasets/01efe260c87a1b6994193d2e054d6a41_slot_estimation_approach",
+                "query": {
+                  "datasetName": "fa1dee34",
+                  "parameters": [
+                    {
+                      "name": "slot_estimation_approach",
+                      "keyword": "slot_estimation_approach"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "parameter_dashboards/01efe260c87a1461bc9476769c6d5ee1/datasets/01efe260c87a1a76bdff53979d7624b8_db_price",
+                "query": {
+                  "datasetName": "c068fa52",
+                  "parameters": [
+                    {
+                      "name": "db_price",
+                      "keyword": "db_price"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "parameter_dashboards/01efe260c87a1461bc9476769c6d5ee1/datasets/01efe260f1a01a01b99840592e1e118e_slot_estimation_approach",
+                "query": {
+                  "datasetName": "67c9a9b6",
+                  "parameters": [
+                    {
+                      "name": "slot_estimation_approach",
+                      "keyword": "slot_estimation_approach"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "parameter_dashboards/01efe260c87a1461bc9476769c6d5ee1/datasets/01efe27685501c1587f6679bdd0bf76b_slot_estimation_approach",
+                "query": {
+                  "datasetName": "de426e93",
+                  "parameters": [
+                    {
+                      "name": "slot_estimation_approach",
+                      "keyword": "slot_estimation_approach"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "parameter_dashboards/01efe260c87a1461bc9476769c6d5ee1/datasets/01efe276adf31131bd68afd6cbc63e33_slot_estimation_approach",
+                "query": {
+                  "datasetName": "dab262a2",
+                  "parameters": [
+                    {
+                      "name": "slot_estimation_approach",
+                      "keyword": "slot_estimation_approach"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-single-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "slot_estimation_approach",
+                    "displayName": "slot_estimation_approach",
+                    "queryName": "dashboards/01efe260c87a1461bc9476769c6d5ee1/datasets/01efe260c87a1b56aab047818370939e_slot_estimation_approach"
+                  },
+                  {
+                    "parameterName": "slot_estimation_approach",
+                    "queryName": "parameter_dashboards/01efe260c87a1461bc9476769c6d5ee1/datasets/01efe260c87a1b6994193d2e054d6a41_slot_estimation_approach"
+                  },
+                  {
+                    "parameterName": "slot_estimation_approach",
+                    "queryName": "parameter_dashboards/01efe260c87a1461bc9476769c6d5ee1/datasets/01efe260c87a1b8386b664fdb0191168_slot_estimation_approach"
+                  },
+                  {
+                    "parameterName": "db_price",
+                    "queryName": "parameter_dashboards/01efe260c87a1461bc9476769c6d5ee1/datasets/01efe260c87a1a76bdff53979d7624b8_db_price"
+                  },
+                  {
+                    "parameterName": "slot_estimation_approach",
+                    "queryName": "parameter_dashboards/01efe260c87a1461bc9476769c6d5ee1/datasets/01efe260f1a01a01b99840592e1e118e_slot_estimation_approach"
+                  },
+                  {
+                    "parameterName": "slot_estimation_approach",
+                    "queryName": "parameter_dashboards/01efe260c87a1461bc9476769c6d5ee1/datasets/01efe27685501c1587f6679bdd0bf76b_slot_estimation_approach"
+                  },
+                  {
+                    "parameterName": "slot_estimation_approach",
+                    "queryName": "parameter_dashboards/01efe260c87a1461bc9476769c6d5ee1/datasets/01efe276adf31131bd68afd6cbc63e33_slot_estimation_approach"
+                  },
+                  {
+                    "parameterName": "slot_estimation_approach",
+                    "queryName": "parameter_dashboards/01efe260c87a1461bc9476769c6d5ee1/datasets/01efe300a2d31e2489118ad61b19bee8_slot_estimation_approach"
+                  }
+                ]
+              },
+              "disallowAll": true,
+              "selection": {
+                "defaultSelection": {
+                  "values": {
+                    "dataType": "STRING",
+                    "values": [
+                      {
+                        "value": "db_price_90th"
+                      }
+                    ]
+                  }
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Estimation approach"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 4,
+            "height": 1
+          }
+        }
+      ],
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layoutVersion": "GRID_V1"
+    },
+    {
+      "name": "cd8a19b9",
+      "displayName": "Estimates Comparison",
+      "layout": [
+        {
+          "widget": {
+            "name": "a8f80da2",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "df40b20e",
+                  "fields": [
+                    {
+                      "name": "month_window",
+                      "expression": "`month_window`"
+                    },
+                    {
+                      "name": "sum(db_price_max)",
+                      "expression": "SUM(`db_price_max`)"
+                    },
+                    {
+                      "name": "sum(db_price_99th)",
+                      "expression": "SUM(`db_price_99th`)"
+                    },
+                    {
+                      "name": "sum(db_price_90th)",
+                      "expression": "SUM(`db_price_90th`)"
+                    },
+                    {
+                      "name": "sum(db_price_perf_based)",
+                      "expression": "SUM(`db_price_perf_based`)"
+                    },
+                    {
+                      "name": "sum(db_price_avg)",
+                      "expression": "SUM(`db_price_avg`)"
+                    },
+                    {
+                      "name": "sum(db_price_50th)",
+                      "expression": "SUM(`db_price_50th`)"
+                    },
+                    {
+                      "name": "sum(bq_estimated_price)",
+                      "expression": "SUM(`bq_estimated_price`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 1,
+              "widgetType": "combo",
+              "encodings": {
+                "x": {
+                  "fieldName": "month_window",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "axis": {
+                    "title": "Month"
+                  },
+                  "displayName": "Month"
+                },
+                "label": {
+                  "show": true
+                },
+                "y": {
+                  "primary": {
+                    "fields": [
+                      {
+                        "fieldName": "sum(db_price_max)",
+                        "displayName": "Sum of db_price_max"
+                      },
+                      {
+                        "fieldName": "sum(db_price_99th)",
+                        "displayName": "Sum of db_price_99th"
+                      },
+                      {
+                        "fieldName": "sum(db_price_90th)",
+                        "displayName": "Sum of db_price_90th"
+                      },
+                      {
+                        "fieldName": "sum(db_price_perf_based)",
+                        "displayName": "Sum of db_price_perf_based"
+                      },
+                      {
+                        "fieldName": "sum(db_price_avg)",
+                        "displayName": "Sum of db_price_avg"
+                      },
+                      {
+                        "fieldName": "sum(db_price_50th)",
+                        "displayName": "Sum of db_price_50th"
+                      }
+                    ]
+                  },
+                  "secondary": {
+                    "fields": [
+                      {
+                        "fieldName": "sum(bq_estimated_price)",
+                        "displayName": "BQ Cost (Estimated)"
+                      }
+                    ]
+                  },
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "format": {
+                    "type": "number-currency",
+                    "currencyCode": "USD",
+                    "abbreviation": "compact",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 2
+                    }
+                  },
+                  "axis": {
+                    "title": "Compute Cost ($)"
+                  }
+                }
+              },
+              "mark": {
+                "colors": [
+                  "#077A9D",
+                  "#FF3621",
+                  "#00A972",
+                  "#BF7080",
+                  "#8BCAE7",
+                  "#FFAB00",
+                  "#59a8df"
+                ],
+                "layout": "group"
+              },
+              "frame": {
+                "showDescription": true,
+                "showTitle": true,
+                "title": "Databricks combined spend for all selected projects (Retrospectively)",
+                "description": "Estimated Databricks spend per month for similar workloads as BQ (Excluding cloud costs)"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 2,
+            "width": 6,
+            "height": 7
+          }
+        },
+        {
+          "widget": {
+            "name": "7235abbd",
+            "multilineTextboxSpec": {
+              "lines": [
+                "### Various pricing approaches compared"
+              ]
+            },
+            "queries": []
+          },
+          "position": {
+            "x": 0,
+            "y": 1,
+            "width": 6,
+            "height": 1
+          }
+        }
+      ],
+      "pageType": "PAGE_TYPE_CANVAS"
+    }
+  ],
+  "uiSettings": {
+    "theme": {
+      "widgetHeaderAlignment": "ALIGNMENT_UNSPECIFIED"
+    },
+    "genieSpace": {
+      "isEnabled": true,
+      "enablementMode": "ENABLED"
+    },
+    "applyModeEnabled": false
+  }
+}

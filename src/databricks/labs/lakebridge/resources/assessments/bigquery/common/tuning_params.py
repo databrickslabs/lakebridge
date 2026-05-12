@@ -1,0 +1,70 @@
+"""
+Cloud-specific tuning parameters for the BQ → Databricks cost-projection layer.
+
+Ported verbatim from the upstream GCP-native BQ profiler
+`post-analysis/notebooks/_utils.py:tuning_input_params`. Consumed by the pricing-analysis
+step (PR 2 of the Lakebridge BQ profiler integration).
+"""
+
+TUNING_INPUT_PARAMS: dict[str, dict[str, object]] = {
+    "aws": {
+        "db_cores_to_bq_slots_ratio": 5.0,
+        "db_etl_performance_factor": 2.0,
+        "db_sql_performance_factor": 2.0,
+        "db_etl_drivers_per_cluster": 1.0,
+        "db_etl_executors_per_cluster": 6.0,
+        "db_etl_cores_per_executor": 8.0,
+        "db_sql_cores_per_wh": 56.0,
+        "db_sku": "serverless",
+        "db_sql_cluster_size": "Medium",
+        "etl_instance_type": "i3.2xlarge",
+        "db_dbsql_pricing": 0.70,
+        "db_jobs_photon_pricing": 0.15,
+        "monthly_weight_projection": "db_price_90th",
+        "months_to_project": 12,
+        "storage_pricing": 22,
+        "db_etl_effective_price_perf": 2.17,
+        "db_sql_effective_price_perf": 1.81,
+        "bq_slot_pricing": 0.066,
+    },
+    "azure": {
+        "db_cores_to_bq_slots_ratio": 5.0,
+        "db_etl_performance_factor": 2.0,
+        "db_sql_performance_factor": 2.0,
+        "db_etl_drivers_per_cluster": 1.0,
+        "db_etl_executors_per_cluster": 6.0,
+        "db_etl_cores_per_executor": 8.0,
+        "db_sql_cores_per_wh": 56.0,
+        "db_sku": "serverless",
+        "db_sql_cluster_size": "Medium",
+        "etl_instance_type": "E8ds_v4",
+        "db_dbsql_pricing": 0.70,
+        "db_jobs_photon_pricing": 0.15,
+        "monthly_weight_projection": "db_price_90th",
+        "months_to_project": 12,
+        "storage_pricing": 19,
+        "db_etl_effective_price_perf": 2.17,
+        "db_sql_effective_price_perf": 1.81,
+        "bq_slot_pricing": 0.06,
+    },
+    "gcp": {
+        "db_cores_to_bq_slots_ratio": 5,
+        "db_etl_performance_factor": 2.0,
+        "db_sql_performance_factor": 2.0,
+        "db_etl_drivers_per_cluster": 1.0,
+        "db_etl_executors_per_cluster": 6.0,
+        "db_etl_cores_per_executor": 8.0,
+        "db_sql_cores_per_wh": 56.0,
+        "db_sku": "serverless",
+        "db_sql_cluster_size": "Medium",
+        "etl_instance_type": "n2-highmem-8",
+        "db_dbsql_pricing": 0.70,
+        "db_jobs_photon_pricing": 0.15,
+        "monthly_weight_projection": "db_price_90th",
+        "months_to_project": 12,
+        "storage_pricing": 20,
+        "db_etl_effective_price_perf": 2.53,
+        "db_sql_effective_price_perf": 2.17,
+        "bq_slot_pricing": 0.06,
+    },
+}

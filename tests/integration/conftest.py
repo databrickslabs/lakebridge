@@ -187,5 +187,35 @@ def sandbox_redshift(sandbox_redshift_config: JsonObject) -> DatabaseManager:
 
 
 @pytest.fixture()
+def sandbox_bigquery_config() -> JsonObject:
+    """Credentials.yml-shape config for the BigQuery profiler integration test.
+
+    Reads TEST_BQ_PROJECT_ID / TEST_BQ_REGION / TEST_BQ_SA_KEY_PATH from the standard
+    Lakebridge CI vault (debug-env.json on local dev). Raises ValueError if unset — the
+    consuming test is responsible for skipping cleanly in that case, mirroring how the
+    Synapse fixtures behave for external contributors without vault access.
+    """
+    env = TestEnvGetter(True)
+    return {
+        "secret_vault_type": "local",
+        "secret_vault_name": None,
+        "bigquery": {
+            "projects": [env.get("TEST_BQ_PROJECT_ID")],
+            "regions": [env.get("TEST_BQ_REGION")],
+            "service_account_key_path": env.get("TEST_BQ_SA_KEY_PATH") or None,
+            "profiling_window_days": 180,
+            "target_cloud": "gcp",
+            "max_parallel_sqls": 4,
+            "profiler": {
+                "redact_query_text": True,
+                "exclude_reservations_data": True,
+                "exclude_streaming_metrics": False,
+                "exclude_pricing_analysis": False,
+            },
+        },
+    }
+
+
+@pytest.fixture()
 def recon_id() -> UUID:
     return UUID("00112233-4455-6677-8899-aabbccddeeff")

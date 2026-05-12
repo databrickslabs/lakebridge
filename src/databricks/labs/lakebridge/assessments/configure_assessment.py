@@ -191,6 +191,72 @@ class ConfigureSynapseAssessment(AssessmentConfigurator):
 ConfiguratorFactory = Callable[[str, Prompts, str, Path | str | None], AssessmentConfigurator]
 
 
+class ConfigureBigQueryAssessment(AssessmentConfigurator):
+    """BigQuery specific assessment configuration."""
+
+    def _configure_credentials(self) -> str:
+        cred_file = self._credential_file
+        source = self._source_name
+
+        logger.info(
+            "\n(local | env) \nlocal means values are read as plain text \nenv means values are read "
+            "from environment variables fall back to plain text if not variable is not found\n",
+        )
+        secret_vault_type = str(self.prompts.choice("Enter secret vault type (local | env)", ["local", "env"])).lower()
+        secret_vault_name = None
+
+        logger.info("Please provide BigQuery connection settings:")
+        projects_raw = self.prompts.question("Enter BigQuery project IDs (comma-separated)")
+        projects = [p.strip() for p in projects_raw.split(",") if p.strip()]
+
+        regions_raw = self.prompts.question("Enter BigQuery regions (comma-separated, e.g. us, eu)", default="us")
+        regions = [r.strip() for r in regions_raw.split(",") if r.strip()]
+
+        sa_key_path = self.prompts.question(
+            "Enter path to service account JSON key (leave blank to use Application Default Credentials)",
+            default="",
+        )
+        service_account_key_path = sa_key_path.strip() or None
+
+        profiling_window_days = int(
+            self.prompts.question("Enter profiling window in days", default="180", valid_number=True)
+        )
+        max_parallel_sqls = int(
+            self.prompts.question(
+                "Enter max parallel SQLs per (project, region) iteration", default="8", valid_number=True
+            )
+        )
+
+        logger.info("Please select target Databricks platform:")
+        target_cloud = str(self.prompts.choice("Select target Databricks platform", ["aws", "azure", "gcp"])).lower()
+
+        logger.info("Please configure profiler settings:")
+        bigquery_profiler = {
+            "redact_query_text": self.prompts.confirm("Redact query text in extracted data?"),
+            "exclude_reservations_data": self.prompts.confirm("Exclude reservations and commitments data?"),
+            "exclude_streaming_metrics": self.prompts.confirm("Exclude streaming and write API summary?"),
+            "exclude_pricing_analysis": self.prompts.confirm("Exclude pricing analysis (skip step 2)?"),
+        }
+
+        credential = {
+            "secret_vault_type": secret_vault_type,
+            "secret_vault_name": secret_vault_name,
+            source: {
+                "projects": projects,
+                "regions": regions,
+                "service_account_key_path": service_account_key_path,
+                "profiling_window_days": profiling_window_days,
+                "target_cloud": target_cloud,
+                "max_parallel_sqls": max_parallel_sqls,
+                "profiler": bigquery_profiler,
+            },
+        }
+        _save_to_disk(credential, cred_file)
+
+        logger.info(f"Credential template created for {source}.")
+        return source
+
+
 def create_assessment_configurator(
     source_system: str, product_name: str, prompts: Prompts, credential_file: Path | str | None = None
 ) -> AssessmentConfigurator:
@@ -199,9 +265,10 @@ def create_assessment_configurator(
         "mssql": ConfigureSqlServerAssessment,
         "synapse": ConfigureSynapseAssessment,
         "legacy_synapse": ConfigureSqlServerAssessment,
+        "bigquery": ConfigureBigQueryAssessment,
     }
 
     if source_system not in configurators:
         raise ValueError(f"Unsupported source system: {source_system}")
 
-    return configurators[source_system](product_name, prompts, source_system, credential_file)
+    return configurators[source_system](product_name, prompts, source_system, credential_file)  # type: ignore[abstract]
