@@ -50,7 +50,7 @@ class OracleDataSource(DataSource):
         table_query = query.replace(":tbl", f"{schema}.{table}")
         try:
             logger.info(f"Fetching data using query: \n`{table_query}`")
-            df = self._reader.read_data(table_query, catalog, "service_name", "dbtable", options)
+            df = self._reader.read_data(table_query, catalog, "service_name", "query", options)
             return df.select([col(c).alias(c.lower()) for c in df.columns])
         except (RuntimeError, PySparkException) as e:
             return self.log_and_throw_exception(e, "data", table_query)

@@ -1923,10 +1923,10 @@ def test_data_recon_with_source_exception(
     )
 
 
-def test_initialise_data_source(mock_workspace_client, spark):
+def test_initialise_data_source(spark):
     conn = "test"
 
-    source, target = initialise_data_source(mock_workspace_client, spark, "snowflake", conn)
+    source, target = initialise_data_source(spark, "snowflake", conn)
 
     assert isinstance(source, SnowflakeDataSource)
     assert isinstance(target, DatabricksDataSource)

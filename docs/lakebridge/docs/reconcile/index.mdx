@@ -1,5 +1,5 @@
 ---
-sidebar_position: 5
+sidebar_position: 6
 ---
 import useBaseUrl from '@docusaurus/useBaseUrl';
 import Tabs from '@theme/Tabs';
@@ -7,22 +7,62 @@ import TabItem from '@theme/TabItem';
 
 # Reconcile Guide
 
-This tool empowers users to efficiently identify discrepancies and variations in data when comparing the source with the Databricks target.
+Lakebridge Reconcile validates data fidelity after migration by comparing your source system against the Databricks target. It identifies discrepancies at the row, column, and schema level.
 
+## What it does
 
-## Execution Pre-Set Up
-### 1. Setup the configuration file:
+| Report type | What is compared | When to use |
+|-------------|-----------------|-------------|
+| `schema` | Column names and data types | Verify DDL migration is correct |
+| `row` | Hash of each row (no join key needed) | Quick row-level check when there is no primary key |
+| `data` | Row and column values via join columns | Full fidelity check with per-column mismatch detail |
+| `all` | Both `data` + `schema` | Complete validation |
 
-Once the [installation](/installation.mdx#configure-reconcile) is done, a folder named **.lakebridge** will be created in the user workspace's home folder.
-To process the reconciliation for specific table sources, we must create a config file that gives the detailed required configurations for the table-specific ones.
-The file name should be in the format as below and created inside the **.lakebridge** folder.
+## Supported Source Systems
+
+| Source | Schema | Row | Data | All |
+|---|---|---|---|---|
+| Oracle | Yes | Yes | Yes | Yes |
+| Snowflake | Yes | Yes | Yes | Yes |
+| SQL Server | Yes | Yes | Yes | Yes |
+| Redshift | Yes | Yes | Yes | Yes |
+| Databricks | Yes | Yes | Yes | Yes |
+
+---
+
+## Setup
+
+### Step 1: Setup the source connection
+
+Follow the official Databricks docs to:
+- [Create a connection](https://docs.databricks.com/aws/en/query-federation/remote-queries#create-a-connection)
+- [Grant connection access](https://docs.databricks.com/aws/en/query-federation/remote-queries#grant-connection-access)
+- [Enable Databricks preview](https://docs.databricks.com/aws/en/admin/workspace-settings/manage-previews#-manage-workspace-level-previews) of `remote_query` feature
+
+:::note
+You do not have to create a foreign catalog.
+:::
+
+### Step 2: Run `configure-reconcile`
+
+If you haven't already, complete the initial setup:
+
+```bash
+databricks labs lakebridge configure-reconcile
 ```
-recon_config_<SOURCE>_<UNITY_CATALOG_CONNECTION_NAME_OR_CATALOG>_<REPORT_TYPE>.json
 
-Note: For UNITY_CATALOG_CONNECTION_NAME_OR_CATALOG , if databricks source then CATALOG else connection name
+This sets up Lakebridge workspace resources, deploys the reconciliation dashboards and creates the config file. See [Installation → Configure Reconcile](/docs/installation#configure-reconcile) for details.
+
+### Config file
+A reconcile config file is created under the path:
 ```
+<USER_WORKSPACE_HOME>/.lakebridge/recon_config_<SOURCE>_<UNITY_CATALOG_CONNECTION_NAME_OR_CATALOG>_<REPORT_TYPE>.json
+```
+:::note
+For `UNITY_CATALOG_CONNECTION_NAME_OR_CATALOG`: if the source is databricks then source catalog name is used else connection name is used
+:::
 
-eg:
+Examples:
 
 | source_type | connection_name_or_catalog | report_type | file_name                             |
 |-------------|-------------------|-------------|---------------------------------------|
@@ -31,26 +71,18 @@ eg:
 | source2     | conn2              | schema      | recon_config_source2_conn2_schema.json |
 
 
-Refer to [Reconcile Configuration Guide](reconcile_configuration) for detailed instructions and [example configurations](example_config)
+See [Configuration Reference](/docs/reconcile/configuration) for the full schema and examples.
 
-###  2. Setup the source connection
+### Required permissions
 
-Follow the official Databricks docs to:
-- [Create a connection](https://docs.databricks.com/aws/en/query-federation/remote-queries#create-a-connection)
-- [Grant connection access](https://docs.databricks.com/aws/en/query-federation/remote-queries#grant-connection-access)
+The User configuring reconcile must have permission to:
+- Create Data Warehouses
+- Create Compute Clusters
+- `USE CONNECTION` on the source connection
+- `USE CATALOG` and `CREATE SCHEMA` on the target catalog
+- `CREATE VOLUME` if using a pre-existing schema on a serverless cluster
 
-:::note
-You do not have to create a foreign catalog.
-:::
-
-
-### 3. Databricks permissions required
-
-- User configuring reconcile must have permission to create Data Warehouses
-- Additionally, the user must have `USE CATALOG` and `CREATE SCHEMA` permission in order to deploy metadata tables and
-dashboards that are created as part of the Reconcile output. If there is a pre-existing schema, the 'create volumes' permission is also required.
-
-### 4. Serverless cluster support
+### Serverless cluster support
 
 Reconcile automatically detects the cluster type and optimizes intermediate data persistence accordingly:
 - **On Serverless clusters**: Reconcile uses Unity Catalog volumes for intermediate data persistence
@@ -63,6 +95,12 @@ Reconcile automatically detects the cluster type and optimizes intermediate data
 :::
 
 
-## Running Reconcile
+Reconcile automatically adapts to the cluster type:
+- **Serverless clusters:** Uses Unity Catalog volumes for intermediate data persistence (`metadata_config.volume`)
+- **Standard clusters:** Uses DataFrame caching
 
-Please refer to the [Reconcile Notebook](recon_notebook.mdx) documentation.
+---
+
+## Run
+
+See [Running Reconcile](/docs/reconcile/running) for CLI execution, notebook usage, and automation.

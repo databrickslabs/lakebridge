@@ -85,9 +85,8 @@ def test_profiler_connection_invalid_source_technology(
     """Test error handling for unsupported source technology."""
     cred_path = _create_credentials_file(sandbox_synapse_cred_config, tmp_path, exclude_serverless=True)
 
-    # mssql is not in PROFILER_SOURCE_SYSTEM
     with pytest.raises(ValueError, match="Invalid source technology"):
-        check_connection(w=ws, source_tech="mssql", cred_file_path=str(cred_path))
+        check_connection(w=ws, source_tech="bogus", cred_file_path=str(cred_path))
 
 
 @pytest.mark.parametrize(

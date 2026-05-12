@@ -79,7 +79,6 @@ class TriggerReconService:
         source, target = utils.initialise_data_source(
             source_dialect=reconcile_config.source.dialect,
             spark=spark,
-            ws=ws_client,
             connection_name=reconcile_config.source.uc_connection_name,
         )
 

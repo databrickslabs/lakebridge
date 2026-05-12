@@ -1,9 +1,20 @@
+import logging
 from dataclasses import asdict
 
 from pyspark.sql import DataFrame, SparkSession
 
 from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import DialectUtils
 from databricks.labs.lakebridge.reconcile.recon_config import JdbcReaderOptions
+
+logger = logging.getLogger(__name__)
+
+_JDBC_OPTION_NAMES = {
+    "partition_column": "partitionColumn",
+    "num_partitions": "numPartitions",
+    "lower_bound": "lowerBound",
+    "upper_bound": "upperBound",
+    "fetchsize": "fetchsize",
+}
 
 
 class RemoteQueryReader:
@@ -22,6 +33,7 @@ class RemoteQueryReader:
     ) -> DataFrame:
         query_options = self._build_options(catalog, catalog_key, options)
         query = self._build_query(query_options, source_query, source_query_key)
+        logger.debug(f"Executing query: {query}")
         return self._spark.sql(query)
 
     def _build_query(self, query_options: str, source_query: str, source_query_key: str) -> str:
@@ -32,16 +44,12 @@ class RemoteQueryReader:
 
     @staticmethod
     def _build_options(catalog: str, catalog_key: str, options: JdbcReaderOptions | None = None) -> str:
-        def camelcase(underscored):
-            parts = underscored.split('_')
-            return parts[0] + ''.join(word.capitalize() for word in parts[1:])
+        parts = [f"{catalog_key} => '{catalog}'"]
 
-        def encode(key, value):
-            if key == "partition_column":
-                value = DialectUtils.unnormalize_identifier(value)  # revert to original value without backticks
-            return f"{camelcase(key)} => '{value}'"
+        if options:
+            for field, value in asdict(options).items():
+                if field == "partition_column":
+                    value = DialectUtils.unnormalize_identifier(value)  # strip backticks
+                parts.append(f"{_JDBC_OPTION_NAMES[field]} => '{value}'")
 
-        opts = {catalog_key: catalog, **(asdict(options) if options else {})}
-        encoded = [encode(k, v) for k, v in opts.items()]
-
-        return ", ".join(encoded)
+        return ", ".join(parts)
