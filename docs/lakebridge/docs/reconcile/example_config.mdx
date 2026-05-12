@@ -20,7 +20,7 @@ Consider the below tables that we want to reconcile:
 <Tabs>
   <TabItem value="reconcile config" label="Reconcile Config" default>
       :::note
-      Run with Drop,Join,Transformation,ColumnThresholds,Filter,JDBC ReaderOptions configs
+      Run with Drop,Join,Transformation,ColumnThresholds,Filter,JDBC ReaderOptions,SamplingOptions configs
       :::
     ```json
     {
@@ -75,6 +75,13 @@ Consider the below tables that we want to reconcile:
           "filters": {
             "source": "p_id > 0",
             "target": "product_id > 0"
+          },
+          "sampling_options": {
+            "method": "random",
+            "specifications": {
+              "type": "count",
+              "value": 100
+            }
           }
         }
       ]

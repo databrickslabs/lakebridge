@@ -123,6 +123,7 @@ Please find the `Table Recon` filename examples below for the `Snowflake`, `Orac
         column_thresholds: list[ColumnThresholds] | None = None
         filters: Filters | None = None
         table_thresholds: list[TableThresholds] | None = None
+        sampling_options: SamplingOptions | None = None
         ```
     </TabItem>
     <TabItem value="json" label="Json">
@@ -139,7 +140,8 @@ Please find the `Table Recon` filename examples below for the `Snowflake`, `Orac
             "transformation": null,
             "column_thresholds": null,
             "filters": null,
-            "table_thresholds": null
+            "table_thresholds": null,
+            "sampling_options": null
         }
         ```
 
@@ -163,6 +165,7 @@ Please find the `Table Recon` filename examples below for the `Snowflake`, `Orac
 | `column_thresholds`     | `list[ColumnThresholds]` | Column-level variance thresholds (see [column_thresholds](#column-thresholds)) | Optional    | <CodeBlock language="json">{`{"column_thresholds": {"column_name": "price", "lower_bound": "-5%", "upper_bound": "+10%"}}`}</CodeBlock>                 |
 | `table_thresholds`      | `list[TableThresholds]`  | Table-level mismatch thresholds (see [table_thresholds](#table-thresholds))    | Optional    | <CodeBlock language="json">{`{"table_thresholds": {"model": "mismatch", "lower_bound": "0%", "upper_bound": "5%"}}`}</CodeBlock>                        |
 | `filters`               | `Filters`                | Source/target filter expressions                                               | Optional    | <CodeBlock language="json">{`{"filters": {"source": "quantity > 100", "target": "stock_quantity >= 100"}}`}</CodeBlock>                                 |
+| `sampling_options`      | `SamplingOptions`        | Caps the number of rows pulled into each sample bucket (mismatch / missing-in-src / missing-in-tgt). See [Sampling Options](#sampling-options) | Optional    | <CodeBlock language="json">{`{"sampling_options": {"method": "random", "specifications": {"type": "count", "value": 50}}}`}</CodeBlock>              |
 
 [[back to top](#types-of-report-supported)]
 
@@ -529,6 +532,119 @@ you may search the reconciliation log with the following string:
 | target     | string    | the sql expression to filter the data from target | optional(default=None) | <CodeBlock language="sql">"lower(dept_name)='finance'"</CodeBlock> |
 
 
+[[back to top](#types-of-report-supported)]
+
+## Sampling Options
+
+For `data` and `all` report types, lakebridge captures sample rows for each
+mismatch / missing bucket. `sampling_options` controls *how many* and *how*
+samples are drawn.
+
+### SamplingSpecifications
+
+Controls the sample-size policy.
+
+<Tabs>
+  <TabItem value="python" label="Python" default>
+    ```python
+    @dataclass
+    class SamplingSpecifications:
+        type: SamplingSpecificationsType = SamplingSpecificationsType.COUNT
+        value: int | float = 50
+    ```
+  </TabItem>
+  <TabItem value="json" label="JSON">
+    ```json
+    "specifications": {
+        "type": "count",
+        "value": 50
+    }
+    ```
+  </TabItem>
+</Tabs>
+
+| field   | type                            | description                                                                                                       | default |
+|---------|---------------------------------|-------------------------------------------------------------------------------------------------------------------|---------|
+| `type`  | enum (`count` \| `fraction`)    | `count` = absolute row cap. `fraction` is reserved and currently disabled — passing it raises a config error.     | `count` |
+| `value` | `int` (or `float` for fraction) | Maximum rows pulled into each sample bucket.                                                                      | `50`    |
+
+:::note Engine-aware bounds on `value`
+- **Databricks source:** `value` clamped to `[1, 50_000]`. Larger values silently capped at 50_000.
+- **Non-Databricks source:** `value` clamped to `[1, 50]`. Larger values capped at 50 with a WARNING log: `only honored for Databricks source; capping to 50 for <connector>`.
+- `value <= 0` floors to 50.
+:::
+
+### SamplingOptions
+
+Wraps `SamplingSpecifications` and adds the sampling method.
+
+<Tabs>
+  <TabItem value="python" label="Python" default>
+    ```python
+    @dataclass
+    class SamplingOptions:
+        method: SamplingOptionMethod = SamplingOptionMethod.RANDOM
+        specifications: SamplingSpecifications = field(default_factory=SamplingSpecifications)
+        stratified_columns: list[str] | None = None
+        stratified_buckets: int | None = None
+    ```
+  </TabItem>
+  <TabItem value="json" label="JSON">
+    ```json
+    "sampling_options": {
+        "method": "random",
+        "specifications": { "type": "count", "value": 50 },
+        "stratified_columns": null,
+        "stratified_buckets": null
+    }
+    ```
+  </TabItem>
+</Tabs>
+
+| field                | type                            | description                                                                                                  | default              |
+|----------------------|---------------------------------|--------------------------------------------------------------------------------------------------------------|----------------------|
+| `method`             | enum (`random` \| `stratified`) | Sampling strategy.                                                                                           | `random`             |
+| `specifications`     | `SamplingSpecifications`        | Size policy (see [above](#samplingspecifications)).                                                          | defaults to count/50 |
+| `stratified_columns` | `list[string]`                  | **Required when `method = stratified`.** Columns whose values define the strata.                             | `null`               |
+| `stratified_buckets` | `int`                           | **Required when `method = stratified`.** Number of strata buckets. Clamped to `[2, 50]`.                     | `null`               |
+
+When `method = stratified`, rows are bucketed by `pmod(abs(hash(stratified_columns)), stratified_buckets)` and sampling proceeds within each bucket. If `stratified_columns` or `stratified_buckets` is missing, init raises a `ValueError`.
+
+### Example — random sampling
+
+```json
+{
+  "tables": [{
+    "source_name": "store_sales",
+    "target_name": "store_sales",
+    "join_columns": ["ss_item_sk", "ss_ticket_number"],
+    "sampling_options": {
+      "method": "random",
+      "specifications": { "type": "count", "value": 500 }
+    }
+  }]
+}
+```
+
+Each sample bucket (mismatch / missing-in-src / missing-in-tgt) caps at 500 rows. If `sampling_options` is omitted entirely, `value` defaults to 50.
+
+### Example — stratified sampling
+
+```json
+{
+  "tables": [{
+    "source_name": "store_sales",
+    "target_name": "store_sales",
+    "join_columns": ["ss_item_sk", "ss_ticket_number"],
+    "sampling_options": {
+      "method": "stratified",
+      "specifications": { "type": "count", "value": 500 },
+      "stratified_columns": ["ss_store_sk"],
+      "stratified_buckets": 10
+    }
+  }]
+}
+```
 
 
 :::note Key Considerations:
@@ -552,8 +668,6 @@ as these are dialect-specific SQL expressions that are applied directly in the S
 reconciler will not apply any logic
 on top of this.
 :::
-
-[[back to top](#types-of-report-supported)]
 
 ## Report Type-Flow Chart
 ---
