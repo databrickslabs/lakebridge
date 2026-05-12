@@ -23,7 +23,9 @@ def initialise_data_source(
     else:
         source = create_adapter(engine=get_dialect(source_dialect), spark=spark, ws=ws, connection_name=connection_name)
 
-    target = create_adapter(engine=get_dialect("databricks"), spark=spark, ws=ws, connection_name="databricks")
+    target = create_adapter(
+        engine=get_dialect("databricks"), spark=spark, ws=ws, connection_name="databricks", is_target=True
+    )
 
     return source, target
 

@@ -72,7 +72,7 @@ class DatabricksDataSourceUnderTest(DatabricksDataSource):
 
     def read_data(
         self,
-        catalog: str | None,
+        catalog: str,
         schema: str,
         table: str,
         query: str,

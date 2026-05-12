@@ -119,6 +119,45 @@ def test_hash_query_builder_for_databricks_src(
     assert tgt_actual == tgt_expected
 
 
+def test_hash_query_builder_for_redshift_src(
+    redshift_table_conf_with_opts,
+    table_schema_redshift_ansi,
+    fake_redshift_datasource,
+    fake_databricks_datasource,
+):
+    src_schema, tgt_schema = table_schema_redshift_ansi
+    src_actual = HashQueryBuilder(
+        redshift_table_conf_with_opts,
+        src_schema,
+        "source",
+        get_dialect("redshift"),
+        fake_redshift_datasource,
+    ).build_query(report_type="data")
+    src_expected = (
+        "SELECT LOWER(SHA2(TRIM(\"s_address\") || TRIM(\"s_name\") || COALESCE(TRIM(\"s_nationkey\"), '_null_recon_') || "
+        "TRIM(\"s_phone\") || COALESCE(TRIM(\"s_suppkey\"), '_null_recon_'), 256)) AS hash_value_recon, \"s_nationkey\" AS "
+        "\"s_nationkey\", "
+        "\"s_suppkey\" AS \"s_suppkey\" FROM %(tbl)s WHERE \"s_name\" = 't' AND \"s_address\" = 'a'"
+    )
+
+    tgt_actual = HashQueryBuilder(
+        redshift_table_conf_with_opts,
+        tgt_schema,
+        "target",
+        get_dialect("databricks"),
+        fake_databricks_datasource,
+    ).build_query(report_type="data")
+    tgt_expected = (
+        "SELECT LOWER(SHA2(TRIM(`s_address_t`) || TRIM(`s_name`) || COALESCE(TRIM(`s_nationkey_t`), '_null_recon_') || "
+        "TRIM(`s_phone_t`) || COALESCE(TRIM(`s_suppkey_t`), '_null_recon_'), 256)) AS hash_value_recon, `s_nationkey_t` AS "
+        "`s_nationkey`, "
+        "`s_suppkey_t` AS `s_suppkey` FROM :tbl WHERE s_name = 't' AND s_address_t = 'a'"
+    )
+
+    assert src_actual == src_expected
+    assert tgt_actual == tgt_expected
+
+
 def test_hash_query_builder_for_tsql_src(
     tsql_table_conf_with_opts,
     table_schema_tsql_ansi,

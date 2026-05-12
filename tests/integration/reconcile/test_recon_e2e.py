@@ -88,3 +88,14 @@ def test_recon_snowflake_job_succeeds(
         application_ctx, snowflake_recon_config, snowflake_recon_table_config
     ) as app_ctx:
         _run_recon_e2e_spec(app_ctx)
+
+
+def test_recon_redshift_job_succeeds(
+    application_ctx: ApplicationContext,
+    redshift_recon_config: ReconcileConfig,
+    redshift_recon_table_config: TableRecon,
+) -> None:
+    with generate_recon_application_context(
+        application_ctx, redshift_recon_config, redshift_recon_table_config
+    ) as app_ctx:
+        _run_recon_e2e_spec(app_ctx)
