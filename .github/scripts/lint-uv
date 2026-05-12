@@ -33,7 +33,7 @@ die() {
 PROJECT_ROOT="$(git rev-parse --show-toplevel)"
 
 # Set up a scratch directory for temporary files during the check.
-SCRATCH="$(mktemp -d -t "${PROGNAME}")"
+SCRATCH="$(mktemp -d -t "${PROGNAME}.XXX")"
 trap 'rm -fr "${SCRATCH}"' EXIT
 
 tomlq() {
