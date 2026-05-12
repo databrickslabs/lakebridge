@@ -90,19 +90,19 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
 
       - name: Deepening checkout to find merge-base
+        if: github.base_ref
         run: |
           _depth=32
           _max=512
-          _base_ref="${GITHUB_BASE_REF:-${GITHUB_REF}}"
-          until git merge-base "${_base_ref}" HEAD > /dev/null 2>&1
+          until git merge-base "origin/${GITHUB_BASE_REF}" HEAD > /dev/null 2>&1
           do
               if [[ "${_max}" -lt "${_depth}" ]]
               then
                   # Give up deepening, just fetch the rest of the repo.
-                  git fetch --unshallow origin "${_base_ref}" "${GITHUB_REF}"
+                  git fetch --unshallow origin "${GITHUB_BASE_REF}" "${GITHUB_REF}"
                   break
               fi
-              git fetch --deepen "${_depth}" origin "${_base_ref}" "${GITHUB_REF}"
+              git fetch --deepen "${_depth}" origin "${GITHUB_BASE_REF}" "${GITHUB_REF}"
               _depth=$((_depth * 2))
           done
 
