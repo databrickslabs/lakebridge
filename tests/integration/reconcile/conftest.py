@@ -59,6 +59,10 @@ REDSHIFT_CONNECTION = "sandbox_labs_tool_redshift"
 REDSHIFT_CATALOG = "labs"
 REDSHIFT_SCHEMA = "lakebridge"
 REDSHIFT_TABLE = "diamonds"
+ORACLE_CONNECTION = "oracle_sandbox"
+ORACLE_SRV = "orcl"
+ORACLE_SCHEMA = "ADMIN"
+ORACLE_TABLE = "DIAMONDS"
 
 
 @pytest.fixture
@@ -167,6 +171,22 @@ def snowflake_recon_table_config(recon_schema: SchemaInfo, recon_tables: tuple[T
         [
             Table(
                 source_name=SNOWFLAKE_TABLE,
+                target_name=tgt_table.name,
+                join_columns=["color", "clarity"],
+            )
+        ]
+    )
+
+
+@pytest.fixture
+def oracle_recon_table_config(recon_schema: SchemaInfo, recon_tables: tuple[TableInfo, TableInfo]) -> TableRecon:
+    (_, tgt_table) = recon_tables
+    assert tgt_table.name
+
+    return TableRecon(
+        [
+            Table(
+                source_name=ORACLE_TABLE,
                 target_name=tgt_table.name,
                 join_columns=["color", "clarity"],
             )
@@ -304,6 +324,37 @@ def redshift_recon_config(recon_cluster: str, recon_schema: SchemaInfo, make_vol
             catalog=REDSHIFT_CATALOG,
             schema=REDSHIFT_SCHEMA,
             uc_connection_name=REDSHIFT_CONNECTION,
+        ),
+        target=TargetConnectionConfig(
+            catalog=recon_schema.catalog_name,
+            schema=recon_schema.name,
+        ),
+        metadata_config=ReconcileMetadataConfig(
+            catalog=recon_schema.catalog_name, schema=recon_schema.name, volume=volume.name
+        ),
+        job_overrides=deployment_overrides,
+    )
+
+
+@pytest.fixture
+def oracle_recon_config(recon_cluster: str, recon_schema: SchemaInfo, make_volume) -> ReconcileConfig:
+    volume = make_volume(catalog_name=recon_schema.catalog_name, schema_name=recon_schema.name, name=recon_schema.name)
+
+    deployment_overrides = ReconcileJobConfig(
+        existing_cluster_id=recon_cluster,
+        tags={"lakebridge": "reconcile_test"},
+    )
+    logger.info(f"Using recon job overrides: {deployment_overrides}")
+
+    assert recon_schema.catalog_name
+    assert recon_schema.name
+    return ReconcileConfig(
+        report_type="all",
+        source=SourceConnectionConfig(
+            dialect="oracle",
+            catalog=ORACLE_SRV,
+            schema=ORACLE_SCHEMA,
+            uc_connection_name=ORACLE_CONNECTION,
         ),
         target=TargetConnectionConfig(
             catalog=recon_schema.catalog_name,

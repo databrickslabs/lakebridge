@@ -99,3 +99,12 @@ def test_recon_redshift_job_succeeds(
         application_ctx, redshift_recon_config, redshift_recon_table_config
     ) as app_ctx:
         _run_recon_e2e_spec(app_ctx)
+
+
+def test_recon_oracle_job_succeeds(
+    application_ctx: ApplicationContext,
+    oracle_recon_config: ReconcileConfig,
+    oracle_recon_table_config: TableRecon,
+) -> None:
+    with generate_recon_application_context(application_ctx, oracle_recon_config, oracle_recon_table_config) as app_ctx:
+        _run_recon_e2e_spec(app_ctx)

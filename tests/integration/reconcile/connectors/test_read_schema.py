@@ -1,4 +1,3 @@
-from unittest.mock import create_autospec
 import uuid
 import pytest
 
@@ -13,8 +12,8 @@ from databricks.labs.lakebridge.reconcile.connectors.redshift import RedshiftDat
 from databricks.labs.lakebridge.reconcile.connectors.remote_query_reader import RemoteQueryReader
 from databricks.labs.lakebridge.reconcile.connectors.snowflake import SnowflakeDataSource
 from databricks.labs.lakebridge.reconcile.connectors.tsql import TSQLServerDataSource
+from databricks.labs.lakebridge.reconcile.connectors.oracle import OracleDataSource
 from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
-from tests.integration.reconcile.test_oracle_reconcile import OracleDataSourceUnderTest
 from tests.integration.debug_envgetter import TestEnvGetter
 
 
@@ -28,9 +27,8 @@ def test_sql_server_read_schema_happy(spark: SparkSession) -> None:
 
 
 def test_databricks_read_schema_happy(spark: SparkSession) -> None:
-    mock_ws = create_autospec(WorkspaceClient)
     # global_temp views are not in Unity Catalog's information_schema, so use the non-UC variant.
-    connector = DatabricksNonUnityCatalogDataSource(get_dialect("databricks"), spark, mock_ws)
+    connector = DatabricksNonUnityCatalogDataSource(get_dialect("databricks"), spark)
     random_view = f"test_view_{uuid.uuid4().hex}"
 
     try:
@@ -50,7 +48,7 @@ def test_databricks_read_schema_happy_sandbox(
     spark: SparkSession, ws: WorkspaceClient, recon_tables: tuple[TableInfo, TableInfo]
 ) -> None:
     test_table, _ = recon_tables
-    connector = DatabricksDataSource(get_dialect("databricks"), spark, ws)
+    connector = DatabricksDataSource(get_dialect("databricks"), spark)
 
     assert test_table.catalog_name
     assert test_table.schema_name
@@ -60,14 +58,19 @@ def test_databricks_read_schema_happy_sandbox(
     assert columns
 
 
-# FIXME
-# 1. Deploy Oracle Free
-# 2. Add credentials to the test env getter
-@pytest.mark.skip(reason="Not Ready! Deploy Infra")
 def test_oracle_read_schema_happy(spark: SparkSession) -> None:
-    connector = OracleDataSourceUnderTest(spark)
+    connection = "oracle_sandbox"
+    reader = RemoteQueryReader(spark, connection)
+    connector = OracleDataSource(get_dialect("oracle"), reader)
 
-    columns = connector.get_schema("ORCL", "SYSTEM", "help")
+    columns = connector.get_schema("orcl", "admin", "diamonds")
+    assert columns
+
+
+def test_oracle_catalog_read_schema_happy(spark: SparkSession) -> None:
+    connector = DatabricksNonUnityCatalogDataSource(get_dialect("databricks"), spark)
+
+    columns = connector.get_schema("oracle_sandbox_catalog", "admin", "diamonds")
     assert columns
 
 
