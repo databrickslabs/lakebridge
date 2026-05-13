@@ -86,7 +86,11 @@ check_lock_consistency() {
     index_url="$(detect_index_url)"
     [ -n "${index_url}" ] || die 2 "Could not detect the URL to use for PyPI."
     mkdir -p "${SCRATCH}/shadow-project"
-    cp "${PROJECT_ROOT}/pyproject.toml" "${SCRATCH}/shadow-project/"
+    ln -s \
+        "${PROJECT_ROOT}/README.md" \
+        "${PROJECT_ROOT}/pyproject.toml" \
+        "${PROJECT_ROOT}/src" \
+        "${SCRATCH}/shadow-project/"
     # shellcheck disable=SC2016  # $index_url is a jq variable, bound via --arg
     tomlq --toml-output --arg index_url "${index_url}" \
         '(.package[]?.source | select(.registry? == "https://pypi.org/simple")).registry = $index_url' \
