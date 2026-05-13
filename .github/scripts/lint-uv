@@ -95,7 +95,7 @@ check_lock_consistency() {
     tomlq --toml-output --arg index_url "${index_url}" \
         '(.package[]?.source | select(.registry? == "https://pypi.org/simple")).registry = $index_url' \
         "${PROJECT_ROOT}/uv.lock" > "${SCRATCH}/shadow-project/uv.lock"
-    uv lock --project "${SCRATCH}/shadow-project" --check ||
+    uv lock --project "${SCRATCH}/shadow-project" --check --quiet ||
           die 2 "Inconsistency detected between pyproject.toml and uv.lock."
 }
 check_lock_consistency
