@@ -2,12 +2,11 @@ import re
 import logging
 
 import pytest
-from databricks.labs.blueprint.paths import WorkspacePath
 from databricks.sdk.service.catalog import TableInfo
 from databricks.sdk.service.jobs import TerminationTypeType
 from databricks.sdk.core import DatabricksError
 
-from databricks.labs.lakebridge.config import LakebridgeConfiguration, ReconcileConfig, TableRecon
+from databricks.labs.lakebridge.config import ReconcileConfig, TableRecon
 from databricks.labs.lakebridge.contexts.application import ApplicationContext
 from databricks.labs.lakebridge.reconcile.recon_config import (
     CONFIGURE_TABLES_OPERATION_NAME,
@@ -113,7 +112,6 @@ def test_recon_oracle_job_succeeds(
 ) -> None:
     with generate_recon_application_context(application_ctx, oracle_recon_config, oracle_recon_table_config) as app_ctx:
         _run_recon_e2e_spec(app_ctx)
-
 
 
 def test_configure_tables_writes_table_recon_config(

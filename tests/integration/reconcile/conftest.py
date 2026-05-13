@@ -376,37 +376,16 @@ def recon_config_filename(recon_config: ReconcileConfig) -> str:
 def generate_recon_application_context(
     application_ctx: ApplicationContext,
     recon_config: ReconcileConfig,
-    recon_table_config: TableRecon,
+    recon_table_config: TableRecon | None = None,
 ) -> Generator[ApplicationContext, None, None]:
     logger.info("Setting up application context for recon tests")
     config = LakebridgeConfiguration(None, recon_config, None)
     ws = application_ctx.workspace_client
     logger.info("Installing app and recon configuration into workspace")
     application_ctx.installation.save(recon_config)
-    filename = recon_config_filename(recon_config)
-    application_ctx.installation.upload(filename, json.dumps(asdict(recon_table_config)).encode())
-    application_ctx.workspace_installation.install(config)
-
-    logger.info("Application context setup complete for recon tests")
-    yield application_ctx
-
-    logger.info("Tearing down application context for recon tests")
-    application_ctx.workspace_installation.uninstall(config)
-    if WorkspacePath(ws, application_ctx.installation.install_folder()).exists():
-        application_ctx.installation.remove()
-    logger.info("Application context teardown complete for recon tests")
-
-
-@contextmanager
-def generate_recon_application_context(
-    application_ctx: ApplicationContext,
-    recon_config: ReconcileConfig,
-) -> Generator[ApplicationContext, None, None]:
-    logger.info("Setting up application context for recon tests")
-    config = LakebridgeConfiguration(None, recon_config, None)
-    ws = application_ctx.workspace_client
-    logger.info("Installing app and recon configuration into workspace")
-    application_ctx.installation.save(recon_config)
+    if recon_table_config:
+        filename = recon_config_filename(recon_config)
+        application_ctx.installation.upload(filename, json.dumps(asdict(recon_table_config)).encode())
     application_ctx.workspace_installation.install(config)
 
     logger.info("Application context setup complete for recon tests")
