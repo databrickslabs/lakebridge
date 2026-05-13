@@ -19,6 +19,7 @@ class ReconSourceType(AutoName):
     ORACLE = auto()
     SNOWFLAKE = auto()
     SYNAPSE = auto()
+    REDSHIFT = auto()
 
 
 class ReconReportType(AutoName):

@@ -1,0 +1,87 @@
+---
+sidebar_position: 1
+title: SSIS
+toc_min_heading_level: 2
+toc_max_heading_level: 3
+---
+
+# Microsoft SSIS to Databricks
+
+## Conversion Information
+
+- **Transpiler:** BladeBridge
+- **Available target:** Databricks notebooks (experimental)
+
+### Supported SSIS Versions
+
+- SQL Server 2012, 2014, 2016, 2017, 2019, 2022
+- Azure Data Factory SSIS Integration Runtime
+
+### Input Requirements
+
+Export your SSIS packages as DTSX files:
+
+1. **Solution Export:** Export from Visual Studio / SQL Server Data Tools (SSDT)
+2. **File System Packages:** Direct DTSX file access
+3. **SSISDB Export:** Extract from SSIS catalog
+
+```sql
+-- Extract package from SSISDB catalog
+DECLARE @packageData VARBINARY(MAX)
+SELECT @packageData = [packagedata]
+FROM [SSISDB].[catalog].[packages]
+WHERE [name] = 'YourPackageName'
+-- Save to file system for conversion
+```
+
+---
+
+## Running the Conversion
+
+```bash
+databricks labs lakebridge transpile \
+  --source-dialect ssis \
+  --input-source /path/to/ssis/packages \
+  --output-folder /output/sparksql \
+  --target-technology sparksql
+```
+
+The transpiler recursively scans the input directory for `.dtsx` files and generates Databricks notebook equivalents in the output folder.
+
+:::warning Script Component Limitations
+SSIS **Script Task** and **Script Component** contain C# or VB.NET code bodies that cannot be automatically converted. The converter preserves the logic structure, but the actual implementation must be rewritten in Python. See [Supported Components](/docs/transpile/source_systems/ssis/supported_components#control-flow-orchestration---unsupported) for details.
+:::
+
+---
+
+## What Gets Converted
+
+| SSIS Concept | Databricks Equivalent |
+|---|---|
+| Control Flow Tasks | Notebook cells / `dbutils.notebook.run()` |
+| Data Flow Task | Spark SQL temp views |
+| Variables | Python variables |
+| SSIS Expressions | Python f-strings / `spark.sql()` calls |
+| Connection Managers | JDBC `spark.read.format("jdbc")` |
+| ForEach Loop | Wildcard file reads with `input_file_name()` |
+| Script Task | Python with `dbutils` |
+
+For the full list of supported and unsupported components, see [SSIS Supported Components](/docs/transpile/source_systems/ssis/supported_components).
+
+For conversion examples with before/after code, see [SSIS Conversion Examples](/docs/transpile/source_systems/ssis/examples).
+
+---
+
+## Next Steps
+
+1. Export SSIS packages to DTSX files
+2. Run conversion (command above)
+3. Review generated notebooks for conversion warnings
+4. Configure Databricks secrets for connection strings
+5. Test with sample data in Databricks
+6. Deploy workflows to production
+
+For more information, see:
+- [SSIS Supported Components](/docs/transpile/source_systems/ssis/supported_components)
+- [SSIS Conversion Examples](/docs/transpile/source_systems/ssis/examples)
+- [BladeBridge Configuration](/docs/transpile/pluggable_transpilers/bladebridge/bladebridge_configuration)
