@@ -100,20 +100,24 @@ check_lock_consistency
 # Check 3: Detect if uv.lock or .build-constraints.txt have been updated with pyproject.toml or on their own.
 #
 
-base_ref() {
-    # Figure out the base branch, and verify it's available. (CI checkout might be shallow.)
-    [ -n "${GITHUB_BASE_REF:-}" ] && _base_ref="origin/${GITHUB_BASE_REF}" || _base_ref="main"
-    git rev-parse --verify --quiet "${_base_ref}" > /dev/null ||
-        die 3 "Base revision of repository is not available: ${_base_ref}"
-    printf "%s" "${_base_ref}"
+base_rev() {
+    # A few situations to deal with, in order of priority:
+    #  - In CI, we set BASE_SHA for pull requests and the merge queue.
+    #  - In CI, we also have the push to main where there's no base: in this case we can use GITHUB_REF and diff will
+    #    end up a no-op (because there are no differences).
+    #  - For local dev, fall-back to `main` which by convention is always available.
+    _base_rev="${BASE_SHA:-${GITHUB_REF:-main}}"
+    git rev-parse --verify --quiet "${_base_rev}" > /dev/null ||
+        die 3 "Base revision of repository is not available: ${_base_rev}"
+    printf "%s" "${_base_rev}"
 }
 merge_base() {
     # Figure out the merge-base between this branch and verify it's available. (CI checkout might be shallow.)
     _tip="$1"
-    _base_ref=$(base_ref)
-    if ! git merge-base "${_base_ref}" "${_tip}" 2> /dev/null
+    _base_rev=$(base_rev)
+    if ! git merge-base "${_base_rev}" "${_tip}" 2> /dev/null
     then
-        die 4 "Repository is incomplete, merge base between ${_base_ref} and ${_tip} is not available."
+        die 4 "Repository is incomplete, merge base between ${_base_rev} and ${_tip} is not available."
     fi
 }
 
