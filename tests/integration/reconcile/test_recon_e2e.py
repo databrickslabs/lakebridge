@@ -1,6 +1,7 @@
 import re
 import logging
 
+import pytest
 from databricks.sdk.service.jobs import TerminationTypeType
 from databricks.sdk.core import DatabricksError
 
@@ -11,6 +12,8 @@ from databricks.labs.lakebridge.reconcile.runner import ReconcileRunner
 from tests.integration.reconcile.conftest import generate_recon_application_context
 
 logger = logging.getLogger(__name__)
+
+pytestmark = pytest.mark.timeout(1800)
 
 
 def _debug_run_output(ctx: ApplicationContext, run_id: int) -> None:
@@ -84,4 +87,24 @@ def test_recon_snowflake_job_succeeds(
     with generate_recon_application_context(
         application_ctx, snowflake_recon_config, snowflake_recon_table_config
     ) as app_ctx:
+        _run_recon_e2e_spec(app_ctx)
+
+
+def test_recon_redshift_job_succeeds(
+    application_ctx: ApplicationContext,
+    redshift_recon_config: ReconcileConfig,
+    redshift_recon_table_config: TableRecon,
+) -> None:
+    with generate_recon_application_context(
+        application_ctx, redshift_recon_config, redshift_recon_table_config
+    ) as app_ctx:
+        _run_recon_e2e_spec(app_ctx)
+
+
+def test_recon_oracle_job_succeeds(
+    application_ctx: ApplicationContext,
+    oracle_recon_config: ReconcileConfig,
+    oracle_recon_table_config: TableRecon,
+) -> None:
+    with generate_recon_application_context(application_ctx, oracle_recon_config, oracle_recon_table_config) as app_ctx:
         _run_recon_e2e_spec(app_ctx)
