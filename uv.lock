@@ -509,7 +509,7 @@ wheels = [
 
 [[package]]
 name = "databricks-connect"
-version = "15.1.0"
+version = "16.1.7"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "databricks-sdk" },
@@ -521,10 +521,11 @@ dependencies = [
     { name = "pandas" },
     { name = "py4j" },
     { name = "pyarrow" },
+    { name = "setuptools" },
     { name = "six" },
 ]
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/58/d0/12b14681dbe0b3d0de8758c162e0e56c452d4a4ee749b5bffba71f61aabe/databricks_connect-15.1.0-py2.py3-none-any.whl", hash = "sha256:5032276e08280bd654384f368e96f4a1bca5f17a0bb10e1af9aca37d08fc6038", size = 2243351, upload-time = "2024-07-09T16:20:02.817Z" },
+    { url = "https://files.pythonhosted.org/packages/d1/5d/ae8c59de242ca6ef1631e66fdf7fc413bc0d51d2521c4e1cb90104dd62d9/databricks_connect-16.1.7-py2.py3-none-any.whl", hash = "sha256:ddc7ddb8bcfb7910db67e8c4ef5ab2f938c55cf1a1b2e066ff56d2db68b13cb5", size = 2393078, upload-time = "2025-10-28T14:25:02.265Z" },
 ]
 
 [[package]]
@@ -646,7 +647,7 @@ requires-dist = [
     { name = "duckdb", specifier = ">=1.2.2,<1.5.0" },
     { name = "pandas", specifier = "~=2.3.1" },
     { name = "pip", specifier = "~=26.0" },
-    { name = "pygls", specifier = "~=2.0.0" },
+    { name = "pygls", specifier = "~=2.1.1" },
     { name = "pyodbc", specifier = ">=5.2,<5.4" },
     { name = "requests", specifier = ">=2.28.1,<3" },
     { name = "sqlalchemy", specifier = "~=2.0.40" },
@@ -663,7 +664,7 @@ dev = [
     { name = "black", specifier = "~=25.9.0" },
     { name = "cattrs", specifier = "~=26.1" },
     { name = "coverage", extras = ["toml"], specifier = "~=7.10.7" },
-    { name = "databricks-connect", specifier = "==15.1" },
+    { name = "databricks-connect", specifier = "==16.1.7" },
     { name = "databricks-labs-pylint", specifier = "~=0.5.0" },
     { name = "databricks-labs-pytester", specifier = ">=0.3.0,<0.8.0" },
     { name = "faker", specifier = "~=40.15.0" },
@@ -677,7 +678,7 @@ dev = [
     { name = "pytest-timeout", specifier = "~=2.4.0" },
     { name = "pytest-xdist", specifier = "~=3.8.0" },
     { name = "ruff", specifier = "~=0.15.12" },
-    { name = "types-pytz", specifier = "~=2026.1" },
+    { name = "types-pytz", specifier = "~=2026.2" },
     { name = "types-pyyaml", specifier = "~=6.0.12" },
     { name = "types-requests", specifier = ">=2.28.1,<3" },
 ]
@@ -693,7 +694,7 @@ lint = [
     { name = "pylint", specifier = "~=3.2.2" },
     { name = "pylint-pytest", specifier = "==2.0.0a0" },
     { name = "ruff", specifier = "~=0.15.12" },
-    { name = "types-pytz", specifier = "~=2026.1" },
+    { name = "types-pytz", specifier = "~=2026.2" },
     { name = "types-pyyaml", specifier = "~=6.0.12" },
     { name = "types-requests", specifier = ">=2.28.1,<3" },
 ]
@@ -709,7 +710,7 @@ sqlglot = [{ name = "sqlglot", specifier = "~=28.0" }]
 test = [
     { name = "cattrs", specifier = "~=26.1" },
     { name = "coverage", extras = ["toml"], specifier = "~=7.10.7" },
-    { name = "databricks-connect", specifier = "==15.1" },
+    { name = "databricks-connect", specifier = "==16.1.7" },
     { name = "databricks-labs-pytester", specifier = ">=0.3.0,<0.8.0" },
     { name = "faker", specifier = "~=40.15.0" },
     { name = "pytest", specifier = "~=8.4.2" },
@@ -1472,16 +1473,16 @@ wheels = [
 
 [[package]]
 name = "pygls"
-version = "2.0.1"
+version = "2.1.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "attrs" },
     { name = "cattrs" },
     { name = "lsprotocol" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/1b/94/cce3560f6c7296be43bd67ba342f8972b8adddfe407b62b25d1fb90c514b/pygls-2.0.1.tar.gz", hash = "sha256:2f774a669fbe2ece977d302786f01f9b0c5df7d0204ea0fa371ecb08288d6b86", size = 55796, upload-time = "2026-01-26T23:04:33.8Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/da/2e/7bbe061d175c0baddde8fc9edb908a4c31ba5d9165b8c68e3439c3a9f138/pygls-2.1.1.tar.gz", hash = "sha256:1da03ba9053201bb337dcdd8d121df70feb2a91e1a0dcc74de5da79755b1a201", size = 55091, upload-time = "2026-03-25T11:19:10.541Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/48/8b/d0d7e51f928ec6e555c943f7c07a712b992e9cf061d52cbf37fbf8622c05/pygls-2.0.1-py3-none-any.whl", hash = "sha256:d29748042cea5bedc98285eb3e2c0c60bf3fc73786319519001bf72bbe8f36cc", size = 69536, upload-time = "2026-01-26T23:04:35.197Z" },
+    { url = "https://files.pythonhosted.org/packages/fd/1a/208293b6c350f5abea6941d5606080d4a492644052504f5312e5de30a902/pygls-2.1.1-py3-none-any.whl", hash = "sha256:510a6dea2476177230c7d851125e5948efdf3fdb9ebfd8543fc434972f8faed4", size = 68975, upload-time = "2026-03-25T11:19:11.374Z" },
 ]
 
 [[package]]
@@ -1831,6 +1832,15 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/ea/f9/0ae446942c846b8266059ad8a30702a35afae55f5cdc54c5adf8d7afdc27/ruff-0.15.12-py3-none-win32.whl", hash = "sha256:d0185894e038d7043ba8fd6aee7499ece6462dc0ea9f1e260c7451807c714c20", size = 10657277, upload-time = "2026-04-24T18:17:18.591Z" },
     { url = "https://files.pythonhosted.org/packages/33/f1/9614e03e1cdcbf9437570b5400ced8a720b5db22b28d8e0f1bda429f660d/ruff-0.15.12-py3-none-win_amd64.whl", hash = "sha256:c87a162d61ab3adca47c03f7f717c68672edec7d1b5499e652331780fe74950d", size = 11837758, upload-time = "2026-04-24T18:17:00.113Z" },
     { url = "https://files.pythonhosted.org/packages/c0/98/6beb4b351e472e5f4c4613f7c35a5290b8be2497e183825310c4c3a3984b/ruff-0.15.12-py3-none-win_arm64.whl", hash = "sha256:a538f7a82d061cee7be55542aca1d86d1393d55d81d4fcc314370f4340930d4f", size = 11120821, upload-time = "2026-04-24T18:16:57.979Z" },
+]
+
+[[package]]
+name = "setuptools"
+version = "82.0.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/4f/db/cfac1baf10650ab4d1c111714410d2fbb77ac5a616db26775db562c8fab2/setuptools-82.0.1.tar.gz", hash = "sha256:7d872682c5d01cfde07da7bccc7b65469d3dca203318515ada1de5eda35efbf9", size = 1152316, upload-time = "2026-03-09T12:47:17.221Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/9d/76/f789f7a86709c6b087c5a2f52f911838cad707cc613162401badc665acfe/setuptools-82.0.1-py3-none-any.whl", hash = "sha256:a59e362652f08dcd477c78bb6e7bd9d80a7995bc73ce773050228a348ce2e5bb", size = 1006223, upload-time = "2026-03-09T12:47:15.026Z" },
 ]
 
 [[package]]
