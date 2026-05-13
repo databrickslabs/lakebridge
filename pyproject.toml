@@ -107,7 +107,7 @@ pytest = [
 ]
 test = [
     { include-group = "pytest" },
-    "databricks-connect==15.1",
+    "databricks-connect==16.1.7",
     "databricks-labs-pytester>=0.3.0,<0.8.0",
     "cattrs~=26.1",
     "faker~=40.15.0",
