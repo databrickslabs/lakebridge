@@ -5,9 +5,9 @@ from unittest.mock import Mock, patch, MagicMock, create_autospec, PropertyMock
 import pytest
 
 from databricks.sdk import WorkspaceClient
-from databricks.sdk.errors import NotFound
 
 from databricks.labs.blueprint.tui import MockPrompts
+from databricks.labs.blueprint.installation import MockInstallation
 from databricks.labs.lakebridge import cli
 from databricks.labs.lakebridge.config import LSPConfigOptionV1, LSPPromptMethod
 from databricks.labs.lakebridge.contexts.application import ApplicationContext
@@ -93,91 +93,94 @@ def test_cli_aggregates_reconcile(mock_workspace_client):
         cli.aggregates_reconcile(w=mock_workspace_client, ctx_factory=app_factory)
 
 
-def _configure_recon_tables_factory(
-    *,
-    recon_config,
-    table_recon_exists: bool,
-    prompts: MockPrompts,
-):
-    def _factory(w: WorkspaceClient) -> ApplicationContext:
-        ctx_mock = create_autospec(spec=ApplicationContext, spec_set=True)
-        type(ctx_mock).workspace_client = PropertyMock(return_value=w)
-        type(ctx_mock).recon_config = PropertyMock(return_value=recon_config)
-        installation = MagicMock()
-        if table_recon_exists:
-            installation.load.return_value = MagicMock()
-        else:
-            installation.load.side_effect = NotFound("not there")
-        installation.workspace_link.return_value = "https://example.com/recon_config_x.json"
-        type(ctx_mock).installation = PropertyMock(return_value=installation)
-        ctx_mock.prompts = prompts
-        return ctx_mock
-
-    return _factory
-
-
-def _recon_config_mock():
-    recon_config = MagicMock()
-    recon_config.table_recon_filename = "recon_config_snowflake_my_conn_all.json"
-    return recon_config
-
-
 def test_cli_configure_recon_tables_no_recon_config(mock_workspace_client):
-    factory = _configure_recon_tables_factory(
-        recon_config=None,
-        table_recon_exists=False,
-        prompts=MockPrompts({}),
-    )
+    installation = MockInstallation({})
+    ctx = ApplicationContext(mock_workspace_client)
+    ctx.replace(prompts=MockPrompts({}), installation=installation)
     with pytest.raises(SystemExit, match="Reconcile is not configured"):
-        cli.configure_recon_tables(w=mock_workspace_client, ctx_factory=factory)
+        cli.configure_recon_tables(w=mock_workspace_client, ctx_factory=lambda ws: ctx)
 
 
-def test_cli_configure_recon_tables_triggers_job_when_no_table_recon(mock_workspace_client):
-    factory = _configure_recon_tables_factory(
-        recon_config=_recon_config_mock(),
-        table_recon_exists=False,
+def test_cli_configure_recon_tables_triggers_job_when_no_table_recon(mock_workspace_client, snowflake_recon_config):
+    installation = MockInstallation({})
+    ctx = ApplicationContext(mock_workspace_client)
+    ctx.replace(
         prompts=MockPrompts({r"Would you like to open the job run URL .*": "no"}),
+        installation=installation,
+        recon_config=snowflake_recon_config,
     )
 
     with patch(
         "databricks.labs.lakebridge.reconcile.runner.ReconcileRunner.run",
         return_value=(MagicMock(), "link1"),
     ) as mock_run:
-        cli.configure_recon_tables(w=mock_workspace_client, ctx_factory=factory)
+        cli.configure_recon_tables(w=mock_workspace_client, ctx_factory=lambda ws: ctx)
 
     mock_run.assert_called_once()
 
 
-def test_cli_configure_recon_tables_overwrites_on_confirm(mock_workspace_client):
-    factory = _configure_recon_tables_factory(
-        recon_config=_recon_config_mock(),
-        table_recon_exists=True,
+def test_cli_configure_recon_tables_overwrites_on_confirm(mock_workspace_client, snowflake_recon_config):
+    installation = MockInstallation(
+        {
+            snowflake_recon_config.table_recon_filename: {
+                "tables": [
+                    {
+                        "source_name": "source",
+                        "target_name": "target",
+                    }
+                ],
+                "version": 2,
+            }
+        }
+    )
+    ctx = ApplicationContext(mock_workspace_client)
+    ctx.replace(
         prompts=MockPrompts(
             {
                 r"Table mappings .* already exist. Overwrite\?": "yes",
                 r"Would you like to open the job run URL .*": "no",
             }
         ),
+        installation=installation,
+        recon_config=snowflake_recon_config,
     )
 
     with patch(
         "databricks.labs.lakebridge.reconcile.runner.ReconcileRunner.run",
         return_value=(MagicMock(), "link1"),
     ) as mock_run:
-        cli.configure_recon_tables(w=mock_workspace_client, ctx_factory=factory)
+        cli.configure_recon_tables(w=mock_workspace_client, ctx_factory=lambda ws: ctx)
 
     mock_run.assert_called_once()
 
 
-def test_cli_configure_recon_tables_aborts_on_decline(mock_workspace_client):
-    factory = _configure_recon_tables_factory(
-        recon_config=_recon_config_mock(),
-        table_recon_exists=True,
-        prompts=MockPrompts({r"Table mappings .* already exist. Overwrite\?": "no"}),
+def test_cli_configure_recon_tables_aborts_on_decline(mock_workspace_client, snowflake_recon_config):
+    installation = MockInstallation(
+        {
+            snowflake_recon_config.table_recon_filename: {
+                "tables": [
+                    {
+                        "source_name": "source",
+                        "target_name": "target",
+                    }
+                ],
+                "version": 2,
+            }
+        }
+    )
+    ctx = ApplicationContext(mock_workspace_client)
+    ctx.replace(
+        prompts=MockPrompts(
+            {
+                r"Table mappings .* already exist. Overwrite\?": "no",
+            }
+        ),
+        installation=installation,
+        recon_config=snowflake_recon_config,
     )
 
     with patch("databricks.labs.lakebridge.reconcile.runner.ReconcileRunner.run") as mock_run:
-        cli.configure_recon_tables(w=mock_workspace_client, ctx_factory=factory)
+        cli.configure_recon_tables(w=mock_workspace_client, ctx_factory=lambda ws: ctx)
 
     mock_run.assert_not_called()
 
