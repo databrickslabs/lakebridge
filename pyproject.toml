@@ -108,8 +108,9 @@ pytest = [
 ]
 test = [
     { include-group = "pytest" },
+    # The DBR we test against must be higher than the databricks-connect version.
     "databricks-connect~=16.1.7; python_version < '3.12'",
-    "databricks-connect~=18.1.2; python_version >= '3.12'",
+    "databricks-connect~=17.3.8; python_version >= '3.12'",
     "databricks-labs-pytester>=0.3.0,<0.8.0",
     "cattrs~=26.1",
     "faker~=40.15.0",
