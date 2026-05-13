@@ -1,0 +1,103 @@
+# Analyzer Guide
+
+## Analyzer Insights[​](#analyzer-insights "Direct link to Analyzer Insights")
+
+The **Lakebridge Analyzer** is built to scan and interpret metadata from ETL pipelines and SQL assets. Its analysis provides several key insights:
+
+* **Job Complexity Assessment**<br />Analyzer evaluates the complexity of your ETL and SQL jobs. These metrics are fed into the **Conversion Calculator** to help estimate both software licensing costs and the engineering hours required for the migration.
+
+* **Comprehensive Job Inventory**<br />It generates a full inventory of components such as mappings, programs, transformations, functions, and dynamic variables—giving you a clear picture of what exists in your legacy environment.
+
+* **Cross-System Interdependency Mapping**<br />Analyzer identifies **interdependencies** between jobs, systems, and components — surfacing how different parts of your codebase interact. This is crucial for sequencing migration efforts, minimizing risk, and avoiding disruption during cutover planning.
+
+## Verify Installation[​](#verify-installation "Direct link to Verify Installation")
+
+Verify the successful installation by executing the provided command; confirmation of a successful installation is indicated when the displayed output aligns with the example screenshot provided:
+
+Command:
+
+```bash
+ databricks labs lakebridge analyze --help
+
+```
+
+Should output:
+
+```console
+Analyze existing non-Databricks database or ETL sources
+
+Usage:
+   databricks labs lakebridge analyze [flags]
+
+Flags:
+   --generate-json true|false    (Optional) Generate JSON file alongside the Excel report
+   -h, --help                help for analyze
+   --report-file path        (Optional) Local filesystem path of the analysis report file to write
+   --source-directory path   (Optional) Local filesystem path of a directory containing sources to analyze
+   --source-tech string      (Optional) The technology/platform of the sources to analyze
+
+Global Flags:
+ --debug            enable debug logging
+ -o, --output type      output type: text or json (default text)
+ -p, --profile string   ~/.databrickscfg profile
+ -t, --target string    bundle target to use (if applicable)
+
+```
+
+## Preparation Step[​](#preparation-step "Direct link to Preparation Step")
+
+To prepare to use Analyzer the metadata needs to be extracted from the legacy system(s). This is done by exporting the metadata to a file system and ultimately making it available in a folder accessible by Analyzer. For a SQL database this is typically done by exporting the SQL files out of the database platform. For ETL/ELT solutions this is done by exporting their repository objects, this usually exports to some kind of *XML* or *JSON* format. For examples and instructions of the metadata export process, please refer to the page Exporting Legacy Metadata.
+
+## Execution Pre-Set Up[​](#execution-pre-set-up "Direct link to Execution Pre-Set Up")
+
+The analyzer takes a folder path containing source files to be scanned and the source technology type as inputs, then generates an Excel report with analysis results of all files and subfolders.
+
+Below is an explanation of the settings needed for the analyzer:
+
+* *Source directory*: The path of the folder containing the artifacts to analyze.
+* *Report file*: The path of the Excel file into which the analyzer results will be written. (The parent directory of this file must already exist.)
+* *Source technology*: The underlying technology platform of the files in the source directory that need to be analyzed.
+* *Generate JSON* (optional): When set to `true`, generates a JSON file alongside the Excel report. This is useful for programmatic processing and integration with other tools.
+
+## Execution[​](#execution "Direct link to Execution")
+
+Execute the below command to start the analyzer:
+
+```bash
+ databricks labs lakebridge analyze [--source-directory <path>] [--report-file <path>] [--source-tech <string>]
+
+```
+
+*Note: Any settings that are not provided as arguments will trigger a prompt for the missing setting(s).*
+
+To generate both Excel and JSON output:
+
+```bash
+ databricks labs lakebridge analyze [--source-directory <path>] [--report-file <path>] [--source-tech <string>] --generate-json true
+
+```
+
+### Output Files[​](#output-files "Direct link to Output Files")
+
+* **Excel Report** (`.xlsx`) - Always generated. Contains formatted analysis results with multiple worksheets for different aspects of the analysis.
+* **JSON Report** (`.json`) - Generated when `--generate-json true` is specified. Contains the same analysis data in JSON format for programmatic access and integration with other tools.
+
+Both files will be written to the location specified by `--report-file` with their respective extensions.
+
+![Command-line, showing the analyzer being started and running.](/lakebridge/img/remorph-analyzer-run.gif)
+
+## Supported dialects[​](#supported-dialects "Direct link to Supported dialects")
+
+| Source Platform     | Source Platform        | Source Platform |
+| ------------------- | ---------------------- | --------------- |
+| ABInitio            | SAS                    | Redshift        |
+| ADF                 | MS SQL Server          | Snowflake       |
+| Alteryx             | Netezza                | SPSS            |
+| Athena              | Oozie                  | SQOOP           |
+| BigQuery            | Oracle                 | SSIS            |
+| Cloudera (Impala)   | Oracle Data Integrator | SSRS            |
+| Datastage           | PentahoDI              | Synapse         |
+| Greenplum           | PIG                    | Talend          |
+| Hive                | Presto                 | Teradata        |
+| IBM DB2             | PySpark                | Vertica         |
+| SAPHANA - CalcViews |                        |                 |

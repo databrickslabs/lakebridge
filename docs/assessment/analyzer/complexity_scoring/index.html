@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="en" dir="ltr" class="docs-wrapper plugin-docs plugin-id-default docs-version-current docs-doc-page docs-doc-id-assessment/analyzer/complexity_scoring" data-has-hydrated="false">
+<head>
+<meta charset="UTF-8">
+<meta name="generator" content="Docusaurus v3.9.2">
+<title data-rh="true">Complexity Scoring | Lakebridge</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:url" content="https://databrickslabs.github.io/lakebridge/docs/assessment/analyzer/complexity_scoring/"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="Complexity Scoring | Lakebridge"><meta data-rh="true" name="description" content="Overview"><meta data-rh="true" property="og:description" content="Overview"><link data-rh="true" rel="icon" href="/lakebridge/img/lakebridge-icon.svg"><link data-rh="true" rel="canonical" href="https://databrickslabs.github.io/lakebridge/docs/assessment/analyzer/complexity_scoring/"><link data-rh="true" rel="alternate" href="https://databrickslabs.github.io/lakebridge/docs/assessment/analyzer/complexity_scoring/" hreflang="en"><link data-rh="true" rel="alternate" href="https://databrickslabs.github.io/lakebridge/docs/assessment/analyzer/complexity_scoring/" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Assessment Guide","item":"https://databrickslabs.github.io/lakebridge/docs/assessment/"},{"@type":"ListItem","position":2,"name":"Analyzer Guide","item":"https://databrickslabs.github.io/lakebridge/docs/assessment/analyzer/"},{"@type":"ListItem","position":3,"name":"Complexity Scoring","item":"https://databrickslabs.github.io/lakebridge/docs/assessment/analyzer/complexity_scoring"}]}</script><link rel="stylesheet" href="/lakebridge/assets/css/styles.ff640463.css">
+<script src="/lakebridge/assets/js/runtime~main.8bb51010.js" defer="defer"></script>
+<script src="/lakebridge/assets/js/main.f0bb93bc.js" defer="defer"></script>
+</head>
+<body class="navigation-with-keyboard">
+<svg style="display: none;"><defs>
+<symbol id="theme-svg-external-link" viewBox="0 0 24 24"><path fill="currentColor" d="M21 13v10h-21v-19h12v2h-10v15h17v-8h2zm3-12h-10.988l4.035 4-6.977 7.07 2.828 2.828 6.977-7.07 4.125 4.172v-11z"/></symbol>
+</defs></svg>
+<script>!function(){var t=function(){try{return new URLSearchParams(window.location.search).get("docusaurus-theme")}catch(t){}}()||function(){try{return window.localStorage.getItem("theme")}catch(t){}}();document.documentElement.setAttribute("data-theme",t||"dark"),document.documentElement.setAttribute("data-theme-choice",t||"dark")}(),function(){try{const c=new URLSearchParams(window.location.search).entries();for(var[t,e]of c)if(t.startsWith("docusaurus-data-")){var a=t.replace("docusaurus-data-","data-");document.documentElement.setAttribute(a,e)}}catch(t){}}()</script><div id="__docusaurus"><link rel="preload" as="image" href="/lakebridge/img/lakebridge-icon.svg"><div class="w-full flex flex-col grow docs-page"><div role="region" aria-label="Skip to main content"><a class="skipToContent_fXgn" href="#__docusaurus_skipToContent_fallback">Skip to main content</a></div><nav aria-label="Main" class="theme-layout-navbar navbar navbar--fixed-top"><div class="navbar__inner"><div class="theme-layout-navbar-left navbar__items"><button aria-label="Toggle navigation bar" aria-expanded="false" class="navbar__toggle clean-btn" type="button"><svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true"><path stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2" d="M4 7h22M4 15h22M4 23h22"></path></svg></button><a class="navbar__brand" href="/lakebridge/"><div class="navbar__logo"><img src="/lakebridge/img/lakebridge-icon.svg" alt="Lakebridge" class="themedComponent_mlkZ themedComponent--light_NVdE"><img src="/lakebridge/img/lakebridge-icon.svg" alt="Lakebridge" class="themedComponent_mlkZ themedComponent--dark_xIcU"></div><b class="navbar__title text--truncate">Lakebridge</b></a><a class="navbar__item navbar__link" href="/lakebridge/docs/overview/">Overview</a><a class="navbar__item navbar__link" href="/lakebridge/docs/getting_started/">Get Started</a><div class="navbar__item dropdown dropdown--hoverable"><a href="#" aria-haspopup="true" aria-expanded="false" role="button" class="navbar__link">Guides</a><ul class="dropdown__menu"><li><a aria-current="page" class="dropdown__link dropdown__link--active" href="/lakebridge/docs/assessment/">Assessment</a></li><li><a class="dropdown__link" href="/lakebridge/docs/transpile/">Transpiler</a></li><li><a class="dropdown__link" href="/lakebridge/docs/reconcile/">Reconciler</a></li></ul></div><div class="navbar__item dropdown dropdown--hoverable"><a href="#" aria-haspopup="true" aria-expanded="false" role="button" class="navbar__link">Resources</a><ul class="dropdown__menu"><li><a href="https://github.com/databrickslabs/lakebridge" target="_blank" rel="noopener noreferrer" class="dropdown__link">GitHub repository<svg width="12" height="12" aria-label="(opens in new tab)" class="iconExternalLink_nPIU"><use href="#theme-svg-external-link"></use></svg></a></li></ul></div></div><div class="theme-layout-navbar-right navbar__items navbar__items--right"><div class="navbarSearchContainer_Bca1"><div class="navbar__search"><span aria-label="expand searchbar" role="button" class="search-icon" tabindex="0"></span><input id="search_input_react" type="search" placeholder="Loading..." aria-label="Search" class="navbar__search-input search-bar" disabled=""></div></div><div class="toggle_vylO colorModeToggle_DEke"><button class="clean-btn toggleButton_gllP toggleButtonDisabled_aARS" type="button" disabled="" title="system mode" aria-label="Switch between dark and light mode (currently system mode)"><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" class="toggleIcon_g3eP lightToggleIcon_pyhR"><path fill="currentColor" d="M12,9c1.65,0,3,1.35,3,3s-1.35,3-3,3s-3-1.35-3-3S10.35,9,12,9 M12,7c-2.76,0-5,2.24-5,5s2.24,5,5,5s5-2.24,5-5 S14.76,7,12,7L12,7z M2,13l2,0c0.55,0,1-0.45,1-1s-0.45-1-1-1l-2,0c-0.55,0-1,0.45-1,1S1.45,13,2,13z M20,13l2,0c0.55,0,1-0.45,1-1 s-0.45-1-1-1l-2,0c-0.55,0-1,0.45-1,1S19.45,13,20,13z M11,2v2c0,0.55,0.45,1,1,1s1-0.45,1-1V2c0-0.55-0.45-1-1-1S11,1.45,11,2z M11,20v2c0,0.55,0.45,1,1,1s1-0.45,1-1v-2c0-0.55-0.45-1-1-1C11.45,19,11,19.45,11,20z M5.99,4.58c-0.39-0.39-1.03-0.39-1.41,0 c-0.39,0.39-0.39,1.03,0,1.41l1.06,1.06c0.39,0.39,1.03,0.39,1.41,0s0.39-1.03,0-1.41L5.99,4.58z M18.36,16.95 c-0.39-0.39-1.03-0.39-1.41,0c-0.39,0.39-0.39,1.03,0,1.41l1.06,1.06c0.39,0.39,1.03,0.39,1.41,0c0.39-0.39,0.39-1.03,0-1.41 L18.36,16.95z M19.42,5.99c0.39-0.39,0.39-1.03,0-1.41c-0.39-0.39-1.03-0.39-1.41,0l-1.06,1.06c-0.39,0.39-0.39,1.03,0,1.41 s1.03,0.39,1.41,0L19.42,5.99z M7.05,18.36c0.39-0.39,0.39-1.03,0-1.41c-0.39-0.39-1.03-0.39-1.41,0l-1.06,1.06 c-0.39,0.39-0.39,1.03,0,1.41s1.03,0.39,1.41,0L7.05,18.36z"></path></svg><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" class="toggleIcon_g3eP darkToggleIcon_wfgR"><path fill="currentColor" d="M9.37,5.51C9.19,6.15,9.1,6.82,9.1,7.5c0,4.08,3.32,7.4,7.4,7.4c0.68,0,1.35-0.09,1.99-0.27C17.45,17.19,14.93,19,12,19 c-3.86,0-7-3.14-7-7C5,9.07,6.81,6.55,9.37,5.51z M12,3c-4.97,0-9,4.03-9,9s4.03,9,9,9s9-4.03,9-9c0-0.46-0.04-0.92-0.1-1.36 c-0.98,1.37-2.58,2.26-4.4,2.26c-2.98,0-5.4-2.42-5.4-5.4c0-1.81,0.89-3.42,2.26-4.4C12.92,3.04,12.46,3,12,3L12,3z"></path></svg><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" class="toggleIcon_g3eP systemToggleIcon_QzmC"><path fill="currentColor" d="m12 21c4.971 0 9-4.029 9-9s-4.029-9-9-9-9 4.029-9 9 4.029 9 9 9zm4.95-13.95c1.313 1.313 2.05 3.093 2.05 4.95s-0.738 3.637-2.05 4.95c-1.313 1.313-3.093 2.05-4.95 2.05v-14c1.857 0 3.637 0.737 4.95 2.05z"></path></svg></button></div></div></div><div role="presentation" class="navbar-sidebar__backdrop"></div></nav><div id="__docusaurus_skipToContent_fallback" class="theme-layout-main main-wrapper mainWrapper_z2l0"><div class="docsWrapper_hBAB"><button aria-label="Scroll back to top" class="clean-btn theme-back-to-top-button backToTopButton_sjWU" type="button"></button><div class="docRoot_UBD9"><aside class="theme-doc-sidebar-container docSidebarContainer_YfHR"><div class="sidebarViewport_aRkj"><div class="sidebar_njMd"><nav aria-label="Docs sidebar" class="menu thin-scrollbar menu_SIkG"><ul class="theme-doc-sidebar-menu menu__list"><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-1 menu__list-item"><a class="menu__link" href="/lakebridge/docs/overview/"><span title="Overview" class="linkLabel_WmDU">Overview</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-1 menu__list-item"><a class="menu__link" href="/lakebridge/docs/installation/"><span title="Installation" class="linkLabel_WmDU">Installation</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-1 menu__list-item"><a class="menu__link" href="/lakebridge/docs/getting_started/"><span title="Getting Started" class="linkLabel_WmDU">Getting Started</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-1 menu__list-item"><a class="menu__link" href="/lakebridge/docs/choosing_tools/"><span title="Which Tool Do I Use?" class="linkLabel_WmDU">Which Tool Do I Use?</span></a></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-1 menu__list-item"><div class="menu__list-item-collapsible"><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--active" href="/lakebridge/docs/assessment/"><span title="Assessment Guide" class="categoryLinkLabel_W154">Assessment Guide</span></a><button aria-label="Collapse sidebar category &#x27;Assessment Guide&#x27;" aria-expanded="true" type="button" class="clean-btn menu__caret"></button></div><ul class="menu__list"><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-2 menu__list-item menu__list-item--collapsed"><div class="menu__list-item-collapsible"><a class="categoryLink_byQd menu__link menu__link--sublist" tabindex="0" href="/lakebridge/docs/assessment/profiler/"><span title="Profiler Guide" class="categoryLinkLabel_W154">Profiler Guide</span></a><button aria-label="Expand sidebar category &#x27;Profiler Guide&#x27;" aria-expanded="false" type="button" class="clean-btn menu__caret"></button></div></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-2 menu__list-item"><div class="menu__list-item-collapsible"><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--active" tabindex="0" href="/lakebridge/docs/assessment/analyzer/"><span title="Analyzer Guide" class="categoryLinkLabel_W154">Analyzer Guide</span></a><button aria-label="Collapse sidebar category &#x27;Analyzer Guide&#x27;" aria-expanded="true" type="button" class="clean-btn menu__caret"></button></div><ul class="menu__list"><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/lakebridge/docs/assessment/analyzer/export_metadata/"><span title="Exporting Legacy Metadata" class="linkLabel_WmDU">Exporting Legacy Metadata</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link menu__link--active" aria-current="page" tabindex="0" href="/lakebridge/docs/assessment/analyzer/complexity_scoring/"><span title="Complexity Scoring" class="linkLabel_WmDU">Complexity Scoring</span></a></li></ul></li></ul></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-1 menu__list-item menu__list-item--collapsed"><div class="menu__list-item-collapsible"><a class="categoryLink_byQd menu__link menu__link--sublist" href="/lakebridge/docs/transpile/"><span title="Transpile Guide" class="categoryLinkLabel_W154">Transpile Guide</span></a><button aria-label="Expand sidebar category &#x27;Transpile Guide&#x27;" aria-expanded="false" type="button" class="clean-btn menu__caret"></button></div></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-1 menu__list-item menu__list-item--collapsed"><div class="menu__list-item-collapsible"><a class="categoryLink_byQd menu__link menu__link--sublist" href="/lakebridge/docs/reconcile/"><span title="Reconcile Guide" class="categoryLinkLabel_W154">Reconcile Guide</span></a><button aria-label="Expand sidebar category &#x27;Reconcile Guide&#x27;" aria-expanded="false" type="button" class="clean-btn menu__caret"></button></div></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-1 menu__list-item"><a class="menu__link" href="/lakebridge/docs/sql_splitter/"><span title="SQL Splitter" class="linkLabel_WmDU">SQL Splitter</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-1 menu__list-item"><a class="menu__link" href="/lakebridge/docs/faq/"><span title="FAQs" class="linkLabel_WmDU">FAQs</span></a></li></ul></nav></div></div></aside><main class="docMainContainer_TBSr"><div class="container padding-top--md padding-bottom--lg"><div class="row"><div class="col docItemCol_VOVn"><div class="docItemContainer_Djhp"><article><nav class="theme-doc-breadcrumbs breadcrumbsContainer_Z_bl" aria-label="Breadcrumbs"><ul class="breadcrumbs"><li class="breadcrumbs__item"><a aria-label="Home page" class="breadcrumbs__link" href="/lakebridge/"><svg viewBox="0 0 24 24" class="breadcrumbHomeIcon_YNFT"><path d="M10 19v-5h4v5c0 .55.45 1 1 1h3c.55 0 1-.45 1-1v-7h1.7c.46 0 .68-.57.33-.87L12.67 3.6c-.38-.34-.96-.34-1.34 0l-8.36 7.53c-.34.3-.13.87.33.87H5v7c0 .55.45 1 1 1h3c.55 0 1-.45 1-1z" fill="currentColor"></path></svg></a></li><li class="breadcrumbs__item"><a class="breadcrumbs__link" href="/lakebridge/docs/assessment/"><span>Assessment Guide</span></a></li><li class="breadcrumbs__item"><a class="breadcrumbs__link" href="/lakebridge/docs/assessment/analyzer/"><span>Analyzer Guide</span></a></li><li class="breadcrumbs__item breadcrumbs__item--active"><span class="breadcrumbs__link">Complexity Scoring</span></li></ul></nav><div class="tocCollapsible_ETCw theme-doc-toc-mobile tocMobile_ITEo"><button type="button" class="clean-btn tocCollapsibleButton_TO0P">On this page</button></div><div class="theme-doc-markdown markdown"><header><h1>Complexity Scoring</h1></header><h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="overview">Overview<a href="#overview" class="hash-link" aria-label="Direct link to Overview" title="Direct link to Overview" translate="no">​</a></h2>
+<p>The Lakebridge Analyzer assigns a complexity level to each SQL object or ETL job it processes. Complexity scores help you prioritize migration effort, estimate timelines, and identify which objects will require manual review after transpilation.</p>
+<p>Each object receives one of four levels: <strong>LOW</strong>, <strong>MEDIUM</strong>, <strong>HIGH</strong>, or <strong>VERY HIGH</strong>.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="how-to-interpret-your-scores">How to Interpret Your Scores<a href="#how-to-interpret-your-scores" class="hash-link" aria-label="Direct link to How to Interpret Your Scores" title="Direct link to How to Interpret Your Scores" translate="no">​</a></h2>
+<table><thead><tr><th>Level</th><th>What it means</th><th>Typical action</th></tr></thead><tbody><tr><td><strong>LOW</strong></td><td>Simple object — few statements, no loops, no complex constructs</td><td>Transpile directly; little or no manual review expected</td></tr><tr><td><strong>MEDIUM</strong></td><td>Moderate complexity — some loops, 10–30 statements, limited use of advanced SQL</td><td>Transpile; review transpiler warnings before deploying</td></tr><tr><td><strong>HIGH</strong></td><td>High complexity — many loops, 30–50 statements, or advanced constructs (XML, PIVOT)</td><td>Plan for manual review after transpilation; test thoroughly</td></tr><tr><td><strong>VERY HIGH</strong></td><td>Highest complexity — heavy loop nesting, 50+ statements, or extreme PIVOT/XML usage</td><td>Allocate dedicated review time; consider using Switch for intent-aware conversion</td></tr></tbody></table>
+<p><strong>Planning guidance:</strong></p>
+<ul>
+<li class="">If more than 50% of your objects score HIGH or VERY HIGH, plan for at least two manual review passes before deploying.</li>
+<li class="">Objects scored LOW and MEDIUM typically transpile cleanly with Morpheus or BladeBridge.</li>
+<li class="">HIGH and VERY HIGH objects are strong candidates for Switch, which handles business logic that deterministic transpilers struggle with.</li>
+</ul>
+<p>The scoring rules for each source system are detailed below.</p>
+<hr>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="sql-code-analysis">SQL Code Analysis<a href="#sql-code-analysis" class="hash-link" aria-label="Direct link to SQL Code Analysis" title="Direct link to SQL Code Analysis" translate="no">​</a></h2>
+<p>At the beginning of script analysis, mark a script with complexity level of <strong>LOW</strong></p>
+<p>If any of the following conditions are true, then mark the job as <strong>MEDIUM</strong> complexity:</p>
+<ol>
+<li class="">At least one loop</li>
+<li class="">Conventional Statement count greater than 10</li>
+<li class="">Simple Statement count greater than 1000</li>
+<li class="">Number of pivot statements between 1 and 3</li>
+<li class="">Number of XML SQL statements between 1 and 3</li>
+</ol>
+<p>If any of the following conditions are true, then mark the job as <strong>HIGH</strong> complexity:</p>
+<ol>
+<li class="">Number of loops greater than 5</li>
+<li class="">Conventional Statement count greater than 30</li>
+<li class="">Simple Statement count greater than 2000</li>
+<li class="">Number of pivot statements greater than 3</li>
+<li class="">Number of XML SQL statements greater than 3</li>
+</ol>
+<p>If any of the following conditions are true, then mark the job as <strong>VERY HIGH</strong> complexity:</p>
+<ol>
+<li class="">Number of loops greater than 8</li>
+<li class="">Conventional Statement count greater than 50</li>
+<li class="">Simple Statement count greater than 5000</li>
+<li class="">Number of pivot statements greater than 5</li>
+<li class="">Number of XML SQL statements greater than 5</li>
+</ol>
+<p>Simple Statement count is determined by regex patterning in analyzer config file. Conventional Statement count is determined by below formula:</p>
+<p>Conventional Statement count = Total Statement count - Simple Statement count</p>
+<p>If the analyzer encounters a SQL procedure or function body inside a SQL file, it will categorize the script as &quot;ETL&quot; for licensing purposes.</p>
+<p>Teradata MLOAD and FLOAD scripts follow the same rules as above.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="datastage-analysis">DataStage Analysis<a href="#datastage-analysis" class="hash-link" aria-label="Direct link to DataStage Analysis" title="Direct link to DataStage Analysis" translate="no">​</a></h2>
+<p>At the beginning of job analysis, mark job with complexity level of <strong>LOW</strong></p>
+<p>If any of the following conditions are true, then mark the job as <strong>MEDIUM</strong> complexity:</p>
+<ol>
+<li class="">Number of expressions with 5+ function calls between 2 and 4</li>
+<li class="">Number of sources &gt; 1</li>
+<li class="">Number of joins &gt;= 1</li>
+<li class="">Number of lookups between 4 and 6</li>
+<li class="">Number of targets &gt; 1</li>
+<li class="">Overall function call count &gt;= 10</li>
+</ol>
+<p>If any of the following conditions are true, then mark the job as <strong>HIGH</strong> complexity:</p>
+<ol>
+<li class="">Three MEDIUM breaks from the list above</li>
+<li class="">Number of expressions with 5+ function calls between 5 and 7</li>
+<li class="">Number of job components &gt;= 20</li>
+<li class="">Overall function call count &gt;= 20</li>
+<li class="">Complex or Unstructured nodes are being used (ChangeCapture, etc..)</li>
+<li class="">Number of lookups between 7 and 14</li>
+</ol>
+<p>If any of the following conditions are true, then mark the job as <strong>VERY HIGH</strong> complexity:</p>
+<ol>
+<li class="">Three HIGH complexity breaks from the list above</li>
+<li class="">Number of expressions with 5+ function calls &gt; 7</li>
+<li class="">Number of lookups &gt; 15</li>
+<li class="">Number of job components &gt;= 50</li>
+</ol>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="talend-analysis">Talend Analysis<a href="#talend-analysis" class="hash-link" aria-label="Direct link to Talend Analysis" title="Direct link to Talend Analysis" translate="no">​</a></h2>
+<p>At the beginning of job analysis, mark job with complexity level of <strong>LOW</strong></p>
+<p>If any of the following conditions are true, then mark the job as <strong>MEDIUM</strong> complexity:</p>
+<ol>
+<li class="">Number of expressions with 5+ function calls between 2 and 4</li>
+<li class="">Number of sources &gt; 1</li>
+<li class="">Number of joins &gt;= 1</li>
+<li class="">Number of job components &gt;= 10</li>
+<li class="">Number of targets &gt; 1</li>
+<li class="">Overall function call count &gt;= 10</li>
+</ol>
+<p>If any of the following conditions are true, then mark the job as <strong>HIGH</strong> complexity:</p>
+<ol>
+<li class="">Three MEDIUM breaks from the list above</li>
+<li class="">Number of expressions with 5+ function calls between 5 and 7</li>
+<li class="">Number of job components &gt;= 20</li>
+<li class="">Overall function call count &gt;= 20</li>
+<li class="">Complex or Unstructured nodes are being used (ChangeCapture, etc..)</li>
+</ol>
+<p>If any of the following conditions are true, then mark the job as <strong>VERY HIGH</strong> complexity:</p>
+<ol>
+<li class="">Three HIGH complexity breaks from the list above</li>
+<li class="">Number of job components &gt;= 50</li>
+</ol>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="ssis-code-analysis">SSIS Code Analysis<a href="#ssis-code-analysis" class="hash-link" aria-label="Direct link to SSIS Code Analysis" title="Direct link to SSIS Code Analysis" translate="no">​</a></h2>
+<p>At the beginning of package analysis, mark package with complexity level of <strong>LOW</strong></p>
+<p>If any of the following conditions are true, then mark the mapping as <strong>MEDIUM</strong> complexity:</p>
+<ol>
+<li class="">Number of expressions with 5+ function calls between 2 and 4</li>
+<li class="">Number of sources &gt; 1</li>
+<li class="">Number of targets &gt; 1</li>
+<li class="">Overall function call count &gt;= 10</li>
+<li class="">Number of package components &gt;= 10</li>
+</ol>
+<p>If any of the following conditions are true, then mark the mapping as <strong>HIGH</strong> complexity:</p>
+<ol>
+<li class="">Three MEDIUM breaks from the list above</li>
+<li class="">Number of expressions with 5+ function calls between 5 and 7</li>
+<li class="">Number of package components &gt;= 20</li>
+<li class="">Overall function call count &gt;= 20</li>
+</ol>
+<p>If any of the following conditions are true, then mark the mapping as <strong>VERY HIGH</strong> complexity:</p>
+<ol>
+<li class="">Three HIGH complexity breaks from the list above</li>
+<li class="">Number of expressions with 5+ function calls &gt; 7</li>
+<li class="">Number of job components &gt;= 50</li>
+</ol>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="alteryx-code-analysis">Alteryx Code Analysis<a href="#alteryx-code-analysis" class="hash-link" aria-label="Direct link to Alteryx Code Analysis" title="Direct link to Alteryx Code Analysis" translate="no">​</a></h2>
+<p>At the beginning of package analysis, mark package with complexity level of <strong>LOW</strong></p>
+<p>If any of the following conditions are true, then mark the mapping as <strong>MEDIUM</strong> complexity:</p>
+<ol>
+<li class="">Number of expressions with 5+ function calls between 2 and 4</li>
+<li class="">Overall function call count &gt;= 10</li>
+<li class="">Number of job components &gt;= 10</li>
+</ol>
+<p>If any of the following conditions are true, then mark the mapping as <strong>HIGH</strong> complexity:</p>
+<ol>
+<li class="">Three MEDIUM breaks from the list above</li>
+<li class="">Number of expressions with 5+ function calls between 5 and 7</li>
+<li class="">Number of package components &gt;= 20</li>
+<li class="">Overall function call count &gt;= 20</li>
+</ol>
+<p>If any of the following conditions are true, then mark the mapping as <strong>VERY HIGH</strong> complexity:</p>
+<ol>
+<li class="">Three HIGH complexity breaks from the list above</li>
+<li class="">Number of expressions with 5+ function calls &gt; 7</li>
+<li class="">Number of job components &gt;= 50</li>
+</ol>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="bods-code-analysis">BODS Code Analysis<a href="#bods-code-analysis" class="hash-link" aria-label="Direct link to BODS Code Analysis" title="Direct link to BODS Code Analysis" translate="no">​</a></h2>
+<p>At the beginning of job analysis, mark package with complexity level of <strong>LOW</strong></p>
+<p>If any of the following conditions are true, then mark the mapping as <strong>MEDIUM</strong> complexity:</p>
+<ol>
+<li class="">Number of expressions with 5+ function calls between 2 and 4</li>
+<li class="">Overall function call count &gt;= 10</li>
+<li class="">Number of job components &gt;= 10</li>
+</ol>
+<p>If any of the following conditions are true, then mark the mapping as <strong>HIGH</strong> complexity:</p>
+<ol>
+<li class="">Three MEDIUM breaks from the list above</li>
+<li class="">Number of expressions with 5+ function calls between 5 and 7</li>
+<li class="">Number of package components &gt;= 20</li>
+<li class="">Overall function call count &gt;= 20</li>
+</ol>
+<p>If any of the following conditions are true, then mark the mapping as <strong>VERY HIGH</strong> complexity:</p>
+<ol>
+<li class="">Three HIGH complexity breaks from the list above</li>
+<li class="">Number of expressions with 5+ function calls &gt; 7</li>
+<li class="">Number of job components &gt;= 50</li>
+</ol>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="sas-code-analysis">SAS Code Analysis<a href="#sas-code-analysis" class="hash-link" aria-label="Direct link to SAS Code Analysis" title="Direct link to SAS Code Analysis" translate="no">​</a></h2>
+<p>At the beginning of SAS script analysis, mark the script with complexity level of <strong>LOW</strong></p>
+<p>If any of the following conditions are true, then mark the script as <strong>MEDIUM</strong> complexity:</p>
+<ol>
+<li class="">Macro definition count &gt; 3</li>
+<li class="">Data block count &gt; 5</li>
+<li class="">number of statements inside macros and data blocks &gt; 50</li>
+<li class="">Conditional statement count &gt; 10</li>
+<li class="">&#x27;DO&#x27; loop count &gt; 3</li>
+<li class="">Count of SQL Procs categorized as MEDIUM &gt; 0</li>
+<li class="">SQL Proc count &gt; 10</li>
+</ol>
+<p>If any of the following conditions are true, then mark the script as <strong>HIGH</strong>:</p>
+<ol>
+<li class="">Macro definition count &gt; 7</li>
+<li class="">Data block count &gt; 15</li>
+<li class="">number of statements inside macros and data blocks &gt; 100</li>
+<li class="">Conditional statement count &gt; 20</li>
+<li class="">&#x27;DO&#x27; loop count &gt; 10</li>
+<li class="">Count of SQL Procs categorized as HIGH complexity &gt; 0</li>
+<li class="">SQL Proc count &gt; 20</li>
+</ol>
+<p>If any of the following conditions are true, then mark the script as <strong>VERY HIGH</strong>:</p>
+<ol>
+<li class="">Macro definition count &gt; 15</li>
+<li class="">Data block count &gt; 25</li>
+<li class="">number of statements inside macros and data blocks &gt; 150</li>
+<li class="">Conditional statement count &gt; 50</li>
+<li class="">&#x27;DO&#x27; loop count &gt; 20</li>
+<li class="">Count of SQL Procs categorized as VERY HIGH &gt; 0</li>
+<li class="">SQL Proc count &gt; 40</li>
+</ol>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="pentaho-code-analysis">Pentaho Code Analysis<a href="#pentaho-code-analysis" class="hash-link" aria-label="Direct link to Pentaho Code Analysis" title="Direct link to Pentaho Code Analysis" translate="no">​</a></h2>
+<p>At the beginning of mapping analysis, mark mapping with complexity level of <strong>LOW</strong></p>
+<p>If any of the following conditions are true, then mark the mapping as <strong>MEDIUM</strong> complexity:</p>
+<ol>
+<li class="">Number of expressions with 5+ function calls between 2 and 4</li>
+<li class="">Number of sources &gt; 1</li>
+<li class="">Number of joins &gt;= 1</li>
+<li class="">Number of lookups between 4 and 6</li>
+<li class="">Number of targets &gt; 1</li>
+<li class="">Overall function call count &gt;= 10</li>
+<li class="">Number of components (transformations) &gt;= 10</li>
+</ol>
+<p>If any of the following conditions are true, then mark the mapping as <strong>HIGH</strong> complexity:</p>
+<ol>
+<li class="">Three MEDIUM breaks from the list above</li>
+<li class="">Number of expressions with 5+ function calls between 5 and 7</li>
+<li class="">Number of mapping components &gt;= 20</li>
+<li class="">Overall function call count &gt;= 20</li>
+<li class="">Complex or Unstructured nodes are being used (e.g. Normalizer)</li>
+<li class="">Number of lookups between 7 and 14</li>
+</ol>
+<p>If any of the following conditions are true, then mark the mapping as <strong>VERY HIGH</strong> complexity:</p>
+<ol>
+<li class="">Three HIGH complexity breaks from the list above</li>
+<li class="">Number of expressions with 5+ function calls &gt; 7</li>
+<li class="">Number of lookups &gt; 15</li>
+<li class="">Number of job components &gt;= 50</li>
+</ol>
+<div data-theme-toc="true"></div></div><footer class="theme-doc-footer docusaurus-mt-lg"><div class="row margin-top--sm theme-doc-footer-edit-meta-row"><div class="col noPrint_WFHX"><a href="https://github.com/databrickslabs/lakebridge/tree/main/docs/lakebridge/docs/assessment/analyzer/complexity_scoring.mdx" target="_blank" rel="noopener noreferrer" class="theme-edit-this-page"><svg fill="currentColor" height="20" width="20" viewBox="0 0 40 40" class="iconEdit_Z9Sw" aria-hidden="true"><g><path d="m34.5 11.7l-3 3.1-6.3-6.3 3.1-3q0.5-0.5 1.2-0.5t1.1 0.5l3.9 3.9q0.5 0.4 0.5 1.1t-0.5 1.2z m-29.5 17.1l18.4-18.5 6.3 6.3-18.4 18.4h-6.3v-6.2z"></path></g></svg>Edit this page</a></div><div class="col lastUpdated_JAkA"></div></div></footer></article><nav class="docusaurus-mt-lg pagination-nav" aria-label="Docs pages"><a class="pagination-nav__link pagination-nav__link--prev" href="/lakebridge/docs/assessment/analyzer/export_metadata/"><div class="pagination-nav__sublabel">Previous</div><div class="pagination-nav__label">Exporting Legacy Metadata</div></a><a class="pagination-nav__link pagination-nav__link--next" href="/lakebridge/docs/transpile/"><div class="pagination-nav__sublabel">Next</div><div class="pagination-nav__label">Transpile Guide</div></a></nav></div></div><div class="col col--3"><div class="tableOfContents_bqdL thin-scrollbar theme-doc-toc-desktop"><ul class="table-of-contents table-of-contents__left-border"><li><a href="#overview" class="table-of-contents__link toc-highlight">Overview</a></li><li><a href="#how-to-interpret-your-scores" class="table-of-contents__link toc-highlight">How to Interpret Your Scores</a></li><li><a href="#sql-code-analysis" class="table-of-contents__link toc-highlight">SQL Code Analysis</a></li><li><a href="#datastage-analysis" class="table-of-contents__link toc-highlight">DataStage Analysis</a></li><li><a href="#talend-analysis" class="table-of-contents__link toc-highlight">Talend Analysis</a></li><li><a href="#ssis-code-analysis" class="table-of-contents__link toc-highlight">SSIS Code Analysis</a></li><li><a href="#alteryx-code-analysis" class="table-of-contents__link toc-highlight">Alteryx Code Analysis</a></li><li><a href="#bods-code-analysis" class="table-of-contents__link toc-highlight">BODS Code Analysis</a></li><li><a href="#sas-code-analysis" class="table-of-contents__link toc-highlight">SAS Code Analysis</a></li><li><a href="#pentaho-code-analysis" class="table-of-contents__link toc-highlight">Pentaho Code Analysis</a></li></ul></div></div></div></div></main></div></div></div><footer class="footer"><div class="container container-fluid"><div class="footer__bottom text--center"><div class="footer__copyright">© Databricks <!-- -->2026<!-- -->. All rights reserved. Provided by <a href="https://github.com/databrickslabs" target="_blank" rel="noopener noreferrer" class="footer__link-item">Databricks Labs<svg width="13.5" height="13.5" aria-hidden="true" viewBox="0 0 24 24" class="ml-1"><path fill="currentColor" d="M21 13v10h-21v-19h12v2h-10v15h17v-8h2zm3-12h-10.988l4.035 4-6.977 7.07 2.828 2.828 6.977-7.07 4.125 4.172v-11z"></path></svg></a></div></div></div></footer></div></div>
+</body>
+</html>

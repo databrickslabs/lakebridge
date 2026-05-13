@@ -1,0 +1,252 @@
+# Complexity Scoring
+
+## Overview[​](#overview "Direct link to Overview")
+
+The Lakebridge Analyzer assigns a complexity level to each SQL object or ETL job it processes. Complexity scores help you prioritize migration effort, estimate timelines, and identify which objects will require manual review after transpilation.
+
+Each object receives one of four levels: **LOW**, **MEDIUM**, **HIGH**, or **VERY HIGH**.
+
+## How to Interpret Your Scores[​](#how-to-interpret-your-scores "Direct link to How to Interpret Your Scores")
+
+| Level         | What it means                                                                       | Typical action                                                                    |
+| ------------- | ----------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| **LOW**       | Simple object — few statements, no loops, no complex constructs                     | Transpile directly; little or no manual review expected                           |
+| **MEDIUM**    | Moderate complexity — some loops, 10–30 statements, limited use of advanced SQL     | Transpile; review transpiler warnings before deploying                            |
+| **HIGH**      | High complexity — many loops, 30–50 statements, or advanced constructs (XML, PIVOT) | Plan for manual review after transpilation; test thoroughly                       |
+| **VERY HIGH** | Highest complexity — heavy loop nesting, 50+ statements, or extreme PIVOT/XML usage | Allocate dedicated review time; consider using Switch for intent-aware conversion |
+
+**Planning guidance:**
+
+* If more than 50% of your objects score HIGH or VERY HIGH, plan for at least two manual review passes before deploying.
+* Objects scored LOW and MEDIUM typically transpile cleanly with Morpheus or BladeBridge.
+* HIGH and VERY HIGH objects are strong candidates for Switch, which handles business logic that deterministic transpilers struggle with.
+
+The scoring rules for each source system are detailed below.
+
+***
+
+## SQL Code Analysis[​](#sql-code-analysis "Direct link to SQL Code Analysis")
+
+At the beginning of script analysis, mark a script with complexity level of **LOW**
+
+If any of the following conditions are true, then mark the job as **MEDIUM** complexity:
+
+1. At least one loop
+2. Conventional Statement count greater than 10
+3. Simple Statement count greater than 1000
+4. Number of pivot statements between 1 and 3
+5. Number of XML SQL statements between 1 and 3
+
+If any of the following conditions are true, then mark the job as **HIGH** complexity:
+
+1. Number of loops greater than 5
+2. Conventional Statement count greater than 30
+3. Simple Statement count greater than 2000
+4. Number of pivot statements greater than 3
+5. Number of XML SQL statements greater than 3
+
+If any of the following conditions are true, then mark the job as **VERY HIGH** complexity:
+
+1. Number of loops greater than 8
+2. Conventional Statement count greater than 50
+3. Simple Statement count greater than 5000
+4. Number of pivot statements greater than 5
+5. Number of XML SQL statements greater than 5
+
+Simple Statement count is determined by regex patterning in analyzer config file. Conventional Statement count is determined by below formula:
+
+Conventional Statement count = Total Statement count - Simple Statement count
+
+If the analyzer encounters a SQL procedure or function body inside a SQL file, it will categorize the script as "ETL" for licensing purposes.
+
+Teradata MLOAD and FLOAD scripts follow the same rules as above.
+
+## DataStage Analysis[​](#datastage-analysis "Direct link to DataStage Analysis")
+
+At the beginning of job analysis, mark job with complexity level of **LOW**
+
+If any of the following conditions are true, then mark the job as **MEDIUM** complexity:
+
+1. Number of expressions with 5+ function calls between 2 and 4
+2. Number of sources > 1
+3. Number of joins >= 1
+4. Number of lookups between 4 and 6
+5. Number of targets > 1
+6. Overall function call count >= 10
+
+If any of the following conditions are true, then mark the job as **HIGH** complexity:
+
+1. Three MEDIUM breaks from the list above
+2. Number of expressions with 5+ function calls between 5 and 7
+3. Number of job components >= 20
+4. Overall function call count >= 20
+5. Complex or Unstructured nodes are being used (ChangeCapture, etc..)
+6. Number of lookups between 7 and 14
+
+If any of the following conditions are true, then mark the job as **VERY HIGH** complexity:
+
+1. Three HIGH complexity breaks from the list above
+2. Number of expressions with 5+ function calls > 7
+3. Number of lookups > 15
+4. Number of job components >= 50
+
+## Talend Analysis[​](#talend-analysis "Direct link to Talend Analysis")
+
+At the beginning of job analysis, mark job with complexity level of **LOW**
+
+If any of the following conditions are true, then mark the job as **MEDIUM** complexity:
+
+1. Number of expressions with 5+ function calls between 2 and 4
+2. Number of sources > 1
+3. Number of joins >= 1
+4. Number of job components >= 10
+5. Number of targets > 1
+6. Overall function call count >= 10
+
+If any of the following conditions are true, then mark the job as **HIGH** complexity:
+
+1. Three MEDIUM breaks from the list above
+2. Number of expressions with 5+ function calls between 5 and 7
+3. Number of job components >= 20
+4. Overall function call count >= 20
+5. Complex or Unstructured nodes are being used (ChangeCapture, etc..)
+
+If any of the following conditions are true, then mark the job as **VERY HIGH** complexity:
+
+1. Three HIGH complexity breaks from the list above
+2. Number of job components >= 50
+
+## SSIS Code Analysis[​](#ssis-code-analysis "Direct link to SSIS Code Analysis")
+
+At the beginning of package analysis, mark package with complexity level of **LOW**
+
+If any of the following conditions are true, then mark the mapping as **MEDIUM** complexity:
+
+1. Number of expressions with 5+ function calls between 2 and 4
+2. Number of sources > 1
+3. Number of targets > 1
+4. Overall function call count >= 10
+5. Number of package components >= 10
+
+If any of the following conditions are true, then mark the mapping as **HIGH** complexity:
+
+1. Three MEDIUM breaks from the list above
+2. Number of expressions with 5+ function calls between 5 and 7
+3. Number of package components >= 20
+4. Overall function call count >= 20
+
+If any of the following conditions are true, then mark the mapping as **VERY HIGH** complexity:
+
+1. Three HIGH complexity breaks from the list above
+2. Number of expressions with 5+ function calls > 7
+3. Number of job components >= 50
+
+## Alteryx Code Analysis[​](#alteryx-code-analysis "Direct link to Alteryx Code Analysis")
+
+At the beginning of package analysis, mark package with complexity level of **LOW**
+
+If any of the following conditions are true, then mark the mapping as **MEDIUM** complexity:
+
+1. Number of expressions with 5+ function calls between 2 and 4
+2. Overall function call count >= 10
+3. Number of job components >= 10
+
+If any of the following conditions are true, then mark the mapping as **HIGH** complexity:
+
+1. Three MEDIUM breaks from the list above
+2. Number of expressions with 5+ function calls between 5 and 7
+3. Number of package components >= 20
+4. Overall function call count >= 20
+
+If any of the following conditions are true, then mark the mapping as **VERY HIGH** complexity:
+
+1. Three HIGH complexity breaks from the list above
+2. Number of expressions with 5+ function calls > 7
+3. Number of job components >= 50
+
+## BODS Code Analysis[​](#bods-code-analysis "Direct link to BODS Code Analysis")
+
+At the beginning of job analysis, mark package with complexity level of **LOW**
+
+If any of the following conditions are true, then mark the mapping as **MEDIUM** complexity:
+
+1. Number of expressions with 5+ function calls between 2 and 4
+2. Overall function call count >= 10
+3. Number of job components >= 10
+
+If any of the following conditions are true, then mark the mapping as **HIGH** complexity:
+
+1. Three MEDIUM breaks from the list above
+2. Number of expressions with 5+ function calls between 5 and 7
+3. Number of package components >= 20
+4. Overall function call count >= 20
+
+If any of the following conditions are true, then mark the mapping as **VERY HIGH** complexity:
+
+1. Three HIGH complexity breaks from the list above
+2. Number of expressions with 5+ function calls > 7
+3. Number of job components >= 50
+
+## SAS Code Analysis[​](#sas-code-analysis "Direct link to SAS Code Analysis")
+
+At the beginning of SAS script analysis, mark the script with complexity level of **LOW**
+
+If any of the following conditions are true, then mark the script as **MEDIUM** complexity:
+
+1. Macro definition count > 3
+2. Data block count > 5
+3. number of statements inside macros and data blocks > 50
+4. Conditional statement count > 10
+5. 'DO' loop count > 3
+6. Count of SQL Procs categorized as MEDIUM > 0
+7. SQL Proc count > 10
+
+If any of the following conditions are true, then mark the script as **HIGH**:
+
+1. Macro definition count > 7
+2. Data block count > 15
+3. number of statements inside macros and data blocks > 100
+4. Conditional statement count > 20
+5. 'DO' loop count > 10
+6. Count of SQL Procs categorized as HIGH complexity > 0
+7. SQL Proc count > 20
+
+If any of the following conditions are true, then mark the script as **VERY HIGH**:
+
+1. Macro definition count > 15
+2. Data block count > 25
+3. number of statements inside macros and data blocks > 150
+4. Conditional statement count > 50
+5. 'DO' loop count > 20
+6. Count of SQL Procs categorized as VERY HIGH > 0
+7. SQL Proc count > 40
+
+## Pentaho Code Analysis[​](#pentaho-code-analysis "Direct link to Pentaho Code Analysis")
+
+At the beginning of mapping analysis, mark mapping with complexity level of **LOW**
+
+If any of the following conditions are true, then mark the mapping as **MEDIUM** complexity:
+
+1. Number of expressions with 5+ function calls between 2 and 4
+2. Number of sources > 1
+3. Number of joins >= 1
+4. Number of lookups between 4 and 6
+5. Number of targets > 1
+6. Overall function call count >= 10
+7. Number of components (transformations) >= 10
+
+If any of the following conditions are true, then mark the mapping as **HIGH** complexity:
+
+1. Three MEDIUM breaks from the list above
+2. Number of expressions with 5+ function calls between 5 and 7
+3. Number of mapping components >= 20
+4. Overall function call count >= 20
+5. Complex or Unstructured nodes are being used (e.g. Normalizer)
+6. Number of lookups between 7 and 14
+
+If any of the following conditions are true, then mark the mapping as **VERY HIGH** complexity:
+
+1. Three HIGH complexity breaks from the list above
+2. Number of expressions with 5+ function calls > 7
+3. Number of lookups > 15
+4. Number of job components >= 50

@@ -1,0 +1,1 @@
+"use strict";(self.webpackChunklakebridge=self.webpackChunklakebridge||[]).push([[5390],{5390:(e,r,c)=>{c.d(r,{createArchitectureServices:()=>a.S});var a=c(5530);c(2519)}}]);

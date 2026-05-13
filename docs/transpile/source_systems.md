@@ -1,0 +1,43 @@
+# Source Systems Conversion Guides
+
+In this section we'll have source-specific conversion documentation. Select your source system below to see detailed conversion guides, supported components and potential gaps to watch out for.
+
+***
+
+## Available Source Systems[​](#available-source-systems "Direct link to Available Source Systems")
+
+### Microsoft SSIS[​](#microsoft-ssis "Direct link to Microsoft SSIS")
+
+**Microsoft SQL Server Integration Services** - Enterprise ETL platform for data integration and workflow applications.
+
+* **Supported Versions:** SQL Server 2012-2022, Azure Data Factory SSIS Runtime
+* **Target Platforms:** Databricks Notebooks
+* **Component Coverage:** 38 out of 50 components
+
+[📖 View SSIS Conversion Guide](/lakebridge/docs/transpile/source_systems/ssis.md)
+
+***
+
+### Amazon Redshift[​](#amazon-redshift "Direct link to Amazon Redshift")
+
+**Amazon Redshift** - Managed data warehouse service in the cloud.
+
+* **Supported Versions:** All Redshift versions, Redshift Serverless
+* **Target Platform:** Databricks SQL
+* **Feature Coverage:** Comprehensive SQL conversion with 250+ transformation rules
+
+[📖 View Redshift Conversion Guide](/lakebridge/docs/transpile/source_systems/redshift.md)
+
+***
+
+### IBM DataStage[​](#ibm-datastage "Direct link to IBM DataStage")
+
+**IBM DataStage** - Enterprise ETL platform for designing and running data transformation jobs.
+
+* **Supported Versions:** Version 8 onwards
+* **Target Platforms:** Databricks Notebooks (SparkSQL, PySpark)
+* **Job Types:** Parallel Jobs, Sequence Jobs, Shared Containers
+
+[📖 View DataStage Conversion Guide](/lakebridge/docs/transpile/source_systems/datastage.md)
+
+***

@@ -1,0 +1,768 @@
+# Extending BladeBridge Configurations
+
+## Configuration Overview[​](#configuration-overview "Direct link to Configuration Overview")
+
+BladeBridge uses a **two-layer configuration model**:
+
+| Layer                             | What it controls                                             | How to set it                                                     |
+| --------------------------------- | ------------------------------------------------------------ | ----------------------------------------------------------------- |
+| **Layer 1 — CLI parameters**      | Source dialect, target output format, override file path     | Set via `install-transpile` prompts or `transpile` CLI flags      |
+| **Layer 2 — JSON override files** | Conversion rules, naming conventions, source/target mappings | Create a custom JSON file and reference it via `--overrides-file` |
+
+You can use Layer 1 alone (most migrations), or combine both layers for advanced customization.
+
+***
+
+## Layer 1: CLI Parameters[​](#layer-1-cli-parameters "Direct link to Layer 1: CLI Parameters")
+
+These parameters are set when you run `install-transpile` (or passed directly to the `transpile` command):
+
+| Parameter           | Required | Default | Description                                                              |
+| ------------------- | -------- | ------- | ------------------------------------------------------------------------ |
+| `source-dialect`    | Yes      | `ansi`  | Source SQL or ETL dialect (e.g., `mssql`, `oracle`, `datastage`, `ssis`) |
+| `target-technology` | No       | `SQL`   | Output format: `SQL`, `SPARKSQL`, or `PYSPARK`                           |
+| `overrides-file`    | No       | none    | Path to a custom JSON config file (Layer 2)                              |
+
+### Dialect-specific `target-technology` constraints[​](#dialect-specific-target-technology-constraints "Direct link to dialect-specific-target-technology-constraints")
+
+The `target-technology` prompt only appears for ETL source dialects. SQL dialects always output Databricks SQL:
+
+| Dialect                                                         | `target-technology` prompt? | Available choices           |
+| --------------------------------------------------------------- | --------------------------- | --------------------------- |
+| `datastage`                                                     | Yes                         | `SPARKSQL`, `PYSPARK`       |
+| `ssis`                                                          | Yes                         | `SPARKSQL` only             |
+| `mssql`, `oracle`, `synapse`, `netezza`, `redshift`, `teradata` | No                          | Outputs Databricks SQL only |
+
+### Minimal working example[​](#minimal-working-example "Direct link to Minimal working example")
+
+```bash
+databricks labs lakebridge transpile \
+  --source-dialect oracle \
+  --input-source /path/to/sql \
+  --output-folder /path/to/output
+
+```
+
+For ETL sources with target technology:
+
+```bash
+databricks labs lakebridge transpile \
+  --source-dialect datastage \
+  --input-source /path/to/datastage/exports \
+  --output-folder /path/to/output \
+  --target-technology SPARKSQL
+
+```
+
+***
+
+## Layer 2: JSON Override Files[​](#layer-2-json-override-files "Direct link to Layer 2: JSON Override Files")
+
+The **BladeBridge** transpiler relies heavily on rules defined inside configuration files provided with the converter. These configurations are comprised of a set of layered json files and code templates that drive the generation of output files and application of conversion rules.
+
+Similar configuration concepts are applicable across all BladeBridge conversion paths, although the structure of SQL-to-SQL configuration files and ETL-to-Pyspark/SparkSQL/DBSQL is somewhat different, since ETL conversions typically deal with both the ETL logic translations, as well as the translation of embedded SQL statements (sourcing data, pre/post/inline SQL statements)
+
+In some migration projects, users may want to augment/override the conversion rules provided with the BladeBridge converter. For this reason, engineers should know how to:
+
+* Extend the converter logic
+* Provide your own conversion rules
+* Custom-control the output
+* Troubleshoot issues
+
+In this page, we'll provide you with the information necessary to do just that.
+
+## Supplying Custom Configuration File[​](#supplying-custom-configuration-file "Direct link to Supplying Custom Configuration File")
+
+When running the Bladebridge converter from Lakebridge, a custom configuration file can be supplied to the converter. In order to register a custom configuration file for transpilation, we need to execute the `install-transpile` command and at one of the prompts specify the custom configuration file path:
+
+```bash
+databricks labs lakebridge install-transpile
+Do you want to override the existing installation? (default: no): yes
+Specify the config file to override the default[Bladebridge] config - press <enter> for none (default: <none>):
+<local_full_path>/custom_<source>2databricks.json
+
+```
+
+Please read the subsequent sections of this document to learn how to create and extend BladeBridge configurations
+
+## Creating the custom configuration file[​](#creating-the-custom-configuration-file "Direct link to Creating the custom configuration file")
+
+If you want to start from scratch and only use your new custom file, but not the provided configurations, go ahead and create an empty .json file and specify the configurations needed following the guidance in the following sections.
+
+If instead you want to augment and/or override the existing configurations:
+
+* Take note of where the provided configurations are: `<user_home_directory>/.databricks./labs/remorph-transpilers/bladebridge/lib/.venv/lib/python3.10/site-packages/databricks/labs/bladebridge/Converter/Configs`
+
+* In your new configuration file, you need to specify that this files inherits from the supplied configuration. This enables layered rule definitions and promotes reuse and consistency across configurations.
+
+  `inherit_from` is an array pointing to JSON filenames that the current file inherits from. Multiple file inheritances are allowed. If the full path is supplied with a forward slash, then the converter will try to read the file specified with the full path. Otherwise, the converter will look for the file in the same folder as the current JSON file.
+
+  Example:
+
+  ```json
+  "inherit_from":["/Users/user.name/.databricks/labs/remorph-transpilers/bladebridge/lib/.venv/lib/python3.10/site-packages/databricks/labs/bladebridge/Converter/Configs/base_oracle2databricks_sql.json"]
+
+  ```
+
+```text
+    Name of the various files per source you might want to inherit from:
+      - DATASTAGE:
+          - Target SPARKSQL : "base_datastage2databricks_sparksql.json",
+          - Target PYSPARK : "base_datastage2databricks_pyspark.json"
+      - SYNAPSE: "base_synapse2databricks_sql.json"
+      - ORACLE:  "base_oracle2databricks_sql.json"
+      - MSSQL: "base_sqlserver2databricks_sql.json"
+      - NETEZZA: "base_netezza2databricks_sql.json"
+      - TERADATA "base_teradata2databricks_sql.json"
+
+```
+
+### Practical Example: Renaming Tables and Schema Mapping[​](#practical-example-renaming-tables-and-schema-mapping "Direct link to Practical Example: Renaming Tables and Schema Mapping")
+
+For scenarios where you need to rename tables or ensure they follow the UC three-level namespace paradigm, you can configure the converter as follows:
+
+First, we need to add inheritance in our custom configuration file to build on top of the base configuration:
+
+```json
+"inherit_from": [
+  "/Users/user.name/.databricks/labs/remorph-transpilers/bladebridge/lib/.venv/lib/python3.10/site-packages/databricks/labs/bladebridge/Converter/Configs/base_mssql2databricks_sql.json"
+]
+
+```
+
+> 💡 **Tip:** Make sure to provide the correct file path to your local environment.
+
+Next, we should add the `target_sql_file_header` attribute in the custom configuration to define the catalog:
+
+```json
+"target_sql_file_header": "USE CATALOG catalog01;"
+
+```
+
+Finally, we need to add a `line_subst` section for schema replacement, mapping original schemas to new ones:
+
+```json
+"line_subst": [
+  { "from": "\\bschema01\\b\\.", "to": "gold." },
+  { "from": "\\bschema02\\b\\.", "to": "silver." }
+]
+
+```
+
+With this configuration:
+
+* Any reference to `schema01.` will be replaced with `gold.`
+* Any reference to `schema02.` will be replaced with `silver.`
+* The generated SQL files will automatically include a catalog declaration at the top.
+
+### Putting it all together[​](#putting-it-all-together "Direct link to Putting it all together")
+
+1. Create a file: my\_custom\_config.json with the following contents:
+
+```json
+{
+    "inherit_from": [
+      "/Users/user.name/.databricks/labs/remorph-transpilers/bladebridge/lib/.venv/lib/python3.10/site-packages/databricks/labs/bladebridge/Converter/Configs/base_mssql2databricks_sql.json"
+    ],
+    "target_sql_file_header": "USE CATALOG catalog01;",
+    "line_subst": [
+      { "from": "\\bschema01\\b\\.", "to": "gold." },
+      { "from": "\\bschema02\\b\\.", "to": "silver." }
+    ]
+}
+
+```
+
+2. Now you can use this file for transpiling your code as follows:
+
+```text
+databricks labs lakebridge install-transpile
+Do you want to override the existing installation? (default: no): yes
+Specify the config file to override the default[Bladebridge] config - press <enter> for none (default: <none>):
+my_custom_config.json
+
+```
+
+***
+
+## Basic Converter Rules[​](#basic-converter-rules "Direct link to Basic Converter Rules")
+
+When it comes to converting individual SQL code snippets or ETL expressions, BladeBridge uses basic set of rules to capture certain source patterns and produce converted output. The three main types of syntax manipulation rules are:
+
+* line\_subst
+* block\_subst
+* function\_subst
+
+They are executed in the order given above. Within each of these sections, there is an array of rules that get executed based on the order they are listed. Longer and more specific patterns should typically preceed shorter and more generic patterns. E.g.: `"from" : "varchar"` should be listed before `"from" : "char"`, since `varchar` is a longer pattern than `char`.
+
+Sample configuration file snippet:
+
+```json
+{
+  "line_subst": [
+    { "from": "\bvarchar\b", "to": "string" },
+    { "from": "\bSYSDATE\b", "to": "CURRENT_TIMESTAMP()" }
+  ],
+  "block_subst": [
+    { "from": "\bSET\\s+\w+\s+ON\b", "to": "" },
+    { "from": "\bCREATE\s+VIEW\b", "to": "CREATE OR REPLACE VIEW" }
+  ],
+  "function_subst": [
+    { "from": "CONVERT", "output_template": "CAST($2 AS $1)", "num_args": 2 }, // here, $2 and $3 refer to the 2nd and 3rd arguments of the function call `convert`
+    { "from": "ISNULL", "to": "COALESCE" }
+  ]
+}
+
+```
+
+### line\_subst[​](#line_subst "Direct link to line_subst")
+
+Points to an array of substitution instructions to be performed on a single line. When this directive is given, the converter will apply all substitutions for each line. Each element of the array is a structure with the following elements.
+
+| Attribute                   | Purpose                                                                                                                      | Example                                                                              |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| from                        | Specifies the pattern to capture. Use parentheses to capture tokens and substitute them.                                     | "CREATE TABLE\s+(\w+)"<br />In this case (\w+) represents the 1st token              |
+| to                          | Specifies the pattern to replace with. Dollar variables from $1 to $9 are used to replace captured tokens.                   | "CREATE OR REPLACE TABLE $1"<br />Will plug in the table name from the example above |
+| statement\_categories       | Array of statement categories the rule is applicable to. If omitted, the rule applies to all matching patterns.              | \["TABLE\_DDL", "VIEW\_DDL"]                                                         |
+| exact\_match                | If set to "1", performs case-insensitive exact match instead of regex matching.                                              |                                                                                      |
+| first\_match                | If set to "1" and a match occurs, stops checking for subsequent patterns in the line\_subst array.                           |                                                                                      |
+| exclude\_categories         | List of excluded categories. Reverse of `statement_categories`.                                                              |                                                                                      |
+| extension\_call             | Invokes an external routine instead of using the to pattern. Useful for complex logic. See the advanced section for details. |                                                                                      |
+| relative\_fragment\_pattern | Allows the pattern to be searched within specific code fragments supplied by relative\_fragment\_offset.                     | "relative\_fragment\_pattern": "ACTIVITYCOUNT = 0"                                   |
+| relative\_fragment\_offset  | List of fragment offsets to search in when using relative\_fragment\_pattern.                                                | "relative\_fragment\_offset": "1,2"                                                  |
+| upcase\_string              | Upcases the output string                                                                                                    | {"from" : "#(\w+)#", "to" : "${$1}", "upcase\_string" : true}                        |
+
+> **Note:** In the `to` attribute, you can use tokens `$1` to `$9` to refer to regex match groups.
+
+**Example:**
+
+* **Source:** `#my_var# + 10 + p_curr_date_of_month`
+
+* **Rule:**
+
+  ```json
+  {"from": "#(\\w+)#", "to": "${$1}", "upcase_string": true}
+
+
+  ```
+
+* **Result:** `${MY_VAR} + 10 + p_curr_date_of_month`
+
+### block\_subst[​](#block_subst "Direct link to block_subst")
+
+Points to an array of substitution instructions to be performed on a statement block. When this directive is given, the converter will apply all substitutions for each statement block. This instruction is useful when there is a need to restructure a block of code – e.g. move around clauses of a statement, or when there's a high likelihood that a pattern will span multiple lines. Note that a block of code is typically referred to an entire SQL statement, such a DML inside a stored procedure or a view or table definition. Prior to processing a SQL content, converter will split up a multi-statement content into series of blocks and operate on each block of code individually.
+
+> **Note:** while block\_subst rules operate in a very similar manner to line\_subst rules, they are costlier in terms of compute time. For this reason, it is better not to overload the block\_subst section with rules that are simple and typically defined on a single line. E.g.: converting varchar to string should be done in line\_subst, and not in block\_subst.
+
+Each element of the rules array is a structure with the following elements.
+
+| Attribute                   | Purpose                                                                                                                                                           | Example                                                                               |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| from                        | Specifies the pattern to capture. Use parentheses to capture tokens and substitute them.                                                                          | "CREATE TABLE\s+(\w+)"<br />In this case (\w+) represents the 1st token               |
+| to                          | Specifies the pattern to replace with. Dollar variables from $1 to $9 can be used to replace captured tokens.                                                     | "CREATE OR REPLACE TABLE $1"<br />Will plug in the name of the table from the example |
+| statement\_categories       | Array of statement categories the rule is applicable to. If omitted, the rule applies to all matching patterns.                                                   | \["TABLE\_DDL", "VIEW\_DDL"]                                                          |
+| first\_match                | If set to "1" and a match occurs, stops checking for subsequent patterns in the line\_subst array.                                                                |                                                                                       |
+| extension\_call             | Invokes an external custom routine instead of substituting with the target pattern. Useful for complex logic. See the advanced section for more details.          |                                                                                       |
+| force\_alias\_usage         | Enforces usage of aliases in WHERE, SELECT, and JOIN clauses. Ensures references to base objects are replaced with aliases where required by the target database. |                                                                                       |
+| relative\_fragment\_pattern | Searches for the pattern within specific code fragments defined using `relative_fragment_offset`.                                                                 | "relative\_fragment\_pattern": "ACTIVITYCOUNT = 0"                                    |
+| relative\_fragment\_offset  | A list of fragment offsets to search when using `relative_fragment_pattern`.                                                                                      | "relative\_fragment\_offset": "1,2"                                                   |
+| debug\_tag                  | Specifies a debug tag, which will show in the log when running the converter in verbose mode                                                                      | {"from" : "stringA", "to" : "stringB", "debug\_tab" : "RULE001}                       |
+
+**Example:**
+
+* **Source:** `SELECT V_TOTAL = COUNT(*) FROM orders;`
+
+* **Rule:**
+
+  ```json
+  {"from" : "\bSELECT\s+(V_\w+)\s*\=(.*)\;", "to" : "SET $1 = (SELECT $2 limit 1);"}
+
+
+  ```
+
+* **Result:** `SET V_TOTAL = (SELECT COUNT(*) FROM orders limit 1);`
+
+### function\_subst[​](#function_subst "Direct link to function_subst")
+
+Points to an array of instructions responsible for altering function calls. This section is used when function translations are required, and/or function arguments (function signature) have to be altered. Each element of the array is a structure with the following elements.
+
+| Attribute                   | Purpose                                                                                                                                             | Example                      |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
+| from                        | Specifies the name of the function in the source code.                                                                                              | "ISNULL"                     |
+| to                          | Specifies the name of the function to change to. Use this if function name changes but the signature does not (args stay as they are)               | "COALESCE"                   |
+| output\_template            | A template for constructing the output function. Can use `$1`, `$2`, `%ALL_ARGS%`, etc. This should be used when the "to" attribute cannot be used. | "CAST($2 AS $1)"             |
+| statement\_categories       | Array of statement categories the rule is applicable to. If omitted, the rule applies to all matching patterns.                                     | \["SELECT", "UPDATE"]        |
+| placement                   | Placement of the converted clause. Allowed values: `append_inside_ddl`, `append_after_ddl`.                                                         | "append\_inside\_ddl"        |
+| extension\_call             | Invokes an external routine to generate the new function string. Useful for complex cases.                                                          | "custom\_subst\_routine"     |
+| num\_args                   | Only applies the rule when the number of arguments matches.                                                                                         | 2                            |
+| date\_format\_arg           | Specifies the argument position containing a date part keyword (e.g., "MM", "YYYY"). Works with `datepart_translations`.                            | 2                            |
+| arg\_pattern                | Hash where keys are argument positions (1-based) and values are regex patterns they must match.                                                     | { 1: "^\d+$" }               |
+| upcase\_args                | List of argument positions to convert to uppercase.                                                                                                 | \[1, 2]                      |
+| lowcase\_args               | List of argument positions to convert to lowercase.                                                                                                 | \[3]                         |
+| skip\_files                 | List of filenames to skip for this rule. This is the basename, as opposed to the full path                                                          | \["legacy\_job.sql"]         |
+| relative\_fragment\_pattern | Restricts rule application to when this pattern is found in a nearby fragment.                                                                      | "ACTIVITYCOUNT = 0"          |
+| relative\_fragment\_offset  | Comma-separated offsets (relative to the current line) to search for `relative_fragment_pattern`.                                                   | "1,2"                        |
+| arg\_placement              | Hash to remap or reposition arguments; supports fallbacks like `2\|\|default`.<br />NOTE: Use output\_template instead of this                      | { 1: "2", 2: "1\|\|NULL" }   |
+| full\_subst                 | Full substitution template using placeholders like `__ARG1__`, `__ARG2__`. Overrides normal argument logic.                                         | "IFNULL(**ARG1**, **ARG2**)" |
+| arg\_token\_output          | Specifies token positions to output when using token-based splitting.                                                                               | "1,3"                        |
+| split\_string               | Delimiter to split arguments when using `arg_token_output`.                                                                                         | ";"                          |
+| new\_arg\_separator         | Overrides the default `,` separator when joining arguments in the output.                                                                           | "                            |
+| each\_arg\_routine          | A Perl routine to apply to each argument (e.g., transformation, cleaning).                                                                          | "uc"                         |
+| ending                      | A string to append after the function call (e.g., for syntax closure).                                                                              | ";"                          |
+
+**Special Keywords:**
+
+**\_\_BLANK\_\_** - blanks out the entire call including the function name.
+
+Example (removing INDEX clause):
+
+```json
+{"from": "INDEX", "to": "__BLANK__", "statement_categories" : ["TABLE_DDL","TABLE_DDL_LIKE","TABLE_DDL_AS_SELECT"]},
+
+```
+
+> **Note:** In the `output_template` attribute, you can use tokens `$1` to `$9` to refer to regex match groups. These token represent direct arguments to the function call being processed, which could include expressions or other nested function calls.
+
+Example when processing function SUBSTR:
+
+```sql
+SELECT SUBSTR(
+	UPPER( first_name || ' ' last_name ), -- arg $1
+	10, -- arg $2
+	20 -- arg $3
+	)
+
+```
+
+**\_\_ELIMINATE\_CALL\_\_** - gets rid of the function name and surrounding parenthesis, leaving only the arguments in place.
+
+Example (removing TRANSLATE call and leaving args):
+
+```json
+{"from": "TRANSLATE", "to" : "__ELIMINATE_CALL__"}, //get rid of the function call with the parens, but leave the inner part
+
+```
+
+## Extended Converter Rules[​](#extended-converter-rules "Direct link to Extended Converter Rules")
+
+### stmt\_categorization\_patterns[​](#stmt_categorization_patterns "Direct link to stmt_categorization_patterns")
+
+As the converter processes statements, in some cases it needs to be aware of the type of the statement being processed, so he can include/exclude some rules or dispatch the processing to a custom routine.
+
+`stmt_categorization_patterns` is an array of entries that associate a coding pattern to the category.
+
+Example:
+
+```json
+"stmt_categorization_patterns": [
+   {"category": "TABLE_DDL_AS_SELECT", "patterns" : ["CREATE(.*?)TABLE(.*?)AS\s*(.*SELECT", "CREATE(.*?)TABLE(.*?)AS\s*SELECT"]},
+   {"category": "TABLE_DDL_LIKE", "patterns" : ["CREATE(.*?)TABLE(.*?)AS(.*?)WITH\s+NO\s+DATA", "CREATE(.*?)TABLE(.*?)LIKE(.*)"]},
+   {"category": "TABLE_DDL", "patterns" : ["CREATE(.*?)\sTABLE"]},
+   {"category": "TABLE_DROP", "patterns" : ["DROP(.*?)\sTABLE"]},
+   {"category": "VIEW_DDL", "patterns" : ["CREATE(.*?)VIEW", "REPLACE(.*?)VIEW"]}
+]
+
+```
+
+Each category can support multiple patterns. `stmt_categorization_patterns`can be repeated and extended in inherited files.
+
+This tag is currently provided in the base JSON file general\_sql\_specs.json.
+
+### datepart\_translations[​](#datepart_translations "Direct link to datepart_translations")
+
+Contains specifications on how to translate date part formatting specifications. Sample specifications:
+
+```json
+"datepart_translations" : {
+	"YYYY" : "yyyy",
+	"mm" : "MM",
+	"DD" : "dd",
+	"hh24" : "hh",
+	"HH" : "hh",
+	"mi" : "mm",
+	"MI" : "mm",
+	"FF" : "SSSS",
+	"SS" : "ss",
+	"AM" : "a"
+}
+
+```
+
+Note: this is a case sensitive instruction. It will be processed lengthier pattern first (yyyy goes before DD). This section is to be used with the function\_subst modifier “date\_format\_arg”.
+
+## Advanced Conversion Rules[​](#advanced-conversion-rules "Direct link to Advanced Conversion Rules")
+
+Besides operating with prebuilt core functionality, the converter can delegate conversion logic to externally defined subroutines. This is often needed when converting not only SQL dialects, but also wrapper or flow control elements. An example of such requirement would be converting Netezza or Oracle procedures with conditional statements, loops and variables to Snowflake’s Javascript procedures. The language supported by the callback subroutines is basic-level Perl, making it easy to perform string operations and assemble and disassemble the code to be converted. The external subroutines are defined in a file or sets of files outside of the converter and can be registered in the converter configuration file using this instruction:
+
+```json
+"CUSTOM_CONVERTER_MODULES" : ["my_handlers.pl", "globals.pl"]
+
+```
+
+The Callback mechanism uses the instruction “fragment\_handling” in the configuration file, which tells the converter how to dispatch the subroutine calls based on the category of a statement:
+
+```json
+"fragment_handling": {
+  "PROGRAM_DECLARATION": "::create_procedure_from_oracle",
+  "CREATE_PROCEDURE": "::create_procedure_from_oracle",
+  "END_PROCEDURE": "::end_procedure",
+  "COMMENT": "::convert_comment",
+  "VAR_ASSIGNMENT": "::convert_assignment",
+  "EXECUTE_INTO": "::execute_into",
+  "READ_DML_INTO_VAR": "::convert_assignment",
+  "WRITE_DML": "::convert_dml",
+  "UTIL_CALL": "::convert_dml",
+  "TABLE_DDL": "::convert_dml",
+  "DEFAULT_HANDLER": "::oracle_default_statement_handler"
+}
+
+```
+
+The names of the subroutines should be prefixed with two colons. This indicates to the processor that the subroutines live in the main namespace, as opposed to inside classes.
+
+Note that you can extend the section stmt\_categorization\_patterns anywhere in the inherited files to support custom fragment categories.
+
+The sections below list additional directives that are responsible for interacting with callback subs.
+
+### Hook and Extension Configuration[​](#hook-and-extension-configuration "Direct link to Hook and Extension Configuration")
+
+#### `initialize_hooks_call`[​](#initialize_hooks_call "Direct link to initialize_hooks_call")
+
+Calls the designated subroutine and passes two entries: the configuration structure and an instance of the converter class.
+
+```json
+"initialize_hooks_call": "::init_hooks"
+
+```
+
+This will invoke the `init_hooks` subroutine and pass:
+
+```perl
+{
+  CONFIG    => $config_entries_pointer,
+  CONVERTER => $converter_class_instance
+}
+
+```
+
+**Sample implementation:**
+
+```perl
+sub init_hooks {
+  my $param = shift;
+  %CFG = %{$param->{CONFIG}};
+  $CONVERTER = $param->{CONVERTER};
+  print "INIT_HOOKS Called. config:\n" . Dumper(%CFG);
+}
+
+```
+
+***
+
+#### `prescan_and_collect_info_hook`[​](#prescan_and_collect_info_hook "Direct link to prescan_and_collect_info_hook")
+
+Used to pre-scan the input file before executing individual code fragment handling routines. This can be useful for extracting procedure parameters or other metadata from the file.
+
+```json
+"prescan_and_collect_info_hook": "::prescan_code_oracle"
+
+```
+
+**Sample implementation:**
+
+```perl
+sub prescan_code_oracle {
+  my $filename = shift;
+  my $cf = shift;
+  print "******** prescan_code_oracle $filename *********\n";
+  # Open and analyze the file...
+}
+
+```
+
+***
+
+#### Fragment Handling Custom Subroutines[​](#fragment-handling-custom-subroutines "Direct link to Fragment Handling Custom Subroutines")
+
+Each routine defined under the `fragment_handling` directive receives a pointer to an array of code lines relevant to a specific statement category.
+
+**Example:**
+
+For the statement:
+
+```sql
+UPDATE DIM_CUST
+SET CUST_FULL_NAME = FIRSTNAME || ' ' || LASTNAME
+
+```
+
+Assuming it's categorized as `WRITE_DML`, the handler could be:
+
+```perl
+sub convert_dml {
+  my $ar = shift; # pointer to array of code lines
+  my $sql = join("\n", @$ar); # full SQL block
+  # Custom logic here
+}
+
+```
+
+> The SQL Converter comes with working extension samples that can serve as templates for writing your own.
+
+***
+
+#### `pre_finalization_handler`[​](#pre_finalization_handler "Direct link to pre_finalization_handler")
+
+Specifies a subroutine to run **after all fragment-handling routines are complete**.
+
+```json
+"pre_finalization_handler": "::finalize_content"
+
+```
+
+***
+
+#### `post_conversion_adjustment_hook`[​](#post_conversion_adjustment_hook "Direct link to post_conversion_adjustment_hook")
+
+Specifies a subroutine to run **after `pre_finalization_handler` completes**.
+
+```json
+"post_conversion_adjustment_hook": "::post_conversion_adjustment"
+
+```
+
+***
+
+#### `preprocess_file`[​](#preprocess_file "Direct link to preprocess_file")
+
+Enables pre-processing of the input file by triggering the routine defined in `preprocess_routine`.
+
+```json
+"preprocess_file": "1"
+
+```
+
+***
+
+#### `preprocess_routine`[​](#preprocess_routine "Direct link to preprocess_routine")
+
+Specifies the subroutine to be used when `preprocess_file` is enabled.
+
+```json
+"preprocess_routine": "::mssql_preprocess"
+
+```
+
+***
+
+## ETL Configuration Files[​](#etl-configuration-files "Direct link to ETL Configuration Files")
+
+ETL configuration files are typically more complex than plain SQL configuration files due to the nature of what they must control and generate.
+
+These files may contain:
+
+* Instructions for **output code generation**, including support for multiple output languages such as **Spark SQL** or **PySpark**
+
+* Rules for **styling the output**, such as:
+
+  <!-- -->
+
+  * Including or omitting header comments
+  * Replicating the ETL job's original folder or directory structure
+
+* Guidance for handling **external sources and targets**, such as flat files or external tables
+
+* Embedded logic that instructs the converter **how to assemble the generated code**
+
+In addition to these structural and behavioral controls, ETL configuration files often contain **pointers to additional JSON files** that define how to process:
+
+* **ETL expressions** (e.g., transformation functions or variable assignments)
+
+* **Embedded SQL** inside the ETL components, such as:
+
+  <!-- -->
+
+  * SQL within a `SELECT` statement of a source component
+  * `pre-SQL` or `post-SQL` snippets executed before or after data movement
+
+These supporting configuration files closely resemble the structure and purpose of SQL configuration files, but are scoped to **fragment-level transformations**, **function handling**, and **data manipulation tasks** commonly found in visual ETL platforms such as IBM DataStage.
+
+ETL configuration thus serves as the orchestration layer that combines rule-based transformation with output formatting, system integration, and extensibility.
+
+### ETL Configuration Tags[​](#etl-configuration-tags "Direct link to ETL Configuration Tags")
+
+| Attribute                                  | Description                                                                                                                                               | Sample                                                                                                                               |
+| ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| code\_generation\_module                   | Specifies which module to use for code generation.                                                                                                        | "CodeGeneration::SQL" or "CodeGeneration::PySpark"                                                                                   |
+| target\_file\_extension                    | Sets the extension of the generated code file.                                                                                                            | "py"                                                                                                                                 |
+| use\_notebook\_md                          | Indicates whether Databricks notebook markdown should be used.                                                                                            | 1                                                                                                                                    |
+| script\_header                             | Adds a code block at the start of the generated script, often for imports or metadata.                                                                    | # Databricks notebook source\n from datetime import datetime                                                                         |
+| script\_footer                             | Adds a code block at the end of the generated script                                                                                                      | quit()                                                                                                                               |
+| rowid\_expression                          | Specifies the expression used to compute a row ID.                                                                                                        | xxhash64(%DELIMITED\_COLUMN\_LIST%) as %ROWID\_COL\_NAME%                                                                            |
+| rowid\_column\_name                        | Name of the column containing rowid                                                                                                                       | source\_record\_id                                                                                                                   |
+| dataset\_creation\_method                  | Indicates whether datasets are created as CTEs or tables.<br />"TABLE" is typically used for lift and shift, but "CTE" can be used for custom dbt outputs | TABLE or CTE                                                                                                                         |
+| table\_creation\_statement                 | Template for creating a temporary table from a SQL block.                                                                                                 | %TABLE\_NAME% = spark.sql (rf"""%INNER\_SQL%"""%FORMAT\_SPEC%)<br />%TABLE\_NAME%. createOrReplaceTempView("`%TABLE_NAME%`")         |
+| ddl\_statement\_wrap                       | Wraps DDL statements in a Spark SQL invocation.                                                                                                           | spark.sql(f"""%INNER\_SQL%"""%FORMAT\_SPEC%).display()                                                                               |
+| etl\_converter\_config\_file               | Points to a secondary config file for ETL expression conversion.                                                                                          | base\_datastage2databricks\_pyspark.json                                                                                             |
+| commands                                   | section on how to generate various read and write statements for different system types                                                                   |                                                                                                                                      |
+| use\_native\_database\_connections\_source | When `true`, Source components use native JDBC/ODBC connection templates instead of default commands                                                      | true                                                                                                                                 |
+| use\_native\_database\_connections\_lookup | When `true`, Lookup components use native JDBC/ODBC connection templates                                                                                  | true                                                                                                                                 |
+| use\_native\_database\_connections\_target | When `true`, Target components use native JDBC/ODBC connection templates                                                                                  | true                                                                                                                                 |
+| native\_database\_connection\_commands     | Section containing JDBC/ODBC connection templates for different database types (e.g., `READER_ORACLE`, `WRITER_MSSQL`)                                    | See Native Database Connection Support section                                                                                       |
+| system\_type\_class                        | system type classifications                                                                                                                               |                                                                                                                                      |
+| conform\_source\_columns                   | instructs the writer to generate column-conforming statement for sources                                                                                  |                                                                                                                                      |
+| conform\_columns\_call\_template           | template for conforming the column list                                                                                                                   | "%DF%\_conformed\_cols = \[%COLUMN\_LIST%]\n%DF% = DatabricksConversionSupplements. conform\_df\_columns(%DF%,%DF%\_conformed\_cols) |
+| mapplet\_class\_name                       | Class name used for mapplet functions                                                                                                                     | Mapplets                                                                                                                             |
+| mapplet\_function\_name                    | Function name format for mapplets                                                                                                                         | %MAPPLET\_NAME%                                                                                                                      |
+| mapplet\_code\_indent                      | General code indentation for mapplets                                                                                                                     | (8 spaces)                                                                                                                           |
+| mapplet\_pyspark\_code\_indent             | Indentation for multiline SQL inside mapplets                                                                                                             | (4 spaces)                                                                                                                           |
+| mapplet\_header\_template                  | Path to the file containing the header template for the mapplet                                                                                           | python\_mapplet\_header\_template.py                                                                                                 |
+| mapplet\_input\_declaration                | Format string to define the Python function declaration for the mapplet                                                                                   | \n def %MAPPLET\_NAME%(%INPUT%):                                                                                                     |
+| mapplet\_conclusion                        | Code snippet added to conclude the mapplet implementation                                                                                                 | #Implementation %MAPPLET\_NAME% concluded\n\n                                                                                        |
+| mapplet\_object\_var\_inject\_format       | Format for injecting object variable, typically for wrapping dynamic names in code                                                                        | """ + %OBJECT\_NAME% + """                                                                                                           |
+| mapplet\_function\_invocation              | Format used to invoke the mapplet function                                                                                                                | Mapplets.%MAPPLET\_NAME%(%INPUT%)                                                                                                    |
+| mapplet\_instance\_prefixes                | List of instance name prefixes to help identify and generate mapplet connection info                                                                      | \["sc\_"]                                                                                                                            |
+
+### system\_type\_class section[​](#system_type_class-section "Direct link to system_type_class section")
+
+This section represents a mapping of a system type to a class name, which will be later used in the `commands` section
+
+```json
+"system_type_class" : {
+	"ORACLE" : "RELATIONAL",
+	"MySQL" : "RELATIONAL",
+	"HIVE" : "RELATIONAL",
+	"DB2" : "RELATIONAL",
+	"TERADATA" : "RELATIONAL",
+	"REDSHIFT" : "RELATIONAL",
+	"Salesforce" : "SALEFORCE",
+	"TOOLKIT" : "RELATIONAL",
+	"FLATFILE" : "FILE_DELIMITED",
+	"FLAT FILE":"FILE",
+	"FLAT_FILE":"FILE",
+	"FILE WRITER":"FILE",
+	"DEFAULT" : "FILE_DELIMITED"
+}
+
+```
+
+### commands section[​](#commands-section "Direct link to commands section")
+
+This section holds templates on read and write instructions for each system class
+
+```json
+"commands" : {
+	"READER_FILE_DELIMITED": "spark.read.format('csv').option('header', 'true').load(rf'''%PATH%''')",
+	"READER_FILE_DELIMITED_EXTERNAL": "%NODE_NAME%_External = spark.read.format('csv').option('header', 'true').load(%PATH%)",
+	"READER_FILE_FIXED_WIDTH" : "raw_%NODE_NAME% = spark.read.text(f\"%PATH%\")\n%NODE_NAME% = raw_%NODE_NAME%.select(%SUBSTRING_SPEC%)",
+	"READER_RELATIONAL": "%NODE_NAME% = %SQL%\n%NODE_NAME% = spark.sql(%NODE_NAME%)",
+	"WRITER_FILE_DELIMITED": "%DF%.write.format('csv').option('header','%HEADER%').mode('overwrite').option('sep','%DELIMITER%').csv('%PATH%')",
+	"WRITER_RELATIONAL": "my_end_point.write_to_db(%DF%, \"%TABLE_NAME%\", username=\"%LOGIN%\", password=\"%PASSWORD%\")"
+},
+
+```
+
+### Native Database Connection Support[​](#native-database-connection-support "Direct link to Native Database Connection Support")
+
+When converting ETL components that connect to external databases (e.g., Oracle, SQL Server, Redshift, Synapse), you can configure the converter to use native JDBC/ODBC connections instead of Databricks native connectors. This is useful when you need direct database access or when migrating from platforms like DataStage.
+
+#### Configuration Flags[​](#configuration-flags "Direct link to Configuration Flags")
+
+Enable native database connections separately for different component types:
+
+```json
+{
+  "use_native_database_connections_source": true,
+  "use_native_database_connections_lookup": true,
+  "use_native_database_connections_target": true
+}
+
+```
+
+* **`use_native_database_connections_source`**: When `true`, Source components will use native connection templates instead of default commands
+* **`use_native_database_connections_lookup`**: When `true`, Lookup components will use native connection templates
+* **`use_native_database_connections_target`**: When `true`, Target components will use native connection templates
+
+> **Note:** Native connections are only used when the flag is enabled **and** the component's `SYSTEM_TYPE` is not `'DATABRICKS'`. The converter will fall back to the default `commands` section if a native connection template is not found.
+
+#### Native Connection Command Templates[​](#native-connection-command-templates "Direct link to Native Connection Command Templates")
+
+Define connection templates in the `native_database_connection_commands` section. Templates follow the pattern `READER_<SYSTEM_TYPE>` for readers and `WRITER_<SYSTEM_TYPE>` for writers, where `<SYSTEM_TYPE>` matches the component's system type (e.g., `ORACLE`, `MSSQL`, `SYNAPSE`, `REDSHIFT`):
+
+```json
+{
+  "native_database_connection_commands": {
+    "READER_ORACLE": "spark.read \~
+      .format(\"jdbc\") \~
+      .option(\"url\", \"%URL%\") \~
+      .option(\"dbtable\", f\"\"\"(%SQL%) t\"\"\") \~
+      .option(\"user\", \"%USERNAME%\") \~
+      .option(\"password\", \"%PASSWORD%\") \~
+      .option(\"driver\", \"oracle.jdbc.driver.OracleDriver\") \~
+      .load()",
+    "WRITER_ORACLE": "%DF%.write \~
+      .format(\"jdbc\") \~
+      .option(\"url\", \"%URL%\") \~
+      .option(\"dbtable\", \"%TABLE_NAME%\") \~
+      .option(\"user\", \"%USERNAME%\") \~
+      .option(\"password\", \"%PASSWORD%\") \~
+      .option(\"driver\", \"oracle.jdbc.driver.OracleDriver\") \~
+      .mode(\"%WRITE_MODE%\") \~
+      .save()",
+    "READER_MSSQL": "spark.read \~
+      .format(\"jdbc\") \~
+      .option(\"url\", \"jdbc:sqlserver://%HOST%:%PORT%;databaseName=%DATABASE%\") \~
+      .option(\"dbtable\", f\"\"\"(%SQL%) t\"\"\") \~
+      .option(\"user\", \"%USERNAME%\") \~
+      .option(\"password\", \"%PASSWORD%\") \~
+      .option(\"driver\", \"com.microsoft.sqlserver.jdbc.SQLServerDriver\") \~
+      .load()",
+    "WRITER_MSSQL": "%DF%.write \~
+      .format(\"jdbc\") \~
+      .option(\"url\", \"jdbc:sqlserver://%HOST%:%PORT%;databaseName=%DATABASE%\") \~
+      .option(\"dbtable\", \"%TABLE_NAME%\") \~
+      .option(\"user\", \"%USERNAME%\") \~
+      .option(\"password\", \"%PASSWORD%\") \~
+      .option(\"driver\", \"com.microsoft.sqlserver.jdbc.SQLServerDriver\") \~
+      .mode(\"%WRITE_MODE%\") \~
+      .save()"
+  }
+}
+
+```
+
+#### Available Template Tokens[​](#available-template-tokens "Direct link to Available Template Tokens")
+
+Native connection templates support the following substitution tokens:
+
+* `%URL%` - JDBC connection URL (e.g., `jdbc:oracle:thin:@//host:port/service`)
+* `%HOST%` - Database hostname
+* `%PORT%` - Database port number
+* `%DATABASE%` - Database name
+* `%SERVICE_NAME%` - Oracle service name
+* `%SQL%` - SQL query for readers (SELECT statement)
+* `%TABLE_NAME%` - Target table name for writers
+* `%USERNAME%` - Database username
+* `%PASSWORD%` - Database password
+* `%WRITE_MODE%` - Write mode for targets (e.g., `overwrite`, `append`, `ignore`)
+* `%DF%` - DataFrame variable name
+
+### Substitution Tokens[​](#substitution-tokens "Direct link to Substitution Tokens")
+
+Templates above use the following placeholders that get substituted at conversion time:
+
+* `%DF%` - name of the dataframe
+* `%SQL%` - SQL content, such as the SELECT statement
+* `%PATH%` - Path of the file being processed
+* `%SUBSTRING_SPEC%` - Specifications generated by converter on splitting up a positional string into columns
+* `%HEADER%` - Header specification
+* `%LOGIN%` - System login
+* `%PASSWORD%` - System login
+
+### Mapplet, Joblet and Shared Containers Handling[​](#mapplet-joblet-and-shared-containers-handling "Direct link to Mapplet, Joblet and Shared Containers Handling")
+
+In ETL systems, it is common to encapsulate reusable logic into modular components such as maplets, joblets, or shared containers. To preserve this reusability during conversion, the converter attempts to replicate the structure and behavior of these components in the generated code.
+
+Configuration tags prefixed with mapplet define how this reusable logic should be represented and rendered in the output.
+
+The converter will generate a single class—specified by the JSON tag mapplet\_class\_name—in which all reusable code will be consolidated. This class serves as the container for all maplet-level function definitions and logic.

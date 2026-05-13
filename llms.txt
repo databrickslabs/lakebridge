@@ -1,0 +1,55 @@
+# Lakebridge Documentation
+
+> Simplified Data Migration Toolkit to ease Migration to Databricks
+
+
+## Assessment Guide
+
+> Profiler and Analyzer tools for assessment
+
+- [Assessment Guide](/lakebridge/docs/assessment.md): Table of Contents
+- [Analyzer Guide](/lakebridge/docs/assessment/analyzer.md): Analyzer Insights
+- [Complexity Scoring](/lakebridge/docs/assessment/analyzer/complexity_scoring.md): Overview
+- [Exporting Legacy Metadata](/lakebridge/docs/assessment/analyzer/export_metadata.md): Analyzer expects all the legacy code to be exported into a folder accessible by it.For SQL code exporting, most times a database export can be used to export object definitions (tables, views procedures, functions etc...) in bulk.  Ideally, each SQL file should contain a single artifact.
+- [Profiler Guide](/lakebridge/docs/assessment/profiler.md): The Profiler is currently an Experimental feature in Lakebridge. For any feedback and/or issues, feel free to reach out
+- [Profiler Summary Dashboard](/lakebridge/docs/assessment/profiler/dashboards.md): The Profiler Summary Dashboard is currently an Experimental feature in Lakebridge. For any feedback and/or issues,
+- [MSSQL Profiler Details](/lakebridge/docs/assessment/profiler/mssql.md): - Prerequisites
+- [Synapse Profiler Details](/lakebridge/docs/assessment/profiler/synapse.md): - Prerequisites
+
+## Transpile Guide
+
+> Transpilation tools and source system guides
+
+- [Transpile Guide](/lakebridge/docs/transpile.md): Lakebridge comes with three transpilation plugins: Morpheus, BladeBridge, and Switch. Not sure which to use? See Which Tool Do I Use?.
+- [Pluggable Transpilers](/lakebridge/docs/transpile/pluggable_transpilers.md): Lakebridge pluggable transpilers
+- [BladeBridge](/lakebridge/docs/transpile/pluggable_transpilers/bladebridge.md): BladeBridge is a code conversion engine designed to modernize ETL and SQL workloads into Databricks-native formats.
+- [Extending BladeBridge Configurations](/lakebridge/docs/transpile/pluggable_transpilers/bladebridge/bladebridge_configuration.md): Configuration Overview
+- [Morpheus](/lakebridge/docs/transpile/pluggable_transpilers/morpheus.md): Morpheus is Lakebridge's AST-based SQL transpiler. It provides strong correctness guarantees: a file that Morpheus transpiles without any errors or warnings is guaranteed to produce equivalent results on Databricks as the original file did on the source platform.
+- [Switch](/lakebridge/docs/transpile/pluggable_transpilers/switch.md): The Switch LLM Converter is currently an Experimental feature in Lakebridge. For any feedback and/or issues, feel free to reach out
+- [Switch Architecture](/lakebridge/docs/transpile/pluggable_transpilers/switch/architecture.md): This page describes the internal architecture of Switch — how it executes as a Databricks Job and the processing pipeline it runs. This is useful for advanced users, contributors, and anyone debugging conversion failures.
+- [Customizing Switch](/lakebridge/docs/transpile/pluggable_transpilers/switch/customizing_switch.md): Customizable Prompts
+- [Source Systems Conversion Guides](/lakebridge/docs/transpile/source_systems.md): In this section we'll have source-specific conversion documentation. Select your source system below to see detailed conversion guides, supported components and potential gaps to watch out for.
+- [IBM DataStage to Databricks](/lakebridge/docs/transpile/source_systems/datastage.md): Conversion Information
+- [Amazon Redshift to Databricks](/lakebridge/docs/transpile/source_systems/redshift.md): Conversion information
+- [Microsoft SSIS to Databricks](/lakebridge/docs/transpile/source_systems/ssis.md): Conversion Information
+- [SSIS Conversion Examples](/lakebridge/docs/transpile/source_systems/ssis/examples.md): Before/after examples showing how SSIS constructs are converted to Databricks. For the component support matrix, see SSIS Supported Components.
+- [SSIS Supported Components](/lakebridge/docs/transpile/source_systems/ssis/supported_components.md): This page lists all SSIS components and their Databricks equivalents. For usage and conversion examples, see SSIS Conversion Examples.
+
+## Reconcile Guide
+
+> Data reconciliation and validation
+
+- [Reconcile Guide](/lakebridge/docs/reconcile.md): Lakebridge Reconcile validates data fidelity after migration by comparing your source system against the Databricks target. It identifies discrepancies at the row, column, and schema level.
+- [Reconcile Configuration Reference](/lakebridge/docs/reconcile/configuration.md): This page covers the full configuration schema for Lakebridge Reconcile. For setup steps and prerequisites, see the Reconcile Guide.
+- [DataFlow Example](/lakebridge/docs/reconcile/dataflow_example.md): data
+- [Running Reconcile](/lakebridge/docs/reconcile/running.md): This page covers how to run Lakebridge Reconcile via the CLI and via Databricks notebooks. For configuration options, see Configuration Reference.
+
+## Lakebridge
+
+- [Lakebridge - Fast, predictable migrations to Databricks](/lakebridge/index.md)
+- [Which Tool Should I Use?](/lakebridge/docs/choosing_tools.md): Lakebridge provides multiple tools for assessment and transpilation. Use this guide to choose the right one for your migration.
+- [FAQs](/lakebridge/docs/faq.md): General
+- [Getting Started with Lakebridge](/lakebridge/docs/getting_started.md): This guide walks you through a complete end-to-end migration using SQL Server as the source and Databricks SQL as the target. You will assess your SQL code, transpile it, and validate the output — in about 15 minutes.
+- [Installation](/lakebridge/docs/installation.md): Prerequisites
+- [Overview](/lakebridge/docs/overview.md): Overview
+- [SQL Splitter](/lakebridge/docs/sql_splitter.md): Overview

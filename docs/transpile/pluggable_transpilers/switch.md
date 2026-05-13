@@ -1,0 +1,334 @@
+# Switch
+
+Attention:
+
+The Switch LLM Converter is currently an Experimental feature in Lakebridge. For any feedback and/or issues, feel free to reach out via Github issues.
+
+**Switch** is a Lakebridge transpiler plugin that uses Large Language Models (LLMs) to convert SQL and other source formats into Databricks notebooks or generic files. Switch leverages [Mosaic AI Model Serving](https://docs.databricks.com/aws/en/machine-learning/model-serving/) to understand code intent and semantics, generating equivalent Python notebooks with Spark SQL or other target formats.
+
+This LLM-powered approach excels at converting complex SQL code and business logic where context and intent matter more than syntactic transformation. While generated notebooks may require manual adjustments, they provide a valuable foundation for Databricks migration.
+
+Switch can also convert ETL workloads into Spark Declarative Pipelines, supporting both Python and SQL. Refer to the sections below for usage instructions.
+
+***
+
+## How Switch Works[​](#how-switch-works "Direct link to How Switch Works")
+
+Switch operates through three key components that distinguish it from rule-based transpilers:
+
+### 1. LLM-Powered Semantic Understanding[​](#1-llm-powered-semantic-understanding "Direct link to 1. LLM-Powered Semantic Understanding")
+
+Instead of parsing rules, Switch uses [Mosaic AI Model Serving](https://docs.databricks.com/aws/en/machine-learning/model-serving/) to:
+
+* Interpret code intent and business context beyond syntax
+* Handle SQL dialects, programming languages, and workflow definitions
+* Support complex logic patterns and proprietary extensions
+* Enable extensible conversion through custom YAML prompts
+
+### 2. Native Databricks Integration[​](#2-native-databricks-integration "Direct link to 2. Native Databricks Integration")
+
+Switch runs entirely within the Databricks workspace. You can find details about this architecture [here](/lakebridge/docs/transpile/pluggable_transpilers/switch/architecture.md)
+
+* **Jobs API**: Executes as scalable Databricks Jobs for batch processing
+* **Model Serving**: Direct integration with Databricks LLM endpoints, with concurrent processing for multiple files
+* **Delta Tables**: Tracks conversion progress and results
+* **Pipelines API**: Creates and Executes Spark Declarative Pipeline for pipeline conversion.
+
+### 3. Flexible Output Formats[​](#3-flexible-output-formats "Direct link to 3. Flexible Output Formats")
+
+* **Notebooks**: Python notebooks containing Spark SQL (primary output)
+* **Generic Files**: YAML workflows, JSON configurations, and other text formats
+* **Experimental**: Additional SQL notebook output converted from generated Python notebooks
+
+***
+
+## Requirements[​](#requirements "Direct link to Requirements")
+
+Before installing Switch, ensure your Databricks environment meets the following requirements:
+
+### Workspace Resources[​](#workspace-resources "Direct link to Workspace Resources")
+
+* **Serverless job compute** (used by default for Switch job execution)
+  <!-- -->
+  * If unavailable: Manually configure the Switch job to use classic job compute with DBR 14.3 LTS or higher
+* **Foundation Model API** enabled
+
+### Unity Catalog Resources[​](#unity-catalog-resources "Direct link to Unity Catalog Resources")
+
+Switch requires a Databricks catalog, schema, and volume:
+
+* **Catalog and Schema**: Store Delta tables for state management and conversion results
+  <!-- -->
+  * Defaults: catalog - lakebridge, schema - switch
+* **Volume**: Store uploaded input source files
+  <!-- -->
+  * Default: switch\_volume
+
+**Required permissions:**
+
+* **If using existing resources**: `USE CATALOG`, `USE SCHEMA`, `CREATE TABLE`, `READ VOLUME`, `WRITE VOLUME`
+* **If creating new resources**: Catalog/schema/volume creation permissions (Switch will prompt to create them when running `llm-transpile`)
+
+***
+
+## Source Format Support[​](#source-format-support "Direct link to Source Format Support")
+
+Switch uses LLMs to convert arbitrary source formats through custom prompts, with built-in prompts for SQL dialects, programming languages, and workflow systems.
+
+### Built-in Prompts: SQL Dialects[​](#built-in-prompts-sql-dialects "Direct link to Built-in Prompts: SQL Dialects")
+
+Convert SQL from various dialects to Databricks Python notebooks.
+
+| Source Technology | Source Systems                                                                                            |
+| ----------------- | --------------------------------------------------------------------------------------------------------- |
+| `mssql`           | Microsoft SQL Server, Azure SQL Database, Azure SQL Managed Instance, Amazon RDS for SQL Server           |
+| `mysql`           | MySQL, MariaDB, and MySQL-compatible services (including Amazon Aurora MySQL, RDS, Google Cloud SQL)      |
+| `netezza`         | IBM Netezza                                                                                               |
+| `oracle`          | Oracle Database, Oracle Exadata, and Oracle-compatible services (including Amazon RDS)                    |
+| `postgresql`      | PostgreSQL and PostgreSQL-compatible services (including Amazon Aurora PostgreSQL, RDS, Google Cloud SQL) |
+| `redshift`        | Amazon Redshift                                                                                           |
+| `snowflake`       | Snowflake                                                                                                 |
+| `synapse`         | Azure Synapse Analytics (dedicated SQL pools)                                                             |
+| `teradata`        | Teradata                                                                                                  |
+
+### Built-in Prompts: Non-SQL Sources[​](#built-in-prompts-non-sql-sources "Direct link to Built-in Prompts: Non-SQL Sources")
+
+Convert non-SQL files to notebooks or other formats.
+
+| Source Technology | Source → Target                                                                                          |
+| ----------------- | -------------------------------------------------------------------------------------------------------- |
+| `python`          | Python Script → Databricks Python Notebook                                                               |
+| `scala`           | Scala Code → Databricks Python Notebook                                                                  |
+| `airflow`         | Airflow DAG → Databricks Jobs YAML + Operator conversion guidance (SQL→sql\_task, Python→notebook, etc.) |
+
+### Built-in Prompts: ETL Sources[​](#built-in-prompts-etl-sources "Direct link to Built-in Prompts: ETL Sources")
+
+Convert ETL workloads to Spark Declarative Pipeline (SDP) in Python or SQL.
+
+| Source Technology | Source → Target                                                                                                                                                  |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pyspark`         | PySpark ETL → Databricks Notebook in Python or SQL for SDP                                                                                                       |
+| `unknown_etl`     | If the source type is not supported as a built-in option, Switch will use the LLM's prior knowledge to identify the source technology and perform the conversion |
+
+### Custom Prompts: Any Source Format[​](#custom-prompts-any-source-format "Direct link to Custom Prompts: Any Source Format")
+
+Switch's LLM-based architecture supports additional conversion types through custom YAML conversion prompts, making it extensible beyond built-in options.
+
+For custom prompt creation, see the [Customizable Prompts](/lakebridge/docs/transpile/pluggable_transpilers/switch/customizing_switch.md#customizable-prompts) section.
+
+***
+
+## Installation[​](#installation "Direct link to Installation")
+
+Install Switch using the `install-transpile` command with the `--include-llm-transpiler` option:
+
+```bash
+databricks labs lakebridge install-transpile --include-llm-transpiler true --profile profile_name
+
+```
+
+The installation automatically:
+
+1. **Uploads Notebooks**: Switch processing notebooks to workspace
+2. **Creates Databricks Job**: Configured job in your workspace for running conversions
+
+***
+
+## Usage[​](#usage "Direct link to Usage")
+
+Use the `llm-transpile` command to run Switch conversions. The command takes local file paths as input and automatically uploads them to Unity Catalog Volumes before processing:
+
+```bash
+databricks labs lakebridge llm-transpile \
+  --input-source /local/path/to/input \
+  --output-ws-folder /Workspace/path/to/output \
+  --source-dialect mysql \
+  --accept-terms true \
+  [--catalog-name your_catalog] \
+  [--schema-name your_schema] \
+  [--volume your_volume] \
+  [--foundation-model your_foundation_model] \
+  [--profile profile_name]
+
+```
+
+When executing the above command, the response will look like this:
+
+```console
+INFO [d.l.l.transpiler.switch_runner] Uploading /local/path/to/input to your_volume
+INFO [d.l.l.transpiler.switch_runner] Upload complete: your_volume/input-xyz
+INFO [d.l.l.transpiler.switch_runner] Triggering Switch job with job_id: <switch_job_id>
+INFO [d.l.l.transpiler.switch_runner] Switch LLM transpilation job started: https://workspace.databricks.com/jobs/switch_job_id/runs/run_id
+
+```
+
+### Operational Notes[​](#operational-notes "Direct link to Operational Notes")
+
+Switch operates differently from other Lakebridge transpilers:
+
+* **Local Input Paths**: Input files are read from your local filesystem and automatically uploaded to Unity Catalog Volumes
+* **Workspace Output Paths**: Output is written to Databricks Workspace paths specified in the `--output-ws-folder` param (e.g., `/Workspace/path/to/...`)
+* **Jobs API Execution**: Switch runs as a Databricks Job in your workspace, not as a local process
+* **Asynchronous by Default**: The command returns immediately with a job URL, allowing you to monitor progress in the Databricks workspace
+* **Monitoring**: Use the returned job URL to track conversion progress and view logs
+
+***
+
+## Configuration[​](#configuration "Direct link to Configuration")
+
+Switch provides flexible configuration through two tiers: command-line parameters for each execution and Switch configuration file for customizing conversion behavior.
+
+### Command-Line Parameters[​](#command-line-parameters "Direct link to Command-Line Parameters")
+
+The `llm-transpile` command accepts the following parameters:
+
+| Parameter            | Specification                                 | Description                                                                                                           | Example                                          |
+| -------------------- | --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| `--input-source`     | Required                                      | Local file system path containing files to convert (automatically uploaded to Volume)                                 | `/local/path/to/input`                           |
+| `--output-ws-folder` | Required                                      | Databricks workspace path for generated outputs (must start with `/Workspace/`)                                       | `/Workspace/path/to/output`                      |
+| `--source-dialect`   | Required                                      | Source technology/dialect to convert from (see [Source Format Support](#source-format-support) for available options) | `snowflake`, `oracle`, `python`, `airflow`, etc. |
+| `--accept-terms`     | Required                                      | Whether to accept the terms for using LLM-based transpilation (`true\|false`)                                         | `true`                                           |
+| `--catalog-name`     | Optional (prompted, default: `lakebridge`)    | Unity Catalog for Switch Delta tables and Volume                                                                      | `your_catalog`                                   |
+| `--schema-name`      | Optional (prompted, default: `switch`)        | Schema within the catalog for Switch Delta tables and Volume                                                          | `your_schema`                                    |
+| `--volume`           | Optional (prompted, default: `switch_volume`) | Unity Catalog Volume for uploaded input source files                                                                  | `your_volume`                                    |
+| `--foundation-model` | Optional (prompted from available FM APIs)    | Model serving endpoint name for conversions                                                                           | `databricks-claude-sonnet-4-5`                   |
+
+### Switch Configuration File[​](#switch-configuration-file "Direct link to Switch Configuration File")
+
+Additional conversion parameters are managed in the Switch configuration file. You can edit this file directly in your workspace to customize Switch's conversion behavior.
+
+**File location:** `/Workspace/Users/{user}/.lakebridge/switch/resources/switch_config.yml`
+
+| Parameter                | Description                                                                                                                                                                                                                                                                                                                                                                                     | Default Value | Available Options                                                                                  |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- | -------------------------------------------------------------------------------------------------- |
+| `target_type`            | Output format type. `notebook` for Python notebooks with validation and error fixing, `file` for generic file formats, `sdp` for conversion from etl workloads to Spark Declarative Pipeline (SDP). See [Conversion Flow Overview](/lakebridge/docs/transpile/pluggable_transpilers/switch/architecture.md#overview) for processing differences.                                                | `notebook`    | `notebook`, `file`, `sdp`                                                                          |
+| `source_format`          | Source file format type. `sql` performs SQL comment removal and whitespace compression preprocessing before conversion. `generic` processes files as-is without preprocessing. Preprocessing affects token counting and conversion quality. See [analyze\_input\_files](/lakebridge/docs/transpile/pluggable_transpilers/switch/architecture.md#analyze_input_files) for preprocessing details. | `sql`         | `sql`, `generic`                                                                                   |
+| `comment_lang`           | Language for generated comments.                                                                                                                                                                                                                                                                                                                                                                | `English`     | `English`, `Japanese`, `Chinese`, `French`, `German`, `Italian`, `Korean`, `Portuguese`, `Spanish` |
+| `log_level`              | Logging verbosity level.                                                                                                                                                                                                                                                                                                                                                                        | `INFO`        | `DEBUG`, `INFO`, `WARNING`, `ERROR`                                                                |
+| `token_count_threshold`  | Maximum tokens per file for processing. Files exceeding this limit are automatically excluded from conversion. Adjust based on your model's context window and conversion complexity. See [Token Management](/lakebridge/docs/transpile/pluggable_transpilers/switch/customizing_switch.md#token-management) for detailed configuration guidelines and file splitting strategies.               | `20000`       | Any positive integer                                                                               |
+| `concurrency`            | Number of parallel LLM requests for processing multiple files simultaneously. Higher values improve throughput but may hit rate limits. Default is optimized for Claude models. See [Performance Optimization](/lakebridge/docs/transpile/pluggable_transpilers/switch/customizing_switch.md#performance-optimization) for scaling guidance and model-specific considerations.                  | `4`           | Any positive integer                                                                               |
+| `max_fix_attempts`       | Maximum number of automatic syntax error correction attempts per file. Each attempt sends error context back to the LLM for fixing. Set to 0 to skip automatic fixes. See [fix\_syntax\_with\_llm](/lakebridge/docs/transpile/pluggable_transpilers/switch/architecture.md#fix_syntax_with_llm) for details on the error correction process.                                                    | `1`           | 0 or any positive integer                                                                          |
+| `conversion_prompt_yaml` | Custom conversion prompt YAML file path. When specified, overrides the built-in prompt for the selected `--source-dialect`, enabling support for additional source formats or specialized conversion requirements. See [Customizable Prompts](/lakebridge/docs/transpile/pluggable_transpilers/switch/customizing_switch.md#customizable-prompts) for YAML structure and creation guide.        | `null`        | Full workspace path to YAML file                                                                   |
+| `output_extension`       | File extension for output files when `target_type=file`. Required for non-notebook output formats like YAML workflows or JSON configurations. See [File Conversion Flow](/lakebridge/docs/transpile/pluggable_transpilers/switch/architecture.md#file-conversion-flow) for usage examples.                                                                                                      | `null`        | Any extension (e.g., `.yml`, `.json`)                                                              |
+| `sql_output_dir`         | (Experimental) When specified, triggers additional conversion of Python notebooks to SQL notebook format. This optional post-processing step may lose some Python-specific logic. See [convert\_notebook\_to\_sql](/lakebridge/docs/transpile/pluggable_transpilers/switch/architecture.md#convert_notebook_to_sql-optional) for details on the SQL conversion process.                         | `null`        | Full workspace path                                                                                |
+| `request_params`         | Additional request parameters passed to the model serving endpoint. Use for advanced configurations like extended thinking mode or custom token limits. See [LLM Configuration](/lakebridge/docs/transpile/pluggable_transpilers/switch/customizing_switch.md#llm-configuration) for configuration examples including Claude's extended thinking mode.                                          | `null`        | JSON format string (e.g., `{"max_tokens": 64000}`)                                                 |
+| `sdp_language`           | Control the language of converted SDP code, can only be "python" or "sql".                                                                                                                                                                                                                                                                                                                      | `python`      | `python`, `sql`                                                                                    |
+
+***
+
+## Usage Examples[​](#usage-examples "Direct link to Usage Examples")
+
+### Example 1: SQL conversion using built-in prompt[​](#example-1-sql-conversion-using-built-in-prompt "Direct link to Example 1: SQL conversion using built-in prompt")
+
+Convert Snowflake SQL to Databricks Python notebooks using the built-in Snowflake conversion prompt. Catalog, schema, volume, and foundation model will be prompted interactively:
+
+```bash
+databricks labs lakebridge llm-transpile \
+  --input-source /local/path/to/input \
+  --output-ws-folder /Workspace/path/to/output \
+  --source-dialect snowflake \
+  --profile profile_name \
+  --accept-terms true
+
+```
+
+### Example 2: SQL conversion using custom prompt[​](#example-2-sql-conversion-using-custom-prompt "Direct link to Example 2: SQL conversion using custom prompt")
+
+Convert SQL using a custom conversion prompt YAML file:
+
+First, edit `switch_config.yml` to specify your custom prompt (leave other parameters unchanged):
+
+```yaml
+conversion_prompt_yaml: "/Workspace/path/to/my_custom_prompt.yml"
+
+```
+
+Then run (note: when using a custom prompt, `--source-dialect` can be any value since the custom prompt takes precedence):
+
+```bash
+databricks labs lakebridge llm-transpile \
+  --input-source /local/path/to/input \
+  --output-ws-folder /Workspace/path/to/output \
+  --source-dialect oracle \
+  --profile profile_name \
+  --accept-terms true
+
+```
+
+### Example 3: Python script to Databricks notebook[​](#example-3-python-script-to-databricks-notebook "Direct link to Example 3: Python script to Databricks notebook")
+
+Convert Python scripts to Databricks Python notebooks:
+
+First, edit `switch_config.yml` to set `source_format: "generic"` (leave other parameters unchanged):
+
+```yaml
+source_format: "generic"
+
+```
+
+Then run:
+
+```bash
+databricks labs lakebridge llm-transpile \
+  --input-source /local/path/to/input \
+  --output-ws-folder /Workspace/path/to/output \
+  --source-dialect python \
+  --profile profile_name \
+  --accept-terms true
+
+```
+
+### Example 4: Airflow DAG to Databricks Jobs YAML[​](#example-4-airflow-dag-to-databricks-jobs-yaml "Direct link to Example 4: Airflow DAG to Databricks Jobs YAML")
+
+Convert Airflow DAGs to Databricks Jobs YAML definitions:
+
+First, edit `switch_config.yml` (leave other parameters unchanged):
+
+```yaml
+source_format: "generic"
+target_type: "file"
+output_extension: ".yml"
+
+```
+
+Then run:
+
+```bash
+databricks labs lakebridge llm-transpile \
+  --input-source /local/path/to/input \
+  --output-ws-folder /Workspace/path/to/output \
+  --source-dialect airflow \
+  --profile profile_name \
+  --accept-terms true
+
+```
+
+### Example 5: PySpark ETL to Databricks SDP in SQL[​](#example-5-pyspark-etl-to-databricks-sdp-in-sql "Direct link to Example 5: PySpark ETL to Databricks SDP in SQL")
+
+Convert PySpark ETL workload to Databricks Spark Declarative Pipeline in SQL:
+
+First, edit `switch_config.yml` (leave other parameters unchanged):
+
+```yaml
+target_type: "sdp"
+sdp_language: "sql"
+
+```
+
+Then run:
+
+```bash
+databricks labs lakebridge llm-transpile \
+  --input-source /local/path/to/input \
+  --output-ws-folder /Workspace/path/to/output \
+  --source-dialect pyspark \
+  --profile profile_name \
+  --accept-terms true
+
+```
+
+***
+
+## Internal Architecture[​](#internal-architecture "Direct link to Internal Architecture")
+
+Switch runs as a Databricks Job using a multi-stage processing pipeline. For details on how the pipeline works internally (orchestration notebooks, processing steps, validation logic), see [Switch Architecture](/lakebridge/docs/transpile/pluggable_transpilers/switch/architecture.md).
