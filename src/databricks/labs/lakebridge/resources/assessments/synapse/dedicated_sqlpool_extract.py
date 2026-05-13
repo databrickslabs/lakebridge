@@ -130,7 +130,7 @@ def execute():
             )
 
             table_name = "dedicated_sessions"
-            prev_max_login_time = get_max_column_value_duckdb("login_time", table_name, db_path)
+            prev_max_login_time = get_max_column_vfix alue_duckdb("login_time", table_name, db_path)
             session_query = SynapseQueries.list_dedicated_sessions(
                 pool_name=sqlpool_name, last_login_time=prev_max_login_time
             )
@@ -140,7 +140,7 @@ def execute():
 
             table_name = "dedicated_session_requests"
             prev_max_end_time = get_max_column_value_duckdb("end_time", table_name, db_path)
-            session_request_query = SynapseQueries.list_dedicated_requests(prev_max_end_time)
+            session_request_query = SynapseQueries.list_dedicated_requests(sqlpool_name, prev_max_end_time)
 
             session_request_result = connection.fetch(session_request_query)
             save_resultset_to_db(session_request_result, table_name, db_path, mode="append")
