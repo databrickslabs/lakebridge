@@ -80,6 +80,7 @@ def _create_connector(db_type: str, config: JsonObject) -> DatabaseConnector:
         "mssql": MSSQLConnector,
         "tsql": MSSQLConnector,
         "synapse": MSSQLConnector,  # Synapse uses MSSQL protocol
+        "legacy sql dw": MSSQLConnector,
     }
 
     connector_class = connectors.get(db_type.lower())

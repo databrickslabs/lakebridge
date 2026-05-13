@@ -72,6 +72,44 @@ class AssessmentConfigurator(ABC):
         logger.info(f"{source.capitalize()} Assessment Configuration Completed")
 
 
+# TODO: should we just reuse sql server profiler?
+class ConfigureLegacySqlDwAssessment(AssessmentConfigurator):
+    """Legacy SQL DW specific assessment configuration."""
+
+    def _configure_credentials(self) -> str:
+        cred_file = self._credential_file
+        source = self._source_name
+
+        logger.info(
+            "\n(local | env) \nlocal means values are read as plain text \nenv means values are read "
+            "from environment variables fall back to plain text if not variable is not found\n",
+        )
+        secret_vault_type = str(self.prompts.choice("Enter secret vault type (local | env)", ["local", "env"])).lower()
+        secret_vault_name = None
+
+        credential = {
+            "secret_vault_type": secret_vault_type,
+            "secret_vault_name": secret_vault_name,
+            source: {
+                "auth_type": "sql_authentication",
+                "fetch_size": 1000,
+                "login_timeout": 30,
+                "server": self.prompts.question("Enter the fully-qualified server name"),
+                "port": int(self.prompts.question("Enter the port details", valid_number=True)),
+                "user": self.prompts.question("Enter the SQL username"),
+                "password": self.prompts.password("Enter the SQL password"),
+                "tz_info": "UTC",
+                "driver": self.prompts.question(
+                    "Enter the ODBC driver installed locally", default="ODBC Driver 18 for SQL Server"
+                ),
+            },
+        }
+
+        _save_to_disk(credential, cred_file)
+        logger.info(f"Credential template created for {source}.")
+        return source
+
+
 class ConfigureSqlServerAssessment(AssessmentConfigurator):
     """SQL Server specific assessment configuration."""
 
@@ -188,9 +226,10 @@ def create_assessment_configurator(
     configurators = {
         "mssql": ConfigureSqlServerAssessment,
         "synapse": ConfigureSynapseAssessment,
+        "legacy sql dw": ConfigureLegacySqlDwAssessment,
     }
 
     if source_system not in configurators:
         raise ValueError(f"Unsupported source system: {source_system}")
 
-    return configurators[source_system](product_name, prompts, source_system, credential_file)
+    return configurators[source_system](product_name, prompts, source_system, credential_file)  # type: ignore[abstract]

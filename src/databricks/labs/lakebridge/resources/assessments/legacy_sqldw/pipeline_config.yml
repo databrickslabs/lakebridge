@@ -1,0 +1,52 @@
+name: legacy_sqldw_assessment
+version: "1.0"
+extract_folder: "/tmp/data/legacy_sqldw_assessment"
+steps:
+  - name: columns
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/legacy_sqldw/columns.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: routines
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/legacy_sqldw/routines.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: tables
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/legacy_sqldw/tables.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: views
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/legacy_sqldw/views.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: sessions
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/legacy_sqldw/sessions.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: requests
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/legacy_sqldw/requests.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: storage_info
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/legacy_sqldw/storage_info.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: databases
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/legacy_sqldw/databases.sql
+    mode: overwrite
+    frequency: once
+    flag: active
