@@ -36,7 +36,7 @@ const Hero = () => {
         />
         <Button
           variant="primary"
-          link="docs/transpile/overview"
+          link="docs/transpile/"
           size="large"
           label="Learn more"
           className="bg-[#1b3139] text-white rounded-none border-0 px-6 py-2 font-medium text-base leading-6"

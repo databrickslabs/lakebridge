@@ -28,7 +28,7 @@ def test_read_data_with_options():
     ords.read_data("ORCL", "data", "employee", "select 1 from :tbl", opts)
 
     # reader assertions — verify the query passed to remote_query reader
-    reader.read_data.assert_called_once_with("select 1 from data.employee", "ORCL", "service_name", "dbtable", opts)
+    reader.read_data.assert_called_once_with("select 1 from data.employee", "ORCL", "service_name", "query", opts)
 
 
 def test_read_data_exception_handling():

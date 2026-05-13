@@ -7,7 +7,6 @@ from dataclasses import asdict
 from pyspark.sql import SparkSession
 from databricks.connect import DatabricksSession
 from databricks.labs.blueprint.installation import Installation
-from databricks.sdk import WorkspaceClient
 
 from databricks.labs.lakebridge.config import ReconcileConfig, TableRecon
 from databricks.labs.lakebridge.reconcile.config_generator.generator import generate_table_recon
@@ -19,7 +18,6 @@ logger = logging.getLogger(__name__)
 
 def configure_tables(
     *,
-    ws: WorkspaceClient,
     installation: Installation,
     reconcile_config: ReconcileConfig,
     spark: SparkSession | None = None,
@@ -40,13 +38,11 @@ def configure_tables(
     source_ds = create_adapter(
         engine=get_dialect(src.dialect),
         spark=spark,
-        ws=ws,
         connection_name=src.uc_connection_name or "",
     )
     target_ds = create_adapter(
         engine=get_dialect("databricks"),
         spark=spark,
-        ws=ws,
         connection_name="",
     )
 

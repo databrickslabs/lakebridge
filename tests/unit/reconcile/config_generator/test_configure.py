@@ -3,7 +3,6 @@ from dataclasses import asdict
 from unittest.mock import MagicMock, create_autospec, patch
 
 from databricks.labs.blueprint.installation import Installation
-from databricks.sdk import WorkspaceClient
 
 from databricks.labs.lakebridge.config import TableRecon
 from databricks.labs.lakebridge.reconcile.config_generator.configure import configure_tables
@@ -22,7 +21,6 @@ def test_configure_tables_uploads_to_canonical_filename(make_data_source, reconc
         columns={("tgt_cat", "tgt_schema", "employees"): [schema_fixture_factory("emp_id", "int")]},
     )
 
-    ws = create_autospec(WorkspaceClient)
     installation = create_autospec(Installation)
     config = reconcile_config()
 
@@ -31,7 +29,6 @@ def test_configure_tables_uploads_to_canonical_filename(make_data_source, reconc
         side_effect=[source_ds, target_ds],
     ):
         result = configure_tables(
-            ws=ws,
             installation=installation,
             reconcile_config=config,
             spark=MagicMock(),

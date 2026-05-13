@@ -49,7 +49,7 @@ def main(*argv: str) -> None:
     reconcile_config = installation.load(ReconcileConfig)
 
     if operation_name == CONFIGURE_TABLES_OPERATION_NAME:
-        configure_tables(ws=w, installation=installation, reconcile_config=reconcile_config)
+        configure_tables(installation=installation, reconcile_config=reconcile_config)
         return None
 
     filename = reconcile_config.table_recon_filename
