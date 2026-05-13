@@ -50,7 +50,7 @@ tomlq() {
 check_lock_registry() {
     # Collect all registry URLs present in uv.lock, except for the only one we allow.
     tomlq --raw-output \
-        '[.package[]?.source.registry // empty] - ["https://pypi.org/simple/"] | unique | .[]' \
+        '[.. | objects | .source.registry // empty] - ["https://pypi.org/simple/"] | unique | .[]' \
         "${PROJECT_ROOT}/uv.lock" > "${SCRATCH}/foreign-registries.txt"
     if [ -s "${SCRATCH}/foreign-registries.txt" ]
     then
@@ -89,7 +89,7 @@ check_lock_consistency() {
     cp "${PROJECT_ROOT}/pyproject.toml" "${SCRATCH}/shadow-project/"
     # shellcheck disable=SC2016  # $index_url is a jq variable, bound via --arg
     tomlq --toml-output --arg index_url "${index_url}" \
-        '(.package[]?.source | select(.registry? == "https://pypi.org/simple/")).registry = $index_url' \
+        '(.. | objects | .source | select(.registry? == "https://pypi.org/simple/")).registry = $index_url' \
         "${PROJECT_ROOT}/uv.lock" > "${SCRATCH}/shadow-project/uv.lock"
     uv lock --project "${SCRATCH}/shadow-project" --check ||
           die 2 "Inconsistency detected between pyproject.toml and uv.lock."
