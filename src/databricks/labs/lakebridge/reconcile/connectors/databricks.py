@@ -22,13 +22,20 @@ def _get_describe_query(catalog: str, schema: str, table: str):
 
 
 def _get_information_schema_query(catalog: str, schema: str, table: str):
+    # information_schema stores identifiers in lowercase, so the RHS literals
+    # must be lowercased to match the lowercased LHS expressions. Otherwise
+    # any mixed-case input (e.g. `MySchema`) produces zero rows and the recon
+    # downstream sees an empty schema.
+    catalog_lc = catalog.lower()
+    schema_lc = schema.lower()
+    table_lc = table.lower()
     query = f"""select
                             lower(column_name) as col_name,
                              full_data_type as data_type
-                       from {catalog}.information_schema.columns
-                       where lower(table_catalog)='{catalog}'
-                                    and lower(table_schema)='{schema}'
-                                     and lower(table_name) ='{table}'
+                       from {catalog_lc}.information_schema.columns
+                       where lower(table_catalog)='{catalog_lc}'
+                                    and lower(table_schema)='{schema_lc}'
+                                     and lower(table_name) ='{table_lc}'
                        order by col_name"""
     return re.sub(r'\s+', ' ', query)
 

@@ -40,6 +40,29 @@ def test_get_schema_uses_information_schema():
     spark.sql().selectExpr().where.assert_called_with("column_name not like '#%'")
 
 
+def test_get_schema_lowercases_mixed_case_identifiers():
+    """Information-schema query must lowercase RHS literals.
+
+    The query is `... where lower(table_schema) = '{schema}' ...`. If the
+    literal is not also lowercased, mixed-case identifiers never match because
+    information_schema stores them in lowercase. The schema fetch then returns
+    zero rows and the recon downstream sees an empty schema.
+    """
+    engine, spark = initial_setup()
+    ddds = DatabricksDataSource(engine, spark)
+
+    ddds.get_schema("MyCatalog", "MySchema", "MyTable")
+    expected = re.sub(
+        r'\s+',
+        ' ',
+        """select lower(column_name) as col_name, full_data_type as data_type from
+                mycatalog.information_schema.columns where lower(table_catalog)='mycatalog'
+                and lower(table_schema)='myschema' and lower(table_name) ='mytable' order by
+                col_name""",
+    )
+    spark.sql.assert_called_with(expected)
+
+
 def test_get_schema_non_uc_uses_describe_table():
     """DatabricksNonUnityCatalogDataSource always uses DESCRIBE TABLE for hive, global_temp, and Foreign Catalogs."""
     engine, spark = initial_setup()
