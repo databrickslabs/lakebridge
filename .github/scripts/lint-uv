@@ -11,7 +11,7 @@
 #  - Developer environment information should not be present in the lock-file; it should be usable by the public.
 #
 # The checks that we perform to enforce this are:
-#  - The only registry we should see in uv.lock is "https://pypi.org/simple/".
+#  - The only registry we should see in uv.lock is "https://pypi.org/simple".
 #  - The uv.lock file must be consistent with pyproject.toml.
 #  - If changes to uv.lock are present, there must be no other files changed in the PR _or_ pyproject.toml must also
 #    be updated.
@@ -50,7 +50,7 @@ tomlq() {
 check_lock_registry() {
     # Collect all registry URLs present in uv.lock, except for the only one we allow.
     tomlq --raw-output \
-        '[.package[]?.source.registry // empty] - ["https://pypi.org/simple/"] | unique | .[]' \
+        '[.. | objects | .source.registry // empty] - ["https://pypi.org/simple"] | unique | .[]' \
         "${PROJECT_ROOT}/uv.lock" > "${SCRATCH}/foreign-registries.txt"
     if [ -s "${SCRATCH}/foreign-registries.txt" ]
     then
@@ -86,12 +86,16 @@ check_lock_consistency() {
     index_url="$(detect_index_url)"
     [ -n "${index_url}" ] || die 2 "Could not detect the URL to use for PyPI."
     mkdir -p "${SCRATCH}/shadow-project"
-    cp "${PROJECT_ROOT}/pyproject.toml" "${SCRATCH}/shadow-project/"
+    ln -s \
+        "${PROJECT_ROOT}/README.md" \
+        "${PROJECT_ROOT}/pyproject.toml" \
+        "${PROJECT_ROOT}/src" \
+        "${SCRATCH}/shadow-project/"
     # shellcheck disable=SC2016  # $index_url is a jq variable, bound via --arg
     tomlq --toml-output --arg index_url "${index_url}" \
-        '(.package[]?.source | select(.registry? == "https://pypi.org/simple/")).registry = $index_url' \
+        '(.. | objects | .source | select(.registry? == "https://pypi.org/simple")).registry = $index_url' \
         "${PROJECT_ROOT}/uv.lock" > "${SCRATCH}/shadow-project/uv.lock"
-    uv lock --project "${SCRATCH}/shadow-project" --check ||
+    uv lock --project "${SCRATCH}/shadow-project" --check --quiet ||
           die 2 "Inconsistency detected between pyproject.toml and uv.lock."
 }
 check_lock_consistency
