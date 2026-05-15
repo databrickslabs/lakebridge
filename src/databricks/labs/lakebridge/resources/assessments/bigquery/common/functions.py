@@ -1,9 +1,9 @@
 import argparse
-import json
 import logging
-import os
-import sys
-from typing import Optional
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from google.cloud import bigquery
 
 logger = logging.getLogger(__name__)
 
@@ -19,38 +19,22 @@ def arguments_loader(desc: str) -> tuple[str, str]:
 
     if not credential_file.endswith('credentials.yml'):
         msg = "Credential config file must have 'credentials.yml' extension"
-        print(json.dumps({"status": "error", "message": msg}), file=sys.stderr)
+        logger.error(msg)
         raise ValueError(msg)
 
     return args.db_path, credential_file
 
 
-def create_bigquery_client(project_id: str, region: str, sa_key_path: Optional[str] = None):
+def create_bigquery_client(project_id: str, region: str) -> "bigquery.Client":
+    """Create a google-cloud-bigquery Client routed at the given project + region.
+
+    Authentication uses the standard ADC chain (GOOGLE_APPLICATION_CREDENTIALS, gcloud
+    application-default login, or the metadata server). Service-account impersonation is
+    supported via ADC; see
+    https://docs.cloud.google.com/docs/authentication/set-up-adc-local-dev-environment#sa-impersonation.
     """
-    Create a google-cloud-bigquery Client for the given project + region.
-
-    Auth precedence:
-      1. If `sa_key_path` is provided, load credentials from that JSON file.
-         A missing/unreadable file raises FileNotFoundError — we never silently
-         fall back to ADC because that would hide misconfiguration.
-      2. Otherwise, defer to Google's default credential chain
-         (GOOGLE_APPLICATION_CREDENTIALS env var, then ADC, then metadata server).
-    """
-    # Validate SA key path before importing the BQ client. This lets the misconfiguration
-    # error surface even in environments where google-cloud-bigquery is not yet installed.
-    if sa_key_path and not os.path.isfile(sa_key_path):
-        raise FileNotFoundError(
-            f"Service account key file not found: {sa_key_path}. "
-            "Provide a valid path or leave the field blank to use Application Default Credentials."
-        )
-
-    # Import here to keep this module importable in environments where the BQ
-    # client isn't installed (e.g. unit tests that mock the client).
-    from google.cloud import bigquery  # type: ignore[import-untyped]
-    from google.oauth2 import service_account  # type: ignore[import-untyped]
-
-    if sa_key_path:
-        credentials = service_account.Credentials.from_service_account_file(sa_key_path)
-        return bigquery.Client(project=project_id, location=region, credentials=credentials)
+    # Import here to keep this module importable in environments where the BQ client isn't
+    # installed (e.g. unit tests that mock the client).
+    from google.cloud import bigquery  # pylint: disable=import-outside-toplevel
 
     return bigquery.Client(project=project_id, location=region)

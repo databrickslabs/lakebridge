@@ -128,7 +128,6 @@ def _run_sql_for_iteration(
 def _run_iteration(
     project_id: str,
     region: str,
-    sa_key_path: str | None,
     sql_files: list[str],
     substitutions: list[dict[str, Any]],
     profiling_window_days: int,
@@ -137,7 +136,7 @@ def _run_iteration(
     accumulator_lock: threading.Lock,
 ) -> None:
     project_region = f"{project_id}.region-{region}"
-    bq_client = create_bigquery_client(project_id, region, sa_key_path)
+    bq_client = create_bigquery_client(project_id, region)
     compiler = Compiler(
         substitutions,
         project_region=project_region,
@@ -231,9 +230,7 @@ def execute() -> None:
     cred_manager = create_credential_manager(PRODUCT_NAME, EnvGetter())
     bq_settings = cred_manager.get_credentials("bigquery")
 
-    projects: list[str] = bq_settings["projects"]
-    regions: list[str] = bq_settings["regions"]
-    sa_key_path: str | None = bq_settings.get("service_account_key_path") or None
+    pairs: list[dict[str, str]] = bq_settings["pairs"]
     profiling_window_days: int = int(bq_settings.get("profiling_window_days", 180))
     max_parallel_sqls: int = int(bq_settings.get("max_parallel_sqls", 8))
     profiler_cfg: dict[str, Any] = bq_settings.get("profiler", {})
@@ -243,41 +240,40 @@ def execute() -> None:
     # schema now so the v2 object-metadata SQLs can pick it up without a schema change.
     _ = profiler_cfg.get("redact_query_text", True)
 
-    sql_files = _select_sql_files(profiler_cfg)
-    if not sql_files:
-        msg = "All SQL files excluded by config; nothing to extract."
-        logger.error(msg)
-        print(json.dumps({"status": "error", "message": msg}), file=sys.stderr)
-        sys.exit(1)
-
-    substitutions = json.loads(_load_resource_text("common", "substitutions.json"))
-    analysis_types = json.loads(_load_resource_text("common", "analysis_types.json"))
-
-    accumulators: dict[str, list[pd.DataFrame]] = {at: [] for at in set(_SQL_FILE_TO_ANALYSIS_TYPE.values())}
-    accumulator_lock = threading.Lock()
-
     wall_clock_start = time.monotonic()
     try:
-        for project_id in projects:
-            for region in regions:
-                logger.info(f"Extracting from project={project_id} region={region}")
-                _run_iteration(
-                    project_id=project_id,
-                    region=region,
-                    sa_key_path=sa_key_path,
-                    sql_files=sql_files,
-                    substitutions=substitutions,
-                    profiling_window_days=profiling_window_days,
-                    max_parallel_sqls=max_parallel_sqls,
-                    accumulators=accumulators,
-                    accumulator_lock=accumulator_lock,
-                )
+        sql_files = _select_sql_files(profiler_cfg)
+        if not sql_files:
+            raise RuntimeError("All SQL files excluded by config; nothing to extract.")
+
+        substitutions = json.loads(_load_resource_text("common", "substitutions.json"))
+        analysis_types = json.loads(_load_resource_text("common", "analysis_types.json"))
+
+        accumulators: dict[str, list[pd.DataFrame]] = {at: [] for at in set(_SQL_FILE_TO_ANALYSIS_TYPE.values())}
+        accumulator_lock = threading.Lock()
+
+        for pair in pairs:
+            project_id, region = pair["project"], pair["region"]
+            logger.info(f"Extracting from project={project_id} region={region}")
+            _run_iteration(
+                project_id=project_id,
+                region=region,
+                sql_files=sql_files,
+                substitutions=substitutions,
+                profiling_window_days=profiling_window_days,
+                max_parallel_sqls=max_parallel_sqls,
+                accumulators=accumulators,
+                accumulator_lock=accumulator_lock,
+            )
 
         row_counts = _write_accumulators(accumulators, db_path, analysis_types)
         row_counts.update(_write_reference_tables(db_path))
 
         wall_clock_seconds = round(time.monotonic() - wall_clock_start, 2)
         logger.info(f"Total wall-clock: {wall_clock_seconds}s")
+        # Final stdout line is the structured payload that pipeline._run_python_script parses
+        # to decide success/error. Keep the `print` (matching Synapse's workspace_extract.py
+        # convention) — don't replace with logger.info because pipeline reads the last raw line.
         print(
             json.dumps(
                 {

@@ -1,9 +1,9 @@
 """Integration test for the BigQuery profiler step.
 
 Runs the `bq_metadata_extract.py` step against a real BigQuery project supplied via env vars.
-Skips cleanly when CI vault entries are unset — same behavior external contributors see for
-the Synapse integration tests today. Activation of this test in upstream CI depends on the
-TEST_BQ_* env vars being seeded into the Databricks-Labs CI vault (Open Item #1 of the design).
+Marked `xfail` when CI vault entries are unset — the test still attempts to run, but failures
+are tolerated. Activation in upstream CI depends on the TEST_BQ_* env vars being seeded into
+the Databricks-Labs CI vault (tracked separately as a follow-up issue).
 """
 
 import os
@@ -14,18 +14,17 @@ import pytest
 
 from databricks.labs.lakebridge.resources.assessments.bigquery import bq_metadata_extract
 
-# All three vars must be present for the test to run. SA_KEY_PATH may be empty (use ADC),
-# but the env var itself must be declared so the skipif decision is unambiguous.
 _REQUIRED_VARS = ("TEST_BQ_PROJECT_ID", "TEST_BQ_REGION")
 _MISSING = [v for v in _REQUIRED_VARS if not os.getenv(v)]
 
-pytestmark = pytest.mark.skipif(
+pytestmark = pytest.mark.xfail(
     bool(_MISSING),
-    reason=f"BQ integration env vars missing: {_MISSING}. Requires CI vault provisioning.",
+    reason=f"BQ integration env vars missing: {_MISSING}. Pending CI vault provisioning.",
+    strict=False,
 )
 
 
-def test_bigquery_extract_runs_end_to_end(tmp_path, sandbox_bigquery_config) -> None:
+def test_bigquery_extract_runs_end_to_end(tmp_path, sandbox_bigquery_cred_config) -> None:
     """Run bq_metadata_extract against the configured BQ project; assert tables land in DuckDB.
 
     Intentionally light-touch: we verify the script's contract (DuckDB written, success JSON
@@ -38,7 +37,7 @@ def test_bigquery_extract_runs_end_to_end(tmp_path, sandbox_bigquery_config) -> 
     # Skip the credential-manager indirection — feed the config directly.
     class _DirectCredManager:
         def get_credentials(self, _source: str) -> dict:
-            return sandbox_bigquery_config["bigquery"]
+            return sandbox_bigquery_cred_config["bigquery"]
 
     original_create = bq_metadata_extract.create_credential_manager
     bq_metadata_extract.create_credential_manager = lambda *_a, **_kw: _DirectCredManager()  # type: ignore[assignment]

@@ -188,21 +188,32 @@ def sandbox_redshift(sandbox_redshift_config: JsonObject) -> DatabaseManager:
 
 @pytest.fixture()
 def sandbox_bigquery_config() -> JsonObject:
-    """Credentials.yml-shape config for the BigQuery profiler integration test.
+    """Minimal BigQuery connection config (project + region) for direct BQ-client construction.
 
-    Reads TEST_BQ_PROJECT_ID / TEST_BQ_REGION / TEST_BQ_SA_KEY_PATH from the standard
-    Lakebridge CI vault (debug-env.json on local dev). Raises ValueError if unset — the
-    consuming test is responsible for skipping cleanly in that case, mirroring how the
-    Synapse fixtures behave for external contributors without vault access.
+    Reads TEST_BQ_PROJECT_ID / TEST_BQ_REGION from the standard Lakebridge CI vault
+    (debug-env.json on local dev). Reusable across any BQ-related test, not coupled to the
+    profiler pipeline. Mirrors `sandbox_synapse_config` in scope.
     """
     env = TestEnvGetter(True)
+    return {
+        "project": env.get("TEST_BQ_PROJECT_ID"),
+        "region": env.get("TEST_BQ_REGION"),
+    }
+
+
+@pytest.fixture()
+def sandbox_bigquery_cred_config(sandbox_bigquery_config: JsonObject) -> JsonObject:
+    """Full credentials.yml-shape config for the BigQuery profiler pipeline test.
+
+    Composes the reusable `sandbox_bigquery_config` connection fixture with profiler-specific
+    fields (window, parallelism, profiler exclusions). Mirrors `sandbox_synapse_cred_config`
+    in scope. Auth is via ADC; no SA-key path is wired into the fixture.
+    """
     return {
         "secret_vault_type": "local",
         "secret_vault_name": None,
         "bigquery": {
-            "projects": [env.get("TEST_BQ_PROJECT_ID")],
-            "regions": [env.get("TEST_BQ_REGION")],
-            "service_account_key_path": env.get("TEST_BQ_SA_KEY_PATH") or None,
+            "pairs": [{"project": sandbox_bigquery_config["project"], "region": sandbox_bigquery_config["region"]}],
             "profiling_window_days": 180,
             "target_cloud": "gcp",
             "max_parallel_sqls": 4,

@@ -19,25 +19,19 @@ import Admonition from '@theme/Admonition';
 
 The BigQuery profiler uses the `google-cloud-bigquery` Python client (installed automatically by the pipeline runner); no ODBC driver or platform-specific binary is required.
 
-### 2. Authenticate to GCP using gcloud CLI
+### 2. Authenticate to GCP
+
+The profiler authenticates with [Application Default Credentials (ADC)](https://docs.cloud.google.com/docs/authentication/application-default-credentials). The simplest setup is:
 
 ```bash
 gcloud auth application-default login
 ```
 
-The profiler uses Google's `google.auth.default()` chain, attempting authentication in this order:
-
-1. **`GOOGLE_APPLICATION_CREDENTIALS`** environment variable pointing at a service-account JSON key.
-2. **Application Default Credentials** (from `gcloud auth application-default login`).
-3. **Compute Engine / Cloud Run / GKE metadata server** (only if you happen to be running the profiler on GCP).
-
-For production engagements, customers typically supply a service-account JSON key file path during `configure-database-profiler`. For local testing, ADC works.
+For non-interactive use, ADC also supports a service-account JSON key (via `GOOGLE_APPLICATION_CREDENTIALS`) or [service-account impersonation](https://docs.cloud.google.com/docs/authentication/set-up-adc-local-dev-environment#sa-impersonation) — whichever your environment is configured for.
 
 ### 3. Required IAM permissions on the target BigQuery project(s)
 
-The executing identity needs the following permissions. The easiest grant is `roles/bigquery.admin` (matches the canonical GCP-native BigQuery profiler) which already covers `bigquery.readSessions.create` (used by the BigQuery Storage Read API for fast result downloads).
-
-For least-privilege deployments, the discrete permissions are:
+The executing identity needs the following permissions. `roles/bigquery.admin` covers all of them; for least-privilege deployments grant the discrete permissions below.
 
 ```
 bigquery.jobs.create
@@ -53,27 +47,6 @@ bigquery.reservationAssignments.list        # Editions customers only
 bigquery.capacityCommitments.list           # Editions customers only
 ```
 
-Grant via `gcloud`:
-
-```bash
-gcloud projects add-iam-policy-binding <project_id> \
-  --member="user:<email>" \
-  --role="roles/bigquery.admin"
-```
-
-Or using a dedicated service account:
-
-```bash
-gcloud iam service-accounts create lakebridge-profiler \
-  --description="Lakebridge BigQuery profiler" \
-  --display-name="lakebridge-profiler"
-gcloud projects add-iam-policy-binding <project_id> \
-  --member="serviceAccount:lakebridge-profiler@<project_id>.iam.gserviceaccount.com" \
-  --role="roles/bigquery.admin"
-gcloud iam service-accounts keys create ~/lakebridge-profiler-key.json \
-  --iam-account=lakebridge-profiler@<project_id>.iam.gserviceaccount.com
-```
-
 ### 4. INFORMATION_SCHEMA / region-scoped views accessed
 
 | Profiler aspect | Region-scoped view | Required permission |
@@ -87,10 +60,6 @@ gcloud iam service-accounts keys create ~/lakebridge-profiler-key.json \
 
 :::warning Attention:
 Skip the reservation/commitment permissions if the customer is on **Pay-as-you-go pricing** rather than BigQuery Editions. The corresponding SQL files will return empty results — harmless — and the dashboard widgets will just be empty. You can also set `exclude_reservations_data: true` during configuration to skip those queries entirely (saves BigQuery slot time; the corresponding DuckDB tables are still created as empty stubs so the dashboard's commitment/consumption widgets resolve cleanly).
-:::
-
-:::tip
-Unlike Synapse, BigQuery uses OAuth bearer tokens via gRPC, so MFA does not interfere with the profiler.
 :::
 
 :::warning Attention:
@@ -117,9 +86,11 @@ Enter secret vault type (local | env)
 [1] local
 Enter a number between 0 and 1: 1
 Please provide BigQuery connection settings:
-Enter BigQuery project IDs (comma-separated): customer-prod-1, customer-admin
-Enter BigQuery regions (comma-separated, e.g. us, eu) (default: us): us
-Enter path to service account JSON key (leave blank to use Application Default Credentials):
+
+Project/region pairs are entered as `project=region`, comma-separated.
+Example: my-proj-a=us, my-proj-b=eu-west-1
+
+Enter BigQuery project/region pairs (project=region, comma-separated): customer-prod-1=us, customer-admin=us
 Enter profiling window in days (default: 180):
 Enter max parallel SQLs per (project, region) iteration (default: 8):
 Please select target Databricks platform:
@@ -140,12 +111,11 @@ The resulting `~/.databricks/labs/lakebridge/.credentials.yml` looks like:
 secret_vault_type: local
 secret_vault_name: null
 bigquery:
-  projects:
-    - customer-prod-1
-    - customer-admin
-  regions:
-    - us
-  service_account_key_path: null      # null = use ADC
+  pairs:
+    - project: customer-prod-1
+      region: us
+    - project: customer-admin
+      region: us
   profiling_window_days: 180
   target_cloud: gcp
   max_parallel_sqls: 8
@@ -164,7 +134,7 @@ databricks labs lakebridge execute-database-profiler --source-tech bigquery
 
 The pipeline runs two steps:
 
-1. **`bq_metadata_extract`** — connects to BigQuery and runs 16 vendored SQL queries serially across `(project, region)` pairs and in parallel within each iteration (`max_parallel_sqls` workers). Results land in `~/.databricks/labs/lakebridge_profilers/bigquery_assessment/profiler_extract.db` (DuckDB).
+1. **`bq_metadata_extract`** — connects to BigQuery and runs 16 vendored SQL queries serially across the configured `(project, region)` pairs and in parallel within each iteration (`max_parallel_sqls` workers). Results land in `~/.databricks/labs/lakebridge_profilers/bigquery_assessment/profiler_extract.db` (DuckDB).
 2. **`compute_pricing_analysis`** — runs in-process via DuckDB on the tables loaded by step 1, producing per-percentile cost projections, monthly weighted pricing, and a `consumption_by_commitment` view.
 
 Final DuckDB contains **18 tables / views** by default:
@@ -251,7 +221,7 @@ Open config file https://<workspace>/#workspace/Users/<you>/.lakebridge/profiler
 The `Create it?` confirms only appear when the catalog / schema / volume don't already exist — pre-existing resources are detected and reused silently.
 
 :::warning Attention:
-Each source-tech writes to its own default schema (`bigquery_profiler` for BigQuery, `mssql_profiler` for MSSQL, etc.). Reusing one schema across source-techs is not supported and may overwrite tables. Synapse keeps `profiler` as its default for backwards compatibility with existing installations.
+Each source-tech writes to its own default schema (`bigquery_profiler` for BigQuery, `mssql_profiler` for MSSQL, `synapse_profiler` for Synapse). Reusing one schema across source-techs is not supported and may overwrite tables.
 :::
 
 This deploys:

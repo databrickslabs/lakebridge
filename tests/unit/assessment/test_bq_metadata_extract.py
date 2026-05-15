@@ -1,11 +1,10 @@
 """Unit tests for the BigQuery metadata extract step.
 
 The BQ client is fully mocked — these tests verify that:
-  * The two-level (project, region) × SQL-file loop produces the expected DuckDB tables.
+  * The (project, region) × SQL-file loop produces the expected DuckDB tables.
   * The `metadatalevel` → `metadata_level` rename runs for `table_storage`.
   * Exclusion flags (`exclude_streaming_metrics`, `exclude_reservations_data`) skip the
     right SQLs.
-  * A missing service-account key path produces a hard error (no silent ADC fallback).
 """
 
 import json
@@ -19,7 +18,6 @@ import pytest
 
 from databricks.labs.lakebridge.resources.assessments.bigquery import bq_metadata_extract
 from databricks.labs.lakebridge.resources.assessments.bigquery.common.compiler import Compiler
-from databricks.labs.lakebridge.resources.assessments.bigquery.common.functions import create_bigquery_client
 
 
 def _canned_df_for(sql_filename: str, project_region: str) -> pd.DataFrame:
@@ -53,9 +51,7 @@ def _fake_run_sql_for_iteration(sql_filename, _compiler, _bq_client, project_reg
 @pytest.fixture
 def fake_credentials(tmp_path):
     creds = {
-        "projects": ["proj-a"],
-        "regions": ["us"],
-        "service_account_key_path": None,
+        "pairs": [{"project": "proj-a", "region": "us"}],
         "profiling_window_days": 180,
         "max_parallel_sqls": 2,
         "target_cloud": "gcp",
@@ -184,12 +180,6 @@ def test_exclude_reservations_data_yields_empty_reservation_tables(monkeypatch, 
         assert _row_count(db_path, skipped) == 0, f"{skipped} should have zero rows when excluded"
     assert "workload_types" in tables
     assert _row_count(db_path, "workload_types") > 0
-
-
-def test_missing_service_account_key_raises_hard_error(tmp_path):
-    missing_path = tmp_path / "does-not-exist.json"
-    with pytest.raises(FileNotFoundError, match="Service account key file not found"):
-        create_bigquery_client("proj", "us", str(missing_path))
 
 
 def test_compiler_substitutes_project_region():

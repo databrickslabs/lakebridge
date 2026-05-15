@@ -19,6 +19,30 @@ from databricks.labs.lakebridge.assessments import CONNECTOR_REQUIRED
 logger = logging.getLogger(__name__)
 
 
+def _parse_project_region_pairs(raw: str) -> list[dict[str, str]]:
+    """Parse `project=region, project=region, ...` into a list of {project, region} dicts.
+
+    Each token must contain exactly one `=` with non-empty sides; empty tokens are ignored
+    (so trailing/duplicate commas are tolerated). Raises ValueError on malformed input —
+    the caller surfaces this to the user during interactive configuration.
+    """
+    pairs: list[dict[str, str]] = []
+    for token in raw.split(","):
+        token = token.strip()
+        if not token:
+            continue
+        if token.count("=") != 1:
+            raise ValueError(f"Invalid project/region pair '{token}': expected exactly one '=' (e.g. proj-a=us)")
+        project, _, region = token.partition("=")
+        project, region = project.strip(), region.strip()
+        if not project or not region:
+            raise ValueError(f"Invalid project/region pair '{token}': both sides of '=' must be non-empty")
+        pairs.append({"project": project, "region": region})
+    if not pairs:
+        raise ValueError("At least one project/region pair is required (e.g. proj-a=us)")
+    return pairs
+
+
 def _save_to_disk(credential: dict, cred_file: Path) -> None:
     if cred_file.exists():
         backup_filename = cred_file.with_suffix('.bak')
@@ -206,17 +230,12 @@ class ConfigureBigQueryAssessment(AssessmentConfigurator):
         secret_vault_name = None
 
         logger.info("Please provide BigQuery connection settings:")
-        projects_raw = self.prompts.question("Enter BigQuery project IDs (comma-separated)")
-        projects = [p.strip() for p in projects_raw.split(",") if p.strip()]
-
-        regions_raw = self.prompts.question("Enter BigQuery regions (comma-separated, e.g. us, eu)", default="us")
-        regions = [r.strip() for r in regions_raw.split(",") if r.strip()]
-
-        sa_key_path = self.prompts.question(
-            "Enter path to service account JSON key (leave blank to use Application Default Credentials)",
-            default="",
+        logger.info(
+            "\nProject/region pairs are entered as `project=region`, comma-separated. "
+            "Example: my-proj-a=us, my-proj-b=eu-west-1\n"
         )
-        service_account_key_path = sa_key_path.strip() or None
+        pairs_raw = self.prompts.question("Enter BigQuery project/region pairs (project=region, comma-separated)")
+        pairs = _parse_project_region_pairs(pairs_raw)
 
         profiling_window_days = int(
             self.prompts.question("Enter profiling window in days", default="180", valid_number=True)
@@ -242,9 +261,7 @@ class ConfigureBigQueryAssessment(AssessmentConfigurator):
             "secret_vault_type": secret_vault_type,
             "secret_vault_name": secret_vault_name,
             source: {
-                "projects": projects,
-                "regions": regions,
-                "service_account_key_path": service_account_key_path,
+                "pairs": pairs,
                 "profiling_window_days": profiling_window_days,
                 "target_cloud": target_cloud,
                 "max_parallel_sqls": max_parallel_sqls,

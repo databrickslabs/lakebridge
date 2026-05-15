@@ -123,9 +123,7 @@ def test_configure_bigquery_credentials(tmp_path):
     prompts = MockPrompts(
         {
             r"Enter secret vault type \(local \| env\)": sorted(['local', 'env']).index("local"),
-            r"Enter BigQuery project IDs \(comma-separated\)": "customer-prod-1, customer-admin",
-            r"Enter BigQuery regions.*": "us, eu",
-            r"Enter path to service account JSON key.*": "",
+            r"Enter BigQuery project/region pairs.*": "customer-prod-1=us, customer-admin=eu",
             r"Enter profiling window in days": "180",
             r"Enter max parallel SQLs per.*": "8",
             r"Select target Databricks platform": sorted(["aws", "azure", "gcp"]).index("gcp"),
@@ -146,9 +144,10 @@ def test_configure_bigquery_credentials(tmp_path):
         'secret_vault_type': 'local',
         'secret_vault_name': None,
         'bigquery': {
-            'projects': ['customer-prod-1', 'customer-admin'],
-            'regions': ['us', 'eu'],
-            'service_account_key_path': None,
+            'pairs': [
+                {'project': 'customer-prod-1', 'region': 'us'},
+                {'project': 'customer-admin', 'region': 'eu'},
+            ],
             'profiling_window_days': 180,
             'target_cloud': 'gcp',
             'max_parallel_sqls': 8,
