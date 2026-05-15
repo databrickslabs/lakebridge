@@ -22,7 +22,9 @@ jobs:
       fail-fast: false
       matrix:
         python: [ '3.10', '3.11', '3.12', '3.13', '3.14' ]
-    environment: tool
+    environment:
+      name: tool
+      deployment: false
     permissions:
       # Access to JFrog and the integration testing infrastructure.
       id-token: write
