@@ -1,0 +1,143 @@
+#!/bin/sh
+#
+# Check the uv settings of the project, to ensure dependencies are being updated properly.
+#
+# The intent here is that:
+#
+#  - Lock-files should only be updated via the `make lock-dependencies` target.
+#  - We only re-lock when:
+#     - Updating the project dependencies in some way.
+#     - Refreshing the locked versions, where that is the sole purpose of the PR.
+#  - Developer environment information should not be present in the lock-file; it should be usable by the public.
+#
+# The checks that we perform to enforce this are:
+#  - The only registry we should see in uv.lock is "https://pypi.org/simple".
+#  - The uv.lock file must be consistent with pyproject.toml.
+#  - If changes to uv.lock are present, there must be no other files changed in the PR _or_ pyproject.toml must also
+#    be updated.
+#  - The same applies to .build-constraints.txt.
+#
+
+set -eu
+
+PROGNAME="${0##*/}"
+die() {
+    _exitcode="$1"
+    shift
+    printf "%s: %s\n" "${PROGNAME}" "$*" 1>&2
+
+    exit "${_exitcode}"
+}
+
+# Locate the root of the project.
+PROJECT_ROOT="$(git rev-parse --show-toplevel)"
+
+# Set up a scratch directory for temporary files during the check.
+SCRATCH="$(mktemp -d -t "${PROGNAME}.XXX")"
+trap 'rm -fr "${SCRATCH}"' EXIT
+
+# This script handles the locked/frozen flags for uv itself.
+unset UV_FROZEN UV_LOCKED
+
+tomlq() {
+    # Assumes typical project setup: tomlq is present (and locked).
+    uv run --frozen --quiet --group yq tomlq "$@"
+}
+
+#
+# Check 1: Verify that uv.lock refers only to PyPI as a registry.
+#
+check_lock_registry() {
+    # Collect all registry URLs present in uv.lock, except for the only one we allow.
+    tomlq --raw-output \
+        '[.. | objects | .source.registry // empty] - ["https://pypi.org/simple"] | unique | .[]' \
+        "${PROJECT_ROOT}/uv.lock" > "${SCRATCH}/foreign-registries.txt"
+    if [ -s "${SCRATCH}/foreign-registries.txt" ]
+    then
+        printf "%s: Detected non-PyPI registries:\n" "${PROGNAME}"
+        sed 's/^/  /' "${SCRATCH}/foreign-registries.txt"
+        die 1 "uv.lock may only contain PyPI registries."
+    fi
+}
+check_lock_registry
+
+#
+# Check 2: Verify that uv.lock is consistent with pyproject.toml.
+#
+
+detect_index_url() {
+    # Annoyingly, there is no way to query from uv the index URL it's going to use; the only approach is to use a fake
+    # project and ask to resolve, then dig the index URL out of the results.
+    mkdir -p "${SCRATCH}/uvtest"
+    cat > "${SCRATCH}/uvtest/pyproject.toml" << 'EOF'
+[project]
+name = "uvtest"
+version = "0"
+requires-python = ">=3.10"
+dependencies = ["packaging"]
+EOF
+    uv lock --quiet --project "${SCRATCH}/uvtest"
+    tomlq --raw-output 'first(.package[].source.registry // empty)' "${SCRATCH}/uvtest/uv.lock"
+}
+
+check_lock_consistency() {
+    # We can't check uv.lock directly, because we can't reach the registry recorded in there. Instead we make a shadow
+    # version of this project and check that.
+    index_url="$(detect_index_url)"
+    [ -n "${index_url}" ] || die 2 "Could not detect the URL to use for PyPI."
+    mkdir -p "${SCRATCH}/shadow-project"
+    ln -s \
+        "${PROJECT_ROOT}/README.md" \
+        "${PROJECT_ROOT}/pyproject.toml" \
+        "${PROJECT_ROOT}/src" \
+        "${SCRATCH}/shadow-project/"
+    # shellcheck disable=SC2016  # $index_url is a jq variable, bound via --arg
+    tomlq --toml-output --arg index_url "${index_url}" \
+        '(.. | objects | .source | select(.registry? == "https://pypi.org/simple")).registry = $index_url' \
+        "${PROJECT_ROOT}/uv.lock" > "${SCRATCH}/shadow-project/uv.lock"
+    uv lock --project "${SCRATCH}/shadow-project" --check --quiet ||
+          die 2 "Inconsistency detected between pyproject.toml and uv.lock."
+}
+check_lock_consistency
+
+#
+# Check 3: Detect if uv.lock or .build-constraints.txt have been updated with pyproject.toml or on their own.
+#
+
+base_rev() {
+    # A few situations to deal with, in order of priority:
+    #  - In CI, we set BASE_SHA for pull requests and the merge queue.
+    #  - In CI, we also have the push to main where there's no base: in this case we can use GITHUB_REF and diff will
+    #    end up a no-op (because there are no differences).
+    #  - For local dev, fall-back to `main` which by convention is always available.
+    _base_rev="${BASE_SHA:-${GITHUB_REF:-main}}"
+    git rev-parse --verify --quiet "${_base_rev}" > /dev/null ||
+        die 3 "Base revision of repository is not available: ${_base_rev}"
+    printf "%s" "${_base_rev}"
+}
+merge_base() {
+    # Figure out the merge-base between this branch and verify it's available. (CI checkout might be shallow.)
+    _tip="$1"
+    _base_rev=$(base_rev)
+    if ! git merge-base "${_base_rev}" "${_tip}" 2> /dev/null
+    then
+        die 4 "Repository is incomplete, merge base between ${_base_rev} and ${_tip} is not available."
+    fi
+}
+
+check_lockfile_updates() {
+    _merge_base=$(merge_base HEAD)
+    git diff "${_merge_base}..HEAD" --name-only > "${SCRATCH}/changed-files.txt"
+
+    if grep -qxF -e 'uv.lock' -e '.build-constraints.txt' "${SCRATCH}/changed-files.txt"
+    then
+        # Lock-files changed: either pyproject.toml has to be changed, or nothing else is allowed.
+        if grep -vxF -e 'uv.lock' -e '.build-constraints.txt' "${SCRATCH}/changed-files.txt" > "${SCRATCH}/other-files.txt" && ! grep -qxF 'pyproject.toml' "${SCRATCH}/other-files.txt"
+        then
+            printf "%s: Detected changes to uv.lock and/or .build-constraints.txt mixed with changes to:\n" "${PROGNAME}"
+            sed -e 's/^/  /' "${SCRATCH}/other-files.txt"
+            die 5 "Lock-files must be updated either in conjunction with dependencies in pyproject.toml or on their own."
+        fi
+    fi
+}
+check_lockfile_updates

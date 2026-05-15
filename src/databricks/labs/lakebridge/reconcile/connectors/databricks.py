@@ -11,7 +11,6 @@ from databricks.labs.lakebridge.reconcile.connectors.data_source import DataSour
 from databricks.labs.lakebridge.reconcile.connectors.models import NormalizedIdentifier
 from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import DialectUtils
 from databricks.labs.lakebridge.reconcile.recon_config import JdbcReaderOptions, Schema
-from databricks.sdk import WorkspaceClient
 
 logger = logging.getLogger(__name__)
 
@@ -47,11 +46,9 @@ class DatabricksDataSource(DataSource):
         self,
         engine: Dialect,
         spark: SparkSession,
-        ws: WorkspaceClient,
     ):
         self._engine = engine
         self._spark = spark
-        self._ws = ws
 
     def read_data(
         self,

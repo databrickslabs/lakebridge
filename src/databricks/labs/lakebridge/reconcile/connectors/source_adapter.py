@@ -16,14 +16,12 @@ from databricks.labs.lakebridge.transpiler.sqlglot.generator.databricks import D
 from databricks.labs.lakebridge.transpiler.sqlglot.parsers.oracle import Oracle
 from databricks.labs.lakebridge.transpiler.sqlglot.parsers.snowflake import Snowflake
 from databricks.labs.lakebridge.transpiler.sqlglot.parsers.tsql import Tsql
-from databricks.sdk import WorkspaceClient
 
 
 # TODO add checks connection exists
 def create_adapter(
     engine: Dialect,
     spark: SparkSession,
-    ws: WorkspaceClient,
     connection_name: str,
     is_target: bool = False,
 ) -> DataSource:
@@ -34,8 +32,8 @@ def create_adapter(
         return OracleDataSource(engine, reader)
     if isinstance(engine, Databricks):
         if is_target:
-            return DatabricksDataSource(engine, spark, ws)
-        return DatabricksNonUnityCatalogDataSource(engine, spark, ws)
+            return DatabricksDataSource(engine, spark)
+        return DatabricksNonUnityCatalogDataSource(engine, spark)
     if isinstance(engine, Tsql):
         return TSQLServerDataSource(engine, reader)
     if isinstance(engine, Redshift):

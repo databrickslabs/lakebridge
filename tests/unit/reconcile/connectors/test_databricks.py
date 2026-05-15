@@ -1,5 +1,5 @@
 import re
-from unittest.mock import MagicMock, create_autospec
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -10,7 +10,6 @@ from databricks.labs.lakebridge.reconcile.connectors.databricks import (
     DatabricksNonUnityCatalogDataSource,
 )
 from databricks.labs.lakebridge.reconcile.exception import DataSourceRuntimeException
-from databricks.sdk import WorkspaceClient
 
 
 def initial_setup():
@@ -18,14 +17,13 @@ def initial_setup():
     spark = pyspark_sql_session.SparkSession.builder.getOrCreate()
 
     engine = get_dialect("databricks")
-    ws = create_autospec(WorkspaceClient)
-    return engine, spark, ws
+    return engine, spark
 
 
 def test_get_schema_uses_information_schema():
     """DatabricksDataSource always uses information_schema (UC native catalogs only)."""
-    engine, spark, ws = initial_setup()
-    ddds = DatabricksDataSource(engine, spark, ws)
+    engine, spark = initial_setup()
+    ddds = DatabricksDataSource(engine, spark)
 
     ddds.get_schema("catalog", "schema", "supplier")
     spark.sql.assert_called_with(
@@ -44,8 +42,8 @@ def test_get_schema_uses_information_schema():
 
 def test_get_schema_non_uc_uses_describe_table():
     """DatabricksNonUnityCatalogDataSource always uses DESCRIBE TABLE for hive, global_temp, and Foreign Catalogs."""
-    engine, spark, ws = initial_setup()
-    ddds = DatabricksNonUnityCatalogDataSource(engine, spark, ws)
+    engine, spark = initial_setup()
+    ddds = DatabricksNonUnityCatalogDataSource(engine, spark)
 
     # UC catalog — non-UC variant still uses DESCRIBE TABLE (caller chooses the variant)
     ddds.get_schema("catalog", "schema", "supplier")
@@ -65,9 +63,9 @@ def test_get_schema_non_uc_uses_describe_table():
 
 
 def test_read_data_from_uc():
-    engine, spark, ws = initial_setup()
+    engine, spark = initial_setup()
 
-    ddds = DatabricksDataSource(engine, spark, ws)
+    ddds = DatabricksDataSource(engine, spark)
 
     # Test with query
     ddds.read_data("org", "data", "employee", "select id as id, name as name from :tbl", None)
@@ -79,9 +77,9 @@ def test_read_data_from_uc():
 
 
 def test_read_data_from_hive():
-    engine, spark, ws = initial_setup()
+    engine, spark = initial_setup()
 
-    ddds = DatabricksNonUnityCatalogDataSource(engine, spark, ws)
+    ddds = DatabricksNonUnityCatalogDataSource(engine, spark)
 
     # Test with query
     ddds.read_data("hive_metastore", "data", "employee", "select id as id, name as name from :tbl", None)
@@ -93,9 +91,9 @@ def test_read_data_from_hive():
 
 
 def test_read_data_exception_handling():
-    engine, spark, ws = initial_setup()
+    engine, spark = initial_setup()
 
-    ddds = DatabricksDataSource(engine, spark, ws)
+    ddds = DatabricksDataSource(engine, spark)
     spark.sql.side_effect = RuntimeError("Test Exception")
 
     with pytest.raises(
@@ -108,9 +106,9 @@ def test_read_data_exception_handling():
 
 def test_get_schema_information_schema_exception_handling():
     """DatabricksDataSource schema fetch exception includes the information_schema query."""
-    engine, spark, ws = initial_setup()
+    engine, spark = initial_setup()
 
-    ddds = DatabricksDataSource(engine, spark, ws)
+    ddds = DatabricksDataSource(engine, spark)
     spark.sql.side_effect = RuntimeError("Test Exception")
     with pytest.raises(DataSourceRuntimeException) as exception:
         ddds.get_schema("org", "data", "employee")
@@ -125,9 +123,9 @@ def test_get_schema_information_schema_exception_handling():
 
 def test_get_schema_describe_exception_handling():
     """DatabricksNonUnityCatalogDataSource schema fetch exception includes the DESCRIBE TABLE query."""
-    engine, spark, ws = initial_setup()
+    engine, spark = initial_setup()
 
-    ddds = DatabricksNonUnityCatalogDataSource(engine, spark, ws)
+    ddds = DatabricksNonUnityCatalogDataSource(engine, spark)
     spark.sql.side_effect = RuntimeError("Test Exception")
     with pytest.raises(DataSourceRuntimeException) as exception:
         ddds.get_schema("org", "data", "employee")
@@ -138,8 +136,8 @@ def test_get_schema_describe_exception_handling():
 
 def test_get_schema_non_uc_foreign_catalog():
     """DatabricksNonUnityCatalogDataSource uses DESCRIBE TABLE for Foreign Catalogs without fallback."""
-    engine, spark, ws = initial_setup()
-    ddds = DatabricksNonUnityCatalogDataSource(engine, spark, ws)
+    engine, spark = initial_setup()
+    ddds = DatabricksNonUnityCatalogDataSource(engine, spark)
 
     ddds.get_schema("foreign_catalog", "public", "customers")
 
@@ -149,8 +147,8 @@ def test_get_schema_non_uc_foreign_catalog():
 
 
 def test_normalize_identifier():
-    engine, spark, ws = initial_setup()
-    data_source = DatabricksDataSource(engine, spark, ws)
+    engine, spark = initial_setup()
+    data_source = DatabricksDataSource(engine, spark)
 
     assert data_source.normalize_identifier("a") == NormalizedIdentifier("`a`", '`a`')
     assert data_source.normalize_identifier('`b`') == NormalizedIdentifier("`b`", '`b`')

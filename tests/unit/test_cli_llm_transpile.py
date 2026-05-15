@@ -1,7 +1,7 @@
 import logging
 from pathlib import Path
 from unittest.mock import create_autospec
-from typing import cast
+from typing import Any, cast
 
 import pytest
 
@@ -247,3 +247,87 @@ def test_llm_transpile_with_incorrect_dialect(
     error_msg = "Invalid value for '--source-dialect': 'agent_sql' must be one of: airflow, mssql, mysql, netezza, oracle, postgresql, pyspark, python, redshift, scala, snowflake, synapse, teradata, unknown_etl"
     with pytest.raises(ValueError, match=rf"{error_msg}"):
         cli.llm_transpile(w=mock_ws, accept_terms=True, source_dialect="agent_sql", ctx=ctx)
+
+
+def test_llm_transpile_with_switch_config_path(
+    mock_installation_with_switch: MockInstallation,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test LLM transpile execution with switch_config_path parameter."""
+    input_source = tmp_path / "input.sql"
+    input_source.write_text("SELECT * FROM table1;")
+    output_folder = "/Workspace/Users/test/output"
+    switch_config = "/Workspace/Users/test/switch_config.yaml"
+
+    mock_ws = create_switch_workspace_client_mock()
+    mock_configurator = mock_resource_configurator(mock_ws, make_mock_prompts(str(input_source), output_folder))
+
+    ctx = ApplicationContext(mock_ws)
+    ctx.replace(
+        installation=mock_installation_with_switch,
+        add_user_agent_extra=lambda w, *args, **kwargs: w,
+        resource_configurator=mock_configurator,
+    )
+
+    with caplog.at_level(logging.INFO):
+        cli.llm_transpile(
+            w=mock_ws,
+            accept_terms=True,
+            input_source=str(input_source),
+            output_ws_folder=output_folder,
+            source_dialect="mssql",
+            catalog_name="lakebridge",
+            schema_name="switch",
+            volume="switch_volume",
+            foundation_model="databricks-claude-sonnet-4-5",
+            switch_config_path=switch_config,
+            ctx=ctx,
+        )
+
+    expected_msg = (
+        f"Switch LLM transpilation job started: https://workspace.databricks.com/jobs/{_JOB_ID}/runs/{_RUN_ID}"
+    )
+    info_messages = [record.message for record in caplog.records if record.levelno == logging.INFO]
+    assert expected_msg in info_messages
+
+    # Verify job parameters include switch_config_path
+    call_kwargs = cast(Any, mock_ws.jobs.run_now).call_args.kwargs
+    assert call_kwargs["job_parameters"]["switch_config_path"] == switch_config
+
+
+def test_llm_transpile_with_invalid_switch_config_path(
+    mock_installation_with_switch: MockInstallation,
+    tmp_path: Path,
+) -> None:
+    """Test LLM transpile fails with invalid switch_config_path (not starting with /Workspace/)."""
+    input_source = tmp_path / "input.sql"
+    input_source.write_text("SELECT * FROM table1;")
+    output_folder = "/Workspace/Users/test/output"
+    invalid_config = "/Users/test/switch_config.yaml"
+
+    mock_ws = create_switch_workspace_client_mock()
+    mock_configurator = mock_resource_configurator(mock_ws, make_mock_prompts(str(input_source), output_folder))
+
+    ctx = ApplicationContext(mock_ws)
+    ctx.replace(
+        installation=mock_installation_with_switch,
+        add_user_agent_extra=lambda w, *args, **kwargs: w,
+        resource_configurator=mock_configurator,
+    )
+
+    error_msg = r"Invalid value for '--switch-config-path': path must start with /Workspace/\. Got: '/Users/test/switch_config\.yaml'"
+    with pytest.raises(ValueError, match=error_msg):
+        cli.llm_transpile(
+            w=mock_ws,
+            accept_terms=True,
+            input_source=str(input_source),
+            output_ws_folder=output_folder,
+            source_dialect="mssql",
+            catalog_name="lakebridge",
+            schema_name="switch",
+            volume="switch_volume",
+            foundation_model="databricks-claude-sonnet-4-5",
+            switch_config_path=invalid_config,
+            ctx=ctx,
+        )
