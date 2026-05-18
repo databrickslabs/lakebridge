@@ -272,7 +272,7 @@ class WheelInstaller(ArtifactInstaller):
         ]
         if logger.isEnabledFor(logging.DEBUG):
             command.append("--verbose")
-        result = subprocess.run(command, stdin=sys.stdin, stdout=sys.stdout, stderr=sys.stderr, check=False)
+        result = subprocess.run(command, check=False)
         result.check_returncode()
 
     def _copy_lsp_resources(self):
