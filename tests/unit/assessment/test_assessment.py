@@ -1,4 +1,7 @@
+from unittest.mock import patch
+
 import yaml
+
 from databricks.labs.blueprint.tui import MockPrompts
 from databricks.labs.lakebridge.assessments.configure_assessment import (
     create_assessment_configurator,
@@ -115,6 +118,119 @@ def test_configure_synapse_credentials(tmp_path):
         credentials = yaml.safe_load(file)
 
     assert credentials == expected_credentials
+
+
+def test_synapse_configure_prompts_for_connection_test(tmp_path):
+    """Synapse configure now ALWAYS asks the validation prompt.
+
+    Previously the `CONNECTOR_REQUIRED["synapse"] = False` gate suppressed the
+    confirm prompt entirely; we now run the preflight at configure time for
+    every source.
+    """
+    seen_prompts: list[str] = []
+    real_confirm = MockPrompts.confirm
+
+    def spy_confirm(self, question, *args, **kwargs):
+        seen_prompts.append(question)
+        return real_confirm(self, question, *args, **kwargs)
+
+    prompts = MockPrompts(
+        {
+            r"Enter secret vault type \(local \| env\)": sorted(['local', 'env']).index("env"),
+            r"Enter Synapse workspace name": "test-workspace",
+            r"Enter SQL user": "test-user",
+            r"Enter SQL password": "test-password",
+            r"Enter timezone \(e.g. America/New_York\)": "UTC",
+            r"Enter the ODBC driver installed locally": "ODBC Driver 18 for SQL Server",
+            r"Enter development endpoint": "test-dev-endpoint",
+            r"Select authentication type": sorted(
+                ["sql_authentication", "ad_passwd_authentication", "spn_authentication"]
+            ).index("sql_authentication"),
+            r"Enter fetch size": "1000",
+            r"Enter login timeout \(seconds\)": "30",
+            r"Exclude serverless SQL pool from profiling\?": "no",
+            r"Exclude dedicated SQL pools from profiling\?": "no",
+            r"Exclude Spark pools from profiling\?": "no",
+            r"Exclude monitoring metrics from profiling\?": "no",
+            r"Redact SQL pools SQL text\?": "no",
+            r"Do you want to test the connection to synapse\?": "no",
+        }
+    )
+
+    file = tmp_path / ".credentials.yml"
+    assessment = ConfigureSynapseAssessment(
+        product_name="lakebridge", source_name="synapse", prompts=prompts, credential_file=file
+    )
+    with patch.object(MockPrompts, "confirm", spy_confirm):
+        assessment.run()
+
+    assert any("test the connection to synapse" in q for q in seen_prompts)
+
+
+def test_synapse_configure_runs_preflight_when_user_confirms(tmp_path, caplog):
+    """When the user confirms, configure should delegate to the preflight runner.
+
+    We mock the runner directly so the test does not touch the network. The
+    fast-mode hint should be printed alongside the success log.
+    """
+    prompts = MockPrompts(
+        {
+            r"Enter secret vault type \(local \| env\)": sorted(['local', 'env']).index("env"),
+            r"Enter Synapse workspace name": "test-workspace",
+            r"Enter SQL user": "test-user",
+            r"Enter SQL password": "test-password",
+            r"Enter timezone \(e.g. America/New_York\)": "UTC",
+            r"Enter the ODBC driver installed locally": "ODBC Driver 18 for SQL Server",
+            r"Enter development endpoint": "test-dev-endpoint",
+            r"Select authentication type": sorted(
+                ["sql_authentication", "ad_passwd_authentication", "spn_authentication"]
+            ).index("sql_authentication"),
+            r"Enter fetch size": "1000",
+            r"Enter login timeout \(seconds\)": "30",
+            r"Exclude serverless SQL pool from profiling\?": "no",
+            r"Exclude dedicated SQL pools from profiling\?": "no",
+            r"Exclude Spark pools from profiling\?": "no",
+            r"Exclude monitoring metrics from profiling\?": "no",
+            r"Redact SQL pools SQL text\?": "no",
+            r"Do you want to test the connection to synapse\?": "yes",
+        }
+    )
+
+    file = tmp_path / ".credentials.yml"
+
+    # Patch create_credential_manager so it reads from `file` (which the
+    # configure flow just wrote) rather than the real ~/.databricks default.
+    from databricks.labs.lakebridge.connections.credential_manager import create_credential_manager as real_ccm
+
+    def fake_ccm(product, env_getter, creds_path=None):
+        return real_ccm(product, env_getter, creds_path=file)
+
+    fake_report = type(
+        "FakeReport",
+        (),
+        {
+            "to_text": lambda self: "credentials_integrity  FATAL  PASS  1ms  ok",
+            "any_fatal_failed": lambda self: False,
+        },
+    )()
+
+    assessment = ConfigureSynapseAssessment(
+        product_name="lakebridge", source_name="synapse", prompts=prompts, credential_file=file
+    )
+    with caplog.at_level("INFO"), patch(
+        "databricks.labs.lakebridge.assessments.configure_assessment.create_credential_manager",
+        side_effect=fake_ccm,
+    ), patch(
+        "databricks.labs.lakebridge.assessments.configure_assessment.preflight_runner.is_registered",
+        return_value=True,
+    ), patch(
+        "databricks.labs.lakebridge.assessments.configure_assessment.preflight_runner.run",
+        return_value=fake_report,
+    ):
+        assessment.run()
+
+    assert "Connection to the source system successful" in caplog.text
+    assert "test-profiler-connection --thorough" in caplog.text
 
 
 def test_create_assessment_configurator():

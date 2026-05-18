@@ -166,4 +166,45 @@ Exclude monitoring metrics from profiling? (default: no):
 Redact SQL pools SQL text? (default: no):
 ```
 
+## Preflight Checklist
+
+Before the profiler runs the full extract pipeline (which can take an hour or more on a large workspace), the **preflight** validates the entire request path end-to-end. It runs automatically at the end of `configure-database-profiler` (in fast mode) and can be re-run any time with:
+
+```bash
+databricks labs lakebridge test-profiler-connection --source-tech synapse
+```
+
+Add `--thorough` for the deep sweep (every serverless DB probed, longer timeouts, no dependency short-circuit). Add `--fail-fast` to stop at the first FATAL failure.
+
+### What each check does and how to fix it
+
+| Check | Severity | What it does | Common failure and remediation |
+|---|---|---|---|
+| `credentials_integrity` | FATAL | Confirms the credentials file has the required Synapse keys and no whitespace in `sql_user` / `sql_password`. | Re-run `configure-database-profiler` and re-enter the credentials. |
+| `profiler_scope` | FATAL | Verifies at least one of dedicated or serverless pools is in scope. | In the credentials file, set `profiler.exclude_dedicated_sql_pools` or `profiler.exclude_serverless_sql_pool` to `false`. |
+| `odbc_driver` | FATAL | Checks that the driver named in `workspace.driver` is registered with `pyodbc`. | Install [Microsoft ODBC Driver 18 for SQL Server](https://learn.microsoft.com/sql/connect/odbc/download-odbc-driver-for-sql-server). |
+| `network_tls` | FATAL | DNS resolves the Synapse SQL hosts and the dev endpoint; TCP 1433 reachable; TLS handshake succeeds against the OS trust store. | Open outbound 1433 (SQL) and 443 (dev endpoint). If a corporate proxy performs TLS interception, install its CA into the host trust store. |
+| `azure_credential` | WARN | `DefaultAzureCredential` resolves an Azure management token. | Run `az login`, or set `AZURE_TENANT_ID` / `AZURE_CLIENT_ID` / `AZURE_CLIENT_SECRET`. |
+| `artifacts_sdk` | WARN | Synapse Artifacts client can call `workspace.get()` and `sql_pools.list()` against the dev endpoint. | Verify the development endpoint URL; assign `Synapse Artifact User` on the workspace to the running identity. |
+| `sql_auth` | FATAL | Opens `master` on each enabled SQL endpoint using the configured login. | Verify the SQL admin password. If the login is AAD, check Entra ID Conditional Access for non-interactive sign-in blocks. Codes 18456/4060 usually mean the requested database is not accessible to this login. |
+| `server_default_db` | WARN | Confirms `sys.server_principals.default_database_name` for the SQL login resolves to a usable DB. | If it is `default` or otherwise unreachable, run `ALTER LOGIN [sqluser] WITH DEFAULT_DATABASE = [master];`. |
+| `per_pool_open` | FATAL | Opens every dedicated SQL pool returned by Artifacts (or `master` if Artifacts is unavailable). | A paused or unreachable pool yields connection errors. Resume it or narrow scope via `dedicated_pools_list`. |
+| `per_db_open` | FATAL | Lists every database on the serverless endpoint and attempts `USE [db]`. In fast mode samples up to 10 DBs; in thorough mode probes all of them. | **This is the lake-DB trap from the pipeline.** If a Spark/lake DB (often `default`) fails to open, the Synapse workspace's managed identity likely lacks `Storage Blob Data Contributor` on the backing ADLS Gen2 container, or the storage firewall blocks the serverless engine. To skip serverless entirely, set `profiler.exclude_serverless_sql_pool: true`. |
+| `azure_monitor` | WARN | `MetricsQueryClient` reaches the workspace resource. | Assign `Monitoring Reader` on the Synapse workspace to the running identity. |
+| `msi_storage_rbac` | WARN | Best-effort: workspace managed identity has `Storage Blob Data Contributor` on the primary ADLS container. | Manually verify in the Azure portal under the storage account's **Access Control (IAM)** that the Synapse workspace's system-assigned MSI is granted the role, and that the storage firewall has `Allow Azure services on the trusted services list`. |
+| `sql_firewall` | WARN | Best-effort: client egress IP is allowed by the Synapse SQL firewall. | Add the egress IP/range to the workspace SQL firewall, or enable `Allow Azure services` if running in Azure. |
+
+### Fast vs thorough
+
+| Mode | Default `loginTimeout` | Serverless DB sampling | Dependency short-circuit | Use case |
+|---|---|---|---|---|
+| Fast (default) | 10 s | Up to 10 random DBs (deterministic by workspace + count) | On (`SKIP` propagates from a failing dependency) | configure-time validation, CI / scripted runs |
+| `--thorough` | 30 s | All DBs probed | Off (every check runs regardless of upstream) | manual investigation, root-cause analysis |
+
+Both modes use an 8-worker thread pool; the per-pool, per-DB, and DNS/TCP/TLS checks fan out across the pool.
+
+### Failure surface
+
+The CLI prints a table per run with the check name, severity, status, elapsed time, detail, and (on FAIL/UNKNOWN) a one-line remediation. The process exits non-zero when any FATAL check fails, so it composes with shell `&&` chains.
+
 [Back to Configure Profiler](../#configure-profiler)

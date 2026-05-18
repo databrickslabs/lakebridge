@@ -117,9 +117,15 @@ commands:
         description: (Optional) The technology/platform of the sources to Profile
 
   - name: test-profiler-connection
-    description: (Internal) Test the connection to the source database for profiling
+    description: Run the profiler preflight checks (credentials, driver, network/TLS, SQL auth, per-DB open, Azure SDK reachability, MSI storage RBAC, SQL firewall) against the configured source database.
     flags:
       - name: source-tech
         description: Database platform/technology of source connection
       - name: cred-file-path
         description: (Optional) Local `path` of the credential file to use for testing the connection
+      - name: thorough
+        description: (Optional) Run the deep sweep (no sampling, longer timeouts, no dependency short-circuit). Default is the fast sweep suitable for configure-time validation.
+        default: "false"
+      - name: fail-fast
+        description: (Optional) Stop at the first FATAL failure instead of running every independent check.
+        default: "false"

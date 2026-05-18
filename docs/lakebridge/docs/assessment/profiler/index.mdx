@@ -47,9 +47,19 @@ connection details specific to that source:
 databricks labs lakebridge configure-database-profiler
 ```
 
+## Validate Configuration (Preflight)
+
+The profiler's preflight runs automatically at the end of `configure-database-profiler` and can be re-run any time with:
+
+```bash
+databricks labs lakebridge test-profiler-connection --source-tech <source>
+```
+
+It validates credentials, the ODBC driver, network/TLS to the source endpoints, SQL authentication, per-database opens, Azure SDK reachability, and (best-effort) workspace MSI storage RBAC and SQL firewall. Source-specific checks and remediation steps are documented per source (e.g. [Synapse Preflight Checklist](./synapse#preflight-checklist)). Pass `--thorough` for a deep sweep and `--fail-fast` to stop at the first failure.
+
 ## Execute Profiler
 
-Once configured, run the profiler to extract metadata and performance metrics from your source system:
+Once configured (and the preflight is green), run the profiler to extract metadata and performance metrics from your source system:
 
 ```bash
 databricks labs lakebridge execute-database-profiler --help

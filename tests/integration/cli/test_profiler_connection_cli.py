@@ -56,14 +56,33 @@ def test_profiler_connection_synapse_success(
     ws: WorkspaceClient,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """Test successful connection to Synapse dedicated SQL pool."""
+    """Successful Synapse preflight should report PASS rows and exit cleanly."""
     cred_path = _create_credentials_file(sandbox_synapse_cred_config, tmp_path, exclude_serverless=True)
 
     check_connection(w=ws, source_tech="synapse", cred_file_path=str(cred_path))
 
     assert "Testing connection for source technology: synapse" in caplog.text
-    assert "✓ Dedicated SQL pool connection successful" in caplog.text
+    # Preflight prints a report table with at least credentials + sql_auth as PASS.
+    assert "credentials_integrity" in caplog.text
+    assert "sql_auth" in caplog.text
+    assert "PASS" in caplog.text
     assert "Connection to the source system successful" in caplog.text
+
+
+def test_profiler_connection_synapse_thorough_flag(
+    sandbox_synapse_cred_config: JsonObject,
+    tmp_path: Path,
+    ws: WorkspaceClient,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """--thorough should still pass and suppress the thorough-mode hint."""
+    cred_path = _create_credentials_file(sandbox_synapse_cred_config, tmp_path, exclude_serverless=True)
+
+    check_connection(w=ws, source_tech="synapse", cred_file_path=str(cred_path), thorough=True)
+
+    assert "Connection to the source system successful" in caplog.text
+    # The fast-mode hint should NOT appear when --thorough was passed.
+    assert "test-profiler-connection --thorough" not in caplog.text
 
 
 def test_profiler_connection_missing_credentials_file(
@@ -92,9 +111,14 @@ def test_profiler_connection_invalid_source_technology(
 @pytest.mark.parametrize(
     ("cred_kwargs", "expected_msg"),
     [
+        # invalid_driver now triggers OdbcDriverCheck FAIL, whose ConnectionError detail
+        # contains "odbc_driver" which the CLI maps to the same friendly message.
         ({"exclude_serverless": True, "invalid_driver": True}, "Missing ODBC driver"),
+        # invalid_server fails NetworkTlsCheck; everything else routes to the generic
+        # "Connection validation failed" path.
         ({"exclude_serverless": True, "invalid_server": True}, "Connection validation failed"),
-        ({"exclude_serverless": True, "exclude_dedicated": True}, "Connection test failed"),
+        # Both pools excluded -> ProfilerScopeCheck FAIL -> "Connection validation failed".
+        ({"exclude_serverless": True, "exclude_dedicated": True}, "Connection validation failed"),
         ({"missing_source_key": True}, "Invalid credentials"),
     ],
     ids=["odbc-driver-missing", "invalid-server", "all-pools-excluded", "missing-source-key"],
@@ -106,10 +130,30 @@ def test_profiler_connection_error_cases(
     cred_kwargs: dict,
     expected_msg: str,
 ) -> None:
-    """Test that each failure mode raises SystemExit with the appropriate message."""
+    """Each failure mode should exit non-zero with the expected user-facing message."""
     cred_path = _create_credentials_file(sandbox_synapse_cred_config, tmp_path, **cred_kwargs)
 
     with pytest.raises(SystemExit) as exc_info:
         check_connection(w=ws, source_tech="synapse", cred_file_path=str(cred_path))
 
     assert expected_msg in str(exc_info.value)
+
+
+def test_profiler_connection_synapse_fail_fast(
+    sandbox_synapse_cred_config: JsonObject,
+    tmp_path: Path,
+    ws: WorkspaceClient,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """--fail-fast on a broken config should still surface the first FATAL failure."""
+    cred_path = _create_credentials_file(
+        sandbox_synapse_cred_config,
+        tmp_path,
+        exclude_serverless=True,
+        invalid_driver=True,
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        check_connection(w=ws, source_tech="synapse", cred_file_path=str(cred_path), fail_fast=True)
+
+    assert "Missing ODBC driver" in str(exc_info.value)

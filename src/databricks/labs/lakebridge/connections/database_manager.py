@@ -99,10 +99,11 @@ class MSSQLConnector(_BaseConnector):
     def _connect(self) -> Engine:
         auth_type = self.config.get('auth_type', 'sql_authentication')
         db_name = str(self.config.get('database'))
+        login_timeout = str(self.config.get('connect_timeout_s', 30))
 
         query_params: dict[str, str] = {
             "driver": str(self.config['driver']),
-            "loginTimeout": "30",
+            "loginTimeout": login_timeout,
         }
 
         if auth_type == "ad_passwd_authentication":

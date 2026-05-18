@@ -13,7 +13,8 @@ from databricks.labs.lakebridge.connections.credential_manager import (
 )
 from databricks.labs.lakebridge.connections.database_manager import DatabaseManager
 from databricks.labs.lakebridge.connections.env_getter import EnvGetter
-from databricks.labs.lakebridge.assessments import CONNECTOR_REQUIRED
+from databricks.labs.lakebridge.connections.preflight import RunOptions, runner as preflight_runner
+from databricks.labs.lakebridge.connections import synapse_preflight as _synapse_preflight  # noqa: F401  (registers Synapse checks on import)
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +46,27 @@ class AssessmentConfigurator(ABC):
 
     @staticmethod
     def _test_connection(source: str, cred_manager: CredentialManager):
+        """Validate the connection for ``source``.
+
+        Prefers the registered preflight suite (richer report, more failure
+        modes caught) and falls back to the legacy ``DatabaseManager.check_connection()``
+        probe for sources without a registered suite.
+        """
         config = cred_manager.get_credentials(source)
+
+        if preflight_runner.is_registered(source):
+            report = preflight_runner.run(source, config, RunOptions())
+            for line in report.to_text().splitlines():
+                logger.info(line)
+            if report.any_fatal_failed():
+                logger.error("Preflight check(s) failed; see report above.")
+                raise SystemExit("Connection validation failed. Exiting...")
+            logger.info(
+                "Hint: run `databricks labs lakebridge test-profiler-connection --thorough` "
+                "for the deep sweep."
+            )
+            logger.info("Connection to the source system successful")
+            return
 
         try:
             db_manager = DatabaseManager(source, config)
@@ -60,15 +81,28 @@ class AssessmentConfigurator(ABC):
             raise SystemExit("Connection validation failed. Exiting...") from e
 
     def run(self):
-        """Run the assessment configuration process."""
+        """Run the assessment configuration process.
+
+        After writing the credentials file we optionally validate the
+        connection. For sources with a registered preflight suite (e.g.
+        Synapse) we delegate to the same code path as the
+        ``test-profiler-connection`` CLI so configure-time and ad-hoc
+        validation produce identical reports. For other sources we keep the
+        legacy ``DatabaseManager`` probe.
+
+        The check runs in fast mode by design; configure time is the wrong
+        place for the deep sweep.
+        """
         logger.info(f"Welcome to the {self._product_name} Assessment Configuration")
         source = self._configure_credentials()
         logger.info(f"{source.capitalize()} details and credentials received.")
-        if CONNECTOR_REQUIRED.get(self._source_name, True):
-            if self.prompts.confirm(f"Do you want to test the connection to {source}?"):
-                cred_manager = create_credential_manager("lakebridge", EnvGetter())
-                if cred_manager:
-                    self._test_connection(source, cred_manager)
+
+        # Default to "yes" so the user has to actively opt out of validation.
+        if self.prompts.confirm(f"Do you want to test the connection to {source}?"):
+            cred_manager = create_credential_manager(self._product_name, EnvGetter())
+            if cred_manager:
+                self._test_connection(source, cred_manager)
+
         logger.info(f"{source.capitalize()} Assessment Configuration Completed")
 
 

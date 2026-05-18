@@ -30,7 +30,15 @@ from databricks.labs.lakebridge.contexts.application import ApplicationContext
 from databricks.labs.lakebridge.connections.credential_manager import cred_file, create_credential_manager
 from databricks.labs.lakebridge.connections.database_manager import DatabaseManager
 from databricks.labs.lakebridge.connections.env_getter import EnvGetter
-from databricks.labs.lakebridge.connections.synapse_connection_helpers import validate_synapse_pools
+from databricks.labs.lakebridge.connections.preflight import (
+    CheckSeverity,
+    CheckStatus,
+    PreflightReport,
+    RunOptions,
+    runner as preflight_runner,
+)
+from databricks.labs.lakebridge.connections import synapse_preflight as _synapse_preflight  # noqa: F401  (registers Synapse checks on import)
+from databricks.labs.lakebridge.connections.synapse_connection_helpers import validate_synapse_pools  # noqa: F401  (kept for backwards compat / tests)
 from databricks.labs.lakebridge.helpers.recon_config_utils import ReconConfigPrompts
 from databricks.labs.lakebridge.helpers.telemetry_utils import make_alphanum_or_semver
 from databricks.labs.lakebridge.reconcile.runner import ReconcileRunner
@@ -1053,19 +1061,38 @@ def visualize_profiler_results(
     profiler_dashboard_installer.run(module="profiler_dashboard")
 
 
-def _test_database_connection(source_tech: str, raw_config: dict) -> None:
-    """Test connection to the source database with appropriate error handling."""
-    # Handle synapse-specific validation using dedicated helper
-    if source_tech == "synapse":
-        validate_synapse_pools(raw_config)
-        logger.info("Connection to the source system successful")
-        return
+def _test_database_connection(
+    source_tech: str,
+    raw_config: dict,
+    *,
+    options: RunOptions | None = None,
+) -> PreflightReport | None:
+    """Run preflight checks for ``source_tech``.
 
-    # For other source technologies, use DatabaseManager directly
+    Returns the :class:`PreflightReport` when a registered preflight suite
+    handled the source. For sources without a registered suite, falls back to
+    the legacy ``DatabaseManager.check_connection()`` probe and returns
+    ``None`` (no structured report). Raises ``ConnectionError`` on any FATAL
+    failure (or upstream legacy ConnectionError) so the CLI can map errors to
+    user-facing exit messages.
+    """
+
+    if preflight_runner.is_registered(source_tech):
+        report = preflight_runner.run(source_tech, raw_config, options or RunOptions())
+        if report.any_fatal_failed():
+            # Surface a short summary on the exception; full table is printed by the caller.
+            first_fatal = next(
+                r for r in report.results if r.severity == CheckSeverity.FATAL and r.status == CheckStatus.FAIL
+            )
+            raise ConnectionError(f"Preflight failed: {first_fatal.name} - {first_fatal.detail}")
+        return report
+
+    # Legacy path for source techs without a registered preflight suite.
     with DatabaseManager(source_tech, raw_config) as db_manager:
         response = db_manager.check_connection()
     logger.debug(f"Connection response: {response}")
     logger.info("Connection to the source system successful")
+    return None
 
 
 @lakebridge.command()
@@ -1074,8 +1101,16 @@ def test_profiler_connection(
     w: WorkspaceClient,
     source_tech: str | None = None,
     cred_file_path: str | None = None,
+    thorough: bool = False,
+    fail_fast: bool = False,
 ) -> None:
-    """[Internal] Test the connection to the source database for profiling"""
+    """Run the profiler preflight checks against a source database.
+
+    Default is a fast sweep suitable for configure-time validation. Pass
+    ``--thorough`` for the full sweep (no sampling, longer timeouts, no
+    dependency short-circuit) and ``--fail-fast`` to stop at the first FATAL
+    failure.
+    """
     ctx = ApplicationContext(w)
     ctx.add_user_agent_extra("cmd", "test-profiler-connection")
     prompts = ctx.prompts
@@ -1115,17 +1150,27 @@ def test_profiler_connection(
             f"Invalid credentials for {source_tech}. Please run `databricks labs lakebridge configure-database-profiler`."
         ) from e
 
+    options = RunOptions(thorough=thorough, fail_fast=fail_fast)
     try:
-        _test_database_connection(source_tech, raw_config)
+        report = _test_database_connection(source_tech, raw_config, options=options)
     except ConnectionError as e:
         logger.error(f"Failed to connect to the source system: {e}")
         error_msg = str(e).lower()
-        if any(pattern in error_msg for pattern in ("im002", "odbc driver not found", "can't open lib")):
+        if any(pattern in error_msg for pattern in ("im002", "odbc driver not found", "can't open lib", "odbc_driver")):
             raise SystemExit("Missing ODBC driver, Please install pre-req. Exiting...") from e
         raise SystemExit("Connection validation failed. Exiting...") from e
     except Exception as e:  # noqa: BLE001
         logger.error(f"Unexpected error during connection test: {e}")
         raise SystemExit("Connection test failed. Exiting...") from e
+
+    if report is not None:
+        # Print full preflight report so the user can see PASS/WARN/UNKNOWN as well as the FAILs.
+        # We log it so callers that capture logs (incl. the integration tests) can see it too.
+        for line in report.to_text().splitlines():
+            logger.info(line)
+        if not thorough:
+            logger.info("Hint: run `databricks labs lakebridge test-profiler-connection --thorough` for the deep sweep.")
+    logger.info("Connection to the source system successful")
 
 
 if __name__ == "__main__":

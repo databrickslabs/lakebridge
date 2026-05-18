@@ -9,11 +9,18 @@ def create_synapse_connection(
     database: str,
     endpoint_key: str = 'dedicated_sql_endpoint',
     auth_type: str = 'sql_authentication',
+    connect_timeout_s: int | None = None,
 ) -> DatabaseManager:
     """Create a DatabaseManager connection to a Synapse SQL pool.
 
     Transforms Synapse workspace configuration (with sql_user/sql_password) into
     the standard DatabaseManager format (with user/password).
+
+    Args:
+        connect_timeout_s: Optional override for the ODBC login timeout. When
+            ``None``, the default ``MSSQLConnector`` timeout applies. The
+            preflight passes a tighter value (10 s) so a broken endpoint or
+            inaccessible lake DB does not stall the run.
 
     Returns:
         DatabaseManager configured for the specified Synapse SQL pool
@@ -32,6 +39,8 @@ def create_synapse_connection(
         "port": workspace_config.get('port', 1433),
         "auth_type": auth_type,
     }
+    if connect_timeout_s is not None:
+        config["connect_timeout_s"] = connect_timeout_s
 
     return DatabaseManager(db_type="synapse", config=config)
 
