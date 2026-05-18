@@ -130,7 +130,7 @@ def execute():
             )
 
             table_name = "dedicated_sessions"
-            prev_max_login_time = get_max_column_vfix alue_duckdb("login_time", table_name, db_path)
+            prev_max_login_time = get_max_column_value_duckdb("login_time", table_name, db_path)
             session_query = SynapseQueries.list_dedicated_sessions(
                 pool_name=sqlpool_name, last_login_time=prev_max_login_time
             )
