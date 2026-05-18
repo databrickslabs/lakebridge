@@ -41,6 +41,14 @@ class DatabaseConnector(contextlib.AbstractContextManager):
     def close(self) -> None:
         pass
 
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
+        self.close()
+
 
 class _BaseConnector(DatabaseConnector):
     def __init__(self, config: JsonObject):
@@ -52,14 +60,6 @@ class _BaseConnector(DatabaseConnector):
 
     def close(self) -> None:
         self.engine.dispose()
-
-    def __exit__(
-        self,
-        exc_type: type[BaseException] | None,
-        exc_val: BaseException | None,
-        exc_tb: TracebackType | None,
-    ) -> None:
-        self.close()
 
     def fetch(self, query: str) -> FetchResult:
         if not self.engine:
