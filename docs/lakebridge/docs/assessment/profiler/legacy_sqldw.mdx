@@ -12,10 +12,10 @@ import Admonition from '@theme/Admonition';
 - [Execute the Profiler](#execute-the-profiler)
 
 :::info
-"Legacy SQL DW" refers to **Azure SQL Data Warehouse** and **Azure Synapse Analytics dedicated SQL pool** —
+"Legacy SQL DW" refers to **Azure Synapse dedicated SQL pool** —
 MPP-based platforms that expose Parallel Data Warehouse (PDW) Dynamic Management Views (`sys.dm_pdw_*`).
 For serverless SQL pools, Spark pools, and the Synapse workspace control plane, use the
-[Synapse profiler](./synapse) instead.
+[Synapse profiler](./synapse.mdx) instead.
 :::
 
 ## Prerequisites
@@ -24,7 +24,7 @@ For serverless SQL pools, Spark pools, and the Synapse workspace control plane, 
 - ODBC driver for SQL Server (https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server?view=sql-server-ver18)
 - (Windows only) Visual C++ (https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170)
 
-### 2. SQL Server Authentication
+### 2. SQL DW Authentication
 
 :::warning Attention:
 Multi-factor Authentication (MFA) is **not** supported. The Legacy SQL DW profiler connects via ODBC, which does not support MFA.
@@ -159,6 +159,7 @@ Enter secret vault type (local | env)
 Enter a number between 0 and 1: 1
 Enter the fully-qualified server name: my-dw-server.database.windows.net
 Enter the port details: 1433
+Enter the database name: dbo
 Enter the SQL username: profiler_user
 Enter the SQL password:
 Enter the ODBC driver installed locally (default: ODBC Driver 18 for SQL Server):
@@ -171,6 +172,7 @@ Enter the ODBC driver installed locally (default: ODBC Driver 18 for SQL Server)
 | **Secret vault type** | `local` for plain text values, `env` to read from environment variables | — |
 | **Server name** | Fully-qualified hostname of the dedicated SQL pool | — |
 | **Port** | Server port number | — |
+| **Database** | Database | — |
 | **SQL username** | SQL Authentication username | — |
 | **SQL password** | SQL Authentication password (hidden input) | — |
 | **ODBC driver** | Locally installed ODBC driver name | `ODBC Driver 18 for SQL Server` |
