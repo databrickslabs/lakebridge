@@ -198,7 +198,7 @@ def to_lower_case(input_list: list[str]) -> list[str]:
 
 
 @dataclass
-class Table:  # pylint: disable=too-many-instance-attributes
+class Table:
     source_name: str
     target_name: str
     sampling_options: SamplingOptions | None = None
