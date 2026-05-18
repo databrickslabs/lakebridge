@@ -910,6 +910,7 @@ def llm_transpile(
     schema_name: str | None = None,
     volume: str | None = None,
     foundation_model: str | None = None,
+    switch_config_path: str | None = None,
     ctx: ApplicationContext | None = None,
 ) -> None:
     """Transpile source code to Databricks using LLM Transpiler (Switch)"""
@@ -964,6 +965,12 @@ def llm_transpile(
     if foundation_model is None:
         foundation_model = resource_configurator.prompt_for_foundation_model_choice()
 
+    if switch_config_path is not None:
+        if not switch_config_path.startswith("/Workspace/"):
+            raise_validation_exception(
+                f"Invalid value for '--switch-config-path': path must start with /Workspace/. Got: {switch_config_path!r}"
+            )
+
     job_list = ctx.install_state.jobs
     if "Switch" not in job_list:
         logger.debug(f"Missing Switch from installed state jobs: {job_list!r}")
@@ -991,6 +998,7 @@ def llm_transpile(
         schema=schema_name,
         foundation_model=foundation_model,
         job_id=job_id,
+        switch_config_path=switch_config_path,
     )
 
 
@@ -1025,20 +1033,24 @@ def execute_database_profiler(w: WorkspaceClient, source_tech: str | None = None
 
 
 @lakebridge.command()
-def create_profiler_dashboard(
+def visualize_profiler_results(
     *,
     w: WorkspaceClient,
-    extract_file: str,
-    source_tech: str,
-    volume_path: str,
-    catalog_name: str,
-    schema_name: str,
+    transpiler_repository: TranspilerRepository = TranspilerRepository.user_home(),
 ) -> None:
     """Deploys a profiler summary as a Databricks dashboard"""
+    from databricks.labs.lakebridge.install import installer  # pylint: disable=cyclic-import, import-outside-toplevel
+
     ctx = ApplicationContext(w)
-    ctx.add_user_agent_extra("cmd", "create-profiler-dashboard")
-    ctx.dashboard_manager.upload_duckdb_to_uc_volume(extract_file, volume_path)
-    ctx.dashboard_manager.create_profiler_summary_dashboard(source_tech, catalog_name, schema_name)
+    ctx.add_user_agent_extra("cmd", "visualize-profiler-results")
+
+    # Deploy the profiler dashboard and ingestion job
+    if not w.config.warehouse_id:
+        dbsql_id = _create_warehouse(w)
+        w.config.warehouse_id = dbsql_id
+    logger.debug(f"Warehouse ID used for running the profiler dashboard: {w.config.warehouse_id}.")
+    profiler_dashboard_installer = installer(w, transpiler_repository, is_interactive=True)
+    profiler_dashboard_installer.run(module="profiler_dashboard")
 
 
 def _test_database_connection(source_tech: str, raw_config: dict) -> None:
@@ -1099,10 +1111,9 @@ def test_profiler_connection(
         raw_config = cred_manager.get_credentials(source_tech)
     except KeyError as e:
         logger.error(f"Credential configuration error: {e}")
-        logger.fatal(
+        raise SystemExit(
             f"Invalid credentials for {source_tech}. Please run `databricks labs lakebridge configure-database-profiler`."
-        )
-        return
+        ) from e
 
     try:
         _test_database_connection(source_tech, raw_config)
@@ -1110,13 +1121,11 @@ def test_profiler_connection(
         logger.error(f"Failed to connect to the source system: {e}")
         error_msg = str(e).lower()
         if any(pattern in error_msg for pattern in ("im002", "odbc driver not found", "can't open lib")):
-            logger.fatal("Missing ODBC driver, Please install pre-req. Exiting...")
-        else:
-            logger.fatal("Connection validation failed. Exiting...")
-    except Exception as e:  # pylint: disable=broad-exception-caught
-        # Catch all exceptions to provide user-friendly error messages for CLI
+            raise SystemExit("Missing ODBC driver, Please install pre-req. Exiting...") from e
+        raise SystemExit("Connection validation failed. Exiting...") from e
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Unexpected error during connection test: {e}")
-        logger.fatal("Connection test failed. Exiting...")
+        raise SystemExit("Connection test failed. Exiting...") from e
 
 
 if __name__ == "__main__":

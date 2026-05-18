@@ -44,12 +44,10 @@ def main(*argv: str) -> None:
 
     reconcile_config = installation.load(ReconcileConfig)
 
-    catalog_or_schema = (
-        reconcile_config.database_config.source_catalog
-        if reconcile_config.database_config.source_catalog
-        else reconcile_config.database_config.source_schema
+    connection_or_catalog = reconcile_config.source.uc_connection_name or reconcile_config.source.catalog
+    filename = (
+        f"recon_config_{reconcile_config.source.dialect}_{connection_or_catalog}_{reconcile_config.report_type}.json"
     )
-    filename = f"recon_config_{reconcile_config.data_source}_{catalog_or_schema}_{reconcile_config.report_type}.json"
 
     logger.info(f"Loading {filename} from Databricks Workspace...")
 

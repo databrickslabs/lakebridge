@@ -1,0 +1,2026 @@
+{
+  "datasets": [
+    {
+      "name": "749e0114",
+      "displayName": "Top Tables and Views",
+      "queryLines": [
+        "with dedicated_tables as (\n",
+        "  select\n",
+        "    *\n",
+        "  from\n",
+        "    IDENTIFIER(:dedicated_tables)\n",
+        "),\n",
+        "dedicated_views as (\n",
+        "  select\n",
+        "    *\n",
+        "  from\n",
+        "    IDENTIFIER(:dedicated_views)\n",
+        "),\n",
+        "tables as (\n",
+        "  select\n",
+        "    table_catalog,\n",
+        "    table_schema,\n",
+        "    table_name\n",
+        "  from\n",
+        "    dedicated_tables\n",
+        "  where\n",
+        "    table_type != 'VIEW'\n",
+        "  qualify\n",
+        "    row_number() over (partition by table_catalog, table_schema, table_name order by table_name) = 1\n",
+        "),\n",
+        "table_counts as (\n",
+        "  select\n",
+        "    table_catalog as catalog,\n",
+        "    table_schema as schema,\n",
+        "    'Tables' as object_type,\n",
+        "    count(*) as num_objects\n",
+        "  from\n",
+        "    tables\n",
+        "  group by\n",
+        "    1,\n",
+        "    2\n",
+        "  order by\n",
+        "    3 desc\n",
+        "  limit 10\n",
+        "),\n",
+        "views as (\n",
+        "  select\n",
+        "    table_catalog,\n",
+        "    table_schema,\n",
+        "    table_name\n",
+        "  from\n",
+        "    dedicated_views\n",
+        "  qualify\n",
+        "    row_number() over (partition by table_catalog, table_schema, table_name order by table_name) = 1\n",
+        "),\n",
+        "view_counts as (\n",
+        "  select\n",
+        "    table_catalog as catalog,\n",
+        "    table_schema as schema,\n",
+        "    'Views' as object_type,\n",
+        "    count(*) as num_objects\n",
+        "  from\n",
+        "    views\n",
+        "  group by\n",
+        "    1,\n",
+        "    2\n",
+        "  order by\n",
+        "    3 desc\n",
+        "  limit 10\n",
+        ")\n",
+        "select\n",
+        "  *\n",
+        "from\n",
+        "  (\n",
+        "    select\n",
+        "      *\n",
+        "    from\n",
+        "      table_counts\n",
+        "    union all\n",
+        "    select\n",
+        "      *\n",
+        "    from\n",
+        "      view_counts\n",
+        "  ) X\n",
+        "order by\n",
+        "  3 desc;"
+      ],
+      "parameters": [
+        {
+          "displayName": "dedicated_tables",
+          "keyword": "dedicated_tables",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": "<CATALOG_NAME>.<SCHEMA_NAME>.dedicated_tables"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "displayName": "dedicated_views",
+          "keyword": "dedicated_views",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": "<CATALOG_NAME>.<SCHEMA_NAME>.dedicated_views"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "8331f370",
+      "displayName": "Daily Metrics Summary for Data Warehouse Usage",
+      "queryLines": [
+        "select\n",
+        "  name,\n",
+        "  date(`timestamp`) date,\n",
+        "  max(average) as avg,\n",
+        "  avg(maximum) as avg_max,\n",
+        "  max(maximum) as max_max\n",
+        "from\n",
+        "  IDENTIFIER(:dsp_metrics_table)\n",
+        "where\n",
+        "  name in ('DWUUsedPercent', 'DWU used percentage', 'DWU percentage')\n",
+        "group by\n",
+        "  name,\n",
+        "  date(`timestamp`)\n",
+        "order by\n",
+        "  1,\n",
+        "  2;"
+      ],
+      "parameters": [
+        {
+          "displayName": "dsp_metrics_table",
+          "keyword": "dsp_metrics_table",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": "<CATALOG_NAME>.<SCHEMA_NAME>.metrics_spark_pool_metrics"
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "schema": "_fivetran_setup_test"
+    },
+    {
+      "name": "3d2f9598",
+      "displayName": "Session Command Insights",
+      "queryLines": [
+        "with dedicated_session_requests as (\n",
+        "  select\n",
+        "    *\n",
+        "  from\n",
+        "    IDENTIFIER(:dsp_session_requests_table)\n",
+        "  qualify\n",
+        "    row_number() OVER (partition by pool_name, session_id, request_id order by end_time) = 1\n",
+        "),\n",
+        "commands as (\n",
+        "  select\n",
+        "    pool_name,\n",
+        "    session_id,\n",
+        "    request_id,\n",
+        "    command,\n",
+        "    from_utc_timestamp(start_time, 'US/Eastern') start_time,\n",
+        "    from_utc_timestamp(end_time, 'US/Eastern') end_time,\n",
+        "    COMMAND,\n",
+        "    COMMAND2,\n",
+        "    command_type,\n",
+        "    CASE\n",
+        "      WHEN command_type in ('DML', 'ROUTINE', 'DDL') THEN 'ETL'\n",
+        "      WHEN command_type = 'QUERY' THEN 'SQL Serving'\n",
+        "      ELSE 'OTHER'\n",
+        "    END as workload_type\n",
+        "  from\n",
+        "    dedicated_session_requests\n",
+        "  where\n",
+        "    start_time is not null\n",
+        "    and end_time is not null\n",
+        "    AND COMMAND not in ('SET', 'USE')\n",
+        "    AND not (\n",
+        "      COMMAND = 'SELECT'\n",
+        "      and COMMAND2 = '@@SPID;'\n",
+        "    )\n",
+        "    AND not (\n",
+        "      COMMAND = 'EXEC'\n",
+        "      and COMMAND2 = '[SP_EXECUTESQL]'\n",
+        "    )\n",
+        "),\n",
+        "timex_10min_windows as (\n",
+        "  select\n",
+        "    make_timestamp(year(dt), month(dt), day(dt), t_hours.hr, t_minutes.min * 10, 00) as st,\n",
+        "    make_timestamp(\n",
+        "      year(dt),\n",
+        "      month(dt),\n",
+        "      day(dt),\n",
+        "      t_hours.hr,\n",
+        "      (t_minutes.min + 1) * 10 - 1,\n",
+        "      59.999\n",
+        "    ) as ed\n",
+        "  from\n",
+        "    (\n",
+        "      select distinct\n",
+        "        date(start_time) dt\n",
+        "      from\n",
+        "        commands\n",
+        "      union\n",
+        "      select distinct\n",
+        "        date(end_time) dt\n",
+        "      from\n",
+        "        commands\n",
+        "    ) x,\n",
+        "    (\n",
+        "      select\n",
+        "        explode(sequence(0, 23)) hr\n",
+        "    ) t_hours,\n",
+        "    (\n",
+        "      select\n",
+        "        explode(sequence(0, 5)) min\n",
+        "    ) t_minutes\n",
+        "),\n",
+        "daily_10min_interval_metrics as (\n",
+        "  select\n",
+        "    date_format(st, \"HH:mm\") as st,\n",
+        "    workload_type,\n",
+        "    command_type,\n",
+        "    avg(query_count) avg_query_count,\n",
+        "    min(query_count) min_query_count,\n",
+        "    max(query_count) max_query_count\n",
+        "  from\n",
+        "    (\n",
+        "      select\n",
+        "        st,\n",
+        "        ed,\n",
+        "        workload_type,\n",
+        "        command_type,\n",
+        "        count(distinct request_id) as query_count\n",
+        "      from\n",
+        "        timex_10min_windows X\n",
+        "          left join commands Y\n",
+        "            on (start_time between X.st and X.ed)\n",
+        "            or (end_time between X.st and X.ed)\n",
+        "      group by\n",
+        "        1,\n",
+        "        2,\n",
+        "        3,\n",
+        "        4\n",
+        "    )\n",
+        "  group by\n",
+        "    1,\n",
+        "    2,\n",
+        "    3\n",
+        "  order by\n",
+        "    1,\n",
+        "    2,\n",
+        "    3\n",
+        ")\n",
+        "select\n",
+        "  *,\n",
+        "  sum(avg_query_count) over (partition by st, workload_type) / 10 as queries_per_minute_by_workload\n",
+        "from\n",
+        "  daily_10min_interval_metrics;"
+      ],
+      "parameters": [
+        {
+          "displayName": "dsp_session_requests_table",
+          "keyword": "dsp_session_requests_table",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": "<CATALOG_NAME>.<SCHEMA_NAME>.dedicated_session_requests"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "5d0d81e1",
+      "displayName": "Session Query Counts by App and Pool Name",
+      "queryLines": [
+        "with sessions as (\n",
+        "  select\n",
+        "    *\n",
+        "  from\n",
+        "    IDENTIFIER(:dedicated_sessions_table)\n",
+        "  qualify\n",
+        "    row_number() over (partition by pool_name, session_id order by query_count desc) = 1\n",
+        "),\n",
+        "app_session_queries as (\n",
+        "  select\n",
+        "    pool_name,\n",
+        "    query_count,\n",
+        "    LOGIN_TIME,\n",
+        "    'UNKNOWN' AS login_user_type,\n",
+        "    case\n",
+        "      WHEN\n",
+        "        trim(lower(regexp_extract(app_name, '^(\\\\w+\\\\s+\\\\w+)-(\\\\w+)-(\\\\w+)-(\\\\w+)', 1)))\n",
+        "          = 'data integration'\n",
+        "      THEN\n",
+        "        'Azure Data Integration Pipeline'\n",
+        "      WHEN\n",
+        "        trim(lower(regexp_extract(app_name, '^(\\\\w+)_(\\\\w+)', 1))) = 'azurestreamanalytics'\n",
+        "      THEN\n",
+        "        'Azure Stream Analytics'\n",
+        "      WHEN trim(lower(regexp_extract(app_name, '^(\\\\w+)\\\\s*(\\\\d+)', 1))) = 'tableau' THEN 'Tableau'\n",
+        "      WHEN instr(app_name, 'SQL Server Management Studio') > 0 THEN 'Microsoft SSMS'\n",
+        "      ELSE app_name\n",
+        "    END as app_name_condt\n",
+        "  from\n",
+        "    sessions\n",
+        ")\n",
+        "select\n",
+        "  pool_name,\n",
+        "  app_name_condt as app_name,\n",
+        "  sum(query_count)\n",
+        "from\n",
+        "  app_session_queries\n",
+        "where\n",
+        "  login_user_type <> 'USER'\n",
+        "group by\n",
+        "  1,\n",
+        "  2\n",
+        "order by\n",
+        "  3 desc;"
+      ],
+      "parameters": [
+        {
+          "displayName": "dedicated_sessions_table",
+          "keyword": "dedicated_sessions_table",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": "<CATALOG_NAME>.<SCHEMA_NAME>.dedicated_sessions"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "87f64dc8",
+      "displayName": "Top Ten Counts of Unique Database Routines",
+      "queryLines": [
+        "WITH dedicated_routines as (\n",
+        "  select\n",
+        "    *\n",
+        "  from\n",
+        "    IDENTIFIER(:dedicated_routines_table)\n",
+        "),\n",
+        "routines as (\n",
+        "  select\n",
+        "    routine_catalog,\n",
+        "    routine_schema,\n",
+        "    routine_type,\n",
+        "    routine_name\n",
+        "  from\n",
+        "    dedicated_routines\n",
+        "  qualify\n",
+        "    row_number() over (\n",
+        "        partition by routine_catalog, routine_schema, routine_name\n",
+        "        order by routine_name\n",
+        "      ) = 1\n",
+        "),\n",
+        "routine_counts as (\n",
+        "  select\n",
+        "    routine_catalog as catalog,\n",
+        "    routine_schema as schema,\n",
+        "    routine_type as object_type,\n",
+        "    count(*) as num_objects\n",
+        "  from\n",
+        "    routines\n",
+        "  group by\n",
+        "    1,\n",
+        "    2,\n",
+        "    3\n",
+        "  order by\n",
+        "    4 desc\n",
+        "  limit 10\n",
+        ")\n",
+        "select\n",
+        "  *\n",
+        "from\n",
+        "  (\n",
+        "    select\n",
+        "      *\n",
+        "    from\n",
+        "      routine_counts\n",
+        "  ) X\n",
+        "order by\n",
+        "  4 desc;"
+      ],
+      "parameters": [
+        {
+          "displayName": "dedicated_routines_table",
+          "keyword": "dedicated_routines_table",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": "<CATALOG_NAME>.<SCHEMA_NAME>.dedicated_routines"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "0e20c910",
+      "displayName": "Dedicated Pool Usage Metrics",
+      "queryLines": [
+        "select\n",
+        "  concat(name, '_', coalesce(cast(floor(maximum) as string), 'Inactive')) as pool_dwulimit,\n",
+        "  date(CAST(timestamp AS TIMESTAMP)) as day,\n",
+        "  count(*) as cnt_slots_used,\n",
+        "  24 * 4 as total_15min_slots,\n",
+        "  cnt_slots_used / total_15min_slots * 100 perc_used_slots\n",
+        "from\n",
+        "  IDENTIFIER(:dsp_metrics_table)\n",
+        "where\n",
+        "  name in ('DWU limit', 'DWULimit')\n",
+        "group by\n",
+        "  1,\n",
+        "  2\n",
+        "order by\n",
+        "  1,\n",
+        "  3"
+      ],
+      "parameters": [
+        {
+          "displayName": "dsp_metrics_table",
+          "keyword": "dsp_metrics_table",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": "<CATALOG_NAME>.<SCHEMA_NAME>.metrics_dedicated_pool_metrics"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "42b167ce",
+      "displayName": "Session Request Counts Over Time",
+      "queryLines": [
+        "WITH dedicated_session_requests as (\n",
+        "  select\n",
+        "    *\n",
+        "  from\n",
+        "    IDENTIFIER(:dedicated_session_requests_table)\n",
+        "  qualify\n",
+        "    row_number() over (PARTITION BY pool_name, session_id, request_id order by end_time desc) = 1\n",
+        ")\n",
+        "select\n",
+        "  extract_ts,\n",
+        "  count(*) requests\n",
+        "FROM\n",
+        "  dedicated_session_requests\n",
+        "group by\n",
+        "  1\n",
+        "order by\n",
+        "  1"
+      ],
+      "parameters": [
+        {
+          "displayName": "dedicated_session_requests_table",
+          "keyword": "dedicated_session_requests_table",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": "<CATALOG_NAME>.<SCHEMA_NAME>.dedicated_session_requests"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "b4a08f84",
+      "displayName": "Average Storage Space Utilization",
+      "queryLines": [
+        "select\n",
+        "  avg(UsedSpaceMB / 1024 / 1024) as avg_data_size_tb\n",
+        "from\n",
+        "  identifier(:dedicated_storage_info_table)"
+      ],
+      "parameters": [
+        {
+          "displayName": "dedicated_storage_info_table",
+          "keyword": "dedicated_storage_info_table",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": "<CATALOG_NAME>.<SCHEMA_NAME>.dedicated_storage_info"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "71185579",
+      "displayName": "Application Session Insights",
+      "queryLines": [
+        "with sessions as (\n",
+        "  select\n",
+        "    *\n",
+        "  from\n",
+        "    IDENTIFIER(:dedicated_sessions_table)\n",
+        "  qualify\n",
+        "    row_number() over (partition by pool_name, session_id order by query_count desc) = 1\n",
+        "),\n",
+        "sessions_silver as (\n",
+        "  select\n",
+        "    pool_name,\n",
+        "    query_count,\n",
+        "    login_time,\n",
+        "    LOGIN_NAME,\n",
+        "    'UNKNOWN' AS login_user_type,\n",
+        "    case\n",
+        "      WHEN\n",
+        "        trim(app_name) = ''\n",
+        "        or app_name is null\n",
+        "      THEN\n",
+        "        'UNKOWN'\n",
+        "      WHEN\n",
+        "        trim(lower(regexp_extract(app_name, '^(\\\\w+\\\\s+\\\\w+)-(\\\\w+)-(\\\\w+)-(\\\\w+)', 1)))\n",
+        "          = 'data integration'\n",
+        "      THEN\n",
+        "        'Azure Data Integration Pipeline'\n",
+        "      WHEN\n",
+        "        trim(lower(regexp_extract(app_name, '^(\\\\w+)_(\\\\w+)', 1))) = 'azurestreamanalytics'\n",
+        "      THEN\n",
+        "        'Azure Stream Analytics'\n",
+        "      WHEN trim(lower(regexp_extract(app_name, '^(\\\\w+)\\\\s*(\\\\d+)', 1))) = 'tableau' THEN 'Tableau'\n",
+        "      WHEN instr(app_name, 'SQL Server Management Studio') > 0 THEN 'Microsoft SSMS'\n",
+        "      ELSE app_name\n",
+        "    END as app_name_condt\n",
+        "  from\n",
+        "    sessions\n",
+        "),\n",
+        "user_app_sessions as (\n",
+        "  select\n",
+        "    pool_name as stage1,\n",
+        "    case\n",
+        "      when login_user_type = 'USER' THEN 'USER_SESSION'\n",
+        "      ELSE app_name_condt\n",
+        "    END stage2,\n",
+        "    LOGIN_NAME as stage3,\n",
+        "    query_count as value\n",
+        "  from\n",
+        "    sessions_silver\n",
+        "),\n",
+        "session_activity_sankey as (\n",
+        "  select\n",
+        "    stage1,\n",
+        "    stage2,\n",
+        "    stage3,\n",
+        "    sum(value) as value\n",
+        "  from\n",
+        "    user_app_sessions\n",
+        "  group by\n",
+        "    1,\n",
+        "    2,\n",
+        "    3\n",
+        ")\n",
+        "select\n",
+        "  stage1,\n",
+        "  stage2,\n",
+        "  CASE\n",
+        "    WHEN dense_rank() over (partition by stage2 order by value desc) <= 10 THEN stage3\n",
+        "    WHEN stage2 = 'USER_SESSION' THEN 'other.user'\n",
+        "    ELSE 'other.app'\n",
+        "  END stage3,\n",
+        "  value\n",
+        "from\n",
+        "  session_activity_sankey;"
+      ],
+      "parameters": [
+        {
+          "displayName": "dedicated_sessions_table",
+          "keyword": "dedicated_sessions_table",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": "<CATALOG_NAME>.<SCHEMA_NAME>.dedicated_sessions"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "e18e029d",
+      "displayName": "Session Insights Analysis Report",
+      "queryLines": [
+        "with dedicated_session_requests as (\n",
+        "  select\n",
+        "    *\n",
+        "  from\n",
+        "    IDENTIFIER(:dedicated_session_requests_table)\n",
+        "  qualify\n",
+        "    row_number() OVER (partition by pool_name, session_id, request_id order by end_time) = 1\n",
+        "),\n",
+        "dedicated_sessions as (\n",
+        "  select\n",
+        "    *\n",
+        "  from\n",
+        "    IDENTIFIER(:dedicated_sessions_table)\n",
+        "  qualify\n",
+        "    row_number() over (partition by pool_name, session_id order by query_count desc) = 1\n",
+        "),\n",
+        "session_requests_silver as (\n",
+        "  select\n",
+        "    pool_name,\n",
+        "    session_id,\n",
+        "    request_id,\n",
+        "    command,\n",
+        "    start_time,\n",
+        "    end_time,\n",
+        "    (\n",
+        "      unix_millis(from_utc_timestamp(end_time, 'US/Eastern'))\n",
+        "        - unix_millis(from_utc_timestamp(start_time, 'US/Eastern'))\n",
+        "    ) as exec_wall_misecs,\n",
+        "    COMMAND,\n",
+        "    COMMAND2,\n",
+        "    command_type,\n",
+        "    CASE\n",
+        "      WHEN command_type in ('DML', 'ROUTINE', 'DDL') THEN 'ETL'\n",
+        "      WHEN command_type = 'QUERY' THEN 'SQL Serving'\n",
+        "      ELSE 'OTHER'\n",
+        "    END as workload_type\n",
+        "  from\n",
+        "    dedicated_session_requests\n",
+        "  where\n",
+        "    command not in ('SET', 'USE')\n",
+        "    AND not (\n",
+        "      command = 'SELECT'\n",
+        "      and command2 = '@@SPID;'\n",
+        "    )\n",
+        "    AND not (\n",
+        "      command = 'EXEC'\n",
+        "      and command2 = '[SP_EXECUTESQL]'\n",
+        "    )\n",
+        "),\n",
+        "sessions_silver as (\n",
+        "  select\n",
+        "    pool_name,\n",
+        "    query_count,\n",
+        "    login_time,\n",
+        "    session_id,\n",
+        "    LOGIN_NAME,\n",
+        "    'UNKNOWN' AS login_user_type,\n",
+        "    CASE\n",
+        "      WHEN login_user_type = 'USER' THEN 'USER_SESSION'\n",
+        "      WHEN\n",
+        "        trim(app_name) = ''\n",
+        "        or app_name is null\n",
+        "      THEN\n",
+        "        'UNKOWN'\n",
+        "      WHEN\n",
+        "        trim(lower(regexp_extract(app_name, '^(\\\\w+\\\\s+\\\\w+)-(\\\\w+)-(\\\\w+)-(\\\\w+)', 1)))\n",
+        "          = 'data integration'\n",
+        "      THEN\n",
+        "        'Azure Data Integration Pipeline'\n",
+        "      WHEN\n",
+        "        trim(lower(regexp_extract(app_name, '^(\\\\w+)_(\\\\w+)', 1))) = 'azurestreamanalytics'\n",
+        "      THEN\n",
+        "        'Azure Stream Analytics'\n",
+        "      WHEN trim(lower(regexp_extract(app_name, '^(\\\\w+)\\\\s*(\\\\d+)', 1))) = 'tableau' THEN 'Tableau'\n",
+        "      WHEN instr(app_name, 'SQL Server Management Studio') > 0 THEN 'Microsoft SSMS'\n",
+        "      ELSE app_name\n",
+        "    END as app_name\n",
+        "  from\n",
+        "    dedicated_sessions\n",
+        "),\n",
+        "app_and_user_session_sankey as (\n",
+        "  select\n",
+        "    pool_name as stage1,\n",
+        "    app_name as stage2,\n",
+        "    LOGIN_NAME as stage3,\n",
+        "    command_type as stage4,\n",
+        "    workload_type as stage5,\n",
+        "    sum(exec_wall_misecs) as value\n",
+        "  from\n",
+        "    sessions_silver join session_requests_silver using (pool_name, session_id)\n",
+        "  group by\n",
+        "    1,\n",
+        "    2,\n",
+        "    3,\n",
+        "    4,\n",
+        "    5\n",
+        ")\n",
+        "select\n",
+        "  stage1,\n",
+        "  stage2,\n",
+        "  CASE\n",
+        "    WHEN dense_rank() over (partition by stage4, stage5 order by value desc) <= 10 THEN stage3\n",
+        "    WHEN stage2 = 'USER_SESSION' THEN 'other.user'\n",
+        "    ELSE 'other.app'\n",
+        "  END stage3,\n",
+        "  stage4,\n",
+        "  stage5,\n",
+        "  value\n",
+        "from\n",
+        "  app_and_user_session_sankey"
+      ],
+      "parameters": [
+        {
+          "displayName": "dedicated_session_requests_table",
+          "keyword": "dedicated_session_requests_table",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": "<CATALOG_NAME>.<SCHEMA_NAME>.dedicated_session_requests"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "displayName": "dedicated_sessions_table",
+          "keyword": "dedicated_sessions_table",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": "<CATALOG_NAME>.<SCHEMA_NAME>.dedicated_sessions"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4d870a15",
+      "displayName": "Session Command Analysis Results",
+      "queryLines": [
+        "with dedicated_session_requests as (\n",
+        "  select\n",
+        "    *\n",
+        "  from\n",
+        "    IDENTIFIER(:dedicated_session_requests_table)\n",
+        "),\n",
+        "commands as (\n",
+        "  select\n",
+        "    pool_name,\n",
+        "    session_id,\n",
+        "    request_id,\n",
+        "    command,\n",
+        "    start_time,\n",
+        "    end_time,\n",
+        "    (\n",
+        "      unix_millis(from_utc_timestamp(end_time, 'US/Eastern'))\n",
+        "        - unix_millis(from_utc_timestamp(start_time, 'US/Eastern'))\n",
+        "    ) as exec_wall_misecs,\n",
+        "    command,\n",
+        "    command2,\n",
+        "    command_type\n",
+        "  from\n",
+        "    dedicated_session_requests\n",
+        "  qualify\n",
+        "    row_number() OVER (partition by pool_name, session_id, request_id order by end_time) = 1\n",
+        "),\n",
+        "data_commands as (\n",
+        "  select\n",
+        "    *\n",
+        "  from\n",
+        "    commands\n",
+        "  where\n",
+        "    command not in ('SET', 'USE')\n",
+        "    AND not (\n",
+        "      command = 'SELECT'\n",
+        "      and command2 = '@@SPID;'\n",
+        "    )\n",
+        "    AND not (\n",
+        "      command = 'EXEC'\n",
+        "      and command2 = '[SP_EXECUTESQL]'\n",
+        "    )\n",
+        "),\n",
+        "typed_commands as (\n",
+        "  select\n",
+        "    *\n",
+        "  from\n",
+        "    data_commands\n",
+        "),\n",
+        "typed_commands_by_volume as (\n",
+        "  select\n",
+        "    command_type,\n",
+        "    'Volume' as metric_type,\n",
+        "    count(*) as value\n",
+        "  from\n",
+        "    typed_commands\n",
+        "  group by\n",
+        "    1,\n",
+        "    2\n",
+        "  order by\n",
+        "    3 desc\n",
+        "),\n",
+        "typed_commands_by_time as (\n",
+        "  select\n",
+        "    command_type,\n",
+        "    'Time (Wall)' as metric_type,\n",
+        "    sum(exec_wall_misecs) / 1000 as value\n",
+        "  from\n",
+        "    typed_commands\n",
+        "  group by\n",
+        "    1,\n",
+        "    2\n",
+        "  order by\n",
+        "    3 desc\n",
+        ")\n",
+        "select\n",
+        "  *\n",
+        "from\n",
+        "  typed_commands_by_volume\n",
+        "union all\n",
+        "select\n",
+        "  *\n",
+        "from\n",
+        "  typed_commands_by_time"
+      ],
+      "parameters": [
+        {
+          "displayName": "dedicated_session_requests_table",
+          "keyword": "dedicated_session_requests_table",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": "<CATALOG_NAME>.<SCHEMA_NAME>.dedicated_session_requests"
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "schema": "_fivetran_setup_test"
+    },
+    {
+      "name": "d25873f9",
+      "displayName": "Storage Insights Report",
+      "queryLines": [
+        "select\n",
+        "  pool_name, node_id, reservedspacemb, usedspacemb\n",
+        "from\n",
+        "  IDENTIFIER(:dedicated_storage_info_table)\n",
+        "group by\n",
+        "  pool_name, node_id, reservedspacemb, usedspacemb;"
+      ],
+      "parameters": [
+        {
+          "displayName": "dedicated_storage_info_table",
+          "keyword": "dedicated_storage_info_table",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": "<CATALOG_NAME>.<SCHEMA_NAME>.dedicated_storage_info"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "pages": [
+    {
+      "name": "7e48c4bc",
+      "displayName": "Azure Synapse Results",
+      "layout": [
+        {
+          "widget": {
+            "name": "7ad02c62",
+            "multilineTextboxSpec": {
+              "lines": [
+                "# SQL Pool Activity"
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 30,
+            "width": 12,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "442843be",
+            "multilineTextboxSpec": {
+              "lines": [
+                "# System Utilization"
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 94,
+            "width": 12,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "bf3e4d6c",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "8331f370",
+                  "fields": [
+                    {
+                      "name": "date",
+                      "expression": "`date`"
+                    },
+                    {
+                      "name": "avg(avg_max)",
+                      "expression": "AVG(`avg_max`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "line",
+              "encodings": {
+                "x": {
+                  "fieldName": "date",
+                  "scale": {
+                    "type": "temporal"
+                  },
+                  "displayName": "date"
+                },
+                "y": {
+                  "fieldName": "avg(avg_max)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Average avg_max"
+                }
+              },
+              "frame": {
+                "title": "SQL Pool Utilization (DWU Used Percentage)",
+                "showTitle": true
+              }
+            }
+          },
+          "position": {
+            "x": 4,
+            "y": 96,
+            "width": 8,
+            "height": 8
+          }
+        },
+        {
+          "widget": {
+            "name": "94561e09",
+            "queries": [
+              {
+                "name": "df314830bd14433c9c911484ca41b434",
+                "query": {
+                  "datasetName": "0e20c910",
+                  "fields": [
+                    {
+                      "name": "day",
+                      "expression": "`day`"
+                    },
+                    {
+                      "name": "column_122d18d216659",
+                      "expression": "SUM(`perc_used_slots`)"
+                    },
+                    {
+                      "name": "pool_dwulimit",
+                      "expression": "`pool_dwulimit`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 0,
+              "viz_spec": {
+                "display_name": "DWULimit Used By Day",
+                "description": "",
+                "viz_type": "CHART",
+                "serialized_options": "{\"version\":2,\"globalSeriesType\":\"line\",\"sortX\":true,\"sortY\":true,\"legend\":{\"traceorder\":\"normal\"},\"xAxis\":{\"type\":\"-\",\"labels\":{\"enabled\":true},\"title\":{\"text\":\"Date\"}},\"yAxis\":[{\"type\":\"-\",\"title\":{\"text\":\"Percent of the Time Used \"}},{\"type\":\"-\",\"opposite\":true}],\"alignYAxesAtZero\":true,\"error_y\":{\"type\":\"data\",\"visible\":true},\"series\":{\"stacking\":null,\"error_y\":{\"type\":\"data\",\"visible\":true}},\"seriesOptions\":{\"column_122d18d216659\":{\"yAxis\":0,\"type\":\"line\"}},\"valuesOptions\":{},\"direction\":{\"type\":\"counterclockwise\"},\"sizemode\":\"diameter\",\"coefficient\":1,\"numberFormat\":\"0,0.[00]\",\"percentFormat\":\"0[.]00%\",\"textFormat\":\"\",\"missingValuesAsZero\":true,\"useAggregationsUi\":true,\"swappedAxes\":false,\"dateTimeFormat\":\"YYYY-MM-DD HH:mm:ss.SSS\",\"showDataLabels\":false,\"columnConfigurationMap\":{\"x\":{\"column\":\"day\",\"id\":\"column_122d18d216656\"},\"y\":[{\"id\":\"column_122d18d216659\",\"column\":\"perc_used_slots\",\"transform\":\"SUM\"}],\"series\":{\"column\":\"pool_dwulimit\",\"id\":\"column_122d18d222143\"}},\"isAggregationOn\":true,\"condensed\":true,\"withRowNumber\":true}",
+                "query_name": "df314830bd14433c9c911484ca41b434"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 104,
+            "width": 12,
+            "height": 8
+          }
+        },
+        {
+          "widget": {
+            "name": "b587fc45",
+            "queries": [
+              {
+                "name": "a238aca52019497097613c6021fb3130",
+                "query": {
+                  "datasetName": "e18e029d",
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 0,
+              "viz_spec": {
+                "display_name": "Query Activity (By Wall Time)",
+                "description": "",
+                "viz_type": "SANKEY",
+                "serialized_options": "{}",
+                "query_name": "a238aca52019497097613c6021fb3130",
+                "parameter_mappings": [
+                  {
+                    "keyword": "topN",
+                    "type": "widget-level",
+                    "map_to": "topN",
+                    "display_name": "",
+                    "control_type": "SINGLE_SELECT"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 63,
+            "width": 12,
+            "height": 17
+          }
+        },
+        {
+          "widget": {
+            "name": "0cf67513",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "4d870a15",
+                  "fields": [
+                    {
+                      "name": "sum(value)",
+                      "expression": "SUM(`value`)"
+                    },
+                    {
+                      "name": "command_type",
+                      "expression": "`command_type`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "pie",
+              "encodings": {
+                "angle": {
+                  "fieldName": "sum(value)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Sum of value"
+                },
+                "color": {
+                  "fieldName": "command_type",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "displayName": "command_type"
+                },
+                "label": {
+                  "show": true
+                }
+              },
+              "frame": {
+                "title": "Query Distribution",
+                "showTitle": true
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 32,
+            "width": 6,
+            "height": 14
+          }
+        },
+        {
+          "widget": {
+            "name": "431c9fbc",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "5d0d81e1",
+                  "fields": [
+                    {
+                      "name": "sum(sum(query_count))",
+                      "expression": "SUM(`sum(query_count)`)"
+                    },
+                    {
+                      "name": "app_name",
+                      "expression": "`app_name`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "pie",
+              "encodings": {
+                "angle": {
+                  "fieldName": "sum(sum(query_count))",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Sum of sum(query_count)"
+                },
+                "color": {
+                  "fieldName": "app_name",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "displayName": "app_name"
+                }
+              },
+              "frame": {
+                "title": "Application Activity (By Query Volume)",
+                "showTitle": true
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 80,
+            "width": 4,
+            "height": 14
+          }
+        },
+        {
+          "widget": {
+            "name": "7b5144fd",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "42b167ce",
+                  "fields": [
+                    {
+                      "name": "extract_ts",
+                      "expression": "`extract_ts`"
+                    },
+                    {
+                      "name": "requests",
+                      "expression": "`requests`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "frame": {
+                "title": "Profiler Extract Info ",
+                "showTitle": true
+              },
+              "mark": {
+                "colors": [
+                  {
+                    "themeColorType": "visualizationColors",
+                    "position": 3
+                  },
+                  {
+                    "themeColorType": "visualizationColors",
+                    "position": 2
+                  },
+                  {
+                    "themeColorType": "visualizationColors",
+                    "position": 3
+                  },
+                  {
+                    "themeColorType": "visualizationColors",
+                    "position": 4
+                  },
+                  {
+                    "themeColorType": "visualizationColors",
+                    "position": 5
+                  },
+                  {
+                    "themeColorType": "visualizationColors",
+                    "position": 6
+                  },
+                  {
+                    "themeColorType": "visualizationColors",
+                    "position": 7
+                  },
+                  {
+                    "themeColorType": "visualizationColors",
+                    "position": 8
+                  },
+                  {
+                    "themeColorType": "visualizationColors",
+                    "position": 9
+                  },
+                  {
+                    "themeColorType": "visualizationColors",
+                    "position": 10
+                  }
+                ]
+              },
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "extract_ts",
+                  "axis": {
+                    "hideLabels": false,
+                    "title": "Query Timestamp",
+                    "labelAngle": 0
+                  },
+                  "displayName": "extract_ts",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "y": {
+                  "fieldName": "requests",
+                  "axis": {
+                    "title": "Number of Queries",
+                    "labelAngle": 0
+                  },
+                  "displayName": "query count",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "label": {
+                  "show": true
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 2,
+            "width": 12,
+            "height": 7
+          }
+        },
+        {
+          "widget": {
+            "name": "fecee786",
+            "queries": [
+              {
+                "name": "ab0d89fde4214714a64f8e00cc75c28b",
+                "query": {
+                  "datasetName": "b4a08f84",
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 0,
+              "viz_spec": {
+                "display_name": "Storage Size",
+                "description": "",
+                "viz_type": "COUNTER",
+                "serialized_options": "{\"counterLabel\": \"TB\", \"counterColName\": \"avg_data_size_tb\", \"rowNumber\": 1, \"targetRowNumber\": 1, \"stringDecimal\": 2, \"stringDecChar\": \".\", \"stringThouSep\": \",\", \"tooltipFormat\": \"0,0.000\", \"formatTargetValue\": false, \"condensed\": true, \"withRowNumber\": true}",
+                "query_name": "ab0d89fde4214714a64f8e00cc75c28b"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 96,
+            "width": 2,
+            "height": 8
+          }
+        },
+        {
+          "widget": {
+            "name": "666fbd4a",
+            "queries": [
+              {
+                "name": "a83362b6c3d5415cbb11970d18469ded",
+                "query": {
+                  "datasetName": "3d2f9598",
+                  "fields": [
+                    {
+                      "name": "workload_type",
+                      "expression": "`workload_type`"
+                    },
+                    {
+                      "name": "column_3f3b9c8741505",
+                      "expression": "AVG(`queries_per_minute_by_workload`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 0,
+              "viz_spec": {
+                "display_name": "Concurrent Queries Per Minute",
+                "description": "",
+                "viz_type": "CHART",
+                "serialized_options": "{\"version\": 2, \"globalSeriesType\": \"column\", \"sortX\": true, \"sortY\": true, \"legend\": {\"traceorder\": \"normal\"}, \"xAxis\": {\"type\": \"-\", \"labels\": {\"enabled\": true}}, \"yAxis\": [{\"type\": \"-\"}, {\"type\": \"-\", \"opposite\": true}], \"alignYAxesAtZero\": true, \"error_y\": {\"type\": \"data\", \"visible\": true}, \"series\": {\"stacking\": null, \"error_y\": {\"type\": \"data\", \"visible\": true}}, \"seriesOptions\": {\"column_3f3b9c8741505\": {\"yAxis\": 0, \"type\": \"column\", \"color\": \"#1B3139\"}}, \"valuesOptions\": {}, \"direction\": {\"type\": \"counterclockwise\"}, \"sizemode\": \"diameter\", \"coefficient\": 1, \"numberFormat\": \"0,0\", \"percentFormat\": \"0[.]00%\", \"textFormat\": \"\", \"missingValuesAsZero\": true, \"useAggregationsUi\": true, \"swappedAxes\": true, \"dateTimeFormat\": \"YYYY-MM-DD HH:mm:ss\", \"showDataLabels\": true, \"columnConfigurationMap\": {\"x\": {\"column\": \"workload_type\", \"id\": \"column_3f3b9c8741467\"}, \"y\": [{\"id\": \"column_3f3b9c8741505\", \"column\": \"queries_per_minute_by_workload\", \"transform\": \"AVG\"}]}, \"isAggregationOn\": true}",
+                "query_name": "a83362b6c3d5415cbb11970d18469ded"
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 32,
+            "width": 2,
+            "height": 14
+          }
+        },
+        {
+          "widget": {
+            "name": "9e01c72b",
+            "queries": [
+              {
+                "name": "a83362b6c3d5415cbb11970d18469ded",
+                "query": {
+                  "datasetName": "3d2f9598",
+                  "fields": [
+                    {
+                      "name": "workload_type",
+                      "expression": "`workload_type`"
+                    },
+                    {
+                      "name": "column_3f3b9c8743144",
+                      "expression": "AVG(`avg_query_count`)"
+                    },
+                    {
+                      "name": "command_type",
+                      "expression": "`command_type`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 0,
+              "viz_spec": {
+                "display_name": "Avg Query Volume (10 Minute Interval)",
+                "description": "",
+                "viz_type": "CHART",
+                "serialized_options": "{\"version\": 2, \"globalSeriesType\": \"column\", \"sortX\": true, \"sortY\": true, \"legend\": {\"traceorder\": \"normal\"}, \"xAxis\": {\"type\": \"-\", \"labels\": {\"enabled\": true}}, \"yAxis\": [{\"type\": \"-\", \"title\": {\"text\": \"Average Query Count\"}}, {\"type\": \"-\", \"opposite\": true}], \"alignYAxesAtZero\": true, \"error_y\": {\"type\": \"data\", \"visible\": true}, \"series\": {\"stacking\": \"stack\", \"error_y\": {\"type\": \"data\", \"visible\": true}}, \"seriesOptions\": {\"column_3f3b9c8743144\": {\"yAxis\": 0, \"type\": \"column\"}, \"DDL\": {\"color\": \"#FCBA33\"}, \"DML\": {\"color\": \"#FFAB00\"}, \"OTHER\": {\"color\": \"#98102A\"}, \"QUERY\": {\"color\": \"#1B3139\"}, \"ROUTINE\": {\"color\": \"#FFE6B8\"}, \"TRANSACTION_CONTROL\": {\"color\": \"#DCE0E2\"}, \"null\": {\"color\": \"#FFFFFF\"}}, \"valuesOptions\": {}, \"direction\": {\"type\": \"counterclockwise\"}, \"sizemode\": \"diameter\", \"coefficient\": 1, \"numberFormat\": \"0,0\", \"percentFormat\": \"0[.]00%\", \"textFormat\": \"\", \"missingValuesAsZero\": true, \"useAggregationsUi\": true, \"swappedAxes\": true, \"dateTimeFormat\": \"YYYY-MM-DD HH:mm:ss\", \"showDataLabels\": true, \"columnConfigurationMap\": {\"x\": {\"column\": \"workload_type\", \"id\": \"column_3f3b9c8743142\"}, \"y\": [{\"id\": \"column_3f3b9c8743144\", \"column\": \"avg_query_count\", \"transform\": \"AVG\"}], \"series\": {\"column\": \"command_type\", \"id\": \"column_3f3b9c8743145\"}}, \"isAggregationOn\": true, \"condensed\": true, \"withRowNumber\": true}",
+                "query_name": "a83362b6c3d5415cbb11970d18469ded"
+              }
+            }
+          },
+          "position": {
+            "x": 8,
+            "y": 32,
+            "width": 4,
+            "height": 7
+          }
+        },
+        {
+          "widget": {
+            "name": "ccb917e0",
+            "queries": [
+              {
+                "name": "a83362b6c3d5415cbb11970d18469ded",
+                "query": {
+                  "datasetName": "3d2f9598",
+                  "fields": [
+                    {
+                      "name": "workload_type",
+                      "expression": "`workload_type`"
+                    },
+                    {
+                      "name": "column_3f3b9c8744700",
+                      "expression": "MAX(`avg_query_count`)"
+                    },
+                    {
+                      "name": "command_type",
+                      "expression": "`command_type`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 0,
+              "viz_spec": {
+                "display_name": "Max Query Volume (10 Minute Interval)",
+                "description": "",
+                "viz_type": "CHART",
+                "serialized_options": "{\"version\": 2, \"globalSeriesType\": \"column\", \"sortX\": true, \"sortY\": true, \"legend\": {\"traceorder\": \"normal\"}, \"xAxis\": {\"type\": \"-\", \"labels\": {\"enabled\": true}}, \"yAxis\": [{\"type\": \"-\", \"title\": {\"text\": \"Max Query Count\"}}, {\"type\": \"-\", \"opposite\": true}], \"alignYAxesAtZero\": true, \"error_y\": {\"type\": \"data\", \"visible\": true}, \"series\": {\"stacking\": \"stack\", \"error_y\": {\"type\": \"data\", \"visible\": true}}, \"seriesOptions\": {\"column_3f3b9c8744700\": {\"yAxis\": 0, \"type\": \"column\"}, \"DDL\": {\"color\": \"#FCBA33\"}, \"DML\": {\"color\": \"#FFAB00\"}, \"OTHER\": {\"color\": \"#98102A\"}, \"QUERY\": {\"color\": \"#1B3139\"}, \"ROUTINE\": {\"color\": \"#FFE6B8\"}, \"TRANSACTION_CONTROL\": {\"color\": \"#DCE0E2\"}, \"null\": {\"color\": \"#FFFFFF\"}}, \"valuesOptions\": {}, \"direction\": {\"type\": \"counterclockwise\"}, \"sizemode\": \"diameter\", \"coefficient\": 1, \"numberFormat\": \"0,0\", \"percentFormat\": \"0[.]00%\", \"textFormat\": \"\", \"missingValuesAsZero\": true, \"useAggregationsUi\": true, \"swappedAxes\": true, \"dateTimeFormat\": \"YYYY-MM-DD HH:mm:ss\", \"showDataLabels\": true, \"columnConfigurationMap\": {\"x\": {\"column\": \"workload_type\", \"id\": \"column_3f3b9c8744698\"}, \"y\": [{\"id\": \"column_3f3b9c8744700\", \"column\": \"avg_query_count\", \"transform\": \"MAX\"}], \"series\": {\"column\": \"command_type\", \"id\": \"column_3f3b9c8744701\"}}, \"isAggregationOn\": true}",
+                "query_name": "a83362b6c3d5415cbb11970d18469ded"
+              }
+            }
+          },
+          "position": {
+            "x": 8,
+            "y": 39,
+            "width": 4,
+            "height": 7
+          }
+        },
+        {
+          "widget": {
+            "name": "76603c51",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "3d2f9598",
+                  "fields": [
+                    {
+                      "name": "workload_type",
+                      "expression": "`workload_type`"
+                    },
+                    {
+                      "name": "st",
+                      "expression": "`st`"
+                    },
+                    {
+                      "name": "sum(avg_query_count)",
+                      "expression": "SUM(`avg_query_count`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "st",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "axis": {
+                    "title": "time"
+                  },
+                  "displayName": "time"
+                },
+                "y": {
+                  "fieldName": "sum(avg_query_count)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "axis": {
+                    "title": "Average Query Count"
+                  },
+                  "displayName": "Average Query Count"
+                },
+                "color": {
+                  "fieldName": "workload_type",
+                  "scale": {
+                    "type": "categorical",
+                    "mappings": [
+                      {
+                        "value": "null",
+                        "color": "#799CFF"
+                      },
+                      {
+                        "value": "ETL",
+                        "color": "#FFAB00"
+                      },
+                      {
+                        "value": "OTHER",
+                        "color": "#98102A"
+                      },
+                      {
+                        "value": "SQL Serving",
+                        "color": "#1B3139"
+                      }
+                    ]
+                  },
+                  "displayName": "workload_type"
+                },
+                "label": {
+                  "show": false
+                }
+              },
+              "frame": {
+                "title": "Daily Workload Activity (10 min interval)",
+                "showTitle": true
+              },
+              "mark": {
+                "layout": "stack"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 46,
+            "width": 12,
+            "height": 7
+          }
+        },
+        {
+          "widget": {
+            "name": "3c559ecd",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "3d2f9598",
+                  "fields": [
+                    {
+                      "name": "command_type",
+                      "expression": "`command_type`"
+                    },
+                    {
+                      "name": "st",
+                      "expression": "`st`"
+                    },
+                    {
+                      "name": "avg(avg_query_count)",
+                      "expression": "AVG(`avg_query_count`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "st",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "axis": {
+                    "title": "time"
+                  },
+                  "displayName": "time"
+                },
+                "y": {
+                  "fieldName": "avg(avg_query_count)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "axis": {
+                    "title": "Average Query Count"
+                  },
+                  "displayName": "Average Query Count"
+                },
+                "color": {
+                  "fieldName": "command_type",
+                  "scale": {
+                    "type": "categorical",
+                    "mappings": [
+                      {
+                        "value": "DDL",
+                        "color": "#FFAB00"
+                      },
+                      {
+                        "value": "DML",
+                        "color": "#FCBA33"
+                      },
+                      {
+                        "value": "OTHER",
+                        "color": "#98102A"
+                      },
+                      {
+                        "value": "QUERY",
+                        "color": "#1B3139"
+                      },
+                      {
+                        "value": "ROUTINE",
+                        "color": "#FFE6B8"
+                      },
+                      {
+                        "value": "TRANSACTION_CONTROL",
+                        "color": "#DCE0E2"
+                      },
+                      {
+                        "value": "null",
+                        "color": "#FFFFFF"
+                      }
+                    ]
+                  },
+                  "displayName": "command_type"
+                },
+                "label": {
+                  "show": false
+                }
+              },
+              "frame": {
+                "title": "Query Activity(10 min interval)",
+                "showTitle": true
+              },
+              "mark": {
+                "layout": "stack"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 53,
+            "width": 12,
+            "height": 10
+          }
+        },
+        {
+          "widget": {
+            "name": "da03a899",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "b4a08f84",
+                  "fields": [
+                    {
+                      "name": "avg_data_size_tb",
+                      "expression": "`avg_data_size_tb`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "avg_data_size_tb",
+                  "format": {
+                    "type": "number-plain",
+                    "abbreviation": "none",
+                    "decimalPlaces": {
+                      "type": "exact",
+                      "places": 2
+                    }
+                  },
+                  "rowNumber": 1,
+                  "displayName": "avg_data_size_tb"
+                }
+              },
+              "frame": {
+                "title": "Storage Size",
+                "showTitle": true,
+                "description": "TB",
+                "showDescription": true
+              }
+            }
+          },
+          "position": {
+            "x": 2,
+            "y": 96,
+            "width": 2,
+            "height": 8
+          }
+        },
+        {
+          "widget": {
+            "name": "5e4767e8",
+            "multilineTextboxSpec": {
+              "lines": [
+                "# Schema Inventory"
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 17,
+            "width": 12,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "86a7d654",
+            "multilineTextboxSpec": {
+              "lines": [
+                "# Query History Timeline"
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 12,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "f3964ada",
+            "multilineTextboxSpec": {
+              "lines": [
+                "# Storage Information"
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 9,
+            "width": 12,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "d8b3840c",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "d25873f9",
+                  "fields": [
+                    {
+                      "name": "pool_name",
+                      "expression": "`pool_name`"
+                    },
+                    {
+                      "name": "sum(reservedspacemb)",
+                      "expression": "SUM(`reservedspacemb`)"
+                    },
+                    {
+                      "name": "sum(usedspacemb)",
+                      "expression": "SUM(`usedspacemb`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "pool_name",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "y": {
+                  "fields": [
+                    {
+                      "fieldName": "sum(reservedspacemb)"
+                    },
+                    {
+                      "fieldName": "sum(usedspacemb)"
+                    }
+                  ],
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "label": {
+                  "show": true
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 11,
+            "width": 12,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "0e9f4d5d",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "71185579",
+                  "fields": [
+                    {
+                      "name": "stage1",
+                      "expression": "`stage1`"
+                    },
+                    {
+                      "name": "stage2",
+                      "expression": "`stage2`"
+                    },
+                    {
+                      "name": "stage3",
+                      "expression": "`stage3`"
+                    },
+                    {
+                      "name": "sum(value)",
+                      "expression": "SUM(`value`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 1,
+              "frame": {
+                "showTitle": true,
+                "showDescription": false
+              },
+              "widgetType": "sankey",
+              "encodings": {
+                "value": {
+                  "fieldName": "sum(value)"
+                },
+                "stages": [
+                  {
+                    "fieldName": "stage1"
+                  },
+                  {
+                    "fieldName": "stage2"
+                  },
+                  {
+                    "fieldName": "stage3"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 4,
+            "y": 80,
+            "width": 8,
+            "height": 14
+          }
+        },
+        {
+          "widget": {
+            "name": "top-schemas-by-objects",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "749e0114",
+                  "fields": [
+                    {
+                      "name": "catalog",
+                      "expression": "`catalog`"
+                    },
+                    {
+                      "name": "schema",
+                      "expression": "`schema`"
+                    },
+                    {
+                      "name": "num_objects",
+                      "expression": "`num_objects`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "showTitle": true,
+                "title": "Top Schemas By Objects"
+              },
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "catalog"
+                  },
+                  {
+                    "fieldName": "schema"
+                  },
+                  {
+                    "fieldName": "num_objects"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 19,
+            "width": 6,
+            "height": 11
+          }
+        },
+        {
+          "widget": {
+            "name": "top-schemas-by-routines",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "87f64dc8",
+                  "fields": [
+                    {
+                      "name": "catalog",
+                      "expression": "`catalog`"
+                    },
+                    {
+                      "name": "schema",
+                      "expression": "`schema`"
+                    },
+                    {
+                      "name": "object_type",
+                      "expression": "`object_type`"
+                    },
+                    {
+                      "name": "num_objects",
+                      "expression": "`num_objects`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "showTitle": true,
+                "title": "Top Schemas By Routines"
+              },
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "catalog"
+                  },
+                  {
+                    "fieldName": "schema"
+                  },
+                  {
+                    "fieldName": "object_type"
+                  },
+                  {
+                    "fieldName": "num_objects"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 19,
+            "width": 6,
+            "height": 11
+          }
+        }
+      ],
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layoutVersion": "GRID_V1"
+    }
+  ],
+  "uiSettings": {
+    "theme": {
+      "widgetHeaderAlignment": "ALIGNMENT_UNSPECIFIED"
+    },
+    "applyModeEnabled": false
+  }
+}

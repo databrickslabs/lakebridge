@@ -1,5 +1,8 @@
-from pyspark.sql.types import IntegerType, StringType, StructField, StructType
+from datetime import date
 
+from pyspark.sql.types import IntegerType, StringType, StructField, StructType, DoubleType, DateType
+
+from databricks.labs.lakebridge.reconcile.normalize_recon_config_service import NormalizeReconConfigService
 from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
 from databricks.labs.lakebridge.reconcile.query_builder.sampling_query import (
     SamplingQueryBuilder,
@@ -7,16 +10,16 @@ from databricks.labs.lakebridge.reconcile.query_builder.sampling_query import (
 from databricks.labs.lakebridge.reconcile.recon_config import (
     ColumnMapping,
     Filters,
+    Table,
     Transformation,
 )
 
-from tests.conftest import oracle_schema_fixture_factory, ansi_schema_fixture_factory
+from tests.conftest import oracle_schema_fixture_factory, ansi_schema_fixture_factory, tsql_schema_fixture_factory
 
 
 def test_build_query_for_snowflake_src(
-    mock_spark, table_conf, table_schema_oracle_ansi, fake_oracle_datasource, fake_databricks_datasource
+    spark, table_conf, table_schema_oracle_ansi, fake_oracle_datasource, fake_databricks_datasource
 ):
-    spark = mock_spark
     sch, sch_with_alias = table_schema_oracle_ansi
     df_schema = StructType(
         [
@@ -97,14 +100,13 @@ def test_build_query_for_snowflake_src(
 
 
 def test_build_query_for_oracle_src(
-    mock_spark,
+    spark,
     table_conf,
     table_schema_oracle_ansi,
     normalized_column_mapping,
     fake_oracle_datasource,
     fake_databricks_datasource,
 ):
-    spark = mock_spark
     _, sch_with_alias = table_schema_oracle_ansi
     df_schema = StructType(
         [
@@ -186,8 +188,7 @@ def test_build_query_for_oracle_src(
     assert tgt_actual == tgt_expected
 
 
-def test_build_query_for_databricks_src(mock_spark, table_conf, fake_databricks_datasource):
-    spark = mock_spark
+def test_build_query_for_databricks_src(spark, table_conf, fake_databricks_datasource):
     df_schema = StructType(
         [
             StructField('s_suppkey', IntegerType()),
@@ -234,9 +235,8 @@ def test_build_query_for_databricks_src(mock_spark, table_conf, fake_databricks_
 
 
 def test_build_query_for_snowflake_without_transformations(
-    mock_spark, table_conf, table_schema_oracle_ansi, fake_oracle_datasource, fake_databricks_datasource
+    spark, table_conf, table_schema_oracle_ansi, fake_oracle_datasource, fake_databricks_datasource
 ):
-    spark = mock_spark
     sch, sch_with_alias = table_schema_oracle_ansi
     df_schema = StructType(
         [
@@ -313,10 +313,63 @@ def test_build_query_for_snowflake_without_transformations(
     assert tgt_actual == tgt_expected
 
 
+def test_build_query_for_tsql(spark, fake_tsql_datasource, fake_databricks_datasource):
+    src_schema = [
+        tsql_schema_fixture_factory("carat", "double"),
+        tsql_schema_fixture_factory("clarity", "string"),
+        tsql_schema_fixture_factory("color", "string"),
+        tsql_schema_fixture_factory("cut", "string"),
+        tsql_schema_fixture_factory("mined_at", "date"),
+    ]
+
+    table_conf = Table(
+        source_name="diamonds",
+        target_name="diamonds",
+        join_columns=["color", "clarity"],
+    )
+
+    normalize_service = NormalizeReconConfigService(fake_tsql_datasource, fake_databricks_datasource)
+    normalized_conf = normalize_service.normalize_recon_table_config(table_conf)
+
+    df_schema = StructType(
+        [
+            StructField('carat', DoubleType()),
+            StructField('clarity', StringType()),
+            StructField('color', StringType()),
+            StructField('cut', StringType()),
+            StructField('mined_at', DateType()),
+        ]
+    )
+    df = spark.createDataFrame(
+        [
+            (0.23, 'SI2', 'E', 'Ideal', date(2000, 1, 1)),
+            (0.21, 'VS1', 'E', 'Premium', date(2000, 1, 1)),
+        ],
+        schema=df_schema,
+    )
+
+    src_actual = SamplingQueryBuilder(
+        normalized_conf, src_schema, "source", get_dialect("tsql"), fake_tsql_datasource
+    ).build_query(df)
+
+    src_expected = (
+        "SELECT src.[carat], src.[clarity], src.[color], src.[cut], src.[mined_at] FROM "
+        "(SELECT COALESCE(TRIM(CAST([carat] AS VARCHAR(MAX))), '_null_recon_') AS [carat], "
+        "COALESCE(TRIM(CAST([clarity] AS VARCHAR(MAX))), '_null_recon_') AS [clarity], "
+        "COALESCE(TRIM(CAST([color] AS VARCHAR(MAX))), '_null_recon_') AS [color], "
+        "COALESCE(TRIM(CAST([cut] AS VARCHAR(MAX))), '_null_recon_') AS [cut], "
+        "COALESCE(CONVERT(VARCHAR(10), [mined_at], 101), '1900-01-01') AS [mined_at] FROM :tbl) AS src "
+        "INNER JOIN (VALUES (CAST('SI2' AS string), CAST('E' AS string)), "
+        "(CAST('VS1' AS string), CAST('E' AS string))) AS recon([clarity], [color]) "
+        "ON src.[clarity] = recon.[clarity] AND src.[color] = recon.[color]"
+    )
+
+    assert src_actual == src_expected
+
+
 def test_build_query_for_snowflake_src_for_non_integer_primary_keys(
-    mock_spark, table_conf, fake_oracle_datasource, fake_databricks_datasource
+    spark, table_conf, fake_oracle_datasource, fake_databricks_datasource
 ):
-    spark = mock_spark
     sch = [
         oracle_schema_fixture_factory("s_suppkey", "varchar"),
         oracle_schema_fixture_factory("s_name", "varchar"),
