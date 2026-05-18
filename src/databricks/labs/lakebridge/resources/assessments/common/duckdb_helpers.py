@@ -9,21 +9,26 @@ with the mechanics of getting a DataFrame into a DuckDB table.
 from __future__ import annotations
 
 import logging
+from typing import Literal
 
 import duckdb
 import pandas as pd
 
 logger = logging.getLogger(__name__)
 
+SaveMode = Literal["overwrite", "append"]
+
 
 def save_to_duckdb(
     df: pd.DataFrame,
     table_name: str,
     db_path: str,
-    mode: str = "overwrite",
+    mode: SaveMode = "overwrite",
     schema: str | None = None,
 ) -> None:
     """Write a DataFrame into a DuckDB table.
+
+    Thin dispatcher over :func:`_save_overwrite` and :func:`_save_append`.
 
     Args:
         df: The data to write.
@@ -37,74 +42,109 @@ def save_to_duckdb(
             between batches (e.g. a column that is null-only in one batch but
             typed in the next).
 
-    Behavior:
-        - ``append`` with an empty DataFrame is a no-op.
-        - ``overwrite`` with an explicit ``schema``: drop, recreate, insert.
-        - ``overwrite`` without a schema, table exists: truncate and insert
-          (preserves any DDL-declared schema on the existing table).
-        - ``overwrite`` without a schema, table missing: ``CREATE TABLE AS
-          SELECT * FROM df`` (an empty df with columns yields an empty table).
-        - ``append`` without a schema, table missing: ``CREATE TABLE AS
-          SELECT *`` from the first batch (brittle for incremental appends —
-          prefer passing a ``schema`` for that case).
-
     Raises:
         ValueError: if ``mode`` is not one of ``"overwrite"`` / ``"append"``.
+            The :data:`SaveMode` type narrows this at the call site, but the
+            runtime check is kept for callers reaching in from untyped config.
         Any underlying DuckDB error is logged and re-raised.
     """
-    if mode not in ("overwrite", "append"):
-        raise ValueError(f"Unsupported mode '{mode}'. Must be 'overwrite' or 'append'.")
-
     try:
         with duckdb.connect(db_path) as conn:
-            table_exists = _table_exists(conn, table_name)
-
-            if mode == "append" and df.empty:
-                logger.info("No rows to append for table '%s'. Skipping.", table_name)
-                return
-
-            if not table_exists and schema is None and len(df.columns) == 0:
-                logger.warning(
-                    "Cannot create table '%s': empty DataFrame with no columns and no schema provided.",
-                    table_name,
-                )
-                return
-
-            conn.register("_lakebridge_df", df)
-            needs_insert = False
-
             if mode == "overwrite":
-                if schema is not None:
-                    conn.execute(f"DROP TABLE IF EXISTS {table_name}")
-                    conn.execute(f"CREATE TABLE {table_name} ({schema})")
-                    needs_insert = not df.empty
-                elif table_exists:
-                    conn.execute(f"TRUNCATE {table_name}")
-                    needs_insert = not df.empty
-                else:
-                    limit_clause = " LIMIT 0" if df.empty else ""
-                    conn.execute(f"CREATE TABLE {table_name} AS SELECT * FROM _lakebridge_df{limit_clause}")
-            else:  # append
-                if not table_exists:
-                    if schema is not None:
-                        conn.execute(f"CREATE TABLE {table_name} ({schema})")
-                        needs_insert = True
-                    else:
-                        # First batch defines the schema. Brittle for incremental appends.
-                        conn.execute(f"CREATE TABLE {table_name} AS SELECT * FROM _lakebridge_df")
-                else:
-                    needs_insert = True
-
-            # Positional insert. Using SELECT * (not BY NAME) sidesteps the
-            # column-case mismatch between uppercase queries and whatever
-            # casing pandas/SQLAlchemy preserve.
-            if needs_insert:
-                conn.execute(f"INSERT INTO {table_name} SELECT * FROM _lakebridge_df")
-
+                _save_overwrite(conn, df, table_name, schema)
+            elif mode == "append":
+                _save_append(conn, df, table_name, schema)
+            else:
+                raise ValueError(f"Unsupported mode '{mode}'. Must be 'overwrite' or 'append'.")
             logger.info("Wrote %d rows to '%s' (mode=%s).", len(df), table_name, mode)
     except Exception as e:
         logger.error("Error in save_to_duckdb for table '%s': %s", table_name, str(e))
         raise
+
+
+def _save_overwrite(
+    conn: duckdb.DuckDBPyConnection,
+    df: pd.DataFrame,
+    table_name: str,
+    schema: str | None,
+) -> None:
+    """Replace the contents of ``table_name`` with ``df``.
+
+    - ``schema`` provided: ``DROP`` + ``CREATE TABLE (...schema...)`` + ``INSERT``
+      (the ``INSERT`` is skipped when ``df`` is empty).
+    - ``schema`` omitted, table exists: ``TRUNCATE`` + ``INSERT``. This
+      preserves any DDL-declared column types from a prior run.
+    - ``schema`` omitted, table missing: ``CREATE TABLE AS SELECT *`` from
+      ``df`` (with ``LIMIT 0`` when ``df`` is empty so the columns still land).
+    - ``schema`` omitted, table missing, and ``df`` has no columns: warn and
+      skip. There is nothing we can do without either a schema or column
+      metadata from the DataFrame.
+    """
+    table_exists = _table_exists(conn, table_name)
+    conn.register("_lakebridge_df", df)
+
+    if schema is not None:
+        conn.execute(f"DROP TABLE IF EXISTS {table_name}")
+        conn.execute(f"CREATE TABLE {table_name} ({schema})")
+        if not df.empty:
+            conn.execute(f"INSERT INTO {table_name} SELECT * FROM _lakebridge_df")
+        return
+
+    if table_exists:
+        conn.execute(f"TRUNCATE {table_name}")
+        if not df.empty:
+            conn.execute(f"INSERT INTO {table_name} SELECT * FROM _lakebridge_df")
+        return
+
+    if len(df.columns) == 0:
+        logger.warning(
+            "Cannot create table '%s': empty DataFrame with no columns and no schema provided.",
+            table_name,
+        )
+        return
+
+    limit_clause = " LIMIT 0" if df.empty else ""
+    conn.execute(f"CREATE TABLE {table_name} AS SELECT * FROM _lakebridge_df{limit_clause}")
+
+
+def _save_append(
+    conn: duckdb.DuckDBPyConnection,
+    df: pd.DataFrame,
+    table_name: str,
+    schema: str | None,
+) -> None:
+    """Append ``df`` to ``table_name``.
+
+    - Empty ``df``: no-op (we do not want a first-batch CTAS firing on what
+      may be a transient empty pull from an incremental source).
+    - Table missing, ``schema`` provided: ``CREATE TABLE (...schema...)`` +
+      ``INSERT``. This is the robust path for incremental appends.
+    - Table missing, no ``schema``: ``CREATE TABLE AS SELECT *`` from the
+      first batch. Brittle when later batches have different inferred
+      dtypes (e.g. a null-only column in batch 1, typed in batch 2). Prefer
+      passing a ``schema`` for incremental appends.
+    - Table exists: positional ``INSERT``. The DataFrame's column order
+      must match the existing table.
+    """
+    if df.empty:
+        logger.info("No rows to append for table '%s'. Skipping.", table_name)
+        return
+
+    table_exists = _table_exists(conn, table_name)
+    conn.register("_lakebridge_df", df)
+
+    if not table_exists:
+        if schema is not None:
+            conn.execute(f"CREATE TABLE {table_name} ({schema})")
+            conn.execute(f"INSERT INTO {table_name} SELECT * FROM _lakebridge_df")
+        else:
+            conn.execute(f"CREATE TABLE {table_name} AS SELECT * FROM _lakebridge_df")
+        return
+
+    # Positional insert. Using SELECT * (not BY NAME) sidesteps the
+    # column-case mismatch between uppercase queries and whatever
+    # casing pandas/SQLAlchemy preserve.
+    conn.execute(f"INSERT INTO {table_name} SELECT * FROM _lakebridge_df")
 
 
 def _table_exists(conn: duckdb.DuckDBPyConnection, table_name: str) -> bool:

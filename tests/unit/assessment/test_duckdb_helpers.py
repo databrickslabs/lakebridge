@@ -129,4 +129,6 @@ def test_overwrite_without_schema_truncates_when_table_exists(tmp_path: Path) ->
 def test_invalid_mode_raises(tmp_path: Path) -> None:
     db_path = str(tmp_path / "t.duckdb")
     with pytest.raises(ValueError, match="Unsupported mode"):
-        save_to_duckdb(pd.DataFrame({"id": [1]}), "t1", db_path, mode="upsert")
+        # Intentionally violating the Literal type to exercise the runtime guard
+        # that protects callers reaching in from untyped config / JSON.
+        save_to_duckdb(pd.DataFrame({"id": [1]}), "t1", db_path, mode="upsert")  # type: ignore[arg-type]
