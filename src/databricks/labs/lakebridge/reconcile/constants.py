@@ -21,6 +21,7 @@ class ReconSourceType(AutoName):
     SNOWFLAKE = auto()
     SYNAPSE = auto()
     REDSHIFT = auto()
+    TERADATA = auto()
 
 
 class ReconReportType(AutoName):

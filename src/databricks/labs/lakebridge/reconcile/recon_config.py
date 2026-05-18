@@ -114,6 +114,26 @@ class Transformation:
 
 
 @dataclass
+class HashExpression:
+    """User-provided override for the row-hash function.
+
+    Each field is a raw SQL expression containing a single ``{}`` placeholder. The framework
+    substitutes the concatenated hash input for ``{}`` — the same convention used internally by
+    :data:`Dialect_hash_algo_mapping`.
+
+    Example (Teradata source needing a user-installed SHA-256 UDF)::
+
+        HashExpression(source="my_db.my_sha256({})")
+
+    Either ``source`` or ``target`` may be omitted, in which case the dialect's default hash is
+    used for that side.
+    """
+
+    source: str | None = None
+    target: str | None = None
+
+
+@dataclass
 class ColumnThresholds:
     column_name: str
     lower_bound: str
@@ -178,7 +198,7 @@ def to_lower_case(input_list: list[str]) -> list[str]:
 
 
 @dataclass
-class Table:
+class Table:  # pylint: disable=too-many-instance-attributes
     source_name: str
     target_name: str
     sampling_options: SamplingOptions | None = None
@@ -192,6 +212,7 @@ class Table:
     column_thresholds: list[ColumnThresholds] | None = None
     filters: Filters | None = None
     table_thresholds: list[TableThresholds] | None = None
+    hash_expression: HashExpression | None = None
 
     def __post_init__(self):
         self.source_name = self.source_name.lower()

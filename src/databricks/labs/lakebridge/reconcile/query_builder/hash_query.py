@@ -1,7 +1,7 @@
 import logging
 
 import sqlglot.expressions as exp
-from sqlglot import Dialect
+from sqlglot import Dialect, parse_one
 
 from databricks.labs.lakebridge.reconcile.query_builder.base import QueryBuilder
 from databricks.labs.lakebridge.reconcile.query_builder.expression_generator import (
@@ -26,6 +26,23 @@ def _hash_transform(
 
 
 _HASH_COLUMN_NAME = "hash_value_recon"
+
+
+def _apply_user_hash_expression(
+    user_expr: str,
+    concat_expr: exp.Expression,
+    engine: Dialect,
+) -> exp.Expression:
+    """Render a user-supplied hash expression by substituting the ``{}`` placeholder with the
+    concatenated hash input, then parse the result in the source dialect.
+
+    The placeholder convention matches :data:`Dialect_hash_algo_mapping` so the user-facing
+    config and the built-in defaults share one mental model.
+    """
+    if "{}" not in user_expr:
+        raise ValueError(f"hash_expression must contain a '{{}}' placeholder for the hash input; got {user_expr!r}")
+    rendered = user_expr.replace("{}", concat_expr.sql(dialect=engine))
+    return parse_one(rendered, read=engine)
 
 
 class HashQueryBuilder(QueryBuilder):
@@ -84,8 +101,20 @@ class HashQueryBuilder(QueryBuilder):
         # We now use exp.Dpipe to force the use of CONCAT() function across all dialects to be dialect specific || or + in TSQL
         concat_expr = concat(col_exprs)
 
-        hash_expr = concat_expr.transform(_hash_transform, self._source_engine, self.layer).transform(
-            lower, is_expr=True
-        )
+        user_hash_expr = self._user_hash_expression()
+        if user_hash_expr is not None:
+            hash_expr = _apply_user_hash_expression(user_hash_expr, concat_expr, self.engine).transform(
+                lower, is_expr=True
+            )
+        else:
+            hash_expr = concat_expr.transform(_hash_transform, self._source_engine, self.layer).transform(
+                lower, is_expr=True
+            )
 
         return build_column(hash_expr, alias=column_alias)
+
+    def _user_hash_expression(self) -> str | None:
+        hash_expr = getattr(self._table_conf, "hash_expression", None)
+        if hash_expr is None:
+            return None
+        return hash_expr.source if self.layer == "source" else hash_expr.target

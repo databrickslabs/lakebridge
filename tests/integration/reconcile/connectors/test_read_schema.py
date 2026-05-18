@@ -11,6 +11,7 @@ from databricks.labs.lakebridge.reconcile.connectors.databricks import (
 from databricks.labs.lakebridge.reconcile.connectors.redshift import RedshiftDataSource
 from databricks.labs.lakebridge.reconcile.connectors.remote_query_reader import RemoteQueryReader
 from databricks.labs.lakebridge.reconcile.connectors.snowflake import SnowflakeDataSource
+from databricks.labs.lakebridge.reconcile.connectors.teradata import TeradataDataSource
 from databricks.labs.lakebridge.reconcile.connectors.tsql import TSQLServerDataSource
 from databricks.labs.lakebridge.reconcile.connectors.oracle import OracleDataSource
 from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
@@ -90,4 +91,13 @@ def test_snowflake_read_schema_happy(spark: SparkSession) -> None:
     connector = SnowflakeDataSource(get_dialect("snowflake"), reader)
 
     columns = connector.get_schema('remorph', "sandbox", "diamonds")
+    assert columns
+
+
+def test_teradata_read_schema_happy(spark: SparkSession) -> None:
+    connection = "teradata_sandbox"
+    reader = RemoteQueryReader(spark, connection)
+    connector = TeradataDataSource(get_dialect("teradata"), reader)
+
+    columns = connector.get_schema("DBC", "lf_test_user", "diamonds")
     assert columns

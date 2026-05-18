@@ -299,6 +299,50 @@ DataType_transform_mapping: dict[str, dict[str, list[partial[exp.Expression]]]] 
             )
         ],
     },
+    "teradata": {
+        exp.DataType.Type.DATE.value: [
+            partial(
+                anonymous,
+                func="COALESCE(CAST(CAST({} AS DATE FORMAT 'YYYY-MM-DD') AS VARCHAR(10)), '_null_recon_')",
+                dialect=get_dialect("teradata"),
+            )
+        ],
+        exp.DataType.Type.TIMESTAMP.value: [
+            partial(
+                anonymous,
+                func="COALESCE(CAST(CAST({} AS TIMESTAMP(6) FORMAT 'YYYY-MM-DDBHH:MI:SS.S(6)') AS VARCHAR(26)), '_null_recon_')",
+                dialect=get_dialect("teradata"),
+            )
+        ],
+        exp.DataType.Type.TIMESTAMPTZ.value: [
+            partial(
+                anonymous,
+                func="COALESCE(CAST(CAST({} AS TIMESTAMP(6) WITH TIME ZONE) AS VARCHAR(32)), '_null_recon_')",
+                dialect=get_dialect("teradata"),
+            )
+        ],
+        exp.DataType.Type.TIME.value: [
+            partial(
+                anonymous,
+                func="COALESCE(CAST({} AS VARCHAR(15)), '_null_recon_')",
+                dialect=get_dialect("teradata"),
+            )
+        ],
+        exp.DataType.Type.JSON.value: [
+            partial(
+                anonymous,
+                func="COALESCE(CAST({} AS VARCHAR(32000)), '_null_recon_')",
+                dialect=get_dialect("teradata"),
+            )
+        ],
+        exp.DataType.Type.XML.value: [
+            partial(
+                anonymous,
+                func="COALESCE(CAST({} AS VARCHAR(32000)), '_null_recon_')",
+                dialect=get_dialect("teradata"),
+            )
+        ],
+    },
 }
 
 sha256_partial = partial(sha2, num_bits="256", is_expr=True)
@@ -334,6 +378,23 @@ Dialect_hash_algo_mapping: dict[Dialect, HashAlgoMapping] = {
     ),
     get_dialect("redshift"): HashAlgoMapping(
         source=sha256_partial,
+        target=sha256_partial,
+    ),
+    get_dialect("teradata"): HashAlgoMapping(
+        # Teradata does not ship a portable cryptographic hash that produces a hex string in pure
+        # SQL — Enterprise 17.20+ has TD_SYSFNLIB.HASH_SHA256 (returns BYTE(32) with no built-in
+        # hex encoder), and Vantage Express ships no SHA family at all. The default below assumes
+        # a user-installed UDF named ``lakebridge_sha256_hex(VARCHAR) RETURNS VARCHAR(64)`` that
+        # produces the lowercase SHA-256 hex digest — matching ``SHA2(<concat>, 256)`` on the
+        # Databricks side. To use a different UDF (e.g. ``mydb.my_sha256``), override per-table via
+        # ``Table.hash_expression`` instead of editing this mapping. The outer LOWER() wrapper is
+        # added by the hash query builder.
+        source=partial(
+            anonymous,
+            func="lakebridge_sha256_hex({})",
+            is_expr=True,
+            dialect=get_dialect("teradata"),
+        ),
         target=sha256_partial,
     ),
 }

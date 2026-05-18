@@ -9,5 +9,5 @@ def test_count_query(table_conf_with_opts):
     target_query = CountQueryBuilder(
         table_conf=table_conf_with_opts, layer="target", engine=get_dialect("databricks")
     ).build_query()
-    assert source_query == "SELECT COUNT(1) AS count FROM :tbl WHERE s_name = 't' AND s_address = 'a'"
-    assert target_query == "SELECT COUNT(1) AS count FROM :tbl WHERE s_name = 't' AND s_address_t = 'a'"
+    assert source_query == "SELECT COUNT(1) AS record_count FROM :tbl WHERE s_name = 't' AND s_address = 'a'"
+    assert target_query == "SELECT COUNT(1) AS record_count FROM :tbl WHERE s_name = 't' AND s_address_t = 'a'"
