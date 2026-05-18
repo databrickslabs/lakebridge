@@ -39,7 +39,6 @@ dependencies = [
   "pip~=26.0",
   "pyodbc>=5.2,<5.4",
   "SQLAlchemy~=2.0.40",
-  "psycopg2-binary~=2.9.10",
   "pygls~=2.1.1",
   "duckdb>=1.2.2,<1.5.0",
   "databricks-switch-plugin~=0.1.7",  # Temporary, until Switch is migrated to be a transpiler (LSP) plugin.
@@ -159,7 +158,7 @@ asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope="function"
 
 [tool.mypy]
-exclude = ["tests/resources/.*", "src/databricks/labs/lakebridge/resources/assessments/.*"]
+exclude = ["tests/resources/.*"]
 
 [[tool.mypy.overrides]]
 module = "azure.mgmt.sql.*"
@@ -249,7 +248,7 @@ fail-under = 10.0
 # file locks
 ignore-patterns = ["^\\.#"]
 
-# Ignore files under tests/resources
+# Ignore files under tests/resources and resources/assessments
 ignore-paths = ["tests/resources", "src/databricks/labs/lakebridge/resources/assessments"]
 
 # List of module names for which member attributes should not be checked (useful
