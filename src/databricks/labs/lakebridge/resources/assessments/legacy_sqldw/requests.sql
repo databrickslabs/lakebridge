@@ -7,7 +7,7 @@ SELECT
     end_compile_time,
     end_time,
     total_elapsed_time,
-    label,
+    [label],
     error_id,
     database_id,
     command,

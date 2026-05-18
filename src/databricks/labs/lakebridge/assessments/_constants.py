@@ -17,4 +17,4 @@ PROFILER_SOURCE_SYSTEM = ["synapse", "mssql", "legacy sql dw"]
 # For example in the case of synapse no connector is required and the python scripts
 # manage the connection by directly reading the credentials files
 # Revisit this when more source systems are added to standardize the approach
-CONNECTOR_REQUIRED = {"synapse": False, "mssql": True, "legacy sql dw": False}
+CONNECTOR_REQUIRED = {"synapse": False, "mssql": True, "legacy sql dw": True}

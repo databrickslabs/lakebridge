@@ -96,6 +96,7 @@ class ConfigureLegacySqlDwAssessment(AssessmentConfigurator):
                 "login_timeout": 30,
                 "server": self.prompts.question("Enter the fully-qualified server name"),
                 "port": int(self.prompts.question("Enter the port details", valid_number=True)),
+                "database": self.prompts.question("Enter the database name"),
                 "user": self.prompts.question("Enter the SQL username"),
                 "password": self.prompts.password("Enter the SQL password"),
                 "tz_info": "UTC",
