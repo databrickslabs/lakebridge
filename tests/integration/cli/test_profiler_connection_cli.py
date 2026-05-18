@@ -15,9 +15,10 @@ def _create_credentials_file(
     tmp_path: Path,
     *,
     exclude_serverless: bool | None = None,
+    exclude_dedicated: bool | None = None,
     invalid_server: bool = False,
     invalid_driver: bool = False,
-    missing_workspace: bool = False,
+    missing_source_key: bool = False,
     use_same_serverless_endpoint: bool = False,
 ) -> Path:
     cred_path = tmp_path / ".credentials.yml"
@@ -32,12 +33,14 @@ def _create_credentials_file(
 
     if exclude_serverless is not None:
         profiler["exclude_serverless_sql_pool"] = exclude_serverless
+    if exclude_dedicated is not None:
+        profiler["exclude_dedicated_sql_pools"] = exclude_dedicated
     if invalid_server:
         workspace["dedicated_sql_endpoint"] = "invalid-server.database.windows.net"
     if invalid_driver:
         workspace["driver"] = "ODBC Driver 999 for SQL Server"
-    if missing_workspace:
-        credentials["synapse"] = {"jdbc": synapse["jdbc"], "profiler": profiler}
+    if missing_source_key:
+        del credentials["synapse"]
     if use_same_serverless_endpoint:
         workspace["serverless_sql_endpoint"] = workspace["dedicated_sql_endpoint"]
 
@@ -82,23 +85,31 @@ def test_profiler_connection_invalid_source_technology(
     """Test error handling for unsupported source technology."""
     cred_path = _create_credentials_file(sandbox_synapse_cred_config, tmp_path, exclude_serverless=True)
 
-    # mssql is not in PROFILER_SOURCE_SYSTEM
     with pytest.raises(ValueError, match="Invalid source technology"):
-        check_connection(w=ws, source_tech="mssql", cred_file_path=str(cred_path))
+        check_connection(w=ws, source_tech="bogus", cred_file_path=str(cred_path))
 
 
-def test_profiler_connection_invalid_config_errors(
+@pytest.mark.parametrize(
+    ("cred_kwargs", "expected_msg"),
+    [
+        ({"exclude_serverless": True, "invalid_driver": True}, "Missing ODBC driver"),
+        ({"exclude_serverless": True, "invalid_server": True}, "Connection validation failed"),
+        ({"exclude_serverless": True, "exclude_dedicated": True}, "Connection test failed"),
+        ({"missing_source_key": True}, "Invalid credentials"),
+    ],
+    ids=["odbc-driver-missing", "invalid-server", "all-pools-excluded", "missing-source-key"],
+)
+def test_profiler_connection_error_cases(
     sandbox_synapse_cred_config: JsonObject,
     tmp_path: Path,
     ws: WorkspaceClient,
-    caplog: pytest.LogCaptureFixture,
+    cred_kwargs: dict,
+    expected_msg: str,
 ) -> None:
-    """Test error handling when ODBC driver is missing."""
-    cred_path = _create_credentials_file(
-        sandbox_synapse_cred_config, tmp_path, exclude_serverless=True, invalid_driver=True
-    )
+    """Test that each failure mode raises SystemExit with the appropriate message."""
+    cred_path = _create_credentials_file(sandbox_synapse_cred_config, tmp_path, **cred_kwargs)
 
-    check_connection(w=ws, source_tech="synapse", cred_file_path=str(cred_path))
+    with pytest.raises(SystemExit) as exc_info:
+        check_connection(w=ws, source_tech="synapse", cred_file_path=str(cred_path))
 
-    assert "Missing ODBC driver" in caplog.text
-    assert "Please install pre-req" in caplog.text
+    assert expected_msg in str(exc_info.value)

@@ -9,22 +9,19 @@ from sqlglot import Dialect
 
 from databricks.labs.lakebridge.reconcile.connectors.data_source import DataSource
 from databricks.labs.lakebridge.reconcile.connectors.models import NormalizedIdentifier
-from databricks.labs.lakebridge.reconcile.connectors.secrets import SecretsMixin
 from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import DialectUtils
 from databricks.labs.lakebridge.reconcile.recon_config import JdbcReaderOptions, Schema
-from databricks.sdk import WorkspaceClient
 
 logger = logging.getLogger(__name__)
 
 
-def _get_schema_query(catalog: str, schema: str, table: str):
-    # TODO: Ensure that the target_catalog in the configuration is not set to "hive_metastore". The source_catalog
-    #  can only be set to "hive_metastore" if the source type is "databricks".
+def _get_describe_query(catalog: str, schema: str, table: str):
     if schema == "global_temp":
         return f"describe table global_temp.{table}"
-    if catalog == "hive_metastore":
-        return f"describe table {catalog}.{schema}.{table}"
+    return f"describe table {catalog}.{schema}.{table}"
 
+
+def _get_information_schema_query(catalog: str, schema: str, table: str):
     query = f"""select
                             lower(column_name) as col_name,
                              full_data_type as data_type
@@ -36,34 +33,35 @@ def _get_schema_query(catalog: str, schema: str, table: str):
     return re.sub(r'\s+', ' ', query)
 
 
-class DatabricksDataSource(DataSource, SecretsMixin):
+class DatabricksDataSource(DataSource):
+    """Databricks data source backed by Unity Catalog `information_schema`.
+
+    Use `DatabricksNonUnityCatalogDataSource` for hive_metastore, global views,
+    or Foreign Catalogs
+    """
+
     _IDENTIFIER_DELIMITER = "`"
 
     def __init__(
         self,
         engine: Dialect,
         spark: SparkSession,
-        ws: WorkspaceClient,
-        secret_scope: str,
     ):
         self._engine = engine
         self._spark = spark
-        self._ws = ws
-        self._secret_scope = secret_scope
 
     def read_data(
         self,
-        catalog: str | None,
+        catalog: str,
         schema: str,
         table: str,
         query: str,
         options: JdbcReaderOptions | None,
     ) -> DataFrame:
-        namespace_catalog = "hive_metastore" if not catalog else catalog
         if schema == "global_temp":
             namespace_catalog = "global_temp"
         else:
-            namespace_catalog = f"{namespace_catalog}.{schema}"
+            namespace_catalog = f"{catalog}.{schema}"
         table_with_namespace = f"{namespace_catalog}.{table}"
         table_query = query.replace(":tbl", table_with_namespace)
         try:
@@ -74,13 +72,12 @@ class DatabricksDataSource(DataSource, SecretsMixin):
 
     def get_schema(
         self,
-        catalog: str | None,
+        catalog: str,
         schema: str,
         table: str,
         normalize: bool = True,
     ) -> list[Schema]:
-        catalog_str = catalog if catalog else "hive_metastore"
-        schema_query = _get_schema_query(catalog_str, schema, table)
+        schema_query = _get_information_schema_query(catalog, schema, table)
         try:
             logger.debug(f"Fetching schema using query: \n`{schema_query}`")
             logger.info(f"Fetching Schema: Started at: {datetime.now()}")
@@ -102,3 +99,29 @@ class DatabricksDataSource(DataSource, SecretsMixin):
             source_start_delimiter=DatabricksDataSource._IDENTIFIER_DELIMITER,
             source_end_delimiter=DatabricksDataSource._IDENTIFIER_DELIMITER,
         )
+
+
+class DatabricksNonUnityCatalogDataSource(DatabricksDataSource):
+
+    def get_schema(
+        self,
+        catalog: str,
+        schema: str,
+        table: str,
+        normalize: bool = True,
+    ) -> list[Schema]:
+        schema_query = _get_describe_query(catalog, schema, table)
+        try:
+            logger.debug(f"Fetching schema using query: \n`{schema_query}`")
+            logger.info(f"Fetching Schema: Started at: {datetime.now()}")
+            schema_metadata = (
+                self._spark.sql(schema_query)
+                .selectExpr("col_name as column_name", "data_type")
+                .where("column_name not like '#%'")
+                .distinct()
+                .collect()
+            )
+            logger.info(f"Schema fetched successfully. Completed at: {datetime.now()}")
+            return [self._map_meta_column(field, normalize) for field in schema_metadata]
+        except (RuntimeError, PySparkException) as e:
+            return self.log_and_throw_exception(e, "schema", schema_query)

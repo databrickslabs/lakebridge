@@ -9,7 +9,6 @@ from pyspark.sql.types import (
     LongType,
     StringType,
     TimestampType,
-    IntegerType,
     BooleanType,
     ArrayType,
     MapType,
@@ -82,7 +81,7 @@ def table_conf_with_opts(column_mapping):
         source_name="supplier",
         target_name="target_supplier",
         jdbc_reader_options=JdbcReaderOptions(
-            number_partitions=100, partition_column="s_nationkey", lower_bound="0", upper_bound="100"
+            num_partitions=100, partition_column="s_nationkey", lower_bound="0", upper_bound="100"
         ),
         join_columns=["s_suppkey", "s_nationkey"],
         select_columns=["s_suppkey", "s_name", "s_address", "s_phone", "s_acctbal", "s_nationkey"],
@@ -196,8 +195,8 @@ def report_tables_schema():
                             "row_comparison",
                             StructType(
                                 [
-                                    StructField("missing_in_source", IntegerType()),
-                                    StructField("missing_in_target", IntegerType()),
+                                    StructField("missing_in_source", LongType()),
+                                    StructField("missing_in_target", LongType()),
                                 ]
                             ),
                         ),
@@ -205,8 +204,8 @@ def report_tables_schema():
                             "column_comparison",
                             StructType(
                                 [
-                                    StructField("absolute_mismatch", IntegerType()),
-                                    StructField("threshold_mismatch", IntegerType()),
+                                    StructField("absolute_mismatch", LongType()),
+                                    StructField("threshold_mismatch", LongType()),
                                     StructField("mismatch_columns", StringType()),
                                 ]
                             ),
@@ -283,6 +282,16 @@ def tsql_schema_fixture_factory(column_name: str, data_type: str) -> Schema:
     )
 
 
+def redshift_schema_fixture_factory(column_name: str, data_type: str) -> Schema:
+    norm = DialectUtils.normalize_identifier(column_name, "\"", "\"")
+    return schema_fixture_factory(
+        norm.ansi_normalized,
+        data_type,
+        norm.ansi_normalized,
+        norm.source_normalized,
+    )
+
+
 def ansi_schema_fixture_factory(column_name: str, data_type: str) -> Schema:
     ansi = DialectUtils.ansi_normalize_identifier(column_name)
     return schema_fixture_factory(
@@ -343,6 +352,11 @@ def fake_databricks_datasource() -> FakeDataSource:
 
 
 @pytest.fixture
+def fake_redshift_datasource() -> FakeDataSource:
+    return FakeDataSource('"', '"')
+
+
+@pytest.fixture
 def fake_tsql_datasource() -> FakeDataSource:
     return FakeDataSource("[", "]")
 
@@ -360,6 +374,19 @@ def normalized_table_conf_with_opts(normalize_config_service: NormalizeReconConf
 
 @pytest.fixture
 def snowflake_table_conf_with_opts(normalize_config_service: NormalizeReconConfigService, table_conf_with_opts):
+    conf = normalize_config_service.normalize_recon_table_config(table_conf_with_opts)
+    conf.transformations = [  # SQL has to be valid
+        Transformation(column_name="`s_address`", source="trim(\"s_address\")", target="trim(`s_address_t`)"),
+        Transformation(column_name="`s_phone`", source="trim(\"s_phone\")", target="trim(`s_phone_t`)"),
+        Transformation(column_name="`s_name`", source="trim(\"s_name\")", target="trim(`s_name`)"),
+    ]
+    if conf.filters:
+        conf.filters.source = "\"s_name\"='t' and \"s_address\"='a'"
+    return conf
+
+
+@pytest.fixture
+def redshift_table_conf_with_opts(normalize_config_service: NormalizeReconConfigService, table_conf_with_opts):
     conf = normalize_config_service.normalize_recon_table_config(table_conf_with_opts)
     conf.transformations = [  # SQL has to be valid
         Transformation(column_name="`s_address`", source="trim(\"s_address\")", target="trim(`s_address_t`)"),
@@ -397,6 +424,14 @@ def table_schema_oracle_ansi(table_schema):
 def table_schema_ansi_ansi(table_schema):
     src_schema, tgt_schema = table_schema
     src_schema = [ansi_schema_fixture_factory(s.column_name, s.data_type) for s in src_schema]
+    tgt_schema = [ansi_schema_fixture_factory(s.column_name, s.data_type) for s in tgt_schema]
+    return src_schema, tgt_schema
+
+
+@pytest.fixture
+def table_schema_redshift_ansi(table_schema):
+    src_schema, tgt_schema = table_schema
+    src_schema = [redshift_schema_fixture_factory(s.column_name, s.data_type) for s in src_schema]
     tgt_schema = [ansi_schema_fixture_factory(s.column_name, s.data_type) for s in tgt_schema]
     return src_schema, tgt_schema
 

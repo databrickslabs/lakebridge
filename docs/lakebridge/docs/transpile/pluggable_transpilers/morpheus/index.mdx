@@ -1,0 +1,135 @@
+---
+title: Morpheus
+sidebar_position: 1
+---
+
+# Morpheus
+
+**Morpheus** is Lakebridge's AST-based SQL transpiler. It provides strong correctness guarantees: a file that Morpheus transpiles without any errors or warnings is guaranteed to produce equivalent results on Databricks as the original file did on the source platform.
+
+:::tip Not sure which transpiler to use?
+See [Which Tool Do I Use?](/docs/choosing_tools#transpiler-bladebridge-vs-morpheus-vs-switch) for a full comparison of Morpheus, BladeBridge, and Switch.
+:::
+
+---
+
+## Supported Source Dialects
+
+| Dialect key | Source systems |
+|---|---|
+| `mssql` | Microsoft SQL Server, Azure SQL Database, Azure SQL Managed Instance, Amazon RDS for SQL Server |
+| `snowflake` | Snowflake (including dbt repointing) |
+| `synapse` | Azure Synapse Analytics (dedicated SQL pools) |
+
+Morpheus targets **Databricks SQL** only. For ETL sources (DataStage, SSIS) or other SQL dialects (Oracle, Teradata, Redshift), use [BladeBridge](/docs/transpile/pluggable_transpilers/bladebridge) or [Switch](/docs/transpile/pluggable_transpilers/switch).
+
+---
+
+## How Morpheus Works
+
+Morpheus uses a custom parser generated from a carefully crafted ANTLR grammar. The transpilation pipeline has three stages:
+
+1. **Parse** — The input SQL is parsed into an intermediate representation (IR) tree. Parsing errors prevent the tree from being built and will result in the original text being returned with error annotations.
+2. **Transform** — The IR tree undergoes a series of transformations that convert source-dialect constructs into their Databricks SQL equivalents.
+3. **Code gen** — The transformed tree is fed to a code generator that produces and formats the final Databricks SQL text.
+
+Morpheus accumulates every error and warning encountered during the transform and code-gen phases but continues processing the file. Even in the presence of errors, it produces as much meaningful output as possible.
+
+---
+
+## Correctness Guarantee Model
+
+Morpheus distinguishes between **errors** and **warnings**:
+
+| Signal | Meaning | What to do |
+|---|---|---|
+| No errors, no warnings | Full correctness guarantee — output is equivalent to input on the source platform | Deploy with confidence |
+| **Warning** | Morpheus could not confirm equivalence but the output may still be correct (a conservative false-negative) | Review the flagged section; test output against source data |
+| **Error** | Morpheus knows equivalent results cannot be guaranteed for this construct | Manual fix required before deploying |
+
+:::note
+Some statistical functions may be implemented on Databricks using a slightly different algorithm than the source platform. Row ordering may differ when no `ORDER BY` is specified. In all other cases, results are strictly identical.
+:::
+
+Morpheus does not perform semantic validation (e.g., type-checking) on the input SQL. The behavior of code transpiled from semantically incorrect input is unspecified.
+
+---
+
+## Usage
+
+### Install
+
+Morpheus is installed automatically when you run:
+
+```bash
+databricks labs lakebridge install-transpile
+```
+
+Morpheus is fetched from [Maven Central](https://central.sonatype.com/) and installed at:
+```
+.databricks/labs/remorph-transpilers/databricks-morph-plugin/
+```
+
+### Run
+
+```bash
+databricks labs lakebridge transpile \
+  --source-dialect mssql \
+  --input-source /path/to/sql/files \
+  --output-folder /path/to/output
+```
+
+**Common flags:**
+
+| Flag | Description | Default |
+|---|---|---|
+| `--source-dialect` | Source SQL dialect: `mssql`, `snowflake`, or `synapse` | Required |
+| `--input-source` | Local path to the SQL files to transpile | Required |
+| `--output-folder` | Local path where transpiled files will be written | Required |
+| `--skip-validation` | Skip Databricks SQL validation of output (`true`/`false`) | `false` |
+| `--catalog-name` | Catalog to use when validating output | `remorph` |
+| `--schema-name` | Schema to use when validating output | `transpiler` |
+
+### Reading the output
+
+Each transpiled file begins with a header comment:
+
+**Successful transpile:**
+```sql
+/*
+    Successfully transpiled from /path/to/input/my_proc.sql
+*/
+CREATE PROCEDURE ...
+```
+
+**Transpile with errors/warnings:**
+```sql
+/*
+   Failed transpilation of /path/to/input/broken.sql
+
+   The following errors were found while transpiling:
+     - [3:5] Function GIBBERISH cannot be translated to Databricks SQL
+*/
+SELECT
+  t1.name,
+  GIBBERISH(t1.comment)
+FROM t1;
+```
+
+The `[line:column]` notation tells you exactly where in the input file the untranslatable construct starts.
+
+---
+
+## Troubleshooting
+
+**My file transpiles with warnings — is it safe to use?**
+
+Morpheus is conservative: it emits warnings when it cannot *guarantee* correctness, even if the output is actually correct. Review the flagged section and test the output against your source data. If the results match, the file is safe.
+
+**I see a parsing error — is that a bug?**
+
+Parsing errors are very unlikely when the input SQL is valid. If you see one, the input may be malformed, or there is a gap in the Morpheus ANTLR grammar. File a bug report at [GitHub](https://github.com/databrickslabs/lakebridge/issues).
+
+**Morpheus doesn't support my dialect.**
+
+Morpheus supports `mssql`, `snowflake`, and `synapse` only. For other dialects, use [BladeBridge](/docs/transpile/pluggable_transpilers/bladebridge) (Oracle, Teradata, Netezza, Redshift, DataStage, SSIS) or [Switch](/docs/transpile/pluggable_transpilers/switch) (any dialect via LLM).

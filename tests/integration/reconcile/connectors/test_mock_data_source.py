@@ -12,13 +12,13 @@ SCHEMA = "data"
 TABLE = "employee"
 
 
-def test_mock_data_source_happy(mock_spark):
+def test_mock_data_source_happy(spark):
     dataframe_repository = {
         (
             "org",
             "data",
             "select * from employee",
-        ): mock_spark.createDataFrame(
+        ): spark.createDataFrame(
             [
                 Row(emp_id="1", emp_name="name-1", sal=100),
                 Row(emp_id="2", emp_name="name-2", sal=200),
@@ -37,7 +37,7 @@ def test_mock_data_source_happy(mock_spark):
     data_source = MockDataSource(dataframe_repository, schema_repository)
 
     actual_data = data_source.read_data(CATALOG, SCHEMA, TABLE, "select * from employee", None)
-    expected_data = mock_spark.createDataFrame(
+    expected_data = spark.createDataFrame(
         [
             Row(emp_id="1", emp_name="name-1", sal=100),
             Row(emp_id="2", emp_name="name-2", sal=200),
@@ -54,7 +54,7 @@ def test_mock_data_source_happy(mock_spark):
     ]
 
 
-def test_mock_data_source_fail(mock_spark):
+def test_mock_data_source_fail(spark):
     data_source = MockDataSource({}, {}, Exception("TABLE NOT FOUND"))
     with pytest.raises(
         DataSourceRuntimeException,
@@ -70,13 +70,13 @@ def test_mock_data_source_fail(mock_spark):
         data_source.get_schema(CATALOG, SCHEMA, "unknown")
 
 
-def test_mock_data_source_no_catalog(mock_spark):
+def test_mock_data_source_no_catalog(spark):
     dataframe_repository = {
         (
             "",
             "data",
             "select * from employee",
-        ): mock_spark.createDataFrame(
+        ): spark.createDataFrame(
             [
                 Row(emp_id="1", emp_name="name-1", sal=100),
                 Row(emp_id="2", emp_name="name-2", sal=200),
@@ -95,7 +95,7 @@ def test_mock_data_source_no_catalog(mock_spark):
     data_source = MockDataSource(dataframe_repository, schema_repository)
 
     actual_data = data_source.read_data(None, SCHEMA, TABLE, "select * from employee", None)
-    expected_data = mock_spark.createDataFrame(
+    expected_data = spark.createDataFrame(
         [
             Row(emp_id="1", emp_name="name-1", sal=100),
             Row(emp_id="2", emp_name="name-2", sal=200),

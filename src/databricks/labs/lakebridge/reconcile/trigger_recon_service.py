@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import uuid4
 
 from pyspark.errors import PySparkException
@@ -42,11 +42,8 @@ class TriggerReconService:
         spark: SparkSession,
         table_recon: TableRecon,
         reconcile_config: ReconcileConfig,
-        local_test_run: bool = False,
     ) -> ReconcileOutput:
-        reconciler, recon_capture = TriggerReconService.create_recon_dependencies(
-            ws, spark, reconcile_config, local_test_run
-        )
+        reconciler, recon_capture = TriggerReconService.create_recon_dependencies(ws, spark, reconcile_config)
 
         try:
             for table_conf in table_recon.tables:
@@ -57,7 +54,6 @@ class TriggerReconService:
                     recon_id=recon_capture.recon_id,
                     spark=spark,
                     metadata_config=reconcile_config.metadata_config,
-                    local_test_run=local_test_run,
                 ),
                 reconcile_config.report_type,
             )
@@ -69,20 +65,21 @@ class TriggerReconService:
 
     @staticmethod
     def create_recon_dependencies(
-        ws: WorkspaceClient, spark: SparkSession, reconcile_config: ReconcileConfig, local_test_run: bool = False
+        ws: WorkspaceClient, spark: SparkSession, reconcile_config: ReconcileConfig
     ) -> tuple[Reconciliation, ReconCapture]:
         ws_client: WorkspaceClient = verify_workspace_client(ws)
 
         # validate the report type
         report_type = reconcile_config.report_type.lower()
-        logger.info(f"report_type: {report_type}, data_source: {reconcile_config.data_source} ")
+        source_dialect = reconcile_config.source.dialect
+        logger.info(f"report_type: {report_type}, data_source: {source_dialect} ")
         utils.validate_input(report_type, _RECON_REPORT_TYPES, "Invalid report type")
 
+        # validate the connection
         source, target = utils.initialise_data_source(
-            engine=reconcile_config.data_source,
+            source_dialect=reconcile_config.source.dialect,
             spark=spark,
-            ws=ws_client,
-            secret_scope=reconcile_config.secret_scope,
+            connection_name=reconcile_config.source.uc_connection_name,
         )
 
         recon_id = uuid4().hex
@@ -93,7 +90,7 @@ class TriggerReconService:
             reconcile_config.database_config,
             report_type,
             SchemaCompare(spark=spark),
-            get_dialect(reconcile_config.data_source),
+            get_dialect(source_dialect),
             spark,
             metadata_config=reconcile_config.metadata_config,
             intermediate_persist=ReconIntermediatePersist(spark, reconcile_config.metadata_config),
@@ -103,11 +100,10 @@ class TriggerReconService:
             database_config=reconcile_config.database_config,
             recon_id=recon_id,
             report_type=report_type,
-            source_dialect=get_dialect(reconcile_config.data_source),
+            source_dialect=get_dialect(source_dialect),
             ws=ws_client,
             spark=spark,
             metadata_config=reconcile_config.metadata_config,
-            local_test_run=local_test_run,
         )
 
         return reconciler, recon_capture
@@ -139,7 +135,7 @@ class TriggerReconService:
 
     @staticmethod
     def _do_recon_one(reconciler: Reconciliation, reconcile_config: ReconcileConfig, table_conf: Table):
-        recon_process_duration = ReconcileProcessDuration(start_ts=str(datetime.now()), end_ts=None)
+        recon_process_duration = ReconcileProcessDuration(start_ts=str(datetime.now(tz=timezone.utc)), end_ts=None)
         schema_reconcile_output = SchemaReconcileOutput(is_valid=True)
         data_reconcile_output = DataReconcileOutput()
 
@@ -168,7 +164,7 @@ class TriggerReconService:
                 )
                 logger.info(f"Reconciliation for '{reconciler.report_type}' report completed.")
 
-        recon_process_duration.end_ts = str(datetime.now())
+        recon_process_duration.end_ts = str(datetime.now(tz=timezone.utc))
         return schema_reconcile_output, data_reconcile_output, recon_process_duration
 
     @staticmethod

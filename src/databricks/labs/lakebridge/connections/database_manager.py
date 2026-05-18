@@ -1,21 +1,19 @@
-# Databricks notebook source
 import contextlib
 import dataclasses
 import logging
 from abc import abstractmethod
 from types import TracebackType
 from collections.abc import Callable, Sequence, Set
+from typing import Any
 
 import pandas as pd
 
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine, URL
-from sqlalchemy.engine.row import Row
 from sqlalchemy import text
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm.session import Session
 import redshift_connector  # type: ignore[import-untyped]
-from redshift_connector import Connection as RedshiftConnection  # type: ignore[import-untyped]
 
 from databricks.labs.blueprint.installation import JsonObject
 
@@ -25,7 +23,7 @@ logger = logging.getLogger(__name__)
 @dataclasses.dataclass
 class FetchResult:
     columns: Set[str]
-    rows: Sequence[Row[tuple[object, ...]] | tuple[object, ...]]
+    rows: Sequence[Sequence[Any]]
 
     def to_df(self) -> pd.DataFrame:
         """Create a pandas dataframe based on these results."""
@@ -36,16 +34,20 @@ class FetchResult:
 
 class DatabaseConnector(contextlib.AbstractContextManager):
     @abstractmethod
-    def _connect(self) -> Engine | RedshiftConnection:
-        pass
-
-    @abstractmethod
     def fetch(self, query: str) -> FetchResult:
         pass
 
     @abstractmethod
     def close(self) -> None:
         pass
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
+        self.close()
 
 
 class _BaseConnector(DatabaseConnector):
@@ -58,14 +60,6 @@ class _BaseConnector(DatabaseConnector):
 
     def close(self) -> None:
         self.engine.dispose()
-
-    def __exit__(
-        self,
-        exc_type: type[BaseException] | None,
-        exc_val: BaseException | None,
-        exc_tb: TracebackType | None,
-    ) -> None:
-        self.close()
 
     def fetch(self, query: str) -> FetchResult:
         if not self.engine:
@@ -118,34 +112,41 @@ class MSSQLConnector(_BaseConnector):
 class RedshiftConnector(DatabaseConnector):
     def __init__(self, config: JsonObject):
         self.config = config
-        self._conn: RedshiftConnection = self._connect()
+        self._conn: redshift_connector.Connection = self._connect()
 
-    def _connect(self) -> RedshiftConnection:
+    def _connect(self) -> redshift_connector.Connection:
         auth_type = str(self.config.get("auth_type", "sql_authentication")).lower()
-        connect_kwargs = {
-            "host": str(self.config["host"]),
-            "database": str(self.config["database"]),
-            "port": int(str(self.config.get("port", "5439"))),
-            "ssl": str(self.config.get("ssl", "true")).lower() in {"true", "yes", "1"},
-        }
+        host = str(self.config["host"])
+        database = str(self.config["database"])
+        port = int(str(self.config.get("port", "5439")))
+        ssl = str(self.config.get("ssl", "true")).lower() in {"true", "yes", "1"}
 
+        if auth_type == "sql_authentication":
+            return redshift_connector.connect(
+                host=host,
+                database=database,
+                port=port,
+                ssl=ssl,
+                user=str(self.config["user"]),
+                password=str(self.config["password"]),
+            )
         if auth_type == "iam":
-            connect_kwargs["iam"] = True
-            for key in ("region", "profile", "cluster_identifier", "db_user"):
-                if key in self.config:
-                    connect_kwargs[key] = str(self.config[key])
-        elif auth_type == "secrets_manager":
+            return redshift_connector.connect(
+                host=host,
+                database=database,
+                port=port,
+                ssl=ssl,
+                iam=True,
+                region=str(self.config["region"]) if "region" in self.config else None,
+                profile=str(self.config["profile"]) if "profile" in self.config else None,
+                cluster_identifier=(
+                    str(self.config["cluster_identifier"]) if "cluster_identifier" in self.config else None
+                ),
+                db_user=str(self.config["db_user"]) if "db_user" in self.config else None,
+            )
+        if auth_type == "secrets_manager":
             raise NotImplementedError("Redshift Secrets Manager authentication not implemented yet")
-        elif auth_type == "sql_authentication":
-            connect_kwargs["user"] = str(self.config["user"])
-            connect_kwargs["password"] = str(self.config["password"])
-        else:
-            raise ConnectionError(f"Invalid Redshift auth_type: {auth_type}")
-
-        try:
-            return redshift_connector.connect(**connect_kwargs)
-        except Exception as e:
-            raise ConnectionError(f"Failed to connect to Redshift at {connect_kwargs['host']}: {type(e).__name__}") from None
+        raise ConnectionError(f"Invalid Redshift auth_type: {auth_type}")
 
     def fetch(self, query: str) -> FetchResult:
         cursor = self._conn.cursor()
@@ -162,14 +163,6 @@ class RedshiftConnector(DatabaseConnector):
 
     def close(self) -> None:
         self._conn.close()
-
-    def __exit__(
-        self,
-        exc_type: type[BaseException] | None,
-        exc_val: BaseException | None,
-        exc_tb: TracebackType | None,
-    ) -> None:
-        self.close()
 
 
 def _create_connector(db_type: str, config: JsonObject) -> DatabaseConnector:
