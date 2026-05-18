@@ -1,3 +1,4 @@
+import datetime as dt
 import json
 import logging
 import tempfile
@@ -204,7 +205,7 @@ def recon_cluster(make_cluster, test_env) -> str:
         kind=Kind.CLASSIC_PREVIEW,
         instance_pool_id=pool_id,
         spark_version="17.3.x-scala2.13",
-    ).result()
+    ).result(timeout=dt.timedelta(minutes=10))
     assert cluster.cluster_id
     return cluster.cluster_id
 
