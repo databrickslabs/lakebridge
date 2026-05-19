@@ -31,7 +31,7 @@ def capture_bladebridge_logs(
     transpiler_repository: TranspilerRepository,
     *,
     level: int = logging.DEBUG,
-) -> Generator[None, None, None]:
+) -> Generator[None]:
     """Reset the logs from Bladebridge before yielding, and capture them afterward, to help with test debugging."""
     # TODO: Move this into the core?
     #   - Extend the LSP config.yml to describe where error logs go.
@@ -59,7 +59,7 @@ def capture_bladebridge_logs(
 
 
 @pytest.fixture(name="errors_path")
-def capture_errors_log(tmp_path: Path) -> Generator[Path, None, None]:
+def capture_errors_log(tmp_path: Path) -> Generator[Path]:
     """The path to an errors log file. If it exists after the test, its content will be logged to help with debugging."""
     path = tmp_path / "errors.log"
     yield path

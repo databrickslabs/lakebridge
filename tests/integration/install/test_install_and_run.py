@@ -1,4 +1,5 @@
 import logging
+import sys
 from collections.abc import Generator
 from pathlib import Path
 from email import policy
@@ -60,7 +61,7 @@ def _capture_transpiler_logs(transpiler_repository: TranspilerRepository) -> Non
 
 
 @pytest.fixture(name="transpiler_repository")
-def log_capturing_transpiler_repository(tmp_path: Path) -> Generator[TranspilerRepository, None, None]:
+def log_capturing_transpiler_repository(tmp_path: Path) -> Generator[TranspilerRepository]:
     labs_path = tmp_path / "labs"
     transpiler_repository = TranspilerRepository(labs_path=labs_path)
     yield transpiler_repository
@@ -85,6 +86,7 @@ async def run_lsp_operations(
 
 
 # TODO: Remove this test? We really want to test the latest published version.
+@pytest.mark.skipif(sys.version_info >= (3, 14), reason="Embedded BB wheel does not support Python 3.14+")
 async def test_installs_and_runs_local_bladebridge(
     bladebridge_artifact: Path,
     transpiler_repository: TranspilerRepository,

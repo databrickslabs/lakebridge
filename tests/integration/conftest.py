@@ -51,7 +51,7 @@ class MockApplicationContext(ApplicationContext):
 
 
 @pytest.fixture
-def application_ctx(ws: WorkspaceClient) -> Generator[ApplicationContext, None, None]:
+def application_ctx(ws: WorkspaceClient) -> Generator[ApplicationContext]:
     """A mock application context with a unique installation path, cleaned up after the test."""
     ctx = MockApplicationContext(ws)
     yield ctx
