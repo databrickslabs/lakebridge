@@ -956,30 +956,9 @@
   version "7.1.2"
   integrity sha512-jigsZK+sMF/cuiB7sERuo9V7N9jx+dhmHHnQyDSVdpZwVutaBu7WvNYqMDLSgFgfB30n452TP3vjDAvFC973mA==
 
-"@chevrotain/cst-dts-gen@12.0.0":
-  version "12.0.0"
-  integrity sha512-fSL4KXjTl7cDgf0B5Rip9Q05BOrYvkJV/RrBTE/bKDN096E4hN/ySpcBK5B24T76dlQ2i32Zc3PAE27jFnFrKg==
-  dependencies:
-    "@chevrotain/gast" "12.0.0"
-    "@chevrotain/types" "12.0.0"
-
-"@chevrotain/gast@12.0.0":
-  version "12.0.0"
-  integrity sha512-1ne/m3XsIT8aEdrvT33so0GUC+wkctpUPK6zU9IlOyJLUbR0rg4G7ZiApiJbggpgPir9ERy3FRjT6T7lpgetnQ==
-  dependencies:
-    "@chevrotain/types" "12.0.0"
-
-"@chevrotain/regexp-to-ast@12.0.0", "@chevrotain/regexp-to-ast@~12.0.0":
-  version "12.0.0"
-  integrity sha512-p+EW9MaJwgaHguhoqwOtx/FwuGr+DnNn857sXWOi/mClXIkPGl3rn7hGNWvo31HA3vyeQxjqe+H36yZJwYU8cA==
-
-"@chevrotain/types@12.0.0":
-  version "12.0.0"
-  integrity sha512-S+04vjFQKeuYw0/eW3U52LkAHQsB1ASxsPGsLPUyQgrZ2iNNibQrsidruDzjEX2JYfespXMG0eZmXlhA6z7nWA==
-
-"@chevrotain/utils@12.0.0":
-  version "12.0.0"
-  integrity sha512-lB59uJoaGIfOOL9knQqQRfhl9g7x8/wqFkp13zTdkRu1huG9kg6IJs1O8hqj9rs6h7orGxHJUKb+mX3rPbWGhA==
+"@chevrotain/types@~11.1.1":
+  version "11.1.2"
+  integrity sha512-U+HFai5+zmJCkK86QsaJtoITlboZHBqrVketcO2ROv865xfCMSFpELQoz1GkX5GzME8pTa+3kbKrZHQtI0gdbw==
 
 "@colors/colors@1.5.0":
   version "1.5.0"
@@ -2075,11 +2054,11 @@
   dependencies:
     "@types/mdx" "^2.0.0"
 
-"@mermaid-js/parser@^1.1.0":
-  version "1.1.0"
-  integrity sha512-gxK9ZX2+Fex5zu8LhRQoMeMPEHbc73UKZ0FQ54YrQtUxE1VVhMwzeNtKRPAu5aXks4FasbMe4xB4bWrmq6Jlxw==
+"@mermaid-js/parser@^1.1.1":
+  version "1.1.1"
+  integrity sha512-VuHdsYMK1bT6X2JbcAaWAhugTRvRBRyuZgd+c22swUeI9g/ntaxF7CY7dYarhZovofCbUNO0G7JesfmNtjYOCw==
   dependencies:
-    langium "^4.0.0"
+    "@chevrotain/types" "~11.1.1"
 
 "@noble/hashes@1.4.0":
   version "1.4.0"
@@ -2763,8 +2742,8 @@
   integrity sha512-GsCCIZDE/p3i96vtEqx+7dBUGXrc7zeSK3wwPHIaRThS+9OhWIXRqzs4d6k1SVU8g91DrNRWxWUGhp5KXQb2VA==
 
 "@types/node@*":
-  version "20.19.40"
-  integrity sha512-xxx6M2IpSTnnKcR0cMvIiohkiCx20/oRPtWGbenFygKCGl3zqUzdNjQ/1V4solq1LU+dgv0nQzeGOuqkqZGg0Q==
+  version "20.19.41"
+  integrity sha512-ECymXOukMnOoVkC2bb1Vc/w/836DXncOg5m8Xj1RH7xSHZJWNYY6Zh7EH477vcnD5egKNNfy2RpNOmuChhFPgQ==
   dependencies:
     undici-types "~6.21.0"
 
@@ -3259,8 +3238,8 @@ balanced-match@^1.0.0:
   integrity sha512-3oSeUO0TMV67hN1AmbXsK4yaqU7tjiHlbxRDZOpH0KW9+CeX4bRAaX0Anxt0tx2MrpRpWwQaPwIlISEJhYU5Pw==
 
 baseline-browser-mapping@^2.10.12:
-  version "2.10.27"
-  integrity sha512-zEs/ufmZoUd7WftKpKyXaT6RFxpQ5Qm9xytKRHvJfxFV9DFJkZph9RvJ1LcOUi0Z1ZVijMte65JbILeV+8QQEA==
+  version "2.10.29"
+  integrity sha512-Asa2krT+XTPZINCS+2QcyS8WTkObE77RwkydwF7h6DmnKqbvlalz93m/dnphUyCa6SWSP51VgtEUf2FN+gelFQ==
 
 batch@0.6.1:
   version "0.6.1"
@@ -3282,7 +3261,7 @@ binary-extensions@^2.0.0:
   version "2.3.0"
   integrity sha512-Ceh+7ox5qe7LJuLHoY0feh3pHuUDHAcRUeyL2VYghZwfpkNIy/+8Ocg0a3UuSoYzavmylwuLWQOf3hl0jjMMIw==
 
-body-parser@~1.20.3:
+body-parser@~1.20.5:
   version "1.20.5"
   integrity sha512-3grm+/2tUOvu2cjJkvsIxrv/wVpfXQW4PsQHYm7yk4vfpu7Ekl6nEsYBoJUL6qDwZUx8wUhQ8tR2qz+ad9c9OA==
   dependencies:
@@ -3513,22 +3492,6 @@ cheerio@1.0.0-rc.12:
     htmlparser2 "^8.0.1"
     parse5 "^7.0.0"
     parse5-htmlparser2-tree-adapter "^7.0.0"
-
-chevrotain-allstar@~0.4.3:
-  version "0.4.3"
-  integrity sha512-2X4mkroolSMKqW+H22pyPMUVDqYZzPhephTmg/NODKb1IGYPHfxfhcW0EjS7wcPJNbze2i4vBWT7zT5FKF2lrQ==
-  dependencies:
-    lodash-es "^4.18.1"
-
-chevrotain@~12.0.0:
-  version "12.0.0"
-  integrity sha512-csJvb+6kEiQaqo1woTdSAuOWdN0WTLIydkKrBnS+V5gZz0oqBrp4kQ35519QgK6TpBThiG3V1vNSHlIkv4AglQ==
-  dependencies:
-    "@chevrotain/cst-dts-gen" "12.0.0"
-    "@chevrotain/gast" "12.0.0"
-    "@chevrotain/regexp-to-ast" "12.0.0"
-    "@chevrotain/types" "12.0.0"
-    "@chevrotain/utils" "12.0.0"
 
 chokidar@^3.5.3, chokidar@^3.6.0:
   version "3.6.0"
@@ -3896,8 +3859,8 @@ css-what@^6.0.1, css-what@^6.1.0:
   integrity sha512-u/O3vwbptzhMs3L1fQE82ZSLHQQfto5gyZzwteVIEyeaY5Fc7R4dapF/BvRoSYFeqfBk4m0V1Vafq5Pjv25wvA==
 
 cssdb@^8.6.0:
-  version "8.8.0"
-  integrity sha512-QbLeyz2Bgso1iRlh7IpWk6OKa3lLNGXsujVjDMPl9rOZpxKeiG69icLpbLCFxeURwmcdIfZqQyhlooKJYM4f8Q==
+  version "8.8.1"
+  integrity sha512-PdLTDamqN1muXEmfQggrogLmD+ZjfOhlZsFFs28tYSTqnlk6gEwg5wQCt6wLl2HstegUYgof6GrYyXXODFDC5g==
 
 cssesc@^3.0.0:
   version "3.0.0"
@@ -4496,8 +4459,8 @@ ee-first@1.1.1:
   integrity sha512-WMwm9LhRUo+WUaRN+vRuETqG89IgZphVSNkdFgeb6sS/E4OrDIN7t48CAewSHXc6C8lefD8KKfr5vY61brQlow==
 
 electron-to-chromium@^1.5.328:
-  version "1.5.352"
-  integrity sha512-9wHk8x6dyuimoe18EdiDPWKExNdxYqo4fn4FwOVVper6RxT3cmpBwBkWWfSOCYJjQdIco/nPhJhNLmn4Ufg1Yg==
+  version "1.5.353"
+  integrity sha512-kOrWphBi8TOZyiJZqsgqIle0lw+tzmnQK83pV9dZUd01Nm2POECSyFQMAuarzZdYqQW7FH9RaYOuaRo3h+bQ3w==
 
 emoji-regex@^8.0.0:
   version "8.0.0"
@@ -4524,8 +4487,8 @@ encodeurl@~2.0.0:
   integrity sha512-Q0n9HRi4m6JuGIV1eFlmvJB7ZEVxu93IrMyiMsGC0lrMJMWzRgx6WGquyfQgZVb31vhGgXnfmPNNXmxnOkRBrg==
 
 enhanced-resolve@^5.17.1:
-  version "5.21.2"
-  integrity sha512-xe9vQb5kReirPUxgQrXA3ihgbCqssmTiM7cOZ+Gzu+VeGWgpV98lLZvp0dl4yriyAePcewxGUs9UpKD8PET9KQ==
+  version "5.21.3"
+  integrity sha512-QyL119InA+XXEkNLNTPCXPugSvOfhwv0JOlGNzvxs0hZaiHLNvXSpudUWsOlsXGWJh8G6ckCScEkVHfX3kw/2Q==
   dependencies:
     graceful-fs "^4.2.4"
     tapable "^2.3.3"
@@ -4565,6 +4528,10 @@ es-object-atoms@^1.0.0, es-object-atoms@^1.1.1:
   integrity sha512-FGgH2h8zKNim9ljj7dankFPcICIK9Cp5bm+c2gQSYePhpaG5+esrLODihIorn+Pe6FGJzWhXQotPv73jTaldXA==
   dependencies:
     es-errors "^1.3.0"
+
+es-toolkit@^1.45.1:
+  version "1.46.1"
+  integrity sha512-5eNtXOs3tbfxXOj04tjjseeWkRWaoCjdEI+96DgwzZoe6c9juL49pXlzAFTI72aWC9Y8p7168g6XIKjh7k6pyQ==
 
 esast-util-from-estree@^2.0.0:
   version "2.0.0"
@@ -4728,12 +4695,12 @@ execa@5.1.1:
     strip-final-newline "^2.0.0"
 
 express@^4.22.1:
-  version "4.22.1"
-  integrity sha512-F2X8g9P1X7uCPZMA3MVf9wcTqlyNp7IhH5qPCI0izhaOIYXaW9L535tGA3qmjRzpH+bZczqq7hVKxTR4NWnu+g==
+  version "4.22.2"
+  integrity sha512-IuL+Elrou2ZvCFHs18/CIzy2Nzvo25nZ1/D2eIZlz7c+QUayAcYoiM2BthCjs+EBHVpjYjcuLDAiCWgeIX3X1Q==
   dependencies:
     accepts "~1.3.8"
     array-flatten "1.1.1"
-    body-parser "~1.20.3"
+    body-parser "~1.20.5"
     content-disposition "~0.5.4"
     content-type "~1.0.4"
     cookie "~0.7.1"
@@ -4752,7 +4719,7 @@ express@^4.22.1:
     parseurl "~1.3.3"
     path-to-regexp "~0.1.12"
     proxy-addr "~2.0.7"
-    qs "~6.14.0"
+    qs "~6.15.1"
     range-parser "~1.2.1"
     safe-buffer "5.2.1"
     send "~0.19.0"
@@ -5952,17 +5919,6 @@ kleur@^3.0.3:
   version "3.0.3"
   integrity sha512-eTIzlVOSUR+JxdDFepEYcBMtZ9Qqdef+rnzWdRZuMbOywu5tO2w2N7rqjoANZ5k9vywhL6Br1VRjUIgTQx4E8w==
 
-langium@^4.0.0:
-  version "4.2.3"
-  integrity sha512-sOPIi4hISFnY7twwV97ca1TsxpBtXq0URu/LL1AvxwccPG/RIBBlKS7a/f/EL6w8lTNaS0EFs/F+IdSOaqYpng==
-  dependencies:
-    "@chevrotain/regexp-to-ast" "~12.0.0"
-    chevrotain "~12.0.0"
-    chevrotain-allstar "~0.4.3"
-    vscode-languageserver "~9.0.1"
-    vscode-languageserver-textdocument "~1.0.11"
-    vscode-uri "~3.1.0"
-
 latest-version@^7.0.0:
   version "7.0.0"
   integrity sha512-KvNT4XqAMzdcL6ka6Tl3i2lYeFDgXNCuIX+xNx6ZMVR1dFq+idXd9FLKNMOIx0t9mJ9/HudyX4oZWXZQ0UJHeg==
@@ -6014,7 +5970,7 @@ locate-path@^7.1.0:
   dependencies:
     p-locate "^6.0.0"
 
-lodash-es@>=4.17.23, lodash-es@^4.17.21, lodash-es@^4.17.23, lodash-es@^4.18.1:
+lodash-es@>=4.17.23, lodash-es@^4.17.21:
   version "4.18.1"
   integrity sha512-J8xewKD/Gk22OZbhpOVSwcs60zhd95ESDwezOFuA3/099925PdHJ7OFHNTGtajL3AlZkykD32HykiMo+BIBI8A==
 
@@ -6069,8 +6025,8 @@ lucide-react@^0.555.0:
   integrity sha512-D8FvHUGbxWBRQM90NZeIyhAvkFfsh3u9ekrMvJ30Z6gnpBHS6HC6ldLg7tL45hwiIz/u66eKDtdA23gwwGsAHA==
 
 lunr-languages@^1.4.0:
-  version "1.17.0"
-  integrity sha512-ClGZPfWoxdFgTmqa1uC12cBJJzkMiJGtQhR9J3dQLwnsO5efcTXGtTj7MQZCdjYL9jAL7J1pWQr3hksAn2zJ9Q==
+  version "1.20.0"
+  integrity sha512-3LVgE7ekWXt04NBci/hjm+NXJxXZeRXuyClL0kA0HONyBOjxhP3ZQkuWIM4Ok3pbeptUW/rj3XcJcJuJVPwPYA==
 
 lunr@^2.3.9:
   version "2.3.9"
@@ -6350,12 +6306,12 @@ merge2@^1.3.0, merge2@^1.4.1:
   integrity sha512-8q7VEgMJW4J8tcfVPy8g09NcQwZdbwFEqhe/WZkoIzjn/3TGDwtOCYtXGxA3O8tPzpczCCDgv+P2P5y00ZJOOg==
 
 mermaid@>=11.6.0:
-  version "11.14.0"
-  integrity sha512-GSGloRsBs+JINmmhl0JDwjpuezCsHB4WGI4NASHxL3fHo3o/BRXTxhDLKnln8/Q0lRFRyDdEjmk1/d5Sn1Xz8g==
+  version "11.15.0"
+  integrity sha512-pTMbcf3rWdtLiYGpmoTjHEpeY8seiy6sR+9nD7LOs8KfUbHE4lOUAprTRqRAcWSQ6MQpdX+YEsxShtGsINtPtw==
   dependencies:
     "@braintree/sanitize-url" "^7.1.1"
     "@iconify/utils" "^3.0.2"
-    "@mermaid-js/parser" "^1.1.0"
+    "@mermaid-js/parser" "^1.1.1"
     "@types/d3" "^7.4.3"
     "@upsetjs/venn.js" "^2.0.0"
     cytoscape "^3.33.1"
@@ -6366,14 +6322,14 @@ mermaid@>=11.6.0:
     dagre-d3-es "7.0.14"
     dayjs "^1.11.19"
     dompurify "^3.3.1"
+    es-toolkit "^1.45.1"
     katex "^0.16.25"
     khroma "^2.1.0"
-    lodash-es "^4.17.23"
     marked "^16.3.0"
     roughjs "^4.6.6"
     stylis "^4.3.6"
     ts-dedent "^2.2.0"
-    uuid "^11.1.0"
+    uuid "^11.1.0 || ^12 || ^13 || ^14.0.0"
 
 methods@~1.1.2:
   version "1.1.2"
@@ -6900,8 +6856,8 @@ node-forge@^1.3.3:
   integrity sha512-LarFH0+6VfriEhqMMcLX2F7SwSXeWwnEAJEsYm5QKWchiVYVvJyV9v7UDvUv+w5HO23ZpQTXDv/GxdDdMyOuoQ==
 
 node-releases@^2.0.36:
-  version "2.0.38"
-  integrity sha512-3qT/88Y3FbH/Kx4szpQQ4HzUbVrHPKTLVpVocKiLfoYvw9XSGOX2FmD2d6DrXbVYyAQTF2HeF6My8jmzx7/CRw==
+  version "2.0.44"
+  integrity sha512-5WUyunoPMsvvEhS8AxHtRzP+oA8UCkJ7YRxatWKjngndhDGLiqEVAQKWjFAiAiuL8zMRGzGSJxFnLetoa43qGQ==
 
 nopt@1.0.10:
   version "1.0.10"
@@ -7857,7 +7813,7 @@ pvutils@^1.1.3, pvutils@^1.1.5:
   version "1.1.5"
   integrity sha512-KTqnxsgGiQ6ZAzZCVlJH5eOjSnvlyEgx1m8bkRJfOhmGRqfo5KLvmAlACQkrjEtOQ4B7wF9TdSLIs9O90MX9xA==
 
-qs@>=6.14.2, qs@~6.14.0, qs@~6.15.1:
+qs@>=6.14.2, qs@~6.15.1:
   version "6.15.1"
   integrity sha512-6YHEFRL9mfgcAvql/XhwTvf5jKcOiiupt2FiJxHkiX1z4j7WL8J/jRHYLluORvc1XxB5rV20KoeK00gVJamspg==
   dependencies:
@@ -8378,8 +8334,8 @@ semver@^6.3.1:
   integrity sha512-BR7VvDCVHO+q2xBEWskxS6DJE1qRnb7DxzUrogb71CWoSficBxYsiAGd+Kl0mmq/MprG9yArRkyrQxTO6XjMzA==
 
 semver@^7.3.5, semver@^7.3.7, semver@^7.3.8, semver@^7.5.4:
-  version "7.7.4"
-  integrity sha512-vFKC2IEtQnVhpT78h1Yp8wzwrf8CM+MzKMHGJZfBtzhZNycRFnXsHk6E5TxIkkMsgNS7mdX3AGB7x2QM2di4lA==
+  version "7.8.0"
+  integrity sha512-AcM7dV/5ul4EekoQ29Agm5vri8JNqRyj39o0qpX6vDF2GZrtutZl5RwgD1XnZjiTAfncsJhMI48QQH3sN87YNA==
 
 send@~0.19.0, send@~0.19.1:
   version "0.19.2"
@@ -8833,8 +8789,8 @@ tapable@^2.0.0, tapable@^2.1.1, tapable@^2.2.1, tapable@^2.3.3:
   integrity sha512-uxc/zpqFg6x7C8vOE7lh6Lbda8eEL9zmVm/PLeTPBRhh1xCgdWaQ+J1CUieGpIfm2HdtsUpRv+HshiasBMcc6A==
 
 terser-webpack-plugin@^5.3.10, terser-webpack-plugin@^5.3.9:
-  version "5.5.0"
-  integrity sha512-UYhptBwhWvfIjKd/UuFo6D8uq9xpGLDK+z8EDsj/zWhrTaH34cKEbrkMKfV5YWqGBvAYA3tlzZbs2R+qYrbQJA==
+  version "5.6.0"
+  integrity sha512-Eum+5ajkaOhf5KbM26osvv21kLD7BaGqQ1UA4Ami4arYwylmGUQTgHFpHDdmJod1q4QXa66p0to/FBKID+J1vA==
   dependencies:
     "@jridgewell/trace-mapping" "^0.3.25"
     jest-worker "^27.4.5"
@@ -9176,9 +9132,9 @@ utils-merge@1.0.1:
   version "1.0.1"
   integrity sha512-pMZTvIkT1d+TFGvDOqodOclx0QWkkgi6Tdoa8gC8ffGAAqz9pzPTZWAybbsHHoED/ztMtkv/VoYTYyShUn81hA==
 
-uuid@^11.1.0:
-  version "11.1.1"
-  integrity sha512-vIYxrBCC/N/K+Js3qSN88go7kIfNPssr/hHCesKCQNAjmgvYS2oqr69kIufEG+O4+PfezOH4EbIeHCfFov8ZgQ==
+"uuid@^11.1.0 || ^12 || ^13 || ^14.0.0":
+  version "14.0.0"
+  integrity sha512-Qo+uWgilfSmAhXCMav1uYFynlQO7fMFiMVZsQqZRMIXp0O7rR7qjkj+cPvBHLgBqi960QCoo/PH2/6ZtVqKvrg==
 
 uuid@^8.3.2:
   version "8.3.2"
@@ -9240,35 +9196,6 @@ vfile@^6.0.0, vfile@^6.0.1:
     "@types/unist" "^3.0.0"
     vfile-message "^4.0.0"
 
-vscode-jsonrpc@8.2.0:
-  version "8.2.0"
-  integrity sha512-C+r0eKJUIfiDIfwJhria30+TYWPtuHJXHtI7J0YlOmKAo7ogxP20T0zxB7HZQIFhIyvoBPwWskjxrvAtfjyZfA==
-
-vscode-languageserver-protocol@3.17.5:
-  version "3.17.5"
-  integrity sha512-mb1bvRJN8SVznADSGWM9u/b07H7Ecg0I3OgXDuLdn307rl/J3A9YD6/eYOssqhecL27hK1IPZAsaqh00i/Jljg==
-  dependencies:
-    vscode-jsonrpc "8.2.0"
-    vscode-languageserver-types "3.17.5"
-
-vscode-languageserver-textdocument@~1.0.11:
-  version "1.0.12"
-  integrity sha512-cxWNPesCnQCcMPeenjKKsOCKQZ/L6Tv19DTRIGuLWe32lyzWhihGVJ/rcckZXJxfdKCFvRLS3fpBIsV/ZGX4zA==
-
-vscode-languageserver-types@3.17.5:
-  version "3.17.5"
-  integrity sha512-Ld1VelNuX9pdF39h2Hgaeb5hEZM2Z3jUrrMgWQAu82jMtZp7p3vJT3BzToKtZI7NgQssZje5o0zryOrhQvzQAg==
-
-vscode-languageserver@~9.0.1:
-  version "9.0.1"
-  integrity sha512-woByF3PDpkHFUreUa7Hos7+pUWdeWMXRd26+ZX2A8cFx6v/JPTtd4/uN0/jB6XQHYaOlHbio03NTHCqrgG5n7g==
-  dependencies:
-    vscode-languageserver-protocol "3.17.5"
-
-vscode-uri@~3.1.0:
-  version "3.1.0"
-  integrity sha512-/BpdSx+yCQGnCvecbyXdxHDkuk55/G3xwnC0GqY4gmQ3j+A+g8kzzgB4Nk/SINjqn6+waqw3EgbVF2QKExkRxQ==
-
 watchpack@^2.4.1:
   version "2.5.1"
   integrity sha512-Zn5uXdcFNIA1+1Ei5McRd+iRzfhENPCe7LeABkJtNulSxjma+l7ltNx55BWZkRlwRnpOgHqxnjyaDgJnNXnqzg==
@@ -9319,8 +9246,8 @@ webpack-dev-middleware@^7.4.2:
     schema-utils "^4.0.0"
 
 webpack-dev-server@^5.2.1, webpack-dev-server@^5.2.2:
-  version "5.2.3"
-  integrity sha512-9Gyu2F7+bg4Vv+pjbovuYDhHX+mqdqITykfzdM9UyKqKHlsE5aAjRhR+oOEfXW5vBeu8tarzlJFIZva4ZjAdrQ==
+  version "5.2.4"
+  integrity sha512-GqDPGZN9bRqKBTkp4aWkobDDHMsrXKoGSdOH56smIri8qR0JG8gfL8/v/f/OZR3/OKXjG8uwJbFVhKm/FNU/UA==
   dependencies:
     "@types/bonjour" "^3.5.13"
     "@types/connect-history-api-fallback" "^1.5.4"
