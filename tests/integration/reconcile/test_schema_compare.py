@@ -4,7 +4,12 @@ from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dial
 from databricks.labs.lakebridge.reconcile.recon_config import ColumnMapping, Table
 from databricks.labs.lakebridge.reconcile.schema_compare import SchemaCompare
 
-from tests.conftest import schema_fixture_factory, tsql_schema_fixture_factory, ansi_schema_fixture_factory
+from tests.conftest import (
+    schema_fixture_factory,
+    tsql_schema_fixture_factory,
+    ansi_schema_fixture_factory,
+    redshift_schema_fixture_factory,
+)
 
 
 def snowflake_databricks_schema():
@@ -267,6 +272,46 @@ def tsql_databricks_schema():
     return src_schema, tgt_schema
 
 
+def redshift_databricks_schema():
+    src_schema = [
+        redshift_schema_fixture_factory("col_smallint", "smallint"),
+        redshift_schema_fixture_factory("col_integer", "integer"),
+        redshift_schema_fixture_factory("col_bigint", "bigint"),
+        redshift_schema_fixture_factory("col_decimal", "decimal(10,2)"),
+        redshift_schema_fixture_factory("col_numeric", "decimal(38,0)"),
+        redshift_schema_fixture_factory("col_real", "real"),
+        redshift_schema_fixture_factory("col_double", "double precision"),
+        redshift_schema_fixture_factory("col_varchar", "varchar(100)"),
+        redshift_schema_fixture_factory("col_varchar_max", "varchar(65535)"),
+        redshift_schema_fixture_factory("col_binary", "binary"),
+        redshift_schema_fixture_factory("col_date", "date"),
+        redshift_schema_fixture_factory("col_timestamp", "timestamp without time zone"),
+        redshift_schema_fixture_factory("col_timestamptz", "timestamp with time zone"),
+        redshift_schema_fixture_factory("col_boolean", "boolean"),
+        schema_fixture_factory("`col Escaped`", "varchar(50)", source_delimiter='"'),
+        schema_fixture_factory('"col escaped2"', "integer", source_delimiter='"'),
+    ]
+    tgt_schema = [
+        ansi_schema_fixture_factory("col_smallint", "smallint"),
+        ansi_schema_fixture_factory("col_integer", "int"),
+        ansi_schema_fixture_factory("col_bigint", "bigint"),
+        ansi_schema_fixture_factory("col_decimal", "decimal(10,2)"),
+        ansi_schema_fixture_factory("col_numeric", "decimal(38,0)"),
+        ansi_schema_fixture_factory("col_real", "float"),
+        ansi_schema_fixture_factory("col_double", "double"),
+        ansi_schema_fixture_factory("col_varchar", "string"),
+        ansi_schema_fixture_factory("col_varchar_max", "string"),
+        ansi_schema_fixture_factory("col_binary", "binary"),
+        ansi_schema_fixture_factory("col_date", "date"),
+        ansi_schema_fixture_factory("col_timestamp", "timestamp"),
+        ansi_schema_fixture_factory("col_timestamptz", "timestamp"),
+        ansi_schema_fixture_factory("col_boolean", "boolean"),
+        ansi_schema_fixture_factory("`col Escaped`", "string"),
+        ansi_schema_fixture_factory("`col escaped2`", "int"),
+    ]
+    return src_schema, tgt_schema
+
+
 @pytest.fixture
 def schemas():
     return {
@@ -274,6 +319,7 @@ def schemas():
         "databricks_databricks_schema": databricks_databricks_schema(),
         "oracle_databricks_schema": oracle_databricks_schema(),
         "tsql_databricks_schema": tsql_databricks_schema(),
+        "redshift_databricks_schema": redshift_databricks_schema(),
     }
 
 
@@ -421,4 +467,24 @@ def test_schema_compare(spark):
     assert schema_compare_output.is_valid
     assert df.count() == 2
     assert df.filter("is_valid = 'true'").count() == 2
+    assert df.filter("is_valid = 'false'").count() == 0
+
+
+def test_redshift_schema_compare(schemas, spark):
+    src_schema, tgt_schema = schemas["redshift_databricks_schema"]
+    table_conf = Table(
+        source_name="supplier",
+        target_name="supplier",
+    )
+
+    schema_compare_output = SchemaCompare(spark).compare(
+        src_schema,
+        tgt_schema,
+        get_dialect("redshift"),
+        table_conf,
+    )
+    df = schema_compare_output.compare_df
+    assert schema_compare_output.is_valid
+    assert df.count() == 16
+    assert df.filter("is_valid = 'true'").count() == 16
     assert df.filter("is_valid = 'false'").count() == 0

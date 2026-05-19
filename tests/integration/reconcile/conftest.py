@@ -1,3 +1,4 @@
+import datetime as dt
 import json
 import logging
 import tempfile
@@ -14,6 +15,7 @@ from databricks.labs.blueprint.paths import WorkspacePath
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.errors.platform import PermissionDenied
 from databricks.sdk.service.catalog import TableInfo, SchemaInfo
+from databricks.sdk.service.compute import DataSecurityMode, Kind
 
 from databricks.labs.lakebridge.config import (
     LakebridgeConfiguration,
@@ -55,6 +57,14 @@ SNOWFLAKE_CONNECTION = "sf_sandbox"
 SNOWFLAKE_CATALOG = "INTEGRATION"
 SNOWFLAKE_SCHEMA = "LAKEBRIDGE"
 SNOWFLAKE_TABLE = "DIAMONDS"
+REDSHIFT_CONNECTION = "sandbox_labs_tool_redshift"
+REDSHIFT_CATALOG = "labs"
+REDSHIFT_SCHEMA = "lakebridge"
+REDSHIFT_TABLE = "diamonds"
+ORACLE_CONNECTION = "oracle_sandbox"
+ORACLE_SRV = "orcl"
+ORACLE_SCHEMA = "ADMIN"
+ORACLE_TABLE = "DIAMONDS"
 
 
 @pytest.fixture
@@ -171,8 +181,33 @@ def snowflake_recon_table_config(recon_schema: SchemaInfo, recon_tables: tuple[T
 
 
 @pytest.fixture
-def recon_cluster(test_env) -> str:
-    return test_env.get("DATABRICKS_DQX_CLUSTER_ID")
+def oracle_recon_table_config(recon_schema: SchemaInfo, recon_tables: tuple[TableInfo, TableInfo]) -> TableRecon:
+    (_, tgt_table) = recon_tables
+    assert tgt_table.name
+
+    return TableRecon(
+        [
+            Table(
+                source_name=ORACLE_TABLE,
+                target_name=tgt_table.name,
+                join_columns=["color", "clarity"],
+            )
+        ]
+    )
+
+
+@pytest.fixture
+def recon_cluster(make_cluster, test_env) -> str:
+    pool_id = test_env.get("TEST_INSTANCE_POOL_ID")
+    cluster = make_cluster(
+        single_node=True,
+        data_security_mode=DataSecurityMode.DATA_SECURITY_MODE_AUTO,
+        kind=Kind.CLASSIC_PREVIEW,
+        instance_pool_id=pool_id,
+        spark_version="17.3.x-scala2.13",
+    ).result(timeout=dt.timedelta(minutes=10))
+    assert cluster.cluster_id
+    return cluster.cluster_id
 
 
 @pytest.fixture
@@ -253,6 +288,84 @@ def snowflake_recon_config(recon_cluster: str, recon_schema: SchemaInfo, make_vo
             catalog=SNOWFLAKE_CATALOG,
             schema=SNOWFLAKE_SCHEMA,
             uc_connection_name=SNOWFLAKE_CONNECTION,
+        ),
+        target=TargetConnectionConfig(
+            catalog=recon_schema.catalog_name,
+            schema=recon_schema.name,
+        ),
+        metadata_config=ReconcileMetadataConfig(
+            catalog=recon_schema.catalog_name, schema=recon_schema.name, volume=volume.name
+        ),
+        job_overrides=deployment_overrides,
+    )
+
+
+@pytest.fixture
+def redshift_recon_table_config(recon_schema: SchemaInfo, recon_tables: tuple[TableInfo, TableInfo]) -> TableRecon:
+    (_, tgt_table) = recon_tables
+    assert tgt_table.name
+
+    return TableRecon(
+        [
+            Table(
+                source_name=REDSHIFT_TABLE,
+                target_name=tgt_table.name,
+                join_columns=["color", "clarity"],
+            )
+        ]
+    )
+
+
+@pytest.fixture
+def redshift_recon_config(recon_cluster: str, recon_schema: SchemaInfo, make_volume) -> ReconcileConfig:
+    volume = make_volume(catalog_name=recon_schema.catalog_name, schema_name=recon_schema.name, name=recon_schema.name)
+
+    deployment_overrides = ReconcileJobConfig(
+        existing_cluster_id=recon_cluster,
+        tags={"lakebridge": "reconcile_test"},
+    )
+    logger.info(f"Using recon job overrides: {deployment_overrides}")
+
+    assert recon_schema.catalog_name
+    assert recon_schema.name
+    return ReconcileConfig(
+        report_type="all",
+        source=SourceConnectionConfig(
+            dialect="redshift",
+            catalog=REDSHIFT_CATALOG,
+            schema=REDSHIFT_SCHEMA,
+            uc_connection_name=REDSHIFT_CONNECTION,
+        ),
+        target=TargetConnectionConfig(
+            catalog=recon_schema.catalog_name,
+            schema=recon_schema.name,
+        ),
+        metadata_config=ReconcileMetadataConfig(
+            catalog=recon_schema.catalog_name, schema=recon_schema.name, volume=volume.name
+        ),
+        job_overrides=deployment_overrides,
+    )
+
+
+@pytest.fixture
+def oracle_recon_config(recon_cluster: str, recon_schema: SchemaInfo, make_volume) -> ReconcileConfig:
+    volume = make_volume(catalog_name=recon_schema.catalog_name, schema_name=recon_schema.name, name=recon_schema.name)
+
+    deployment_overrides = ReconcileJobConfig(
+        existing_cluster_id=recon_cluster,
+        tags={"lakebridge": "reconcile_test"},
+    )
+    logger.info(f"Using recon job overrides: {deployment_overrides}")
+
+    assert recon_schema.catalog_name
+    assert recon_schema.name
+    return ReconcileConfig(
+        report_type="all",
+        source=SourceConnectionConfig(
+            dialect="oracle",
+            catalog=ORACLE_SRV,
+            schema=ORACLE_SCHEMA,
+            uc_connection_name=ORACLE_CONNECTION,
         ),
         target=TargetConnectionConfig(
             catalog=recon_schema.catalog_name,

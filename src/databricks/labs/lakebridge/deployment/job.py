@@ -16,7 +16,6 @@ from databricks.sdk.service.jobs import (
 )
 from databricks.labs.lakebridge.config import ReconcileConfig, ProfilerDashboardConfig
 from databricks.labs.lakebridge.deployment.dashboard import ProfilerDashboardManager
-from databricks.labs.lakebridge.reconcile.constants import ReconSourceType
 
 logger = logging.getLogger(__name__)
 
@@ -106,15 +105,6 @@ class JobDeployment:
         libraries = [
             compute.Library(whl=lakebridge_wheel_path),
         ]
-
-        if recon_config.source.dialect == ReconSourceType.ORACLE.value:
-            # TODO: Automatically fetch a version list for `ojdbc8`
-            oracle_driver_version = "23.4.0.24.05"
-            libraries.append(
-                compute.Library(
-                    maven=compute.MavenLibrary(f"com.oracle.database.jdbc:ojdbc8:{oracle_driver_version}"),
-                ),
-            )
 
         task = Task(
             task_key=task_key,

@@ -16,20 +16,28 @@ from databricks.labs.lakebridge.reconcile.recon_config import JdbcReaderOptions,
 logger = logging.getLogger(__name__)
 
 
-class OracleDataSource(DataSource):
+class RedshiftDataSource(DataSource):
     _IDENTIFIER_DELIMITER = "\""
-    _SCHEMA_QUERY = """select column_name, case when (data_precision is not null
-                                              and data_scale <> 0)
-                                              then data_type || '(' || data_precision || ',' || data_scale || ')'
-                                              when (data_precision is not null and data_scale = 0)
-                                              then data_type || '(' || data_precision || ')'
-                                              when data_precision is null and (lower(data_type) in ('date') or
-                                              lower(data_type) like 'timestamp%') then  data_type
-                                              when CHAR_LENGTH = 0 then data_type
-                                              else data_type || '(' || CHAR_LENGTH || ')'
-                                              end data_type
-                                              FROM ALL_TAB_COLUMNS
-                            WHERE lower(TABLE_NAME) = '{table}' and lower(owner) = '{owner}'"""
+    _SCHEMA_QUERY = """SELECT
+                         column_name,
+                         CASE
+                            WHEN data_type = 'numeric' AND numeric_precision IS NOT NULL
+                                THEN 'decimal(' || numeric_precision || ',' || numeric_scale || ')'
+                            WHEN data_type = 'character varying' AND character_maximum_length IS NOT NULL
+                                THEN 'varchar(' || character_maximum_length || ')'
+                            WHEN data_type = 'character' AND character_maximum_length IS NOT NULL
+                                THEN 'char(' || character_maximum_length || ')'
+                            WHEN data_type IN ('binary varying')
+                                THEN 'binary'
+                            ELSE data_type
+                        END AS data_type
+                        FROM
+                            information_schema.columns
+                        WHERE
+                        LOWER(table_name) = LOWER('{table}')
+                        AND LOWER(table_schema) = LOWER('{schema}')
+                        ORDER BY ordinal_position
+                  """
 
     def __init__(
         self,
@@ -47,10 +55,11 @@ class OracleDataSource(DataSource):
         query: str,
         options: JdbcReaderOptions | None,
     ) -> DataFrame:
-        table_query = query.replace(":tbl", f"{schema}.{table}")
+        # Redshift dialect in SQLGlot converts :tbl to %(tbl)s (PostgreSQL parameter syntax)
+        table_query = query.replace("%(tbl)s", f"{schema}.{table}").replace(":tbl", f"{schema}.{table}")
         try:
             logger.info(f"Fetching data using query: \n`{table_query}`")
-            df = self._reader.read_data(table_query, catalog, "service_name", "query", options)
+            df = self._reader.read_data(table_query, catalog, "database", "query", options)
             return df.select([col(c).alias(c.lower()) for c in df.columns])
         except (RuntimeError, PySparkException) as e:
             return self.log_and_throw_exception(e, "data", table_query)
@@ -65,28 +74,21 @@ class OracleDataSource(DataSource):
         schema_query = re.sub(
             r'\s+',
             ' ',
-            OracleDataSource._SCHEMA_QUERY.format(table=table.lower(), owner=schema.lower()),
+            RedshiftDataSource._SCHEMA_QUERY.format(schema=schema, table=table),
         )
         try:
             logger.debug(f"Fetching schema using query: \n`{schema_query}`")
             logger.info(f"Fetching Schema: Started at: {datetime.now()}")
-            df = self._reader.read_data(schema_query, catalog, "service_name", "query")
+            df = self._reader.read_data(schema_query, catalog, "database", "query")
             schema_metadata = df.select([col(c).alias(c.lower()) for c in df.columns]).collect()
             logger.info(f"Schema fetched successfully. Completed at: {datetime.now()}")
-            logger.debug(f"schema_metadata: {schema_metadata}")
             return [self._map_meta_column(field, normalize) for field in schema_metadata]
         except (RuntimeError, PySparkException) as e:
             return self.log_and_throw_exception(e, "schema", schema_query)
 
     def normalize_identifier(self, identifier: str) -> NormalizedIdentifier:
-        normalized = DialectUtils.normalize_identifier(
+        return DialectUtils.normalize_identifier(
             identifier,
-            source_start_delimiter=OracleDataSource._IDENTIFIER_DELIMITER,
-            source_end_delimiter=OracleDataSource._IDENTIFIER_DELIMITER,
+            source_start_delimiter=RedshiftDataSource._IDENTIFIER_DELIMITER,
+            source_end_delimiter=RedshiftDataSource._IDENTIFIER_DELIMITER,
         )
-
-        # TODO: In Oracle, quoted identifiers are case-sensitive,
-        # it is disabled for now till we have a proper strategy to handle it.
-        normalized.source_normalized = DialectUtils.unnormalize_identifier(normalized.ansi_normalized)
-
-        return normalized

@@ -1,0 +1,447 @@
+---
+sidebar_position: 1
+title: Configuration Reference
+---
+import useBaseUrl from '@docusaurus/useBaseUrl';
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+import CodeBlock from '@theme/CodeBlock';
+
+# Reconcile Configuration Reference
+
+This page covers the full configuration schema for Lakebridge Reconcile. For setup steps and prerequisites, see the [Reconcile Guide](/docs/reconcile).
+
+---
+
+## Report Types
+
+| report type | description | key outputs |
+|---|---|---|
+| `schema` | Reconcile schema of source and target — validate that data types are the same or compatible | `schema_comparison`, `schema_difference` |
+| `row` | Reconcile data at row level (hash value comparison). Use when there are no join columns. | `missing_in_src`, `missing_in_tgt` |
+| `data` | Reconcile data at row and column level using `join_columns` to identify per-row, per-column mismatches | `mismatch_data`, `missing_in_src`, `missing_in_tgt`, `threshold_mismatch`, `mismatch_columns` |
+| `all` | Combination of `data` + `schema` | All outputs above |
+
+See [Reconcile Data Flow Examples](/docs/reconcile/dataflow_example) for visualizations of each report type.
+
+---
+
+## Config File Naming
+
+```
+recon_config_<DATA_SOURCE>_<UNITY_CATALOG_CONNECTION_NAME_OR_CATALOG>_<REPORT_TYPE>.json
+```
+
+Place the file in `.lakebridge/` in your Databricks workspace home folder.
+
+> The filename must match the case of `<UNITY_CATALOG_CONNECTION_NAME_OR_CATALOG>` exactly. For example, if the source connection is `conn-oracle-prod`, the filename is `recon_config_oracle_conn-oracle-prod_data.json`.
+
+**Examples by source:**
+
+<Tabs>
+    <TabItem value="snowflake" label="Snowflake" default>
+        ```yaml title="recon_config_snowflake_sample_data_all.json"
+        source:
+            dialect: snowflake
+            catalog: sample_data
+            schema: default
+            uc_connection_name: example_connection_snowflake
+        target:
+            catalog: migrated
+            schema: migrated
+        report_type: all
+        ```
+    </TabItem>
+    <TabItem value="oracle" label="Oracle">
+        ```yaml title="recon_config_oracle_orc_data.json"
+        source:
+            dialect: oracle
+            uc_connection_name: example_connection_oracle
+        target:
+            catalog: migrated
+            schema: migrated
+        report_type: data
+        ```
+    </TabItem>
+    <TabItem value="tsql" label="MS SQL Server (incl. Synapse)">
+        ```yaml title="recon_config_tsql_silver_data.json"
+        source:
+            dialect: mssql
+            uc_connection_name: example_connection_mssql
+        target:
+            catalog: migrated
+            schema: migrated
+        report_type: data
+        ```
+    </TabItem>
+    <TabItem value="databricks" label="Databricks">
+        ```yaml title="recon_config_databricks_hms_schema.json"
+        source:
+            dialect: databricks
+            catalog: hive_metastore
+            schema: hr
+        target:
+            catalog: migrated
+            schema: migrated
+          ...
+        report_type: data
+        ```
+    </TabItem>
+</Tabs>
+
+---
+
+## TABLE Config Schema
+
+<Tabs>
+    <TabItem value="python" label="Python" default>
+        ```python
+        @dataclass
+        class Table:
+            source_name: str
+            target_name: str
+            aggregates: list[Aggregate] | None = None
+            join_columns: list[str] | None = None
+            jdbc_reader_options: JdbcReaderOptions | None = None
+            select_columns: list[str] | None = None
+            drop_columns: list[str] | None = None
+            column_mapping: list[ColumnMapping] | None = None
+            transformations: list[Transformation] | None = None
+            column_thresholds: list[ColumnThresholds] | None = None
+            filters: Filters | None = None
+            table_thresholds: list[TableThresholds] | None = None
+        ```
+    </TabItem>
+    <TabItem value="json" label="JSON">
+        ```json
+        {
+            "source_name": "[SOURCE_NAME]",
+            "target_name": "[TARGET_NAME]",
+            "aggregates": null,
+            "join_columns": ["COLUMN_NAME_1", "COLUMN_NAME_2"],
+            "jdbc_reader_options": null,
+            "select_columns": null,
+            "drop_columns": null,
+            "column_mapping": null,
+            "transformation": null,
+            "column_thresholds": null,
+            "filters": null,
+            "table_thresholds": null
+        }
+        ```
+    </TabItem>
+</Tabs>
+
+### Configuration Parameters
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `source_name` | string | Yes | Source table name |
+| `target_name` | string | Yes | Target table name |
+| `join_columns` | list[string] | No | Primary key columns for row-level joins |
+| `aggregates` | list[Aggregate] | No | Aggregate reconciliation rules (see [Aggregates](#aggregates-reconciliation)) |
+| `jdbc_reader_options` | object | No | JDBC read parallelization (see [JDBC Reader Options](#jdbc-reader-options)) |
+| `select_columns` | list[string] | No | Columns to include in reconciliation |
+| `drop_columns` | list[string] | No | Columns to exclude from reconciliation |
+| `column_mapping` | list[ColumnMapping] | No | Source-to-target column name mapping |
+| `transformations` | list[Transformation] | No | Column-level SQL transformation expressions |
+| `column_thresholds` | list[ColumnThresholds] | No | Acceptable variance per column |
+| `table_thresholds` | list[TableThresholds] | No | Acceptable mismatch rate at table level |
+| `filters` | Filters | No | WHERE-clause filters for source and/or target |
+
+---
+
+## JDBC Reader Options
+
+Use JDBC reader options to parallelize reads from large tables.
+
+<Tabs>
+  <TabItem value="python" label="Python" default>
+    ```python
+    @dataclass
+    class JdbcReaderOptions:
+        num_partitions: int
+        partition_column: str
+        lower_bound: str
+        upper_bound: str
+        fetchsize: int = 0
+    ```
+  </TabItem>
+  <TabItem value="json" label="JSON">
+    ```json
+    "jdbc_reader_options": {
+        "num_partitions": 10,
+        "partition_column": "id",
+        "lower_bound": "1",
+        "upper_bound": "100000",
+        "fetchsize": 0
+    }
+    ```
+  </TabItem>
+</Tabs>
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `num_partitions` | int | Yes | Number of Spark partitions for parallel reads |
+| `partition_column` | string | Yes | Column used for partitioning (choose high-cardinality column for composite keys) |
+| `lower_bound` | string | Yes | Minimum value for partitioning |
+| `upper_bound` | string | Yes | Maximum value for partitioning |
+| `fetchsize` | int | No (default: 100) | Rows per JDBC round-trip |
+
+---
+
+## Column Mapping
+
+Map source column names to target column names when they differ.
+
+<Tabs>
+  <TabItem value="python" label="Python" default>
+    ```python
+    @dataclass
+    class ColumnMapping:
+        source_name: str
+        target_name: str
+    ```
+  </TabItem>
+  <TabItem value="json" label="JSON">
+    ```json
+    "column_mapping": [
+      {
+        "source_name": "dept_id",
+        "target_name": "department_id"
+      }
+    ]
+    ```
+  </TabItem>
+</Tabs>
+
+---
+
+## Drop Columns
+
+Exclude specific columns from reconciliation (for `data` or `all` report types).
+
+```json
+"drop_columns": ["comment", "audit_timestamp"]
+```
+
+---
+
+## Transformations
+
+Apply SQL expressions to source or target columns before comparison. Use this when data types or formats differ between systems.
+
+<Tabs>
+  <TabItem value="python" label="Python" default>
+    ```python
+    @dataclass
+    class Transformation:
+        column_name: str
+        source: str
+        target: str | None = None
+    ```
+  </TabItem>
+  <TabItem value="json" label="JSON">
+    ```json
+    "transformations": [
+      {
+        "column_name": "unit_price",
+        "source": "coalesce(cast(cast(unit_price as decimal(38,10)) as string), '_null_recon_')",
+        "target": "coalesce(cast(format_number(cast(unit_price as decimal(38, 10)), 10) as string), '_null_recon_')"
+      }
+    ]
+    ```
+  </TabItem>
+</Tabs>
+
+:::danger Handling Nulls
+When you provide a transformation expression, Reconcile uses it as-is. **You must handle nulls explicitly** in the expression. Use `coalesce(..., '_null_recon_')` to avoid null mismatches.
+:::
+
+:::tip Timestamp Columns
+Convert timestamps to Unix epoch strings for cross-platform comparison:
+```python
+Transformation(
+    column_name='UPDATE_TIMESTAMP',
+    source="coalesce(cast(EXTRACT(epoch_millisecond FROM UPDATE_TIMESTAMP) as string), '_null_recon_')",
+    target="coalesce(cast(unix_millis(UPDATE_TIMESTAMP) as string), '_null_recon_')"
+)
+```
+:::
+
+---
+
+## Column Thresholds
+
+Allow a bounded variance between source and target column values.
+
+```json
+"column_thresholds": [
+  {
+    "column_name": "price",
+    "lower_bound": "-5%",
+    "upper_bound": "5%",
+    "type": "float"
+  }
+]
+```
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `column_name` | string | Yes | Column to apply the threshold to |
+| `lower_bound` | string | Yes | Lower bound of acceptable difference |
+| `upper_bound` | string | Yes | Upper bound of acceptable difference |
+| `type` | string | Yes | Column type (supports SQLGlot `DataType.NUMERIC_TYPES` and `DataType.TEMPORAL_TYPES`) |
+
+---
+
+## Table Thresholds
+
+Allow a bounded mismatch rate at the table level.
+
+```json
+"table_thresholds": [
+  {
+    "lower_bound": "0%",
+    "upper_bound": "5%",
+    "model": "mismatch"
+  }
+]
+```
+
+Bounds must be non-negative, and lower bound must not exceed upper bound. Only `"mismatch"` is supported for `model`.
+
+---
+
+## Filters
+
+Apply WHERE-clause filters to source and/or target before reconciliation.
+
+```json
+"filters": {
+  "source": "lower(dept_name) = 'finance'",
+  "target": "lower(department_name) = 'finance'"
+}
+```
+
+:::note
+Filters must use dialect-specific SQL expressions — they are applied directly without any transformation by Reconcile.
+:::
+
+---
+
+## Aggregates Reconciliation
+
+Reconcile aggregate metrics (MIN, MAX, COUNT, SUM, AVG, etc.) between source and target instead of comparing raw rows.
+
+### Supported Functions
+
+MIN, MAX, COUNT, SUM, AVG, MEAN, MODE, STDDEV, VARIANCE, MEDIAN
+
+### Aggregate Config
+
+<Tabs>
+  <TabItem value="python" label="Python" default>
+    ```python
+    @dataclass
+    class Aggregate:
+        agg_columns: list[str]
+        type: str
+        group_by_columns: list[str] | None = None
+    ```
+  </TabItem>
+  <TabItem value="json" label="JSON">
+    ```json
+    {
+        "type": "MIN",
+        "agg_columns": ["discount"],
+        "group_by_columns": ["p_id"]
+    }
+    ```
+  </TabItem>
+</Tabs>
+
+:::note
+`select_columns` and `drop_columns` are ignored for aggregate reconciliation. `column_mapping`, `transformations`, `jdbc_reader_options`, and `filters` are applied.
+:::
+
+---
+
+## Complete Examples
+
+### Standard Reconcile Config
+
+```json
+{
+  "tables": [
+    {
+      "source_name": "product_prod",
+      "target_name": "product",
+      "jdbc_reader_options": {
+        "num_partitions": 10,
+        "partition_column": "p_id",
+        "lower_bound": "0",
+        "upper_bound": "10000000"
+      },
+      "join_columns": ["p_id"],
+      "drop_columns": ["comment"],
+      "column_mapping": [
+        { "source_name": "p_id", "target_name": "product_id" },
+        { "source_name": "p_name", "target_name": "product_name" }
+      ],
+      "transformations": [
+        {
+          "column_name": "creation_date",
+          "source": "creation_date",
+          "target": "to_date(creation_date,'yyyy-mm-dd')"
+        }
+      ],
+      "column_thresholds": [
+        { "column_name": "price", "lower_bound": "-50", "upper_bound": "50", "type": "float" }
+      ],
+      "table_thresholds": [
+        { "lower_bound": "0%", "upper_bound": "5%", "model": "mismatch" }
+      ],
+      "filters": {
+        "source": "p_id > 0",
+        "target": "product_id > 0"
+      }
+    }
+  ]
+}
+```
+
+### Aggregates Reconcile Config
+
+```json
+{
+  "tables": [
+    {
+      "source_name": "product_prod",
+      "target_name": "product",
+      "join_columns": ["p_id"],
+      "aggregates": [
+        { "type": "MIN", "agg_columns": ["discount"], "group_by_columns": ["p_id"] },
+        { "type": "AVG", "agg_columns": ["discount"], "group_by_columns": ["p_id"] },
+        { "type": "MAX", "agg_columns": ["p_id"], "group_by_columns": ["creation_date"] },
+        { "type": "SUM", "agg_columns": ["p_id"] }
+      ],
+      "jdbc_reader_options": {
+        "num_partitions": 10,
+        "partition_column": "p_id",
+        "lower_bound": "0",
+        "upper_bound": "10000000"
+      }
+    }
+  ]
+}
+```
+
+---
+
+:::note Key Considerations
+1. Column names are always converted to lowercase.
+2. Case insensitivity and collation are not currently supported.
+3. Always reference **source** column names in all configs, except `transformations` and `filters` — those use dialect-specific SQL applied directly.
+4. When no user transformation is provided, Reconcile applies default transformations based on the source data type.
+:::
