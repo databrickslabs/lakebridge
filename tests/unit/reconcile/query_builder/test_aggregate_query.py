@@ -1,3 +1,5 @@
+import pytest
+
 from databricks.labs.lakebridge.reconcile.query_builder.aggregate_query import AggregateQueryBuilder
 from databricks.labs.lakebridge.reconcile.recon_config import Aggregate, Table
 from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
@@ -56,16 +58,8 @@ def test_count_star_alongside_named_column(fake_databricks_datasource, normalize
     assert "count(`*`)" not in sql
 
 
-def test_star_with_non_count_aggregate_is_unchanged(fake_databricks_datasource, normalize_config_service):
-    """The fast-path must only apply to type='count'. Other aggregates keep the existing behavior."""
+def test_star_with_non_count_aggregate_raises(normalize_config_service):
+    """`*` only makes sense with type='count'. Reject other types early at normalize time."""
     table_conf = _build_table([Aggregate(agg_columns=["*"], type="sum")])
-    normalized = normalize_config_service.normalize_recon_table_config(table_conf)
-
-    rules = AggregateQueryBuilder(
-        normalized, [], "source", get_dialect("databricks"), fake_databricks_datasource
-    ).build_queries()
-
-    sql = rules[0].query.lower()
-    # Existing path quotes the identifier; we must not silently turn this into sum(*)
-    assert "sum(*)" not in sql
-    assert "sum(`*`)" in sql
+    with pytest.raises(ValueError, match=r"'\*' is only supported with type='count'"):
+        normalize_config_service.normalize_recon_table_config(table_conf)

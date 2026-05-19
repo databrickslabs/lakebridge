@@ -58,15 +58,11 @@ class AggregateQueryBuilder(QueryBuilder):
         """
         cols_with_mapping: list[exp.Expression] = []
         for col in cols_list:
-            # Special-case the literal star for COUNT(*).
-            # The column-name normalizer would render "*" as the backtick-quoted
-            # identifier `*`, producing COUNT(`*`) which fails at SQL analysis.
-            # NormalizeReconConfigService also rewrites entries in agg_columns to
-            # the ansi-normalized form, so by the time we get here the value can
-            # be the literal "*" or the wrapped "`*`". Bypass identifier handling
-            # in either case and emit a Star expression so the downstream builder
-            # produces COUNT(*).
-            if DialectUtils.unnormalize_identifier(col) == "*" and agg_type.lower() == "count":
+            # The literal `*` (COUNT(*)) is preserved by NormalizeReconConfigService
+            # rather than wrapped in backticks, so a single equality check is
+            # sufficient here. Emit a Star expression so sqlglot renders count(*)
+            # instead of count(`*`).
+            if col == "*":
                 cols_with_mapping.append(
                     exp.Alias(
                         this=exp.Star(),
