@@ -78,7 +78,7 @@ def local_report(output_dir: Path):
         )
 
 
-def get_supported_sql_files(input_dir: Path) -> Generator[Path, None, None]:
+def get_supported_sql_files(input_dir: Path) -> Generator[Path]:
     yield from filter(lambda item: item.is_file() and item.suffix.lower() in [".sql", ".ddl"], input_dir.rglob("*"))
 
 

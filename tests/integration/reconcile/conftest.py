@@ -388,7 +388,7 @@ def generate_recon_application_context(
     application_ctx: ApplicationContext,
     recon_config: ReconcileConfig,
     recon_table_config: TableRecon,
-) -> Generator[ApplicationContext, None, None]:
+) -> Generator[ApplicationContext]:
     logger.info("Setting up application context for recon tests")
     config = LakebridgeConfiguration(None, recon_config, None)
     ws = application_ctx.workspace_client
