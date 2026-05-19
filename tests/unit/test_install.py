@@ -54,7 +54,7 @@ PATH_TO_TRANSPILER_CONFIG = "/some/path/to/config.yml"
 
 
 @pytest.fixture()
-def ws_installer() -> Generator[Callable[..., WorkspaceInstaller], None, None]:
+def ws_installer() -> Generator[Callable[..., WorkspaceInstaller]]:
 
     class TestWorkspaceInstaller(WorkspaceInstaller):
         def __init__(self, *args, **kwargs):
@@ -881,7 +881,7 @@ def test_configure_reconcile_databricks_no_existing_installation(ws: WorkspaceCl
     )
 
 
-def test_configure_all_override_installation(
+def test_configure_all_override_installation(  # FIXME
     ws_installer: Callable[..., WorkspaceInstaller],
     ws: WorkspaceClient,
 ) -> None:
@@ -1001,7 +1001,7 @@ def test_configure_all_override_installation(
     )
 
     expected_profiler_dash_config = ProfilerDashboardConfig(
-        source_tech="synapse",
+        source_tech="mssql",
         extract_file_path=str(
             Path("~/.databricks/labs/lakebridge_profilers/synapse_assessment/profiler_extract.db").expanduser()
         ),

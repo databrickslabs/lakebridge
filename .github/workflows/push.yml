@@ -19,12 +19,18 @@ permissions:
 
 jobs:
   test-python:
+    strategy:
+      fail-fast: false
+      matrix:
+        python: [ '3.10', '3.11', '3.12', '3.13', '3.14' ]
     runs-on:
       group: databrickslabs-protected-runner-group
       labels: linux-ubuntu-latest
     permissions:
       # JFrog OIDC authentication.
       id-token: write
+    env:
+      UV_PYTHON: "${{ matrix.python }}"
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
@@ -77,6 +83,49 @@ jobs:
         run: |
           # Exit with status code 1 if there are differences (i.e. unformatted files)
           git diff --exit-code
+
+  lint-uv:
+    runs-on:
+      group: databrickslabs-protected-runner-group
+      labels: linux-ubuntu-latest
+    permissions:
+      # JFrog OIDC authentication.
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+
+      - name: Deepening checkout to find merge-base
+        if: github.event.pull_request || github.event.merge_group
+        env:
+          BASE_SHA: "${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}"
+        run: |
+          _depth=32
+          _max=512
+          until git merge-base "${BASE_SHA}" HEAD > /dev/null 2>&1
+          do
+              if [[ "${_max}" -lt "${_depth}" ]]
+              then
+                  # Give up deepening, just fetch the rest of the repo.
+                  git fetch --unshallow origin "${BASE_SHA}" "${GITHUB_REF}"
+                  break
+              fi
+              git fetch --deepen "${_depth}" origin "${BASE_SHA}" "${GITHUB_REF}"
+              _depth=$((_depth * 2))
+          done
+          printf '%s=%s\n' 'BASE_SHA' "${BASE_SHA}" >> "${GITHUB_ENV}"
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@5a095e7a2014a4212f075830d4f7277575a9d098  # v7.3.1
+        with:
+          version: "0.11.2"
+          checksum: "7ac2ca0449c8d68dae9b99e635cd3bc9b22a4cb1de64b7c43716398447d42981"
+
+      - name: Setup for JFrog
+        uses: ./.github/actions/jfrog-auth
+
+      - name: Linting project lock-files
+        run: ./.github/scripts/lint-uv
 
   python-no-pylint-disable:
     runs-on:
