@@ -54,8 +54,8 @@ class NormalizeReconConfigService:
         # identifier normalization (otherwise it would be wrapped in backticks and
         # produce invalid SQL like `count(`*`)`). Accept both the raw "*" and the
         # ansi-normalized "`*`" form on input, and store as the raw "*" downstream.
-        def _is_star(c: str) -> bool:
-            return DialectUtils.unnormalize_identifier(c) == "*"
+        def _is_star(col: str) -> bool:
+            return DialectUtils.unnormalize_identifier(col) == "*"
 
         for col in normalized.agg_columns:
             if _is_star(col) and normalized.type.lower() != "count":
