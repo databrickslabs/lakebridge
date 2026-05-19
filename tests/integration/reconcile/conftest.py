@@ -1,3 +1,4 @@
+import datetime as dt
 import json
 import logging
 import tempfile
@@ -14,6 +15,7 @@ from databricks.labs.blueprint.paths import WorkspacePath
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.errors.platform import PermissionDenied
 from databricks.sdk.service.catalog import TableInfo, SchemaInfo
+from databricks.sdk.service.compute import DataSecurityMode, Kind
 
 from databricks.labs.lakebridge.config import (
     LakebridgeConfiguration,
@@ -195,8 +197,17 @@ def oracle_recon_table_config(recon_schema: SchemaInfo, recon_tables: tuple[Tabl
 
 
 @pytest.fixture
-def recon_cluster(test_env) -> str:
-    return test_env.get("DATABRICKS_DQX_CLUSTER_ID")
+def recon_cluster(make_cluster, test_env) -> str:
+    pool_id = test_env.get("TEST_INSTANCE_POOL_ID")
+    cluster = make_cluster(
+        single_node=True,
+        data_security_mode=DataSecurityMode.DATA_SECURITY_MODE_AUTO,
+        kind=Kind.CLASSIC_PREVIEW,
+        instance_pool_id=pool_id,
+        spark_version="17.3.x-scala2.13",
+    ).result(timeout=dt.timedelta(minutes=10))
+    assert cluster.cluster_id
+    return cluster.cluster_id
 
 
 @pytest.fixture

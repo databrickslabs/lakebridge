@@ -151,7 +151,7 @@ tomli = false
 trove-classifiers = false
 
 [tool.pytest.ini_options]
-addopts = "-s -p no:warnings -vv --cache-clear"
+addopts = "-s -p no:warnings"
 cache_dir = ".venv/pytest-cache"
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope="function"
