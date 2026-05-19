@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from pathlib import Path
 import logging
 import shutil
@@ -187,11 +188,14 @@ class ConfigureSynapseAssessment(AssessmentConfigurator):
         return source
 
 
+ConfiguratorFactory = Callable[[str, Prompts, str, Path | str | None], AssessmentConfigurator]
+
+
 def create_assessment_configurator(
-    source_system: str, product_name: str, prompts: Prompts, credential_file=None
+    source_system: str, product_name: str, prompts: Prompts, credential_file: Path | str | None = None
 ) -> AssessmentConfigurator:
     """Factory function to create the appropriate assessment configurator."""
-    configurators = {
+    configurators: dict[str, ConfiguratorFactory] = {
         "mssql": ConfigureSqlServerAssessment,
         "synapse": ConfigureSynapseAssessment,
         "synapse_dedicated_sqlpool": ConfigureSqlServerAssessment,
@@ -200,4 +204,4 @@ def create_assessment_configurator(
     if source_system not in configurators:
         raise ValueError(f"Unsupported source system: {source_system}")
 
-    return configurators[source_system](product_name, prompts, source_system, credential_file)  # type: ignore[abstract]
+    return configurators[source_system](product_name, prompts, source_system, credential_file)
