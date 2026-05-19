@@ -62,7 +62,7 @@ tomli==2.4.1 ; python_full_version < '3.11' \
     --hash=sha256:ff18e6a727ee0ab0388507b89d1bc6a22b138d1e2fa56d1ad494586d61d2eae9 \
     --hash=sha256:ff2983983d34813c1aeb0fa89091e76c3a22889ee83ab27c5eeb45100560c049
     # via hatchling
-trove-classifiers==2026.4.28.13 \
-    --hash=sha256:8f4b1eb4e16296b57d612965444f87a83861cc989a0451ac97fe4265ddef03b8 \
-    --hash=sha256:c85bb8a53c3de7330d1699b844ed9fb809a602a09ac15dc79ad6d1a509be0676
+trove-classifiers==2026.5.7.17 \
+    --hash=sha256:5ec0800de5e2ddbd7c663cb4c0c15328f132dc168813897c18866c5c7b93db33 \
+    --hash=sha256:a04a48f8f0a787cb996514d3969ac7608aa3c60cb15d073c1e02801e60533e80
     # via hatchling
