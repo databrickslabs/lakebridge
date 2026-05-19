@@ -15,7 +15,9 @@ jobs:
     runs-on:
       group: databrickslabs-protected-runner-group
       labels: linux-ubuntu-latest
-    environment: release
+    environment:
+      name: release
+      deployment: false
     permissions:
       # JFrog OIDC authentication.
       id-token: write

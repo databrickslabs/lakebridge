@@ -196,7 +196,7 @@ const config: Config = {
           label: "Overview"
         },
         {
-          to: '/docs/installation/',
+          to: '/docs/getting_started/',
           position: 'left',
           label: "Get Started"
         },

@@ -47,7 +47,7 @@ def test_read_data_with_options():
         "select 1 from data.employee",
         "ORCL",
         "service_name",
-        "dbtable",
+        "query",
         table_conf.jdbc_reader_options,
     )
 
