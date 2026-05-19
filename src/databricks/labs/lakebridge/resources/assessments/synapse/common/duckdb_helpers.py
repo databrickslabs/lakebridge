@@ -106,13 +106,11 @@ def save_resultset_to_db(
 
         with duckdb.connect(db_path) as conn:
             logger.info(f"Connected to DuckDB database at {db_path}")
-            tables = conn.execute(
-                """
+            tables = conn.execute("""
                 SELECT table_name
                 FROM information_schema.tables
                 WHERE table_schema='main' AND table_type='BASE TABLE';
-                """
-            ).fetchall()
+                """).fetchall()
 
             # Flatten the result
             list_tables = [row[0] for row in tables]
