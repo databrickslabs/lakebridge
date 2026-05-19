@@ -36,7 +36,6 @@ dependencies = [
   "sqlglot==28.5.0",
   "databricks-labs-blueprint[yaml]>=0.12.0,<0.13.0",
   "databricks-labs-lsql==0.16.0",
-  "cryptography>=44.0.2,<46.1.0",
   "pip~=26.0",
   "pyodbc>=5.2,<5.4",
   "SQLAlchemy~=2.0.40",
