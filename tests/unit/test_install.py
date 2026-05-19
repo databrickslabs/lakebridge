@@ -54,7 +54,7 @@ PATH_TO_TRANSPILER_CONFIG = "/some/path/to/config.yml"
 
 
 @pytest.fixture()
-def ws_installer() -> Generator[Callable[..., WorkspaceInstaller], None, None]:
+def ws_installer() -> Generator[Callable[..., WorkspaceInstaller]]:
 
     class TestWorkspaceInstaller(WorkspaceInstaller):
         def __init__(self, *args, **kwargs):
