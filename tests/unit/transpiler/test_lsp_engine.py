@@ -19,7 +19,6 @@ from databricks.labs.lakebridge.helpers.file_utils import chdir
 from databricks.labs.lakebridge.transpiler.lsp.lsp_engine import ChangeManager, LSPEngine, TranspileDocumentResult
 from databricks.labs.lakebridge.transpiler.transpile_status import TranspileError, ErrorSeverity, ErrorKind
 
-
 # TODO: Arguably a form of integration test, as it round-trips with a real LSP server.
 
 

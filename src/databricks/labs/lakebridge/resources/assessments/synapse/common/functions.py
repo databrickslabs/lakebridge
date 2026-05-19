@@ -7,7 +7,6 @@ from azure.identity import DefaultAzureCredential
 from azure.monitor.query import MetricsQueryClient
 from azure.synapse.artifacts import ArtifactsClient
 
-
 logger = logging.getLogger(__name__)
 
 

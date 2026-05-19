@@ -31,7 +31,6 @@ from databricks.labs.lakebridge.transpiler.installers import (
 )
 from databricks.labs.lakebridge.transpiler.repository import TranspilerRepository
 
-
 RECONCILE_DATA_SOURCES = sorted([source_type.value for source_type in ReconSourceType])
 RECONCILE_REPORT_TYPES = sorted([report_type.value for report_type in ReconReportType])
 

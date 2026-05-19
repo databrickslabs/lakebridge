@@ -17,7 +17,6 @@ from databricks.labs.lakebridge.resources.assessments.synapse.common.functions i
 )
 from databricks.labs.lakebridge.resources.assessments.synapse.common.profiler_classes import SynapseWorkspace
 
-
 logger = get_logger(__file__)
 
 

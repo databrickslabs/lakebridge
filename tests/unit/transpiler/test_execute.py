@@ -38,7 +38,6 @@ from databricks.sdk.core import Config
 from databricks.labs.lakebridge.transpiler.sqlglot.sqlglot_engine import SqlglotEngine
 from databricks.labs.lakebridge.transpiler.transpile_engine import TranspileEngine
 
-
 # pylint: disable=unspecified-encoding
 
 

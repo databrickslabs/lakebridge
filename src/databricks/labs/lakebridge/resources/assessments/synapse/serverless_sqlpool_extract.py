@@ -16,7 +16,6 @@ from databricks.labs.lakebridge.resources.assessments.synapse.common.duckdb_help
 from databricks.labs.lakebridge.resources.assessments.synapse.common.functions import arguments_loader
 from databricks.labs.lakebridge.resources.assessments.synapse.common.queries import SynapseQueries
 
-
 logger = get_logger(__file__)
 
 
