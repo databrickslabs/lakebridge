@@ -22,7 +22,7 @@ def test_read_data_with_service_name_catalog_key():
     reader.read_data("SELECT 1 FROM dual", "ORCL", "service_name", "dbtable")
 
     spark.sql.assert_called_once_with(
-        "SELECT * FROM remote_query('oracle_conn', dbtable => 'SELECT 1 FROM dual', serviceName => 'ORCL')"
+        "SELECT * FROM remote_query('oracle_conn', dbtable => 'SELECT 1 FROM dual', service_name => 'ORCL')"
     )
 
 

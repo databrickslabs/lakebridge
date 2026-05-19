@@ -7,7 +7,61 @@ import CodeBlock from '@theme/CodeBlock';
 import Admonition from '@theme/Admonition';
 
 
-## Overview
+## Configuration Overview
+
+BladeBridge uses a **two-layer configuration model**:
+
+| Layer | What it controls | How to set it |
+|---|---|---|
+| **Layer 1 — CLI parameters** | Source dialect, target output format, override file path | Set via `install-transpile` prompts or `transpile` CLI flags |
+| **Layer 2 — JSON override files** | Conversion rules, naming conventions, source/target mappings | Create a custom JSON file and reference it via `--overrides-file` |
+
+You can use Layer 1 alone (most migrations), or combine both layers for advanced customization.
+
+---
+
+## Layer 1: CLI Parameters
+
+These parameters are set when you run `install-transpile` (or passed directly to the `transpile` command):
+
+| Parameter | Required | Default | Description |
+|---|---|---|---|
+| `source-dialect` | Yes | `ansi` | Source SQL or ETL dialect (e.g., `mssql`, `oracle`, `datastage`, `ssis`) |
+| `target-technology` | No | `SQL` | Output format: `SQL`, `SPARKSQL`, or `PYSPARK` |
+| `overrides-file` | No | none | Path to a custom JSON config file (Layer 2) |
+
+### Dialect-specific `target-technology` constraints
+
+The `target-technology` prompt only appears for ETL source dialects. SQL dialects always output Databricks SQL:
+
+| Dialect | `target-technology` prompt? | Available choices |
+|---|---|---|
+| `datastage` | Yes | `SPARKSQL`, `PYSPARK` |
+| `ssis` | Yes | `SPARKSQL` only |
+| `mssql`, `oracle`, `synapse`, `netezza`, `redshift`, `teradata` | No | Outputs Databricks SQL only |
+
+### Minimal working example
+
+```bash
+databricks labs lakebridge transpile \
+  --source-dialect oracle \
+  --input-source /path/to/sql \
+  --output-folder /path/to/output
+```
+
+For ETL sources with target technology:
+
+```bash
+databricks labs lakebridge transpile \
+  --source-dialect datastage \
+  --input-source /path/to/datastage/exports \
+  --output-folder /path/to/output \
+  --target-technology SPARKSQL
+```
+
+---
+
+## Layer 2: JSON Override Files
 
 The **BladeBridge** transpiler relies heavily on rules defined inside configuration files provided with the converter.
 These configurations are comprised of a set of layered json files and code templates that drive the generation of output
@@ -579,7 +633,7 @@ This section holds templates on read and write instructions for each system clas
 
 ### Native Database Connection Support
 
-When converting ETL components that connect to external databases (e.g., Oracle, SQL Server, Redshift, Synapse), you can configure the converter to use native JDBC/ODBC connections instead of Databricks native connectors. This is useful when you need direct database access or when migrating from platforms like Informatica Cloud or DataStage.
+When converting ETL components that connect to external databases (e.g., Oracle, SQL Server, Redshift, Synapse), you can configure the converter to use native JDBC/ODBC connections instead of Databricks native connectors. This is useful when you need direct database access or when migrating from platforms like DataStage.
 
 #### Configuration Flags
 
