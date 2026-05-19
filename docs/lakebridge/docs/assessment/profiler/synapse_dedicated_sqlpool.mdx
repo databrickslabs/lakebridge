@@ -1,34 +1,35 @@
 ---
 sidebar_position: 3
-title: Legacy SQL DW Profiler Details
+title: Synapse Dedicated SQL Pool Profiler Details
 ---
 import Admonition from '@theme/Admonition';
 
-# Legacy SQL DW Profiler Details
+# Synapse Dedicated SQL Pool Profiler Details
 
 - [Prerequisites](#prerequisites)
 - [Profiled Tables and Views](#profiled-tables-and-views)
-- [Configure Connection to Legacy SQL DW](#configure-connection-to-legacy-sql-dw)
+- [Configure Connection to Synapse Dedicated SQL Pool](#configure-connection-to-synapse-dedicated-sql-pool)
 - [Execute the Profiler](#execute-the-profiler)
 
 :::info
-"Legacy SQL DW" refers to **Azure Synapse dedicated SQL pool** —
-MPP-based platforms that expose Parallel Data Warehouse (PDW) Dynamic Management Views (`sys.dm_pdw_*`).
-For serverless SQL pools, Spark pools, and the Synapse workspace control plane, use the
-[Synapse profiler](./synapse.mdx) instead.
+This profiler targets **Azure Synapse dedicated SQL pool** (formerly Azure SQL Data Warehouse) — an MPP-based
+platform that exposes Parallel Data Warehouse (PDW) Dynamic Management Views (`sys.dm_pdw_*`). For serverless
+SQL pools, Spark pools, and the Synapse workspace control plane, use the [Synapse profiler](./synapse.mdx) instead.
 :::
 
 ## Prerequisites
 
 ### 1. Download
-- ODBC driver for SQL Server (https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server?view=sql-server-ver18)
-- (Windows only) Visual C++ (https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170)
 
-### 2. SQL DW Authentication
+- **ODBC driver for SQL Server** — required for `pyodbc` to talk to the dedicated SQL pool. [Download](https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server?view=sql-server-ver18).
+- **(Windows only) Microsoft Visual C++ Redistributable (x64)** — required by `pyodbc` and the ODBC driver, both of which are native binaries linked against the MSVC runtime. [Download](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170).
+
+### 2. Authentication
 
 :::warning Attention:
-Multi-factor Authentication (MFA) is **not** supported. The Legacy SQL DW profiler connects via ODBC, which does not support MFA.
-You must use **SQL Authentication** (username and password) to connect to the dedicated SQL pool.
+The profiler currently authenticates via **SQL Authentication** only. Azure AD-based auth modes
+(`ActiveDirectoryInteractive`, `ActiveDirectoryServicePrincipal`, managed identity, token injection)
+are not yet wired up for this source — please use a SQL login with MFA disabled.
 :::
 
 ### 3. Required Database Permissions
@@ -58,14 +59,13 @@ GRANT SELECT ON SCHEMA::INFORMATION_SCHEMA TO [<user_name>];
 ```
 
 :::tip
-The profiler queries server-level catalog views such as `sys.database_service_objectives` and `sys.databases` from
-the target database context. `VIEW DATABASE STATE` covers the `sys.dm_pdw_*` DMVs used to extract sessions,
-requests, and per-node storage statistics.
+The profiler queries server-level catalog views such as `sys.databases` from the target database context.
+`VIEW DATABASE STATE` covers the `sys.dm_pdw_*` DMVs used to extract sessions, requests, and per-node storage statistics.
 :::
 
 ## Profiled Tables and Views
 
-The Legacy SQL DW profiler executes queries against the following system tables and PDW DMVs. The results are organized
+The profiler executes queries against the following system tables and PDW DMVs. The results are organized
 into two extraction steps: **schema metadata** and **activity metrics**.
 
 ### Schema Metadata
@@ -81,8 +81,8 @@ into two extraction steps: **schema metadata** and **activity metrics**.
   <tbody>
     <tr>
       <td>Databases</td>
-      <td><code>sys.database_service_objectives</code>, <code>sys.databases</code></td>
-      <td>Lists each database with its edition and service objective (e.g., DW100c, DW1000c).</td>
+      <td><code>sys.databases</code></td>
+      <td>Lists each database by name.</td>
     </tr>
     <tr>
       <td>Tables</td>
@@ -136,7 +136,7 @@ into two extraction steps: **schema metadata** and **activity metrics**.
   </tbody>
 </table>
 
-## Configure Connection to Legacy SQL DW
+## Configure Connection to Synapse Dedicated SQL Pool
 
 Run the following command to configure the profiler connection to your dedicated SQL pool:
 
@@ -146,7 +146,7 @@ databricks labs lakebridge configure-database-profiler
 Please select the source system you want to configure
 [0] synapse
 [1] mssql
-[2] legacy sql dw
+[2] synapse_dedicated_sqlpool
 Enter a number between 0 and 2: 2
 
 (local | env)
@@ -157,11 +157,14 @@ Enter secret vault type (local | env)
 [0] env
 [1] local
 Enter a number between 0 and 1: 1
+Enter fetch size (default: 1000):
+Enter login timeout (seconds) (default: 30):
 Enter the fully-qualified server name: my-dw-server.database.windows.net
 Enter the port details: 1433
-Enter the database name: dbo
+Enter the database name (default: master): my_pool
 Enter the SQL username: profiler_user
 Enter the SQL password:
+Enter timezone (e.g. America/New_York) (default: UTC):
 Enter the ODBC driver installed locally (default: ODBC Driver 18 for SQL Server):
 ```
 
@@ -170,24 +173,22 @@ Enter the ODBC driver installed locally (default: ODBC Driver 18 for SQL Server)
 | Parameter | Description | Default |
 |:----------|:------------|:--------|
 | **Secret vault type** | `local` for plain text values, `env` to read from environment variables | — |
+| **Fetch size** | Number of rows fetched per batch from the source | `1000` |
+| **Login timeout** | Connection timeout in seconds | `30` |
 | **Server name** | Fully-qualified hostname of the dedicated SQL pool | — |
 | **Port** | Server port number | — |
-| **Database** | Database | — |
+| **Database** | The dedicated SQL pool name to connect to. Dedicated pools do not have a `master` database, so this must be set to the pool you want to profile. | `master` |
 | **SQL username** | SQL Authentication username | — |
 | **SQL password** | SQL Authentication password (hidden input) | — |
+| **Timezone** | Timezone for timestamp normalization | `UTC` |
 | **ODBC driver** | Locally installed ODBC driver name | `ODBC Driver 18 for SQL Server` |
-
-:::info
-Legacy SQL DW pins `fetch_size = 1000`, `login_timeout = 30s`, and `tz_info = UTC` — these are not prompted at configure time.
-Adjust them by editing the generated credentials file directly if needed.
-:::
 
 ## Execute the Profiler
 
 Once configured, run the profiler to extract metadata and activity metrics from your dedicated SQL pool:
 
 ```bash
-databricks labs lakebridge execute-database-profiler --source-tech "legacy sql dw"
+databricks labs lakebridge execute-database-profiler --source-tech synapse_dedicated_sqlpool
 ```
 
 The profiler will:
@@ -201,8 +202,8 @@ After executing the profiler, you can upload the results and deploy a summary da
 
 ```bash
 databricks labs lakebridge create-profiler-dashboard \
-  --extract-file /tmp/data/legacy_sqldw_assessment/profiler_extract.db \
-  --source-tech "legacy sql dw" \
+  --extract-file /tmp/data/synapse_dedicated_sqlpool_assessment/profiler_extract.db \
+  --source-tech synapse_dedicated_sqlpool \
   --volume-path /Volumes/lakebridge_profiler/profiler_runs \
   --catalog-name lakebridge_profiler \
   --schema-name profiler_runs

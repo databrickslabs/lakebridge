@@ -72,47 +72,13 @@ class AssessmentConfigurator(ABC):
         logger.info(f"{source.capitalize()} Assessment Configuration Completed")
 
 
-# TODO: should we just reuse sql server profiler?
-class ConfigureLegacySqlDwAssessment(AssessmentConfigurator):
-    """Legacy SQL DW specific assessment configuration."""
-
-    def _configure_credentials(self) -> str:
-        cred_file = self._credential_file
-        source = self._source_name
-
-        logger.info(
-            "\n(local | env) \nlocal means values are read as plain text \nenv means values are read "
-            "from environment variables fall back to plain text if not variable is not found\n",
-        )
-        secret_vault_type = str(self.prompts.choice("Enter secret vault type (local | env)", ["local", "env"])).lower()
-        secret_vault_name = None
-
-        credential = {
-            "secret_vault_type": secret_vault_type,
-            "secret_vault_name": secret_vault_name,
-            source: {
-                "auth_type": "sql_authentication",
-                "fetch_size": 1000,
-                "login_timeout": 30,
-                "server": self.prompts.question("Enter the fully-qualified server name"),
-                "port": int(self.prompts.question("Enter the port details", valid_number=True)),
-                "database": self.prompts.question("Enter the database name"),
-                "user": self.prompts.question("Enter the SQL username"),
-                "password": self.prompts.password("Enter the SQL password"),
-                "tz_info": "UTC",
-                "driver": self.prompts.question(
-                    "Enter the ODBC driver installed locally", default="ODBC Driver 18 for SQL Server"
-                ),
-            },
-        }
-
-        _save_to_disk(credential, cred_file)
-        logger.info(f"Credential template created for {source}.")
-        return source
-
-
 class ConfigureSqlServerAssessment(AssessmentConfigurator):
-    """SQL Server specific assessment configuration."""
+    """SQL Server-family assessment configuration.
+
+    Used for both `mssql` (regular SQL Server / Azure SQL Database, default database `master`)
+    and `synapse_dedicated_sqlpool` (Azure Synapse dedicated SQL pool, where the database
+    is the pool name and must be supplied explicitly).
+    """
 
     def _configure_credentials(self) -> str:
         cred_file = self._credential_file
@@ -134,6 +100,7 @@ class ConfigureSqlServerAssessment(AssessmentConfigurator):
                 "login_timeout": self.prompts.question("Enter login timeout (seconds)", default="30"),
                 "server": self.prompts.question("Enter the fully-qualified server name"),
                 "port": int(self.prompts.question("Enter the port details", valid_number=True)),
+                "database": self.prompts.question("Enter the database name", default="master"),
                 "user": self.prompts.question("Enter the SQL username"),
                 "password": self.prompts.password("Enter the SQL password"),
                 "tz_info": self.prompts.question("Enter timezone (e.g. America/New_York)", default="UTC"),
@@ -227,7 +194,7 @@ def create_assessment_configurator(
     configurators = {
         "mssql": ConfigureSqlServerAssessment,
         "synapse": ConfigureSynapseAssessment,
-        "legacy sql dw": ConfigureLegacySqlDwAssessment,
+        "synapse_dedicated_sqlpool": ConfigureSqlServerAssessment,
     }
 
     if source_system not in configurators:

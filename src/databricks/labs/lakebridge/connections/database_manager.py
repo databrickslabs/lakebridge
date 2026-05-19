@@ -80,7 +80,7 @@ def _create_connector(db_type: str, config: JsonObject) -> DatabaseConnector:
         "mssql": MSSQLConnector,
         "tsql": MSSQLConnector,
         "synapse": MSSQLConnector,  # Synapse uses MSSQL protocol
-        "legacy sql dw": MSSQLConnector,
+        "synapse_dedicated_sqlpool": MSSQLConnector,
     }
 
     connector_class = connectors.get(db_type.lower())
@@ -99,7 +99,8 @@ class SnowflakeConnector(_BaseConnector):
 class MSSQLConnector(_BaseConnector):
     def _connect(self) -> Engine:
         auth_type = self.config.get('auth_type', 'sql_authentication')
-        db_name = str(self.config.get('database'))
+        db_value = self.config.get('database')
+        db_name = str(db_value) if db_value else None
 
         query_params: dict[str, str] = {
             "driver": str(self.config['driver']),

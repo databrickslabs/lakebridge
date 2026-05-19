@@ -2,7 +2,6 @@ import yaml
 from databricks.labs.blueprint.tui import MockPrompts
 from databricks.labs.lakebridge.assessments.configure_assessment import (
     create_assessment_configurator,
-    ConfigureLegacySqlDwAssessment,
     ConfigureSqlServerAssessment,
     ConfigureSynapseAssessment,
 )
@@ -35,6 +34,7 @@ def test_configure_sqlserver_credentials(tmp_path):
         'secret_vault_name': None,
         'mssql': {
             'auth_type': 'sql_authentication',
+            'database': 'TEST_TSQL_JDBC',
             'driver': 'ODBC Driver 18 for SQL Server',
             'fetch_size': '4000',
             'login_timeout': 5,
@@ -118,45 +118,6 @@ def test_configure_synapse_credentials(tmp_path):
     assert credentials == expected_credentials
 
 
-def test_configure_legacy_sqldw_credentials(tmp_path):
-    prompts = MockPrompts(
-        {
-            r"Enter secret vault type \(local \| env\)": sorted(['local', 'env']).index("env"),
-            r"Enter the fully-qualified server name": "URL",
-            r"Enter the port details": "1433",
-            r"Enter the SQL username": "TEST_USER",
-            r"Enter the SQL password": "TEST_PASS",
-            r"Enter the ODBC driver installed locally.*": "ODBC Driver 18 for SQL Server",
-        }
-    )
-    file = tmp_path / ".credentials.yml"
-    assessment = ConfigureLegacySqlDwAssessment(
-        product_name="lakebridge", source_name="legacy sql dw", prompts=prompts, credential_file=file
-    )
-    assessment.run()
-
-    expected_credentials = {
-        'secret_vault_type': 'env',
-        'secret_vault_name': None,
-        'legacy sql dw': {
-            'auth_type': 'sql_authentication',
-            'fetch_size': 1000,
-            'login_timeout': 30,
-            'server': 'URL',
-            'port': 1433,
-            'user': 'TEST_USER',
-            'password': 'TEST_PASS',
-            'tz_info': 'UTC',
-            'driver': 'ODBC Driver 18 for SQL Server',
-        },
-    }
-
-    with open(file, 'r', encoding='utf-8') as file:
-        credentials = yaml.safe_load(file)
-
-    assert credentials == expected_credentials
-
-
 def test_create_assessment_configurator():
     prompts = MockPrompts({})
 
@@ -172,11 +133,11 @@ def test_create_assessment_configurator():
     )
     assert isinstance(synapse_configurator, ConfigureSynapseAssessment)
 
-    # Test Legacy SQL DW configurator
-    legacy_sqldw_configurator = create_assessment_configurator(
-        source_system="legacy sql dw", product_name="lakebridge", prompts=prompts
+    # Synapse dedicated SQL pool reuses the SQL Server configurator
+    dedicated_sqlpool_configurator = create_assessment_configurator(
+        source_system="synapse_dedicated_sqlpool", product_name="lakebridge", prompts=prompts
     )
-    assert isinstance(legacy_sqldw_configurator, ConfigureLegacySqlDwAssessment)
+    assert isinstance(dedicated_sqlpool_configurator, ConfigureSqlServerAssessment)
 
     # Test invalid source system
     try:
