@@ -3,13 +3,13 @@ version: "1.0"
 extract_folder: "/tmp/data/redshift_assessment/provisioned"
 steps:
   - name: drop_query_view
-    type: prepare
+    type: source_ddl
     extract_source: src/databricks/labs/lakebridge/resources/assessments/redshift/provisioned/0_drop_query_view.sql
     mode: overwrite
     frequency: once
     flag: active
   - name: query_view
-    type: prepare
+    type: source_ddl
     extract_source: src/databricks/labs/lakebridge/resources/assessments/redshift/provisioned/0_query_view.sql
     mode: overwrite
     frequency: once
