@@ -16,7 +16,10 @@ commands:
       - name: report-file
         description: (Optional) Local filesystem `path` of the analysis report file to write
       - name: source-tech
-        description: (Optional) The technology/platform of the sources to analyze
+        description: (Optional) Name of the Source System Technology you want to analyze
+      - name: generate-json
+        description: (Optional) Generate JSON file alongside the Excel report (`true|false`)
+        default: "false"
 
   - name: transpile
     description: Transpile SQL/ETL sources to Databricks-compatible code
