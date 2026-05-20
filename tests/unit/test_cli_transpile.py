@@ -98,7 +98,7 @@ def mock_cli_for_transpile(
     transpiler_config_path: Path,
     empty_input_source: Path,
     output_folder: Path,
-) -> Generator[tuple[WorkspaceClient, TranspileConfig, Callable[[TranspileConfig], None], MagicMock], None, None]:
+) -> Generator[tuple[WorkspaceClient, TranspileConfig, Callable[[TranspileConfig], None], MagicMock]]:
     mock_transpile = MagicMock(return_value=({}, []))
 
     async def do_transpile(*args, **kwargs):
@@ -136,7 +136,7 @@ def mock_cli_transpile_no_config(
     transpiler_config_path: Path,
     empty_input_source: Path,
     output_folder: Path,
-) -> Generator[tuple[WorkspaceClient, TranspileConfig, MagicMock], None, None]:
+) -> Generator[tuple[WorkspaceClient, TranspileConfig, MagicMock]]:
     mock_transpile = MagicMock(return_value=({}, []))
 
     async def do_transpile(*args, **kwargs):

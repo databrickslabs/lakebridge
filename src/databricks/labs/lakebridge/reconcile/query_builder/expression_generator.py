@@ -247,7 +247,7 @@ def _get_is_string(column_types_dict: dict[str, DataType], column_name: str) -> 
     return True
 
 
-DataType_transform_mapping: dict[str, dict[str, list[partial[exp.Expression]]]] = {
+DataType_transform_mapping: dict[str, dict[str, list[partial[exp.Expression]]]] = {  # pylint: disable=invalid-name
     "universal": {"default": [partial(coalesce, default='_null_recon_', is_string=True), partial(trim)]},
     "snowflake": {exp.DataType.Type.ARRAY.value: [partial(array_to_string), partial(array_sort)]},
     "oracle": {
@@ -303,7 +303,7 @@ DataType_transform_mapping: dict[str, dict[str, list[partial[exp.Expression]]]] 
 
 sha256_partial = partial(sha2, num_bits="256", is_expr=True)
 md5_partial = partial(md5, is_expr=True)
-Dialect_hash_algo_mapping: dict[Dialect, HashAlgoMapping] = {
+Dialect_hash_algo_mapping: dict[Dialect, HashAlgoMapping] = {  # pylint: disable=invalid-name
     get_dialect("snowflake"): HashAlgoMapping(
         source=sha256_partial,
         target=sha256_partial,
