@@ -1,15 +1,28 @@
+# Databricks notebook source
 from pathlib import Path
 
 PRODUCT_NAME = "lakebridge"
 PRODUCT_PATH_PREFIX = Path.home() / ".databricks" / "labs" / PRODUCT_NAME / "lib"
 
+REDSHIFT_VARIANTS = ("serverless", "provisioned", "provisioned_multi_az")
+
 PLATFORM_TO_SOURCE_TECHNOLOGY_CFG = {
     "synapse": "src/databricks/labs/lakebridge/resources/assessments/synapse/pipeline_config.yml",
     "mssql": "src/databricks/labs/lakebridge/resources/assessments/mssql/pipeline_config.yml",
+    **{
+        f"redshift_{variant}": (
+            f"src/databricks/labs/lakebridge/resources/assessments/redshift/{variant}/pipeline_config.yml"
+        )
+        for variant in REDSHIFT_VARIANTS
+    },
 }
 
 # TODO modify this PLATFORM_TO_SOURCE_TECHNOLOGY.keys() once all platforms are supported
-PROFILER_SOURCE_SYSTEM = ["synapse", "mssql"]
+PROFILER_SOURCE_SYSTEM = [
+    "synapse",
+    "mssql",
+    *(f"redshift_{variant}" for variant in REDSHIFT_VARIANTS),
+]
 
 
 # This flag indicates whether a connector is required for the source system when pipeline is trigger
@@ -19,4 +32,16 @@ PROFILER_SOURCE_SYSTEM = ["synapse", "mssql"]
 CONNECTOR_REQUIRED = {
     "synapse": False,
     "mssql": True,
+    **{f"redshift_{variant}": True for variant in REDSHIFT_VARIANTS},
 }
+
+
+def credentials_key(platform: str) -> str:
+    """Return the key under which credentials are stored in the credentials file.
+
+    All Redshift variants share a single ``redshift`` credentials block so SAs configure
+    connection details once.
+    """
+    if platform.startswith("redshift_"):
+        return "redshift"
+    return platform

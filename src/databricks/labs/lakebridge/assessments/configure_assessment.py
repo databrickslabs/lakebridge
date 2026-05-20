@@ -1,7 +1,9 @@
 from abc import ABC, abstractmethod
 from pathlib import Path
 import logging
+import os
 import shutil
+from typing import Any
 import yaml
 
 from databricks.labs.blueprint.tui import Prompts
@@ -13,7 +15,7 @@ from databricks.labs.lakebridge.connections.credential_manager import (
 )
 from databricks.labs.lakebridge.connections.database_manager import DatabaseManager
 from databricks.labs.lakebridge.connections.env_getter import EnvGetter
-from databricks.labs.lakebridge.assessments import CONNECTOR_REQUIRED
+from databricks.labs.lakebridge.assessments import CONNECTOR_REQUIRED, credentials_key
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +66,10 @@ class AssessmentConfigurator(ABC):
         logger.info(f"Welcome to the {self._product_name} Assessment Configuration")
         source = self._configure_credentials()
         logger.info(f"{source.capitalize()} details and credentials received.")
+        # CONNECTOR_REQUIRED is keyed by platform name (e.g. redshift_provisioned). For shared
+        # credential blocks (e.g. all Redshift variants share the "redshift" key) the
+        # _source_name itself may not be a CONNECTOR_REQUIRED key, so default to True and let
+        # platforms that don't need a connector (synapse) opt out explicitly.
         if CONNECTOR_REQUIRED.get(self._source_name, True):
             if self.prompts.confirm(f"Do you want to test the connection to {source}?"):
                 cred_manager = create_credential_manager("lakebridge", EnvGetter())
@@ -102,6 +108,102 @@ class ConfigureSqlServerAssessment(AssessmentConfigurator):
                     "Enter the ODBC driver installed locally", default="ODBC Driver 18 for SQL Server"
                 ),
             },
+        }
+
+        _save_to_disk(credential, cred_file)
+        logger.info(f"Credential template created for {source}.")
+        return source
+
+
+# Redshift auth methods (connection still via SQLAlchemy + user/password from config; no boto3).
+REDSHIFT_AUTH_METHODS = [
+    "database_password",
+    "temporary_credentials_db_user",
+    "temporary_credentials_iam",
+    "federated_user",
+    "secrets_manager",
+]
+
+REDSHIFT_CREDENTIAL_SOURCES = ["local", "env", "file"]
+
+
+class ConfigureRedshiftAssessment(AssessmentConfigurator):
+    """Redshift specific assessment configuration."""
+
+    def _configure_credentials(self) -> str:
+        cred_file = self._credential_file
+        source = self._source_name
+
+        logger.info(
+            "Redshift authentication: database_password, temporary_credentials_db_user, "
+            "temporary_credentials_iam, federated_user, or secrets_manager. "
+            "Credentials are provided via local (plain text in file), env (environment variables), "
+            "or file (use existing credential file if valid else prompt)."
+        )
+        auth_method = str(self.prompts.choice("Authentication method", REDSHIFT_AUTH_METHODS)).lower()
+        choice = str(self.prompts.choice("Credential source (local | env | file)", REDSHIFT_CREDENTIAL_SOURCES)).lower()
+        if choice == "file":
+            if cred_file.exists():
+                try:
+                    with open(cred_file, encoding="utf-8") as f:
+                        data = yaml.safe_load(f)
+                except (yaml.YAMLError, OSError):
+                    data = None
+                existing_creds = data.get(source) if data and isinstance(data, dict) else None
+                if (existing_creds or {}).get("auth_method") == "secrets_manager":
+                    required = ["secrets_manager_secret_arn"]
+                else:
+                    required = ["host", "port", "database", "user"]
+                    if (existing_creds or {}).get("auth_method") not in {"federated_user", "temporary_credentials_iam"}:
+                        required = required + ["password"]
+                if existing_creds and isinstance(existing_creds, dict) and all(k in existing_creds for k in required):
+                    logger.info(f"Using existing credential file at {cred_file}.")
+                    return source
+            logger.info("Credential file not found or incomplete, prompting for connection details.")
+            choice = "local"
+        secret_vault_type = choice
+        secret_vault_name = None
+
+        logger.info("Please refer to the documentation to understand the difference between local and env.")
+
+        source_creds: dict[str, Any] = {"auth_method": auth_method, "ssl": "yes"}
+        if auth_method == "secrets_manager":
+            source_creds["secrets_manager_secret_arn"] = self.prompts.question(
+                "Enter the AWS Secrets Manager secret ARN with Redshift connection JSON",
+            )
+            source_creds["aws_profile"] = self.prompts.question(
+                "Enter the AWS profile name (or leave empty for default)",
+                default=os.environ.get("AWS_PROFILE", ""),
+            )
+        elif auth_method in {"federated_user", "temporary_credentials_iam"}:
+            source_creds["host"] = self.prompts.question("Enter the Redshift cluster endpoint (host)")
+            source_creds["port"] = int(
+                self.prompts.question("Enter the port details", valid_number=True, default="5439")
+            )
+            source_creds["database"] = self.prompts.question("Enter the database name")
+            get_credentials_db_user = self.prompts.question(
+                "DB user for GetClusterCredentials (use awsuser for temp creds as master user)",
+                default="awsuser",
+            )
+            source_creds["get_credentials_db_user"] = get_credentials_db_user
+            source_creds["user"] = get_credentials_db_user
+            source_creds["password"] = "federated"
+            source_creds["aws_profile"] = self.prompts.question(
+                "Enter the AWS profile name for GetClusterCredentials (or leave empty for default)",
+                default=os.environ.get("AWS_PROFILE", ""),
+            )
+        else:
+            source_creds["host"] = self.prompts.question("Enter the Redshift cluster endpoint (host)")
+            source_creds["port"] = int(
+                self.prompts.question("Enter the port details", valid_number=True, default="5439")
+            )
+            source_creds["database"] = self.prompts.question("Enter the database name")
+            source_creds["user"] = self.prompts.question("Enter the user details")
+            source_creds["password"] = self.prompts.password("Enter the password details")
+        credential = {
+            "secret_vault_type": secret_vault_type,
+            "secret_vault_name": secret_vault_name,
+            source: source_creds,
         }
 
         _save_to_disk(credential, cred_file)
@@ -184,13 +286,20 @@ class ConfigureSynapseAssessment(AssessmentConfigurator):
 def create_assessment_configurator(
     source_system: str, product_name: str, prompts: Prompts, credential_file=None
 ) -> AssessmentConfigurator:
-    """Factory function to create the appropriate assessment configurator."""
+    """Factory function to create the appropriate assessment configurator.
+
+    The configurator's ``_source_name`` (which becomes the credentials-file key) is
+    resolved through ``credentials_key`` so platform variants that share connection
+    details (e.g. all ``redshift_*`` variants) reuse one credential block.
+    """
     configurators = {
         "mssql": ConfigureSqlServerAssessment,
+        "redshift": ConfigureRedshiftAssessment,
         "synapse": ConfigureSynapseAssessment,
     }
 
-    if source_system not in configurators:
+    creds_key = credentials_key(source_system)
+    if creds_key not in configurators:
         raise ValueError(f"Unsupported source system: {source_system}")
 
-    return configurators[source_system](product_name, prompts, source_system, credential_file)
+    return configurators[creds_key](product_name, prompts, creds_key, credential_file)  # type: ignore[abstract]

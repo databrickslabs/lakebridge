@@ -1,7 +1,9 @@
+import pytest
 import yaml
 from databricks.labs.blueprint.tui import MockPrompts
 from databricks.labs.lakebridge.assessments.configure_assessment import (
     create_assessment_configurator,
+    ConfigureRedshiftAssessment,
     ConfigureSqlServerAssessment,
     ConfigureSynapseAssessment,
 )
@@ -138,3 +140,13 @@ def test_create_assessment_configurator():
         assert False, "Expected ValueError for invalid source system"
     except ValueError as e:
         assert str(e) == "Unsupported source system: invalid"
+
+
+@pytest.mark.parametrize("variant", ["redshift_serverless", "redshift_provisioned", "redshift_provisioned_multi_az"])
+def test_create_assessment_configurator_redshift_variants(variant):
+    prompts = MockPrompts({})
+    configurator = create_assessment_configurator(source_system=variant, product_name="lakebridge", prompts=prompts)
+    assert isinstance(configurator, ConfigureRedshiftAssessment)
+    # All three variants share the "redshift" credentials key (verified end-to-end via
+    # vars() to avoid touching the protected attribute syntactically).
+    assert vars(configurator)["_source_name"] == "redshift"

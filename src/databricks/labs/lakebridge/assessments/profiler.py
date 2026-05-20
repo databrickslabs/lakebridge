@@ -13,6 +13,7 @@ from databricks.labs.lakebridge.assessments import (
     PRODUCT_PATH_PREFIX,
     PLATFORM_TO_SOURCE_TECHNOLOGY_CFG,
     CONNECTOR_REQUIRED,
+    credentials_key,
 )
 
 logger = logging.getLogger(__name__)
@@ -26,12 +27,13 @@ class Profiler:
 
     @classmethod
     def create(cls, platform: str) -> "Profiler":
-        pipeline_config_path = PLATFORM_TO_SOURCE_TECHNOLOGY_CFG.get(platform, None)
+        platform_lower = platform.lower()
+        pipeline_config_path = PLATFORM_TO_SOURCE_TECHNOLOGY_CFG.get(platform_lower)
         pipeline_config = None
         if pipeline_config_path:
             pipeline_config_absolute_path = Profiler._locate_config(pipeline_config_path)
             pipeline_config = Profiler.path_modifier(config_file=pipeline_config_absolute_path)
-        return cls(platform, pipeline_config)
+        return cls(platform_lower, pipeline_config)
 
     @classmethod
     def supported_platforms(cls) -> list[str]:
@@ -59,15 +61,26 @@ class Profiler:
 
     @staticmethod
     def _setup_extractor(platform: str) -> DatabaseManager | None:
-        if not CONNECTOR_REQUIRED[platform]:
+        if not CONNECTOR_REQUIRED.get(platform, False):
             return None
         cred_manager = create_credential_manager(PRODUCT_NAME, EnvGetter())
-        connect_config = cred_manager.get_credentials(platform)
-        return DatabaseManager(platform, connect_config)
+        connect_config = cred_manager.get_credentials(credentials_key(platform))
+        return DatabaseManager(credentials_key(platform), connect_config)
+
+    @staticmethod
+    def _pipeline_needs_connector(pipeline_config: PipelineConfig) -> bool:
+        """True if the pipeline has any active SQL or source_ddl step that requires a DatabaseManager.
+
+        Stricter than the per-platform ``CONNECTOR_REQUIRED`` flag: e.g. a Redshift pipeline
+        that runs only ``python`` extract scripts does not need live source credentials even
+        though ``CONNECTOR_REQUIRED["redshift_*"]`` is ``True``. The platform-level flag is
+        still consulted inside ``_setup_extractor`` for the final decision.
+        """
+        return any(step.flag == "active" and step.type in {"sql", "source_ddl"} for step in pipeline_config.steps)
 
     def _execute(self, platform: str, pipeline_config: PipelineConfig, extractor=None) -> None:
         try:
-            if extractor is None:
+            if extractor is None and Profiler._pipeline_needs_connector(pipeline_config):
                 extractor = Profiler._setup_extractor(platform)
 
             result = PipelineClass(pipeline_config, extractor).execute()
