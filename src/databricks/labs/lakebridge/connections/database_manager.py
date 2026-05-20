@@ -3,17 +3,17 @@ import dataclasses
 import logging
 from abc import abstractmethod
 from types import TracebackType
+from collections.abc import Callable, Sequence, Set
 from typing import Any
-from collections.abc import Sequence, Set
 
 import pandas as pd
 
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine, URL
-from sqlalchemy.engine.row import Row
 from sqlalchemy import text
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm.session import Session
+import redshift_connector  # type: ignore[import-untyped]
 
 from databricks.labs.blueprint.installation import JsonObject
 
@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 @dataclasses.dataclass
 class FetchResult:
     columns: Set[str]
-    rows: Sequence[Row[Any]]
+    rows: Sequence[Sequence[Any]]
 
     def to_df(self) -> pd.DataFrame:
         """Create a pandas dataframe based on these results."""
@@ -33,10 +33,6 @@ class FetchResult:
 
 
 class DatabaseConnector(contextlib.AbstractContextManager):
-    @abstractmethod
-    def _connect(self) -> Engine:
-        pass
-
     @abstractmethod
     def fetch(self, query: str) -> FetchResult:
         pass
@@ -48,6 +44,14 @@ class DatabaseConnector(contextlib.AbstractContextManager):
     @abstractmethod
     def health_check(self) -> bool:
         pass
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
+        self.close()
 
 
 class _BaseConnector(DatabaseConnector):
@@ -61,14 +65,6 @@ class _BaseConnector(DatabaseConnector):
     def close(self) -> None:
         self.engine.dispose()
 
-    def __exit__(
-        self,
-        exc_type: type[BaseException] | None,
-        exc_val: BaseException | None,
-        exc_tb: TracebackType | None,
-    ) -> None:
-        self.close()
-
     def fetch(self, query: str) -> FetchResult:
         if not self.engine:
             raise ConnectionError("Not connected to the database.")
@@ -81,22 +77,6 @@ class _BaseConnector(DatabaseConnector):
         query = "SELECT 101 AS test_column"
         result = self.fetch(query)
         return result.rows[0][0] == 101
-
-
-def _create_connector(db_type: str, config: JsonObject) -> DatabaseConnector:
-    connectors = {
-        "snowflake": SnowflakeConnector,
-        "mssql": MSSQLConnector,
-        "tsql": MSSQLConnector,
-        "synapse": MSSQLConnector,  # Synapse uses MSSQL protocol
-    }
-
-    connector_class = connectors.get(db_type.lower())
-
-    if connector_class is None:
-        raise ValueError(f"Unsupported database type: {db_type}")
-
-    return connector_class(config)
 
 
 class SnowflakeConnector(_BaseConnector):
@@ -121,6 +101,10 @@ class MSSQLConnector(_BaseConnector):
             }
         elif auth_type == "spn_authentication":
             raise NotImplementedError("SPN Authentication not implemented yet")
+        elif auth_type == "sql_authentication":
+            pass
+        else:
+            raise ConnectionError(f"Invalid MSSQL auth_type: {auth_type}")
 
         connection_string = URL.create(
             drivername="mssql+pyodbc",
@@ -134,10 +118,88 @@ class MSSQLConnector(_BaseConnector):
         return create_engine(connection_string)
 
 
+class RedshiftConnector(DatabaseConnector):
+    def __init__(self, config: JsonObject):
+        self.config = config
+        self._conn: redshift_connector.Connection = self._connect()
+
+    def _connect(self) -> redshift_connector.Connection:
+        auth_type = str(self.config.get("auth_type", "sql_authentication")).lower()
+        host = str(self.config["host"])
+        database = str(self.config["database"])
+        port = int(str(self.config.get("port", "5439")))
+        ssl = str(self.config.get("ssl", "true")).lower() in {"true", "yes", "1"}
+
+        if auth_type == "sql_authentication":
+            return redshift_connector.connect(
+                host=host,
+                database=database,
+                port=port,
+                ssl=ssl,
+                user=str(self.config["user"]),
+                password=str(self.config["password"]),
+            )
+        if auth_type == "iam":
+            return redshift_connector.connect(
+                host=host,
+                database=database,
+                port=port,
+                ssl=ssl,
+                iam=True,
+                region=str(self.config["region"]) if "region" in self.config else None,
+                profile=str(self.config["profile"]) if "profile" in self.config else None,
+                cluster_identifier=(
+                    str(self.config["cluster_identifier"]) if "cluster_identifier" in self.config else None
+                ),
+                db_user=str(self.config["db_user"]) if "db_user" in self.config else None,
+            )
+        if auth_type == "secrets_manager":
+            raise NotImplementedError("Redshift Secrets Manager authentication not implemented yet")
+        raise ConnectionError(f"Invalid Redshift auth_type: {auth_type}")
+
+    def fetch(self, query: str) -> FetchResult:
+        cursor = self._conn.cursor()
+        try:
+            cursor.execute(query)
+            # DDL (e.g. DROP, CREATE VIEW) has no result set; return empty result
+            if cursor.description is None:
+                return FetchResult(set(), [])
+            rows = cursor.fetchall()
+            columns = {desc[0] for desc in cursor.description} if cursor.description else set()
+            return FetchResult(columns, rows)
+        finally:
+            cursor.close()
+
+    def close(self) -> None:
+        self._conn.close()
+
+    def health_check(self) -> bool:
+        query = "SELECT 101 AS test_column"
+        result = self.fetch(query)
+        return result.rows[0][0] == 101
+
+
+def _create_connector(db_type: str, config: JsonObject) -> DatabaseConnector:
+    connectors: dict[str, Callable[[JsonObject], DatabaseConnector]] = {
+        "snowflake": SnowflakeConnector,
+        "mssql": MSSQLConnector,
+        "tsql": MSSQLConnector,
+        "synapse": MSSQLConnector,  # Synapse uses MSSQL protocol
+        "redshift": RedshiftConnector,
+    }
+
+    connector_class = connectors.get(db_type.lower())
+
+    if connector_class is None:
+        raise ValueError(f"Unsupported database type: {db_type}")
+
+    return connector_class(config)
+
+
 # TODO remove this class, connectors are managed using ContextManager
 class DatabaseManager:
     def __init__(self, db_type: str, config: JsonObject):
-        self.connector = _create_connector(db_type, config)
+        self.connector: DatabaseConnector = _create_connector(db_type, config)
 
     def __enter__(self) -> "DatabaseManager":
         """Support context manager protocol for resource management."""
@@ -156,9 +218,8 @@ class DatabaseManager:
         try:
             return self.connector.fetch(query)
         except OperationalError as e:
-            error_msg = f"Error connecting to the database: {e}"
-            logger.error(error_msg)
-            raise ConnectionError(error_msg) from e
+            logger.exception(f"Error connecting to the database: {e}")
+            raise ConnectionError(f"Error connecting to the database check credentials: {e}") from e
 
     def check_connection(self) -> bool:
         return self.connector.health_check()
