@@ -14,8 +14,8 @@ from databricks.sdk.service.jobs import (
     JobSettings,
     JobParameterDefinition,
 )
-from databricks.labs.lakebridge.config import ReconcileConfig
-from databricks.labs.lakebridge.reconcile.constants import ReconSourceType
+from databricks.labs.lakebridge.config import ReconcileConfig, ProfilerDashboardConfig
+from databricks.labs.lakebridge.deployment.dashboard import ProfilerDashboardManager
 
 logger = logging.getLogger(__name__)
 
@@ -106,15 +106,6 @@ class JobDeployment:
             compute.Library(whl=lakebridge_wheel_path),
         ]
 
-        if recon_config.data_source == ReconSourceType.ORACLE.value:
-            # TODO: Automatically fetch a version list for `ojdbc8`
-            oracle_driver_version = "23.4.0.24.05"
-            libraries.append(
-                compute.Library(
-                    maven=compute.MavenLibrary(f"com.oracle.database.jdbc:ojdbc8:{oracle_driver_version}"),
-                ),
-            )
-
         task = Task(
             task_key=task_key,
             description=description,
@@ -168,16 +159,11 @@ class JobDeployment:
     def deploy_profiler_ingestion_job(
         self,
         name: str,
-        catalog_name: str,
-        schema_name: str,
-        volume_location: str,
-        source_tech: str,
+        profiler_dashboard_config: ProfilerDashboardConfig,
         lakebridge_wheel_path: str,
     ):
         logger.info("Deploying profiler ingestion job.")
-        job_id = self._update_or_create_profiler_ingestion_job(
-            name, catalog_name, schema_name, volume_location, source_tech, lakebridge_wheel_path
-        )
+        job_id = self._update_or_create_profiler_ingestion_job(name, profiler_dashboard_config, lakebridge_wheel_path)
         logger.info(f"Profiler ingestion job deployed with job_id={job_id}")
         logger.info(f"Job URL: {self._ws.config.host}#job/{job_id}")
         self._install_state.save()
@@ -185,17 +171,28 @@ class JobDeployment:
     def _update_or_create_profiler_ingestion_job(
         self,
         name: str,
-        catalog_name: str,
-        schema_name: str,
-        volume_location: str,
-        source_tech: str,
+        profiler_dashboard_config: ProfilerDashboardConfig,
         lakebridge_wheel_path: str,
     ) -> str:
         description = "Ingest Lakebridge profiler results"
         task_key = "ingest_profiler_extract"
+        extract_path = profiler_dashboard_config.extract_file_path
+        catalog_name = profiler_dashboard_config.metadata_config.catalog
+        schema_name = profiler_dashboard_config.metadata_config.schema
+        volume_name = profiler_dashboard_config.metadata_config.volume
+        volume_location = f"/Volumes/{catalog_name}/{schema_name}/{volume_name}"
+        resolved_volume_location = ProfilerDashboardManager.resolve_volume_path(extract_path, volume_location)
+        source_tech = profiler_dashboard_config.source_tech
 
         job_settings = self._profiler_ingestion_job_settings(
-            name, task_key, description, catalog_name, schema_name, volume_location, source_tech, lakebridge_wheel_path
+            name,
+            task_key,
+            description,
+            catalog_name,
+            schema_name,
+            resolved_volume_location,
+            source_tech,
+            lakebridge_wheel_path,
         )
         if name in self._install_state.jobs:
             try:
@@ -207,7 +204,7 @@ class JobDeployment:
                 del self._install_state.jobs[name]
                 logger.warning(f"Job `{name}` does not exist anymore for some reason")
                 return self._update_or_create_profiler_ingestion_job(
-                    name, catalog_name, schema_name, volume_location, source_tech, lakebridge_wheel_path
+                    name, profiler_dashboard_config, lakebridge_wheel_path
                 )
 
         logger.info(f"Creating new job configuration for job `{name}`")
@@ -259,7 +256,7 @@ class JobDeployment:
             "parameters": [
                 JobParameterDefinition(name="catalog_name", default=catalog_name),
                 JobParameterDefinition(name="schema_name", default=schema_name),
-                JobParameterDefinition(name="volume_path", default=volume_location),
+                JobParameterDefinition(name="extract_location", default=volume_location),
                 JobParameterDefinition(name="source_tech", default=source_tech),
             ],
         }
@@ -278,6 +275,11 @@ class JobDeployment:
             python_wheel_task=PythonWheelTask(
                 package_name=self.parse_package_name(lakebridge_wheel_path),
                 entry_point="profiler_dashboards",
-                parameters=["{{job.parameters.[operation_name]}}"],
+                parameters=[
+                    "{{job.parameters.[catalog_name]}}",
+                    "{{job.parameters.[schema_name]}}",
+                    "{{job.parameters.[extract_location]}}",
+                    "{{job.parameters.[source_tech]}}",
+                ],
             ),
         )

@@ -11,6 +11,7 @@ from databricks.sdk.mixins.compute import SemVer
 from databricks.sdk.errors.platform import InvalidParameterValue, ResourceDoesNotExist
 
 from databricks.labs.lakebridge.config import LakebridgeConfiguration
+from databricks.labs.lakebridge.deployment.profiler_dashboard import ProfilerDashboardDeployment
 from databricks.labs.lakebridge.deployment.recon import ReconDeployment
 from databricks.labs.lakebridge.deployment.switch import SwitchDeployment
 
@@ -24,6 +25,7 @@ class WorkspaceInstallation:
         installation: Installation,
         recon_deployment: ReconDeployment,
         switch_deployment: SwitchDeployment,
+        profiler_dashboard_deployment: ProfilerDashboardDeployment,
         product_info: ProductInfo,
         upgrades: Upgrades,
     ):
@@ -31,6 +33,7 @@ class WorkspaceInstallation:
         self._installation = installation
         self._recon_deployment = recon_deployment
         self._switch_deployment = switch_deployment
+        self._profiler_dashboard_deployment = profiler_dashboard_deployment
         self._product_info = product_info
         self._upgrades = upgrades
 
@@ -98,6 +101,9 @@ class WorkspaceInstallation:
         if config.include_switch:
             logger.info("Installing Switch transpiler to workspace.")
             self._switch_deployment.install(use_serverless=config.switch_use_serverless)
+        if config.profiler_dashboard:
+            logger.info("Installing Lakebridge profiler dashboard components.")
+            self._profiler_dashboard_deployment.install(config.profiler_dashboard, wheel_path)
 
     def uninstall(self, config: LakebridgeConfiguration):
         # This will remove all the Lakebridge modules
@@ -117,6 +123,9 @@ class WorkspaceInstallation:
 
         if config.reconcile:
             self._recon_deployment.uninstall(config.reconcile)
+
+        if config.profiler_dashboard:
+            self._profiler_dashboard_deployment.uninstall(config.profiler_dashboard)
 
         self._installation.remove()
         logger.info("Uninstallation completed successfully.")

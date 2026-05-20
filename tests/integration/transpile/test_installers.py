@@ -2,20 +2,20 @@ from pathlib import Path
 
 import pytest
 
-from databricks.labs.lakebridge.transpiler.installers import MavenInstaller, MorpheusInstaller, WheelInstaller
-
-# TODO: These should run as part of the integration tests, not a separate test suite.
+from databricks.labs.lakebridge.transpiler.installers import MavenLite, WheelInstaller, MorpheusInstaller
 
 
 def test_gets_maven_artifact_version() -> None:
-    version = MavenInstaller.get_current_maven_artifact_version("com.databricks", "databricks-connect")
+    client = MavenLite()
+    version = client.get_current_maven_artifact_version("com.databricks", "databricks-connect")
     assert version is not None
     check_valid_version(version)
 
 
 def test_downloads_from_maven(tmp_path: Path) -> None:
+    client = MavenLite()
     pom_path = tmp_path / "pom.xml"
-    success = MavenInstaller.download_artifact_from_maven(
+    success = client.download_artifact_from_maven(
         "com.databricks", "databricks-connect", "16.0.0", pom_path, extension="pom"
     )
     assert success
@@ -44,7 +44,7 @@ def test_java_version() -> None:
         case None:
             # Fine, no Java available.
             pass
-        case (java_home, tuple(version)):
+        case (java_home, tuple() as version):
             assert java_home.exists() and version >= (11, 0, 0, 0)
         case _:
             pytest.fail(f"Unexpected result from WorkspaceInstaller.find_java(): {result!r}")

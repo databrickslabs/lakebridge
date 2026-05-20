@@ -1,0 +1,774 @@
+{
+  "datasets": [
+    {
+      "name": "1595a58a",
+      "displayName": "CPU Utilization by Hour",
+      "queryLines": [
+        "select\n",
+        "  *,\n",
+        "  hour(EventTime) as Hr\n",
+        "from\n",
+        "  IDENTIFIER(:cpu_utilization_table)\n",
+        "where\n",
+        "  (SystemIdle + SQLProcessUtilization) <= 100\n",
+        "order by\n",
+        "  EventTime"
+      ],
+      "parameters": [
+        {
+          "displayName": "cpu_utilization_table",
+          "keyword": "cpu_utilization_table",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": "<CATALOG_NAME>.<SCHEMA_NAME>.cpu_utilization_table"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "87d22714",
+      "displayName": "Profiled Databases",
+      "queryLines": [
+        "select\n",
+        "  DbName as name,\n",
+        "  round(currentSizeMb / 1024, 2) as size_gb\n",
+        "from\n",
+        "  IDENTIFIER(:db_sizes_table);"
+      ],
+      "parameters": [
+        {
+          "displayName": "db_sizes_table",
+          "keyword": "db_sizes_table",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": "<CATALOG_NAME>.<SCHEMA_NAME>.db_sizes"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "7ee063cf",
+      "displayName": "Query Metrics",
+      "queryLines": [
+        "select\n",
+        "  *,\n",
+        "  to_date(creation_time) as creation_date,\n",
+        "  hour(creation_time) as creation_hr\n",
+        "from\n",
+        "  IDENTIFIER(:query_stats_table)"
+      ],
+      "parameters": [
+        {
+          "displayName": "query_stats_table",
+          "keyword": "query_stats_table",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": "<CATALOG_NAME>.<SCHEMA_NAME>.query_stats"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "7c8de801",
+      "displayName": "Query Session Metrics",
+      "queryLines": [
+        "WITH query_stats as (\n",
+        "  select\n",
+        "    *\n",
+        "  from\n",
+        "    IDENTIFIER(:query_stats_table)\n",
+        "),\n",
+        "sessions as (\n",
+        "  select\n",
+        "    *\n",
+        "  from\n",
+        "    IDENTIFIER(:sessions_table)\n",
+        "),\n",
+        "total_compute_time as (\n",
+        "  select\n",
+        "    sum(total_worker_time) as total_cpu_time\n",
+        "  from\n",
+        "    query_stats\n",
+        "),\n",
+        "workload_cpu_distribution as (\n",
+        "  select\n",
+        "    command_type workload_type,\n",
+        "    round(sum(total_worker_time) / total_cpu_time, 1) as percent_cpu_time\n",
+        "  from\n",
+        "    query_stats join total_compute_time\n",
+        "  group by\n",
+        "    command_type,\n",
+        "    total_cpu_time\n",
+        ")\n",
+        "select\n",
+        "  program_name as stage1,\n",
+        "  login_name as stage2,\n",
+        "  db_name as stage3,\n",
+        "  sum(cpu_time) as value\n",
+        "from\n",
+        "  sessions\n",
+        "group by\n",
+        "  1,\n",
+        "  2,\n",
+        "  3;"
+      ],
+      "parameters": [
+        {
+          "displayName": "query_stats_table",
+          "keyword": "query_stats_table",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": "<CATALOG_NAME>.<SCHEMA_NAME>.query_stats"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "displayName": "sessions_table",
+          "keyword": "sessions_table",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": "<CATALOG_NAME>.<SCHEMA_NAME>.sessions"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "579a75ee",
+      "displayName": "System Info",
+      "queryLines": [
+        "WITH sys_info as (\n",
+        "  select\n",
+        "    *\n",
+        "  from\n",
+        "    IDENTIFIER(:sys_info_table)\n",
+        ")\n",
+        "select\n",
+        "  'cpu_count' name,\n",
+        "  cpu_count value\n",
+        "from\n",
+        "  sys_info\n",
+        "UNION ALL\n",
+        "select\n",
+        "  'hyperthread_ratio' name,\n",
+        "  hyperthread_ratio value\n",
+        "from\n",
+        "  sys_info\n",
+        "UNION ALL\n",
+        "select\n",
+        "  'max_workers_count' name,\n",
+        "  max_workers_count value\n",
+        "from\n",
+        "  sys_info\n",
+        "UNION ALL\n",
+        "select\n",
+        "  'physical_memory_gb' name,\n",
+        "  round(physical_memory_kb / 1024 / 1024, 1) value\n",
+        "from\n",
+        "  sys_info\n",
+        "UNION ALL\n",
+        "select\n",
+        "  'physical_memory_gb' name,\n",
+        "  round(physical_memory_kb / 1024 / 1024, 1) value\n",
+        "from\n",
+        "  sys_info\n",
+        "UNION ALL\n",
+        "select\n",
+        "  'virtual_machine' name,\n",
+        "  virtual_machine_type_desc value\n",
+        "from\n",
+        "  sys_info;"
+      ],
+      "parameters": [
+        {
+          "displayName": "sys_info_table",
+          "keyword": "sys_info_table",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": "<CATALOG_NAME>.<SCHEMA_NAME>.sys_info"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "23e42e9f",
+      "displayName": "Inventory Databases",
+      "queryLines": [
+        "select\n",
+        "  db_id,\n",
+        "  name as name,\n",
+        "  to_date(create_date) as created_on\n",
+        "from\n",
+        "  IDENTIFIER(:databases_table)\n",
+        "order by\n",
+        "  created_on;"
+      ],
+      "parameters": [
+        {
+          "displayName": "databases_table",
+          "keyword": "databases_table",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": "<CATALOG_NAME>.<SCHEMA_NAME>.databases"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "pages": [
+    {
+      "name": "1cda86a3",
+      "displayName": "SQL Server Results",
+      "layout": [
+        {
+          "widget": {
+            "name": "b03fb77b",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "7ee063cf",
+                  "fields": [
+                    {
+                      "name": "sum(total_worker_time)",
+                      "expression": "SUM(`total_worker_time`)"
+                    },
+                    {
+                      "name": "command_type",
+                      "expression": "`command_type`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "pie",
+              "encodings": {
+                "angle": {
+                  "fieldName": "sum(total_worker_time)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Sum of total_worker_time"
+                },
+                "color": {
+                  "fieldName": "command_type",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "displayName": "command_type"
+                },
+                "label": {
+                  "show": true
+                }
+              },
+              "mark": {
+                "layout": "stack"
+              },
+              "frame": {
+                "title": "Query Distribution (By CPU Time)",
+                "showTitle": true
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 35,
+            "width": 6,
+            "height": 8
+          }
+        },
+        {
+          "widget": {
+            "name": "776ddd3a",
+            "queries": [
+              {
+                "name": "13c3cadcb820441799243d547cfa69de",
+                "query": {
+                  "datasetName": "7ee063cf",
+                  "fields": [
+                    {
+                      "name": "command_type",
+                      "expression": "`command_type`"
+                    },
+                    {
+                      "name": "column_fc09294e2798",
+                      "expression": "SUM(`execution_count`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 0,
+              "viz_spec": {
+                "display_name": "Query Distribution ( By Count)",
+                "description": "",
+                "viz_type": "CHART",
+                "serialized_options": "{\"version\":2,\"globalSeriesType\":\"pie\",\"sortX\":true,\"sortY\":true,\"legend\":{\"traceorder\":\"normal\"},\"xAxis\":{\"type\":\"-\",\"labels\":{\"enabled\":true}},\"yAxis\":[{\"type\":\"-\"},{\"type\":\"-\",\"opposite\":true}],\"alignYAxesAtZero\":true,\"error_y\":{\"type\":\"data\",\"visible\":true},\"series\":{\"stacking\":null,\"error_y\":{\"type\":\"data\",\"visible\":true}},\"seriesOptions\":{\"column_fc09294e2798\":{\"yAxis\":0,\"type\":\"pie\"}},\"valuesOptions\":{},\"direction\":{\"type\":\"counterclockwise\"},\"sizemode\":\"diameter\",\"coefficient\":1,\"numberFormat\":\"0,0.[00000]\",\"percentFormat\":\"0[.]00%\",\"textFormat\":\"\",\"missingValuesAsZero\":true,\"useAggregationsUi\":true,\"swappedAxes\":false,\"dateTimeFormat\":\"DD/MM/YY HH:mm:ss\",\"showDataLabels\":true,\"columnConfigurationMap\":{\"x\":{\"column\":\"command_type\",\"id\":\"column_fc09294e2780\"},\"y\":[{\"id\":\"column_fc09294e2798\",\"column\":\"execution_count\",\"transform\":\"SUM\"}]},\"isAggregationOn\":true}",
+                "query_name": "13c3cadcb820441799243d547cfa69de"
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 35,
+            "width": 6,
+            "height": 8
+          }
+        },
+        {
+          "widget": {
+            "name": "c9508d77",
+            "queries": [
+              {
+                "name": "13c3cadcb820441799243d547cfa69de",
+                "query": {
+                  "datasetName": "7ee063cf",
+                  "fields": [
+                    {
+                      "name": "creation_date",
+                      "expression": "`creation_date`"
+                    },
+                    {
+                      "name": "column_fc09294e2449",
+                      "expression": "SUM(`total_worker_time`)"
+                    },
+                    {
+                      "name": "command_type",
+                      "expression": "`command_type`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 0,
+              "viz_spec": {
+                "display_name": "Query Volume (By Compute)",
+                "description": "",
+                "viz_type": "CHART",
+                "serialized_options": "{\"version\":2,\"globalSeriesType\":\"column\",\"sortX\":true,\"sortY\":true,\"legend\":{\"traceorder\":\"normal\"},\"xAxis\":{\"type\":\"-\",\"labels\":{\"enabled\":true}},\"yAxis\":[{\"type\":\"-\"},{\"type\":\"-\",\"opposite\":true}],\"alignYAxesAtZero\":true,\"error_y\":{\"type\":\"data\",\"visible\":true},\"series\":{\"stacking\":\"stack\",\"error_y\":{\"type\":\"data\",\"visible\":true}},\"seriesOptions\":{\"column_fc09294e2449\":{\"yAxis\":0,\"type\":\"column\"}},\"valuesOptions\":{},\"direction\":{\"type\":\"counterclockwise\"},\"sizemode\":\"diameter\",\"coefficient\":1,\"numberFormat\":\"0,0.[00000]\",\"percentFormat\":\"0[.]00%\",\"textFormat\":\"\",\"missingValuesAsZero\":true,\"useAggregationsUi\":true,\"swappedAxes\":false,\"dateTimeFormat\":\"DD/MM/YY HH:mm:ss\",\"showDataLabels\":false,\"columnConfigurationMap\":{\"x\":{\"column\":\"creation_date\",\"id\":\"column_fc09294e2446\"},\"y\":[{\"id\":\"column_fc09294e2449\",\"column\":\"total_worker_time\",\"transform\":\"SUM\"}],\"series\":{\"column\":\"command_type\",\"id\":\"column_fc09294e2451\"}},\"isAggregationOn\":true,\"condensed\":true,\"withRowNumber\":true}",
+                "query_name": "13c3cadcb820441799243d547cfa69de"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 43,
+            "width": 12,
+            "height": 8
+          }
+        },
+        {
+          "widget": {
+            "name": "8750074a",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "7c8de801",
+                  "fields": [
+                    {
+                      "name": "sum(value)",
+                      "expression": "SUM(`value`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "line",
+              "encodings": {
+                "y": {
+                  "fieldName": "sum(value)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Sum of value"
+                }
+              },
+              "frame": {
+                "title": "Query Activity (By Wall Time)",
+                "showTitle": true
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 51,
+            "width": 6,
+            "height": 13
+          }
+        },
+        {
+          "widget": {
+            "name": "b18e0c0d",
+            "queries": [
+              {
+                "name": "e02ccf9f1db54d1c832b0747777875a7",
+                "query": {
+                  "datasetName": "7c8de801",
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 0,
+              "viz_spec": {
+                "display_name": "Query Activity (By CPU Time)",
+                "description": "",
+                "viz_type": "SANKEY",
+                "serialized_options": "{}",
+                "query_name": "e02ccf9f1db54d1c832b0747777875a7"
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 51,
+            "width": 6,
+            "height": 13
+          }
+        },
+        {
+          "widget": {
+            "name": "ebe4a6ff",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "87d22714",
+                  "fields": [
+                    {
+                      "name": "name",
+                      "expression": "`name`"
+                    },
+                    {
+                      "name": "sum(size_gb)",
+                      "expression": "SUM(`size_gb`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "name",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "displayName": "name"
+                },
+                "y": {
+                  "fieldName": "sum(size_gb)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "size_gb"
+                }
+              },
+              "frame": {
+                "title": "Profiled Databases",
+                "showTitle": true
+              }
+            }
+          },
+          "position": {
+            "x": 10,
+            "y": 2,
+            "width": 2,
+            "height": 9
+          }
+        },
+        {
+          "widget": {
+            "name": "c6d34447",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "1595a58a",
+                  "fields": [
+                    {
+                      "name": "EventTime",
+                      "expression": "`EventTime`"
+                    },
+                    {
+                      "name": "avg(SQLProcessUtilization)",
+                      "expression": "AVG(`SQLProcessUtilization`)"
+                    },
+                    {
+                      "name": "avg(SystemIdle)",
+                      "expression": "AVG(`SystemIdle`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "line",
+              "encodings": {
+                "x": {
+                  "fieldName": "EventTime",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "displayName": "EventTime"
+                },
+                "y": {
+                  "fields": [
+                    {
+                      "fieldName": "avg(SQLProcessUtilization)",
+                      "displayName": "Average SQLProcessUtilization"
+                    },
+                    {
+                      "fieldName": "avg(SystemIdle)",
+                      "displayName": "Average SystemIdle"
+                    }
+                  ],
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                }
+              },
+              "frame": {
+                "title": "CPU Utilization",
+                "showTitle": true
+              },
+              "mark": {
+                "layout": "layer"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 13,
+            "width": 12,
+            "height": 12
+          }
+        },
+        {
+          "widget": {
+            "name": "907b84c7",
+            "queries": [
+              {
+                "name": "9e243a97d33b46f9acf0d710ed3091b2",
+                "query": {
+                  "datasetName": "1595a58a",
+                  "fields": [
+                    {
+                      "name": "Hr",
+                      "expression": "`Hr`"
+                    },
+                    {
+                      "name": "column_3cd65b64653",
+                      "expression": "AVG(`SQLProcessUtilization`)"
+                    },
+                    {
+                      "name": "column_3cd65b64656",
+                      "expression": "AVG(`SystemIdle`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 0,
+              "viz_spec": {
+                "display_name": "24 Hours CPU Utilization",
+                "description": "",
+                "viz_type": "CHART",
+                "serialized_options": "{\"version\":2,\"globalSeriesType\":\"line\",\"sortX\":true,\"sortY\":true,\"legend\":{\"traceorder\":\"normal\",\"enabled\":true,\"placement\":\"below\"},\"xAxis\":{\"type\":\"linear\",\"labels\":{\"enabled\":true}},\"yAxis\":[{\"type\":\"-\"},{\"type\":\"-\",\"opposite\":true}],\"alignYAxesAtZero\":true,\"error_y\":{\"type\":\"data\",\"visible\":true},\"series\":{\"stacking\":null,\"error_y\":{\"type\":\"data\",\"visible\":true}},\"seriesOptions\":{\"column_3cd65b64653\":{\"yAxis\":0,\"type\":\"line\"},\"column_3cd65b64656\":{\"yAxis\":0,\"type\":\"line\"}},\"valuesOptions\":{},\"direction\":{\"type\":\"counterclockwise\"},\"sizemode\":\"diameter\",\"coefficient\":1,\"numberFormat\":\"0,0.[00000]\",\"percentFormat\":\"0[.]00%\",\"textFormat\":\"\",\"missingValuesAsZero\":true,\"useAggregationsUi\":true,\"swappedAxes\":false,\"dateTimeFormat\":\"DD/MM/YY HH:mm:ss\",\"showDataLabels\":false,\"columnConfigurationMap\":{\"x\":{\"column\":\"Hr\",\"id\":\"column_3cd65b64651\"},\"y\":[{\"id\":\"column_3cd65b64653\",\"column\":\"SQLProcessUtilization\",\"transform\":\"AVG\"},{\"id\":\"column_3cd65b64656\",\"column\":\"SystemIdle\",\"transform\":\"AVG\"}]},\"isAggregationOn\":true,\"condensed\":true,\"withRowNumber\":true}",
+                "query_name": "9e243a97d33b46f9acf0d710ed3091b2"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 25,
+            "width": 12,
+            "height": 8
+          }
+        },
+        {
+          "widget": {
+            "name": "fc0e7bd2",
+            "queries": [
+              {
+                "name": "0e3a3f475b4d42edaeacbc1c2c3c4c26",
+                "query": {
+                  "datasetName": "579a75ee",
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 0,
+              "viz_spec": {
+                "display_name": "SQL Server Environment",
+                "description": "",
+                "viz_type": "TABLE",
+                "serialized_options": "{\"itemsPerPage\":25,\"condensed\":true,\"withRowNumber\":false,\"columns\":[{\"booleanValues\":[\"false\",\"true\"],\"imageUrlTemplate\":\"{{ @ }}\",\"imageTitleTemplate\":\"{{ @ }}\",\"imageWidth\":\"\",\"imageHeight\":\"\",\"linkUrlTemplate\":\"{{ @ }}\",\"linkTextTemplate\":\"{{ @ }}\",\"linkTitleTemplate\":\"{{ @ }}\",\"linkOpenInNewTab\":true,\"name\":\"name\",\"type\":\"string\",\"displayAs\":\"string\",\"visible\":true,\"order\":100000,\"title\":\"name\",\"allowSearch\":false,\"alignContent\":\"left\",\"allowHTML\":false,\"highlightLinks\":false,\"useMonospaceFont\":false,\"preserveWhitespace\":false},{\"booleanValues\":[\"false\",\"true\"],\"imageUrlTemplate\":\"{{ @ }}\",\"imageTitleTemplate\":\"{{ @ }}\",\"imageWidth\":\"\",\"imageHeight\":\"\",\"linkUrlTemplate\":\"{{ @ }}\",\"linkTextTemplate\":\"{{ @ }}\",\"linkTitleTemplate\":\"{{ @ }}\",\"linkOpenInNewTab\":true,\"name\":\"value\",\"type\":\"string\",\"displayAs\":\"string\",\"visible\":true,\"order\":100001,\"title\":\"value\",\"allowSearch\":false,\"alignContent\":\"left\",\"allowHTML\":false,\"highlightLinks\":false,\"useMonospaceFont\":false,\"preserveWhitespace\":false}],\"version\":2}",
+                "query_name": "0e3a3f475b4d42edaeacbc1c2c3c4c26"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 2,
+            "width": 4,
+            "height": 9
+          }
+        },
+        {
+          "widget": {
+            "name": "af61aee3",
+            "queries": [
+              {
+                "name": "81c4f2be053749a9b6e26c9ff9711548",
+                "query": {
+                  "datasetName": "23e42e9f",
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 0,
+              "viz_spec": {
+                "display_name": "All Databases",
+                "description": "",
+                "viz_type": "TABLE",
+                "serialized_options": "{\"version\": 2}",
+                "query_name": "81c4f2be053749a9b6e26c9ff9711548"
+              }
+            }
+          },
+          "position": {
+            "x": 4,
+            "y": 2,
+            "width": 6,
+            "height": 9
+          }
+        },
+        {
+          "widget": {
+            "name": "c1e19137",
+            "multilineTextboxSpec": {
+              "lines": [
+                "# Database Inventory\n",
+                "<p>&nbsp;</p>\n"
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 12,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "5c8edec0",
+            "multilineTextboxSpec": {
+              "lines": [
+                "# System Activity"
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 33,
+            "width": 12,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "a200d004",
+            "multilineTextboxSpec": {
+              "lines": [
+                ""
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 11,
+            "width": 12,
+            "height": 2
+          }
+        }
+      ],
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layoutVersion": "GRID_V1"
+    }
+  ],
+  "uiSettings": {
+    "theme": {
+      "widgetHeaderAlignment": "ALIGNMENT_UNSPECIFIED"
+    },
+    "applyModeEnabled": false
+  }
+}

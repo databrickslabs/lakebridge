@@ -122,7 +122,7 @@ class TranspilerRepository:
         all_configs = self._all_transpiler_configs()
         return frozenset(config.name for _, config in all_configs)
 
-    def _transpiler_locations(self) -> Generator[Path, None, None]:
+    def _transpiler_locations(self) -> Generator[Path]:
         transpilers_path = self.transpilers_path()
         try:
             # Treat the first entry specially: failure here is different from failure once underway.
