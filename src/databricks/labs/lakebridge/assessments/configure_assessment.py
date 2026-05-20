@@ -77,7 +77,7 @@ class ConfigureSqlServerAssessment(AssessmentConfigurator):
     """SQL Server-family assessment configuration.
 
     Used for both `mssql` (regular SQL Server / Azure SQL Database, default database `master`)
-    and `synapse_dedicated_sqlpool` (Azure Synapse dedicated SQL pool, where the database
+    and `legacy_synapse` (Azure Synapse dedicated SQL pool, where the database
     is the pool name and must be supplied explicitly).
     """
 
@@ -198,7 +198,7 @@ def create_assessment_configurator(
     configurators: dict[str, ConfiguratorFactory] = {
         "mssql": ConfigureSqlServerAssessment,
         "synapse": ConfigureSynapseAssessment,
-        "synapse_dedicated_sqlpool": ConfigureSqlServerAssessment,
+        "legacy_synapse": ConfigureSqlServerAssessment,
     }
 
     if source_system not in configurators:

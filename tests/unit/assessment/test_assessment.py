@@ -133,11 +133,11 @@ def test_create_assessment_configurator():
     )
     assert isinstance(synapse_configurator, ConfigureSynapseAssessment)
 
-    # Synapse dedicated SQL pool reuses the SQL Server configurator
-    dedicated_sqlpool_configurator = create_assessment_configurator(
-        source_system="synapse_dedicated_sqlpool", product_name="lakebridge", prompts=prompts
+    # legacy_synapse (Azure Synapse dedicated SQL pool) reuses the SQL Server configurator
+    legacy_synapse_configurator = create_assessment_configurator(
+        source_system="legacy_synapse", product_name="lakebridge", prompts=prompts
     )
-    assert isinstance(dedicated_sqlpool_configurator, ConfigureSqlServerAssessment)
+    assert isinstance(legacy_synapse_configurator, ConfigureSqlServerAssessment)
 
     # Test invalid source system
     try:

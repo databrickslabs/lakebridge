@@ -5,7 +5,7 @@ import pytest
 from databricks.sdk.service.jobs import TerminationTypeType
 from databricks.sdk.core import DatabricksError
 
-from databricks.labs.lakebridge.config import ReconcileConfig, TableRecon
+from databricks.labs.lakebridge.config import ReconcileConfig, TableRecon, SourceConnectionConfig
 from databricks.labs.lakebridge.contexts.application import ApplicationContext
 from databricks.labs.lakebridge.reconcile.recon_config import RECONCILE_OPERATION_NAME
 from databricks.labs.lakebridge.reconcile.runner import ReconcileRunner
@@ -75,6 +75,20 @@ def test_recon_databricks_job_succeeds(
 def test_recon_sql_server_job_succeeds(
     application_ctx: ApplicationContext, tsql_recon_config: ReconcileConfig, tsql_recon_table_config: TableRecon
 ) -> None:
+    with generate_recon_application_context(application_ctx, tsql_recon_config, tsql_recon_table_config) as app_ctx:
+        _run_recon_e2e_spec(app_ctx)
+
+
+@pytest.mark.timeout(func_only=True)
+def test_recon_sql_dwh_job_succeeds(
+    application_ctx: ApplicationContext, tsql_recon_config: ReconcileConfig, tsql_recon_table_config: TableRecon
+) -> None:
+    tsql_recon_config.source = SourceConnectionConfig(
+        dialect="tsql",
+        catalog="TODO",
+        schema="TODO",
+        uc_connection_name="sqldw_sandbox"
+    )
     with generate_recon_application_context(application_ctx, tsql_recon_config, tsql_recon_table_config) as app_ctx:
         _run_recon_e2e_spec(app_ctx)
 

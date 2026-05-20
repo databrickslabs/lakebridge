@@ -78,9 +78,8 @@ def _create_connector(db_type: str, config: JsonObject) -> DatabaseConnector:
     connectors = {
         "snowflake": SnowflakeConnector,
         "mssql": MSSQLConnector,
-        "tsql": MSSQLConnector,
         "synapse": MSSQLConnector,  # Synapse uses MSSQL protocol
-        "synapse_dedicated_sqlpool": MSSQLConnector,
+        "legacy_synapse": MSSQLConnector,
     }
 
     connector_class = connectors.get(db_type.lower())

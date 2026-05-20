@@ -29,13 +29,13 @@ def test_mssql_connector(mock_mssql_connector) -> None:
     mock_mssql_connector.assert_called_once_with(sample_config)
 
 
-# Test case for Synapse Dedicated SQL Pool (dispatches to MSSQLConnector)
+# Test case for legacy_synapse (Azure Synapse dedicated SQL pool — dispatches to MSSQLConnector)
 @patch('databricks.labs.lakebridge.connections.database_manager.MSSQLConnector')
-def test_synapse_dedicated_sqlpool_connector(mock_mssql_connector) -> None:
+def test_legacy_synapse_connector(mock_mssql_connector) -> None:
     mock_connector_instance = MagicMock()
     mock_mssql_connector.return_value = mock_connector_instance
 
-    db_manager = DatabaseManager("synapse_dedicated_sqlpool", sample_config)
+    db_manager = DatabaseManager("legacy_synapse", sample_config)
 
     assert db_manager.connector == mock_connector_instance
     mock_mssql_connector.assert_called_once_with(sample_config)

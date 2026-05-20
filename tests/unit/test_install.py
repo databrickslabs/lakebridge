@@ -1001,7 +1001,7 @@ def test_configure_all_override_installation(  # FIXME
     )
 
     expected_profiler_dash_config = ProfilerDashboardConfig(
-        source_tech="mssql",
+        source_tech="legacy_synapse",
         extract_file_path=str(
             Path("~/.databricks/labs/lakebridge_profilers/synapse_assessment/profiler_extract.db").expanduser()
         ),

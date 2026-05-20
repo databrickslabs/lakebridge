@@ -1,14 +1,14 @@
 ---
 sidebar_position: 3
-title: Synapse Dedicated SQL Pool Profiler Details
+title: Legacy Synapse Profiler Details
 ---
 import Admonition from '@theme/Admonition';
 
-# Synapse Dedicated SQL Pool Profiler Details
+# Legacy Synapse Profiler Details
 
 - [Prerequisites](#prerequisites)
 - [Profiled Tables and Views](#profiled-tables-and-views)
-- [Configure Connection to Synapse Dedicated SQL Pool](#configure-connection-to-synapse-dedicated-sql-pool)
+- [Configure Connection to Legacy Synapse](#configure-connection-to-synapse-dedicated-sql-pool)
 - [Execute the Profiler](#execute-the-profiler)
 
 :::info
@@ -136,7 +136,7 @@ into two extraction steps: **schema metadata** and **activity metrics**.
   </tbody>
 </table>
 
-## Configure Connection to Synapse Dedicated SQL Pool
+## Configure Connection to Legacy Synapse
 
 Run the following command to configure the profiler connection to your dedicated SQL pool:
 
@@ -146,7 +146,7 @@ databricks labs lakebridge configure-database-profiler
 Please select the source system you want to configure
 [0] synapse
 [1] mssql
-[2] synapse_dedicated_sqlpool
+[2] legacy_synapse
 Enter a number between 0 and 2: 2
 
 (local | env)
@@ -188,7 +188,7 @@ Enter the ODBC driver installed locally (default: ODBC Driver 18 for SQL Server)
 Once configured, run the profiler to extract metadata and activity metrics from your dedicated SQL pool:
 
 ```bash
-databricks labs lakebridge execute-database-profiler --source-tech synapse_dedicated_sqlpool
+databricks labs lakebridge execute-database-profiler --source-tech legacy_synapse
 ```
 
 The profiler will:
@@ -202,8 +202,8 @@ After executing the profiler, you can upload the results and deploy a summary da
 
 ```bash
 databricks labs lakebridge create-profiler-dashboard \
-  --extract-file /tmp/data/synapse_dedicated_sqlpool_assessment/profiler_extract.db \
-  --source-tech synapse_dedicated_sqlpool \
+  --extract-file /tmp/data/legacy_synapse_assessment/profiler_extract.db \
+  --source-tech legacy_synapse \
   --volume-path /Volumes/lakebridge_profiler/profiler_runs \
   --catalog-name lakebridge_profiler \
   --schema-name profiler_runs
