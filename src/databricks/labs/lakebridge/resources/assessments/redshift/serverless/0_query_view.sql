@@ -1,6 +1,4 @@
 -- query view
-drop view if exists query_view;
-
 create or replace view query_view 
 as
 (select user_id
@@ -37,5 +35,3 @@ as
    and query_label not like 'stmt%')
  )
 ;
-
-select * from query_view limit 10;

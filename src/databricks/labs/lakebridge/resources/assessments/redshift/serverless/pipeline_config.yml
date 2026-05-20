@@ -2,8 +2,14 @@ name: redshift_assessment_serverless
 version: "1.0"
 extract_folder: "/tmp/data/redshift_assessment/serverless"
 steps:
+  - name: drop_query_view
+    type: prepare
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/redshift/serverless/0_drop_query_view.sql
+    mode: overwrite
+    frequency: once
+    flag: active
   - name: query_view
-    type: sql
+    type: prepare
     extract_source: src/databricks/labs/lakebridge/resources/assessments/redshift/serverless/0_query_view.sql
     mode: overwrite
     frequency: once

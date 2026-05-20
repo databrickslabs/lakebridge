@@ -1,6 +1,4 @@
 -- query view
-drop view if exists query_view;
-
 create or replace view query_view 
 as
 (select userid, query, querytxt, cast(starttime as timestamp), cast(endtime as timestamp)
@@ -31,5 +29,3 @@ as
  where label not in('metrics', 'other', 'health', 'cmstats') and (label not like 'statement%' and label not like 'stmt%')
  )
 ;
-
-select * from query_view limit 10;
