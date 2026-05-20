@@ -74,3 +74,14 @@ def test_recon_sql_server_job_succeeds(
 ) -> None:
     with generate_recon_application_context(application_ctx, tsql_recon_config, tsql_recon_table_config) as app_ctx:
         _run_recon_e2e_spec(app_ctx)
+
+
+def test_recon_snowflake_job_succeeds(
+    application_ctx: ApplicationContext,
+    snowflake_recon_config: ReconcileConfig,
+    snowflake_recon_table_config: TableRecon,
+) -> None:
+    with generate_recon_application_context(
+        application_ctx, snowflake_recon_config, snowflake_recon_table_config
+    ) as app_ctx:
+        _run_recon_e2e_spec(app_ctx)

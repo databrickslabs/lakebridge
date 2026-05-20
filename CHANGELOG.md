@@ -1,5 +1,99 @@
 # Version changelog
 
+## 0.12.2
+
+## Assessment
+### Profiler
+
+- Enhanced Synapse profiler extraction and monitoring by correctly handling batched pipeline/trigger runs, adding serverless‑pool routine listing via `sys.objects`, reconnecting to `master` for server‑level DMVs, stripping whitespace from credential fields, replacing deprecated `DataFrame.union()` with `pd.concat()`, and clarifying Azure auth, DMV permissions, and serverless catalog view behavior.
+
+### Analyzer
+
+- Added support for a new `--generate-json` switch to produce a JSON report alongside the existing Excel report, enabling programmatic consumption of analyzer results without changing default behavior.
+
+## Converters
+
+### Morpheus
+
+#### Snowflake
+
+- Added transpilation support for seven Snowflake geospatial functions (ST_MAKEPOINT, ST_POINT, ST_X, ST_Y, ST_CENTROID, TRY_TO_GEOGRAPHY, HAVERSINE) to Databricks SQL, including SRID handling, argument normalization, and custom SQL for Haversine distance.
+    
+- Introduced support for Snowflake SPLIT_TO_TABLE by mapping it to Databricks `POSEXPLODE(SPLIT(...))`, including column renaming, regex‑safe delimiter handling, and both `TABLE()` and `LATERAL` invocation forms.
+    
+- Implemented Snowflake JSON helpers CHECK_JSON, GET_PATH, and IFF for Databricks SQL, using TRY_PARSE_JSON‑based validation, GET_JSON_OBJECT path translation, and direct IF‑style semantics.
+    
+
+#### Synapse / TSQL
+
+- Added IR support for executing stored procedures and immediate SQL strings via T‑SQL `EXEC`/`EXECUTE`, including positional and named parameters, output parameters, `AS USER`, and `AT <data_source>` constructs, plus parity tests for Snowflake `EXECUTE IMMEDIATE`.
+    
+
+#### Other / General
+
+- Enhanced the Morpheus DataType and Expression system with static typing and promotion at IR generation time, including numeric and string helpers, a NumericValue pseudo‑type, SQL‑style highestType promotion rules, and an expanded test suite.
+    
+
+### BladeBridge
+
+### Oracle
+
+- Updated NUMBER without precision to map to `DECIMAL(38,18)` for Oracle to correctly handle floating‑point semantics in converted code.
+    
+
+### Teradata
+
+- Updated NUMBER without precision to map to `DECIMAL(38,18)` for Teradata to preserve floating‑point behavior in conversions.
+    
+- Added Teradata stored procedure test cases with various DML statements, transactions, and explicit handling of output parameters returned without `CALL`, aligning with Teradata’s procedure semantics.
+    
+
+### Redshift
+
+- Fixed Redshift NUMBER mapping to `DECIMAL(38,0)` to ensure correct numeric precision in converted objects.
+    
+
+### General SQL
+
+- Added support for `CONNECT BY` into the platform source gap specifications and introduced `CREATE PROJECTION` patterns into `general_sql_specs.json` to broaden SQL feature coverage across supported sources.
+    
+- Added DDL test cases and patterns to improve datatype and table partition conversion and to strip unwanted default values from DDL in the final master step when they are not visible in configuration.
+    
+
+### ETL to Databricks (Informatica)
+
+- Fixed workflow parameter default value handling and introduced a table‑based workflow parameter storage system, providing type‑aware defaults and a `workflow_utils.workflow_params` Delta table to centralize parameter metadata for Informatica‑to‑Databricks conversions.
+    
+- Added a configurable `data_type_mapping` for Informatica‑to‑Python conversions to improve type inference and consistency across generated notebooks.
+    
+
+## Reconcile
+
+
+- Updated T‑SQL/Synapse reconciliation hash generation to avoid `VARCHAR(256)` truncation by using `VARCHAR(MAX)` in `COALESCE` and `HASHBYTES`, reducing false mismatches and better aligning behavior with Databricks.
+   
+    
+- Introduced source and target record count metrics (`source_record_count`, `target_record_count`) into reconciliation metrics and dashboards, including an upgrade script and tests to support enhanced reconciliation observability.
+
+## Documentation
+
+
+- Added LLM‑friendly documentation via the `@signalwire/docusaurus-plugin-llms-txt` plugin, exposing a structured `llms.txt` index and per‑page markdown URLs so AI tools can more easily discover and consume Lakebridge documentation.
+    
+- Documented automatic serverless cluster detection behavior for Reconcile, including configuration requirements for Unity Catalog volumes and environment variables.
+    
+- Published an IBM DataStage‑to‑Databricks conversion guide that explains supported DataStage versions and objects, generated Databricks artifacts, helper libraries, and troubleshooting practices.
+    
+- Extended the BladeBridge ETL configuration guide with native database connection examples, including tokenized JDBC/ODBC templates for systems such as Oracle and MSSQL.
+    
+- Updated Switch documentation to describe the new `input_file_relative_path` column in the Conversion Result Table schema and how it preserves input directory structure in outputs.
+
+## Dependency updates:
+
+ * Updated pyodbc requirement from ~=5.2.0 to >=5.2,<5.4 ([#2104](https://github.com/databrickslabs/lakebridge/pull/2104)).
+ * Bump webpack from 5.99.6 to 5.105.0 in /docs/lakebridge ([#2269](https://github.com/databrickslabs/lakebridge/pull/2269)).
+ * Bump sigstore/gh-action-sigstore-python from 3.0.1 to 3.2.0 ([#2177](https://github.com/databrickslabs/lakebridge/pull/2177)).
+ * Updated duckdb requirement from ~=1.2.2 to >=1.2.2,<1.5.0 ([#2079](https://github.com/databrickslabs/lakebridge/pull/2079)).
 ## 0.12.1
 
 ## Synapse Profiler

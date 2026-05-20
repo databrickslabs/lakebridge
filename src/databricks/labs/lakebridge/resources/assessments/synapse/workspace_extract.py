@@ -42,7 +42,7 @@ def execute():
         table_name = "workspace_workspace_info"
         logger.info(f"Extraction started for {table_name}")
         workspace_info = workspace.get_workspace_info()
-        workspace_info_df = pd.json_normalize(workspace_info)
+        workspace_info_df = pd.json_normalize([workspace_info])
         insert_df_to_duckdb(workspace_info_df, db_path, table_name)
 
         # Extract SQL pools
