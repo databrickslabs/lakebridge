@@ -1,4 +1,3 @@
-import argparse
 import logging
 from typing import TYPE_CHECKING
 
@@ -6,23 +5,6 @@ if TYPE_CHECKING:
     from google.cloud import bigquery
 
 logger = logging.getLogger(__name__)
-
-
-def arguments_loader(desc: str) -> tuple[str, str]:
-    parser = argparse.ArgumentParser(description=desc)
-    parser.add_argument('--db-path', type=str, required=True, help='Path to DuckDB database file')
-    parser.add_argument(
-        '--credential-config-path', type=str, required=True, help='Path string containing credential configuration'
-    )
-    args = parser.parse_args()
-    credential_file = args.credential_config_path
-
-    if not credential_file.endswith('credentials.yml'):
-        msg = "Credential config file must have 'credentials.yml' extension"
-        logger.error(msg)
-        raise ValueError(msg)
-
-    return args.db_path, credential_file
 
 
 def create_bigquery_client(project_id: str, region: str) -> "bigquery.Client":

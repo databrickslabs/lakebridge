@@ -33,10 +33,9 @@ from databricks.labs.lakebridge import initialize_logging
 from databricks.labs.lakebridge.assessments import PRODUCT_NAME
 from databricks.labs.lakebridge.connections.credential_manager import create_credential_manager
 from databricks.labs.lakebridge.connections.env_getter import EnvGetter
-from databricks.labs.lakebridge.resources.assessments.bigquery.common.duckdb_helpers import insert_df_to_duckdb
-from databricks.labs.lakebridge.resources.assessments.bigquery.common.functions import arguments_loader
 from databricks.labs.lakebridge.resources.assessments.bigquery.common.tuning_params import TUNING_INPUT_PARAMS
-
+from databricks.labs.lakebridge.resources.assessments.common.cli import arguments_loader
+from databricks.labs.lakebridge.resources.assessments.common.duckdb_helpers import save_to_duckdb
 
 # Use the canonical dotted name so INFO logs surface under `python -m` invocation —
 # same fix applied to bq_metadata_extract.py.
@@ -100,7 +99,7 @@ def execute() -> None:
     try:
         # 1. Insert the input_params table so the dashboard can read tuning knobs back out.
         input_params_df = _build_input_params_row(target_cloud, dict(params))
-        insert_df_to_duckdb(input_params_df, db_path, "input_params")
+        save_to_duckdb(input_params_df, "input_params", db_path)
 
         # 2. Run the derived-table SQL files. {var} placeholders are substituted from `params`
         # plus `target_cloud` (used in the join predicates of bq_slots_pricing_analysis.sql).

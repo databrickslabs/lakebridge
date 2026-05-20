@@ -31,12 +31,9 @@ from databricks.labs.lakebridge.assessments import PRODUCT_NAME
 from databricks.labs.lakebridge.connections.credential_manager import create_credential_manager
 from databricks.labs.lakebridge.connections.env_getter import EnvGetter
 from databricks.labs.lakebridge.resources.assessments.bigquery.common.compiler import Compiler
-from databricks.labs.lakebridge.resources.assessments.bigquery.common.duckdb_helpers import insert_df_to_duckdb
-from databricks.labs.lakebridge.resources.assessments.bigquery.common.functions import (
-    arguments_loader,
-    create_bigquery_client,
-)
-
+from databricks.labs.lakebridge.resources.assessments.bigquery.common.functions import create_bigquery_client
+from databricks.labs.lakebridge.resources.assessments.common.cli import arguments_loader
+from databricks.labs.lakebridge.resources.assessments.common.duckdb_helpers import save_to_duckdb
 
 # Use the canonical dotted name (not `__name__`, which is `"__main__"` when this script is
 # invoked as the entrypoint by pipeline.py or `python -m ...`). That keeps the logger inside
@@ -211,16 +208,16 @@ def _write_accumulators(
         else:
             logger.info(f"No data accumulated for {analysis_type}; writing empty stub.")
             merged = _empty_df_for_analysis_type(analysis_type, analysis_types)
-        insert_df_to_duckdb(merged, db_path, analysis_type)
+        save_to_duckdb(merged, analysis_type, db_path)
         row_counts[analysis_type] = len(merged)
     return row_counts
 
 
 def _write_reference_tables(db_path: str) -> dict[str, int]:
     cluster_df = _load_reference_csv("cluster_pricing.csv")
-    insert_df_to_duckdb(cluster_df, db_path, "bq_cluster_pricing")
+    save_to_duckdb(cluster_df, "bq_cluster_pricing", db_path)
     sqlwh_df = _load_reference_csv("dbsql_pricing.csv")
-    insert_df_to_duckdb(sqlwh_df, db_path, "bq_sqlwarehouse_pricing")
+    save_to_duckdb(sqlwh_df, "bq_sqlwarehouse_pricing", db_path)
     return {"bq_cluster_pricing": len(cluster_df), "bq_sqlwarehouse_pricing": len(sqlwh_df)}
 
 

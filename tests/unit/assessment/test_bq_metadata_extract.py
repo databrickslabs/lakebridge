@@ -44,8 +44,9 @@ def _fake_run_sql_for_iteration(sql_filename, _compiler, _bq_client, project_reg
     df = _canned_df_for(sql_filename, project_region)
     df["source"] = f"{project_region}_{sql_filename}"
     if sql_filename == "table_storage.sql" and "metadatalevel" in df.columns:
-        df = df.rename(columns={"metadatalevel": "metadata_level"})
-    return bq_metadata_extract._SQL_FILE_TO_ANALYSIS_TYPE[sql_filename], df, 0.01  # pylint: disable=protected-access
+        df = df.rename(columns={"metadatalevel": "metadata_level"}).copy()
+    analysis_type = bq_metadata_extract._SQL_FILE_TO_ANALYSIS_TYPE[sql_filename]  # pylint: disable=protected-access
+    return analysis_type, df, 0.01
 
 
 @pytest.fixture
