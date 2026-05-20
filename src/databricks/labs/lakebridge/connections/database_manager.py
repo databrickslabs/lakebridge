@@ -45,6 +45,10 @@ class DatabaseConnector(contextlib.AbstractContextManager):
     def close(self) -> None:
         pass
 
+    @abstractmethod
+    def health_check(self) -> bool:
+        pass
+
 
 class _BaseConnector(DatabaseConnector):
     def __init__(self, config: JsonObject):
@@ -72,6 +76,11 @@ class _BaseConnector(DatabaseConnector):
         with Session(self.engine) as session, session.begin():
             result = session.execute(text(query))
             return FetchResult(result.keys(), result.fetchall())
+
+    def health_check(self) -> bool:
+        query = "SELECT 101 AS test_column"
+        result = self.fetch(query)
+        return result.rows[0][0] == 101
 
 
 def _create_connector(db_type: str, config: JsonObject) -> DatabaseConnector:
@@ -125,6 +134,7 @@ class MSSQLConnector(_BaseConnector):
         return create_engine(connection_string)
 
 
+# TODO remove this class, connectors are managed using ContextManager
 class DatabaseManager:
     def __init__(self, db_type: str, config: JsonObject):
         self.connector = _create_connector(db_type, config)
@@ -151,8 +161,4 @@ class DatabaseManager:
             raise ConnectionError(error_msg) from e
 
     def check_connection(self) -> bool:
-        query = "SELECT 101 AS test_column"
-        result = self.fetch(query)
-        if result is None:
-            return False
-        return result.rows[0][0] == 101
+        return self.connector.health_check()
