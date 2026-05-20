@@ -359,8 +359,8 @@ def test_build_query_for_tsql(spark, fake_tsql_datasource, fake_databricks_datas
         "COALESCE(TRIM(CAST([color] AS VARCHAR(MAX))), '_null_recon_') AS [color], "
         "COALESCE(TRIM(CAST([cut] AS VARCHAR(MAX))), '_null_recon_') AS [cut], "
         "COALESCE(CONVERT(VARCHAR(10), [mined_at], 101), '1900-01-01') AS [mined_at] FROM :tbl) AS src "
-        "INNER JOIN (VALUES (CAST('SI2' AS string), CAST('E' AS string)), "
-        "(CAST('VS1' AS string), CAST('E' AS string))) AS recon([clarity], [color]) "
+        "INNER JOIN (SELECT CAST('SI2' AS string) AS [clarity], CAST('E' AS string) AS [color] "
+        "UNION SELECT CAST('VS1' AS string) AS [clarity], CAST('E' AS string) AS [color]) AS recon "
         "ON src.[clarity] = recon.[clarity] AND src.[color] = recon.[color]"
     )
 

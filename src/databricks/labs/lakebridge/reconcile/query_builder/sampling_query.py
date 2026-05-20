@@ -79,8 +79,9 @@ class SamplingQueryBuilder(QueryBuilder):
         if isinstance(self.engine, TSQL):
             # T-SQL rejects `WITH cte AS (...)` inside a derived table, and Spark JDBC wraps the
             # query as `SELECT * FROM (...) WHERE 1=0` for output-schema resolution. Emit two
-            # derived tables joined directly so the wrapper produces valid T-SQL.
-            recon_subquery = self._get_recon_values_subquery(keys_df, key_cols)
+            # derived tables joined directly so the wrapper produces valid T-SQL. Also avoids
+            # the VALUES table-value constructor, which Synapse Dedicated SQL Pool rejects.
+            recon_subquery = self._get_recon_subquery(keys_df)
             on_expr = self._get_join_clause(key_cols).args["on"]
             query = (
                 select(*with_select)
@@ -143,35 +144,41 @@ class SamplingQueryBuilder(QueryBuilder):
         union_statements = _union_concat(union_res, union_res[0], 0)
         return exp.Select().with_(alias='recon', as_=union_statements)
 
-    def _get_recon_values_subquery(self, df: DataFrame, key_cols: list[str]) -> exp.Subquery:
+    def _get_recon_subquery(self, df: DataFrame) -> exp.Subquery:
+        """Build a derived table of literal sample rows aliased as ``recon`` for T-SQL/Synapse.
+
+        Emits ``(SELECT 'a' AS [c1], ... UNION SELECT ...) AS recon``. This avoids two
+        T-SQL-side constraints:
+
+        * ``VALUES`` as a derived table is rejected by Azure Synapse Dedicated SQL Pool
+          (it's only valid for ``INSERT ... VALUES``).
+        * ``WITH cte AS (...)`` cannot appear inside the derived table that Spark JDBC
+          wraps every read in (``SELECT * FROM (...) WHERE 1=0`` for schema resolution).
+        """
         column_types_dict = {str(f.name).lower(): f.dataType for f in df.schema.fields}
         orig_types_dict = {
             schema.column_name: schema.data_type
             for schema in self.schema
             if schema.column_name not in self.user_transformations
         }
-        tuples: list[exp.Expression] = []
+        quoted = self._is_add_quotes
+        union_res: list[exp.Select] = []
         for row in df.collect():
-            row_values: list[exp.Expression] = []
+            row_select: list[exp.Expression] = []
             for col, value in zip(df.columns, row):
+                alias = DialectUtils.unnormalize_identifier(col)
                 if value is not None:
-                    row_values.append(
+                    row_select.append(
                         build_literal(
                             this=str(value),
+                            alias=alias,
                             is_string=_get_is_string(column_types_dict, col),
                             cast=orig_types_dict.get(DialectUtils.ansi_normalize_identifier(col)),
-                            quoted=True and self._is_add_quotes,
+                            quoted=quoted,
                         )
                     )
                 else:
-                    row_values.append(exp.Null())
-            tuples.append(exp.Tuple(expressions=row_values))
-
-        column_idents = [
-            exp.to_identifier(DialectUtils.unnormalize_identifier(col), quoted=True and self._is_add_quotes)
-            for col in key_cols
-        ]
-        return exp.Subquery(
-            this=exp.Values(expressions=tuples),
-            alias=exp.TableAlias(this=exp.to_identifier("recon"), columns=column_idents),
-        )
+                    row_select.append(exp.Alias(this=exp.Null(), alias=alias, quoted=quoted))
+            union_res.append(select(*row_select))
+        union_statements = _union_concat(union_res, union_res[0], 0)
+        return exp.Subquery(this=union_statements, alias=exp.TableAlias(this=exp.to_identifier("recon")))
