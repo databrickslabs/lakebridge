@@ -12,9 +12,8 @@ import Admonition from '@theme/Admonition';
 - [Execute the Profiler](#execute-the-profiler)
 
 :::info
-This profiler targets **Azure Synapse dedicated SQL pool** (formerly Azure SQL Data Warehouse) — an MPP-based
-platform that exposes Parallel Data Warehouse (PDW) Dynamic Management Views (`sys.dm_pdw_*`). For serverless
-SQL pools, Spark pools, and the Synapse workspace control plane, use the [Synapse profiler](./synapse.mdx) instead.
+This profiler targets **Azure Synapse dedicated SQL pool** (formerly Azure SQL Data Warehouse).
+For serverless SQL pools, Spark pools, and the Synapse workspace control plane, use the [Synapse profiler](./synapse.mdx) instead.
 :::
 
 ## Prerequisites
@@ -27,9 +26,7 @@ SQL pools, Spark pools, and the Synapse workspace control plane, use the [Synaps
 ### 2. Authentication
 
 :::warning Attention:
-The profiler currently authenticates via **SQL Authentication** only. Azure AD-based auth modes
-(`ActiveDirectoryInteractive`, `ActiveDirectoryServicePrincipal`, managed identity, token injection)
-are not yet wired up for this source — please use a SQL login with MFA disabled.
+The profiler currently authenticates via **SQL Authentication** only. Please use a SQL login with MFA disabled.
 :::
 
 ### 3. Required Database Permissions
@@ -195,20 +192,5 @@ The profiler will:
 1. Connect to your dedicated SQL pool using the configured credentials
 2. Execute the schema metadata and activity metric extraction queries
 3. Store the results in a local DuckDB extract file
-
-### Publish Profiler Summary Dashboard
-
-After executing the profiler, you can upload the results and deploy a summary dashboard to your Databricks workspace:
-
-```bash
-databricks labs lakebridge create-profiler-dashboard \
-  --extract-file /tmp/data/legacy_synapse_assessment/profiler_extract.db \
-  --source-tech legacy_synapse \
-  --volume-path /Volumes/lakebridge_profiler/profiler_runs \
-  --catalog-name lakebridge_profiler \
-  --schema-name profiler_runs
-```
-
-Refer to the [Profiler Guide](../#publish-profiler-summary-dashboard) for full details on dashboard deployment options.
 
 [Back to Configure Profiler](../#configure-profiler)
