@@ -59,7 +59,7 @@ lock-dependencies:
 	$(UV_RUN) --group yq tomlq -r '.["build-system"].requires[]' pyproject.toml | \
 	    uv pip compile --upgrade --generate-hashes --universal --no-header --quiet - > build-constraints-new.txt
 	mv build-constraints-new.txt .build-constraints.txt
-	@perl -pi -e 's|registry = "https://[^"]*"|registry = "https://pypi.org/simple/"|g' uv.lock
+	@perl -pi -e 's|registry = "https://[^"]*"|registry = "https://pypi.org/simple"|g' uv.lock
 	@printf 'Stripped registry references from uv.lock.\n'
 
 clean_coverage_dir:

@@ -7,7 +7,6 @@ from sqlglot.tokens import TokenType
 
 from databricks.labs.lakebridge.transpiler.sqlglot import local_expression
 
-
 logger = logging.getLogger(__name__)
 
 

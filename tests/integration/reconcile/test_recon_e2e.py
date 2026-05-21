@@ -17,8 +17,6 @@ from tests.integration.reconcile.conftest import generate_recon_application_cont
 
 logger = logging.getLogger(__name__)
 
-pytestmark = pytest.mark.timeout(1800)
-
 
 def _debug_run_output(ctx: ApplicationContext, run_id: int) -> None:
     _ansi_escape = re.compile(r"\x1B\[[0-?]*[ -/]*[@-~]")
@@ -65,6 +63,7 @@ def _run_recon_e2e_spec(app_ctx: ApplicationContext):
     assert result.status.termination_details.type.value == TerminationTypeType.SUCCESS.value
 
 
+@pytest.mark.timeout(func_only=True)
 def test_recon_databricks_job_succeeds(
     application_ctx: ApplicationContext,
     databricks_recon_config: ReconcileConfig,
@@ -76,6 +75,7 @@ def test_recon_databricks_job_succeeds(
         _run_recon_e2e_spec(app_ctx)
 
 
+@pytest.mark.timeout(func_only=True)
 def test_recon_sql_server_job_succeeds(
     application_ctx: ApplicationContext, tsql_recon_config: ReconcileConfig, tsql_recon_table_config: TableRecon
 ) -> None:
@@ -83,6 +83,7 @@ def test_recon_sql_server_job_succeeds(
         _run_recon_e2e_spec(app_ctx)
 
 
+@pytest.mark.timeout(func_only=True)
 def test_recon_snowflake_job_succeeds(
     application_ctx: ApplicationContext,
     snowflake_recon_config: ReconcileConfig,
@@ -94,6 +95,7 @@ def test_recon_snowflake_job_succeeds(
         _run_recon_e2e_spec(app_ctx)
 
 
+@pytest.mark.timeout(func_only=True)
 def test_recon_redshift_job_succeeds(
     application_ctx: ApplicationContext,
     redshift_recon_config: ReconcileConfig,
@@ -105,6 +107,7 @@ def test_recon_redshift_job_succeeds(
         _run_recon_e2e_spec(app_ctx)
 
 
+@pytest.mark.timeout(func_only=True)
 def test_recon_oracle_job_succeeds(
     application_ctx: ApplicationContext,
     oracle_recon_config: ReconcileConfig,

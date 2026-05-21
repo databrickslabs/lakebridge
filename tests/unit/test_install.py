@@ -31,7 +31,6 @@ from databricks.labs.lakebridge.transpiler.installers import (
 )
 from databricks.labs.lakebridge.transpiler.repository import TranspilerRepository
 
-
 RECONCILE_DATA_SOURCES = sorted([source_type.value for source_type in ReconSourceType])
 RECONCILE_REPORT_TYPES = sorted([report_type.value for report_type in ReconReportType])
 
@@ -54,7 +53,7 @@ PATH_TO_TRANSPILER_CONFIG = "/some/path/to/config.yml"
 
 
 @pytest.fixture()
-def ws_installer() -> Generator[Callable[..., WorkspaceInstaller], None, None]:
+def ws_installer() -> Generator[Callable[..., WorkspaceInstaller]]:
 
     class TestWorkspaceInstaller(WorkspaceInstaller):
         def __init__(self, *args, **kwargs):
@@ -1001,7 +1000,7 @@ def test_configure_all_override_installation(  # FIXME
     )
 
     expected_profiler_dash_config = ProfilerDashboardConfig(
-        source_tech="mssql",
+        source_tech="legacy_synapse",
         extract_file_path=str(
             Path("~/.databricks/labs/lakebridge_profilers/synapse_assessment/profiler_extract.db").expanduser()
         ),

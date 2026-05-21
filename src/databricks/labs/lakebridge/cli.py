@@ -964,6 +964,7 @@ def llm_transpile(
     schema_name: str | None = None,
     volume: str | None = None,
     foundation_model: str | None = None,
+    switch_config_path: str | None = None,
     ctx: ApplicationContext | None = None,
 ) -> None:
     """Transpile source code to Databricks using LLM Transpiler (Switch)"""
@@ -975,8 +976,7 @@ def llm_transpile(
     logger.debug(f"User: {user}")
 
     if not accept_terms:
-        logger.warning(
-            """Please read and accept these terms before proceeding:
+        logger.warning("""Please read and accept these terms before proceeding:
     This feature leverages a Large Language Model (LLM) to analyse and convert
     your provided content, code and data. You consent to your content being
     transmitted to, processed by, and returned from the foundation models hosted
@@ -987,8 +987,7 @@ def llm_transpile(
     or production use.
 
     By using this feature you accept these terms, re-run with '--accept-terms=true'.
-                """
-        )
+                """)
         raise SystemExit("LLM transpiler terms not accepted, exiting.")
 
     prompts = ctx.prompts
@@ -1018,6 +1017,12 @@ def llm_transpile(
     if foundation_model is None:
         foundation_model = resource_configurator.prompt_for_foundation_model_choice()
 
+    if switch_config_path is not None:
+        if not switch_config_path.startswith("/Workspace/"):
+            raise_validation_exception(
+                f"Invalid value for '--switch-config-path': path must start with /Workspace/. Got: {switch_config_path!r}"
+            )
+
     job_list = ctx.install_state.jobs
     if "Switch" not in job_list:
         logger.debug(f"Missing Switch from installed state jobs: {job_list!r}")
@@ -1045,6 +1050,7 @@ def llm_transpile(
         schema=schema_name,
         foundation_model=foundation_model,
         job_id=job_id,
+        switch_config_path=switch_config_path,
     )
 
 

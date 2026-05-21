@@ -49,7 +49,7 @@ class AzureArtifact(ABC):
     # fetch_from_iter
     def fetch_from_iter(
         self, iterator: Iterable[Any] | None, keep: list[str] | None, remove: list[str] | None
-    ) -> Generator[list[dict[str, Any]], None, None]:
+    ) -> Generator[list[dict[str, Any]]]:
         """
         Creates item groups ( lists of max size fetch_batch_size) from input iterator
         Yields batches (lists) of dictionaries
@@ -78,7 +78,7 @@ class AzureArtifact(ABC):
         run_filter_parameters: ArtifactsModels.RunFilterParameters,
         keep: list[str] | None,
         remove: list[str] | None,
-    ) -> Generator[list[dict[str, Any]], None, None]:
+    ) -> Generator[list[dict[str, Any]]]:
         """
         Creates item groups ( lists of max size fetch_batch_size) from the input query after executing it using run_filter_parameters
         query response here has pagination logic. It should have following fields
@@ -162,7 +162,7 @@ class SynapseWorkspace(AzureArtifact):
         self,
         keep: list[str] | None = None,
         remove: list[str] | None = None,
-    ) -> Generator[list[dict[str, Any]], None, None]:
+    ) -> Generator[list[dict[str, Any]]]:
         """
         Query SQL Pools
         SDK Reference:
@@ -180,7 +180,7 @@ class SynapseWorkspace(AzureArtifact):
     # list_bigdata_pools
     def list_bigdata_pools(
         self, keep: list[str] | None = None, remove: list[str] | None = None
-    ) -> Generator[list[dict[str, Any]], None, None]:
+    ) -> Generator[list[dict[str, Any]]]:
         """
         Query Spark Pools
         SDK Reference:
@@ -198,7 +198,7 @@ class SynapseWorkspace(AzureArtifact):
     # list_linked_services
     def list_linked_services(
         self, keep: list[str] | None = None, remove: list[str] | None = None
-    ) -> Generator[list[dict[str, Any]], None, None]:
+    ) -> Generator[list[dict[str, Any]]]:
         """
         Query Linked Services
         SDK Reference:
@@ -218,7 +218,7 @@ class SynapseWorkspace(AzureArtifact):
     # list_data_flows
     def list_data_flows(
         self, keep: list[str] | None = None, remove: list[str] | None = None
-    ) -> Generator[list[dict[str, Any]], None, None]:
+    ) -> Generator[list[dict[str, Any]]]:
         """
         Query Data Flows
         SDK Reference:
@@ -236,7 +236,7 @@ class SynapseWorkspace(AzureArtifact):
     # list_pipelines
     def list_pipelines(
         self, keep: list[str] | None = None, remove: list[str] | None = None
-    ) -> Generator[list[dict[str, Any]], None, None]:
+    ) -> Generator[list[dict[str, Any]]]:
         """
         Query Pipelines
         SDK Reference:
@@ -254,7 +254,7 @@ class SynapseWorkspace(AzureArtifact):
     # list_notebooks
     def list_notebooks(
         self, keep: list[str] | None = None, remove: list[str] | None = None
-    ) -> Generator[list[dict[str, Any]], None, None]:
+    ) -> Generator[list[dict[str, Any]]]:
         """
         Query Notebooks
         SDK Reference:
@@ -272,7 +272,7 @@ class SynapseWorkspace(AzureArtifact):
     # list_spark_job_definitions
     def list_spark_job_definitions(
         self, keep: list[str] | None = None, remove: list[str] | None = None
-    ) -> Generator[list[dict[str, Any]], None, None]:
+    ) -> Generator[list[dict[str, Any]]]:
         """
         Query Spark Jobs
         SDK Reference:
@@ -292,7 +292,7 @@ class SynapseWorkspace(AzureArtifact):
     # list_sqlscripts
     def list_sqlscripts(
         self, keep: list[str] | None = None, remove: list[str] | None = None
-    ) -> Generator[list[dict[str, Any]], None, None]:
+    ) -> Generator[list[dict[str, Any]]]:
         """
         Query SQL Scripts
         SDK Reference:
@@ -310,7 +310,7 @@ class SynapseWorkspace(AzureArtifact):
     # list_triggers
     def list_triggers(
         self, keep: list[str] | None = None, remove: list[str] | None = None
-    ) -> Generator[list[dict[str, Any]], None, None]:
+    ) -> Generator[list[dict[str, Any]]]:
         """
         Query triggers
         SDK Reference:
@@ -328,7 +328,7 @@ class SynapseWorkspace(AzureArtifact):
     # list_libraries
     def list_libraries(
         self, keep: list[str] | None = None, remove: list[str] | None = None
-    ) -> Generator[list[dict[str, Any]], None, None]:
+    ) -> Generator[list[dict[str, Any]]]:
         """
         Query Libraries
         SDK Reference:
@@ -346,7 +346,7 @@ class SynapseWorkspace(AzureArtifact):
     # list_datasets
     def list_datasets(
         self, keep: list[str] | None = None, remove: list[str] | None = None
-    ) -> Generator[list[dict[str, Any]], None, None]:
+    ) -> Generator[list[dict[str, Any]]]:
         """
         Query Datasets
         SDK Reference:
@@ -367,7 +367,7 @@ class SynapseWorkspace(AzureArtifact):
         run_filter_params: ArtifactsModels.RunFilterParameters,
         keep: list[str] | None = None,
         remove: list[str] | None = None,
-    ) -> Generator[dict[str, Any], None, None]:
+    ) -> Generator[dict[str, Any]]:
         """
         Query Pipeline Runs (deprecated - yields individual dicts, not batches)
         SDK Reference:
@@ -389,7 +389,7 @@ class SynapseWorkspace(AzureArtifact):
     # list_pipeline_runs
     def list_pipeline_runs(
         self, last_updated_date: dt.date, keep: list[str] | None = None, remove: list[str] | None = None
-    ) -> Generator[list[dict[str, Any]], None, None]:
+    ) -> Generator[list[dict[str, Any]]]:
         """
         Query Pipeline runs by last_updated_date (in UTC)
         SDK Reference:
@@ -415,7 +415,7 @@ class SynapseWorkspace(AzureArtifact):
     # list_trigger_runs
     def list_trigger_runs(
         self, last_updated_date: dt.date, keep: list[str] | None = None, remove: list[str] | None = None
-    ) -> Generator[list[dict[str, Any]], None, None]:
+    ) -> Generator[list[dict[str, Any]]]:
         """
         Query Trigger runs by last_updated_date (in UTC)
         SDK Reference:
