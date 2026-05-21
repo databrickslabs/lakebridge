@@ -31,7 +31,7 @@ class Validator:
         - tuple: A tuple containing the result of the validation and the exception message (if any).
         """
         logger.debug(f"Validating query with catalog {config.catalog_name} and schema {config.schema_name}")
-        (is_valid, exception_type, exception_msg) = self._query(
+        is_valid, exception_type, exception_msg = self._query(
             self._sql_backend,
             sql_text,
             config.catalog_name,

@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from pathlib import Path
 import logging
 import shutil
@@ -73,7 +74,12 @@ class AssessmentConfigurator(ABC):
 
 
 class ConfigureSqlServerAssessment(AssessmentConfigurator):
-    """SQL Server specific assessment configuration."""
+    """SQL Server-family assessment configuration.
+
+    Used for both `mssql` (regular SQL Server / Azure SQL Database, default database `master`)
+    and `legacy_synapse` (Azure Synapse dedicated SQL pool, where the database
+    is the pool name and must be supplied explicitly).
+    """
 
     def _configure_credentials(self) -> str:
         cred_file = self._credential_file
@@ -95,6 +101,7 @@ class ConfigureSqlServerAssessment(AssessmentConfigurator):
                 "login_timeout": self.prompts.question("Enter login timeout (seconds)", default="30"),
                 "server": self.prompts.question("Enter the fully-qualified server name"),
                 "port": int(self.prompts.question("Enter the port details", valid_number=True)),
+                "database": self.prompts.question("Enter the database name", default="master"),
                 "user": self.prompts.question("Enter the SQL username"),
                 "password": self.prompts.password("Enter the SQL password"),
                 "tz_info": self.prompts.question("Enter timezone (e.g. America/New_York)", default="UTC"),
@@ -181,13 +188,17 @@ class ConfigureSynapseAssessment(AssessmentConfigurator):
         return source
 
 
+ConfiguratorFactory = Callable[[str, Prompts, str, Path | str | None], AssessmentConfigurator]
+
+
 def create_assessment_configurator(
-    source_system: str, product_name: str, prompts: Prompts, credential_file=None
+    source_system: str, product_name: str, prompts: Prompts, credential_file: Path | str | None = None
 ) -> AssessmentConfigurator:
     """Factory function to create the appropriate assessment configurator."""
-    configurators = {
+    configurators: dict[str, ConfiguratorFactory] = {
         "mssql": ConfigureSqlServerAssessment,
         "synapse": ConfigureSynapseAssessment,
+        "legacy_synapse": ConfigureSqlServerAssessment,
     }
 
     if source_system not in configurators:

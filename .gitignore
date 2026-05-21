@@ -22,4 +22,5 @@ remorph_transpile/
 .databricks-login.json
 .mypy_cache
 .env
+/tests/resources/lsp_transpiler/test-lsp-server.log
 .cursor/rules/profiler-fetchresult-connectors.mdc

@@ -922,8 +922,7 @@ def llm_transpile(
     logger.debug(f"User: {user}")
 
     if not accept_terms:
-        logger.warning(
-            """Please read and accept these terms before proceeding:
+        logger.warning("""Please read and accept these terms before proceeding:
     This feature leverages a Large Language Model (LLM) to analyse and convert
     your provided content, code and data. You consent to your content being
     transmitted to, processed by, and returned from the foundation models hosted
@@ -934,8 +933,7 @@ def llm_transpile(
     or production use.
 
     By using this feature you accept these terms, re-run with '--accept-terms=true'.
-                """
-        )
+                """)
         raise SystemExit("LLM transpiler terms not accepted, exiting.")
 
     prompts = ctx.prompts

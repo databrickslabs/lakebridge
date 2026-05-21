@@ -105,7 +105,7 @@ def test_transpiles_informatica_to_sparksql(
             ctx=application_ctx,
             transpiler_repository=repository_with_bladebridge,
         )
-    (out, _) = capsys.readouterr()
+    out, _ = capsys.readouterr()
 
     # Check the conversion summary.
     summary = json.loads(out)
@@ -168,7 +168,7 @@ def test_transpiles_informatica_to_sparksql_non_interactive(
             transpiler_repository=repository_with_bladebridge,
             **kwargs,
         )
-    (out, _) = capsys.readouterr()
+    out, _ = capsys.readouterr()
 
     _check_transpile_informatica_to_sparksql(out, output_folder, errors_path)
 
@@ -226,7 +226,7 @@ def test_transpile_teradata_sql(
     # Run the conversion.
     with capture_bladebridge_logs(repository_with_bladebridge):
         cli.transpile(w=application_ctx.workspace_client, ctx=application_ctx)
-    (out, _) = capsys.readouterr()
+    out, _ = capsys.readouterr()
 
     _check_transpile_teradata_sql(out, output_folder, errors_path)
 
@@ -272,7 +272,7 @@ def test_transpile_teradata_sql_non_interactive(
             transpiler_repository=repository_with_bladebridge,
             **kwargs,
         )
-    (out, _) = capsys.readouterr()
+    out, _ = capsys.readouterr()
 
     _check_transpile_teradata_sql(out, output_folder, errors_path)
 

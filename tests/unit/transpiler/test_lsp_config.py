@@ -16,8 +16,7 @@ def test_valid_config(test_resources: Path) -> None:
     assert engine.supported_dialects == ["snowflake"]
 
 
-VALID_CONFIG: dict[str, Any] = yaml.safe_load(
-    """remorph:
+VALID_CONFIG: dict[str, Any] = yaml.safe_load("""remorph:
   version: 1
   name: test-transpiler
   dialects:
@@ -30,8 +29,7 @@ VALID_CONFIG: dict[str, Any] = yaml.safe_load(
     - lsp_server.py
 custom:
   whatever: xyz
-"""
-)
+""")
 
 
 @pytest.mark.parametrize(

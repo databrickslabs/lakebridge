@@ -43,14 +43,12 @@ def execute():
         with duckdb.connect(args.db_path) as conn:
 
             # Create table with appropriate schema
-            conn.execute(
-                """
+            conn.execute("""
                 CREATE OR REPLACE TABLE package_status (
                     package STRING,
                     status STRING,
                 )
-            """
-            )
+            """)
 
             conn.execute("INSERT INTO package_status SELECT package, status FROM df")
             conn.close()
