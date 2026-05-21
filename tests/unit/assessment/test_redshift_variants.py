@@ -13,7 +13,6 @@ from databricks.labs.lakebridge.assessments import (
 )
 from databricks.labs.lakebridge.assessments.profiler import Profiler
 
-
 _REDSHIFT_PLATFORMS = [f"redshift_{variant}" for variant in REDSHIFT_VARIANTS]
 
 
