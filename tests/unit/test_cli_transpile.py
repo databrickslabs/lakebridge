@@ -513,7 +513,7 @@ def test_describe_transpile(mock_cli_transpile_no_config, transpiler_repository:
     ws, _, _ = mock_cli_transpile_no_config
     cli.describe_transpile(w=ws, transpiler_repository=transpiler_repository)
 
-    (out, _) = capsys.readouterr()
+    out, _ = capsys.readouterr()
     json_description = json.loads(out)
 
     overrides_file_option = {
