@@ -30,9 +30,9 @@ jobs:
             docs
           sparse-checkout-cone-mode: 'true'
 
-      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f  # v6.3.0
         with:
-          node-version: 25.9.0
+          node-version: 26.1.0
           cache: yarn
           cache-dependency-path: docs/lakebridge/yarn.lock
 

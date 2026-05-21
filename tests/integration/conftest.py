@@ -167,5 +167,25 @@ def sandbox_synapse(sandbox_synapse_config: JsonObject) -> DatabaseManager:
 
 
 @pytest.fixture()
+def sandbox_redshift_config() -> JsonObject:
+    env = TestEnvGetter(True)
+    config: JsonObject = {
+        "host": env.get("REDSHIFT_HOST"),
+        "user": env.get("REDSHIFT_USER"),
+        "password": env.get("REDSHIFT_PASS"),
+        "database": "labs",
+        "port": int(env.get("REDSHIFT_PORT")),
+        "auth_type": "sql_authentication",
+        "ssl": "true",
+    }
+    return config
+
+
+@pytest.fixture()
+def sandbox_redshift(sandbox_redshift_config: JsonObject) -> DatabaseManager:
+    return DatabaseManager("redshift", sandbox_redshift_config)
+
+
+@pytest.fixture()
 def recon_id() -> UUID:
     return UUID("00112233-4455-6677-8899-aabbccddeeff")
