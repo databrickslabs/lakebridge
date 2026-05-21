@@ -8,7 +8,7 @@ import Admonition from '@theme/Admonition';
 
 - [Prerequisites](#prerequisites)
 - [Profiled Tables and Views](#profiled-tables-and-views)
-- [Configure Connection to Legacy Synapse](#configure-connection-to-synapse-dedicated-sql-pool)
+- [Configure Connection to Legacy Synapse](#configure-connection-to-legacy-synapse)
 - [Execute the Profiler](#execute-the-profiler)
 
 :::info
@@ -33,11 +33,6 @@ The profiler currently authenticates via **SQL Authentication** only. Please use
 
 The SQL user configured for the profiler must have read access to the system catalog views and PDW Dynamic Management Views
 listed in [Profiled Tables and Views](#profiled-tables-and-views).
-
-:::warning Attention:
-`VIEW SERVER STATE` is **not supported** on a dedicated SQL pool. You must use `VIEW DATABASE STATE` instead,
-which is granted **per database**.
-:::
 
 Connect to the target dedicated SQL pool as an admin and run:
 
