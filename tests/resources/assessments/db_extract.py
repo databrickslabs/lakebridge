@@ -52,8 +52,7 @@ def execute():
         conn = duckdb.connect(args.db_path)
 
         # Create table with appropriate schema
-        conn.execute(
-            """
+        conn.execute("""
             CREATE OR REPLACE TABLE random_data (
                 id INTEGER,
                 date TIMESTAMP,
@@ -62,8 +61,7 @@ def execute():
                 is_active BOOLEAN,
                 score DOUBLE
             )
-        """
-        )
+        """)
 
         conn.execute("INSERT INTO random_data SELECT * FROM df")
         conn.close()

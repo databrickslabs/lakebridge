@@ -9,6 +9,7 @@ REDSHIFT_VARIANTS = ("serverless", "provisioned", "provisioned_multi_az")
 PLATFORM_TO_SOURCE_TECHNOLOGY_CFG = {
     "synapse": "src/databricks/labs/lakebridge/resources/assessments/synapse/pipeline_config.yml",
     "mssql": "src/databricks/labs/lakebridge/resources/assessments/mssql/pipeline_config.yml",
+    "legacy_synapse": "src/databricks/labs/lakebridge/resources/assessments/legacy_synapse/pipeline_config.yml",
     **{
         f"redshift_{variant}": (
             f"src/databricks/labs/lakebridge/resources/assessments/redshift/{variant}/pipeline_config.yml"
@@ -21,6 +22,7 @@ PLATFORM_TO_SOURCE_TECHNOLOGY_CFG = {
 PROFILER_SOURCE_SYSTEM = [
     "synapse",
     "mssql",
+    "legacy_synapse",
     *(f"redshift_{variant}" for variant in REDSHIFT_VARIANTS),
 ]
 
@@ -32,6 +34,7 @@ PROFILER_SOURCE_SYSTEM = [
 CONNECTOR_REQUIRED = {
     "synapse": False,
     "mssql": True,
+    "legacy_synapse": True,
     **{f"redshift_{variant}": True for variant in REDSHIFT_VARIANTS},
 }
 

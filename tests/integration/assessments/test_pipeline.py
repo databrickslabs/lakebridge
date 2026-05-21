@@ -16,7 +16,6 @@ from databricks.labs.lakebridge.assessments.profiler import Profiler
 from databricks.labs.lakebridge.assessments.profiler_config import Step, PipelineConfig
 from databricks.labs.lakebridge.connections.database_manager import DatabaseManager
 
-
 _Loader: TypeAlias = Callable[[Path], PipelineConfig]
 
 

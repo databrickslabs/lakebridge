@@ -59,7 +59,7 @@
     ]
   },
   "engines": {
-    "node": ">=25.0 <26"
+    "node": ">=26.0 <27"
   },
   "engineStrict": true,
   "resolutions": {
