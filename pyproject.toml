@@ -30,7 +30,7 @@ classifiers = [
 ]
 
 dependencies = [
-  "databricks-sdk~=0.85.0",
+  "databricks-sdk>=0.85,<0.111",
   "standard-distutils~=3.11.9; python_version>='3.11'",
   "databricks-bb-analyzer~=0.3.0,!=0.3.1",  # 0.3.1 is a broken release.
   "sqlglot==28.5.0",
