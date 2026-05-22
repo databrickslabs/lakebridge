@@ -73,6 +73,35 @@ class AssessmentConfigurator(ABC):
         logger.info(f"{source.capitalize()} Assessment Configuration Completed")
 
 
+class ConfigureOracleAssessment(AssessmentConfigurator):
+    """Oracle specific assessment configuration."""
+
+    def _configure_credentials(self) -> str:
+        cred_file = self._credential_file
+        source = self._source_name
+
+        logger.info(
+            "\n(local | env) \nlocal means values are read as plain text \nenv means values are read "
+            "from environment variables fall back to plain text if not variable is not found\n",
+        )
+        secret_vault_type = str(self.prompts.choice("Enter secret vault type (local | env)", ["local", "env"])).lower()
+
+        credential = {
+            "secret_vault_type": secret_vault_type,
+            source: {
+                "host": self.prompts.question("Enter the host details (Server name, IP address, SCAN Name)"),
+                "port": int(self.prompts.question("Enter the host port number", default=str(1521), valid_number=True)),
+                "service_name": self.prompts.question("Enter the service name", default="orcl"),
+                "user": self.prompts.question("Enter user with privileges"),
+                "password": self.prompts.password("Enter user password"),
+            },
+        }
+
+        _save_to_disk(credential, cred_file)
+        logger.info(f"Credential template created for {source}.")
+        return source
+
+
 class ConfigureSqlServerAssessment(AssessmentConfigurator):
     """SQL Server-family assessment configuration.
 
@@ -199,6 +228,7 @@ def create_assessment_configurator(
         "mssql": ConfigureSqlServerAssessment,
         "synapse": ConfigureSynapseAssessment,
         "legacy_synapse": ConfigureSqlServerAssessment,
+        "oracle": ConfigureOracleAssessment,
     }
 
     if source_system not in configurators:

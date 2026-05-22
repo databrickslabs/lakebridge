@@ -119,6 +119,25 @@ class MSSQLConnector(_BaseConnector):
         return create_engine(connection_string)
 
 
+class OracleConnector(_BaseConnector):
+    def _connect(self) -> Engine:
+        connection_string = URL.create(
+            drivername="oracle+oracledb",
+            username=str(self.config['user']),
+            password=str(self.config['password']),
+            host=str(self.config['host']),
+            port=int(str(self.config.get('port', 1521))),
+            database=str(self.config.get('service_name')),
+        )
+
+        return create_engine(connection_string)
+
+    def health_check(self) -> bool:
+        query = "SELECT 101 AS test_column FROM dual"
+        result = self.fetch(query)
+        return result.rows[0][0] == 101
+
+
 class RedshiftConnector(DatabaseConnector):
     def __init__(self, config: JsonObject):
         self.config = config
@@ -187,6 +206,7 @@ def _create_connector(db_type: str, config: JsonObject) -> DatabaseConnector:
         "synapse": MSSQLConnector,  # Synapse uses MSSQL protocol
         "legacy_synapse": MSSQLConnector,
         "redshift": RedshiftConnector,
+        "oracle": OracleConnector,
     }
 
     connector_class = connectors.get(db_type.lower())
