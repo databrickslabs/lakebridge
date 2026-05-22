@@ -9,26 +9,124 @@ import TabItem from '@theme/TabItem';
 
 ## Prerequisites
 
-| Requirement | Details |
-|---|---|
-| **Databricks workspace** | Any workspace (production, development, or [free trial](https://www.databricks.com/try-databricks)) |
-| **Databricks CLI** | [Install here](https://docs.databricks.com/en/dev-tools/cli/install.html) and configure with PAT or Service Principal |
-| **Python** | 3.10.1 – 3.14.x |
-| **Java** | Java 11 or above (required for the Morpheus transpiler) |
-| **Network access** | GitHub, Maven Central (`repo1.maven.org`), PyPI |
+| Requirement              | Details                                                                                                               |
+|--------------------------|-----------------------------------------------------------------------------------------------------------------------|
+| **Databricks workspace** | Any workspace (production, development, or [free trial](https://www.databricks.com/try-databricks))                   |
+| **Databricks CLI**       | [Install here](https://docs.databricks.com/en/dev-tools/cli/install.html) and configure with PAT or Service Principal |
+| **Python**               | 3.10.1–3.14.x                                                                                                         |
+| **Java**                 | Java 11 or above (required for the Morpheus transpiler)                                                               |
+| **Network access**       | GitHub, Maven Central, PyPI                                                                                           |
 
-:::warning Restricted environments
-Hardened & Security-Restricted Environments
-If you are operating in a hardened environment with internet restrictions, firewall rules, or security policies, you must whitelist the following resources before installation:
+### Python and Java
 
-- **GitHub:** `github.com`, `raw.githubusercontent.com` - For Lakebridge source code
-- **Maven Central:** `repo1.maven.org`, `central.sonatype.com` - For transpiler plugins
-- **PyPI:** `pypi.org`, `files.pythonhosted.org` - For Python packages
-- **Python Downloads:** `python.org` - If installing Python
-- **Java Downloads:** `oracle.com` or OpenJDK mirrors - If installing Java
+If necessary:
+ - Python can be obtained [here](https://python.org/); if installing on Windows, please ensure you install the 64-bit version.
+ - Java can be obtained [here](https://adoptium.net/temurin/releases); the current LTS release is recommended.
 
-Action Required: Contact your IT Security, CyberSecOps, or Infrastructure team to request whitelisting. Consider setting up a private repository/artifact mirror for organizations with strict internet access policies.
-:::
+To verify these are installed and available, from the terminal the following should work and display the installed versions:
+
+```console
+python -V
+java -version
+```
+
+### Internet resources
+
+The installation below requires access to the following network resources:
+
+<table>
+    <thead>
+        <tr><th>Site</th><th>Hosts</th><th>Purpose</th></tr>
+    </thead>
+    <tbody style={{verticalAlign: 'top'}}>
+        <tr>
+            <td>GitHub</td>
+            <td><code>github.com</code><br />
+                <code>raw.githubusercontent.com</code></td>
+            <td>Packages and metadata used for general installation and upgrades of Lakebridge.</td>
+        </tr>
+        <tr>
+            <td>Maven Central</td>
+            <td><code>repo1.maven.org</code></td>
+            <td rowSpan={2}>Installing and upgrading transpiler plugins.</td>
+        </tr>
+        <tr>
+            <td>PyPI</td>
+            <td><code>pypi.org</code><br />
+                <code>files.pythonhosted.org</code></td>
+        </tr>
+    </tbody>
+</table>
+
+Support for proxies or mirrors to access these Internet resources can be configured.
+
+#### General HTTP proxy configuration
+
+To configure general HTTP proxy for network access, set an environment variable named `https_proxy` to the URL of the HTTPS proxy.
+
+<Tabs>
+    <TabItem value="macos" label="MacOS" default>
+        ```bash
+        export https_proxy=http://my-proxy.example.com:3128/
+        ```
+    </TabItem>
+    <TabItem value="windows" label="Windows">
+        ```command
+        set https_proxy=http://my-proxy.example.com:3128/
+        ```
+    </TabItem>
+    <TabItem value="shell" label="Linux">
+        ```bash
+        export https_proxy=http://my-proxy.example.com:3128/
+        ```
+    </TabItem>
+</Tabs>
+
+Contact your IT team if necessary for information on the URL to use. If authentication is needed, refer to the [section below](#proxy-or-mirror-authentication).
+
+#### Maven Central
+
+If a local mirror should be used for downloading resources from Maven Central, set the `LAKEBRIDGE_MAVEN_URL` environment to the URL of the mirror.
+
+<Tabs>
+    <TabItem value="macos" label="MacOS" default>
+        ```bash
+        export LAKEBRIDGE_MAVEN_URL=https://mirror.example.com/maven/releases/
+        ```
+    </TabItem>
+    <TabItem value="windows" label="Windows">
+        ```command
+        set LAKEBRIDGE_MAVEN_URL=https://mirror.example.com/maven/releases/
+        ```
+    </TabItem>
+    <TabItem value="shell" label="Linux">
+        ```bash
+        export LAKEBRIDGE_MAVEN_URL=https://mirror.example.com/maven/releases/
+        ```
+    </TabItem>
+</Tabs>
+
+Contact your IT team if necessary for information on the URL to use. If authentication is needed, refer to the [section below](#proxy-or-mirror-authentication).
+
+#### PyPI
+
+If a local mirror should be used for downloaded resources from PyPI, this needs to be configured with pip:
+```shell
+pip3 config --user set global.index-url https://mirror.example.com/pypi
+```
+
+Contact your IT team if necessary for information on the URL to use. If authentication is needed, refer to the [section below](#proxy-or-mirror-authentication).
+
+#### Proxy or Mirror Authentication
+
+If authentication is needed to access a mirror or proxy, a `~/.netrc` file can be used to specify the credentials to use. The format is of the form:
+```netrc
+machine my-proxy.example.com
+login bobby
+password tAble5
+```
+
+Note that `my-proxy.example.com` should be the host from the URL (and not the entire URL).
 
 ### Configure the Databricks CLI
 
