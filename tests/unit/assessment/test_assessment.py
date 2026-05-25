@@ -7,7 +7,6 @@ from databricks.labs.lakebridge.assessments.configure_assessment import (
 )
 from databricks.labs.lakebridge.connections.mssql_auth import AUTH_CHOICES
 
-
 _AUTH_CHOICE_NAMES = sorted(cls.__name__ for cls in AUTH_CHOICES)
 
 
@@ -84,8 +83,8 @@ def test_configure_sqlserver_credentials_spn(tmp_path):
     )
     assessment.run()
 
-    with open(file, 'r', encoding='utf-8') as fh:
-        credentials = yaml.safe_load(fh)
+    with open(file, 'r', encoding='utf-8') as fstream:
+        credentials = yaml.safe_load(fstream)
 
     assert credentials["mssql"]["auth_type"] == "ActiveDirectoryServicePrincipal"
     assert "user" not in credentials["mssql"]
@@ -116,8 +115,8 @@ def test_configure_sqlserver_credentials_ad_password(tmp_path):
     )
     assessment.run()
 
-    with open(file, 'r', encoding='utf-8') as fh:
-        credentials = yaml.safe_load(fh)
+    with open(file, 'r', encoding='utf-8') as fstream:
+        credentials = yaml.safe_load(fstream)
 
     assert credentials["mssql"]["auth_type"] == "ActiveDirectoryPassword"
     assert credentials["mssql"]["user"] == "aad-user@example.com"
@@ -147,8 +146,8 @@ def test_configure_sqlserver_credentials_interactive_skips_password(tmp_path):
     )
     assessment.run()
 
-    with open(file, 'r', encoding='utf-8') as fh:
-        credentials = yaml.safe_load(fh)
+    with open(file, 'r', encoding='utf-8') as fstream:
+        credentials = yaml.safe_load(fstream)
 
     assert credentials["mssql"]["auth_type"] == "ActiveDirectoryInteractive"
     assert credentials["mssql"]["user"] == "interactive-user@example.com"
@@ -241,8 +240,8 @@ def test_configure_synapse_credentials_spn(tmp_path):
     )
     assessment.run()
 
-    with open(file, 'r', encoding='utf-8') as fh:
-        credentials = yaml.safe_load(fh)
+    with open(file, 'r', encoding='utf-8') as fstream:
+        credentials = yaml.safe_load(fstream)
 
     workspace = credentials["synapse"]["workspace"]
     assert workspace["auth_type"] == "ActiveDirectoryServicePrincipal"

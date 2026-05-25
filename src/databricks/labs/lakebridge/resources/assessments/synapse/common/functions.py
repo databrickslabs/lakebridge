@@ -11,9 +11,7 @@ def create_synapse_artifacts_client(config: dict) -> ArtifactsClient:
     """
     :return:  an Azure SDK client handle for Synapse Artifacts
     """
-    return ArtifactsClient(
-        endpoint=config["workspace"]["development_endpoint"], credential=DefaultAzureCredential()
-    )
+    return ArtifactsClient(endpoint=config["workspace"]["development_endpoint"], credential=DefaultAzureCredential())
 
 
 def create_azure_metrics_query_client():

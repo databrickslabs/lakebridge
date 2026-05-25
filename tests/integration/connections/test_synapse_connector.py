@@ -79,7 +79,9 @@ def test_create_synapse_connection_spn(
     monkeypatch.setenv("AZURE_CLIENT_SECRET", env.get("TOOLS_CLIENT_SECRET"))
     workspace_config = _get_synapse_workspace(sandbox_synapse_cred_config)
 
-    database_manager = create_synapse_connection(workspace_config, "master", auth_type="ActiveDirectoryServicePrincipal")
+    database_manager = create_synapse_connection(
+        workspace_config, "master", auth_type="ActiveDirectoryServicePrincipal"
+    )
 
     assert isinstance(database_manager.connector, MSSQLConnector)
     assert "user" not in database_manager.connector.config

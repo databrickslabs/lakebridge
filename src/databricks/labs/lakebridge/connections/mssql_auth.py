@@ -124,9 +124,7 @@ AUTH_CHOICES: list[type[MSSQLAuth]] = [
 ]
 
 # All known auth classes — used for runtime dispatch only (includes wired-but-unimplemented).
-_AUTH_REGISTRY: dict[str, type[MSSQLAuth]] = {
-    cls.__name__: cls for cls in (*AUTH_CHOICES, DefaultAzureCredential)
-}
+_AUTH_REGISTRY: dict[str, type[MSSQLAuth]] = {cls.__name__: cls for cls in (*AUTH_CHOICES, DefaultAzureCredential)}
 
 
 def resolve_mssql_credentials(config: JsonObject) -> ResolvedCredentials:

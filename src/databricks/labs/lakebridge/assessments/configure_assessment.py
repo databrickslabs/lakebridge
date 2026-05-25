@@ -26,7 +26,7 @@ def _prompt_mssql_auth_credentials(prompts: Prompts, auth_type: str) -> dict[str
     Returns a partial config dict to merge into the source's credential section.
     Field names match what `MSSQLConnector` / `synapse_connection_helpers` consume.
     """
-    if auth_type in ("SqlPassword", "ActiveDirectoryPassword"):
+    if auth_type in {"SqlPassword", "ActiveDirectoryPassword"}:
         return {
             "user": prompts.question("Enter the username"),
             "password": prompts.password("Enter the password"),
