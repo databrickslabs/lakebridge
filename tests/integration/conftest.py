@@ -110,7 +110,7 @@ def sandbox_synapse_config(sandbox_sqlserver_config: JsonObject) -> JsonObject:
         "password": sandbox_sqlserver_config["password"],
         "driver": sandbox_sqlserver_config["driver"],
         "database": sandbox_sqlserver_config["database"],
-        "auth_type": "sql_authentication",
+        "auth_type": "SqlPassword",
         "port": 1433,
     }
 
@@ -135,8 +135,8 @@ def sandbox_synapse_cred_config(sandbox_sqlserver_config: JsonObject) -> JsonObj
                 "name": workspace_name,
                 "dedicated_sql_endpoint": server,
                 "serverless_sql_endpoint": f"{workspace_name}-ondemand.sql.azuresynapse.net",
-                "sql_user": sandbox_sqlserver_config["user"],
-                "sql_password": sandbox_sqlserver_config["password"],
+                "user": sandbox_sqlserver_config["user"],
+                "password": sandbox_sqlserver_config["password"],
                 "driver": sandbox_sqlserver_config["driver"],
                 "tz_info": "UTC",
             },
@@ -144,7 +144,7 @@ def sandbox_synapse_cred_config(sandbox_sqlserver_config: JsonObject) -> JsonObj
                 "development_endpoint": f"https://{workspace_name}.dev.azuresynapse.net",
             },
             "jdbc": {
-                "auth_type": "sql_authentication",
+                "auth_type": "SqlPassword",
                 "fetch_size": "1000",
                 "login_timeout": "30",
             },
@@ -166,7 +166,7 @@ def sandbox_spn_sqlserver_config(sandbox_sqlserver_config: JsonObject, monkeypat
     monkeypatch.setenv("AZURE_CLIENT_ID", env.get("TOOLS_CLIENT_ID"))
     monkeypatch.setenv("AZURE_CLIENT_SECRET", env.get("TOOLS_CLIENT_SECRET"))
     config = {k: v for k, v in sandbox_sqlserver_config.items() if k not in ("user", "password")}
-    return {**config, "auth_type": "spn_authentication"}
+    return {**config, "auth_type": "ActiveDirectoryServicePrincipal"}
 
 
 @pytest.fixture()
@@ -184,7 +184,7 @@ def sandbox_redshift_config() -> JsonObject:
         "password": env.get("REDSHIFT_PASS"),
         "database": "labs",
         "port": int(env.get("REDSHIFT_PORT")),
-        "auth_type": "sql_authentication",
+        "auth_type": "SqlPassword",
         "ssl": "true",
     }
     return config

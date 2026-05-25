@@ -17,12 +17,19 @@ import Admonition from '@theme/Admonition';
 - ODBC driver for SQL Server (https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server?view=sql-server-ver18)
 - (Windows only) Visual C++ (https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170)
 
-### 2. SQL Server Authentication
+### 2. Authentication
 
-:::warning Attention:
-Multi-factor Authentication (MFA) is **not** supported. The MSSQL profiler connects via ODBC, which does not support MFA.
-You must use **SQL Authentication** (username and password) to connect to the SQL Server instance.
-:::
+The profiler supports the following ODBC `Authentication=` modes (`configure-database-profiler` prompts for one):
+
+| Auth method | Description | MFA-capable |
+|---|---|---|
+| `SqlPassword` | SQL Authentication — username + password from credentials file | No |
+| `ActiveDirectoryPassword` | Entra ID (Azure AD) username + password | No |
+| `ActiveDirectoryServicePrincipal` | Service Principal — `AZURE_CLIENT_ID` / `AZURE_CLIENT_SECRET` env vars | N/A (non-interactive) |
+| `ActiveDirectoryInteractive` | Browser-based interactive login | Yes |
+
+`ActiveDirectoryInteractive` is the right choice when Conditional Access requires MFA. Service Principal is the right
+choice for headless / CI runs. On-premises SQL Server (without Entra ID) must use `SqlPassword`.
 
 ### 3. Required Database Permissions
 

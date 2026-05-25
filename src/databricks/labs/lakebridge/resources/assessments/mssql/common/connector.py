@@ -6,7 +6,7 @@ def get_sqlserver_reader(
     db_name: str,
     *,
     server_name: str,
-    auth_type: str = 'sql_authentication',
+    auth_type: str = 'SqlPassword',
 ) -> DatabaseManager:
     config = {
         "driver": input_cred['driver'],

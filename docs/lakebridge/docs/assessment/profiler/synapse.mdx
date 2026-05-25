@@ -153,10 +153,11 @@ Please provide Azure access settings:
 Enter development endpoint: synapse.endpoint
 Please select JDBC authentication type:
 Select authentication type
-[0] ad_passwd_authentication
-[1] spn_authentication
-[2] sql_authentication
-Enter a number between 0 and 2: 2
+[0] ActiveDirectoryInteractive
+[1] ActiveDirectoryPassword
+[2] ActiveDirectoryServicePrincipal
+[3] SqlPassword
+Enter a number between 0 and 3: 3
 Enter fetch size (default: 1000):
 Enter login timeout (seconds) (default: 30):
 Exclude serverless SQL pool from profiling? (default: no):

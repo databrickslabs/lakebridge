@@ -1,7 +1,6 @@
 import contextlib
 import dataclasses
 import logging
-import os
 from abc import abstractmethod
 from types import TracebackType
 from collections.abc import Callable, Sequence, Set
@@ -17,6 +16,7 @@ from sqlalchemy.orm.session import Session
 import redshift_connector  # type: ignore[import-untyped]
 
 from databricks.labs.blueprint.installation import JsonObject
+from databricks.labs.lakebridge.connections.mssql_auth import resolve_mssql_credentials
 
 logger = logging.getLogger(__name__)
 
@@ -87,44 +87,32 @@ class SnowflakeConnector(_BaseConnector):
 
 class MSSQLConnector(_BaseConnector):
     def _connect(self) -> Engine:
-        auth_type = self.config.get('auth_type', 'sql_authentication')
         db_value = self.config.get('database')
         db_name = str(db_value) if db_value else None
+
+        resolved = resolve_mssql_credentials(self.config)
 
         query_params: dict[str, str] = {
             "driver": str(self.config['driver']),
             "loginTimeout": "30",
         }
+        if resolved.authentication_param:
+            query_params["authentication"] = resolved.authentication_param
 
-        username: str | None = None
-        password: str | None = None
+        url_kwargs: dict[str, Any] = {
+            "drivername": "mssql+pyodbc",
+            "host": str(self.config['server']),
+            "port": int(str(self.config.get('port', '1433'))),
+            "database": db_name,
+            "query": query_params,
+        }
+        if resolved.username is not None:
+            url_kwargs["username"] = resolved.username
+        if resolved.password is not None:
+            url_kwargs["password"] = resolved.password
 
-        if auth_type == "ad_passwd_authentication":
-            query_params = {
-                **query_params,
-                "authentication": "ActiveDirectoryPassword",
-            }
-        elif auth_type == "spn_authentication":
-            missing = [v for v in ("AZURE_CLIENT_ID", "AZURE_CLIENT_SECRET") if not os.environ.get(v)]
-            if missing:
-                raise EnvironmentError(f"SPN authentication requires env vars: {', '.join(missing)}")
-            query_params = {
-                **query_params,
-                "authentication": "ActiveDirectoryServicePrincipal",
-            }
-            username = os.environ["AZURE_CLIENT_ID"]
-            password = os.environ["AZURE_CLIENT_SECRET"]
-
-        connection_string = URL.create(
-            drivername="mssql+pyodbc",
-            username=username if username is not None else str(self.config['user']),
-            password=password if password is not None else str(self.config['password']),
-            host=str(self.config['server']),
-            port=int(str(self.config.get('port', '1433'))),
-            database=db_name,
-            query=query_params,
-        )
-        return create_engine(connection_string)
+        connection_string = URL.create(**url_kwargs)
+        return create_engine(connection_string, **resolved.engine_kwargs)
 
 
 class OracleConnector(_BaseConnector):

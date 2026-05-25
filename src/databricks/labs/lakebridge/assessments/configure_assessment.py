@@ -13,10 +13,38 @@ from databricks.labs.lakebridge.connections.credential_manager import (
     create_credential_manager,
 )
 from databricks.labs.lakebridge.connections.database_manager import DatabaseManager
+from databricks.labs.lakebridge.connections.mssql_auth import AUTH_CHOICES
 from databricks.labs.lakebridge.connections.env_getter import EnvGetter
 from databricks.labs.lakebridge.assessments import CONNECTOR_REQUIRED
 
 logger = logging.getLogger(__name__)
+
+
+def _prompt_mssql_auth_credentials(prompts: Prompts, auth_type: str) -> dict[str, str]:
+    """Prompt for the credential fields required by the chosen MSSQL auth strategy.
+
+    Returns a partial config dict to merge into the source's credential section.
+    Field names match what `MSSQLConnector` / `synapse_connection_helpers` consume.
+    """
+    if auth_type in ("SqlPassword", "ActiveDirectoryPassword"):
+        return {
+            "user": prompts.question("Enter the username"),
+            "password": prompts.password("Enter the password"),
+        }
+    if auth_type == "ActiveDirectoryInteractive":
+        user = prompts.question(
+            "Enter the AAD username (optional, leave blank to be prompted by the browser)",
+            default="",
+        )
+        return {"user": user} if user else {}
+    if auth_type == "ActiveDirectoryServicePrincipal":
+        logger.info(
+            "ActiveDirectoryServicePrincipal selected. "
+            "Ensure AZURE_CLIENT_ID and AZURE_CLIENT_SECRET are set as environment variables "
+            "before running the profiler."
+        )
+        return {}
+    return {}
 
 
 def _save_to_disk(credential: dict, cred_file: Path) -> None:
@@ -121,23 +149,27 @@ class ConfigureSqlServerAssessment(AssessmentConfigurator):
         secret_vault_type = str(self.prompts.choice("Enter secret vault type (local | env)", ["local", "env"])).lower()
         secret_vault_name = None
 
+        auth_choices = [cls.__name__ for cls in AUTH_CHOICES]
+        auth_type = self.prompts.choice("Select authentication type", auth_choices)
+
+        credential_section: dict = {
+            "auth_type": auth_type,
+            "fetch_size": self.prompts.question("Enter fetch size", default="1000"),
+            "login_timeout": self.prompts.question("Enter login timeout (seconds)", default="30"),
+            "server": self.prompts.question("Enter the fully-qualified server name"),
+            "port": int(self.prompts.question("Enter the port details", valid_number=True)),
+            "database": self.prompts.question("Enter the database name", default="master"),
+            "tz_info": self.prompts.question("Enter timezone (e.g. America/New_York)", default="UTC"),
+            "driver": self.prompts.question(
+                "Enter the ODBC driver installed locally", default="ODBC Driver 18 for SQL Server"
+            ),
+            **_prompt_mssql_auth_credentials(self.prompts, auth_type),
+        }
+
         credential = {
             "secret_vault_type": secret_vault_type,
             "secret_vault_name": secret_vault_name,
-            source: {
-                "auth_type": "sql_authentication",
-                "fetch_size": self.prompts.question("Enter fetch size", default="1000"),
-                "login_timeout": self.prompts.question("Enter login timeout (seconds)", default="30"),
-                "server": self.prompts.question("Enter the fully-qualified server name"),
-                "port": int(self.prompts.question("Enter the port details", valid_number=True)),
-                "database": self.prompts.question("Enter the database name", default="master"),
-                "user": self.prompts.question("Enter the SQL username"),
-                "password": self.prompts.password("Enter the SQL password"),
-                "tz_info": self.prompts.question("Enter timezone (e.g. America/New_York)", default="UTC"),
-                "driver": self.prompts.question(
-                    "Enter the ODBC driver installed locally", default="ODBC Driver 18 for SQL Server"
-                ),
-            },
+            source: credential_section,
         }
 
         _save_to_disk(credential, cred_file)
@@ -161,9 +193,8 @@ class ConfigureSynapseAssessment(AssessmentConfigurator):
 
         # JDBC Settings
         logger.info("Please select JDBC authentication type:")
-        auth_type = self.prompts.choice(
-            "Select authentication type", ["sql_authentication", "ad_passwd_authentication", "spn_authentication"]
-        )
+        auth_choices = [cls.__name__ for cls in AUTH_CHOICES]
+        auth_type = self.prompts.choice("Select authentication type", auth_choices)
 
         # Synapse Workspace Settings
         logger.info("Please provide Synapse Workspace settings:")
@@ -178,15 +209,7 @@ class ConfigureSynapseAssessment(AssessmentConfigurator):
             ),
         }
 
-        if auth_type == "spn_authentication":
-            logger.info(
-                "SPN authentication selected. "
-                "Ensure AZURE_CLIENT_ID and AZURE_CLIENT_SECRET "
-                "are set as environment variables before running the profiler."
-            )
-        else:
-            synapse_workspace["sql_user"] = self.prompts.question("Enter SQL user")
-            synapse_workspace["sql_password"] = self.prompts.password("Enter SQL password")
+        synapse_workspace.update(_prompt_mssql_auth_credentials(self.prompts, auth_type))
 
         # Azure API Access Settings
         logger.info("Please provide Azure access settings:")

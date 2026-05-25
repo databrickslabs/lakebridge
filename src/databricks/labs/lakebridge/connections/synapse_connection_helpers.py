@@ -8,16 +8,16 @@ def create_synapse_connection(
     workspace_config: dict,
     database: str,
     endpoint_key: str = 'dedicated_sql_endpoint',
-    auth_type: str = 'sql_authentication',
+    auth_type: str = 'SqlPassword',
 ) -> DatabaseManager:
     """Create a DatabaseManager connection to a Synapse SQL pool.
 
-    Transforms Synapse workspace configuration (with sql_user/sql_password) into
-    the standard DatabaseManager format (with user/password).
+    Selects the requested endpoint and forwards the workspace's credential fields to
+    `MSSQLConnector` unchanged; the configured `MSSQLAuth` strategy decides whether
+    to use them at connect time.
 
     Returns:
         DatabaseManager configured for the specified Synapse SQL pool
-
     """
     server = workspace_config.get(endpoint_key)
     if not server:
@@ -28,13 +28,10 @@ def create_synapse_connection(
         "server": server,
         "database": database,
         "port": workspace_config.get('port', 1433),
+        "user": workspace_config.get('user'),
+        "password": workspace_config.get('password'),
         "auth_type": auth_type,
     }
-
-    if auth_type != "spn_authentication":
-        config["user"] = workspace_config['sql_user']
-        config["password"] = workspace_config['sql_password']
-
     return DatabaseManager(db_type="synapse", config=config)
 
 
@@ -83,11 +80,11 @@ def validate_synapse_pools(raw_config: dict) -> None:
         ...     'workspace': {
         ...         'dedicated_sql_endpoint': 'workspace.sql.azuresynapse.net',
         ...         'serverless_sql_endpoint': 'workspace-ondemand.sql.azuresynapse.net',
-        ...         'sql_user': 'admin',
-        ...         'sql_password': 'pass',
+        ...         'user': 'admin',
+        ...         'password': 'pass',
         ...         'driver': 'ODBC Driver 18 for SQL Server',
         ...     },
-        ...     'jdbc': {'auth_type': 'sql_authentication'},
+        ...     'jdbc': {'auth_type': 'SqlPassword'},
         ...     'profiler': {'exclude_serverless_sql_pool': False},
         ... }
         >>> validate_synapse_pools(config)  # Tests both pools
@@ -96,7 +93,7 @@ def validate_synapse_pools(raw_config: dict) -> None:
     jdbc_config = raw_config.get("jdbc", {})
     profiler_config = raw_config.get("profiler", {})
 
-    auth_type = jdbc_config.get("auth_type", "sql_authentication")
+    auth_type = jdbc_config.get("auth_type", "SqlPassword")
     database = "master"
 
     # Determine which pools to test

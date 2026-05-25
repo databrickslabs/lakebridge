@@ -31,7 +31,7 @@ def test_synapse_connection_check(sandbox_synapse: DatabaseManager) -> None:
 
 
 def test_synapse_with_credential_format(sandbox_synapse_cred_config: JsonObject) -> None:
-    """Test DatabaseManager with credential format (sql_user/sql_password)."""
+    """Test DatabaseManager with credential format."""
     synapse = sandbox_synapse_cred_config["synapse"]
     assert isinstance(synapse, dict)
     workspace_config = synapse["workspace"]
@@ -47,10 +47,10 @@ def test_synapse_with_credential_format(sandbox_synapse_cred_config: JsonObject)
             "driver": workspace_config['driver'],
             "server": workspace_config['dedicated_sql_endpoint'],
             "database": db_name,
-            "user": workspace_config['sql_user'],
-            "password": workspace_config['sql_password'],
+            "user": workspace_config['user'],
+            "password": workspace_config['password'],
             "port": workspace_config.get('port', 1433),
-            "auth_type": 'sql_authentication',
+            "auth_type": 'SqlPassword',
         },
     )
 
@@ -60,13 +60,13 @@ def test_synapse_with_credential_format(sandbox_synapse_cred_config: JsonObject)
 
 
 def test_create_synapse_connection_sql_auth(sandbox_synapse_cred_config: JsonObject) -> None:
-    """create_synapse_connection remaps sql_user/sql_password to user/password and connects."""
+    """create_synapse_connection forwards workspace user/password to the connector unchanged."""
     workspace_config = _get_synapse_workspace(sandbox_synapse_cred_config)
 
-    database_manager = create_synapse_connection(workspace_config, "master", auth_type="sql_authentication")
+    database_manager = create_synapse_connection(workspace_config, "master", auth_type="SqlPassword")
 
     assert isinstance(database_manager.connector, MSSQLConnector)
-    assert database_manager.connector.config["user"] == workspace_config["sql_user"]
+    assert database_manager.connector.config["user"] == workspace_config["user"]
     assert database_manager.check_connection()
 
 
@@ -79,7 +79,7 @@ def test_create_synapse_connection_spn(
     monkeypatch.setenv("AZURE_CLIENT_SECRET", env.get("TOOLS_CLIENT_SECRET"))
     workspace_config = _get_synapse_workspace(sandbox_synapse_cred_config)
 
-    database_manager = create_synapse_connection(workspace_config, "master", auth_type="spn_authentication")
+    database_manager = create_synapse_connection(workspace_config, "master", auth_type="ActiveDirectoryServicePrincipal")
 
     assert isinstance(database_manager.connector, MSSQLConnector)
     assert "user" not in database_manager.connector.config
@@ -116,10 +116,10 @@ def test_synapse_query_execution(sandbox_synapse_cred_config: JsonObject) -> Non
             "driver": workspace_config['driver'],
             "server": workspace_config['dedicated_sql_endpoint'],
             "database": db_name,
-            "user": workspace_config['sql_user'],
-            "password": workspace_config['sql_password'],
+            "user": workspace_config['user'],
+            "password": workspace_config['password'],
             "port": workspace_config.get('port', 1433),
-            "auth_type": 'sql_authentication',
+            "auth_type": 'SqlPassword',
         },
     )
 
