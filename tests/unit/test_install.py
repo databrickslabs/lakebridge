@@ -635,7 +635,7 @@ def test_configure_reconcile_installation_config_error_continue_install(ws: Work
                     "schema": "reconcile",
                     "volume": "reconcile_volume",
                 },
-                "version": 2,
+                "version": 3,
             }
         }
     )
@@ -706,7 +706,7 @@ def test_configure_reconcile_installation_config_error_continue_install(ws: Work
                 "schema": "reconcile",
                 "volume": "reconcile_volume",
             },
-            "version": 2,
+            "version": 3,
         },
     )
 
@@ -792,7 +792,7 @@ def test_configure_reconcile_no_existing_installation(ws: WorkspaceClient) -> No
                 "schema": "reconcile",
                 "volume": "reconcile_volume",
             },
-            "version": 2,
+            "version": 3,
         },
     )
 
@@ -875,7 +875,7 @@ def test_configure_reconcile_databricks_no_existing_installation(ws: WorkspaceCl
                 "schema": "reconcile",
                 "volume": "reconcile_volume",
             },
-            "version": 2,
+            "version": 3,
         },
     )
 
@@ -938,7 +938,7 @@ def test_configure_all_override_installation(  # FIXME
                     "schema": "reconcile",
                     "volume": "reconcile_volume",
                 },
-                "version": 2,
+                "version": 3,
             },
         }
     )
@@ -1051,7 +1051,7 @@ def test_configure_all_override_installation(  # FIXME
                 "schema": "reconcile",
                 "volume": "reconcile_volume",
             },
-            "version": 2,
+            "version": 3,
         },
     )
 

@@ -83,6 +83,14 @@ class Reconciliation:
         return self._target
 
     @property
+    def spark(self) -> SparkSession:
+        return self._spark
+
+    @property
+    def source_engine(self) -> Dialect:
+        return self._source_engine
+
+    @property
     def report_type(self) -> str:
         return self._report_type
 

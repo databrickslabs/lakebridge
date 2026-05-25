@@ -9,11 +9,7 @@ from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dial
 logger = logging.getLogger(__name__)
 
 
-def initialise_data_source(
-    spark: SparkSession,
-    source_dialect: str,
-    connection_name: str | None,
-):
+def initialise_data_source(spark: SparkSession, source_dialect: str, connection_name: str | None):
     if not connection_name:
         validate_input(source_dialect, {"databricks"}, "Please configure connection name")
         source = create_adapter(engine=get_dialect("databricks"), spark=spark, connection_name="databricks")

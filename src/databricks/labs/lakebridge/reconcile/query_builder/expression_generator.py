@@ -262,6 +262,22 @@ DataType_transform_mapping: dict[str, dict[str, list[partial[exp.Expression]]]] 
         exp.DataType.Type.ARRAY.value: [
             partial(anonymous, func="CONCAT_WS(',', SORT_ARRAY({}))", dialect=get_dialect("databricks"))
         ],
+        # Align with Redshift's ``TO_CHAR(ts, 'YYYY-MM-DD HH24:MI:SS.US')`` so
+        # the per-row SHA2 inputs are byte-identical for Redshift -> Databricks reconciles.
+        exp.DataType.Type.TIMESTAMP.value: [
+            partial(
+                anonymous,
+                func="COALESCE(DATE_FORMAT({}, 'yyyy-MM-dd HH:mm:ss.SSSSSS'), '_null_recon_')",
+                dialect=get_dialect("databricks"),
+            )
+        ],
+        exp.DataType.Type.TIMESTAMPTZ.value: [
+            partial(
+                anonymous,
+                func="COALESCE(DATE_FORMAT({}, 'yyyy-MM-dd HH:mm:ss.SSSSSS'), '_null_recon_')",
+                dialect=get_dialect("databricks"),
+            )
+        ],
     },
     "tsql": {
         "default": [partial(anonymous, func="COALESCE(TRIM(CAST({} AS VARCHAR(MAX))), '_null_recon_')")],
@@ -295,6 +311,20 @@ DataType_transform_mapping: dict[str, dict[str, list[partial[exp.Expression]]]] 
             partial(
                 anonymous,
                 func="COALESCE(TO_CHAR({}, 'YYYY-MM-DD HH24:MI:SS.US'), '_null_recon_')",
+                dialect=get_dialect("redshift"),
+            )
+        ],
+        # Redshift rejects every form of CAST(boolean AS VARCHAR/TEXT) and the
+        # universal default applies TRIM to the column, which yields
+        # ``btrim(boolean)`` and the function-not-found error customers see.
+        # CASE WHEN produces the same lowercase 'true'/'false' that
+        # Spark's cast(boolean AS string) emits, keeping source and target
+        # row hashes byte-identical. Mirrors the boolean handler in
+        # ``fingerprint/query_builders/redshift.py``.
+        exp.DataType.Type.BOOLEAN.value: [
+            partial(
+                anonymous,
+                func="COALESCE(CASE WHEN {0} THEN 'true' WHEN NOT {0} THEN 'false' ELSE NULL END, '_null_recon_')",
                 dialect=get_dialect("redshift"),
             )
         ],

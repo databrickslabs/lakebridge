@@ -57,9 +57,9 @@ def test_create_adapter_for_databricks_dialect_target():
 def test_create_adapter_for_redshift_dialect():
     spark = create_autospec(DatabricksSession)
     engine = get_dialect("redshift")
-    scope = "scope"
+    connection_name = "uc_conn"
 
-    data_source = create_adapter(engine, spark, scope)
+    data_source = create_adapter(engine, spark, connection_name)
 
     assert isinstance(data_source, RedshiftDataSource)
 

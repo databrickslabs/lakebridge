@@ -30,7 +30,16 @@ _HASH_COLUMN_NAME = "hash_value_recon"
 
 class HashQueryBuilder(QueryBuilder):
 
-    def build_query(self, report_type: str) -> str:
+    def build_query(self, report_type: str, *, project_all_columns: bool = False) -> str:
+        """Build the hash query for the configured layer.
+
+        ``project_all_columns`` (keyword-only): when True, the projection includes
+        every hashed column (not just join + partition keys). Fingerprint Stage-2
+        surgical fetch needs this so the compare layer can populate
+        ``mismatch_columns`` without a second round-trip. Source and target sides
+        MUST be invoked with the same value or ``capture_mismatch_data_and_columns``
+        raises on diverging column sets.
+        """
 
         if report_type != 'row':
             self._validate(self.join_columns, f"Join Columns are compulsory for {report_type} type")
@@ -39,6 +48,11 @@ class HashQueryBuilder(QueryBuilder):
         hash_cols = sorted((_join_columns | self.select_columns) - self.threshold_columns - self.drop_columns)
 
         key_cols = hash_cols if report_type == "row" else sorted(_join_columns | self.partition_column)
+        if project_all_columns and report_type != "row":
+            # Union with hash_cols (already a sorted superset of join columns)
+            # so we can keep the deterministic projection order while still
+            # widening the SELECT list to every hashed column.
+            key_cols = sorted(set(key_cols) | set(hash_cols))
 
         cols_with_alias = [self._build_column_with_alias(col) for col in key_cols]
 

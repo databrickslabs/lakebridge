@@ -280,13 +280,27 @@ class ReconcileJobConfig:
 @dataclass
 class ReconcileConfig:
     __file__ = "reconcile.yml"
-    __version__ = 2
+    __version__ = 3
 
     report_type: str
     source: SourceConnectionConfig
     target: TargetConnectionConfig
     metadata_config: ReconcileMetadataConfig
     job_overrides: ReconcileJobConfig | None = None
+    fingerprint_precheck: bool = False
+    # When True, fingerprint hashing collapses '' to NULL on BOTH source and target
+    # sides — flipped here so the Stage-1 / Stage-2 serialisers cannot drift apart
+    # (without this knob, target call sites silently kept the function default of
+    # False while source picked up a constant override). Staying False matches the
+    # row-hash compare path in ``expression_generator``.
+    fingerprint_treat_empty_as_null: bool = False
+    # Optional explicit row count for fingerprint tier selection. When set,
+    # overrides Delta ``DESCRIBE DETAIL`` numRecords lookup so customers whose
+    # target is non-Delta (or whose Delta stats are stale) can pick the right
+    # sub-bucket tier without waiting for a full COUNT(*). ``None`` keeps the
+    # default heuristic. Values ``<= 0`` are treated as "unset" by
+    # ``fetch_target_row_count``.
+    fingerprint_row_count_override: int | None = None
 
     @classmethod
     def v1_migrate(cls, raw: dict[str, Any]) -> dict[str, Any]:
@@ -312,6 +326,25 @@ class ReconcileConfig:
             "schema": db_config["target_schema"],
         }
         raw["version"] = 2
+        return raw
+
+    @classmethod
+    def v2_migrate(cls, raw: dict[str, Any]) -> dict[str, Any]:
+        """v2 → v3: introduce the source-agnostic ``fingerprint_precheck`` flag.
+
+        Older field names (``redshift_fingerprint_precheck``, ``use_fingerprint_precheck``)
+        from internal pre-v2 deployments are folded into the new flag if present;
+        otherwise the field defaults to ``False`` so existing v2 configs keep their
+        current behaviour.
+        """
+        if "fingerprint_precheck" not in raw:
+            for legacy in ("redshift_fingerprint_precheck", "use_fingerprint_precheck"):
+                if legacy in raw:
+                    raw["fingerprint_precheck"] = raw.pop(legacy)
+                    break
+        for legacy in ("redshift_fingerprint_precheck", "use_fingerprint_precheck"):
+            raw.pop(legacy, None)
+        raw["version"] = 3
         return raw
 
     @property
