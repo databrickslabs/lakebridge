@@ -190,18 +190,14 @@ def test_configure_synapse_credentials(tmp_path):
                 'name': 'test-workspace',
                 'dedicated_sql_endpoint': 'test-workspace.sql.azuresynapse.net',
                 'serverless_sql_endpoint': 'test-workspace-ondemand.sql.azuresynapse.net',
+                'development_endpoint': 'test-dev-endpoint',
+                'auth_type': 'SqlPassword',
                 'user': 'test-user',
                 'password': 'test-password',
-                'tz_info': 'UTC',
-                'driver': 'ODBC Driver 18 for SQL Server',
-            },
-            'azure_api_access': {
-                'development_endpoint': 'test-dev-endpoint',
-            },
-            'jdbc': {
-                'auth_type': 'SqlPassword',
                 'fetch_size': '1000',
                 'login_timeout': '30',
+                'tz_info': 'UTC',
+                'driver': 'ODBC Driver 18 for SQL Server',
             },
             'profiler': {
                 'exclude_serverless_sql_pool': False,
@@ -249,7 +245,7 @@ def test_configure_synapse_credentials_spn(tmp_path):
         credentials = yaml.safe_load(fh)
 
     workspace = credentials["synapse"]["workspace"]
-    assert credentials["synapse"]["jdbc"]["auth_type"] == "ActiveDirectoryServicePrincipal"
+    assert workspace["auth_type"] == "ActiveDirectoryServicePrincipal"
     assert "user" not in workspace
     assert "password" not in workspace
 

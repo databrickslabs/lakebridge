@@ -135,18 +135,14 @@ def sandbox_synapse_cred_config(sandbox_sqlserver_config: JsonObject) -> JsonObj
                 "name": workspace_name,
                 "dedicated_sql_endpoint": server,
                 "serverless_sql_endpoint": f"{workspace_name}-ondemand.sql.azuresynapse.net",
+                "development_endpoint": f"https://{workspace_name}.dev.azuresynapse.net",
+                "auth_type": "SqlPassword",
                 "user": sandbox_sqlserver_config["user"],
                 "password": sandbox_sqlserver_config["password"],
-                "driver": sandbox_sqlserver_config["driver"],
-                "tz_info": "UTC",
-            },
-            "azure_api_access": {
-                "development_endpoint": f"https://{workspace_name}.dev.azuresynapse.net",
-            },
-            "jdbc": {
-                "auth_type": "SqlPassword",
                 "fetch_size": "1000",
                 "login_timeout": "30",
+                "driver": sandbox_sqlserver_config["driver"],
+                "tz_info": "UTC",
             },
             "profiler": {
                 "exclude_serverless_sql_pool": False,

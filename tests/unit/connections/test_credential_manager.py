@@ -128,9 +128,7 @@ def test_nested_dict_credentials_local_vault():
     enterprise data sources. The test structure mirrors actual Synapse credential
     requirements with multiple configuration levels:
 
-    - workspace: SQL connection details (endpoints, user, password, driver, port)
-    - azure_api_access: Azure API endpoints for resource management
-    - jdbc: JDBC-specific settings (authentication, timeouts, fetch size)
+    - workspace: connection + Azure API details (endpoints, auth, user, password, driver, timeouts, port)
     - profiler: Profiler configuration (pool exclusions, profiling lists)
 
     This demonstrates the credential manager's ability to:
@@ -145,19 +143,15 @@ def test_nested_dict_credentials_local_vault():
                 'name': 'test-workspace',
                 'dedicated_sql_endpoint': 'test-workspace.sql.azuresynapse.net',
                 'serverless_sql_endpoint': 'test-workspace-ondemand.sql.azuresynapse.net',
+                'development_endpoint': 'https://test-dev-endpoint.azuresynapse.net',
+                'auth_type': 'SqlPassword',
                 'user': 'synapse_user',
                 'password': 'synapse_password',
+                'fetch_size': '1000',
+                'login_timeout': '30',
                 'tz_info': 'UTC',
                 'driver': 'ODBC Driver 18 for SQL Server',
                 'port': 1433,
-            },
-            'azure_api_access': {
-                'development_endpoint': 'https://test-dev-endpoint.azuresynapse.net',
-            },
-            'jdbc': {
-                'auth_type': 'SqlPassword',
-                'fetch_size': '1000',
-                'login_timeout': '30',
             },
             'profiler': {
                 'exclude_serverless_sql_pool': False,
@@ -176,8 +170,6 @@ def test_nested_dict_credentials_local_vault():
 
     # Verify nested structure is preserved
     assert 'workspace' in creds
-    assert 'azure_api_access' in creds
-    assert 'jdbc' in creds
     assert 'profiler' in creds
 
     # Verify strings are returned as-is with local vault

@@ -30,7 +30,7 @@ def execute():
     cred_manager = create_credential_manager(PRODUCT_NAME, EnvGetter())
     synapse_workspace_settings = cred_manager.get_credentials("synapse")
     config = synapse_workspace_settings["workspace"]
-    auth_type = synapse_workspace_settings["jdbc"].get("auth_type", "SqlPassword")
+    auth_type = synapse_workspace_settings["workspace"].get("auth_type", "SqlPassword")
     synapse_profiler_settings = synapse_workspace_settings["profiler"]
 
     tz_info = synapse_workspace_settings["workspace"]["tz_info"]

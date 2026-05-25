@@ -204,22 +204,15 @@ class ConfigureSynapseAssessment(AssessmentConfigurator):
             "name": workspace_name,
             "dedicated_sql_endpoint": f"{workspace_name}.sql.azuresynapse.net",
             "serverless_sql_endpoint": f"{workspace_name}-ondemand.sql.azuresynapse.net",
+            "development_endpoint": self.prompts.question("Enter development endpoint"),
+            "auth_type": auth_type,
             **auth_credentials,
+            "fetch_size": self.prompts.question("Enter fetch size", default="1000"),
+            "login_timeout": self.prompts.question("Enter login timeout (seconds)", default="30"),
             "tz_info": self.prompts.question("Enter timezone (e.g. America/New_York)", default="UTC"),
             "driver": self.prompts.question(
                 "Enter the ODBC driver installed locally", default="ODBC Driver 18 for SQL Server"
             ),
-        }
-
-        # Azure API Access Settings
-        logger.info("Please provide Azure access settings:")
-        # Users use az cli to login to their Azure account and we just need the endpoint
-        azure_api_access = {"development_endpoint": self.prompts.question("Enter development endpoint")}
-
-        synapse_jdbc = {
-            "auth_type": auth_type,
-            "fetch_size": self.prompts.question("Enter fetch size", default="1000"),
-            "login_timeout": self.prompts.question("Enter login timeout (seconds)", default="30"),
         }
 
         # Profiler Settings
@@ -237,8 +230,6 @@ class ConfigureSynapseAssessment(AssessmentConfigurator):
             "secret_vault_name": secret_vault_name,
             source: {
                 "workspace": synapse_workspace,
-                "azure_api_access": azure_api_access,
-                "jdbc": synapse_jdbc,
                 "profiler": synapse_profiler,
             },
         }

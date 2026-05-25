@@ -83,17 +83,16 @@ def validate_synapse_pools(raw_config: dict) -> None:
         ...         'user': 'admin',
         ...         'password': 'pass',
         ...         'driver': 'ODBC Driver 18 for SQL Server',
+        ...         'auth_type': 'SqlPassword',
         ...     },
-        ...     'jdbc': {'auth_type': 'SqlPassword'},
         ...     'profiler': {'exclude_serverless_sql_pool': False},
         ... }
         >>> validate_synapse_pools(config)  # Tests both pools
     """
     workspace_config = raw_config.get("workspace", {})
-    jdbc_config = raw_config.get("jdbc", {})
     profiler_config = raw_config.get("profiler", {})
 
-    auth_type = jdbc_config.get("auth_type", "SqlPassword")
+    auth_type = workspace_config.get("auth_type", "SqlPassword")
     database = "master"
 
     # Determine which pools to test

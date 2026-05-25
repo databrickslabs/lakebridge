@@ -143,23 +143,21 @@ Enter secret vault type (local | env)
 [0] env
 [1] local
 Enter a number between 0 and 1: 1
-Please provide Synapse Workspace settings:
-Enter Synapse workspace name: synapse
-Enter SQL user: user
-Enter SQL password:
-Enter timezone (e.g. America/New_York) (default: UTC):
-Enter the ODBC driver installed locally (default: ODBC Driver 18 for SQL Server):
-Please provide Azure access settings:
-Enter development endpoint: synapse.endpoint
-Please select JDBC authentication type:
 Select authentication method
 [0] ActiveDirectoryInteractive
 [1] ActiveDirectoryPassword
 [2] ActiveDirectoryServicePrincipal
 [3] SqlPassword
 Enter a number between 0 and 3: 3
+Enter the username: user
+Enter the password:
+Please provide Synapse Workspace settings:
+Enter Synapse workspace name: synapse
+Enter development endpoint: synapse.endpoint
 Enter fetch size (default: 1000):
 Enter login timeout (seconds) (default: 30):
+Enter timezone (e.g. America/New_York) (default: UTC):
+Enter the ODBC driver installed locally (default: ODBC Driver 18 for SQL Server):
 Exclude serverless SQL pool from profiling? (default: no):
 Exclude dedicated SQL pools from profiling? (default: no):
 Exclude Spark pools from profiling? (default: no):
