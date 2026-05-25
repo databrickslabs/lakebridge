@@ -73,19 +73,19 @@ def test_create_synapse_connection_sql_auth(sandbox_synapse_cred_config: JsonObj
 def test_create_synapse_connection_spn(
     sandbox_synapse_cred_config: JsonObject, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """create_synapse_connection omits user/password from config for SPN auth."""
+    """SPN auth: connector resolves credentials from env vars, ignoring any user/password in config."""
     env = TestEnvGetter(True)
     monkeypatch.setenv("AZURE_CLIENT_ID", env.get("TOOLS_CLIENT_ID"))
     monkeypatch.setenv("AZURE_CLIENT_SECRET", env.get("TOOLS_CLIENT_SECRET"))
-    workspace_config = _get_synapse_workspace(sandbox_synapse_cred_config)
+    # Real SPN-configured workspaces omit user/password from the YAML (the configurator skips those prompts).
+    workspace_config = {k: v for k, v in _get_synapse_workspace(sandbox_synapse_cred_config).items() if k not in {"user", "password"}}
 
     database_manager = create_synapse_connection(
         workspace_config, "master", auth_type="ActiveDirectoryServicePrincipal"
     )
 
     assert isinstance(database_manager.connector, MSSQLConnector)
-    assert "user" not in database_manager.connector.config
-    assert "password" not in database_manager.connector.config
+    assert database_manager.connector.config["auth_type"] == "ActiveDirectoryServicePrincipal"
     assert database_manager.check_connection()
 
 

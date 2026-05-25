@@ -180,7 +180,7 @@ def sandbox_redshift_config() -> JsonObject:
         "password": env.get("REDSHIFT_PASS"),
         "database": "labs",
         "port": int(env.get("REDSHIFT_PORT")),
-        "auth_type": "SqlPassword",
+        "auth_type": "sql_authentication",
         "ssl": "true",
     }
     return config
