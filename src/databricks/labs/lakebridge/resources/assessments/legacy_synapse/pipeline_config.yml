@@ -1,0 +1,52 @@
+name: legacy_synapse_assessment
+version: "1.0"
+extract_folder: "/tmp/data/legacy_synapse_assessment"
+steps:
+  - name: columns
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/legacy_synapse/columns.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: routines
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/legacy_synapse/routines.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: tables
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/legacy_synapse/tables.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: views
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/legacy_synapse/views.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: sessions
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/legacy_synapse/sessions.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: requests
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/legacy_synapse/requests.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: storage_info
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/legacy_synapse/storage_info.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: databases
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/legacy_synapse/databases.sql
+    mode: overwrite
+    frequency: once
+    flag: active

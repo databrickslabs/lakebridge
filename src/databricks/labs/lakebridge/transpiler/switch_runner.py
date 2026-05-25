@@ -30,6 +30,7 @@ class SwitchRunner:
         schema: str,
         foundation_model: str,
         job_id: int,
+        switch_config_path: str | None = None,
     ) -> RootJsonValue:
         """Trigger Switch job."""
 
@@ -40,6 +41,7 @@ class SwitchRunner:
             catalog=catalog,
             schema=schema,
             foundation_model=foundation_model,
+            switch_config_path=switch_config_path,
         )
         logger.info(f"Triggering Switch job with job_id: {job_id}")
 
@@ -101,12 +103,13 @@ class SwitchRunner:
         catalog: str,
         schema: str,
         foundation_model: str,
+        switch_config_path: str | None = None,
         switch_options: dict | None = None,
     ) -> dict[str, str]:
         """Build Switch job parameters."""
         if switch_options is None:
             switch_options = {}
-        return {
+        params = {
             "input_dir": input_dir,
             "output_dir": output_dir,
             "source_tech": source_tech,
@@ -115,6 +118,9 @@ class SwitchRunner:
             "foundation_model": foundation_model,
             **switch_options,
         }
+        if switch_config_path:
+            params["switch_config_path"] = switch_config_path
+        return params
 
     def _run_job(
         self,

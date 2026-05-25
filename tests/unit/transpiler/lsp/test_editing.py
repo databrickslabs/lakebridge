@@ -35,7 +35,6 @@ from databricks.labs.lakebridge.transpiler.lsp.editing import (
     Editor,
 )
 
-
 LSP_ORIGIN = Range(start=Position(0, 0), end=Position(0, 0))
 
 

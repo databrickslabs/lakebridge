@@ -79,7 +79,6 @@ class TriggerReconService:
         source, target = utils.initialise_data_source(
             source_dialect=reconcile_config.source.dialect,
             spark=spark,
-            ws=ws_client,
             connection_name=reconcile_config.source.uc_connection_name,
         )
 
@@ -236,7 +235,7 @@ class TriggerReconService:
         exceptions = [r for r in reconcile_output.results if r.exception_message]
         mismatched = [r for r in reconcile_output.results if is_table_recon_mismatch(r)]
 
-        (total_count, exc_count, mismatched_count) = (len(reconcile_output.results), len(exceptions), len(mismatched))
+        total_count, exc_count, mismatched_count = (len(reconcile_output.results), len(exceptions), len(mismatched))
         success_count = max(0, total_count - exc_count + mismatched_count)
 
         logger.info(

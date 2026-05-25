@@ -51,7 +51,7 @@ class MockApplicationContext(ApplicationContext):
 
 
 @pytest.fixture
-def application_ctx(ws: WorkspaceClient) -> Generator[ApplicationContext, None, None]:
+def application_ctx(ws: WorkspaceClient) -> Generator[ApplicationContext]:
     """A mock application context with a unique installation path, cleaned up after the test."""
     ctx = MockApplicationContext(ws)
     yield ctx
@@ -173,6 +173,26 @@ def sandbox_spn_sqlserver_config(sandbox_sqlserver_config: JsonObject, monkeypat
 def sandbox_synapse(sandbox_synapse_config: JsonObject) -> DatabaseManager:
     """Create a DatabaseManager for Synapse (uses MSSQLConnector via factory method)."""
     return DatabaseManager("synapse", sandbox_synapse_config)
+
+
+@pytest.fixture()
+def sandbox_redshift_config() -> JsonObject:
+    env = TestEnvGetter(True)
+    config: JsonObject = {
+        "host": env.get("REDSHIFT_HOST"),
+        "user": env.get("REDSHIFT_USER"),
+        "password": env.get("REDSHIFT_PASS"),
+        "database": "labs",
+        "port": int(env.get("REDSHIFT_PORT")),
+        "auth_type": "sql_authentication",
+        "ssl": "true",
+    }
+    return config
+
+
+@pytest.fixture()
+def sandbox_redshift(sandbox_redshift_config: JsonObject) -> DatabaseManager:
+    return DatabaseManager("redshift", sandbox_redshift_config)
 
 
 @pytest.fixture()

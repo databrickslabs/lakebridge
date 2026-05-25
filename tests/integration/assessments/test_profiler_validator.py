@@ -115,7 +115,7 @@ def test_validate_invalid_source_tech(mock_synapse_profiler_extract: Path, test_
         schema_check = ExtractSchemaValidationCheck(
             "main",
             "dedicated_routines",
-            source_tech="oracle",
+            source_tech="bogus",
             extract_path=str(mock_synapse_profiler_extract),
             schema_path=str(schema_def_path),
         )

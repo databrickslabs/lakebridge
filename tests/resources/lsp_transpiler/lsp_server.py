@@ -36,7 +36,6 @@ from lsprotocol.types import (
 from pygls.lsp.server import LanguageServer
 from pygls.uris import to_fs_path
 
-
 logging.basicConfig(filename='test-lsp-server.log', filemode='w', level=logging.DEBUG)
 
 logger = logging.getLogger(__name__)
