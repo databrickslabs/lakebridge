@@ -375,11 +375,18 @@ class WorkspaceInstaller:
 
         schema = self._prompts.question(schema_prompt)
 
+        hash_expression: str | None = None
+        if dialect == ReconSourceType.TERADATA.value and self._prompts.confirm(
+            "Override the default Teradata source hash UDF (lakebridge_sha256_hex({}))?"
+        ):
+            hash_expression = self._prompts.question("Enter the source hash expression with a single '{}' placeholder")
+
         return SourceConnectionConfig(
             dialect=dialect,
             catalog=catalog,
             schema=schema,
             uc_connection_name=uc_connection_name,
+            hash_expression=hash_expression,
         )
 
     def _prompt_for_target_connection_config(self) -> TargetConnectionConfig:

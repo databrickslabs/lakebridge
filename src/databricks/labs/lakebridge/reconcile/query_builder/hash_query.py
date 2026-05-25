@@ -3,6 +3,7 @@ import logging
 import sqlglot.expressions as exp
 from sqlglot import Dialect, parse_one
 
+from databricks.labs.lakebridge.reconcile.connectors.data_source import DataSource
 from databricks.labs.lakebridge.reconcile.query_builder.base import QueryBuilder
 from databricks.labs.lakebridge.reconcile.query_builder.expression_generator import (
     build_column,
@@ -12,6 +13,7 @@ from databricks.labs.lakebridge.reconcile.query_builder.expression_generator imp
     transform_expression,
     build_column_no_alias,
 )
+from databricks.labs.lakebridge.reconcile.recon_config import Schema, Table
 
 logger = logging.getLogger(__name__)
 
@@ -35,9 +37,6 @@ def _apply_user_hash_expression(
 ) -> exp.Expression:
     """Render a user-supplied hash expression by substituting the ``{}`` placeholder with the
     concatenated hash input, then parse the result in the source dialect.
-
-    The placeholder convention matches :data:`Dialect_hash_algo_mapping` so the user-facing
-    config and the built-in defaults share one mental model.
     """
     if "{}" not in user_expr:
         raise ValueError(f"hash_expression must contain a '{{}}' placeholder for the hash input; got {user_expr!r}")
@@ -46,6 +45,18 @@ def _apply_user_hash_expression(
 
 
 class HashQueryBuilder(QueryBuilder):
+
+    def __init__(
+        self,
+        table_conf: Table,
+        schema: list[Schema],
+        layer: str,
+        source_engine: Dialect,
+        data_source: DataSource,
+        hash_expression: str | None = None,
+    ):
+        super().__init__(table_conf, schema, layer, source_engine, data_source)
+        self._hash_expression = hash_expression
 
     def build_query(self, report_type: str) -> str:
 
@@ -114,7 +125,4 @@ class HashQueryBuilder(QueryBuilder):
         return build_column(hash_expr, alias=column_alias)
 
     def _user_hash_expression(self) -> str | None:
-        hash_expr = getattr(self._table_conf, "hash_expression", None)
-        if hash_expr is None:
-            return None
-        return hash_expr.source if self.layer == "source" else hash_expr.target
+        return self._hash_expression

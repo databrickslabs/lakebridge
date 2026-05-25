@@ -88,14 +88,16 @@ Place the file in `.lakebridge/` in your Databricks workspace home folder.
         ```
 
         :::warning Required: install a SHA-256 UDF on the Teradata source
-        Teradata ships no portable cryptographic hash that produces a hex string in pure SQL. The
-        Teradata source-side hash therefore defaults to a **user-installed** UDF named
+        Teradata does not provide a native cryptographic hash that yields a hex string in pure
+        SQL. The Teradata source-side hash therefore defaults to a **user-installed** UDF named
         `lakebridge_sha256_hex(VARCHAR) RETURNS VARCHAR(64)` that produces the lowercase SHA-256
-        hex digest — matching `SHA2(<concat>, 256)` on the Databricks side.
+        hex digest, matching `SHA2(<concat>, 256)` on the Databricks side. You are responsible
+        for building, installing, and registering this UDF.
 
         Install this UDF in the source database before running any `row`, `data`, or `all` report
-        (the `schema` report type does not need it). To point at a different UDF, override
-        per-table via [`hash_expression`](#hash-expression).
+        (the `schema` report type does not need it). To point at a UDF installed under a different
+        name or schema, set `hash_expression` on the `source:` / `target:` connection block; see
+        [Hash Expression](#hash-expression).
         :::
     </TabItem>
     <TabItem value="databricks" label="Databricks">
@@ -125,7 +127,8 @@ database that the reconcile query targets:
 | **Returns** | `VARCHAR(64)` — lowercase hex digest of SHA-256 over the input |
 
 If your environment already exposes a SHA UDF under a different name or schema, leave this
-default alone and point Lakebridge at it per-table via [`hash_expression`](#hash-expression).
+default alone and point Lakebridge at it on the source/target connection config via
+[`hash_expression`](#hash-expression).
 
 ---
 
@@ -148,7 +151,6 @@ default alone and point Lakebridge at it per-table via [`hash_expression`](#hash
             column_thresholds: list[ColumnThresholds] | None = None
             filters: Filters | None = None
             table_thresholds: list[TableThresholds] | None = None
-            hash_expression: HashExpression | None = None
         ```
     </TabItem>
     <TabItem value="json" label="JSON">
@@ -165,8 +167,7 @@ default alone and point Lakebridge at it per-table via [`hash_expression`](#hash
             "transformation": null,
             "column_thresholds": null,
             "filters": null,
-            "table_thresholds": null,
-            "hash_expression": null
+            "table_thresholds": null
         }
         ```
     </TabItem>
@@ -188,7 +189,6 @@ default alone and point Lakebridge at it per-table via [`hash_expression`](#hash
 | `column_thresholds` | list[ColumnThresholds] | No | Acceptable variance per column |
 | `table_thresholds` | list[TableThresholds] | No | Acceptable mismatch rate at table level |
 | `filters` | Filters | No | WHERE-clause filters for source and/or target |
-| `hash_expression` | HashExpression | No | Override the dialect's default row-hash function (see [Hash Expression](#hash-expression)). Required for Teradata if no `lakebridge_sha256_hex` UDF is installed. |
 
 ---
 
@@ -314,30 +314,46 @@ Transformation(
 
 ## Hash Expression
 
-Override the dialect's default row-hash function with your own SQL. Provide the source-side
-expression, the target-side expression, or both — each is raw SQL containing a single `{}`
-placeholder that Lakebridge replaces with the concatenated hash input.
+Override the dialect's default row-hash function with your own SQL. Configure it on the
+**connection** (`source:` / `target:`). The hash function is a property of the source/target
+system, not of any individual table. Each value is raw SQL containing a single `{}` placeholder
+that Lakebridge replaces with the concatenated hash input.
 
 <Tabs>
   <TabItem value="python" label="Python" default>
     ```python
     @dataclass
-    class HashExpression:
-        source: str | None = None  # SQL for the source-side hash; must contain a single `{}`
-        target: str | None = None  # SQL for the target-side hash; must contain a single `{}`
+    class SourceConnectionConfig:
+        dialect: str
+        catalog: str
+        schema: str
+        uc_connection_name: str | None = None
+        hash_expression: str | None = None  # raw SQL with a single `{}` placeholder
+
+    @dataclass
+    class TargetConnectionConfig:
+        catalog: str
+        schema: str
+        hash_expression: str | None = None  # raw SQL with a single `{}` placeholder
     ```
   </TabItem>
-  <TabItem value="json" label="JSON">
-    ```json
-    "hash_expression": {
-      "source": "my_db.my_sha256({})",
-      "target": "sha2({}, 256)"
-    }
+  <TabItem value="yaml" label="YAML">
+    ```yaml
+    source:
+      dialect: teradata
+      catalog: DBC
+      schema: lakebridge_test
+      uc_connection_name: teradata_sandbox
+      hash_expression: "my_db.my_sha256({})"
+    target:
+      catalog: migrated
+      schema: migrated
+      hash_expression: "sha2({}, 256)"
     ```
   </TabItem>
 </Tabs>
 
-If either `source` or `target` is omitted, that side falls back to the dialect default.
+If `hash_expression` is omitted on either side, that side falls back to the dialect default.
 
 :::note Same hash on both sides
 The source and target expressions must produce the **same string for the same logical row** —

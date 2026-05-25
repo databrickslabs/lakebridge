@@ -7,7 +7,6 @@ from databricks.labs.lakebridge.reconcile.recon_config import (
     ColumnMapping,
     Transformation,
     Table,
-    HashExpression,
 )
 from databricks.labs.lakebridge.reconcile.normalize_recon_config_service import NormalizeReconConfigService
 from tests.conftest import tsql_schema_fixture_factory, ansi_schema_fixture_factory, FakeDataSource
@@ -214,11 +213,6 @@ def test_hash_query_builder_user_hash_expression_overrides_dialect_default(
 ):
     # The user supplies a hash_expression with a `{}` placeholder for the concat input —
     # matching the Dialect_hash_algo_mapping style used internally.
-    teradata_table_conf_with_opts.hash_expression = HashExpression(
-        source="my_db.my_sha256({})",
-        target="sha2({}, 256)",
-    )
-
     src_schema, tgt_schema = table_schema_teradata_ansi
     src_actual = HashQueryBuilder(
         teradata_table_conf_with_opts,
@@ -226,6 +220,7 @@ def test_hash_query_builder_user_hash_expression_overrides_dialect_default(
         "source",
         get_dialect("teradata"),
         fake_teradata_datasource,
+        hash_expression="my_db.my_sha256({})",
     ).build_query(report_type="data")
     assert "my_db.my_sha256(" in src_actual
     assert "lakebridge_sha256_hex(" not in src_actual
@@ -236,6 +231,7 @@ def test_hash_query_builder_user_hash_expression_overrides_dialect_default(
         "target",
         get_dialect("databricks"),
         fake_databricks_datasource,
+        hash_expression="sha2({}, 256)",
     ).build_query(report_type="data")
     assert "SHA2(" in tgt_actual
 
@@ -246,10 +242,6 @@ def test_hash_query_builder_user_hash_expression_only_source(
     fake_teradata_datasource,
     fake_databricks_datasource,
 ):
-    teradata_table_conf_with_opts.hash_expression = HashExpression(
-        source="my_db.my_sha256({})",
-    )
-
     src_schema, tgt_schema = table_schema_teradata_ansi
     src_actual = HashQueryBuilder(
         teradata_table_conf_with_opts,
@@ -257,6 +249,7 @@ def test_hash_query_builder_user_hash_expression_only_source(
         "source",
         get_dialect("teradata"),
         fake_teradata_datasource,
+        hash_expression="my_db.my_sha256({})",
     ).build_query(report_type="data")
     assert "my_db.my_sha256(" in src_actual
     assert "lakebridge_sha256_hex(" not in src_actual
@@ -278,7 +271,6 @@ def test_hash_query_builder_user_hash_expression_missing_placeholder(
     table_schema_teradata_ansi,
     fake_teradata_datasource,
 ):
-    teradata_table_conf_with_opts.hash_expression = HashExpression(source="my_db.my_sha256()")
     src_schema, _ = table_schema_teradata_ansi
     with pytest.raises(ValueError, match="must contain a '{}' placeholder"):
         HashQueryBuilder(
@@ -287,6 +279,7 @@ def test_hash_query_builder_user_hash_expression_missing_placeholder(
             "source",
             get_dialect("teradata"),
             fake_teradata_datasource,
+            hash_expression="my_db.my_sha256()",
         ).build_query(report_type="data")
 
 

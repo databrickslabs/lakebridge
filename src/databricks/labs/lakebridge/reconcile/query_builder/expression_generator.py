@@ -347,6 +347,8 @@ DataType_transform_mapping: dict[str, dict[str, list[partial[exp.Expression]]]] 
 
 sha256_partial = partial(sha2, num_bits="256", is_expr=True)
 md5_partial = partial(md5, is_expr=True)
+
+
 Dialect_hash_algo_mapping: dict[Dialect, HashAlgoMapping] = {  # pylint: disable=invalid-name
     get_dialect("snowflake"): HashAlgoMapping(
         source=sha256_partial,
@@ -381,14 +383,13 @@ Dialect_hash_algo_mapping: dict[Dialect, HashAlgoMapping] = {  # pylint: disable
         target=sha256_partial,
     ),
     get_dialect("teradata"): HashAlgoMapping(
-        # Teradata does not ship a portable cryptographic hash that produces a hex string in pure
-        # SQL — Enterprise 17.20+ has TD_SYSFNLIB.HASH_SHA256 (returns BYTE(32) with no built-in
-        # hex encoder), and Vantage Express ships no SHA family at all. The default below assumes
-        # a user-installed UDF named ``lakebridge_sha256_hex(VARCHAR) RETURNS VARCHAR(64)`` that
-        # produces the lowercase SHA-256 hex digest — matching ``SHA2(<concat>, 256)`` on the
-        # Databricks side. To use a different UDF (e.g. ``mydb.my_sha256``), override per-table via
-        # ``Table.hash_expression`` instead of editing this mapping. The outer LOWER() wrapper is
-        # added by the hash query builder.
+        # Teradata does not provide a native cryptographic hash that yields a hex string in pure
+        # SQL. The default below assumes a user-installed external UDF named
+        # ``lakebridge_sha256_hex(VARCHAR) RETURNS VARCHAR(64)`` that produces the lowercase
+        # SHA-256 hex digest, matching ``SHA2(<concat>, 256)`` on the Databricks side. To use a
+        # different UDF (e.g. ``mydb.my_sha256``), override via the connection-level
+        # ``SourceConnectionConfig.hash_expression`` rather than editing this mapping. The outer
+        # LOWER() wrapper is added by the hash query builder.
         source=partial(
             anonymous,
             func="lakebridge_sha256_hex({})",

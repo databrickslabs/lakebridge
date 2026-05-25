@@ -28,7 +28,7 @@ from databricks.labs.lakebridge.config import (
 )
 from databricks.labs.lakebridge.contexts.application import ApplicationContext
 from databricks.labs.lakebridge.reconcile.recon_capture import AbstractReconIntermediatePersist
-from databricks.labs.lakebridge.reconcile.recon_config import HashExpression, Table, Transformation
+from databricks.labs.lakebridge.reconcile.recon_config import Table, Transformation
 
 logger = logging.getLogger(__name__)
 
@@ -393,19 +393,15 @@ def teradata_recon_table_config(recon_schema: SchemaInfo, recon_tables: tuple[Ta
                 source_name=TERADATA_TABLE,
                 target_name=tgt_table.name,
                 join_columns=["color", "clarity"],
-                # TEMPORARY: skip the SHA-256 UDF by emitting the raw concatenated row-key on
-                # both sides and pinning per-column formats so source (Teradata) and target
-                # (Databricks) produce byte-identical strings. Once hashing UDFs are installed in
-                # the testing infra, we will configure this accordingly.
-                hash_expression=HashExpression(source="{}", target="{}"),
                 transformations=[
                     # Teradata FLOAT and Databricks DOUBLE serialise to different strings by
-                    # default. CAST to a fixed-precision DECIMAL → VARCHAR/STRING on each side.
+                    # default. CAST to a fixed-precision DECIMAL then VARCHAR/STRING on each side.
                     Transformation(
                         column_name="carat",
-                        # Teradata CAST(DECIMAL → VARCHAR) drops the leading zero (".23" not "0.23")
-                        # — use TO_CHAR with a format mask that forces at least one digit before
-                        # the decimal point so the string matches Databricks' STRING(DECIMAL) form.
+                        # Teradata CAST(DECIMAL to VARCHAR) drops the leading zero (".23" not
+                        # "0.23"); use TO_CHAR with a format mask that forces at least one digit
+                        # before the decimal point so the string matches Databricks'
+                        # STRING(DECIMAL) form.
                         source=(
                             "COALESCE(TRIM(TO_CHAR(CAST(carat AS DECIMAL(38,10)),"
                             " '9999999990.9999999999')), '_null_recon_')"
@@ -436,6 +432,13 @@ def teradata_recon_config(recon_cluster: str, recon_schema: SchemaInfo, make_vol
 
     assert recon_schema.catalog_name
     assert recon_schema.name
+    # Bypass real hashing: Teradata has no native SHA-256 in pure SQL, and installing the
+    # required external (Java/C/C++) UDF on the testing instance is out-of-band setup. Setting
+    # hash_expression="{}" on both sides emits LOWER(<concat>) verbatim, so the join compares
+    # the raw concatenated row-key string on each side. The per-column Transformations in
+    # teradata_recon_table_config pin formats so the Teradata and Databricks concats are
+    # byte-identical. Drop these overrides once a real SHA-256 UDF is installed on the
+    # testing-infra Teradata.
     return ReconcileConfig(
         report_type="all",
         source=SourceConnectionConfig(
@@ -443,10 +446,12 @@ def teradata_recon_config(recon_cluster: str, recon_schema: SchemaInfo, make_vol
             catalog=TERADATA_CATALOG,
             schema=TERADATA_SCHEMA,
             uc_connection_name=TERADATA_CONNECTION,
+            hash_expression="{}",
         ),
         target=TargetConnectionConfig(
             catalog=recon_schema.catalog_name,
             schema=recon_schema.name,
+            hash_expression="{}",
         ),
         metadata_config=ReconcileMetadataConfig(
             catalog=recon_schema.catalog_name, schema=recon_schema.name, volume=volume.name

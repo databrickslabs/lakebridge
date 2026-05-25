@@ -62,6 +62,8 @@ class Reconciliation:
         spark: SparkSession,
         metadata_config: ReconcileMetadataConfig,
         intermediate_persist: AbstractReconIntermediatePersist,
+        source_hash_expression: str | None = None,
+        target_hash_expression: str | None = None,
     ):
         self._source = source
         self._target = target
@@ -73,6 +75,8 @@ class Reconciliation:
         self._spark = spark
         self._metadata_config = metadata_config
         self.intermediate_persist = intermediate_persist
+        self._source_hash_expression = source_hash_expression
+        self._target_hash_expression = target_hash_expression
 
     @property
     def source(self) -> DataSource:
@@ -127,10 +131,20 @@ class Reconciliation:
         tgt_schema,
     ):
         src_hash_query = HashQueryBuilder(
-            table_conf, src_schema, "source", self._source_engine, self._source
+            table_conf,
+            src_schema,
+            "source",
+            self._source_engine,
+            self._source,
+            hash_expression=self._source_hash_expression,
         ).build_query(report_type=self._report_type)
         tgt_hash_query = HashQueryBuilder(
-            table_conf, tgt_schema, "target", self._source_engine, self._target
+            table_conf,
+            tgt_schema,
+            "target",
+            self._source_engine,
+            self._target,
+            hash_expression=self._target_hash_expression,
         ).build_query(report_type=self._report_type)
         src_data = self._source.read_data(
             catalog=self._database_config.source_catalog,

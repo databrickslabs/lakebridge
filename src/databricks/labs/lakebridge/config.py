@@ -239,6 +239,11 @@ class SourceConnectionConfig:
     catalog: str
     schema: str
     uc_connection_name: str | None = None
+    # SQL expression with a single ``{}`` placeholder for the input. Used
+    # when the source dialect has no portable hash (e.g. Teradata SHA-256 UDF). The framework
+    # substitutes ``{}`` with the concat expression, matching the same convention as
+    # ``Dialect_hash_algo_mapping`` (see ``expression_generator``).
+    hash_expression: str | None = None
 
     def __post_init__(self):
         self.dialect = self.dialect.lower()
@@ -250,6 +255,7 @@ class SourceConnectionConfig:
 class TargetConnectionConfig:
     catalog: str
     schema: str
+    hash_expression: str | None = None
 
 
 @dataclass
