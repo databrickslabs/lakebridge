@@ -150,10 +150,12 @@ class ConfigureSqlServerAssessment(AssessmentConfigurator):
         secret_vault_name = None
 
         auth_choices = [cls.__name__ for cls in AUTH_CHOICES]
-        auth_type = self.prompts.choice("Select authentication type", auth_choices)
+        auth_type = self.prompts.choice("Select authentication method", auth_choices)
+        auth_credentials = _prompt_mssql_auth_credentials(self.prompts, auth_type)
 
         credential_section: dict = {
             "auth_type": auth_type,
+            **auth_credentials,
             "fetch_size": self.prompts.question("Enter fetch size", default="1000"),
             "login_timeout": self.prompts.question("Enter login timeout (seconds)", default="30"),
             "server": self.prompts.question("Enter the fully-qualified server name"),
@@ -163,7 +165,6 @@ class ConfigureSqlServerAssessment(AssessmentConfigurator):
             "driver": self.prompts.question(
                 "Enter the ODBC driver installed locally", default="ODBC Driver 18 for SQL Server"
             ),
-            **_prompt_mssql_auth_credentials(self.prompts, auth_type),
         }
 
         credential = {
@@ -191,10 +192,10 @@ class ConfigureSynapseAssessment(AssessmentConfigurator):
         secret_vault_type = str(self.prompts.choice("Enter secret vault type (local | env)", ["local", "env"])).lower()
         secret_vault_name = None
 
-        # JDBC Settings
-        logger.info("Please select JDBC authentication type:")
+        # Authentication
         auth_choices = [cls.__name__ for cls in AUTH_CHOICES]
-        auth_type = self.prompts.choice("Select authentication type", auth_choices)
+        auth_type = self.prompts.choice("Select authentication method", auth_choices)
+        auth_credentials = _prompt_mssql_auth_credentials(self.prompts, auth_type)
 
         # Synapse Workspace Settings
         logger.info("Please provide Synapse Workspace settings:")
@@ -203,13 +204,12 @@ class ConfigureSynapseAssessment(AssessmentConfigurator):
             "name": workspace_name,
             "dedicated_sql_endpoint": f"{workspace_name}.sql.azuresynapse.net",
             "serverless_sql_endpoint": f"{workspace_name}-ondemand.sql.azuresynapse.net",
+            **auth_credentials,
             "tz_info": self.prompts.question("Enter timezone (e.g. America/New_York)", default="UTC"),
             "driver": self.prompts.question(
                 "Enter the ODBC driver installed locally", default="ODBC Driver 18 for SQL Server"
             ),
         }
-
-        synapse_workspace.update(_prompt_mssql_auth_credentials(self.prompts, auth_type))
 
         # Azure API Access Settings
         logger.info("Please provide Azure access settings:")

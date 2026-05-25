@@ -20,7 +20,7 @@ def test_configure_sqlserver_credentials(tmp_path):
     prompts = MockPrompts(
         {
             r"Enter secret vault type \(local \| env\)": sorted(['local', 'env']).index("env"),
-            r"Select authentication type": _auth_choice_index("SqlPassword"),
+            r"Select authentication method": _auth_choice_index("SqlPassword"),
             r"Enter the database name": "TEST_TSQL_JDBC",
             r"Enter the ODBC driver installed locally.*": "ODBC Driver 18 for SQL Server",
             r"Enter the fully-qualified server name": "URL",
@@ -67,7 +67,7 @@ def test_configure_sqlserver_credentials_spn(tmp_path):
     prompts = MockPrompts(
         {
             r"Enter secret vault type \(local \| env\)": sorted(['local', 'env']).index("env"),
-            r"Select authentication type": _auth_choice_index("ActiveDirectoryServicePrincipal"),
+            r"Select authentication method": _auth_choice_index("ActiveDirectoryServicePrincipal"),
             r"Enter the database name": "TEST_DB",
             r"Enter the ODBC driver installed locally.*": "ODBC Driver 18 for SQL Server",
             r"Enter the fully-qualified server name": "URL",
@@ -97,7 +97,7 @@ def test_configure_sqlserver_credentials_ad_password(tmp_path):
     prompts = MockPrompts(
         {
             r"Enter secret vault type \(local \| env\)": sorted(['local', 'env']).index("env"),
-            r"Select authentication type": _auth_choice_index("ActiveDirectoryPassword"),
+            r"Select authentication method": _auth_choice_index("ActiveDirectoryPassword"),
             r"Enter the database name": "TEST_DB",
             r"Enter the ODBC driver installed locally.*": "ODBC Driver 18 for SQL Server",
             r"Enter the fully-qualified server name": "URL",
@@ -129,7 +129,7 @@ def test_configure_sqlserver_credentials_interactive_skips_password(tmp_path):
     prompts = MockPrompts(
         {
             r"Enter secret vault type \(local \| env\)": sorted(['local', 'env']).index("env"),
-            r"Select authentication type": _auth_choice_index("ActiveDirectoryInteractive"),
+            r"Select authentication method": _auth_choice_index("ActiveDirectoryInteractive"),
             r"Enter the database name": "TEST_DB",
             r"Enter the ODBC driver installed locally.*": "ODBC Driver 18 for SQL Server",
             r"Enter the fully-qualified server name": "URL",
@@ -165,7 +165,7 @@ def test_configure_synapse_credentials(tmp_path):
             r"Enter timezone \(e.g. America/New_York\)": "UTC",
             r"Enter the ODBC driver installed locally": "ODBC Driver 18 for SQL Server",
             r"Enter development endpoint": "test-dev-endpoint",
-            r"Select authentication type": _auth_choice_index("SqlPassword"),
+            r"Select authentication method": _auth_choice_index("SqlPassword"),
             r"Enter fetch size": "1000",
             r"Enter login timeout \(seconds\)": "30",
             r"Exclude serverless SQL pool from profiling\?": "no",
@@ -228,7 +228,7 @@ def test_configure_synapse_credentials_spn(tmp_path):
             r"Enter timezone \(e.g. America/New_York\)": "UTC",
             r"Enter the ODBC driver installed locally": "ODBC Driver 18 for SQL Server",
             r"Enter development endpoint": "test-dev-endpoint",
-            r"Select authentication type": _auth_choice_index("ActiveDirectoryServicePrincipal"),
+            r"Select authentication method": _auth_choice_index("ActiveDirectoryServicePrincipal"),
             r"Enter fetch size": "1000",
             r"Enter login timeout \(seconds\)": "30",
             r"Exclude serverless SQL pool from profiling\?": "no",
