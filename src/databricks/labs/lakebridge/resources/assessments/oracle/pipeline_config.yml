@@ -1,0 +1,136 @@
+name: oracle_assessment
+version: "1.0"
+extract_folder: "/tmp/data/oracle_assessment"
+steps:
+  - name: config_containers
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/oracle/config_containers_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: config_containers
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/oracle/config_containers.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: config_db_features
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/oracle/config_db_features_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: config_db_features
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/oracle/config_db_features.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: config_instance
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/oracle/config_instance_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: config_instance
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/oracle/config_instance.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: config_memory_evolution
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/oracle/config_memory_evolution_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: config_memory_evolution
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/oracle/config_memory_evolution.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: config_pdb_objects
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/oracle/config_pdb_objects_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: config_pdb_objects
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/oracle/config_pdb_objects.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: config_pdb_partitions
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/oracle/config_pdb_partitions_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: config_pdb_partitions
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/oracle/config_pdb_partitions.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: config_storage
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/oracle/config_storage_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: config_storage
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/oracle/config_storage.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: perf_cpu_waits
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/oracle/perf_cpu_waits_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: perf_cpu_waits
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/oracle/perf_cpu_waits.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: perf_fgd_session_evolution
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/oracle/perf_fgd_session_evolution_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: perf_fgd_session_evolution
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/oracle/perf_fgd_session_evolution.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: perf_heatmap
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/oracle/perf_heatmap_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: perf_heatmap
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/oracle/perf_heatmap.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: perf_sqltext
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/oracle/perf_sqltext_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: perf_sqltext
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/oracle/perf_sqltext.sql
+    mode: overwrite
+    frequency: once
+    flag: active
