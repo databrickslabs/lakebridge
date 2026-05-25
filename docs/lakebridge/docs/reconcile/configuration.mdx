@@ -94,6 +94,23 @@ Place the file in `.lakebridge/` in your Databricks workspace home folder.
         hex digest, matching `SHA2(<concat>, 256)` on the Databricks side. You are responsible
         for building, installing, and registering this UDF.
 
+        Skeleton of the expected signature (the `RETURN` body is a placeholder; substitute your
+        actual SHA-256 hex implementation):
+
+        ```sql
+        REPLACE FUNCTION <source_database>.lakebridge_sha256_hex(
+            input_text VARCHAR(32000) CHARACTER SET UNICODE
+        )
+        RETURNS VARCHAR(64)
+        LANGUAGE SQL
+        CONTAINS SQL
+        DETERMINISTIC
+        RETURN '<replace with sha256 hex of input_text>';
+        ```
+
+        Refer to the Teradata documentation for how to create and register UDFs on your release
+        and platform.
+
         Install this UDF in the source database before running any `row`, `data`, or `all` report
         (the `schema` report type does not need it). To point at a UDF installed under a different
         name or schema, set `hash_expression` on the `source:` / `target:` connection block; see
