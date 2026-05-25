@@ -384,7 +384,7 @@ def oracle_recon_config(recon_cluster: str, recon_schema: SchemaInfo, make_volum
 
 @pytest.fixture
 def teradata_recon_table_config(recon_schema: SchemaInfo, recon_tables: tuple[TableInfo, TableInfo]) -> TableRecon:
-    (_, tgt_table) = recon_tables
+    _, tgt_table = recon_tables
     assert tgt_table.name
 
     return TableRecon(

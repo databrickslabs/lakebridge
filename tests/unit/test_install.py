@@ -797,6 +797,78 @@ def test_configure_reconcile_no_existing_installation(ws: WorkspaceClient) -> No
     )
 
 
+def _teradata_install_ctx(workspace_client: WorkspaceClient, prompts: MockPrompts) -> WorkspaceInstaller:
+    installation = MockInstallation()
+    resource_configurator = create_autospec(ResourceConfigurator)
+    resource_configurator.prompt_for_catalog_setup.return_value = "remorph"
+    resource_configurator.prompt_for_schema_setup.return_value = "reconcile"
+    resource_configurator.prompt_for_volume_setup.return_value = "reconcile_volume"
+    ctx = ApplicationContext(workspace_client)
+    ctx.replace(
+        prompts=prompts,
+        installation=installation,
+        resource_configurator=resource_configurator,
+        workspace_installation=create_autospec(WorkspaceInstallation),
+    )
+    return WorkspaceInstaller(
+        ctx.workspace_client,
+        ctx.prompts,
+        ctx.installation,
+        ctx.install_state,
+        ctx.product_info,
+        ctx.resource_configurator,
+        ctx.workspace_installation,
+    )
+
+
+@patch("webbrowser.open")
+def test_configure_reconcile_teradata_hash_expression_override(ws: WorkspaceClient) -> None:
+    """The Teradata source prompts the user to override the default SHA-256 UDF and, on yes,
+    captures the user-supplied hash expression on SourceConnectionConfig.hash_expression."""
+    prompts = MockPrompts(
+        {
+            r"Select the Data Source": str(RECONCILE_DATA_SOURCES.index("teradata")),
+            r"Select the report type": str(RECONCILE_REPORT_TYPES.index("all")),
+            r"Enter Unity Catalog .* connection name": "my_teradata_conn",
+            r"Enter .* database name": "DBC",
+            r"Enter .* schema name": "tpch_sf1000",
+            r"Override the default Teradata source hash UDF": "yes",
+            r"Enter the source hash expression with a single '\{\}' placeholder": "my_db.my_sha256({})",
+            r"Enter target Databricks catalog name": "tpch",
+            r"Enter target Databricks schema name": "1000gb",
+            r"Open .* in the browser?": "no",
+        }
+    )
+    config = _teradata_install_ctx(ws, prompts).configure(module="reconcile")
+
+    assert config.reconcile is not None
+    assert config.reconcile.source.dialect == "teradata"
+    assert config.reconcile.source.hash_expression == "my_db.my_sha256({})"
+
+
+@patch("webbrowser.open")
+def test_configure_reconcile_teradata_hash_expression_no_override(ws: WorkspaceClient) -> None:
+    """When the user declines the Teradata UDF override prompt, hash_expression stays None."""
+    prompts = MockPrompts(
+        {
+            r"Select the Data Source": str(RECONCILE_DATA_SOURCES.index("teradata")),
+            r"Select the report type": str(RECONCILE_REPORT_TYPES.index("all")),
+            r"Enter Unity Catalog .* connection name": "my_teradata_conn",
+            r"Enter .* database name": "DBC",
+            r"Enter .* schema name": "tpch_sf1000",
+            r"Override the default Teradata source hash UDF": "no",
+            r"Enter target Databricks catalog name": "tpch",
+            r"Enter target Databricks schema name": "1000gb",
+            r"Open .* in the browser?": "no",
+        }
+    )
+    config = _teradata_install_ctx(ws, prompts).configure(module="reconcile")
+
+    assert config.reconcile is not None
+    assert config.reconcile.source.dialect == "teradata"
+    assert config.reconcile.source.hash_expression is None
+
+
 @patch("webbrowser.open")
 def test_configure_reconcile_databricks_no_existing_installation(ws: WorkspaceClient) -> None:
     prompts = MockPrompts(
