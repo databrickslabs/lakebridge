@@ -78,7 +78,9 @@ def test_create_synapse_connection_spn(
     monkeypatch.setenv("AZURE_CLIENT_ID", env.get("TOOLS_CLIENT_ID"))
     monkeypatch.setenv("AZURE_CLIENT_SECRET", env.get("TOOLS_CLIENT_SECRET"))
     # Real SPN-configured workspaces omit user/password from the YAML (the configurator skips those prompts).
-    workspace_config = {k: v for k, v in _get_synapse_workspace(sandbox_synapse_cred_config).items() if k not in {"user", "password"}}
+    workspace_config = {
+        k: v for k, v in _get_synapse_workspace(sandbox_synapse_cred_config).items() if k not in {"user", "password"}
+    }
 
     database_manager = create_synapse_connection(
         workspace_config, "master", auth_type="ActiveDirectoryServicePrincipal"
