@@ -17,6 +17,7 @@ from databricks.labs.lakebridge.config import (
     Table,
     ReconcileMetadataConfig,
 )
+from databricks.labs.lakebridge.reconcile.fingerprint.metadata import FingerprintRunMetadata
 from databricks.labs.lakebridge.reconcile.recon_config import TableThresholds
 from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_key_from_dialect
 from databricks.labs.lakebridge.reconcile.exception import (
@@ -43,6 +44,75 @@ _RECON_DETAILS_TABLE_NAME = "details"
 _RECON_AGGREGATE_RULES_TABLE_NAME = "aggregate_rules"
 _RECON_AGGREGATE_METRICS_TABLE_NAME = "aggregate_metrics"
 _RECON_AGGREGATE_DETAILS_TABLE_NAME = "aggregate_details"
+
+
+# Single source of truth for the persisted ``fingerprint_metrics`` named_struct.
+# Tuple of (sql_field_name, dataclass_attribute, sql_type).
+#
+# Field ORDER must match ``FingerprintRunMetadata`` declaration order — Delta
+# resolves struct fields positionally on saveAsTable, so reordering here would
+# silently corrupt every recon_metrics row written against existing customer
+# tables. The unit suite guards order.
+#
+# Allowed sql_type values:
+#   - "bool"             -> ``true``/``false`` literal
+#   - "bigint"           -> ``cast(N as bigint)`` literal
+#   - "bigint_or_null"   -> ``cast(N as bigint)`` or SQL ``NULL``
+#   - "string_or_null"   -> ``'value'`` (quote-scrubbed) or SQL ``NULL``
+FP_METRICS_STRUCT_FIELDS: tuple[tuple[str, str, str], ...] = (
+    ("eligible", "eligible", "bool"),
+    ("ineligibility_reason", "ineligibility_reason", "string_or_null"),
+    ("verdict", "verdict", "string_or_null"),
+    ("elapsed_ms", "elapsed_ms", "bigint"),
+    ("solved_count", "solved_count", "bigint"),
+    ("unsolved_sb_count", "unsolved_sb_count", "bigint"),
+    ("total_mismatched_sbs", "total_mismatched_sbs", "bigint"),
+    ("fallback_to_full_pipeline", "fallback_to_full_pipeline", "bool"),
+    ("sub_bucket_count", "sub_bucket_count", "bigint"),
+    ("bucket_count", "bucket_count", "bigint"),
+    ("target_row_count", "target_row_count", "bigint_or_null"),
+    ("row_count_source", "row_count_source", "string_or_null"),
+    ("fetch_path", "fetch_path", "string_or_null"),
+)
+
+
+def render_fp_metrics_value(value: object, sql_type: str) -> str:
+    """Render a Python value to its SQL-literal form per the declared sql_type.
+
+    Centralised so values cannot reach the persisted SQL fragment without
+    flowing through type-aware rendering. An unknown ``sql_type`` raises
+    rather than silently falling through to ``str(value)`` — adding a new
+    field type is a deliberate change in this function, not an accident in
+    a caller.
+    """
+    if sql_type == "bool":
+        return str(bool(value)).lower()
+    if sql_type == "bigint":
+        # Dataclass typing pins this to ``int``; assertion is a true invariant
+        # and also narrows ``value`` from ``object`` for mypy.
+        assert isinstance(value, int), f"bigint field expected int, got {type(value).__name__}"
+        return f"cast({value} as bigint)"
+    if sql_type == "bigint_or_null":
+        if value is None:
+            # Typed NULL: a bare ``NULL`` literal makes Spark infer ``NullType`` for
+            # the struct field, which then cannot be written/read by the vectorized
+            # Parquet reader and breaks schema equality against the typed audit table.
+            return "cast(NULL as bigint)"
+        assert isinstance(value, int), f"bigint_or_null field expected int|None, got {type(value).__name__}"
+        return f"cast({value} as bigint)"
+    if sql_type == "string_or_null":
+        if value is None:
+            # Typed NULL — see ``bigint_or_null`` above.
+            return "cast(NULL as string)"
+        # Defense-in-depth: scrub embedded single/double quotes that would
+        # terminate the SQL literal. Metadata values come from controlled
+        # paths today; this guards a future field that carries user input.
+        scrubbed = str(value).replace("'", "").replace('"', "")
+        return f"'{scrubbed}'"
+    raise ValueError(
+        f"Unsupported sql_type for fingerprint_metrics struct: {sql_type!r}. "
+        "Allowed: 'bool', 'bigint', 'bigint_or_null', 'string_or_null'."
+    )
 
 
 class AbstractReconIntermediatePersist:
@@ -120,9 +190,19 @@ class ReconIntermediatePersist(AbstractReconIntermediatePersist):
             raise ReadAndWriteWithVolumeException(message) from e
 
 
-def _write_df_to_delta(df: DataFrame, table_name: str, mode="append"):
+def _write_df_to_delta(df: DataFrame, table_name: str, mode="append", *, merge_schema: bool = False):
+    """Append to a Delta table; ``merge_schema=True`` enables additive column evolution.
+
+    The fingerprint precheck adds a ``fingerprint_metrics`` struct to the
+    ``recon_metrics`` row; on the first write against an existing customer
+    table this column has to materialise without an explicit ``ALTER TABLE``,
+    so callers writing that table pass ``merge_schema=True``.
+    """
     try:
-        df.write.mode(mode).saveAsTable(table_name)
+        writer = df.write.mode(mode)
+        if merge_schema:
+            writer = writer.option("mergeSchema", "true")
+        writer.saveAsTable(table_name)
         logger.info(f"Data written to {table_name} successfully.")
     except Exception as e:
         message = f"Error writing data to {table_name}: {e}"
@@ -352,6 +432,32 @@ class ReconCapture:
 
         return res
 
+    @staticmethod
+    def fingerprint_metrics_struct_sql(metadata: FingerprintRunMetadata) -> str:
+        """Render the ``fingerprint_metrics`` named_struct for the metrics table.
+
+        The per-field rendering is driven by ``FP_METRICS_STRUCT_FIELDS``;
+        adding a metadata field is one entry in that tuple — no untyped
+        f-string append. Every value flows through ``render_fp_metrics_value``
+        which checks the declared SQL-type at the boundary, so raw values
+        never reach the SQL string without type-aware rendering.
+
+        Output contract:
+          - ``mergeSchema`` evolves the column to a concrete StructType on
+            first write (Delta can't infer fields from an all-NULL struct).
+          - String fields scrubbed of embedded quotes (defense-in-depth).
+          - ``None`` emits SQL ``NULL`` (not the string ``'None'``) so
+            dashboards filtering on ``IS NULL`` don't miss rows.
+          - Field ORDER must match the dataclass declaration; ``saveAsTable``
+            resolves struct fields positionally.
+        """
+        parts: list[str] = []
+        for sql_field, attr, sql_type in FP_METRICS_STRUCT_FIELDS:
+            value = getattr(metadata, attr)
+            rendered = render_fp_metrics_value(value, sql_type)
+            parts.append(f"'{sql_field}', {rendered}")
+        return f"named_struct({', '.join(parts)})"
+
     def _insert_into_metrics_table(
         self,
         recon_table_id: int,
@@ -359,6 +465,7 @@ class ReconCapture:
         schema_reconcile_output: SchemaReconcileOutput,
         table_conf: Table,
         record_count: ReconcileRecordCount,
+        fingerprint_metadata: FingerprintRunMetadata | None = None,
     ) -> None:
         status = False
         if data_reconcile_output.exception in {None, ''} and schema_reconcile_output.exception in {None, ''}:
@@ -383,6 +490,13 @@ class ReconCapture:
         if data_reconcile_output.mismatch and data_reconcile_output.mismatch.mismatch_columns:
             mismatch_columns = data_reconcile_output.mismatch.mismatch_columns
 
+        # Sources that don't go through the fingerprint precheck (e.g. Snowflake,
+        # Oracle today, or any aggregate-mode reconcile) don't pass metadata.
+        # Use the populated "feature off" struct so dashboards can group by
+        # ``eligible`` without NULL-struct handling.
+        fp_metadata = fingerprint_metadata if fingerprint_metadata is not None else FingerprintRunMetadata.disabled()
+        fingerprint_struct_sql = self.fingerprint_metrics_struct_sql(fp_metadata)
+
         df = self.spark.sql(f"""
                 select {recon_table_id} as recon_table_id,
                 named_struct(
@@ -403,7 +517,8 @@ class ReconCapture:
                     ) else null end,
                     'schema_comparison', case when '{self.report_type.lower()}' in ('all', 'schema')
                         and '{exception_msg}' = '' then
-                        {schema_reconcile_output.is_valid} else null end
+                        {schema_reconcile_output.is_valid} else null end,
+                    'fingerprint_metrics', {fingerprint_struct_sql}
                 ) as recon_metrics,
                 named_struct(
                     'status', {status},
@@ -412,7 +527,10 @@ class ReconCapture:
                 ) as run_metrics,
                 cast('{insertion_time}' as timestamp) as inserted_ts
             """)
-        _write_df_to_delta(df, f"{self._db_prefix}.{_RECON_METRICS_TABLE_NAME}")
+        # mergeSchema=True so the additive ``fingerprint_metrics`` field
+        # evolves on first write against pre-existing customer tables without
+        # a manual ALTER TABLE.
+        _write_df_to_delta(df, f"{self._db_prefix}.{_RECON_METRICS_TABLE_NAME}", merge_schema=True)
 
     @classmethod
     def _create_map_column(
@@ -623,11 +741,17 @@ class ReconCapture:
         table_conf: Table,
         recon_process_duration: ReconcileProcessDuration,
         record_count: ReconcileRecordCount,
+        fingerprint_metadata: FingerprintRunMetadata | None = None,
     ) -> None:
         recon_table_id = self._generate_recon_main_id(table_conf)
         self._insert_into_main_table(recon_table_id, table_conf, recon_process_duration)
         self._insert_into_metrics_table(
-            recon_table_id, data_reconcile_output, schema_reconcile_output, table_conf, record_count
+            recon_table_id,
+            data_reconcile_output,
+            schema_reconcile_output,
+            table_conf,
+            record_count,
+            fingerprint_metadata=fingerprint_metadata,
         )
         self._insert_into_details_table(recon_table_id, data_reconcile_output, schema_reconcile_output)
 

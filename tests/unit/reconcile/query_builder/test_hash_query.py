@@ -536,3 +536,28 @@ def test_hash_query_builder_tsql_date_time_columns(
     )
 
     assert src_actual == src_expected
+
+
+def test_substitute_table_resolves_spark_placeholder():
+    """Spark/Databricks render the table placeholder as ``:tbl``."""
+    query = "SELECT * FROM :tbl WHERE x = 1"
+    assert HashQueryBuilder.substitute_table(query, "(SELECT * FROM t) _sub") == (
+        "SELECT * FROM (SELECT * FROM t) _sub WHERE x = 1"
+    )
+
+
+def test_substitute_table_resolves_postgres_pyformat_placeholder():
+    """Postgres-family dialects (e.g. Redshift) render the placeholder as the pyformat ``%(tbl)s``."""
+    query = "SELECT * FROM %(tbl)s WHERE x = 1"
+    assert HashQueryBuilder.substitute_table(query, "(SELECT * FROM t) _sub") == (
+        "SELECT * FROM (SELECT * FROM t) _sub WHERE x = 1"
+    )
+
+
+def test_substitute_table_resolves_all_placeholder_forms_in_one_pass():
+    """Both rendered forms are resolved so a mixed/unknown render never leaks a placeholder."""
+    query = "SELECT * FROM :tbl UNION ALL SELECT * FROM %(tbl)s"
+    result = HashQueryBuilder.substitute_table(query, "T")
+    assert ":tbl" not in result
+    assert "%(tbl)s" not in result
+    assert result == "SELECT * FROM T UNION ALL SELECT * FROM T"

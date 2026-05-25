@@ -1,7 +1,6 @@
 import logging
 from abc import ABC
 
-import sqlglot
 import sqlglot.expressions as exp
 from sqlglot import Dialect, parse_one
 
@@ -11,12 +10,12 @@ from databricks.labs.lakebridge.reconcile.connectors.oracle import OracleDataSou
 from databricks.labs.lakebridge.reconcile.connectors.snowflake import SnowflakeDataSource
 from databricks.labs.lakebridge.reconcile.exception import InvalidInputException
 from databricks.labs.lakebridge.reconcile.query_builder.expression_generator import (
-    DataType_transform_mapping,
+    get_transform_for_type,
     transform_expression,
     build_column,
 )
 from databricks.labs.lakebridge.reconcile.recon_config import Schema, Table, Aggregate
-from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect, SQLGLOT_DIALECTS
+from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +33,14 @@ class QueryBuilder(ABC):
     @property
     def engine(self) -> Dialect:
         return self._source_engine if self.layer == "source" else get_dialect("databricks")
+
+    @property
+    def counterpart_engine(self) -> Dialect:
+        # The *other* engine in the reconcile: the target is always Databricks, so the
+        # source layer's counterpart is Databricks and the target layer's counterpart is
+        # the real source engine. Type handling that only agrees when both engines pin
+        # (see ``get_transform_for_type``'s DOUBLE handling) needs this opposite side.
+        return get_dialect("databricks") if self.layer == "source" else self._source_engine
 
     @property
     def layer(self) -> str:
@@ -131,33 +138,13 @@ class QueryBuilder(ABC):
         return with_transform
 
     def _default_transformer(self, node: exp.Expression, schema: list[Schema], source: Dialect) -> exp.Expression:
-
-        def _get_transform(datatype: str):
-            source_dialects = [source_key for source_key, dialect in SQLGLOT_DIALECTS.items() if dialect == source]
-            source_dialect = source_dialects[0] if source_dialects else "universal"
-
-            source_mapping = DataType_transform_mapping.get(source_dialect, {})
-
-            parsed = datatype
-            try:
-                parsed = exp.DataType.build(datatype, source).this.value
-            except sqlglot.errors.ParseError:
-                logger.warning(f"Could not parse datatype {datatype} for source {source_dialect}")
-
-            if source_mapping.get(parsed) is not None:
-                return source_mapping.get(parsed)
-            if source_mapping.get("default") is not None:
-                return source_mapping.get("default")
-
-            return DataType_transform_mapping.get("universal", {}).get("default")
-
         schema_dict = {v.column_name: v.data_type for v in schema}
         if isinstance(node, exp.Column):
             normalized_column = self._data_source.normalize_identifier(node.name)
             ansi_name = normalized_column.ansi_normalized
             if ansi_name in schema_dict.keys():
-                transform = _get_transform(schema_dict.get(ansi_name, normalized_column.source_normalized))
-                return transform_expression(node, transform)
+                datatype = schema_dict.get(ansi_name, normalized_column.source_normalized)
+                return transform_expression(node, get_transform_for_type(datatype, source, self.counterpart_engine))
         return node
 
     def _validate(self, field: set[str] | list[str] | None, message: str):

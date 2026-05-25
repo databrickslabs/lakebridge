@@ -212,6 +212,26 @@ def report_tables_schema():
                             ),
                         ),
                         StructField("schema_comparison", BooleanType()),
+                        StructField(
+                            "fingerprint_metrics",
+                            StructType(
+                                [
+                                    StructField("eligible", BooleanType(), nullable=False),
+                                    StructField("ineligibility_reason", StringType()),
+                                    StructField("verdict", StringType()),
+                                    StructField("elapsed_ms", LongType(), nullable=False),
+                                    StructField("solved_count", LongType(), nullable=False),
+                                    StructField("unsolved_sb_count", LongType(), nullable=False),
+                                    StructField("total_mismatched_sbs", LongType(), nullable=False),
+                                    StructField("fallback_to_full_pipeline", BooleanType(), nullable=False),
+                                    StructField("sub_bucket_count", LongType(), nullable=False),
+                                    StructField("bucket_count", LongType(), nullable=False),
+                                    StructField("target_row_count", LongType()),
+                                    StructField("row_count_source", StringType()),
+                                    StructField("fetch_path", StringType()),
+                                ]
+                            ),
+                        ),
                     ]
                 ),
             ),

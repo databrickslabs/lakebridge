@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 import pytest
 from sqlglot import expressions as exp
 from sqlglot import parse_one
@@ -5,6 +7,7 @@ from sqlglot.expressions import Column
 
 from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
 from databricks.labs.lakebridge.reconcile.query_builder.expression_generator import (
+    DataType_transform_mapping,
     array_sort,
     array_to_string,
     build_between,
@@ -17,8 +20,11 @@ from databricks.labs.lakebridge.reconcile.query_builder.expression_generator imp
     build_where_clause,
     coalesce,
     concat,
+    build_column_no_alias,
     get_hash_transform,
+    get_transform_for_type,
     json_format,
+    transform_expression,
     lower,
     sha2,
     md5,
@@ -238,3 +244,146 @@ def test_build_between():
     )
     assert str(result) == "test_table.test_column BETWEEN 1 AND 2"
     assert isinstance(result, exp.Between)
+
+
+# ---------------------------------------------------------------------------
+# Dialect-aligned TIMESTAMP/TIMESTAMPTZ serialization
+# ---------------------------------------------------------------------------
+#
+# Regression for the ``expression_generator.py`` mapping bug where Redshift's
+# source-side hash input emits a 26-char microsecond-precision string
+# (``2023-11-18 18:38:07.000000``) but Databricks' target-side default cast
+# emits a 19-char string (``2023-11-18 18:38:07``). The 7-byte drift makes the
+# per-row SHA2 hashes disagree for *every* logically-identical TIMESTAMP/
+# TIMESTAMPTZ row in any Redshift -> Databricks reconcile -- in normal mode
+# this is whole-table noise; in fingerprint mode it surfaces only on the
+# small set of rows that Stage-2's surgical fetch over-pulls due to 32-bit
+# ``rh1`` sub-bucket collisions (~5 per 1M rows / 10K culprits, statistical).
+#
+# The fix adds explicit Databricks handlers so the target side emits the same
+# ``yyyy-MM-dd HH:mm:ss.SSSSSS`` shape as Redshift's
+# ``TO_CHAR(ts, 'YYYY-MM-DD HH24:MI:SS.US')``.
+
+
+def _apply_handler(handler_partial, col_name: str = "ts_col") -> str:
+    """Run a single ``DataType_transform_mapping`` partial against a column expression
+    and return the rendered SQL. Mirrors how ``HashQueryBuilder._apply_transform``
+    threads partials over the projected expression."""
+    rendered = handler_partial(exp.Column(this=col_name))
+    return rendered.sql(dialect="databricks")
+
+
+_EXPECTED_REDSHIFT_TS_SQL = "COALESCE(TO_CHAR(ts_col, 'YYYY-MM-DD HH24:MI:SS.US'), '_null_recon_')"
+_EXPECTED_DATABRICKS_TS_SQL = "COALESCE(DATE_FORMAT(ts_col, 'yyyy-MM-dd HH:mm:ss.SSSSSS'), '_null_recon_')"
+# Redshift pins TIMESTAMPTZ to UTC via ``AT TIME ZONE 'UTC'`` so its render is
+# independent of the Redshift session ``TIMEZONE``. The Databricks side is made
+# deterministic by pinning ``spark.sql.session.timeZone='UTC'`` for the reconcile
+# session (sqlglot's Databricks dialect cannot distinguish naive TIMESTAMP from
+# TIMESTAMPTZ, so a per-type SQL pin is not expressible there).
+_EXPECTED_REDSHIFT_TSTZ_SQL = "COALESCE(TO_CHAR(ts_col AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS.US'), '_null_recon_')"
+
+
+def test_databricks_timestamp_handler_emits_exact_microsecond_sql():
+    """Pin the exact rendered SQL for the Databricks TIMESTAMP handler.
+
+    A substring match on ``HH:mm:ss.SSSSSS`` would tolerate a typo in the
+    surrounding ``COALESCE`` / sentinel pieces; equality on the whole string
+    is the strongest unit-level guard.
+    """
+    handlers = DataType_transform_mapping["databricks"][exp.DataType.Type.TIMESTAMP.value]
+    assert len(handlers) == 1, "expected exactly one TIMESTAMP handler for databricks"
+    assert _apply_handler(handlers[0]) == _EXPECTED_DATABRICKS_TS_SQL
+
+
+def test_databricks_timestamptz_handler_emits_exact_microsecond_sql():
+    """The Databricks handler renders plain ``DATE_FORMAT`` (no per-type TZ pin —
+    sqlglot maps naive TIMESTAMP and TIMESTAMPTZ to this single entry). UTC
+    determinism is enforced at the session level via ``spark.sql.session.timeZone``,
+    not here; see ``test_create_recon_dependencies_pins_utc_session``."""
+    handlers = DataType_transform_mapping["databricks"][exp.DataType.Type.TIMESTAMPTZ.value]
+    assert len(handlers) == 1, "expected exactly one TIMESTAMPTZ handler for databricks"
+    assert _apply_handler(handlers[0]) == _EXPECTED_DATABRICKS_TS_SQL
+
+
+def test_redshift_timestamp_handler_emits_exact_microsecond_sql():
+    rs_handlers = DataType_transform_mapping["redshift"][exp.DataType.Type.TIMESTAMP.value]
+    assert len(rs_handlers) == 1, "expected exactly one TIMESTAMP handler for redshift"
+    rs_rendered = rs_handlers[0](exp.Column(this="ts_col")).sql(dialect="redshift")
+    assert rs_rendered == _EXPECTED_REDSHIFT_TS_SQL
+
+
+def test_redshift_timestamptz_handler_pins_utc():
+    """TIMESTAMPTZ pins to UTC via ``AT TIME ZONE 'UTC'`` so the render is
+    independent of the Redshift session ``TIMEZONE`` setting."""
+    rs_handlers = DataType_transform_mapping["redshift"][exp.DataType.Type.TIMESTAMPTZ.value]
+    assert len(rs_handlers) == 1, "expected exactly one TIMESTAMPTZ handler for redshift"
+    rs_rendered = rs_handlers[0](exp.Column(this="ts_col")).sql(dialect="redshift")
+    assert rs_rendered == _EXPECTED_REDSHIFT_TSTZ_SQL
+
+
+def test_databricks_and_redshift_timestamp_format_strings_produce_identical_bytes():
+    """The two handlers must emit byte-identical format output for the same
+    instant. We can't execute SQL in a unit test, so we render the canonical
+    reference timestamp through Python's ``strftime`` with the equivalent
+    format string the docs guarantee for each engine and assert equality on
+    the produced wall-clock string.
+
+    Redshift's ``YYYY-MM-DD HH24:MI:SS.US`` and Spark's
+    ``yyyy-MM-dd HH:mm:ss.SSSSSS`` are documented to produce 6-digit
+    microsecond precision, so the canonical Python equivalent is
+    ``%Y-%m-%d %H:%M:%S.%f``. This test guards the on-the-wire byte equality
+    that the per-row SHA2 hash relies on.
+    """
+    reference = datetime(2025, 1, 15, 12, 34, 56, 789012, tzinfo=timezone.utc)
+    canonical = reference.strftime("%Y-%m-%d %H:%M:%S.%f")
+    assert canonical == "2025-01-15 12:34:56.789012"
+
+    rs_handlers = DataType_transform_mapping["redshift"][exp.DataType.Type.TIMESTAMPTZ.value]
+    db_handlers = DataType_transform_mapping["databricks"][exp.DataType.Type.TIMESTAMPTZ.value]
+    rs_rendered = rs_handlers[0](exp.Column(this="ts_col")).sql(dialect="redshift")
+    db_rendered = db_handlers[0](exp.Column(this="ts_col")).sql(dialect="databricks")
+
+    assert "'YYYY-MM-DD HH24:MI:SS.US'" in rs_rendered
+    assert "'yyyy-MM-dd HH:mm:ss.SSSSSS'" in db_rendered
+
+
+def _render_double(source: str, counterpart: str | None) -> str:
+    src = get_dialect(source)
+    other = get_dialect(counterpart) if counterpart else None
+    node = build_column_no_alias(this="carat")
+    return transform_expression(node, get_transform_for_type("double", src, other)).sql(dialect=src)
+
+
+def test_double_pins_only_when_counterpart_also_pins():
+    """Regression: the DOUBLE -> DECIMAL(38,10) pin is only byte-identical when *both*
+    engines pin. Redshift <-> Databricks both pin, so the pin is emitted. A non-pinning
+    counterpart (BigQuery/Snowflake/Oracle/TSQL source into a Databricks target) must
+    fall back to the universal default on the Databricks side -- otherwise every DOUBLE
+    row false-mismatches and, on BigQuery, the follow-up mismatch-sampling query hits a
+    ``CAST(... AS string(N))`` parse error and errors the whole reconcile.
+    """
+    # Redshift <-> Databricks: both sides keep the DECIMAL(38,10) pin.
+    assert "DECIMAL(38,10)" in _render_double("databricks", "redshift")
+    assert "DECIMAL(38,10)" in _render_double("redshift", "databricks")
+
+    # Databricks target paired with a non-pinning source: no pin (matches main).
+    assert "DECIMAL(38,10)" not in _render_double("databricks", "bigquery")
+    assert _render_double("databricks", "bigquery") == "COALESCE(TRIM(carat), '_null_recon_')"
+
+    # Unknown counterpart (None, e.g. the Redshift-only fingerprint path) keeps the pin.
+    assert "DECIMAL(38,10)" in _render_double("databricks", None)
+
+
+def test_redshift_boolean_handler_emits_exact_case_when_sql():
+    """Redshift rejects every ``CAST(boolean AS VARCHAR/TEXT)`` form, and the
+    universal default ``TRIM(...)`` becomes ``btrim(boolean)`` which is
+    function-not-found. The custom handler must emit lowercase ``'true'`` /
+    ``'false'`` literals so the bytes match Spark's
+    ``cast(boolean AS string)`` output and per-row hashes stay aligned.
+    """
+    handlers = DataType_transform_mapping["redshift"][exp.DataType.Type.BOOLEAN.value]
+    assert len(handlers) == 1, "expected exactly one BOOLEAN handler for redshift"
+    rendered = handlers[0](exp.Column(this="bool_col")).sql(dialect="redshift")
+    assert rendered == (
+        "COALESCE(CASE WHEN bool_col THEN 'true' WHEN NOT bool_col THEN 'false' ELSE NULL END, " "'_null_recon_')"
+    )

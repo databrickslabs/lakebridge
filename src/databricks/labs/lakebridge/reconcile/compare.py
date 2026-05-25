@@ -191,6 +191,41 @@ def _get_mismatch_columns(df: DataFrame, columns: list[str]):
     return mismatch_columns
 
 
+def annotate_mismatch_columns(mismatch_df: DataFrame | None) -> DataFrame | None:
+    """Recompute per-column match flags null-safely and append a per-row ``mismatch_columns`` string.
+
+    ``_get_mismatch_df`` builds each ``<col>_match`` with bare ``=``, which is NOT null-safe:
+    ``NULL = NULL`` and ``NULL = value`` both yield NULL. A naive ``NOT <col>_match`` filter would
+    then silently drop every row whose only difference involves a NULL, while a naive
+    ``COALESCE(_match, false)`` would over-report columns that were NULL on both sides. Recomputing
+    each ``<col>_match`` from ``<col>_base <=> <col>_compare`` (null-safe equality) yields a non-null
+    BOOLEAN — ``NULL <=> NULL`` is TRUE (match), ``NULL <=> value`` is FALSE (mismatch). The frame is
+    then filtered to rows with at least one false match and annotated with a comma-separated
+    ``mismatch_columns`` column listing exactly the columns that differ on that row.
+
+    Used by the fingerprint Stage-2 path, whose prefetched frames already carry every projected
+    column, so column-level attribution can be computed in-place without a second sampling round-trip.
+    """
+    if mismatch_df is None:
+        return mismatch_df
+    match_cols = [c for c in mismatch_df.columns if c.endswith("_match")]
+    if not match_cols:
+        return mismatch_df
+
+    for match_col in match_cols:
+        stem = match_col[: -len("_match")]
+        base_col = f"{stem}_base"
+        compare_col = f"{stem}_compare"
+        if base_col in mismatch_df.columns and compare_col in mismatch_df.columns:
+            mismatch_df = mismatch_df.withColumn(match_col, expr(f"`{base_col}` <=> `{compare_col}`"))
+
+    not_all_match = " OR ".join(f"NOT `{c}`" for c in match_cols)
+    diff_case_exprs = ", ".join(f"CASE WHEN NOT `{c}` THEN '{c[: -len('_match')]}' END" for c in match_cols)
+    return mismatch_df.filter(expr(not_all_match)).withColumn(
+        "mismatch_columns", expr(f"concat_ws(',', {diff_case_exprs})")
+    )
+
+
 def _normalize_mismatch_df_col(column, suffix):
     unnormalized = DialectUtils.unnormalize_identifier(column) + suffix
     return DialectUtils.ansi_normalize_identifier(unnormalized)
