@@ -10,7 +10,6 @@ from databricks.labs.blueprint.tui import Prompts
 from databricks.labs.lakebridge.transpiler.transpile_status import TranspileError
 from databricks.labs.lakebridge.reconcile.recon_config import Table
 
-
 logger = logging.getLogger(__name__)
 
 

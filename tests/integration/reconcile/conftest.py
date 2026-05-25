@@ -137,7 +137,7 @@ def recon_metadata(spark, recon_schema, make_volume, report_tables_schema) -> Re
 
 @pytest.fixture
 def databricks_recon_table_config(recon_schema: SchemaInfo, recon_tables: tuple[TableInfo, TableInfo]) -> TableRecon:
-    (src_table, tgt_table) = recon_tables
+    src_table, tgt_table = recon_tables
     assert src_table.name
     assert tgt_table.name
 
@@ -154,7 +154,7 @@ def databricks_recon_table_config(recon_schema: SchemaInfo, recon_tables: tuple[
 
 @pytest.fixture
 def tsql_recon_table_config(recon_schema: SchemaInfo, recon_tables: tuple[TableInfo, TableInfo]) -> TableRecon:
-    (_, tgt_table) = recon_tables
+    _, tgt_table = recon_tables
     assert tgt_table.name
 
     return TableRecon(
@@ -170,7 +170,7 @@ def tsql_recon_table_config(recon_schema: SchemaInfo, recon_tables: tuple[TableI
 
 @pytest.fixture
 def snowflake_recon_table_config(recon_schema: SchemaInfo, recon_tables: tuple[TableInfo, TableInfo]) -> TableRecon:
-    (_, tgt_table) = recon_tables
+    _, tgt_table = recon_tables
     assert tgt_table.name
 
     return TableRecon(
@@ -186,7 +186,7 @@ def snowflake_recon_table_config(recon_schema: SchemaInfo, recon_tables: tuple[T
 
 @pytest.fixture
 def oracle_recon_table_config(recon_schema: SchemaInfo, recon_tables: tuple[TableInfo, TableInfo]) -> TableRecon:
-    (_, tgt_table) = recon_tables
+    _, tgt_table = recon_tables
     assert tgt_table.name
 
     return TableRecon(
@@ -306,7 +306,7 @@ def snowflake_recon_config(recon_cluster: str, recon_schema: SchemaInfo, make_vo
 
 @pytest.fixture
 def redshift_recon_table_config(recon_schema: SchemaInfo, recon_tables: tuple[TableInfo, TableInfo]) -> TableRecon:
-    (_, tgt_table) = recon_tables
+    _, tgt_table = recon_tables
     assert tgt_table.name
 
     return TableRecon(

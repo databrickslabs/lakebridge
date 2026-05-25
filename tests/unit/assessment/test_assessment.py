@@ -34,6 +34,7 @@ def test_configure_sqlserver_credentials(tmp_path):
         'secret_vault_name': None,
         'mssql': {
             'auth_type': 'sql_authentication',
+            'database': 'TEST_TSQL_JDBC',
             'driver': 'ODBC Driver 18 for SQL Server',
             'fetch_size': '4000',
             'login_timeout': 5,
@@ -131,6 +132,12 @@ def test_create_assessment_configurator():
         source_system="synapse", product_name="lakebridge", prompts=prompts
     )
     assert isinstance(synapse_configurator, ConfigureSynapseAssessment)
+
+    # legacy_synapse (Azure Synapse dedicated SQL pool) reuses the SQL Server configurator
+    legacy_synapse_configurator = create_assessment_configurator(
+        source_system="legacy_synapse", product_name="lakebridge", prompts=prompts
+    )
+    assert isinstance(legacy_synapse_configurator, ConfigureSqlServerAssessment)
 
     # Test invalid source system
     try:

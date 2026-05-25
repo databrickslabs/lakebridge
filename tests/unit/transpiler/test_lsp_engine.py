@@ -19,7 +19,6 @@ from databricks.labs.lakebridge.helpers.file_utils import chdir
 from databricks.labs.lakebridge.transpiler.lsp.lsp_engine import ChangeManager, LSPEngine, TranspileDocumentResult
 from databricks.labs.lakebridge.transpiler.transpile_status import TranspileError, ErrorSeverity, ErrorKind
 
-
 # TODO: Arguably a form of integration test, as it round-trips with a real LSP server.
 
 
@@ -126,7 +125,7 @@ async def test_receives_client_info(
     product_info = ProductInfo.from_class(type(lsp_engine))
     # The product version can include a suffix of the form +{rev}{timestamp}. The timestamp for this process won't match
     # that of the LSP server under test, so we strip it off the string that we will hunt for in the log.
-    (stripped_product_version, *_) = product_info.version().split("+")
+    stripped_product_version, *_ = product_info.version().split("+")
     expected_client_info = f"client-info={product_info.product_name()}/{stripped_product_version}"
     assert expected_client_info in log
 
