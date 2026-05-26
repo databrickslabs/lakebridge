@@ -1,13 +1,35 @@
 import logging
+from pathlib import Path
 
 import pytest
+import yaml
 
 from databricks.labs.lakebridge.assessments.profiler_config import PipelineConfig, Step
+
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+ASSESSMENT_CONFIG_ROOT = PROJECT_ROOT / "src/databricks/labs/lakebridge/resources/assessments"
 
 
 def _config(*step_specs: tuple[str, str, str]) -> PipelineConfig:
     steps = [Step(name=n, type=t, extract_source="dummy.sql", flag=f) for n, t, f in step_specs]
     return PipelineConfig(name="test", version="1.0", extract_folder="/tmp", steps=steps)
+
+
+@pytest.mark.parametrize(
+    "source, expected_extract_folder",
+    [
+        ("synapse", "~/.databricks/labs/lakebridge_profilers/synapse_assessment"),
+        ("mssql", "~/.databricks/labs/lakebridge_profilers/mssql_assessment"),
+        ("legacy_synapse", "~/.databricks/labs/lakebridge_profilers/legacy_synapse_assessment"),
+        ("oracle", "~/.databricks/labs/lakebridge_profilers/oracle_assessment"),
+    ],
+)
+def test_packaged_profiler_extract_folders_are_cross_platform(source: str, expected_extract_folder: str) -> None:
+    config_path = ASSESSMENT_CONFIG_ROOT / source / "pipeline_config.yml"
+    with config_path.open(encoding="utf-8") as config_file:
+        config = yaml.safe_load(config_file)
+
+    assert config["extract_folder"] == expected_extract_folder
 
 
 @pytest.mark.parametrize(

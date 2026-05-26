@@ -71,7 +71,7 @@ def test_install_all(ws):
     )
     profiler_dashboard_config = ProfilerDashboardConfig(
         source_tech="synapse",
-        extract_file_path="/tmp/data/synapse_assessment/profiler_extract.db",
+        extract_file_path="~/.databricks/labs/lakebridge_profilers/synapse_assessment/profiler_extract.db",
         metadata_config=ProfilerDashboardMetadataConfig(
             catalog="lakebridge", schema="profiler", volume="ingestion_volume"
         ),
@@ -195,7 +195,7 @@ def test_uninstall_configs_exist(ws):
 
     profiler_dashboard_config = ProfilerDashboardConfig(
         source_tech="snowflake",
-        extract_file_path="/tmp/data/synapse_assessment/profiler_extract.db",
+        extract_file_path="~/.databricks/labs/lakebridge_profilers/synapse_assessment/profiler_extract.db",
         metadata_config=ProfilerDashboardMetadataConfig(
             catalog="lakebridge",
             schema="profiler",

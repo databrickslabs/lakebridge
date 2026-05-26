@@ -1001,7 +1001,9 @@ def llm_transpile(
 
 
 @lakebridge.command()
-def execute_database_profiler(w: WorkspaceClient, source_tech: str | None = None) -> None:
+def execute_database_profiler(
+    w: WorkspaceClient, source_tech: str | None = None, output_folder: str | None = None
+) -> None:
     """Execute the Profiler Extraction for the given source technology"""
     ctx = ApplicationContext(w)
     ctx.add_user_agent_extra("cmd", "execute-profiler")
@@ -1024,7 +1026,7 @@ def execute_database_profiler(w: WorkspaceClient, source_tech: str | None = None
             f"Connection details not found. Please run `databricks labs lakebridge configure-database-profiler` "
             f"to set up connection details for {source_tech}."
         )
-    profiler = Profiler.create(source_tech)
+    profiler = Profiler.create(source_tech, extract_folder=output_folder)
 
     # TODO: Add extractor logic to ApplicationContext instead of creating inside the Profiler class
     profiler.profile()

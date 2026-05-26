@@ -140,7 +140,7 @@ def test_deploy_new_profiler_ingestion_job():
     name = "Profiler Ingestion Job"
     config = ProfilerDashboardConfig(
         source_tech="synapse",
-        extract_file_path="/tmp/data/synapse_assessment/profiler_extract.db",
+        extract_file_path="~/.databricks/labs/lakebridge_profilers/synapse_assessment/profiler_extract.db",
         metadata_config=ProfilerDashboardMetadataConfig(
             catalog="lakebridge_profiler", schema="profiler_runs", volume="synapse-extract"
         ),
@@ -167,7 +167,7 @@ def test_deploy_existing_profiler_ingestion_job():
     product_info = ProductInfo.for_testing(LakebridgeConfiguration)
     config = ProfilerDashboardConfig(
         source_tech="synapse",
-        extract_file_path="/tmp/data/synapse_assessment/profiler_extract.db",
+        extract_file_path="~/.databricks/labs/lakebridge_profilers/synapse_assessment/profiler_extract.db",
         metadata_config=ProfilerDashboardMetadataConfig(
             catalog="lakebridge_profiler", schema="profiler_runs", volume="synapse-extract"
         ),
@@ -195,7 +195,7 @@ def test_deploy_missing_profiler_ingestion_job():
     product_info = ProductInfo.for_testing(LakebridgeConfiguration)
     config = ProfilerDashboardConfig(
         source_tech="synapse",
-        extract_file_path="/tmp/data/synapse_assessment/profiler_extract.db",
+        extract_file_path="~/.databricks/labs/lakebridge_profilers/synapse_assessment/profiler_extract.db",
         metadata_config=ProfilerDashboardMetadataConfig(
             catalog="lakebridge_profiler", schema="profiler_runs", volume="synapse-extract"
         ),

@@ -25,12 +25,14 @@ class Profiler:
         self._pipeline_config = pipeline_configs
 
     @classmethod
-    def create(cls, platform: str) -> "Profiler":
+    def create(cls, platform: str, extract_folder: str | None = None) -> "Profiler":
         pipeline_config_path = PLATFORM_TO_SOURCE_TECHNOLOGY_CFG.get(platform, None)
         pipeline_config = None
         if pipeline_config_path:
             pipeline_config_absolute_path = Profiler._locate_config(pipeline_config_path)
             pipeline_config = Profiler.path_modifier(config_file=pipeline_config_absolute_path)
+            if extract_folder:
+                pipeline_config = pipeline_config.copy(extract_folder=extract_folder)
         return cls(platform, pipeline_config)
 
     @classmethod

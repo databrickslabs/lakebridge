@@ -166,4 +166,15 @@ Exclude monitoring metrics from profiling? (default: no):
 Redact SQL pools SQL text? (default: no):
 ```
 
+## Execute the Profiler
+
+Once configured, run the profiler to extract metadata and activity metrics from your Synapse workspace:
+
+```bash
+databricks labs lakebridge execute-database-profiler --source-tech synapse
+```
+
+By default, the profiler writes the DuckDB extract to
+`~/.databricks/labs/lakebridge_profilers/synapse_assessment/profiler_extract.db`.
+
 [Back to Configure Profiler](../#configure-profiler)

@@ -1,6 +1,12 @@
+from pathlib import Path
+
 import pytest
 
+from databricks.labs.lakebridge.assessments import profiler as profiler_module
+from databricks.labs.lakebridge.assessments.profiler import Profiler
 from databricks.labs.lakebridge.assessments.profiler_config import PipelineConfig, Step
+
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
 
 @pytest.mark.parametrize(
@@ -151,6 +157,16 @@ def test_pipeline_config_with_valid_steps() -> None:
 
     assert config.name == "TestPipeline"
     assert len(config.steps) == 2
+
+
+def test_profiler_create_overrides_extract_folder(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test that the profiler CLI output folder override updates the packaged pipeline config."""
+    monkeypatch.setattr(profiler_module, "PRODUCT_PATH_PREFIX", PROJECT_ROOT)
+
+    profiler = Profiler.create("synapse", extract_folder="/custom/profiler_output")
+
+    assert profiler._pipeline_config is not None  # pylint: disable=protected-access
+    assert profiler._pipeline_config.extract_folder == "/custom/profiler_output"  # pylint: disable=protected-access
 
 
 def test_error_message_is_helpful() -> None:

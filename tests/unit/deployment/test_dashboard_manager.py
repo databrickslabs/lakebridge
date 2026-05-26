@@ -32,7 +32,7 @@ def mocked_workspace_client() -> WorkspaceClient:
 def profiler_dashboard_config() -> ProfilerDashboardConfig:
     return ProfilerDashboardConfig(
         source_tech="synapse",
-        extract_file_path="/tmp/data/synapse_assessment/profiler_extract.db",
+        extract_file_path="~/.databricks/labs/lakebridge_profilers/synapse_assessment/profiler_extract.db",
         metadata_config=ProfilerDashboardMetadataConfig(
             catalog="lakebridge", schema="profiler", volume="ingestion_volume"
         ),
