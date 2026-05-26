@@ -8,7 +8,10 @@ from databricks.labs.lakebridge.connections.env_getter import EnvGetter
 from databricks.labs.lakebridge.assessments import PRODUCT_NAME
 from databricks.labs.lakebridge.resources.assessments.common.cli import arguments_loader
 from databricks.labs.lakebridge.resources.assessments.common.duckdb_helpers import save_to_duckdb
-from databricks.labs.lakebridge.resources.assessments.mssql.common.connector import get_sqlserver_reader, get_query_class
+from databricks.labs.lakebridge.resources.assessments.mssql.common.connector import (
+    get_sqlserver_reader,
+    get_query_class,
+)
 from databricks.labs.lakebridge.resources.assessments.mssql.common.schemas import MSSQL_SCHEMAS
 
 logger = get_logger(__file__)

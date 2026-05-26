@@ -539,9 +539,7 @@ class AzureSQLQueries(MSSQLQueries):
     @staticmethod
     def get_cpu_utilization(last_execution_time: str | None):
         """Uses sys.dm_db_resource_stats instead of dm_os_ring_buffers (unavailable on Azure SQL DB)."""
-        predicate = (
-            f"WHERE end_time > CAST('{last_execution_time}' AS DATETIME2(6))" if last_execution_time else ""
-        )
+        predicate = f"WHERE end_time > CAST('{last_execution_time}' AS DATETIME2(6))" if last_execution_time else ""
         return f"""
             SELECT
                 NULL AS record_id,
