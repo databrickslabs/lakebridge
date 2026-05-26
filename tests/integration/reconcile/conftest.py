@@ -18,6 +18,7 @@ from databricks.sdk.service.catalog import TableInfo, SchemaInfo
 from databricks.sdk.service.compute import DataSecurityMode, Kind
 
 from databricks.labs.lakebridge.config import (
+    HashExpressionOverrides,
     LakebridgeConfiguration,
     ReconcileConfig,
     ReconcileJobConfig,
@@ -446,17 +447,16 @@ def teradata_recon_config(recon_cluster: str, recon_schema: SchemaInfo, make_vol
             catalog=TERADATA_CATALOG,
             schema=TERADATA_SCHEMA,
             uc_connection_name=TERADATA_CONNECTION,
-            hash_expression="{}",
         ),
         target=TargetConnectionConfig(
             catalog=recon_schema.catalog_name,
             schema=recon_schema.name,
-            hash_expression="{}",
         ),
         metadata_config=ReconcileMetadataConfig(
             catalog=recon_schema.catalog_name, schema=recon_schema.name, volume=volume.name
         ),
         job_overrides=deployment_overrides,
+        hash_expression_overrides=HashExpressionOverrides(source="{}", target="{}"),
     )
 
 

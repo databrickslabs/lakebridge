@@ -238,11 +238,6 @@ class SourceConnectionConfig:
     catalog: str
     schema: str
     uc_connection_name: str | None = None
-    # SQL expression with a single ``{}`` placeholder for the input. Used
-    # when the source dialect has no portable hash (e.g. Teradata SHA-256 UDF). The framework
-    # substitutes ``{}`` with the concat expression, matching the same convention as
-    # ``Dialect_hash_algo_mapping`` (see ``expression_generator``).
-    hash_expression: str | None = None
 
     def __post_init__(self):
         self.dialect = self.dialect.lower()
@@ -254,7 +249,19 @@ class SourceConnectionConfig:
 class TargetConnectionConfig:
     catalog: str
     schema: str
-    hash_expression: str | None = None
+
+
+@dataclass
+class HashExpressionOverrides:
+    """Optional per-side overrides for the row-hash function.
+
+    Each value is raw SQL containing a single ``{}`` placeholder that the framework substitutes
+    with the concatenated hash input. Whatever hash you pick on the source side must produce the
+    same digest as the target side for the same input.
+    """
+
+    source: str | None = None
+    target: str | None = "sha2({}, 256)"
 
 
 @dataclass
@@ -293,6 +300,18 @@ class ReconcileConfig:
     target: TargetConnectionConfig
     metadata_config: ReconcileMetadataConfig
     job_overrides: ReconcileJobConfig | None = None
+    hash_expression_overrides: HashExpressionOverrides | None = None
+
+    def __post_init__(self):
+        # Teradata has no portable cryptographic hash in pure SQL, so the source hash UDF must
+        # be set explicitly. Refuse to load a config that would silently fall back to a UDF call
+        # the caller never declared.
+        if self.source.dialect.lower() == "teradata":
+            if not self.hash_expression_overrides or not self.hash_expression_overrides.source:
+                raise ValueError(
+                    "Teradata source requires hash_expression_overrides.source to be set "
+                    "(install your hash UDF on Teradata and configure the call here)."
+                )
 
     @classmethod
     def v1_migrate(cls, raw: dict[str, Any]) -> dict[str, Any]:

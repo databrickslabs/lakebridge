@@ -87,34 +87,20 @@ Place the file in `.lakebridge/` in your Databricks workspace home folder.
         report_type: all
         ```
 
-        :::warning Required: install a SHA-256 UDF on the Teradata source
-        Teradata does not provide a native cryptographic hash that yields a hex string in pure
-        SQL. The Teradata source-side hash therefore defaults to a **user-installed** UDF named
-        `lakebridge_sha256_hex(VARCHAR) RETURNS VARCHAR(64)` that produces the lowercase SHA-256
-        hex digest, matching `SHA2(<concat>, 256)` on the Databricks side. You are responsible
-        for building, installing, and registering this UDF.
+        :::warning Required: install a hash UDF on the Teradata source
+        Teradata does not provide a portable cryptographic hash function in pure SQL, so **you
+        must install your own hash UDF on the Teradata source** before running any `row`, `data`,
+        or `all` report (the `schema` report type does not need it). Any deterministic hash
+        (SHA-256, MD5, etc.) works as long as the source and target sides produce the same string
+        for the same input.
 
-        Skeleton of the expected signature (the `RETURN` body is a placeholder; substitute your
-        actual SHA-256 hex implementation):
+        You must also tell Lakebridge how to call the UDF by setting
+        `hash_expression_overrides.source` on the recon config (see
+        [Hash Expression](#hash-expression)).
 
-        ```sql
-        REPLACE FUNCTION <source_database>.lakebridge_sha256_hex(
-            input_text VARCHAR(32000) CHARACTER SET UNICODE
-        )
-        RETURNS VARCHAR(64)
-        LANGUAGE SQL
-        CONTAINS SQL
-        DETERMINISTIC
-        RETURN '<replace with sha256 hex of input_text>';
-        ```
 
         Refer to the Teradata documentation for how to create and register UDFs on your release
         and platform.
-
-        Install this UDF in the source database before running any `row`, `data`, or `all` report
-        (the `schema` report type does not need it). To point at a UDF installed under a different
-        name or schema, set `hash_expression` on the `source:` / `target:` connection block; see
-        [Hash Expression](#hash-expression).
         :::
     </TabItem>
     <TabItem value="databricks" label="Databricks">
@@ -131,23 +117,6 @@ Place the file in `.lakebridge/` in your Databricks workspace home folder.
         ```
     </TabItem>
 </Tabs>
-
-### Teradata Hash UDF
-
-The Teradata default expects a UDF with the following contract, callable from the source
-database that the reconcile query targets:
-
-| | |
-|---|---|
-| **Name** | `lakebridge_sha256_hex` |
-| **Argument** | a single `VARCHAR` input (sized to fit the longest concatenated row-key — `VARCHAR(32000) CHARACTER SET UNICODE` is a safe default) |
-| **Returns** | `VARCHAR(64)` — lowercase hex digest of SHA-256 over the input |
-
-If your environment already exposes a SHA UDF under a different name or schema, leave this
-default alone and point Lakebridge at it on the source/target connection config via
-[`hash_expression`](#hash-expression).
-
----
 
 ## TABLE Config Schema
 
@@ -331,46 +300,32 @@ Transformation(
 
 ## Hash Expression
 
-Override the dialect's default row-hash function with your own SQL. Configure it on the
-**connection** (`source:` / `target:`). The hash function is a property of the source/target
-system, not of any individual table. Each value is raw SQL containing a single `{}` placeholder
-that Lakebridge replaces with the concatenated hash input.
+Override the row-hash function with your own SQL. Each
+value is raw SQL containing a single `{}` placeholder that Lakebridge replaces with the
+concatenated hash input.
+
+- `source` defaults to `None`. When omitted, the source side falls back to the dialect default.
+- `target` defaults to `sha2({}, 256)`.
+
+For Teradata sources, `source` is **mandatory** since Teradata has no native cryptographic hash.
 
 <Tabs>
   <TabItem value="python" label="Python" default>
     ```python
     @dataclass
-    class SourceConnectionConfig:
-        dialect: str
-        catalog: str
-        schema: str
-        uc_connection_name: str | None = None
-        hash_expression: str | None = None  # raw SQL with a single `{}` placeholder
-
-    @dataclass
-    class TargetConnectionConfig:
-        catalog: str
-        schema: str
-        hash_expression: str | None = None  # raw SQL with a single `{}` placeholder
+    class HashExpressionOverrides:
+        source: str | None = None
+        target: str | None = "sha2({}, 256)"
     ```
   </TabItem>
   <TabItem value="yaml" label="YAML">
     ```yaml
-    source:
-      dialect: teradata
-      catalog: DBC
-      schema: lakebridge_test
-      uc_connection_name: teradata_sandbox
-      hash_expression: "my_db.my_sha256({})"
-    target:
-      catalog: migrated
-      schema: migrated
-      hash_expression: "sha2({}, 256)"
+    hash_expression_overrides:
+      source: "my_sha256({})"
+      target: "sha2({}, 256)"
     ```
   </TabItem>
 </Tabs>
-
-If `hash_expression` is omitted on either side, that side falls back to the dialect default.
 
 :::note Same hash on both sides
 The source and target expressions must produce the **same string for the same logical row** —

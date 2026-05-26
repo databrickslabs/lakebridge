@@ -20,6 +20,7 @@ from databricks.labs.lakebridge import initialize_logging
 from databricks.labs.lakebridge.__about__ import __version__
 from databricks.labs.lakebridge.cli import lakebridge
 from databricks.labs.lakebridge.config import (
+    HashExpressionOverrides,
     ReconcileConfig,
     LakebridgeConfiguration,
     ReconcileMetadataConfig,
@@ -349,12 +350,14 @@ class WorkspaceInstaller:
         source_config = self._prompt_for_source_connection_config(data_source)
         target_config = self._prompt_for_target_connection_config()
         metadata_config = self._prompt_for_reconcile_metadata_config()
+        hash_expression_overrides = self._prompt_for_hash_expression_overrides(data_source)
 
         return ReconcileConfig(
             report_type=report_type,
             source=source_config,
             target=target_config,
             metadata_config=metadata_config,
+            hash_expression_overrides=hash_expression_overrides,
         )
 
     def _prompt_for_source_connection_config(self, dialect: str) -> SourceConnectionConfig:
@@ -375,19 +378,36 @@ class WorkspaceInstaller:
 
         schema = self._prompts.question(schema_prompt)
 
-        hash_expression: str | None = None
-        if dialect == ReconSourceType.TERADATA.value and self._prompts.confirm(
-            "Override the default Teradata source hash UDF (lakebridge_sha256_hex({}))?"
-        ):
-            hash_expression = self._prompts.question("Enter the source hash expression with a single '{}' placeholder")
-
         return SourceConnectionConfig(
             dialect=dialect,
             catalog=catalog,
             schema=schema,
             uc_connection_name=uc_connection_name,
-            hash_expression=hash_expression,
         )
+
+    def _prompt_for_hash_expression_overrides(self, src_dialect: str) -> HashExpressionOverrides | None:
+        # Teradata has no native hash, so an explicit source override is mandatory (also enforced
+        # by ReconcileConfig.__post_init__). Other source dialects (including Databricks) ship a
+        # usable default; we only prompt when the user opts in.
+        if src_dialect != ReconSourceType.TERADATA.value:
+            if not self._prompts.confirm("Override the default source/target hash functions?"):
+                return None
+        return self._ask_hash_expression_overrides(src_dialect)
+
+    def _ask_hash_expression_overrides(self, src_dialect: str) -> HashExpressionOverrides:
+        source_prompt = (
+            f"Enter the {src_dialect.capitalize()} source hash expression "
+            "(must contain a single '{}' placeholder, e.g. my_sha256({}))"
+        )
+        if src_dialect == ReconSourceType.DATABRICKS.value:
+            source_expr = self._prompts.question(source_prompt, default="sha2({}, 256)")
+        else:
+            source_expr = self._prompts.question(source_prompt)
+        target_expr = self._prompts.question(
+            "Enter the Databricks target hash expression (must contain a single '{}' placeholder)",
+            default="sha2({}, 256)",
+        )
+        return HashExpressionOverrides(source=source_expr, target=target_expr)
 
     def _prompt_for_target_connection_config(self) -> TargetConnectionConfig:
         target_catalog = self._prompts.question("Enter target Databricks catalog name")
