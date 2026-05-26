@@ -2,37 +2,159 @@ name: mssql_assessment
 version: "1.0"
 extract_folder: "/tmp/data/mssql_assessment"
 steps:
-  - name: activity_extract
-    type: python
-    extract_source: src/databricks/labs/lakebridge/resources/assessments/mssql/activity_extract.py
+  - name: sys_info
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/mssql/sys_info_ddl.sql
     mode: overwrite
     frequency: once
     flag: active
-    dependencies:
-      - pandas
-      - duckdb
-      - databricks-sdk
-      - databricks-labs-blueprint[yaml]>=0.10.1
-      - sqlalchemy
-      - azure-synapse-artifacts
-      - azure-mgmt-sql
-      - azure-identity
-      - azure-monitor-query==1.3.0b1
-      - pyodbc
-  - name: info_extract
-    type: python
-    extract_source: src/databricks/labs/lakebridge/resources/assessments/mssql/info_extract.py
+  - name: sys_info
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/mssql/sys_info.sql
     mode: overwrite
     frequency: once
     flag: active
-    dependencies:
-      - pandas
-      - duckdb
-      - databricks-sdk
-      - databricks-labs-blueprint[yaml]>=0.10.1
-      - sqlalchemy
-      - azure-synapse-artifacts
-      - azure-mgmt-sql
-      - azure-identity
-      - azure-monitor-query==1.3.0b1
-      - pyodbc
+  - name: databases
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/mssql/databases_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: databases
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/mssql/databases.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: tables
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/mssql/tables_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: tables
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/mssql/tables.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: views
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/mssql/views_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: views
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/mssql/views.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: columns
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/mssql/columns_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: columns
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/mssql/columns.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: indexed_views
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/mssql/indexed_views_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: indexed_views
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/mssql/indexed_views.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: routines
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/mssql/routines_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: routines
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/mssql/routines.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: db_sizes
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/mssql/db_sizes_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: db_sizes
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/mssql/db_sizes.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: table_sizes
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/mssql/table_sizes_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: table_sizes
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/mssql/table_sizes.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: query_stats
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/mssql/query_stats_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: query_stats
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/mssql/query_stats.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: proc_stats
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/mssql/proc_stats_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: proc_stats
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/mssql/proc_stats.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: sessions
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/mssql/sessions_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: sessions
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/mssql/sessions.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: cpu_utilization
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/mssql/cpu_utilization_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: cpu_utilization
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/mssql/cpu_utilization.sql
+    mode: overwrite
+    frequency: once
+    flag: active
