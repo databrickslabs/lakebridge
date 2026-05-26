@@ -94,10 +94,9 @@ class MSSQLConnector(_BaseConnector):
 
         query_params: dict[str, str] = {
             "driver": str(self.config['driver']),
-            "loginTimeout": "30",
+            "loginTimeout": str(int(self.config.get("login_timeout", "30"))),
+            "authentication": resolved.authentication_param,
         }
-        if resolved.authentication_param:
-            query_params["authentication"] = resolved.authentication_param
 
         url_kwargs: dict[str, Any] = {
             "drivername": "mssql+pyodbc",

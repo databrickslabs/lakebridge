@@ -133,7 +133,7 @@ def test_default_auth_type_is_sql_password() -> None:
     resolved = resolve_mssql_credentials({"user": "u", "password": "p"})
     assert resolved.username == "u"
     assert resolved.password == "p"
-    assert resolved.authentication_param is None
+    assert resolved.authentication_param == "SqlPassword"
 
 
 def test_invalid_legacy_auth_type_no_longer_aliased(monkeypatch: pytest.MonkeyPatch) -> None:

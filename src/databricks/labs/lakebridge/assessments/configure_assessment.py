@@ -150,7 +150,7 @@ class ConfigureSqlServerAssessment(AssessmentConfigurator):
         secret_vault_name = None
 
         auth_choices = [cls.__name__ for cls in AUTH_CHOICES]
-        auth_type = self.prompts.choice("Select authentication method", auth_choices)
+        auth_type = self.prompts.choice("Select authentication method", auth_choices, sort=False)
         auth_credentials = _prompt_mssql_auth_credentials(self.prompts, auth_type)
 
         credential_section: dict = {

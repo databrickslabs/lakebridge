@@ -23,14 +23,14 @@ from databricks.labs.blueprint.installation import JsonObject
 class ResolvedCredentials:
     """Everything `MSSQLConnector` needs to open a connection.
 
+    - `authentication_param`: value of the ODBC `Authentication=` query parameter.
     - `username` / `password`: included in the SQLAlchemy URL when non-None.
-    - `authentication_param`: value of the ODBC `Authentication=` query parameter; None to omit.
     - `engine_kwargs`: forwarded to `sqlalchemy.create_engine` (used by token-injection paths).
     """
 
+    authentication_param: str
     username: str | None = None
     password: str | None = None
-    authentication_param: str | None = None
     engine_kwargs: dict[str, Any] = field(default_factory=dict)
 
 
@@ -53,7 +53,11 @@ class SqlPassword:
     @classmethod
     def resolve_credentials(cls, config: JsonObject) -> ResolvedCredentials:
         user, password = _require_user_password(cls.__name__, config)
-        return ResolvedCredentials(username=user, password=password)
+        return ResolvedCredentials(
+            authentication_param="SqlPassword",
+            username=user,
+            password=password,
+        )
 
 
 class ActiveDirectoryPassword:
@@ -63,9 +67,9 @@ class ActiveDirectoryPassword:
     def resolve_credentials(cls, config: JsonObject) -> ResolvedCredentials:
         user, password = _require_user_password(cls.__name__, config)
         return ResolvedCredentials(
+            authentication_param="ActiveDirectoryPassword",
             username=user,
             password=password,
-            authentication_param="ActiveDirectoryPassword",
         )
 
 
@@ -81,9 +85,9 @@ class ActiveDirectoryServicePrincipal:
         if missing:
             raise OSError(f"ActiveDirectoryServicePrincipal requires env vars: {', '.join(missing)}")
         return ResolvedCredentials(
+            authentication_param="ActiveDirectoryServicePrincipal",
             username=os.environ[cls._CLIENT_ID_VAR],
             password=os.environ[cls._CLIENT_SECRET_VAR],
-            authentication_param="ActiveDirectoryServicePrincipal",
         )
 
 
@@ -123,8 +127,7 @@ AUTH_CHOICES: list[type[MSSQLAuth]] = [
     ActiveDirectoryInteractive,
 ]
 
-# All known auth classes — used for runtime dispatch only (includes wired-but-unimplemented).
-_AUTH_REGISTRY: dict[str, type[MSSQLAuth]] = {cls.__name__: cls for cls in (*AUTH_CHOICES, DefaultAzureCredential)}
+_AUTH_REGISTRY: dict[str, type[MSSQLAuth]] = {cls.__name__: cls for cls in AUTH_CHOICES}
 
 
 def resolve_mssql_credentials(config: JsonObject) -> ResolvedCredentials:
