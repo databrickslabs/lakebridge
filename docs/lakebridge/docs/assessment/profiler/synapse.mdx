@@ -21,15 +21,12 @@ import Admonition from '@theme/Admonition';
 az login
 ```
 
-The profiler uses Azure SDK's `DefaultAzureCredential` which attempts authentication in this order:
-1. **Environment Variables** (Service Principal):
-   - `AZURE_TENANT_ID`
-   - `AZURE_CLIENT_ID`
-   - `AZURE_CLIENT_SECRET`
-2. **Managed Identity** (if running on Azure VM/App Service)
-3. **Azure CLI** (from `az login`)
-4. **Visual Studio Code**
-5. **Azure PowerShell**
+The profiler has two independent auth paths:
+
+1. **Azure Management REST API** (workspace metadata, pool listing, monitoring metrics) uses Azure SDK's `DefaultAzureCredential`, which tries Environment Variables (`AZURE_TENANT_ID` + `AZURE_CLIENT_ID` + `AZURE_CLIENT_SECRET`), Managed Identity, Azure CLI (`az login`), Visual Studio Code, and Azure PowerShell — in that order.
+2. **ODBC connection to the SQL pools** uses the auth method you pick from `configure-database-profiler`. See [section 4](#4-odbc-authentication).
+
+`AZURE_TENANT_ID` is only consumed by the management API path; it is **not** needed for ODBC `ActiveDirectoryServicePrincipal`.
 
 Ensure your user/service principal account has the required roles listed below. See [Azure documentation](https://learn.microsoft.com/en-us/cli/azure/authenticate-azure-cli?view=azure-cli-latest) for more details.
 
@@ -48,12 +45,17 @@ Just giving the Synapse Administrator role is not enough. The below roles must b
     - Monitoring Reader
         - Assign from Synapse Workspace → IAM
 
-### 4. Setup user_id/password for ODBC connectivity
-Create/Use a user with access to query the following tables in Synapse.
+### 4. ODBC Authentication
+Create/Use a user with access to query the following tables in Synapse. The profiler supports the following ODBC `Authentication=` modes (`configure-database-profiler` prompts for one):
 
-:::warning Attention:
-The user should not have Multi-factor Authentication (MFA) enabled as ODBC does not support MFA
-:::
+| Auth method | Description | MFA-capable |
+|---|---|---|
+| `SqlPassword` | SQL Authentication — username + password from credentials file | No |
+| `ActiveDirectoryPassword` | Entra ID (Azure AD) username + password | No |
+| `ActiveDirectoryServicePrincipal` | Service Principal — `AZURE_CLIENT_ID` / `AZURE_CLIENT_SECRET` env vars | N/A (non-interactive) |
+| `ActiveDirectoryInteractive` | Browser-based interactive login | Yes |
+
+`ActiveDirectoryInteractive` is the right choice when Conditional Access requires MFA.
 
 This user id needs to have read access (`SELECT grants`) on the following tables. The following permissions are required for Dynamic Management Views (DMVs):
 

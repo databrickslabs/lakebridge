@@ -25,9 +25,16 @@ For serverless SQL pools, Spark pools, and the Synapse workspace control plane, 
 
 ### 2. Authentication
 
-:::warning Attention:
-The profiler currently authenticates via **SQL Authentication** only. Please use a SQL login with MFA disabled.
-:::
+The profiler supports the following ODBC `Authentication=` modes (`configure-database-profiler` prompts for one):
+
+| Auth method | Description | MFA-capable |
+|---|---|---|
+| `SqlPassword` | SQL Authentication — username + password from credentials file | No |
+| `ActiveDirectoryPassword` | Entra ID (Azure AD) username + password | No |
+| `ActiveDirectoryServicePrincipal` | Service Principal — `AZURE_CLIENT_ID` / `AZURE_CLIENT_SECRET` env vars | N/A (non-interactive) |
+| `ActiveDirectoryInteractive` | Browser-based interactive login | Yes |
+
+`ActiveDirectoryInteractive` is the right choice when Conditional Access requires MFA. `ActiveDirectoryServicePrincipal` is the right choice for headless / CI runs against an Entra ID-enabled dedicated SQL pool.
 
 ### 3. Required Database Permissions
 
@@ -149,29 +156,37 @@ Enter secret vault type (local | env)
 [0] env
 [1] local
 Enter a number between 0 and 1: 1
+Select authentication method
+[0] SqlPassword
+[1] ActiveDirectoryPassword
+[2] ActiveDirectoryServicePrincipal
+[3] ActiveDirectoryInteractive
+Enter a number between 0 and 3: 0
+Enter the username: profiler_user
+Enter the password:
 Enter fetch size (default: 1000):
 Enter login timeout (seconds) (default: 30):
 Enter the fully-qualified server name: my-dw-server.database.windows.net
 Enter the port details: 1433
 Enter the database name (default: master): my_pool
-Enter the SQL username: profiler_user
-Enter the SQL password:
 Enter timezone (e.g. America/New_York) (default: UTC):
 Enter the ODBC driver installed locally (default: ODBC Driver 18 for SQL Server):
 ```
+
+For `ActiveDirectoryServicePrincipal`, the `Enter the username` / `Enter the password` prompts are skipped; set `AZURE_CLIENT_ID` and `AZURE_CLIENT_SECRET` env vars before running the profiler. For `ActiveDirectoryInteractive`, password is never prompted (the driver opens a browser at connect time).
 
 ### Configuration Parameters
 
 | Parameter | Description | Default |
 |:----------|:------------|:--------|
 | **Secret vault type** | `local` for plain text values, `env` to read from environment variables | — |
+| **Authentication method** | One of the four modes in the table above | `SqlPassword` |
+| **Username / Password** | Required for `SqlPassword` and `ActiveDirectoryPassword`. Optional pre-fill for `ActiveDirectoryInteractive`. Skipped for `ActiveDirectoryServicePrincipal`. | — |
 | **Fetch size** | Number of rows fetched per batch from the source | `1000` |
 | **Login timeout** | Connection timeout in seconds | `30` |
 | **Server name** | Fully-qualified hostname of the dedicated SQL pool | — |
 | **Port** | Server port number | — |
 | **Database** | The dedicated SQL pool name to connect to. Dedicated pools do not have a `master` database, so this must be set to the pool you want to profile. | `master` |
-| **SQL username** | SQL Authentication username | — |
-| **SQL password** | SQL Authentication password (hidden input) | — |
 | **Timezone** | Timezone for timestamp normalization | `UTC` |
 | **ODBC driver** | Locally installed ODBC driver name | `ODBC Driver 18 for SQL Server` |
 
