@@ -41,6 +41,7 @@ def test_configure_sqlserver_credentials(tmp_path):
             'password': 'TEST_TSQL_PASS',
             'port': 1433,
             'server': 'URL',
+            'trust_server_certificate': 'yes',
             'tz_info': 'UTC',
             'user': 'TEST_TSQL_USER',
         },
