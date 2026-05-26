@@ -7,11 +7,14 @@ from databricks.labs.lakebridge.assessments.configure_assessment import (
 )
 from databricks.labs.lakebridge.connections.mssql_auth import AUTH_CHOICES
 
-_AUTH_CHOICE_NAMES = sorted(cls.__name__ for cls in AUTH_CHOICES)
+_AUTH_CHOICE_NAMES = [cls.__name__ for cls in AUTH_CHOICES]
 
 
 def _auth_choice_index(class_name: str) -> int:
-    """MockPrompts answers `prompts.choice` with the index into the alphabetically-sorted choice list."""
+    """MockPrompts answers `prompts.choice` with the index into the choice list.
+
+    The production code passes `sort=False`, so the order matches `AUTH_CHOICES` directly.
+    """
     return _AUTH_CHOICE_NAMES.index(class_name)
 
 

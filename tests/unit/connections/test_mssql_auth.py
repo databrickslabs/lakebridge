@@ -25,7 +25,7 @@ def test_sql_password_returns_user_and_password_from_config() -> None:
     resolved = SqlPassword.resolve_credentials({"user": "alice", "password": "secret"})
     assert resolved.username == "alice"
     assert resolved.password == "secret"
-    assert resolved.authentication_param is None
+    assert resolved.authentication_param == "SqlPassword"
     assert resolved.engine_kwargs == {}
 
 
@@ -106,8 +106,12 @@ def test_default_azure_credential_is_wired_but_not_implemented() -> None:
         DefaultAzureCredential.resolve_credentials({})
 
 
-def test_default_azure_credential_is_in_registry_but_not_in_user_choices() -> None:
-    assert "DefaultAzureCredential" in _AUTH_REGISTRY
+def test_default_azure_credential_is_not_dispatchable_until_implemented() -> None:
+    """Out of `_AUTH_REGISTRY` until token injection is implemented — a hand-edited YAML
+    hits the dispatcher's `Invalid MSSQL auth_type:` error instead of NotImplementedError
+    deep inside `MSSQLConnector._connect()`.
+    """
+    assert "DefaultAzureCredential" not in _AUTH_REGISTRY
     assert DefaultAzureCredential not in AUTH_CHOICES
 
 
