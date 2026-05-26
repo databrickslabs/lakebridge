@@ -94,7 +94,7 @@ class MSSQLConnector(_BaseConnector):
 
         query_params: dict[str, str] = {
             "driver": str(self.config['driver']),
-            "loginTimeout": str(int(self.config.get("login_timeout", "30"))),
+            "loginTimeout": str(self.config.get("login_timeout", "30")),
             "authentication": resolved.authentication_param,
         }
 
