@@ -31,10 +31,13 @@ The profiler supports the following ODBC `Authentication=` modes (`configure-dat
 |---|---|---|
 | `SqlPassword` | SQL Authentication — username + password from credentials file | No |
 | `ActiveDirectoryPassword` | Entra ID (Azure AD) username + password | No |
-| `ActiveDirectoryServicePrincipal` | Service Principal — `AZURE_CLIENT_ID` / `AZURE_CLIENT_SECRET` env vars | N/A (non-interactive) |
+| `ActiveDirectoryServicePrincipal` | Service Principal — `AZURE_CLIENT_ID` / `AZURE_CLIENT_SECRET` env vars | No |
 | `ActiveDirectoryInteractive` | Browser-based interactive login | Yes |
 
-`ActiveDirectoryInteractive` is the right choice when Conditional Access requires MFA. `ActiveDirectoryServicePrincipal` is the right choice for headless / CI runs against an Entra ID-enabled dedicated SQL pool.
+:::warning
+For `ActiveDirectoryServicePrincipal`, set `AZURE_CLIENT_ID` and `AZURE_CLIENT_SECRET` env vars before running the profiler.
+:::
+
 
 ### 3. Required Database Permissions
 
@@ -172,8 +175,6 @@ Enter the database name (default: master): my_pool
 Enter timezone (e.g. America/New_York) (default: UTC):
 Enter the ODBC driver installed locally (default: ODBC Driver 18 for SQL Server):
 ```
-
-For `ActiveDirectoryServicePrincipal`, the `Enter the username` / `Enter the password` prompts are skipped; set `AZURE_CLIENT_ID` and `AZURE_CLIENT_SECRET` env vars before running the profiler. For `ActiveDirectoryInteractive`, password is never prompted (the driver opens a browser at connect time).
 
 ### Configuration Parameters
 

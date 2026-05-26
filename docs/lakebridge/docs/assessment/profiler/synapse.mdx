@@ -12,52 +12,52 @@ import Admonition from '@theme/Admonition';
 ## Prerequisites
 
 ### 1. Download
-- Azure CLI (https://learn.microsoft.com/en-us/cli/azure/install-azure-cli)
-- ODBC driver for SQL Server (https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server?view=sql-server-ver17)
-- (Windows only) Visual C++ (https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170)
 
-### 2. Authenticate to Azure using Azure CLI
-```bash
-az login
-```
+- **Azure CLI** — required for authenticating to the Azure Management REST API path (workspace metadata, pool listing, monitoring metrics). [Download](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli).
+- **ODBC driver for SQL Server** — required for `pyodbc` to talk to Synapse SQL pools. [Download](https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server?view=sql-server-ver18).
+- **(Windows only) Microsoft Visual C++ Redistributable (x64)** — required by `pyodbc` and the ODBC driver, both of which are native binaries linked against the MSVC runtime. [Download](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170).
 
-The profiler has two independent auth paths:
+### 2. Authentication
 
-1. **Azure Management REST API** (workspace metadata, pool listing, monitoring metrics) uses Azure SDK's `DefaultAzureCredential`, which tries Environment Variables (`AZURE_TENANT_ID` + `AZURE_CLIENT_ID` + `AZURE_CLIENT_SECRET`), Managed Identity, Azure CLI (`az login`), Visual Studio Code, and Azure PowerShell — in that order.
-2. **ODBC connection to the SQL pools** uses the auth method you pick from `configure-database-profiler`. See [section 4](#4-odbc-authentication).
-
-`AZURE_TENANT_ID` is only consumed by the management API path; it is **not** needed for ODBC `ActiveDirectoryServicePrincipal`.
-
-Ensure your user/service principal account has the required roles listed below. See [Azure documentation](https://learn.microsoft.com/en-us/cli/azure/authenticate-azure-cli?view=azure-cli-latest) for more details.
-
-
-### 3. Required Access to Synapse Workspace
-
-:::warning Attention:
-Skip this prerequisite if you are using a standalone SQL Dedicated Pool (formerly Azure SQL DW) and  NOT a Synapse Workspace
+:::info
+This page covers a full Synapse Workspace. If you are profiling a standalone SQL Dedicated Pool (formerly Azure SQL DW), use the [Legacy Synapse profiler](./legacy_synapse.mdx) instead.
 :::
 
-- Profiler uses the Python version of Azure SDK libraries to extract information about target Synapse Workspace.
-- For making the Azure API calls using Azure SDK, the authenticated identity (user or service principal) needs the following role assignments.
-Just giving the Synapse Administrator role is not enough. The below roles must be explicitly assigned.
-    - Synapse Artifact User.
-        - Assign from Synapse Workspace → Manage Access → Access Control [Refer to Azure documentation](https://learn.microsoft.com/en-us/azure/synapse-analytics/security/how-to-manage-synapse-rbac-role-assignments)
-    - Monitoring Reader
-        - Assign from Synapse Workspace → IAM
+The synapse profiler has **two independent auth paths**, each resolves credentials in its own way:
 
-### 4. ODBC Authentication
-Create/Use a user with access to query the following tables in Synapse. The profiler supports the following ODBC `Authentication=` modes (`configure-database-profiler` prompts for one):
+#### Azure Management REST API (workspace metadata, pool listing, monitoring metrics)
+
+Uses Azure SDK's `DefaultAzureCredential`, which tries the following in order until one succeeds:
+
+| Source | Required env vars / setup |
+|---|---|
+| Environment variables (SPN) | `AZURE_TENANT_ID` + `AZURE_CLIENT_ID` + `AZURE_CLIENT_SECRET` |
+| Managed Identity (Azure VM / App Service) | — |
+| Azure CLI | `az login` |
+| Visual Studio Code | — |
+| Azure PowerShell | — |
+
+The authenticated identity needs the **Synapse Artifact User** and **Monitoring Reader** roles on the workspace. Granting Synapse Administrator alone is **not** enough — both roles must be explicitly assigned. Assign from Synapse Workspace → Manage Access → Access Control and Synapse Workspace → IAM respectively. See [Azure documentation](https://learn.microsoft.com/en-us/azure/synapse-analytics/security/how-to-manage-synapse-rbac-role-assignments).
+
+#### ODBC connection to SQL pools
+
+Create or reuse a SQL user with access to the system tables and DMVs listed in [section 3](#3-required-database-permissions), then pick one of the following ODBC `Authentication=` modes (`configure-database-profiler` prompts for one):
 
 | Auth method | Description | MFA-capable |
 |---|---|---|
 | `SqlPassword` | SQL Authentication — username + password from credentials file | No |
 | `ActiveDirectoryPassword` | Entra ID (Azure AD) username + password | No |
-| `ActiveDirectoryServicePrincipal` | Service Principal — `AZURE_CLIENT_ID` / `AZURE_CLIENT_SECRET` env vars | N/A (non-interactive) |
+| `ActiveDirectoryServicePrincipal` | Service Principal — `AZURE_CLIENT_ID` / `AZURE_CLIENT_SECRET` env vars | No |
 | `ActiveDirectoryInteractive` | Browser-based interactive login | Yes |
 
-`ActiveDirectoryInteractive` is the right choice when Conditional Access requires MFA.
+:::warning
+For `ActiveDirectoryServicePrincipal`, set `AZURE_CLIENT_ID` and `AZURE_CLIENT_SECRET` env vars before running the profiler. `AZURE_TENANT_ID` is **not** required for the ODBC path — it is only consumed by the management API path above.
+:::
 
-This user id needs to have read access (`SELECT grants`) on the following tables. The following permissions are required for Dynamic Management Views (DMVs):
+
+### 3. Required Database Permissions
+
+The SQL user configured for the profiler must have read access (`SELECT grants`) to the following tables. The following permissions are required for Dynamic Management Views (DMVs):
 
 - **`VIEW DATABASE STATE`** - Required for database-scoped DMVs (queries within specific databases)
 - **`VIEW SERVER STATE`** - Required for server-level DMVs (queries in the `master` database)
@@ -146,11 +146,11 @@ Enter secret vault type (local | env)
 [1] local
 Enter a number between 0 and 1: 1
 Select authentication method
-[0] ActiveDirectoryInteractive
+[0] SqlPassword
 [1] ActiveDirectoryPassword
 [2] ActiveDirectoryServicePrincipal
-[3] SqlPassword
-Enter a number between 0 and 3: 3
+[3] ActiveDirectoryInteractive
+Enter a number between 0 and 3: 0
 Enter the username: user
 Enter the password:
 Please provide Synapse Workspace settings:
