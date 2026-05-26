@@ -50,6 +50,7 @@ steps:
       - databricks-labs-blueprint[yaml]>=0.10.1
       - sqlalchemy
       - pyodbc
+      - redshift-connector~=2.1 # See #2484
 
   - name: serverless_sqlpool_extract
     type: python
@@ -67,3 +68,4 @@ steps:
       - databricks-labs-blueprint[yaml]>=0.10.1
       - sqlalchemy
       - pyodbc
+      - redshift-connector~=2.1 # See #2484
