@@ -15,11 +15,13 @@ def _build_reconciliation(
     source_hash_expression: str | None = None,
     target_hash_expression: str | None = None,
 ) -> Reconciliation:
+    # ``report_type='row'`` keeps reconcile_data's path narrow: it calls _get_reconcile_output
+    # once and returns, so the test only needs to mock HashQueryBuilder + reconcile_data.
     return Reconciliation(
         source=create_autospec(DataSource),
         target=create_autospec(DataSource),
         database_config=DatabaseConfig("src_cat", "src_sch", "tgt_cat", "tgt_sch"),
-        report_type="all",
+        report_type="row",
         schema_comparator=create_autospec(SchemaCompare),
         source_engine=get_dialect("teradata"),
         spark=create_autospec(SparkSession),
@@ -30,40 +32,39 @@ def _build_reconciliation(
     )
 
 
-def test_reconciliation_stores_hash_expressions() -> None:
-    rec = _build_reconciliation(
-        source_hash_expression="my_db.my_sha256({})",
-        target_hash_expression="sha2({}, 256)",
-    )
-    assert rec._source_hash_expression == "my_db.my_sha256({})"  # pylint: disable=protected-access
-    assert rec._target_hash_expression == "sha2({}, 256)"  # pylint: disable=protected-access
-
-
-def test_reconciliation_hash_expressions_default_to_none() -> None:
-    rec = _build_reconciliation()
-    assert rec._source_hash_expression is None  # pylint: disable=protected-access
-    assert rec._target_hash_expression is None  # pylint: disable=protected-access
-
-
-def test_get_reconcile_output_passes_hash_expression_to_builder() -> None:
-    """_get_reconcile_output should plumb the stored source/target hash_expression into the
-    HashQueryBuilder calls for both layers."""
-    rec = _build_reconciliation(
-        source_hash_expression="src_db.my_sha256({})",
-        target_hash_expression="sha2({}, 256)",
-    )
+def _run_and_capture_builder_calls(rec: Reconciliation) -> list:
     table_conf = Table(source_name="t", target_name="t", join_columns=["k"])
-
     with (
         patch("databricks.labs.lakebridge.reconcile.reconciliation.HashQueryBuilder") as mock_builder,
         patch("databricks.labs.lakebridge.reconcile.reconciliation.reconcile_data") as mock_reconcile_data,
     ):
         mock_builder.return_value.build_query.return_value = "SELECT 1"
         mock_reconcile_data.return_value = None
+        rec.reconcile_data(table_conf, [], [])
+        return list(mock_builder.call_args_list)
 
-        rec._get_reconcile_output(table_conf, [], [])  # pylint: disable=protected-access
 
-    builder_calls = mock_builder.call_args_list
+def test_reconcile_data_passes_hash_expression_to_builder() -> None:
+    """Reconciliation should plumb the source/target hash_expression args into both
+    HashQueryBuilder calls."""
+    rec = _build_reconciliation(
+        source_hash_expression="src_db.my_sha256({})",
+        target_hash_expression="sha2({}, 256)",
+    )
+
+    builder_calls = _run_and_capture_builder_calls(rec)
+
     assert len(builder_calls) == 2
     assert builder_calls[0].kwargs["hash_expression"] == "src_db.my_sha256({})"
     assert builder_calls[1].kwargs["hash_expression"] == "sha2({}, 256)"
+
+
+def test_reconcile_data_default_hash_expression_is_none() -> None:
+    """When no hash_expression is supplied, both HashQueryBuilder calls receive None."""
+    rec = _build_reconciliation()
+
+    builder_calls = _run_and_capture_builder_calls(rec)
+
+    assert len(builder_calls) == 2
+    assert builder_calls[0].kwargs["hash_expression"] is None
+    assert builder_calls[1].kwargs["hash_expression"] is None
