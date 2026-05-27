@@ -14,7 +14,6 @@ from databricks.labs.lakebridge.transpiler.lsp.lsp_engine import LSPEngine
 from databricks.labs.lakebridge.transpiler.repository import TranspilerRepository
 from databricks.labs.lakebridge.transpiler.transpile_engine import TranspileEngine
 
-
 logger = logging.getLogger(__name__)
 
 
