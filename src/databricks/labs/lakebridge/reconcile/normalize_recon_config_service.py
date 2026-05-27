@@ -45,7 +45,7 @@ class NormalizeReconConfigService:
                 if normalized_sampling.stratified_columns
                 else None
             )
-            requested = normalized_sampling.specifications.value or _DEFAULT_MAX_SAMPLE_SIZE
+            requested = normalized_sampling.specifications.value
             is_databricks = isinstance(self.source, DatabricksDataSource)
             if requested <= 0:
                 normalized_sampling.specifications.value = _DEFAULT_MAX_SAMPLE_SIZE
