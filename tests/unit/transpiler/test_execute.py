@@ -38,7 +38,6 @@ from databricks.sdk.core import Config
 from databricks.labs.lakebridge.transpiler.sqlglot.sqlglot_engine import SqlglotEngine
 from databricks.labs.lakebridge.transpiler.transpile_engine import TranspileEngine
 
-
 # pylint: disable=unspecified-encoding
 
 
@@ -606,13 +605,10 @@ def test_make_header_with_no_diagnostics():
     diagnostics = []
     header = make_header(path, diagnostics)
 
-    assert (
-        header
-        == """/*
+    assert header == """/*
     Successfully transpiled from /some/path/to/input
 */
 """
-    )
 
 
 def test_make_header_with_one_error():
@@ -629,16 +625,13 @@ def test_make_header_with_one_error():
     ]
     header = make_header(path, diagnostics)
 
-    assert (
-        header
-        == """/*
+    assert header == """/*
     Failed transpilation of /some/path/to/input
 
     The following errors were found while transpiling:
       - [7:1] this is an error message
 */
 """
-    )
 
 
 def test_make_header_with_one_warning():
@@ -655,16 +648,13 @@ def test_make_header_with_one_warning():
     ]
     header = make_header(path, diagnostics)
 
-    assert (
-        header
-        == """/*
+    assert header == """/*
     Successfully transpiled from /some/path/to/input
 
     The following warnings were found while transpiling:
       - [7:1] this is a warning
 */
 """
-    )
 
 
 def test_make_header_with_one_repeated_error():
@@ -697,9 +687,7 @@ def test_make_header_with_one_repeated_error():
     ]
     header = make_header(path, diagnostics)
 
-    assert (
-        header
-        == """/*
+    assert header == """/*
     Failed transpilation of /some/path/to/input
 
     The following errors were found while transpiling:
@@ -707,7 +695,6 @@ def test_make_header_with_one_repeated_error():
           Occurred 3 times at the following positions: [8:1], [9:1], [10:1]
 */
 """
-    )
 
 
 def test_make_header_with_one_repeated_warning():
@@ -740,9 +727,7 @@ def test_make_header_with_one_repeated_warning():
     ]
     header = make_header(path, diagnostics)
 
-    assert (
-        header
-        == """/*
+    assert header == """/*
     Successfully transpiled from /some/path/to/input
 
     The following warnings were found while transpiling:
@@ -750,7 +735,6 @@ def test_make_header_with_one_repeated_warning():
           Occurred 3 times at the following positions: [8:1], [9:1], [10:1]
 */
 """
-    )
 
 
 def test_transpiled_code_output_on_parsing_error(tmp_path: Path, mock_workspace_client: WorkspaceClient):

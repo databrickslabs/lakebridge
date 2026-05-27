@@ -5,10 +5,11 @@ from databricks.labs.blueprint.entrypoint import get_logger
 
 from databricks.labs.lakebridge.connections.credential_manager import create_credential_manager
 from databricks.labs.lakebridge.assessments import PRODUCT_NAME
+from databricks.labs.lakebridge.resources.assessments.common.cli import arguments_loader
+from databricks.labs.lakebridge.resources.assessments.common.duckdb_helpers import save_to_duckdb
 from databricks.labs.lakebridge.resources.assessments.mssql.common.connector import get_sqlserver_reader
 from databricks.labs.lakebridge.resources.assessments.mssql.common.queries import MSSQLQueries
-from databricks.labs.lakebridge.resources.assessments.synapse.common.duckdb_helpers import save_resultset_to_db
-from databricks.labs.lakebridge.resources.assessments.synapse.common.functions import arguments_loader
+from databricks.labs.lakebridge.resources.assessments.mssql.common.schemas import MSSQL_SCHEMAS
 
 logger = get_logger(__file__)
 
@@ -40,28 +41,36 @@ def execute():
         table_query = MSSQLQueries.get_query_stats(last_execution_time)
         logger.info(f"Loading '{table_name}' for SQL server: {server_name}")
         result = connection.fetch(table_query)
-        save_resultset_to_db(result, f"mssql_{table_name}", db_path, mode=mode)
+        save_to_duckdb(
+            result.to_df(), f"mssql_{table_name}", db_path, mode=mode, schema=MSSQL_SCHEMAS[f"mssql_{table_name}"]
+        )
 
         # Stored procedure stats
         table_name = "proc_stats"
         table_query = MSSQLQueries.get_procedure_stats(last_execution_time)
         logger.info(f"Loading '{table_name}' for SQL server: {server_name}")
         result = connection.fetch(table_query)
-        save_resultset_to_db(result, f"mssql_{table_name}", db_path, mode=mode)
+        save_to_duckdb(
+            result.to_df(), f"mssql_{table_name}", db_path, mode=mode, schema=MSSQL_SCHEMAS[f"mssql_{table_name}"]
+        )
 
         # Session info
         table_name = "sessions"
         table_query = MSSQLQueries.get_sessions(last_execution_time)
         logger.info(f"Loading '{table_name}' for SQL server: {server_name}")
         result = connection.fetch(table_query)
-        save_resultset_to_db(result, f"mssql_{table_name}", db_path, mode=mode)
+        save_to_duckdb(
+            result.to_df(), f"mssql_{table_name}", db_path, mode=mode, schema=MSSQL_SCHEMAS[f"mssql_{table_name}"]
+        )
 
         # CPU Utilization
         table_name = "cpu_utilization"
         table_query = MSSQLQueries.get_cpu_utilization(last_execution_time)
         logger.info(f"Loading '{table_name}' for SQL server: {server_name}")
         result = connection.fetch(table_query)
-        save_resultset_to_db(result, f"mssql_{table_name}", db_path, mode=mode)
+        save_to_duckdb(
+            result.to_df(), f"mssql_{table_name}", db_path, mode=mode, schema=MSSQL_SCHEMAS[f"mssql_{table_name}"]
+        )
 
         print(json.dumps({"status": "success", "message": "All data loaded successfully loaded successfully"}))
 
