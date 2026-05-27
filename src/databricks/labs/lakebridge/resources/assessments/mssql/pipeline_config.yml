@@ -19,7 +19,7 @@ steps:
       - azure-identity
       - azure-monitor-query==1.3.0b1
       - pyodbc
-      - redshift-connector~=2.1 # See #2484
+      - redshift-connector~=2.1.13 # See #2484
   - name: info_extract
     type: python
     extract_source: src/databricks/labs/lakebridge/resources/assessments/mssql/info_extract.py
@@ -37,4 +37,4 @@ steps:
       - azure-identity
       - azure-monitor-query==1.3.0b1
       - pyodbc
-      - redshift-connector~=2.1 # See #2484
+      - redshift-connector~=2.1.13 # See #2484
