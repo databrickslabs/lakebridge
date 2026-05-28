@@ -126,37 +126,6 @@ def test_configure_sqlserver_credentials_ad_password(tmp_path):
     assert credentials["mssql"]["password"] == "aad-pass"
 
 
-def test_configure_sqlserver_credentials_interactive_skips_password(tmp_path):
-    """ActiveDirectoryInteractive: user is optional (pre-fill), password is never prompted."""
-    prompts = MockPrompts(
-        {
-            r"Enter secret vault type \(local \| env\)": sorted(['local', 'env']).index("env"),
-            r"Select authentication method": _auth_choice_index("ActiveDirectoryInteractive"),
-            r"Enter the database name": "TEST_DB",
-            r"Enter the ODBC driver installed locally.*": "ODBC Driver 18 for SQL Server",
-            r"Enter the fully-qualified server name": "URL",
-            r"Enter the port details": "1433",
-            r"Enter the AAD username.*": "interactive-user@example.com",
-            r"Do you want to test the connection to mssql?.*": "no",
-            r"Enter fetch size": "1000",
-            r"Enter timezone.*": "UTC",
-            r"Enter login timeout.*": 30,
-        }
-    )
-    file = tmp_path / ".credentials.yml"
-    assessment = ConfigureSqlServerAssessment(
-        product_name="lakebridge", source_name="mssql", prompts=prompts, credential_file=file
-    )
-    assessment.run()
-
-    with open(file, 'r', encoding='utf-8') as fstream:
-        credentials = yaml.safe_load(fstream)
-
-    assert credentials["mssql"]["auth_type"] == "ActiveDirectoryInteractive"
-    assert credentials["mssql"]["user"] == "interactive-user@example.com"
-    assert "password" not in credentials["mssql"]
-
-
 def test_configure_synapse_credentials(tmp_path):
     prompts = MockPrompts(
         {

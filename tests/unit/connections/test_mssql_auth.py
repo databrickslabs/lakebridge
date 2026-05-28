@@ -11,7 +11,6 @@ import pytest
 from databricks.labs.lakebridge.connections.database_manager import MSSQLConnector
 from databricks.labs.lakebridge.connections.mssql_auth import (
     AUTH_CHOICES,
-    ActiveDirectoryInteractive,
     ActiveDirectoryPassword,
     ActiveDirectoryServicePrincipal,
     DefaultAzureCredential,
@@ -87,19 +86,6 @@ def test_active_directory_service_principal_missing_only_secret(monkeypatch: pyt
     assert "AZURE_CLIENT_ID" not in str(exc.value)
 
 
-def test_active_directory_interactive_with_user_prefill() -> None:
-    resolved = ActiveDirectoryInteractive.resolve_credentials({"user": "u@example.com"})
-    assert resolved.username == "u@example.com"
-    assert resolved.password is None
-    assert resolved.authentication_param == "ActiveDirectoryInteractive"
-
-
-def test_active_directory_interactive_without_user() -> None:
-    resolved = ActiveDirectoryInteractive.resolve_credentials({})
-    assert resolved.username is None
-    assert resolved.password is None
-
-
 def test_default_azure_credential_is_wired_but_not_implemented() -> None:
     """DefaultAzureCredential is in the registry but `resolve_credentials()` raises until implemented."""
     with pytest.raises(NotImplementedError):
@@ -121,7 +107,6 @@ def test_auth_choices_class_names_are_odbc_or_azure_literals() -> None:
         "SqlPassword",
         "ActiveDirectoryPassword",
         "ActiveDirectoryServicePrincipal",
-        "ActiveDirectoryInteractive",
     }
     assert {cls.__name__ for cls in AUTH_CHOICES} == odbc_literals
 

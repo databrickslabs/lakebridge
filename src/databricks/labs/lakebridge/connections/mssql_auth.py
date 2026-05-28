@@ -91,18 +91,6 @@ class ActiveDirectoryServicePrincipal:
         )
 
 
-class ActiveDirectoryInteractive:
-    """Browser-based interactive auth. MFA-capable; the driver opens a browser at connect time."""
-
-    @classmethod
-    def resolve_credentials(cls, config: JsonObject) -> ResolvedCredentials:
-        user_value = config.get("user")
-        return ResolvedCredentials(
-            username=str(user_value) if user_value else None,
-            authentication_param="ActiveDirectoryInteractive",
-        )
-
-
 class DefaultAzureCredential:
     """Token injection via Azure SDK `DefaultAzureCredential` + `SQL_COPT_SS_ACCESS_TOKEN`.
 
@@ -124,7 +112,6 @@ AUTH_CHOICES: list[type[MSSQLAuth]] = [
     SqlPassword,
     ActiveDirectoryPassword,
     ActiveDirectoryServicePrincipal,
-    ActiveDirectoryInteractive,
 ]
 
 _AUTH_REGISTRY: dict[str, type[MSSQLAuth]] = {cls.__name__: cls for cls in AUTH_CHOICES}

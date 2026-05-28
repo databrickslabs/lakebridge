@@ -48,7 +48,6 @@ Create or reuse a SQL user with access to the system tables and DMVs listed in [
 | `SqlPassword` | SQL Authentication — username + password from credentials file | No |
 | `ActiveDirectoryPassword` | Entra ID (Azure AD) username + password | No |
 | `ActiveDirectoryServicePrincipal` | Service Principal — `AZURE_CLIENT_ID` / `AZURE_CLIENT_SECRET` env vars | No |
-| `ActiveDirectoryInteractive` | Browser-based interactive login | Yes |
 
 :::warning
 For `ActiveDirectoryServicePrincipal`, set `AZURE_CLIENT_ID` and `AZURE_CLIENT_SECRET` env vars before running the profiler. `AZURE_TENANT_ID` is **not** required for the ODBC path — it is only consumed by the management API path above.
@@ -149,8 +148,7 @@ Select authentication method
 [0] SqlPassword
 [1] ActiveDirectoryPassword
 [2] ActiveDirectoryServicePrincipal
-[3] ActiveDirectoryInteractive
-Enter a number between 0 and 3: 0
+Enter a number between 0 and 2: 0
 Enter the username: user
 Enter the password:
 Please provide Synapse Workspace settings:

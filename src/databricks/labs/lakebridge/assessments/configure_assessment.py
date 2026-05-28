@@ -31,12 +31,6 @@ def _prompt_mssql_auth_credentials(prompts: Prompts, auth_type: str) -> dict[str
             "user": prompts.question("Enter the username"),
             "password": prompts.password("Enter the password"),
         }
-    if auth_type == "ActiveDirectoryInteractive":
-        user = prompts.question(
-            "Enter the AAD username (optional, leave blank to be prompted by the browser)",
-            default="",
-        )
-        return {"user": user} if user else {}
     if auth_type == "ActiveDirectoryServicePrincipal":
         logger.info(
             "ActiveDirectoryServicePrincipal selected. "
