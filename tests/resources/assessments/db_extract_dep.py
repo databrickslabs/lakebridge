@@ -39,6 +39,9 @@ def execute():
         packages = ['databricks_labs_dqx', 'databricks_labs_ucx']
         df = check_specific_packages(packages)
         logger.info(f'DataFrame columns: {df.columns}')
+        missing = df.loc[df["Status"] == "Not Installed", "Package"].tolist()
+        if missing:
+            raise RuntimeError(f"Required packages are not installed: {', '.join(missing)}")
         # Connect to DuckDB
         with duckdb.connect(args.db_path) as conn:
 
