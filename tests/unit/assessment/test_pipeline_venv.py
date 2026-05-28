@@ -27,7 +27,24 @@ def _runtime_dependency_names() -> set[str]:
 
 
 def test_step_venv_resolves_parent_package(tmp_path: Path) -> None:
-    """Test that a per-step venv can import a parent package it never declares."""
+    """Test that a per-step venv can import a parent package it never declares once linked."""
+    create_venv = getattr(PipelineClass, "_create_venv")
+    link_parent_site_packages = getattr(PipelineClass, "_link_parent_site_packages")
+    venv_exec_cmd = create_venv(tmp_path / "venv")
+    link_parent_site_packages(venv_exec_cmd)
+
+    result = run(
+        [venv_exec_cmd, "-c", "import databricks.labs.lakebridge"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, f"per-step venv could not resolve a parent package:\n{result.stderr}"
+
+
+def test_step_venv_is_isolated_before_linking(tmp_path: Path) -> None:
+    """Test that a freshly created venv does not see parent packages, keeping pip installs isolated."""
     create_venv = getattr(PipelineClass, "_create_venv")
     venv_exec_cmd = create_venv(tmp_path / "venv")
 
@@ -38,7 +55,7 @@ def test_step_venv_resolves_parent_package(tmp_path: Path) -> None:
         check=False,
     )
 
-    assert result.returncode == 0, f"per-step venv could not resolve a parent package:\n{result.stderr}"
+    assert result.returncode != 0, "venv resolved a parent package before linking; pip installs would not be isolated"
 
 
 @pytest.mark.parametrize("platform", ["synapse", "mssql"])

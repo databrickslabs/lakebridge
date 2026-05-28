@@ -174,6 +174,7 @@ class PipelineClass:
             if step.dependencies:
                 self._install_dependencies(venv_exec_cmd, step.dependencies)
 
+            self._link_parent_site_packages(venv_exec_cmd)
             self._run_python_script(venv_exec_cmd, step.extract_source, self._db_path, credential_config)
 
     @staticmethod
@@ -343,13 +344,14 @@ class PipelineClass:
         builder = venv.EnvBuilder(with_pip=True, symlinks=use_symlinks)
         builder.create(venv_path)
         context = builder.ensure_directories(venv_path)
-        PipelineClass._link_parent_site_packages(context.env_exec_cmd)
         logger.debug(f"Created virtual environment with context: {context}")
         return context.env_exec_cmd
 
     @staticmethod
     def _link_parent_site_packages(venv_exec_cmd: str) -> None:
-        # Let the step venv resolve packages from the parent install, appended so per-step pins win.
+        # Let the step venv resolve packages from the parent install at runtime, appended so the
+        # venv's own installs win. Must run after pip installs the step's dependencies, otherwise
+        # pip would treat the linked parent packages as part of the venv and fail to manage them.
         parent_sites: list[str] = []
         for path in (sysconfig.get_path("purelib"), sysconfig.get_path("platlib")):
             if path and path not in parent_sites:
