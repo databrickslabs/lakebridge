@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import sys
+import sysconfig
 import venv
 import tempfile
 from dataclasses import dataclass
@@ -342,5 +343,28 @@ class PipelineClass:
         builder = venv.EnvBuilder(with_pip=True, symlinks=use_symlinks)
         builder.create(venv_path)
         context = builder.ensure_directories(venv_path)
+        PipelineClass._link_parent_site_packages(context.env_exec_cmd)
         logger.debug(f"Created virtual environment with context: {context}")
         return context.env_exec_cmd
+
+    @staticmethod
+    def _link_parent_site_packages(venv_exec_cmd: str) -> None:
+        # Let the step venv resolve packages from the parent install, appended so per-step pins win.
+        parent_sites: list[str] = []
+        for path in (sysconfig.get_path("purelib"), sysconfig.get_path("platlib")):
+            if path and path not in parent_sites:
+                parent_sites.append(path)
+        if not parent_sites:
+            logger.warning("Could not resolve parent site-packages; per-step venv may miss runtime dependencies.")
+            return
+
+        result = run(
+            [venv_exec_cmd, "-c", "import sysconfig; print(sysconfig.get_path('purelib'))"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        child_purelib = Path(result.stdout.strip())
+        # addsitedir also processes the linked directory's .pth files, so editable installs resolve.
+        pth_contents = "".join(f"import site; site.addsitedir({path!r})\n" for path in parent_sites)
+        (child_purelib / "_lakebridge_parent_site.pth").write_text(pth_contents, encoding="utf-8")

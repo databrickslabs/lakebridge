@@ -9,15 +9,9 @@ steps:
     frequency: once
     flag: active
     dependencies:
-      - pandas
-      - duckdb
       - azure-synapse-artifacts
       - azure-identity
       - azure-monitor-query==1.3.0b1
-      - databricks-sdk
-      - databricks-labs-blueprint[yaml]>=0.10.1
-      - sqlalchemy
-      - pyodbc
   - name: monitoring_metrics
     type: python
     extract_source: src/databricks/labs/lakebridge/resources/assessments/synapse/monitoring_metrics_extract.py
@@ -25,15 +19,9 @@ steps:
     frequency: once
     flag: active
     dependencies:
-      - pandas
-      - duckdb
       - azure-synapse-artifacts
       - azure-identity
       - azure-monitor-query==1.3.0b1
-      - databricks-sdk
-      - databricks-labs-blueprint[yaml]>=0.10.1
-      - sqlalchemy
-      - pyodbc
   - name: dedicated_sqlpool_extract
     type: python
     extract_source: src/databricks/labs/lakebridge/resources/assessments/synapse/dedicated_sqlpool_extract.py
@@ -41,17 +29,9 @@ steps:
     frequency: once
     flag: active
     dependencies:
-      - pandas
-      - duckdb
       - azure-synapse-artifacts
       - azure-identity
       - azure-monitor-query==1.3.0b1
-      - databricks-sdk
-      - databricks-labs-blueprint[yaml]>=0.10.1
-      - sqlalchemy
-      - pyodbc
-      - redshift-connector~=2.1.13 # See #2484
-
   - name: serverless_sqlpool_extract
     type: python
     extract_source: src/databricks/labs/lakebridge/resources/assessments/synapse/serverless_sqlpool_extract.py
@@ -59,13 +39,6 @@ steps:
     frequency: once
     flag: active
     dependencies:
-      - pandas
-      - duckdb
       - azure-synapse-artifacts
       - azure-identity
       - azure-monitor-query==1.3.0b1
-      - databricks-sdk
-      - databricks-labs-blueprint[yaml]>=0.10.1
-      - sqlalchemy
-      - pyodbc
-      - redshift-connector~=2.1.13 # See #2484
