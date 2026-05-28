@@ -28,7 +28,8 @@ def _runtime_dependency_names() -> set[str]:
 
 def test_step_venv_resolves_parent_package(tmp_path: Path) -> None:
     """Test that a per-step venv can import a parent package it never declares."""
-    venv_exec_cmd = PipelineClass._create_venv(tmp_path / "venv")  # pylint: disable=protected-access
+    create_venv = getattr(PipelineClass, "_create_venv")
+    venv_exec_cmd = create_venv(tmp_path / "venv")
 
     result = run(
         [venv_exec_cmd, "-c", "import databricks.labs.lakebridge"],
