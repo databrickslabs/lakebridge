@@ -901,7 +901,6 @@ def test_configure_all_override_installation(  # FIXME
             r"Enter .* schema name": "tpch_sf1000",
             r"Enter target Databricks catalog name": "tpch",
             r"Enter target Databricks schema name": "1000gb",
-            # Profiler Configuration Prompts
             r"Select the source technology": "0",
             r"Enter the path to the profiler extract file:": "",
         }

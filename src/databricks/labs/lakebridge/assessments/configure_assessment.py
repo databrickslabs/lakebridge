@@ -217,6 +217,51 @@ class ConfigureSynapseAssessment(AssessmentConfigurator):
         return source
 
 
+class ConfigureSnowflakeAssessment(AssessmentConfigurator):
+    """Snowflake specific assessment configuration."""
+
+    def _configure_credentials(self) -> str:
+        cred_file = self._credential_file
+        source = self._source_name
+
+        logger.info(
+            "\n(local | env) \nlocal means values are read as plain text \nenv means values are read "
+            "from environment variables fall back to plain text if not variable is not found\n",
+        )
+        secret_vault_type = str(self.prompts.choice("Enter secret vault type (local | env)", ["local", "env"])).lower()
+
+        # Snowflake Connection Settings
+        logger.info("Snowflake Assessment Configuration")
+        logger.info("Authentication uses a Programmatic Access Token (PAT). See Snowflake's docs:")
+        logger.info(
+            "  https://docs.snowflake.com/en/user-guide/programmatic-access-tokens"
+            "#generating-a-programmatic-access-token"
+        )
+
+        snowflake_connection = {
+            "account": self.prompts.question(
+                "Enter Snowflake account URL (e.g., myorg-myaccount.snowflakecomputing.com)"
+            ),
+            "user": self.prompts.question("Enter username"),
+            "warehouse": self.prompts.question("Enter warehouse name", default="COMPUTE_WH"),
+            "database": self.prompts.question("Enter database name", default="SNOWFLAKE"),
+            "schema": self.prompts.question("Enter schema name", default="ACCOUNT_USAGE"),
+            "role": self.prompts.question("Enter role", default="ACCOUNTADMIN"),
+            "password": self.prompts.password("Enter Programmatic Access Token (PAT)"),
+        }
+
+        credential = {
+            "secret_vault_type": secret_vault_type,
+            source: {
+                "connection": snowflake_connection,
+            },
+        }
+        _save_to_disk(credential, cred_file)
+
+        logger.info(f"Credential template created for {source}.")
+        return source
+
+
 ConfiguratorFactory = Callable[[str, Prompts, str, Path | str | None], AssessmentConfigurator]
 
 
@@ -227,6 +272,7 @@ def create_assessment_configurator(
     configurators: dict[str, ConfiguratorFactory] = {
         "mssql": ConfigureSqlServerAssessment,
         "synapse": ConfigureSynapseAssessment,
+        "snowflake": ConfigureSnowflakeAssessment,
         "legacy_synapse": ConfigureSqlServerAssessment,
         "oracle": ConfigureOracleAssessment,
     }

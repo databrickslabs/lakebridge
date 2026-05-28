@@ -1,5 +1,6 @@
 import contextlib
 import dataclasses
+import importlib
 import logging
 from abc import abstractmethod
 from types import TracebackType
@@ -16,6 +17,12 @@ from sqlalchemy.orm.session import Session
 import redshift_connector  # type: ignore[import-untyped]
 
 from databricks.labs.blueprint.installation import JsonObject
+from databricks.labs.lakebridge.connections.snowflake_utils import parse_snowflake_account
+
+# Side-effect import: registers the 'snowflake://' SQLAlchemy dialect so
+# `create_engine("snowflake://...")` resolves in SnowflakeConnector below.
+# Done via importlib so pylint doesn't flag it as an unused name.
+importlib.import_module("snowflake.sqlalchemy")
 
 logger = logging.getLogger(__name__)
 
@@ -81,7 +88,21 @@ class _BaseConnector(DatabaseConnector):
 
 class SnowflakeConnector(_BaseConnector):
     def _connect(self) -> Engine:
-        raise NotImplementedError("Snowflake connector not implemented")
+        # Extract connection details from config. The SDK types JSON values loosely;
+        # narrow to a plain dict so the dict-style accesses below typecheck.
+        raw = self.config.get("connection", self.config)
+        connection_config: dict[str, Any] = raw if isinstance(raw, dict) else dict(self.config)
+
+        account = parse_snowflake_account(str(connection_config["account"]))
+        user = str(connection_config["user"])
+        warehouse = str(connection_config.get("warehouse", "COMPUTE_WH"))
+        database = str(connection_config.get("database", "SNOWFLAKE"))
+        schema = str(connection_config.get("schema", "ACCOUNT_USAGE"))
+        role = str(connection_config.get("role", "ACCOUNTADMIN"))
+        password = str(connection_config["password"])
+
+        snowflake_url = f"snowflake://{user}:{password}@{account}/{database}/{schema}?warehouse={warehouse}&role={role}"
+        return create_engine(snowflake_url)
 
 
 class MSSQLConnector(_BaseConnector):
