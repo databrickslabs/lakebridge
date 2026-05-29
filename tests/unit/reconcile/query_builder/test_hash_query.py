@@ -165,46 +165,6 @@ def test_hash_query_builder_for_redshift_src(
     assert tgt_actual == tgt_expected
 
 
-def test_hash_query_builder_for_teradata_src(
-    teradata_table_conf_with_opts,
-    table_schema_teradata_ansi,
-    fake_teradata_datasource,
-    fake_databricks_datasource,
-):
-    src_schema, tgt_schema = table_schema_teradata_ansi
-    src_actual = HashQueryBuilder(
-        teradata_table_conf_with_opts,
-        src_schema,
-        "source",
-        get_dialect("teradata"),
-        fake_teradata_datasource,
-    ).build_query(report_type="data")
-    src_expected = (
-        "SELECT LOWER(lakebridge_sha256_hex(TRIM(\"s_address\") || TRIM(\"s_name\") || "
-        "COALESCE(TRIM(\"s_nationkey\"), '_null_recon_') || TRIM(\"s_phone\") || "
-        "COALESCE(TRIM(\"s_suppkey\"), '_null_recon_'))) AS hash_value_recon, "
-        "\"s_nationkey\" AS \"s_nationkey\", \"s_suppkey\" AS \"s_suppkey\" FROM :tbl "
-        "WHERE \"s_name\" = 't' AND \"s_address\" = 'a'"
-    )
-
-    tgt_actual = HashQueryBuilder(
-        teradata_table_conf_with_opts,
-        tgt_schema,
-        "target",
-        get_dialect("databricks"),
-        fake_databricks_datasource,
-    ).build_query(report_type="data")
-    tgt_expected = (
-        "SELECT LOWER(SHA2(TRIM(`s_address_t`) || TRIM(`s_name`) || COALESCE(TRIM(`s_nationkey_t`), '_null_recon_') || "
-        "TRIM(`s_phone_t`) || COALESCE(TRIM(`s_suppkey_t`), '_null_recon_'), 256)) AS hash_value_recon, "
-        "`s_nationkey_t` AS `s_nationkey`, `s_suppkey_t` AS `s_suppkey` "
-        "FROM :tbl WHERE s_name = 't' AND s_address_t = 'a'"
-    )
-
-    assert src_actual == src_expected
-    assert tgt_actual == tgt_expected
-
-
 def test_hash_query_builder_user_hash_expression_overrides_dialect_default(
     teradata_table_conf_with_opts,
     table_schema_teradata_ansi,

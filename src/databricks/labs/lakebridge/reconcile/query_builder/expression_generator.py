@@ -168,12 +168,16 @@ def get_hash_transform(
 ):
     dialect_algo = Dialect_hash_algo_mapping.get(source)
     if not dialect_algo:
-        raise ValueError(f"Source {source} is not supported. Please add it to Dialect_hash_algo_mapping dictionary.")
+        raise ValueError(
+            f"Source {source} has no default hash algorithm. "
+            "Set hash_expression_overrides.source on the recon config to provide one."
+        )
 
     layer_algo = getattr(dialect_algo, layer, None)
     if not layer_algo:
         raise ValueError(
-            f"Layer {layer} is not supported for source {source}. Please add it to Dialect_hash_algo_mapping dictionary."
+            f"Layer {layer} has no default hash algorithm for source {source}. "
+            f"Set hash_expression_overrides.{layer} on the recon config to provide one."
         )
     return [layer_algo]
 
@@ -382,20 +386,8 @@ Dialect_hash_algo_mapping: dict[Dialect, HashAlgoMapping] = {  # pylint: disable
         source=sha256_partial,
         target=sha256_partial,
     ),
-    get_dialect("teradata"): HashAlgoMapping(
-        # Teradata does not provide a native cryptographic hash that yields a hex string in pure
-        # SQL. The default below assumes a user-installed external UDF named
-        # ``lakebridge_sha256_hex(VARCHAR) RETURNS VARCHAR(64)`` that produces the lowercase
-        # SHA-256 hex digest, matching ``SHA2(<concat>, 256)`` on the Databricks side. To use a
-        # different UDF (e.g. ``mydb.my_sha256``), override via the connection-level
-        # ``SourceConnectionConfig.hash_expression`` rather than editing this mapping. The outer
-        # LOWER() wrapper is added by the hash query builder.
-        source=partial(
-            anonymous,
-            func="lakebridge_sha256_hex({})",
-            is_expr=True,
-            dialect=get_dialect("teradata"),
-        ),
-        target=sha256_partial,
-    ),
+    # Teradata is intentionally absent: it has no portable cryptographic hash in pure SQL, so
+    # ReconcileConfig.__post_init__ requires hash_expression_overrides.source to be set by the
+    # user. The hash query builder reads from that override and never falls through to a dialect
+    # default for Teradata.
 }
