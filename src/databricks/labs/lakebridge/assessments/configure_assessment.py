@@ -105,9 +105,9 @@ class ConfigureOracleAssessment(AssessmentConfigurator):
 class ConfigureSqlServerAssessment(AssessmentConfigurator):
     """SQL Server-family assessment configuration.
 
-    Used for both `mssql` (regular SQL Server / Azure SQL Database, default database `master`)
-    and `legacy_synapse` (Azure Synapse dedicated SQL pool, where the database
-    is the pool name and must be supplied explicitly).
+    Used for both `mssql` (regular SQL Server / Azure SQL Database) and
+    `legacy_synapse` (Azure Synapse dedicated SQL pool, where the database
+    is the pool name).
     """
 
     def _configure_credentials(self) -> str:
@@ -130,7 +130,7 @@ class ConfigureSqlServerAssessment(AssessmentConfigurator):
                 "login_timeout": self.prompts.question("Enter login timeout (seconds)", default="30"),
                 "server": self.prompts.question("Enter the fully-qualified server name"),
                 "port": int(self.prompts.question("Enter the port details", valid_number=True)),
-                "database": self.prompts.question("Enter the database name", default="master"),
+                "database": self.prompts.question("Enter the database name"),
                 "user": self.prompts.question("Enter the SQL username"),
                 "password": self.prompts.password("Enter the SQL password"),
                 "tz_info": self.prompts.question("Enter timezone (e.g. America/New_York)", default="UTC"),
