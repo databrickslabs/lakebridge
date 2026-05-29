@@ -18,30 +18,18 @@ from databricks.labs.lakebridge.reconcile.recon_config import Schema, Table
 logger = logging.getLogger(__name__)
 
 
+_HASH_COLUMN_NAME = "hash_value_recon"
+
+
 def _hash_transform(
     node: exp.Expression,
     source: Dialect,
     layer: str,
-):
-    transform = get_hash_transform(source, layer)
-    return transform_expression(node, transform)
-
-
-_HASH_COLUMN_NAME = "hash_value_recon"
-
-
-def _apply_user_hash_expression(
-    user_expr: str,
-    concat_expr: exp.Expression,
-    engine: Dialect,
+    override: str | None,
 ) -> exp.Expression:
-    """Render a user-supplied hash expression by substituting the ``{}`` placeholder with the
-    concatenated hash input, then parse the result in the source dialect.
-    """
-    if "{}" not in user_expr:
-        raise ValueError(f"hash_expression must contain a '{{}}' placeholder for the hash input; got {user_expr!r}")
-    rendered = user_expr.replace("{}", concat_expr.sql(dialect=engine))
-    return parse_one(rendered, read=engine)
+    if override is not None:
+        return parse_one(override.replace("{}", node.sql(dialect=source)), read=source)
+    return transform_expression(node, get_hash_transform(source, layer))
 
 
 class HashQueryBuilder(QueryBuilder):
@@ -53,10 +41,10 @@ class HashQueryBuilder(QueryBuilder):
         layer: str,
         source_engine: Dialect,
         data_source: DataSource,
-        hash_expression: str | None = None,
+        hash_expression_override: str | None = None,
     ):
         super().__init__(table_conf, schema, layer, source_engine, data_source)
-        self._hash_expression = hash_expression
+        self._hash_expression_override = hash_expression_override
 
     def build_query(self, report_type: str) -> str:
 
@@ -111,18 +99,7 @@ class HashQueryBuilder(QueryBuilder):
         col_exprs = exp.select(*cols_with_transform).iter_expressions()
         # We now use exp.Dpipe to force the use of CONCAT() function across all dialects to be dialect specific || or + in TSQL
         concat_expr = concat(col_exprs)
-
-        user_hash_expr = self._user_hash_expression()
-        if user_hash_expr is not None:
-            hash_expr = _apply_user_hash_expression(user_hash_expr, concat_expr, self.engine).transform(
-                lower, is_expr=True
-            )
-        else:
-            hash_expr = concat_expr.transform(_hash_transform, self._source_engine, self.layer).transform(
-                lower, is_expr=True
-            )
-
+        hash_expr = concat_expr.transform(
+            _hash_transform, self._source_engine, self.layer, self._hash_expression_override
+        ).transform(lower, is_expr=True)
         return build_column(hash_expr, alias=column_alias)
-
-    def _user_hash_expression(self) -> str | None:
-        return self._hash_expression

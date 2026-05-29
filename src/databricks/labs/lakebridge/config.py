@@ -263,6 +263,14 @@ class HashExpressionOverrides:
     source: str
     target: str = "sha2({}, 256)"
 
+    def __post_init__(self):
+        for layer, expr in (("source", self.source), ("target", self.target)):
+            if "{}" not in expr:
+                raise ValueError(
+                    f"hash_expression_overrides.{layer} must contain a '{{}}' placeholder for "
+                    f"the hash input; got {expr!r}"
+                )
+
 
 @dataclass
 class TranspileResult:

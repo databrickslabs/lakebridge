@@ -433,12 +433,8 @@ def teradata_recon_config(recon_cluster: str, recon_schema: SchemaInfo, make_vol
 
     assert recon_schema.catalog_name
     assert recon_schema.name
-    # Bypass real hashing: Teradata has no native SHA-256 in pure SQL, and installing the
-    # required external (Java/C/C++) UDF on the testing instance is out-of-band setup. Setting
-    # hash_expression="{}" on both sides emits LOWER(<concat>) verbatim, so the join compares
-    # the raw concatenated row-key string on each side. The per-column Transformations in
-    # teradata_recon_table_config pin formats so the Teradata and Databricks concats are
-    # byte-identical. Drop these overrides once a real SHA-256 UDF is installed on the
+    # Test-infra Teradata has no hash UDF installed; compare raw concatenated row-key as a string.
+    # Drop these overrides once a real SHA-256 UDF is installed on the testing-infra Teradata.
     # testing-infra Teradata.
     return ReconcileConfig(
         report_type="all",

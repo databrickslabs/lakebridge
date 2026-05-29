@@ -612,7 +612,6 @@ def test_configure_reconcile_installation_config_error_continue_install(ws: Work
             r"Enter .* database name": "tpch_sf1000",
             r"Enter target Databricks catalog name": "tpch",
             r"Enter target Databricks schema name": "1000gb",
-            r"Override the default source/target hash functions": "no",
             r"Open .* in the browser?": "no",
         }
     )
@@ -723,7 +722,6 @@ def test_configure_reconcile_no_existing_installation(ws: WorkspaceClient) -> No
             r"Enter .* schema name": "tpch_sf1000",
             r"Enter target Databricks catalog name": "tpch",
             r"Enter target Databricks schema name": "1000gb",
-            r"Override the default source/target hash functions": "no",
             r"Open .* in the browser?": "yes",
         }
     )
@@ -825,8 +823,8 @@ def _teradata_install_ctx(workspace_client: WorkspaceClient, prompts: MockPrompt
 
 @patch("webbrowser.open")
 def test_configure_reconcile_teradata_hash_expression_mandatory(ws: WorkspaceClient) -> None:
-    """For Teradata, the install prompt always asks for source and target hash expressions
-    (source mandatory; target defaults to sha2({}, 256))."""
+    """For Teradata, the install prompt asks for source (mandatory, non-default expression) and
+    target hash expressions (target accepts default sha2({}, 256))."""
     prompts = MockPrompts(
         {
             r"Select the Data Source": str(RECONCILE_DATA_SOURCES.index("teradata")),
@@ -835,7 +833,7 @@ def test_configure_reconcile_teradata_hash_expression_mandatory(ws: WorkspaceCli
             r"Enter .* database name": "DBC",
             r"Enter .* schema name": "tpch_sf1000",
             r"Enter the Teradata source hash expression": "my_db.my_sha256({})",
-            r"Enter the Databricks target hash expression": "",
+            r"Enter the Databricks target hash expression": "md5({})",
             r"Enter target Databricks catalog name": "tpch",
             r"Enter target Databricks schema name": "1000gb",
             r"Open .* in the browser?": "no",
@@ -847,33 +845,6 @@ def test_configure_reconcile_teradata_hash_expression_mandatory(ws: WorkspaceCli
     assert config.reconcile.source.dialect == "teradata"
     assert config.reconcile.hash_expression_overrides is not None
     assert config.reconcile.hash_expression_overrides.source == "my_db.my_sha256({})"
-    assert config.reconcile.hash_expression_overrides.target == "sha2({}, 256)"
-
-
-@patch("webbrowser.open")
-def test_configure_reconcile_non_teradata_hash_expression_override(ws: WorkspaceClient) -> None:
-    """For a non-Teradata source, answering yes to the override prompt asks for source and
-    target hash expressions and records them on hash_expression_overrides."""
-    prompts = MockPrompts(
-        {
-            r"Select the Data Source": str(RECONCILE_DATA_SOURCES.index("snowflake")),
-            r"Select the report type": str(RECONCILE_REPORT_TYPES.index("all")),
-            r"Enter Unity Catalog .* connection name": "my_snowflake_conn",
-            r"Enter .* database name": "snowflake_sample_data",
-            r"Enter .* schema name": "tpch_sf1000",
-            r"Override the default source/target hash functions": "yes",
-            r"Enter the Snowflake source hash expression": "md5_hex({})",
-            r"Enter the Databricks target hash expression": "md5({})",
-            r"Enter target Databricks catalog name": "tpch",
-            r"Enter target Databricks schema name": "1000gb",
-            r"Open .* in the browser?": "no",
-        }
-    )
-    config = _teradata_install_ctx(ws, prompts).configure(module="reconcile")
-
-    assert config.reconcile is not None
-    assert config.reconcile.hash_expression_overrides is not None
-    assert config.reconcile.hash_expression_overrides.source == "md5_hex({})"
     assert config.reconcile.hash_expression_overrides.target == "md5({})"
 
 
@@ -887,7 +858,6 @@ def test_configure_reconcile_databricks_no_existing_installation(ws: WorkspaceCl
             r"Enter .* schema name": "some_schema",
             r"Enter target Databricks catalog name": "tpch",
             r"Enter target Databricks schema name": "1000gb",
-            r"Override the default source/target hash functions": "no",
             r"Open .* in the browser?": "yes",
         }
     )
@@ -982,7 +952,6 @@ def test_configure_all_override_installation(  # FIXME
             r"Enter .* schema name": "tpch_sf1000",
             r"Enter target Databricks catalog name": "tpch",
             r"Enter target Databricks schema name": "1000gb",
-            r"Override the default source/target hash functions": "no",
             # Profiler Configuration Prompts
             r"Select the source technology": "0",
             r"Enter the path to the profiler extract file:": "",

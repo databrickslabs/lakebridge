@@ -350,7 +350,9 @@ class WorkspaceInstaller:
         source_config = self._prompt_for_source_connection_config(data_source)
         target_config = self._prompt_for_target_connection_config()
         metadata_config = self._prompt_for_reconcile_metadata_config()
-        hash_expression_overrides = self._prompt_for_hash_expression_overrides(data_source)
+        hash_expression_overrides = None
+        if data_source == ReconSourceType.TERADATA.value:
+            hash_expression_overrides = self._prompt_for_hash_expression_overrides()
 
         return ReconcileConfig(
             report_type=report_type,
@@ -385,28 +387,13 @@ class WorkspaceInstaller:
             uc_connection_name=uc_connection_name,
         )
 
-    def _prompt_for_hash_expression_overrides(self, src_dialect: str) -> HashExpressionOverrides | None:
-        # Teradata has no native hash, so an explicit source override is mandatory (also enforced
-        # by ReconcileConfig.__post_init__). Other source dialects (including Databricks) ship a
-        # usable default; we only prompt when the user opts in.
-        if src_dialect != ReconSourceType.TERADATA.value:
-            if not self._prompts.confirm("Override the default source/target hash functions?"):
-                return None
-        return self._ask_hash_expression_overrides(src_dialect)
-
-    def _ask_hash_expression_overrides(self, src_dialect: str) -> HashExpressionOverrides:
+    def _prompt_for_hash_expression_overrides(self) -> HashExpressionOverrides:
         source_prompt = (
-            f"Enter the {src_dialect.capitalize()} source hash expression "
-            "(must contain a single '{}' placeholder, e.g. my_sha256({}))"
+            "Enter the Teradata source hash expression (must contain a single '{}' placeholder, e.g. my_sha256({}))"
         )
-        if src_dialect == ReconSourceType.DATABRICKS.value:
-            source_expr = self._prompts.question(source_prompt, default="sha2({}, 256)")
-        else:
-            source_expr = self._prompts.question(source_prompt)
-        target_expr = self._prompts.question(
-            "Enter the Databricks target hash expression (must contain a single '{}' placeholder)",
-            default="sha2({}, 256)",
-        )
+        source_expr = self._prompts.question(source_prompt)
+        target_prompt = "Enter the Databricks target hash expression (must contain a single '{}' placeholder)"
+        target_expr = self._prompts.question(target_prompt, default="sha2({}, 256)")
         return HashExpressionOverrides(source=source_expr, target=target_expr)
 
     def _prompt_for_target_connection_config(self) -> TargetConnectionConfig:

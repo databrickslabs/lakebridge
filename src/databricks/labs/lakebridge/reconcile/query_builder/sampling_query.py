@@ -39,8 +39,11 @@ class SamplingQueryBuilder(QueryBuilder):
         cols = sorted((join_columns | self.select_columns) - self.threshold_columns - self.drop_columns)
 
         cols_with_alias = [self._build_column_with_alias(col) for col in cols]
+        sql_with_transforms = self.add_transformations(cols_with_alias, self.engine)
 
-        query = select(*cols_with_alias).from_(":tbl").where(self.filter, dialect=self.engine).sql(dialect=self.engine)
+        query = (
+            select(*sql_with_transforms).from_(":tbl").where(self.filter, dialect=self.engine).sql(dialect=self.engine)
+        )
 
         logger.info(f"Sampling Query with Alias for {self.layer}: {query}")
         return query

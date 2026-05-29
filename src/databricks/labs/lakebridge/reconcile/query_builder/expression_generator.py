@@ -170,14 +170,14 @@ def get_hash_transform(
     if not dialect_algo:
         raise ValueError(
             f"Source {source} has no default hash algorithm. "
-            "Set hash_expression_overrides.source on the recon config to provide one."
+            "Set hash_expression_overrides on the recon config to provide one."
         )
 
     layer_algo = getattr(dialect_algo, layer, None)
     if not layer_algo:
         raise ValueError(
             f"Layer {layer} has no default hash algorithm for source {source}. "
-            f"Set hash_expression_overrides.{layer} on the recon config to provide one."
+            "Set hash_expression_overrides on the recon config to provide one."
         )
     return [layer_algo]
 
