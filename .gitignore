@@ -1,5 +1,4 @@
 .venv
-.venv_test
 .sdkmanrc
 .DS_Store
 *.pyc
@@ -23,10 +22,4 @@ remorph_transpile/
 .databricks-login.json
 .mypy_cache
 .env
-*.dbc
-progress.md
-task.md
-learning.md
-CLAUDE.md
-.claude/
 /tests/resources/lsp_transpiler/test-lsp-server.log

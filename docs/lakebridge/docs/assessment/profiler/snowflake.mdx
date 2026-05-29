@@ -38,9 +38,10 @@ Pick **snowflake** when prompted, then paste the connection details and PAT.
 databricks labs lakebridge execute-database-profiler
 ```
 
-The extract is written to a DuckDB file (`profiler_extract.db`) in the configured output directory. It contains raw `SNOWFLAKE.ACCOUNT_USAGE` data — warehouse usage, query history, storage, users, and (when applicable) pipe / autoclustering / materialized-view refresh credits. Inspect it with:
+The extract is written to a DuckDB file at `~/.databricks/labs/lakebridge_profilers/snowflake_assessment/profiler_extract.db`. It contains raw `SNOWFLAKE.ACCOUNT_USAGE` data — warehouse usage, query history, storage, users, and (when applicable) pipe / autoclustering / materialized-view refresh credits. By default each extract looks back 90 days. Inspect it with:
 
 ```bash
+cd ~/.databricks/labs/lakebridge_profilers/snowflake_assessment
 duckdb profiler_extract.db "SHOW TABLES;"
 duckdb profiler_extract.db "SELECT * FROM warehouse_usage LIMIT 10;"
 duckdb profiler_extract.db "SELECT * FROM query_history LIMIT 10;"

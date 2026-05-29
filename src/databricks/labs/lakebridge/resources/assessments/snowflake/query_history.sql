@@ -41,5 +41,5 @@ FROM SNOWFLAKE.ACCOUNT_USAGE.QUERY_HISTORY
 -- parity. Cloud-services-only queries (NULL warehouse_name) carry the bulk of
 -- CREDITS_USED_CLOUD_SERVICES; system/replication queries have NULL user_name.
 -- Downstream analytics should LEFT JOIN + COALESCE so NULLs degrade cleanly.
-WHERE START_TIME >= DATEADD('day', -365, CURRENT_TIMESTAMP())
+WHERE START_TIME >= DATEADD('day', -90, CURRENT_TIMESTAMP())
 ORDER BY START_TIME DESC;

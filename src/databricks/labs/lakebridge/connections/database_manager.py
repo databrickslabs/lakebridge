@@ -88,10 +88,11 @@ class _BaseConnector(DatabaseConnector):
 
 class SnowflakeConnector(_BaseConnector):
     def _connect(self) -> Engine:
-        # Extract connection details from config. The SDK types JSON values loosely;
-        # narrow to a plain dict so the dict-style accesses below typecheck.
-        raw = self.config.get("connection", self.config)
-        connection_config: dict[str, Any] = raw if isinstance(raw, dict) else dict(self.config)
+        # The configurator always nests Snowflake credentials under a "connection" block.
+        # The SDK types JSON values loosely, so narrow to a dict for the accesses below.
+        connection_config = self.config["connection"]
+        if not isinstance(connection_config, dict):
+            raise ConnectionError("Snowflake credentials must be nested under a 'connection' block")
 
         account = parse_snowflake_account(str(connection_config["account"]))
         user = str(connection_config["user"])
@@ -101,7 +102,16 @@ class SnowflakeConnector(_BaseConnector):
         role = str(connection_config.get("role", "ACCOUNTADMIN"))
         password = str(connection_config["password"])
 
-        snowflake_url = f"snowflake://{user}:{password}@{account}/{database}/{schema}?warehouse={warehouse}&role={role}"
+        # PAT is base64url-encoded and can contain '/', '=', '@'. URL.create
+        # percent-escapes them so SQLAlchemy doesn't misread the token as URL structure.
+        snowflake_url = URL.create(
+            drivername="snowflake",
+            username=user,
+            password=password,
+            host=account,
+            database=f"{database}/{schema}",
+            query={"warehouse": warehouse, "role": role},
+        )
         return create_engine(snowflake_url)
 
 

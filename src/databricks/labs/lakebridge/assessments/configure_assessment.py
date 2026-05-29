@@ -238,6 +238,13 @@ class ConfigureSnowflakeAssessment(AssessmentConfigurator):
             "#generating-a-programmatic-access-token"
         )
 
+        # In env mode the stored value is the name of an environment variable that
+        # EnvGetter resolves at runtime, not the token itself, so prompt accordingly.
+        if secret_vault_type == "env":
+            pat = self.prompts.question("Enter the environment variable name holding the PAT")
+        else:
+            pat = self.prompts.password("Enter Programmatic Access Token (PAT)")
+
         snowflake_connection = {
             "account": self.prompts.question(
                 "Enter Snowflake account URL (e.g., myorg-myaccount.snowflakecomputing.com)"
@@ -247,7 +254,7 @@ class ConfigureSnowflakeAssessment(AssessmentConfigurator):
             "database": self.prompts.question("Enter database name", default="SNOWFLAKE"),
             "schema": self.prompts.question("Enter schema name", default="ACCOUNT_USAGE"),
             "role": self.prompts.question("Enter role", default="ACCOUNTADMIN"),
-            "password": self.prompts.password("Enter Programmatic Access Token (PAT)"),
+            "password": pat,
         }
 
         credential = {

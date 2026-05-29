@@ -2,8 +2,6 @@
 Snowflake utility functions for account URL parsing and connection handling.
 """
 
-import re
-
 
 def parse_snowflake_account(account_input: str) -> str:
     """
@@ -39,22 +37,3 @@ def parse_snowflake_account(account_input: str) -> str:
     account = account.rstrip("/")
 
     return account
-
-
-def validate_snowflake_account(account_identifier: str) -> bool:
-    """
-    Basic validation of Snowflake account identifier format.
-
-    Args:
-        account_identifier: Clean account identifier
-
-    Returns:
-        True if format appears valid, False otherwise
-    """
-    if not account_identifier:
-        return False
-
-    # Snowflake account identifiers typically contain letters, numbers, and hyphens
-    # They cannot be empty and should not contain spaces or special characters
-    pattern = r'^[A-Za-z0-9\-_]+$'
-    return bool(re.match(pattern, account_identifier))
