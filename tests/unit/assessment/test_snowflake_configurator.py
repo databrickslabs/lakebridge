@@ -53,7 +53,7 @@ def test_local_vault_stores_pat_verbatim(tmp_path):
                 "database": "SNOWFLAKE",
                 "schema": "ACCOUNT_USAGE",
                 "role": "ACCOUNTADMIN",
-                "password": "fake-pat-token",
+                "pat": "fake-pat-token",
             },
         },
     }
@@ -65,4 +65,4 @@ def test_env_vault_stores_env_var_name(tmp_path):
     prompts = _prompts("env", r"Enter the environment variable name holding the PAT", "SNOWFLAKE_PAT")
     creds = _run(prompts, tmp_path)
     assert creds["secret_vault_type"] == "env"
-    assert creds["snowflake"]["connection"]["password"] == "SNOWFLAKE_PAT"
+    assert creds["snowflake"]["connection"]["pat"] == "SNOWFLAKE_PAT"

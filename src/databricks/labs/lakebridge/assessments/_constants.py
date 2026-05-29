@@ -11,8 +11,7 @@ PLATFORM_TO_SOURCE_TECHNOLOGY_CFG = {
     "legacy_synapse": "src/databricks/labs/lakebridge/resources/assessments/legacy_synapse/pipeline_config.yml",
 }
 
-# TODO modify this PLATFORM_TO_SOURCE_TECHNOLOGY.keys() once all platforms are supported
-PROFILER_SOURCE_SYSTEM = ["synapse", "snowflake", "mssql", "legacy_synapse", "oracle"]
+PROFILER_SOURCE_SYSTEM = sorted(PLATFORM_TO_SOURCE_TECHNOLOGY_CFG.keys())
 
 
 # This flag indicates whether a connector is required for the source system when pipeline is trigger

@@ -100,7 +100,7 @@ class SnowflakeConnector(_BaseConnector):
         database = str(connection_config.get("database", "SNOWFLAKE"))
         schema = str(connection_config.get("schema", "ACCOUNT_USAGE"))
         role = str(connection_config.get("role", "ACCOUNTADMIN"))
-        password = str(connection_config["password"])
+        password = str(connection_config["pat"])
 
         # PAT is base64url-encoded and can contain '/', '=', '@'. URL.create
         # percent-escapes them so SQLAlchemy doesn't misread the token as URL structure.

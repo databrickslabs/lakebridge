@@ -41,7 +41,7 @@ def test_snowflake_url_happy_path():
         {
             "account": "https://MYORG-MYACCOUNT.snowflakecomputing.com",
             "user": "svc_user",
-            "password": "plain_token",
+            "pat": "plain_token",
             "warehouse": "WH",
             "database": "SNOWFLAKE",
             "schema": "ACCOUNT_USAGE",
@@ -61,7 +61,7 @@ def test_snowflake_url_escapes_pat_special_chars():
         {
             "account": "MYORG-MYACCOUNT",
             "user": "svc_user",
-            "password": "ab/cd=ef@ij",
+            "pat": "ab/cd=ef@ij",
             "warehouse": "WH",
             "database": "SNOWFLAKE",
             "schema": "ACCOUNT_USAGE",

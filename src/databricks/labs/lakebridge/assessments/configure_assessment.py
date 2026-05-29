@@ -254,7 +254,9 @@ class ConfigureSnowflakeAssessment(AssessmentConfigurator):
             "database": self.prompts.question("Enter database name", default="SNOWFLAKE"),
             "schema": self.prompts.question("Enter schema name", default="ACCOUNT_USAGE"),
             "role": self.prompts.question("Enter role", default="ACCOUNTADMIN"),
-            "password": pat,
+            # Stored under `pat` (not `password`) to flag this is a rotating
+            # Programmatic Access Token, not a SQL password.
+            "pat": pat,
         }
 
         credential = {
