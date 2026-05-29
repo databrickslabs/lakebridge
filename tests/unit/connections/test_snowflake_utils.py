@@ -92,7 +92,7 @@ def test_snowflake_url_escapes_pat_special_chars():
         {
             "account": "MYORG-MYACCOUNT",
             "user": "svc_user",
-            "pat": "ab/cd=ef@ij",
+            "pat": "ab/cd=ef@ij%kl",
             "warehouse": "WH",
             "database": "SNOWFLAKE",
             "schema": "ACCOUNT_USAGE",
@@ -100,6 +100,11 @@ def test_snowflake_url_escapes_pat_special_chars():
         }
     )
     # The structural characters are escaped inside the password.
-    assert "ab%2Fcd%3Def%40ij" in url
+    assert "ab%2Fcd%3Def%40ij%25kl" in url
     # And the host is still parsed correctly despite the '@' in the password.
     assert "@MYORG-MYACCOUNT/SNOWFLAKE/ACCOUNT_USAGE" in url
+
+
+def test_connector_raises_when_account_missing():
+    with pytest.raises(KeyError):
+        SnowflakeConnector({"connection": {"user": "svc_user", "pat": "token"}})

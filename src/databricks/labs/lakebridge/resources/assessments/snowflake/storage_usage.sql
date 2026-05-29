@@ -3,11 +3,12 @@
 -- Columns: USAGE_DATE, DATABASE_ID, DATABASE_NAME, DELETED,
 --   AVERAGE_DATABASE_BYTES, AVERAGE_FAILSAFE_BYTES
 --
--- No system-database filter here (unlike database_objects.sql, which excludes
--- SNOWFLAKE / UTIL_DB). This view only reports databases that incur billable
--- storage in the account; the shared SNOWFLAKE database and sample data don't
--- appear, so there's nothing system-owned to filter out. We keep every billed
--- row, including dropped databases still in failsafe, to capture total storage.
+-- NOTE: intentionally no NOT IN ('SNOWFLAKE', 'UTIL_DB') filter here, even
+-- though database_objects.sql filters those out. DATABASE_STORAGE_USAGE_HISTORY
+-- only includes billed databases, so the shared SNOWFLAKE database never appears,
+-- and UTIL_DB only shows up in legacy accounts where it's a real customer
+-- database. Applying the filter would zero out storage for those accounts, so we
+-- keep every billed row (including dropped databases still in failsafe).
 
 SELECT
     DATABASE_NAME,
