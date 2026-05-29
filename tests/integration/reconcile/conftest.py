@@ -36,7 +36,7 @@ logger = logging.getLogger(__name__)
 DIAMONDS_COLUMNS = [
     ("carat", "DOUBLE"),
     ("cut", "STRING"),
-    ("color", "STRING"),
+    ("color", "CHAR(10)"),
     ("clarity", "STRING"),
     ("mined_at", "DATE"),
 ]

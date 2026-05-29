@@ -435,3 +435,37 @@ def test_build_query_for_snowflake_src_for_non_integer_primary_keys(
 
     assert src_actual == src_expected
     assert tgt_actual == tgt_expected
+
+
+def test_build_query_with_alias_applies_dialect_transformations(
+    table_conf,
+    table_schema_oracle_ansi,
+    fake_databricks_datasource,
+):
+    _, sch_with_alias = table_schema_oracle_ansi
+    conf = table_conf(
+        join_columns=["`s_suppkey`", "`s_nationkey`"],
+        column_mapping=[
+            ColumnMapping(source_name="`s_suppkey`", target_name="`s_suppkey_t`"),
+            ColumnMapping(source_name="`s_nationkey`", target_name="`s_nationkey_t`"),
+            ColumnMapping(source_name="`s_address`", target_name="`s_address_t`"),
+            ColumnMapping(source_name="`s_phone`", target_name="`s_phone_t`"),
+            ColumnMapping(source_name="`s_acctbal`", target_name="`s_acctbal_t`"),
+            ColumnMapping(source_name="`s_comment`", target_name="`s_comment_t`"),
+        ],
+    )
+    actual = SamplingQueryBuilder(
+        conf, sch_with_alias, "target", get_dialect("databricks"), fake_databricks_datasource
+    ).build_query_with_alias()
+
+    expected = (
+        "SELECT COALESCE(TRIM(`s_acctbal_t`), '_null_recon_') AS `s_acctbal`, "
+        "COALESCE(TRIM(`s_address_t`), '_null_recon_') AS `s_address`, "
+        "COALESCE(TRIM(`s_comment_t`), '_null_recon_') AS `s_comment`, "
+        "COALESCE(TRIM(`s_name`), '_null_recon_') AS `s_name`, "
+        "COALESCE(TRIM(`s_nationkey_t`), '_null_recon_') AS `s_nationkey`, "
+        "COALESCE(TRIM(`s_phone_t`), '_null_recon_') AS `s_phone`, "
+        "COALESCE(TRIM(`s_suppkey_t`), '_null_recon_') AS `s_suppkey` "
+        "FROM :tbl"
+    )
+    assert actual == expected
