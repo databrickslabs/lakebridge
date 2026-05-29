@@ -5,7 +5,10 @@ from unittest.mock import patch
 import pytest
 
 from databricks.labs.lakebridge.connections.database_manager import SnowflakeConnector
-from databricks.labs.lakebridge.connections.snowflake_utils import parse_snowflake_account
+from databricks.labs.lakebridge.connections.snowflake_utils import (
+    parse_snowflake_account,
+    is_valid_snowflake_account,
+)
 
 
 @pytest.mark.parametrize(
@@ -21,6 +24,34 @@ from databricks.labs.lakebridge.connections.snowflake_utils import parse_snowfla
 )
 def test_parse_snowflake_account(raw, expected):
     assert parse_snowflake_account(raw) == expected
+
+
+@pytest.mark.parametrize(
+    "identifier, valid",
+    [
+        ("MYORG-MYACCOUNT", True),
+        ("xy12345.us-east-1.aws", True),  # legacy locator with region/cloud
+        ("abc_123", True),
+        ("", False),
+        ("my org-acct", False),  # space
+        ("acct/with/slash", False),
+    ],
+)
+def test_is_valid_snowflake_account(identifier, valid):
+    assert is_valid_snowflake_account(identifier) is valid
+
+
+def test_connector_rejects_malformed_account():
+    with pytest.raises(ConnectionError, match="Invalid Snowflake account identifier"):
+        SnowflakeConnector(
+            {
+                "connection": {
+                    "account": "my org-acct",  # space breaks the URL
+                    "user": "svc_user",
+                    "pat": "token",
+                }
+            }
+        )
 
 
 def _build_url(connection: dict) -> str:

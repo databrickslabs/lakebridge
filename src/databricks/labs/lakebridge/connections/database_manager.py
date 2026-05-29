@@ -17,7 +17,10 @@ from sqlalchemy.orm.session import Session
 import redshift_connector  # type: ignore[import-untyped]
 
 from databricks.labs.blueprint.installation import JsonObject
-from databricks.labs.lakebridge.connections.snowflake_utils import parse_snowflake_account
+from databricks.labs.lakebridge.connections.snowflake_utils import (
+    parse_snowflake_account,
+    is_valid_snowflake_account,
+)
 
 # Side-effect import: registers the 'snowflake://' SQLAlchemy dialect so
 # `create_engine("snowflake://...")` resolves in SnowflakeConnector below.
@@ -95,6 +98,11 @@ class SnowflakeConnector(_BaseConnector):
             raise ConnectionError("Snowflake credentials must be nested under a 'connection' block")
 
         account = parse_snowflake_account(str(connection_config["account"]))
+        if not is_valid_snowflake_account(account):
+            raise ConnectionError(
+                f"Invalid Snowflake account identifier {account!r}. Expected something like "
+                "'myorg-myaccount' or a legacy locator; check for spaces or stray characters."
+            )
         user = str(connection_config["user"])
         warehouse = str(connection_config.get("warehouse", "COMPUTE_WH"))
         database = str(connection_config.get("database", "SNOWFLAKE"))
