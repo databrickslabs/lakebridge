@@ -31,6 +31,7 @@ class Profiler:
 
     @classmethod
     def create(cls, platform: str) -> "Profiler":
+        # `platform` is validated against PROFILER_SOURCE_SYSTEM by the CLI before this is called.
         pipeline_config_path = PLATFORM_TO_SOURCE_TECHNOLOGY_CFG[platform]
         pipeline_config_absolute_path = Profiler._locate_config(pipeline_config_path)
         pipeline_config = Profiler.path_modifier(config_file=pipeline_config_absolute_path)
