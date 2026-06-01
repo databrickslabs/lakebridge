@@ -18,6 +18,10 @@ from databricks.labs.lakebridge.assessments import (
 logger = logging.getLogger(__name__)
 
 
+def default_output_folder(platform: str) -> Path:
+    return Path.home() / ".databricks" / "labs" / "lakebridge_profilers" / f"{platform}_assessment"
+
+
 class Profiler:
 
     def __init__(self, platform: str, pipeline_configs: PipelineConfig | None = None):
@@ -26,16 +30,10 @@ class Profiler:
 
     @classmethod
     def create(cls, platform: str) -> "Profiler":
-        pipeline_config_path = PLATFORM_TO_SOURCE_TECHNOLOGY_CFG.get(platform, None)
-        pipeline_config = None
-        if pipeline_config_path:
-            pipeline_config_absolute_path = Profiler._locate_config(pipeline_config_path)
-            pipeline_config = Profiler.path_modifier(config_file=pipeline_config_absolute_path)
+        pipeline_config_path = PLATFORM_TO_SOURCE_TECHNOLOGY_CFG[platform]
+        pipeline_config_absolute_path = Profiler._locate_config(pipeline_config_path)
+        pipeline_config = Profiler.path_modifier(config_file=pipeline_config_absolute_path)
         return cls(platform, pipeline_config)
-
-    @classmethod
-    def supported_platforms(cls) -> list[str]:
-        return list(PLATFORM_TO_SOURCE_TECHNOLOGY_CFG.keys())
 
     @staticmethod
     def path_modifier(*, config_file: str | Path, path_prefix: Path = PRODUCT_PATH_PREFIX) -> PipelineConfig:
@@ -49,13 +47,15 @@ class Profiler:
         *,
         extractor: DatabaseManager | None = None,
         pipeline_config: PipelineConfig | None = None,
+        output_folder: Path | None = None,
     ) -> None:
         platform = self._platform.lower()
         if not pipeline_config:
             if not self._pipeline_config:
                 raise ValueError(f"Cannot Proceed without a valid pipeline configuration for {platform}")
             pipeline_config = self._pipeline_config
-        self._execute(platform, pipeline_config, extractor)
+        resolved_output_folder = output_folder or default_output_folder(platform)
+        self._execute(platform, pipeline_config, resolved_output_folder, extractor)
 
     @staticmethod
     def _setup_extractor(platform: str) -> DatabaseManager | None:
@@ -65,12 +65,12 @@ class Profiler:
         connect_config = cred_manager.get_credentials(platform)
         return DatabaseManager(platform, connect_config)
 
-    def _execute(self, platform: str, pipeline_config: PipelineConfig, extractor=None) -> None:
+    def _execute(self, platform: str, pipeline_config: PipelineConfig, output_folder: Path, extractor=None) -> None:
         try:
             if extractor is None:
                 extractor = Profiler._setup_extractor(platform)
 
-            result = PipelineClass(pipeline_config, extractor).execute()
+            result = PipelineClass(pipeline_config, extractor, output_folder).execute()
             logger.info(f"Profile execution has completed successfully for {platform} for more info check: {result}.")
         except FileNotFoundError as e:
             logger.error(f"Configuration file not found for source {platform}: {e}")

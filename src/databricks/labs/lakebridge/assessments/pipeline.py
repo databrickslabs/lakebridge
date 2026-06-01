@@ -36,10 +36,10 @@ class StepExecutionResult:
 
 
 class PipelineClass:
-    def __init__(self, config: PipelineConfig, executor: DatabaseManager | None):
+    def __init__(self, config: PipelineConfig, executor: DatabaseManager | None, output_folder: Path):
         self.config = config
         self.executor = executor
-        self._db_path_prefix = Path(config.extract_folder).expanduser()
+        self._db_path_prefix = output_folder.expanduser()
         self._create_dir(self._db_path_prefix)
         self._db_path = str(self._db_path_prefix / DB_NAME)
 
@@ -145,7 +145,6 @@ class PipelineClass:
             raise RuntimeError(f"DDL execution failed: {str(e)}") from e
 
     def _execute_python_step(self, step: Step):
-
         logging.debug(f"Executing Python script: {step.extract_source}")
         credential_config = str(cred_file("lakebridge"))
         venv_path_prefix = Path.home() / ".databricks" / "labs" / "lakebridge_profilers"
@@ -328,7 +327,9 @@ class PipelineClass:
             data = yaml.safe_load(file)
         steps = [Step(**step) for step in data['steps']]
         return PipelineConfig(
-            name=data['name'], version=data['version'], extract_folder=data['extract_folder'], steps=steps
+            name=data['name'],
+            version=data['version'],
+            steps=steps,
         )
 
     @staticmethod

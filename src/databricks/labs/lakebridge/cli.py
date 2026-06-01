@@ -23,7 +23,7 @@ from databricks.labs.blueprint.tui import Prompts
 
 from databricks.labs.lakebridge.assessments.configure_assessment import create_assessment_configurator
 from databricks.labs.lakebridge.assessments import PROFILER_SOURCE_SYSTEM, PRODUCT_NAME
-from databricks.labs.lakebridge.assessments.profiler import Profiler
+from databricks.labs.lakebridge.assessments.profiler import Profiler, default_output_folder
 
 from databricks.labs.lakebridge.config import TranspileConfig, LSPConfigOptionV1
 from databricks.labs.lakebridge.contexts.application import ApplicationContext
@@ -1001,7 +1001,11 @@ def llm_transpile(
 
 
 @lakebridge.command()
-def execute_database_profiler(w: WorkspaceClient, source_tech: str | None = None) -> None:
+def execute_database_profiler(
+    w: WorkspaceClient,
+    source_tech: str | None = None,
+    output_folder: str | None = None,
+) -> None:
     """Execute the Profiler Extraction for the given source technology"""
     ctx = ApplicationContext(w)
     ctx.add_user_agent_extra("cmd", "execute-profiler")
@@ -1024,10 +1028,25 @@ def execute_database_profiler(w: WorkspaceClient, source_tech: str | None = None
             f"Connection details not found. Please run `databricks labs lakebridge configure-database-profiler` "
             f"to set up connection details for {source_tech}."
         )
-    profiler = Profiler.create(source_tech)
 
+    if output_folder is None:
+        output_folder = prompts.question(
+            "Enter the output folder where the profile extract will be written",
+            default=str(default_output_folder(source_tech)),
+        ).strip()
+    _validate_output_folder(Path(output_folder))
+
+    profiler = Profiler.create(source_tech)
     # TODO: Add extractor logic to ApplicationContext instead of creating inside the Profiler class
-    profiler.profile()
+    profiler.profile(output_folder=Path(output_folder))
+
+
+def _validate_output_folder(output_folder: Path) -> None:
+    if not output_folder.parts:
+        raise ValueError("Output folder cannot be empty")
+    parent = output_folder.expanduser().parent
+    if not parent.exists():
+        raise ValueError(f"Invalid path for '--output-folder', parent does not exist for: {output_folder}")
 
 
 @lakebridge.command()

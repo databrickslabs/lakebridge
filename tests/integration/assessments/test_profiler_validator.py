@@ -6,7 +6,6 @@ import duckdb
 import pytest
 
 from databricks.labs.lakebridge.assessments.profiler_validator import (
-    get_profiler_extract_path,
     EmptyTableValidationCheck,
     build_validation_report,
     NullValidationCheck,
@@ -35,18 +34,6 @@ def mock_synapse_profiler_extract() -> Generator[Path]:
         extract_dir = Path(temp_dir) / "synapse_assessment"
         synapse_extract_path = build_mock_synapse_extract("mock_profiler_extract", path_prefix=extract_dir)
         yield synapse_extract_path
-
-
-def test_get_profiler_extract_path(pipeline_config_path: Path, failure_pipeline_config_path: Path) -> None:
-    # Parse `extract_folder` **with** a trailing "/" character
-    expected_db_path = Path("/replaced/after/loading/profiler_extract.db")
-    profiler_db_path = get_profiler_extract_path(pipeline_config_path)
-    assert profiler_db_path == expected_db_path
-
-    # Parse `extract_folder` **without** a trailing "/" character
-    expected_db_path = Path("/replaced/after/loading/profiler_extract.db")
-    profiler_db_path = get_profiler_extract_path(failure_pipeline_config_path)
-    assert profiler_db_path == expected_db_path
 
 
 def test_validate_non_empty_tables(mock_synapse_profiler_extract: Path) -> None:

@@ -1,7 +1,5 @@
 name: PipelineWithCombinedDDL
 version: "1.0"
-# Value replaced prior to actual use:
-extract_folder: /replaced/after/loading/
 steps:
   # Single DDL step with multiple CREATE TABLE statements
   - name: combined_schema

@@ -1,6 +1,5 @@
 name: legacy_synapse_assessment
 version: "1.0"
-extract_folder: "/tmp/data/legacy_synapse_assessment"
 steps:
   - name: columns
     type: sql
