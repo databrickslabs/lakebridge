@@ -25,10 +25,11 @@ def _hash_transform(
     node: exp.Expression,
     source: Dialect,
     layer: str,
+    engine: Dialect,
     override: str | None,
 ) -> exp.Expression:
     if override is not None:
-        return parse_one(override.replace("{}", node.sql(dialect=source)), read=source)
+        return parse_one(override.replace("{}", node.sql(dialect=engine)), read=engine)
     return transform_expression(node, get_hash_transform(source, layer))
 
 
@@ -100,6 +101,6 @@ class HashQueryBuilder(QueryBuilder):
         # We now use exp.Dpipe to force the use of CONCAT() function across all dialects to be dialect specific || or + in TSQL
         concat_expr = concat(col_exprs)
         hash_expr = concat_expr.transform(
-            _hash_transform, self._source_engine, self.layer, self._hash_expression_override
+            _hash_transform, self._source_engine, self.layer, self.engine, self._hash_expression_override
         ).transform(lower, is_expr=True)
         return build_column(hash_expr, alias=column_alias)
