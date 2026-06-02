@@ -220,6 +220,53 @@ except ReconciliationException as e:
 
 After running, use the `recon_id` to drill into the results on the AI/BI Dashboard deployed in your workspace during installation.
 
+---
+
+## Auto-configure Table Mappings
+
+When you have many tables to reconcile, you can skip writing the `TableRecon` by hand. The `auto-configure-recon-tables` command discovers source/target table pairs by matching their names, fills in `column_mapping` where source and target column names differ, and uploads the resulting reconcile config file to your install folder.
+
+This is the bulk-automation alternative to [Step 4: Configure TableRecon](#step-4-configure-tablerecon) above.
+
+### Prerequisites
+
+`configure-reconcile` has been run (the reconcile config file must exist in your install folder).
+
+### Run
+
+```bash
+databricks labs lakebridge auto-configure-recon-tables
+```
+
+You'll be prompted:
+
+- **Discover tables?** — lists tables in the source and target schemas and pairs them up by name.
+- **Auto-configure discovered tables?** — for each pair, fills in `column_mapping` where source and target column names differ.
+
+The matcher normalizes names (case, underscores vs. hyphens, simple plural/singular) so `Customers` matches `customers`, `Order_Items` matches `order-items`, `orders` matches `order`. Source tables and columns that cannot be matched are logged with a warning so you can add them manually.
+
+When the workspace job finishes, the resulting `recon_config_<...>.json` is uploaded to your install folder.
+
+### Re-running
+
+If a reconcile config file already exists, the prompts adapt:
+
+- **Re-discover tables (overwrites existing mappings)?** — yes rebuilds the table list from scratch; no preserves the current table list.
+- **Auto-configure discovered tables?** — yes re-fills `column_mapping` for every table; no leaves columns as they are.
+
+Answering **no** to both is a no-op — the existing file is preserved.
+
+### Review the output
+
+Auto-discovery only fills in table pairs and column mappings. The following fields are not auto-discovered and must be added manually for the tables that need them:
+
+- `join_columns` — required for `data` and `all` report types.
+- `column_thresholds`, `table_thresholds` — numeric tolerance bounds.
+- `transformations` — column-level SQL transforms.
+- `filters` — source/target WHERE clauses.
+
+See [Configuration Reference](/docs/reconcile/configuration) for the full schema.
+
 :::note
-Improved bulk automation tooling is in development. Check back for updates.
+This command is experimental. Review the output before running reconcile.
 :::
