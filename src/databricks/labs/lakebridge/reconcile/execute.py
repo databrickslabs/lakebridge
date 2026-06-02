@@ -92,7 +92,6 @@ def _autoconfigure_tables(installation: Installation, reconcile_config: Reconcil
         auto_configurers=[] if operation_name == DISCOVER_TABLES_OPERATION_NAME else SUPPORTED_AUTO_CONFIGURERS,
         table_recon=existing,
     )
-    return None
 
 
 def _trigger_recon(
