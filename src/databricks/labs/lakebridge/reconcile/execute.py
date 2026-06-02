@@ -8,11 +8,17 @@ from databricks.sdk import WorkspaceClient
 
 from databricks.labs.lakebridge import initialize_logging
 from databricks.labs.lakebridge.config import ReconcileConfig, TableRecon
-from databricks.labs.lakebridge.reconcile.config_generator.configure import configure_tables
+from databricks.labs.lakebridge.reconcile.config_generator.execute import (
+    SUPPORTED_AUTO_CONFIGURERS,
+    auto_configure_tables,
+    build_adapters,
+)
 from databricks.labs.lakebridge.reconcile.recon_config import (
     AGG_RECONCILE_OPERATION_NAME,
-    CONFIGURE_TABLES_OPERATION_NAME,
-    RECONCILE_OPERATION_NAME,
+    AUTO_CONFIGURE_TABLES_OPERATION_NAME,
+    SUPPORTED_OPERATIONS,
+    DISCOVER_TABLES_OPERATION_NAME,
+    DISCOVER_AND_AUTO_CONFIGURE_TABLES_OPERATION_NAME,
 )
 from databricks.labs.lakebridge.reconcile.trigger_recon_aggregate_service import TriggerReconAggregateService
 from databricks.labs.lakebridge.reconcile.trigger_recon_service import TriggerReconService
@@ -30,26 +36,26 @@ def main(*argv: str) -> None:
     operation_name: str | None = None
     # sys.arg is used when running the script as an entry point which is how we trigger the job.
     args = argv[1:] if argv else tuple(sys.argv[1:])
-    supported_operations = {
-        RECONCILE_OPERATION_NAME,
-        AGG_RECONCILE_OPERATION_NAME,
-        CONFIGURE_TABLES_OPERATION_NAME,
-    }
+
     match args:
-        case [operation_name, install_folder] if operation_name in supported_operations:
+        case [operation_name, install_folder] if operation_name in SUPPORTED_OPERATIONS:
             installation = Installation(w, "lakebridge", install_folder=install_folder)
-        case [operation_name] if operation_name in supported_operations:
+        case [operation_name] if operation_name in SUPPORTED_OPERATIONS:
             installation = Installation.assume_user_home(w, "lakebridge")
         case _:
             raise ValueError(
                 f"Invalid arguments: {args}. Expected [operation_name, install_folder] "
-                f"where operation_name is one of: {sorted(supported_operations)!r}."
+                f"where operation_name is one of: {sorted(SUPPORTED_OPERATIONS)!r}."
             )
 
     reconcile_config = installation.load(ReconcileConfig)
 
-    if operation_name == CONFIGURE_TABLES_OPERATION_NAME:
-        configure_tables(installation=installation, reconcile_config=reconcile_config)
+    if operation_name in (
+        DISCOVER_TABLES_OPERATION_NAME,
+        DISCOVER_AND_AUTO_CONFIGURE_TABLES_OPERATION_NAME,
+        AUTO_CONFIGURE_TABLES_OPERATION_NAME,
+    ):
+        _autoconfigure_tables(installation, reconcile_config, operation_name)
         return None
 
     filename = reconcile_config.table_recon_filename
@@ -62,6 +68,34 @@ def main(*argv: str) -> None:
 
     return _trigger_recon(w, table_recon, reconcile_config)
 
+
+def _autoconfigure_tables(
+                              installation: Installation,
+                              reconcile_config: ReconcileConfig,
+                              operation_name: str):
+    spark = DatabricksSession.builder.getOrCreate()
+    source_ds, target_ds = build_adapters(reconcile_config, spark)
+    src = reconcile_config.source
+    tgt = reconcile_config.target
+
+    if operation_name == AUTO_CONFIGURE_TABLES_OPERATION_NAME:
+        existing = installation.load(type_ref=TableRecon, filename=reconcile_config.table_recon_filename)
+    else:
+        existing = None
+
+    auto_configure_tables(
+        installation=installation,
+        table_recon_filename=reconcile_config.table_recon_filename,
+        source=source_ds,
+        source_catalog=src.catalog,
+        source_schema=src.schema,
+        target=target_ds,
+        target_catalog=tgt.catalog,
+        target_schema=tgt.schema,
+        auto_configurers=[] if operation_name == DISCOVER_TABLES_OPERATION_NAME else SUPPORTED_AUTO_CONFIGURERS,
+        table_recon=existing,
+    )
+    return None
 
 def _trigger_recon(
     w: WorkspaceClient,

@@ -87,10 +87,14 @@ class RedshiftDataSource(DataSource):
             return self.log_and_throw_exception(e, "schema", schema_query)
 
     def list_tables(self, catalog: str, schema: str) -> list[str]:
-        return []
+        raise NotImplementedError(
+            "Redshift table auto-discovery is not yet supported; populate the TableRecon manually."
+        )
 
     def list_schemas(self, catalog: str) -> list[str]:
-        return []
+        raise NotImplementedError(
+            "Redshift schema auto-discovery is not yet supported; populate the TableRecon manually."
+        )
 
     def normalize_identifier(self, identifier: str) -> NormalizedIdentifier:
         return DialectUtils.normalize_identifier(

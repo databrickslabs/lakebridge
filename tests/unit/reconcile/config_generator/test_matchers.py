@@ -1,7 +1,4 @@
-from databricks.labs.lakebridge.reconcile.config_generator.matchers import (
-    NormalizedMatcher,
-    run_strategy_chain,
-)
+from databricks.labs.lakebridge.reconcile.config_generator.configure import NormalizedMatcher
 
 
 def test_match_all_exact_lowercase():
@@ -38,26 +35,3 @@ def test_match_all_consumes_candidates():
     matcher = NormalizedMatcher()
     result = matcher.match_all(["emp_id", "EMP_ID"], ["emp_id"])
     assert result == {"emp_id": "emp_id", "EMP_ID": None}
-
-
-def test_run_strategy_chain_marks_unmatched_none():
-    result = run_strategy_chain([NormalizedMatcher()], ["a", "b"], ["a"])
-    assert result == {"a": "a", "b": None}
-
-
-class _FixedMatcher:
-    """Stand-in for an alternative `ReconcileStrategy` implementation."""
-
-    def __init__(self, mapping: dict[str, str]):
-        self._mapping = mapping
-
-    def match_all(self, source_names, _):
-        return {src: self._mapping.get(src) for src in source_names}
-
-
-def test_run_strategy_chain_runs_strategies_in_order():
-    first = _FixedMatcher({"a": "x"})
-    second = _FixedMatcher({"b": "y"})
-
-    result = run_strategy_chain([first, second], ["a", "b", "c"], ["x", "y", "z"])
-    assert result == {"a": "x", "b": "y", "c": None}

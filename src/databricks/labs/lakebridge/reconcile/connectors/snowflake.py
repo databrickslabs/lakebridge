@@ -112,7 +112,7 @@ class SnowflakeDataSource(DataSource):
             return self.log_and_throw_exception(e, "schemas", query)
 
     def list_tables(self, catalog: str, schema: str) -> list[str]:
-        query = SnowflakeDataSource._LIST_TABLES_QUERY.format(catalog=catalog, schema=schema.upper())
+        query = SnowflakeDataSource._LIST_TABLES_QUERY.format(catalog=catalog, schema=schema)
         try:
             df = self._reader.read_data(query, catalog, "database", "query")
             return [row.table_name for row in df.select(col("TABLE_NAME").alias("table_name")).collect()]

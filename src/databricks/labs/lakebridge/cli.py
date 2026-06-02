@@ -38,7 +38,9 @@ from databricks.labs.lakebridge.reconcile.runner import ReconcileRunner
 from databricks.labs.lakebridge.lineage import lineage_generator
 from databricks.labs.lakebridge.reconcile.recon_config import (
     AGG_RECONCILE_OPERATION_NAME,
-    CONFIGURE_TABLES_OPERATION_NAME,
+    AUTO_CONFIGURE_TABLES_OPERATION_NAME,
+    DISCOVER_AND_AUTO_CONFIGURE_TABLES_OPERATION_NAME,
+    DISCOVER_TABLES_OPERATION_NAME,
     RECONCILE_OPERATION_NAME,
 )
 from databricks.labs.lakebridge.transpiler.describe import TranspilersDescription
@@ -678,35 +680,43 @@ def reconcile(
 
 
 @lakebridge.command
-def configure_recon_tables(
+def auto_configure_recon_tables(
     *, w: WorkspaceClient, ctx_factory: Callable[[WorkspaceClient], ApplicationContext] = ApplicationContext
 ) -> None:
     """[EXPERIMENTAL] Auto-discover source/target tables and generate the reconcile table mappings"""
     ctx = ctx_factory(w)
-    ctx.add_user_agent_extra("cmd", "configure-recon-tables")
+    ctx.add_user_agent_extra("cmd", "auto-configure-recon-tables")
     user = ctx.current_user
     logger.debug(f"User: {user}")
-    _run_configure_recon_tables(ctx)
+    _run_auto_configure_recon_tables(ctx)
 
 
-def _run_configure_recon_tables(ctx: ApplicationContext) -> None:
+def _run_auto_configure_recon_tables(ctx: ApplicationContext) -> None:
     recon_config = ctx.recon_config
     if recon_config is None:
         raise SystemExit("Reconcile is not configured. Run `databricks labs lakebridge configure-reconcile` first.")
 
     filename = recon_config.table_recon_filename
-    if _table_recon_exists(ctx, filename):
+    file_exists = _table_recon_exists(ctx, filename)
+    if file_exists:
         ws_url = ctx.installation.workspace_link(filename)
-        if not ctx.prompts.confirm(f"Table mappings `{ws_url}` already exist. Overwrite?"):
-            logger.info("Aborted; existing table mappings preserved.")
-            return
+        logger.info(f"Existing table mappings found at `{ws_url}`.")
+        discover = ctx.prompts.confirm("Re-discover tables (overwrites existing mappings)?")
+    else:
+        discover = ctx.prompts.confirm("Do you want to discover tables?")
+    auto_configure = ctx.prompts.confirm("Do you want to auto-configure discovered tables?")
 
-    recon_runner = ReconcileRunner(
-        ctx.workspace_client,
-        ctx.install_state,
-    )
+    if discover and auto_configure:
+        operation_name = DISCOVER_AND_AUTO_CONFIGURE_TABLES_OPERATION_NAME
+    elif discover:
+        operation_name = DISCOVER_TABLES_OPERATION_NAME
+    elif auto_configure and file_exists:
+        operation_name = AUTO_CONFIGURE_TABLES_OPERATION_NAME
+    else:
+        logger.info("Nothing to do; existing file preserved.")
+        return
 
-    _, job_run_url = recon_runner.run(operation_name=CONFIGURE_TABLES_OPERATION_NAME)
+    _, job_run_url = ReconcileRunner(ctx.workspace_client, ctx.install_state).run(operation_name=operation_name)
     logger.info(
         "When the job finishes, the table mappings will be saved to the Lakebridge install folder. "
         "Edit the file to add join columns, fill in unmatched tables, and review."
@@ -891,7 +901,7 @@ def configure_reconcile(
     reconcile_installer.run(module="reconcile")
 
     if ctx.prompts.confirm("Auto-discover source/target tables and pre-fill the table mappings now?"):
-        _run_configure_recon_tables(ApplicationContext(w))
+        _run_auto_configure_recon_tables(ctx)
 
 
 @lakebridge.command

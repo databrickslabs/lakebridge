@@ -1,28 +1,24 @@
 import logging
 
-from databricks.labs.lakebridge.reconcile.config_generator.generator import generate_table_recon
+from databricks.labs.lakebridge.reconcile.config_generator.configure import (
+    ColumnMappingAutoConfigurer,
+    TableMatcher,
+)
 from databricks.labs.lakebridge.reconcile.recon_config import ColumnMapping, Table
 
 from tests.conftest import schema_fixture_factory
 
 
-def test_generate_table_recon_matches_tables_by_name(make_data_source):
+def test_table_matcher_returns_table_pairs_without_column_mapping(make_data_source):
+    """TableMatcher.discover finds table pairs only — no column_mapping yet."""
     source = make_data_source(
         tables={("src_cat", "src_schema"): ["employees", "ORDERS"]},
-        columns={
-            ("src_cat", "src_schema", "employees"): [schema_fixture_factory("emp_id", "int")],
-            ("src_cat", "src_schema", "ORDERS"): [schema_fixture_factory("order_id", "int")],
-        },
     )
     target = make_data_source(
         tables={("tgt_cat", "tgt_schema"): ["employees", "orders"]},
-        columns={
-            ("tgt_cat", "tgt_schema", "employees"): [schema_fixture_factory("emp_id", "int")],
-            ("tgt_cat", "tgt_schema", "orders"): [schema_fixture_factory("order_id", "int")],
-        },
     )
 
-    recon = generate_table_recon(
+    recon = TableMatcher().discover(
         source=source,
         source_catalog="src_cat",
         source_schema="src_schema",
@@ -37,60 +33,16 @@ def test_generate_table_recon_matches_tables_by_name(make_data_source):
     ]
 
 
-def test_generate_table_recon_emits_column_mapping_only_when_names_differ(make_data_source):
-    source = make_data_source(
-        tables={("src_cat", "src_schema"): ["employees"]},
-        columns={
-            ("src_cat", "src_schema", "employees"): [
-                schema_fixture_factory("emp_id", "int"),
-                schema_fixture_factory("emp-name", "string"),
-            ],
-        },
-    )
-    target = make_data_source(
-        tables={("tgt_cat", "tgt_schema"): ["employees"]},
-        columns={
-            ("tgt_cat", "tgt_schema", "employees"): [
-                schema_fixture_factory("emp_id", "int"),
-                schema_fixture_factory("emp_name", "string"),
-            ],
-        },
-    )
-
-    recon = generate_table_recon(
-        source=source,
-        source_catalog="src_cat",
-        source_schema="src_schema",
-        target=target,
-        target_catalog="tgt_cat",
-        target_schema="tgt_schema",
-    )
-
-    assert recon.tables == [
-        Table(
-            source_name="employees",
-            target_name="employees",
-            column_mapping=[ColumnMapping(source_name="emp-name", target_name="emp_name")],
-        ),
-    ]
-
-
-def test_generate_table_recon_omits_unmatched_source_tables(make_data_source, caplog):
+def test_table_matcher_omits_unmatched_source_tables(make_data_source, caplog):
     source = make_data_source(
         tables={("src_cat", "src_schema"): ["employees", "unrelated"]},
-        columns={
-            ("src_cat", "src_schema", "employees"): [schema_fixture_factory("emp_id", "int")],
-        },
     )
     target = make_data_source(
         tables={("tgt_cat", "tgt_schema"): ["employees"]},
-        columns={
-            ("tgt_cat", "tgt_schema", "employees"): [schema_fixture_factory("emp_id", "int")],
-        },
     )
 
     with caplog.at_level(logging.WARNING):
-        recon = generate_table_recon(
+        recon = TableMatcher().discover(
             source=source,
             source_catalog="src_cat",
             source_schema="src_schema",
@@ -104,9 +56,45 @@ def test_generate_table_recon_omits_unmatched_source_tables(make_data_source, ca
     assert any("unrelated" in msg for msg in warnings)
 
 
-def test_generate_table_recon_logs_unmatched_columns(make_data_source, caplog):
+def test_column_mapping_auto_configurer_emits_only_when_names_differ(make_data_source):
+    """ColumnMappingAutoConfigurer fills column_mapping with entries only where source/target names differ."""
     source = make_data_source(
-        tables={("src_cat", "src_schema"): ["employees"]},
+        columns={
+            ("src_cat", "src_schema", "employees"): [
+                schema_fixture_factory("emp_id", "int"),
+                schema_fixture_factory("emp-name", "string"),
+            ],
+        },
+    )
+    target = make_data_source(
+        columns={
+            ("tgt_cat", "tgt_schema", "employees"): [
+                schema_fixture_factory("emp_id", "int"),
+                schema_fixture_factory("emp_name", "string"),
+            ],
+        },
+    )
+
+    table = Table(source_name="employees", target_name="employees")
+    configured = ColumnMappingAutoConfigurer().configure(
+        table=table,
+        source=source,
+        source_catalog="src_cat",
+        source_schema="src_schema",
+        target=target,
+        target_catalog="tgt_cat",
+        target_schema="tgt_schema",
+    )
+
+    assert configured == Table(
+        source_name="employees",
+        target_name="employees",
+        column_mapping=[ColumnMapping(source_name="emp-name", target_name="emp_name")],
+    )
+
+
+def test_column_mapping_auto_configurer_logs_unmatched_columns(make_data_source, caplog):
+    source = make_data_source(
         columns={
             ("src_cat", "src_schema", "employees"): [
                 schema_fixture_factory("emp_id", "int"),
@@ -115,14 +103,15 @@ def test_generate_table_recon_logs_unmatched_columns(make_data_source, caplog):
         },
     )
     target = make_data_source(
-        tables={("tgt_cat", "tgt_schema"): ["employees"]},
         columns={
             ("tgt_cat", "tgt_schema", "employees"): [schema_fixture_factory("emp_id", "int")],
         },
     )
 
+    table = Table(source_name="employees", target_name="employees")
     with caplog.at_level(logging.WARNING):
-        generate_table_recon(
+        ColumnMappingAutoConfigurer().configure(
+            table=table,
             source=source,
             source_catalog="src_cat",
             source_schema="src_schema",

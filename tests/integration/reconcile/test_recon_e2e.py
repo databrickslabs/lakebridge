@@ -9,7 +9,7 @@ from databricks.sdk.core import DatabricksError
 from databricks.labs.lakebridge.config import ReconcileConfig, TableRecon
 from databricks.labs.lakebridge.contexts.application import ApplicationContext
 from databricks.labs.lakebridge.reconcile.recon_config import (
-    CONFIGURE_TABLES_OPERATION_NAME,
+    AUTO_CONFIGURE_TABLES_OPERATION_NAME,
     RECONCILE_OPERATION_NAME,
 )
 from databricks.labs.lakebridge.reconcile.runner import ReconcileRunner
@@ -117,12 +117,12 @@ def test_recon_oracle_job_succeeds(
         _run_recon_e2e_spec(app_ctx)
 
 
-def test_configure_tables_writes_table_recon_config(
+def test_auto_configure_tables_writes_table_recon_config(
     application_ctx: ApplicationContext,
     databricks_recon_config: ReconcileConfig,
     recon_tables: tuple[TableInfo, TableInfo],
 ) -> None:
-    """E2E for the configure-tables operation. Unlike test_recon_*_job_succeeds, the TableRecon file
+    """E2E for the auto-configure-tables operation. Unlike test_recon_*_job_succeeds, the TableRecon file
     is NOT pre-uploaded — the job is what writes it. After job success we load the file from the
     install folder and assert it contains the auto-matched tables.
     """
@@ -130,7 +130,7 @@ def test_configure_tables_writes_table_recon_config(
         recon_runner = ReconcileRunner(application_ctx.workspace_client, application_ctx.install_state)
         run = None
         try:
-            run, _ = recon_runner.run(operation_name=CONFIGURE_TABLES_OPERATION_NAME)
+            run, _ = recon_runner.run(operation_name=AUTO_CONFIGURE_TABLES_OPERATION_NAME)
             result = run.result()
         except Exception:
             if run:

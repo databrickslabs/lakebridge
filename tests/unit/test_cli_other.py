@@ -93,51 +93,25 @@ def test_cli_aggregates_reconcile(mock_workspace_client):
         cli.aggregates_reconcile(w=mock_workspace_client, ctx_factory=app_factory)
 
 
-def test_cli_configure_recon_tables_no_recon_config(mock_workspace_client):
+def test_cli_auto_configure_recon_tables_no_recon_config(mock_workspace_client):
     installation = MockInstallation({})
     ctx = ApplicationContext(mock_workspace_client)
     ctx.replace(prompts=MockPrompts({}), installation=installation)
     with pytest.raises(SystemExit, match="Reconcile is not configured"):
-        cli.configure_recon_tables(w=mock_workspace_client, ctx_factory=lambda ws: ctx)
+        cli.auto_configure_recon_tables(w=mock_workspace_client, ctx_factory=lambda ws: ctx)
 
 
-def test_cli_configure_recon_tables_triggers_job_when_no_table_recon(mock_workspace_client, snowflake_recon_config):
+def test_cli_auto_configure_recon_tables_triggers_discover_and_configure_when_no_file_and_user_says_yes_yes(
+    mock_workspace_client, snowflake_recon_config
+):
+    """No existing file + discover=yes + auto-configure=yes → DISCOVER_AND_CONFIGURE_TABLES."""
     installation = MockInstallation({})
-    ctx = ApplicationContext(mock_workspace_client)
-    ctx.replace(
-        prompts=MockPrompts({r"Would you like to open the job run URL .*": "no"}),
-        installation=installation,
-        recon_config=snowflake_recon_config,
-    )
-
-    with patch(
-        "databricks.labs.lakebridge.reconcile.runner.ReconcileRunner.run",
-        return_value=(MagicMock(), "link1"),
-    ) as mock_run:
-        cli.configure_recon_tables(w=mock_workspace_client, ctx_factory=lambda ws: ctx)
-
-    mock_run.assert_called_once()
-
-
-def test_cli_configure_recon_tables_overwrites_on_confirm(mock_workspace_client, snowflake_recon_config):
-    installation = MockInstallation(
-        {
-            snowflake_recon_config.table_recon_filename: {
-                "tables": [
-                    {
-                        "source_name": "source",
-                        "target_name": "target",
-                    }
-                ],
-                "version": 2,
-            }
-        }
-    )
     ctx = ApplicationContext(mock_workspace_client)
     ctx.replace(
         prompts=MockPrompts(
             {
-                r"Table mappings .* already exist. Overwrite\?": "yes",
+                r"Do you want to discover tables\?": "yes",
+                r"Do you want to auto-configure discovered tables\?": "yes",
                 r"Would you like to open the job run URL .*": "no",
             }
         ),
@@ -149,21 +123,46 @@ def test_cli_configure_recon_tables_overwrites_on_confirm(mock_workspace_client,
         "databricks.labs.lakebridge.reconcile.runner.ReconcileRunner.run",
         return_value=(MagicMock(), "link1"),
     ) as mock_run:
-        cli.configure_recon_tables(w=mock_workspace_client, ctx_factory=lambda ws: ctx)
+        cli.auto_configure_recon_tables(w=mock_workspace_client, ctx_factory=lambda ws: ctx)
 
-    mock_run.assert_called_once()
+    mock_run.assert_called_once_with(operation_name="discover-auto-configure-tables")
 
 
-def test_cli_configure_recon_tables_aborts_on_decline(mock_workspace_client, snowflake_recon_config):
+def test_cli_auto_configure_recon_tables_triggers_discover_only_when_user_declines_auto_configure(
+    mock_workspace_client, snowflake_recon_config
+):
+    """No existing file + discover=yes + auto-configure=no → DISCOVER_TABLES."""
+    installation = MockInstallation({})
+    ctx = ApplicationContext(mock_workspace_client)
+    ctx.replace(
+        prompts=MockPrompts(
+            {
+                r"Do you want to discover tables\?": "yes",
+                r"Do you want to auto-configure discovered tables\?": "no",
+                r"Would you like to open the job run URL .*": "no",
+            }
+        ),
+        installation=installation,
+        recon_config=snowflake_recon_config,
+    )
+
+    with patch(
+        "databricks.labs.lakebridge.reconcile.runner.ReconcileRunner.run",
+        return_value=(MagicMock(), "link1"),
+    ) as mock_run:
+        cli.auto_configure_recon_tables(w=mock_workspace_client, ctx_factory=lambda ws: ctx)
+
+    mock_run.assert_called_once_with(operation_name="discover-tables")
+
+
+def test_cli_auto_configure_recon_tables_triggers_configure_only_when_file_exists_and_user_reuses(
+    mock_workspace_client, snowflake_recon_config
+):
+    """Existing file + re-discover=no + auto-configure=yes → CONFIGURE_TABLES (reuse existing)."""
     installation = MockInstallation(
         {
             snowflake_recon_config.table_recon_filename: {
-                "tables": [
-                    {
-                        "source_name": "source",
-                        "target_name": "target",
-                    }
-                ],
+                "tables": [{"source_name": "source", "target_name": "target"}],
                 "version": 2,
             }
         }
@@ -172,7 +171,40 @@ def test_cli_configure_recon_tables_aborts_on_decline(mock_workspace_client, sno
     ctx.replace(
         prompts=MockPrompts(
             {
-                r"Table mappings .* already exist. Overwrite\?": "no",
+                r"Re-discover tables \(overwrites existing mappings\)\?": "no",
+                r"Do you want to auto-configure discovered tables\?": "yes",
+                r"Would you like to open the job run URL .*": "no",
+            }
+        ),
+        installation=installation,
+        recon_config=snowflake_recon_config,
+    )
+
+    with patch(
+        "databricks.labs.lakebridge.reconcile.runner.ReconcileRunner.run",
+        return_value=(MagicMock(), "link1"),
+    ) as mock_run:
+        cli.auto_configure_recon_tables(w=mock_workspace_client, ctx_factory=lambda ws: ctx)
+
+    mock_run.assert_called_once_with(operation_name="auto-configure-tables")
+
+
+def test_cli_auto_configure_recon_tables_aborts_when_user_declines_both(mock_workspace_client, snowflake_recon_config):
+    """Existing file + re-discover=no + auto-configure=no → no-op, no job triggered."""
+    installation = MockInstallation(
+        {
+            snowflake_recon_config.table_recon_filename: {
+                "tables": [{"source_name": "source", "target_name": "target"}],
+                "version": 2,
+            }
+        }
+    )
+    ctx = ApplicationContext(mock_workspace_client)
+    ctx.replace(
+        prompts=MockPrompts(
+            {
+                r"Re-discover tables \(overwrites existing mappings\)\?": "no",
+                r"Do you want to auto-configure discovered tables\?": "no",
             }
         ),
         installation=installation,
@@ -180,7 +212,9 @@ def test_cli_configure_recon_tables_aborts_on_decline(mock_workspace_client, sno
     )
 
     with patch("databricks.labs.lakebridge.reconcile.runner.ReconcileRunner.run") as mock_run:
-        cli.configure_recon_tables(w=mock_workspace_client, ctx_factory=lambda ws: ctx)
+        cli.auto_configure_recon_tables(w=mock_workspace_client, ctx_factory=lambda ws: ctx)
+
+    mock_run.assert_not_called()
 
     mock_run.assert_not_called()
 
