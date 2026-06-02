@@ -69,10 +69,7 @@ def main(*argv: str) -> None:
     return _trigger_recon(w, table_recon, reconcile_config)
 
 
-def _autoconfigure_tables(
-                              installation: Installation,
-                              reconcile_config: ReconcileConfig,
-                              operation_name: str):
+def _autoconfigure_tables(installation: Installation, reconcile_config: ReconcileConfig, operation_name: str):
     spark = DatabricksSession.builder.getOrCreate()
     source_ds, target_ds = build_adapters(reconcile_config, spark)
     src = reconcile_config.source
@@ -96,6 +93,7 @@ def _autoconfigure_tables(
         table_recon=existing,
     )
     return None
+
 
 def _trigger_recon(
     w: WorkspaceClient,
