@@ -101,9 +101,7 @@ def test_cli_auto_configure_recon_tables_no_recon_config(mock_workspace_client):
         cli.auto_configure_recon_tables(w=mock_workspace_client, ctx_factory=lambda ws: ctx)
 
 
-def test_cli_auto_configure_recon_tables_when_no_file(
-    mock_workspace_client, snowflake_recon_config
-):
+def test_cli_auto_configure_recon_tables_when_no_file(mock_workspace_client, snowflake_recon_config):
     installation = MockInstallation({})
     ctx = ApplicationContext(mock_workspace_client)
     ctx.replace(
@@ -127,9 +125,7 @@ def test_cli_auto_configure_recon_tables_when_no_file(
     mock_run.assert_called_once_with(operation_name="discover-auto-configure-tables")
 
 
-def test_cli_auto_configure_recon_tables_discover_only(
-    mock_workspace_client, snowflake_recon_config
-):
+def test_cli_auto_configure_recon_tables_discover_only(mock_workspace_client, snowflake_recon_config):
     installation = MockInstallation({})
     ctx = ApplicationContext(mock_workspace_client)
     ctx.replace(
@@ -153,9 +149,7 @@ def test_cli_auto_configure_recon_tables_discover_only(
     mock_run.assert_called_once_with(operation_name="discover-tables")
 
 
-def test_cli_auto_configure_recon_tables_when_file_exists(
-    mock_workspace_client, snowflake_recon_config
-):
+def test_cli_auto_configure_recon_tables_when_file_exists(mock_workspace_client, snowflake_recon_config):
     installation = MockInstallation(
         {
             snowflake_recon_config.table_recon_filename: {
