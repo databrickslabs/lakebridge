@@ -226,7 +226,7 @@ After running, use the `recon_id` to drill into the results on the AI/BI Dashboa
 
 When you have many tables to reconcile, you can skip writing the `TableRecon` by hand. The `auto-configure-recon-tables` command discovers source/target table pairs by matching their names, fills in `column_mapping` where source and target column names differ, and uploads the resulting reconcile config file to your install folder.
 
-This is the bulk-automation alternative to [Step 4: Configure TableRecon](#step-4-configure-tablerecon) above.
+This is the automated alternative to [Step 4: Configure TableRecon](#step-4-configure-tablerecon) above.
 
 ### Prerequisites
 
@@ -238,23 +238,105 @@ This is the bulk-automation alternative to [Step 4: Configure TableRecon](#step-
 databricks labs lakebridge auto-configure-recon-tables
 ```
 
-You'll be prompted:
-
-- **Discover tables?** — lists tables in the source and target schemas and pairs them up by name.
-- **Auto-configure discovered tables?** — for each pair, fills in `column_mapping` where source and target column names differ.
-
-The matcher normalizes names (case, underscores vs. hyphens, simple plural/singular) so `Customers` matches `customers`, `Order_Items` matches `order-items`, `orders` matches `order`. Source tables and columns that cannot be matched are logged with a warning so you can add them manually.
+The matcher normalizes tables and columns names (case, underscores vs. hyphens, simple plural/singular) so `Customers` matches `customers`, `Order_Items` matches `order-items`, `orders` matches `order`.
+Source tables and columns that cannot be matched are logged with a warning so you can add them manually.
 
 When the workspace job finishes, the resulting `recon_config_<...>.json` is uploaded to your install folder.
 
-### Re-running
+### Python
 
-If a reconcile config file already exists, the prompts adapt:
+To drive auto-configuration from a notebook, call `auto_configure_tables` directly. The helper `build_adapters` constructs the source/target `DataSource` instances from your reconcile config:
 
-- **Re-discover tables (overwrites existing mappings)?** — yes rebuilds the table list from scratch; no preserves the current table list.
-- **Auto-configure discovered tables?** — yes re-fills `column_mapping` for every table; no leaves columns as they are.
+```python
+from databricks.connect import DatabricksSession
+from databricks.labs.lakebridge import __version__
+from databricks.sdk import WorkspaceClient
+from databricks.labs.blueprint.installation import Installation
 
-Answering **no** to both is a no-op — the existing file is preserved.
+from databricks.labs.lakebridge.config import ReconcileConfig
+from databricks.labs.lakebridge.reconcile.config_generator.execute import (
+    SUPPORTED_AUTO_CONFIGURERS,
+    auto_configure_tables,
+    build_adapters,
+)
+
+ws = WorkspaceClient(product="lakebridge", product_version=__version__)
+spark = DatabricksSession.builder.getOrCreate()
+
+installation = Installation.assume_user_home(ws, "lakebridge")
+reconcile_config = installation.load(ReconcileConfig)
+source_ds, target_ds = build_adapters(reconcile_config, spark)
+
+table_recon = auto_configure_tables(
+    installation=installation,
+    table_recon_filename=reconcile_config.table_recon_filename,
+    source=source_ds,
+    source_catalog=reconcile_config.source.catalog,
+    source_schema=reconcile_config.source.schema,
+    target=target_ds,
+    target_catalog=reconcile_config.target.catalog,
+    target_schema=reconcile_config.target.schema,
+    auto_configurers=SUPPORTED_AUTO_CONFIGURERS,
+)
+
+for t in table_recon.tables:
+    print(t.source_name, "→", t.target_name)
+```
+
+The returned `TableRecon` is also uploaded to the install folder as `reconcile_config.table_recon_filename`.
+
+### Recommended flow: discover, review, then auto-configure
+
+The recommended pattern is to split discovery from auto-configuration so you can review the discovered pairs before any column mappings are filled in:
+
+1. **Discover** — run with `auto_configurers=[]`. This writes a `TableRecon` to the install folder containing only matched source/target table pairs (no `column_mapping`).
+2. **Review** — open the uploaded `recon_config_<...>.json` in your workspace. Drop pairs you don't want to reconcile, fix names the matcher got wrong, and add tables it couldn't auto-match (look for the warning in the job log).
+3. **Auto-configure** — re-run with the curated `TableRecon` passed via `table_recon=...`. Discovery is skipped; the configurers run against your edited list.
+
+In Python this is the same `auto_configure_tables` call twice, with different arguments:
+
+```python
+from databricks.labs.lakebridge.config import TableRecon
+
+# Stage 1 — discover table pairs only.
+auto_configure_tables(
+    ...,                          # see the Python example above
+    auto_configurers=[],
+)
+
+# (open the file in the workspace, edit it, save.)
+
+# Stage 2 — load the curated file, then auto-configure.
+curated = installation.load(type_ref=TableRecon, filename=reconcile_config.table_recon_filename)
+auto_configure_tables(
+    ...,                          # same params as Stage 1
+    auto_configurers=SUPPORTED_AUTO_CONFIGURERS,
+    table_recon=curated,          # skips discovery
+)
+```
+
+From the CLI this is two runs of `auto-configure-recon-tables` — choose "discover only" on the first, then "auto-configure only" on the second.
+
+### Auto-configure a single table
+
+`auto_configure_tables` always writes back the entire `TableRecon`. To run the configurers against just one table — e.g. after a column was added on the source, or to spot-check a tricky mapping — call the configurer directly. It returns a configured `Table` without touching the file in the install folder:
+
+```python
+from databricks.labs.lakebridge.reconcile.config_generator.configure import ColumnMappingAutoConfigurer
+from databricks.labs.lakebridge.reconcile.recon_config import Table
+
+configured = ColumnMappingAutoConfigurer().configure(
+    table=Table(source_name="orders", target_name="orders"),
+    source=source_ds,
+    source_catalog=reconcile_config.source.catalog,
+    source_schema=reconcile_config.source.schema,
+    target=target_ds,
+    target_catalog=reconcile_config.target.catalog,
+    target_schema=reconcile_config.target.schema,
+)
+
+print(configured.column_mapping)
+```
 
 ### Review the output
 
