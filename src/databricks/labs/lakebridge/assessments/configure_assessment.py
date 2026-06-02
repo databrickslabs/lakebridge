@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from pathlib import Path
 import logging
 import shutil
@@ -72,8 +73,42 @@ class AssessmentConfigurator(ABC):
         logger.info(f"{source.capitalize()} Assessment Configuration Completed")
 
 
+class ConfigureOracleAssessment(AssessmentConfigurator):
+    """Oracle specific assessment configuration."""
+
+    def _configure_credentials(self) -> str:
+        cred_file = self._credential_file
+        source = self._source_name
+
+        logger.info(
+            "\n(local | env) \nlocal means values are read as plain text \nenv means values are read "
+            "from environment variables fall back to plain text if not variable is not found\n",
+        )
+        secret_vault_type = str(self.prompts.choice("Enter secret vault type (local | env)", ["local", "env"])).lower()
+
+        credential = {
+            "secret_vault_type": secret_vault_type,
+            source: {
+                "host": self.prompts.question("Enter the host details (Server name, IP address, SCAN Name)"),
+                "port": int(self.prompts.question("Enter the host port number", default=str(1521), valid_number=True)),
+                "service_name": self.prompts.question("Enter the service name", default="orcl"),
+                "user": self.prompts.question("Enter user with privileges"),
+                "password": self.prompts.password("Enter user password"),
+            },
+        }
+
+        _save_to_disk(credential, cred_file)
+        logger.info(f"Credential template created for {source}.")
+        return source
+
+
 class ConfigureSqlServerAssessment(AssessmentConfigurator):
-    """SQL Server specific assessment configuration."""
+    """SQL Server-family assessment configuration.
+
+    Used for both `mssql` (regular SQL Server / Azure SQL Database) and
+    `legacy_synapse` (Azure Synapse dedicated SQL pool, where the database
+    is the pool name).
+    """
 
     def _configure_credentials(self) -> str:
         cred_file = self._credential_file
@@ -86,18 +121,22 @@ class ConfigureSqlServerAssessment(AssessmentConfigurator):
         secret_vault_type = str(self.prompts.choice("Enter secret vault type (local | env)", ["local", "env"])).lower()
         secret_vault_name = None
 
-        logger.info("Please refer to the documentation to understand the difference between local and env.")
-
         credential = {
             "secret_vault_type": secret_vault_type,
             "secret_vault_name": secret_vault_name,
             source: {
-                "database": self.prompts.question("Enter the database name"),
-                "driver": self.prompts.question("Enter the driver details"),
-                "server": self.prompts.question("Enter the server or host details"),
+                "auth_type": "sql_authentication",
+                "fetch_size": self.prompts.question("Enter fetch size", default="1000"),
+                "login_timeout": self.prompts.question("Enter login timeout (seconds)", default="30"),
+                "server": self.prompts.question("Enter the fully-qualified server name"),
                 "port": int(self.prompts.question("Enter the port details", valid_number=True)),
-                "user": self.prompts.question("Enter the user details"),
-                "password": self.prompts.password("Enter the password details"),
+                "database": self.prompts.question("Enter the database name"),
+                "user": self.prompts.question("Enter the SQL username"),
+                "password": self.prompts.password("Enter the SQL password"),
+                "tz_info": self.prompts.question("Enter timezone (e.g. America/New_York)", default="UTC"),
+                "driver": self.prompts.question(
+                    "Enter the ODBC driver installed locally", default="ODBC Driver 18 for SQL Server"
+                ),
             },
         }
 
@@ -180,6 +219,8 @@ class ConfigureSynapseAssessment(AssessmentConfigurator):
 
 class ConfigureTeradataAssessment(AssessmentConfigurator):
     """Teradata specific assessment configuration."""
+class ConfigureSnowflakeAssessment(AssessmentConfigurator):
+    """Snowflake specific assessment configuration."""
 
     def _configure_credentials(self) -> str:
         cred_file = self._credential_file
@@ -206,12 +247,53 @@ class ConfigureTeradataAssessment(AssessmentConfigurator):
         }
 
         _save_to_disk(credential, cred_file)
+
+        # Snowflake Connection Settings
+        logger.info("Snowflake Assessment Configuration")
+        logger.info("Authentication uses a Programmatic Access Token (PAT). See Snowflake's docs:")
+        logger.info(
+            "  https://docs.snowflake.com/en/user-guide/programmatic-access-tokens"
+            "#generating-a-programmatic-access-token"
+        )
+
+        # In env mode the stored value is the name of an environment variable that
+        # EnvGetter resolves at runtime, not the token itself, so prompt accordingly.
+        if secret_vault_type == "env":
+            pat = self.prompts.question("Enter the environment variable name holding the PAT")
+        else:
+            pat = self.prompts.password("Enter Programmatic Access Token (PAT)")
+
+        snowflake_connection = {
+            "account": self.prompts.question(
+                "Enter Snowflake account URL (e.g., myorg-myaccount.snowflakecomputing.com)"
+            ),
+            "user": self.prompts.question("Enter username"),
+            "warehouse": self.prompts.question("Enter warehouse name", default="COMPUTE_WH"),
+            "database": self.prompts.question("Enter database name", default="SNOWFLAKE"),
+            "schema": self.prompts.question("Enter schema name", default="ACCOUNT_USAGE"),
+            "role": self.prompts.question("Enter role", default="ACCOUNTADMIN"),
+            # Stored under `pat` (not `password`) to flag this is a rotating
+            # Programmatic Access Token, not a SQL password.
+            "pat": pat,
+        }
+
+        credential = {
+            "secret_vault_type": secret_vault_type,
+            source: {
+                "connection": snowflake_connection,
+            },
+        }
+        _save_to_disk(credential, cred_file)
+
         logger.info(f"Credential template created for {source}.")
         return source
 
 
+ConfiguratorFactory = Callable[[str, Prompts, str, Path | str | None], AssessmentConfigurator]
+
+
 def create_assessment_configurator(
-    source_system: str, product_name: str, prompts: Prompts, credential_file=None
+    source_system: str, product_name: str, prompts: Prompts, credential_file: Path | str | None = None
 ) -> AssessmentConfigurator:
     """Factory function to create the appropriate assessment configurator."""
     if source_system == "mssql":
@@ -221,3 +303,15 @@ def create_assessment_configurator(
     if source_system == "teradata":
         return ConfigureTeradataAssessment(product_name, prompts, source_system, credential_file)
     raise ValueError(f"Unsupported source system: {source_system}")
+    configurators: dict[str, ConfiguratorFactory] = {
+        "mssql": ConfigureSqlServerAssessment,
+        "synapse": ConfigureSynapseAssessment,
+        "snowflake": ConfigureSnowflakeAssessment,
+        "legacy_synapse": ConfigureSqlServerAssessment,
+        "oracle": ConfigureOracleAssessment,
+    }
+
+    if source_system not in configurators:
+        raise ValueError(f"Unsupported source system: {source_system}")
+
+    return configurators[source_system](product_name, prompts, source_system, credential_file)

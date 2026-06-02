@@ -68,6 +68,8 @@ commands:
         description: Databricks UC Volume `name` for staging sources to convert. (Must already exist and have permissions.)
       - name: foundation-model
         description: The Foundation Model to use for conversion. (Must be available via the Databricks Model Serving Endpoint.)
+      - name: switch-config-path
+        description: (Optional) Workspace `path` to a custom Switch configuration file. (Must start with '/Workspace/'.)
 
   - name: reconcile
     description: Reconcile source and target data residing on Databricks

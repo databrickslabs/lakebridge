@@ -1,5 +1,5 @@
 ---
-sidebar_position: 5
+sidebar_position: 6
 ---
 import useBaseUrl from '@docusaurus/useBaseUrl';
 import Tabs from '@theme/Tabs';
@@ -7,104 +7,82 @@ import TabItem from '@theme/TabItem';
 
 # Reconcile Guide
 
-This tool empowers users to efficiently identify discrepancies and variations in data when comparing the source with the Databricks target.
+Lakebridge Reconcile validates data fidelity after migration by comparing your source system against the Databricks target. It identifies discrepancies at the row, column, and schema level.
 
+## What it does
 
-### Execution Pre-Set Up
->1. Setup the configuration file:
+| Report type | What is compared | When to use |
+|-------------|-----------------|-------------|
+| `schema` | Column names and data types | Verify DDL migration is correct |
+| `row` | Hash of each row (no join key needed) | Quick row-level check when there is no primary key |
+| `data` | Row and column values via join columns | Full fidelity check with per-column mismatch detail |
+| `all` | Both `data` + `schema` | Complete validation |
 
-Once the [installation](/installation.mdx#configure-reconcile) is done, a folder named **.lakebridge** will be created in the user workspace's home folder.
-To process the reconciliation for specific table sources, we must create a config file that gives the detailed required configurations for the table-specific ones.
-The file name should be in the format as below and created inside the **.lakebridge** folder.
+## Supported Source Systems
+
+| Source | Schema | Row | Data | All |
+|---|---|---|---|---|
+| Oracle | Yes | Yes | Yes | Yes |
+| Snowflake | Yes | Yes | Yes | Yes |
+| SQL Server | Yes | Yes | Yes | Yes |
+| Redshift | Yes | Yes | Yes | Yes |
+| Databricks | Yes | Yes | Yes | Yes |
+
+---
+
+## Setup
+
+### Step 1: Setup the source connection
+
+Follow the official Databricks docs to:
+- [Create a connection](https://docs.databricks.com/aws/en/query-federation/remote-queries#create-a-connection)
+- [Grant connection access](https://docs.databricks.com/aws/en/query-federation/remote-queries#grant-connection-access)
+- [Enable Databricks preview](https://docs.databricks.com/aws/en/admin/workspace-settings/manage-previews#-manage-workspace-level-previews) of `remote_query` feature
+
+:::note
+You do not have to create a foreign catalog.
+:::
+
+### Step 2: Run `configure-reconcile`
+
+If you haven't already, complete the initial setup:
+
+```bash
+databricks labs lakebridge configure-reconcile
 ```
-recon_config_<SOURCE>_<CATALOG_OR_SCHEMA>_<REPORT_TYPE>.json
 
-Note: For CATALOG_OR_SCHEMA , if CATALOG exists then CATALOG else SCHEMA
+This sets up Lakebridge workspace resources, deploys the reconciliation dashboards and creates the config file. See [Installation → Configure Reconcile](/docs/installation#configure-reconcile) for details.
+
+### Config file
+A reconcile config file is created under the path:
 ```
+<USER_WORKSPACE_HOME>/.lakebridge/recon_config_<SOURCE>_<UNITY_CATALOG_CONNECTION_NAME_OR_CATALOG>_<REPORT_TYPE>.json
+```
+:::note
+For `UNITY_CATALOG_CONNECTION_NAME_OR_CATALOG`: if the source is databricks then source catalog name is used else connection name is used
+:::
 
-eg:
+Examples:
 
-| source_type | catalog_or_schema | report_type | file_name                             |
+| source_type | connection_name_or_catalog | report_type | file_name                             |
 |-------------|-------------------|-------------|---------------------------------------|
 | databricks  | tpch              | all         | recon_config_databricks_tpch_all.json |
-| source1     | tpch              | row         | recon_config_source1_tpch_row.json    |
-| source2     | tpch              | schema      | recon_config_source2_tpch_schema.json |
+| source1     | conn1              | row         | recon_config_source1_conn1_row.json    |
+| source2     | conn2              | schema      | recon_config_source2_conn2_schema.json |
 
 
-Refer to [Reconcile Configuration Guide](reconcile_configuration) for detailed instructions and [example configurations](example_config)
+See [Configuration Reference](/docs/reconcile/configuration) for the full schema and examples.
 
-> 2. Setup the connection properties
+### Required permissions
 
-Lakebridge-Reconcile manages connection properties by utilizing secrets stored in the Databricks workspace.
-Below is the default secret naming convention for managing connection properties.
+The User configuring reconcile must have permission to:
+- Create Data Warehouses
+- Create Compute Clusters
+- `USE CONNECTION` on the source connection
+- `USE CATALOG` and `CREATE SCHEMA` on the target catalog
+- `CREATE VOLUME` if using a pre-existing schema on a serverless cluster
 
-**Note: When both the source and target are Databricks, a secret scope is not required.**
-
-**Default Secret Scope:** lakebridge_data_source
-
-| source        | scope                 |
-|---------------|-----------------------|
-| snowflake     | lakebridge_snowflake  |
-| oracle        | lakebridge_oracle     |
-| databricks    | lakebridge_databricks |
-| mssql         | lakebridge_mssql      |
-| synapse       | lakebridge_synapse    |
-
-Below are the connection properties required for each source:
-
-<Tabs>
-    <TabItem value="snowflake" label="Snowflake">
-        ```yaml
-        sfUrl = https://[acount_name].snowflakecomputing.com
-        account = [acount_name]
-        sfUser = [user]
-        sfPassword = [password]
-        sfDatabase = [database]
-        sfSchema = [schema]
-        sfWarehouse = [warehouse_name]
-        sfRole = [role_name]
-        pem_private_key = [pkcs8_pem_private_key]
-        pem_private_key_password = [pkcs8_pem_private_key]
-        ```
-
-        :::note
-        For Snowflake authentication, either sfPassword or pem_private_key is required.
-        Priority is given to pem_private_key, and if it is not found, sfPassword will be used.
-        If neither is available, an exception will be raised.
-
-        When using an encrypted pem_private_key, you'll need to provide the pem_private_key_password.
-        This password is used to decrypt the private key for authentication.
-        :::
-    </TabItem>
-    <TabItem value="oracle" label="Oracle">
-        ```yaml
-        user = [user]
-        password = [password]
-        host = [host]
-        port = [port]
-        database = [database/SID]
-        ```
-    </TabItem>
-    <TabItem value="mssql" label="MS SQL Server (incl. Synapse)">
-        ```yaml
-        user = [user]
-        password = [password]
-        host = [host]
-        port = [port]
-        database = [database/SID]
-        encrypt = [true/false]
-        trustServerCertificate = [true/false]
-        ```
-    </TabItem>
-</Tabs>
-
->3. Databricks permissions required
-
-- User configuring reconcile must have permission to create Data Warehouses
-- Additionally, the user must have `USE CATALOG` and `CREATE SCHEMA` permission in order to deploy metadata tables and
-dashboards that are created as part of the Reconcile output. If there is a pre-existing schema, the 'create volumes' permission is also required.
-
->4. Serverless cluster support
+### Serverless cluster support
 
 Reconcile automatically detects the cluster type and optimizes intermediate data persistence accordingly:
 - **On Serverless clusters**: Reconcile uses Unity Catalog volumes for intermediate data persistence
@@ -117,37 +95,12 @@ Reconcile automatically detects the cluster type and optimizes intermediate data
 :::
 
 
-### Execution
-You can execute the reconciliation process by executing the below command in a notebook cell.
+Reconcile automatically adapts to the cluster type:
+- **Serverless clusters:** Uses Unity Catalog volumes for intermediate data persistence (`metadata_config.volume`)
+- **Standard clusters:** Uses DataFrame caching
 
+---
 
-``` python
-from databricks.labs.lakebridge import __version__
-from databricks.sdk import WorkspaceClient
+## Run
 
-from databricks.labs.lakebridge.reconcile.trigger_recon_service import TriggerReconService
-from databricks.labs.lakebridge.reconcile.exception import ReconciliationException
-
-ws = WorkspaceClient(product="lakebridge", product_version=__version__)
-
-
-try:
-  result = TriggerReconService.trigger_recon(
-            ws = ws,
-            spark = spark, # notebook spark session
-            table_recon = table_recon, # previously created
-            reconcile_config = reconcile_config # previously created
-          )
-  print(result.recon_id)
-  print(result)
-except ReconciliationException as e:
-    recon_id = e.reconcile_output.recon_id
-    print(f" Failed : {recon_id}")
-    print(e)
-except Exception as e:
-    print(e.with_traceback)
-    raise e
-    print(f"Exception : {str(e)}")
-```
-
-For more details, refer to the [Reconcile Notebook](recon_notebook.mdx) documentation.
+See [Running Reconcile](/docs/reconcile/running) for CLI execution, notebook usage, and automation.

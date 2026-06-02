@@ -247,7 +247,7 @@ def _get_is_string(column_types_dict: dict[str, DataType], column_name: str) -> 
     return True
 
 
-DataType_transform_mapping: dict[str, dict[str, list[partial[exp.Expression]]]] = {
+DataType_transform_mapping: dict[str, dict[str, list[partial[exp.Expression]]]] = {  # pylint: disable=invalid-name
     "universal": {"default": [partial(coalesce, default='_null_recon_', is_string=True), partial(trim)]},
     "snowflake": {exp.DataType.Type.ARRAY.value: [partial(array_to_string), partial(array_sort)]},
     "oracle": {
@@ -273,11 +273,37 @@ DataType_transform_mapping: dict[str, dict[str, list[partial[exp.Expression]]]] 
             partial(anonymous, func="COALESCE(CONVERT(VARCHAR(23), {0}, 120), '1900-01-01 00:00:00')")
         ],
     },
+    "redshift": {
+        exp.DataType.Type.SUPER.value: [
+            partial(anonymous, func="COALESCE(JSON_SERIALIZE({}), '_null_recon_')", dialect=get_dialect("redshift"))
+        ],
+        exp.DataType.Type.DATE.value: [
+            partial(
+                anonymous,
+                func="COALESCE(TO_CHAR({}, 'YYYY-MM-DD'), '_null_recon_')",
+                dialect=get_dialect("redshift"),
+            )
+        ],
+        exp.DataType.Type.TIMESTAMP.value: [
+            partial(
+                anonymous,
+                func="COALESCE(TO_CHAR({}, 'YYYY-MM-DD HH24:MI:SS.US'), '_null_recon_')",
+                dialect=get_dialect("redshift"),
+            )
+        ],
+        exp.DataType.Type.TIMESTAMPTZ.value: [
+            partial(
+                anonymous,
+                func="COALESCE(TO_CHAR({}, 'YYYY-MM-DD HH24:MI:SS.US'), '_null_recon_')",
+                dialect=get_dialect("redshift"),
+            )
+        ],
+    },
 }
 
 sha256_partial = partial(sha2, num_bits="256", is_expr=True)
 md5_partial = partial(md5, is_expr=True)
-Dialect_hash_algo_mapping: dict[Dialect, HashAlgoMapping] = {
+Dialect_hash_algo_mapping: dict[Dialect, HashAlgoMapping] = {  # pylint: disable=invalid-name
     get_dialect("snowflake"): HashAlgoMapping(
         source=sha256_partial,
         target=sha256_partial,
@@ -304,6 +330,10 @@ Dialect_hash_algo_mapping: dict[Dialect, HashAlgoMapping] = {
             is_expr=True,
             dialect=get_dialect("tsql"),
         ),
+        target=sha256_partial,
+    ),
+    get_dialect("redshift"): HashAlgoMapping(
+        source=sha256_partial,
         target=sha256_partial,
     ),
 }

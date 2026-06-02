@@ -10,7 +10,6 @@ from databricks.labs.blueprint.tui import Prompts
 from databricks.labs.lakebridge.transpiler.transpile_status import TranspileError
 from databricks.labs.lakebridge.reconcile.recon_config import Table
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -223,12 +222,33 @@ class TableRecon:
         return raw
 
 
-@dataclass
+@dataclass(frozen=True)
 class DatabaseConfig:
+    """TODO remove. this was kept for backwards compatibility while migrating to ReconcileConfig v2"""
+
+    source_catalog: str
     source_schema: str
     target_catalog: str
     target_schema: str
-    source_catalog: str | None = None
+
+
+@dataclass
+class SourceConnectionConfig:
+    dialect: str
+    catalog: str
+    schema: str
+    uc_connection_name: str | None = None
+
+    def __post_init__(self):
+        self.dialect = self.dialect.lower()
+        if self.dialect != "databricks" and not self.uc_connection_name:
+            raise ValueError(f"uc_connection_name is required for non-databricks sources (dialect={self.dialect})")
+
+
+@dataclass
+class TargetConnectionConfig:
+    catalog: str
+    schema: str
 
 
 @dataclass
@@ -260,14 +280,49 @@ class ReconcileJobConfig:
 @dataclass
 class ReconcileConfig:
     __file__ = "reconcile.yml"
-    __version__ = 1
+    __version__ = 2
 
-    data_source: str
     report_type: str
-    secret_scope: str
-    database_config: DatabaseConfig
+    source: SourceConnectionConfig
+    target: TargetConnectionConfig
     metadata_config: ReconcileMetadataConfig
     job_overrides: ReconcileJobConfig | None = None
+
+    @classmethod
+    def v1_migrate(cls, raw: dict[str, Any]) -> dict[str, Any]:
+        db_config = raw.pop("database_config")
+        dialect = raw.pop("data_source")
+        # Drop fields no longer recognised by the v2 schema.
+        raw.pop("secret_scope", None)
+        raw.pop("tables", None)
+
+        source = {
+            "dialect": dialect,
+            # source_catalog was optional in v1 (Oracle service name could be omitted); default Oracle to ORCL.
+            "catalog": db_config.get("source_catalog") or ("ORCL" if dialect == "oracle" else ""),
+            "schema": db_config["source_schema"],
+        }
+        if dialect != "databricks":
+            # Marker consumed by upgrade_reconcile_config_if_needed; user must supply the real UC connection name.
+            source["uc_connection_name"] = "TODO"
+
+        raw["source"] = source
+        raw["target"] = {
+            "catalog": db_config["target_catalog"],
+            "schema": db_config["target_schema"],
+        }
+        raw["version"] = 2
+        return raw
+
+    @property
+    def database_config(self) -> DatabaseConfig:
+        """TODO remove. this was kept for backwards compatibility while migrating to ReconcileConfig v2"""
+        return DatabaseConfig(
+            source_catalog=self.source.catalog,
+            source_schema=self.source.schema,
+            target_catalog=self.target.catalog,
+            target_schema=self.target.schema,
+        )
 
 
 @dataclass
