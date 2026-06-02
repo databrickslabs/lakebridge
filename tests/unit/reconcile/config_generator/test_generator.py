@@ -10,7 +10,6 @@ from tests.conftest import schema_fixture_factory
 
 
 def test_table_matcher_returns_table_pairs_without_column_mapping(make_data_source):
-    """TableMatcher.discover finds table pairs only — no column_mapping yet."""
     source = make_data_source(
         tables={("src_cat", "src_schema"): ["employees", "ORDERS"]},
     )
@@ -41,7 +40,7 @@ def test_table_matcher_omits_unmatched_source_tables(make_data_source, caplog):
         tables={("tgt_cat", "tgt_schema"): ["employees"]},
     )
 
-    with caplog.at_level(logging.WARNING):
+    with caplog.at_level(logging.WARNING, logger="databricks.labs.lakebridge.reconcile.config_generator.configure"):
         recon = TableMatcher().discover(
             source=source,
             source_catalog="src_cat",
@@ -52,8 +51,7 @@ def test_table_matcher_omits_unmatched_source_tables(make_data_source, caplog):
         )
 
     assert [t.source_name for t in recon.tables] == ["employees"]
-    warnings = [record.message for record in caplog.records if record.levelno == logging.WARNING]
-    assert any("unrelated" in msg for msg in warnings)
+    assert caplog.messages == ["Could not auto-match 1 source table(s); add manually: unrelated"]
 
 
 def test_column_mapping_auto_configurer_emits_only_when_names_differ(make_data_source):
@@ -109,7 +107,7 @@ def test_column_mapping_auto_configurer_logs_unmatched_columns(make_data_source,
     )
 
     table = Table(source_name="employees", target_name="employees")
-    with caplog.at_level(logging.WARNING):
+    with caplog.at_level(logging.WARNING, logger="databricks.labs.lakebridge.reconcile.config_generator.configure"):
         ColumnMappingAutoConfigurer().configure(
             table=table,
             source=source,
@@ -120,5 +118,4 @@ def test_column_mapping_auto_configurer_logs_unmatched_columns(make_data_source,
             target_schema="tgt_schema",
         )
 
-    warnings = [record.message for record in caplog.records if record.levelno == logging.WARNING]
-    assert any("legacy_only" in msg for msg in warnings)
+    assert caplog.messages == ["Could not auto-match 1 column(s) for employees -> employees: legacy_only"]

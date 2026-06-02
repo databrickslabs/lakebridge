@@ -101,10 +101,9 @@ def test_cli_auto_configure_recon_tables_no_recon_config(mock_workspace_client):
         cli.auto_configure_recon_tables(w=mock_workspace_client, ctx_factory=lambda ws: ctx)
 
 
-def test_cli_auto_configure_recon_tables_triggers_discover_and_configure_when_no_file_and_user_says_yes_yes(
+def test_cli_auto_configure_recon_tables_when_no_file(
     mock_workspace_client, snowflake_recon_config
 ):
-    """No existing file + discover=yes + auto-configure=yes → DISCOVER_AND_CONFIGURE_TABLES."""
     installation = MockInstallation({})
     ctx = ApplicationContext(mock_workspace_client)
     ctx.replace(
@@ -128,10 +127,9 @@ def test_cli_auto_configure_recon_tables_triggers_discover_and_configure_when_no
     mock_run.assert_called_once_with(operation_name="discover-auto-configure-tables")
 
 
-def test_cli_auto_configure_recon_tables_triggers_discover_only_when_user_declines_auto_configure(
+def test_cli_auto_configure_recon_tables_discover_only(
     mock_workspace_client, snowflake_recon_config
 ):
-    """No existing file + discover=yes + auto-configure=no → DISCOVER_TABLES."""
     installation = MockInstallation({})
     ctx = ApplicationContext(mock_workspace_client)
     ctx.replace(
@@ -155,10 +153,9 @@ def test_cli_auto_configure_recon_tables_triggers_discover_only_when_user_declin
     mock_run.assert_called_once_with(operation_name="discover-tables")
 
 
-def test_cli_auto_configure_recon_tables_triggers_configure_only_when_file_exists_and_user_reuses(
+def test_cli_auto_configure_recon_tables_when_file_exists(
     mock_workspace_client, snowflake_recon_config
 ):
-    """Existing file + re-discover=no + auto-configure=yes → CONFIGURE_TABLES (reuse existing)."""
     installation = MockInstallation(
         {
             snowflake_recon_config.table_recon_filename: {
@@ -189,8 +186,7 @@ def test_cli_auto_configure_recon_tables_triggers_configure_only_when_file_exist
     mock_run.assert_called_once_with(operation_name="auto-configure-tables")
 
 
-def test_cli_auto_configure_recon_tables_aborts_when_user_declines_both(mock_workspace_client, snowflake_recon_config):
-    """Existing file + re-discover=no + auto-configure=no → no-op, no job triggered."""
+def test_cli_auto_configure_recon_tables_aborts(mock_workspace_client, snowflake_recon_config):
     installation = MockInstallation(
         {
             snowflake_recon_config.table_recon_filename: {
@@ -213,8 +209,6 @@ def test_cli_auto_configure_recon_tables_aborts_when_user_declines_both(mock_wor
 
     with patch("databricks.labs.lakebridge.reconcile.runner.ReconcileRunner.run") as mock_run:
         cli.auto_configure_recon_tables(w=mock_workspace_client, ctx_factory=lambda ws: ctx)
-
-    mock_run.assert_not_called()
 
     mock_run.assert_not_called()
 

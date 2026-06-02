@@ -17,7 +17,7 @@ answers to "discover?" and "auto-configure?":
 
 How to extend
 -------------
-Add a new auto-configurer in three steps:
+Add a new auto-configurer:
 
 1. Write a class implementing `TableAutoConfigurer` (see `ColumnMappingAutoConfigurer`).
 2. Append an instance to `SUPPORTED_AUTO_CONFIGURERS` below.

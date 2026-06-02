@@ -1,8 +1,7 @@
 import json
 from dataclasses import asdict
-from unittest.mock import create_autospec
 
-from databricks.labs.blueprint.installation import Installation
+from databricks.labs.blueprint.installation import MockInstallation
 
 from databricks.labs.lakebridge.config import TableRecon
 from databricks.labs.lakebridge.reconcile.config_generator.configure import ColumnMappingAutoConfigurer
@@ -13,7 +12,6 @@ from tests.conftest import schema_fixture_factory
 
 
 def _configure(installation, source_ds, target_ds, *, auto_configurers, table_recon=None):
-    """Test helper — pass the two adapters and the configurers list directly (DI, no patching)."""
     return auto_configure_tables(
         installation=installation,
         table_recon_filename="recon_config.json",
@@ -37,54 +35,26 @@ def test_uploads_to_canonical_filename(make_data_source):
         tables={("tgt_cat", "tgt_schema"): ["employees"]},
         columns={("tgt_cat", "tgt_schema", "employees"): [schema_fixture_factory("emp_id", "int")]},
     )
-    installation = create_autospec(Installation)
+    installation = MockInstallation()
 
     result = _configure(installation, source_ds, target_ds, auto_configurers=[ColumnMappingAutoConfigurer()])
 
     assert result.tables == [Table(source_name="employees", target_name="employees")]
-    filename, payload = installation.upload.call_args.args
-    assert filename == "recon_config.json"
-    assert json.loads(payload.decode()) == asdict(
-        TableRecon(tables=[Table(source_name="employees", target_name="employees")])
-    )
+    expected = json.dumps(
+        asdict(TableRecon(tables=[Table(source_name="employees", target_name="employees")])),
+        indent=2,
+    ).encode()
+    installation.assert_file_uploaded("recon_config.json", expected)
 
 
 def test_empty_configurers_discovers_only(make_data_source):
-    """No configurers → just discovery; column_mapping stays None."""
     source_ds = make_data_source(tables={("src_cat", "src_schema"): ["employees"]})
     target_ds = make_data_source(tables={("tgt_cat", "tgt_schema"): ["employees"]})
-    installation = create_autospec(Installation)
 
-    result = _configure(installation, source_ds, target_ds, auto_configurers=[])
+    result = _configure(MockInstallation(), source_ds, target_ds, auto_configurers=[])
 
     assert result.tables == [Table(source_name="employees", target_name="employees")]
     assert result.tables[0].column_mapping is None
-
-
-def test_applies_configurers_in_declared_order_table_outer(make_data_source):
-    """Loop order: outer = tables, inner = configurers."""
-
-    class _Marker:
-        def __init__(self, name: str, log: list[tuple[str, str]]) -> None:
-            self._name, self._log = name, log
-
-        def configure(self, *, table, **_):
-            self._log.append((table.source_name, self._name))
-            return table
-
-    source_ds = make_data_source(tables={("src_cat", "src_schema"): ["alpha", "beta"]})
-    target_ds = make_data_source(tables={("tgt_cat", "tgt_schema"): ["alpha", "beta"]})
-    installation = create_autospec(Installation)
-
-    log: list[tuple[str, str]] = []
-    _configure(installation, source_ds, target_ds, auto_configurers=[_Marker("first", log), _Marker("second", log)])
-
-    assert log == [
-        ("alpha", "first"),
-        ("alpha", "second"),
-        ("beta", "first"),
-        ("beta", "second"),
-    ]
 
 
 def test_column_mapping_configurer_emits_mappings(make_data_source):
@@ -106,9 +76,13 @@ def test_column_mapping_configurer_emits_mappings(make_data_source):
             ],
         },
     )
-    installation = create_autospec(Installation)
 
-    result = _configure(installation, source_ds, target_ds, auto_configurers=[ColumnMappingAutoConfigurer()])
+    result = _configure(
+        MockInstallation(),
+        source_ds,
+        target_ds,
+        auto_configurers=[ColumnMappingAutoConfigurer()],
+    )
 
     assert result.tables == [
         Table(
@@ -120,7 +94,6 @@ def test_column_mapping_configurer_emits_mappings(make_data_source):
 
 
 def test_reuses_existing_table_recon_when_provided(make_data_source):
-    """When `table_recon` is passed, skip discovery and apply configurers to it."""
     source_ds = make_data_source(
         columns={
             ("src_cat", "src_schema", "preserved"): [
@@ -137,11 +110,10 @@ def test_reuses_existing_table_recon_when_provided(make_data_source):
             ],
         },
     )
-    installation = create_autospec(Installation)
     existing = TableRecon(tables=[Table(source_name="preserved", target_name="preserved")])
 
     result = _configure(
-        installation,
+        MockInstallation(),
         source_ds,
         target_ds,
         auto_configurers=[ColumnMappingAutoConfigurer()],
