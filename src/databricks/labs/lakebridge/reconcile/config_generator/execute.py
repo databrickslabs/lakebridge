@@ -77,9 +77,9 @@ def auto_configure_tables(
     )
 
     configured = [
-        _apply_configurers(
-            t,
-            auto_configurers,
+        auto_configure_table(
+            table=t,
+            auto_configurers=auto_configurers,
             source=source,
             source_catalog=source_catalog,
             source_schema=source_schema,
@@ -96,10 +96,10 @@ def auto_configure_tables(
     return table_recon
 
 
-def _apply_configurers(
-    table: Table,
-    configurers: Sequence[TableAutoConfigurer],
+def auto_configure_table(
     *,
+    table: Table,
+    auto_configurers: Sequence[TableAutoConfigurer],
     source: DataSource,
     source_catalog: str,
     source_schema: str,
@@ -107,7 +107,8 @@ def _apply_configurers(
     target_catalog: str,
     target_schema: str,
 ) -> Table:
-    for configurer in configurers:
+    """Apply each configurer to a single Table and return the result. No file upload."""
+    for configurer in auto_configurers:
         table = configurer.configure(
             table=table,
             source=source,

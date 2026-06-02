@@ -319,14 +319,18 @@ From the CLI this is two runs of `auto-configure-recon-tables` — choose "disco
 
 ### Auto-configure a single table
 
-`auto_configure_tables` always writes back the entire `TableRecon`. To run the configurers against just one table — e.g. after a column was added on the source, or to spot-check a tricky mapping — call the configurer directly. It returns a configured `Table` without touching the file in the install folder:
+To run all supported configurers against just one table — e.g. after a column was added on the source — call `auto_configure_table`. It returns a configured `Table` without touching the file in the install folder:
 
 ```python
-from databricks.labs.lakebridge.reconcile.config_generator.configure import ColumnMappingAutoConfigurer
+from databricks.labs.lakebridge.reconcile.config_generator.execute import (
+    SUPPORTED_AUTO_CONFIGURERS,
+    auto_configure_table,
+)
 from databricks.labs.lakebridge.reconcile.recon_config import Table
 
-configured = ColumnMappingAutoConfigurer().configure(
+configured = auto_configure_table(
     table=Table(source_name="orders", target_name="orders"),
+    auto_configurers=SUPPORTED_AUTO_CONFIGURERS,
     source=source_ds,
     source_catalog=reconcile_config.source.catalog,
     source_schema=reconcile_config.source.schema,
