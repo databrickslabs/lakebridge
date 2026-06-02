@@ -36,16 +36,14 @@ def _create_td_sys_info(conn: duckdb.DuckDBPyConnection) -> None:
 
 
 def _create_td_sys_nodes_info(conn: duckdb.DuckDBPyConnection) -> None:
-    conn.execute(
-        """
+    conn.execute("""
         CREATE TABLE td_sys_nodes_info (
             NodeID BIGINT, NodeType VARCHAR, NCPUs BIGINT, Vproc1 BIGINT,
             MemSize DOUBLE, PM_COD_CPU DOUBLE, WM_COD_CPU DOUBLE,
             PM_COD_IO DOUBLE, WM_COD_IO DOUBLE, Tier_factor DOUBLE,
             NodeNormFactor DOUBLE
         )
-    """
-    )
+    """)
     conn.execute(
         "INSERT INTO td_sys_nodes_info VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         [10001, "000CLV", 4, 4, 11264.0, 4.0, 4.0, 0.0, 0.0, 1.0, 4505.0],
@@ -53,15 +51,13 @@ def _create_td_sys_nodes_info(conn: duckdb.DuckDBPyConnection) -> None:
 
 
 def _create_td_sys_usage_agg(conn: duckdb.DuckDBPyConnection) -> None:
-    conn.execute(
-        """
+    conn.execute("""
         CREATE TABLE td_sys_usage_agg (
             TheDate DATE, hour_of_day BIGINT, totNCPUs DOUBLE, totVproc1 DOUBLE,
             totCPUUExec DOUBLE, totCPUUServ DOUBLE, totCPUIoWait DOUBLE,
             totMemSizeMB DOUBLE, totCPUIdle DOUBLE, totMemFreeMB DOUBLE
         )
-    """
-    )
+    """)
     conn.executemany(
         "INSERT INTO td_sys_usage_agg VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         [
@@ -72,14 +68,12 @@ def _create_td_sys_usage_agg(conn: duckdb.DuckDBPyConnection) -> None:
 
 
 def _create_td_sys_disk_utilization(conn: duckdb.DuckDBPyConnection) -> None:
-    conn.execute(
-        """
+    conn.execute("""
         CREATE TABLE td_sys_disk_utilization (
             DATABASENAME VARCHAR, MAX_PERM_MB DOUBLE, CURRENT_PERM_MB DOUBLE,
             MAX_SPOOL_MB DOUBLE, CURRENT_SPOOL_MB DOUBLE
         )
-    """
-    )
+    """)
     conn.executemany(
         "INSERT INTO td_sys_disk_utilization VALUES (?, ?, ?, ?, ?)",
         [
@@ -90,13 +84,11 @@ def _create_td_sys_disk_utilization(conn: duckdb.DuckDBPyConnection) -> None:
 
 
 def _create_td_db_object_types(conn: duckdb.DuckDBPyConnection) -> None:
-    conn.execute(
-        """
+    conn.execute("""
         CREATE TABLE td_db_object_types (
             DatabaseName VARCHAR, TableKind VARCHAR, TableKindCount BIGINT
         )
-    """
-    )
+    """)
     conn.executemany(
         "INSERT INTO td_db_object_types VALUES (?, ?, ?)",
         [
@@ -110,16 +102,14 @@ def _create_td_db_object_types(conn: duckdb.DuckDBPyConnection) -> None:
 
 
 def _create_td_user_databases(conn: duckdb.DuckDBPyConnection) -> None:
-    conn.execute(
-        """
+    conn.execute("""
         CREATE TABLE td_user_databases (
             DatabaseName VARCHAR, CreatorName VARCHAR,
             CreateTimeStamp TIMESTAMP, LastAlterTimeStamp TIMESTAMP,
             ProtectionType VARCHAR, JournalFlag VARCHAR,
             PermSpace BIGINT, SpoolSpace BIGINT, TempSpace BIGINT
         )
-    """
-    )
+    """)
     conn.executemany(
         "INSERT INTO td_user_databases VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
         [
@@ -150,16 +140,14 @@ def _create_td_user_databases(conn: duckdb.DuckDBPyConnection) -> None:
 
 
 def _create_td_dwh_udf(conn: duckdb.DuckDBPyConnection) -> None:
-    conn.execute(
-        """
+    conn.execute("""
         CREATE TABLE td_dwh_udf (
             DatabaseName VARCHAR, FunctionName VARCHAR,
             NumParameters BIGINT, ParameterDataTypes VARCHAR,
             FunctionLanguage VARCHAR, FunctionType VARCHAR,
             ReturnType VARCHAR
         )
-    """
-    )
+    """)
     conn.executemany(
         "INSERT INTO td_dwh_udf VALUES (?, ?, ?, ?, ?, ?, ?)",
         [
@@ -171,8 +159,7 @@ def _create_td_dwh_udf(conn: duckdb.DuckDBPyConnection) -> None:
 
 
 def _create_td_pdcr_info_agg_extract(conn: duckdb.DuckDBPyConnection) -> None:
-    conn.execute(
-        """
+    conn.execute("""
         CREATE TABLE td_pdcr_info_agg_extract (
             LogType VARCHAR, LogDate DATE, DOW VARCHAR, HR BIGINT,
             LogHour_TS TIMESTAMP, Organization VARCHAR, Department VARCHAR,
@@ -183,8 +170,7 @@ def _create_td_pdcr_info_agg_extract(conn: duckdb.DuckDBPyConnection) -> None:
             MaxTDWMDelayTime DOUBLE, SumTDWMDelayTime DOUBLE,
             AvgRespSecs DOUBLE, MaxRespSecs DOUBLE
         )
-    """
-    )
+    """)
     conn.execute(
         "INSERT INTO td_pdcr_info_agg_extract VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         [
@@ -217,15 +203,13 @@ def _create_td_pdcr_info_agg_extract(conn: duckdb.DuckDBPyConnection) -> None:
 
 
 def _create_td_pdcr_sp_exe_info_agg_extract(conn: duckdb.DuckDBPyConnection) -> None:
-    conn.execute(
-        """
+    conn.execute("""
         CREATE TABLE td_pdcr_sp_exe_info_agg_extract (
             ProcName VARCHAR, avgAMPCPUTime DOUBLE, avgExecutionSecs DOUBLE,
             NumStatements DOUBLE, FirstExeDate DATE, LastExeDate DATE,
             NumExecutions BIGINT
         )
-    """
-    )
+    """)
     conn.execute(
         "INSERT INTO td_pdcr_sp_exe_info_agg_extract VALUES (?, ?, ?, ?, ?, ?, ?)",
         ["analytics_db.sp_daily_load", 2.5, 15.3, 8.0, date(2025, 1, 1), date(2025, 3, 1), 60],
@@ -233,16 +217,14 @@ def _create_td_pdcr_sp_exe_info_agg_extract(conn: duckdb.DuckDBPyConnection) -> 
 
 
 def _create_td_dbql_core_info_extract(conn: duckdb.DuckDBPyConnection) -> None:
-    conn.execute(
-        """
+    conn.execute("""
         CREATE TABLE td_dbql_core_info_extract (
             AppID VARCHAR, UserName VARCHAR, SessionID BIGINT,
             SQLTextInfo VARCHAR, StartTime TIMESTAMP, FirstRespTime TIMESTAMP,
             TotalFirstRespTime DOUBLE, TotalCPUTime DOUBLE,
             TotalIOCount DOUBLE, ReqPhysIOKB DOUBLE, SpoolUsage DOUBLE
         )
-    """
-    )
+    """)
     conn.executemany(
         "INSERT INTO td_dbql_core_info_extract VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         [

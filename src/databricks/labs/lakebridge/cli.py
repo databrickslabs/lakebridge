@@ -22,21 +22,10 @@ from databricks.labs.blueprint.tui import Prompts
 
 
 from databricks.labs.lakebridge.assessments.configure_assessment import create_assessment_configurator
-from databricks.labs.lakebridge.assessments import (
-    PLATFORM_TO_SOURCE_TECHNOLOGY_CFG,
-    PRODUCT_NAME,
-    PRODUCT_PATH_PREFIX,
-    PROFILER_SOURCE_SYSTEM,
-)
+from databricks.labs.lakebridge.assessments import PROFILER_SOURCE_SYSTEM, PRODUCT_NAME
 from databricks.labs.lakebridge.assessments.profiler import Profiler
-from databricks.labs.lakebridge.assessments.pipeline import PipelineClass
 
-from databricks.labs.lakebridge.config import (
-    LSPConfigOptionV1,
-    ProfilerDashboardConfig,
-    ProfilerDashboardMetadataConfig,
-    TranspileConfig,
-)
+from databricks.labs.lakebridge.config import TranspileConfig, LSPConfigOptionV1
 from databricks.labs.lakebridge.contexts.application import ApplicationContext
 from databricks.labs.lakebridge.connections.credential_manager import cred_file, create_credential_manager
 from databricks.labs.lakebridge.connections.database_manager import DatabaseManager
@@ -1062,48 +1051,7 @@ def visualize_profiler_results(
     profiler_dashboard_installer.run(module="profiler_dashboard")
 
 
-@lakebridge.command()
-def create_profiler_dashboard(
-    *,
-    w: WorkspaceClient,
-    source_tech: str,
-    volume_path: str,
-    catalog_name: str,
-    schema_name: str,
-    extract_file: str | None = None,
-) -> None:
-    """Backward-compatible non-interactive profiler dashboard deployment command."""
-    ctx = ApplicationContext(w)
-    ctx.add_user_agent_extra("cmd", "create-profiler-dashboard")
-    if extract_file is None:
-        config_path = PRODUCT_PATH_PREFIX / PLATFORM_TO_SOURCE_TECHNOLOGY_CFG[source_tech]
-        pipeline_config = PipelineClass.load_config_from_yaml(config_path)
-        extract_file = str(Path(pipeline_config.extract_folder).expanduser() / "profiler_extract.db")
-
-    volume_name = volume_path
-    if volume_path.startswith("/Volumes/"):
-        parts = Path(volume_path).parts
-        if len(parts) < 5:
-            raise_validation_exception(
-                "Invalid '--volume-path'. Expected '/Volumes/<catalog>/<schema>/<volume>[/optional-file]'."
-            )
-        volume_name = parts[4]
-
-    cfg = ProfilerDashboardConfig(
-        source_tech=source_tech,
-        extract_file_path=extract_file,
-        metadata_config=ProfilerDashboardMetadataConfig(
-            catalog=catalog_name,
-            schema=schema_name,
-            volume=volume_name,
-        ),
-    )
-    if not ctx.dashboard_manager.upload_duckdb_to_uc_volume(cfg):
-        raise RuntimeError("Failed to upload profiler extract to UC volume.")
-    ctx.dashboard_manager.deploy(cfg)
-
-
-def check_database_connection(source_tech: str, raw_config: dict) -> None:
+def _test_database_connection(source_tech: str, raw_config: dict) -> None:
     """Test connection to the source database with appropriate error handling."""
     # Handle synapse-specific validation using dedicated helper
     if source_tech == "synapse":
@@ -1141,18 +1089,18 @@ def test_profiler_connection(
         raise_validation_exception(f"Invalid source technology {source_tech}")
 
     ctx.add_user_agent_extra("profiler_source_tech", make_alphanum_or_semver(source_tech))
+    logger.debug(f"User: {ctx.current_user}")
 
     # Use provided credential file path or fall back to default
     credential_file = Path(cred_file_path) if cred_file_path else cred_file(PRODUCT_NAME)
 
-    # Check if credential file exists before any workspace API calls (e.g. current_user).
+    # Check if credential file exists
     if not credential_file.exists():
         raise_validation_exception(
             f"Connection details not found. Please run `databricks labs lakebridge configure-database-profiler` "
             f"to set up connection details for {source_tech}."
         )
 
-    logger.debug(f"User: {ctx.current_user}")
     logger.info(f"Testing connection for source technology: {source_tech}")
 
     cred_manager = create_credential_manager(PRODUCT_NAME, EnvGetter(), creds_path=credential_file)
@@ -1166,7 +1114,7 @@ def test_profiler_connection(
         ) from e
 
     try:
-        check_database_connection(source_tech, raw_config)
+        _test_database_connection(source_tech, raw_config)
     except ConnectionError as e:
         logger.error(f"Failed to connect to the source system: {e}")
         error_msg = str(e).lower()

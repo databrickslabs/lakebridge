@@ -1,6 +1,5 @@
 import copy
 from pathlib import Path
-from unittest.mock import create_autospec
 
 import pytest
 import yaml
@@ -69,14 +68,10 @@ def test_profiler_connection_synapse_success(
 
 def test_profiler_connection_missing_credentials_file(
     tmp_path: Path,
+    ws: WorkspaceClient,
 ) -> None:
-    """Test error handling when credential file doesn't exist.
-
-    Uses a mock workspace client so this does not require DATABRICKS_HOST / live auth: the CLI
-    should fail from missing credentials before calling the workspace API.
-    """
+    """Test error handling when credential file doesn't exist."""
     non_existent_path = tmp_path / ".credentials.yml"
-    ws = create_autospec(WorkspaceClient, instance=True)
 
     with pytest.raises(ValueError, match="Connection details not found"):
         check_connection(w=ws, source_tech="synapse", cred_file_path=str(non_existent_path))

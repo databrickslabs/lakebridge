@@ -102,22 +102,6 @@ class _BaseConnector(DatabaseConnector):
             result = session.execute(text(query))
             return FetchResult(result.keys(), result.fetchall())
 
-
-def _create_connector(db_type: str, config: JsonObject) -> DatabaseConnector:
-    connectors = {
-        "snowflake": SnowflakeConnector,
-        "mssql": MSSQLConnector,
-        "tsql": MSSQLConnector,
-        "synapse": MSSQLConnector,  # Synapse uses MSSQL protocol
-        "teradata": TeradataConnector,
-    }
-
-    connector_class = connectors.get(db_type.lower())
-
-    if connector_class is None:
-        raise ValueError(f"Unsupported database type: {db_type}")
-
-    return connector_class(config)
     def health_check(self) -> bool:
         query = "SELECT 101 AS test_column"
         result = self.fetch(query)
@@ -297,6 +281,7 @@ def _create_connector(db_type: str, config: JsonObject) -> DatabaseConnector:
         "legacy_synapse": MSSQLConnector,
         "redshift": RedshiftConnector,
         "oracle": OracleConnector,
+        "teradata": TeradataConnector,
     }
 
     connector_class = connectors.get(db_type.lower())

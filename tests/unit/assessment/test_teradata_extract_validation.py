@@ -1,4 +1,4 @@
-"""Tests for Teradata profiler extract validation and ingestion logic."""
+"""Tests for Teradata profiler extract validation logic."""
 
 from __future__ import annotations
 
@@ -9,13 +9,11 @@ import duckdb
 import pytest
 
 import databricks.labs.lakebridge.resources.assessments as assessment_resources
-from databricks.labs.lakebridge.assessments.dashboards import execute as dashboard_execute
 from databricks.labs.lakebridge.assessments.profiler_validator import (
     EmptyTableValidationCheck,
     ExtractSchemaValidationCheck,
     build_validation_report,
 )
-from tests.unit.spark_test_stubs import SparkSessionStub
 from tests.unit.teradata_test_helpers import TERADATA_TABLES
 
 from .teradata_extract_utils import build_mock_teradata_extract
@@ -89,44 +87,3 @@ def test_teradata_extract_schema_wrong_source_tech_rejected(
         )
         with pytest.raises(AssertionError, match="Incorrect schema definition type"):
             build_validation_report([check], conn)
-
-
-def test_ingest_teradata_tables_ingests_all(teradata_extract: Path, monkeypatch) -> None:
-    """ingest_profiler_tables should ingest all 10 Teradata tables."""
-    spark_stub = SparkSessionStub()
-
-    class _BuilderStub:
-        @staticmethod
-        def getOrCreate() -> SparkSessionStub:  # noqa: N802
-            return spark_stub
-
-    monkeypatch.setattr(dashboard_execute.SparkSession, "builder", _BuilderStub())
-
-    dashboard_execute.ingest_profiler_tables("test_catalog", "test_schema", str(teradata_extract))
-
-    saved_tables = {item[1].saved_table for item in spark_stub.ingested if item[1].saved_table}
-    for table in TERADATA_TABLES:
-        expected_uc_name = f"test_catalog.test_schema.{table}"
-        assert expected_uc_name in saved_tables, f"Table not ingested: {expected_uc_name}"
-
-
-def test_ingest_teradata_table_preserves_null_database_in_udf(teradata_extract: Path, monkeypatch) -> None:
-    """UDFs with NULL DatabaseName should be ingested without errors."""
-    spark_stub = SparkSessionStub()
-
-    class _BuilderStub:
-        @staticmethod
-        def getOrCreate() -> SparkSessionStub:  # noqa: N802
-            return spark_stub
-
-    monkeypatch.setattr(dashboard_execute.SparkSession, "builder", _BuilderStub())
-
-    dashboard_execute.ingest_table(
-        extract_location=str(teradata_extract),
-        source_table_name="main.td_dwh_udf",
-        target_table_name="cat.schema.td_dwh_udf",
-    )
-
-    pdf = spark_stub.ingested[0][0]
-    assert len(pdf) == 3
-    assert pdf["DatabaseName"].isna().sum() == 1

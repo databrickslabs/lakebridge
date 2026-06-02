@@ -447,14 +447,12 @@ class WorkspaceInstaller:
     def _prompt_for_new_profiler_dashboard_installation(self) -> ProfilerDashboardConfig:
         logger.info("Please answer a few questions to configure the Lakebridge profiler dashboard.")
         source_tech = self._prompts.choice("Select the source technology", PROFILER_SOURCE_SYSTEM)
-        extract_file_path_raw = self._prompts.question(
+        extract_file_path = self._prompts.question(
             "Enter the path to the profiler extract file:",
             default=str(
                 Path("~/.databricks/labs/lakebridge_profilers/synapse_assessment/profiler_extract.db").expanduser()
             ),
         )
-        # Normalize user-provided local path (expand '~' and collapse duplicate separators)
-        extract_file_path = str(Path(extract_file_path_raw).expanduser())
 
         metadata_config = self._prompt_for_profiler_dashboard_metadata_config()
 

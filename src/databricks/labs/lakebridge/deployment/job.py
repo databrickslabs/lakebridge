@@ -1,5 +1,4 @@
 import logging
-import os
 from typing import Any
 
 from databricks.labs.blueprint.installation import Installation
@@ -14,7 +13,6 @@ from databricks.sdk.service.jobs import (
     JobCluster,
     JobSettings,
     JobParameterDefinition,
-    JobEnvironment,
 )
 from databricks.labs.lakebridge.config import ReconcileConfig, ProfilerDashboardConfig
 from databricks.labs.lakebridge.deployment.dashboard import ProfilerDashboardManager
@@ -25,8 +23,6 @@ logger = logging.getLogger(__name__)
 class JobDeployment:
 
     DEFAULT_CLUSTER_NAME = "Remorph_Reconciliation_Cluster"
-    PROFILER_INGEST_CLUSTER_KEY = "Lakebridge_Profiler_Ingest_Cluster"
-    PROFILER_INGEST_ENV_KEY = "Lakebridge_Profiler_Ingest_Environment"
 
     def __init__(
         self,
@@ -228,19 +224,32 @@ class JobDeployment:
         source_tech: str,
         lakebridge_wheel_path: str,
     ) -> dict[str, Any]:
-        use_serverless = self._use_serverless_profiler_ingestion()
+
+        latest_lts_spark = self._ws.clusters.select_spark_version(latest=True, long_term_support=True)
         version = self._product_info.version()
         version = version if not self._ws.config.is_gcp else version.replace("+", "-")
         tags = {"version": f"v{version}"}
-        settings: dict[str, Any] = {
+
+        return {
             "name": self._name_with_prefix(job_name),
             "tags": tags,
+            "job_clusters": [
+                JobCluster(
+                    job_cluster_key="Lakebridge_Profiler_Ingest_Cluster",
+                    new_cluster=compute.ClusterSpec(
+                        data_security_mode=compute.DataSecurityMode.USER_ISOLATION,
+                        spark_conf={},
+                        node_type_id=self._get_default_node_type_id(),
+                        autoscale=compute.AutoScale(min_workers=1, max_workers=3),
+                        spark_version=latest_lts_spark,
+                    ),
+                )
+            ],
             "tasks": [
                 self._job_profiler_ingestion_task(
                     task_key,
                     description,
                     lakebridge_wheel_path,
-                    use_serverless=use_serverless,
                 ),
             ],
             "max_concurrent_runs": 1,
@@ -251,53 +260,17 @@ class JobDeployment:
                 JobParameterDefinition(name="source_tech", default=source_tech),
             ],
         }
-        if use_serverless:
-            settings["environments"] = [
-                JobEnvironment(
-                    environment_key=self.PROFILER_INGEST_ENV_KEY,
-                    spec=compute.Environment(
-                        environment_version="1",
-                        dependencies=[
-                            lakebridge_wheel_path,
-                            "duckdb",
-                        ],
-                    ),
-                )
-            ]
-        else:
-            latest_lts_spark = self._ws.clusters.select_spark_version(latest=True, long_term_support=True)
-            settings["job_clusters"] = [
-                JobCluster(
-                    job_cluster_key=self.PROFILER_INGEST_CLUSTER_KEY,
-                    new_cluster=compute.ClusterSpec(
-                        data_security_mode=compute.DataSecurityMode.USER_ISOLATION,
-                        spark_conf={},
-                        node_type_id=self._get_default_node_type_id(),
-                        autoscale=compute.AutoScale(min_workers=1, max_workers=3),
-                        spark_version=latest_lts_spark,
-                    ),
-                )
-            ]
-        return settings
 
-    def _job_profiler_ingestion_task(
-        self, task_key: str, description: str, lakebridge_wheel_path: str, use_serverless: bool = True
-    ) -> Task:
-        libraries = None
-        environment_key = None
-        if use_serverless:
-            environment_key = self.PROFILER_INGEST_ENV_KEY
-        else:
-            libraries = [
-                compute.Library(whl=lakebridge_wheel_path),
-                compute.Library(pypi=compute.PythonPyPiLibrary(package="duckdb")),
-            ]
+    def _job_profiler_ingestion_task(self, task_key: str, description: str, lakebridge_wheel_path: str) -> Task:
+        libraries = [
+            compute.Library(whl=lakebridge_wheel_path),
+            compute.Library(pypi=compute.PythonPyPiLibrary(package="duckdb")),
+        ]
 
         return Task(
             task_key=task_key,
             description=description,
-            job_cluster_key=None if use_serverless else self.PROFILER_INGEST_CLUSTER_KEY,
-            environment_key=environment_key,
+            job_cluster_key="Lakebridge_Profiler_Ingest_Cluster",
             libraries=libraries,
             python_wheel_task=PythonWheelTask(
                 package_name=self.parse_package_name(lakebridge_wheel_path),
@@ -310,10 +283,3 @@ class JobDeployment:
                 ],
             ),
         )
-
-    @staticmethod
-    def _use_serverless_profiler_ingestion() -> bool:
-        raw = os.getenv("LAKEBRIDGE_PROFILER_INGESTION_USE_SERVERLESS")
-        if raw is None:
-            return True
-        return raw.strip().lower() in {"1", "true", "yes", "y", "on"}

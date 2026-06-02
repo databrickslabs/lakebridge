@@ -4,24 +4,10 @@ import sys
 from collections.abc import Sequence
 from importlib import resources
 from pathlib import Path
-from typing import Any
 
 import duckdb
-import pandas as pd
 import yaml
-from pyspark.errors import PySparkException
 from pyspark.sql import SparkSession
-from pyspark.sql.types import (
-    BinaryType,
-    BooleanType,
-    DateType,
-    DoubleType,
-    LongType,
-    StringType,
-    StructField,
-    StructType,
-    TimestampType,
-)
 from yaml.parser import ParserError
 from yaml.scanner import ScannerError
 
@@ -40,179 +26,6 @@ else:
     from importlib.abc import Traversable
 
 logger = logging.getLogger(__name__)
-
-# Columns that contain potentially sensitive data and require a UC column comment
-# and tag after ingestion. Key: table_name, Value: {col_name: comment}.
-_SENSITIVE_COLUMNS: dict[str, dict[str, str]] = {
-    "td_dbql_core_info_extract": {
-        "SQLTextInfo": (
-            "CONFIDENTIAL: Raw SQL query text captured from Teradata DBQL. "
-            "May contain proprietary business logic, table/column names, filter predicates, "
-            "and sensitive identifiers. Govern access via Unity Catalog column masking policies."
-        )
-    }
-}
-
-
-def _is_truthy_env(var_name: str, default: bool = False) -> bool:
-    raw = os.getenv(var_name)
-    if raw is None:
-        return default
-    return raw.strip().lower() in {"1", "true", "yes", "y", "on"}
-
-
-def _sqltext_sensitivity_tag_value() -> str:
-    """
-    Returns the UC tag value to use for SQLTextInfo sensitivity tagging.
-
-    Default is 'pii' to align with common workspace tag policies.
-    Can be overridden via LAKEBRIDGE_SQLTEXT_SENSITIVITY_TAG.
-    """
-    value = os.getenv("LAKEBRIDGE_SQLTEXT_SENSITIVITY_TAG", "pii").strip().lower()
-    return value or "pii"
-
-
-def _apply_sensitive_column_metadata(spark: SparkSession, fq_table_name: str, table_name: str) -> None:
-    """
-    Applies a column COMMENT and a 'sensitivity' UC tag to any columns declared
-    in _SENSITIVE_COLUMNS for the given table.  Both operations are best-effort —
-    failures are logged as warnings so that a missing governance permission does
-    not abort the entire ingestion job.
-    """
-    sensitivity_tag_value = _sqltext_sensitivity_tag_value()
-    for col_name, comment in _SENSITIVE_COLUMNS.get(table_name, {}).items():
-        safe_comment = comment.replace("'", "\\'")
-        try:
-            spark.sql(f"ALTER TABLE {fq_table_name} ALTER COLUMN {col_name} COMMENT '{safe_comment}'")
-            logger.info(f"Applied sensitivity comment to '{fq_table_name}.{col_name}'.")
-        except PySparkException as e:
-            logger.warning(f"Could not set column comment on '{fq_table_name}.{col_name}': {e}")
-        try:
-            spark.sql(
-                f"ALTER TABLE {fq_table_name} ALTER COLUMN {col_name} "
-                f"SET TAGS ('sensitivity' = '{sensitivity_tag_value}')"
-            )
-            logger.info(f"Applied sensitivity tag to '{fq_table_name}.{col_name}'.")
-        except PySparkException as e:
-            logger.warning(f"Could not set column tag on '{fq_table_name}.{col_name}': {e}")
-
-
-def apply_sensitive_column_mask(spark: SparkSession, fq_table_name: str, table_name: str) -> None:
-    """
-    Best-effort masking policy application for sensitive columns.
-
-    Feature flag:
-      - LAKEBRIDGE_ENABLE_SQLTEXT_MASK=true|false (default: false)
-
-    Optional behavior:
-      - LAKEBRIDGE_SQLTEXT_MASK_BYPASS_GROUP=<group-name>
-        Members of this account group see unmasked SQL text.
-        If unset/empty, all users see masked SQL text.
-    """
-    if not _is_truthy_env("LAKEBRIDGE_ENABLE_SQLTEXT_MASK", default=False):
-        return
-
-    # Currently this policy is only relevant for the DBQL SQL text column.
-    if table_name != "td_dbql_core_info_extract":
-        return
-
-    parts = fq_table_name.split(".")
-    if len(parts) != 3:
-        logger.warning(f"Skipping SQL text masking for unexpected table format: '{fq_table_name}'")
-        return
-    catalog_name, schema_name, _ = parts
-    function_name = f"{catalog_name}.{schema_name}.mask_sql_textinfo"
-
-    bypass_group = os.getenv("LAKEBRIDGE_SQLTEXT_MASK_BYPASS_GROUP", "data-governance-admins").strip()
-    if bypass_group:
-        safe_group = bypass_group.replace("'", "\\'")
-        function_sql = (
-            f"CREATE FUNCTION IF NOT EXISTS {function_name}(v STRING) "
-            "RETURNS STRING "
-            f"RETURN CASE WHEN is_account_group_member('{safe_group}') THEN v ELSE '[REDACTED_SQL_TEXT]' END"
-        )
-    else:
-        function_sql = (
-            f"CREATE FUNCTION IF NOT EXISTS {function_name}(v STRING) " "RETURNS STRING " "RETURN '[REDACTED_SQL_TEXT]'"
-        )
-
-    try:
-        spark.sql(function_sql)
-        logger.info(f"Created/verified SQL masking function '{function_name}'.")
-    except PySparkException as e:
-        logger.warning(f"Could not create masking function '{function_name}': {e}")
-        return
-
-    try:
-        spark.sql(f"ALTER TABLE {fq_table_name} ALTER COLUMN SQLTextInfo SET MASK {function_name}")
-        logger.info(f"Applied SQL text mask on '{fq_table_name}.SQLTextInfo'.")
-    except PySparkException as e:
-        logger.warning(f"Could not apply SQL text mask on '{fq_table_name}.SQLTextInfo': {e}")
-
-
-def _normalize_text(value: Any) -> Any:
-    if isinstance(value, bytes):
-        return value.decode("utf-8", errors="replace")
-    if isinstance(value, str):
-        return value.encode("utf-8", errors="replace").decode("utf-8")
-    return value
-
-
-def _normalize_dataframe_text(pdf: pd.DataFrame) -> pd.DataFrame:
-    """
-    Ensure object columns can be safely serialized as UTF-8 for Spark ingestion.
-    """
-    for column in pdf.columns:
-        if pdf[column].dtype == "object":
-            pdf[column] = pdf[column].map(_normalize_text)
-    return pdf
-
-
-def _spark_type_from_duckdb(duckdb_type: str) -> Any:
-    normalized = duckdb_type.upper()
-    if normalized in {"BOOLEAN", "BOOL"}:
-        return BooleanType()
-    if normalized in {"TINYINT", "SMALLINT", "INTEGER", "INT", "BIGINT", "HUGEINT", "UBIGINT"}:
-        return LongType()
-    if normalized in {"FLOAT", "REAL", "DOUBLE", "DECIMAL", "NUMERIC"}:
-        return DoubleType()
-    if normalized.startswith("TIMESTAMP"):
-        return TimestampType()
-    if normalized == "DATE":
-        return DateType()
-    if normalized in {"BLOB", "BYTEA"}:
-        return BinaryType()
-    return StringType()
-
-
-def _spark_schema_from_duckdb(duck_conn: duckdb.DuckDBPyConnection, source_table_name: str) -> StructType:
-    table_parts = source_table_name.split(".")
-    if len(table_parts) == 3:
-        _, table_schema, table_name = table_parts
-    elif len(table_parts) == 2:
-        table_schema, table_name = table_parts
-    elif len(table_parts) == 1:
-        table_schema, table_name = "main", table_parts[0]
-    else:
-        raise ValueError(
-            f"Unexpected source table format: '{source_table_name}'. Expected <catalog>.<schema>.<table> "
-            f"or <schema>.<table>."
-        )
-
-    query = """
-        SELECT column_name, data_type
-        FROM information_schema.columns
-        WHERE table_schema = ? AND table_name = ?
-        ORDER BY ordinal_position
-    """
-    columns = duck_conn.execute(query, [table_schema, table_name]).fetchall()
-    if not columns:
-        raise ValueError(f"No columns found in profiler extract for source table '{source_table_name}'.")
-
-    fields = [
-        StructField(str(col_name), _spark_type_from_duckdb(str(data_type)), True) for col_name, data_type in columns
-    ]
-    return StructType(fields)
 
 
 class ExtractIngestionError(Exception):
@@ -234,9 +47,9 @@ def main(*argv: str) -> None:
     source_tech = sys.argv[4]
 
     logger.info(f"Validating {source_tech} profiler extract located at '{extract_location}'.")
-    valid_extract = validate_profiler_extract(catalog_name, schema_name, extract_location, source_tech)
+    valid_extract = _validate_profiler_extract(catalog_name, schema_name, extract_location, source_tech)
     if valid_extract:
-        ingest_profiler_tables(catalog_name, schema_name, extract_location)
+        _ingest_profiler_tables(catalog_name, schema_name, extract_location)
     else:
         raise ValueError("Corrupt or invalid profiler extract.")
 
@@ -266,12 +79,12 @@ def _get_extract_tables(schema_def_path: Path | Traversable) -> Sequence[tuple[s
     return extracted_tables
 
 
-def validate_profiler_extract(
+def _validate_profiler_extract(
     target_catalog_name: str, target_schema_name: str, extract_location: str, source_tech: str
 ) -> bool:
     logger.info("Validating the profiler extract file.")
     validation_checks: list[EmptyTableValidationCheck | ExtractSchemaValidationCheck] = []
-    schema_def = _resolve_schema_definition(source_tech)
+    schema_def = resources.files(assessment_resources).joinpath(f"validation/{source_tech}_extract_schema.yml")
     tables = _get_extract_tables(schema_def)
     try:
         with duckdb.connect(database=extract_location) as duck_conn, resources.as_file(schema_def) as schema_def_path:
@@ -313,29 +126,7 @@ def validate_profiler_extract(
     return num_errors == 0
 
 
-def _resolve_schema_definition(source_tech: str) -> Traversable:
-    """
-    Resolve schema definition file for a profiler source technology.
-
-    Preferred path: <source>_schema_def.yml
-    Backward compatible path: validation/<source>_extract_schema.yml
-    """
-    root = resources.files(assessment_resources)
-    direct_schema = root.joinpath(f"{source_tech}_schema_def.yml")
-    if direct_schema.is_file():
-        return direct_schema
-
-    validation_schema = root.joinpath("validation").joinpath(f"{source_tech}_extract_schema.yml")
-    if validation_schema.is_file():
-        return validation_schema
-
-    raise FileNotFoundError(
-        f"Schema definition not found for source '{source_tech}'. "
-        f"Checked '{source_tech}_schema_def.yml' and 'validation/{source_tech}_extract_schema.yml'."
-    )
-
-
-def ingest_profiler_tables(catalog_name: str, schema_name: str, extract_location: str) -> None:
+def _ingest_profiler_tables(catalog_name: str, schema_name: str, extract_location: str) -> None:
     try:
         with duckdb.connect(database=extract_location) as duck_conn:
             tables_to_ingest = duck_conn.execute("SHOW ALL TABLES").fetchall()
@@ -356,7 +147,7 @@ def ingest_profiler_tables(catalog_name: str, schema_name: str, extract_location
             fq_source_table_name = f"{source_table[0]}.{source_table[1]}.{source_table[2]}"
             fq_delta_table_name = f"{catalog_name}.{schema_name}.{source_table[2]}"
             logger.info(f"Ingesting profiler table: '{fq_source_table_name}'")
-            ingest_table(extract_location, fq_source_table_name, fq_delta_table_name)
+            _ingest_table(extract_location, fq_source_table_name, fq_delta_table_name)
             successful_tables.append(fq_source_table_name)
         except (ValueError, IndexError, TypeError) as e:
             logger.error(f"Failed to construct source and destination table names: {e}")
@@ -375,31 +166,19 @@ def ingest_profiler_tables(catalog_name: str, schema_name: str, extract_location
     logger.warning(",".join(str(t) for t in unsuccessful_tables))
 
 
-def _read_and_write_table(extract_location: str, source_table_name: str, target_table_name: str) -> None:
-    with duckdb.connect(database=extract_location, read_only=True) as duck_conn:
-        query = f"SELECT * FROM {source_table_name}"
-        pdf = _normalize_dataframe_text(duck_conn.execute(query).df())
-        logger.info(f"Saving profiler table '{target_table_name}' to Unity Catalog.")
-        spark = SparkSession.builder.getOrCreate()
-        if pdf.empty:
-            schema = _spark_schema_from_duckdb(duck_conn, source_table_name)
-            df = spark.createDataFrame([], schema=schema)
-        else:
-            df = spark.createDataFrame(pdf)
-        df.write.format("delta").mode("overwrite").saveAsTable(target_table_name)
-        table_name = source_table_name.split(".")[-1]
-        _apply_sensitive_column_metadata(spark, target_table_name, table_name)
-        apply_sensitive_column_mask(spark, target_table_name, table_name)
-
-
-def ingest_table(extract_location: str, source_table_name: str, target_table_name: str) -> None:
+def _ingest_table(extract_location: str, source_table_name: str, target_table_name: str) -> None:
     """
     Ingest a table from a DuckDB profiler extract into a managed Delta table in Unity Catalog.
-    After writing, applies sensitivity column comments and UC tags to any columns
-    declared in _SENSITIVE_COLUMNS (e.g. SQLTextInfo on td_dbql_core_info_extract).
     """
     try:
-        _read_and_write_table(extract_location, source_table_name, target_table_name)
+        with duckdb.connect(database=extract_location, read_only=True) as duck_conn:
+            query = f"SELECT * FROM {source_table_name}"
+            pdf = duck_conn.execute(query).df()
+            # Save table as a managed Delta table in Unity Catalog
+            logger.info(f"Saving profiler table '{target_table_name}' to Unity Catalog.")
+            spark = SparkSession.builder.getOrCreate()
+            df = spark.createDataFrame(pdf)
+            df.write.format("delta").mode("overwrite").saveAsTable(target_table_name)
     except duckdb.CatalogException as e:
         logger.error(f"Could not find source table '{source_table_name}' in profiler extract: {e}")
         raise duckdb.CatalogException(f"Could not find source table '{source_table_name}' in profiler extract.") from e

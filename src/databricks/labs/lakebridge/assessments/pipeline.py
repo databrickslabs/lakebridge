@@ -149,24 +149,11 @@ class PipelineClass:
         logging.debug(f"Executing Python script: {step.extract_source}")
         credential_config = str(cred_file("lakebridge"))
         venv_path_prefix = Path.home() / ".databricks" / "labs" / "lakebridge_profilers"
-        try:
-            os.makedirs(venv_path_prefix, exist_ok=True)
-        except PermissionError:
-            # Some CI/sandbox environments restrict writes to $HOME.
-            # Fall back to the system temp directory so Python steps still run.
-            venv_path_prefix = Path(tempfile.gettempdir()) / "lakebridge_profilers"
-            os.makedirs(venv_path_prefix, exist_ok=True)
+        os.makedirs(venv_path_prefix, exist_ok=True)
 
-        # Create a temporary directory for the virtual environment.
+        # Create a temporary directory for the virtual environment
         # TODO Windows has strict checks on for temp venv cleanup, so will ignore cleanup errors and have it cleaned up later
-        try:
-            temp_dir_ctx = tempfile.TemporaryDirectory(dir=venv_path_prefix, ignore_cleanup_errors=True)
-        except PermissionError:
-            venv_path_prefix = Path(tempfile.gettempdir()) / "lakebridge_profilers"
-            os.makedirs(venv_path_prefix, exist_ok=True)
-            temp_dir_ctx = tempfile.TemporaryDirectory(dir=venv_path_prefix, ignore_cleanup_errors=True)
-
-        with temp_dir_ctx as temp_dir:
+        with tempfile.TemporaryDirectory(dir=venv_path_prefix, ignore_cleanup_errors=True) as temp_dir:
             venv_dir = Path(temp_dir) / "venv"
             venv_exec_cmd = self._create_venv(venv_dir)
 

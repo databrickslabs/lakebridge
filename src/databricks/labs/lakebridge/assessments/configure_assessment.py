@@ -217,8 +217,6 @@ class ConfigureSynapseAssessment(AssessmentConfigurator):
         return source
 
 
-class ConfigureTeradataAssessment(AssessmentConfigurator):
-    """Teradata specific assessment configuration."""
 class ConfigureSnowflakeAssessment(AssessmentConfigurator):
     """Snowflake specific assessment configuration."""
 
@@ -231,22 +229,6 @@ class ConfigureSnowflakeAssessment(AssessmentConfigurator):
             "from environment variables fall back to plain text if not variable is not found\n",
         )
         secret_vault_type = str(self.prompts.choice("Enter secret vault type (local | env)", ["local", "env"])).lower()
-        secret_vault_name = None
-
-        logger.info("Please refer to the documentation to understand the difference between local and env.")
-
-        credential = {
-            "secret_vault_type": secret_vault_type,
-            "secret_vault_name": secret_vault_name,
-            source: {
-                "host": self.prompts.question("Enter the Teradata server or host details"),
-                "user": self.prompts.question("Enter the user details"),
-                "password": self.prompts.password("Enter the password details"),
-                "database": self.prompts.question("Enter the default database name", default="DBC"),
-            },
-        }
-
-        _save_to_disk(credential, cred_file)
 
         # Snowflake Connection Settings
         logger.info("Snowflake Assessment Configuration")
@@ -289,6 +271,39 @@ class ConfigureSnowflakeAssessment(AssessmentConfigurator):
         return source
 
 
+class ConfigureTeradataAssessment(AssessmentConfigurator):
+    """Teradata specific assessment configuration."""
+
+    def _configure_credentials(self) -> str:
+        cred_file = self._credential_file
+        source = self._source_name
+
+        logger.info(
+            "\n(local | env) \nlocal means values are read as plain text \nenv means values are read "
+            "from environment variables fall back to plain text if not variable is not found\n",
+        )
+        secret_vault_type = str(self.prompts.choice("Enter secret vault type (local | env)", ["local", "env"])).lower()
+        secret_vault_name = None
+
+        logger.info("Please refer to the documentation to understand the difference between local and env.")
+
+        credential = {
+            "secret_vault_type": secret_vault_type,
+            "secret_vault_name": secret_vault_name,
+            source: {
+                "host": self.prompts.question("Enter the Teradata server or host details"),
+                "user": self.prompts.question("Enter the user details"),
+                "password": self.prompts.password("Enter the password details"),
+                "database": self.prompts.question("Enter the default database name", default="DBC"),
+            },
+        }
+
+        _save_to_disk(credential, cred_file)
+
+        logger.info(f"Credential template created for {source}.")
+        return source
+
+
 ConfiguratorFactory = Callable[[str, Prompts, str, Path | str | None], AssessmentConfigurator]
 
 
@@ -296,19 +311,13 @@ def create_assessment_configurator(
     source_system: str, product_name: str, prompts: Prompts, credential_file: Path | str | None = None
 ) -> AssessmentConfigurator:
     """Factory function to create the appropriate assessment configurator."""
-    if source_system == "mssql":
-        return ConfigureSqlServerAssessment(product_name, prompts, source_system, credential_file)
-    if source_system == "synapse":
-        return ConfigureSynapseAssessment(product_name, prompts, source_system, credential_file)
-    if source_system == "teradata":
-        return ConfigureTeradataAssessment(product_name, prompts, source_system, credential_file)
-    raise ValueError(f"Unsupported source system: {source_system}")
     configurators: dict[str, ConfiguratorFactory] = {
         "mssql": ConfigureSqlServerAssessment,
         "synapse": ConfigureSynapseAssessment,
         "snowflake": ConfigureSnowflakeAssessment,
         "legacy_synapse": ConfigureSqlServerAssessment,
         "oracle": ConfigureOracleAssessment,
+        "teradata": ConfigureTeradataAssessment,
     }
 
     if source_system not in configurators:

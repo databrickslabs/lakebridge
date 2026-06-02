@@ -13,7 +13,7 @@ from databricks.sdk import WorkspaceClient
 from databricks.sdk.errors import InvalidParameterValue, NotFound, DeadlineExceeded, InternalError, PermissionDenied
 from databricks.sdk.retries import retried
 from databricks.sdk.service.dashboards import LifecycleState, Dashboard
-from databricks.sdk.errors.platform import AlreadyExists, DatabricksError, ResourceAlreadyExists
+from databricks.sdk.errors.platform import ResourceAlreadyExists, DatabricksError
 from databricks.labs.lakebridge.config import ReconcileMetadataConfig, ProfilerDashboardConfig
 
 logger = logging.getLogger(__name__)
@@ -172,12 +172,6 @@ class ProfilerDashboardManager:
 
     _DASHBOARD_NAME = "Lakebridge Profiler Assessment"
 
-    @staticmethod
-    def _dashboard_name_for_source(source_tech: str) -> str:
-        if source_tech.lower() == "teradata":
-            return "Lakebridge Teradata Profiler Dashboard"
-        return ProfilerDashboardManager._DASHBOARD_NAME
-
     def __init__(
         self,
         ws: WorkspaceClient,
@@ -189,7 +183,7 @@ class ProfilerDashboardManager:
         self._install_state = install_state
 
     @staticmethod
-    def replace_catalog_schema(
+    def _replace_catalog_schema(
         serialized_dashboard: str,
         new_catalog: str,
         new_schema: str,
@@ -201,7 +195,7 @@ class ProfilerDashboardManager:
         updated_dashboard = serialized_dashboard.replace(old_catalog, f"`{new_catalog}`")
         return updated_dashboard.replace(old_schema, f"`{new_schema}`")
 
-    def create_or_replace_dashboard(
+    def _create_or_replace_dashboard(
         self, folder: Path, ws_parent_path: str, dest_catalog: str, dest_schema: str, source_system: str
     ) -> Dashboard:
         """
@@ -217,42 +211,26 @@ class ProfilerDashboardManager:
         dashboard_str = json.dumps(dashboard_json)
 
         # Replace catalog and schema placeholders
-        updated_dashboard_str = self.replace_catalog_schema(
+        updated_dashboard_str = self._replace_catalog_schema(
             dashboard_str, new_catalog=dest_catalog, new_schema=dest_schema
         )
-        dashboard_name = self._dashboard_name_for_source(source_system)
         dashboard = Dashboard(
-            display_name=dashboard_name,
+            display_name=self._DASHBOARD_NAME,
             parent_path=ws_parent_path,
             warehouse_id=self._ws.config.warehouse_id,
             serialized_dashboard=updated_dashboard_str,
         )
 
-        # Create dashboard or replace if previously deployed. Lakeview may raise AlreadyExists or
-        # ResourceAlreadyExists when a DASHBOARD_V3 with the same .lvdash.json name still exists.
+        # Create dashboard or replace if previously deployed
         try:
             dashboard = self._ws.lakeview.create(dashboard=dashboard)
-        except (ResourceAlreadyExists, AlreadyExists):
-            logger.info(
-                "Profiler summary dashboard already exists; trashing prior dashboard (if known) "
-                "and removing workspace file before recreate."
-            )
-            existing_id = self._install_state.dashboards.get(dash_reference)
-            if existing_id:
-                try:
-                    self._ws.lakeview.trash(existing_id)
-                except (NotFound, InvalidParameterValue):
-                    logger.debug(f"Could not trash prior dashboard id {existing_id} (may already be removed).")
-                self._install_state.dashboards.pop(dash_reference, None)
-            dashboard_ws_path = str(Path(ws_parent_path) / f"{dashboard_name}.lvdash.json")
-            try:
-                self._ws.workspace.delete(dashboard_ws_path)
-            except NotFound:
-                logger.debug(f"Workspace dashboard file already absent: {dashboard_ws_path}")
+        except ResourceAlreadyExists:
+            logger.info("Dashboard already exists! Removing dashboard from workspace location.")
+            dashboard_ws_path = str(Path(ws_parent_path) / f"{self._DASHBOARD_NAME}.lvdash.json")
+            self._ws.workspace.delete(dashboard_ws_path)
             dashboard = self._ws.lakeview.create(dashboard=dashboard)
         except DatabricksError as e:
             logger.error(f"Could not create profiler summary dashboard: {e}")
-            raise
 
         assert dashboard.dashboard_id is not None
         logger.info(f"Created dashboard '{dashboard.dashboard_id}' in workspace location {ws_parent_path}.")
@@ -277,7 +255,7 @@ class ProfilerDashboardManager:
             self._ws.workspace.mkdirs(ws_parent_path)
         except ResourceAlreadyExists:
             logger.info(f"Workspace parent path already exists for dashboards: {ws_parent_path}")
-        dashboard = self.create_or_replace_dashboard(
+        dashboard = self._create_or_replace_dashboard(
             folder=template_folder,
             ws_parent_path=ws_parent_path,
             dest_catalog=catalog_name,

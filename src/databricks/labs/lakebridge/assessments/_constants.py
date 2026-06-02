@@ -6,10 +6,6 @@ PRODUCT_PATH_PREFIX = Path.home() / ".databricks" / "labs" / PRODUCT_NAME / "lib
 PLATFORM_TO_SOURCE_TECHNOLOGY_CFG = {
     "synapse": "src/databricks/labs/lakebridge/resources/assessments/synapse/pipeline_config.yml",
     "teradata": "src/databricks/labs/lakebridge/resources/assessments/teradata/pipeline_config.yml",
-}
-
-# TODO modify this PLATFORM_TO_SOURCE_TECHNOLOGY.keys() once all platforms are supported
-PROFILER_SOURCE_SYSTEM = ["synapse", "teradata"]
     "snowflake": "src/databricks/labs/lakebridge/resources/assessments/snowflake/pipeline_config.yml",
     "oracle": "src/databricks/labs/lakebridge/resources/assessments/oracle/pipeline_config.yml",
     "mssql": "src/databricks/labs/lakebridge/resources/assessments/mssql/pipeline_config.yml",
