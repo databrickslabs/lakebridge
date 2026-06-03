@@ -5,8 +5,6 @@ import yaml
 from duckdb import DuckDBPyConnection, CatalogException, ParserException, Error
 from pyspark.sql import DataFrame, SparkSession
 
-PROFILER_DB_NAME = "profiler_extract.db"
-
 
 class SchemaDefinitionLoadError(Exception):
     """An exception that is raised when a schema definition cannot be loaded."""

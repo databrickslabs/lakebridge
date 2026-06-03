@@ -1,7 +1,7 @@
 import logging
 from pathlib import Path
 
-from databricks.labs.lakebridge.assessments.pipeline import PipelineClass
+from databricks.labs.lakebridge.assessments.pipeline import PipelineClass, make_profiler_db_filename
 from databricks.labs.lakebridge.assessments.profiler_config import PipelineConfig
 from databricks.labs.lakebridge.connections.database_manager import DatabaseManager
 from databricks.labs.lakebridge.connections.credential_manager import (
@@ -70,7 +70,9 @@ class Profiler:
             if extractor is None:
                 extractor = Profiler._setup_extractor(platform)
 
-            result = PipelineClass(pipeline_config, extractor, output_folder).execute()
+            db_path = output_folder / make_profiler_db_filename(platform)
+            result = PipelineClass(pipeline_config, extractor, db_path).execute()
+            logger.info(f"Profiler extract written to {db_path.expanduser()}")
             logger.info(f"Profile execution has completed successfully for {platform} for more info check: {result}.")
         except FileNotFoundError as e:
             logger.error(f"Configuration file not found for source {platform}: {e}")

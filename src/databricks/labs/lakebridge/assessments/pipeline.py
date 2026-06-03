@@ -5,6 +5,7 @@ import sys
 import venv
 import tempfile
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 from subprocess import CalledProcessError, PIPE, Popen, STDOUT, run
@@ -13,13 +14,17 @@ import duckdb
 import yaml
 
 from databricks.labs.blueprint.paths import read_text
+from databricks.labs.lakebridge import __version__ as lakebridge_version
 from databricks.labs.lakebridge.assessments.profiler_config import PipelineConfig, Step
 from databricks.labs.lakebridge.connections.credential_manager import cred_file
 from databricks.labs.lakebridge.connections.database_manager import DatabaseManager, FetchResult
 
 logger = logging.getLogger(__name__)
 
-DB_NAME = "profiler_extract.db"
+
+def make_profiler_db_filename(platform: str) -> str:
+    # Lazy import to avoid circular import at module load.
+    return f"profiler_extract_{platform}_{lakebridge_version}_{datetime.now(timezone.utc).strftime('%Y%m%d')}.db"
 
 
 class StepExecutionStatus(str, Enum):
@@ -36,12 +41,16 @@ class StepExecutionResult:
 
 
 class PipelineClass:
-    def __init__(self, config: PipelineConfig, executor: DatabaseManager | None, output_folder: Path):
+    def __init__(
+        self,
+        config: PipelineConfig,
+        executor: DatabaseManager | None,
+        db_path: Path,
+    ):
         self.config = config
         self.executor = executor
-        self._db_path_prefix = output_folder.expanduser()
-        self._create_dir(self._db_path_prefix)
-        self._db_path = str(self._db_path_prefix / DB_NAME)
+        self._db_path = db_path.expanduser()
+        self._create_dir(self._db_path.parent)
 
     def execute(self) -> list[StepExecutionResult]:
         logging.info(f"Pipeline initialized with config: {self.config.name}, version: {self.config.version}")
@@ -221,15 +230,15 @@ class PipelineClass:
             raise RuntimeError(f"Failed to install dependencies: {e.stderr}") from e
 
     @staticmethod
-    def _run_python_script(venv_exec_cmd, script_path, db_path, credential_config):
+    def _run_python_script(venv_exec_cmd: str, script_path: str, db_path: Path, credential_config: str):
         output_lines = []
         try:
             with Popen(
                 [
                     venv_exec_cmd,
-                    str(script_path),
+                    script_path,
                     "--db-path",
-                    db_path,
+                    str(db_path),
                     "--credential-config-path",
                     credential_config,
                 ],
