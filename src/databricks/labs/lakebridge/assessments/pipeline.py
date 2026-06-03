@@ -1,14 +1,10 @@
 import json
 import logging
-import os
 import sys
-import sysconfig
-import venv
-import tempfile
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from subprocess import CalledProcessError, PIPE, Popen, STDOUT, run
+from subprocess import PIPE, Popen, STDOUT
 
 import duckdb
 import yaml
@@ -146,82 +142,14 @@ class PipelineClass:
             raise RuntimeError(f"DDL execution failed: {str(e)}") from e
 
     def _execute_python_step(self, step: Step):
-
         logging.debug(f"Executing Python script: {step.extract_source}")
         credential_config = str(cred_file("lakebridge"))
-        venv_path_prefix = Path.home() / ".databricks" / "labs" / "lakebridge_profilers"
-        os.makedirs(venv_path_prefix, exist_ok=True)
 
-        # Create a temporary directory for the virtual environment
-        # TODO Windows has strict checks on for temp venv cleanup, so will ignore cleanup errors and have it cleaned up later
-        with tempfile.TemporaryDirectory(dir=venv_path_prefix, ignore_cleanup_errors=True) as temp_dir:
-            venv_dir = Path(temp_dir) / "venv"
-            venv_exec_cmd = self._create_venv(venv_dir)
-
-            # Define the paths to the virtual environment's Python and pip executables
-            if sys.platform == "win32":
-                venv_python = (venv_dir / "Scripts" / "python.exe").resolve()
-                venv_pip = (venv_dir / "Scripts" / "pip.exe").resolve()
-            else:
-                venv_python = (venv_dir / "bin" / "python").resolve()
-                venv_pip = (venv_dir / "bin" / "pip").resolve()
-
-            # Log resolved paths
-            logger.info(f"Resolved venv_python: {venv_python}")
-            logger.info(f"Resolved venv_pip: {venv_pip}")
-
-            logger.info(f"Creating a virtual environment for Python script execution: {venv_dir} for step: {step.name}")
-            if step.dependencies:
-                self._install_dependencies(venv_exec_cmd, step.dependencies)
-
-            self._link_parent_site_packages(venv_exec_cmd)
-            self._run_python_script(venv_exec_cmd, step.extract_source, self._db_path, credential_config)
-
-    @staticmethod
-    def _install_dependencies(venv_exec_cmd, dependencies):
-        logging.info(f"Installing dependencies: {', '.join(dependencies)}")
-        try:
-            logging.debug("Upgrading local pip")
-            is_debug = logging.getLogger(__name__).isEnabledFor(logging.DEBUG)
-            run(
-                [
-                    venv_exec_cmd,
-                    "-m",
-                    "pip",
-                    "install",
-                    "--upgrade",
-                    "pip",
-                    "--require-virtualenv",
-                    "--no-input",
-                    "--disable-pip-version-check",
-                ],
-                check=True,
-                capture_output=not is_debug,
-                text=True,
-            )
-
-            run(
-                [
-                    venv_exec_cmd,
-                    "-m",
-                    "pip",
-                    "install",
-                    *dependencies,
-                    "--require-virtualenv",
-                    "--no-input",
-                    "--disable-pip-version-check",
-                ],
-                check=True,
-                capture_output=not is_debug,
-                text=True,
-            )
-        except CalledProcessError as e:
-            # Log detailed output at debug level for troubleshooting
-            logging.debug(
-                f"Failed to install dependencies (exit code {e.returncode})\n" f"stdout: {e.stdout}\nstderr: {e.stderr}"
-            )
-            logging.error(f"Failed to install dependencies: {e.stderr}")
-            raise RuntimeError(f"Failed to install dependencies: {e.stderr}") from e
+        # Run the step script with the interpreter the profiler already runs under (the
+        # labs-managed venv). It has lakebridge and all runtime dependencies installed, plus the
+        # source-specific `profiler` extra packages, so there is nothing to install at step time.
+        logger.info(f"Executing Python script for step '{step.name}' using interpreter: {sys.executable}")
+        self._run_python_script(sys.executable, step.extract_source, self._db_path, credential_config)
 
     @staticmethod
     def _run_python_script(venv_exec_cmd, script_path, db_path, credential_config):
@@ -332,41 +260,3 @@ class PipelineClass:
         return PipelineConfig(
             name=data['name'], version=data['version'], extract_folder=data['extract_folder'], steps=steps
         )
-
-    @staticmethod
-    def _create_venv(install_path: Path) -> str:
-        venv_path = install_path
-        # Sadly, some platform-specific variations need to be dealt with:
-        #   - Windows venvs do not use symlinks, but rather copies, when populating the venv.
-        #   - The library path is different.
-        use_symlinks = sys.platform != "win32"
-
-        builder = venv.EnvBuilder(with_pip=True, symlinks=use_symlinks)
-        builder.create(venv_path)
-        context = builder.ensure_directories(venv_path)
-        logger.debug(f"Created virtual environment with context: {context}")
-        return context.env_exec_cmd
-
-    @staticmethod
-    def _link_parent_site_packages(venv_exec_cmd: str) -> None:
-        # Let the step venv resolve packages from the parent install at runtime, appended so the
-        # venv's own installs win. Must run after pip installs the step's dependencies, otherwise
-        # pip would treat the linked parent packages as part of the venv and fail to manage them.
-        parent_sites: list[str] = []
-        for path in (sysconfig.get_path("purelib"), sysconfig.get_path("platlib")):
-            if path and path not in parent_sites:
-                parent_sites.append(path)
-        if not parent_sites:
-            logger.warning("Could not resolve parent site-packages; per-step venv may miss runtime dependencies.")
-            return
-
-        result = run(
-            [venv_exec_cmd, "-c", "import sysconfig; print(sysconfig.get_path('purelib'))"],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        child_purelib = Path(result.stdout.strip())
-        # addsitedir also processes the linked directory's .pth files, so editable installs resolve.
-        pth_contents = "".join(f"import site; site.addsitedir({path!r})\n" for path in parent_sites)
-        (child_purelib / "_lakebridge_parent_site.pth").write_text(pth_contents, encoding="utf-8")

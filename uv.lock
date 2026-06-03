@@ -8,7 +8,7 @@ resolution-markers = [
 ]
 
 [options]
-exclude-newer = "2026-05-14T15:08:11.038651Z"
+exclude-newer = "0001-01-01T00:00:00Z" # This has no effect and is included for backwards compatibility when using relative exclude-newer values.
 exclude-newer-span = "P7D"
 
 [options.exclude-newer-package]
@@ -749,12 +749,16 @@ dependencies = [
     { name = "standard-distutils", marker = "python_full_version >= '3.11'" },
 ]
 
-[package.dev-dependencies]
-dev = [
+[package.optional-dependencies]
+profiler = [
     { name = "azure-identity" },
     { name = "azure-mgmt-sql" },
     { name = "azure-monitor-query" },
     { name = "azure-synapse-artifacts" },
+]
+
+[package.dev-dependencies]
+dev = [
     { name = "black" },
     { name = "cattrs" },
     { name = "coverage", extra = ["toml"] },
@@ -779,10 +783,6 @@ dev = [
     { name = "types-requests" },
 ]
 lint = [
-    { name = "azure-identity" },
-    { name = "azure-mgmt-sql" },
-    { name = "azure-monitor-query" },
-    { name = "azure-synapse-artifacts" },
     { name = "black" },
     { name = "databricks-labs-pylint" },
     { name = "mypy" },
@@ -825,6 +825,10 @@ yq = [
 
 [package.metadata]
 requires-dist = [
+    { name = "azure-identity", marker = "extra == 'profiler'", specifier = "~=1.19.0" },
+    { name = "azure-mgmt-sql", marker = "extra == 'profiler'", specifier = "~=3.0.1" },
+    { name = "azure-monitor-query", marker = "extra == 'profiler'", specifier = "~=1.4.0" },
+    { name = "azure-synapse-artifacts", marker = "extra == 'profiler'", specifier = "~=0.20.0" },
     { name = "databricks-bb-analyzer", specifier = "~=0.3.0,!=0.3.1" },
     { name = "databricks-labs-blueprint", extras = ["yaml"], specifier = ">=0.12.0,<0.13.0" },
     { name = "databricks-labs-lsql", specifier = "==0.16.0" },
@@ -842,13 +846,10 @@ requires-dist = [
     { name = "sqlglot", specifier = "==28.5.0" },
     { name = "standard-distutils", marker = "python_full_version >= '3.11'", specifier = "~=3.11.9" },
 ]
+provides-extras = ["profiler"]
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "azure-identity", specifier = "~=1.19.0" },
-    { name = "azure-mgmt-sql", specifier = "~=3.0.1" },
-    { name = "azure-monitor-query", specifier = "~=1.4.0" },
-    { name = "azure-synapse-artifacts", specifier = "~=0.20.0" },
     { name = "black", specifier = "~=26.3" },
     { name = "cattrs", specifier = "~=26.1" },
     { name = "coverage", extras = ["toml"], specifier = "~=7.10.7" },
@@ -873,10 +874,6 @@ dev = [
     { name = "types-requests", specifier = ">=2.28.1,<3" },
 ]
 lint = [
-    { name = "azure-identity", specifier = "~=1.19.0" },
-    { name = "azure-mgmt-sql", specifier = "~=3.0.1" },
-    { name = "azure-monitor-query", specifier = "~=1.4.0" },
-    { name = "azure-synapse-artifacts", specifier = "~=0.20.0" },
     { name = "black", specifier = "~=26.3" },
     { name = "databricks-labs-pylint", specifier = "~=0.5.0" },
     { name = "mypy", specifier = "~=1.20.2" },
