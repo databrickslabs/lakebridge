@@ -4,7 +4,7 @@ import shutil
 import yaml
 import pytest
 
-from databricks.labs.lakebridge.assessments.pipeline import PipelineClass
+from databricks.labs.lakebridge.assessments.pipeline import PipelineClass, make_profiler_db_filename
 from databricks.labs.lakebridge.assessments.profiler import Profiler
 
 
@@ -22,7 +22,9 @@ def test_profile_execution(test_resources: Path, tmp_path: Path) -> None:
     profiler = Profiler("synapse")
     config = Profiler.path_modifier(config_file=config_file, path_prefix=test_resources)
     profiler.profile(pipeline_config=config, output_folder=output_folder)
-    assert (output_folder / "profiler_extract.db").exists(), "Profiler extract database should be created"
+    assert (
+        output_folder / make_profiler_db_filename("synapse")
+    ).exists(), "Profiler extract database should be created"
 
 
 def test_profile_execution_with_invalid_config(test_resources: Path, tmp_path: Path) -> None:
@@ -56,4 +58,6 @@ def test_profile_execution_config_override(test_resources: Path, tmp_path: Path)
     profiler = Profiler("synapse")
     pipeline_config = PipelineClass.load_config_from_yaml(config_file_dest)
     profiler.profile(pipeline_config=pipeline_config, output_folder=output_folder)
-    assert (output_folder / "profiler_extract.db").exists(), "Profiler extract database should be created"
+    assert (
+        output_folder / make_profiler_db_filename("synapse")
+    ).exists(), "Profiler extract database should be created"
