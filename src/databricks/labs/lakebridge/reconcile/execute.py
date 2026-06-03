@@ -9,9 +9,8 @@ from databricks.sdk import WorkspaceClient
 from databricks.labs.lakebridge import initialize_logging
 from databricks.labs.lakebridge.config import ReconcileConfig, TableRecon
 from databricks.labs.lakebridge.reconcile.config_generator.execute import (
-    SUPPORTED_AUTO_CONFIGURERS,
     auto_configure_tables,
-    build_adapters,
+    discover_tables,
 )
 from databricks.labs.lakebridge.reconcile.recon_config import (
     AGG_RECONCILE_OPERATION_NAME,
@@ -71,27 +70,16 @@ def main(*argv: str) -> None:
 
 def _autoconfigure_tables(installation: Installation, reconcile_config: ReconcileConfig, operation_name: str):
     spark = DatabricksSession.builder.getOrCreate()
-    source_ds, target_ds = build_adapters(reconcile_config, spark)
-    src = reconcile_config.source
-    tgt = reconcile_config.target
+
+    if operation_name == DISCOVER_TABLES_OPERATION_NAME:
+        discover_tables(installation=installation, reconcile_config=reconcile_config, spark=spark)
+        return
 
     if operation_name == AUTO_CONFIGURE_TABLES_OPERATION_NAME:
-        existing = installation.load(type_ref=TableRecon, filename=reconcile_config.table_recon_filename)
-    else:
-        existing = None
-
-    auto_configure_tables(
-        installation=installation,
-        table_recon_filename=reconcile_config.table_recon_filename,
-        source=source_ds,
-        source_catalog=src.catalog,
-        source_schema=src.schema,
-        target=target_ds,
-        target_catalog=tgt.catalog,
-        target_schema=tgt.schema,
-        auto_configurers=[] if operation_name == DISCOVER_TABLES_OPERATION_NAME else SUPPORTED_AUTO_CONFIGURERS,
-        table_recon=existing,
-    )
+        table_recon = installation.load(type_ref=TableRecon, filename=reconcile_config.table_recon_filename)
+    else:  # DISCOVER_AND_AUTO_CONFIGURE_TABLES_OPERATION_NAME
+        table_recon = discover_tables(installation=installation, reconcile_config=reconcile_config, spark=spark)
+    auto_configure_tables(table_recon, installation=installation, reconcile_config=reconcile_config, spark=spark)
 
 
 def _trigger_recon(

@@ -1,19 +1,19 @@
-"""Orchestrator + workspace-job entry point for recon config auto-discovery.
+"""Public entry points for recon config auto-discovery.
 
-How it works
-------------
-Two-stage pipeline per Table:
+Two pure functions over a `TableRecon`, each saves the result to the install folder:
 
-1. Discover table pairs from source/target schemas.
-2. For each discovered Table, apply every registered `TableAutoConfigurer` in
-   declared order.
+- `discover_tables(...)` — list source/target schemas, return matched table pairs.
+- `auto_configure_tables(table_recon, ...)` — apply every registered
+  `TableAutoConfigurer` to each Table in the input `table_recon`.
 
-The CLI dispatches to one of three operation names depending on the user's
-answers to "discover?" and "auto-configure?":
+A `auto_configure_table(table, ...)` helper applies the same configurers to a
+single Table without touching the file — useful for spot-fixing one row.
 
-- `discover-tables`             → discover only, `auto_configurers=[]`
-- `discover-auto-configure-tables`   → discover + apply all configurers
-- `auto-configure-tables`            → load existing TableRecon, apply all configurers (no re-discover)
+CLI operation names map directly:
+
+- `discover-tables`                  → `discover_tables(...)`
+- `auto-configure-tables`            → load file → `auto_configure_tables(loaded, ...)`
+- `discover-auto-configure-tables`   → `discover_tables(...)` → `auto_configure_tables(discovered, ...)`
 
 How to extend
 -------------
@@ -54,53 +54,80 @@ SUPPORTED_AUTO_CONFIGURERS: Sequence[TableAutoConfigurer] = [
 ]
 
 
-def auto_configure_tables(
+def discover_tables(
     *,
     installation: Installation,
-    table_recon_filename: str,
-    source: DataSource,
-    source_catalog: str,
-    source_schema: str,
-    target: DataSource,
-    target_catalog: str,
-    target_schema: str,
-    auto_configurers: Sequence[TableAutoConfigurer],
-    table_recon: TableRecon | None = None,
+    reconcile_config: ReconcileConfig,
+    spark: SparkSession,
 ) -> TableRecon:
-    """Discover (or reuse) table pairs, apply each configurer to every Table, save the file."""
-    table_recon = table_recon or TableMatcher().discover(
+    """Discover source/target table pairs and save the draft to the install folder."""
+    source, target = _build_adapters(reconcile_config, spark)
+    src = reconcile_config.source
+    tgt = reconcile_config.target
+    table_recon = TableMatcher().discover(
         source=source,
-        source_catalog=source_catalog,
-        source_schema=source_schema,
+        source_catalog=src.catalog,
+        source_schema=src.schema,
         target=target,
-        target_catalog=target_catalog,
-        target_schema=target_schema,
+        target_catalog=tgt.catalog,
+        target_schema=tgt.schema,
     )
+    _save(installation, reconcile_config.table_recon_filename, table_recon)
+    return table_recon
 
+
+def auto_configure_tables(
+    table_recon: TableRecon,
+    *,
+    installation: Installation,
+    reconcile_config: ReconcileConfig,
+    spark: SparkSession,
+) -> TableRecon:
+    """Apply all registered configurers to each Table in `table_recon` and save the result."""
+    source, target = _build_adapters(reconcile_config, spark)
+    src = reconcile_config.source
+    tgt = reconcile_config.target
     configured = [
-        auto_configure_table(
-            table=t,
-            auto_configurers=auto_configurers,
+        _auto_configure_one(
+            t,
             source=source,
-            source_catalog=source_catalog,
-            source_schema=source_schema,
+            source_catalog=src.catalog,
+            source_schema=src.schema,
             target=target,
-            target_catalog=target_catalog,
-            target_schema=target_schema,
+            target_catalog=tgt.catalog,
+            target_schema=tgt.schema,
         )
         for t in table_recon.tables
     ]
-    table_recon = TableRecon(tables=configured)
-
-    installation.upload(table_recon_filename, json.dumps(asdict(table_recon), indent=2).encode())
-    logger.info(f"Saved table mappings to {table_recon_filename} ({len(table_recon.tables)} table(s))")
-    return table_recon
+    result = TableRecon(tables=configured)
+    _save(installation, reconcile_config.table_recon_filename, result)
+    return result
 
 
 def auto_configure_table(
     *,
     table: Table,
-    auto_configurers: Sequence[TableAutoConfigurer],
+    reconcile_config: ReconcileConfig,
+    spark: SparkSession,
+) -> Table:
+    """Apply all registered configurers to a single Table. No file upload."""
+    source, target = _build_adapters(reconcile_config, spark)
+    src = reconcile_config.source
+    tgt = reconcile_config.target
+    return _auto_configure_one(
+        table,
+        source=source,
+        source_catalog=src.catalog,
+        source_schema=src.schema,
+        target=target,
+        target_catalog=tgt.catalog,
+        target_schema=tgt.schema,
+    )
+
+
+def _auto_configure_one(
+    table: Table,
+    *,
     source: DataSource,
     source_catalog: str,
     source_schema: str,
@@ -108,9 +135,6 @@ def auto_configure_table(
     target_catalog: str,
     target_schema: str,
 ) -> Table:
-    """Apply each configurer to a single Table and return the result. No file upload."""
-    if not auto_configurers:
-        return table
     ctx = AutoConfigureContext(
         source=source,
         source_catalog=source_catalog,
@@ -121,13 +145,17 @@ def auto_configure_table(
         target_schema=target_schema,
         target_columns=target.get_schema(target_catalog, target_schema, table.target_name),
     )
-    for configurer in auto_configurers:
+    for configurer in SUPPORTED_AUTO_CONFIGURERS:
         table = configurer.configure(table, ctx)
     return table
 
 
-def build_adapters(reconcile_config: ReconcileConfig, spark: SparkSession) -> tuple[DataSource, DataSource]:
-    """Build (source, target) DataSource adapters from reconcile_config. Used by the workspace-job entry point."""
+def _save(installation: Installation, filename: str, table_recon: TableRecon) -> None:
+    installation.upload(filename, json.dumps(asdict(table_recon), indent=2).encode())
+    logger.info(f"Saved table mappings to {filename} ({len(table_recon.tables)} table(s))")
+
+
+def _build_adapters(reconcile_config: ReconcileConfig, spark: SparkSession) -> tuple[DataSource, DataSource]:
     src = reconcile_config.source
     source_ds = create_adapter(
         engine=get_dialect(src.dialect),
