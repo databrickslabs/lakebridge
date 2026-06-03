@@ -252,6 +252,27 @@ class TargetConnectionConfig:
 
 
 @dataclass
+class HashExpressionOverrides:
+    """Overrides for the row-hash function.
+
+    Each value is raw SQL containing a single ``{}`` placeholder that the framework substitutes
+    with the concatenated hash input. Whatever hash you pick on the source side must produce the
+    same digest as the target side for the same input.
+    """
+
+    source: str
+    target: str = "sha2({}, 256)"
+
+    def __post_init__(self):
+        for layer, expr in (("source", self.source), ("target", self.target)):
+            if "{}" not in expr:
+                raise ValueError(
+                    f"hash_expression_overrides.{layer} must contain a '{{}}' placeholder for "
+                    f"the hash input; got {expr!r}"
+                )
+
+
+@dataclass
 class TranspileResult:
     transpiled_code: str
     success_count: int
@@ -287,6 +308,12 @@ class ReconcileConfig:
     target: TargetConnectionConfig
     metadata_config: ReconcileMetadataConfig
     job_overrides: ReconcileJobConfig | None = None
+    hash_expression_overrides: HashExpressionOverrides | None = None
+
+    def __post_init__(self):
+        # Teradata has no out of the box cryptographic hash in pure SQL, so the user has to configure
+        if self.source.dialect.lower() == "teradata" and not self.hash_expression_overrides:
+            raise ValueError("Teradata source requires hash_expression_overrides to be configured ")
 
     @classmethod
     def v1_migrate(cls, raw: dict[str, Any]) -> dict[str, Any]:

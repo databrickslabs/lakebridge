@@ -1,0 +1,70 @@
+name: redshift_assessment_provisioned_multi_az
+version: "1.0"
+extract_folder: "/tmp/data/redshift_assessment/provisioned_multi_az"
+steps:
+  - name: drop_query_view
+    type: source_ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/redshift/provisioned_multi_az/0_drop_query_view.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: query_view
+    type: source_ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/redshift/provisioned_multi_az/0_query_view.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: rs_spectrum_tb_month
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/redshift/provisioned_multi_az/1_rs_spectrum_tb_month.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: rs_managed_storage_gb
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/redshift/provisioned_multi_az/2_rs_managed_storage_gb.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: rs_nodes
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/redshift/provisioned_multi_az/3_rs_nodes.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: rs_avg_concurrent_users
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/redshift/provisioned_multi_az/4_rs_avg_concurrent_users.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: rs_avg_queries_minute
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/redshift/provisioned_multi_az/5_rs_avg_queries_minute.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: chart_query_type_by_hour
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/redshift/provisioned_multi_az/6_chart_query_type_by_hour.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: chart_cpu_consumption_by_query_type
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/redshift/provisioned_multi_az/7_chart_cpu_consumption_by_query_type.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: chart_concurrent_users_by_hour
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/redshift/provisioned_multi_az/8_chart_concurrent_users_by_hour.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: chart_cpu_consumption_by_hour_and_query_type
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/redshift/provisioned_multi_az/9_chart_cpu_consumption_by_hour_and_query_type.sql
+    mode: overwrite
+    frequency: once
+    flag: active
