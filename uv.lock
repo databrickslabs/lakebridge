@@ -830,7 +830,7 @@ requires-dist = [
     { name = "databricks-bb-analyzer", specifier = "~=0.3.0,!=0.3.1" },
     { name = "databricks-labs-blueprint", extras = ["yaml"], specifier = ">=0.12.0,<0.13.0" },
     { name = "databricks-labs-lsql", specifier = "==0.16.0" },
-    { name = "databricks-sdk", specifier = "~=0.85.0" },
+    { name = "databricks-sdk", specifier = ">=0.85,<0.115" },
     { name = "databricks-switch-plugin", specifier = "~=0.1.7" },
     { name = "duckdb", specifier = ">=1.2.2,<1.5.0" },
     { name = "oracledb", specifier = "~=3.4.2" },
@@ -962,16 +962,16 @@ wheels = [
 
 [[package]]
 name = "databricks-sdk"
-version = "0.85.0"
+version = "0.114.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "google-auth" },
     { name = "protobuf" },
     { name = "requests" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/7d/40/3941b6919c3854bd107e04be1686b3e0f1ce3ca4fbeea0c7fd81909bd90c/databricks_sdk-0.85.0.tar.gz", hash = "sha256:0b5f415fba69ea0c5bfc4d0b21cb3366c6b66f678e78e4b3c94cbcf2e9e0972f", size = 846275, upload-time = "2026-02-05T08:22:40.488Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/9f/1f/b11394c4439f4e1c14af91d133126396bbe3e70e9204784f58be064b749c/databricks_sdk-0.114.0.tar.gz", hash = "sha256:d62e6fcb1dc98b0b390d369261d1d68a6cf9f91139c34cf659865faf50b1d044", size = 961592, upload-time = "2026-06-02T09:33:31.302Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/e9/e8/1a3292820762a9b48c4774d2f9297b2e2c43319dc4b5d31a585fb76e3a05/databricks_sdk-0.85.0-py3-none-any.whl", hash = "sha256:2a2da176a55d55fb84696e0255520e99e838dd942b97b971dff724041fe00c64", size = 796888, upload-time = "2026-02-05T08:22:39.018Z" },
+    { url = "https://files.pythonhosted.org/packages/1d/f5/54a7fa8f9bb292fe1c4095731bb2cf9bbc38ebfe25abbc88657dea34d4ce/databricks_sdk-0.114.0-py3-none-any.whl", hash = "sha256:25a40b83d76fa6c8a621f884da41e45e3ae5267218dafa71db9b363dd9238f57", size = 907537, upload-time = "2026-06-02T09:33:29.541Z" },
 ]
 
 [[package]]
