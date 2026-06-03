@@ -26,7 +26,10 @@ Lakebridge Reconcile validates data fidelity after migration by comparing your s
 | Snowflake | Yes | Yes | Yes | Yes |
 | SQL Server | Yes | Yes | Yes | Yes |
 | Redshift | Yes | Yes | Yes | Yes |
+| Teradata | Yes | Yes [^teradata-hash] | Yes [^teradata-hash] | Yes [^teradata-hash] |
 | Databricks | Yes | Yes | Yes | Yes |
+
+[^teradata-hash]: Teradata has no portable cryptographic hash in pure SQL, so row-hash report types (`row`, `data`, `all`) require a user-installed hash UDF on the source and an explicit `hash_expression_overrides.source` entry on the recon config. See [Hash Expression](/docs/reconcile/configuration#hash-expression) for wiring.
 
 ---
 

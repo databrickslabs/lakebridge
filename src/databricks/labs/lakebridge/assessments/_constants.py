@@ -5,17 +5,23 @@ PRODUCT_PATH_PREFIX = Path.home() / ".databricks" / "labs" / PRODUCT_NAME / "lib
 
 PLATFORM_TO_SOURCE_TECHNOLOGY_CFG = {
     "synapse": "src/databricks/labs/lakebridge/resources/assessments/synapse/pipeline_config.yml",
+    "snowflake": "src/databricks/labs/lakebridge/resources/assessments/snowflake/pipeline_config.yml",
     "oracle": "src/databricks/labs/lakebridge/resources/assessments/oracle/pipeline_config.yml",
     "mssql": "src/databricks/labs/lakebridge/resources/assessments/mssql/pipeline_config.yml",
     "legacy_synapse": "src/databricks/labs/lakebridge/resources/assessments/legacy_synapse/pipeline_config.yml",
 }
 
-# TODO modify this PLATFORM_TO_SOURCE_TECHNOLOGY.keys() once all platforms are supported
-PROFILER_SOURCE_SYSTEM = ["synapse", "mssql", "legacy_synapse", "oracle"]
+PROFILER_SOURCE_SYSTEM = sorted(PLATFORM_TO_SOURCE_TECHNOLOGY_CFG.keys())
 
 
 # This flag indicates whether a connector is required for the source system when pipeline is trigger
 # For example in the case of synapse no connector is required and the python scripts
 # manage the connection by directly reading the credentials files
 # Revisit this when more source systems are added to standardize the approach
-CONNECTOR_REQUIRED = {"synapse": False, "mssql": True, "legacy_synapse": True, "oracle": True}
+CONNECTOR_REQUIRED = {
+    "synapse": False,
+    "mssql": True,
+    "snowflake": True,
+    "legacy_synapse": True,
+    "oracle": True,
+}

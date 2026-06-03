@@ -1,5 +1,6 @@
 import contextlib
 import dataclasses
+import importlib
 import logging
 from abc import abstractmethod
 from types import TracebackType
@@ -16,6 +17,15 @@ from sqlalchemy.orm.session import Session
 import redshift_connector  # type: ignore[import-untyped]
 
 from databricks.labs.blueprint.installation import JsonObject
+from databricks.labs.lakebridge.connections.snowflake_utils import (
+    parse_snowflake_account,
+    is_valid_snowflake_account,
+)
+
+# Side-effect import: registers the 'snowflake://' SQLAlchemy dialect so
+# `create_engine("snowflake://...")` resolves in SnowflakeConnector below.
+# Done via importlib so pylint doesn't flag it as an unused name.
+importlib.import_module("snowflake.sqlalchemy")
 
 logger = logging.getLogger(__name__)
 
@@ -81,7 +91,36 @@ class _BaseConnector(DatabaseConnector):
 
 class SnowflakeConnector(_BaseConnector):
     def _connect(self) -> Engine:
-        raise NotImplementedError("Snowflake connector not implemented")
+        # The configurator always nests Snowflake credentials under a "connection" block.
+        # The SDK types JSON values loosely, so narrow to a dict for the accesses below.
+        connection_config = self.config["connection"]
+        if not isinstance(connection_config, dict):
+            raise ConnectionError("Snowflake credentials must be nested under a 'connection' block")
+
+        account = parse_snowflake_account(str(connection_config["account"]))
+        if not is_valid_snowflake_account(account):
+            raise ConnectionError(
+                f"Invalid Snowflake account identifier {account!r}. Expected something like "
+                "'myorg-myaccount' or a legacy locator; check for spaces or stray characters."
+            )
+        user = str(connection_config["user"])
+        warehouse = str(connection_config.get("warehouse", "COMPUTE_WH"))
+        database = str(connection_config.get("database", "SNOWFLAKE"))
+        schema = str(connection_config.get("schema", "ACCOUNT_USAGE"))
+        role = str(connection_config.get("role", "ACCOUNTADMIN"))
+        password = str(connection_config["pat"])
+
+        # PAT is base64url-encoded and can contain '/', '=', '@'. URL.create
+        # percent-escapes them so SQLAlchemy doesn't misread the token as URL structure.
+        snowflake_url = URL.create(
+            drivername="snowflake",
+            username=user,
+            password=password,
+            host=account,
+            database=f"{database}/{schema}",
+            query={"warehouse": warehouse, "role": role},
+        )
+        return create_engine(snowflake_url)
 
 
 class MSSQLConnector(_BaseConnector):
