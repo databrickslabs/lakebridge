@@ -168,3 +168,35 @@ def test_oracle_list_tables_happy(spark: SparkSession) -> None:
 
     tables = connector.list_tables("ORCL", "SYSTEM")
     assert tables
+
+
+def test_redshift_list_schemas_happy(spark: SparkSession) -> None:
+    reader = RemoteQueryReader(spark, "sandbox_labs_tool_redshift")
+    connector = RedshiftDataSource(get_dialect("redshift"), reader)
+
+    schemas = connector.list_schemas("labs")
+    assert "lakebridge" in schemas
+
+
+def test_redshift_list_tables_happy(spark: SparkSession) -> None:
+    reader = RemoteQueryReader(spark, "sandbox_labs_tool_redshift")
+    connector = RedshiftDataSource(get_dialect("redshift"), reader)
+
+    tables = connector.list_tables("labs", "lakebridge")
+    assert "diamonds" in tables
+
+
+def test_teradata_list_schemas_happy(spark: SparkSession) -> None:
+    reader = RemoteQueryReader(spark, "teradata_sandbox")
+    connector = TeradataDataSource(get_dialect("teradata"), reader)
+
+    schemas = connector.list_schemas("DBC")
+    assert "lf_test_user" in schemas
+
+
+def test_teradata_list_tables_happy(spark: SparkSession) -> None:
+    reader = RemoteQueryReader(spark, "teradata_sandbox")
+    connector = TeradataDataSource(get_dialect("teradata"), reader)
+
+    tables = connector.list_tables("DBC", "lf_test_user")
+    assert "diamonds" in tables
