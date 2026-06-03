@@ -1,0 +1,48 @@
+---
+sidebar_position: 2
+title: Snowflake Profiler Details
+---
+import Admonition from '@theme/Admonition';
+
+# Snowflake Profiler Details
+
+## Prerequisites
+
+- A Snowflake user with permission to create Personal Access Tokens (PATs) and to query the `SNOWFLAKE.ACCOUNT_USAGE` schema (e.g., the `ACCOUNTADMIN` role or a role granted `IMPORTED PRIVILEGES ON DATABASE SNOWFLAKE`).
+- Network access from the machine running Lakebridge to your Snowflake account.
+
+## Authentication
+
+The Snowflake profiler authenticates with a **Programmatic Access Token (PAT)**. Follow Snowflake's official guide to generate one:
+
+[Snowflake docs: Programmatic access tokens](https://docs.snowflake.com/en/user-guide/programmatic-access-tokens#generating-a-programmatic-access-token)
+
+You'll need:
+
+- `account` — your Snowflake account identifier (e.g., `myorg-myaccount.snowflakecomputing.com`)
+- `user` — Snowflake username
+- `role`, `warehouse`, `database`, `schema` — typically `ACCOUNTADMIN`, `COMPUTE_WH`, `SNOWFLAKE`, `ACCOUNT_USAGE`
+- The PAT itself (paste when prompted; it's stored under `pat` in the credentials file)
+
+If your account or user has a network policy, also see Snowflake's docs on [bypassing the network policy on a PAT](https://docs.snowflake.com/en/user-guide/programmatic-access-tokens) for short-term testing from a dynamic IP.
+
+## Configure and run the profiler
+
+```bash
+databricks labs lakebridge configure-database-profiler
+```
+
+Pick **snowflake** when prompted, then paste the connection details and PAT.
+
+```bash
+databricks labs lakebridge execute-database-profiler
+```
+
+The extract is written to a DuckDB file at `~/.databricks/labs/lakebridge_profilers/snowflake_assessment/profiler_extract.db`. It contains raw `SNOWFLAKE.ACCOUNT_USAGE` data — warehouse usage, query history, storage, users, and (when applicable) pipe / autoclustering / materialized-view refresh credits. By default each extract looks back 90 days. Inspect it with:
+
+```bash
+cd ~/.databricks/labs/lakebridge_profilers/snowflake_assessment
+duckdb profiler_extract.db "SHOW TABLES;"
+duckdb profiler_extract.db "SELECT * FROM warehouse_usage LIMIT 10;"
+duckdb profiler_extract.db "SELECT * FROM query_history LIMIT 10;"
+```

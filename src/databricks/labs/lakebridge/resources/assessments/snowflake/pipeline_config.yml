@@ -1,0 +1,68 @@
+name: snowflake_assessment
+version: "1.0"
+extract_folder: "~/.databricks/labs/lakebridge_profilers/snowflake_assessment"
+steps:
+  - name: account_info
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/snowflake/account_info.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+
+  - name: database_objects
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/snowflake/database_objects.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+
+  - name: warehouse_usage
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/snowflake/warehouse_usage.sql
+    mode: overwrite
+    frequency: daily
+    flag: active
+
+  - name: query_history
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/snowflake/query_history.sql
+    mode: overwrite
+    frequency: daily
+    flag: active
+
+  - name: storage_usage
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/snowflake/storage_usage.sql
+    mode: overwrite
+    frequency: daily
+    flag: active
+
+  - name: user_activity
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/snowflake/user_activity.sql
+    mode: overwrite
+    frequency: daily
+    flag: active
+
+  # Background-service usage tables. Optional because accounts that don't use
+  # these features won't have rows; missing categories cleanly degrade to zero.
+  - name: pipe_usage
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/snowflake/pipe_usage.sql
+    mode: overwrite
+    frequency: daily
+    flag: active
+
+  - name: automatic_clustering
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/snowflake/automatic_clustering.sql
+    mode: overwrite
+    frequency: daily
+    flag: active
+
+  - name: materialized_view_refresh
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/snowflake/materialized_view_refresh.sql
+    mode: overwrite
+    frequency: daily
+    flag: active

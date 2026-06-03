@@ -117,6 +117,18 @@ def test_recon_oracle_job_succeeds(
         _run_recon_e2e_spec(app_ctx)
 
 
+@pytest.mark.timeout(func_only=True)
+def test_recon_teradata_job_succeeds(
+    application_ctx: ApplicationContext,
+    teradata_recon_config: ReconcileConfig,
+    teradata_recon_table_config: TableRecon,
+) -> None:
+    with generate_recon_application_context(
+        application_ctx, teradata_recon_config, teradata_recon_table_config
+    ) as app_ctx:
+        _run_recon_e2e_spec(app_ctx)
+
+
 def test_auto_configure_tables_writes_table_recon_config(
     application_ctx: ApplicationContext,
     databricks_recon_config: ReconcileConfig,
