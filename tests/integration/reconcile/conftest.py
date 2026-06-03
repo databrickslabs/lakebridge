@@ -18,6 +18,7 @@ from databricks.sdk.service.catalog import TableInfo, SchemaInfo
 from databricks.sdk.service.compute import DataSecurityMode, Kind
 
 from databricks.labs.lakebridge.config import (
+    HashExpressionOverrides,
     LakebridgeConfiguration,
     ReconcileConfig,
     ReconcileJobConfig,
@@ -28,14 +29,14 @@ from databricks.labs.lakebridge.config import (
 )
 from databricks.labs.lakebridge.contexts.application import ApplicationContext
 from databricks.labs.lakebridge.reconcile.recon_capture import AbstractReconIntermediatePersist
-from databricks.labs.lakebridge.reconcile.recon_config import Table
+from databricks.labs.lakebridge.reconcile.recon_config import Table, Transformation
 
 logger = logging.getLogger(__name__)
 
 DIAMONDS_COLUMNS = [
     ("carat", "DOUBLE"),
     ("cut", "STRING"),
-    ("color", "STRING"),
+    ("color", "CHAR(10)"),
     ("clarity", "STRING"),
     ("mined_at", "DATE"),
 ]
@@ -65,6 +66,10 @@ ORACLE_CONNECTION = "oracle_sandbox"
 ORACLE_SRV = "orcl"
 ORACLE_SCHEMA = "ADMIN"
 ORACLE_TABLE = "DIAMONDS"
+TERADATA_CONNECTION = "teradata_sandbox"
+TERADATA_CATALOG = "DBC"
+TERADATA_SCHEMA = "lf_test_user"
+TERADATA_TABLE = "diamonds"
 
 
 @pytest.fixture
@@ -375,6 +380,79 @@ def oracle_recon_config(recon_cluster: str, recon_schema: SchemaInfo, make_volum
             catalog=recon_schema.catalog_name, schema=recon_schema.name, volume=volume.name
         ),
         job_overrides=deployment_overrides,
+    )
+
+
+@pytest.fixture
+def teradata_recon_table_config(recon_schema: SchemaInfo, recon_tables: tuple[TableInfo, TableInfo]) -> TableRecon:
+    _, tgt_table = recon_tables
+    assert tgt_table.name
+
+    return TableRecon(
+        [
+            Table(
+                source_name=TERADATA_TABLE,
+                target_name=tgt_table.name,
+                join_columns=["color", "clarity"],
+                transformations=[
+                    # Teradata FLOAT and Databricks DOUBLE serialise to different strings by
+                    # default. CAST to a fixed-precision DECIMAL then VARCHAR/STRING on each side.
+                    Transformation(
+                        column_name="carat",
+                        # Teradata CAST(DECIMAL to VARCHAR) drops the leading zero (".23" not
+                        # "0.23"); use TO_CHAR with a format mask that forces at least one digit
+                        # before the decimal point so the string matches Databricks'
+                        # STRING(DECIMAL) form.
+                        source=(
+                            "COALESCE(TRIM(TO_CHAR(CAST(carat AS DECIMAL(38,10)),"
+                            " '9999999990.9999999999')), '_null_recon_')"
+                        ),
+                        target="COALESCE(CAST(CAST(carat AS DECIMAL(38,10)) AS STRING), '_null_recon_')",
+                    ),
+                    # Pin the date format explicitly on both sides ('YYYY-MM-DD' ISO form).
+                    Transformation(
+                        column_name="mined_at",
+                        source="COALESCE(CAST(CAST(mined_at AS DATE FORMAT 'YYYY-MM-DD') AS VARCHAR(10)), '_null_recon_')",
+                        target="COALESCE(date_format(mined_at, 'yyyy-MM-dd'), '_null_recon_')",
+                    ),
+                ],
+            )
+        ]
+    )
+
+
+@pytest.fixture
+def teradata_recon_config(recon_cluster: str, recon_schema: SchemaInfo, make_volume) -> ReconcileConfig:
+    volume = make_volume(catalog_name=recon_schema.catalog_name, schema_name=recon_schema.name, name=recon_schema.name)
+
+    deployment_overrides = ReconcileJobConfig(
+        existing_cluster_id=recon_cluster,
+        tags={"lakebridge": "reconcile_test"},
+    )
+    logger.info(f"Using recon job overrides: {deployment_overrides}")
+
+    assert recon_schema.catalog_name
+    assert recon_schema.name
+    # Test-infra Teradata has no hash UDF installed; compare raw concatenated row-key as a string.
+    # Drop these overrides once a real SHA-256 UDF is installed on the testing-infra Teradata.
+    # testing-infra Teradata.
+    return ReconcileConfig(
+        report_type="all",
+        source=SourceConnectionConfig(
+            dialect="teradata",
+            catalog=TERADATA_CATALOG,
+            schema=TERADATA_SCHEMA,
+            uc_connection_name=TERADATA_CONNECTION,
+        ),
+        target=TargetConnectionConfig(
+            catalog=recon_schema.catalog_name,
+            schema=recon_schema.name,
+        ),
+        metadata_config=ReconcileMetadataConfig(
+            catalog=recon_schema.catalog_name, schema=recon_schema.name, volume=volume.name
+        ),
+        job_overrides=deployment_overrides,
+        hash_expression_overrides=HashExpressionOverrides(source="{}", target="{}"),
     )
 
 

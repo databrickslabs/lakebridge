@@ -136,11 +136,11 @@ def query_store(spark):
         target_row_query=target_row_query,
     )
     record_count_queries = RecordCountQueries(
-        source_record_count_query="SELECT COUNT(1) AS count FROM :tbl WHERE s_name = 't' AND s_address = 'a'",
-        target_record_count_query="SELECT COUNT(1) AS count FROM :tbl WHERE s_name = 't' AND s_address_t = 'a'",
+        source_record_count_query="SELECT COUNT(1) AS record_count FROM :tbl WHERE s_name = 't' AND s_address = 'a'",
+        target_record_count_query="SELECT COUNT(1) AS record_count FROM :tbl WHERE s_name = 't' AND s_address_t = 'a'",
     )
     sampling_queries = SamplingQueries(
-        target_sampling_query="SELECT `s_address_t` AS `s_address`, `s_name` AS `s_name`, `s_nationkey_t` AS `s_nationkey`, `s_phone_t` AS `s_phone`, `s_suppkey_t` AS `s_suppkey` FROM :tbl WHERE `s_name` = 't' AND s_address_t = 'a'"
+        target_sampling_query="SELECT TRIM(s_address_t) AS `s_address`, TRIM(s_name) AS `s_name`, COALESCE(TRIM(`s_nationkey_t`), '_null_recon_') AS `s_nationkey`, TRIM(s_phone_t) AS `s_phone`, COALESCE(TRIM(`s_suppkey_t`), '_null_recon_') AS `s_suppkey` FROM :tbl WHERE s_name = 't' AND s_address_t = 'a'"
     )
 
     return QueryStore(
