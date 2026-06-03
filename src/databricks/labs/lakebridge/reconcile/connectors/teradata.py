@@ -18,11 +18,11 @@ logger = logging.getLogger(__name__)
 
 class TeradataDataSource(DataSource):
     _IDENTIFIER_DELIMITER = "\""
-    _LIST_SCHEMAS_QUERY = "SELECT TRIM(DatabaseName) AS schema_name FROM DBC.DatabasesV ORDER BY DatabaseName"
+    _LIST_SCHEMAS_QUERY = "SELECT TRIM(DatabaseName) AS schema_name FROM DBC.DatabasesV"
     _LIST_TABLES_QUERY = (
         "SELECT TRIM(TableName) AS table_name FROM DBC.TablesV "
         "WHERE LOWER(DatabaseName) = LOWER('{schema}') "
-        "AND TableKind IN ('T', 'V') ORDER BY TableName"
+        "AND TableKind IN ('T', 'V')"
     )
     _SCHEMA_QUERY = """SELECT
                         TRIM(ColumnName) AS column_name,
@@ -108,7 +108,7 @@ class TeradataDataSource(DataSource):
         query = TeradataDataSource._LIST_SCHEMAS_QUERY
         try:
             df = self._reader.read_data(query, catalog, "database", "query")
-            return [row.schema_name for row in df.select(col("SCHEMA_NAME").alias("schema_name")).collect()]
+            return sorted(row.schema_name for row in df.select(col("SCHEMA_NAME").alias("schema_name")).collect())
         except (RuntimeError, PySparkException) as e:
             return self.log_and_throw_exception(e, "schemas", query)
 
@@ -116,7 +116,7 @@ class TeradataDataSource(DataSource):
         query = TeradataDataSource._LIST_TABLES_QUERY.format(schema=schema)
         try:
             df = self._reader.read_data(query, catalog, "database", "query")
-            return [row.table_name for row in df.select(col("TABLE_NAME").alias("table_name")).collect()]
+            return sorted(row.table_name for row in df.select(col("TABLE_NAME").alias("table_name")).collect())
         except (RuntimeError, PySparkException) as e:
             return self.log_and_throw_exception(e, "tables", query)
 
