@@ -1,12 +1,26 @@
 import logging
 
 from databricks.labs.lakebridge.reconcile.config_generator.configure import (
+    AutoConfigureContext,
     ColumnMappingAutoConfigurer,
     TableMatcher,
 )
 from databricks.labs.lakebridge.reconcile.recon_config import ColumnMapping, Table
 
 from tests.conftest import schema_fixture_factory
+
+
+def _ctx(source, target, table: Table) -> AutoConfigureContext:
+    return AutoConfigureContext(
+        source=source,
+        source_catalog="src_cat",
+        source_schema="src_schema",
+        source_columns=source.get_schema("src_cat", "src_schema", table.source_name),
+        target=target,
+        target_catalog="tgt_cat",
+        target_schema="tgt_schema",
+        target_columns=target.get_schema("tgt_cat", "tgt_schema", table.target_name),
+    )
 
 
 def test_table_matcher_returns_table_pairs_without_column_mapping(make_data_source):
@@ -74,15 +88,7 @@ def test_column_mapping_auto_configurer_emits_only_when_names_differ(make_data_s
     )
 
     table = Table(source_name="employees", target_name="employees")
-    configured = ColumnMappingAutoConfigurer().configure(
-        table=table,
-        source=source,
-        source_catalog="src_cat",
-        source_schema="src_schema",
-        target=target,
-        target_catalog="tgt_cat",
-        target_schema="tgt_schema",
-    )
+    configured = ColumnMappingAutoConfigurer().configure(table, _ctx(source, target, table))
 
     assert configured == Table(
         source_name="employees",
@@ -108,14 +114,6 @@ def test_column_mapping_auto_configurer_logs_unmatched_columns(make_data_source,
 
     table = Table(source_name="employees", target_name="employees")
     with caplog.at_level(logging.WARNING, logger="databricks.labs.lakebridge.reconcile.config_generator.configure"):
-        ColumnMappingAutoConfigurer().configure(
-            table=table,
-            source=source,
-            source_catalog="src_cat",
-            source_schema="src_schema",
-            target=target,
-            target_catalog="tgt_cat",
-            target_schema="tgt_schema",
-        )
+        ColumnMappingAutoConfigurer().configure(table, _ctx(source, target, table))
 
     assert caplog.messages == ["Could not auto-match 1 column(s) for employees -> employees: legacy_only"]

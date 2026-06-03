@@ -21,7 +21,7 @@ import re
 
 from databricks.labs.lakebridge.config import TableRecon
 from databricks.labs.lakebridge.reconcile.connectors.data_source import DataSource
-from databricks.labs.lakebridge.reconcile.recon_config import ColumnMapping, Table
+from databricks.labs.lakebridge.reconcile.recon_config import ColumnMapping, Schema, Table
 
 logger = logging.getLogger(__name__)
 
@@ -136,18 +136,20 @@ class TableMatcher:
         return TableRecon(tables=tables)
 
 
+@dataclasses.dataclass(frozen=True)
+class AutoConfigureContext:
+    source: DataSource
+    source_catalog: str
+    source_schema: str
+    source_columns: list[Schema]
+    target: DataSource
+    target_catalog: str
+    target_schema: str
+    target_columns: list[Schema]
+
+
 class TableAutoConfigurer(Protocol):
-    def configure(
-        self,
-        *,
-        table: Table,
-        source: DataSource,
-        source_catalog: str,
-        source_schema: str,
-        target: DataSource,
-        target_catalog: str,
-        target_schema: str,
-    ) -> Table: ...
+    def configure(self, table: Table, ctx: AutoConfigureContext) -> Table: ...
 
 
 class ColumnMappingAutoConfigurer(TableAutoConfigurer):
@@ -161,22 +163,9 @@ class ColumnMappingAutoConfigurer(TableAutoConfigurer):
     def __init__(self, strategy: IdentifierMatchingStrategy = NormalizedMatcher()) -> None:
         self._strategy = strategy
 
-    def configure(
-        self,
-        *,
-        table: Table,
-        source: DataSource,
-        source_catalog: str,
-        source_schema: str,
-        target: DataSource,
-        target_catalog: str,
-        target_schema: str,
-    ) -> Table:
-        source_columns = source.get_schema(source_catalog, source_schema, table.source_name)
-        target_columns = target.get_schema(target_catalog, target_schema, table.target_name)
-
-        source_names = [c.column_name for c in source_columns]
-        target_names = [c.column_name for c in target_columns]
+    def configure(self, table: Table, ctx: AutoConfigureContext) -> Table:
+        source_names = [c.column_name for c in ctx.source_columns]
+        target_names = [c.column_name for c in ctx.target_columns]
 
         name_mapping = self._strategy.match_all(source_names, target_names)
 

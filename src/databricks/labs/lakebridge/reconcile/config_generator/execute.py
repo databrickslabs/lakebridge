@@ -35,6 +35,7 @@ from databricks.labs.blueprint.installation import Installation
 
 from databricks.labs.lakebridge.config import ReconcileConfig, TableRecon
 from databricks.labs.lakebridge.reconcile.config_generator.configure import (
+    AutoConfigureContext,
     ColumnMappingAutoConfigurer,
     TableAutoConfigurer,
     TableMatcher,
@@ -108,16 +109,20 @@ def auto_configure_table(
     target_schema: str,
 ) -> Table:
     """Apply each configurer to a single Table and return the result. No file upload."""
+    if not auto_configurers:
+        return table
+    ctx = AutoConfigureContext(
+        source=source,
+        source_catalog=source_catalog,
+        source_schema=source_schema,
+        source_columns=source.get_schema(source_catalog, source_schema, table.source_name),
+        target=target,
+        target_catalog=target_catalog,
+        target_schema=target_schema,
+        target_columns=target.get_schema(target_catalog, target_schema, table.target_name),
+    )
     for configurer in auto_configurers:
-        table = configurer.configure(
-            table=table,
-            source=source,
-            source_catalog=source_catalog,
-            source_schema=source_schema,
-            target=target,
-            target_catalog=target_catalog,
-            target_schema=target_schema,
-        )
+        table = configurer.configure(table, ctx)
     return table
 
 
