@@ -8,17 +8,17 @@ import Admonition from '@theme/Admonition';
 
 - [Prerequisites](#prerequisites)
 - [Configure Connection to Teradata](#configure-connection-to-teradata)
+- [Run the Profiler](#run-the-profiler)
 - [PDCR Optional Mode](#pdcr-optional-mode)
 - [International Character Support](#international-character-support)
-- [Security/Governance options](#securitygovernance-options)
 
 ## Prerequisites
 
 ### 1. Teradata connectivity and driver
 
 - Network access to the Teradata system.
-- Python package dependency used by Lakebridge: `teradatasqlalchemy`.
-- Access to Teradata database with appropriate permissions.
+- Python package dependency used by Lakebridge: `teradatasqlalchemy` (installed automatically with Lakebridge).
+- Access to the Teradata database with appropriate permissions.
 
 ### 2. Required permissions on system views
 
@@ -40,7 +40,7 @@ For richer, aggregated history (up to 180 days in the default extraction), grant
 - `PDCRINFO.UserInfo`
 
 <Admonition type="info" title="PDCR is optional">
-If PDCR is not enabled in the customer environment, Lakebridge can run in fallback mode using core DBQL tables only.
+If PDCR is not enabled in the customer environment, Lakebridge can run in fallback mode using core DBQL tables only. See [PDCR Optional Mode](#pdcr-optional-mode).
 </Admonition>
 
 ## Configure Connection to Teradata
@@ -49,9 +49,13 @@ If PDCR is not enabled in the customer environment, Lakebridge can run in fallba
 databricks labs lakebridge configure-database-profiler
 
 Select the source technology
-[0] synapse
-[1] teradata
-Enter a number between 0 and 1: 1
+[0] legacy_synapse
+[1] mssql
+[2] oracle
+[3] snowflake
+[4] synapse
+[5] teradata
+Enter a number between 0 and 5: 5
 
 (local | env)
 local means values are read as plain text
@@ -67,7 +71,7 @@ Enter the password details:
 Enter the default database name (default: DBC):
 ```
 
-The generated credential block includes:
+The generated credential block (written to `~/.databricks/labs/lakebridge/.credentials.yml`) includes:
 
 - `teradata.host`
 - `teradata.user`
@@ -75,11 +79,37 @@ The generated credential block includes:
 - `teradata.database`
 - Optional override: `teradata.profiler.use_pdcr`
 
+<Admonition type="tip" title="Storing the password securely">
+Choose `env` as the secret vault type to avoid storing the password in plain text. In `env` mode the stored value is the name of an environment variable that Lakebridge resolves at runtime (falling back to plain text if the variable is not set).
+</Admonition>
+
+## Run the Profiler
+
+Optionally verify connectivity first:
+
+```console
+databricks labs lakebridge test-profiler-connection --source-tech teradata
+```
+
+Then run the extraction:
+
+```console
+databricks labs lakebridge execute-database-profiler --source-tech teradata
+```
+
+This executes the extraction steps defined in the Teradata pipeline configuration and produces a local DuckDB extract at:
+
+```
+~/.databricks/labs/lakebridge_profilers/teradata_assessment/profiler_extract.db
+```
+
+The extract contains the system, storage, object, user-database, UDF, and workload (PDCR or DBQL-core) tables gathered from the source.
+
 ## PDCR Optional Mode
 
 Default behavior (when `teradata.profiler.use_pdcr` is omitted or `true`):
 
-- Lakebridge first checks PDCR accessibility.
+- Lakebridge first checks PDCR accessibility with a lightweight preflight probe.
 - If accessible, Lakebridge extracts PDCR aggregated datasets:
   - `td_pdcr_info_agg_extract`
   - `td_pdcr_sp_exe_info_agg_extract`
@@ -88,7 +118,7 @@ Default behavior (when `teradata.profiler.use_pdcr` is omitted or `true`):
 
 When `teradata.profiler.use_pdcr = false`:
 
-- Lakebridge disables PDCR extraction steps.
+- Lakebridge disables the PDCR extraction steps.
 - Lakebridge enables DBQL fallback extraction:
   - `td_dbql_core_info_extract`
 
@@ -102,35 +132,7 @@ This can reduce long-horizon trend analysis and may underrepresent short-query a
 Lakebridge supports multilingual query text and metadata (for example Japanese, Korean, and Thai text) in Teradata profiler extracts.
 
 - Teradata extraction runs over UTF-8-capable driver paths.
-- During extraction and dashboard ingestion, Lakebridge normalizes text values to UTF-8-safe strings.
+- During extraction, Lakebridge normalizes text values to UTF-8-safe strings.
 - Invalid byte sequences are safely replaced instead of failing the profiler run.
-
-## Security/Governance options
-
-`td_dbql_core_info_extract.SQLTextInfo` can contain raw SQL text and may include sensitive identifiers.
-
-Lakebridge provides two governance layers:
-
-1. **Column metadata (always-on):**
-   - During ingestion, Lakebridge applies a column comment and `sensitivity=confidential` UC tag to `SQLTextInfo` (best effort).
-2. **Column masking (opt-in):**
-   - Lakebridge can automatically apply a Unity Catalog column mask after ingestion.
-   - This is best-effort (warnings are logged if governance privileges are missing, ingestion continues).
-
-### Enable automatic SQL text masking
-
-Set these environment variables on the Databricks job or cluster running dashboard ingestion:
-
-- `LAKEBRIDGE_ENABLE_SQLTEXT_MASK=true`
-- Optional: `LAKEBRIDGE_SQLTEXT_MASK_BYPASS_GROUP=<account-group-name>`
-  - Default: `data-governance-admins`
-  - Members of this group see unmasked SQL text; others see masked values.
-
-### Optional: Databricks Data Classification
-
-In addition to explicit Lakebridge tagging, you can enable Databricks Data Classification in Unity Catalog for catalog-wide automated discovery and tagging. This complements explicit tags and masking policies.
-
-- Data Classification docs: https://docs.databricks.com/aws/en/data-governance/unity-catalog/data-classification
-- Row filters and column masks docs: https://docs.databricks.com/aws/en/data-governance/unity-catalog/filters-and-masks
 
 [Back to Configure Profiler](../#configure-profiler)
