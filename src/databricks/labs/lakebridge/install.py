@@ -20,6 +20,7 @@ from databricks.labs.lakebridge import initialize_logging
 from databricks.labs.lakebridge.__about__ import __version__
 from databricks.labs.lakebridge.cli import lakebridge
 from databricks.labs.lakebridge.config import (
+    HashExpressionOverrides,
     ReconcileConfig,
     LakebridgeConfiguration,
     ReconcileMetadataConfig,
@@ -349,12 +350,16 @@ class WorkspaceInstaller:
         source_config = self._prompt_for_source_connection_config(data_source)
         target_config = self._prompt_for_target_connection_config()
         metadata_config = self._prompt_for_reconcile_metadata_config()
+        hash_expression_overrides = None
+        if data_source == ReconSourceType.TERADATA.value:
+            hash_expression_overrides = self._prompt_for_hash_expression_overrides()
 
         return ReconcileConfig(
             report_type=report_type,
             source=source_config,
             target=target_config,
             metadata_config=metadata_config,
+            hash_expression_overrides=hash_expression_overrides,
         )
 
     def _prompt_for_source_connection_config(self, dialect: str) -> SourceConnectionConfig:
@@ -381,6 +386,15 @@ class WorkspaceInstaller:
             schema=schema,
             uc_connection_name=uc_connection_name,
         )
+
+    def _prompt_for_hash_expression_overrides(self) -> HashExpressionOverrides:
+        source_prompt = (
+            "Enter the Teradata source hash expression (must contain a single '{}' placeholder, e.g. my_sha256({}))"
+        )
+        source_expr = self._prompts.question(source_prompt)
+        target_prompt = "Enter the Databricks target hash expression (must contain a single '{}' placeholder)"
+        target_expr = self._prompts.question(target_prompt, default="sha2({}, 256)")
+        return HashExpressionOverrides(source=source_expr, target=target_expr)
 
     def _prompt_for_target_connection_config(self) -> TargetConnectionConfig:
         target_catalog = self._prompts.question("Enter target Databricks catalog name")

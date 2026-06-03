@@ -1,0 +1,17 @@
+-- Automatic clustering credit usage
+-- Background reclustering service. Billed via AUTOMATIC_CLUSTERING_HISTORY,
+-- not query_history, so it would otherwise be invisible to the profiler.
+
+SELECT
+    DATABASE_NAME,
+    SCHEMA_NAME,
+    TABLE_NAME,
+    START_TIME,
+    END_TIME,
+    CREDITS_USED,
+    NUM_BYTES_RECLUSTERED,
+    NUM_ROWS_RECLUSTERED,
+    CURRENT_TIMESTAMP() as EXTRACT_TIMESTAMP
+FROM SNOWFLAKE.ACCOUNT_USAGE.AUTOMATIC_CLUSTERING_HISTORY
+WHERE START_TIME >= DATEADD('day', -90, CURRENT_TIMESTAMP())
+ORDER BY START_TIME DESC;

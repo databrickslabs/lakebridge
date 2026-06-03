@@ -106,7 +106,7 @@ two extraction steps: **schema metadata** and **activity metrics**.
     <tr>
       <td>System Info</td>
       <td><code>sys.dm_os_sys_info</code></td>
-      <td>Instance-level metadata including memory, CPU count, and scheduler configuration.</td>
+      <td>Instance-level metadata: CPU topology, memory, virtualization, and SQL Server start time.</td>
     </tr>
     <tr>
       <td>Databases</td>
@@ -209,6 +209,7 @@ Enter fetch size (default: 1000):
 Enter login timeout (seconds) (default: 30):
 Enter the fully-qualified server name: my-server.database.windows.net
 Enter the port details: 1433
+Enter the database name: MyAppDB
 Enter the SQL username: profiler_user
 Enter the SQL password:
 Enter timezone (e.g. America/New_York) (default: UTC):
@@ -225,6 +226,7 @@ Do you want to test the connection to mssql? (yes/no): yes
 | **Login timeout** | Connection timeout in seconds | `30` |
 | **Server name** | Fully-qualified SQL Server hostname | — |
 | **Port** | SQL Server port number | — |
+| **Database** | Database to connect to. `INFORMATION_SCHEMA` queries are scoped to this database; other databases on the instance are still discovered via `sys.databases`. | — |
 | **SQL username** | SQL Authentication username | — |
 | **SQL password** | SQL Authentication password (hidden input) | — |
 | **Timezone** | Timezone for timestamp normalization | `UTC` |
@@ -242,20 +244,5 @@ The profiler will:
 1. Connect to your SQL Server instance using the configured credentials
 2. Execute the schema metadata and activity metric extraction queries
 3. Store the results in a local DuckDB extract file
-
-### Publish Profiler Summary Dashboard
-
-After executing the profiler, you can upload the results and deploy a summary dashboard to your Databricks workspace:
-
-```bash
-databricks labs lakebridge create-profiler-dashboard \
-  --extract-file /tmp/data/mssql_assessment/profiler_extract.db \
-  --source-tech mssql \
-  --volume-path /Volumes/lakebridge_profiler/profiler_runs \
-  --catalog-name lakebridge_profiler \
-  --schema-name profiler_runs
-```
-
-Refer to the [Profiler Guide](../#publish-profiler-summary-dashboard) for full details on dashboard deployment options.
 
 [Back to Configure Profiler](../#configure-profiler)

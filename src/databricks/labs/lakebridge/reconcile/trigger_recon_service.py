@@ -94,6 +94,7 @@ class TriggerReconService:
             spark,
             metadata_config=reconcile_config.metadata_config,
             intermediate_persist=ReconIntermediatePersist(spark, reconcile_config.metadata_config),
+            hash_expression_overrides=reconcile_config.hash_expression_overrides,
         )
 
         recon_capture = ReconCapture(
