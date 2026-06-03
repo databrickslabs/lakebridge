@@ -49,9 +49,7 @@ logger = logging.getLogger(__name__)
 
 
 # Register auto-configurers here. Order is the order they run for each Table.
-SUPPORTED_AUTO_CONFIGURERS: Sequence[TableAutoConfigurer] = [
-    ColumnMappingAutoConfigurer(),
-]
+SUPPORTED_AUTO_CONFIGURERS: tuple[TableAutoConfigurer] = (ColumnMappingAutoConfigurer(),)
 
 
 def discover_tables(
