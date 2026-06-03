@@ -121,7 +121,9 @@ def test_run_python_dep_failure_pipeline(
     get_logger: Logger,
     tmp_path: Path,
 ):
-    pipeline = PipelineClass(config=pipeline_dep_failure_config, executor=sandbox_sqlserver, db_path=tmp_path / _DB_FILE)
+    pipeline = PipelineClass(
+        config=pipeline_dep_failure_config, executor=sandbox_sqlserver, db_path=tmp_path / _DB_FILE
+    )
     with pytest.raises(RuntimeError) as e:
         pipeline.execute()
 
@@ -276,7 +278,9 @@ def test_run_pipeline_with_combined_ddl(
     tmp_path: Path,
 ) -> None:
     """Test pipeline execution with a single DDL file containing multiple CREATE TABLE statements."""
-    pipeline = PipelineClass(config=pipeline_config_combined_ddl, executor=sandbox_sqlserver, db_path=tmp_path / _DB_FILE)
+    pipeline = PipelineClass(
+        config=pipeline_config_combined_ddl, executor=sandbox_sqlserver, db_path=tmp_path / _DB_FILE
+    )
     results = pipeline.execute()
 
     # Verify all steps completed successfully
