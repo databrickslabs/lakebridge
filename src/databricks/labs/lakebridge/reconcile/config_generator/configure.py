@@ -153,11 +153,21 @@ class TableAutoConfigurer(Protocol):
 
 
 class ColumnMappingAutoConfigurer(TableAutoConfigurer):
-    """`TableAutoConfigurer` impl: fills `Table.column_mapping` by matching column names.
+    """`TableAutoConfigurer` impl: fills `Table.column_mapping`, `Table.select_columns`, `Table.drop_columns`.
 
-    Only emits a `ColumnMapping` entry when source and target column names differ —
-    identically-named columns don't need an explicit mapping. Unmatched source
-    columns are logged for manual review.
+    Every re-run **overwrites** all three fields from the current matcher pass —
+    no per-field merge, no preservation of hand-edits. Make manual edits after
+    running auto-configure, not before.
+
+    - `column_mapping` — `ColumnMapping` entries for matched columns where the
+      source and target names differ.
+    - `select_columns` — matched source column names when any source column is
+      unmatched (fail-closed: unmatched source columns are excluded by absence).
+      `None` when every source column matches.
+    - `drop_columns` — target columns that the matcher couldn't pair with a
+      source column. Reconcile resolves drop_columns names via column_mapping
+      with a fallback to the name as-is, so target-only column names correctly
+      skip the target side. `None` when every target column matches.
     """
 
     def __init__(self, strategy: IdentifierMatchingStrategy = NormalizedMatcher()) -> None:
@@ -170,20 +180,37 @@ class ColumnMappingAutoConfigurer(TableAutoConfigurer):
         name_mapping = self._strategy.match_all(source_names, target_names)
 
         mappings: list[ColumnMapping] = []
-        unmatched: list[str] = []
+        matched_source: list[str] = []
+        matched_target: set[str] = set()
+        unmatched_source: list[str] = []
         for src_col in source_names:
             tgt_col = name_mapping[src_col]
             if tgt_col is None:
-                unmatched.append(src_col)
+                unmatched_source.append(src_col)
                 continue
+            matched_source.append(src_col)
+            matched_target.add(tgt_col)
             if src_col != tgt_col:
                 mappings.append(ColumnMapping(source_name=src_col, target_name=tgt_col))
 
-        if unmatched:
-            unmatched_str = ", ".join(unmatched)
+        unmatched_target = [t for t in target_names if t not in matched_target]
+
+        if unmatched_source:
             logger.warning(
-                f"Could not auto-match {len(unmatched)} column(s) for "
-                f"{table.source_name} -> {table.target_name}: {unmatched_str}"
+                f"Could not auto-match {len(unmatched_source)} source column(s) for "
+                f"{table.source_name} -> {table.target_name}: {', '.join(unmatched_source)}. "
+                f"Listed {len(matched_source)} matched column(s) in select_columns."
+            )
+        if unmatched_target:
+            logger.warning(
+                f"Target has {len(unmatched_target)} unmatched column(s) for "
+                f"{table.source_name} -> {table.target_name}: {', '.join(unmatched_target)}. "
+                f"Added to drop_columns."
             )
 
-        return dataclasses.replace(table, column_mapping=mappings or None)
+        return dataclasses.replace(
+            table,
+            column_mapping=mappings or None,
+            select_columns=matched_source if unmatched_source else None,
+            drop_columns=unmatched_target or None,
+        )

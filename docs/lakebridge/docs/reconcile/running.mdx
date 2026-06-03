@@ -224,7 +224,7 @@ After running, use the `recon_id` to drill into the results on the AI/BI Dashboa
 
 ## Auto-configure Table Mappings
 
-When you have many tables to reconcile, you can skip writing the `TableRecon` by hand. The `auto-configure-recon-tables` command discovers source/target table pairs by matching their names, fills in `column_mapping` where source and target column names differ, and uploads the resulting reconcile config file to your install folder.
+When you have many tables to reconcile, you can skip writing the `TableRecon` by hand. The `auto-configure-recon-tables` command discovers source/target table pairs by matching their names, fills in `column_mapping` where source and target column names differ, and drops unmatched columns, and uploads the resulting reconcile config file to your install folder.
 
 This is the automated alternative to [Step 4: Configure TableRecon](#step-4-configure-tablerecon) above.
 
@@ -240,15 +240,19 @@ databricks labs lakebridge auto-configure-recon-tables
 ```
 
 The matcher normalizes tables and columns names (case, underscores vs. hyphens, simple plural/singular) so `Customers` matches `customers`, `Order_Items` matches `order-items`, `orders` matches `order`.
-Source tables and columns that cannot be matched are logged with a warning so you can add them manually.
+Source tables the matcher cannot pair with a target table are **omitted** from the draft and logged so you can add them manually.
 
 When the workspace job finishes, the resulting `recon_config_<...>.json` is uploaded to your install folder.
 
+:::danger
+Running auto-configure **overwrites** existing config if the user approves. Apply manual edits *after* running auto-configure.
+:::
+
 ### Python
 
-The auto-configure module exposes two functions over a `TableRecon`:
+The auto-configure module exposes two automation entry points:
 
-- `discover_tables(...)` — list source/target schemas and return the matched table pairs.
+- `discover_tables(...)` — matches table pairs from the configured catalogs and schemas.
 - `auto_configure_tables(table_recon, ...)` — apply all registered configurers (column mapping today; join keys, transformations, ... as they're added) to each Table in `table_recon` and return the result.
 
 Both take the `reconcile_config` from [Step 3](#step-3-configure-reconcileconfig) and return `TableRecon`, that can be passed to `TriggerReconService.trigger_recon` ([Step 5](#step-5-run)):
@@ -284,7 +288,9 @@ curated = TableRecon(tables=[t for t in discovered.tables if t.source_name != "a
 table_recon = auto_configure_tables(curated, reconcile_config=reconcile_config, spark=spark)
 ```
 
+:::note
 From the CLI this is two runs of `auto-configure-recon-tables` — choose "discover only" on the first, then "auto-configure only" on the second.
+:::
 
 ### Auto-configure a single table
 
@@ -305,7 +311,7 @@ print(configured)
 
 ### Review the output
 
-Auto-discovery only fills in table pairs and column mappings. The following fields are not auto-discovered and must be added manually for the tables that need them:
+Auto-discovery fills in table pairs, `column_mapping`, `select_columns` (matched source columns when any source column couldn't be paired), and `drop_columns` (unmatched target columns). The following fields are not auto-discovered and must be added manually for the tables that need them:
 
 - `join_columns` — required for `data` and `all` report types.
 - `column_thresholds`, `table_thresholds` — numeric tolerance bounds.
