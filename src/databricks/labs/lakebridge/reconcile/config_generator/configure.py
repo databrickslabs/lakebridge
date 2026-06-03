@@ -26,26 +26,11 @@ from databricks.labs.lakebridge.reconcile.recon_config import ColumnMapping, Tab
 logger = logging.getLogger(__name__)
 
 
-class TableDiscoverer(Protocol):
-    def discover(
-        self,
-        *,
-        source: DataSource,
-        source_catalog: str,
-        source_schema: str,
-        target: DataSource,
-        target_catalog: str,
-        target_schema: str,
-    ) -> TableRecon: ...
-
-
 class IdentifierMatchingStrategy(Protocol):
-    """Pluggable name-matching strategy used by `TableMatcher` and `ColumnMappingAutoConfigurer`."""
-
     def match_all(self, source_names: list[str], candidate_names: list[str]) -> dict[str, str | None]: ...
 
 
-class NormalizedMatcher:
+class NormalizedMatcher(IdentifierMatchingStrategy):
     """Match names by trying progressively looser normalisations.
 
     For each normalisation step the matcher builds a lookup from normalised
@@ -117,8 +102,6 @@ class NormalizedMatcher:
 
 
 class TableMatcher:
-    """`TableDiscoverer` impl: discovers source/target table pairs by matching table names."""
-
     def __init__(self, strategy: IdentifierMatchingStrategy = NormalizedMatcher()) -> None:
         self._strategy = strategy
 
@@ -167,7 +150,7 @@ class TableAutoConfigurer(Protocol):
     ) -> Table: ...
 
 
-class ColumnMappingAutoConfigurer:
+class ColumnMappingAutoConfigurer(TableAutoConfigurer):
     """`TableAutoConfigurer` impl: fills `Table.column_mapping` by matching column names.
 
     Only emits a `ColumnMapping` entry when source and target column names differ —

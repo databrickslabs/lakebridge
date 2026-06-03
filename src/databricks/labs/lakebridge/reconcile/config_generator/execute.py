@@ -4,9 +4,9 @@ How it works
 ------------
 Two-stage pipeline per Table:
 
-1. Discover table pairs from source/target schemas via `TableMatcher`.
+1. Discover table pairs from source/target schemas.
 2. For each discovered Table, apply every registered `TableAutoConfigurer` in
-   declared order (outer loop = tables, inner loop = configurers).
+   declared order.
 
 The CLI dispatches to one of three operation names depending on the user's
 answers to "discover?" and "auto-configure?":
