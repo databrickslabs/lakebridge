@@ -230,7 +230,8 @@ This is the automated alternative to [Step 4: Configure TableRecon](#step-4-conf
 
 ### Prerequisites
 
-`configure-reconcile` has been run (the reconcile config file must exist in your install folder).
+- CLI users: `configure-reconcile` has been run (the reconcile config file must exist in your install folder).
+- Python users: [Step 3: Configure ReconcileConfig](#step-3-configure-reconcileconfig)
 
 ### Run
 
@@ -247,64 +248,47 @@ When the workspace job finishes, the resulting `recon_config_<...>.json` is uplo
 
 The auto-configure module exposes two functions over a `TableRecon`:
 
-- `discover_tables(...)` — list source/target schemas, save the matched table pairs.
-- `auto_configure_tables(table_recon, ...)` — apply all registered configurers (column mapping today; join keys, transformations, ... as they're added) to each Table in `table_recon` and save the result.
+- `discover_tables(...)` — list source/target schemas and return the matched table pairs.
+- `auto_configure_tables(table_recon, ...)` — apply all registered configurers (column mapping today; join keys, transformations, ... as they're added) to each Table in `table_recon` and return the result.
 
-Both take your reconcile config and a Spark session, and build the source/target adapters internally:
+Both take the `reconcile_config` from [Step 3](#step-3-configure-reconcileconfig) and return `TableRecon`, that can be passed to `TriggerReconService.trigger_recon` ([Step 5](#step-5-run)):
 
 ```python
-from databricks.connect import DatabricksSession
-from databricks.labs.lakebridge import __version__
-from databricks.sdk import WorkspaceClient
-from databricks.labs.blueprint.installation import Installation
-
-from databricks.labs.lakebridge.config import ReconcileConfig
 from databricks.labs.lakebridge.reconcile.config_generator.execute import (
     auto_configure_tables,
     discover_tables,
 )
 
-ws = WorkspaceClient(product="lakebridge", product_version=__version__)
-spark = DatabricksSession.builder.getOrCreate()
-
-installation = Installation.assume_user_home(ws, "lakebridge")
-reconcile_config = installation.load(ReconcileConfig)
-
-discovered = discover_tables(installation=installation, reconcile_config=reconcile_config, spark=spark)
-table_recon = auto_configure_tables(discovered, installation=installation, reconcile_config=reconcile_config, spark=spark)
+# `reconcile_config` from Step 3 above.
+discovered = discover_tables(reconcile_config=reconcile_config, spark=spark)
+table_recon = auto_configure_tables(discovered, reconcile_config=reconcile_config, spark=spark)
 
 for t in table_recon.tables:
     print(t.source_name, "→", t.target_name)
 ```
 
-Both functions upload the resulting `TableRecon` to the install folder as `reconcile_config.table_recon_filename`.
-
 ### Recommended flow: discover, review, then auto-configure
 
 The recommended pattern is to split discovery from auto-configuration so you can review the discovered pairs before any column mappings are filled in:
 
-1. **Discover** — call `discover_tables(...)`. This writes a `TableRecon` to the install folder containing only matched source/target table pairs (no `column_mapping`).
-2. **Review** — open the uploaded `recon_config_<...>.json` in your workspace. Drop pairs you don't want to reconcile, fix names the matcher got wrong, and add tables it couldn't auto-match (look for the warning in the job log).
-3. **Auto-configure** — load the curated file and call `auto_configure_tables(curated, ...)`.
+1. **Discover** — call `discover_tables(...)` and inspect the returned `TableRecon`.
+2. **Review** — drop pairs you don't want to reconcile, fix names the matcher got wrong, and add tables it couldn't auto-match (look for the warning in the logs).
+3. **Auto-configure** — pass the curated `TableRecon` to `auto_configure_tables(curated, ...)`.
 
 ```python
-from databricks.labs.lakebridge.config import TableRecon
+discovered = discover_tables(reconcile_config=reconcile_config, spark=spark)
 
-# Stage 1
-discover_tables(installation=installation, reconcile_config=reconcile_config, spark=spark)
+# Review/curate in memory — or save the file, edit it in the workspace, and load it back.
+curated = TableRecon(tables=[t for t in discovered.tables if t.source_name != "audit_log"])
 
-# (open the file in the workspace, edit it, save.)
-
-# Stage 2
-curated = installation.load(type_ref=TableRecon, filename=reconcile_config.table_recon_filename)
-auto_configure_tables(curated, installation=installation, reconcile_config=reconcile_config, spark=spark)
+table_recon = auto_configure_tables(curated, reconcile_config=reconcile_config, spark=spark)
 ```
 
 From the CLI this is two runs of `auto-configure-recon-tables` — choose "discover only" on the first, then "auto-configure only" on the second.
 
 ### Auto-configure a single table
 
-To run all supported configurers against just one table — e.g. after a column was added on the source — call `auto_configure_table`. It returns a configured `Table` without touching the file in the install folder:
+To run all supported configurers against just one table — e.g. after a column was added on the source — call `auto_configure_table`:
 
 ```python
 from databricks.labs.lakebridge.reconcile.config_generator.execute import auto_configure_table
@@ -316,7 +300,7 @@ configured = auto_configure_table(
     spark=spark,
 )
 
-print(configured.column_mapping)
+print(configured)
 ```
 
 ### Review the output

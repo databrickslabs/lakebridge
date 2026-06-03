@@ -56,11 +56,11 @@ SUPPORTED_AUTO_CONFIGURERS: Sequence[TableAutoConfigurer] = [
 
 def discover_tables(
     *,
-    installation: Installation,
     reconcile_config: ReconcileConfig,
     spark: SparkSession,
+    installation: Installation | None = None,
 ) -> TableRecon:
-    """Discover source/target table pairs and save the draft to the install folder."""
+    """Discover source/target table pairs. If `installation` is provided, also save the draft."""
     source, target = _build_adapters(reconcile_config, spark)
     src = reconcile_config.source
     tgt = reconcile_config.target
@@ -72,18 +72,21 @@ def discover_tables(
         target_catalog=tgt.catalog,
         target_schema=tgt.schema,
     )
-    _save(installation, reconcile_config.table_recon_filename, table_recon)
+    if installation is not None:
+        _save(installation, reconcile_config.table_recon_filename, table_recon)
     return table_recon
 
 
 def auto_configure_tables(
     table_recon: TableRecon,
     *,
-    installation: Installation,
     reconcile_config: ReconcileConfig,
     spark: SparkSession,
+    installation: Installation | None = None,
 ) -> TableRecon:
-    """Apply all registered configurers to each Table in `table_recon` and save the result."""
+    """Apply all registered configurers to each Table in `table_recon`.
+    If `installation` is provided, also save the result.
+    """
     source, target = _build_adapters(reconcile_config, spark)
     src = reconcile_config.source
     tgt = reconcile_config.target
@@ -100,7 +103,8 @@ def auto_configure_tables(
         for t in table_recon.tables
     ]
     result = TableRecon(tables=configured)
-    _save(installation, reconcile_config.table_recon_filename, result)
+    if installation is not None:
+        _save(installation, reconcile_config.table_recon_filename, result)
     return result
 
 

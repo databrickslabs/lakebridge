@@ -72,14 +72,14 @@ def _autoconfigure_tables(installation: Installation, reconcile_config: Reconcil
     spark = DatabricksSession.builder.getOrCreate()
 
     if operation_name == DISCOVER_TABLES_OPERATION_NAME:
-        discover_tables(installation=installation, reconcile_config=reconcile_config, spark=spark)
+        discover_tables(reconcile_config=reconcile_config, spark=spark, installation=installation)
         return
 
     if operation_name == AUTO_CONFIGURE_TABLES_OPERATION_NAME:
         table_recon = installation.load(type_ref=TableRecon, filename=reconcile_config.table_recon_filename)
     else:  # DISCOVER_AND_AUTO_CONFIGURE_TABLES_OPERATION_NAME
-        table_recon = discover_tables(installation=installation, reconcile_config=reconcile_config, spark=spark)
-    auto_configure_tables(table_recon, installation=installation, reconcile_config=reconcile_config, spark=spark)
+        table_recon = discover_tables(reconcile_config=reconcile_config, spark=spark, installation=installation)
+    auto_configure_tables(table_recon, reconcile_config=reconcile_config, spark=spark, installation=installation)
 
 
 def _trigger_recon(
