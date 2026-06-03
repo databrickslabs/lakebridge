@@ -83,8 +83,12 @@ def auto_configure_tables(
     reconcile_config: ReconcileConfig,
     spark: SparkSession,
     installation: Installation | None = None,
+    auto_configurers: Sequence[TableAutoConfigurer] = SUPPORTED_AUTO_CONFIGURERS,
 ) -> TableRecon:
-    """Apply all registered configurers to each Table in `table_recon`.
+    """Apply `auto_configurers` to each Table in `table_recon`. Defaults to `SUPPORTED_AUTO_CONFIGURERS`.
+
+    Pass a custom `auto_configurers` list to inject your own `TableAutoConfigurer`
+    implementations (e.g. an LLM-driven mapper) alongside or in place of the defaults.
     If `installation` is provided, also save the result.
     """
     source, target = _build_adapters(reconcile_config, spark)
@@ -93,6 +97,7 @@ def auto_configure_tables(
     configured = [
         _auto_configure_one(
             t,
+            configurers=auto_configurers,
             source=source,
             source_catalog=src.catalog,
             source_schema=src.schema,
@@ -113,13 +118,15 @@ def auto_configure_table(
     table: Table,
     reconcile_config: ReconcileConfig,
     spark: SparkSession,
+    auto_configurers: Sequence[TableAutoConfigurer] = SUPPORTED_AUTO_CONFIGURERS,
 ) -> Table:
-    """Apply all registered configurers to a single Table. No file upload."""
+    """Apply `auto_configurers` to a single Table. Defaults to `SUPPORTED_AUTO_CONFIGURERS`. No file upload."""
     source, target = _build_adapters(reconcile_config, spark)
     src = reconcile_config.source
     tgt = reconcile_config.target
     return _auto_configure_one(
         table,
+        configurers=auto_configurers,
         source=source,
         source_catalog=src.catalog,
         source_schema=src.schema,
@@ -132,6 +139,7 @@ def auto_configure_table(
 def _auto_configure_one(
     table: Table,
     *,
+    configurers: Sequence[TableAutoConfigurer],
     source: DataSource,
     source_catalog: str,
     source_schema: str,
@@ -149,7 +157,7 @@ def _auto_configure_one(
         target_schema=target_schema,
         target_columns=target.get_schema(target_catalog, target_schema, table.target_name),
     )
-    for configurer in SUPPORTED_AUTO_CONFIGURERS:
+    for configurer in configurers:
         table = configurer.configure(table, ctx)
     return table
 
