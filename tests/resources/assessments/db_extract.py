@@ -37,13 +37,6 @@ def execute():
         '--credential-config-path', type=str, required=True, help='Path string containing credential configuration'
     )
     args = parser.parse_args()
-    credential_file = args.credential_config_path
-
-    if not credential_file.endswith('credentials.yml'):
-        msg = "Credential config file must have 'credentials.yml' extension"
-        # This is the output format expected by the pipeline.py which orchestrates the execution of this script
-        print(json.dumps({"status": "error", "message": msg}), file=sys.stderr)
-        raise ValueError("Credential config file must have 'credentials.yml' extension")
 
     try:
         df = generate_random_dataset()
