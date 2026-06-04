@@ -12,6 +12,7 @@ from databricks.labs.lakebridge.reconcile.connectors.oracle import OracleDataSou
 from databricks.labs.lakebridge.reconcile.connectors.redshift import RedshiftDataSource
 from databricks.labs.lakebridge.reconcile.connectors.snowflake import SnowflakeDataSource
 from databricks.labs.lakebridge.reconcile.connectors.source_adapter import create_adapter
+from databricks.labs.lakebridge.reconcile.connectors.teradata import TeradataDataSource
 
 
 def test_create_adapter_for_snowflake_dialect():
@@ -62,6 +63,16 @@ def test_create_adapter_for_redshift_dialect():
     data_source = create_adapter(engine, spark, scope)
 
     assert isinstance(data_source, RedshiftDataSource)
+
+
+def test_create_adapter_for_teradata_dialect():
+    spark = create_autospec(DatabricksSession)
+    engine = get_dialect("teradata")
+    connection_name = "teradata_sandbox"
+
+    data_source = create_adapter(engine, spark, connection_name)
+
+    assert isinstance(data_source, TeradataDataSource)
 
 
 def test_raise_exception_for_unknown_dialect():

@@ -1,0 +1,45 @@
+-- Query History and Performance Analysis
+-- Extract query execution patterns, performance metrics, and user activity
+
+SELECT
+    QUERY_ID,
+    QUERY_TEXT,
+    QUERY_TYPE,
+    DATABASE_NAME,
+    SCHEMA_NAME,
+    USER_NAME,
+    WAREHOUSE_NAME,
+    WAREHOUSE_SIZE,
+    START_TIME,
+    END_TIME,
+    TOTAL_ELAPSED_TIME,
+    EXECUTION_TIME,
+    COMPILATION_TIME,
+    QUEUED_PROVISIONING_TIME,
+    QUEUED_REPAIR_TIME,
+    QUEUED_OVERLOAD_TIME,
+    TRANSACTION_BLOCKED_TIME,
+    BYTES_SCANNED,
+    BYTES_WRITTEN,
+    BYTES_SPILLED_TO_LOCAL_STORAGE,
+    BYTES_SPILLED_TO_REMOTE_STORAGE,
+    ROWS_PRODUCED,
+    CREDITS_USED_CLOUD_SERVICES,
+    ERROR_CODE,
+    ERROR_MESSAGE,
+    DATE(START_TIME) as QUERY_DATE,
+    HOUR(START_TIME) as QUERY_HOUR,
+    EXTRACT(dayofweek FROM START_TIME) as DAY_OF_WEEK,
+    CASE
+        WHEN TOTAL_ELAPSED_TIME >= 300000 THEN 'LONG_RUNNING'
+        WHEN TOTAL_ELAPSED_TIME >= 60000 THEN 'MEDIUM'
+        ELSE 'SHORT'
+    END as QUERY_DURATION_CATEGORY,
+    CURRENT_TIMESTAMP() as EXTRACT_TIMESTAMP
+FROM SNOWFLAKE.ACCOUNT_USAGE.QUERY_HISTORY
+-- No NULL filters: legacy ingested SELECT * with no WHERE clause and we need
+-- parity. Cloud-services-only queries (NULL warehouse_name) carry the bulk of
+-- CREDITS_USED_CLOUD_SERVICES; system/replication queries have NULL user_name.
+-- Downstream analytics should LEFT JOIN + COALESCE so NULLs degrade cleanly.
+WHERE START_TIME >= DATEADD('day', -90, CURRENT_TIMESTAMP())
+ORDER BY START_TIME DESC;

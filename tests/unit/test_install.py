@@ -30,9 +30,13 @@ from databricks.labs.lakebridge.transpiler.installers import (
     TranspilerInstaller,
 )
 from databricks.labs.lakebridge.transpiler.repository import TranspilerRepository
+from databricks.labs.lakebridge.assessments import PROFILER_SOURCE_SYSTEM
 
 RECONCILE_DATA_SOURCES = sorted([source_type.value for source_type in ReconSourceType])
 RECONCILE_REPORT_TYPES = sorted([report_type.value for report_type in ReconReportType])
+# Prompts.choice sorts choices alphabetically, so the prompt index is the position
+# in the sorted list, not in PROFILER_SOURCE_SYSTEM's declared order.
+PROFILER_SOURCE_SYSTEM_SORTED = sorted(PROFILER_SOURCE_SYSTEM, key=str.casefold)
 
 
 @pytest.fixture
@@ -797,6 +801,57 @@ def test_configure_reconcile_no_existing_installation(ws: WorkspaceClient) -> No
     )
 
 
+def _teradata_install_ctx(workspace_client: WorkspaceClient, prompts: MockPrompts) -> WorkspaceInstaller:
+    installation = MockInstallation()
+    resource_configurator = create_autospec(ResourceConfigurator)
+    resource_configurator.prompt_for_catalog_setup.return_value = "remorph"
+    resource_configurator.prompt_for_schema_setup.return_value = "reconcile"
+    resource_configurator.prompt_for_volume_setup.return_value = "reconcile_volume"
+    ctx = ApplicationContext(workspace_client)
+    ctx.replace(
+        prompts=prompts,
+        installation=installation,
+        resource_configurator=resource_configurator,
+        workspace_installation=create_autospec(WorkspaceInstallation),
+    )
+    return WorkspaceInstaller(
+        ctx.workspace_client,
+        ctx.prompts,
+        ctx.installation,
+        ctx.install_state,
+        ctx.product_info,
+        ctx.resource_configurator,
+        ctx.workspace_installation,
+    )
+
+
+@patch("webbrowser.open")
+def test_configure_reconcile_teradata_hash_expression_mandatory(ws: WorkspaceClient) -> None:
+    """For Teradata, the install prompt asks for source (mandatory, non-default expression) and
+    target hash expressions (target accepts default sha2({}, 256))."""
+    prompts = MockPrompts(
+        {
+            r"Select the Data Source": str(RECONCILE_DATA_SOURCES.index("teradata")),
+            r"Select the report type": str(RECONCILE_REPORT_TYPES.index("all")),
+            r"Enter Unity Catalog .* connection name": "my_teradata_conn",
+            r"Enter .* database name": "DBC",
+            r"Enter .* schema name": "tpch_sf1000",
+            r"Enter the Teradata source hash expression": "my_db.my_sha256({})",
+            r"Enter the Databricks target hash expression": "md5({})",
+            r"Enter target Databricks catalog name": "tpch",
+            r"Enter target Databricks schema name": "1000gb",
+            r"Open .* in the browser?": "no",
+        }
+    )
+    config = _teradata_install_ctx(ws, prompts).configure(module="reconcile")
+
+    assert config.reconcile is not None
+    assert config.reconcile.source.dialect == "teradata"
+    assert config.reconcile.hash_expression_overrides is not None
+    assert config.reconcile.hash_expression_overrides.source == "my_db.my_sha256({})"
+    assert config.reconcile.hash_expression_overrides.target == "md5({})"
+
+
 @patch("webbrowser.open")
 def test_configure_reconcile_databricks_no_existing_installation(ws: WorkspaceClient) -> None:
     prompts = MockPrompts(
@@ -901,9 +956,10 @@ def test_configure_all_override_installation(  # FIXME
             r"Enter .* schema name": "tpch_sf1000",
             r"Enter target Databricks catalog name": "tpch",
             r"Enter target Databricks schema name": "1000gb",
-            # Profiler Configuration Prompts
-            r"Select the source technology": "0",
-            r"Enter the path to the profiler extract file:": "",
+            r"Select the source technology": str(PROFILER_SOURCE_SYSTEM_SORTED.index("snowflake")),
+            r"Enter the path to the profiler extract file:": (
+                "~/.databricks/labs/lakebridge_profilers/snowflake_assessment/profiler_extract.db"
+            ),
         }
     )
     installation = MockInstallation(
@@ -1000,10 +1056,8 @@ def test_configure_all_override_installation(  # FIXME
     )
 
     expected_profiler_dash_config = ProfilerDashboardConfig(
-        source_tech="legacy_synapse",
-        extract_file_path=str(
-            Path("~/.databricks/labs/lakebridge_profilers/synapse_assessment/profiler_extract.db").expanduser()
-        ),
+        source_tech="snowflake",
+        extract_file_path="~/.databricks/labs/lakebridge_profilers/snowflake_assessment/profiler_extract.db",
         metadata_config=ProfilerDashboardMetadataConfig(
             catalog="remorph",
             schema="reconcile",
