@@ -145,9 +145,7 @@ class PipelineClass:
         logging.debug(f"Executing Python script: {step.extract_source}")
         credential_config = str(cred_file("lakebridge"))
 
-        # Run the step script with the interpreter the profiler already runs under (the
-        # labs-managed venv). It has lakebridge and all runtime dependencies installed, plus the
-        # source-specific `profiler` extra packages, so there is nothing to install at step time.
+        # Run the step script with the labs-managed venv
         logger.info(f"Executing Python script for step '{step.name}' using interpreter: {sys.executable}")
         self._run_python_script(sys.executable, step.extract_source, self._db_path, credential_config)
 

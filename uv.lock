@@ -731,6 +731,10 @@ yaml = [
 name = "databricks-labs-lakebridge"
 source = { editable = "." }
 dependencies = [
+    { name = "azure-identity" },
+    { name = "azure-mgmt-sql" },
+    { name = "azure-monitor-query" },
+    { name = "azure-synapse-artifacts" },
     { name = "databricks-bb-analyzer" },
     { name = "databricks-labs-blueprint", extra = ["yaml"] },
     { name = "databricks-labs-lsql" },
@@ -749,14 +753,6 @@ dependencies = [
     { name = "sqlalchemy" },
     { name = "sqlglot" },
     { name = "standard-distutils", marker = "python_full_version >= '3.11'" },
-]
-
-[package.optional-dependencies]
-profiler = [
-    { name = "azure-identity" },
-    { name = "azure-mgmt-sql" },
-    { name = "azure-monitor-query" },
-    { name = "azure-synapse-artifacts" },
 ]
 
 [package.dev-dependencies]
@@ -827,10 +823,10 @@ yq = [
 
 [package.metadata]
 requires-dist = [
-    { name = "azure-identity", marker = "extra == 'profiler'", specifier = "~=1.19.0" },
-    { name = "azure-mgmt-sql", marker = "extra == 'profiler'", specifier = "~=3.0.1" },
-    { name = "azure-monitor-query", marker = "extra == 'profiler'", specifier = "~=1.4.0" },
-    { name = "azure-synapse-artifacts", marker = "extra == 'profiler'", specifier = "~=0.20.0" },
+    { name = "azure-identity", specifier = "~=1.19.0" },
+    { name = "azure-mgmt-sql", specifier = "~=3.0.1" },
+    { name = "azure-monitor-query", specifier = "~=1.4.0" },
+    { name = "azure-synapse-artifacts", specifier = "~=0.20.0" },
     { name = "databricks-bb-analyzer", specifier = "~=0.3.0,!=0.3.1" },
     { name = "databricks-labs-blueprint", extras = ["yaml"], specifier = ">=0.12.0,<0.13.0" },
     { name = "databricks-labs-lsql", specifier = "==0.16.0" },
@@ -850,7 +846,6 @@ requires-dist = [
     { name = "sqlglot", specifier = "==28.5.0" },
     { name = "standard-distutils", marker = "python_full_version >= '3.11'", specifier = "~=3.11.9" },
 ]
-provides-extras = ["profiler"]
 
 [package.metadata.requires-dev]
 dev = [

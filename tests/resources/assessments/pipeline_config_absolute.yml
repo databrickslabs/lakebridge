@@ -9,6 +9,3 @@ steps:
     mode: overwrite
     frequency: daily
     flag: active
-    dependencies:
-      - pandas
-      - duckdb
