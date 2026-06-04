@@ -17,6 +17,7 @@ from databricks.labs.lakebridge.connections.database_manager import DatabaseMana
 _Loader: TypeAlias = Callable[[Path], PipelineConfig]
 
 _DB_FILE = "test_profiler.db"
+_CREDS_FILE = "test_creds.yml"
 
 
 @pytest.fixture
@@ -74,7 +75,12 @@ def test_run_pipeline(
     get_logger: Logger,
     tmp_path: Path,
 ) -> None:
-    pipeline = PipelineClass(config=pipeline_config, executor=sandbox_sqlserver, db_path=tmp_path / _DB_FILE)
+    pipeline = PipelineClass(
+        config=pipeline_config,
+        executor=sandbox_sqlserver,
+        db_path=tmp_path / _DB_FILE,
+        cred_file_path=tmp_path / _CREDS_FILE,
+    )
     results = pipeline.execute()
 
     # Verify all steps completed successfully
@@ -93,7 +99,12 @@ def test_run_sql_failure_pipeline(
     get_logger: Logger,
     tmp_path: Path,
 ) -> None:
-    pipeline = PipelineClass(config=sql_failure_config, executor=sandbox_sqlserver, db_path=tmp_path / _DB_FILE)
+    pipeline = PipelineClass(
+        config=sql_failure_config,
+        executor=sandbox_sqlserver,
+        db_path=tmp_path / _DB_FILE,
+        cred_file_path=tmp_path / _CREDS_FILE,
+    )
     with pytest.raises(RuntimeError) as e:
         pipeline.execute()
 
@@ -107,7 +118,12 @@ def test_run_python_failure_pipeline(
     get_logger: Logger,
     tmp_path: Path,
 ) -> None:
-    pipeline = PipelineClass(config=python_failure_config, executor=sandbox_sqlserver, db_path=tmp_path / _DB_FILE)
+    pipeline = PipelineClass(
+        config=python_failure_config,
+        executor=sandbox_sqlserver,
+        db_path=tmp_path / _DB_FILE,
+        cred_file_path=tmp_path / _CREDS_FILE,
+    )
     with pytest.raises(RuntimeError) as e:
         pipeline.execute()
 
@@ -122,7 +138,10 @@ def test_run_python_dep_failure_pipeline(
     tmp_path: Path,
 ):
     pipeline = PipelineClass(
-        config=pipeline_dep_failure_config, executor=sandbox_sqlserver, db_path=tmp_path / _DB_FILE
+        config=pipeline_dep_failure_config,
+        executor=sandbox_sqlserver,
+        db_path=tmp_path / _DB_FILE,
+        cred_file_path=tmp_path / _CREDS_FILE,
     )
     with pytest.raises(RuntimeError) as e:
         pipeline.execute()
@@ -140,7 +159,12 @@ def test_skipped_steps(
     inactive_steps = [step.copy(flag="inactive") for step in pipeline_config.steps]
     pipeline_config = pipeline_config.copy(steps=inactive_steps)
 
-    pipeline = PipelineClass(config=pipeline_config, executor=sandbox_sqlserver, db_path=tmp_path / _DB_FILE)
+    pipeline = PipelineClass(
+        config=pipeline_config,
+        executor=sandbox_sqlserver,
+        db_path=tmp_path / _DB_FILE,
+        cred_file_path=tmp_path / _CREDS_FILE,
+    )
     results = pipeline.execute()
 
     # Verify all steps are marked as skipped
@@ -210,7 +234,12 @@ def test_run_empty_result_pipeline(
     get_logger: Logger,
     tmp_path: Path,
 ) -> None:
-    pipeline = PipelineClass(config=empty_result_config, executor=sandbox_sqlserver, db_path=tmp_path / _DB_FILE)
+    pipeline = PipelineClass(
+        config=empty_result_config,
+        executor=sandbox_sqlserver,
+        db_path=tmp_path / _DB_FILE,
+        cred_file_path=tmp_path / _CREDS_FILE,
+    )
     results = pipeline.execute()
 
     # Verify step completed successfully despite empty results
@@ -235,7 +264,12 @@ def test_run_pipeline_with_ddl(
     tmp_path: Path,
 ) -> None:
     """Test pipeline execution with DDL steps that create tables with proper data types."""
-    pipeline = PipelineClass(config=pipeline_config_with_ddl, executor=sandbox_sqlserver, db_path=tmp_path / _DB_FILE)
+    pipeline = PipelineClass(
+        config=pipeline_config_with_ddl,
+        executor=sandbox_sqlserver,
+        db_path=tmp_path / _DB_FILE,
+        cred_file_path=tmp_path / _CREDS_FILE,
+    )
     results = pipeline.execute()
 
     # Verify all steps completed successfully
@@ -279,7 +313,10 @@ def test_run_pipeline_with_combined_ddl(
 ) -> None:
     """Test pipeline execution with a single DDL file containing multiple CREATE TABLE statements."""
     pipeline = PipelineClass(
-        config=pipeline_config_combined_ddl, executor=sandbox_sqlserver, db_path=tmp_path / _DB_FILE
+        config=pipeline_config_combined_ddl,
+        executor=sandbox_sqlserver,
+        db_path=tmp_path / _DB_FILE,
+        cred_file_path=tmp_path / _CREDS_FILE,
     )
     results = pipeline.execute()
 

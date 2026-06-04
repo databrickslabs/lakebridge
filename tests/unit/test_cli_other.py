@@ -131,7 +131,72 @@ def test_cli_execute_database_profiler_output_folder(
         )
 
     create_mock.assert_called_once_with("snowflake")
-    profiler.profile.assert_called_once_with(output_folder=expected_path)
+    profiler.profile.assert_called_once_with(output_folder=expected_path, cred_file_path=fake_cred)
+
+
+@pytest.mark.parametrize(
+    ("explicit_arg", "expected_passes_explicit"),
+    (
+        # `--cred-file-path` provided and the file exists → that path is forwarded to Profiler.profile.
+        (True, True),
+        # `--cred-file-path` omitted → falls back to the default `cred_file(PRODUCT_NAME)`.
+        (False, False),
+    ),
+)
+def test_cli_execute_database_profiler_cred_file_path(
+    mock_workspace_client, explicit_arg, expected_passes_explicit, tmp_path
+):
+    """`--cred-file-path` overrides the default; omitting it falls back to `cred_file(PRODUCT_NAME)`."""
+    default_cred = tmp_path / "default-credentials.yml"
+    default_cred.touch()
+    explicit_cred = tmp_path / "explicit-credentials.yml"
+    explicit_cred.touch()
+
+    ctx_mock = create_autospec(spec=ApplicationContext, spec_set=True)
+    type(ctx_mock).workspace_client = PropertyMock(return_value=mock_workspace_client)
+    ctx_mock.current_user = "tester"
+    ctx_mock.prompts = MockPrompts({r"Enter the profiler output.*": ""})
+
+    profiler = MagicMock()
+    with (
+        patch("databricks.labs.lakebridge.cli.ApplicationContext", return_value=ctx_mock),
+        patch("databricks.labs.lakebridge.cli.cred_file", return_value=default_cred),
+        patch("databricks.labs.lakebridge.cli.Profiler.create", return_value=profiler),
+    ):
+        cli.execute_database_profiler(
+            w=mock_workspace_client,
+            source_tech="snowflake",
+            output_folder=str(tmp_path / "out"),
+            cred_file_path=str(explicit_cred) if explicit_arg else None,
+        )
+
+    expected_cred = explicit_cred if expected_passes_explicit else default_cred
+    profiler.profile.assert_called_once_with(
+        output_folder=tmp_path / "out",
+        cred_file_path=expected_cred,
+    )
+
+
+def test_cli_execute_database_profiler_missing_cred_file_raises(mock_workspace_client, tmp_path):
+    """A `--cred-file-path` pointing at a non-existent file fails the pre-flight check."""
+    missing = tmp_path / "does-not-exist.yml"
+
+    ctx_mock = create_autospec(spec=ApplicationContext, spec_set=True)
+    type(ctx_mock).workspace_client = PropertyMock(return_value=mock_workspace_client)
+    ctx_mock.current_user = "tester"
+    ctx_mock.prompts = MockPrompts({})
+
+    with (
+        patch("databricks.labs.lakebridge.cli.ApplicationContext", return_value=ctx_mock),
+        patch("databricks.labs.lakebridge.cli.cred_file", return_value=tmp_path / "default-unused.yml"),
+        pytest.raises(ValueError, match="Connection details not found"),
+    ):
+        cli.execute_database_profiler(
+            w=mock_workspace_client,
+            source_tech="snowflake",
+            output_folder=str(tmp_path / "out"),
+            cred_file_path=str(missing),
+        )
 
 
 def test_prompts_question():
