@@ -23,7 +23,6 @@ logger = logging.getLogger(__name__)
 
 
 def make_profiler_db_filename(platform: str) -> str:
-    # Lazy import to avoid circular import at module load.
     return f"profiler_extract_{platform}_{lakebridge_version}_{datetime.now(timezone.utc).strftime('%Y%m%d')}.db"
 
 
