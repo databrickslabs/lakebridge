@@ -313,8 +313,8 @@ tiles:
               displayName: target_table
             - fieldName: dd_recon_type
               displayName: recon_type
-            - fieldName: rn
-              displayName: rn
+            - fieldName: dd_record_key
+              displayName: record_key
           columns:
             - fieldName: key
               displayName: key

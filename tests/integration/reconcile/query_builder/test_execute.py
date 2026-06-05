@@ -757,7 +757,7 @@ def mock_for_report_type_data(
 def test_recon_for_report_type_is_data(
     mock_workspace_client, spark, report_tables_schema, mock_for_report_type_data, tmp_path: Path, recon_id: UUID
 ):
-    recon_schema, metrics_schema, details_schema = report_tables_schema
+    recon_schema, metrics_schema, _ = report_tables_schema
     table_recon, source, target, reconcile_config_data = mock_for_report_type_data
     catalog = reconcile_config_data.metadata_config.catalog
     schema = reconcile_config_data.metadata_config.schema
@@ -810,72 +810,21 @@ def test_recon_for_report_type_is_data(
         ],
         schema=metrics_schema,
     )
-    expected_remorph_recon_details = spark.createDataFrame(
-        data=[
-            (
-                11111111111,
-                "mismatch",
-                False,
-                [
-                    {
-                        "s_suppkey": "2",
-                        "s_nationkey": "22",
-                        "s_address_base": "address-2",
-                        "s_address_compare": "address-22",
-                        "s_address_match": "false",
-                        "s_name_base": "name-2",
-                        "s_name_compare": "name-2",
-                        "s_name_match": "true",
-                        "s_phone_base": "222-2",
-                        "s_phone_compare": "222",
-                        "s_phone_match": "false",
-                    }
-                ],
-                MOCK_TIMESTAMP,
-            ),
-            (
-                11111111111,
-                "missing_in_source",
-                False,
-                [
-                    {
-                        "s_address": "address-4",
-                        "s_name": "name-4",
-                        "s_nationkey": "44",
-                        "s_phone": "444",
-                        "s_suppkey": "4",
-                    }
-                ],
-                MOCK_TIMESTAMP,
-            ),
-            (
-                11111111111,
-                "missing_in_target",
-                False,
-                [
-                    {
-                        "s_address": "address-3",
-                        "s_name": "name-3",
-                        "s_nationkey": "33",
-                        "s_phone": "333",
-                        "s_suppkey": "3",
-                    }
-                ],
-                MOCK_TIMESTAMP,
-            ),
-        ],
-        schema=details_schema,
-    )
-
     assertDataFrameEqual(
         spark.sql(f"SELECT * FROM {catalog}.{schema}.MAIN"), expected_remorph_recon, ignoreNullable=True
     )
     assertDataFrameEqual(
         spark.sql(f"SELECT * FROM {catalog}.{schema}.METRICS"), expected_remorph_recon_metrics, ignoreNullable=True
     )
-    assertDataFrameEqual(
-        spark.sql(f"SELECT * FROM {catalog}.{schema}.DETAILS"), expected_remorph_recon_details, ignoreNullable=True
-    )
+    # Record-level details: exact VARIANT row images are covered by test_recon_capture; here we assert
+    # the data run produced the expected number of records per recon_type.
+    details_counts = {
+        row.recon_type: row.cnt
+        for row in spark.sql(
+            f"SELECT recon_type, count(*) AS cnt FROM {catalog}.{schema}.DETAILS GROUP BY recon_type"
+        ).collect()
+    }
+    assert details_counts == {"mismatch": 1, "missing_in_source": 1, "missing_in_target": 1}
 
 
 @pytest.fixture
@@ -958,7 +907,7 @@ def mock_for_report_type_schema(
 def test_recon_for_report_type_schema(
     mock_workspace_client, spark, report_tables_schema, mock_for_report_type_schema, tmp_path: Path, recon_id: UUID
 ):
-    recon_schema, metrics_schema, details_schema = report_tables_schema
+    recon_schema, metrics_schema, _ = report_tables_schema
     table_recon, source, target, reconcile_config_schema = mock_for_report_type_schema
     catalog = reconcile_config_schema.metadata_config.catalog
     schema = reconcile_config_schema.metadata_config.schema
@@ -1005,71 +954,17 @@ def test_recon_for_report_type_schema(
         ],
         schema=metrics_schema,
     )
-    expected_remorph_recon_details = spark.createDataFrame(
-        data=[
-            (
-                22222222222,
-                "schema",
-                True,
-                [
-                    {
-                        "source_column": "s_suppkey",
-                        "source_datatype": "number",
-                        "databricks_column": "s_suppkey_t",
-                        "databricks_datatype": "number",
-                        "is_valid": "true",
-                    },
-                    {
-                        "source_column": "s_name",
-                        "source_datatype": "varchar",
-                        "databricks_column": "s_name",
-                        "databricks_datatype": "varchar",
-                        "is_valid": "true",
-                    },
-                    {
-                        "source_column": "s_address",
-                        "source_datatype": "varchar",
-                        "databricks_column": "s_address_t",
-                        "databricks_datatype": "varchar",
-                        "is_valid": "true",
-                    },
-                    {
-                        "source_column": "s_nationkey",
-                        "source_datatype": "number",
-                        "databricks_column": "s_nationkey_t",
-                        "databricks_datatype": "number",
-                        "is_valid": "true",
-                    },
-                    {
-                        "source_column": "s_phone",
-                        "source_datatype": "varchar",
-                        "databricks_column": "s_phone_t",
-                        "databricks_datatype": "varchar",
-                        "is_valid": "true",
-                    },
-                    {
-                        "source_column": "s_acctbal",
-                        "source_datatype": "number",
-                        "databricks_column": "s_acctbal_t",
-                        "databricks_datatype": "number",
-                        "is_valid": "true",
-                    },
-                ],
-                MOCK_TIMESTAMP,
-            )
-        ],
-        schema=details_schema,
-    )
-
     assertDataFrameEqual(
         spark.sql(f"SELECT * FROM {catalog}.{schema}.MAIN"), expected_remorph_recon, ignoreNullable=True
     )
     assertDataFrameEqual(
         spark.sql(f"SELECT * FROM {catalog}.{schema}.METRICS"), expected_remorph_recon_metrics, ignoreNullable=True
     )
-    assertDataFrameEqual(
-        spark.sql(f"SELECT * FROM {catalog}.{schema}.DETAILS"), expected_remorph_recon_details, ignoreNullable=True
-    )
+    # A schema-only run writes no row-level details; the column comparison lands in schema_details.
+    assert spark.sql(f"SELECT * FROM {catalog}.{schema}.DETAILS").count() == 0
+    schema_details_df = spark.sql(f"SELECT * FROM {catalog}.{schema}.SCHEMA_DETAILS")
+    assert schema_details_df.count() == 6
+    assert schema_details_df.where("is_valid = true").count() == 6
 
     assert final_reconcile_output.recon_id == recon_id.hex
 
@@ -1180,7 +1075,7 @@ def test_recon_for_report_type_all(
     mock_for_report_type_all,
     tmp_path: Path,
 ):
-    recon_schema, metrics_schema, details_schema = report_tables_schema
+    recon_schema, metrics_schema, _ = report_tables_schema
     table_recon, source, target, reconcile_config_all = mock_for_report_type_all
     catalog = reconcile_config_all.metadata_config.catalog
     schema = reconcile_config_all.metadata_config.schema
@@ -1233,115 +1128,23 @@ def test_recon_for_report_type_all(
         ],
         schema=metrics_schema,
     )
-    expected_remorph_recon_details = spark.createDataFrame(
-        data=[
-            (
-                33333333333,
-                "mismatch",
-                False,
-                [
-                    {
-                        "s_suppkey": "2",
-                        "s_nationkey": "22",
-                        "s_address_base": "address-2",
-                        "s_address_compare": "address-22",
-                        "s_address_match": "false",
-                        "s_name_base": "name-2",
-                        "s_name_compare": "name-2",
-                        "s_name_match": "true",
-                        "s_phone_base": "222-2",
-                        "s_phone_compare": "222",
-                        "s_phone_match": "false",
-                    }
-                ],
-                MOCK_TIMESTAMP,
-            ),
-            (
-                33333333333,
-                "missing_in_source",
-                False,
-                [
-                    {
-                        "s_address": "address-4",
-                        "s_name": "name-4",
-                        "s_nationkey": "44",
-                        "s_phone": "444",
-                        "s_suppkey": "4",
-                    }
-                ],
-                MOCK_TIMESTAMP,
-            ),
-            (
-                33333333333,
-                "missing_in_target",
-                False,
-                [
-                    {
-                        "s_address": "address-3",
-                        "s_name": "name-3",
-                        "s_nationkey": "33",
-                        "s_phone": "333",
-                        "s_suppkey": "3",
-                    }
-                ],
-                MOCK_TIMESTAMP,
-            ),
-            (
-                33333333333,
-                "schema",
-                False,
-                [
-                    {
-                        "source_column": "s_suppkey",
-                        "source_datatype": "number",
-                        "databricks_column": "s_suppkey_t",
-                        "databricks_datatype": "number",
-                        "is_valid": "false",
-                    },
-                    {
-                        "source_column": "s_name",
-                        "source_datatype": "varchar",
-                        "databricks_column": "s_name",
-                        "databricks_datatype": "varchar",
-                        "is_valid": "false",
-                    },
-                    {
-                        "source_column": "s_address",
-                        "source_datatype": "varchar",
-                        "databricks_column": "s_address_t",
-                        "databricks_datatype": "varchar",
-                        "is_valid": "false",
-                    },
-                    {
-                        "source_column": "s_nationkey",
-                        "source_datatype": "number",
-                        "databricks_column": "s_nationkey_t",
-                        "databricks_datatype": "number",
-                        "is_valid": "false",
-                    },
-                    {
-                        "source_column": "s_phone",
-                        "source_datatype": "varchar",
-                        "databricks_column": "s_phone_t",
-                        "databricks_datatype": "varchar",
-                        "is_valid": "false",
-                    },
-                ],
-                MOCK_TIMESTAMP,
-            ),
-        ],
-        schema=details_schema,
-    )
-
     assertDataFrameEqual(
         spark.sql(f"SELECT * FROM {catalog}.{schema}.MAIN"), expected_remorph_recon, ignoreNullable=True
     )
     assertDataFrameEqual(
         spark.sql(f"SELECT * FROM {catalog}.{schema}.METRICS"), expected_remorph_recon_metrics, ignoreNullable=True
     )
-    assertDataFrameEqual(
-        spark.sql(f"SELECT * FROM {catalog}.{schema}.DETAILS"), expected_remorph_recon_details, ignoreNullable=True
-    )
+    # Record-level details (exact images covered by test_recon_capture); schema lands in schema_details.
+    details_counts = {
+        row.recon_type: row.cnt
+        for row in spark.sql(
+            f"SELECT recon_type, count(*) AS cnt FROM {catalog}.{schema}.DETAILS GROUP BY recon_type"
+        ).collect()
+    }
+    assert details_counts == {"mismatch": 1, "missing_in_source": 1, "missing_in_target": 1}
+    schema_details_df = spark.sql(f"SELECT * FROM {catalog}.{schema}.SCHEMA_DETAILS")
+    assert schema_details_df.count() == 5
+    assert schema_details_df.where("is_valid = false").count() == 5
 
 
 @pytest.fixture
@@ -1460,7 +1263,7 @@ def test_recon_for_report_type_is_row(
     report_tables_schema,
     tmp_path: Path,
 ):
-    recon_schema, metrics_schema, details_schema = report_tables_schema
+    recon_schema, metrics_schema, _ = report_tables_schema
     source, target, table_recon, reconcile_config_row = mock_for_report_type_row
     catalog = reconcile_config_row.metadata_config.catalog
     schema = reconcile_config_row.metadata_config.schema
@@ -1513,65 +1316,20 @@ def test_recon_for_report_type_is_row(
         ],
         schema=metrics_schema,
     )
-    expected_remorph_recon_details = spark.createDataFrame(
-        data=[
-            (
-                33333333333,
-                "missing_in_source",
-                False,
-                [
-                    {
-                        's_address': 'address-2',
-                        's_name': 'name-2',
-                        's_nationkey': '22',
-                        's_phone': '222',
-                        's_suppkey': '2',
-                    },
-                    {
-                        's_address': 'address-4',
-                        's_name': 'name-4',
-                        's_nationkey': '44',
-                        's_phone': '444',
-                        's_suppkey': '4',
-                    },
-                ],
-                MOCK_TIMESTAMP,
-            ),
-            (
-                33333333333,
-                "missing_in_target",
-                False,
-                [
-                    {
-                        's_address': 'address-2',
-                        's_name': 'name-2',
-                        's_nationkey': '22',
-                        's_phone': '222-2',
-                        's_suppkey': '2',
-                    },
-                    {
-                        's_address': 'address-3',
-                        's_name': 'name-3',
-                        's_nationkey': '33',
-                        's_phone': '333',
-                        's_suppkey': '3',
-                    },
-                ],
-                MOCK_TIMESTAMP,
-            ),
-        ],
-        schema=details_schema,
-    )
-
     assertDataFrameEqual(
         spark.sql(f"SELECT * FROM {catalog}.{schema}.MAIN"), expected_remorph_recon, ignoreNullable=True
     )
     assertDataFrameEqual(
         spark.sql(f"SELECT * FROM {catalog}.{schema}.METRICS"), expected_remorph_recon_metrics, ignoreNullable=True
     )
-    assertDataFrameEqual(
-        spark.sql(f"SELECT * FROM {catalog}.{schema}.DETAILS"), expected_remorph_recon_details, ignoreNullable=True
-    )
+    # Record-level details (exact images covered by test_recon_capture); a row report has missing rows only.
+    details_counts = {
+        row.recon_type: row.cnt
+        for row in spark.sql(
+            f"SELECT recon_type, count(*) AS cnt FROM {catalog}.{schema}.DETAILS GROUP BY recon_type"
+        ).collect()
+    }
+    assert details_counts == {"missing_in_source": 2, "missing_in_target": 2}
 
 
 @pytest.fixture
