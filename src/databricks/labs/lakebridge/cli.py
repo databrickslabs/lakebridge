@@ -1022,13 +1022,20 @@ def execute_database_profiler(
     ctx.add_user_agent_extra("profiler_source_tech", make_alphanum_or_semver(source_tech))
     user = ctx.current_user
     logger.debug(f"User: {user}")
-    # check if cred_file is present which has the connection details before running the profiler
-    creds_path = Path(cred_file_path) if cred_file_path else cred_file(PRODUCT_NAME)
-    if not creds_path.exists():
-        raise_validation_exception(
-            f"Connection details not found. Please run `databricks labs lakebridge configure-database-profiler` "
-            f"to set up connection details for {source_tech}."
-        )
+
+    if cred_file_path:
+        creds_path = Path(cred_file_path).expanduser()
+        if not creds_path.exists():
+            raise_validation_exception(
+                f"Credential file not found at {creds_path}. Please try again with the right file."
+            )
+    else:
+        creds_path = cred_file(PRODUCT_NAME)
+        if not creds_path.exists():
+            raise_validation_exception(
+                f"Connection details not found. Please run `databricks labs lakebridge configure-database-profiler` "
+                f"to set up connection details for {source_tech}."
+            )
 
     if output_folder is None:
         output_folder = prompts.question(
