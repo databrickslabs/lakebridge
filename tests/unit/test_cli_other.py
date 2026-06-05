@@ -189,7 +189,7 @@ def test_cli_execute_database_profiler_missing_cred_file_raises(mock_workspace_c
     with (
         patch("databricks.labs.lakebridge.cli.ApplicationContext", return_value=ctx_mock),
         patch("databricks.labs.lakebridge.cli.cred_file", return_value=tmp_path / "default-unused.yml"),
-        pytest.raises(ValueError, match="Connection details not found"),
+        pytest.raises(ValueError, match="Credential file not found"),
     ):
         cli.execute_database_profiler(
             w=mock_workspace_client,
