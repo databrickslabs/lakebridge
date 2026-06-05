@@ -1,7 +1,5 @@
 name: ExamplePipeline
 version: "1.0"
-# Value replaced prior to actual use:
-extract_folder: /replaced/after/loading/
 steps:
   - name: package_status
     type: python
@@ -12,5 +10,3 @@ steps:
     flag: active
     dependencies:
       - databricks_labs_ucx>=0.50.0
-
-

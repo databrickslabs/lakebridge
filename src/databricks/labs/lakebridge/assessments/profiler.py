@@ -2,11 +2,12 @@ import logging
 from pathlib import Path
 from collections.abc import Mapping
 
-from databricks.labs.lakebridge.assessments.pipeline import PipelineClass
+from databricks.labs.lakebridge.assessments.pipeline import PipelineClass, make_profiler_db_filename
 from databricks.labs.lakebridge.assessments.profiler_config import PipelineConfig, Step
 from databricks.labs.lakebridge.connections.database_manager import DatabaseManager
 from databricks.labs.lakebridge.connections.credential_manager import (
     create_credential_manager,
+    cred_file,
 )
 from databricks.labs.lakebridge.connections.env_getter import EnvGetter
 from databricks.labs.lakebridge.assessments import (
@@ -19,19 +20,21 @@ from databricks.labs.lakebridge.assessments import (
 logger = logging.getLogger(__name__)
 
 
+def default_output_folder(platform: str) -> Path:
+    return Path.home() / ".databricks" / "labs" / "lakebridge_profilers" / f"{platform}_assessment"
+
+
 class Profiler:
 
     def __init__(self, platform: str, pipeline_configs: PipelineConfig | None = None):
         self._platform = platform
-        self.pipeline_config = pipeline_configs
+        self._pipeline_config = pipeline_configs
 
     @classmethod
     def create(cls, platform: str) -> "Profiler":
-        pipeline_config_path = PLATFORM_TO_SOURCE_TECHNOLOGY_CFG.get(platform, None)
-        pipeline_config = None
-        if pipeline_config_path:
-            pipeline_config_absolute_path = Profiler._locate_config(pipeline_config_path)
-            pipeline_config = Profiler.path_modifier(config_file=pipeline_config_absolute_path)
+        pipeline_config_path = PLATFORM_TO_SOURCE_TECHNOLOGY_CFG[platform]
+        pipeline_config_absolute_path = Profiler._locate_config(pipeline_config_path)
+        pipeline_config = Profiler.path_modifier(config_file=pipeline_config_absolute_path)
         return cls(platform, pipeline_config)
 
     @classmethod
@@ -48,23 +51,19 @@ class Profiler:
     def profile(
         self,
         *,
-        extractor: DatabaseManager | None = None,
         pipeline_config: PipelineConfig | None = None,
+        extractor: DatabaseManager | None = None,
+        output_folder: Path | None = None,
+        cred_file_path: Path | None = None,
     ) -> None:
         platform = self._platform.lower()
         if not pipeline_config:
-            if not self.pipeline_config:
+            if not self._pipeline_config:
                 raise ValueError(f"Cannot Proceed without a valid pipeline configuration for {platform}")
-            pipeline_config = self.pipeline_config
-        self._execute(platform, pipeline_config, extractor)
-
-    @staticmethod
-    def _setup_extractor(platform: str) -> DatabaseManager | None:
-        if not CONNECTOR_REQUIRED[platform]:
-            return None
-        cred_manager = create_credential_manager(PRODUCT_NAME, EnvGetter())
-        connect_config = cred_manager.get_credentials(platform)
-        return DatabaseManager(platform, connect_config)
+            pipeline_config = self._pipeline_config
+        resolved_output_folder = output_folder or default_output_folder(platform)
+        resolved_creds_path = cred_file_path or cred_file()
+        self._execute(platform, pipeline_config, resolved_output_folder, resolved_creds_path, extractor)
 
     @staticmethod
     def configure_teradata_pipeline(
@@ -115,11 +114,15 @@ class Profiler:
             return False
 
     def _prepare_extractor_and_config(
-        self, platform: str, pipeline_config: PipelineConfig, extractor
+        self,
+        platform: str,
+        pipeline_config: PipelineConfig,
+        extractor: DatabaseManager | None,
+        cred_file_path: Path,
     ) -> tuple[PipelineConfig, DatabaseManager | None]:
         connect_config = None
         if extractor is None and CONNECTOR_REQUIRED[platform]:
-            cred_manager = create_credential_manager(PRODUCT_NAME, EnvGetter())
+            cred_manager = create_credential_manager(PRODUCT_NAME, EnvGetter(), creds_path=cred_file_path)
             connect_config = cred_manager.get_credentials(platform)
             extractor = DatabaseManager(platform, connect_config)
 
@@ -132,12 +135,23 @@ class Profiler:
 
         return pipeline_config, extractor
 
-    def _execute(self, platform: str, pipeline_config: PipelineConfig, extractor=None) -> None:
+    def _execute(
+        self,
+        platform: str,
+        pipeline_config: PipelineConfig,
+        output_folder: Path,
+        cred_file_path: Path,
+        extractor: DatabaseManager | None = None,
+    ) -> None:
         # Keeping a broad execution guard here ensures the CLI returns a stable,
         # user-facing RuntimeError regardless of underlying connector/runtime failures.
         try:
-            pipeline_config, extractor = self._prepare_extractor_and_config(platform, pipeline_config, extractor)
-            result = PipelineClass(pipeline_config, extractor).execute()
+            pipeline_config, extractor = self._prepare_extractor_and_config(
+                platform, pipeline_config, extractor, cred_file_path
+            )
+            db_path = output_folder / make_profiler_db_filename(platform)
+            result = PipelineClass(pipeline_config, extractor, db_path, cred_file_path).execute()
+            logger.info(f"Profiler extract written to {db_path.expanduser()}")
             logger.info(f"Profile execution has completed successfully for {platform} for more info check: {result}.")
         except FileNotFoundError as e:
             logger.error(f"Configuration file not found for source {platform}: {e}")
