@@ -128,7 +128,8 @@ class DashboardDeployment:
         return dashboard_id  # Update the existing dashboard
 
     def _remove_deprecated_dashboards(self, valid_dashboard_refs: set[str]):
-        for ref, dashboard_id in self._install_state.dashboards.items():
+        # Snapshot the items so we can `del` entries inside the loop.
+        for ref, dashboard_id in list(self._install_state.dashboards.items()):
             if ref not in valid_dashboard_refs:
                 try:
                     logger.info(f"Removing dashboard_id={dashboard_id}, as it is no longer needed.")

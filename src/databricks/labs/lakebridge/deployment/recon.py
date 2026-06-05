@@ -75,6 +75,7 @@ class ReconDeployment:
             "aggregate_metrics.sql",
             "aggregate_details.sql",
             "aggregate_rules.sql",
+            "column_metrics.sql",
         ]
 
         for sql_file in sqls_to_deploy:

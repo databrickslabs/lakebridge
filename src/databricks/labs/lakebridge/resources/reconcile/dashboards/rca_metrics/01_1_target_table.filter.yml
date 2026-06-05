@@ -1,6 +1,5 @@
 columns:
 - target_table
-- dd_target_table
 type: MULTI_SELECT
-title: Target Table Name
+title: Table
 width: 2
