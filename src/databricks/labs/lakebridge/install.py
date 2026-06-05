@@ -461,7 +461,9 @@ class WorkspaceInstaller:
     def _prompt_for_new_profiler_dashboard_installation(self) -> ProfilerDashboardConfig:
         logger.info("Please answer a few questions to configure the Lakebridge profiler dashboard.")
         source_tech = self._prompts.choice("Select the source technology", PROFILER_SOURCE_SYSTEM)
-        extract_file_path = self._prompts.question("Enter the path to the profiler output file").strip()
+        extract_file_path = self._prompts.question(
+            "Enter the path to the profiler output file (Look for \"Profiler extract written to\" in the execute logs)"
+        ).strip()
 
         metadata_config = self._prompt_for_profiler_dashboard_metadata_config()
 
