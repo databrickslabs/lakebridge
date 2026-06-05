@@ -8,6 +8,22 @@ from pathlib import Path
 import duckdb
 import yaml
 from pyspark.sql import SparkSession
+from pyspark.sql.types import (
+    BooleanType,
+    ByteType,
+    DataType,
+    DateType,
+    DoubleType,
+    FloatType,
+    IntegerType,
+    LongType,
+    ShortType,
+    StringType,
+    StructField,
+    StructType,
+    TimestampNTZType,
+    TimestampType,
+)
 from yaml.parser import ParserError
 from yaml.scanner import ScannerError
 
@@ -30,6 +46,48 @@ logger = logging.getLogger(__name__)
 
 class ExtractIngestionError(Exception):
     """Raised when the profiler extract ingestion fails due to unexpected errors."""
+
+
+# Maps DuckDB column types (as reported by a DuckDB relation) to Spark types so that the
+# DuckDB -> pandas -> Spark -> Delta hop preserves types exactly instead of relying on Spark's
+# pandas-based schema inference. The important case is TIMESTAMP: DuckDB's TIMESTAMP is timezone
+# *naive* (a wall-clock value), but inference yields a timezone-dependent TIMESTAMP (LTZ) that
+# reinterprets the value in the session time zone and shifts it. Mapping it to TIMESTAMP_NTZ keeps
+# the original wall-clock value. TIMESTAMP WITH TIME ZONE stays LTZ, which is correct for instants.
+_DUCKDB_TO_SPARK_TYPE: dict[str, DataType] = {
+    "BOOLEAN": BooleanType(),
+    "TINYINT": ByteType(),
+    "SMALLINT": ShortType(),
+    "INTEGER": IntegerType(),
+    "BIGINT": LongType(),
+    "FLOAT": FloatType(),
+    "DOUBLE": DoubleType(),
+    "VARCHAR": StringType(),
+    "DATE": DateType(),
+    "TIMESTAMP": TimestampNTZType(),
+    "TIMESTAMP WITH TIME ZONE": TimestampType(),
+}
+
+
+def build_spark_schema(columns: Sequence[str], duckdb_types: Sequence[object]) -> StructType | None:
+    """
+    Build an explicit Spark schema from a DuckDB relation's column names and types.
+
+    Returns ``None`` if any column has a DuckDB type that is not in ``_DUCKDB_TO_SPARK_TYPE``
+    (e.g. nested STRUCT/LIST/MAP columns produced by other profilers). In that case the caller
+    falls back to Spark's schema inference for the whole table, preserving existing behavior.
+    """
+    fields: list[StructField] = []
+    for name, duck_type in zip(columns, duckdb_types):
+        spark_type = _DUCKDB_TO_SPARK_TYPE.get(str(duck_type).upper())
+        if spark_type is None:
+            logger.info(
+                f"Column '{name}' has unmapped DuckDB type '{duck_type}'; "
+                "falling back to Spark schema inference for this table."
+            )
+            return None
+        fields.append(StructField(name, spark_type, True))
+    return StructType(fields)
 
 
 def main(*argv: str) -> None:
@@ -169,15 +227,24 @@ def _ingest_profiler_tables(catalog_name: str, schema_name: str, extract_locatio
 def _ingest_table(extract_location: str, source_table_name: str, target_table_name: str) -> None:
     """
     Ingest a table from a DuckDB profiler extract into a managed Delta table in Unity Catalog.
+
+    An explicit Spark schema is derived from the DuckDB column types so that values are preserved
+    exactly across the DuckDB -> pandas -> Spark -> Delta hop. In particular, DuckDB's timezone-naive
+    TIMESTAMP is mapped to Spark TIMESTAMP_NTZ to keep the wall-clock value; relying on schema
+    inference would produce a timezone-dependent TIMESTAMP (LTZ) and shift the values. For tables
+    containing column types we do not map (e.g. nested STRUCT columns from other profilers) we fall
+    back to schema inference.
     """
+    spark = SparkSession.builder.getOrCreate()
     try:
         with duckdb.connect(database=extract_location, read_only=True) as duck_conn:
-            query = f"SELECT * FROM {source_table_name}"
-            pdf = duck_conn.execute(query).df()
-            # Save table as a managed Delta table in Unity Catalog
+            relation = duck_conn.sql(f"SELECT * FROM {source_table_name}")
+            # An explicit schema preserves types exactly; when a column type is unmapped it is None
+            # and we fall back to Spark's pandas schema inference.
+            spark_schema = build_spark_schema(relation.columns, relation.types)
+            pdf = relation.df()
             logger.info(f"Saving profiler table '{target_table_name}' to Unity Catalog.")
-            spark = SparkSession.builder.getOrCreate()
-            df = spark.createDataFrame(pdf)
+            df = spark.createDataFrame(pdf, schema=spark_schema) if spark_schema else spark.createDataFrame(pdf)
             df.write.format("delta").mode("overwrite").saveAsTable(target_table_name)
     except duckdb.CatalogException as e:
         logger.error(f"Could not find source table '{source_table_name}' in profiler extract: {e}")

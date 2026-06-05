@@ -1,0 +1,138 @@
+source_tech: oracle
+version: 0.1
+
+schemas:
+  main:
+    tables:
+      config_containers:
+        columns:
+          - name: inst_ids
+            type: VARCHAR
+          - name: name
+            type: VARCHAR
+          - name: open_mode
+            type: VARCHAR
+          - name: pdb_count
+            type: INTEGER
+      config_db_features:
+        columns:
+          - name: scope
+            type: VARCHAR
+          - name: inst_id
+            type: INTEGER
+          - name: stat_name
+            type: VARCHAR
+          - name: name
+            type: VARCHAR
+          - name: value
+            type: VARCHAR
+      config_instance:
+        columns:
+          - name: inst_id
+            type: INTEGER
+          - name: instance_name
+            type: VARCHAR
+          - name: version
+            type: VARCHAR
+          - name: database_type
+            type: VARCHAR
+      config_memory_evolution:
+        columns:
+          - name: con_name
+            type: VARCHAR
+          - name: instance_number
+            type: INTEGER
+          - name: snap_time
+            type: TIMESTAMP
+          - name: parameter_name
+            type: VARCHAR
+          - name: value
+            type: VARCHAR
+      config_pdb_objects:
+        columns:
+          - name: pdb_name
+            type: VARCHAR
+          - name: owner
+            type: VARCHAR
+          - name: object_type
+            type: VARCHAR
+          - name: cnt
+            type: INTEGER
+      config_pdb_partitions:
+        columns:
+          - name: pdb_name
+            type: VARCHAR
+          - name: owner
+            type: VARCHAR
+          - name: object_type
+            type: VARCHAR
+          - name: cnt
+            type: INTEGER
+      config_storage:
+        columns:
+          - name: con_name
+            type: VARCHAR
+          - name: tablespace_type
+            type: VARCHAR
+          - name: gb
+            type: DOUBLE
+          - name: freegb
+            type: DOUBLE
+          - name: maxgb
+            type: DOUBLE
+      perf_cpu_waits:
+        columns:
+          - name: pdb_name
+            type: VARCHAR
+          - name: instance_number
+            type: INTEGER
+          - name: mtime
+            type: TIMESTAMP
+          - name: event
+            type: VARCHAR
+          - name: wait_class
+            type: VARCHAR
+          - name: total_wait_time
+            type: BIGINT
+      perf_fgd_session_evolution:
+        columns:
+          - name: name
+            type: VARCHAR
+          - name: instance_number
+            type: INTEGER
+          - name: username
+            type: VARCHAR
+          - name: snap_time
+            type: TIMESTAMP
+          - name: foregd_session_cnt
+            type: INTEGER
+      perf_heatmap:
+        columns:
+          - name: mtime
+            type: VARCHAR
+          - name: pdb_name
+            type: VARCHAR
+          - name: instance_number
+            type: INTEGER
+          - name: hour
+            type: VARCHAR
+          - name: core_nb
+            type: INTEGER
+          - name: value
+            type: DOUBLE
+      perf_sqltext:
+        columns:
+          - name: dt
+            type: TIMESTAMP
+          - name: pdb_name
+            type: VARCHAR
+          - name: command
+            type: VARCHAR
+          - name: parsing_schema_name
+            type: VARCHAR
+          - name: instance_number
+            type: INTEGER
+          - name: cnt
+            type: INTEGER
+          - name: total_run_time_secs
+            type: DOUBLE
