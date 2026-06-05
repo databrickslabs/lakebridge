@@ -1,10 +1,13 @@
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
+from importlib import resources
 from pathlib import Path
 
 import duckdb
 from faker import Faker
+
+ORACLE_RESOURCE_PACKAGE = "databricks.labs.lakebridge.resources.assessments.oracle"
 
 
 @dataclass(frozen=True)
@@ -260,3 +263,51 @@ def build_mock_redshift_extract(extract_db_name: str, path_prefix: Path) -> Path
     builder.create_sample_data()
     builder.shutdown()
     return full_path
+
+
+def _oracle_sample_value(duckdb_type: str):
+    """Return a type-appropriate sample value for a DuckDB column type."""
+    duckdb_type = duckdb_type.upper()
+    if duckdb_type == "TIMESTAMP":
+        return datetime(2026, 4, 3, 13, 55, 26)
+    if duckdb_type in {"INTEGER", "BIGINT"}:
+        return 1
+    if duckdb_type == "DOUBLE":
+        return 1.5
+    return "sample"  # VARCHAR / fallback
+
+
+def build_mock_oracle_extract(extract_db_name: str, path_prefix: Path) -> Path:
+    """
+    Build a mock Oracle profiler extract whose table schemas come directly from the shipped Oracle
+    DDL resources. Because the tables are created from the same DDL the real profiler uses, validating
+    this extract against the shipped ``oracle_extract_schema.yml`` exercises DDL <-> schema-definition
+    consistency without needing a live Oracle database.
+
+    Each table is seeded with rows so empty-table checks pass. ``config_db_features.inst_id`` gets a row
+    with a NULL value to mirror the real extract's nullable-integer edge case.
+    """
+    oracle_extract_path = path_prefix
+    oracle_extract_path.mkdir(parents=True, exist_ok=False)
+    full_oracle_extract_path = oracle_extract_path / f"{extract_db_name}.db"
+
+    ddl_files = sorted(
+        (f for f in resources.files(ORACLE_RESOURCE_PACKAGE).iterdir() if f.name.endswith("_ddl.sql")),
+        key=lambda f: f.name,
+    )
+    with duckdb.connect(database=str(full_oracle_extract_path)) as conn:
+        for ddl_file in ddl_files:
+            conn.execute(ddl_file.read_text(encoding="utf-8"))
+
+        for (table_name,) in conn.execute("SHOW TABLES").fetchall():
+            columns = conn.execute(
+                "SELECT column_name, data_type FROM information_schema.columns "
+                f"WHERE table_name = '{table_name}' ORDER BY ordinal_position"
+            ).fetchall()
+            row = [_oracle_sample_value(data_type) for _, data_type in columns]
+            # Mirror the real extract: config_db_features.inst_id (INTEGER) contains NULLs.
+            null_row = [None if name == "inst_id" else value for (name, _), value in zip(columns, row)]
+            placeholders = ", ".join(["?"] * len(row))
+            conn.execute(f"INSERT INTO {table_name} VALUES ({placeholders})", row)
+            conn.execute(f"INSERT INTO {table_name} VALUES ({placeholders})", null_row)
+    return full_oracle_extract_path
