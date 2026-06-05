@@ -101,17 +101,17 @@ class Profiler:
     @staticmethod
     def has_pdcr_access(extractor: DatabaseManager) -> bool:
         # Lightweight probes: if these relations are inaccessible/missing, fallback to DBQL core.
+        # A failed probe is an expected, handled condition, so use the quiet `probe` API
+        # rather than `fetch` to avoid logging an alarming stack trace.
         probes = (
             "SELECT TOP 1 1 AS pdcr_probe FROM PDCRINFO.DBQLogTbl_Hst",
             "SELECT TOP 1 1 AS pdcr_probe FROM PDCRINFO.UserInfo",
         )
-        try:
-            for query in probes:
-                extractor.fetch(query)
-            return True
-        except (ConnectionError, RuntimeError) as e:
-            logger.warning(f"PDCR preflight check failed; using DBQL core fallback. Details: {e}")
-            return False
+        for query in probes:
+            if not extractor.probe(query):
+                logger.info("PDCR relations are not accessible; using DBQL core fallback extract.")
+                return False
+        return True
 
     def _prepare_extractor_and_config(
         self,

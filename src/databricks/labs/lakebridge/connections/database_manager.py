@@ -317,5 +317,19 @@ class DatabaseManager:
             logger.exception(f"Error connecting to the database: {e}")
             raise ConnectionError(f"Error connecting to the database check credentials: {e}") from e
 
+    def probe(self, query: str) -> bool:
+        """Run a lightweight probe query, returning ``False`` when it fails instead of raising.
+
+        Unlike :meth:`fetch`, a failure here is treated as an expected, handled outcome
+        (e.g. a capability or relation-existence check), so it is logged at debug level
+        without an alarming stack trace.
+        """
+        try:
+            self.connector.fetch(query)
+            return True
+        except OperationalError as e:
+            logger.debug(f"Probe query failed: {e}")
+            return False
+
     def check_connection(self) -> bool:
         return self.connector.health_check()
