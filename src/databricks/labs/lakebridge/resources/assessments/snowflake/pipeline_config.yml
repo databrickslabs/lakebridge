@@ -1,6 +1,5 @@
 name: snowflake_assessment
 version: "1.0"
-extract_folder: "~/.databricks/labs/lakebridge_profilers/snowflake_assessment"
 steps:
   - name: account_info
     type: sql

@@ -2,6 +2,7 @@ import json
 import logging
 import sys
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 from subprocess import PIPE, Popen, STDOUT
@@ -10,13 +11,15 @@ import duckdb
 import yaml
 
 from databricks.labs.blueprint.paths import read_text
+from databricks.labs.lakebridge import __version__ as lakebridge_version
 from databricks.labs.lakebridge.assessments.profiler_config import PipelineConfig, Step
-from databricks.labs.lakebridge.connections.credential_manager import cred_file
 from databricks.labs.lakebridge.connections.database_manager import DatabaseManager, FetchResult
 
 logger = logging.getLogger(__name__)
 
-DB_NAME = "profiler_extract.db"
+
+def make_profiler_db_filename(platform: str) -> str:
+    return f"profiler_extract_{platform}_{lakebridge_version}_{datetime.now(timezone.utc).strftime('%Y%m%d')}.db"
 
 
 class StepExecutionStatus(str, Enum):
@@ -33,12 +36,18 @@ class StepExecutionResult:
 
 
 class PipelineClass:
-    def __init__(self, config: PipelineConfig, executor: DatabaseManager | None):
+    def __init__(
+        self,
+        config: PipelineConfig,
+        executor: DatabaseManager | None,
+        db_path: Path,
+        cred_file_path: Path,
+    ):
         self.config = config
         self.executor = executor
-        self._db_path_prefix = Path(config.extract_folder).expanduser()
-        self._create_dir(self._db_path_prefix)
-        self._db_path = str(self._db_path_prefix / DB_NAME)
+        self._db_path = db_path.expanduser()
+        self._create_dir(self._db_path.parent)
+        self._cred_file_path = cred_file_path
 
     def execute(self) -> list[StepExecutionResult]:
         logging.info(f"Pipeline initialized with config: {self.config.name}, version: {self.config.version}")
@@ -143,24 +152,22 @@ class PipelineClass:
 
     def _execute_python_step(self, step: Step):
         logging.debug(f"Executing Python script: {step.extract_source}")
-        credential_config = str(cred_file("lakebridge"))
-
         # Run the step script with the labs-managed venv
         logger.info(f"Executing Python script for step '{step.name}' using interpreter: {sys.executable}")
-        self._run_python_script(sys.executable, step.extract_source, self._db_path, credential_config)
+        self._run_python_script(sys.executable, step.extract_source, self._db_path, self._cred_file_path)
 
     @staticmethod
-    def _run_python_script(venv_exec_cmd, script_path, db_path, credential_config):
+    def _run_python_script(venv_exec_cmd: str, script_path: str, db_path: Path, credential_config: Path):
         output_lines = []
         try:
             with Popen(
                 [
                     venv_exec_cmd,
-                    str(script_path),
+                    script_path,
                     "--db-path",
-                    db_path,
+                    str(db_path),
                     "--credential-config-path",
-                    credential_config,
+                    str(credential_config),
                 ],
                 stdout=PIPE,
                 stderr=STDOUT,
@@ -256,5 +263,7 @@ class PipelineClass:
             data = yaml.safe_load(file)
         steps = [Step(**step) for step in data['steps']]
         return PipelineConfig(
-            name=data['name'], version=data['version'], extract_folder=data['extract_folder'], steps=steps
+            name=data['name'],
+            version=data['version'],
+            steps=steps,
         )
