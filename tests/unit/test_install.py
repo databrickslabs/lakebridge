@@ -34,9 +34,6 @@ from databricks.labs.lakebridge.assessments import PROFILER_SOURCE_SYSTEM
 
 RECONCILE_DATA_SOURCES = sorted([source_type.value for source_type in ReconSourceType])
 RECONCILE_REPORT_TYPES = sorted([report_type.value for report_type in ReconReportType])
-# Prompts.choice sorts choices alphabetically, so the prompt index is the position
-# in the sorted list, not in PROFILER_SOURCE_SYSTEM's declared order.
-PROFILER_SOURCE_SYSTEM_SORTED = sorted(PROFILER_SOURCE_SYSTEM, key=str.casefold)
 
 
 @pytest.fixture
@@ -935,7 +932,7 @@ def test_configure_reconcile_databricks_no_existing_installation(ws: WorkspaceCl
     )
 
 
-def test_configure_all_override_installation(  # FIXME
+def test_configure_all_override_installation(
     ws_installer: Callable[..., WorkspaceInstaller],
     ws: WorkspaceClient,
 ) -> None:
@@ -956,10 +953,8 @@ def test_configure_all_override_installation(  # FIXME
             r"Enter .* schema name": "tpch_sf1000",
             r"Enter target Databricks catalog name": "tpch",
             r"Enter target Databricks schema name": "1000gb",
-            r"Select the source technology": str(PROFILER_SOURCE_SYSTEM_SORTED.index("snowflake")),
-            r"Enter the path to the profiler extract file:": (
-                "~/.databricks/labs/lakebridge_profilers/snowflake_assessment/profiler_extract.db"
-            ),
+            r"Select the source technology": str(PROFILER_SOURCE_SYSTEM.index("snowflake")),
+            r"Enter the path to the profiler output file": "/tmp/profiler_extract.db",
         }
     )
     installation = MockInstallation(
@@ -1057,7 +1052,7 @@ def test_configure_all_override_installation(  # FIXME
 
     expected_profiler_dash_config = ProfilerDashboardConfig(
         source_tech="snowflake",
-        extract_file_path="~/.databricks/labs/lakebridge_profilers/snowflake_assessment/profiler_extract.db",
+        extract_file_path="/tmp/profiler_extract.db",
         metadata_config=ProfilerDashboardMetadataConfig(
             catalog="remorph",
             schema="reconcile",

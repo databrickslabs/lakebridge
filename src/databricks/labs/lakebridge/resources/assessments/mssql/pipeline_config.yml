@@ -1,6 +1,5 @@
 name: mssql_assessment
 version: "1.0"
-extract_folder: "/tmp/data/mssql_assessment"
 steps:
   - name: sys_info
     type: ddl

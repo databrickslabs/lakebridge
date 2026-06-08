@@ -7,7 +7,7 @@ from databricks.labs.lakebridge.assessments.profiler_config import PipelineConfi
 
 def _config(*step_specs: tuple[str, str, str]) -> PipelineConfig:
     steps = [Step(name=n, type=t, extract_source="dummy.sql", flag=f) for n, t, f in step_specs]
-    return PipelineConfig(name="test", version="1.0", extract_folder="/tmp", steps=steps)
+    return PipelineConfig(name="test", version="1.0", steps=steps)
 
 
 @pytest.mark.parametrize(
