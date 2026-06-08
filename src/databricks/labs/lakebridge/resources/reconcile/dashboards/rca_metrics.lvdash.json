@@ -372,6 +372,90 @@
         "WHERE\n",
         "  metrics.run_metrics.status = TRUE AND LOWER(main.report_type) IN ('all', 'data')"
       ]
+    },
+    {
+      "name": "ds_table_run",
+      "displayName": "Deep Dive - Table Run",
+      "queryLines": [
+        "SELECT\n",
+        "    m.recon_table_id,\n",
+        "    m.recon_id,\n",
+        "    m.source_type,\n",
+        "    m.report_type,\n",
+        "    IF(m.source_table.catalog IS NULL,\n",
+        "       CONCAT_WS('.', m.source_table.schema, m.source_table.table_name),\n",
+        "       CONCAT_WS('.', m.source_table.catalog, m.source_table.schema, m.source_table.table_name)\n",
+        "    )                                                              AS source_table,\n",
+        "    CONCAT_WS('.', m.target_table.catalog, m.target_table.schema, m.target_table.table_name) AS target_table,\n",
+        "    m.start_ts,\n",
+        "    m.end_ts,\n",
+        "    metrics.recon_metrics.source_record_count                      AS source_rows,\n",
+        "    metrics.recon_metrics.target_record_count                      AS target_rows,\n",
+        "    metrics.recon_metrics.row_comparison.missing_in_source         AS missing_in_source,\n",
+        "    metrics.recon_metrics.row_comparison.missing_in_target         AS missing_in_target,\n",
+        "    metrics.recon_metrics.column_comparison.absolute_mismatch      AS mismatched_records,\n",
+        "    metrics.recon_metrics.column_comparison.threshold_mismatch     AS threshold_mismatch,\n",
+        "    metrics.recon_metrics.column_comparison.mismatch_columns       AS mismatch_columns_csv,\n",
+        "    metrics.run_metrics.status                                     AS status,\n",
+        "    metrics.run_metrics.exception_message                          AS exception_message\n",
+        "FROM remorph.reconcile.main AS m\n",
+        "INNER JOIN remorph.reconcile.metrics AS metrics\n",
+        "    ON metrics.recon_table_id = m.recon_table_id\n"
+      ]
+    },
+    {
+      "name": "ds_schema",
+      "displayName": "Deep Dive - Schema Details",
+      "queryLines": [
+        "SELECT\n",
+        "    sd.recon_table_id,\n",
+        "    m.recon_id,\n",
+        "    CONCAT_WS('.', m.target_table.catalog, m.target_table.schema, m.target_table.table_name) AS target_table,\n",
+        "    sd.source_column        AS column,\n",
+        "    sd.source_datatype      AS source_type,\n",
+        "    sd.databricks_datatype  AS databricks_type,\n",
+        "    sd.is_valid\n",
+        "FROM remorph.reconcile.schema_details AS sd\n",
+        "INNER JOIN remorph.reconcile.main AS m\n",
+        "    ON m.recon_table_id = sd.recon_table_id\n"
+      ]
+    },
+    {
+      "name": "ds_details_columns",
+      "displayName": "Deep Dive - Details (columns)",
+      "queryLines": [
+        "SELECT\n",
+        "    dc.recon_table_id,\n",
+        "    m.recon_id,\n",
+        "    CONCAT_WS('.', m.target_table.catalog, m.target_table.schema, m.target_table.table_name) AS target_table,\n",
+        "    dc.recon_type,\n",
+        "    to_json(dc.record_key) AS record_key,\n",
+        "    dc.column_name,\n",
+        "    dc.source_value,\n",
+        "    dc.target_value,\n",
+        "    dc.is_mismatch\n",
+        "FROM remorph.reconcile.details_columns AS dc\n",
+        "INNER JOIN remorph.reconcile.main AS m\n",
+        "    ON m.recon_table_id = dc.recon_table_id\n"
+      ]
+    },
+    {
+      "name": "ds_missing",
+      "displayName": "Deep Dive - Missing Records",
+      "queryLines": [
+        "SELECT\n",
+        "    d.recon_table_id,\n",
+        "    m.recon_id,\n",
+        "    CONCAT_WS('.', m.target_table.catalog, m.target_table.schema, m.target_table.table_name) AS target_table,\n",
+        "    d.recon_type,\n",
+        "    to_json(d.record_key)                         AS record_key,\n",
+        "    to_json(COALESCE(d.source_row, d.target_row)) AS row_image,\n",
+        "    d.inserted_ts\n",
+        "FROM remorph.reconcile.details AS d\n",
+        "INNER JOIN remorph.reconcile.main AS m\n",
+        "    ON m.recon_table_id = d.recon_table_id\n",
+        "WHERE d.recon_type IN ('missing_in_source', 'missing_in_target')\n"
+      ]
     }
   ],
   "pages": [
@@ -3220,6 +3304,960 @@
       ],
       "pageType": "PAGE_TYPE_CANVAS",
       "layoutVersion": "GRID_V1"
+    },
+    {
+      "name": "deep_dive",
+      "displayName": "Recon Deep Dive",
+      "layout": [
+        {
+          "widget": {
+            "name": "dd_header",
+            "textbox_spec": "# Recon deep dive\n\nPick a **Recon Id** and **Target Table** below to scope every tile on this page."
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 12,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "dd_f_recon_id",
+            "queries": [
+              {
+                "name": "MULTI_SELECT_ds_table_run_recon_id",
+                "query": {
+                  "datasetName": "ds_table_run",
+                  "fields": [
+                    {
+                      "name": "recon_id",
+                      "expression": "`recon_id`"
+                    },
+                    {
+                      "name": "recon_id_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "MULTI_SELECT_ds_schema_recon_id",
+                "query": {
+                  "datasetName": "ds_schema",
+                  "fields": [
+                    {
+                      "name": "recon_id",
+                      "expression": "`recon_id`"
+                    },
+                    {
+                      "name": "recon_id_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "MULTI_SELECT_ds_details_columns_recon_id",
+                "query": {
+                  "datasetName": "ds_details_columns",
+                  "fields": [
+                    {
+                      "name": "recon_id",
+                      "expression": "`recon_id`"
+                    },
+                    {
+                      "name": "recon_id_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "MULTI_SELECT_ds_missing_recon_id",
+                "query": {
+                  "datasetName": "ds_missing",
+                  "fields": [
+                    {
+                      "name": "recon_id",
+                      "expression": "`recon_id`"
+                    },
+                    {
+                      "name": "recon_id_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-multi-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "displayName": "recon_id",
+                    "fieldName": "recon_id",
+                    "queryName": "MULTI_SELECT_ds_table_run_recon_id"
+                  },
+                  {
+                    "displayName": "recon_id",
+                    "fieldName": "recon_id",
+                    "queryName": "MULTI_SELECT_ds_schema_recon_id"
+                  },
+                  {
+                    "displayName": "recon_id",
+                    "fieldName": "recon_id",
+                    "queryName": "MULTI_SELECT_ds_details_columns_recon_id"
+                  },
+                  {
+                    "displayName": "recon_id",
+                    "fieldName": "recon_id",
+                    "queryName": "MULTI_SELECT_ds_missing_recon_id"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Recon Id"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 2,
+            "width": 6,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "dd_f_target_table",
+            "queries": [
+              {
+                "name": "MULTI_SELECT_ds_table_run_target_table",
+                "query": {
+                  "datasetName": "ds_table_run",
+                  "fields": [
+                    {
+                      "name": "target_table",
+                      "expression": "`target_table`"
+                    },
+                    {
+                      "name": "target_table_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "MULTI_SELECT_ds_schema_target_table",
+                "query": {
+                  "datasetName": "ds_schema",
+                  "fields": [
+                    {
+                      "name": "target_table",
+                      "expression": "`target_table`"
+                    },
+                    {
+                      "name": "target_table_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "MULTI_SELECT_ds_details_columns_target_table",
+                "query": {
+                  "datasetName": "ds_details_columns",
+                  "fields": [
+                    {
+                      "name": "target_table",
+                      "expression": "`target_table`"
+                    },
+                    {
+                      "name": "target_table_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "MULTI_SELECT_ds_missing_target_table",
+                "query": {
+                  "datasetName": "ds_missing",
+                  "fields": [
+                    {
+                      "name": "target_table",
+                      "expression": "`target_table`"
+                    },
+                    {
+                      "name": "target_table_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-multi-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "displayName": "target_table",
+                    "fieldName": "target_table",
+                    "queryName": "MULTI_SELECT_ds_table_run_target_table"
+                  },
+                  {
+                    "displayName": "target_table",
+                    "fieldName": "target_table",
+                    "queryName": "MULTI_SELECT_ds_schema_target_table"
+                  },
+                  {
+                    "displayName": "target_table",
+                    "fieldName": "target_table",
+                    "queryName": "MULTI_SELECT_ds_details_columns_target_table"
+                  },
+                  {
+                    "displayName": "target_table",
+                    "fieldName": "target_table",
+                    "queryName": "MULTI_SELECT_ds_missing_target_table"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Target Table"
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 2,
+            "width": 6,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "dd_c_source",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_table_run",
+                  "fields": [
+                    {
+                      "name": "v",
+                      "expression": "MAX(`source_rows`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "displayName": "Source rows",
+                  "fieldName": "v"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Source rows"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 4,
+            "width": 2,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "dd_c_target",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_table_run",
+                  "fields": [
+                    {
+                      "name": "v",
+                      "expression": "MAX(`target_rows`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "displayName": "Target rows",
+                  "fieldName": "v"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Target rows"
+              }
+            }
+          },
+          "position": {
+            "x": 2,
+            "y": 4,
+            "width": 2,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "dd_c_mismatched",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_table_run",
+                  "fields": [
+                    {
+                      "name": "v",
+                      "expression": "MAX(`mismatched_records`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "displayName": "Mismatched records",
+                  "fieldName": "v"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Mismatched records"
+              }
+            }
+          },
+          "position": {
+            "x": 4,
+            "y": 4,
+            "width": 2,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "dd_c_miss_src",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_table_run",
+                  "fields": [
+                    {
+                      "name": "v",
+                      "expression": "MAX(`missing_in_source`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "displayName": "Missing in source",
+                  "fieldName": "v"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Missing in source"
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 4,
+            "width": 2,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "dd_c_miss_tgt",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_table_run",
+                  "fields": [
+                    {
+                      "name": "v",
+                      "expression": "MAX(`missing_in_target`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "displayName": "Missing in target",
+                  "fieldName": "v"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Missing in target"
+              }
+            }
+          },
+          "position": {
+            "x": 8,
+            "y": 4,
+            "width": 2,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "dd_c_schema_invalid",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_schema",
+                  "fields": [
+                    {
+                      "name": "v",
+                      "expression": "COUNT_IF(NOT `is_valid`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "displayName": "Schema cols invalid",
+                  "fieldName": "v"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Schema cols invalid"
+              }
+            }
+          },
+          "position": {
+            "x": 10,
+            "y": 4,
+            "width": 2,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "dd_h_schema",
+            "textbox_spec": "## Schema comparison"
+          },
+          "position": {
+            "x": 0,
+            "y": 7,
+            "width": 12,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "dd_t_schema",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_schema",
+                  "fields": [
+                    {
+                      "name": "column",
+                      "expression": "`column`"
+                    },
+                    {
+                      "name": "source_type",
+                      "expression": "`source_type`"
+                    },
+                    {
+                      "name": "databricks_type",
+                      "expression": "`databricks_type`"
+                    },
+                    {
+                      "name": "is_valid",
+                      "expression": "`is_valid`"
+                    }
+                  ],
+                  "disaggregated": true,
+                  "orders": [
+                    {
+                      "name": "is_valid",
+                      "expression": "`is_valid`",
+                      "direction": "ASC"
+                    },
+                    {
+                      "name": "column",
+                      "expression": "`column`",
+                      "direction": "ASC"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "column",
+                    "displayName": "Column"
+                  },
+                  {
+                    "fieldName": "source_type",
+                    "displayName": "Source type"
+                  },
+                  {
+                    "fieldName": "databricks_type",
+                    "displayName": "Databricks type"
+                  },
+                  {
+                    "fieldName": "is_valid",
+                    "displayName": "Valid",
+                    "style": {
+                      "type": "basic",
+                      "rules": [
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "true"
+                            },
+                            "operator": "=",
+                            "fieldName": "is_valid"
+                          },
+                          "backgroundColor": "#D4EDDA",
+                          "foregroundColor": "#155724"
+                        },
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "false"
+                            },
+                            "operator": "=",
+                            "fieldName": "is_valid"
+                          },
+                          "backgroundColor": "#F8D7DA",
+                          "foregroundColor": "#721C24"
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Schema"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 8,
+            "width": 12,
+            "height": 5
+          }
+        },
+        {
+          "widget": {
+            "name": "dd_h_topcols",
+            "textbox_spec": "## Top mismatching columns"
+          },
+          "position": {
+            "x": 0,
+            "y": 13,
+            "width": 12,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "dd_b_topcols",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_details_columns",
+                  "fields": [
+                    {
+                      "name": "column_name",
+                      "expression": "`column_name`"
+                    },
+                    {
+                      "name": "mismatched_records",
+                      "expression": "COUNT(*)"
+                    }
+                  ],
+                  "disaggregated": false,
+                  "filters": [
+                    {
+                      "expression": "`recon_type` = 'mismatch'"
+                    },
+                    {
+                      "expression": "`is_mismatch` = true"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "column_name",
+                  "scale": {
+                    "type": "categorical",
+                    "sort": {
+                      "by": "y-reversed"
+                    }
+                  },
+                  "displayName": "column_name"
+                },
+                "y": {
+                  "fieldName": "mismatched_records",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "mismatched_records"
+                },
+                "label": {
+                  "show": true
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Top mismatching columns"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 14,
+            "width": 12,
+            "height": 4
+          }
+        },
+        {
+          "widget": {
+            "name": "dd_h_drill",
+            "textbox_spec": "## Mismatch drill-down"
+          },
+          "position": {
+            "x": 0,
+            "y": 18,
+            "width": 12,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "dd_t_drill",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_details_columns",
+                  "fields": [
+                    {
+                      "name": "record_key",
+                      "expression": "`record_key`"
+                    },
+                    {
+                      "name": "column_name",
+                      "expression": "`column_name`"
+                    },
+                    {
+                      "name": "source_value",
+                      "expression": "`source_value`"
+                    },
+                    {
+                      "name": "target_value",
+                      "expression": "`target_value`"
+                    },
+                    {
+                      "name": "is_mismatch",
+                      "expression": "`is_mismatch`"
+                    }
+                  ],
+                  "disaggregated": true,
+                  "filters": [
+                    {
+                      "expression": "`recon_type` = 'mismatch'"
+                    },
+                    {
+                      "expression": "`is_mismatch` = true"
+                    }
+                  ],
+                  "orders": [
+                    {
+                      "name": "record_key",
+                      "expression": "`record_key`",
+                      "direction": "ASC"
+                    },
+                    {
+                      "name": "column_name",
+                      "expression": "`column_name`",
+                      "direction": "ASC"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "record_key",
+                    "displayName": "Record"
+                  },
+                  {
+                    "fieldName": "column_name",
+                    "displayName": "Column"
+                  },
+                  {
+                    "fieldName": "source_value",
+                    "displayName": "Source",
+                    "style": {
+                      "type": "basic",
+                      "rules": [
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "true"
+                            },
+                            "operator": "=",
+                            "fieldName": "is_mismatch"
+                          },
+                          "backgroundColor": "#F8D7DA",
+                          "foregroundColor": "#721C24"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "fieldName": "target_value",
+                    "displayName": "Target (Databricks)",
+                    "style": {
+                      "type": "basic",
+                      "rules": [
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "true"
+                            },
+                            "operator": "=",
+                            "fieldName": "is_mismatch"
+                          },
+                          "backgroundColor": "#D4EDDA",
+                          "foregroundColor": "#155724"
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Mismatch drill-down"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 19,
+            "width": 12,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "dd_h_miss_src",
+            "textbox_spec": "## Missing in source"
+          },
+          "position": {
+            "x": 0,
+            "y": 25,
+            "width": 12,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "dd_t_miss_src",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_missing",
+                  "fields": [
+                    {
+                      "name": "record_key",
+                      "expression": "`record_key`"
+                    },
+                    {
+                      "name": "row_image",
+                      "expression": "`row_image`"
+                    }
+                  ],
+                  "disaggregated": true,
+                  "filters": [
+                    {
+                      "expression": "`recon_type` = 'missing_in_source'"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "record_key",
+                    "displayName": "Record"
+                  },
+                  {
+                    "fieldName": "row_image",
+                    "displayName": "Row image (JSON)"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Missing in source"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 26,
+            "width": 12,
+            "height": 4
+          }
+        },
+        {
+          "widget": {
+            "name": "dd_h_miss_tgt",
+            "textbox_spec": "## Missing in target"
+          },
+          "position": {
+            "x": 0,
+            "y": 30,
+            "width": 12,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "dd_t_miss_tgt",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_missing",
+                  "fields": [
+                    {
+                      "name": "record_key",
+                      "expression": "`record_key`"
+                    },
+                    {
+                      "name": "row_image",
+                      "expression": "`row_image`"
+                    }
+                  ],
+                  "disaggregated": true,
+                  "filters": [
+                    {
+                      "expression": "`recon_type` = 'missing_in_target'"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "record_key",
+                    "displayName": "Record"
+                  },
+                  {
+                    "fieldName": "row_image",
+                    "displayName": "Row image (JSON)"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Missing in target"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 31,
+            "width": 12,
+            "height": 4
+          }
+        }
+      ],
+      "pageType": "PAGE_TYPE_CANVAS"
     }
   ]
 }
