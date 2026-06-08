@@ -5,7 +5,17 @@
 --   mismatch              -> join-key columns (plain) + <col>_base / <col>_compare / <col>_match
 --   missing_* / threshold -> full row image, one plain key per column
 -- The dashboard query stays trivial (SELECT * FROM details_kv) so the lsql tile parser is happy.
-CREATE OR REPLACE VIEW details_kv AS
+CREATE OR REPLACE VIEW details_kv (
+    dd_recon_id COMMENT 'Reconcile run id (from main).',
+    dd_source_table COMMENT 'Fully-qualified source table (catalog.schema.table, or schema.table when no catalog).',
+    dd_target_table COMMENT 'Fully-qualified Databricks target table.',
+    dd_recon_type COMMENT 'mismatch | missing_in_source | missing_in_target | threshold_mismatch.',
+    dd_record_key COMMENT 'Sampled record identity: the join-key values as JSON. Separates records in the pivot.',
+    key COMMENT 'Long-format key: a join-key column, or <col>_base / <col>_compare / <col>_match, or a plain column name.',
+    value COMMENT 'String value for the key.'
+)
+COMMENT 'Legacy long key/value projection of details for the dashboard drill-down pivot. One row per (sampled record, emitted key). Built from details joined to main.'
+AS
 WITH base AS (
     SELECT
         main.recon_id AS dd_recon_id,

@@ -13,8 +13,12 @@ logger = logging.getLogger(__name__)
 
 def replace_patterns(sql_text: str) -> str:
     """
-    Replace the STRUCT and MAP datatypes in the SQL text with empty string
+    Strip inline COMMENT clauses and STRUCT / MAP datatype bodies from the SQL text so the
+    remaining text can be split into column definitions.
     """
+    # Remove inline COMMENT '...' clauses (column-, struct-field-, and table-level). Their text can
+    # contain commas and parentheses that would otherwise be mistaken for column separators.
+    sql_text = re.sub(r"COMMENT\s+'(?:[^']|'')*'", "", sql_text, flags=re.IGNORECASE)
     # Pattern to match nested STRUCT and MAP datatypes
     pattern = r'(STRUCT<[^<>]*?(?:<[^<>]*?>[^<>]*?)*>|MAP<[^<>]*?(?:<[^<>]*?>[^<>]*?)*>)'
     parsed_sql_text = re.sub(pattern, "", sql_text, flags=re.DOTALL)
@@ -23,7 +27,10 @@ def replace_patterns(sql_text: str) -> str:
 
 def extract_columns_with_datatype(sql_text: str) -> list[str]:
     """
-    Extract the columns with datatype from the SQL text
+    Extract the column (and table constraint) definitions from the SQL text.
+
+    Splits on the top-level commas inside the outermost parentheses, so commas nested inside a
+    constraint definition (e.g. FOREIGN KEY (a) REFERENCES t (a)) are not treated as separators.
     Example:
         Input: CREATE TABLE main (
             recon_table_id BIGINT NOT NULL,
@@ -32,7 +39,34 @@ def extract_columns_with_datatype(sql_text: str) -> list[str]:
        Output:  [recon_table_id BIGINT NOT NULL,
                       report_type STRING NOT NULL]
     """
-    return sql_text[sql_text.index("(") + 1 : sql_text.index(")")].strip().split(",")
+    open_idx = sql_text.index("(")
+    depth = 0
+    close_idx = open_idx
+    for i in range(open_idx, len(sql_text)):
+        if sql_text[i] == "(":
+            depth += 1
+        elif sql_text[i] == ")":
+            depth -= 1
+            if depth == 0:
+                close_idx = i
+                break
+    inner = sql_text[open_idx + 1 : close_idx]
+
+    parts: list[str] = []
+    depth = 0
+    current: list[str] = []
+    for char in inner:
+        if char == "(":
+            depth += 1
+        elif char == ")":
+            depth -= 1
+        if char == "," and depth == 0:
+            parts.append("".join(current))
+            current = []
+        else:
+            current.append(char)
+    parts.append("".join(current))
+    return parts
 
 
 def extract_column_name(column_with_datatype: str) -> str:
@@ -61,13 +95,18 @@ def table_original_query(table_name: str, full_table_name: str) -> str:
 
 def current_table_columns(table_name: str, full_table_name: str) -> list[str]:
     """
-    Extract the column names from the main table DDL
+    Extract the column names from the table DDL, skipping table constraint definitions
+    (CONSTRAINT / PRIMARY KEY / FOREIGN KEY / ...).
     :return: column_names: list[str]
     """
     main_sql = replace_patterns(table_original_query(table_name, full_table_name))
-    main_table_columns = [
-        extract_column_name(main_table_column) for main_table_column in extract_columns_with_datatype(main_sql)
-    ]
+    constraint_start = re.compile(r"^(CONSTRAINT|PRIMARY\s+KEY|FOREIGN\s+KEY|UNIQUE|CHECK)\b", re.IGNORECASE)
+    main_table_columns = []
+    for column_with_datatype in extract_columns_with_datatype(main_sql):
+        stripped = column_with_datatype.strip()
+        if not stripped or constraint_start.match(stripped):
+            continue
+        main_table_columns.append(extract_column_name(column_with_datatype))
     return main_table_columns
 
 
