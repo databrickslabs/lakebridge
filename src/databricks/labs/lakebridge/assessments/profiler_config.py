@@ -75,7 +75,6 @@ class Step:
 class PipelineConfig:
     name: str
     version: str
-    extract_folder: str
     comment: str | None = None
     steps: list[Step] = field(default_factory=list)
 

@@ -23,7 +23,7 @@ from databricks.labs.blueprint.tui import Prompts
 
 from databricks.labs.lakebridge.assessments.configure_assessment import create_assessment_configurator
 from databricks.labs.lakebridge.assessments import PROFILER_SOURCE_SYSTEM, PRODUCT_NAME
-from databricks.labs.lakebridge.assessments.profiler import Profiler
+from databricks.labs.lakebridge.assessments.profiler import Profiler, default_output_folder
 
 from databricks.labs.lakebridge.config import TranspileConfig, LSPConfigOptionV1
 from databricks.labs.lakebridge.contexts.application import ApplicationContext
@@ -1001,7 +1001,12 @@ def llm_transpile(
 
 
 @lakebridge.command()
-def execute_database_profiler(w: WorkspaceClient, source_tech: str | None = None) -> None:
+def execute_database_profiler(
+    w: WorkspaceClient,
+    source_tech: str | None = None,
+    output_folder: str | None = None,
+    cred_file_path: str | None = None,
+) -> None:
     """Execute the Profiler Extraction for the given source technology"""
     ctx = ApplicationContext(w)
     ctx.add_user_agent_extra("cmd", "execute-profiler")
@@ -1017,17 +1022,30 @@ def execute_database_profiler(w: WorkspaceClient, source_tech: str | None = None
     ctx.add_user_agent_extra("profiler_source_tech", make_alphanum_or_semver(source_tech))
     user = ctx.current_user
     logger.debug(f"User: {user}")
-    # check if cred_file is present which has the connection details before running the profiler
-    file = cred_file(PRODUCT_NAME)
-    if not file.exists():
-        raise_validation_exception(
-            f"Connection details not found. Please run `databricks labs lakebridge configure-database-profiler` "
-            f"to set up connection details for {source_tech}."
-        )
-    profiler = Profiler.create(source_tech)
 
+    if cred_file_path:
+        creds_path = Path(cred_file_path).expanduser()
+        if not creds_path.exists():
+            raise_validation_exception(
+                f"Credential file not found at {creds_path}. Please try again with the right file."
+            )
+    else:
+        creds_path = cred_file(PRODUCT_NAME)
+        if not creds_path.exists():
+            raise_validation_exception(
+                f"Connection details not found. Please run `databricks labs lakebridge configure-database-profiler` "
+                f"to set up connection details for {source_tech}."
+            )
+
+    if output_folder is None:
+        output_folder = prompts.question(
+            "Enter the profiler output folder path (directory)",
+            default=str(default_output_folder(source_tech)),
+        ).strip()
+
+    profiler = Profiler.create(source_tech)
     # TODO: Add extractor logic to ApplicationContext instead of creating inside the Profiler class
-    profiler.profile()
+    profiler.profile(output_folder=Path(output_folder), cred_file_path=creds_path)
 
 
 @lakebridge.command()
