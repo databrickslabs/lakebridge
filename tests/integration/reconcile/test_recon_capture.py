@@ -1,13 +1,18 @@
 from datetime import datetime, timezone
-import json
 import tempfile
 
 import pytest
 from pyspark.sql import Row, SparkSession
-from pyspark.sql.functions import countDistinct
 from pyspark.sql.types import BooleanType, StringType, StructField, StructType
 
-from databricks.labs.lakebridge.config import DatabaseConfig, ReconcileMetadataConfig
+from databricks.labs.lakebridge.config import (
+    DatabaseConfig,
+    ReconcileMetadataConfig,
+    ReconcileConfig,
+    SourceConnectionConfig,
+    TargetConnectionConfig,
+    TableRecon,
+)
 from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
 from databricks.labs.lakebridge.reconcile.exception import WriteToTableException
 from databricks.labs.lakebridge.reconcile.recon_capture import (
@@ -35,9 +40,10 @@ from databricks.labs.lakebridge.reconcile.recon_config import (
 
 def data_prep(spark: SparkSession):
     # Mismatch DataFrame
+    # Mismatch frame uses the production convention: key columns + <col>_base / <col>_compare / <col>_match.
     data = [
-        Row(id=1, name_source='source1', name_target='target1', name_match='match1'),
-        Row(id=2, name_source='source2', name_target='target2', name_match='match2'),
+        Row(id=1, name_base='source1', name_compare='target1', name_match=False),
+        Row(id=2, name_base='source2', name_compare='target2', name_match=False),
     ]
     mismatch_df = spark.createDataFrame(data)
 
@@ -174,35 +180,27 @@ def test_recon_capture_start_snowflake_all(mock_workspace_client, spark, recon_m
     assert row.run_metrics.run_by_user == "remorph"
     assert row.run_metrics.exception_message == ""
 
-    # assert details
-    remorph_recon_details_df = spark.sql(f"select * from {recon_metadata.catalog}.{recon_metadata.schema}.details")
-    assert remorph_recon_details_df.count() == 5
-    assert remorph_recon_details_df.select("recon_type").distinct().count() == 5
-    assert (
-        remorph_recon_details_df.select("recon_table_id", "status")
-        .groupby("recon_table_id")
-        .agg(countDistinct("status").alias("count_stat"))
-        .collect()[0]
-        .count_stat
-        == 2
-    )
-    assert json.dumps(remorph_recon_details_df.where("recon_type = 'mismatch'").select("data").collect()[0].data) == (
-        "[{\"id\": \"1\", \"name_source\": \"source1\", \"name_target\": \"target1\", "
-        "\"name_match\": \"match1\"}, {\"id\": \"2\", \"name_source\": \"source2\", "
-        "\"name_target\": \"target2\", \"name_match\": \"match2\"}]"
-    )
+    # assert details (record-level model; schema comparison now lives in schema_details)
+    prefix = f"{recon_metadata.catalog}.{recon_metadata.schema}"
+    remorph_recon_details_df = spark.sql(f"select * from {prefix}.details")
+    assert remorph_recon_details_df.count() == 4
+    recon_types = {row.recon_type for row in remorph_recon_details_df.select("recon_type").distinct().collect()}
+    assert recon_types == {"mismatch", "missing_in_source", "missing_in_target", "threshold_mismatch"}
 
-    rows = remorph_recon_details_df.orderBy("recon_type").collect()
-    assert rows[0].recon_type == "mismatch"
-    assert rows[0].status is False
-    assert rows[1].recon_type == "missing_in_source"
-    assert rows[1].status is False
-    assert rows[2].recon_type == "missing_in_target"
-    assert rows[2].status is False
-    assert rows[3].recon_type == "schema"
-    assert rows[3].status is True
-    assert rows[4].recon_type == "threshold_mismatch"
-    assert rows[4].status is False
+    # the two sampled mismatch records, with their VARIANT row images and differing columns
+    mismatch_rows = spark.sql(
+        f"SELECT to_json(record_key) AS rk, to_json(source_row) AS sr, to_json(target_row) AS tr, "
+        f"mismatch_columns AS mc FROM {prefix}.details WHERE recon_type = 'mismatch' ORDER BY rk"
+    ).collect()
+    assert [r.rk for r in mismatch_rows] == ['{"id":1}', '{"id":2}']
+    assert [r.sr for r in mismatch_rows] == ['{"name":"source1"}', '{"name":"source2"}']
+    assert [r.tr for r in mismatch_rows] == ['{"name":"target1"}', '{"name":"target2"}']
+    assert all(r.mc == ["name"] for r in mismatch_rows)
+
+    # schema comparison rows
+    schema_details_df = spark.sql(f"select * from {prefix}.schema_details")
+    assert schema_details_df.count() == 4
+    assert schema_details_df.where("is_valid = true").count() == 4
 
 
 def test_test_recon_capture_start_databricks_data(mock_workspace_client, spark, recon_metadata):
@@ -345,10 +343,13 @@ def test_recon_capture_start_oracle_schema(mock_workspace_client, spark, recon_m
     assert row.recon_metrics.schema_comparison is True
     assert row.run_metrics.status is True
 
-    # assert details
-    remorph_recon_details_df = spark.sql(f"select * from {recon_metadata.catalog}.{recon_metadata.schema}.details")
-    assert remorph_recon_details_df.count() == 1
-    assert remorph_recon_details_df.select("recon_type").distinct().count() == 1
+    # assert details: a schema-only run writes no row-level details, only schema_details
+    prefix = f"{recon_metadata.catalog}.{recon_metadata.schema}"
+    remorph_recon_details_df = spark.sql(f"select * from {prefix}.details")
+    assert remorph_recon_details_df.count() == 0
+    schema_details_df = spark.sql(f"select * from {prefix}.schema_details")
+    assert schema_details_df.count() == 4
+    assert schema_details_df.where("is_valid = true").count() == 4
 
 
 def test_recon_capture_start_oracle_with_exception(mock_workspace_client, spark, recon_metadata):
@@ -967,6 +968,48 @@ class ReconIntermediatePersistUnderTest(ReconIntermediatePersist):
     @property
     def format(self):
         return self._format
+
+
+def test_store_run_context(mock_workspace_client, spark, recon_metadata):
+    ws = mock_workspace_client
+    recon_capture = ReconCapture(
+        DatabaseConfig("source_test_catalog", "source_test_schema", "target_test_catalog", "target_test_schema"),
+        "73b44582-dbb7-489f-bad1-6a7e8f4821b1",
+        "all",
+        get_dialect("snowflake"),
+        ws,
+        spark,
+        metadata_config=recon_metadata,
+    )
+    reconcile_config = ReconcileConfig(
+        report_type="all",
+        source=SourceConnectionConfig(
+            dialect="snowflake", catalog="source_test_catalog", schema="source_test_schema", uc_connection_name="conn"
+        ),
+        target=TargetConnectionConfig(catalog="target_test_catalog", schema="target_test_schema"),
+        metadata_config=recon_metadata,
+    )
+    table_recon = TableRecon(
+        tables=[Table(source_name="supplier", target_name="target_supplier", join_columns=["s_suppkey"])]
+    )
+
+    recon_capture.store_run_context(reconcile_config, table_recon)
+
+    prefix = f"{recon_metadata.catalog}.{recon_metadata.schema}"
+    ctx = spark.sql(f"select * from {prefix}.recon_run_context")
+    assert ctx.count() == 1
+    # config is one VARIANT blob; read intent fields schema-on-read
+    row = spark.sql(
+        f"SELECT recon_id, "
+        f"config:reconcile:report_type::string AS report_type, "
+        f"config:reconcile:source:dialect::string AS dialect, "
+        f"config:table_recon:tables[0]:source_name::string AS source_name "
+        f"FROM {prefix}.recon_run_context"
+    ).collect()[0]
+    assert row.recon_id == "73b44582-dbb7-489f-bad1-6a7e8f4821b1"
+    assert row.report_type == "all"
+    assert row.dialect == "snowflake"
+    assert row.source_name == "supplier"
 
 
 def test_is_databricks_false(spark):

@@ -21,9 +21,9 @@ FROM
         INNER JOIN remorph.reconcile.metrics metrics
                    ON main.recon_table_id = metrics.recon_table_id
         LEFT JOIN (
-            SELECT recon_table_id, ARRAY_JOIN(COLLECT_LIST(column_name), ', ') AS failing_columns
-            FROM remorph.reconcile.column_metrics
-            WHERE mismatch_count > 0
+            SELECT recon_table_id, ARRAY_JOIN(COLLECT_SET(column_name), ', ') AS failing_columns
+            FROM remorph.reconcile.details_columns
+            WHERE is_mismatch
             GROUP BY recon_table_id
         ) fc ON main.recon_table_id = fc.recon_table_id
 WHERE

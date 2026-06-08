@@ -28,9 +28,9 @@ WITH ranked AS (
         LOWER(main.report_type) IN ('all', 'data')
 ),
 failing_cols_per_run AS (
-    SELECT recon_table_id, ARRAY_JOIN(COLLECT_LIST(column_name), ', ') AS failing_columns
-    FROM remorph.reconcile.column_metrics
-    WHERE mismatch_count > 0
+    SELECT recon_table_id, ARRAY_JOIN(COLLECT_SET(column_name), ', ') AS failing_columns
+    FROM remorph.reconcile.details_columns
+    WHERE is_mismatch
     GROUP BY recon_table_id
 )
 SELECT

@@ -72,15 +72,26 @@ class ReconDeployment:
             "main.sql",
             "metrics.sql",
             "details.sql",
+            "schema_details.sql",
+            "recon_run_context.sql",
             "aggregate_metrics.sql",
             "aggregate_details.sql",
             "aggregate_rules.sql",
-            "column_metrics.sql",
         ]
 
         for sql_file in sqls_to_deploy:
             table_sql_file = query_dir.joinpath(sql_file)
             self._table_deployer.deploy_table_from_ddl_file(catalog, schema, sql_file.strip(".sql"), table_sql_file)
+
+        # Views must be created after their backing tables exist.
+        views_to_deploy = [
+            "details_columns.sql",
+            "details_kv.sql",
+            "aggregate_details_columns.sql",
+        ]
+        for sql_file in views_to_deploy:
+            view_sql_file = query_dir.joinpath(sql_file)
+            self._table_deployer.deploy_table_from_ddl_file(catalog, schema, sql_file.strip(".sql"), view_sql_file)
 
     def _deploy_dashboards(self, recon_config: ReconcileConfig):
         logger.info("Deploying reconciliation dashboards.")

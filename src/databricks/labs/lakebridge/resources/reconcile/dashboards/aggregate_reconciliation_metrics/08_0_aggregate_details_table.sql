@@ -4,7 +4,7 @@ WITH details_view AS (
         recon_table_id,
         rule_id,
         recon_type,
-        explode(data) AS agg_details
+        source_row AS agg_details
     FROM
         remorph.reconcile.aggregate_details
 ),
@@ -62,25 +62,25 @@ FROM (
                      rul.rule_info.agg_type,
                      rul.rule_info.agg_column
              ) AS source_agg_column,
-             dtl.agg_details[source_agg_column] AS source_value,
+             to_json(try_variant_get(dtl.agg_details, CONCAT('$["', source_agg_column, '"]'))) AS source_value,
              CONCAT_WS(
                      '_',
                      'target',
                      rul.rule_info.agg_type,
                      rul.rule_info.agg_column
              ) AS target_agg_column,
-             dtl.agg_details[target_agg_column] AS target_value,
+             to_json(try_variant_get(dtl.agg_details, CONCAT('$["', target_agg_column, '"]'))) AS target_value,
              SPLIT(rul.rule_info.group_by_columns, ',') AS rule_group_by_columns,
              TRANSFORM(rule_group_by_columns, colm ->
-                 COALESCE(dtl.agg_details[CONCAT('source_group_by_', TRIM(colm))],
-                          dtl.agg_details[CONCAT('target_group_by_', TRIM(colm))])) AS group_by_column_values,
+                 COALESCE(to_json(try_variant_get(dtl.agg_details, CONCAT('$["source_group_by_', TRIM(colm), '"]'))),
+                          to_json(try_variant_get(dtl.agg_details, CONCAT('$["target_group_by_', TRIM(colm), '"]'))))) AS group_by_column_values,
              CONCAT_WS(
                      '_',
                      'match',
                      rul.rule_info.agg_type,
                      rul.rule_info.agg_column
              ) AS status_column,
-             dtl.agg_details[status_column] AS status
+             to_json(try_variant_get(dtl.agg_details, CONCAT('$["', status_column, '"]'))) AS status
          FROM
              metrics_view mtc
                  INNER JOIN remorph.reconcile.main main ON main.recon_table_id = mtc.recon_table_id

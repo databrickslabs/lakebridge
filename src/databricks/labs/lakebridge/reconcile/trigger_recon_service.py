@@ -44,6 +44,7 @@ class TriggerReconService:
         reconcile_config: ReconcileConfig,
     ) -> ReconcileOutput:
         reconciler, recon_capture = TriggerReconService.create_recon_dependencies(ws, spark, reconcile_config)
+        recon_capture.store_run_context(reconcile_config, table_recon)
 
         try:
             for table_conf in table_recon.tables:
