@@ -1,5 +1,0 @@
-columns:
-- recon_id
-type: MULTI_SELECT
-title: Recon Id
-width: 2

@@ -51,21 +51,100 @@ class DashboardDeployment:
             logger.info(f"Dashboard parent path already exists: {parent_path}")
 
         valid_dashboard_refs = set()
-        for dashboard_folder in folder.iterdir():
-            # Make sure the directory contains a dashboard
-            if not (dashboard_folder.is_dir() and dashboard_folder.joinpath("dashboard.yml").exists()):
-                continue
-            valid_dashboard_refs.add(self._dashboard_reference(dashboard_folder))
-            dashboard = self._update_or_create_dashboard(dashboard_folder, parent_path, metadata_config)
-            logger.info(
-                f"Dashboard deployed with URL: {self._ws.config.host}/sql/dashboardsv3/{dashboard.dashboard_id}"
-            )
-            self._install_state.save()
+        for entry in folder.iterdir():
+            if entry.is_dir() and entry.joinpath("dashboard.yml").exists():
+                # YAML + lsql path
+                valid_dashboard_refs.add(self._dashboard_reference(entry))
+                dashboard = self._update_or_create_dashboard(entry, parent_path, metadata_config)
+                logger.info(
+                    f"Dashboard deployed with URL: {self._ws.config.host}/sql/dashboardsv3/{dashboard.dashboard_id}"
+                )
+                self._install_state.save()
+            elif entry.is_file() and entry.name.endswith(".lvdash.json"):
+                # Raw-JSON path: source-of-truth is the serialized Lakeview JSON,
+                # bypassing lsql so manual UI edits (conditional formatting, etc.)
+                # survive a round-trip through the deploy.
+                valid_dashboard_refs.add(self._dashboard_reference(entry))
+                dashboard_id = self._update_or_create_json_dashboard(entry, parent_path, metadata_config)
+                logger.info(
+                    f"Dashboard deployed with URL: {self._ws.config.host}/sql/dashboardsv3/{dashboard_id}"
+                )
+                self._install_state.save()
 
         self._remove_deprecated_dashboards(valid_dashboard_refs)
 
-    def _dashboard_reference(self, folder: Path) -> str:
-        return f"{folder.stem}".lower()
+    def _dashboard_reference(self, entry: Path) -> str:
+        # For ``foo.lvdash.json``, drop both suffixes so the reference key matches the
+        # corresponding YAML-based ``foo/`` directory's install_state entry. That lets
+        # the JSON cutover update the existing dashboard in place rather than create a
+        # new one + trash the old.
+        name = entry.name
+        if name.endswith(".lvdash.json"):
+            return name[: -len(".lvdash.json")].lower()
+        return entry.stem.lower()
+
+    def _update_or_create_json_dashboard(
+        self,
+        json_path: Path,
+        ws_parent_path: str,
+        config: ReconcileMetadataConfig,
+    ) -> str:
+        # Substitute the placeholder catalog/schema baked into the source JSON
+        # with this workspace's configured values (mirrors lsql's replace_database).
+        raw = json_path.read_text()
+        raw = raw.replace("remorph.reconcile.", f"{config.catalog}.{config.schema}.")
+
+        meta_path = json_path.with_name(json_path.name.replace(".lvdash.json", ".lvdash.meta.json"))
+        if meta_path.exists():
+            meta = json.loads(meta_path.read_text())
+            display_name_raw = meta.get("display_name", self._dashboard_reference(json_path))
+        else:
+            display_name_raw = self._dashboard_reference(json_path)
+        display_name = self._name_with_prefix(display_name_raw)
+
+        reference = self._dashboard_reference(json_path)
+        dashboard_id = self._install_state.dashboards.get(reference)
+
+        if dashboard_id is not None:
+            try:
+                dashboard_id = self._handle_existing_dashboard(dashboard_id, display_name)
+            except (NotFound, InvalidParameterValue):
+                logger.info(f"Recovering invalid dashboard: {display_name} ({dashboard_id})")
+                try:
+                    dashboard_path = f"{ws_parent_path}/{display_name}.lvdash.json"
+                    self._ws.workspace.delete(dashboard_path)
+                except NotFound:
+                    pass
+                dashboard_id = None
+
+        if dashboard_id is None:
+            created = self._ws.lakeview.create(
+                dashboard=Dashboard(
+                    display_name=display_name,
+                    parent_path=ws_parent_path,
+                    serialized_dashboard=raw,
+                    warehouse_id=self._ws.config.warehouse_id,
+                )
+            )
+            dashboard_id = created.dashboard_id
+        else:
+            self._ws.lakeview.update(
+                dashboard_id,
+                dashboard=Dashboard(
+                    display_name=display_name,
+                    serialized_dashboard=raw,
+                    warehouse_id=self._ws.config.warehouse_id,
+                ),
+            )
+
+        self._ws.lakeview.publish(
+            dashboard_id,
+            embed_credentials=True,
+            warehouse_id=self._ws.config.warehouse_id,
+        )
+        assert dashboard_id is not None
+        self._install_state.dashboards[reference] = dashboard_id
+        return dashboard_id
 
     # InternalError and DeadlineExceeded are retried because of Lakeview internal issues
     # These issues have been reported to and are resolved by the Lakeview team
