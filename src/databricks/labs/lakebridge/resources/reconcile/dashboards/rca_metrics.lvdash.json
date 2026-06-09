@@ -378,29 +378,36 @@
       "displayName": "Deep Dive - Table Run",
       "queryLines": [
         "SELECT\n",
-        "    m.recon_table_id,\n",
-        "    m.recon_id,\n",
-        "    m.source_type,\n",
-        "    m.report_type,\n",
-        "    IF(m.source_table.catalog IS NULL,\n",
-        "       CONCAT_WS('.', m.source_table.schema, m.source_table.table_name),\n",
-        "       CONCAT_WS('.', m.source_table.catalog, m.source_table.schema, m.source_table.table_name)\n",
-        "    )                                                              AS source_table,\n",
-        "    CONCAT_WS('.', m.target_table.catalog, m.target_table.schema, m.target_table.table_name) AS target_table,\n",
-        "    m.start_ts,\n",
-        "    m.end_ts,\n",
-        "    metrics.recon_metrics.source_record_count                      AS source_rows,\n",
-        "    metrics.recon_metrics.target_record_count                      AS target_rows,\n",
-        "    metrics.recon_metrics.row_comparison.missing_in_source         AS missing_in_source,\n",
-        "    metrics.recon_metrics.row_comparison.missing_in_target         AS missing_in_target,\n",
-        "    metrics.recon_metrics.column_comparison.absolute_mismatch      AS mismatched_records,\n",
-        "    metrics.recon_metrics.column_comparison.threshold_mismatch     AS threshold_mismatch,\n",
-        "    metrics.recon_metrics.column_comparison.mismatch_columns       AS mismatch_columns_csv,\n",
-        "    metrics.run_metrics.status                                     AS status,\n",
-        "    metrics.run_metrics.exception_message                          AS exception_message\n",
-        "FROM remorph.reconcile.main AS m\n",
-        "INNER JOIN remorph.reconcile.metrics AS metrics\n",
-        "    ON metrics.recon_table_id = m.recon_table_id\n"
+        "  m.recon_table_id,\n",
+        "  m.recon_id,\n",
+        "  m.source_type,\n",
+        "  m.report_type,\n",
+        "  IF(\n",
+        "    m.source_table.catalog IS NULL,\n",
+        "    CONCAT_WS('.', m.source_table.schema, m.source_table.table_name),\n",
+        "    CONCAT_WS('.', m.source_table.catalog, m.source_table.schema, m.source_table.table_name)\n",
+        "  ) AS source_table,\n",
+        "  CONCAT_WS(\n",
+        "    '.',\n",
+        "    m.target_table.catalog,\n",
+        "    m.target_table.schema,\n",
+        "    m.target_table.table_name\n",
+        "  ) AS target_table,\n",
+        "  m.start_ts,\n",
+        "  m.end_ts,\n",
+        "  metrics.recon_metrics.source_record_count AS source_rows,\n",
+        "  metrics.recon_metrics.target_record_count AS target_rows,\n",
+        "  metrics.recon_metrics.row_comparison.missing_in_source AS missing_in_source,\n",
+        "  metrics.recon_metrics.row_comparison.missing_in_target AS missing_in_target,\n",
+        "  metrics.recon_metrics.column_comparison.absolute_mismatch AS mismatched_records,\n",
+        "  metrics.recon_metrics.column_comparison.threshold_mismatch AS threshold_mismatch,\n",
+        "  metrics.recon_metrics.column_comparison.mismatch_columns AS mismatch_columns_csv,\n",
+        "  metrics.run_metrics.status AS status,\n",
+        "  metrics.run_metrics.exception_message AS exception_message\n",
+        "FROM\n",
+        "  remorph.reconcile.main AS m\n",
+        "    INNER JOIN remorph.reconcile.metrics AS metrics\n",
+        "      ON metrics.recon_table_id = m.recon_table_id"
       ]
     },
     {
@@ -408,16 +415,29 @@
       "displayName": "Deep Dive - Schema Details",
       "queryLines": [
         "SELECT\n",
-        "    sd.recon_table_id,\n",
-        "    m.recon_id,\n",
-        "    CONCAT_WS('.', m.target_table.catalog, m.target_table.schema, m.target_table.table_name) AS target_table,\n",
-        "    sd.source_column        AS column,\n",
-        "    sd.source_datatype      AS source_type,\n",
-        "    sd.databricks_datatype  AS databricks_type,\n",
-        "    sd.is_valid\n",
-        "FROM remorph.reconcile.schema_details AS sd\n",
-        "INNER JOIN remorph.reconcile.main AS m\n",
-        "    ON m.recon_table_id = sd.recon_table_id\n"
+        "  sd.recon_table_id,\n",
+        "  m.recon_id,\n",
+        "  CONCAT_WS(\n",
+        "    '.',\n",
+        "    m.target_table.catalog,\n",
+        "    m.target_table.schema,\n",
+        "    m.target_table.table_name\n",
+        "  ) AS target_table,\n",
+        "  sd.source_column AS column,\n",
+        "  sd.source_datatype AS source_type,\n",
+        "  sd.databricks_datatype AS databricks_type,\n",
+        "  sd.is_valid\n",
+        "FROM\n",
+        "  remorph.reconcile.schema_details AS sd\n",
+        "    INNER JOIN remorph.reconcile.main AS m\n",
+        "      ON m.recon_table_id = sd.recon_table_id"
+      ],
+      "columns": [
+        {
+          "displayName": "invalid_count",
+          "description": "Count of invalid schema columns, returns 0 when none exist",
+          "expression": "SUM(CASE WHEN NOT `is_valid` THEN 1 ELSE 0 END)"
+        }
       ]
     },
     {
@@ -425,18 +445,24 @@
       "displayName": "Deep Dive - Details (columns)",
       "queryLines": [
         "SELECT\n",
-        "    dc.recon_table_id,\n",
-        "    m.recon_id,\n",
-        "    CONCAT_WS('.', m.target_table.catalog, m.target_table.schema, m.target_table.table_name) AS target_table,\n",
-        "    dc.recon_type,\n",
-        "    to_json(dc.record_key) AS record_key,\n",
-        "    dc.column_name,\n",
-        "    dc.source_value,\n",
-        "    dc.target_value,\n",
-        "    dc.is_mismatch\n",
-        "FROM remorph.reconcile.details_columns AS dc\n",
-        "INNER JOIN remorph.reconcile.main AS m\n",
-        "    ON m.recon_table_id = dc.recon_table_id\n"
+        "  dc.recon_table_id,\n",
+        "  m.recon_id,\n",
+        "  CONCAT_WS(\n",
+        "    '.',\n",
+        "    m.target_table.catalog,\n",
+        "    m.target_table.schema,\n",
+        "    m.target_table.table_name\n",
+        "  ) AS target_table,\n",
+        "  dc.recon_type,\n",
+        "  to_json(dc.record_key) AS record_key,\n",
+        "  dc.column_name,\n",
+        "  dc.source_value,\n",
+        "  dc.target_value,\n",
+        "  dc.is_mismatch\n",
+        "FROM\n",
+        "  remorph.reconcile.details_columns AS dc\n",
+        "    INNER JOIN remorph.reconcile.main AS m\n",
+        "      ON m.recon_table_id = dc.recon_table_id"
       ]
     },
     {
@@ -444,49 +470,38 @@
       "displayName": "Deep Dive - Missing Records",
       "queryLines": [
         "SELECT\n",
-        "    d.recon_table_id,\n",
-        "    m.recon_id,\n",
-        "    CONCAT_WS('.', m.target_table.catalog, m.target_table.schema, m.target_table.table_name) AS target_table,\n",
-        "    d.recon_type,\n",
-        "    to_json(d.record_key)                         AS record_key,\n",
-        "    to_json(COALESCE(d.source_row, d.target_row)) AS row_image,\n",
-        "    d.inserted_ts\n",
-        "FROM remorph.reconcile.details AS d\n",
-        "INNER JOIN remorph.reconcile.main AS m\n",
-        "    ON m.recon_table_id = d.recon_table_id\n",
-        "WHERE d.recon_type IN ('missing_in_source', 'missing_in_target')\n"
+        "  d.recon_table_id,\n",
+        "  m.recon_id,\n",
+        "  CONCAT_WS(\n",
+        "    '.',\n",
+        "    m.target_table.catalog,\n",
+        "    m.target_table.schema,\n",
+        "    m.target_table.table_name\n",
+        "  ) AS target_table,\n",
+        "  d.recon_type,\n",
+        "  to_json(d.record_key) AS record_key,\n",
+        "  to_json(COALESCE(d.source_row, d.target_row)) AS row_image,\n",
+        "  d.inserted_ts\n",
+        "FROM\n",
+        "  remorph.reconcile.details AS d\n",
+        "    INNER JOIN remorph.reconcile.main AS m\n",
+        "      ON m.recon_table_id = d.recon_table_id\n",
+        "WHERE\n",
+        "  d.recon_type IN ('missing_in_source', 'missing_in_target')"
       ]
     }
   ],
   "pages": [
     {
       "name": "LAKEBRIDGE_Reconciliation_RCA",
-      "displayName": "LAKEBRIDGE_Reconciliation_RCA",
+      "displayName": "Overview and Jobs details",
       "layout": [
-        {
-          "widget": {
-            "name": "00_0_header_widget",
-            "multilineTextboxSpec": {
-              "lines": [
-                "# Reconciliation RCA\n",
-                "\n",
-                "### Health and root-cause for reconcile runs. Per-invocation and per-table success/failure breakdown.\n"
-              ]
-            }
-          },
-          "position": {
-            "x": 0,
-            "y": 0,
-            "width": 12,
-            "height": 2
-          }
-        },
         {
           "widget": {
             "name": "01_0_recon_id_filter_widget",
             "queries": [
               {
-                "name": "MULTI_SELECT_07_0_total_runs_recon_id",
+                "name": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e1416713e9a29f60d2387ecfec_recon_id",
                 "query": {
                   "datasetName": "07_0_total_runs",
                   "fields": [
@@ -503,7 +518,7 @@
                 }
               },
               {
-                "name": "MULTI_SELECT_09_2_mismatch_trend_recon_id",
+                "name": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e1416714188d72ebe1a4ffecd1_recon_id",
                 "query": {
                   "datasetName": "09_2_mismatch_trend",
                   "fields": [
@@ -520,7 +535,7 @@
                 }
               },
               {
-                "name": "MULTI_SELECT_09_1_job_timeline_recon_id",
+                "name": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e14167141496da013b6084bf13_recon_id",
                 "query": {
                   "datasetName": "09_1_job_timeline",
                   "fields": [
@@ -537,7 +552,7 @@
                 }
               },
               {
-                "name": "MULTI_SELECT_08_1_row_differences_recon_id",
+                "name": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e1416714038b7c9d0f514fddef_recon_id",
                 "query": {
                   "datasetName": "08_1_row_differences",
                   "fields": [
@@ -554,7 +569,7 @@
                 }
               },
               {
-                "name": "MULTI_SELECT_10_0_failures_by_table_recon_id",
+                "name": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e14167141db8d16469819900e1_recon_id",
                 "query": {
                   "datasetName": "10_0_failures_by_table",
                   "fields": [
@@ -571,7 +586,7 @@
                 }
               },
               {
-                "name": "MULTI_SELECT_07_2_failed_runs_recon_id",
+                "name": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e1416713f997c5db72dc468deb_recon_id",
                 "query": {
                   "datasetName": "07_2_failed_runs",
                   "fields": [
@@ -588,24 +603,7 @@
                 }
               },
               {
-                "name": "MULTI_SELECT_09_0_latest_run_per_table_recon_id",
-                "query": {
-                  "datasetName": "09_0_latest_run_per_table",
-                  "fields": [
-                    {
-                      "name": "recon_id",
-                      "expression": "`recon_id`"
-                    },
-                    {
-                      "name": "recon_id_associativity",
-                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
-                    }
-                  ],
-                  "disaggregated": false
-                }
-              },
-              {
-                "name": "MULTI_SELECT_07_1_successful_runs_recon_id",
+                "name": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e1416713efaf22867f2076144e_recon_id",
                 "query": {
                   "datasetName": "07_1_successful_runs",
                   "fields": [
@@ -622,7 +620,7 @@
                 }
               },
               {
-                "name": "MULTI_SELECT_05_1_run_details_recon_id",
+                "name": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e1416713e286e864f6271c47b8_recon_id",
                 "query": {
                   "datasetName": "05_1_run_details",
                   "fields": [
@@ -639,7 +637,7 @@
                 }
               },
               {
-                "name": "MULTI_SELECT_10_1_successes_by_table_recon_id",
+                "name": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e1416714218f55c814da2b486d_recon_id",
                 "query": {
                   "datasetName": "10_1_successes_by_table",
                   "fields": [
@@ -656,7 +654,7 @@
                 }
               },
               {
-                "name": "MULTI_SELECT_08_2_successful_tables_recon_id",
+                "name": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e14167140891e51f8bba42d98b_recon_id",
                 "query": {
                   "datasetName": "08_2_successful_tables",
                   "fields": [
@@ -673,24 +671,7 @@
                 }
               },
               {
-                "name": "MULTI_SELECT_05_0_jobs_summary_recon_id",
-                "query": {
-                  "datasetName": "05_0_jobs_summary",
-                  "fields": [
-                    {
-                      "name": "recon_id",
-                      "expression": "`recon_id`"
-                    },
-                    {
-                      "name": "recon_id_associativity",
-                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
-                    }
-                  ],
-                  "disaggregated": false
-                }
-              },
-              {
-                "name": "MULTI_SELECT_08_0_failed_tables_recon_id",
+                "name": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e1416713ff88df4374cba5fb6d_recon_id",
                 "query": {
                   "datasetName": "08_0_failed_tables",
                   "fields": [
@@ -709,692 +690,67 @@
             ],
             "spec": {
               "version": 2,
-              "widgetType": "filter-multi-select",
-              "encodings": {
-                "fields": [
-                  {
-                    "displayName": "recon_id",
-                    "fieldName": "recon_id",
-                    "queryName": "MULTI_SELECT_07_0_total_runs_recon_id"
-                  },
-                  {
-                    "displayName": "recon_id",
-                    "fieldName": "recon_id",
-                    "queryName": "MULTI_SELECT_09_2_mismatch_trend_recon_id"
-                  },
-                  {
-                    "displayName": "recon_id",
-                    "fieldName": "recon_id",
-                    "queryName": "MULTI_SELECT_09_1_job_timeline_recon_id"
-                  },
-                  {
-                    "displayName": "recon_id",
-                    "fieldName": "recon_id",
-                    "queryName": "MULTI_SELECT_08_1_row_differences_recon_id"
-                  },
-                  {
-                    "displayName": "recon_id",
-                    "fieldName": "recon_id",
-                    "queryName": "MULTI_SELECT_10_0_failures_by_table_recon_id"
-                  },
-                  {
-                    "displayName": "recon_id",
-                    "fieldName": "recon_id",
-                    "queryName": "MULTI_SELECT_07_2_failed_runs_recon_id"
-                  },
-                  {
-                    "displayName": "recon_id",
-                    "fieldName": "recon_id",
-                    "queryName": "MULTI_SELECT_09_0_latest_run_per_table_recon_id"
-                  },
-                  {
-                    "displayName": "recon_id",
-                    "fieldName": "recon_id",
-                    "queryName": "MULTI_SELECT_07_1_successful_runs_recon_id"
-                  },
-                  {
-                    "displayName": "recon_id",
-                    "fieldName": "recon_id",
-                    "queryName": "MULTI_SELECT_05_1_run_details_recon_id"
-                  },
-                  {
-                    "displayName": "recon_id",
-                    "fieldName": "recon_id",
-                    "queryName": "MULTI_SELECT_10_1_successes_by_table_recon_id"
-                  },
-                  {
-                    "displayName": "recon_id",
-                    "fieldName": "recon_id",
-                    "queryName": "MULTI_SELECT_08_2_successful_tables_recon_id"
-                  },
-                  {
-                    "displayName": "recon_id",
-                    "fieldName": "recon_id",
-                    "queryName": "MULTI_SELECT_05_0_jobs_summary_recon_id"
-                  },
-                  {
-                    "displayName": "recon_id",
-                    "fieldName": "recon_id",
-                    "queryName": "MULTI_SELECT_08_0_failed_tables_recon_id"
-                  }
-                ]
-              },
               "frame": {
                 "description": "",
                 "showDescription": false,
                 "showTitle": true,
                 "title": "Recon Id"
+              },
+              "widgetType": "filter-multi-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "recon_id",
+                    "queryName": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e1416713e9a29f60d2387ecfec_recon_id"
+                  },
+                  {
+                    "fieldName": "recon_id",
+                    "queryName": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e1416714188d72ebe1a4ffecd1_recon_id"
+                  },
+                  {
+                    "fieldName": "recon_id",
+                    "queryName": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e14167141496da013b6084bf13_recon_id"
+                  },
+                  {
+                    "fieldName": "recon_id",
+                    "queryName": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e1416714038b7c9d0f514fddef_recon_id"
+                  },
+                  {
+                    "fieldName": "recon_id",
+                    "queryName": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e14167141db8d16469819900e1_recon_id"
+                  },
+                  {
+                    "fieldName": "recon_id",
+                    "queryName": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e1416713f997c5db72dc468deb_recon_id"
+                  },
+                  {
+                    "fieldName": "recon_id",
+                    "queryName": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e1416713efaf22867f2076144e_recon_id"
+                  },
+                  {
+                    "fieldName": "recon_id",
+                    "queryName": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e1416713e286e864f6271c47b8_recon_id"
+                  },
+                  {
+                    "fieldName": "recon_id",
+                    "queryName": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e1416714218f55c814da2b486d_recon_id"
+                  },
+                  {
+                    "fieldName": "recon_id",
+                    "queryName": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e14167140891e51f8bba42d98b_recon_id"
+                  },
+                  {
+                    "fieldName": "recon_id",
+                    "queryName": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e1416713ff88df4374cba5fb6d_recon_id"
+                  }
+                ]
               }
             }
           },
           "position": {
             "x": 0,
-            "y": 2,
-            "width": 4,
-            "height": 1
-          }
-        },
-        {
-          "widget": {
-            "name": "01_1_target_table_filter_widget",
-            "queries": [
-              {
-                "name": "MULTI_SELECT_05_1_run_details_target_table",
-                "query": {
-                  "datasetName": "05_1_run_details",
-                  "fields": [
-                    {
-                      "name": "target_table",
-                      "expression": "`target_table`"
-                    },
-                    {
-                      "name": "target_table_associativity",
-                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
-                    }
-                  ],
-                  "disaggregated": false
-                }
-              },
-              {
-                "name": "MULTI_SELECT_08_0_failed_tables_target_table",
-                "query": {
-                  "datasetName": "08_0_failed_tables",
-                  "fields": [
-                    {
-                      "name": "target_table",
-                      "expression": "`target_table`"
-                    },
-                    {
-                      "name": "target_table_associativity",
-                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
-                    }
-                  ],
-                  "disaggregated": false
-                }
-              },
-              {
-                "name": "MULTI_SELECT_09_2_mismatch_trend_target_table",
-                "query": {
-                  "datasetName": "09_2_mismatch_trend",
-                  "fields": [
-                    {
-                      "name": "target_table",
-                      "expression": "`target_table`"
-                    },
-                    {
-                      "name": "target_table_associativity",
-                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
-                    }
-                  ],
-                  "disaggregated": false
-                }
-              },
-              {
-                "name": "MULTI_SELECT_09_1_job_timeline_target_table",
-                "query": {
-                  "datasetName": "09_1_job_timeline",
-                  "fields": [
-                    {
-                      "name": "target_table",
-                      "expression": "`target_table`"
-                    },
-                    {
-                      "name": "target_table_associativity",
-                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
-                    }
-                  ],
-                  "disaggregated": false
-                }
-              },
-              {
-                "name": "MULTI_SELECT_10_0_failures_by_table_target_table",
-                "query": {
-                  "datasetName": "10_0_failures_by_table",
-                  "fields": [
-                    {
-                      "name": "target_table",
-                      "expression": "`target_table`"
-                    },
-                    {
-                      "name": "target_table_associativity",
-                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
-                    }
-                  ],
-                  "disaggregated": false
-                }
-              },
-              {
-                "name": "MULTI_SELECT_07_0_total_runs_target_table",
-                "query": {
-                  "datasetName": "07_0_total_runs",
-                  "fields": [
-                    {
-                      "name": "target_table",
-                      "expression": "`target_table`"
-                    },
-                    {
-                      "name": "target_table_associativity",
-                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
-                    }
-                  ],
-                  "disaggregated": false
-                }
-              },
-              {
-                "name": "MULTI_SELECT_08_1_row_differences_target_table",
-                "query": {
-                  "datasetName": "08_1_row_differences",
-                  "fields": [
-                    {
-                      "name": "target_table",
-                      "expression": "`target_table`"
-                    },
-                    {
-                      "name": "target_table_associativity",
-                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
-                    }
-                  ],
-                  "disaggregated": false
-                }
-              },
-              {
-                "name": "MULTI_SELECT_08_2_successful_tables_target_table",
-                "query": {
-                  "datasetName": "08_2_successful_tables",
-                  "fields": [
-                    {
-                      "name": "target_table",
-                      "expression": "`target_table`"
-                    },
-                    {
-                      "name": "target_table_associativity",
-                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
-                    }
-                  ],
-                  "disaggregated": false
-                }
-              },
-              {
-                "name": "MULTI_SELECT_10_1_successes_by_table_target_table",
-                "query": {
-                  "datasetName": "10_1_successes_by_table",
-                  "fields": [
-                    {
-                      "name": "target_table",
-                      "expression": "`target_table`"
-                    },
-                    {
-                      "name": "target_table_associativity",
-                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
-                    }
-                  ],
-                  "disaggregated": false
-                }
-              },
-              {
-                "name": "MULTI_SELECT_09_0_latest_run_per_table_target_table",
-                "query": {
-                  "datasetName": "09_0_latest_run_per_table",
-                  "fields": [
-                    {
-                      "name": "target_table",
-                      "expression": "`target_table`"
-                    },
-                    {
-                      "name": "target_table_associativity",
-                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
-                    }
-                  ],
-                  "disaggregated": false
-                }
-              },
-              {
-                "name": "MULTI_SELECT_07_2_failed_runs_target_table",
-                "query": {
-                  "datasetName": "07_2_failed_runs",
-                  "fields": [
-                    {
-                      "name": "target_table",
-                      "expression": "`target_table`"
-                    },
-                    {
-                      "name": "target_table_associativity",
-                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
-                    }
-                  ],
-                  "disaggregated": false
-                }
-              },
-              {
-                "name": "MULTI_SELECT_07_1_successful_runs_target_table",
-                "query": {
-                  "datasetName": "07_1_successful_runs",
-                  "fields": [
-                    {
-                      "name": "target_table",
-                      "expression": "`target_table`"
-                    },
-                    {
-                      "name": "target_table_associativity",
-                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
-                    }
-                  ],
-                  "disaggregated": false
-                }
-              }
-            ],
-            "spec": {
-              "version": 2,
-              "widgetType": "filter-multi-select",
-              "encodings": {
-                "fields": [
-                  {
-                    "displayName": "target_table",
-                    "fieldName": "target_table",
-                    "queryName": "MULTI_SELECT_05_1_run_details_target_table"
-                  },
-                  {
-                    "displayName": "target_table",
-                    "fieldName": "target_table",
-                    "queryName": "MULTI_SELECT_08_0_failed_tables_target_table"
-                  },
-                  {
-                    "displayName": "target_table",
-                    "fieldName": "target_table",
-                    "queryName": "MULTI_SELECT_09_2_mismatch_trend_target_table"
-                  },
-                  {
-                    "displayName": "target_table",
-                    "fieldName": "target_table",
-                    "queryName": "MULTI_SELECT_09_1_job_timeline_target_table"
-                  },
-                  {
-                    "displayName": "target_table",
-                    "fieldName": "target_table",
-                    "queryName": "MULTI_SELECT_10_0_failures_by_table_target_table"
-                  },
-                  {
-                    "displayName": "target_table",
-                    "fieldName": "target_table",
-                    "queryName": "MULTI_SELECT_07_0_total_runs_target_table"
-                  },
-                  {
-                    "displayName": "target_table",
-                    "fieldName": "target_table",
-                    "queryName": "MULTI_SELECT_08_1_row_differences_target_table"
-                  },
-                  {
-                    "displayName": "target_table",
-                    "fieldName": "target_table",
-                    "queryName": "MULTI_SELECT_08_2_successful_tables_target_table"
-                  },
-                  {
-                    "displayName": "target_table",
-                    "fieldName": "target_table",
-                    "queryName": "MULTI_SELECT_10_1_successes_by_table_target_table"
-                  },
-                  {
-                    "displayName": "target_table",
-                    "fieldName": "target_table",
-                    "queryName": "MULTI_SELECT_09_0_latest_run_per_table_target_table"
-                  },
-                  {
-                    "displayName": "target_table",
-                    "fieldName": "target_table",
-                    "queryName": "MULTI_SELECT_07_2_failed_runs_target_table"
-                  },
-                  {
-                    "displayName": "target_table",
-                    "fieldName": "target_table",
-                    "queryName": "MULTI_SELECT_07_1_successful_runs_target_table"
-                  }
-                ]
-              },
-              "frame": {
-                "description": "",
-                "showDescription": false,
-                "showTitle": true,
-                "title": "Table"
-              }
-            }
-          },
-          "position": {
-            "x": 4,
-            "y": 2,
-            "width": 4,
-            "height": 1
-          }
-        },
-        {
-          "widget": {
-            "name": "01_2_executed_by_filter_widget",
-            "queries": [
-              {
-                "name": "MULTI_SELECT_08_1_row_differences_executed_by",
-                "query": {
-                  "datasetName": "08_1_row_differences",
-                  "fields": [
-                    {
-                      "name": "executed_by",
-                      "expression": "`executed_by`"
-                    },
-                    {
-                      "name": "executed_by_associativity",
-                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
-                    }
-                  ],
-                  "disaggregated": false
-                }
-              },
-              {
-                "name": "MULTI_SELECT_07_1_successful_runs_executed_by",
-                "query": {
-                  "datasetName": "07_1_successful_runs",
-                  "fields": [
-                    {
-                      "name": "executed_by",
-                      "expression": "`executed_by`"
-                    },
-                    {
-                      "name": "executed_by_associativity",
-                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
-                    }
-                  ],
-                  "disaggregated": false
-                }
-              },
-              {
-                "name": "MULTI_SELECT_05_1_run_details_executed_by",
-                "query": {
-                  "datasetName": "05_1_run_details",
-                  "fields": [
-                    {
-                      "name": "executed_by",
-                      "expression": "`executed_by`"
-                    },
-                    {
-                      "name": "executed_by_associativity",
-                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
-                    }
-                  ],
-                  "disaggregated": false
-                }
-              },
-              {
-                "name": "MULTI_SELECT_07_2_failed_runs_executed_by",
-                "query": {
-                  "datasetName": "07_2_failed_runs",
-                  "fields": [
-                    {
-                      "name": "executed_by",
-                      "expression": "`executed_by`"
-                    },
-                    {
-                      "name": "executed_by_associativity",
-                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
-                    }
-                  ],
-                  "disaggregated": false
-                }
-              },
-              {
-                "name": "MULTI_SELECT_09_0_latest_run_per_table_executed_by",
-                "query": {
-                  "datasetName": "09_0_latest_run_per_table",
-                  "fields": [
-                    {
-                      "name": "executed_by",
-                      "expression": "`executed_by`"
-                    },
-                    {
-                      "name": "executed_by_associativity",
-                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
-                    }
-                  ],
-                  "disaggregated": false
-                }
-              },
-              {
-                "name": "MULTI_SELECT_08_2_successful_tables_executed_by",
-                "query": {
-                  "datasetName": "08_2_successful_tables",
-                  "fields": [
-                    {
-                      "name": "executed_by",
-                      "expression": "`executed_by`"
-                    },
-                    {
-                      "name": "executed_by_associativity",
-                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
-                    }
-                  ],
-                  "disaggregated": false
-                }
-              },
-              {
-                "name": "MULTI_SELECT_10_1_successes_by_table_executed_by",
-                "query": {
-                  "datasetName": "10_1_successes_by_table",
-                  "fields": [
-                    {
-                      "name": "executed_by",
-                      "expression": "`executed_by`"
-                    },
-                    {
-                      "name": "executed_by_associativity",
-                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
-                    }
-                  ],
-                  "disaggregated": false
-                }
-              },
-              {
-                "name": "MULTI_SELECT_08_0_failed_tables_executed_by",
-                "query": {
-                  "datasetName": "08_0_failed_tables",
-                  "fields": [
-                    {
-                      "name": "executed_by",
-                      "expression": "`executed_by`"
-                    },
-                    {
-                      "name": "executed_by_associativity",
-                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
-                    }
-                  ],
-                  "disaggregated": false
-                }
-              },
-              {
-                "name": "MULTI_SELECT_09_2_mismatch_trend_executed_by",
-                "query": {
-                  "datasetName": "09_2_mismatch_trend",
-                  "fields": [
-                    {
-                      "name": "executed_by",
-                      "expression": "`executed_by`"
-                    },
-                    {
-                      "name": "executed_by_associativity",
-                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
-                    }
-                  ],
-                  "disaggregated": false
-                }
-              },
-              {
-                "name": "MULTI_SELECT_05_0_jobs_summary_executed_by",
-                "query": {
-                  "datasetName": "05_0_jobs_summary",
-                  "fields": [
-                    {
-                      "name": "executed_by",
-                      "expression": "`executed_by`"
-                    },
-                    {
-                      "name": "executed_by_associativity",
-                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
-                    }
-                  ],
-                  "disaggregated": false
-                }
-              },
-              {
-                "name": "MULTI_SELECT_09_1_job_timeline_executed_by",
-                "query": {
-                  "datasetName": "09_1_job_timeline",
-                  "fields": [
-                    {
-                      "name": "executed_by",
-                      "expression": "`executed_by`"
-                    },
-                    {
-                      "name": "executed_by_associativity",
-                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
-                    }
-                  ],
-                  "disaggregated": false
-                }
-              },
-              {
-                "name": "MULTI_SELECT_10_0_failures_by_table_executed_by",
-                "query": {
-                  "datasetName": "10_0_failures_by_table",
-                  "fields": [
-                    {
-                      "name": "executed_by",
-                      "expression": "`executed_by`"
-                    },
-                    {
-                      "name": "executed_by_associativity",
-                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
-                    }
-                  ],
-                  "disaggregated": false
-                }
-              },
-              {
-                "name": "MULTI_SELECT_07_0_total_runs_executed_by",
-                "query": {
-                  "datasetName": "07_0_total_runs",
-                  "fields": [
-                    {
-                      "name": "executed_by",
-                      "expression": "`executed_by`"
-                    },
-                    {
-                      "name": "executed_by_associativity",
-                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
-                    }
-                  ],
-                  "disaggregated": false
-                }
-              }
-            ],
-            "spec": {
-              "version": 2,
-              "widgetType": "filter-multi-select",
-              "encodings": {
-                "fields": [
-                  {
-                    "displayName": "executed_by",
-                    "fieldName": "executed_by",
-                    "queryName": "MULTI_SELECT_08_1_row_differences_executed_by"
-                  },
-                  {
-                    "displayName": "executed_by",
-                    "fieldName": "executed_by",
-                    "queryName": "MULTI_SELECT_07_1_successful_runs_executed_by"
-                  },
-                  {
-                    "displayName": "executed_by",
-                    "fieldName": "executed_by",
-                    "queryName": "MULTI_SELECT_05_1_run_details_executed_by"
-                  },
-                  {
-                    "displayName": "executed_by",
-                    "fieldName": "executed_by",
-                    "queryName": "MULTI_SELECT_07_2_failed_runs_executed_by"
-                  },
-                  {
-                    "displayName": "executed_by",
-                    "fieldName": "executed_by",
-                    "queryName": "MULTI_SELECT_09_0_latest_run_per_table_executed_by"
-                  },
-                  {
-                    "displayName": "executed_by",
-                    "fieldName": "executed_by",
-                    "queryName": "MULTI_SELECT_08_2_successful_tables_executed_by"
-                  },
-                  {
-                    "displayName": "executed_by",
-                    "fieldName": "executed_by",
-                    "queryName": "MULTI_SELECT_10_1_successes_by_table_executed_by"
-                  },
-                  {
-                    "displayName": "executed_by",
-                    "fieldName": "executed_by",
-                    "queryName": "MULTI_SELECT_08_0_failed_tables_executed_by"
-                  },
-                  {
-                    "displayName": "executed_by",
-                    "fieldName": "executed_by",
-                    "queryName": "MULTI_SELECT_09_2_mismatch_trend_executed_by"
-                  },
-                  {
-                    "displayName": "executed_by",
-                    "fieldName": "executed_by",
-                    "queryName": "MULTI_SELECT_05_0_jobs_summary_executed_by"
-                  },
-                  {
-                    "displayName": "executed_by",
-                    "fieldName": "executed_by",
-                    "queryName": "MULTI_SELECT_09_1_job_timeline_executed_by"
-                  },
-                  {
-                    "displayName": "executed_by",
-                    "fieldName": "executed_by",
-                    "queryName": "MULTI_SELECT_10_0_failures_by_table_executed_by"
-                  },
-                  {
-                    "displayName": "executed_by",
-                    "fieldName": "executed_by",
-                    "queryName": "MULTI_SELECT_07_0_total_runs_executed_by"
-                  }
-                ]
-              },
-              "frame": {
-                "description": "",
-                "showDescription": false,
-                "showTitle": true,
-                "title": "Executed By"
-              }
-            }
-          },
-          "position": {
-            "x": 8,
-            "y": 2,
-            "width": 4,
+            "y": 16,
+            "width": 6,
             "height": 1
           }
         },
@@ -1403,7 +759,7 @@
             "name": "03_0_started_at_filter_widget",
             "queries": [
               {
-                "name": "DATE_RANGE_PICKER_08_0_failed_tables_start_ts",
+                "name": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e1416713ff88df4374cba5fb6d_start_ts",
                 "query": {
                   "datasetName": "08_0_failed_tables",
                   "fields": [
@@ -1420,7 +776,7 @@
                 }
               },
               {
-                "name": "DATE_RANGE_PICKER_09_2_mismatch_trend_start_ts",
+                "name": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e1416714188d72ebe1a4ffecd1_start_ts",
                 "query": {
                   "datasetName": "09_2_mismatch_trend",
                   "fields": [
@@ -1437,7 +793,7 @@
                 }
               },
               {
-                "name": "DATE_RANGE_PICKER_07_0_total_runs_start_ts",
+                "name": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e1416713e9a29f60d2387ecfec_start_ts",
                 "query": {
                   "datasetName": "07_0_total_runs",
                   "fields": [
@@ -1454,7 +810,7 @@
                 }
               },
               {
-                "name": "DATE_RANGE_PICKER_09_1_job_timeline_start_ts",
+                "name": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e14167141496da013b6084bf13_start_ts",
                 "query": {
                   "datasetName": "09_1_job_timeline",
                   "fields": [
@@ -1471,7 +827,7 @@
                 }
               },
               {
-                "name": "DATE_RANGE_PICKER_08_1_row_differences_start_ts",
+                "name": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e1416714038b7c9d0f514fddef_start_ts",
                 "query": {
                   "datasetName": "08_1_row_differences",
                   "fields": [
@@ -1488,7 +844,7 @@
                 }
               },
               {
-                "name": "DATE_RANGE_PICKER_10_0_failures_by_table_start_ts",
+                "name": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e14167141db8d16469819900e1_start_ts",
                 "query": {
                   "datasetName": "10_0_failures_by_table",
                   "fields": [
@@ -1505,7 +861,7 @@
                 }
               },
               {
-                "name": "DATE_RANGE_PICKER_07_2_failed_runs_start_ts",
+                "name": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e1416713f997c5db72dc468deb_start_ts",
                 "query": {
                   "datasetName": "07_2_failed_runs",
                   "fields": [
@@ -1522,24 +878,7 @@
                 }
               },
               {
-                "name": "DATE_RANGE_PICKER_09_0_latest_run_per_table_start_ts",
-                "query": {
-                  "datasetName": "09_0_latest_run_per_table",
-                  "fields": [
-                    {
-                      "name": "start_ts",
-                      "expression": "`start_ts`"
-                    },
-                    {
-                      "name": "start_ts_associativity",
-                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
-                    }
-                  ],
-                  "disaggregated": false
-                }
-              },
-              {
-                "name": "DATE_RANGE_PICKER_07_1_successful_runs_start_ts",
+                "name": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e1416713efaf22867f2076144e_start_ts",
                 "query": {
                   "datasetName": "07_1_successful_runs",
                   "fields": [
@@ -1556,7 +895,7 @@
                 }
               },
               {
-                "name": "DATE_RANGE_PICKER_05_1_run_details_start_ts",
+                "name": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e1416713e286e864f6271c47b8_start_ts",
                 "query": {
                   "datasetName": "05_1_run_details",
                   "fields": [
@@ -1573,7 +912,7 @@
                 }
               },
               {
-                "name": "DATE_RANGE_PICKER_10_1_successes_by_table_start_ts",
+                "name": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e1416714218f55c814da2b486d_start_ts",
                 "query": {
                   "datasetName": "10_1_successes_by_table",
                   "fields": [
@@ -1590,7 +929,7 @@
                 }
               },
               {
-                "name": "DATE_RANGE_PICKER_08_2_successful_tables_start_ts",
+                "name": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e14167140891e51f8bba42d98b_start_ts",
                 "query": {
                   "datasetName": "08_2_successful_tables",
                   "fields": [
@@ -1605,109 +944,71 @@
                   ],
                   "disaggregated": false
                 }
-              },
-              {
-                "name": "DATE_RANGE_PICKER_05_0_jobs_summary_start_ts",
-                "query": {
-                  "datasetName": "05_0_jobs_summary",
-                  "fields": [
-                    {
-                      "name": "start_ts",
-                      "expression": "`start_ts`"
-                    },
-                    {
-                      "name": "start_ts_associativity",
-                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
-                    }
-                  ],
-                  "disaggregated": false
-                }
               }
             ],
             "spec": {
               "version": 2,
-              "widgetType": "filter-date-range-picker",
-              "encodings": {
-                "fields": [
-                  {
-                    "displayName": "start_ts",
-                    "fieldName": "start_ts",
-                    "queryName": "DATE_RANGE_PICKER_08_0_failed_tables_start_ts"
-                  },
-                  {
-                    "displayName": "start_ts",
-                    "fieldName": "start_ts",
-                    "queryName": "DATE_RANGE_PICKER_09_2_mismatch_trend_start_ts"
-                  },
-                  {
-                    "displayName": "start_ts",
-                    "fieldName": "start_ts",
-                    "queryName": "DATE_RANGE_PICKER_07_0_total_runs_start_ts"
-                  },
-                  {
-                    "displayName": "start_ts",
-                    "fieldName": "start_ts",
-                    "queryName": "DATE_RANGE_PICKER_09_1_job_timeline_start_ts"
-                  },
-                  {
-                    "displayName": "start_ts",
-                    "fieldName": "start_ts",
-                    "queryName": "DATE_RANGE_PICKER_08_1_row_differences_start_ts"
-                  },
-                  {
-                    "displayName": "start_ts",
-                    "fieldName": "start_ts",
-                    "queryName": "DATE_RANGE_PICKER_10_0_failures_by_table_start_ts"
-                  },
-                  {
-                    "displayName": "start_ts",
-                    "fieldName": "start_ts",
-                    "queryName": "DATE_RANGE_PICKER_07_2_failed_runs_start_ts"
-                  },
-                  {
-                    "displayName": "start_ts",
-                    "fieldName": "start_ts",
-                    "queryName": "DATE_RANGE_PICKER_09_0_latest_run_per_table_start_ts"
-                  },
-                  {
-                    "displayName": "start_ts",
-                    "fieldName": "start_ts",
-                    "queryName": "DATE_RANGE_PICKER_07_1_successful_runs_start_ts"
-                  },
-                  {
-                    "displayName": "start_ts",
-                    "fieldName": "start_ts",
-                    "queryName": "DATE_RANGE_PICKER_05_1_run_details_start_ts"
-                  },
-                  {
-                    "displayName": "start_ts",
-                    "fieldName": "start_ts",
-                    "queryName": "DATE_RANGE_PICKER_10_1_successes_by_table_start_ts"
-                  },
-                  {
-                    "displayName": "start_ts",
-                    "fieldName": "start_ts",
-                    "queryName": "DATE_RANGE_PICKER_08_2_successful_tables_start_ts"
-                  },
-                  {
-                    "displayName": "start_ts",
-                    "fieldName": "start_ts",
-                    "queryName": "DATE_RANGE_PICKER_05_0_jobs_summary_start_ts"
-                  }
-                ]
-              },
               "frame": {
                 "description": "",
                 "showDescription": false,
                 "showTitle": true,
                 "title": "Started At"
+              },
+              "widgetType": "filter-date-range-picker",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "start_ts",
+                    "queryName": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e1416713ff88df4374cba5fb6d_start_ts"
+                  },
+                  {
+                    "fieldName": "start_ts",
+                    "queryName": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e1416714188d72ebe1a4ffecd1_start_ts"
+                  },
+                  {
+                    "fieldName": "start_ts",
+                    "queryName": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e1416713e9a29f60d2387ecfec_start_ts"
+                  },
+                  {
+                    "fieldName": "start_ts",
+                    "queryName": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e14167141496da013b6084bf13_start_ts"
+                  },
+                  {
+                    "fieldName": "start_ts",
+                    "queryName": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e1416714038b7c9d0f514fddef_start_ts"
+                  },
+                  {
+                    "fieldName": "start_ts",
+                    "queryName": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e14167141db8d16469819900e1_start_ts"
+                  },
+                  {
+                    "fieldName": "start_ts",
+                    "queryName": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e1416713f997c5db72dc468deb_start_ts"
+                  },
+                  {
+                    "fieldName": "start_ts",
+                    "queryName": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e1416713efaf22867f2076144e_start_ts"
+                  },
+                  {
+                    "fieldName": "start_ts",
+                    "queryName": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e1416713e286e864f6271c47b8_start_ts"
+                  },
+                  {
+                    "fieldName": "start_ts",
+                    "queryName": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e1416714218f55c814da2b486d_start_ts"
+                  },
+                  {
+                    "fieldName": "start_ts",
+                    "queryName": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e14167140891e51f8bba42d98b_start_ts"
+                  }
+                ]
               }
             }
           },
           "position": {
-            "x": 0,
-            "y": 3,
-            "width": 12,
+            "x": 6,
+            "y": 16,
+            "width": 6,
             "height": 1
           }
         },
@@ -1716,109 +1017,19 @@
             "name": "04_0_jobs_header_widget",
             "multilineTextboxSpec": {
               "lines": [
-                "## Recon Jobs\n",
+                "## Overview\n",
                 "\n",
-                "### A **job** is one reconcile invocation, identified by `recon_id`. A job usually covers multiple tables.\n"
+                "The last run when a table was invoked, did it pass or fail, and summary list of all the jobs.\n",
+                "\n",
+                "**Check exact details on next page.**"
               ]
             }
           },
           "position": {
             "x": 0,
-            "y": 4,
+            "y": 0,
             "width": 12,
             "height": 2
-          }
-        },
-        {
-          "widget": {
-            "name": "05_0_jobs_summary_widget",
-            "queries": [
-              {
-                "name": "main_query",
-                "query": {
-                  "datasetName": "05_0_jobs_summary",
-                  "fields": [
-                    {
-                      "name": "recon_id",
-                      "expression": "`recon_id`"
-                    },
-                    {
-                      "name": "start_ts",
-                      "expression": "`start_ts`"
-                    },
-                    {
-                      "name": "tables",
-                      "expression": "`tables`"
-                    },
-                    {
-                      "name": "succeeded",
-                      "expression": "`succeeded`"
-                    },
-                    {
-                      "name": "failed",
-                      "expression": "`failed`"
-                    },
-                    {
-                      "name": "mismatched_rows",
-                      "expression": "`mismatched_rows`"
-                    },
-                    {
-                      "name": "missing_rows",
-                      "expression": "`missing_rows`"
-                    }
-                  ],
-                  "disaggregated": true
-                }
-              }
-            ],
-            "spec": {
-              "version": 2,
-              "widgetType": "table",
-              "encodings": {
-                "columns": [
-                  {
-                    "displayName": "Recon ID",
-                    "fieldName": "recon_id"
-                  },
-                  {
-                    "displayName": "Started At",
-                    "fieldName": "start_ts"
-                  },
-                  {
-                    "displayName": "Tables in Batch",
-                    "fieldName": "tables"
-                  },
-                  {
-                    "displayName": "Succeeded Tables",
-                    "fieldName": "succeeded"
-                  },
-                  {
-                    "displayName": "Failed Tables",
-                    "fieldName": "failed"
-                  },
-                  {
-                    "displayName": "Mismatched Rows",
-                    "fieldName": "mismatched_rows"
-                  },
-                  {
-                    "displayName": "Missing Rows",
-                    "fieldName": "missing_rows"
-                  }
-                ]
-              },
-              "frame": {
-                "description": "",
-                "showDescription": false,
-                "showTitle": true,
-                "title": "Jobs Summary"
-              }
-            }
-          },
-          "position": {
-            "x": 0,
-            "y": 6,
-            "width": 12,
-            "height": 6
           }
         },
         {
@@ -2296,27 +1507,9 @@
           },
           "position": {
             "x": 0,
-            "y": 12,
+            "y": 23,
             "width": 12,
             "height": 6
-          }
-        },
-        {
-          "widget": {
-            "name": "06_0_tables_header_widget",
-            "multilineTextboxSpec": {
-              "lines": [
-                "## Table Health\n",
-                "\n",
-                "### How many table-level runs passed vs failed, which tables are broken, and how big is the data difference? One **run** = one table reconciled in a single job.\n"
-              ]
-            }
-          },
-          "position": {
-            "x": 0,
-            "y": 18,
-            "width": 12,
-            "height": 2
           }
         },
         {
@@ -2356,7 +1549,7 @@
           },
           "position": {
             "x": 0,
-            "y": 20,
+            "y": 17,
             "width": 4,
             "height": 3
           }
@@ -2398,7 +1591,7 @@
           },
           "position": {
             "x": 4,
-            "y": 20,
+            "y": 17,
             "width": 4,
             "height": 3
           }
@@ -2440,7 +1633,7 @@
           },
           "position": {
             "x": 8,
-            "y": 20,
+            "y": 17,
             "width": 4,
             "height": 3
           }
@@ -2482,7 +1675,7 @@
           },
           "position": {
             "x": 0,
-            "y": 23,
+            "y": 20,
             "width": 4,
             "height": 3
           }
@@ -2524,7 +1717,7 @@
           },
           "position": {
             "x": 4,
-            "y": 23,
+            "y": 20,
             "width": 4,
             "height": 3
           }
@@ -2566,9 +1759,255 @@
           },
           "position": {
             "x": 8,
-            "y": 23,
+            "y": 20,
             "width": 4,
             "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "09_1_job_timeline_widget",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "09_1_job_timeline",
+                  "fields": [
+                    {
+                      "name": "hourly(start_ts)",
+                      "expression": "DATE_TRUNC(\"HOUR\", `start_ts`)"
+                    },
+                    {
+                      "name": "sum(succeeded)",
+                      "expression": "SUM(`succeeded`)"
+                    },
+                    {
+                      "name": "sum(failed)",
+                      "expression": "SUM(`failed`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "frame": {
+                "description": "",
+                "showDescription": false,
+                "showTitle": true,
+                "title": "Runs Over Time"
+              },
+              "mark": {
+                "layout": "group"
+              },
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "hourly(start_ts)",
+                  "displayName": "Time",
+                  "scale": {
+                    "type": "temporal"
+                  }
+                },
+                "y": {
+                  "fields": [
+                    {
+                      "fieldName": "sum(succeeded)",
+                      "displayName": "Succeeded"
+                    },
+                    {
+                      "fieldName": "sum(failed)",
+                      "displayName": "Failed"
+                    }
+                  ],
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "label": {
+                  "show": false
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 29,
+            "width": 12,
+            "height": 7
+          }
+        },
+        {
+          "widget": {
+            "name": "09_2_mismatch_trend_widget",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "09_2_mismatch_trend",
+                  "fields": [
+                    {
+                      "name": "hourly(start_ts)",
+                      "expression": "DATE_TRUNC(\"HOUR\", `start_ts`)"
+                    },
+                    {
+                      "name": "sum(mismatched)",
+                      "expression": "SUM(`mismatched`)"
+                    },
+                    {
+                      "name": "sum(missing_in_source)",
+                      "expression": "SUM(`missing_in_source`)"
+                    },
+                    {
+                      "name": "sum(missing_in_target)",
+                      "expression": "SUM(`missing_in_target`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "label": {
+                  "show": false
+                },
+                "x": {
+                  "displayName": "Time",
+                  "fieldName": "hourly(start_ts)",
+                  "scale": {
+                    "type": "temporal"
+                  }
+                },
+                "y": {
+                  "fields": [
+                    {
+                      "displayName": "Mismatched",
+                      "fieldName": "sum(mismatched)"
+                    },
+                    {
+                      "displayName": "Missing in Source",
+                      "fieldName": "sum(missing_in_source)"
+                    },
+                    {
+                      "displayName": "Missing in Target",
+                      "fieldName": "sum(missing_in_target)"
+                    }
+                  ],
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                }
+              },
+              "frame": {
+                "description": "",
+                "showDescription": false,
+                "showTitle": true,
+                "title": "Failed Rows Over Time"
+              },
+              "mark": {
+                "layout": "group"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 36,
+            "width": 12,
+            "height": 7
+          }
+        },
+        {
+          "widget": {
+            "name": "05_0_jobs_summary_widget",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "05_0_jobs_summary",
+                  "fields": [
+                    {
+                      "name": "recon_id",
+                      "expression": "`recon_id`"
+                    },
+                    {
+                      "name": "start_ts",
+                      "expression": "`start_ts`"
+                    },
+                    {
+                      "name": "tables",
+                      "expression": "`tables`"
+                    },
+                    {
+                      "name": "succeeded",
+                      "expression": "`succeeded`"
+                    },
+                    {
+                      "name": "failed",
+                      "expression": "`failed`"
+                    },
+                    {
+                      "name": "mismatched_rows",
+                      "expression": "`mismatched_rows`"
+                    },
+                    {
+                      "name": "missing_rows",
+                      "expression": "`missing_rows`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "showTitle": true,
+                "title": "Jobs Summary"
+              },
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "recon_id",
+                    "displayName": "Recon ID"
+                  },
+                  {
+                    "fieldName": "start_ts",
+                    "displayName": "Started At"
+                  },
+                  {
+                    "fieldName": "tables",
+                    "displayName": "Tables in Batch"
+                  },
+                  {
+                    "fieldName": "succeeded",
+                    "displayName": "Succeeded Tables"
+                  },
+                  {
+                    "fieldName": "failed",
+                    "displayName": "Failed Tables"
+                  },
+                  {
+                    "fieldName": "mismatched_rows",
+                    "displayName": "Mismatched Rows"
+                  },
+                  {
+                    "fieldName": "missing_rows",
+                    "displayName": "Missing Rows"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 8,
+            "width": 12,
+            "height": 6
           }
         },
         {
@@ -2631,8 +2070,6 @@
             ],
             "spec": {
               "frame": {
-                "description": "",
-                "showDescription": false,
                 "showTitle": true,
                 "title": "Latest Run per Table"
               },
@@ -3002,165 +2439,9 @@
           },
           "position": {
             "x": 0,
-            "y": 26,
+            "y": 2,
             "width": 12,
             "height": 6
-          }
-        },
-        {
-          "widget": {
-            "name": "09_1_job_timeline_widget",
-            "queries": [
-              {
-                "name": "main_query",
-                "query": {
-                  "datasetName": "09_1_job_timeline",
-                  "fields": [
-                    {
-                      "name": "hourly(start_ts)",
-                      "expression": "DATE_TRUNC(\"HOUR\", `start_ts`)"
-                    },
-                    {
-                      "name": "sum(succeeded)",
-                      "expression": "SUM(`succeeded`)"
-                    },
-                    {
-                      "name": "sum(failed)",
-                      "expression": "SUM(`failed`)"
-                    }
-                  ],
-                  "disaggregated": false
-                }
-              }
-            ],
-            "spec": {
-              "version": 3,
-              "frame": {
-                "description": "",
-                "showDescription": false,
-                "showTitle": true,
-                "title": "Runs Over Time"
-              },
-              "mark": {
-                "layout": "group"
-              },
-              "widgetType": "bar",
-              "encodings": {
-                "x": {
-                  "fieldName": "hourly(start_ts)",
-                  "displayName": "Time",
-                  "scale": {
-                    "type": "temporal"
-                  }
-                },
-                "y": {
-                  "fields": [
-                    {
-                      "fieldName": "sum(succeeded)",
-                      "displayName": "Succeeded"
-                    },
-                    {
-                      "fieldName": "sum(failed)",
-                      "displayName": "Failed"
-                    }
-                  ],
-                  "scale": {
-                    "type": "quantitative"
-                  }
-                },
-                "label": {
-                  "show": false
-                }
-              }
-            }
-          },
-          "position": {
-            "x": 0,
-            "y": 32,
-            "width": 12,
-            "height": 7
-          }
-        },
-        {
-          "widget": {
-            "name": "09_2_mismatch_trend_widget",
-            "queries": [
-              {
-                "name": "main_query",
-                "query": {
-                  "datasetName": "09_2_mismatch_trend",
-                  "fields": [
-                    {
-                      "name": "hourly(start_ts)",
-                      "expression": "DATE_TRUNC(\"HOUR\", `start_ts`)"
-                    },
-                    {
-                      "name": "sum(mismatched)",
-                      "expression": "SUM(`mismatched`)"
-                    },
-                    {
-                      "name": "sum(missing_in_source)",
-                      "expression": "SUM(`missing_in_source`)"
-                    },
-                    {
-                      "name": "sum(missing_in_target)",
-                      "expression": "SUM(`missing_in_target`)"
-                    }
-                  ],
-                  "disaggregated": false
-                }
-              }
-            ],
-            "spec": {
-              "version": 3,
-              "widgetType": "bar",
-              "encodings": {
-                "label": {
-                  "show": false
-                },
-                "x": {
-                  "displayName": "Time",
-                  "fieldName": "hourly(start_ts)",
-                  "scale": {
-                    "type": "temporal"
-                  }
-                },
-                "y": {
-                  "fields": [
-                    {
-                      "displayName": "Mismatched",
-                      "fieldName": "sum(mismatched)"
-                    },
-                    {
-                      "displayName": "Missing in Source",
-                      "fieldName": "sum(missing_in_source)"
-                    },
-                    {
-                      "displayName": "Missing in Target",
-                      "fieldName": "sum(missing_in_target)"
-                    }
-                  ],
-                  "scale": {
-                    "type": "quantitative"
-                  }
-                }
-              },
-              "frame": {
-                "description": "",
-                "showDescription": false,
-                "showTitle": true,
-                "title": "Failed Rows Over Time"
-              },
-              "mark": {
-                "layout": "group"
-              }
-            }
-          },
-          "position": {
-            "x": 0,
-            "y": 39,
-            "width": 12,
-            "height": 7
           }
         },
         {
@@ -3188,8 +2469,6 @@
             "spec": {
               "version": 3,
               "frame": {
-                "description": "",
-                "showDescription": false,
                 "showTitle": true,
                 "title": "Failures by Table"
               },
@@ -3206,17 +2485,7 @@
                   "fieldName": "target_table",
                   "displayName": "Table",
                   "scale": {
-                    "type": "categorical",
-                    "mappings": [
-                      {
-                        "value": "analytics.sales.orders",
-                        "color": "#F0C05F"
-                      },
-                      {
-                        "value": "analytics.sales.customers",
-                        "color": "#E95F51"
-                      }
-                    ]
+                    "type": "categorical"
                   }
                 },
                 "label": {
@@ -3227,7 +2496,7 @@
           },
           "position": {
             "x": 0,
-            "y": 46,
+            "y": 43,
             "width": 6,
             "height": 7
           }
@@ -3257,8 +2526,6 @@
             "spec": {
               "version": 3,
               "frame": {
-                "description": "",
-                "showDescription": false,
                 "showTitle": true,
                 "title": "Successes by Table"
               },
@@ -3275,17 +2542,7 @@
                   "fieldName": "target_table",
                   "displayName": "Table",
                   "scale": {
-                    "type": "categorical",
-                    "mappings": [
-                      {
-                        "value": "analytics.sales.customers",
-                        "color": "#F0C05F"
-                      },
-                      {
-                        "value": "analytics.sales.orders",
-                        "color": "#E95F51"
-                      }
-                    ]
+                    "type": "categorical"
                   }
                 },
                 "label": {
@@ -3296,9 +2553,27 @@
           },
           "position": {
             "x": 6,
-            "y": 46,
+            "y": 43,
             "width": 6,
             "height": 7
+          }
+        },
+        {
+          "widget": {
+            "name": "d2164167",
+            "multilineTextboxSpec": {
+              "lines": [
+                "## Recon Jobs\n",
+                "\n",
+                "Pick a Recon Id below to scope every following tile on this page."
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 14,
+            "width": 12,
+            "height": 2
           }
         }
       ],
@@ -3307,12 +2582,18 @@
     },
     {
       "name": "deep_dive",
-      "displayName": "Recon Deep Dive",
+      "displayName": "Tables Details",
       "layout": [
         {
           "widget": {
             "name": "dd_header",
-            "textbox_spec": "# Recon deep dive\n\nPick a **Recon Id** and **Target Table** below to scope every tile on this page."
+            "multilineTextboxSpec": {
+              "lines": [
+                "# Table recon run\n",
+                "\n",
+                "Pick a **Target Table** and **Recon Id** below to scope every tile on this page."
+              ]
+            }
           },
           "position": {
             "x": 0,
@@ -3323,19 +2604,19 @@
         },
         {
           "widget": {
-            "name": "dd_f_recon_id",
+            "name": "dd_f_target_table",
             "queries": [
               {
-                "name": "MULTI_SELECT_ds_table_run_recon_id",
+                "name": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e14167142a9f6bfb26fd19bde6_target_table",
                 "query": {
                   "datasetName": "ds_table_run",
                   "fields": [
                     {
-                      "name": "recon_id",
-                      "expression": "`recon_id`"
+                      "name": "target_table",
+                      "expression": "`target_table`"
                     },
                     {
-                      "name": "recon_id_associativity",
+                      "name": "target_table_associativity",
                       "expression": "COUNT_IF(`associative_filter_predicate_group`)"
                     }
                   ],
@@ -3343,16 +2624,16 @@
                 }
               },
               {
-                "name": "MULTI_SELECT_ds_schema_recon_id",
+                "name": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e1416714319030156650f5dd31_target_table",
                 "query": {
                   "datasetName": "ds_schema",
                   "fields": [
                     {
-                      "name": "recon_id",
-                      "expression": "`recon_id`"
+                      "name": "target_table",
+                      "expression": "`target_table`"
                     },
                     {
-                      "name": "recon_id_associativity",
+                      "name": "target_table_associativity",
                       "expression": "COUNT_IF(`associative_filter_predicate_group`)"
                     }
                   ],
@@ -3360,16 +2641,16 @@
                 }
               },
               {
-                "name": "MULTI_SELECT_ds_details_columns_recon_id",
+                "name": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e14167143694346737bf211f3a_target_table",
                 "query": {
                   "datasetName": "ds_details_columns",
                   "fields": [
                     {
-                      "name": "recon_id",
-                      "expression": "`recon_id`"
+                      "name": "target_table",
+                      "expression": "`target_table`"
                     },
                     {
-                      "name": "recon_id_associativity",
+                      "name": "target_table_associativity",
                       "expression": "COUNT_IF(`associative_filter_predicate_group`)"
                     }
                   ],
@@ -3377,16 +2658,50 @@
                 }
               },
               {
-                "name": "MULTI_SELECT_ds_missing_recon_id",
+                "name": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e14167143a8e280d493ac4792f_target_table",
                 "query": {
                   "datasetName": "ds_missing",
                   "fields": [
                     {
-                      "name": "recon_id",
-                      "expression": "`recon_id`"
+                      "name": "target_table",
+                      "expression": "`target_table`"
                     },
                     {
-                      "name": "recon_id_associativity",
+                      "name": "target_table_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e14167141496da013b6084bf13_target_table",
+                "query": {
+                  "datasetName": "09_1_job_timeline",
+                  "fields": [
+                    {
+                      "name": "target_table",
+                      "expression": "`target_table`"
+                    },
+                    {
+                      "name": "target_table_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e1416714188d72ebe1a4ffecd1_target_table",
+                "query": {
+                  "datasetName": "09_2_mismatch_trend",
+                  "fields": [
+                    {
+                      "name": "target_table",
+                      "expression": "`target_table`"
+                    },
+                    {
+                      "name": "target_table_associativity",
                       "expression": "COUNT_IF(`associative_filter_predicate_group`)"
                     }
                   ],
@@ -3396,34 +2711,39 @@
             ],
             "spec": {
               "version": 2,
-              "widgetType": "filter-multi-select",
+              "frame": {
+                "showTitle": true,
+                "title": "Target Table"
+              },
+              "disallowAll": false,
+              "widgetType": "filter-single-select",
               "encodings": {
                 "fields": [
                   {
-                    "displayName": "recon_id",
-                    "fieldName": "recon_id",
-                    "queryName": "MULTI_SELECT_ds_table_run_recon_id"
+                    "fieldName": "target_table",
+                    "queryName": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e14167142a9f6bfb26fd19bde6_target_table"
                   },
                   {
-                    "displayName": "recon_id",
-                    "fieldName": "recon_id",
-                    "queryName": "MULTI_SELECT_ds_schema_recon_id"
+                    "fieldName": "target_table",
+                    "queryName": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e1416714319030156650f5dd31_target_table"
                   },
                   {
-                    "displayName": "recon_id",
-                    "fieldName": "recon_id",
-                    "queryName": "MULTI_SELECT_ds_details_columns_recon_id"
+                    "fieldName": "target_table",
+                    "queryName": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e14167143694346737bf211f3a_target_table"
                   },
                   {
-                    "displayName": "recon_id",
-                    "fieldName": "recon_id",
-                    "queryName": "MULTI_SELECT_ds_missing_recon_id"
+                    "fieldName": "target_table",
+                    "queryName": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e14167143a8e280d493ac4792f_target_table"
+                  },
+                  {
+                    "fieldName": "target_table",
+                    "queryName": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e14167141496da013b6084bf13_target_table"
+                  },
+                  {
+                    "fieldName": "target_table",
+                    "queryName": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e1416714188d72ebe1a4ffecd1_target_table"
                   }
                 ]
-              },
-              "frame": {
-                "showTitle": true,
-                "title": "Recon Id"
               }
             }
           },
@@ -3436,19 +2756,19 @@
         },
         {
           "widget": {
-            "name": "dd_f_target_table",
+            "name": "dd_f_recon_id",
             "queries": [
               {
-                "name": "MULTI_SELECT_ds_table_run_target_table",
+                "name": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e14167142a9f6bfb26fd19bde6_recon_id",
                 "query": {
                   "datasetName": "ds_table_run",
                   "fields": [
                     {
-                      "name": "target_table",
-                      "expression": "`target_table`"
+                      "name": "recon_id",
+                      "expression": "`recon_id`"
                     },
                     {
-                      "name": "target_table_associativity",
+                      "name": "recon_id_associativity",
                       "expression": "COUNT_IF(`associative_filter_predicate_group`)"
                     }
                   ],
@@ -3456,16 +2776,16 @@
                 }
               },
               {
-                "name": "MULTI_SELECT_ds_schema_target_table",
+                "name": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e1416714319030156650f5dd31_recon_id",
                 "query": {
                   "datasetName": "ds_schema",
                   "fields": [
                     {
-                      "name": "target_table",
-                      "expression": "`target_table`"
+                      "name": "recon_id",
+                      "expression": "`recon_id`"
                     },
                     {
-                      "name": "target_table_associativity",
+                      "name": "recon_id_associativity",
                       "expression": "COUNT_IF(`associative_filter_predicate_group`)"
                     }
                   ],
@@ -3473,16 +2793,16 @@
                 }
               },
               {
-                "name": "MULTI_SELECT_ds_details_columns_target_table",
+                "name": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e14167143694346737bf211f3a_recon_id",
                 "query": {
                   "datasetName": "ds_details_columns",
                   "fields": [
                     {
-                      "name": "target_table",
-                      "expression": "`target_table`"
+                      "name": "recon_id",
+                      "expression": "`recon_id`"
                     },
                     {
-                      "name": "target_table_associativity",
+                      "name": "recon_id_associativity",
                       "expression": "COUNT_IF(`associative_filter_predicate_group`)"
                     }
                   ],
@@ -3490,16 +2810,50 @@
                 }
               },
               {
-                "name": "MULTI_SELECT_ds_missing_target_table",
+                "name": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e14167143a8e280d493ac4792f_recon_id",
                 "query": {
                   "datasetName": "ds_missing",
                   "fields": [
                     {
-                      "name": "target_table",
-                      "expression": "`target_table`"
+                      "name": "recon_id",
+                      "expression": "`recon_id`"
                     },
                     {
-                      "name": "target_table_associativity",
+                      "name": "recon_id_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e14167141496da013b6084bf13_recon_id",
+                "query": {
+                  "datasetName": "09_1_job_timeline",
+                  "fields": [
+                    {
+                      "name": "recon_id",
+                      "expression": "`recon_id`"
+                    },
+                    {
+                      "name": "recon_id_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e1416714188d72ebe1a4ffecd1_recon_id",
+                "query": {
+                  "datasetName": "09_2_mismatch_trend",
+                  "fields": [
+                    {
+                      "name": "recon_id",
+                      "expression": "`recon_id`"
+                    },
+                    {
+                      "name": "recon_id_associativity",
                       "expression": "COUNT_IF(`associative_filter_predicate_group`)"
                     }
                   ],
@@ -3509,34 +2863,39 @@
             ],
             "spec": {
               "version": 2,
-              "widgetType": "filter-multi-select",
+              "frame": {
+                "showTitle": true,
+                "title": "Recon Id"
+              },
+              "disallowAll": false,
+              "widgetType": "filter-single-select",
               "encodings": {
                 "fields": [
                   {
-                    "displayName": "target_table",
-                    "fieldName": "target_table",
-                    "queryName": "MULTI_SELECT_ds_table_run_target_table"
+                    "fieldName": "recon_id",
+                    "queryName": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e14167142a9f6bfb26fd19bde6_recon_id"
                   },
                   {
-                    "displayName": "target_table",
-                    "fieldName": "target_table",
-                    "queryName": "MULTI_SELECT_ds_schema_target_table"
+                    "fieldName": "recon_id",
+                    "queryName": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e1416714319030156650f5dd31_recon_id"
                   },
                   {
-                    "displayName": "target_table",
-                    "fieldName": "target_table",
-                    "queryName": "MULTI_SELECT_ds_details_columns_target_table"
+                    "fieldName": "recon_id",
+                    "queryName": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e14167143694346737bf211f3a_recon_id"
                   },
                   {
-                    "displayName": "target_table",
-                    "fieldName": "target_table",
-                    "queryName": "MULTI_SELECT_ds_missing_target_table"
+                    "fieldName": "recon_id",
+                    "queryName": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e14167143a8e280d493ac4792f_recon_id"
+                  },
+                  {
+                    "fieldName": "recon_id",
+                    "queryName": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e14167141496da013b6084bf13_recon_id"
+                  },
+                  {
+                    "fieldName": "recon_id",
+                    "queryName": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e1416714188d72ebe1a4ffecd1_recon_id"
                   }
                 ]
-              },
-              "frame": {
-                "showTitle": true,
-                "title": "Target Table"
               }
             }
           },
@@ -3583,7 +2942,7 @@
           "position": {
             "x": 0,
             "y": 4,
-            "width": 2,
+            "width": 4,
             "height": 3
           }
         },
@@ -3621,9 +2980,9 @@
             }
           },
           "position": {
-            "x": 2,
+            "x": 4,
             "y": 4,
-            "width": 2,
+            "width": 4,
             "height": 3
           }
         },
@@ -3661,9 +3020,9 @@
             }
           },
           "position": {
-            "x": 4,
+            "x": 8,
             "y": 4,
-            "width": 2,
+            "width": 4,
             "height": 3
           }
         },
@@ -3701,9 +3060,9 @@
             }
           },
           "position": {
-            "x": 6,
-            "y": 4,
-            "width": 2,
+            "x": 0,
+            "y": 7,
+            "width": 4,
             "height": 3
           }
         },
@@ -3741,9 +3100,9 @@
             }
           },
           "position": {
-            "x": 8,
-            "y": 4,
-            "width": 2,
+            "x": 4,
+            "y": 7,
+            "width": 4,
             "height": 3
           }
         },
@@ -3757,8 +3116,8 @@
                   "datasetName": "ds_schema",
                   "fields": [
                     {
-                      "name": "v",
-                      "expression": "COUNT_IF(NOT `is_valid`)"
+                      "name": "measure(invalid_count)",
+                      "expression": "MEASURE(`invalid_count`)"
                     }
                   ],
                   "disaggregated": false
@@ -3767,34 +3126,38 @@
             ],
             "spec": {
               "version": 2,
+              "frame": {
+                "showTitle": true,
+                "title": "Invalid Column Datatypes"
+              },
               "widgetType": "counter",
               "encodings": {
                 "value": {
-                  "displayName": "Schema cols invalid",
-                  "fieldName": "v"
+                  "fieldName": "measure(invalid_count)",
+                  "displayName": "Invalid Column Datatypes"
                 }
-              },
-              "frame": {
-                "showTitle": true,
-                "title": "Schema cols invalid"
               }
             }
           },
           "position": {
-            "x": 10,
-            "y": 4,
-            "width": 2,
+            "x": 8,
+            "y": 7,
+            "width": 4,
             "height": 3
           }
         },
         {
           "widget": {
             "name": "dd_h_schema",
-            "textbox_spec": "## Schema comparison"
+            "multilineTextboxSpec": {
+              "lines": [
+                "## Schema comparison"
+              ]
+            }
           },
           "position": {
             "x": 0,
-            "y": 7,
+            "y": 10,
             "width": 12,
             "height": 1
           }
@@ -3825,38 +3188,117 @@
                       "expression": "`is_valid`"
                     }
                   ],
-                  "disaggregated": true,
-                  "orders": [
-                    {
-                      "name": "is_valid",
-                      "expression": "`is_valid`",
-                      "direction": "ASC"
-                    },
-                    {
-                      "name": "column",
-                      "expression": "`column`",
-                      "direction": "ASC"
-                    }
-                  ]
+                  "disaggregated": true
                 }
               }
             ],
             "spec": {
               "version": 2,
+              "frame": {
+                "showTitle": true,
+                "title": "Schema"
+              },
               "widgetType": "table",
               "encodings": {
                 "columns": [
                   {
                     "fieldName": "column",
-                    "displayName": "Column"
+                    "displayName": "Column",
+                    "style": {
+                      "type": "basic",
+                      "rules": [
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "true"
+                            },
+                            "operator": "=",
+                            "fieldName": "is_valid"
+                          },
+                          "backgroundColor": "#D4EDDA",
+                          "foregroundColor": "#155724"
+                        },
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "false"
+                            },
+                            "operator": "=",
+                            "fieldName": "is_valid"
+                          },
+                          "backgroundColor": "#F8D7DA",
+                          "foregroundColor": "#721C24"
+                        }
+                      ]
+                    }
                   },
                   {
                     "fieldName": "source_type",
-                    "displayName": "Source type"
+                    "displayName": "Source type",
+                    "style": {
+                      "type": "basic",
+                      "rules": [
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "true"
+                            },
+                            "operator": "=",
+                            "fieldName": "is_valid"
+                          },
+                          "backgroundColor": "#D4EDDA",
+                          "foregroundColor": "#155724"
+                        },
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "false"
+                            },
+                            "operator": "=",
+                            "fieldName": "is_valid"
+                          },
+                          "backgroundColor": "#F8D7DA",
+                          "foregroundColor": "#721C24"
+                        }
+                      ]
+                    }
                   },
                   {
                     "fieldName": "databricks_type",
-                    "displayName": "Databricks type"
+                    "displayName": "Databricks type",
+                    "style": {
+                      "type": "basic",
+                      "rules": [
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "true"
+                            },
+                            "operator": "=",
+                            "fieldName": "is_valid"
+                          },
+                          "backgroundColor": "#D4EDDA",
+                          "foregroundColor": "#155724"
+                        },
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "false"
+                            },
+                            "operator": "=",
+                            "fieldName": "is_valid"
+                          },
+                          "backgroundColor": "#F8D7DA",
+                          "foregroundColor": "#721C24"
+                        }
+                      ]
+                    }
                   },
                   {
                     "fieldName": "is_valid",
@@ -3892,16 +3334,12 @@
                     }
                   }
                 ]
-              },
-              "frame": {
-                "showTitle": true,
-                "title": "Schema"
               }
             }
           },
           "position": {
             "x": 0,
-            "y": 8,
+            "y": 11,
             "width": 12,
             "height": 5
           }
@@ -3909,11 +3347,15 @@
         {
           "widget": {
             "name": "dd_h_topcols",
-            "textbox_spec": "## Top mismatching columns"
+            "multilineTextboxSpec": {
+              "lines": [
+                "## Top mismatching columns"
+              ]
+            }
           },
           "position": {
             "x": 0,
-            "y": 13,
+            "y": 16,
             "width": 12,
             "height": 1
           }
@@ -3936,7 +3378,6 @@
                       "expression": "COUNT(*)"
                     }
                   ],
-                  "disaggregated": false,
                   "filters": [
                     {
                       "expression": "`recon_type` = 'mismatch'"
@@ -3944,7 +3385,8 @@
                     {
                       "expression": "`is_mismatch` = true"
                     }
-                  ]
+                  ],
+                  "disaggregated": false
                 }
               }
             ],
@@ -3981,7 +3423,7 @@
           },
           "position": {
             "x": 0,
-            "y": 14,
+            "y": 17,
             "width": 12,
             "height": 4
           }
@@ -3989,11 +3431,15 @@
         {
           "widget": {
             "name": "dd_h_drill",
-            "textbox_spec": "## Mismatch drill-down"
+            "multilineTextboxSpec": {
+              "lines": [
+                "## Mismatch drill-down"
+              ]
+            }
           },
           "position": {
             "x": 0,
-            "y": 18,
+            "y": 21,
             "width": 12,
             "height": 1
           }
@@ -4028,7 +3474,6 @@
                       "expression": "`is_mismatch`"
                     }
                   ],
-                  "disaggregated": true,
                   "filters": [
                     {
                       "expression": "`recon_type` = 'mismatch'"
@@ -4037,16 +3482,15 @@
                       "expression": "`is_mismatch` = true"
                     }
                   ],
+                  "disaggregated": true,
                   "orders": [
                     {
-                      "name": "record_key",
-                      "expression": "`record_key`",
-                      "direction": "ASC"
+                      "direction": "ASC",
+                      "expression": "`record_key`"
                     },
                     {
-                      "name": "column_name",
-                      "expression": "`column_name`",
-                      "direction": "ASC"
+                      "direction": "ASC",
+                      "expression": "`column_name`"
                     }
                   ]
                 }
@@ -4117,7 +3561,7 @@
           },
           "position": {
             "x": 0,
-            "y": 19,
+            "y": 22,
             "width": 12,
             "height": 6
           }
@@ -4125,11 +3569,15 @@
         {
           "widget": {
             "name": "dd_h_miss_src",
-            "textbox_spec": "## Missing in source"
+            "multilineTextboxSpec": {
+              "lines": [
+                "## Missing in source"
+              ]
+            }
           },
           "position": {
             "x": 0,
-            "y": 25,
+            "y": 28,
             "width": 12,
             "height": 1
           }
@@ -4152,12 +3600,12 @@
                       "expression": "`row_image`"
                     }
                   ],
-                  "disaggregated": true,
                   "filters": [
                     {
                       "expression": "`recon_type` = 'missing_in_source'"
                     }
-                  ]
+                  ],
+                  "disaggregated": true
                 }
               }
             ],
@@ -4184,7 +3632,7 @@
           },
           "position": {
             "x": 0,
-            "y": 26,
+            "y": 29,
             "width": 12,
             "height": 4
           }
@@ -4192,11 +3640,15 @@
         {
           "widget": {
             "name": "dd_h_miss_tgt",
-            "textbox_spec": "## Missing in target"
+            "multilineTextboxSpec": {
+              "lines": [
+                "## Missing in target"
+              ]
+            }
           },
           "position": {
             "x": 0,
-            "y": 30,
+            "y": 33,
             "width": 12,
             "height": 1
           }
@@ -4219,12 +3671,12 @@
                       "expression": "`row_image`"
                     }
                   ],
-                  "disaggregated": true,
                   "filters": [
                     {
                       "expression": "`recon_type` = 'missing_in_target'"
                     }
-                  ]
+                  ],
+                  "disaggregated": true
                 }
               }
             ],
@@ -4251,13 +3703,172 @@
           },
           "position": {
             "x": 0,
-            "y": 31,
+            "y": 34,
             "width": 12,
             "height": 4
           }
+        },
+        {
+          "widget": {
+            "name": "dd_runs_over_time",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "09_1_job_timeline",
+                  "fields": [
+                    {
+                      "name": "hourly(start_ts)",
+                      "expression": "DATE_TRUNC(\"HOUR\", `start_ts`)"
+                    },
+                    {
+                      "name": "sum(succeeded)",
+                      "expression": "SUM(`succeeded`)"
+                    },
+                    {
+                      "name": "sum(failed)",
+                      "expression": "SUM(`failed`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "frame": {
+                "showTitle": true,
+                "title": "Runs Over Time"
+              },
+              "mark": {
+                "layout": "group"
+              },
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "hourly(start_ts)",
+                  "displayName": "Time",
+                  "scale": {
+                    "type": "temporal"
+                  }
+                },
+                "y": {
+                  "fields": [
+                    {
+                      "fieldName": "sum(succeeded)",
+                      "displayName": "Succeeded"
+                    },
+                    {
+                      "fieldName": "sum(failed)",
+                      "displayName": "Failed"
+                    }
+                  ],
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "label": {
+                  "show": false
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 38,
+            "width": 12,
+            "height": 7
+          }
+        },
+        {
+          "widget": {
+            "name": "dd_failed_rows_over_time",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "09_2_mismatch_trend",
+                  "fields": [
+                    {
+                      "name": "hourly(start_ts)",
+                      "expression": "DATE_TRUNC(\"HOUR\", `start_ts`)"
+                    },
+                    {
+                      "name": "sum(mismatched)",
+                      "expression": "SUM(`mismatched`)"
+                    },
+                    {
+                      "name": "sum(missing_in_source)",
+                      "expression": "SUM(`missing_in_source`)"
+                    },
+                    {
+                      "name": "sum(missing_in_target)",
+                      "expression": "SUM(`missing_in_target`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "frame": {
+                "showTitle": true,
+                "title": "Failed Rows Over Time"
+              },
+              "mark": {
+                "layout": "group"
+              },
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "hourly(start_ts)",
+                  "displayName": "Time",
+                  "scale": {
+                    "type": "temporal"
+                  }
+                },
+                "y": {
+                  "fields": [
+                    {
+                      "fieldName": "sum(mismatched)",
+                      "displayName": "Mismatched"
+                    },
+                    {
+                      "fieldName": "sum(missing_in_source)",
+                      "displayName": "Missing in Source"
+                    },
+                    {
+                      "fieldName": "sum(missing_in_target)",
+                      "displayName": "Missing in Target"
+                    }
+                  ],
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "label": {
+                  "show": false
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 45,
+            "width": 12,
+            "height": 7
+          }
         }
       ],
-      "pageType": "PAGE_TYPE_CANVAS"
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layoutVersion": "GRID_V1"
     }
-  ]
+  ],
+  "uiSettings": {
+    "theme": {
+      "widgetHeaderAlignment": "ALIGNMENT_UNSPECIFIED"
+    },
+    "applyModeEnabled": false
+  }
 }
