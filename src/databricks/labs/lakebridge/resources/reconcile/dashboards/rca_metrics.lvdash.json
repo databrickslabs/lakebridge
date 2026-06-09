@@ -2710,12 +2710,12 @@
               }
             ],
             "spec": {
-              "version": 2,
+              "disallowAll": false,
               "frame": {
                 "showTitle": true,
                 "title": "Target Table"
               },
-              "disallowAll": false,
+              "version": 2,
               "widgetType": "filter-single-select",
               "encodings": {
                 "fields": [
@@ -2862,12 +2862,12 @@
               }
             ],
             "spec": {
-              "version": 2,
+              "disallowAll": false,
               "frame": {
                 "showTitle": true,
                 "title": "Recon Id"
               },
-              "disallowAll": false,
+              "version": 2,
               "widgetType": "filter-single-select",
               "encodings": {
                 "fields": [
