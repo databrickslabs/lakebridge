@@ -17,6 +17,7 @@ def test_configure_sqlserver_credentials(tmp_path):
             r"Enter the port details": "1433",
             r"Enter the SQL username": "TEST_TSQL_USER",
             r"Enter the SQL password": "TEST_TSQL_PASS",
+            r"Trust server certificate": "no",
             r"Do you want to test the connection to mssql?.*": "no",
             r"Enter fetch size": "4000",
             r"Enter timezone.*": "UTC",
@@ -43,6 +44,7 @@ def test_configure_sqlserver_credentials(tmp_path):
             'server': 'URL',
             'tz_info': 'UTC',
             'user': 'TEST_TSQL_USER',
+            'trust_server_certificate': False,
         },
     }
 

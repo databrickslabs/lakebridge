@@ -132,6 +132,9 @@ class MSSQLConnector(_BaseConnector):
         query_params: dict[str, str] = {
             "driver": str(self.config['driver']),
             "loginTimeout": "30",
+            "TrustServerCertificate": (
+                "no" if str(self.config.get('trust_server_certificate', 'False')) == 'False' else "yes"
+            ),
         }
 
         if auth_type == "ad_passwd_authentication":
