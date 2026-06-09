@@ -489,6 +489,32 @@
         "WHERE\n",
         "  d.recon_type IN ('missing_in_source', 'missing_in_target')"
       ]
+    },
+    {
+      "name": "fab68dbc",
+      "displayName": "recon_run_context",
+      "catalog": "sandbox",
+      "config": {
+        "version": "1.1",
+        "source": "remorph.reconcile.recon_run_context",
+        "dimensions": [
+          {
+            "name": "recon_id",
+            "expr": "source.recon_id",
+            "displayName": "Recon Id"
+          },
+          {
+            "name": "config",
+            "expr": "TO_JSON(source.config)",
+            "displayName": "Config"
+          },
+          {
+            "name": "inserted_ts",
+            "expr": "source.inserted_ts",
+            "displayName": "Inserted Ts"
+          }
+        ]
+      }
     }
   ],
   "pages": [
@@ -686,6 +712,23 @@
                   ],
                   "disaggregated": false
                 }
+              },
+              {
+                "name": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f1640a988a137da4725f31d76d5e31_recon_id",
+                "query": {
+                  "datasetName": "fab68dbc",
+                  "fields": [
+                    {
+                      "name": "recon_id",
+                      "expression": "`recon_id`"
+                    },
+                    {
+                      "name": "recon_id_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
               }
             ],
             "spec": {
@@ -742,6 +785,10 @@
                   {
                     "fieldName": "recon_id",
                     "queryName": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e1416713ff88df4374cba5fb6d_recon_id"
+                  },
+                  {
+                    "fieldName": "recon_id",
+                    "queryName": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f1640a988a137da4725f31d76d5e31_recon_id"
                   }
                 ]
               }
@@ -1507,9 +1554,9 @@
           },
           "position": {
             "x": 0,
-            "y": 23,
+            "y": 30,
             "width": 12,
-            "height": 6
+            "height": 9
           }
         },
         {
@@ -1833,7 +1880,7 @@
           },
           "position": {
             "x": 0,
-            "y": 29,
+            "y": 39,
             "width": 12,
             "height": 7
           }
@@ -1915,7 +1962,7 @@
           },
           "position": {
             "x": 0,
-            "y": 36,
+            "y": 46,
             "width": 12,
             "height": 7
           }
@@ -2496,7 +2543,7 @@
           },
           "position": {
             "x": 0,
-            "y": 43,
+            "y": 23,
             "width": 6,
             "height": 7
           }
@@ -2553,7 +2600,7 @@
           },
           "position": {
             "x": 6,
-            "y": 43,
+            "y": 23,
             "width": 6,
             "height": 7
           }
@@ -2574,6 +2621,83 @@
             "y": 14,
             "width": 12,
             "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "11_0_config_header",
+            "multilineTextboxSpec": {
+              "lines": [
+                "## Recon Run Configurations\n",
+                "\n",
+                "Full JSON config captured at the time each recon job was registered."
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 53,
+            "width": 12,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "11_1_config_table",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "fab68dbc",
+                  "fields": [
+                    {
+                      "name": "recon_id",
+                      "expression": "`recon_id`"
+                    },
+                    {
+                      "name": "config",
+                      "expression": "`config`"
+                    },
+                    {
+                      "name": "inserted_ts",
+                      "expression": "`inserted_ts`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "showTitle": true,
+                "title": "Recon Run Configs"
+              },
+              "rowsPerPage": 10,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "recon_id",
+                    "displayName": "Recon ID"
+                  },
+                  {
+                    "fieldName": "config",
+                    "displayName": "Configuration (JSON)"
+                  },
+                  {
+                    "fieldName": "inserted_ts",
+                    "displayName": "Registered At"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 55,
+            "width": 12,
+            "height": 6
           }
         }
       ],
