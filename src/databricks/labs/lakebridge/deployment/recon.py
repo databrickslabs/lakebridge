@@ -88,7 +88,6 @@ class ReconDeployment:
         # Views must be created after their backing tables exist.
         views_to_deploy = [
             "details_columns.sql",
-            "details_kv.sql",
             "aggregate_details_columns.sql",
         ]
         for sql_file in views_to_deploy:
