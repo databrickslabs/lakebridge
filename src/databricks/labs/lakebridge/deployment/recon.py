@@ -68,15 +68,17 @@ class ReconDeployment:
         resources = files(databricks.labs.lakebridge.resources)
         query_dir = resources.joinpath("reconcile/queries/installation")
 
+        # Order matters: a table's FK parent must be deployed first
+        # (recon_run_context before main; aggregate_rules before aggregate_metrics/aggregate_details).
         sqls_to_deploy = [
+            "recon_run_context.sql",
             "main.sql",
             "metrics.sql",
             "details.sql",
             "schema_details.sql",
-            "recon_run_context.sql",
+            "aggregate_rules.sql",
             "aggregate_metrics.sql",
             "aggregate_details.sql",
-            "aggregate_rules.sql",
         ]
 
         for sql_file in sqls_to_deploy:
