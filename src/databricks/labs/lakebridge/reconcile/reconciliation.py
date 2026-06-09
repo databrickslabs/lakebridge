@@ -170,6 +170,7 @@ class Reconciliation:
             key_columns=table_conf.join_columns,
             report_type=self._report_type,
             persistence=self.intermediate_persist,
+            max_sample_size=table_conf.get_max_sample_size(),
         )
 
     def _get_reconcile_aggregate_output(
@@ -480,7 +481,7 @@ class Reconciliation:
         mismatched_count = mismatched_df.count()
         threshold_df = None
         if mismatched_count > 0:
-            threshold_df = mismatched_df.limit(_SAMPLE_ROWS)
+            threshold_df = mismatched_df.limit(table_conf.get_max_sample_size())
 
         return ThresholdOutput(threshold_df=threshold_df, threshold_mismatch_count=mismatched_count)
 

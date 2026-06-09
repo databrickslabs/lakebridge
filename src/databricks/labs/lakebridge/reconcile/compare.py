@@ -59,6 +59,7 @@ def reconcile_data(
     key_columns: list[str],
     report_type: str,
     persistence: AbstractReconIntermediatePersist,
+    max_sample_size: int = _SAMPLE_ROWS,
 ) -> DataReconcileOutput:
     source_alias = "src"
     target_alias = "tgt"
@@ -116,8 +117,8 @@ def reconcile_data(
         mismatch_count=mismatch_count,
         missing_in_src_count=missing_in_src_count,
         missing_in_tgt_count=missing_in_tgt_count,
-        missing_in_src=missing_in_src.limit(_SAMPLE_ROWS),
-        missing_in_tgt=missing_in_tgt.limit(_SAMPLE_ROWS),
+        missing_in_src=missing_in_src.limit(max_sample_size),
+        missing_in_tgt=missing_in_tgt.limit(max_sample_size),
         mismatch=MismatchOutput(mismatch_df=mismatch),
     )
 

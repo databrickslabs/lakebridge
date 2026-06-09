@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from collections.abc import Callable
 from sqlglot import expressions as exp
 
@@ -47,23 +47,30 @@ class HashAlgoMapping:
 
 @dataclass
 class SamplingSpecifications:
-    type: SamplingSpecificationsType
-    value: float
+    type: SamplingSpecificationsType = SamplingSpecificationsType.COUNT
+    value: int | float = 50
 
     def __post_init__(self):
         if not isinstance(self.type, SamplingSpecificationsType):
             self.type = SamplingSpecificationsType(str(self.type).lower())
         # Disabled
+        if self.type == SamplingSpecificationsType.FRACTION and (self.value is None or (not 0 < self.value < 1)):
+            raise ValueError("SamplingSpecifications: Fraction value must be greater than 0 and less than 1")
         if self.type == SamplingSpecificationsType.FRACTION:
             raise ValueError("SamplingSpecifications: 'FRACTION' type is disabled")
-        if self.type == SamplingSpecificationsType.FRACTION and (self.value is None or (not 0 < self.value < 1)):
-            raise ValueError("SamplingSpecifications: Fraction value must be greater than  0 and less than 1")
+        if self.value is None:
+            logger.warning("SamplingSpecifications: value is None; defaulting to 50")
+            self.value = 50
+        if isinstance(self.value, bool) or not isinstance(self.value, (int, float)):
+            raise ValueError(f"SamplingSpecifications: value must be int|float, got {type(self.value).__name__}")
+        # Safe today because FRACTION raises above; revisit when FRACTION is enabled.
+        self.value = int(self.value)
 
 
 @dataclass
 class SamplingOptions:
-    method: SamplingOptionMethod
-    specifications: SamplingSpecifications
+    method: SamplingOptionMethod = SamplingOptionMethod.RANDOM
+    specifications: SamplingSpecifications = field(default_factory=SamplingSpecifications)
     stratified_columns: list[str] | None = None
     stratified_buckets: int | None = None
 
@@ -199,6 +206,11 @@ class Table:
         self.select_columns = to_lower_case(self.select_columns) if self.select_columns else None
         self.drop_columns = to_lower_case(self.drop_columns) if self.drop_columns else None
         self.join_columns = to_lower_case(self.join_columns) if self.join_columns else None
+
+    def get_max_sample_size(self) -> int:
+        if self.sampling_options is None:
+            return 50
+        return int(self.sampling_options.specifications.value)
 
     @property
     def to_src_col_map(self):
