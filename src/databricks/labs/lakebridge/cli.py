@@ -692,37 +692,62 @@ def auto_configure_recon_tables(
 
 
 def _run_auto_configure_recon_tables(ctx: ApplicationContext) -> None:
+    """Drives the recommended discover → review → auto-configure flow documented at
+    docs/reconcile/running.mdx#recommended-flow.
+
+    The two-step pattern (one job to discover, a second job to auto-configure the curated file) is
+    the default. As an opt-in escape, the user can also choose to discover and auto-configure in a
+    single job — skipping the review step the docs recommend.
+    """
     recon_config = ctx.recon_config
     if recon_config is None:
         raise SystemExit("Reconcile is not configured. Run `databricks labs lakebridge configure-reconcile` first.")
 
     filename = recon_config.table_recon_filename
     file_exists = _table_recon_exists(ctx, filename)
-    if file_exists:
+
+    if not file_exists:
+        logger.info(
+            "No existing table config found. The recommended flow is to discover first, review the "
+            "output in the workspace, then re-run this command to auto-configure the reviewed config."
+        )
+        operation_name = _discover_with_optional_auto_configure(ctx)
+        if not operation_name:
+            logger.info("Aborted by user; no discovery run.")
+            return
+    else:
         ws_url = ctx.installation.workspace_link(filename)
         logger.info(f"Existing table mappings found at `{ws_url}`.")
-        discover = ctx.prompts.confirm("Re-discover tables (overwrites existing mappings)?")
-    else:
-        discover = ctx.prompts.confirm("Do you want to discover tables?")
-    auto_configure = ctx.prompts.confirm("Do you want to auto-configure discovered tables?")
+        if ctx.prompts.confirm("Auto-configure and use existing table mappings (no discovery)?"):
+            operation_name = AUTO_CONFIGURE_TABLES_OPERATION_NAME
+        else:
+            operation_name = _discover_with_optional_auto_configure(ctx)
 
-    if discover and auto_configure:
-        operation_name = DISCOVER_AND_AUTO_CONFIGURE_TABLES_OPERATION_NAME
-    elif discover:
-        operation_name = DISCOVER_TABLES_OPERATION_NAME
-    elif auto_configure and file_exists:
-        operation_name = AUTO_CONFIGURE_TABLES_OPERATION_NAME
-    else:
-        logger.info("Nothing to do; existing file preserved.")
-        return
+        if not operation_name:
+            logger.info("Nothing to do; existing file preserved.")
+            return
 
     _, job_run_url = ReconcileRunner(ctx.workspace_client, ctx.install_state).run(operation_name=operation_name)
-    logger.info(
-        "When the job finishes, the table mappings will be saved to the Lakebridge install folder. "
-        "Edit the file to add join columns, fill in unmatched tables, and review."
-    )
+    if operation_name == DISCOVER_TABLES_OPERATION_NAME:
+        logger.info(
+            "When the job finishes, the discovered table mappings will be saved to the Lakebridge "
+            "install folder. Review the file, then re-run this command to auto-configure."
+        )
+    else:
+        logger.info(
+            "When the job finishes, the auto-configured table mappings will be saved to the "
+            "Lakebridge install folder. Edit the file to add join columns and any final touches."
+        )
     if ctx.prompts.confirm(f"Would you like to open the job run URL `{job_run_url}` in the browser?"):
         webbrowser.open(job_run_url)
+
+
+def _discover_with_optional_auto_configure(ctx: ApplicationContext) -> str:
+    if not ctx.prompts.confirm("Discover tables now (this will overwrite any existing table config)?"):
+        return ""
+    if ctx.prompts.confirm("Also run auto-configure in the same job (skips the recommended review step)?"):
+        return DISCOVER_AND_AUTO_CONFIGURE_TABLES_OPERATION_NAME
+    return DISCOVER_TABLES_OPERATION_NAME
 
 
 def _table_recon_exists(ctx: ApplicationContext, filename: str) -> bool:

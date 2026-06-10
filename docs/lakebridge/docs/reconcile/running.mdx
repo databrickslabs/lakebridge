@@ -289,7 +289,16 @@ table_recon = auto_configure_tables(curated, reconcile_config=reconcile_config, 
 ```
 
 :::note
-From the CLI this is two runs of `auto-configure-recon-tables` — choose "discover only" on the first, then "auto-configure only" on the second.
+From the CLI this is two runs of `auto-configure-recon-tables`:
+
+1. **First run** — no existing file. Answer **yes** to "Discover tables now?", then **no** to
+   "Also run auto-configure in the same job (skips the recommended review step)?". This emits a
+   discover-only draft for you to review.
+2. **Second run** — existing file. Answer **yes** to "Auto-configure and use existing table
+   mappings (no discovery)?" — auto-configure applies its configurers to your curated draft.
+
+If you'd rather discover and auto-configure in one job (and skip the review step), accept the
+"Also run auto-configure in the same job" prompt during the first run.
 :::
 
 ### Plugging in a custom configurer
