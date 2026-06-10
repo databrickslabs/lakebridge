@@ -48,6 +48,10 @@ dependencies = [
   "redshift-connector~=2.1.13",
   "snowflake-connector-python>=4.5.0",
   "snowflake-sqlalchemy>=1.9.0",
+  "azure-identity~=1.19.0",
+  "azure-mgmt-sql~=3.0.1",
+  "azure-monitor-query~=1.4.0",
+  "azure-synapse-artifacts~=0.20.0",
 ]
 
 [project.urls]
@@ -95,11 +99,6 @@ lint = [
     "types-pyYAML~=6.0.12",
     "types-pytz~=2026.2",
     "pandas-stubs~=2.3.0.250703",
-    # Azure SDK dependencies for linting resources/assessments folder
-    "azure-identity~=1.19.0",
-    "azure-mgmt-sql~=3.0.1",
-    "azure-monitor-query~=1.4.0",
-    "azure-synapse-artifacts~=0.20.0",
 ]
 pytest = [
     "coverage[toml]~=7.10.7",

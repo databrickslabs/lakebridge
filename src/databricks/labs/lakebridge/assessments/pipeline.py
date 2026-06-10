@@ -1,14 +1,11 @@
 import json
 import logging
-import os
 import sys
-import venv
-import tempfile
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
-from subprocess import CalledProcessError, PIPE, Popen, STDOUT, run
+from subprocess import PIPE, Popen, STDOUT
 
 import duckdb
 import yaml
@@ -155,78 +152,9 @@ class PipelineClass:
 
     def _execute_python_step(self, step: Step):
         logging.debug(f"Executing Python script: {step.extract_source}")
-        venv_path_prefix = Path.home() / ".databricks" / "labs" / "lakebridge_profilers"
-        os.makedirs(venv_path_prefix, exist_ok=True)
-
-        # Create a temporary directory for the virtual environment
-        # TODO Windows has strict checks on for temp venv cleanup, so will ignore cleanup errors and have it cleaned up later
-        with tempfile.TemporaryDirectory(dir=venv_path_prefix, ignore_cleanup_errors=True) as temp_dir:
-            venv_dir = Path(temp_dir) / "venv"
-            venv_exec_cmd = self._create_venv(venv_dir)
-
-            # Define the paths to the virtual environment's Python and pip executables
-            if sys.platform == "win32":
-                venv_python = (venv_dir / "Scripts" / "python.exe").resolve()
-                venv_pip = (venv_dir / "Scripts" / "pip.exe").resolve()
-            else:
-                venv_python = (venv_dir / "bin" / "python").resolve()
-                venv_pip = (venv_dir / "bin" / "pip").resolve()
-
-            # Log resolved paths
-            logger.info(f"Resolved venv_python: {venv_python}")
-            logger.info(f"Resolved venv_pip: {venv_pip}")
-
-            logger.info(f"Creating a virtual environment for Python script execution: {venv_dir} for step: {step.name}")
-            if step.dependencies:
-                self._install_dependencies(venv_exec_cmd, step.dependencies)
-
-            self._run_python_script(venv_exec_cmd, step.extract_source, self._db_path, self._cred_file_path)
-
-    @staticmethod
-    def _install_dependencies(venv_exec_cmd, dependencies):
-        logging.info(f"Installing dependencies: {', '.join(dependencies)}")
-        try:
-            logging.debug("Upgrading local pip")
-            is_debug = logging.getLogger(__name__).isEnabledFor(logging.DEBUG)
-            run(
-                [
-                    venv_exec_cmd,
-                    "-m",
-                    "pip",
-                    "install",
-                    "--upgrade",
-                    "pip",
-                    "--require-virtualenv",
-                    "--no-input",
-                    "--disable-pip-version-check",
-                ],
-                check=True,
-                capture_output=not is_debug,
-                text=True,
-            )
-
-            run(
-                [
-                    venv_exec_cmd,
-                    "-m",
-                    "pip",
-                    "install",
-                    *dependencies,
-                    "--require-virtualenv",
-                    "--no-input",
-                    "--disable-pip-version-check",
-                ],
-                check=True,
-                capture_output=not is_debug,
-                text=True,
-            )
-        except CalledProcessError as e:
-            # Log detailed output at debug level for troubleshooting
-            logging.debug(
-                f"Failed to install dependencies (exit code {e.returncode})\n" f"stdout: {e.stdout}\nstderr: {e.stderr}"
-            )
-            logging.error(f"Failed to install dependencies: {e.stderr}")
-            raise RuntimeError(f"Failed to install dependencies: {e.stderr}") from e
+        # Run the step script with the labs-managed venv
+        logger.info(f"Executing Python script for step '{step.name}' using interpreter: {sys.executable}")
+        self._run_python_script(sys.executable, step.extract_source, self._db_path, self._cred_file_path)
 
     @staticmethod
     def _run_python_script(venv_exec_cmd: str, script_path: str, db_path: Path, credential_config: Path):
@@ -339,17 +267,3 @@ class PipelineClass:
             version=data['version'],
             steps=steps,
         )
-
-    @staticmethod
-    def _create_venv(install_path: Path) -> str:
-        venv_path = install_path
-        # Sadly, some platform-specific variations need to be dealt with:
-        #   - Windows venvs do not use symlinks, but rather copies, when populating the venv.
-        #   - The library path is different.
-        use_symlinks = sys.platform != "win32"
-
-        builder = venv.EnvBuilder(with_pip=True, symlinks=use_symlinks)
-        builder.create(venv_path)
-        context = builder.ensure_directories(venv_path)
-        logger.debug(f"Created virtual environment with context: {context}")
-        return context.env_exec_cmd
