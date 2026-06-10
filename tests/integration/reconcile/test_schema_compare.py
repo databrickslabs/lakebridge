@@ -9,6 +9,7 @@ from tests.conftest import (
     tsql_schema_fixture_factory,
     ansi_schema_fixture_factory,
     redshift_schema_fixture_factory,
+    teradata_schema_fixture_factory,
 )
 
 
@@ -312,6 +313,46 @@ def redshift_databricks_schema():
     return src_schema, tgt_schema
 
 
+def teradata_databricks_schema():
+    src_schema = [
+        teradata_schema_fixture_factory("col_smallint", "smallint"),
+        teradata_schema_fixture_factory("col_integer", "integer"),
+        teradata_schema_fixture_factory("col_bigint", "bigint"),
+        teradata_schema_fixture_factory("col_decimal", "decimal(10,2)"),
+        teradata_schema_fixture_factory("col_number", "number(38,0)"),
+        teradata_schema_fixture_factory("col_double", "double precision"),
+        teradata_schema_fixture_factory("col_varchar", "varchar(100)"),
+        teradata_schema_fixture_factory("col_char", "char(10)"),
+        teradata_schema_fixture_factory("col_clob", "clob"),
+        teradata_schema_fixture_factory("col_blob", "blob"),
+        teradata_schema_fixture_factory("col_date", "date"),
+        teradata_schema_fixture_factory("col_time", "time"),
+        teradata_schema_fixture_factory("col_timestamp", "timestamp"),
+        teradata_schema_fixture_factory("col_timestamptz", "timestamp with time zone"),
+        schema_fixture_factory("`col Escaped`", "varchar(50)", source_delimiter='"'),
+        schema_fixture_factory('"col escaped2"', "integer", source_delimiter='"'),
+    ]
+    tgt_schema = [
+        ansi_schema_fixture_factory("col_smallint", "smallint"),
+        ansi_schema_fixture_factory("col_integer", "int"),
+        ansi_schema_fixture_factory("col_bigint", "bigint"),
+        ansi_schema_fixture_factory("col_decimal", "decimal(10,2)"),
+        ansi_schema_fixture_factory("col_number", "decimal(38,0)"),
+        ansi_schema_fixture_factory("col_double", "double"),
+        ansi_schema_fixture_factory("col_varchar", "string"),
+        ansi_schema_fixture_factory("col_char", "string"),
+        ansi_schema_fixture_factory("col_clob", "string"),
+        ansi_schema_fixture_factory("col_blob", "binary"),
+        ansi_schema_fixture_factory("col_date", "date"),
+        ansi_schema_fixture_factory("col_time", "timestamp"),
+        ansi_schema_fixture_factory("col_timestamp", "timestamp"),
+        ansi_schema_fixture_factory("col_timestamptz", "timestamp"),
+        ansi_schema_fixture_factory("`col Escaped`", "string"),
+        ansi_schema_fixture_factory("`col escaped2`", "int"),
+    ]
+    return src_schema, tgt_schema
+
+
 @pytest.fixture
 def schemas():
     return {
@@ -320,6 +361,7 @@ def schemas():
         "oracle_databricks_schema": oracle_databricks_schema(),
         "tsql_databricks_schema": tsql_databricks_schema(),
         "redshift_databricks_schema": redshift_databricks_schema(),
+        "teradata_databricks_schema": teradata_databricks_schema(),
     }
 
 
@@ -481,6 +523,26 @@ def test_redshift_schema_compare(schemas, spark):
         src_schema,
         tgt_schema,
         get_dialect("redshift"),
+        table_conf,
+    )
+    df = schema_compare_output.compare_df
+    assert schema_compare_output.is_valid
+    assert df.count() == 16
+    assert df.filter("is_valid = 'true'").count() == 16
+    assert df.filter("is_valid = 'false'").count() == 0
+
+
+def test_teradata_schema_compare(schemas, spark):
+    src_schema, tgt_schema = schemas["teradata_databricks_schema"]
+    table_conf = Table(
+        source_name="supplier",
+        target_name="supplier",
+    )
+
+    schema_compare_output = SchemaCompare(spark).compare(
+        src_schema,
+        tgt_schema,
+        get_dialect("teradata"),
         table_conf,
     )
     df = schema_compare_output.compare_df

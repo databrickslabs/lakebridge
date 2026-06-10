@@ -7,25 +7,24 @@ import pytest
 
 from databricks.labs.lakebridge.assessments.pipeline import (
     PipelineClass,
-    DB_NAME,
     StepExecutionStatus,
     StepExecutionResult,
 )
 from databricks.labs.lakebridge.assessments.profiler import Profiler
-
 from databricks.labs.lakebridge.assessments.profiler_config import Step, PipelineConfig
 from databricks.labs.lakebridge.connections.database_manager import DatabaseManager
 
 _Loader: TypeAlias = Callable[[Path], PipelineConfig]
 
+_DB_FILE = "test_profiler.db"
+_CREDS_FILE = "test_creds.yml"
+
 
 @pytest.fixture
-def pipeline_configuration_loader(test_resources: Path, project_path: Path, tmp_path: Path) -> _Loader:
+def pipeline_configuration_loader(test_resources: Path) -> _Loader:
     def _load(resource_name: Path) -> PipelineConfig:
         config_path = test_resources / "assessments" / resource_name
-        return Profiler.path_modifier(config_file=config_path, path_prefix=test_resources).copy(
-            extract_folder=str(tmp_path / "pipeline_output")
-        )
+        return Profiler.path_modifier(config_file=config_path, path_prefix=test_resources)
 
     return _load
 
@@ -46,11 +45,6 @@ def pipeline_config_combined_ddl(pipeline_configuration_loader: _Loader) -> Pipe
 
 
 @pytest.fixture
-def pipeline_dep_failure_config(pipeline_configuration_loader: _Loader) -> PipelineConfig:
-    return pipeline_configuration_loader(Path("pipeline_config_failure_dependency.yml"))
-
-
-@pytest.fixture
 def sql_failure_config(pipeline_configuration_loader: _Loader) -> PipelineConfig:
     return pipeline_configuration_loader(Path("pipeline_config_sql_failure.yml"))
 
@@ -63,9 +57,10 @@ def python_failure_config(pipeline_configuration_loader: _Loader) -> PipelineCon
 @pytest.fixture(scope="module")
 def empty_result_config() -> PipelineConfig:
     prefix = Path(__file__).parent
-    config_path = f"{prefix}/../../resources/assessments/pipeline_config_empty_result.yml"
+    config_path = prefix / ".." / ".." / "resources" / "assessments" / "pipeline_config_empty_result.yml"
     config: PipelineConfig = PipelineClass.load_config_from_yaml(config_path)
-    updated_steps = [step.copy(extract_source=f"{prefix}/../../{step.extract_source}") for step in config.steps]
+    test_root = prefix / ".." / ".."
+    updated_steps = [step.copy(extract_source=str(test_root / step.extract_source)) for step in config.steps]
     return config.copy(steps=updated_steps)
 
 
@@ -73,8 +68,14 @@ def test_run_pipeline(
     sandbox_sqlserver: DatabaseManager,
     pipeline_config: PipelineConfig,
     get_logger: Logger,
+    tmp_path: Path,
 ) -> None:
-    pipeline = PipelineClass(config=pipeline_config, executor=sandbox_sqlserver)
+    pipeline = PipelineClass(
+        config=pipeline_config,
+        executor=sandbox_sqlserver,
+        db_path=tmp_path / _DB_FILE,
+        cred_file_path=tmp_path / _CREDS_FILE,
+    )
     results = pipeline.execute()
 
     # Verify all steps completed successfully
@@ -84,15 +85,21 @@ def test_run_pipeline(
             StepExecutionStatus.SKIPPED,
         ), f"Step {result.step_name} failed with status {result.status}"
 
-    assert verify_output(get_logger, Path(pipeline_config.extract_folder))
+    assert verify_output(get_logger, tmp_path / _DB_FILE)
 
 
 def test_run_sql_failure_pipeline(
     sandbox_sqlserver: DatabaseManager,
     sql_failure_config: PipelineConfig,
     get_logger: Logger,
+    tmp_path: Path,
 ) -> None:
-    pipeline = PipelineClass(config=sql_failure_config, executor=sandbox_sqlserver)
+    pipeline = PipelineClass(
+        config=sql_failure_config,
+        executor=sandbox_sqlserver,
+        db_path=tmp_path / _DB_FILE,
+        cred_file_path=tmp_path / _CREDS_FILE,
+    )
     with pytest.raises(RuntimeError) as e:
         pipeline.execute()
 
@@ -104,8 +111,14 @@ def test_run_python_failure_pipeline(
     sandbox_sqlserver: DatabaseManager,
     python_failure_config: PipelineConfig,
     get_logger: Logger,
+    tmp_path: Path,
 ) -> None:
-    pipeline = PipelineClass(config=python_failure_config, executor=sandbox_sqlserver)
+    pipeline = PipelineClass(
+        config=python_failure_config,
+        executor=sandbox_sqlserver,
+        db_path=tmp_path / _DB_FILE,
+        cred_file_path=tmp_path / _CREDS_FILE,
+    )
     with pytest.raises(RuntimeError) as e:
         pipeline.execute()
 
@@ -113,25 +126,21 @@ def test_run_python_failure_pipeline(
     assert "Pipeline execution failed due to errors in steps: invalid_python_step" in str(e.value)
 
 
-def test_run_python_dep_failure_pipeline(
+def test_skipped_steps(
     sandbox_sqlserver: DatabaseManager,
-    pipeline_dep_failure_config: PipelineConfig,
-    get_logger: Logger,
-):
-    pipeline = PipelineClass(config=pipeline_dep_failure_config, executor=sandbox_sqlserver)
-    with pytest.raises(RuntimeError) as e:
-        pipeline.execute()
-
-    # Find the failed Python step
-    assert "Pipeline execution failed due to errors in steps: package_status" in str(e.value)
-
-
-def test_skipped_steps(sandbox_sqlserver: DatabaseManager, pipeline_config: PipelineConfig) -> None:
+    pipeline_config: PipelineConfig,
+    tmp_path: Path,
+) -> None:
     # Modify config to have some inactive steps
     inactive_steps = [step.copy(flag="inactive") for step in pipeline_config.steps]
     pipeline_config = pipeline_config.copy(steps=inactive_steps)
 
-    pipeline = PipelineClass(config=pipeline_config, executor=sandbox_sqlserver)
+    pipeline = PipelineClass(
+        config=pipeline_config,
+        executor=sandbox_sqlserver,
+        db_path=tmp_path / _DB_FILE,
+        cred_file_path=tmp_path / _CREDS_FILE,
+    )
     results = pipeline.execute()
 
     # Verify all steps are marked as skipped
@@ -142,7 +151,7 @@ def test_skipped_steps(sandbox_sqlserver: DatabaseManager, pipeline_config: Pipe
 
 
 def verify_output(get_logger, path):
-    conn = duckdb.connect(str(Path(path).expanduser()) + "/" + DB_NAME)
+    conn = duckdb.connect(path)
 
     expected_tables = ["usage", "inventory", "random_data"]
     logger = get_logger
@@ -166,12 +175,9 @@ def test_pipeline_config_comments() -> None:
     pipeline_w_comments = PipelineConfig(
         name="warehouse_profiler",
         version="1.0",
-        extract_folder="/the/output/path",
         comment="A pipeline for extracting warehouse usage.",
     )
-    pipeline_wo_comments = PipelineConfig(
-        name="another_warehouse_profiler", version="1.0", extract_folder="/the/output/path"
-    )
+    pipeline_wo_comments = PipelineConfig(name="another_warehouse_profiler", version="1.0")
     assert pipeline_w_comments.comment == "A pipeline for extracting warehouse usage."
     assert pipeline_wo_comments.comment is None
 
@@ -202,8 +208,14 @@ def test_run_empty_result_pipeline(
     sandbox_sqlserver: DatabaseManager,
     empty_result_config: PipelineConfig,
     get_logger: Logger,
+    tmp_path: Path,
 ) -> None:
-    pipeline = PipelineClass(config=empty_result_config, executor=sandbox_sqlserver)
+    pipeline = PipelineClass(
+        config=empty_result_config,
+        executor=sandbox_sqlserver,
+        db_path=tmp_path / _DB_FILE,
+        cred_file_path=tmp_path / _CREDS_FILE,
+    )
     results = pipeline.execute()
 
     # Verify step completed successfully despite empty results
@@ -213,7 +225,7 @@ def test_run_empty_result_pipeline(
     ]
 
     # Verify that no table was created (processing was skipped for empty resultset)
-    with duckdb.connect(str(Path(empty_result_config.extract_folder)) + "/" + DB_NAME) as conn:
+    with duckdb.connect(tmp_path / _DB_FILE) as conn:
         tables = conn.execute("SHOW TABLES").fetchall()
         table_names = [table[0] for table in tables]
 
@@ -225,9 +237,15 @@ def test_run_pipeline_with_ddl(
     sandbox_sqlserver: DatabaseManager,
     pipeline_config_with_ddl: PipelineConfig,
     get_logger: Logger,
+    tmp_path: Path,
 ) -> None:
     """Test pipeline execution with DDL steps that create tables with proper data types."""
-    pipeline = PipelineClass(config=pipeline_config_with_ddl, executor=sandbox_sqlserver)
+    pipeline = PipelineClass(
+        config=pipeline_config_with_ddl,
+        executor=sandbox_sqlserver,
+        db_path=tmp_path / _DB_FILE,
+        cred_file_path=tmp_path / _CREDS_FILE,
+    )
     results = pipeline.execute()
 
     # Verify all steps completed successfully
@@ -238,8 +256,7 @@ def test_run_pipeline_with_ddl(
         ), f"Step {result.step_name} failed with status {result.status}"
 
     # Verify tables exist and have proper data types
-    db_path = str(Path(pipeline_config_with_ddl.extract_folder)) + "/" + DB_NAME
-    with duckdb.connect(db_path) as conn:
+    with duckdb.connect(tmp_path / _DB_FILE) as conn:
         # Check inventory table schema (created from DDL)
         inventory_schema = conn.execute("DESCRIBE inventory").fetchall()
         get_logger.info(f"Inventory schema: {inventory_schema}")
@@ -268,9 +285,15 @@ def test_run_pipeline_with_combined_ddl(
     sandbox_sqlserver: DatabaseManager,
     pipeline_config_combined_ddl: PipelineConfig,
     get_logger: Logger,
+    tmp_path: Path,
 ) -> None:
     """Test pipeline execution with a single DDL file containing multiple CREATE TABLE statements."""
-    pipeline = PipelineClass(config=pipeline_config_combined_ddl, executor=sandbox_sqlserver)
+    pipeline = PipelineClass(
+        config=pipeline_config_combined_ddl,
+        executor=sandbox_sqlserver,
+        db_path=tmp_path / _DB_FILE,
+        cred_file_path=tmp_path / _CREDS_FILE,
+    )
     results = pipeline.execute()
 
     # Verify all steps completed successfully
@@ -281,8 +304,7 @@ def test_run_pipeline_with_combined_ddl(
         ), f"Step {result.step_name} failed with status {result.status}"
 
     # Verify all tables from combined DDL were created
-    db_path = str(Path(pipeline_config_combined_ddl.extract_folder)) + "/" + DB_NAME
-    with duckdb.connect(db_path) as conn:
+    with duckdb.connect(tmp_path / _DB_FILE) as conn:
         # Check that all three tables exist
         tables = conn.execute("SHOW TABLES").fetchall()
         table_names = [table[0] for table in tables]

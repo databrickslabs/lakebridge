@@ -19,7 +19,6 @@ class Step:
     mode: str = "append"
     frequency: str = "once"
     flag: str = "active"
-    dependencies: list[str] = field(default_factory=list)
     comment: str | None = None
 
     def __post_init__(self) -> None:
@@ -75,7 +74,6 @@ class Step:
 class PipelineConfig:
     name: str
     version: str
-    extract_folder: str
     comment: str | None = None
     steps: list[Step] = field(default_factory=list)
 

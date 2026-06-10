@@ -1,8 +1,5 @@
 name: ExamplePipeline
 version: "1.0"
-# Value replaced prior to actual use.
-# Note: test_get_profiler_extract_path() requires a trailing '/'.
-extract_folder: /replaced/after/loading/
 steps:
   - name: random_data
     type: python
@@ -11,6 +8,3 @@ steps:
     mode: overwrite
     frequency: daily
     flag: active
-    dependencies:
-      - pandas
-      - duckdb
