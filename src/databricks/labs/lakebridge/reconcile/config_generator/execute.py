@@ -40,16 +40,15 @@ from databricks.labs.lakebridge.reconcile.config_generator.configure import (
     TableAutoConfigurer,
     TableMatcher,
 )
-from databricks.labs.lakebridge.reconcile.connectors.source_adapter import create_adapter
 from databricks.labs.lakebridge.reconcile.connectors.data_source import DataSource
 from databricks.labs.lakebridge.reconcile.recon_config import Table
-from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
+from databricks.labs.lakebridge.reconcile.utils import initialise_data_source
 
 logger = logging.getLogger(__name__)
 
 
 # Register auto-configurers here. Order is the order they run for each Table.
-SUPPORTED_AUTO_CONFIGURERS: tuple[TableAutoConfigurer] = (ColumnMappingAutoConfigurer(),)
+SUPPORTED_AUTO_CONFIGURERS: tuple[TableAutoConfigurer, ...] = (ColumnMappingAutoConfigurer(),)
 
 
 def discover_tables(
@@ -166,15 +165,4 @@ def _save(installation: Installation, filename: str, table_recon: TableRecon) ->
 
 
 def _build_adapters(reconcile_config: ReconcileConfig, spark: SparkSession) -> tuple[DataSource, DataSource]:
-    src = reconcile_config.source
-    source_ds = create_adapter(
-        engine=get_dialect(src.dialect),
-        spark=spark,
-        connection_name=src.uc_connection_name or "",
-    )
-    target_ds = create_adapter(
-        engine=get_dialect("databricks"),
-        spark=spark,
-        connection_name="",
-    )
-    return source_ds, target_ds
+    return initialise_data_source(spark, reconcile_config.source.dialect, reconcile_config.source.uc_connection_name)
