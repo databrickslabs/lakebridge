@@ -88,14 +88,17 @@ class NormalizedMatcher(IdentifierMatchingStrategy):
         """Best-effort singularisation for English table/column names.
 
         Rules (applied in order):
-        - `ies` -> `y`  (categories -> category)
-        - `ses` -> `s`  (addresses -> address)
-        - `s`   -> ``   (employees -> employee)
+        - `ies`  -> `y`     (categories -> category)
+        - `sses` -> `ss`    (addresses -> address, classes -> class)
+        - `ss`   -> `ss`    (address, class — preserved, not stripped to `addres`/`clas`)
+        - `s`    -> ``      (houses -> house, employees -> employee)
         """
         if word.endswith("ies"):
             return word[:-3] + "y"
-        if word.endswith("ses"):
+        if word.endswith("sses"):
             return word[:-2]
+        if word.endswith("ss"):
+            return word
         if word.endswith("s"):
             return word[:-1]
         return word
