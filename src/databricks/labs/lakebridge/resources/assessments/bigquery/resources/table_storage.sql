@@ -38,7 +38,7 @@ table_storage_with_model AS (
     AND ts.table_type IN ('BASE TABLE', 'MATERIALIZED VIEW')
 )
 SELECT
-    '{{project_region}}' as metadatalevel,
+    '{{project_region}}' as metadata_level,
     SUM(IF(deleted=false, active_logical_bytes, 0)) / power(1024, 4) AS active_logical_tb,
     SUM(IF(deleted=false, long_term_logical_bytes, 0)) / power(1024, 4) AS long_term_logical_tb,
     SUM(active_physical_bytes) / power(1024, 4) AS active_physical_tb,
@@ -52,5 +52,5 @@ SELECT
     storage_billing_model,
     COUNT(DISTINCT table_schema) AS dataset_count
 FROM table_storage_with_model
-GROUP BY metadatalevel, storage_billing_model
+GROUP BY metadata_level, storage_billing_model
 ORDER BY storage_billing_model;

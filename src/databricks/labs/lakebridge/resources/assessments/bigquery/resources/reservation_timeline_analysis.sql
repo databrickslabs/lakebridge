@@ -1,7 +1,7 @@
 -- This SQL script performs an analysis on the reservation timeline in BigQuery.
 --
 -- Parameters:
---   metadatalevel: STRING - The metadata level, set to '{{project_region}}'.
+--   metadata_level: STRING - The metadata level, set to '{{project_region}}'.
 --   profiling_window_in_days: INT64 - The number of days for the profiling window, default is 180 days.
 --
 -- The script selects various fields from the INFORMATION_SCHEMA.RESERVATIONS_TIMELINE table within the specified profiling window.

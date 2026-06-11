@@ -92,8 +92,6 @@ def _run_sql_for_iteration(
     df = bq_client.query(compiled_sql).to_dataframe()
     elapsed = time.monotonic() - start
     df["source"] = f"{project_region}_{sql_filename}"
-    if sql_filename == "table_storage.sql" and "metadatalevel" in df.columns:
-        df = df.rename(columns={"metadatalevel": "metadata_level"})
     return df, elapsed
 
 
@@ -159,10 +157,9 @@ _BQ_TYPE_TO_PANDAS: dict[str, str] = {
 def _empty_df_for_analysis_type(analysis_type: str, analysis_types: dict[str, Any]) -> pd.DataFrame:
     spec = analysis_types.get(analysis_type, {})
     fields = spec.get("schema", {}).get("fields", [])
-    # Apply the same metadatalevel → metadata_level rename the live extract path applies.
     columns = {}
     for f in fields:
-        name = "metadata_level" if f["name"] == "metadatalevel" else f["name"]
+        name = f["name"]
         dtype = _BQ_TYPE_TO_PANDAS.get(f["type"].lower(), "object")
         columns[name] = pd.Series(dtype=dtype)
     if columns:

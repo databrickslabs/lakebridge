@@ -29,7 +29,7 @@
         "schema": {
             "fields": [
                 {
-                    "name": "metadatalevel",
+                    "name": "metadata_level",
                     "type": "string"
                 },
                 {

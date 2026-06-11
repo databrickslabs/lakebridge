@@ -1,12 +1,3 @@
-"""Unit tests for the BigQuery metadata extract step.
-
-The BQ client is fully mocked — these tests verify that:
-  * The (project, region) × SQL-file loop produces the expected DuckDB tables.
-  * The `metadatalevel` → `metadata_level` rename runs for `table_storage`.
-  * Exclusion flags (`exclude_streaming_metrics`, `exclude_reservations_data`) skip the
-    right SQLs.
-"""
-
 import json
 from pathlib import Path
 from unittest.mock import MagicMock
@@ -19,24 +10,14 @@ from databricks.labs.lakebridge.resources.assessments.bigquery import bq_metadat
 from databricks.labs.lakebridge.resources.assessments.common.sql_substituter import substitute
 
 
-def _canned_df_for(sql_filename: str, project_region: str) -> pd.DataFrame:
-    if sql_filename == "table_storage.sql":
-        df = pd.DataFrame(
-            {
-                "metadatalevel": [project_region],
-                "active_logical_tb": [1.5],
-            }
-        )
-    else:
-        df = pd.DataFrame({"col1": [1, 2], "col2": ["a", "b"]})
-    return df
-
-
 def _fake_run_sql_for_iteration(sql_filename, _substitution_vars, _bq_client, project_region):
-    df = _canned_df_for(sql_filename, project_region)
-    df["source"] = f"{project_region}_{sql_filename}"
-    if sql_filename == "table_storage.sql" and "metadatalevel" in df.columns:
-        df = df.rename(columns={"metadatalevel": "metadata_level"}).copy()
+    df = pd.DataFrame(
+        {
+            "metadata_level": [project_region],
+            "active_logical_tb": [1.5],
+            "source": f"{project_region}_{sql_filename}"
+        }
+    )
     return df, 0.01
 
 
@@ -106,14 +87,6 @@ def test_full_extract_produces_12_tables(monkeypatch, tmp_path, fake_credentials
     assert "wall_clock_seconds" in payload
     assert isinstance(payload["wall_clock_seconds"], (int, float))
     assert payload["wall_clock_seconds"] >= 0
-
-
-def test_table_storage_renames_metadatalevel_column(monkeypatch, tmp_path, fake_credentials):
-    db_path = _run_execute(monkeypatch, tmp_path, fake_credentials)
-    with duckdb.connect(str(db_path)) as conn:
-        cols = [r[0] for r in conn.execute("DESCRIBE table_storage").fetchall()]
-    assert "metadata_level" in cols
-    assert "metadatalevel" not in cols
 
 
 def _row_count(db_path, table: str) -> int:
