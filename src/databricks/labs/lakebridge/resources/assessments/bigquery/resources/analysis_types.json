@@ -1,666 +1,434 @@
 {
     "fulfillment_analysis": {
         "schema": {
-            "type": "struct",
             "fields": [
                 {
                     "name": "metadata_level",
-                    "type": "string",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "string"
                 },
                 {
                     "name": "time_window",
-                    "type": "timestamp",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "timestamp"
                 },
                 {
                     "name": "workload_category",
-                    "type": "string",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "string"
                 },
                 {
                     "name": "slots_requested",
-                    "type": "double",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "double"
                 },
                 {
                     "name": "slots_fulfilled",
-                    "type": "double",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "double"
                 }
             ]
-        },
-        "filenames": [
-            "fulfillment_analysis.csv"
-        ]
+        }
     },
     "table_storage": {
         "schema": {
-            "type": "struct",
             "fields": [
                 {
                     "name": "metadatalevel",
-                    "type": "string",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "string"
                 },
                 {
                     "name": "active_logical_tb",
-                    "type": "double",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "double"
                 },
                 {
                     "name": "long_term_logical_tb",
-                    "type": "double",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "double"
                 },
                 {
                     "name": "active_physical_tb",
-                    "type": "double",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "double"
                 },
                 {
                     "name": "active_no_tt_physical_tb",
-                    "type": "double",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "double"
                 },
                 {
                     "name": "long_term_physical_tb",
-                    "type": "double",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "double"
                 },
                 {
                     "name": "time_travel_physical_tb",
-                    "type": "double",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "double"
                 },
                 {
                     "name": "fail_safe_physical_tb",
-                    "type": "double",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "double"
                 },
                 {
                     "name": "total_physical_tb_to_migrate",
-                    "type": "double",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "double"
                 },
                 {
                     "name": "storage_billing_model",
-                    "type": "string",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "string"
                 },
                 {
                     "name": "dataset_count",
-                    "type": "long",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "long"
                 }
             ]
-        },
-        "filenames": [
-            "table_storage.csv"
-        ]
+        }
     },
     "timeline_analysis": {
         "schema": {
-            "type": "struct",
             "fields": [
                 {
                     "name": "time_window",
-                    "type": "timestamp",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "timestamp"
                 },
                 {
                     "name": "metadata_level",
-                    "type": "string",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "string"
                 },
                 {
                     "name": "workload_type",
-                    "type": "string",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "string"
                 },
                 {
                     "name": "slot_secs",
-                    "type": "double",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "double"
                 },
                 {
                     "name": "slots_avg",
-                    "type": "double",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "double"
                 },
                 {
                     "name": "slots_perc_50th",
-                    "type": "double",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "double"
                 },
                 {
                     "name": "slots_perc_90th",
-                    "type": "double",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "double"
                 },
                 {
                     "name": "slots_perc_99th",
-                    "type": "double",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "double"
                 },
                 {
                     "name": "slots_max",
-                    "type": "double",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "double"
                 },
                 {
                     "name": "cumulative_secs_spent_in_exec",
-                    "type": "double",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "double"
                 }
             ]
-        },
-        "filenames": [
-            "timeline_analysis.csv"
-        ]
+        }
     },
     "workload_types": {
         "schema": {
-            "type": "struct",
             "fields": [
                 {
                     "name": "total_jobs",
-                    "type": "integer",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "integer"
                 },
                 {
                     "name": "total_slot_hours",
-                    "type": "double",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "double"
                 },
                 {
                     "name": "total_tb_processed",
-                    "type": "double",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "double"
                 },
                 {
                     "name": "workload_type",
-                    "type": "string",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "string"
                 },
                 {
                     "name": "metadata_level",
-                    "type": "string",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "string"
                 }
             ]
-        },
-        "filenames": [
-            "workload_types.csv"
-        ]
+        }
     },
     "consumption_beyond_commitments": {
         "schema": {
-            "type": "struct",
             "fields": [
                 {
                     "name": "metadata_level",
-                    "type": "string",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "string"
                 },
                 {
                     "name": "edition",
-                    "type": "string",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "string"
                 },
                 {
                     "name": "total_slot_seconds",
-                    "type": "double",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "double"
                 }
             ]
-        },
-        "filenames": [
-            "consumption_beyond_commitments_standard.csv",
-            "consumption_beyond_commitments_enterprise.csv",
-            "consumption_beyond_commitments_enterprise_plus.csv"
-        ]
+        }
     },
     "consumption_through_commitments": {
         "schema": {
-            "type": "struct",
             "fields": [
                 {
                     "name": "metadata_level",
-                    "type": "string",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "string"
                 },
                 {
                     "name": "edition",
-                    "type": "string",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "string"
                 },
                 {
                     "name": "commitment_plan",
-                    "type": "string",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "string"
                 },
                 {
                     "name": "total_slot_seconds",
-                    "type": "double",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "double"
                 }
             ]
-        },
-        "filenames": [
-            "consumption_through_commitments_standard.csv",
-            "consumption_through_commitments_enterprise.csv",
-            "consumption_through_commitments_enterprise_plus.csv"
-        ]
+        }
     },
     "commitment_changes": {
         "schema": {
-            "type": "struct",
             "fields": [
                 {
                     "name": "metadata_level",
-                    "type": "string",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "string"
                 },
                 {
                     "name": "change_timestamp",
-                    "type": "timestamp",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "timestamp"
                 },
                 {
                     "name": "capacity_commitment_id_hash",
-                    "type": "string",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "string"
                 },
                 {
                     "name": "commitment_plan",
-                    "type": "string",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "string"
                 },
                 {
                     "name": "state",
-                    "type": "string",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "string"
                 },
                 {
                     "name": "slot_count",
-                    "type": "double",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "double"
                 },
                 {
                     "name": "action",
-                    "type": "string",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "string"
                 },
                 {
                     "name": "commitment_start_time",
-                    "type": "timestamp",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "timestamp"
                 },
                 {
                     "name": "commitment_end_time",
-                    "type": "timestamp",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "timestamp"
                 },
                 {
                     "name": "failure_status",
-                    "type": "string",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "string"
                 },
                 {
                     "name": "renewal_plan",
-                    "type": "string",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "string"
                 },
                 {
                     "name": "edition",
-                    "type": "string",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "string"
                 },
                 {
                     "name": "is_flat_rate",
-                    "type": "boolean",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "boolean"
                 }
             ]
-        },
-        "filenames": [
-            "commitment_changes.csv"
-        ]
+        }
     },
     "commitments": {
         "schema": {
-            "type": "struct",
             "fields": [
                 {
                     "name": "metadata_level",
-                    "type": "string",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "string"
                 },
                 {
                     "name": "capacity_commitment_id_hash",
-                    "type": "string",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "string"
                 },
                 {
                     "name": "commitment_plan",
-                    "type": "string",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "string"
                 },
                 {
                     "name": "state",
-                    "type": "string",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "string"
                 },
                 {
                     "name": "slot_count",
-                    "type": "double",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "double"
                 },
                 {
                     "name": "edition",
-                    "type": "string",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "string"
                 },
                 {
                     "name": "is_flat_rate",
-                    "type": "boolean",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "boolean"
                 },
                 {
                     "name": "renewal_plan",
-                    "type": "string",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "string"
                 }
             ]
-        },
-        "filenames": [
-            "commitments.csv"
-        ]
+        }
     },
     "jobs_timeline_by_reservations": {
         "schema": {
-            "type": "struct",
             "fields": [
                 {
                     "name": "time_window_min",
-                    "type": "timestamp",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "timestamp"
                 },
                 {
                     "name": "period_slot_ms",
-                    "type": "double",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "double"
                 },
                 {
                     "name": "slots",
-                    "type": "double",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "double"
                 },
                 {
                     "name": "metadata_level",
-                    "type": "string",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "string"
                 },
                 {
                     "name": "reservation_id_hash",
-                    "type": "string",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "string"
                 }
             ]
-        },
-        "filenames": [
-            "jobs_timeline_by_reservations.csv"
-        ]
+        }
     },
     "reservation_timeline_analysis": {
         "schema": {
-            "type": "struct",
             "fields": [
                 {
                     "name": "metadata_level",
-                    "type": "string",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "string"
                 },
                 {
                     "name": "period_start",
-                    "type": "timestamp",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "timestamp"
                 },
                 {
                     "name": "reservation_id_hash",
-                    "type": "string",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "string"
                 },
                 {
                     "name": "slots_assigned",
-                    "type": "double",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "double"
                 },
                 {
                     "name": "slots_max_assigned",
-                    "type": "double",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "double"
                 },
                 {
                     "name": "autoscale_current_slots",
-                    "type": "double",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "double"
                 },
                 {
                     "name": "autoscale_max_slots",
-                    "type": "double",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "double"
                 },
                 {
                     "name": "ignore_idle_slots",
-                    "type": "boolean",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "boolean"
                 },
                 {
                     "name": "edition",
-                    "type": "string",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "string"
                 }
             ]
-        },
-        "filenames": [
-            "reservation_timeline_analysis.csv"
-        ]
+        }
     },
     "streaming_summary": {
         "schema": {
-            "type": "struct",
             "fields": [
                 {
                     "name": "metadata_level",
-                    "type": "string",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "string"
                 },
                 {
                     "name": "start_timestamp",
-                    "type": "timestamp",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "timestamp"
                 },
                 {
                     "name": "total_requests",
-                    "type": "long",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "long"
                 },
                 {
                     "name": "total_rows",
-                    "type": "long",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "long"
                 },
                 {
                     "name": "total_input_bytes",
-                    "type": "double",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "double"
                 },
                 {
                     "name": "quota_error",
-                    "type": "long",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "long"
                 },
                 {
                     "name": "user_error",
-                    "type": "long",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "long"
                 },
                 {
                     "name": "server_error",
-                    "type": "long",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "long"
                 },
                 {
                     "name": "total_error",
-                    "type": "long",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "long"
                 }
             ]
-        },
-        "filenames": [
-            "streaming_summary.csv"
-        ]
+        }
     },
     "write_api_summary": {
         "schema": {
-            "type": "struct",
             "fields": [
                 {
                     "name": "metadata_level",
-                    "type": "string",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "string"
                 },
                 {
                     "name": "start_timestamp",
-                    "type": "timestamp",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "timestamp"
                 },
                 {
                     "name": "total_requests",
-                    "type": "long",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "long"
                 },
                 {
                     "name": "total_rows",
-                    "type": "long",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "long"
                 },
                 {
                     "name": "total_input_bytes",
-                    "type": "double",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "double"
                 },
                 {
                     "name": "user_error",
-                    "type": "long",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "long"
                 },
                 {
                     "name": "server_error",
-                    "type": "long",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "long"
                 },
                 {
                     "name": "total_error",
-                    "type": "long",
-                    "nullable": true,
-                    "metadata": {}
+                    "type": "long"
                 }
             ]
-        },
-        "filenames": [
-            "write_api_summary.csv"
-        ]
+        }
     }
 }
