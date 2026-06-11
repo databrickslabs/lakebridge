@@ -152,14 +152,9 @@ class ConfigureSqlServerAssessment(AssessmentConfigurator):
         return source
 
 
-# Redshift auth methods (connection still via SQLAlchemy + user/password from config; no boto3).
-REDSHIFT_AUTH_METHODS = [
-    "database_password",
-    "temporary_credentials_db_user",
-    "temporary_credentials_iam",
-    "federated_user",
-    "secrets_manager",
-]
+# Redshift auth types mirror the values ``RedshiftConnector._connect`` accepts. Keep the
+# two lists in sync; if a new branch is added there, expose it here too.
+REDSHIFT_AUTH_TYPES = ["sql_authentication", "iam"]
 
 REDSHIFT_CREDENTIAL_SOURCES = ["local", "env", "file"]
 
@@ -167,17 +162,43 @@ REDSHIFT_CREDENTIAL_SOURCES = ["local", "env", "file"]
 class ConfigureRedshiftAssessment(AssessmentConfigurator):
     """Redshift specific assessment configuration."""
 
+    def _prompt_iam_fields(self, source_creds: dict[str, Any]) -> None:
+        """Prompt for the optional IAM extra-knob fields and write them only when set.
+
+        ``redshift_connector`` resolves AWS credentials from the standard chain (env vars,
+        ``~/.aws/credentials``, IAM instance profile); every field below is optional, and
+        writing empty strings would poison the connector config, so empties are skipped.
+        """
+        fields = [
+            (
+                "db_user",
+                "DB user to assume via GetClusterCredentials (leave empty to let IAM identity resolve)",
+                "",
+            ),
+            (
+                "cluster_identifier",
+                "Cluster identifier (provisioned Redshift; leave empty for serverless or to auto-detect)",
+                "",
+            ),
+            ("aws_profile", "AWS profile name (leave empty for default)", os.environ.get("AWS_PROFILE", "")),
+            ("region", "AWS region (leave empty for default)", os.environ.get("AWS_REGION", "")),
+        ]
+        for key, prompt_text, default in fields:
+            value = self.prompts.question(prompt_text, default=default)
+            if value:
+                source_creds[key] = value
+
     def _configure_credentials(self) -> str:
         cred_file = self._credential_file
         source = self._source_name
 
         logger.info(
-            "Redshift authentication: database_password, temporary_credentials_db_user, "
-            "temporary_credentials_iam, federated_user, or secrets_manager. "
+            "Redshift authentication: sql_authentication (user/password) or iam (AWS IAM identity, "
+            "credentials resolved from env/~/.aws/credentials/instance profile). "
             "Credentials are provided via local (plain text in file), env (environment variables), "
             "or file (use existing credential file if valid else prompt)."
         )
-        auth_method = str(self.prompts.choice("Authentication method", REDSHIFT_AUTH_METHODS)).lower()
+        auth_type = str(self.prompts.choice("Authentication type", REDSHIFT_AUTH_TYPES)).lower()
         choice = str(self.prompts.choice("Credential source (local | env | file)", REDSHIFT_CREDENTIAL_SOURCES)).lower()
         if choice == "file":
             if cred_file.exists():
@@ -187,12 +208,9 @@ class ConfigureRedshiftAssessment(AssessmentConfigurator):
                 except (yaml.YAMLError, OSError):
                     data = None
                 existing_creds = data.get(source) if data and isinstance(data, dict) else None
-                if (existing_creds or {}).get("auth_method") == "secrets_manager":
-                    required = ["secrets_manager_secret_arn"]
-                else:
-                    required = ["host", "port", "database", "user"]
-                    if (existing_creds or {}).get("auth_method") not in {"federated_user", "temporary_credentials_iam"}:
-                        required = required + ["password"]
+                required = ["host", "port", "database"]
+                if (existing_creds or {}).get("auth_type") == "sql_authentication":
+                    required = required + ["user", "password"]
                 if existing_creds and isinstance(existing_creds, dict) and all(k in existing_creds for k in required):
                     logger.info(f"Using existing credential file at {cred_file}.")
                     return source
@@ -203,40 +221,15 @@ class ConfigureRedshiftAssessment(AssessmentConfigurator):
 
         logger.info("Please refer to the documentation to understand the difference between local and env.")
 
-        source_creds: dict[str, Any] = {"auth_method": auth_method, "ssl": "yes"}
-        if auth_method == "secrets_manager":
-            source_creds["secrets_manager_secret_arn"] = self.prompts.question(
-                "Enter the AWS Secrets Manager secret ARN with Redshift connection JSON",
-            )
-            source_creds["aws_profile"] = self.prompts.question(
-                "Enter the AWS profile name (or leave empty for default)",
-                default=os.environ.get("AWS_PROFILE", ""),
-            )
-        elif auth_method in {"federated_user", "temporary_credentials_iam"}:
-            source_creds["host"] = self.prompts.question("Enter the Redshift cluster endpoint (host)")
-            source_creds["port"] = int(
-                self.prompts.question("Enter the port details", valid_number=True, default="5439")
-            )
-            source_creds["database"] = self.prompts.question("Enter the database name")
-            get_credentials_db_user = self.prompts.question(
-                "DB user for GetClusterCredentials (use awsuser for temp creds as master user)",
-                default="awsuser",
-            )
-            source_creds["get_credentials_db_user"] = get_credentials_db_user
-            source_creds["user"] = get_credentials_db_user
-            source_creds["password"] = "federated"
-            source_creds["aws_profile"] = self.prompts.question(
-                "Enter the AWS profile name for GetClusterCredentials (or leave empty for default)",
-                default=os.environ.get("AWS_PROFILE", ""),
-            )
-        else:
-            source_creds["host"] = self.prompts.question("Enter the Redshift cluster endpoint (host)")
-            source_creds["port"] = int(
-                self.prompts.question("Enter the port details", valid_number=True, default="5439")
-            )
-            source_creds["database"] = self.prompts.question("Enter the database name")
+        source_creds: dict[str, Any] = {"auth_type": auth_type, "ssl": "yes"}
+        source_creds["host"] = self.prompts.question("Enter the Redshift cluster endpoint (host)")
+        source_creds["port"] = int(self.prompts.question("Enter the port details", valid_number=True, default="5439"))
+        source_creds["database"] = self.prompts.question("Enter the database name")
+        if auth_type == "sql_authentication":
             source_creds["user"] = self.prompts.question("Enter the user details")
             source_creds["password"] = self.prompts.password("Enter the password details")
+        else:
+            self._prompt_iam_fields(source_creds)
         credential = {
             "secret_vault_type": secret_vault_type,
             "secret_vault_name": secret_vault_name,
