@@ -10,7 +10,11 @@ from pyspark.sql import Row, SparkSession
 
 from tests.integration.reconcile.conftest import FakeReconIntermediatePersist
 from tests.conftest import ansi_schema_fixture_factory
-from databricks.labs.lakebridge.config import DatabaseConfig, ReconcileMetadataConfig
+from databricks.labs.lakebridge.config import (
+    ReconcileMetadataConfig,
+    SourceConnectionConfig,
+    TargetConnectionConfig,
+)
 from databricks.labs.lakebridge.reconcile.reconciliation import Reconciliation
 from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
 from databricks.labs.lakebridge.reconcile.connectors.data_source import MockDataSource
@@ -107,18 +111,15 @@ def test_reconcile_aggregate_data_missing_records(
     }
 
     target_schema_repository = {(CATALOG, SCHEMA, TGT_TABLE): tgt_schema}
-    database_config = DatabaseConfig(
-        source_catalog=CATALOG,
-        source_schema=SCHEMA,
-        target_catalog=CATALOG,
-        target_schema=SCHEMA,
-    )
+    source_connection = SourceConnectionConfig(dialect="databricks", catalog=CATALOG, schema=SCHEMA)
+    target_connection = TargetConnectionConfig(catalog=CATALOG, schema=SCHEMA)
     source = MockDataSource(source_dataframe_repository, source_schema_repository)
     target = MockDataSource(target_dataframe_repository, target_schema_repository)
     actual: list[AggregateQueryOutput] = Reconciliation(
         source,
         target,
-        database_config,
+        source_connection,
+        target_connection,
         "",
         SchemaCompare(spark),
         get_dialect("databricks"),
@@ -353,18 +354,15 @@ def test_reconcile_aggregate_data_mismatch_and_missing_records(
     }
 
     target_schema_repository = {(CATALOG, SCHEMA, TGT_TABLE): tgt_schema}
-    db_config = DatabaseConfig(
-        source_catalog=CATALOG,
-        source_schema=SCHEMA,
-        target_catalog=CATALOG,
-        target_schema=SCHEMA,
-    )
+    source_connection = SourceConnectionConfig(dialect="snowflake", catalog=CATALOG, schema=SCHEMA)
+    target_connection = TargetConnectionConfig(catalog=CATALOG, schema=SCHEMA)
     source = MockDataSource(source_dataframe_repository, source_schema_repository, delimiter='"')
     target = MockDataSource(target_dataframe_repository, target_schema_repository)
     actual_list: list[AggregateQueryOutput] = Reconciliation(
         source,
         target,
-        db_config,
+        source_connection,
+        target_connection,
         "",
         SchemaCompare(spark),
         get_dialect("snowflake"),

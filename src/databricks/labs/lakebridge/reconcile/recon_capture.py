@@ -11,7 +11,13 @@ from pyspark.sql.functions import col, collect_list, create_map, lit
 from pyspark.errors import PySparkException
 from sqlglot import Dialect
 
-from databricks.labs.lakebridge.config import DatabaseConfig, Table, ReconcileMetadataConfig
+from databricks.labs.lakebridge.config import (
+    DatabaseConfig,
+    SourceConnectionConfig,
+    TargetConnectionConfig,
+    Table,
+    ReconcileMetadataConfig,
+)
 from databricks.labs.lakebridge.reconcile.recon_config import TableThresholds
 from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_key_from_dialect
 from databricks.labs.lakebridge.reconcile.exception import (
@@ -252,15 +258,58 @@ class ReconCapture:
 
     def __init__(
         self,
-        database_config: DatabaseConfig,
-        recon_id: str,
-        report_type: str,
-        source_dialect: Dialect,
-        ws: WorkspaceClient,
-        spark: SparkSession,
+        source_connection: SourceConnectionConfig | DatabaseConfig,
+        target_connection: TargetConnectionConfig | str,
+        recon_id: str | None = None,
+        report_type: str | None = None,
+        source_dialect: Dialect | None = None,
+        ws: WorkspaceClient | None = None,
+        spark: SparkSession | None = None,
         metadata_config: ReconcileMetadataConfig = ReconcileMetadataConfig(),
     ):
-        self.database_config = database_config
+        if isinstance(source_connection, DatabaseConfig):
+            # Backward-compatible constructor support for tests still passing DatabaseConfig:
+            # ReconCapture(database_config, recon_id, report_type, source_dialect, ws, spark, ...)
+            legacy_db = source_connection
+            if not isinstance(target_connection, str):
+                raise ValueError("Expected recon_id as second argument when using DatabaseConfig")
+            legacy_recon_id = target_connection
+            legacy_report_type = recon_id
+            legacy_source_dialect = report_type
+            legacy_ws = source_dialect
+            legacy_spark = ws
+            if (
+                not isinstance(legacy_report_type, str)
+                or legacy_source_dialect is None
+                or legacy_ws is None
+                or legacy_spark is None
+            ):
+                raise ValueError("Invalid legacy ReconCapture constructor arguments")
+            source_connection = SourceConnectionConfig(
+                dialect=get_key_from_dialect(legacy_source_dialect),
+                catalog=legacy_db.source_catalog,
+                schema=legacy_db.source_schema,
+                uc_connection_name=(
+                    "remorph_connection" if get_key_from_dialect(legacy_source_dialect) != "databricks" else None
+                ),
+            )
+            target_connection = TargetConnectionConfig(
+                catalog=legacy_db.target_catalog,
+                schema=legacy_db.target_schema,
+            )
+            recon_id = legacy_recon_id
+            report_type = legacy_report_type
+            source_dialect = legacy_source_dialect
+            ws = legacy_ws
+            spark = legacy_spark
+
+        if recon_id is None or report_type is None or source_dialect is None or ws is None or spark is None:
+            raise ValueError("ReconCapture requires recon_id, report_type, source_dialect, ws, and spark")
+        if not isinstance(target_connection, TargetConnectionConfig):
+            raise ValueError("ReconCapture requires TargetConnectionConfig for target_connection")
+
+        self.source_connection = source_connection
+        self.target_connection = target_connection
         self.recon_id = recon_id
         self.report_type = report_type
         self.source_dialect = source_dialect
@@ -273,12 +322,12 @@ class ReconCapture:
         table_conf: Table,
     ) -> int:
         full_source_table = (
-            f"{self.database_config.source_schema}.{table_conf.source_name}"
-            if self.database_config.source_catalog is None
-            else f"{self.database_config.source_catalog}.{self.database_config.source_schema}.{table_conf.source_name}"
+            f"{self.source_connection.schema}.{table_conf.source_name}"
+            if self.source_connection.catalog is None
+            else f"{self.source_connection.catalog}.{self.source_connection.schema}.{table_conf.source_name}"
         )
         full_target_table = (
-            f"{self.database_config.target_catalog}.{self.database_config.target_schema}.{table_conf.target_name}"
+            f"{self.target_connection.catalog}.{self.target_connection.schema}.{table_conf.target_name}"
         )
         return hash(f"{self.recon_id}{full_source_table}{full_target_table}")
 
@@ -300,13 +349,13 @@ class ReconCapture:
                     else '{source_dialect_key}'
                 end as source_type,
                 named_struct(
-                    'catalog', case when '{self.database_config.source_catalog}' = 'None' then null else '{self.database_config.source_catalog}' end,
-                    'schema', '{self.database_config.source_schema}',
+                    'catalog', case when '{self.source_connection.catalog}' = 'None' then null else '{self.source_connection.catalog}' end,
+                    'schema', '{self.source_connection.schema}',
                     'table_name', '{table_conf.source_name}'
                 ) as source_table,
                 named_struct(
-                    'catalog', '{self.database_config.target_catalog}',
-                    'schema', '{self.database_config.target_schema}',
+                    'catalog', '{self.target_connection.catalog}',
+                    'schema', '{self.target_connection.schema}',
                     'table_name', '{table_conf.target_name}'
                 ) as target_table,
                 '{self.report_type}' as report_type,
