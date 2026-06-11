@@ -590,3 +590,6 @@ def reconcile_agg_data_per_rule(
         missing_in_src=missing_in_src,
         missing_in_tgt=missing_in_tgt,
     )
+
+# Backward-compatible alias for existing imports/callers
+join_aggregate_data = prepare_persisted_aggregate_join

@@ -73,11 +73,11 @@ TERADATA_TABLE = "diamonds"
 
 # Spark JDBC parallel read: numeric partition column + stride bounds (not row filters)
 DIAMONDS_JDBC_READER_OPTIONS = JdbcReaderOptions(
-    number_partitions=4,
+    num_partitions=4,
     partition_column="carat",
     lower_bound="0.0",
     upper_bound="1.0",
-    fetch_size=100,
+    fetchsize=100,
 )
 
 @pytest.fixture
