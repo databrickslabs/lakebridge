@@ -212,6 +212,7 @@ Enter the port details: 1433
 Enter the database name: MyAppDB
 Enter the SQL username: profiler_user
 Enter the SQL password:
+Trust server certificate (default: no):
 Enter timezone (e.g. America/New_York) (default: UTC):
 Enter the ODBC driver installed locally (default: ODBC Driver 18 for SQL Server):
 Do you want to test the connection to mssql? (yes/no): yes
@@ -229,6 +230,7 @@ Do you want to test the connection to mssql? (yes/no): yes
 | **Database** | Database to connect to. `INFORMATION_SCHEMA` queries are scoped to this database; other databases on the instance are still discovered via `sys.databases`. | — |
 | **SQL username** | SQL Authentication username | — |
 | **SQL password** | SQL Authentication password (hidden input) | — |
+| **Trust server certificate** | Skip TLS certificate validation when connecting. Set to `yes` only when the server uses a self-signed or untrusted certificate (e.g., local/dev SQL Server). Leave as `no` for Azure SQL Database and production servers with valid certificates. | `no` |
 | **Timezone** | Timezone for timestamp normalization | `UTC` |
 | **ODBC driver** | Locally installed ODBC driver name | `ODBC Driver 18 for SQL Server` |
 

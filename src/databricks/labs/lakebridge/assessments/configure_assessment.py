@@ -133,6 +133,7 @@ class ConfigureSqlServerAssessment(AssessmentConfigurator):
                 "database": self.prompts.question("Enter the database name"),
                 "user": self.prompts.question("Enter the SQL username"),
                 "password": self.prompts.password("Enter the SQL password"),
+                "trust_server_certificate": self.prompts.confirm("Trust server certificate"),
                 "tz_info": self.prompts.question("Enter timezone (e.g. America/New_York)", default="UTC"),
                 "driver": self.prompts.question(
                     "Enter the ODBC driver installed locally", default="ODBC Driver 18 for SQL Server"

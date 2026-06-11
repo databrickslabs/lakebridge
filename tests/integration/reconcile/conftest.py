@@ -465,15 +465,16 @@ def recon_config_filename(recon_config: ReconcileConfig) -> str:
 def generate_recon_application_context(
     application_ctx: ApplicationContext,
     recon_config: ReconcileConfig,
-    recon_table_config: TableRecon,
+    recon_table_config: TableRecon | None = None,
 ) -> Generator[ApplicationContext]:
     logger.info("Setting up application context for recon tests")
     config = LakebridgeConfiguration(None, recon_config, None)
     ws = application_ctx.workspace_client
     logger.info("Installing app and recon configuration into workspace")
     application_ctx.installation.save(recon_config)
-    filename = recon_config_filename(recon_config)
-    application_ctx.installation.upload(filename, json.dumps(asdict(recon_table_config)).encode())
+    if recon_table_config:
+        filename = recon_config_filename(recon_config)
+        application_ctx.installation.upload(filename, json.dumps(asdict(recon_table_config)).encode())
     application_ctx.workspace_installation.install(config)
 
     logger.info("Application context setup complete for recon tests")

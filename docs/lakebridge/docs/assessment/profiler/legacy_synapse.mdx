@@ -156,6 +156,7 @@ Enter the port details: 1433
 Enter the database name: my_pool
 Enter the SQL username: profiler_user
 Enter the SQL password:
+Trust server certificate (default: no):
 Enter timezone (e.g. America/New_York) (default: UTC):
 Enter the ODBC driver installed locally (default: ODBC Driver 18 for SQL Server):
 ```
@@ -172,6 +173,7 @@ Enter the ODBC driver installed locally (default: ODBC Driver 18 for SQL Server)
 | **Database** | The dedicated SQL pool name to connect to. Dedicated pools do not have a `master` database, so this must be set to the pool you want to profile. | — |
 | **SQL username** | SQL Authentication username | — |
 | **SQL password** | SQL Authentication password (hidden input) | — |
+| **Trust server certificate** | Skip TLS certificate validation when connecting. Leave as `no` for Azure-hosted dedicated SQL pools, which present valid certificates. | `no` |
 | **Timezone** | Timezone for timestamp normalization | `UTC` |
 | **ODBC driver** | Locally installed ODBC driver name | `ODBC Driver 18 for SQL Server` |
 

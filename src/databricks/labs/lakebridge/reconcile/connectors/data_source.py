@@ -35,6 +35,14 @@ class DataSource(ABC):
         return NotImplemented
 
     @abstractmethod
+    def list_schemas(self, catalog: str) -> list[str]:
+        return NotImplemented
+
+    @abstractmethod
+    def list_tables(self, catalog: str, schema: str) -> list[str]:
+        return NotImplemented
+
+    @abstractmethod
     def normalize_identifier(self, identifier: str) -> NormalizedIdentifier:
         pass
 
@@ -67,11 +75,15 @@ class MockDataSource(DataSource):
         schema_repository: dict[tuple[str, str, str], list[Schema]],
         exception: Exception = RuntimeError("Mock Exception"),
         delimiter: str = "`",
+        schemas_repository: dict[str, list[str]] | None = None,
+        tables_repository: dict[tuple[str, str], list[str]] | None = None,
     ):
         self._dataframe_repository: dict[tuple[str, str, str], DataFrame] = dataframe_repository
         self._schema_repository: dict[tuple[str, str, str], list[Schema]] = schema_repository
         self._exception = exception
         self._delimiter = delimiter
+        self._schemas_repository: dict[str, list[str]] = schemas_repository or {}
+        self._tables_repository: dict[tuple[str, str], list[str]] = tables_repository or {}
 
     def read_data(
         self,
@@ -93,6 +105,18 @@ class MockDataSource(DataSource):
         if not mock_schema:
             return self.log_and_throw_exception(self._exception, "schema", f"({catalog}, {schema}, {table})")
         return mock_schema
+
+    def list_schemas(self, catalog: str) -> list[str]:
+        schemas = self._schemas_repository.get(catalog)
+        if schemas is None:
+            return self.log_and_throw_exception(self._exception, "schemas", f"({catalog})")
+        return schemas
+
+    def list_tables(self, catalog: str, schema: str) -> list[str]:
+        tables = self._tables_repository.get((catalog, schema))
+        if tables is None:
+            return self.log_and_throw_exception(self._exception, "tables", f"({catalog}, {schema})")
+        return tables
 
     def normalize_identifier(self, identifier: str) -> NormalizedIdentifier:
         return DialectUtils.normalize_identifier(identifier, self._delimiter, self._delimiter)
