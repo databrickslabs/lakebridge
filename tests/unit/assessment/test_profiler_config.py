@@ -145,7 +145,6 @@ def test_pipeline_config_with_valid_steps() -> None:
     config = PipelineConfig(
         name="TestPipeline",
         version="1.0",
-        extract_folder="/tmp/test",
         steps=steps,
     )
 

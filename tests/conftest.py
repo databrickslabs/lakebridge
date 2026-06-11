@@ -292,6 +292,16 @@ def redshift_schema_fixture_factory(column_name: str, data_type: str) -> Schema:
     )
 
 
+def teradata_schema_fixture_factory(column_name: str, data_type: str) -> Schema:
+    norm = DialectUtils.normalize_identifier(column_name, "\"", "\"")
+    return schema_fixture_factory(
+        norm.ansi_normalized,
+        data_type,
+        norm.ansi_normalized,
+        norm.source_normalized,
+    )
+
+
 def ansi_schema_fixture_factory(column_name: str, data_type: str) -> Schema:
     ansi = DialectUtils.ansi_normalize_identifier(column_name)
     return schema_fixture_factory(
@@ -332,6 +342,12 @@ class FakeDataSource(DataSource):
     def get_schema(self, catalog: str | None, schema: str, table: str, normalize: bool = True) -> list[Schema]:
         raise RuntimeError("Not implemented")
 
+    def list_schemas(self, catalog: str) -> list[str]:
+        raise RuntimeError("Not implemented")
+
+    def list_tables(self, catalog: str, schema: str) -> list[str]:
+        raise RuntimeError("Not implemented")
+
     def normalize_identifier(self, identifier: str) -> NormalizedIdentifier:
         return DialectUtils.normalize_identifier(identifier, self.start_delimiter, self.end_delimiter)
 
@@ -353,6 +369,11 @@ def fake_databricks_datasource() -> FakeDataSource:
 
 @pytest.fixture
 def fake_redshift_datasource() -> FakeDataSource:
+    return FakeDataSource('"', '"')
+
+
+@pytest.fixture
+def fake_teradata_datasource() -> FakeDataSource:
     return FakeDataSource('"', '"')
 
 
@@ -399,6 +420,19 @@ def redshift_table_conf_with_opts(normalize_config_service: NormalizeReconConfig
 
 
 @pytest.fixture
+def teradata_table_conf_with_opts(normalize_config_service: NormalizeReconConfigService, table_conf_with_opts):
+    conf = normalize_config_service.normalize_recon_table_config(table_conf_with_opts)
+    conf.transformations = [  # SQL has to be valid
+        Transformation(column_name="`s_address`", source="trim(\"s_address\")", target="trim(`s_address_t`)"),
+        Transformation(column_name="`s_phone`", source="trim(\"s_phone\")", target="trim(`s_phone_t`)"),
+        Transformation(column_name="`s_name`", source="trim(\"s_name\")", target="trim(`s_name`)"),
+    ]
+    if conf.filters:
+        conf.filters.source = "\"s_name\"='t' and \"s_address\"='a'"
+    return conf
+
+
+@pytest.fixture
 def tsql_table_conf_with_opts(normalize_config_service: NormalizeReconConfigService, table_conf_with_opts):
     conf = normalize_config_service.normalize_recon_table_config(table_conf_with_opts)
     conf.transformations = [  # SQL has to be valid
@@ -432,6 +466,14 @@ def table_schema_ansi_ansi(table_schema):
 def table_schema_redshift_ansi(table_schema):
     src_schema, tgt_schema = table_schema
     src_schema = [redshift_schema_fixture_factory(s.column_name, s.data_type) for s in src_schema]
+    tgt_schema = [ansi_schema_fixture_factory(s.column_name, s.data_type) for s in tgt_schema]
+    return src_schema, tgt_schema
+
+
+@pytest.fixture
+def table_schema_teradata_ansi(table_schema):
+    src_schema, tgt_schema = table_schema
+    src_schema = [teradata_schema_fixture_factory(s.column_name, s.data_type) for s in src_schema]
     tgt_schema = [ansi_schema_fixture_factory(s.column_name, s.data_type) for s in tgt_schema]
     return src_schema, tgt_schema
 

@@ -1,6 +1,11 @@
 from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
 from databricks.labs.lakebridge.reconcile.query_builder.hash_query import HashQueryBuilder
-from databricks.labs.lakebridge.reconcile.recon_config import Filters, ColumnMapping, Transformation, Table
+from databricks.labs.lakebridge.reconcile.recon_config import (
+    Filters,
+    ColumnMapping,
+    Transformation,
+    Table,
+)
 from databricks.labs.lakebridge.reconcile.normalize_recon_config_service import NormalizeReconConfigService
 from tests.conftest import tsql_schema_fixture_factory, ansi_schema_fixture_factory, FakeDataSource
 
@@ -156,6 +161,78 @@ def test_hash_query_builder_for_redshift_src(
 
     assert src_actual == src_expected
     assert tgt_actual == tgt_expected
+
+
+def test_hash_query_builder_user_hash_expression_overrides_dialect_default(
+    teradata_table_conf_with_opts,
+    table_schema_teradata_ansi,
+    fake_teradata_datasource,
+    fake_databricks_datasource,
+):
+    src_schema, tgt_schema = table_schema_teradata_ansi
+    src_actual = HashQueryBuilder(
+        teradata_table_conf_with_opts,
+        src_schema,
+        "source",
+        get_dialect("teradata"),
+        fake_teradata_datasource,
+        hash_expression_override="my_db.my_sha256({})",
+    ).build_query(report_type="data")
+    src_expected = (
+        'SELECT LOWER(my_db.my_sha256(TRIM("s_address") || TRIM("s_name") || '
+        "COALESCE(TRIM(\"s_nationkey\"), '_null_recon_') || TRIM(\"s_phone\") || "
+        "COALESCE(TRIM(\"s_suppkey\"), '_null_recon_'))) AS hash_value_recon, "
+        '"s_nationkey" AS "s_nationkey", "s_suppkey" AS "s_suppkey" FROM :tbl '
+        "WHERE \"s_name\" = 't' AND \"s_address\" = 'a'"
+    )
+
+    tgt_actual = HashQueryBuilder(
+        teradata_table_conf_with_opts,
+        tgt_schema,
+        "target",
+        get_dialect("databricks"),
+        fake_databricks_datasource,
+        hash_expression_override="sha2({}, 256)",
+    ).build_query(report_type="data")
+    tgt_expected = (
+        "SELECT LOWER(SHA2(TRIM(`s_address_t`) || TRIM(`s_name`) || "
+        "COALESCE(TRIM(`s_nationkey_t`), '_null_recon_') || TRIM(`s_phone_t`) || "
+        "COALESCE(TRIM(`s_suppkey_t`), '_null_recon_'), 256)) AS hash_value_recon, "
+        "`s_nationkey_t` AS `s_nationkey`, `s_suppkey_t` AS `s_suppkey` "
+        "FROM :tbl WHERE s_name = 't' AND s_address_t = 'a'"
+    )
+
+    assert src_actual == src_expected
+    assert tgt_actual == tgt_expected
+
+
+def test_hash_query_builder_user_hash_expression_only_source(
+    teradata_table_conf_with_opts,
+    table_schema_teradata_ansi,
+    fake_teradata_datasource,
+    fake_databricks_datasource,
+):
+    src_schema, tgt_schema = table_schema_teradata_ansi
+    src_actual = HashQueryBuilder(
+        teradata_table_conf_with_opts,
+        src_schema,
+        "source",
+        get_dialect("teradata"),
+        fake_teradata_datasource,
+        hash_expression_override="my_db.my_sha256({})",
+    ).build_query(report_type="data")
+    assert "my_db.my_sha256(" in src_actual
+
+    tgt_actual = HashQueryBuilder(
+        teradata_table_conf_with_opts,
+        tgt_schema,
+        "target",
+        get_dialect("databricks"),
+        fake_databricks_datasource,
+    ).build_query(report_type="data")
+    # Without an override, the target falls back to the dialect default (Databricks SHA2).
+    assert "SHA2(" in tgt_actual
+    assert "my_db.my_sha256(" not in tgt_actual
 
 
 def test_hash_query_builder_for_tsql_src(

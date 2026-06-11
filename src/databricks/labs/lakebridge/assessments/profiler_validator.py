@@ -1,15 +1,9 @@
-import os
 from dataclasses import dataclass
 from collections.abc import Sequence
-from pathlib import Path
 
 import yaml
 from duckdb import DuckDBPyConnection, CatalogException, ParserException, Error
 from pyspark.sql import DataFrame, SparkSession
-
-from databricks.labs.lakebridge.assessments.pipeline import PipelineClass
-
-PROFILER_DB_NAME = "profiler_extract.db"
 
 
 class SchemaDefinitionLoadError(Exception):
@@ -200,20 +194,6 @@ class ExtractSchemaValidationCheck(ValidationStrategy):
         return ValidationOutcome(
             f"{self.schema}.{self.table}", None, self.name, "PASS", self.severity, "All columns match expected schema"
         )
-
-
-def get_profiler_extract_path(pipeline_config_path: Path) -> Path:
-    """
-    Returns the filesystem path of the profiler extract database.
-    input:
-       pipeline_config_path: the location of the pipeline definition .yml file
-    returns:
-       the filesystem path to the profiler extract database
-    """
-    pipeline_config = PipelineClass.load_config_from_yaml(pipeline_config_path)
-    normalized_db_path = os.path.normpath(os.path.expanduser(pipeline_config.extract_folder))
-    database_path = Path(normalized_db_path) / PROFILER_DB_NAME
-    return database_path
 
 
 def build_validation_report(

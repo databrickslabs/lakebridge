@@ -73,12 +73,41 @@ class AssessmentConfigurator(ABC):
         logger.info(f"{source.capitalize()} Assessment Configuration Completed")
 
 
+class ConfigureOracleAssessment(AssessmentConfigurator):
+    """Oracle specific assessment configuration."""
+
+    def _configure_credentials(self) -> str:
+        cred_file = self._credential_file
+        source = self._source_name
+
+        logger.info(
+            "\n(local | env) \nlocal means values are read as plain text \nenv means values are read "
+            "from environment variables fall back to plain text if not variable is not found\n",
+        )
+        secret_vault_type = str(self.prompts.choice("Enter secret vault type (local | env)", ["local", "env"])).lower()
+
+        credential = {
+            "secret_vault_type": secret_vault_type,
+            source: {
+                "host": self.prompts.question("Enter the host details (Server name, IP address, SCAN Name)"),
+                "port": int(self.prompts.question("Enter the host port number", default=str(1521), valid_number=True)),
+                "service_name": self.prompts.question("Enter the service name", default="orcl"),
+                "user": self.prompts.question("Enter user with privileges"),
+                "password": self.prompts.password("Enter user password"),
+            },
+        }
+
+        _save_to_disk(credential, cred_file)
+        logger.info(f"Credential template created for {source}.")
+        return source
+
+
 class ConfigureSqlServerAssessment(AssessmentConfigurator):
     """SQL Server-family assessment configuration.
 
-    Used for both `mssql` (regular SQL Server / Azure SQL Database, default database `master`)
-    and `legacy_synapse` (Azure Synapse dedicated SQL pool, where the database
-    is the pool name and must be supplied explicitly).
+    Used for both `mssql` (regular SQL Server / Azure SQL Database) and
+    `legacy_synapse` (Azure Synapse dedicated SQL pool, where the database
+    is the pool name).
     """
 
     def _configure_credentials(self) -> str:
@@ -101,9 +130,10 @@ class ConfigureSqlServerAssessment(AssessmentConfigurator):
                 "login_timeout": self.prompts.question("Enter login timeout (seconds)", default="30"),
                 "server": self.prompts.question("Enter the fully-qualified server name"),
                 "port": int(self.prompts.question("Enter the port details", valid_number=True)),
-                "database": self.prompts.question("Enter the database name", default="master"),
+                "database": self.prompts.question("Enter the database name"),
                 "user": self.prompts.question("Enter the SQL username"),
                 "password": self.prompts.password("Enter the SQL password"),
+                "trust_server_certificate": self.prompts.confirm("Trust server certificate"),
                 "tz_info": self.prompts.question("Enter timezone (e.g. America/New_York)", default="UTC"),
                 "driver": self.prompts.question(
                     "Enter the ODBC driver installed locally", default="ODBC Driver 18 for SQL Server"
@@ -188,7 +218,139 @@ class ConfigureSynapseAssessment(AssessmentConfigurator):
         return source
 
 
+class ConfigureSnowflakeAssessment(AssessmentConfigurator):
+    """Snowflake specific assessment configuration."""
+
+    def _configure_credentials(self) -> str:
+        cred_file = self._credential_file
+        source = self._source_name
+
+        logger.info(
+            "\n(local | env) \nlocal means values are read as plain text \nenv means values are read "
+            "from environment variables fall back to plain text if not variable is not found\n",
+        )
+        secret_vault_type = str(self.prompts.choice("Enter secret vault type (local | env)", ["local", "env"])).lower()
+
+        # Snowflake Connection Settings
+        logger.info("Snowflake Assessment Configuration")
+        logger.info("Authentication uses a Programmatic Access Token (PAT). See Snowflake's docs:")
+        logger.info(
+            "  https://docs.snowflake.com/en/user-guide/programmatic-access-tokens"
+            "#generating-a-programmatic-access-token"
+        )
+
+        # In env mode the stored value is the name of an environment variable that
+        # EnvGetter resolves at runtime, not the token itself, so prompt accordingly.
+        if secret_vault_type == "env":
+            pat = self.prompts.question("Enter the environment variable name holding the PAT")
+        else:
+            pat = self.prompts.password("Enter Programmatic Access Token (PAT)")
+
+        snowflake_connection = {
+            "account": self.prompts.question(
+                "Enter Snowflake account URL (e.g., myorg-myaccount.snowflakecomputing.com)"
+            ),
+            "user": self.prompts.question("Enter username"),
+            "warehouse": self.prompts.question("Enter warehouse name", default="COMPUTE_WH"),
+            "database": self.prompts.question("Enter database name", default="SNOWFLAKE"),
+            "schema": self.prompts.question("Enter schema name", default="ACCOUNT_USAGE"),
+            "role": self.prompts.question("Enter role", default="ACCOUNTADMIN"),
+            # Stored under `pat` (not `password`) to flag this is a rotating
+            # Programmatic Access Token, not a SQL password.
+            "pat": pat,
+        }
+
+        credential = {
+            "secret_vault_type": secret_vault_type,
+            source: {
+                "connection": snowflake_connection,
+            },
+        }
+        _save_to_disk(credential, cred_file)
+
+        logger.info(f"Credential template created for {source}.")
+        return source
+
+
 ConfiguratorFactory = Callable[[str, Prompts, str, Path | str | None], AssessmentConfigurator]
+
+
+class ConfigureBigQueryAssessment(AssessmentConfigurator):
+    @classmethod
+    def _parse_project_region_pairs(cls, raw: str) -> list[dict[str, str]]:
+        """Parse `project.region, project.region, ...` into a list of {project, region} dicts.
+
+        Uses Google's fully-qualified resource-path convention
+        (https://cloud.google.com/iam/docs/full-resource-names#bigquery). Each token must
+        contain exactly one `.` with non-empty sides; empty tokens are ignored (so
+        trailing/duplicate commas are tolerated). Raises ValueError on malformed input —
+        the caller surfaces this to the user during interactive configuration.
+
+        GCP project IDs cannot contain `.`, so splitting on the single dot is unambiguous.
+        """
+        pairs: list[dict[str, str]] = []
+        for token in raw.split(","):
+            token = token.strip()
+            if not token:
+                continue
+            if token.count(".") != 1:
+                raise ValueError(f"Invalid project/region pair '{token}': expected exactly one '.' (e.g. proj-a.us)")
+            project, _, region = token.partition(".")
+            project, region = project.strip(), region.strip()
+            if not project or not region:
+                raise ValueError(f"Invalid project/region pair '{token}': both sides of '.' must be non-empty")
+            pairs.append({"project": project, "region": region})
+        if not pairs:
+            raise ValueError("At least one project/region pair is required (e.g. proj-a.us)")
+        return pairs
+
+    def _configure_credentials(self) -> str:
+        cred_file = self._credential_file
+        source = self._source_name
+
+        logger.info(
+            "\n(local | env) \nlocal means values are read as plain text \nenv means values are read "
+            "from environment variables fall back to plain text if not variable is not found\n",
+        )
+        secret_vault_type = str(self.prompts.choice("Enter secret vault type (local | env)", ["local", "env"])).lower()
+        secret_vault_name = None
+
+        logger.info("Please provide BigQuery connection settings:")
+        pairs_raw = self.prompts.question(
+            "Enter BigQuery project and region pairs "
+            "(Format: comma-separated project.region. Example: my-proj-a.us, my-proj-b.eu-west-1)"
+        )
+        pairs = self._parse_project_region_pairs(pairs_raw)
+
+        profiling_window_days = int(
+            self.prompts.question("Enter lookback window in days to profile", default="180", valid_number=True)
+        )
+        max_parallel_sqls = int(
+            self.prompts.question(
+                "Enter max parallel SQLs per (project, region) iteration", default="8", valid_number=True
+            )
+        )
+
+        logger.info("Please configure profiler settings:")
+        bigquery_profiler = {
+            "profiling_window_days": profiling_window_days,
+            "max_parallel_sqls": max_parallel_sqls,
+            "exclude_reservations_data": self.prompts.confirm("Exclude reservations and commitments data?"),
+            "exclude_streaming_metrics": self.prompts.confirm("Exclude streaming and write API summary?"),
+        }
+
+        credential = {
+            "secret_vault_type": secret_vault_type,
+            "secret_vault_name": secret_vault_name,
+            source: {
+                "pairs": pairs,
+                "profiler": bigquery_profiler,
+            },
+        }
+        _save_to_disk(credential, cred_file)
+
+        logger.info(f"Credential template created for {source}.")
+        return source
 
 
 def create_assessment_configurator(
@@ -198,7 +360,10 @@ def create_assessment_configurator(
     configurators: dict[str, ConfiguratorFactory] = {
         "mssql": ConfigureSqlServerAssessment,
         "synapse": ConfigureSynapseAssessment,
+        "snowflake": ConfigureSnowflakeAssessment,
         "legacy_synapse": ConfigureSqlServerAssessment,
+        "oracle": ConfigureOracleAssessment,
+        "bigquery": ConfigureBigQueryAssessment,
     }
 
     if source_system not in configurators:
