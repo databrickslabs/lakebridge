@@ -29,7 +29,7 @@ from databricks.labs.lakebridge.config import (
 )
 from databricks.labs.lakebridge.contexts.application import ApplicationContext
 from databricks.labs.lakebridge.reconcile.recon_capture import AbstractReconIntermediatePersist
-from databricks.labs.lakebridge.reconcile.recon_config import Table, Transformation
+from databricks.labs.lakebridge.reconcile.recon_config import JdbcReaderOptions, Table, Transformation
 
 logger = logging.getLogger(__name__)
 
@@ -71,6 +71,14 @@ TERADATA_CATALOG = "DBC"
 TERADATA_SCHEMA = "lf_test_user"
 TERADATA_TABLE = "diamonds"
 
+# Spark JDBC parallel read: numeric partition column + stride bounds (not row filters)
+DIAMONDS_JDBC_READER_OPTIONS = JdbcReaderOptions(
+    num_partitions=4,
+    partition_column="carat",
+    lower_bound="0.0",
+    upper_bound="1.0",
+    fetchsize=100,
+)
 
 @pytest.fixture
 def recon_catalog(make_catalog) -> str:
