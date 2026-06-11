@@ -52,6 +52,10 @@ dependencies = [
   "azure-mgmt-sql~=3.0.1",
   "azure-monitor-query~=1.4.0",
   "azure-synapse-artifacts~=0.20.0",
+  "google-cloud-bigquery>=3.0.0,<4",
+  "google-cloud-bigquery-storage>=2.0.0,<3",
+  "google-auth>=2.0.0,<3",
+  "db-dtypes>=1.0.0,<2",
 ]
 
 [project.urls]
