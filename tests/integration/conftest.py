@@ -1,4 +1,6 @@
+import inspect
 import logging
+import os
 from collections.abc import Generator
 from functools import cached_property
 from urllib.parse import urlparse
@@ -7,7 +9,7 @@ from uuid import UUID
 import pytest
 
 from databricks.labs.blueprint.paths import WorkspacePath
-from databricks.labs.blueprint.wheels import ProductInfo
+from databricks.labs.blueprint.wheels import ProductInfo, WheelsV2
 from databricks.labs.blueprint.installation import JsonObject
 from databricks.labs.lakebridge.__about__ import __version__
 from databricks.labs.lakebridge.connections.database_manager import DatabaseManager
@@ -21,6 +23,15 @@ logging.getLogger("databricks.labs.lakebridge").setLevel(logging.DEBUG)
 logging.getLogger("databricks.labs.pytester").setLevel(logging.DEBUG)
 
 logger = logging.getLogger(__name__)
+
+_VERBOSE_PIP_WHEEL = os.environ.get("LAKEBRIDGE_VERBOSE_PIP_WHEEL", "").lower() in ("1", "true", "yes")
+
+
+class VerboseProductInfo(ProductInfo):
+    """Use when `pip wheel` fails during install: shows build logs (Blueprint hides them by default)."""
+
+    def wheels(self, ws: WorkspaceClient) -> WheelsV2:
+        return WheelsV2(self.current_installation(ws), self, verbose=True)
 
 
 @pytest.fixture(scope="session")
@@ -47,6 +58,9 @@ class MockApplicationContext(ApplicationContext):
 
     @cached_property
     def product_info(self) -> ProductInfo:
+        if _VERBOSE_PIP_WHEEL:
+            logger.info("LAKEBRIDGE_VERBOSE_PIP_WHEEL: pip wheel stdout/stderr enabled for workspace install")
+            return VerboseProductInfo(inspect.getfile(ApplicationContext), product_name=ProductInfo._make_random(4))
         return ProductInfo.for_testing(ApplicationContext)
 
 

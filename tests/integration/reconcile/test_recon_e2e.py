@@ -41,7 +41,7 @@ def _debug_run_output(ctx: ApplicationContext, run_id: int) -> None:
         logger.exception("Failed to fetch run output")
 
 
-def _run_recon_e2e_spec(app_ctx: ApplicationContext):
+def _run_recon_e2e_spec(app_ctx: ApplicationContext) -> None:
     recon_runner = ReconcileRunner(
         app_ctx.workspace_client,
         app_ctx.install_state,
