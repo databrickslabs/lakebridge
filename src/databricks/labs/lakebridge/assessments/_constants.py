@@ -9,6 +9,7 @@ PLATFORM_TO_SOURCE_TECHNOLOGY_CFG = {
     "oracle": "src/databricks/labs/lakebridge/resources/assessments/oracle/pipeline_config.yml",
     "mssql": "src/databricks/labs/lakebridge/resources/assessments/mssql/pipeline_config.yml",
     "legacy_synapse": "src/databricks/labs/lakebridge/resources/assessments/legacy_synapse/pipeline_config.yml",
+    "bigquery": "src/databricks/labs/lakebridge/resources/assessments/bigquery/pipeline_config.yml",
 }
 
 PROFILER_SOURCE_SYSTEM = sorted(PLATFORM_TO_SOURCE_TECHNOLOGY_CFG.keys())
@@ -24,4 +25,5 @@ CONNECTOR_REQUIRED = {
     "snowflake": True,
     "legacy_synapse": True,
     "oracle": True,
+    "bigquery": False,
 }

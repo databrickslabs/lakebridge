@@ -1,0 +1,434 @@
+{
+    "fulfillment_analysis": {
+        "schema": {
+            "fields": [
+                {
+                    "name": "metadata_level",
+                    "type": "string"
+                },
+                {
+                    "name": "time_window",
+                    "type": "timestamp"
+                },
+                {
+                    "name": "workload_category",
+                    "type": "string"
+                },
+                {
+                    "name": "slots_requested",
+                    "type": "double"
+                },
+                {
+                    "name": "slots_fulfilled",
+                    "type": "double"
+                }
+            ]
+        }
+    },
+    "table_storage": {
+        "schema": {
+            "fields": [
+                {
+                    "name": "metadata_level",
+                    "type": "string"
+                },
+                {
+                    "name": "active_logical_tb",
+                    "type": "double"
+                },
+                {
+                    "name": "long_term_logical_tb",
+                    "type": "double"
+                },
+                {
+                    "name": "active_physical_tb",
+                    "type": "double"
+                },
+                {
+                    "name": "active_no_tt_physical_tb",
+                    "type": "double"
+                },
+                {
+                    "name": "long_term_physical_tb",
+                    "type": "double"
+                },
+                {
+                    "name": "time_travel_physical_tb",
+                    "type": "double"
+                },
+                {
+                    "name": "fail_safe_physical_tb",
+                    "type": "double"
+                },
+                {
+                    "name": "total_physical_tb_to_migrate",
+                    "type": "double"
+                },
+                {
+                    "name": "storage_billing_model",
+                    "type": "string"
+                },
+                {
+                    "name": "dataset_count",
+                    "type": "long"
+                }
+            ]
+        }
+    },
+    "timeline_analysis": {
+        "schema": {
+            "fields": [
+                {
+                    "name": "time_window",
+                    "type": "timestamp"
+                },
+                {
+                    "name": "metadata_level",
+                    "type": "string"
+                },
+                {
+                    "name": "workload_type",
+                    "type": "string"
+                },
+                {
+                    "name": "slot_secs",
+                    "type": "double"
+                },
+                {
+                    "name": "slots_avg",
+                    "type": "double"
+                },
+                {
+                    "name": "slots_perc_50th",
+                    "type": "double"
+                },
+                {
+                    "name": "slots_perc_90th",
+                    "type": "double"
+                },
+                {
+                    "name": "slots_perc_99th",
+                    "type": "double"
+                },
+                {
+                    "name": "slots_max",
+                    "type": "double"
+                },
+                {
+                    "name": "cumulative_secs_spent_in_exec",
+                    "type": "double"
+                }
+            ]
+        }
+    },
+    "workload_types": {
+        "schema": {
+            "fields": [
+                {
+                    "name": "total_jobs",
+                    "type": "integer"
+                },
+                {
+                    "name": "total_slot_hours",
+                    "type": "double"
+                },
+                {
+                    "name": "total_tb_processed",
+                    "type": "double"
+                },
+                {
+                    "name": "workload_type",
+                    "type": "string"
+                },
+                {
+                    "name": "metadata_level",
+                    "type": "string"
+                }
+            ]
+        }
+    },
+    "consumption_beyond_commitments": {
+        "schema": {
+            "fields": [
+                {
+                    "name": "metadata_level",
+                    "type": "string"
+                },
+                {
+                    "name": "edition",
+                    "type": "string"
+                },
+                {
+                    "name": "total_slot_seconds",
+                    "type": "double"
+                }
+            ]
+        }
+    },
+    "consumption_through_commitments": {
+        "schema": {
+            "fields": [
+                {
+                    "name": "metadata_level",
+                    "type": "string"
+                },
+                {
+                    "name": "edition",
+                    "type": "string"
+                },
+                {
+                    "name": "commitment_plan",
+                    "type": "string"
+                },
+                {
+                    "name": "total_slot_seconds",
+                    "type": "double"
+                }
+            ]
+        }
+    },
+    "commitment_changes": {
+        "schema": {
+            "fields": [
+                {
+                    "name": "metadata_level",
+                    "type": "string"
+                },
+                {
+                    "name": "change_timestamp",
+                    "type": "timestamp"
+                },
+                {
+                    "name": "capacity_commitment_id_hash",
+                    "type": "string"
+                },
+                {
+                    "name": "commitment_plan",
+                    "type": "string"
+                },
+                {
+                    "name": "state",
+                    "type": "string"
+                },
+                {
+                    "name": "slot_count",
+                    "type": "double"
+                },
+                {
+                    "name": "action",
+                    "type": "string"
+                },
+                {
+                    "name": "commitment_start_time",
+                    "type": "timestamp"
+                },
+                {
+                    "name": "commitment_end_time",
+                    "type": "timestamp"
+                },
+                {
+                    "name": "failure_status",
+                    "type": "string"
+                },
+                {
+                    "name": "renewal_plan",
+                    "type": "string"
+                },
+                {
+                    "name": "edition",
+                    "type": "string"
+                },
+                {
+                    "name": "is_flat_rate",
+                    "type": "boolean"
+                }
+            ]
+        }
+    },
+    "commitments": {
+        "schema": {
+            "fields": [
+                {
+                    "name": "metadata_level",
+                    "type": "string"
+                },
+                {
+                    "name": "capacity_commitment_id_hash",
+                    "type": "string"
+                },
+                {
+                    "name": "commitment_plan",
+                    "type": "string"
+                },
+                {
+                    "name": "state",
+                    "type": "string"
+                },
+                {
+                    "name": "slot_count",
+                    "type": "double"
+                },
+                {
+                    "name": "edition",
+                    "type": "string"
+                },
+                {
+                    "name": "is_flat_rate",
+                    "type": "boolean"
+                },
+                {
+                    "name": "renewal_plan",
+                    "type": "string"
+                }
+            ]
+        }
+    },
+    "jobs_timeline_by_reservations": {
+        "schema": {
+            "fields": [
+                {
+                    "name": "time_window_min",
+                    "type": "timestamp"
+                },
+                {
+                    "name": "period_slot_ms",
+                    "type": "double"
+                },
+                {
+                    "name": "slots",
+                    "type": "double"
+                },
+                {
+                    "name": "metadata_level",
+                    "type": "string"
+                },
+                {
+                    "name": "reservation_id_hash",
+                    "type": "string"
+                }
+            ]
+        }
+    },
+    "reservation_timeline_analysis": {
+        "schema": {
+            "fields": [
+                {
+                    "name": "metadata_level",
+                    "type": "string"
+                },
+                {
+                    "name": "period_start",
+                    "type": "timestamp"
+                },
+                {
+                    "name": "reservation_id_hash",
+                    "type": "string"
+                },
+                {
+                    "name": "slots_assigned",
+                    "type": "double"
+                },
+                {
+                    "name": "slots_max_assigned",
+                    "type": "double"
+                },
+                {
+                    "name": "autoscale_current_slots",
+                    "type": "double"
+                },
+                {
+                    "name": "autoscale_max_slots",
+                    "type": "double"
+                },
+                {
+                    "name": "ignore_idle_slots",
+                    "type": "boolean"
+                },
+                {
+                    "name": "edition",
+                    "type": "string"
+                }
+            ]
+        }
+    },
+    "streaming_summary": {
+        "schema": {
+            "fields": [
+                {
+                    "name": "metadata_level",
+                    "type": "string"
+                },
+                {
+                    "name": "start_timestamp",
+                    "type": "timestamp"
+                },
+                {
+                    "name": "total_requests",
+                    "type": "long"
+                },
+                {
+                    "name": "total_rows",
+                    "type": "long"
+                },
+                {
+                    "name": "total_input_bytes",
+                    "type": "double"
+                },
+                {
+                    "name": "quota_error",
+                    "type": "long"
+                },
+                {
+                    "name": "user_error",
+                    "type": "long"
+                },
+                {
+                    "name": "server_error",
+                    "type": "long"
+                },
+                {
+                    "name": "total_error",
+                    "type": "long"
+                }
+            ]
+        }
+    },
+    "write_api_summary": {
+        "schema": {
+            "fields": [
+                {
+                    "name": "metadata_level",
+                    "type": "string"
+                },
+                {
+                    "name": "start_timestamp",
+                    "type": "timestamp"
+                },
+                {
+                    "name": "total_requests",
+                    "type": "long"
+                },
+                {
+                    "name": "total_rows",
+                    "type": "long"
+                },
+                {
+                    "name": "total_input_bytes",
+                    "type": "double"
+                },
+                {
+                    "name": "user_error",
+                    "type": "long"
+                },
+                {
+                    "name": "server_error",
+                    "type": "long"
+                },
+                {
+                    "name": "total_error",
+                    "type": "long"
+                }
+            ]
+        }
+    }
+}
