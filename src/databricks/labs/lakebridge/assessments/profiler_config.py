@@ -59,7 +59,7 @@ class Step:
 
     def _validate_type(self) -> None:
         """Validate type is a recognized value."""
-        valid_types = {'sql', 'ddl', 'python'}
+        valid_types = {'sql', 'ddl', 'python', 'source_ddl'}
         if self.type not in valid_types:
             raise ValueError(
                 f"Invalid type '{self.type}' for step '{self.name}'. "
@@ -83,7 +83,7 @@ class PipelineConfig:
         active_steps = [s for s in self.steps if s.flag == "active"]
         first_ddl_index = next((i for i, s in enumerate(active_steps) if s.type == "ddl"), None)
         if first_ddl_index is not None and first_ddl_index > 0:
-            early_non_ddl = [s.name for s in active_steps[:first_ddl_index] if s.type != "ddl"]
+            early_non_ddl = [s.name for s in active_steps[:first_ddl_index] if s.type not in ("ddl", "source_ddl")]
             if early_non_ddl:
                 names = ", ".join(early_non_ddl)
                 logger.warning(

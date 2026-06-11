@@ -14,6 +14,7 @@ from databricks.labs.lakebridge.assessments import (
     PRODUCT_PATH_PREFIX,
     PLATFORM_TO_SOURCE_TECHNOLOGY_CFG,
     CONNECTOR_REQUIRED,
+    credentials_key,
 )
 
 logger = logging.getLogger(__name__)
@@ -31,10 +32,13 @@ class Profiler:
 
     @classmethod
     def create(cls, platform: str) -> "Profiler":
-        pipeline_config_path = PLATFORM_TO_SOURCE_TECHNOLOGY_CFG[platform]
-        pipeline_config_absolute_path = Profiler._locate_config(pipeline_config_path)
-        pipeline_config = Profiler.path_modifier(config_file=pipeline_config_absolute_path)
-        return cls(platform, pipeline_config)
+        platform_lower = platform.lower()
+        pipeline_config_path = PLATFORM_TO_SOURCE_TECHNOLOGY_CFG.get(platform_lower)
+        pipeline_config = None
+        if pipeline_config_path:
+            pipeline_config_absolute_path = Profiler._locate_config(pipeline_config_path)
+            pipeline_config = Profiler.path_modifier(config_file=pipeline_config_absolute_path)
+        return cls(platform_lower, pipeline_config)
 
     @staticmethod
     def path_modifier(*, config_file: str | Path, path_prefix: Path = PRODUCT_PATH_PREFIX) -> PipelineConfig:
@@ -59,6 +63,17 @@ class Profiler:
         resolved_creds_path = cred_file_path or cred_file()
         self._execute(platform, pipeline_config, resolved_output_folder, resolved_creds_path)
 
+    @staticmethod
+    def _pipeline_needs_connector(pipeline_config: PipelineConfig) -> bool:
+        """True if the pipeline has any active SQL or source_ddl step that requires a DatabaseManager.
+
+        Stricter than the per-platform ``CONNECTOR_REQUIRED`` flag: e.g. a Redshift pipeline
+        that runs only ``python`` extract scripts does not need live source credentials even
+        though ``CONNECTOR_REQUIRED["redshift_*"]`` is ``True``. The platform-level flag is
+        still consulted inside ``_setup_extractor`` for the final decision.
+        """
+        return any(step.flag == "active" and step.type in {"sql", "source_ddl"} for step in pipeline_config.steps)
+
     def _execute(
         self,
         platform: str,
@@ -67,7 +82,9 @@ class Profiler:
         cred_file_path: Path,
     ) -> None:
         try:
-            extractor = Profiler._setup_extractor(platform, cred_file_path)
+            extractor = None
+            if Profiler._pipeline_needs_connector(pipeline_config):
+                extractor = Profiler._setup_extractor(platform, cred_file_path)
 
             db_path = output_folder / make_profiler_db_filename(platform)
             result = PipelineClass(pipeline_config, extractor, db_path, cred_file_path).execute()
@@ -82,11 +99,11 @@ class Profiler:
 
     @staticmethod
     def _setup_extractor(platform: str, cred_file_path: Path | None = None) -> DatabaseManager | None:
-        if not CONNECTOR_REQUIRED[platform]:
+        if not CONNECTOR_REQUIRED.get(platform, False):
             return None
         cred_manager = create_credential_manager(PRODUCT_NAME, EnvGetter(), creds_path=cred_file_path)
-        connect_config = cred_manager.get_credentials(platform)
-        return DatabaseManager(platform, connect_config)
+        connect_config = cred_manager.get_credentials(credentials_key(platform))
+        return DatabaseManager(credentials_key(platform), connect_config)
 
     @staticmethod
     def _locate_config(config_path: str | Path) -> Path:
