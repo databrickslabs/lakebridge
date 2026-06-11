@@ -1,0 +1,159 @@
+---
+sidebar_position: 2
+title: Amazon Redshift Profiler Details
+---
+import Admonition from '@theme/Admonition';
+
+# Amazon Redshift Profiler Details
+
+- [Prerequisites](#prerequisites)
+- [Configure Connection to Redshift](#configure-connection-to-redshift)
+- [Run the profiler](#run-the-profiler)
+- [Profiler output and dashboards](#profiler-output-and-dashboards)
+
+## Prerequisites
+
+### 1. Environment
+
+- **Lakebridge CLI** installed and configured for your Databricks workspace (same as other profiler sources).
+
+### 2. Choose the Redshift deployment variant
+
+The profiler ships **three extract pipelines** — pick the one that matches your Redshift instance:
+
+| Variant | Use when |
+|--------|-----------|
+| **serverless** | Amazon Redshift Serverless |
+| **provisioned** | Single-AZ provisioned cluster |
+| **provisioned_multi_az** | Multi-AZ provisioned cluster |
+
+When you run `execute-database-profiler`, the CLI prompts you to select this variant so Lakebridge loads the correct SQL pipeline under `resources/assessments/redshift/<variant>/`.
+
+### 3. Network connectivity
+
+The machine running the profiler must reach the Redshift cluster **endpoint** (hostname) on the cluster port (default **5439**), subject to your security groups / VPC / routing rules.
+
+### 4. Authentication
+
+During configuration you choose an **authentication method** and where secrets are read from (**local**, **env**, or **file**):
+
+| Authentication method | Typical use |
+|----------------------|-------------|
+| **database_password** | Native database user and password |
+| **temporary_credentials_db_user** | Temporary credentials via AWS (`GetClusterCredentials`-style flows); wizard collects DB user for credential exchange (often `awsuser` for the master DB user path) |
+| **temporary_credentials_iam** | IAM-authenticated temporary credentials |
+| **federated_user** | Federated identity mapped through AWS → Redshift |
+
+For IAM-oriented methods you typically need:
+
+- **AWS credentials** available to the process (for example `AWS_PROFILE`, environment variables for keys, or instance/profile credentials).
+- **IAM permissions** allowing Amazon Redshift credential APIs appropriate for your setup (for example `redshift:GetClusterCredentials` where applicable).
+
+Use **`local`** to store plaintext values in `~/.databricks/labs/lakebridge/.credentials.yml`, **`env`** to substitute values from environment variables (with fallback), or **`file`** to reuse an existing credential file when it already contains valid Redshift entries.
+
+### 5. Database privileges
+
+The profiler connects as your configured user and runs read-only extracts. The pipeline includes **prepare** steps that create a helper view **`query_view`** in the database (via `CREATE OR REPLACE VIEW`). The connecting user therefore needs permission to:
+
+- **Create (and replace) views** in the target database used for profiling.
+- **Select** from the Amazon Redshift system relations used by the extracts (see below).
+
+**Provisioned clusters** (`provisioned` / `provisioned_multi_az`) — objects referenced by the bundled SQL include, among others:
+
+- `stl_query`, `stl_query_metrics`
+- `stv_node_storage_capacity`, `stv_partitions`
+- `sys_external_query_detail`
+
+**Serverless** (`serverless`) — examples include:
+
+- `sys_query_history`, `sys_query_detail`
+- `sys_external_query_detail`, `sys_serverless_usage`
+
+Exact object access is determined by Amazon Redshift documentation for your edition; grant **minimum read** access consistent with those views/tables.
+
+:::tip
+If you cannot grant broad catalog access, narrow to the relations used in the YAML pipeline for your variant under `resources/assessments/redshift/<variant>/` in the Lakebridge package.
+:::
+
+## Configure Connection to Redshift
+
+```bash
+databricks labs lakebridge configure-database-profiler
+```
+
+Select **redshift** when prompted for the source system. The wizard will ask for authentication method, credential source (`local` | `env` | `file`), and connection details — for password auth, for example:
+
+- Redshift cluster **endpoint** (host)
+- **Port** (default 5439)
+- **Database** name
+- **User** and **password**
+
+For temporary / federated IAM-style paths, expect prompts for the **DB user** used with `GetClusterCredentials` (default suggested: `awsuser`) and optionally an **AWS profile** name.
+
+Example-style transcript (values are illustrative):
+
+```console
+databricks labs lakebridge configure-database-profiler
+
+Please select the source system you want to configure
+[0] synapse
+[1] redshift
+Enter a number between 0 and 1: 1
+
+Redshift authentication: database_password, temporary_credentials_db_user,
+temporary_credentials_iam, or federated_user.
+
+Authentication method
+[0] database_password
+[1] temporary_credentials_db_user
+...
+Credential source (local | env | file)
+[0] local
+[1] env
+[2] file
+...
+
+Enter the Redshift cluster endpoint (host): mycluster.abc123.us-east-1.redshift.amazonaws.com
+Enter the port details (default: 5439): 5439
+Enter the database name: dev
+Enter the user details: profiler_reader
+Enter the password details: ********
+
+Do you want to test the connection to redshift? [y/n]: y
+```
+
+## Run the profiler
+
+After configuration and a successful connection test (optional):
+
+```bash
+databricks labs lakebridge execute-database-profiler --help
+```
+
+Run the profiler (interactive source selection):
+
+```bash
+databricks labs lakebridge execute-database-profiler
+```
+
+When **redshift** is selected, the CLI prompts for **Redshift variant**: `serverless`, `provisioned`, or `provisioned_multi_az`.
+
+You can pass the source explicitly where supported:
+
+```bash
+databricks labs lakebridge execute-database-profiler --source-tech redshift
+```
+
+Execution will:
+
+1. Load `pipeline_config.yml` for the chosen variant.
+2. Run **prepare** steps on the cluster (including creating/updating **`query_view`**).
+3. Run SQL extracts and persist results into **`profiler_extract.db`** (DuckDB) under the configured extract folder.
+
+## Profiler output and dashboards
+
+:::warning Attention:
+Coming Soon
+:::
+
+[Back to Configure Profiler](../#configure-profiler)
