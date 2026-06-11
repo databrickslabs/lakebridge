@@ -12,11 +12,7 @@ from databricks.labs.lakebridge.resources.assessments.common.sql_substituter imp
 
 def _fake_run_sql_for_iteration(sql_filename, _substitution_vars, _bq_client, project_region):
     df = pd.DataFrame(
-        {
-            "metadata_level": [project_region],
-            "active_logical_tb": [1.5],
-            "source": f"{project_region}_{sql_filename}"
-        }
+        {"metadata_level": [project_region], "active_logical_tb": [1.5], "source": f"{project_region}_{sql_filename}"}
     )
     return df, 0.01
 
