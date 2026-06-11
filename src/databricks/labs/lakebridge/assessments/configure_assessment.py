@@ -335,8 +335,6 @@ class ConfigureBigQueryAssessment(AssessmentConfigurator):
         bigquery_profiler = {
             "profiling_window_days": profiling_window_days,
             "max_parallel_sqls": max_parallel_sqls,
-            # Query text is always redacted in extracted data; not user-configurable.
-            "redact_query_text": True,
             "exclude_reservations_data": self.prompts.confirm("Exclude reservations and commitments data?"),
             "exclude_streaming_metrics": self.prompts.confirm("Exclude streaming and write API summary?"),
         }

@@ -204,11 +204,6 @@ def execute(
     profiling_window_days: int = int(profiler_cfg.get("profiling_window_days", 180))
     max_parallel_sqls: int = int(profiler_cfg.get("max_parallel_sqls", 8))
 
-    # `redact_query_text` is stored for future use; none of the 16 PR-1 SQL files emit a
-    # query_text column, so it is a no-op today. The flag is wired into the credentials
-    # schema now so the v2 object-metadata SQLs can pick it up without a schema change.
-    _ = profiler_cfg.get("redact_query_text", True)
-
     wall_clock_start = time.monotonic()
     try:
         sql_files = _select_sql_files(profiler_cfg)
