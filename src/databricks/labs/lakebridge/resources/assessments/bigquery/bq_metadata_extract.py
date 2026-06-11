@@ -163,10 +163,6 @@ def _empty_df_for_analysis_type(analysis_type: str, analysis_types: dict[str, An
         dtype = _BQ_TYPE_TO_PANDAS.get(f["type"].lower(), "object")
         columns[name] = pd.Series(dtype=dtype)
     if columns:
-        # Mirror the live extract path which appends a `source` column to every DataFrame
-        # (`_run_sql_for_iteration` line ~122). Without this, a previously-written empty stub
-        # (N cols) blocks a subsequent real-data write (N+1 cols) with a DuckDB Binder Error
-        # on TRUNCATE + INSERT.
         columns["source"] = pd.Series(dtype="object")
         return pd.DataFrame(columns)
     return pd.DataFrame()
