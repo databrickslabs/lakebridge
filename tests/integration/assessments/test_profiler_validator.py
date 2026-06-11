@@ -7,7 +7,6 @@ import duckdb
 import pytest
 
 from databricks.labs.lakebridge.assessments.profiler_validator import (
-    get_profiler_extract_path,
     EmptyTableValidationCheck,
     build_validation_report,
     NullValidationCheck,

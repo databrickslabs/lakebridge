@@ -8,8 +8,11 @@ REDSHIFT_VARIANTS = ("serverless", "provisioned", "provisioned_multi_az")
 
 PLATFORM_TO_SOURCE_TECHNOLOGY_CFG = {
     "synapse": "src/databricks/labs/lakebridge/resources/assessments/synapse/pipeline_config.yml",
+    "snowflake": "src/databricks/labs/lakebridge/resources/assessments/snowflake/pipeline_config.yml",
+    "oracle": "src/databricks/labs/lakebridge/resources/assessments/oracle/pipeline_config.yml",
     "mssql": "src/databricks/labs/lakebridge/resources/assessments/mssql/pipeline_config.yml",
     "legacy_synapse": "src/databricks/labs/lakebridge/resources/assessments/legacy_synapse/pipeline_config.yml",
+    "bigquery": "src/databricks/labs/lakebridge/resources/assessments/bigquery/pipeline_config.yml",
     **{
         f"redshift_{variant}": (
             f"src/databricks/labs/lakebridge/resources/assessments/redshift/{variant}/pipeline_config.yml"
@@ -18,13 +21,7 @@ PLATFORM_TO_SOURCE_TECHNOLOGY_CFG = {
     },
 }
 
-# TODO modify this PLATFORM_TO_SOURCE_TECHNOLOGY.keys() once all platforms are supported
-PROFILER_SOURCE_SYSTEM = [
-    "synapse",
-    "mssql",
-    "legacy_synapse",
-    *(f"redshift_{variant}" for variant in REDSHIFT_VARIANTS),
-]
+PROFILER_SOURCE_SYSTEM = sorted(PLATFORM_TO_SOURCE_TECHNOLOGY_CFG.keys())
 
 
 # This flag indicates whether a connector is required for the source system when pipeline is trigger
@@ -34,7 +31,10 @@ PROFILER_SOURCE_SYSTEM = [
 CONNECTOR_REQUIRED = {
     "synapse": False,
     "mssql": True,
+    "snowflake": True,
     "legacy_synapse": True,
+    "oracle": True,
+    "bigquery": False,
     **{f"redshift_{variant}": True for variant in REDSHIFT_VARIANTS},
 }
 

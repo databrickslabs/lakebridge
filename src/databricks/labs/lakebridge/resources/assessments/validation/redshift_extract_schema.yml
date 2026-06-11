@@ -1,0 +1,104 @@
+source_tech: redshift
+version: 0.1
+
+schemas:
+  main:
+    tables:
+      query_view:
+        columns:
+          - name: user_id
+            type: BIGINT
+          - name: query_id
+            type: BIGINT
+          - name: query_text
+            type: VARCHAR
+          - name: start_time
+            type: TIMESTAMP
+          - name: end_time
+            type: TIMESTAMP
+          - name: query_group
+            type: VARCHAR
+          - name: query_type
+            type: VARCHAR
+      rs_spectrum_tb_month:
+        columns:
+          - name: set_name
+            type: VARCHAR
+          - name: s3_scanned_tb_month
+            type: DOUBLE
+          - name: avg_daily_scanned_tb
+            type: DOUBLE
+      rs_managed_storage_gb:
+        columns:
+          - name: set_name
+            type: VARCHAR
+          - name: rs_managed_storage_gb
+            type: DOUBLE
+      rs_nodes:
+        columns:
+          - name: set_name
+            type: VARCHAR
+          - name: rs_nodes_type
+            type: VARCHAR
+          - name: rs_number_of_nodes
+            type: BIGINT
+          - name: compute_seconds
+            type: BIGINT
+      rs_avg_concurrent_users:
+        columns:
+          - name: set_name
+            type: VARCHAR
+          - name: avg_concurrent_users
+            type: BIGINT
+      rs_avg_queries_minute:
+        columns:
+          - name: set_name
+            type: VARCHAR
+          - name: avg_queries_minute
+            type: DOUBLE
+      chart_query_type_by_hour:
+        columns:
+          - name: set_name
+            type: VARCHAR
+          - name: query_type
+            type: VARCHAR
+          - name: hour
+            type: BIGINT
+          - name: count
+            type: BIGINT
+      chart_cpu_consumption_by_query_type:
+        columns:
+          - name: set_name
+            type: VARCHAR
+          - name: query_type
+            type: VARCHAR
+          - name: sum_cpu_time
+            type: BIGINT
+      chart_concurrent_users_by_hour:
+        columns:
+          - name: set_name
+            type: VARCHAR
+          - name: distinct_users
+            type: BIGINT
+          - name: hour
+            type: BIGINT
+      chart_cpu_consumption_by_hour_and_query_type:
+        columns:
+          - name: set_name
+            type: VARCHAR
+          - name: query_type
+            type: VARCHAR
+          - name: sum_cpu_time
+            type: BIGINT
+          - name: hour
+            type: BIGINT
+      cost_incurred:
+        columns:
+          - name: set_name
+            type: VARCHAR
+          - name: day
+            type: DATE
+          - name: seconds_charged
+            type: DOUBLE
+          - name: cost_incurred
+            type: DOUBLE

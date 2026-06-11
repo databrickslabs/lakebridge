@@ -4,7 +4,7 @@ import shutil
 import yaml
 import pytest
 
-from databricks.labs.lakebridge.assessments.pipeline import PipelineClass
+from databricks.labs.lakebridge.assessments.pipeline import PipelineClass, make_profiler_db_filename
 from databricks.labs.lakebridge.assessments.profiler import Profiler
 
 # Config file names for script-based execution tests (no live DB)
@@ -12,6 +12,7 @@ PLATFORM_MAIN_CONFIG = {
     "synapse": "pipeline_config_main.yml",
     "redshift_provisioned": "pipeline_config_main_redshift.yml",
 }
+
 PLATFORM_EXTRACT_SCRIPT = {
     "synapse": "db_extract.py",
     "redshift_provisioned": "db_extract_redshift.py",
@@ -21,43 +22,32 @@ _TEST_PLATFORMS = ["synapse", "redshift_provisioned"]
 
 
 @pytest.mark.parametrize("platform", _TEST_PLATFORMS)
-def test_supported_source_technologies(platform: str) -> None:
-    """Test that supported source technologies are correctly returned"""
-    profiler = Profiler(platform, None)
-    supported_platforms = profiler.supported_platforms()
-    assert isinstance(supported_platforms, list)
-    assert platform in supported_platforms
-
-
-@pytest.mark.parametrize("platform", _TEST_PLATFORMS)
 def test_profile_missing_platform_config(platform: str) -> None:
-    """Test that profiling without config raises ValueError"""
+    """Constructing Profiler directly with no pipeline_config and no override raises."""
     with pytest.raises(ValueError, match=f"Cannot Proceed without a valid pipeline configuration for {platform}"):
-        profiler = Profiler(platform, None)
+        profiler = Profiler(platform)
         profiler.profile()
 
 
 @pytest.mark.parametrize("platform", _TEST_PLATFORMS)
 def test_profile_execution(platform: str, test_resources: Path, tmp_path: Path) -> None:
     """Test successful profiling execution using script-based pipeline (no live DB)"""
-    profiler = Profiler(platform)
     config_file = test_resources / "assessments" / PLATFORM_MAIN_CONFIG[platform]
-    extract_folder = tmp_path / "profiler_main"
-    config = profiler.path_modifier(config_file=config_file, path_prefix=test_resources).copy(
-        extract_folder=str(extract_folder)
-    )
-    profiler.profile(pipeline_config=config)
-    assert (extract_folder / "profiler_extract.db").exists(), "Profiler extract database should be created"
+    output_folder = tmp_path / "profiler_main"
+    profiler = Profiler(platform)
+    config = Profiler.path_modifier(config_file=config_file, path_prefix=test_resources)
+    profiler.profile(pipeline_config=config, output_folder=output_folder)
+    assert (output_folder / make_profiler_db_filename(platform)).exists(), "Profiler extract database should be created"
 
 
 @pytest.mark.parametrize("platform", _TEST_PLATFORMS)
-def test_profile_execution_with_invalid_config(platform: str, test_resources: Path) -> None:
+def test_profile_execution_with_invalid_config(platform: str, test_resources: Path, tmp_path: Path) -> None:
     """Test profiling execution with invalid configuration"""
     profiler = Profiler(platform)
     with pytest.raises(FileNotFoundError):
         config_file = test_resources / "assessments" / "invalid_pipeline_config.yml"
-        pipeline_config = profiler.path_modifier(config_file=config_file, path_prefix=test_resources)
-        profiler.profile(pipeline_config=pipeline_config)
+        pipeline_config = Profiler.path_modifier(config_file=config_file, path_prefix=test_resources)
+        profiler.profile(pipeline_config=pipeline_config, output_folder=tmp_path / "out")
 
 
 @pytest.mark.parametrize("platform", _TEST_PLATFORMS)
@@ -65,7 +55,8 @@ def test_profile_execution_config_override(platform: str, test_resources: Path, 
     """Test successful profiling execution with config file override (script-based, no live DB)"""
     config_dir = tmp_path / "config_dir"
     config_dir.mkdir()
-    extract_folder = tmp_path / "profiler_absolute"
+    output_folder = tmp_path / "profiler_absolute"
+    # Copy the YAML file and per-platform Python script into the temp directory
     config_file_src = test_resources / "assessments" / "pipeline_config_absolute.yml"
     config_file_dest = config_dir / config_file_src.name
     script_src = test_resources / "assessments" / PLATFORM_EXTRACT_SCRIPT[platform]
@@ -74,7 +65,6 @@ def test_profile_execution_config_override(platform: str, test_resources: Path, 
 
     with open(config_file_src, "r", encoding="utf-8") as file:
         config_data = yaml.safe_load(file)
-    config_data["extract_folder"] = str(extract_folder)
     for step in config_data["steps"]:
         step["extract_source"] = str(script_dest)
     with open(config_file_dest, "w", encoding="utf-8") as file:
@@ -82,5 +72,5 @@ def test_profile_execution_config_override(platform: str, test_resources: Path, 
 
     profiler = Profiler(platform)
     pipeline_config = PipelineClass.load_config_from_yaml(config_file_dest)
-    profiler.profile(pipeline_config=pipeline_config)
-    assert (extract_folder / "profiler_extract.db").exists(), "Profiler extract database should be created"
+    profiler.profile(pipeline_config=pipeline_config, output_folder=output_folder)
+    assert (output_folder / make_profiler_db_filename(platform)).exists(), "Profiler extract database should be created"

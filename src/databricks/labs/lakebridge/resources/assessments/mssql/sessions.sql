@@ -21,5 +21,5 @@ SELECT   session_id,
          Db_name(database_id) AS db_name,
          Sysdatetime()        AS extract_ts
 FROM     sys.dm_exec_sessions
-WHERE    is_user_process <> 0 {predicate}
+WHERE    is_user_process <> 0
 ORDER BY last_request_end_time

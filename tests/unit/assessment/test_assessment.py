@@ -3,6 +3,7 @@ import yaml
 from databricks.labs.blueprint.tui import MockPrompts
 from databricks.labs.lakebridge.assessments.configure_assessment import (
     create_assessment_configurator,
+    ConfigureBigQueryAssessment,
     ConfigureRedshiftAssessment,
     ConfigureSqlServerAssessment,
     ConfigureSynapseAssessment,
@@ -19,6 +20,7 @@ def test_configure_sqlserver_credentials(tmp_path):
             r"Enter the port details": "1433",
             r"Enter the SQL username": "TEST_TSQL_USER",
             r"Enter the SQL password": "TEST_TSQL_PASS",
+            r"Trust server certificate": "no",
             r"Do you want to test the connection to mssql?.*": "no",
             r"Enter fetch size": "4000",
             r"Enter timezone.*": "UTC",
@@ -45,6 +47,7 @@ def test_configure_sqlserver_credentials(tmp_path):
             'server': 'URL',
             'tz_info': 'UTC',
             'user': 'TEST_TSQL_USER',
+            'trust_server_certificate': False,
         },
     }
 
@@ -120,6 +123,47 @@ def test_configure_synapse_credentials(tmp_path):
     assert credentials == expected_credentials
 
 
+def test_configure_bigquery_credentials(tmp_path):
+    prompts = MockPrompts(
+        {
+            r"Enter secret vault type \(local \| env\)": sorted(['local', 'env']).index("local"),
+            r"Enter BigQuery project and region pairs.*": "customer-prod-1.us, customer-admin.eu",
+            r"Enter lookback window in days to profile": "180",
+            r"Enter max parallel SQLs per.*": "8",
+            r"Exclude reservations and commitments data\?": "no",
+            r"Exclude streaming and write API summary\?": "no",
+            r"Do you want to test the connection to bigquery\?": "no",
+        }
+    )
+    file = tmp_path / ".credentials.yml"
+    assessment = ConfigureBigQueryAssessment(
+        product_name="lakebridge", source_name="bigquery", prompts=prompts, credential_file=file
+    )
+    assessment.run()
+
+    expected_credentials = {
+        'secret_vault_type': 'local',
+        'secret_vault_name': None,
+        'bigquery': {
+            'pairs': [
+                {'project': 'customer-prod-1', 'region': 'us'},
+                {'project': 'customer-admin', 'region': 'eu'},
+            ],
+            'profiler': {
+                'profiling_window_days': 180,
+                'max_parallel_sqls': 8,
+                'exclude_reservations_data': False,
+                'exclude_streaming_metrics': False,
+            },
+        },
+    }
+
+    with open(file, 'r', encoding='utf-8') as file:
+        credentials = yaml.safe_load(file)
+
+    assert credentials == expected_credentials
+
+
 def test_create_assessment_configurator():
     prompts = MockPrompts({})
 
@@ -140,6 +184,12 @@ def test_create_assessment_configurator():
         source_system="legacy_synapse", product_name="lakebridge", prompts=prompts
     )
     assert isinstance(legacy_synapse_configurator, ConfigureSqlServerAssessment)
+
+    # Test BigQuery configurator
+    bigquery_configurator = create_assessment_configurator(
+        source_system="bigquery", product_name="lakebridge", prompts=prompts
+    )
+    assert isinstance(bigquery_configurator, ConfigureBigQueryAssessment)
 
     # Test invalid source system
     try:

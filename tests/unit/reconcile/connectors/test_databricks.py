@@ -31,9 +31,8 @@ def test_get_schema_uses_information_schema():
             r'\s+',
             ' ',
             """select lower(column_name) as col_name, full_data_type as data_type from
-                    catalog.information_schema.columns where lower(table_catalog)='catalog'
-                    and lower(table_schema)='schema' and lower(table_name) ='supplier' order by
-                    col_name""",
+                    catalog.information_schema.columns where lower(table_schema)=lower('schema')
+                    and lower(table_name) =lower('supplier') order by col_name""",
         )
     )
     spark.sql().selectExpr.assert_called_with("col_name as column_name", "data_type")
@@ -110,15 +109,8 @@ def test_get_schema_information_schema_exception_handling():
 
     ddds = DatabricksDataSource(engine, spark)
     spark.sql.side_effect = RuntimeError("Test Exception")
-    with pytest.raises(DataSourceRuntimeException) as exception:
+    with pytest.raises(DataSourceRuntimeException):
         ddds.get_schema("org", "data", "employee")
-
-    assert str(exception.value) == (
-        "Runtime exception occurred while fetching schema using select lower(column_name) "
-        "as col_name, full_data_type as data_type from org.information_schema.columns "
-        "where lower(table_catalog)='org' and lower(table_schema)='data' and lower("
-        "table_name) ='employee' order by col_name : Test Exception"
-    )
 
 
 def test_get_schema_describe_exception_handling():

@@ -15,6 +15,13 @@ from databricks.labs.lakebridge.reconcile.recon_config import JdbcReaderOptions,
 logger = logging.getLogger(__name__)
 
 
+def _row_attr(row, *names: str) -> str:
+    for name in names:
+        if hasattr(row, name):
+            return getattr(row, name)
+    raise AttributeError(f"Row has none of the expected attributes: {names}")
+
+
 def _get_describe_query(catalog: str, schema: str, table: str):
     if schema == "global_temp":
         return f"describe table global_temp.{table}"
@@ -26,9 +33,8 @@ def _get_information_schema_query(catalog: str, schema: str, table: str):
                             lower(column_name) as col_name,
                              full_data_type as data_type
                        from {catalog}.information_schema.columns
-                       where lower(table_catalog)='{catalog}'
-                                    and lower(table_schema)='{schema}'
-                                     and lower(table_name) ='{table}'
+                       where lower(table_schema)=lower('{schema}')
+                         and lower(table_name) =lower('{table}')
                        order by col_name"""
     return re.sub(r'\s+', ' ', query)
 
@@ -92,6 +98,24 @@ class DatabricksDataSource(DataSource):
             return [self._map_meta_column(field, normalize) for field in schema_metadata]
         except (RuntimeError, PySparkException) as e:
             return self.log_and_throw_exception(e, "schema", schema_query)
+
+    def list_schemas(self, catalog: str) -> list[str]:
+        catalog_str = catalog if catalog else "hive_metastore"
+        query = f"SHOW SCHEMAS IN {catalog_str}"
+        try:
+            rows = self._spark.sql(query).collect()
+            return [_row_attr(row, "databaseName", "schema_name", "namespace") for row in rows]
+        except (RuntimeError, PySparkException) as e:
+            return self.log_and_throw_exception(e, "schemas", query)
+
+    def list_tables(self, catalog: str, schema: str) -> list[str]:
+        catalog_str = catalog if catalog else "hive_metastore"
+        query = f"SHOW TABLES IN {catalog_str}.{schema}"
+        try:
+            rows = self._spark.sql(query).collect()
+            return [_row_attr(row, "tableName", "table_name") for row in rows]
+        except (RuntimeError, PySparkException) as e:
+            return self.log_and_throw_exception(e, "tables", query)
 
     def normalize_identifier(self, identifier: str) -> NormalizedIdentifier:
         return DialectUtils.normalize_identifier(
