@@ -1,6 +1,5 @@
 name: redshift_assessment_provisioned
 version: "1.0"
-extract_folder: "/tmp/data/redshift_assessment/provisioned"
 steps:
   - name: drop_query_view
     type: source_ddl
