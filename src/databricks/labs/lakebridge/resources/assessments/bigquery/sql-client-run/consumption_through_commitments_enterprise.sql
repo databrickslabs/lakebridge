@@ -23,11 +23,11 @@ are the only variables that you need to set in the script.
 During daylight savings time, the start_time and end_time variables should
 follow this format: 2024-02-20 00:00:00-08. */
 
-SET profiling_window_in_days = 180;
+SET profiling_window_in_days = {{profiling_window_in_days}};
 SET start_time = current_timestamp() - INTERVAL profiling_window_in_days DAY;
 SET end_time = current_timestamp();
 SET edition_to_check = 'ENTERPRISE';
-SET metadatalevel = 'my-gcp-project.region-us';
+SET metadatalevel = '{{project_region}}';
 
 /* The following function returns the slot seconds for the time window between
 two capacity changes. For example, if there are 100 slots between (2023-06-01
@@ -101,7 +101,7 @@ WITH
         change_timestamp)
         next_plan_change_timestamp
     FROM
-      `my-gcp-project.region-us.INFORMATION_SCHEMA.CAPACITY_COMMITMENT_CHANGES_BY_PROJECT`
+      `{{project_region}}.INFORMATION_SCHEMA.CAPACITY_COMMITMENT_CHANGES_BY_PROJECT`
   ),
 
   /*
@@ -140,7 +140,7 @@ WITH
     FROM commitments_with_next_plan
     WHERE commitment_plan <> next_plan
     UNION ALL
-    SELECT * FROM `my-gcp-project.region-us.INFORMATION_SCHEMA.CAPACITY_COMMITMENT_CHANGES_BY_PROJECT`
+    SELECT * FROM `{{project_region}}.INFORMATION_SCHEMA.CAPACITY_COMMITMENT_CHANGES_BY_PROJECT`
   ),
 
   /*

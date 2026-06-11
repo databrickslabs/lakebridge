@@ -21,31 +21,24 @@
 -- to LOGICAL (BQ default). The post-analysis job applies the per-region rate
 -- to the right bytes for each model.
 
-DECLARE metadatalevel STRING DEFAULT 'region-us';
-
--- SET metadatalevel to the format <project>.<region>
-SET metadatalevel = 'my-gcp-project.region-us';
-
-EXECUTE IMMEDIATE
-FORMAT("""
 WITH dataset_billing_model AS (
   SELECT
     schema_name,
     COALESCE(
-      REGEXP_EXTRACT(ddl, r'''storage_billing_model\\s*=\\s*['"]?([^'",\\s)]+)'''),
+      REGEXP_EXTRACT(ddl, r'''storage_billing_model\s*=\s*['"]?([^'",\s)]+)'''),
       'LOGICAL'
     ) AS storage_billing_model
-  FROM `%s`.INFORMATION_SCHEMA.SCHEMATA
+  FROM `{{project_region}}`.INFORMATION_SCHEMA.SCHEMATA
 ),
 table_storage_with_model AS (
   SELECT ts.*, COALESCE(dbm.storage_billing_model, 'LOGICAL') AS storage_billing_model
-  FROM `%s`.INFORMATION_SCHEMA.TABLE_STORAGE ts
+  FROM `{{project_region}}`.INFORMATION_SCHEMA.TABLE_STORAGE ts
   LEFT JOIN dataset_billing_model dbm ON ts.table_schema = dbm.schema_name
   WHERE ts.total_physical_bytes > 0
     AND ts.table_type IN ('BASE TABLE', 'MATERIALIZED VIEW')
 )
 SELECT
-    @metadatalevel as metadatalevel,
+    '{{project_region}}' as metadatalevel,
     SUM(IF(deleted=false, active_logical_bytes, 0)) / power(1024, 4) AS active_logical_tb,
     SUM(IF(deleted=false, long_term_logical_bytes, 0)) / power(1024, 4) AS long_term_logical_tb,
     SUM(active_physical_bytes) / power(1024, 4) AS active_physical_tb,
@@ -60,7 +53,4 @@ SELECT
     COUNT(DISTINCT table_schema) AS dataset_count
 FROM table_storage_with_model
 GROUP BY metadatalevel, storage_billing_model
-ORDER BY storage_billing_model;""",
-metadatalevel, metadatalevel)
-USING
-metadatalevel AS metadatalevel
+ORDER BY storage_billing_model;

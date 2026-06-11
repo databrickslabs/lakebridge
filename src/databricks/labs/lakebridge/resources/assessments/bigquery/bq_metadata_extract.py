@@ -1,26 +1,5 @@
-"""
-Step 1 of the Lakebridge BigQuery profiler pipeline.
-
-Reads BQ profiling SQL templates from package resources, runs each against the customer's
-BigQuery project(s) and region(s), and writes the merged results into a local DuckDB file.
-The DuckDB file is later uploaded to a UC volume and ingested into Delta tables by the
-existing source-tech-agnostic deployment path.
-
-Two-level execution:
-  * Serial across (project, region) — each iteration uses its own bigquery.Client (the
-    region/location is per-client). A failure in a single pair (e.g. a missing IAM grant or
-    an unreadable region) is logged and skipped so the remaining pairs still complete; each
-    pair's outcome is reported in the final JSON payload's `pairs` array. Only if every pair
-    fails does the step report a top-level error.
-  * Parallel across the 16 SQL files within each iteration via a ThreadPoolExecutor of
-    `max_parallel_sqls` workers (default 8). Per-SQL DataFrames accumulate in memory and
-    are concat-ed + overwritten to DuckDB once at the end — no partial state on crash,
-    re-runs are idempotent.
-"""
-
 import importlib.resources as pkg_resources
 import json
-import logging
 import sys
 import threading
 import time
@@ -35,14 +14,12 @@ from databricks.labs.lakebridge.assessments import PRODUCT_NAME
 from databricks.labs.lakebridge.connections.credential_manager import CredentialManager, create_credential_manager
 from databricks.labs.lakebridge.connections.env_getter import EnvGetter
 from databricks.labs.lakebridge.resources.assessments.bigquery.common.functions import create_bigquery_client
-from databricks.labs.lakebridge.resources.assessments.bigquery.common.sql_substituter import SqlSubstituter
+from databricks.labs.lakebridge.resources.assessments.common.sql_substituter import substitute
+from databricks.labs.blueprint.entrypoint import get_logger
 from databricks.labs.lakebridge.resources.assessments.common.cli import arguments_loader
 from databricks.labs.lakebridge.resources.assessments.common.duckdb_helpers import save_to_duckdb
 
-# Use the canonical dotted name (not `__name__`, which is `"__main__"` when this script is
-# invoked as the entrypoint by pipeline.py or `python -m ...`). That keeps the logger inside
-# the `databricks.*` namespace that `initialize_logging()` sets to INFO.
-logger = logging.getLogger("databricks.labs.lakebridge.resources.assessments.bigquery.bq_metadata_extract")
+logger = get_logger(__file__)
 
 # Logical analysis_type → list of SQL files that feed it. Derived 1:1 from analysis_types.json
 # except for consumption_{beyond,through}_commitments which fan in 3 variant files each.
@@ -100,7 +77,7 @@ def _select_sql_files(profiler_cfg: dict[str, Any]) -> list[str]:
 
 def _run_sql_for_iteration(
     sql_filename: str,
-    sql_substituter: SqlSubstituter,
+    substitution_vars: dict[str, Any],
     bq_client: Any,
     project_region: str,
 ) -> tuple[str, pd.DataFrame, float]:
@@ -110,7 +87,7 @@ def _run_sql_for_iteration(
     query + result download, surfaced to the caller for per-SQL progress logging.
     """
     raw_sql = _load_resource_text("sql-client-run", sql_filename)
-    compiled_sql = sql_substituter.substitute(sql_filename, raw_sql)
+    compiled_sql = substitute(raw_sql, substitution_vars)
     logger.debug(f"Running {sql_filename} for {project_region}")
     start = time.monotonic()
     df = bq_client.query(compiled_sql).to_dataframe()
@@ -125,7 +102,6 @@ def _run_iteration(
     project_id: str,
     region: str,
     sql_files: list[str],
-    substitutions: list[dict[str, Any]],
     profiling_window_days: int,
     max_parallel_sqls: int,
     accumulators: dict[str, list[pd.DataFrame]],
@@ -134,11 +110,10 @@ def _run_iteration(
 ) -> None:
     project_region = f"{project_id}.region-{region}"
     bq_client = bigquery_client_factory(project_id, region)
-    sql_substituter = SqlSubstituter(
-        substitutions,
-        project_region=project_region,
-        profiling_window_in_days=profiling_window_days,
-    )
+    substitution_vars: dict[str, Any] = {
+        "project_region": project_region,
+        "profiling_window_in_days": profiling_window_days,
+    }
 
     iter_start = time.monotonic()
     iter_rows = 0
@@ -147,7 +122,7 @@ def _run_iteration(
     with ThreadPoolExecutor(max_workers=max_parallel_sqls) as executor:
         future_to_file = {
             executor.submit(
-                _run_sql_for_iteration, sql_filename, sql_substituter, bq_client, project_region
+                _run_sql_for_iteration, sql_filename, substitution_vars, bq_client, project_region
             ): sql_filename
             for sql_filename in sql_files
         }
@@ -243,7 +218,6 @@ def execute(
         if not sql_files:
             raise RuntimeError("All SQL files excluded by config; nothing to extract.")
 
-        substitutions = json.loads(_load_resource_text("common", "substitutions.json"))
         analysis_types = json.loads(_load_resource_text("common", "analysis_types.json"))
 
         accumulators: dict[str, list[pd.DataFrame]] = {at: [] for at in set(SQL_FILE_TO_ANALYSIS_TYPE.values())}
@@ -258,7 +232,6 @@ def execute(
                     project_id=project_id,
                     region=region,
                     sql_files=sql_files,
-                    substitutions=substitutions,
                     profiling_window_days=profiling_window_days,
                     max_parallel_sqls=max_parallel_sqls,
                     accumulators=accumulators,

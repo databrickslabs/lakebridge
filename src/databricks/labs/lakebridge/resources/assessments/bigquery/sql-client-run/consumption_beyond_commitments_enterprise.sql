@@ -33,11 +33,11 @@ are the only variables that you need to set in the script.
 During daylight savings time, the start_time and end_time variables should
 follow this format: 2024-02-20 00:00:00-08. */
 
-SET profiling_window_in_days = 180;
+SET profiling_window_in_days = {{profiling_window_in_days}};
 SET start_time = current_timestamp() - INTERVAL profiling_window_in_days DAY;
 SET end_time = current_timestamp();
 SET edition_to_check = 'ENTERPRISE';
-SET metadatalevel = 'my-gcp-project.region-us';
+SET metadatalevel = '{{project_region}}';
 
 /*
 The following function returns the slot seconds for the time window between
@@ -168,7 +168,7 @@ WITH
         END
         AS baseline_slot_delta,
     FROM
-      `my-gcp-project.region-us.INFORMATION_SCHEMA.RESERVATION_CHANGES`
+      `{{project_region}}.INFORMATION_SCHEMA.RESERVATION_CHANGES`
     WHERE
       UPPER(edition) = edition_to_check
       AND change_timestamp <= end_time
@@ -238,7 +238,7 @@ WITH
         END
         AS slot_count_delta
     FROM
-      `my-gcp-project.region-us.INFORMATION_SCHEMA.CAPACITY_COMMITMENT_CHANGES_BY_PROJECT`
+      `{{project_region}}.INFORMATION_SCHEMA.CAPACITY_COMMITMENT_CHANGES_BY_PROJECT`
     WHERE
       state = "ACTIVE"
       AND UPPER(edition) = edition_to_check

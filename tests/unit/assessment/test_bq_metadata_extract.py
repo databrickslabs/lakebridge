@@ -19,7 +19,7 @@ from databricks.labs.lakebridge.resources.assessments.bigquery import bq_metadat
 from databricks.labs.lakebridge.resources.assessments.bigquery.bq_metadata_extract import (
     SQL_FILE_TO_ANALYSIS_TYPE,
 )
-from databricks.labs.lakebridge.resources.assessments.bigquery.common.sql_substituter import SqlSubstituter
+from databricks.labs.lakebridge.resources.assessments.common.sql_substituter import substitute
 
 
 def _canned_df_for(sql_filename: str, project_region: str) -> pd.DataFrame:
@@ -35,7 +35,7 @@ def _canned_df_for(sql_filename: str, project_region: str) -> pd.DataFrame:
     return df
 
 
-def _fake_run_sql_for_iteration(sql_filename, _sql_substituter, _bq_client, project_region):
+def _fake_run_sql_for_iteration(sql_filename, _substitution_vars, _bq_client, project_region):
     """Stand-in for `bq_metadata_extract._run_sql_for_iteration` that skips BQ entirely.
 
     Mirrors the production function's responsibilities that matter at the test boundary:
@@ -169,29 +169,33 @@ def test_exclude_reservations_data_yields_empty_reservation_tables(monkeypatch, 
     assert _row_count(db_path, "workload_types") > 0
 
 
-def test_sql_substituter_substitutes_project_region():
-    substitutions = [
-        {
-            "file_path": "sql-client-run/fulfillment_analysis.sql",
-            "substitutions": [
-                {
-                    "search_text": "SET metadatalevel = 'my-gcp-project.region-us';",
-                    "find_text": "my-gcp-project.region-us",
-                    "replace_with_var": "project_region",
-                },
-            ],
-        },
-    ]
-    raw_sql = "SET metadatalevel = 'my-gcp-project.region-us';\nSELECT 1;\n"
-    sql_substituter = SqlSubstituter(substitutions, project_region="customer.region-eu")
-    compiled = sql_substituter.substitute("fulfillment_analysis.sql", raw_sql)
+def test_substitute_fills_placeholders():
+    raw_sql = (
+        "SELECT '{{project_region}}' AS metadata_level\n"
+        "FROM `{{project_region}}`.INFORMATION_SCHEMA.JOBS\n"
+        "WHERE DATE(creation_time) > DATE_SUB(CURRENT_DATE(), INTERVAL {{profiling_window_in_days}} DAY)\n"
+    )
+    compiled = substitute(raw_sql, {"project_region": "customer.region-eu", "profiling_window_in_days": 180})
     assert "customer.region-eu" in compiled
-    assert "my-gcp-project.region-us" not in compiled
+    assert "INTERVAL 180 DAY" in compiled
+    assert "{{" not in compiled
 
 
-def test_sql_substituter_requires_project_region():
+def test_substitute_raises_on_unfilled_placeholder():
+    # A placeholder with no matching variable must fail loudly, never reach BigQuery as `{{...}}`.
     with pytest.raises(ValueError, match="project_region"):
-        SqlSubstituter([], profiling_window_in_days=180)
+        substitute("SELECT '{{project_region}}' AS metadata_level", {})
+
+
+def test_all_sql_files_have_no_unfilled_placeholders():
+    """Every vendored SQL file is fully parameterized: substitute() fills it with no leftover
+    `{{...}}`, no baked-in `my-gcp-project` placeholder, and no leftover EXECUTE IMMEDIATE wrapper."""
+    for sql_filename in SQL_FILE_TO_ANALYSIS_TYPE:
+        raw = bq_metadata_extract._load_resource_text("sql-client-run", sql_filename)
+        compiled = substitute(raw, {"project_region": "customer.region-eu", "profiling_window_in_days": 180})
+        assert "{{" not in compiled, f"unfilled placeholder in {sql_filename}"
+        assert "my-gcp-project" not in compiled, f"baked-in placeholder remains in {sql_filename}"
+        assert "EXECUTE IMMEDIATE" not in compiled, f"scripting wrapper remains in {sql_filename}"
 
 
 def test_one_pair_failure_does_not_abort_others(monkeypatch, tmp_path, fake_credentials, capsys):
@@ -205,10 +209,10 @@ def test_one_pair_failure_does_not_abort_others(monkeypatch, tmp_path, fake_cred
     cred_manager = MagicMock()
     cred_manager.get_credentials.return_value = fake_credentials
 
-    def _selective(sql_filename, sql_substituter, bq_client, project_region):
+    def _selective(sql_filename, substitution_vars, bq_client, project_region):
         if "proj-bad" in project_region:
             raise RuntimeError(f"simulated failure for {project_region}")
-        return _fake_run_sql_for_iteration(sql_filename, sql_substituter, bq_client, project_region)
+        return _fake_run_sql_for_iteration(sql_filename, substitution_vars, bq_client, project_region)
 
     monkeypatch.setattr(bq_metadata_extract, "_run_sql_for_iteration", _selective)
     bq_metadata_extract.execute(
@@ -239,7 +243,7 @@ def test_all_pairs_failing_reports_top_level_error(monkeypatch, tmp_path, fake_c
     cred_manager = MagicMock()
     cred_manager.get_credentials.return_value = fake_credentials
 
-    def _always_fail(_sql_filename, _sql_substituter, _bq_client, project_region):
+    def _always_fail(_sql_filename, _substitution_vars, _bq_client, project_region):
         raise RuntimeError(f"simulated failure for {project_region}")
 
     monkeypatch.setattr(bq_metadata_extract, "_run_sql_for_iteration", _always_fail)
