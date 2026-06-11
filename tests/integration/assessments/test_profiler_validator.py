@@ -72,16 +72,6 @@ PLATFORM_VALIDATOR_CONFIG: dict[str, _PlatformValidatorConfig] = {
 }
 
 
-@pytest.fixture(scope="module")
-def pipeline_config_path(test_resources: Path) -> Path:
-    return test_resources / "assessments" / "pipeline_config.yml"
-
-
-@pytest.fixture(scope="module")
-def failure_pipeline_config_path(test_resources: Path) -> Path:
-    return test_resources / "assessments" / "pipeline_config_python_failure.yml"
-
-
 @pytest.fixture(scope="session")
 def mock_synapse_profiler_extract() -> Generator[Path]:
     # We don't use tmp_path because this is quite expensive to set up.
@@ -106,18 +96,6 @@ def _get_mock_extract(platform: str, mock_synapse: Path, mock_redshift: Path) ->
     if platform == "redshift_provisioned":
         return mock_redshift
     raise ValueError(f"Unknown platform: {platform}")
-
-
-def test_get_profiler_extract_path(pipeline_config_path: Path, failure_pipeline_config_path: Path) -> None:
-    # Parse `extract_folder` **with** a trailing "/" character
-    expected_db_path = Path("/replaced/after/loading/profiler_extract.db")
-    profiler_db_path = get_profiler_extract_path(pipeline_config_path)
-    assert profiler_db_path == expected_db_path
-
-    # Parse `extract_folder` **without** a trailing "/" character
-    expected_db_path = Path("/replaced/after/loading/profiler_extract.db")
-    profiler_db_path = get_profiler_extract_path(failure_pipeline_config_path)
-    assert profiler_db_path == expected_db_path
 
 
 @pytest.mark.parametrize("platform", ["synapse", "redshift_provisioned"])

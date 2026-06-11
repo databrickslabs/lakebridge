@@ -7,6 +7,7 @@ from databricks.labs.lakebridge.assessments.configure_assessment import (
     ConfigureRedshiftAssessment,
     ConfigureSqlServerAssessment,
     ConfigureSynapseAssessment,
+    REDSHIFT_AUTH_TYPES,
 )
 
 
@@ -222,12 +223,13 @@ def test_configure_redshift_credentials_sql_authentication(tmp_path):
             r"Enter the database name": "dev",
             r"Enter the user details": "test_user",
             r"Enter the password details": "test_password",
+            r"Do you want to test the connection to redshift?.*": "no",
         }
     )
     file = tmp_path / ".credentials.yml"
     ConfigureRedshiftAssessment(
         product_name="lakebridge", source_name="redshift", prompts=prompts, credential_file=file
-    )._configure_credentials()
+    ).run()
 
     with open(file, "r", encoding="utf-8") as f:
         credentials = yaml.safe_load(f)
@@ -259,12 +261,13 @@ def test_configure_redshift_credentials_iam(tmp_path):
             r"Cluster identifier.*": "my-cluster",
             r"AWS profile name.*": "default",
             r"AWS region.*": "us-west-2",
+            r"Do you want to test the connection to redshift?.*": "no",
         }
     )
     file = tmp_path / ".credentials.yml"
     ConfigureRedshiftAssessment(
         product_name="lakebridge", source_name="redshift", prompts=prompts, credential_file=file
-    )._configure_credentials()
+    ).run()
 
     with open(file, "r", encoding="utf-8") as f:
         credentials = yaml.safe_load(f)
@@ -299,12 +302,13 @@ def test_configure_redshift_credentials_iam_optional_fields_skipped(tmp_path):
             r"Cluster identifier.*": "",
             r"AWS profile name.*": "",
             r"AWS region.*": "",
+            r"Do you want to test the connection to redshift?.*": "no",
         }
     )
     file = tmp_path / ".credentials.yml"
     ConfigureRedshiftAssessment(
         product_name="lakebridge", source_name="redshift", prompts=prompts, credential_file=file
-    )._configure_credentials()
+    ).run()
 
     with open(file, "r", encoding="utf-8") as f:
         credentials = yaml.safe_load(f)
@@ -325,8 +329,6 @@ def test_redshift_configurator_writes_only_connector_supported_auth_types():
     handle (see ``RedshiftConnector._connect``). This catches drift before users hit
     runtime ``ConnectionError`` after configuring credentials.
     """
-    from databricks.labs.lakebridge.assessments.configure_assessment import REDSHIFT_AUTH_TYPES
-
     connector_supported = {"sql_authentication", "iam"}
     assert set(REDSHIFT_AUTH_TYPES) <= connector_supported, (
         f"Configurator offers auth_type(s) {set(REDSHIFT_AUTH_TYPES) - connector_supported} "
