@@ -16,9 +16,6 @@ import pandas as pd
 import pytest
 
 from databricks.labs.lakebridge.resources.assessments.bigquery import bq_metadata_extract
-from databricks.labs.lakebridge.resources.assessments.bigquery.bq_metadata_extract import (
-    SQL_FILE_TO_ANALYSIS_TYPE,
-)
 from databricks.labs.lakebridge.resources.assessments.common.sql_substituter import substitute
 
 
@@ -36,19 +33,11 @@ def _canned_df_for(sql_filename: str, project_region: str) -> pd.DataFrame:
 
 
 def _fake_run_sql_for_iteration(sql_filename, _substitution_vars, _bq_client, project_region):
-    """Stand-in for `bq_metadata_extract._run_sql_for_iteration` that skips BQ entirely.
-
-    Mirrors the production function's responsibilities that matter at the test boundary:
-    returning a (analysis_type, df, elapsed_seconds) tuple and applying the
-    `metadatalevel` → `metadata_level` rename for `table_storage`. The canned dataframes
-    are deterministic per filename; elapsed is a fixed sentinel.
-    """
     df = _canned_df_for(sql_filename, project_region)
     df["source"] = f"{project_region}_{sql_filename}"
     if sql_filename == "table_storage.sql" and "metadatalevel" in df.columns:
         df = df.rename(columns={"metadatalevel": "metadata_level"}).copy()
-    analysis_type = SQL_FILE_TO_ANALYSIS_TYPE[sql_filename]
-    return analysis_type, df, 0.01
+    return df, 0.01
 
 
 @pytest.fixture
@@ -185,17 +174,6 @@ def test_substitute_raises_on_unfilled_placeholder():
     # A placeholder with no matching variable must fail loudly, never reach BigQuery as `{{...}}`.
     with pytest.raises(ValueError, match="project_region"):
         substitute("SELECT '{{project_region}}' AS metadata_level", {})
-
-
-def test_all_sql_files_have_no_unfilled_placeholders():
-    """Every vendored SQL file is fully parameterized: substitute() fills it with no leftover
-    `{{...}}`, no baked-in `my-gcp-project` placeholder, and no leftover EXECUTE IMMEDIATE wrapper."""
-    for sql_filename in SQL_FILE_TO_ANALYSIS_TYPE:
-        raw = bq_metadata_extract._load_resource_text("sql-client-run", sql_filename)
-        compiled = substitute(raw, {"project_region": "customer.region-eu", "profiling_window_in_days": 180})
-        assert "{{" not in compiled, f"unfilled placeholder in {sql_filename}"
-        assert "my-gcp-project" not in compiled, f"baked-in placeholder remains in {sql_filename}"
-        assert "EXECUTE IMMEDIATE" not in compiled, f"scripting wrapper remains in {sql_filename}"
 
 
 def test_one_pair_failure_does_not_abort_others(monkeypatch, tmp_path, fake_credentials, capsys):

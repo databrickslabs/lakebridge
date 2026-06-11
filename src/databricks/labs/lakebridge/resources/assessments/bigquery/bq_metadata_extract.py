@@ -13,7 +13,6 @@ from databricks.labs.lakebridge import initialize_logging
 from databricks.labs.lakebridge.assessments import PRODUCT_NAME
 from databricks.labs.lakebridge.connections.credential_manager import CredentialManager, create_credential_manager
 from databricks.labs.lakebridge.connections.env_getter import EnvGetter
-from databricks.labs.lakebridge.resources.assessments.bigquery.common.functions import create_bigquery_client
 from databricks.labs.lakebridge.resources.assessments.common.sql_substituter import substitute
 from databricks.labs.blueprint.entrypoint import get_logger
 from databricks.labs.lakebridge.resources.assessments.common.cli import arguments_loader
@@ -62,8 +61,8 @@ _STREAMING_FILES = frozenset({"streaming_summary.sql", "write_api_summary.sql"})
 _BIGQUERY_RESOURCES = "databricks.labs.lakebridge.resources.assessments.bigquery"
 
 
-def _load_resource_text(subpackage: str, filename: str) -> str:
-    return pkg_resources.files(f"{_BIGQUERY_RESOURCES}.{subpackage}").joinpath(filename).read_text(encoding="utf-8")
+def _load_resource_text(filename: str) -> str:
+    return (pkg_resources.files(_BIGQUERY_RESOURCES) / "resources" / filename).read_text(encoding="utf-8")
 
 
 def _select_sql_files(profiler_cfg: dict[str, Any]) -> list[str]:
@@ -78,15 +77,15 @@ def _select_sql_files(profiler_cfg: dict[str, Any]) -> list[str]:
 def _run_sql_for_iteration(
     sql_filename: str,
     substitution_vars: dict[str, Any],
-    bq_client: Any,
+    bq_client: bigquery.Client,
     project_region: str,
-) -> tuple[str, pd.DataFrame, float]:
-    """Compile + execute one SQL file against the BQ client for a single (project, region) iteration.
+) -> tuple[pd.DataFrame, float]:
+    """Replace query variables and execute one query using the BQ client for a single (project, region) iteration.
 
-    Returns (analysis_type, df, elapsed_seconds). The elapsed time is wall-clock for the BQ
+    Returns (df, elapsed_seconds). The elapsed time is wall-clock for the BQ
     query + result download, surfaced to the caller for per-SQL progress logging.
     """
-    raw_sql = _load_resource_text("sql-client-run", sql_filename)
+    raw_sql = _load_resource_text(sql_filename)
     compiled_sql = substitute(raw_sql, substitution_vars)
     logger.debug(f"Running {sql_filename} for {project_region}")
     start = time.monotonic()
@@ -95,7 +94,7 @@ def _run_sql_for_iteration(
     df["source"] = f"{project_region}_{sql_filename}"
     if sql_filename == "table_storage.sql" and "metadatalevel" in df.columns:
         df = df.rename(columns={"metadatalevel": "metadata_level"})
-    return SQL_FILE_TO_ANALYSIS_TYPE[sql_filename], df, elapsed
+    return df, elapsed
 
 
 def _run_iteration(
@@ -106,7 +105,7 @@ def _run_iteration(
     max_parallel_sqls: int,
     accumulators: dict[str, list[pd.DataFrame]],
     accumulator_lock: threading.Lock,
-    bigquery_client_factory: Callable[[str, str], "bigquery.Client"],
+    bigquery_client_factory: Callable[[str, str], bigquery.Client],
 ) -> None:
     project_region = f"{project_id}.region-{region}"
     bq_client = bigquery_client_factory(project_id, region)
@@ -128,8 +127,9 @@ def _run_iteration(
         }
         for future in as_completed(future_to_file):
             sql_filename = future_to_file[future]
+            analysis_type = SQL_FILE_TO_ANALYSIS_TYPE[sql_filename]
             try:
-                analysis_type, df, elapsed = future.result()
+                df, elapsed = future.result()
             except Exception as exc:
                 logger.error(f"SQL '{sql_filename}' failed in {project_region}: {exc}")
                 raise
@@ -218,7 +218,7 @@ def execute(
         if not sql_files:
             raise RuntimeError("All SQL files excluded by config; nothing to extract.")
 
-        analysis_types = json.loads(_load_resource_text("common", "analysis_types.json"))
+        analysis_types = json.loads(_load_resource_text("analysis_types.json"))
 
         accumulators: dict[str, list[pd.DataFrame]] = {at: [] for at in set(SQL_FILE_TO_ANALYSIS_TYPE.values())}
         accumulator_lock = threading.Lock()
@@ -278,6 +278,17 @@ def execute(
         logger.error(f"BigQuery metadata extract failed: {exc}")
         print(json.dumps({"status": "error", "message": str(exc)}), file=sys.stderr)
         sys.exit(1)
+
+
+def create_bigquery_client(project_id: str, region: str) -> bigquery.Client:
+    """Create a google-cloud-bigquery Client routed at the given project + region.
+
+    Authentication uses the standard ADC chain (GOOGLE_APPLICATION_CREDENTIALS, gcloud
+    application-default login, or the metadata server). Service-account impersonation is
+    supported via ADC; see
+    https://docs.cloud.google.com/docs/authentication/set-up-adc-local-dev-environment#sa-impersonation.
+    """
+    return bigquery.Client(project=project_id, location=region)
 
 
 if __name__ == "__main__":
