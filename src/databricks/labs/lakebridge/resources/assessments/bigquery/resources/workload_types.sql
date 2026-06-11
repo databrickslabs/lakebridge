@@ -1,21 +1,9 @@
 -- This procedure splits the historical workloads on BQ
 -- between ETL and BI
 
--- Excluded the SCRIPT statement type, otherwise some values might be counted twice. 
+-- Excluded the SCRIPT statement type, otherwise some values might be counted twice.
 -- This is because the SCRIPT row includes summary values for all child jobs that were executed as part of this job.
-    
-DECLARE metadatalevel STRING DEFAULT 'region-us';
-DECLARE profiling_window_in_days INT64 DEFAULT 180;
 
--- SET metadatalevel to the format <project>.<region>
--- If all projects are to be included, just mention region
-SET metadatalevel = 'my-gcp-project.region-us';
-
--- Look back how many days? 
-SET profiling_window_in_days = 180;
-
-EXECUTE IMMEDIATE 
-FORMAT("""
 WITH STATEMENT_CLASSIFICATION AS
 (
 SELECT * FROM UNNEST([STRUCT<statement_type string, workload_category STRING>
@@ -52,32 +40,28 @@ SELECT * FROM UNNEST([STRUCT<statement_type string, workload_category STRING>
 (null, "BI")
 ])
 )
-SELECT sum(num_jobs) as total_jobs, 
-        CAST(sum(slot_ms) as NUMERIC) / (3600.0 * 1000.0) AS total_slot_hours, 
+SELECT sum(num_jobs) as total_jobs,
+        CAST(sum(slot_ms) as NUMERIC) / (3600.0 * 1000.0) AS total_slot_hours,
         CAST(sum(bytes_processed) AS NUMERIC) / POWER(2.0, 40) AS total_tb_processed,
-        workload_type, 
-        '%s' AS metadata_level
+        workload_type,
+        '{{project_region}}' AS metadata_level
 FROM(
-        SELECT count(j.job_id) as num_jobs, 
-                sum(j.total_slot_ms) as slot_ms, 
+        SELECT count(j.job_id) as num_jobs,
+                sum(j.total_slot_ms) as slot_ms,
                 sum(j.total_bytes_processed) as bytes_processed,
-                j.job_type, 
+                j.job_type,
                 j.statement_type,
         CASE
         WHEN stmt.workload_category is NULL AND job_type = 'QUERY' THEN 'BI'
         WHEN stmt.workload_category is NULL AND job_type = 'COPY' THEN 'ETL'
         WHEN stmt.workload_category is NULL AND job_type = 'LOAD' THEN 'ETL'
-        ELSE stmt.workload_category 
+        ELSE stmt.workload_category
         END as workload_type
-        FROM `%s`.INFORMATION_SCHEMA.JOBS j
+        FROM `{{project_region}}`.INFORMATION_SCHEMA.JOBS j
         LEFT JOIN STATEMENT_CLASSIFICATION stmt
         ON j.statement_type = stmt.statement_type
-        WHERE j.start_time > timestamp_sub(current_timestamp, INTERVAL %d DAY)
+        WHERE j.start_time > timestamp_sub(current_timestamp, INTERVAL {{profiling_window_in_days}} DAY)
         AND (j.statement_type != 'SCRIPT' OR j.statement_type IS NULL)
         GROUP by job_type, j.statement_type, workload_type
 )
 GROUP BY workload_type;
-""",  
-metadatalevel, 
-metadatalevel,
-profiling_window_in_days);

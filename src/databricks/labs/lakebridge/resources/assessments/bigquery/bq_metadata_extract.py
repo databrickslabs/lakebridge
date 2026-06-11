@@ -1,26 +1,5 @@
-"""
-Step 1 of the Lakebridge BigQuery profiler pipeline.
-
-Reads BQ profiling SQL templates from package resources, runs each against the customer's
-BigQuery project(s) and region(s), and writes the merged results into a local DuckDB file.
-The DuckDB file is later uploaded to a UC volume and ingested into Delta tables by the
-existing source-tech-agnostic deployment path.
-
-Two-level execution:
-  * Serial across (project, region) — each iteration uses its own bigquery.Client (the
-    region/location is per-client). A failure in a single pair (e.g. a missing IAM grant or
-    an unreadable region) is logged and skipped so the remaining pairs still complete; each
-    pair's outcome is reported in the final JSON payload's `pairs` array. Only if every pair
-    fails does the step report a top-level error.
-  * Parallel across the 16 SQL files within each iteration via a ThreadPoolExecutor of
-    `max_parallel_sqls` workers (default 8). Per-SQL DataFrames accumulate in memory and
-    are concat-ed + overwritten to DuckDB once at the end — no partial state on crash,
-    re-runs are idempotent.
-"""
-
 import importlib.resources as pkg_resources
 import json
-import logging
 import sys
 import threading
 import time
@@ -34,15 +13,12 @@ from databricks.labs.lakebridge import initialize_logging
 from databricks.labs.lakebridge.assessments import PRODUCT_NAME
 from databricks.labs.lakebridge.connections.credential_manager import CredentialManager, create_credential_manager
 from databricks.labs.lakebridge.connections.env_getter import EnvGetter
-from databricks.labs.lakebridge.resources.assessments.bigquery.common.functions import create_bigquery_client
-from databricks.labs.lakebridge.resources.assessments.bigquery.common.sql_substituter import SqlSubstituter
+from databricks.labs.lakebridge.resources.assessments.common.sql_substituter import substitute
+from databricks.labs.blueprint.entrypoint import get_logger
 from databricks.labs.lakebridge.resources.assessments.common.cli import arguments_loader
 from databricks.labs.lakebridge.resources.assessments.common.duckdb_helpers import save_to_duckdb
 
-# Use the canonical dotted name (not `__name__`, which is `"__main__"` when this script is
-# invoked as the entrypoint by pipeline.py or `python -m ...`). That keeps the logger inside
-# the `databricks.*` namespace that `initialize_logging()` sets to INFO.
-logger = logging.getLogger("databricks.labs.lakebridge.resources.assessments.bigquery.bq_metadata_extract")
+logger = get_logger(__file__)
 
 # Logical analysis_type → list of SQL files that feed it. Derived 1:1 from analysis_types.json
 # except for consumption_{beyond,through}_commitments which fan in 3 variant files each.
@@ -85,8 +61,8 @@ _STREAMING_FILES = frozenset({"streaming_summary.sql", "write_api_summary.sql"})
 _BIGQUERY_RESOURCES = "databricks.labs.lakebridge.resources.assessments.bigquery"
 
 
-def _load_resource_text(subpackage: str, filename: str) -> str:
-    return pkg_resources.files(f"{_BIGQUERY_RESOURCES}.{subpackage}").joinpath(filename).read_text(encoding="utf-8")
+def _load_resource_text(filename: str) -> str:
+    return (pkg_resources.files(_BIGQUERY_RESOURCES) / "resources" / filename).read_text(encoding="utf-8")
 
 
 def _select_sql_files(profiler_cfg: dict[str, Any]) -> list[str]:
@@ -100,17 +76,17 @@ def _select_sql_files(profiler_cfg: dict[str, Any]) -> list[str]:
 
 def _run_sql_for_iteration(
     sql_filename: str,
-    sql_substituter: SqlSubstituter,
-    bq_client: Any,
+    substitution_vars: dict[str, Any],
+    bq_client: bigquery.Client,
     project_region: str,
-) -> tuple[str, pd.DataFrame, float]:
-    """Compile + execute one SQL file against the BQ client for a single (project, region) iteration.
+) -> tuple[pd.DataFrame, float]:
+    """Replace query variables and execute one query using the BQ client for a single (project, region) iteration.
 
-    Returns (analysis_type, df, elapsed_seconds). The elapsed time is wall-clock for the BQ
+    Returns (df, elapsed_seconds). The elapsed time is wall-clock for the BQ
     query + result download, surfaced to the caller for per-SQL progress logging.
     """
-    raw_sql = _load_resource_text("sql-client-run", sql_filename)
-    compiled_sql = sql_substituter.substitute(sql_filename, raw_sql)
+    raw_sql = _load_resource_text(sql_filename)
+    compiled_sql = substitute(raw_sql, substitution_vars)
     logger.debug(f"Running {sql_filename} for {project_region}")
     start = time.monotonic()
     df = bq_client.query(compiled_sql).to_dataframe()
@@ -118,27 +94,25 @@ def _run_sql_for_iteration(
     df["source"] = f"{project_region}_{sql_filename}"
     if sql_filename == "table_storage.sql" and "metadatalevel" in df.columns:
         df = df.rename(columns={"metadatalevel": "metadata_level"})
-    return SQL_FILE_TO_ANALYSIS_TYPE[sql_filename], df, elapsed
+    return df, elapsed
 
 
 def _run_iteration(
     project_id: str,
     region: str,
     sql_files: list[str],
-    substitutions: list[dict[str, Any]],
     profiling_window_days: int,
     max_parallel_sqls: int,
     accumulators: dict[str, list[pd.DataFrame]],
     accumulator_lock: threading.Lock,
-    bigquery_client_factory: Callable[[str, str], "bigquery.Client"],
+    bigquery_client_factory: Callable[[str, str], bigquery.Client],
 ) -> None:
     project_region = f"{project_id}.region-{region}"
     bq_client = bigquery_client_factory(project_id, region)
-    sql_substituter = SqlSubstituter(
-        substitutions,
-        project_region=project_region,
-        profiling_window_in_days=profiling_window_days,
-    )
+    substitution_vars: dict[str, Any] = {
+        "project_region": project_region,
+        "profiling_window_in_days": profiling_window_days,
+    }
 
     iter_start = time.monotonic()
     iter_rows = 0
@@ -147,14 +121,15 @@ def _run_iteration(
     with ThreadPoolExecutor(max_workers=max_parallel_sqls) as executor:
         future_to_file = {
             executor.submit(
-                _run_sql_for_iteration, sql_filename, sql_substituter, bq_client, project_region
+                _run_sql_for_iteration, sql_filename, substitution_vars, bq_client, project_region
             ): sql_filename
             for sql_filename in sql_files
         }
         for future in as_completed(future_to_file):
             sql_filename = future_to_file[future]
+            analysis_type = SQL_FILE_TO_ANALYSIS_TYPE[sql_filename]
             try:
-                analysis_type, df, elapsed = future.result()
+                df, elapsed = future.result()
             except Exception as exc:
                 logger.error(f"SQL '{sql_filename}' failed in {project_region}: {exc}")
                 raise
@@ -243,8 +218,7 @@ def execute(
         if not sql_files:
             raise RuntimeError("All SQL files excluded by config; nothing to extract.")
 
-        substitutions = json.loads(_load_resource_text("common", "substitutions.json"))
-        analysis_types = json.loads(_load_resource_text("common", "analysis_types.json"))
+        analysis_types = json.loads(_load_resource_text("analysis_types.json"))
 
         accumulators: dict[str, list[pd.DataFrame]] = {at: [] for at in set(SQL_FILE_TO_ANALYSIS_TYPE.values())}
         accumulator_lock = threading.Lock()
@@ -258,7 +232,6 @@ def execute(
                     project_id=project_id,
                     region=region,
                     sql_files=sql_files,
-                    substitutions=substitutions,
                     profiling_window_days=profiling_window_days,
                     max_parallel_sqls=max_parallel_sqls,
                     accumulators=accumulators,
@@ -305,6 +278,17 @@ def execute(
         logger.error(f"BigQuery metadata extract failed: {exc}")
         print(json.dumps({"status": "error", "message": str(exc)}), file=sys.stderr)
         sys.exit(1)
+
+
+def create_bigquery_client(project_id: str, region: str) -> bigquery.Client:
+    """Create a google-cloud-bigquery Client routed at the given project + region.
+
+    Authentication uses the standard ADC chain (GOOGLE_APPLICATION_CREDENTIALS, gcloud
+    application-default login, or the metadata server). Service-account impersonation is
+    supported via ADC; see
+    https://docs.cloud.google.com/docs/authentication/set-up-adc-local-dev-environment#sa-impersonation.
+    """
+    return bigquery.Client(project=project_id, location=region)
 
 
 if __name__ == "__main__":

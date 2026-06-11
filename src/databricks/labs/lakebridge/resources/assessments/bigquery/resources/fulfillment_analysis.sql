@@ -2,23 +2,6 @@
 -- and generates a time-series view of slot fulfillment
 -- split between ETL and BI
 
-DECLARE metadatalevel STRING DEFAULT 'region-us';
-DECLARE profiling_window_in_days INT64 DEFAULT 180;
-DECLARE TIME_FORMAT STRING DEFAULT '%Y-%m-%d';
-    
--- SET metadatalevel to the format <project>.<region>
-SET metadatalevel = 'my-gcp-project.region-us';
-
--- Look back how many days? 
-SET profiling_window_in_days = 180;
-
-
--- TIME_FORMAT options are '%Y-%m' for Monthly, '%Y-%m-%d' for daily
--- and '%Y-%m-%dT%H' for hourly
-SET TIME_FORMAT = '%Y-%m-%dT%H';
-
-EXECUTE IMMEDIATE
-FORMAT("""
 WITH STATEMENT_CLASSIFICATION AS
 (
 SELECT * FROM UNNEST([STRUCT<statement_type string, workload_category STRING>
@@ -70,10 +53,10 @@ as
   total_slot_ms AS job_total_slot_ms,
   job_id,
   timeline
-  from `%s`.INFORMATION_SCHEMA.JOBS AS job
+  from `{{project_region}}`.INFORMATION_SCHEMA.JOBS AS job
   LEFT JOIN STATEMENT_CLASSIFICATION stmt
   ON job.statement_type = stmt.statement_type
-  WHERE DATE(creation_time) BETWEEN DATE_SUB(CURRENT_DATE(), INTERVAL @lookback_period DAY) AND CURRENT_DATE()
+  WHERE DATE(creation_time) BETWEEN DATE_SUB(CURRENT_DATE(), INTERVAL {{profiling_window_in_days}} DAY) AND CURRENT_DATE()
   AND (job.statement_type != 'SCRIPT' OR job.statement_type IS NULL)
 ),
 jobs_timeline_flattened as
@@ -104,7 +87,7 @@ as
   timeline_order,
   elapsed_ms as time_elapsed_since_query_start,
   -- time duration of a phase = gap between time elapsed since the start of query execution measured during the current phase vs the prior phase
-  elapsed_ms - coalesce(lag(elapsed_ms) over (partition by job_id order by timeline_order), 0.0) as phase_duration_ms, 
+  elapsed_ms - coalesce(lag(elapsed_ms) over (partition by job_id order by timeline_order), 0.0) as phase_duration_ms,
   total_slot_ms as cumu_slot_ms_since_query_start,
   -- slots used in a phase = slot-time for a phase / time duration of a phase
   total_slot_ms - coalesce(lag(total_slot_ms) over (partition by job_id order by timeline_order), 0.0) as phase_slot_ms,
@@ -113,7 +96,7 @@ as
   from jobs_timeline_flattened
 ),
 slot_fulfillment_analysis
-AS 
+AS
 (
   SELECT *,
   TIMESTAMP_ADD(job_creation_time, INTERVAL time_elapsed_since_query_start MILLISECOND) AS phase_timestamp,
@@ -122,17 +105,12 @@ AS
   FROM jobs_timeline_phased
 )
 
-SELECT @metadatalevel AS metadata_level,
-FORMAT_TIMESTAMP(@timeformat, phase_timestamp) as time_window,
+SELECT '{{project_region}}' AS metadata_level,
+FORMAT_TIMESTAMP('%Y-%m-%dT%H', phase_timestamp) as time_window,
 workload_category,
 SUM(phase_slots_requested) as slots_requested,
 SUM(phase_slots_fulfilled) as slots_fulfilled,
  FROM slot_fulfillment_analysis
- GROUP BY project_id, FORMAT_TIMESTAMP(@timeformat, phase_timestamp), workload_category
+ GROUP BY project_id, FORMAT_TIMESTAMP('%Y-%m-%dT%H', phase_timestamp), workload_category
  order by time_window
 ;
-""", metadatalevel)
-USING 
-metadatalevel AS metadatalevel,
-TIME_FORMAT AS timeformat,
-profiling_window_in_days AS lookback_period;
