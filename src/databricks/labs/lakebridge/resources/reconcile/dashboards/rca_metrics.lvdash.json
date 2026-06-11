@@ -493,7 +493,6 @@
     {
       "name": "fab68dbc",
       "displayName": "recon_run_context",
-      "catalog": "sandbox",
       "config": {
         "version": "1.1",
         "source": "remorph.reconcile.recon_run_context",
