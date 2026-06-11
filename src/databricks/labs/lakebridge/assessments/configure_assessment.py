@@ -19,34 +19,6 @@ from databricks.labs.lakebridge.assessments import CONNECTOR_REQUIRED
 logger = logging.getLogger(__name__)
 
 
-def _parse_project_region_pairs(raw: str) -> list[dict[str, str]]:
-    """Parse `project.region, project.region, ...` into a list of {project, region} dicts.
-
-    Uses Google's fully-qualified resource-path convention
-    (https://cloud.google.com/iam/docs/full-resource-names#bigquery). Each token must
-    contain exactly one `.` with non-empty sides; empty tokens are ignored (so
-    trailing/duplicate commas are tolerated). Raises ValueError on malformed input —
-    the caller surfaces this to the user during interactive configuration.
-
-    GCP project IDs cannot contain `.`, so splitting on the single dot is unambiguous.
-    """
-    pairs: list[dict[str, str]] = []
-    for token in raw.split(","):
-        token = token.strip()
-        if not token:
-            continue
-        if token.count(".") != 1:
-            raise ValueError(f"Invalid project/region pair '{token}': expected exactly one '.' (e.g. proj-a.us)")
-        project, _, region = token.partition(".")
-        project, region = project.strip(), region.strip()
-        if not project or not region:
-            raise ValueError(f"Invalid project/region pair '{token}': both sides of '.' must be non-empty")
-        pairs.append({"project": project, "region": region})
-    if not pairs:
-        raise ValueError("At least one project/region pair is required (e.g. proj-a.us)")
-    return pairs
-
-
 def _save_to_disk(credential: dict, cred_file: Path) -> None:
     if cred_file.exists():
         backup_filename = cred_file.with_suffix('.bak')
@@ -304,7 +276,33 @@ ConfiguratorFactory = Callable[[str, Prompts, str, Path | str | None], Assessmen
 
 
 class ConfigureBigQueryAssessment(AssessmentConfigurator):
-    """BigQuery specific assessment configuration."""
+    @classmethod
+    def _parse_project_region_pairs(cls, raw: str) -> list[dict[str, str]]:
+        """Parse `project.region, project.region, ...` into a list of {project, region} dicts.
+
+        Uses Google's fully-qualified resource-path convention
+        (https://cloud.google.com/iam/docs/full-resource-names#bigquery). Each token must
+        contain exactly one `.` with non-empty sides; empty tokens are ignored (so
+        trailing/duplicate commas are tolerated). Raises ValueError on malformed input —
+        the caller surfaces this to the user during interactive configuration.
+
+        GCP project IDs cannot contain `.`, so splitting on the single dot is unambiguous.
+        """
+        pairs: list[dict[str, str]] = []
+        for token in raw.split(","):
+            token = token.strip()
+            if not token:
+                continue
+            if token.count(".") != 1:
+                raise ValueError(f"Invalid project/region pair '{token}': expected exactly one '.' (e.g. proj-a.us)")
+            project, _, region = token.partition(".")
+            project, region = project.strip(), region.strip()
+            if not project or not region:
+                raise ValueError(f"Invalid project/region pair '{token}': both sides of '.' must be non-empty")
+            pairs.append({"project": project, "region": region})
+        if not pairs:
+            raise ValueError("At least one project/region pair is required (e.g. proj-a.us)")
+        return pairs
 
     def _configure_credentials(self) -> str:
         cred_file = self._credential_file
@@ -322,7 +320,7 @@ class ConfigureBigQueryAssessment(AssessmentConfigurator):
             "Enter BigQuery project and region pairs "
             "(Format: comma-separated project.region. Example: my-proj-a.us, my-proj-b.eu-west-1)"
         )
-        pairs = _parse_project_region_pairs(pairs_raw)
+        pairs = self._parse_project_region_pairs(pairs_raw)
 
         profiling_window_days = int(
             self.prompts.question("Enter lookback window in days to profile", default="180", valid_number=True)

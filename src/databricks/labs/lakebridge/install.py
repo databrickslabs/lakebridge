@@ -478,9 +478,6 @@ class WorkspaceInstaller:
     ) -> ProfilerDashboardMetadataConfig:
         logger.info("Configuring profiler dashboard metadata.")
         catalog = self._configure_catalog()
-        # Schema-per-source convention: each source-tech writes to its own `<source>_profiler`
-        # schema. Customers upgrading from a pre-convention install can copy their existing
-        # `profiler` schema to the new `<source>_profiler` schema manually.
         schema_default = f"{source_tech}_profiler" if source_tech else "profiler"
         schema = self._configure_schema(catalog, schema_default)
         volume = self._configure_volume(catalog, schema, "ingestion_volume")
