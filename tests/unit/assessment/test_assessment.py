@@ -150,7 +150,6 @@ def test_configure_bigquery_credentials(tmp_path):
             'profiler': {
                 'profiling_window_days': 180,
                 'max_parallel_sqls': 8,
-                'redact_query_text': True,
                 'exclude_reservations_data': False,
                 'exclude_streaming_metrics': False,
             },
