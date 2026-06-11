@@ -1,27 +1,25 @@
 import re
 import logging
-from collections.abc import Mapping
 from datetime import datetime
 
 from pyspark.errors import PySparkException
-from pyspark.sql import DataFrame, DataFrameReader, SparkSession
+from pyspark.sql import DataFrame
 from pyspark.sql.functions import col
 from sqlglot import Dialect
 
 from databricks.labs.lakebridge.reconcile.connectors.data_source import DataSource
-from databricks.labs.lakebridge.reconcile.connectors.jdbc_reader import JDBCReaderMixin
 from databricks.labs.lakebridge.reconcile.connectors.models import NormalizedIdentifier
-from databricks.labs.lakebridge.reconcile.connectors.secrets import SecretsMixin
+from databricks.labs.lakebridge.reconcile.connectors.remote_query_reader import RemoteQueryReader
 from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import DialectUtils
-from databricks.labs.lakebridge.reconcile.recon_config import JdbcReaderOptions, Schema, OptionalPrimitiveType
-from databricks.sdk import WorkspaceClient
+from databricks.labs.lakebridge.reconcile.recon_config import JdbcReaderOptions, Schema
 
 logger = logging.getLogger(__name__)
 
 
-class OracleDataSource(DataSource, SecretsMixin, JDBCReaderMixin):
-    _DRIVER = "oracle"
+class OracleDataSource(DataSource):
     _IDENTIFIER_DELIMITER = "\""
+    _LIST_SCHEMAS_QUERY = "select username from ALL_USERS order by username"
+    _LIST_TABLES_QUERY = "select table_name from ALL_TABLES where lower(owner) = lower('{owner}') order by table_name"
     _SCHEMA_QUERY = """select column_name, case when (data_precision is not null
                                               and data_scale <> 0)
                                               then data_type || '(' || data_precision || ',' || data_scale || ')'
@@ -33,30 +31,19 @@ class OracleDataSource(DataSource, SecretsMixin, JDBCReaderMixin):
                                               else data_type || '(' || CHAR_LENGTH || ')'
                                               end data_type
                                               FROM ALL_TAB_COLUMNS
-                            WHERE lower(TABLE_NAME) = '{table}' and lower(owner) = '{owner}'"""
+                            WHERE lower(TABLE_NAME) = lower('{table}') and lower(owner) = lower('{owner}')"""
 
     def __init__(
         self,
         engine: Dialect,
-        spark: SparkSession,
-        ws: WorkspaceClient,
-        secret_scope: str,
+        reader: RemoteQueryReader,
     ):
         self._engine = engine
-        self._spark = spark
-        self._ws = ws
-        self._secret_scope = secret_scope
-
-    @property
-    def get_jdbc_url(self) -> str:
-        return (
-            f"jdbc:{OracleDataSource._DRIVER}:thin:@//{self._get_secret('host')}"
-            f":{self._get_secret('port')}/{self._get_secret('database')}"
-        )
+        self._reader = reader
 
     def read_data(
         self,
-        catalog: str | None,
+        catalog: str,
         schema: str,
         table: str,
         query: str,
@@ -64,21 +51,15 @@ class OracleDataSource(DataSource, SecretsMixin, JDBCReaderMixin):
     ) -> DataFrame:
         table_query = query.replace(":tbl", f"{schema}.{table}")
         try:
-            if options is None:
-                return self.reader(table_query, self._get_timestamp_options()).load()
-            reader_options = self._get_jdbc_reader_options(options) | self._get_timestamp_options()
-            df = self.reader(table_query, reader_options).load()
-            logger.warning(f"Fetching data using query: \n`{table_query}`")
-
-            # Convert all column names to lower case
-            df = df.select([col(c).alias(c.lower()) for c in df.columns])
-            return df
+            logger.info(f"Fetching data using query: \n`{table_query}`")
+            df = self._reader.read_data(table_query, catalog, "service_name", "query", options)
+            return df.select([col(c).alias(c.lower()) for c in df.columns])
         except (RuntimeError, PySparkException) as e:
             return self.log_and_throw_exception(e, "data", table_query)
 
     def get_schema(
         self,
-        catalog: str | None,
+        catalog: str,
         schema: str,
         table: str,
         normalize: bool = True,
@@ -91,7 +72,7 @@ class OracleDataSource(DataSource, SecretsMixin, JDBCReaderMixin):
         try:
             logger.debug(f"Fetching schema using query: \n`{schema_query}`")
             logger.info(f"Fetching Schema: Started at: {datetime.now()}")
-            df = self.reader(schema_query).load()
+            df = self._reader.read_data(schema_query, catalog, "service_name", "query")
             schema_metadata = df.select([col(c).alias(c.lower()) for c in df.columns]).collect()
             logger.info(f"Schema fetched successfully. Completed at: {datetime.now()}")
             logger.debug(f"schema_metadata: {schema_metadata}")
@@ -99,24 +80,21 @@ class OracleDataSource(DataSource, SecretsMixin, JDBCReaderMixin):
         except (RuntimeError, PySparkException) as e:
             return self.log_and_throw_exception(e, "schema", schema_query)
 
-    @staticmethod
-    def _get_timestamp_options() -> dict[str, str]:
-        return {
-            "oracle.jdbc.mapDateToTimestamp": "false",
-            "sessionInitStatement": "BEGIN dbms_session.set_nls('nls_date_format', "
-            "'''YYYY-MM-DD''');dbms_session.set_nls('nls_timestamp_format', '''YYYY-MM-DD "
-            "HH24:MI:SS''');END;",
-        }
+    def list_schemas(self, catalog: str) -> list[str]:
+        query = OracleDataSource._LIST_SCHEMAS_QUERY
+        try:
+            df = self._reader.read_data(query, catalog, "service_name", "query")
+            return [row.username for row in df.select(col("USERNAME").alias("username")).collect()]
+        except (RuntimeError, PySparkException) as e:
+            return self.log_and_throw_exception(e, "schemas", query)
 
-    def reader(self, query: str, options: Mapping[str, OptionalPrimitiveType] | None = None) -> DataFrameReader:
-        if options is None:
-            options = {}
-        user = self._get_secret('user')
-        password = self._get_secret('password')
-        logger.debug(f"Using user: {user} to connect to Oracle")
-        return self._get_jdbc_reader(
-            query, self.get_jdbc_url, OracleDataSource._DRIVER, {**options, "user": user, "password": password}
-        )
+    def list_tables(self, catalog: str, schema: str) -> list[str]:
+        query = OracleDataSource._LIST_TABLES_QUERY.format(owner=schema.lower())
+        try:
+            df = self._reader.read_data(query, catalog, "service_name", "query")
+            return [row.table_name for row in df.select(col("TABLE_NAME").alias("table_name")).collect()]
+        except (RuntimeError, PySparkException) as e:
+            return self.log_and_throw_exception(e, "tables", query)
 
     def normalize_identifier(self, identifier: str) -> NormalizedIdentifier:
         normalized = DialectUtils.normalize_identifier(

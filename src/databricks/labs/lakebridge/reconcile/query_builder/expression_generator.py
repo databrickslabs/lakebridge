@@ -168,12 +168,16 @@ def get_hash_transform(
 ):
     dialect_algo = Dialect_hash_algo_mapping.get(source)
     if not dialect_algo:
-        raise ValueError(f"Source {source} is not supported. Please add it to Dialect_hash_algo_mapping dictionary.")
+        raise ValueError(
+            f"Source {source} has no default hash algorithm. "
+            "Set hash_expression_overrides on the recon config to provide one."
+        )
 
     layer_algo = getattr(dialect_algo, layer, None)
     if not layer_algo:
         raise ValueError(
-            f"Layer {layer} is not supported for source {source}. Please add it to Dialect_hash_algo_mapping dictionary."
+            f"Layer {layer} has no default hash algorithm for source {source}. "
+            "Set hash_expression_overrides on the recon config to provide one."
         )
     return [layer_algo]
 
@@ -247,7 +251,7 @@ def _get_is_string(column_types_dict: dict[str, DataType], column_name: str) -> 
     return True
 
 
-DataType_transform_mapping: dict[str, dict[str, list[partial[exp.Expression]]]] = {
+DataType_transform_mapping: dict[str, dict[str, list[partial[exp.Expression]]]] = {  # pylint: disable=invalid-name
     "universal": {"default": [partial(coalesce, default='_null_recon_', is_string=True), partial(trim)]},
     "snowflake": {exp.DataType.Type.ARRAY.value: [partial(array_to_string), partial(array_sort)]},
     "oracle": {
@@ -273,11 +277,83 @@ DataType_transform_mapping: dict[str, dict[str, list[partial[exp.Expression]]]] 
             partial(anonymous, func="COALESCE(CONVERT(VARCHAR(23), {0}, 120), '1900-01-01 00:00:00')")
         ],
     },
+    "redshift": {
+        exp.DataType.Type.SUPER.value: [
+            partial(anonymous, func="COALESCE(JSON_SERIALIZE({}), '_null_recon_')", dialect=get_dialect("redshift"))
+        ],
+        exp.DataType.Type.DATE.value: [
+            partial(
+                anonymous,
+                func="COALESCE(TO_CHAR({}, 'YYYY-MM-DD'), '_null_recon_')",
+                dialect=get_dialect("redshift"),
+            )
+        ],
+        exp.DataType.Type.TIMESTAMP.value: [
+            partial(
+                anonymous,
+                func="COALESCE(TO_CHAR({}, 'YYYY-MM-DD HH24:MI:SS.US'), '_null_recon_')",
+                dialect=get_dialect("redshift"),
+            )
+        ],
+        exp.DataType.Type.TIMESTAMPTZ.value: [
+            partial(
+                anonymous,
+                func="COALESCE(TO_CHAR({}, 'YYYY-MM-DD HH24:MI:SS.US'), '_null_recon_')",
+                dialect=get_dialect("redshift"),
+            )
+        ],
+    },
+    "teradata": {
+        exp.DataType.Type.DATE.value: [
+            partial(
+                anonymous,
+                func="COALESCE(CAST(CAST({} AS DATE FORMAT 'YYYY-MM-DD') AS VARCHAR(10)), '_null_recon_')",
+                dialect=get_dialect("teradata"),
+            )
+        ],
+        exp.DataType.Type.TIMESTAMP.value: [
+            partial(
+                anonymous,
+                func="COALESCE(CAST(CAST({} AS TIMESTAMP(6) FORMAT 'YYYY-MM-DDBHH:MI:SS.S(6)') AS VARCHAR(26)), '_null_recon_')",
+                dialect=get_dialect("teradata"),
+            )
+        ],
+        exp.DataType.Type.TIMESTAMPTZ.value: [
+            partial(
+                anonymous,
+                func="COALESCE(CAST(CAST({} AS TIMESTAMP(6) WITH TIME ZONE) AS VARCHAR(32)), '_null_recon_')",
+                dialect=get_dialect("teradata"),
+            )
+        ],
+        exp.DataType.Type.TIME.value: [
+            partial(
+                anonymous,
+                func="COALESCE(CAST({} AS VARCHAR(15)), '_null_recon_')",
+                dialect=get_dialect("teradata"),
+            )
+        ],
+        exp.DataType.Type.JSON.value: [
+            partial(
+                anonymous,
+                func="COALESCE(CAST({} AS VARCHAR(32000)), '_null_recon_')",
+                dialect=get_dialect("teradata"),
+            )
+        ],
+        exp.DataType.Type.XML.value: [
+            partial(
+                anonymous,
+                func="COALESCE(CAST({} AS VARCHAR(32000)), '_null_recon_')",
+                dialect=get_dialect("teradata"),
+            )
+        ],
+    },
 }
 
 sha256_partial = partial(sha2, num_bits="256", is_expr=True)
 md5_partial = partial(md5, is_expr=True)
-Dialect_hash_algo_mapping: dict[Dialect, HashAlgoMapping] = {
+
+
+Dialect_hash_algo_mapping: dict[Dialect, HashAlgoMapping] = {  # pylint: disable=invalid-name
     get_dialect("snowflake"): HashAlgoMapping(
         source=sha256_partial,
         target=sha256_partial,
@@ -306,4 +382,12 @@ Dialect_hash_algo_mapping: dict[Dialect, HashAlgoMapping] = {
         ),
         target=sha256_partial,
     ),
+    get_dialect("redshift"): HashAlgoMapping(
+        source=sha256_partial,
+        target=sha256_partial,
+    ),
+    # Teradata is intentionally absent: it has no portable cryptographic hash in pure SQL, so
+    # ReconcileConfig.__post_init__ requires hash_expression_overrides.source to be set by the
+    # user. The hash query builder reads from that override and never falls through to a dialect
+    # default for Teradata.
 }

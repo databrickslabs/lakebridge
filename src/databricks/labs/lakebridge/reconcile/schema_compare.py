@@ -125,16 +125,14 @@ class SchemaCompare:
         converted_databricks_query = cls._parse(target, source, databricks_query)
         parsed_source_check = converted_source_query.lower() == databricks_query.lower()
         parsed_databricks_check = source_query.lower() == converted_databricks_query.lower()
-        logger.info(
-            f"""
+        logger.info(f"""
         Source query: {source_query}
         Converted source query: {converted_source_query}
         Databricks query: {databricks_query}
         Converted databricks query: {converted_databricks_query}
         Source equality check: {parsed_source_check}
         Databricks equality check: {parsed_databricks_check}
-        """
-        )
+        """)
 
         if not parsed_source_check and not parsed_databricks_check:
             master.is_valid = False

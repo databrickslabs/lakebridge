@@ -68,6 +68,8 @@ commands:
         description: Databricks UC Volume `name` for staging sources to convert. (Must already exist and have permissions.)
       - name: foundation-model
         description: The Foundation Model to use for conversion. (Must be available via the Databricks Model Serving Endpoint.)
+      - name: switch-config-path
+        description: (Optional) Workspace `path` to a custom Switch configuration file. (Must start with '/Workspace/'.)
 
   - name: reconcile
     description: Reconcile source and target data residing on Databricks
@@ -113,6 +115,10 @@ commands:
     flags:
       - name: source-tech
         description: (Optional) The technology/platform of the sources to Profile
+      - name: output-folder
+        description: (Optional) Folder where the extracted DuckDB file is written; if omitted, prompts with a smart default
+      - name: cred-file-path
+        description: (Optional) Local `path` of the credential file to use; defaults to the file written by `configure-database-profiler`
 
   - name: test-profiler-connection
     description: (Internal) Test the connection to the source database for profiling

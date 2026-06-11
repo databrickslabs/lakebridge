@@ -11,7 +11,6 @@ from sqlglot.helper import apply_index_offset, csv
 from databricks.labs.lakebridge.transpiler.sqlglot import local_expression
 from databricks.labs.lakebridge.transpiler.sqlglot.lca_utils import unalias_lca_in_select
 
-
 logger = logging.getLogger(__name__)
 
 VALID_DATABRICKS_TYPES = {

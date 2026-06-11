@@ -98,7 +98,7 @@ def mock_cli_for_transpile(
     transpiler_config_path: Path,
     empty_input_source: Path,
     output_folder: Path,
-) -> Generator[tuple[WorkspaceClient, TranspileConfig, Callable[[TranspileConfig], None], MagicMock], None, None]:
+) -> Generator[tuple[WorkspaceClient, TranspileConfig, Callable[[TranspileConfig], None], MagicMock]]:
     mock_transpile = MagicMock(return_value=({}, []))
 
     async def do_transpile(*args, **kwargs):
@@ -136,7 +136,7 @@ def mock_cli_transpile_no_config(
     transpiler_config_path: Path,
     empty_input_source: Path,
     output_folder: Path,
-) -> Generator[tuple[WorkspaceClient, TranspileConfig, MagicMock], None, None]:
+) -> Generator[tuple[WorkspaceClient, TranspileConfig, MagicMock]]:
     mock_transpile = MagicMock(return_value=({}, []))
 
     async def do_transpile(*args, **kwargs):
@@ -513,7 +513,7 @@ def test_describe_transpile(mock_cli_transpile_no_config, transpiler_repository:
     ws, _, _ = mock_cli_transpile_no_config
     cli.describe_transpile(w=ws, transpiler_repository=transpiler_repository)
 
-    (out, _) = capsys.readouterr()
+    out, _ = capsys.readouterr()
     json_description = json.loads(out)
 
     overrides_file_option = {

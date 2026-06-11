@@ -10,12 +10,13 @@ from databricks.sdk.service import iam
 from databricks.labs.blueprint.tui import MockPrompts
 from databricks.labs.blueprint.wheels import ProductInfo, WheelsV2
 from databricks.labs.lakebridge.config import (
-    DatabaseConfig,
     LSPConfigOptionV1,
     LSPPromptMethod,
     LakebridgeConfiguration,
     ReconcileConfig,
     ReconcileMetadataConfig,
+    SourceConnectionConfig,
+    TargetConnectionConfig,
     TranspileConfig,
     ProfilerDashboardConfig,
     ProfilerDashboardMetadataConfig,
@@ -29,7 +30,7 @@ from databricks.labs.lakebridge.transpiler.installers import (
     TranspilerInstaller,
 )
 from databricks.labs.lakebridge.transpiler.repository import TranspilerRepository
-
+from databricks.labs.lakebridge.assessments import PROFILER_SOURCE_SYSTEM
 
 RECONCILE_DATA_SOURCES = sorted([source_type.value for source_type in ReconSourceType])
 RECONCILE_REPORT_TYPES = sorted([report_type.value for report_type in ReconReportType])
@@ -53,7 +54,7 @@ PATH_TO_TRANSPILER_CONFIG = "/some/path/to/config.yml"
 
 
 @pytest.fixture()
-def ws_installer() -> Generator[Callable[..., WorkspaceInstaller], None, None]:
+def ws_installer() -> Generator[Callable[..., WorkspaceInstaller]]:
 
     class TestWorkspaceInstaller(WorkspaceInstaller):
         def __init__(self, *args, **kwargs):
@@ -607,10 +608,11 @@ def test_configure_reconcile_installation_config_error_continue_install(ws: Work
         {
             r"Select the Data Source": str(RECONCILE_DATA_SOURCES.index("oracle")),
             r"Select the report type": str(RECONCILE_REPORT_TYPES.index("all")),
-            r"Enter Secret scope name to store .* connection details / secrets": "remorph_oracle",
-            r"Enter source database name for .*": "tpch_sf1000",
-            r"Enter target catalog name for Databricks": "tpch",
-            r"Enter target schema name for Databricks": "1000gb",
+            r"Enter Unity Catalog .* connection name": "my_oracle_conn",
+            r"Enter Oracle service name": "ORCL",
+            r"Enter .* database name": "tpch_sf1000",
+            r"Enter target Databricks catalog name": "tpch",
+            r"Enter target Databricks schema name": "1000gb",
             r"Open .* in the browser?": "no",
         }
     )
@@ -619,18 +621,22 @@ def test_configure_reconcile_installation_config_error_continue_install(ws: Work
             "reconcile.yml": {
                 "source_dialect": "oracle",  # Invalid key
                 "report_type": "all",
-                "secret_scope": "remorph_oracle",
-                "database_config": {
-                    "source_schema": "tpch_sf1000",
-                    "target_catalog": "tpch",
-                    "target_schema": "1000gb",
+                "source": {
+                    "dialect": "oracle",
+                    "catalog": "ORCL",
+                    "schema": "tpch_sf1000",
+                    "uc_connection_name": "my_oracle_conn",
+                },
+                "target": {
+                    "catalog": "tpch",
+                    "schema": "1000gb",
                 },
                 "metadata_config": {
                     "catalog": "remorph",
                     "schema": "reconcile",
                     "volume": "reconcile_volume",
                 },
-                "version": 1,
+                "version": 2,
             }
         }
     )
@@ -661,13 +667,16 @@ def test_configure_reconcile_installation_config_error_continue_install(ws: Work
 
     expected_config = LakebridgeConfiguration(
         reconcile=ReconcileConfig(
-            data_source="oracle",
             report_type="all",
-            secret_scope="remorph_oracle",
-            database_config=DatabaseConfig(
-                source_schema="tpch_sf1000",
-                target_catalog="tpch",
-                target_schema="1000gb",
+            source=SourceConnectionConfig(
+                dialect="oracle",
+                catalog="ORCL",
+                schema="tpch_sf1000",
+                uc_connection_name="my_oracle_conn",
+            ),
+            target=TargetConnectionConfig(
+                catalog="tpch",
+                schema="1000gb",
             ),
             metadata_config=ReconcileMetadataConfig(
                 catalog="remorph",
@@ -682,20 +691,23 @@ def test_configure_reconcile_installation_config_error_continue_install(ws: Work
     installation.assert_file_written(
         "reconcile.yml",
         {
-            "data_source": "oracle",
             "report_type": "all",
-            "secret_scope": "remorph_oracle",
-            "database_config": {
-                "source_schema": "tpch_sf1000",
-                "target_catalog": "tpch",
-                "target_schema": "1000gb",
+            "source": {
+                "dialect": "oracle",
+                "catalog": "ORCL",
+                "schema": "tpch_sf1000",
+                "uc_connection_name": "my_oracle_conn",
+            },
+            "target": {
+                "catalog": "tpch",
+                "schema": "1000gb",
             },
             "metadata_config": {
                 "catalog": "remorph",
                 "schema": "reconcile",
                 "volume": "reconcile_volume",
             },
-            "version": 1,
+            "version": 2,
         },
     )
 
@@ -706,11 +718,11 @@ def test_configure_reconcile_no_existing_installation(ws: WorkspaceClient) -> No
         {
             r"Select the Data Source": str(RECONCILE_DATA_SOURCES.index("snowflake")),
             r"Select the report type": str(RECONCILE_REPORT_TYPES.index("all")),
-            r"Enter Secret scope name to store .* connection details / secrets": "remorph_snowflake",
-            r"Enter source catalog name for .*": "snowflake_sample_data",
-            r"Enter source schema name for .*": "tpch_sf1000",
-            r"Enter target catalog name for Databricks": "tpch",
-            r"Enter target schema name for Databricks": "1000gb",
+            r"Enter Unity Catalog .* connection name": "my_snowflake_conn",
+            r"Enter .* database name": "snowflake_sample_data",
+            r"Enter .* schema name": "tpch_sf1000",
+            r"Enter target Databricks catalog name": "tpch",
+            r"Enter target Databricks schema name": "1000gb",
             r"Open .* in the browser?": "yes",
         }
     )
@@ -741,14 +753,16 @@ def test_configure_reconcile_no_existing_installation(ws: WorkspaceClient) -> No
 
     expected_config = LakebridgeConfiguration(
         reconcile=ReconcileConfig(
-            data_source="snowflake",
             report_type="all",
-            secret_scope="remorph_snowflake",
-            database_config=DatabaseConfig(
-                source_schema="tpch_sf1000",
-                target_catalog="tpch",
-                target_schema="1000gb",
-                source_catalog="snowflake_sample_data",
+            source=SourceConnectionConfig(
+                dialect="snowflake",
+                catalog="snowflake_sample_data",
+                schema="tpch_sf1000",
+                uc_connection_name="my_snowflake_conn",
+            ),
+            target=TargetConnectionConfig(
+                catalog="tpch",
+                schema="1000gb",
             ),
             metadata_config=ReconcileMetadataConfig(
                 catalog="remorph",
@@ -763,23 +777,76 @@ def test_configure_reconcile_no_existing_installation(ws: WorkspaceClient) -> No
     installation.assert_file_written(
         "reconcile.yml",
         {
-            "data_source": "snowflake",
             "report_type": "all",
-            "secret_scope": "remorph_snowflake",
-            "database_config": {
-                "source_catalog": "snowflake_sample_data",
-                "source_schema": "tpch_sf1000",
-                "target_catalog": "tpch",
-                "target_schema": "1000gb",
+            "source": {
+                "dialect": "snowflake",
+                "catalog": "snowflake_sample_data",
+                "schema": "tpch_sf1000",
+                "uc_connection_name": "my_snowflake_conn",
+            },
+            "target": {
+                "catalog": "tpch",
+                "schema": "1000gb",
             },
             "metadata_config": {
                 "catalog": "remorph",
                 "schema": "reconcile",
                 "volume": "reconcile_volume",
             },
-            "version": 1,
+            "version": 2,
         },
     )
+
+
+def _teradata_install_ctx(workspace_client: WorkspaceClient, prompts: MockPrompts) -> WorkspaceInstaller:
+    installation = MockInstallation()
+    resource_configurator = create_autospec(ResourceConfigurator)
+    resource_configurator.prompt_for_catalog_setup.return_value = "remorph"
+    resource_configurator.prompt_for_schema_setup.return_value = "reconcile"
+    resource_configurator.prompt_for_volume_setup.return_value = "reconcile_volume"
+    ctx = ApplicationContext(workspace_client)
+    ctx.replace(
+        prompts=prompts,
+        installation=installation,
+        resource_configurator=resource_configurator,
+        workspace_installation=create_autospec(WorkspaceInstallation),
+    )
+    return WorkspaceInstaller(
+        ctx.workspace_client,
+        ctx.prompts,
+        ctx.installation,
+        ctx.install_state,
+        ctx.product_info,
+        ctx.resource_configurator,
+        ctx.workspace_installation,
+    )
+
+
+@patch("webbrowser.open")
+def test_configure_reconcile_teradata_hash_expression_mandatory(ws: WorkspaceClient) -> None:
+    """For Teradata, the install prompt asks for source (mandatory, non-default expression) and
+    target hash expressions (target accepts default sha2({}, 256))."""
+    prompts = MockPrompts(
+        {
+            r"Select the Data Source": str(RECONCILE_DATA_SOURCES.index("teradata")),
+            r"Select the report type": str(RECONCILE_REPORT_TYPES.index("all")),
+            r"Enter Unity Catalog .* connection name": "my_teradata_conn",
+            r"Enter .* database name": "DBC",
+            r"Enter .* schema name": "tpch_sf1000",
+            r"Enter the Teradata source hash expression": "my_db.my_sha256({})",
+            r"Enter the Databricks target hash expression": "md5({})",
+            r"Enter target Databricks catalog name": "tpch",
+            r"Enter target Databricks schema name": "1000gb",
+            r"Open .* in the browser?": "no",
+        }
+    )
+    config = _teradata_install_ctx(ws, prompts).configure(module="reconcile")
+
+    assert config.reconcile is not None
+    assert config.reconcile.source.dialect == "teradata"
+    assert config.reconcile.hash_expression_overrides is not None
+    assert config.reconcile.hash_expression_overrides.source == "my_db.my_sha256({})"
+    assert config.reconcile.hash_expression_overrides.target == "md5({})"
 
 
 @patch("webbrowser.open")
@@ -787,12 +854,11 @@ def test_configure_reconcile_databricks_no_existing_installation(ws: WorkspaceCl
     prompts = MockPrompts(
         {
             r"Select the Data Source": str(RECONCILE_DATA_SOURCES.index("databricks")),
-            r"Enter Secret scope name to store .* connection details / secrets": "remorph_databricks",
             r"Select the report type": str(RECONCILE_REPORT_TYPES.index("all")),
-            r"Enter source catalog name for .*": "databricks_catalog",
-            r"Enter source schema name for .*": "some_schema",
-            r"Enter target catalog name for Databricks": "tpch",
-            r"Enter target schema name for Databricks": "1000gb",
+            r"Enter .* catalog name": "databricks_catalog",
+            r"Enter .* schema name": "some_schema",
+            r"Enter target Databricks catalog name": "tpch",
+            r"Enter target Databricks schema name": "1000gb",
             r"Open .* in the browser?": "yes",
         }
     )
@@ -823,14 +889,15 @@ def test_configure_reconcile_databricks_no_existing_installation(ws: WorkspaceCl
 
     expected_config = LakebridgeConfiguration(
         reconcile=ReconcileConfig(
-            data_source="databricks",
             report_type="all",
-            secret_scope="remorph_databricks",
-            database_config=DatabaseConfig(
-                source_schema="some_schema",
-                target_catalog="tpch",
-                target_schema="1000gb",
-                source_catalog="databricks_catalog",
+            source=SourceConnectionConfig(
+                dialect="databricks",
+                catalog="databricks_catalog",
+                schema="some_schema",
+            ),
+            target=TargetConnectionConfig(
+                catalog="tpch",
+                schema="1000gb",
             ),
             metadata_config=ReconcileMetadataConfig(
                 catalog="remorph",
@@ -845,21 +912,22 @@ def test_configure_reconcile_databricks_no_existing_installation(ws: WorkspaceCl
     installation.assert_file_written(
         "reconcile.yml",
         {
-            "data_source": "databricks",
             "report_type": "all",
-            "secret_scope": "remorph_databricks",
-            "database_config": {
-                "source_catalog": "databricks_catalog",
-                "source_schema": "some_schema",
-                "target_catalog": "tpch",
-                "target_schema": "1000gb",
+            "source": {
+                "dialect": "databricks",
+                "catalog": "databricks_catalog",
+                "schema": "some_schema",
+            },
+            "target": {
+                "catalog": "tpch",
+                "schema": "1000gb",
             },
             "metadata_config": {
                 "catalog": "remorph",
                 "schema": "reconcile",
                 "volume": "reconcile_volume",
             },
-            "version": 1,
+            "version": 2,
         },
     )
 
@@ -880,14 +948,13 @@ def test_configure_all_override_installation(
             r"Open .* in the browser?": "no",
             r"Select the Data Source": str(RECONCILE_DATA_SOURCES.index("snowflake")),
             r"Select the report type": str(RECONCILE_REPORT_TYPES.index("all")),
-            r"Enter Secret scope name to store .* connection details / secrets": "remorph_snowflake",
-            r"Enter source catalog name for .*": "snowflake_sample_data",
-            r"Enter source schema name for .*": "tpch_sf1000",
-            r"Enter target catalog name for Databricks": "tpch",
-            r"Enter target schema name for Databricks": "1000gb",
-            # Profiler Configuration Prompts
-            r"Select the source technology": "0",
-            r"Enter the path to the profiler extract file:": "",
+            r"Enter Unity Catalog .* connection name": "my_snowflake_conn",
+            r"Enter .* database name": "snowflake_sample_data",
+            r"Enter .* schema name": "tpch_sf1000",
+            r"Enter target Databricks catalog name": "tpch",
+            r"Enter target Databricks schema name": "1000gb",
+            r"Select the source technology": str(PROFILER_SOURCE_SYSTEM.index("snowflake")),
+            r"Enter the path to the profiler output file": "/tmp/profiler_extract.db",
         }
     )
     installation = MockInstallation(
@@ -906,21 +973,23 @@ def test_configure_all_override_installation(
                 "version": 3,
             },
             "reconcile.yml": {
-                "data_source": "snowflake",
                 "report_type": "all",
-                "secret_scope": "remorph_snowflake",
-                "database_config": {
-                    "source_catalog": "snowflake_sample_data",
-                    "source_schema": "tpch_sf1000",
-                    "target_catalog": "tpch",
-                    "target_schema": "1000gb",
+                "source": {
+                    "dialect": "snowflake",
+                    "catalog": "snowflake_sample_data",
+                    "schema": "tpch_sf1000",
+                    "uc_connection_name": "my_snowflake_conn",
+                },
+                "target": {
+                    "catalog": "tpch",
+                    "schema": "1000gb",
                 },
                 "metadata_config": {
                     "catalog": "remorph",
                     "schema": "reconcile",
                     "volume": "reconcile_volume",
                 },
-                "version": 1,
+                "version": 2,
             },
         }
     )
@@ -963,14 +1032,16 @@ def test_configure_all_override_installation(
     )
 
     expected_reconcile_config = ReconcileConfig(
-        data_source="snowflake",
         report_type="all",
-        secret_scope="remorph_snowflake",
-        database_config=DatabaseConfig(
-            source_schema="tpch_sf1000",
-            target_catalog="tpch",
-            target_schema="1000gb",
-            source_catalog="snowflake_sample_data",
+        source=SourceConnectionConfig(
+            dialect="snowflake",
+            catalog="snowflake_sample_data",
+            schema="tpch_sf1000",
+            uc_connection_name="my_snowflake_conn",
+        ),
+        target=TargetConnectionConfig(
+            catalog="tpch",
+            schema="1000gb",
         ),
         metadata_config=ReconcileMetadataConfig(
             catalog="remorph",
@@ -980,10 +1051,8 @@ def test_configure_all_override_installation(
     )
 
     expected_profiler_dash_config = ProfilerDashboardConfig(
-        source_tech="synapse",
-        extract_file_path=str(
-            Path("~/.databricks/labs/lakebridge_profilers/synapse_assessment/profiler_extract.db").expanduser()
-        ),
+        source_tech="snowflake",
+        extract_file_path="/tmp/profiler_extract.db",
         metadata_config=ProfilerDashboardMetadataConfig(
             catalog="remorph",
             schema="reconcile",
@@ -1015,21 +1084,23 @@ def test_configure_all_override_installation(
     installation.assert_file_written(
         "reconcile.yml",
         {
-            "data_source": "snowflake",
             "report_type": "all",
-            "secret_scope": "remorph_snowflake",
-            "database_config": {
-                "source_catalog": "snowflake_sample_data",
-                "source_schema": "tpch_sf1000",
-                "target_catalog": "tpch",
-                "target_schema": "1000gb",
+            "source": {
+                "dialect": "snowflake",
+                "catalog": "snowflake_sample_data",
+                "schema": "tpch_sf1000",
+                "uc_connection_name": "my_snowflake_conn",
+            },
+            "target": {
+                "catalog": "tpch",
+                "schema": "1000gb",
             },
             "metadata_config": {
                 "catalog": "remorph",
                 "schema": "reconcile",
                 "volume": "reconcile_volume",
             },
-            "version": 1,
+            "version": 2,
         },
     )
 

@@ -26,6 +26,16 @@ _SUPPORTED_AGG_TYPES: set[str] = {
 
 RECONCILE_OPERATION_NAME = "reconcile"
 AGG_RECONCILE_OPERATION_NAME = "aggregates-reconcile"
+DISCOVER_TABLES_OPERATION_NAME = "discover-tables"
+AUTO_CONFIGURE_TABLES_OPERATION_NAME = "auto-configure-tables"
+DISCOVER_AND_AUTO_CONFIGURE_TABLES_OPERATION_NAME = "discover-auto-configure-tables"
+SUPPORTED_OPERATIONS = {
+    RECONCILE_OPERATION_NAME,
+    AGG_RECONCILE_OPERATION_NAME,
+    DISCOVER_TABLES_OPERATION_NAME,
+    AUTO_CONFIGURE_TABLES_OPERATION_NAME,
+    DISCOVER_AND_AUTO_CONFIGURE_TABLES_OPERATION_NAME,
+}
 
 PrimitiveType = bool | int | float | str
 OptionalPrimitiveType = PrimitiveType | None
@@ -82,12 +92,12 @@ class SamplingOptions:
 
 
 @dataclass
-class JdbcReaderOptions:
-    number_partitions: int | None = None
-    partition_column: str | None = None
-    lower_bound: str | None = None
-    upper_bound: str | None = None
-    fetch_size: int = 100
+class JdbcReaderOptions:  # This class follows the same naming as db `remote_query` options
+    partition_column: str  # if used, other props here have to be set as well
+    num_partitions: int
+    lower_bound: str
+    upper_bound: str
+    fetchsize: int = 0  # this uses driver default
 
     def __post_init__(self):
         self.partition_column = self.partition_column.lower() if self.partition_column else None

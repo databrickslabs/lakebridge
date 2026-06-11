@@ -23,6 +23,25 @@ logging.getLogger("databricks.labs.pytester").setLevel(logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 
+@pytest.fixture(scope="session")
+def test_env() -> TestEnvGetter:
+    """Reusable :class:`TestEnvGetter` for reading values from ``~/.databricks/debug-env.json``."""
+    return TestEnvGetter(True)
+
+
+@pytest.fixture(autouse=True)
+def remap_cluster_id_to_dqx(monkeypatch, debug_env) -> None:
+    """Point the Databricks SDK at the DQX cluster used by reconcile integration tests.
+
+    Depends on ``debug_env`` so that the ``.env``-loaded value of
+    ``DATABRICKS_DQX_CLUSTER_ID`` is visible in ``os.environ`` before we read it.
+    Uses ``monkeypatch.setenv`` so the substitution is reverted after each test.
+    """
+    dqx_cluster_id = debug_env.get("DATABRICKS_DQX_CLUSTER_ID")
+    if dqx_cluster_id:
+        monkeypatch.setenv("DATABRICKS_CLUSTER_ID", dqx_cluster_id)
+
+
 class MockApplicationContext(ApplicationContext):
     """A mock application context that uses a unique installation path."""
 
@@ -32,7 +51,7 @@ class MockApplicationContext(ApplicationContext):
 
 
 @pytest.fixture
-def application_ctx(ws: WorkspaceClient) -> Generator[ApplicationContext, None, None]:
+def application_ctx(ws: WorkspaceClient) -> Generator[ApplicationContext]:
     """A mock application context with a unique installation path, cleaned up after the test."""
     ctx = MockApplicationContext(ws)
     yield ctx
@@ -145,6 +164,26 @@ def sandbox_synapse_cred_config(sandbox_sqlserver_config: JsonObject) -> JsonObj
 def sandbox_synapse(sandbox_synapse_config: JsonObject) -> DatabaseManager:
     """Create a DatabaseManager for Synapse (uses MSSQLConnector via factory method)."""
     return DatabaseManager("synapse", sandbox_synapse_config)
+
+
+@pytest.fixture()
+def sandbox_redshift_config() -> JsonObject:
+    env = TestEnvGetter(True)
+    config: JsonObject = {
+        "host": env.get("REDSHIFT_HOST"),
+        "user": env.get("REDSHIFT_USER"),
+        "password": env.get("REDSHIFT_PASS"),
+        "database": "labs",
+        "port": int(env.get("REDSHIFT_PORT")),
+        "auth_type": "sql_authentication",
+        "ssl": "true",
+    }
+    return config
+
+
+@pytest.fixture()
+def sandbox_redshift(sandbox_redshift_config: JsonObject) -> DatabaseManager:
+    return DatabaseManager("redshift", sandbox_redshift_config)
 
 
 @pytest.fixture()
