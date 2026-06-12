@@ -88,24 +88,24 @@ def test_teradata_connector(mock_teradata_connector) -> None:
     mock_teradata_connector.assert_called_once_with(sample_config)
 
 
-def test_fetch_result_to_df_normalizes_utf8_text() -> None:
-    # Includes APJ + European-language text and malformed surrogate text to validate normalization path.
+def test_fetch_result_to_df_preserves_international_text() -> None:
+    # Drivers (e.g. teradatasql over a UTF-8 session) return character data as already-decoded ``str``,
+    # so APJ + European-language text must round-trip through to_df() unchanged.
     raw_rows = [
         (
             "こんにちは",  # Japanese
             "안녕하세요",  # Korean
-            "สวัสดี".encode("utf-8"),  # Thai bytes
+            "สวัสดี",  # Thai
             "Bonjour",  # French
             "Müller",  # German
             "Ciao",  # Italian
             "José García",  # Spanish
             "João Silva",  # Portuguese
             "Pieter de Vries",  # Dutch
-            "\udcff",  # malformed surrogate
         )
     ]
     result = FetchResult(
-        columns={"ja", "ko", "th", "fr", "de", "it", "es", "pt", "nl", "bad_text"},
+        columns={"ja", "ko", "th", "fr", "de", "it", "es", "pt", "nl"},
         rows=cast(Any, raw_rows),
     )
 
@@ -120,4 +120,3 @@ def test_fetch_result_to_df_normalizes_utf8_text() -> None:
     assert frame.iloc[0, 6] == "José García"
     assert frame.iloc[0, 7] == "João Silva"
     assert frame.iloc[0, 8] == "Pieter de Vries"
-    assert frame.iloc[0, 9] == "?"
