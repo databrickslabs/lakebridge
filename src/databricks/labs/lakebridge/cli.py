@@ -667,6 +667,9 @@ def reconcile(
     """[EXPERIMENTAL] Reconciles source to Databricks datasets"""
     ctx = ctx_factory(w)
     ctx.add_user_agent_extra("cmd", "execute-reconcile")
+    if ctx.recon_config:
+        ctx.add_user_agent_extra("reconcile_source_tech", make_alphanum_or_semver(ctx.recon_config.source.dialect))
+        ctx.add_user_agent_extra("reconcile_report_type", make_alphanum_or_semver(ctx.recon_config.report_type))
     user = ctx.current_user
     logger.debug(f"User: {user}")
     recon_runner = ReconcileRunner(
@@ -686,6 +689,9 @@ def auto_configure_recon_tables(
     """[EXPERIMENTAL] Auto-discover source/target tables and generate the reconcile table mappings"""
     ctx = ctx_factory(w)
     ctx.add_user_agent_extra("cmd", "auto-configure-recon-tables")
+    if ctx.recon_config:
+        ctx.add_user_agent_extra("reconcile_source_tech", make_alphanum_or_semver(ctx.recon_config.source.dialect))
+        ctx.add_user_agent_extra("reconcile_report_type", make_alphanum_or_semver(ctx.recon_config.report_type))
     user = ctx.current_user
     logger.debug(f"User: {user}")
     _run_auto_configure_recon_tables(ctx)
