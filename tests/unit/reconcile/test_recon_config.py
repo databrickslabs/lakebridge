@@ -65,6 +65,12 @@ def test_sampling_specifications_none_value_defaults_to_50():
     assert spec.value == 50
 
 
+@pytest.mark.parametrize("bad_value", [0, -1, -100])
+def test_sampling_specifications_floors_non_positive_value(bad_value):
+    spec = SamplingSpecifications(value=bad_value)
+    assert spec.value == 50
+
+
 @pytest.mark.parametrize("bad_value", [True, False, "abc", [1]])
 def test_sampling_specifications_rejects_bool_and_non_numeric(bad_value):
     with pytest.raises(ValueError, match="value must be int"):

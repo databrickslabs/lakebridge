@@ -47,7 +47,6 @@ from databricks.labs.lakebridge.reconcile.schema_compare import SchemaCompare
 from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
 
 logger = logging.getLogger(__name__)
-_SAMPLE_ROWS = 50
 
 
 class Reconciliation:

@@ -26,6 +26,8 @@ def databricks_source():
     src.normalize_identifier.side_effect = lambda c: NormalizedIdentifier(
         ansi_normalized=c.lower(), source_normalized=f"`{c.lower()}`"
     )
+    # autospec does not carry the class attribute's value; set it explicitly.
+    src.max_sample_size = DatabricksDataSource.max_sample_size
     return src
 
 
@@ -104,13 +106,20 @@ def test_non_databricks_source_caps_above_400_with_warning(normalize_service, ta
     with caplog.at_level("WARNING"):
         result = normalize_service.normalize_recon_table_config(raw)
     assert result.sampling_options.specifications.value == 400
-    assert any("exceeds the non-Databricks limit of 400" in rec.message for rec in caplog.records)
+    assert any("exceeds the limit of 400" in rec.message for rec in caplog.records)
 
 
 def test_no_sampling_options_is_passthrough(normalize_service, table_conf):
     raw = table_conf()
     result = normalize_service.normalize_recon_table_config(raw)
     assert result.sampling_options is None
+
+
+def test_normalize_does_not_mutate_input_sampling_options(normalize_service, table_conf):
+    raw = table_conf(sampling_options=SamplingOptions(specifications=_count_spec(500)))
+    result = normalize_service.normalize_recon_table_config(raw)
+    assert raw.sampling_options.specifications.value == 500  # input untouched
+    assert result.sampling_options.specifications.value == 400  # normalized clamped (non-Databricks)
 
 
 def _count_spec(value):

@@ -437,9 +437,12 @@ Controls the sample-size policy.
 
 **Engine-aware bounds on `value`:**
 
-- **Databricks source:** clamped to `[1, 50_000]`. Larger values are silently capped at 50,000.
-- **Non-Databricks source:** honored up to `400`. Larger values are capped at 400 with a `WARNING` log (`exceeds the non-Databricks limit of 400; capping to 400 for <connector>`).
-- `value <= 0` floors to `50`.
+Each source has a `max_sample_size` (a property on its connector):
+
+- **Databricks source:** honored up to `50_000`.
+- **Non-Databricks source:** honored up to `400`.
+- Values above the source's limit are capped to it with a `WARNING` log (`exceeds the limit of <max> for <connector>; capping to <max>`).
+- `value <= 0` falls back to `50`.
 
 ### SamplingOptions
 

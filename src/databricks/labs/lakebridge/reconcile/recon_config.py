@@ -7,7 +7,11 @@ from collections.abc import Callable
 from sqlglot import expressions as exp
 
 from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import DialectUtils
-from databricks.labs.lakebridge.reconcile.constants import SamplingOptionMethod, SamplingSpecificationsType
+from databricks.labs.lakebridge.reconcile.constants import (
+    DEFAULT_SAMPLE_ROWS,
+    SamplingOptionMethod,
+    SamplingSpecificationsType,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +52,7 @@ class HashAlgoMapping:
 @dataclass
 class SamplingSpecifications:
     type: SamplingSpecificationsType = SamplingSpecificationsType.COUNT
-    value: int | float = 50
+    value: int | float = DEFAULT_SAMPLE_ROWS
 
     def __post_init__(self):
         if not isinstance(self.type, SamplingSpecificationsType):
@@ -60,11 +64,13 @@ class SamplingSpecifications:
             raise ValueError("SamplingSpecifications: 'FRACTION' type is disabled")
         if self.value is None:
             logger.warning("SamplingSpecifications: value is None; defaulting to 50")
-            self.value = 50
+            self.value = DEFAULT_SAMPLE_ROWS
         if isinstance(self.value, bool) or not isinstance(self.value, (int, float)):
             raise ValueError(f"SamplingSpecifications: value must be int|float, got {type(self.value).__name__}")
         # Safe today because FRACTION raises above; revisit when FRACTION is enabled.
         self.value = int(self.value)
+        if self.value <= 0:
+            self.value = DEFAULT_SAMPLE_ROWS
 
 
 @dataclass
@@ -208,8 +214,9 @@ class Table:
         self.join_columns = to_lower_case(self.join_columns) if self.join_columns else None
 
     def get_max_sample_size(self) -> int:
+        """Sample-row cap. The engine-aware upper bound is applied by NormalizeReconConfigService."""
         if self.sampling_options is None:
-            return 50
+            return DEFAULT_SAMPLE_ROWS
         return int(self.sampling_options.specifications.value)
 
     @property

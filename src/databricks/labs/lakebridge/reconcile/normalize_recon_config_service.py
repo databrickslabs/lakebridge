@@ -2,7 +2,6 @@ import dataclasses
 import logging
 
 from databricks.labs.lakebridge.reconcile.connectors.data_source import DataSource
-from databricks.labs.lakebridge.reconcile.connectors.databricks import DatabricksDataSource
 from databricks.labs.lakebridge.reconcile.recon_config import (
     Table,
     Aggregate,
@@ -12,10 +11,6 @@ from databricks.labs.lakebridge.reconcile.recon_config import (
 )
 
 logger = logging.getLogger(__name__)
-
-_DEFAULT_MAX_SAMPLE_SIZE = 50
-_MAX_SAMPLE_SIZE = 400
-_MAX_SAMPLE_SIZE_DATABRICKS = 50_000
 
 
 class NormalizeReconConfigService:
@@ -40,26 +35,23 @@ class NormalizeReconConfigService:
 
     def _normalize_sampling(self, table: Table):
         if table.sampling_options:
-            normalized_sampling = dataclasses.replace(table.sampling_options)
+            normalized_sampling = dataclasses.replace(
+                table.sampling_options,
+                specifications=dataclasses.replace(table.sampling_options.specifications),
+            )
             normalized_sampling.stratified_columns = (
                 [self.source.normalize_identifier(c).ansi_normalized for c in normalized_sampling.stratified_columns]
                 if normalized_sampling.stratified_columns
                 else None
             )
             requested = normalized_sampling.specifications.value
-            is_databricks = isinstance(self.source, DatabricksDataSource)
-            if requested <= 0:
-                normalized_sampling.specifications.value = _DEFAULT_MAX_SAMPLE_SIZE
-            elif is_databricks:
-                normalized_sampling.specifications.value = min(requested, _MAX_SAMPLE_SIZE_DATABRICKS)
-            elif requested > _MAX_SAMPLE_SIZE:
+            max_allowed = self.source.max_sample_size
+            if requested > max_allowed:
                 logger.warning(
-                    f"sample size={requested} exceeds the non-Databricks limit of {_MAX_SAMPLE_SIZE}; "
-                    f"capping to {_MAX_SAMPLE_SIZE} for {type(self.source).__name__}."
+                    f"sample size={requested} exceeds the limit of {max_allowed} "
+                    f"for {type(self.source).__name__}; capping to {max_allowed}."
                 )
-                normalized_sampling.specifications.value = _MAX_SAMPLE_SIZE
-            else:
-                normalized_sampling.specifications.value = requested
+                normalized_sampling.specifications.value = max_allowed
             table.sampling_options = normalized_sampling
         return table
 

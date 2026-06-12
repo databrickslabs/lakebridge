@@ -1,5 +1,9 @@
 from enum import Enum, auto
 
+# Default number of sample rows captured per result set (mismatch / missing-in-source /
+# missing-in-target) when sampling_options is not configured. Single source of truth.
+DEFAULT_SAMPLE_ROWS = 50
+
 
 class AutoName(Enum):
     """

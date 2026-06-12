@@ -12,6 +12,9 @@ logger = logging.getLogger(__name__)
 
 
 class DataSource(ABC):
+    # Max sample rows this engine can materialize via the inline-UNION sampling query.
+    # Databricks overrides this (temp-view sampling scales much higher).
+    max_sample_size: int = 400
 
     @abstractmethod
     def read_data(

@@ -4,12 +4,15 @@ from abc import ABC, abstractmethod
 from pyspark.sql import DataFrame
 from pyspark.sql import functions as F
 
-from databricks.labs.lakebridge.reconcile.constants import SamplingOptionMethod, SamplingSpecificationsType
+from databricks.labs.lakebridge.reconcile.constants import (
+    DEFAULT_SAMPLE_ROWS,
+    SamplingOptionMethod,
+    SamplingSpecificationsType,
+)
 from databricks.labs.lakebridge.reconcile.recon_config import SamplingOptions, SamplingSpecifications
 
 logger = logging.getLogger(__name__)
 
-_MIN_SAMPLE_COUNT = 50
 
 _MIN_BUCKET_LIMIT = 2
 _MAX_BUCKET_LIMIT = 50
@@ -68,7 +71,7 @@ class RandomSampler(Sampler):
         self._validate_sampling_options()
         specs = self._sampling_options.specifications
 
-        default_sampled_df = keys_df.limit(_MIN_SAMPLE_COUNT)
+        default_sampled_df = keys_df.limit(DEFAULT_SAMPLE_ROWS)
 
         if specs.type == SamplingSpecificationsType.FRACTION:
             sampled_df = keys_df.sample(fraction=specs.value, seed=self.seed)
@@ -140,7 +143,7 @@ class StratifiedSampler(Sampler):
         stratified_buckets = self._sampling_options.stratified_buckets or _MIN_BUCKET_LIMIT
 
         keys_df.select(*key_columns)
-        default_sampled_df = keys_df.limit(_MIN_SAMPLE_COUNT)
+        default_sampled_df = keys_df.limit(DEFAULT_SAMPLE_ROWS)
 
         # Join the mismatched_df with target_table_df
         joined_df = keys_df.join(
@@ -184,7 +187,7 @@ class SamplerFactory:
         if sampling_options is None:
             default_sampling_options = SamplingOptions(
                 method=SamplingOptionMethod.RANDOM,
-                specifications=SamplingSpecifications(type=SamplingSpecificationsType.COUNT, value=_MIN_SAMPLE_COUNT),
+                specifications=SamplingSpecifications(type=SamplingSpecificationsType.COUNT, value=DEFAULT_SAMPLE_ROWS),
                 stratified_columns=None,
                 stratified_buckets=None,
             )
