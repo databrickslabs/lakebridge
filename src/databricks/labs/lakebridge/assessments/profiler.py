@@ -13,8 +13,9 @@ from databricks.labs.lakebridge.connections.env_getter import EnvGetter
 from databricks.labs.lakebridge.assessments import (
     PRODUCT_NAME,
     PRODUCT_PATH_PREFIX,
-    PLATFORM_TO_SOURCE_TECHNOLOGY_CFG,
+    SOURCE_SYSTEM_TO_PIPELINE_CFG,
     CONNECTOR_REQUIRED,
+    source_system_family,
 )
 
 logger = logging.getLogger(__name__)
@@ -26,20 +27,27 @@ def default_output_folder(platform: str) -> Path:
 
 class Profiler:
 
-    def __init__(self, platform: str, pipeline_configs: PipelineConfig | None = None):
+    def __init__(
+        self,
+        platform: str,
+        connector_required: bool,
+        pipeline_configs: PipelineConfig | None = None,
+    ):
         self._platform = platform
         self._pipeline_config = pipeline_configs
+        self._connector_required = connector_required
 
     @classmethod
     def create(cls, platform: str) -> "Profiler":
-        pipeline_config_path = PLATFORM_TO_SOURCE_TECHNOLOGY_CFG[platform]
+        pipeline_config_path = SOURCE_SYSTEM_TO_PIPELINE_CFG[platform]
         pipeline_config_absolute_path = Profiler._locate_config(pipeline_config_path)
         pipeline_config = Profiler.path_modifier(config_file=pipeline_config_absolute_path)
-        return cls(platform, pipeline_config)
+        connector_required = CONNECTOR_REQUIRED[source_system_family(platform)]
+        return cls(platform, connector_required, pipeline_config)
 
     @classmethod
     def supported_platforms(cls) -> list[str]:
-        return list(PLATFORM_TO_SOURCE_TECHNOLOGY_CFG.keys())
+        return list(SOURCE_SYSTEM_TO_PIPELINE_CFG.keys())
 
     @staticmethod
     def path_modifier(*, config_file: str | Path, path_prefix: Path = PRODUCT_PATH_PREFIX) -> PipelineConfig:
@@ -120,15 +128,14 @@ class Profiler:
         extractor: DatabaseManager | None,
         cred_file_path: Path,
     ) -> tuple[PipelineConfig, DatabaseManager | None]:
-        connect_config = None
-        if extractor is None and CONNECTOR_REQUIRED[platform]:
-            cred_manager = create_credential_manager(PRODUCT_NAME, EnvGetter(), creds_path=cred_file_path)
-            connect_config = cred_manager.get_credentials(platform)
-            extractor = DatabaseManager(platform, connect_config)
+        if extractor is None and self._connector_required:
+            extractor = self._setup_extractor(platform, cred_file_path)
 
-        if platform == "teradata" and connect_config is not None:
+        if platform == "teradata" and extractor is not None:
+            cred_manager = create_credential_manager(PRODUCT_NAME, EnvGetter(), creds_path=cred_file_path)
+            connect_config = cred_manager.get_credentials(source_system_family(platform))
             pdcr_requested = self._is_pdcr_requested(connect_config)
-            if pdcr_requested and extractor is not None and not self.has_pdcr_access(extractor):
+            if pdcr_requested and not self.has_pdcr_access(extractor):
                 pipeline_config = self.configure_teradata_pipeline(pipeline_config, {"profiler": {"use_pdcr": False}})
             else:
                 pipeline_config = self.configure_teradata_pipeline(pipeline_config, connect_config)
@@ -159,6 +166,13 @@ class Profiler:
         except Exception as e:
             logger.error(f"Error executing pipeline for source {platform}: {e}")
             raise RuntimeError(f"Pipeline execution failed for source {platform} : {e}") from e
+
+    @staticmethod
+    def _setup_extractor(platform: str, cred_file_path: Path | None = None) -> DatabaseManager | None:
+        key = source_system_family(platform)
+        cred_manager = create_credential_manager(PRODUCT_NAME, EnvGetter(), creds_path=cred_file_path)
+        connect_config = cred_manager.get_credentials(key)
+        return DatabaseManager(key, connect_config)
 
     @staticmethod
     def _locate_config(config_path: str | Path) -> Path:

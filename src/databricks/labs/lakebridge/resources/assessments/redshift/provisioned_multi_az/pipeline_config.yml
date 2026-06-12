@@ -1,6 +1,5 @@
 name: redshift_assessment_provisioned_multi_az
 version: "1.0"
-extract_folder: "/tmp/data/redshift_assessment/provisioned_multi_az"
 steps:
   - name: drop_query_view
     type: source_ddl

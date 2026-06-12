@@ -23,7 +23,7 @@ from databricks.labs.blueprint.tui import Prompts
 
 
 from databricks.labs.lakebridge.assessments.configure_assessment import create_assessment_configurator
-from databricks.labs.lakebridge.assessments import PROFILER_SOURCE_SYSTEM, PRODUCT_NAME
+from databricks.labs.lakebridge.assessments import PROFILER_SOURCE_SYSTEM, PRODUCT_NAME, source_system_family
 from databricks.labs.lakebridge.assessments.profiler import Profiler, default_output_folder
 
 from databricks.labs.lakebridge.config import TableRecon, TranspileConfig, LSPConfigOptionV1
@@ -667,6 +667,9 @@ def reconcile(
     """[EXPERIMENTAL] Reconciles source to Databricks datasets"""
     ctx = ctx_factory(w)
     ctx.add_user_agent_extra("cmd", "execute-reconcile")
+    if ctx.recon_config:
+        ctx.add_user_agent_extra("reconcile_source_tech", make_alphanum_or_semver(ctx.recon_config.source.dialect))
+        ctx.add_user_agent_extra("reconcile_report_type", make_alphanum_or_semver(ctx.recon_config.report_type))
     user = ctx.current_user
     logger.debug(f"User: {user}")
     recon_runner = ReconcileRunner(
@@ -686,6 +689,9 @@ def auto_configure_recon_tables(
     """[EXPERIMENTAL] Auto-discover source/target tables and generate the reconcile table mappings"""
     ctx = ctx_factory(w)
     ctx.add_user_agent_extra("cmd", "auto-configure-recon-tables")
+    if ctx.recon_config:
+        ctx.add_user_agent_extra("reconcile_source_tech", make_alphanum_or_semver(ctx.recon_config.source.dialect))
+        ctx.add_user_agent_extra("reconcile_report_type", make_alphanum_or_semver(ctx.recon_config.report_type))
     user = ctx.current_user
     logger.debug(f"User: {user}")
     _run_auto_configure_recon_tables(ctx)
@@ -1166,8 +1172,9 @@ def _test_database_connection(source_tech: str, raw_config: dict) -> None:
         logger.info("Connection to the source system successful")
         return
 
-    # For other source technologies, use DatabaseManager directly
-    with DatabaseManager(source_tech, raw_config) as db_manager:
+    # For other source technologies, use DatabaseManager directly. Redshift variants
+    # share a single connector keyed under "redshift".
+    with DatabaseManager(source_system_family(source_tech), raw_config) as db_manager:
         response = db_manager.check_connection()
     logger.debug(f"Connection response: {response}")
     logger.info("Connection to the source system successful")
@@ -1213,7 +1220,7 @@ def test_profiler_connection(
     cred_manager = create_credential_manager(PRODUCT_NAME, EnvGetter(), creds_path=credential_file)
 
     try:
-        raw_config = cred_manager.get_credentials(source_tech)
+        raw_config = cred_manager.get_credentials(source_system_family(source_tech))
     except KeyError as e:
         logger.error(f"Credential configuration error: {e}")
         raise SystemExit(

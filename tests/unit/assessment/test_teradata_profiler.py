@@ -24,7 +24,7 @@ def test_teradata_profile_missing_platform_config() -> None:
 
 def test_teradata_profile_execution_with_invalid_config(test_resources: Path) -> None:
     """Test Teradata profiling execution with invalid configuration."""
-    profiler = Profiler("teradata")
+    profiler = Profiler("teradata", True)
     with pytest.raises(FileNotFoundError):
         config_file = test_resources / "assessments" / "invalid_pipeline_config.yml"
         pipeline_config = profiler.path_modifier(config_file=config_file, path_prefix=test_resources)
@@ -139,7 +139,7 @@ def test_execute_teradata_auto_fallbacks_when_pdcr_unavailable(monkeypatch) -> N
     monkeypatch.setattr(Profiler, "has_pdcr_access", lambda *args, **kwargs: False)
     monkeypatch.setattr(profiler_module, "PipelineClass", _FakePipeline)
 
-    Profiler("teradata").profile(pipeline_config=config)
+    Profiler("teradata", True).profile(pipeline_config=config)
 
     steps_by_name = {(step.name, step.type): step for step in captured["config"].steps}
     assert steps_by_name[("td_pdcr_info_agg_extract", "sql")].flag == "inactive"

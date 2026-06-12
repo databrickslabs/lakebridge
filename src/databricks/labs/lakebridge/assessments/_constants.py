@@ -3,7 +3,9 @@ from pathlib import Path
 PRODUCT_NAME = "lakebridge"
 PRODUCT_PATH_PREFIX = Path.home() / ".databricks" / "labs" / PRODUCT_NAME / "lib"
 
-PLATFORM_TO_SOURCE_TECHNOLOGY_CFG = {
+REDSHIFT_VARIANTS = ("serverless", "provisioned", "provisioned_multi_az")
+
+SOURCE_SYSTEM_TO_PIPELINE_CFG = {
     "synapse": "src/databricks/labs/lakebridge/resources/assessments/synapse/pipeline_config.yml",
     "teradata": "src/databricks/labs/lakebridge/resources/assessments/teradata/pipeline_config.yml",
     "snowflake": "src/databricks/labs/lakebridge/resources/assessments/snowflake/pipeline_config.yml",
@@ -11,9 +13,15 @@ PLATFORM_TO_SOURCE_TECHNOLOGY_CFG = {
     "mssql": "src/databricks/labs/lakebridge/resources/assessments/mssql/pipeline_config.yml",
     "legacy_synapse": "src/databricks/labs/lakebridge/resources/assessments/legacy_synapse/pipeline_config.yml",
     "bigquery": "src/databricks/labs/lakebridge/resources/assessments/bigquery/pipeline_config.yml",
+    **{
+        f"redshift_{variant}": (
+            f"src/databricks/labs/lakebridge/resources/assessments/redshift/{variant}/pipeline_config.yml"
+        )
+        for variant in REDSHIFT_VARIANTS
+    },
 }
 
-PROFILER_SOURCE_SYSTEM = sorted(PLATFORM_TO_SOURCE_TECHNOLOGY_CFG.keys())
+PROFILER_SOURCE_SYSTEM = sorted(SOURCE_SYSTEM_TO_PIPELINE_CFG.keys())
 
 
 # This flag indicates whether a connector is required for the source system when pipeline is trigger
@@ -28,4 +36,11 @@ CONNECTOR_REQUIRED = {
     "legacy_synapse": True,
     "oracle": True,
     "bigquery": False,
+    "redshift": True,
 }
+
+
+def source_system_family(source: str) -> str:
+    if source.startswith("redshift_"):
+        return "redshift"
+    return source
