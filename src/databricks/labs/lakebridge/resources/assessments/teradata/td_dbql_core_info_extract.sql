@@ -2,7 +2,8 @@ SELECT TOP 100000
     LogTbl.AppID,
     LogTbl.UserName,
     LogTbl.SessionID,
-    SQLTbl.SQLTextInfo,
+    -- Raw SQL text is redacted at extraction time so query text never leaves the source system.
+    '[REDACTED]' AS SQLTextInfo,
     LogTbl.StartTime,
     LogTbl.FirstRespTime,
     LogTbl.TotalFirstRespTime,
