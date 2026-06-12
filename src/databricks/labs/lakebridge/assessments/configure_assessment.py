@@ -16,7 +16,7 @@ from databricks.labs.lakebridge.connections.credential_manager import (
 )
 from databricks.labs.lakebridge.connections.database_manager import DatabaseManager
 from databricks.labs.lakebridge.connections.env_getter import EnvGetter
-from databricks.labs.lakebridge.assessments import CONNECTOR_REQUIRED, credentials_key
+from databricks.labs.lakebridge.assessments import CONNECTOR_REQUIRED, source_system_family
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +43,7 @@ class AssessmentConfigurator(ABC):
         self._source_name = source_name
 
     @abstractmethod
-    def _configure_credentials(self) -> str:
+    def _configure_credentials(self) -> None:
         pass
 
     @staticmethod
@@ -65,12 +65,9 @@ class AssessmentConfigurator(ABC):
     def run(self):
         """Run the assessment configuration process."""
         logger.info(f"Welcome to the {self._product_name} Assessment Configuration")
-        source = self._configure_credentials()
+        self._configure_credentials()
+        source = self._source_name
         logger.info(f"{source.capitalize()} details and credentials received.")
-        # CONNECTOR_REQUIRED is keyed by platform name (e.g. redshift_provisioned). For shared
-        # credential blocks (e.g. all Redshift variants share the "redshift" key) the
-        # _source_name itself may not be a CONNECTOR_REQUIRED key, so default to True and let
-        # platforms that don't need a connector (synapse) opt out explicitly.
         if CONNECTOR_REQUIRED.get(self._source_name, True):
             if self.prompts.confirm(f"Do you want to test the connection to {source}?"):
                 cred_manager = create_credential_manager("lakebridge", EnvGetter())
@@ -82,7 +79,7 @@ class AssessmentConfigurator(ABC):
 class ConfigureOracleAssessment(AssessmentConfigurator):
     """Oracle specific assessment configuration."""
 
-    def _configure_credentials(self) -> str:
+    def _configure_credentials(self) -> None:
         cred_file = self._credential_file
         source = self._source_name
 
@@ -105,7 +102,6 @@ class ConfigureOracleAssessment(AssessmentConfigurator):
 
         _save_to_disk(credential, cred_file)
         logger.info(f"Credential template created for {source}.")
-        return source
 
 
 class ConfigureSqlServerAssessment(AssessmentConfigurator):
@@ -116,7 +112,7 @@ class ConfigureSqlServerAssessment(AssessmentConfigurator):
     is the pool name).
     """
 
-    def _configure_credentials(self) -> str:
+    def _configure_credentials(self) -> None:
         cred_file = self._credential_file
         source = self._source_name
 
@@ -149,7 +145,6 @@ class ConfigureSqlServerAssessment(AssessmentConfigurator):
 
         _save_to_disk(credential, cred_file)
         logger.info(f"Credential template created for {source}.")
-        return source
 
 
 # Redshift auth types mirror the values ``RedshiftConnector._connect`` accepts. Keep the
@@ -188,7 +183,7 @@ class ConfigureRedshiftAssessment(AssessmentConfigurator):
             if value:
                 source_creds[key] = value
 
-    def _configure_credentials(self) -> str:
+    def _configure_credentials(self) -> None:
         cred_file = self._credential_file
         source = self._source_name
 
@@ -213,7 +208,8 @@ class ConfigureRedshiftAssessment(AssessmentConfigurator):
                     required = required + ["user", "password"]
                 if existing_creds and isinstance(existing_creds, dict) and all(k in existing_creds for k in required):
                     logger.info(f"Using existing credential file at {cred_file}.")
-                    return source
+                    return
+
             logger.info("Credential file not found or incomplete, prompting for connection details.")
             choice = "local"
         secret_vault_type = choice
@@ -238,13 +234,12 @@ class ConfigureRedshiftAssessment(AssessmentConfigurator):
 
         _save_to_disk(credential, cred_file)
         logger.info(f"Credential template created for {source}.")
-        return source
 
 
 class ConfigureSynapseAssessment(AssessmentConfigurator):
     """Synapse specific assessment configuration."""
 
-    def _configure_credentials(self) -> str:
+    def _configure_credentials(self) -> None:
         cred_file = self._credential_file
         source = self._source_name
 
@@ -310,13 +305,12 @@ class ConfigureSynapseAssessment(AssessmentConfigurator):
         _save_to_disk(credential, cred_file)
 
         logger.info(f"Credential template created for {source}.")
-        return source
 
 
 class ConfigureSnowflakeAssessment(AssessmentConfigurator):
     """Snowflake specific assessment configuration."""
 
-    def _configure_credentials(self) -> str:
+    def _configure_credentials(self) -> None:
         cred_file = self._credential_file
         source = self._source_name
 
@@ -364,7 +358,6 @@ class ConfigureSnowflakeAssessment(AssessmentConfigurator):
         _save_to_disk(credential, cred_file)
 
         logger.info(f"Credential template created for {source}.")
-        return source
 
 
 ConfiguratorFactory = Callable[[str, Prompts, str, Path | str | None], AssessmentConfigurator]
@@ -399,7 +392,7 @@ class ConfigureBigQueryAssessment(AssessmentConfigurator):
             raise ValueError("At least one project/region pair is required (e.g. proj-a.us)")
         return pairs
 
-    def _configure_credentials(self) -> str:
+    def _configure_credentials(self) -> None:
         cred_file = self._credential_file
         source = self._source_name
 
@@ -445,18 +438,11 @@ class ConfigureBigQueryAssessment(AssessmentConfigurator):
         _save_to_disk(credential, cred_file)
 
         logger.info(f"Credential template created for {source}.")
-        return source
 
 
 def create_assessment_configurator(
     source_system: str, product_name: str, prompts: Prompts, credential_file: Path | str | None = None
 ) -> AssessmentConfigurator:
-    """Factory function to create the appropriate assessment configurator.
-
-    The configurator's ``_source_name`` (which becomes the credentials-file key) is
-    resolved through ``credentials_key`` so platform variants that share connection
-    details (e.g. all ``redshift_*`` variants) reuse one credential block.
-    """
     configurators: dict[str, ConfiguratorFactory] = {
         "mssql": ConfigureSqlServerAssessment,
         "redshift": ConfigureRedshiftAssessment,
@@ -467,8 +453,8 @@ def create_assessment_configurator(
         "bigquery": ConfigureBigQueryAssessment,
     }
 
-    creds_key = credentials_key(source_system)
-    if creds_key not in configurators:
+    key = source_system_family(source_system)
+    if key not in configurators:
         raise ValueError(f"Unsupported source system: {source_system}")
 
-    return configurators[creds_key](product_name, prompts, creds_key, credential_file)  # type: ignore[abstract]
+    return configurators[key](product_name, prompts, key, credential_file)

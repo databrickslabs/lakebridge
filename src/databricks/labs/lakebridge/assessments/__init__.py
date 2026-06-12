@@ -5,7 +5,7 @@ from ._constants import (
     PLATFORM_TO_SOURCE_TECHNOLOGY_CFG,
     CONNECTOR_REQUIRED,
     REDSHIFT_VARIANTS,
-    credentials_key,
+    source_system_family,
 )
 
 __all__ = [
@@ -15,5 +15,5 @@ __all__ = [
     "PLATFORM_TO_SOURCE_TECHNOLOGY_CFG",
     "CONNECTOR_REQUIRED",
     "REDSHIFT_VARIANTS",
-    "credentials_key",
+    "source_system_family",
 ]

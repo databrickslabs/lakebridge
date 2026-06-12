@@ -1,4 +1,3 @@
-# Databricks notebook source
 from pathlib import Path
 
 PRODUCT_NAME = "lakebridge"
@@ -35,16 +34,11 @@ CONNECTOR_REQUIRED = {
     "legacy_synapse": True,
     "oracle": True,
     "bigquery": False,
-    **{f"redshift_{variant}": True for variant in REDSHIFT_VARIANTS},
+    "redshift": True,
 }
 
 
-def credentials_key(platform: str) -> str:
-    """Return the key under which credentials are stored in the credentials file.
-
-    All Redshift variants share a single ``redshift`` credentials block so SAs configure
-    connection details once.
-    """
-    if platform.startswith("redshift_"):
+def source_system_family(source: str) -> str:
+    if source.startswith("redshift_"):
         return "redshift"
-    return platform
+    return source

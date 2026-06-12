@@ -23,7 +23,7 @@ from databricks.labs.blueprint.tui import Prompts
 
 
 from databricks.labs.lakebridge.assessments.configure_assessment import create_assessment_configurator
-from databricks.labs.lakebridge.assessments import PROFILER_SOURCE_SYSTEM, PRODUCT_NAME, credentials_key
+from databricks.labs.lakebridge.assessments import PROFILER_SOURCE_SYSTEM, PRODUCT_NAME, source_system_family
 from databricks.labs.lakebridge.assessments.profiler import Profiler, default_output_folder
 
 from databricks.labs.lakebridge.config import TableRecon, TranspileConfig, LSPConfigOptionV1
@@ -1168,7 +1168,7 @@ def _test_database_connection(source_tech: str, raw_config: dict) -> None:
 
     # For other source technologies, use DatabaseManager directly. Redshift variants
     # share a single connector keyed under "redshift".
-    with DatabaseManager(credentials_key(source_tech), raw_config) as db_manager:
+    with DatabaseManager(source_system_family(source_tech), raw_config) as db_manager:
         response = db_manager.check_connection()
     logger.debug(f"Connection response: {response}")
     logger.info("Connection to the source system successful")
@@ -1214,7 +1214,7 @@ def test_profiler_connection(
     cred_manager = create_credential_manager(PRODUCT_NAME, EnvGetter(), creds_path=credential_file)
 
     try:
-        raw_config = cred_manager.get_credentials(credentials_key(source_tech))
+        raw_config = cred_manager.get_credentials(source_system_family(source_tech))
     except KeyError as e:
         logger.error(f"Credential configuration error: {e}")
         raise SystemExit(

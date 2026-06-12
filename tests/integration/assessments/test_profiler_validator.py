@@ -14,7 +14,7 @@ from databricks.labs.lakebridge.assessments.profiler_validator import (
     SchemaDefinitionLoadError,
     SchemaValidationError,
 )
-from databricks.labs.lakebridge.assessments import credentials_key
+from databricks.labs.lakebridge.assessments import source_system_family
 
 from .profiler_extract_utils import build_mock_synapse_extract, build_mock_redshift_extract
 
@@ -161,7 +161,7 @@ def test_validate_invalid_schema_path(
             ExtractSchemaValidationCheck(
                 "main",
                 cfg.schema_path_check_table,
-                source_tech=credentials_key(platform),
+                source_tech=source_system_family(platform),
                 extract_path=str(extract_path),
                 schema_path=str(schema_def_path),
             )
@@ -211,7 +211,7 @@ def test_validate_table_not_found(
             ExtractSchemaValidationCheck(
                 "main",
                 "table_does_not_exist",
-                source_tech=credentials_key(platform),
+                source_tech=source_system_family(platform),
                 extract_path=str(extract_path),
                 schema_path=str(schema_def_path),
             )
@@ -236,7 +236,7 @@ def test_validate_successful_schema_check(
             ExtractSchemaValidationCheck(
                 "main",
                 cfg.success_schema_table,
-                source_tech=credentials_key(platform),
+                source_tech=source_system_family(platform),
                 extract_path=str(extract_path),
                 schema_path=str(schema_def_path),
             )
@@ -264,7 +264,7 @@ def test_validate_invalid_schema_check(
             ExtractSchemaValidationCheck(
                 "main",
                 cfg.invalid_schema_table,
-                source_tech=credentials_key(platform),
+                source_tech=source_system_family(platform),
                 extract_path=str(extract_path),
                 schema_path=str(schema_def_path),
             )
