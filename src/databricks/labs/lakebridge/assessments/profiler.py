@@ -80,13 +80,18 @@ class Profiler:
         extractor: DatabaseManager | None,
         cred_file_path: Path,
     ) -> tuple[PipelineConfig, DatabaseManager | None]:
-        if extractor is None and self._connector_required:
-            extractor = self._setup_extractor(platform, cred_file_path)
+        # Only build an extractor from credentials when the caller didn't inject one (e.g. tests)
+        # and the source actually needs a connector. Otherwise leave the pipeline untouched so the
+        # credentials file is never read unnecessarily.
+        if extractor is not None or not self._connector_required:
+            return pipeline_config, extractor
+
+        extractor = self._setup_extractor(platform, cred_file_path)
 
         # Let a source optionally adjust its pipeline at runtime (e.g. toggle steps based on
         # credentials or probed capabilities). The agnostic profiler stays source-unaware.
         configurator = PIPELINE_CONFIGURATORS.get(platform)
-        if configurator is not None and self._connector_required:
+        if configurator is not None:
             cred_manager = create_credential_manager(PRODUCT_NAME, EnvGetter(), creds_path=cred_file_path)
             connect_config = cred_manager.get_credentials(source_system_family(platform))
             pipeline_config = configurator(pipeline_config, connect_config, extractor)
