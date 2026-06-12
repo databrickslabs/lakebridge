@@ -6,7 +6,7 @@ import pytest
 
 from databricks.labs.lakebridge.assessments import (
     CONNECTOR_REQUIRED,
-    PLATFORM_TO_SOURCE_TECHNOLOGY_CFG,
+    SOURCE_SYSTEM_TO_PIPELINE_CFG,
     PROFILER_SOURCE_SYSTEM,
     REDSHIFT_VARIANTS,
     source_system_family,
@@ -27,7 +27,7 @@ def test_redshift_variants_require_connector() -> None:
 
 @pytest.mark.parametrize("platform", _REDSHIFT_PLATFORMS)
 def test_redshift_variants_have_pipeline_config_path(platform: str) -> None:
-    cfg_path = PLATFORM_TO_SOURCE_TECHNOLOGY_CFG[platform]
+    cfg_path = SOURCE_SYSTEM_TO_PIPELINE_CFG[platform]
     assert cfg_path is not None
     # Path should reference the correct variant folder
     variant = platform.removeprefix("redshift_")

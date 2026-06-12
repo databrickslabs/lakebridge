@@ -5,7 +5,7 @@ PRODUCT_PATH_PREFIX = Path.home() / ".databricks" / "labs" / PRODUCT_NAME / "lib
 
 REDSHIFT_VARIANTS = ("serverless", "provisioned", "provisioned_multi_az")
 
-PLATFORM_TO_SOURCE_TECHNOLOGY_CFG = {
+SOURCE_SYSTEM_TO_PIPELINE_CFG = {
     "synapse": "src/databricks/labs/lakebridge/resources/assessments/synapse/pipeline_config.yml",
     "snowflake": "src/databricks/labs/lakebridge/resources/assessments/snowflake/pipeline_config.yml",
     "oracle": "src/databricks/labs/lakebridge/resources/assessments/oracle/pipeline_config.yml",
@@ -20,7 +20,7 @@ PLATFORM_TO_SOURCE_TECHNOLOGY_CFG = {
     },
 }
 
-PROFILER_SOURCE_SYSTEM = sorted(PLATFORM_TO_SOURCE_TECHNOLOGY_CFG.keys())
+PROFILER_SOURCE_SYSTEM = sorted(SOURCE_SYSTEM_TO_PIPELINE_CFG.keys())
 
 
 # This flag indicates whether a connector is required for the source system when pipeline is trigger

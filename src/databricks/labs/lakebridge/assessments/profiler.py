@@ -12,7 +12,7 @@ from databricks.labs.lakebridge.connections.env_getter import EnvGetter
 from databricks.labs.lakebridge.assessments import (
     PRODUCT_NAME,
     PRODUCT_PATH_PREFIX,
-    PLATFORM_TO_SOURCE_TECHNOLOGY_CFG,
+    SOURCE_SYSTEM_TO_PIPELINE_CFG,
     CONNECTOR_REQUIRED,
     source_system_family,
 )
@@ -32,7 +32,7 @@ class Profiler:
 
     @classmethod
     def create(cls, platform: str) -> "Profiler":
-        pipeline_config_path = PLATFORM_TO_SOURCE_TECHNOLOGY_CFG[platform]
+        pipeline_config_path = SOURCE_SYSTEM_TO_PIPELINE_CFG[platform]
         pipeline_config_absolute_path = Profiler._locate_config(pipeline_config_path)
         pipeline_config = Profiler.path_modifier(config_file=pipeline_config_absolute_path)
         return cls(platform, pipeline_config)
