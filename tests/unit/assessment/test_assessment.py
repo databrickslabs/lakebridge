@@ -212,7 +212,7 @@ def test_configure_teradata_credentials(tmp_path):
             r"Enter secret vault type \(local \| env\)": sorted(['local', 'env']).index("env"),
             r"Enter the Teradata server or host details": "TERADATA_HOST",
             r"Enter the user details": "TERADATA_USER",
-            r"Enter the password details": "TERADATA_PASSWORD",
+            r"Enter the environment variable name holding the password": "TERADATA_PASSWORD",
             r"Enter the default database name": "DBC",
             r"Do you want to test the connection to teradata\?": "no",
         }
@@ -229,6 +229,7 @@ def test_configure_teradata_credentials(tmp_path):
         'teradata': {
             'host': 'TERADATA_HOST',
             'user': 'TERADATA_USER',
+            # In env mode the stored value is the env var *name*, resolved by EnvGetter at runtime.
             'password': 'TERADATA_PASSWORD',
             'database': 'DBC',
         },

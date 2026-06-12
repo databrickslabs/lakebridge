@@ -363,7 +363,7 @@ class ConfigureSnowflakeAssessment(AssessmentConfigurator):
 class ConfigureTeradataAssessment(AssessmentConfigurator):
     """Teradata specific assessment configuration."""
 
-    def _configure_credentials(self) -> str:
+    def _configure_credentials(self) -> None:
         cred_file = self._credential_file
         source = self._source_name
 
@@ -374,7 +374,12 @@ class ConfigureTeradataAssessment(AssessmentConfigurator):
         secret_vault_type = str(self.prompts.choice("Enter secret vault type (local | env)", ["local", "env"])).lower()
         secret_vault_name = None
 
-        logger.info("Please refer to the documentation to understand the difference between local and env.")
+        # In env mode the stored value is the name of an environment variable that
+        # EnvGetter resolves at runtime, not the password itself, so prompt accordingly.
+        if secret_vault_type == "env":
+            password = self.prompts.question("Enter the environment variable name holding the password")
+        else:
+            password = self.prompts.password("Enter the password details")
 
         credential = {
             "secret_vault_type": secret_vault_type,
@@ -382,7 +387,7 @@ class ConfigureTeradataAssessment(AssessmentConfigurator):
             source: {
                 "host": self.prompts.question("Enter the Teradata server or host details"),
                 "user": self.prompts.question("Enter the user details"),
-                "password": self.prompts.password("Enter the password details"),
+                "password": password,
                 "database": self.prompts.question("Enter the default database name", default="DBC"),
             },
         }
@@ -390,7 +395,6 @@ class ConfigureTeradataAssessment(AssessmentConfigurator):
         _save_to_disk(credential, cred_file)
 
         logger.info(f"Credential template created for {source}.")
-        return source
 
 
 ConfiguratorFactory = Callable[[str, Prompts, str, Path | str | None], AssessmentConfigurator]
