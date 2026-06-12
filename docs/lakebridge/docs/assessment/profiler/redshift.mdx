@@ -27,8 +27,6 @@ The profiler ships **three extract pipelines** — pick the one that matches you
 | **provisioned** | Single-AZ provisioned cluster |
 | **provisioned_multi_az** | Multi-AZ provisioned cluster |
 
-When you run `execute-database-profiler`, the CLI prompts you to select this variant so Lakebridge loads the correct SQL pipeline under `resources/assessments/redshift/<variant>/`.
-
 ### 3. Network connectivity
 
 The machine running the profiler must reach the Redshift cluster **endpoint** (hostname) on the cluster port (default **5439**), subject to your security groups / VPC / routing rules.
