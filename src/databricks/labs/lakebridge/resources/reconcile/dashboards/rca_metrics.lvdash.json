@@ -1820,7 +1820,7 @@
                   "datasetName": "09_1_job_timeline",
                   "fields": [
                     {
-                      "name": "hourly(start_ts)",
+                      "name": "daily(start_ts)",
                       "expression": "DATE_TRUNC(\"HOUR\", `start_ts`)"
                     },
                     {
@@ -1850,7 +1850,7 @@
               "widgetType": "bar",
               "encodings": {
                 "x": {
-                  "fieldName": "hourly(start_ts)",
+                  "fieldName": "daily(start_ts)",
                   "displayName": "Time",
                   "scale": {
                     "type": "temporal"
@@ -1894,7 +1894,7 @@
                   "datasetName": "09_2_mismatch_trend",
                   "fields": [
                     {
-                      "name": "hourly(start_ts)",
+                      "name": "daily(start_ts)",
                       "expression": "DATE_TRUNC(\"HOUR\", `start_ts`)"
                     },
                     {
@@ -1923,7 +1923,7 @@
                 },
                 "x": {
                   "displayName": "Time",
-                  "fieldName": "hourly(start_ts)",
+                  "fieldName": "daily(start_ts)",
                   "scale": {
                     "type": "temporal"
                   }
@@ -3874,7 +3874,7 @@
                   "datasetName": "09_1_job_timeline",
                   "fields": [
                     {
-                      "name": "hourly(start_ts)",
+                      "name": "daily(start_ts)",
                       "expression": "DATE_TRUNC(\"HOUR\", `start_ts`)"
                     },
                     {
@@ -3902,7 +3902,7 @@
               "widgetType": "bar",
               "encodings": {
                 "x": {
-                  "fieldName": "hourly(start_ts)",
+                  "fieldName": "daily(start_ts)",
                   "displayName": "Time",
                   "scale": {
                     "type": "temporal"
@@ -3946,7 +3946,7 @@
                   "datasetName": "09_2_mismatch_trend",
                   "fields": [
                     {
-                      "name": "hourly(start_ts)",
+                      "name": "daily(start_ts)",
                       "expression": "DATE_TRUNC(\"HOUR\", `start_ts`)"
                     },
                     {
@@ -3978,7 +3978,7 @@
               "widgetType": "bar",
               "encodings": {
                 "x": {
-                  "fieldName": "hourly(start_ts)",
+                  "fieldName": "daily(start_ts)",
                   "displayName": "Time",
                   "scale": {
                     "type": "temporal"
