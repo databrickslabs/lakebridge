@@ -12,8 +12,9 @@ from databricks.labs.lakebridge.connections.env_getter import EnvGetter
 from databricks.labs.lakebridge.assessments import (
     PRODUCT_NAME,
     PRODUCT_PATH_PREFIX,
-    PLATFORM_TO_SOURCE_TECHNOLOGY_CFG,
+    SOURCE_SYSTEM_TO_PIPELINE_CFG,
     CONNECTOR_REQUIRED,
+    source_system_family,
 )
 
 logger = logging.getLogger(__name__)
@@ -25,16 +26,23 @@ def default_output_folder(platform: str) -> Path:
 
 class Profiler:
 
-    def __init__(self, platform: str, pipeline_configs: PipelineConfig | None = None):
+    def __init__(
+        self,
+        platform: str,
+        connector_required: bool,
+        pipeline_configs: PipelineConfig | None = None,
+    ):
         self._platform = platform
         self._pipeline_config = pipeline_configs
+        self._connector_required = connector_required
 
     @classmethod
     def create(cls, platform: str) -> "Profiler":
-        pipeline_config_path = PLATFORM_TO_SOURCE_TECHNOLOGY_CFG[platform]
+        pipeline_config_path = SOURCE_SYSTEM_TO_PIPELINE_CFG[platform]
         pipeline_config_absolute_path = Profiler._locate_config(pipeline_config_path)
         pipeline_config = Profiler.path_modifier(config_file=pipeline_config_absolute_path)
-        return cls(platform, pipeline_config)
+        connector_required = CONNECTOR_REQUIRED[source_system_family(platform)]
+        return cls(platform, connector_required, pipeline_config)
 
     @staticmethod
     def path_modifier(*, config_file: str | Path, path_prefix: Path = PRODUCT_PATH_PREFIX) -> PipelineConfig:
@@ -67,8 +75,7 @@ class Profiler:
         cred_file_path: Path,
     ) -> None:
         try:
-            extractor = Profiler._setup_extractor(platform, cred_file_path)
-
+            extractor = Profiler._setup_extractor(platform, cred_file_path) if self._connector_required else None
             db_path = output_folder / make_profiler_db_filename(platform)
             result = PipelineClass(pipeline_config, extractor, db_path, cred_file_path).execute()
             logger.info(f"Profiler extract written to {db_path.expanduser()}")
@@ -82,11 +89,10 @@ class Profiler:
 
     @staticmethod
     def _setup_extractor(platform: str, cred_file_path: Path | None = None) -> DatabaseManager | None:
-        if not CONNECTOR_REQUIRED[platform]:
-            return None
+        key = source_system_family(platform)
         cred_manager = create_credential_manager(PRODUCT_NAME, EnvGetter(), creds_path=cred_file_path)
-        connect_config = cred_manager.get_credentials(platform)
-        return DatabaseManager(platform, connect_config)
+        connect_config = cred_manager.get_credentials(key)
+        return DatabaseManager(key, connect_config)
 
     @staticmethod
     def _locate_config(config_path: str | Path) -> Path:

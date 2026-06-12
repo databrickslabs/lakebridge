@@ -81,7 +81,7 @@ Parameters:
 
 - `report_type`: The type of report to be generated. Available report types are `schema`, `row`, `data` or `all`. For details check [here](./dataflow_example.mdx).
 - `source`: The configuration for connecting to the source database to be reconciled.
-    - `dialect`: The dialect of the source. Supported values: `snowflake`, `oracle`, `mssql`, `synapse`, `databricks`, `redshift`.
+    - `dialect`: The dialect of the source. Supported values: `snowflake`, `oracle`, `mssql`, `synapse`, `databricks`, `redshift`, `teradata`.
     - `catalog`: The source database/catalog name. catalog is used for consistency in naming
     - `schema`: The source schema name.
     - `uc_connection_name`: the connection name for the source as configured in workspace `Connections`. Not allowed for `databricks`
@@ -220,6 +220,141 @@ except ReconciliationException as e:
 
 After running, use the `recon_id` to drill into the results on the AI/BI Dashboard deployed in your workspace during installation.
 
+---
+
+## Auto-configure Table Mappings
+
+When you have many tables to reconcile, you can skip writing the `TableRecon` by hand. The `auto-configure-recon-tables` command discovers source/target table pairs by matching their names, fills in `column_mapping` where source and target column names differ, and drops unmatched columns, and uploads the resulting reconcile config file to your install folder.
+
+This is the automated alternative to [Step 4: Configure TableRecon](#step-4-configure-tablerecon) above.
+
+### Prerequisites
+
+- CLI users: `configure-reconcile` has been run (the reconcile config file must exist in your install folder).
+- Python users: [Step 3: Configure ReconcileConfig](#step-3-configure-reconcileconfig)
+
+### Run
+
+```bash
+databricks labs lakebridge auto-configure-recon-tables
+```
+
+The matcher normalizes tables and columns names (case, underscores vs. hyphens, simple plural/singular) so `Customers` matches `customers`, `Order_Items` matches `order-items`, `orders` matches `order`.
+Source tables the matcher cannot pair with a target table are **omitted** from the draft and logged so you can add them manually.
+
+When the workspace job finishes, the resulting `recon_config_<...>.json` is uploaded to your install folder.
+
+:::danger
+Running auto-configure **overwrites** existing config if the user approves. Apply manual edits *after* running auto-configure.
+:::
+
+### Python
+
+The auto-configure module exposes two automation entry points:
+
+- `discover_tables(...)` — matches table pairs from the configured catalogs and schemas.
+- `auto_configure_tables(table_recon, ...)` — apply all registered configurers (column mapping today; join keys, transformations, ... as they're added) to each Table in `table_recon` and return the result.
+
+Both take the `reconcile_config` from [Step 3](#step-3-configure-reconcileconfig) and return `TableRecon`, that can be passed to `TriggerReconService.trigger_recon` ([Step 5](#step-5-run)):
+
+```python
+from databricks.labs.lakebridge.reconcile.config_generator.execute import (
+    auto_configure_tables,
+    discover_tables,
+)
+
+# `reconcile_config` from Step 3 above.
+discovered = discover_tables(reconcile_config=reconcile_config, spark=spark)
+table_recon = auto_configure_tables(discovered, reconcile_config=reconcile_config, spark=spark)
+
+for t in table_recon.tables:
+    print(t.source_name, "→", t.target_name)
+```
+
+### Recommended flow: discover, review, then auto-configure
+
+The recommended pattern is to split discovery from auto-configuration so you can review the discovered pairs before any column mappings are filled in:
+
+1. **Discover** — call `discover_tables(...)` and inspect the returned `TableRecon`.
+2. **Review** — drop pairs you don't want to reconcile, fix names the matcher got wrong, and add tables it couldn't auto-match (look for the warning in the logs).
+3. **Auto-configure** — pass the curated `TableRecon` to `auto_configure_tables(curated, ...)`.
+
+```python
+discovered = discover_tables(reconcile_config=reconcile_config, spark=spark)
+
+# Review/curate in memory — or save the file, edit it in the workspace, and load it back.
+curated = TableRecon(tables=[t for t in discovered.tables if t.source_name != "audit_log"])
+
+table_recon = auto_configure_tables(curated, reconcile_config=reconcile_config, spark=spark)
+```
+
 :::note
-Improved bulk automation tooling is in development. Check back for updates.
+From the CLI this is two runs of `auto-configure-recon-tables`:
+
+1. **First run** — no existing file. Answer **yes** to "Discover tables now?", then **no** to
+   "Also run auto-configure in the same job (skips the recommended review step)?". This emits a
+   discover-only draft for you to review.
+2. **Second run** — existing file. Answer **yes** to "Auto-configure and use existing table
+   mappings (no discovery)?" — auto-configure applies its configurers to your curated draft.
+
+If you'd rather discover and auto-configure in one job (and skip the review step), accept the
+"Also run auto-configure in the same job" prompt during the first run.
+:::
+
+### Plugging in a custom configurer
+
+`auto_configure_tables` and `auto_configure_table` both accept an `auto_configurers` parameter (defaults to `SUPPORTED_AUTO_CONFIGURERS`). Pass your own list of `TableAutoConfigurer` implementations to extend or replace the defaults — e.g. an LLM-driven mapper, a join-key inferrer, or a transformation suggester:
+
+```python
+from databricks.labs.lakebridge.reconcile.config_generator.configure import TableAutoConfigurer
+from databricks.labs.lakebridge.reconcile.config_generator.execute import (
+    SUPPORTED_AUTO_CONFIGURERS,
+    auto_configure_tables,
+)
+
+class MyConfigurer(TableAutoConfigurer):
+    def configure(self, table, ctx):
+        ...  # inspect ctx.source_columns / ctx.target_columns and return an updated Table
+        return table
+
+auto_configure_tables(
+    table_recon,
+    reconcile_config=reconcile_config,
+    spark=spark,
+    auto_configurers=[*SUPPORTED_AUTO_CONFIGURERS, MyConfigurer()],
+)
+```
+
+Each configurer in the list runs in order on each table; later configurers see the table as updated by earlier ones via the `ctx` they share.
+
+### Auto-configure a single table
+
+To run all supported configurers against just one table — e.g. after a column was added on the source — call `auto_configure_table`:
+
+```python
+from databricks.labs.lakebridge.reconcile.config_generator.execute import auto_configure_table
+from databricks.labs.lakebridge.reconcile.recon_config import Table
+
+configured = auto_configure_table(
+    table=Table(source_name="orders", target_name="orders"),
+    reconcile_config=reconcile_config,
+    spark=spark,
+)
+
+print(configured)
+```
+
+### Review the output
+
+Auto-discovery fills in table pairs, `column_mapping`, `select_columns` (matched source columns when any source column couldn't be paired), and `drop_columns` (unmatched target columns). The following fields are not auto-discovered and must be added manually for the tables that need them:
+
+- `join_columns` — required for `data` and `all` report types.
+- `column_thresholds`, `table_thresholds` — numeric tolerance bounds.
+- `transformations` — column-level SQL transforms.
+- `filters` — source/target WHERE clauses.
+
+See [Configuration Reference](/docs/reconcile/configuration) for the full schema.
+
+:::note
+This command is experimental. Review the output before running reconcile.
 :::

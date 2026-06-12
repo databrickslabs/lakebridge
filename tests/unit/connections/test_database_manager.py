@@ -9,6 +9,7 @@ sample_config: JsonObject = {
     'server': 'test_server',
     'database': 'test_db',
     'driver': 'ODBC Driver 17 for SQL Server',
+    'trust_server_certificate': False,
 }
 
 

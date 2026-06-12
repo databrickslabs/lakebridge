@@ -465,7 +465,7 @@ class WorkspaceInstaller:
             "Enter the path to the profiler output file (Look for \"Profiler extract written to\" in the execute logs)"
         ).strip()
 
-        metadata_config = self._prompt_for_profiler_dashboard_metadata_config()
+        metadata_config = self._prompt_for_profiler_dashboard_metadata_config(source_tech)
 
         return ProfilerDashboardConfig(
             source_tech=source_tech,
@@ -473,13 +473,13 @@ class WorkspaceInstaller:
             metadata_config=metadata_config,
         )
 
-    def _prompt_for_profiler_dashboard_metadata_config(self) -> ProfilerDashboardMetadataConfig:
+    def _prompt_for_profiler_dashboard_metadata_config(
+        self, source_tech: str | None = None
+    ) -> ProfilerDashboardMetadataConfig:
         logger.info("Configuring profiler dashboard metadata.")
         catalog = self._configure_catalog()
-        schema = self._configure_schema(
-            catalog,
-            "profiler",
-        )
+        schema_default = f"{source_tech}_profiler" if source_tech else "profiler"
+        schema = self._configure_schema(catalog, schema_default)
         volume = self._configure_volume(catalog, schema, "ingestion_volume")
         self._has_necessary_access(catalog, schema, volume)
         return ProfilerDashboardMetadataConfig(catalog=catalog, schema=schema, volume=volume)

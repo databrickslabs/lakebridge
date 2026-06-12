@@ -18,6 +18,8 @@ logger = logging.getLogger(__name__)
 
 class OracleDataSource(DataSource):
     _IDENTIFIER_DELIMITER = "\""
+    _LIST_SCHEMAS_QUERY = "select username from ALL_USERS order by username"
+    _LIST_TABLES_QUERY = "select table_name from ALL_TABLES where lower(owner) = lower('{owner}') order by table_name"
     _SCHEMA_QUERY = """select column_name, case when (data_precision is not null
                                               and data_scale <> 0)
                                               then data_type || '(' || data_precision || ',' || data_scale || ')'
@@ -29,7 +31,7 @@ class OracleDataSource(DataSource):
                                               else data_type || '(' || CHAR_LENGTH || ')'
                                               end data_type
                                               FROM ALL_TAB_COLUMNS
-                            WHERE lower(TABLE_NAME) = '{table}' and lower(owner) = '{owner}'"""
+                            WHERE lower(TABLE_NAME) = lower('{table}') and lower(owner) = lower('{owner}')"""
 
     def __init__(
         self,
@@ -77,6 +79,22 @@ class OracleDataSource(DataSource):
             return [self._map_meta_column(field, normalize) for field in schema_metadata]
         except (RuntimeError, PySparkException) as e:
             return self.log_and_throw_exception(e, "schema", schema_query)
+
+    def list_schemas(self, catalog: str) -> list[str]:
+        query = OracleDataSource._LIST_SCHEMAS_QUERY
+        try:
+            df = self._reader.read_data(query, catalog, "service_name", "query")
+            return [row.username for row in df.select(col("USERNAME").alias("username")).collect()]
+        except (RuntimeError, PySparkException) as e:
+            return self.log_and_throw_exception(e, "schemas", query)
+
+    def list_tables(self, catalog: str, schema: str) -> list[str]:
+        query = OracleDataSource._LIST_TABLES_QUERY.format(owner=schema.lower())
+        try:
+            df = self._reader.read_data(query, catalog, "service_name", "query")
+            return [row.table_name for row in df.select(col("TABLE_NAME").alias("table_name")).collect()]
+        except (RuntimeError, PySparkException) as e:
+            return self.log_and_throw_exception(e, "tables", query)
 
     def normalize_identifier(self, identifier: str) -> NormalizedIdentifier:
         normalized = DialectUtils.normalize_identifier(

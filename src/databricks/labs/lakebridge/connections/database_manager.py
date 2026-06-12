@@ -132,6 +132,9 @@ class MSSQLConnector(_BaseConnector):
         query_params: dict[str, str] = {
             "driver": str(self.config['driver']),
             "loginTimeout": "30",
+            "TrustServerCertificate": (
+                "no" if str(self.config.get('trust_server_certificate', 'False')) == 'False' else "yes"
+            ),
         }
 
         if auth_type == "ad_passwd_authentication":
@@ -206,15 +209,13 @@ class RedshiftConnector(DatabaseConnector):
                 ssl=ssl,
                 iam=True,
                 region=str(self.config["region"]) if "region" in self.config else None,
-                profile=str(self.config["profile"]) if "profile" in self.config else None,
+                profile=str(self.config["aws_profile"]) if "aws_profile" in self.config else None,
                 cluster_identifier=(
                     str(self.config["cluster_identifier"]) if "cluster_identifier" in self.config else None
                 ),
                 db_user=str(self.config["db_user"]) if "db_user" in self.config else None,
             )
-        if auth_type == "secrets_manager":
-            raise NotImplementedError("Redshift Secrets Manager authentication not implemented yet")
-        raise ConnectionError(f"Invalid Redshift auth_type: {auth_type}")
+        raise ConnectionError(f"Invalid Redshift auth_type: {auth_type}. Expected one of: sql_authentication, iam")
 
     def fetch(self, query: str) -> FetchResult:
         cursor = self._conn.cursor()

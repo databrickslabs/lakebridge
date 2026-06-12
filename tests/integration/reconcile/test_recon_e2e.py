@@ -2,12 +2,16 @@ import re
 import logging
 
 import pytest
+from databricks.sdk.service.catalog import TableInfo
 from databricks.sdk.service.jobs import TerminationTypeType
 from databricks.sdk.core import DatabricksError
 
 from databricks.labs.lakebridge.config import ReconcileConfig, TableRecon
 from databricks.labs.lakebridge.contexts.application import ApplicationContext
-from databricks.labs.lakebridge.reconcile.recon_config import RECONCILE_OPERATION_NAME
+from databricks.labs.lakebridge.reconcile.recon_config import (
+    DISCOVER_AND_AUTO_CONFIGURE_TABLES_OPERATION_NAME,
+    RECONCILE_OPERATION_NAME,
+)
 from databricks.labs.lakebridge.reconcile.runner import ReconcileRunner
 from tests.integration.reconcile.conftest import generate_recon_application_context
 
@@ -123,3 +127,39 @@ def test_recon_teradata_job_succeeds(
         application_ctx, teradata_recon_config, teradata_recon_table_config
     ) as app_ctx:
         _run_recon_e2e_spec(app_ctx)
+
+
+def test_auto_configure_tables_writes_table_recon_config(
+    application_ctx: ApplicationContext,
+    databricks_recon_config: ReconcileConfig,
+    recon_tables: tuple[TableInfo, TableInfo],
+) -> None:
+    """E2E for the auto-configure-tables operation. The TableRecon file is NOT pre-uploaded.
+    The job writes it and assert it contains the auto-matched tables.
+    """
+    with generate_recon_application_context(application_ctx, databricks_recon_config):
+        recon_runner = ReconcileRunner(application_ctx.workspace_client, application_ctx.install_state)
+        run = None
+        try:
+            run, _ = recon_runner.run(operation_name=DISCOVER_AND_AUTO_CONFIGURE_TABLES_OPERATION_NAME)
+            result = run.result()
+        except Exception:
+            if run:
+                _debug_run_output(application_ctx, run.run_id)
+            raise
+
+        assert result.status
+        assert result.status.termination_details
+        assert result.status.termination_details.type
+        assert result.status.termination_details.type.value == TerminationTypeType.SUCCESS.value
+
+        # Verify the TableRecon file was written to the install folder with the canonical name.
+        filename = databricks_recon_config.table_recon_filename
+        table_recon = application_ctx.installation.load(type_ref=TableRecon, filename=filename)
+
+        # databricks_recon_config points source and target at the same recon_schema, so every table
+        # in the schema (the two created by recon_tables) should auto-match by name.
+        src_table, tgt_table = recon_tables
+        matched_names = {t.source_name for t in table_recon.tables}
+        assert src_table.name in matched_names
+        assert tgt_table.name in matched_names

@@ -351,6 +351,12 @@ class ReconcileConfig:
             target_schema=self.target.schema,
         )
 
+    @property
+    def table_recon_filename(self) -> str:
+        """Canonical filename of the `TableRecon` config file in the install folder."""
+        connection_or_catalog = self.source.uc_connection_name or self.source.catalog
+        return f"recon_config_{self.source.dialect}_{connection_or_catalog}_{self.report_type}.json"
+
 
 @dataclass
 class ProfilerDashboardMetadataConfig:
