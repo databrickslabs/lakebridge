@@ -6,11 +6,12 @@ import pytest
 
 from databricks.labs.lakebridge.assessments.profiler_config import PipelineConfig, Step
 from databricks.labs.lakebridge.assessments.profiler import Profiler
+from databricks.labs.lakebridge.assessments import teradata_pipeline
 import databricks.labs.lakebridge.assessments.profiler as profiler_module
 
 
 def test_teradata_as_supported_source_technologies() -> None:
-    profiler = Profiler("teradata", None)
+    profiler = Profiler("teradata", True)
     supported_platforms = profiler.supported_platforms()
     assert isinstance(supported_platforms, list)
     assert "teradata" in supported_platforms
@@ -18,7 +19,7 @@ def test_teradata_as_supported_source_technologies() -> None:
 
 def test_teradata_profile_missing_platform_config() -> None:
     with pytest.raises(ValueError, match="Cannot Proceed without a valid pipeline configuration for teradata"):
-        profiler = Profiler("teradata", None)
+        profiler = Profiler("teradata", True)
         profiler.profile()
 
 
@@ -45,7 +46,8 @@ def testconfigure_teradata_pipeline_disables_pdcr_steps() -> None:
         ],
     )
 
-    updated = Profiler.configure_teradata_pipeline(config, {"profiler": {"use_pdcr": False}})
+    # use_pdcr=False short-circuits the probe (extractor unused) and toggles steps directly.
+    updated = teradata_pipeline.configure_pipeline(config, {"profiler": {"use_pdcr": False}}, None)
     steps_by_key = {(step.name, step.type): step for step in updated.steps}
 
     assert steps_by_key[("td_pdcr_info_agg_extract", "ddl")].flag == "active"
@@ -67,7 +69,9 @@ def testconfigure_teradata_pipeline_keeps_pdcr_when_enabled() -> None:
         ],
     )
 
-    updated = Profiler.configure_teradata_pipeline(config, {"profiler": {"use_pdcr": True}})
+    # use_pdcr=True and PDCR reachable (probe succeeds) -> pipeline kept as-is.
+    extractor = MagicMock()
+    updated = teradata_pipeline.configure_pipeline(config, {"profiler": {"use_pdcr": True}}, extractor)
     steps_by_key = {(step.name, step.type): step for step in updated.steps}
 
     assert steps_by_key[("td_pdcr_info_agg_extract", "ddl")].flag == "active"
@@ -86,28 +90,55 @@ def testconfigure_teradata_pipeline_defaults_to_pdcr() -> None:
         ],
     )
 
+    # PDCR reachable (probe succeeds) -> pipeline kept as default (PDCR) in both cases.
+    extractor = MagicMock()
+
     # No profiler key at all
-    updated = Profiler.configure_teradata_pipeline(config, {})
+    updated = teradata_pipeline.configure_pipeline(config, {}, extractor)
     assert updated.steps[0].flag == "active"
     assert updated.steps[1].flag == "inactive"
 
     # Empty profiler config
-    updated = Profiler.configure_teradata_pipeline(config, {"profiler": {}})
+    updated = teradata_pipeline.configure_pipeline(config, {"profiler": {}}, extractor)
     assert updated.steps[0].flag == "active"
     assert updated.steps[1].flag == "inactive"
 
 
-def testhas_pdcr_access_true() -> None:
-    extractor = MagicMock()
-    extractor.probe.return_value = True
-    assert Profiler.has_pdcr_access(extractor) is True
-    assert extractor.probe.call_count == 2
+def test_pdcr_probe_success_keeps_pipeline() -> None:
+    config = PipelineConfig(
+        name="teradata_assessment",
+        version="1.0",
+        steps=[
+            Step(name="td_pdcr_info_agg_extract", type="sql", extract_source="a.sql", flag="active"),
+            Step(name="td_dbql_core_info_extract", type="sql", extract_source="c.sql", flag="inactive"),
+        ],
+    )
+    extractor = MagicMock()  # fetch succeeds -> PDCR reachable
+
+    updated = teradata_pipeline.configure_pipeline(config, {"profiler": {"use_pdcr": True}}, extractor)
+
+    # Both PDCR preflight probes ran, and the PDCR pipeline was kept as-is.
+    assert extractor.fetch.call_count == 2
+    assert updated.steps[0].flag == "active"
+    assert updated.steps[1].flag == "inactive"
 
 
-def testhas_pdcr_access_false_on_probe_error() -> None:
+def test_pdcr_probe_failure_falls_back_to_dbql_core() -> None:
+    config = PipelineConfig(
+        name="teradata_assessment",
+        version="1.0",
+        steps=[
+            Step(name="td_pdcr_info_agg_extract", type="sql", extract_source="a.sql", flag="active"),
+            Step(name="td_dbql_core_info_extract", type="sql", extract_source="c.sql", flag="inactive"),
+        ],
+    )
     extractor = MagicMock()
-    extractor.probe.return_value = False
-    assert Profiler.has_pdcr_access(extractor) is False
+    extractor.fetch.side_effect = ConnectionError("relation missing")
+
+    updated = teradata_pipeline.configure_pipeline(config, {"profiler": {"use_pdcr": True}}, extractor)
+
+    assert updated.steps[0].flag == "inactive"
+    assert updated.steps[1].flag == "active"
 
 
 def test_execute_teradata_auto_fallbacks_when_pdcr_unavailable(monkeypatch) -> None:
@@ -136,7 +167,7 @@ def test_execute_teradata_auto_fallbacks_when_pdcr_unavailable(monkeypatch) -> N
 
     monkeypatch.setattr(profiler_module, "create_credential_manager", lambda *args, **kwargs: fake_cred_manager)
     monkeypatch.setattr(profiler_module, "DatabaseManager", lambda *args, **kwargs: fake_extractor)
-    monkeypatch.setattr(Profiler, "has_pdcr_access", lambda *args, **kwargs: False)
+    monkeypatch.setattr(teradata_pipeline, "_has_pdcr_access", lambda *args, **kwargs: False)
     monkeypatch.setattr(profiler_module, "PipelineClass", _FakePipeline)
 
     Profiler("teradata", True).profile(pipeline_config=config)

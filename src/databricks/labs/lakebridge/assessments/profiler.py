@@ -1,9 +1,9 @@
 import logging
 from pathlib import Path
-from collections.abc import Mapping
 
 from databricks.labs.lakebridge.assessments.pipeline import PipelineClass, make_profiler_db_filename
-from databricks.labs.lakebridge.assessments.profiler_config import PipelineConfig, Step
+from databricks.labs.lakebridge.assessments.pipeline_configurators import PIPELINE_CONFIGURATORS
+from databricks.labs.lakebridge.assessments.profiler_config import PipelineConfig
 from databricks.labs.lakebridge.connections.database_manager import DatabaseManager
 from databricks.labs.lakebridge.connections.credential_manager import (
     create_credential_manager,
@@ -73,54 +73,6 @@ class Profiler:
         resolved_creds_path = cred_file_path or cred_file()
         self._execute(platform, pipeline_config, resolved_output_folder, resolved_creds_path, extractor)
 
-    @staticmethod
-    def configure_teradata_pipeline(
-        pipeline_config: PipelineConfig, connect_config: Mapping[str, object]
-    ) -> PipelineConfig:
-        profiler_config = connect_config.get("profiler")
-        use_pdcr = True
-        if isinstance(profiler_config, Mapping):
-            use_pdcr = bool(profiler_config.get("use_pdcr", True))
-
-        if use_pdcr:
-            return pipeline_config
-
-        pdcr_step_names = {"td_pdcr_info_agg_extract", "td_pdcr_sp_exe_info_agg_extract"}
-        updated_steps: list[Step] = []
-        for step in pipeline_config.steps:
-            if step.name in pdcr_step_names and step.type != "ddl":
-                updated_steps.append(step.copy(flag="inactive"))
-            elif step.name == "td_dbql_core_info_extract":
-                updated_steps.append(step.copy(flag="active"))
-            else:
-                updated_steps.append(step)
-        logger.info("Teradata profiler configured without PDCR; using DBQL core fallback extract.")
-        return pipeline_config.copy(steps=updated_steps)
-
-    @staticmethod
-    def _is_pdcr_requested(connect_config: Mapping[str, object] | None) -> bool:
-        if not connect_config:
-            return True
-        profiler_config = connect_config.get("profiler")
-        if isinstance(profiler_config, Mapping):
-            return bool(profiler_config.get("use_pdcr", True))
-        return True
-
-    @staticmethod
-    def has_pdcr_access(extractor: DatabaseManager) -> bool:
-        # Lightweight probes: if these relations are inaccessible/missing, fallback to DBQL core.
-        # A failed probe is an expected, handled condition, so use the quiet `probe` API
-        # rather than `fetch` to avoid logging an alarming stack trace.
-        probes = (
-            "SELECT TOP 1 1 AS pdcr_probe FROM PDCRINFO.DBQLogTbl_Hst",
-            "SELECT TOP 1 1 AS pdcr_probe FROM PDCRINFO.UserInfo",
-        )
-        for query in probes:
-            if not extractor.probe(query):
-                logger.info("PDCR relations are not accessible; using DBQL core fallback extract.")
-                return False
-        return True
-
     def _prepare_extractor_and_config(
         self,
         platform: str,
@@ -131,14 +83,13 @@ class Profiler:
         if extractor is None and self._connector_required:
             extractor = self._setup_extractor(platform, cred_file_path)
 
-        if platform == "teradata" and extractor is not None:
+        # Let a source optionally adjust its pipeline at runtime (e.g. toggle steps based on
+        # credentials or probed capabilities). The agnostic profiler stays source-unaware.
+        configurator = PIPELINE_CONFIGURATORS.get(platform)
+        if configurator is not None and self._connector_required:
             cred_manager = create_credential_manager(PRODUCT_NAME, EnvGetter(), creds_path=cred_file_path)
             connect_config = cred_manager.get_credentials(source_system_family(platform))
-            pdcr_requested = self._is_pdcr_requested(connect_config)
-            if pdcr_requested and not self.has_pdcr_access(extractor):
-                pipeline_config = self.configure_teradata_pipeline(pipeline_config, {"profiler": {"use_pdcr": False}})
-            else:
-                pipeline_config = self.configure_teradata_pipeline(pipeline_config, connect_config)
+            pipeline_config = configurator(pipeline_config, connect_config, extractor)
 
         return pipeline_config, extractor
 
