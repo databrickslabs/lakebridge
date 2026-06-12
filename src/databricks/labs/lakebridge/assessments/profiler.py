@@ -26,10 +26,12 @@ def default_output_folder(platform: str) -> Path:
 
 class Profiler:
 
-    def __init__(self,
-                 platform: str,
-                 connector_required: bool,
-                 pipeline_configs: PipelineConfig | None = None,):
+    def __init__(
+        self,
+        platform: str,
+        connector_required: bool,
+        pipeline_configs: PipelineConfig | None = None,
+    ):
         self._platform = platform
         self._pipeline_config = pipeline_configs
         self._connector_required = connector_required
