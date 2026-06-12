@@ -1,7 +1,6 @@
 import pytest
 from unittest.mock import MagicMock, patch
 from typing import Any, cast
-from sqlalchemy.exc import OperationalError
 from databricks.labs.blueprint.installation import JsonObject
 from databricks.labs.lakebridge.connections.database_manager import DatabaseManager, FetchResult
 
@@ -59,30 +58,6 @@ def test_fetch(mock_mssql_connector) -> None:
 
     assert result == mock_result
     mock_connector_instance.fetch.assert_called_once_with(query)
-
-
-@patch('databricks.labs.lakebridge.connections.database_manager.MSSQLConnector')
-def test_probe_returns_true_on_success(mock_mssql_connector) -> None:
-    mock_connector_instance = MagicMock()
-    mock_mssql_connector.return_value = mock_connector_instance
-
-    db_manager = DatabaseManager("mssql", sample_config)
-
-    query = "SELECT 1"
-    assert db_manager.probe(query) is True
-    mock_connector_instance.fetch.assert_called_once_with(query)
-
-
-@patch('databricks.labs.lakebridge.connections.database_manager.MSSQLConnector')
-def test_probe_returns_false_on_operational_error(mock_mssql_connector) -> None:
-    mock_connector_instance = MagicMock()
-    mock_connector_instance.fetch.side_effect = OperationalError("stmt", {}, Exception("relation missing"))
-    mock_mssql_connector.return_value = mock_connector_instance
-
-    db_manager = DatabaseManager("mssql", sample_config)
-
-    # A failed probe is a handled outcome: it must not raise.
-    assert db_manager.probe("SELECT 1 FROM missing_db.missing_tbl") is False
 
 
 @patch('databricks.labs.lakebridge.connections.database_manager.MSSQLConnector')

@@ -315,22 +315,12 @@ class DatabaseManager:
         try:
             return self.connector.fetch(query)
         except OperationalError as e:
-            logger.exception(f"Error connecting to the database: {e}")
+            # Log quietly and let the caller decide how to surface this. Some callers treat a failure
+            # as expected (e.g. the Teradata PDCR preflight probe falling back to DBQL-core), and even
+            # genuine failures are re-logged with context by the pipeline/profiler. Emitting a full
+            # ERROR-level stack trace here would alarm users for handled, recoverable cases.
+            logger.debug(f"Database query failed: {e}")
             raise ConnectionError(f"Error connecting to the database check credentials: {e}") from e
-
-    def probe(self, query: str) -> bool:
-        """Run a lightweight probe query, returning ``False`` when it fails instead of raising.
-
-        Unlike :meth:`fetch`, a failure here is treated as an expected, handled outcome
-        (e.g. a capability or relation-existence check), so it is logged at debug level
-        without an alarming stack trace.
-        """
-        try:
-            self.connector.fetch(query)
-            return True
-        except OperationalError as e:
-            logger.debug(f"Probe query failed: {e}")
-            return False
 
     def check_connection(self) -> bool:
         return self.connector.health_check()
