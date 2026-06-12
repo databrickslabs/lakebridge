@@ -10,6 +10,7 @@ import Admonition from '@theme/Admonition';
 - [Configure Connection to Teradata](#configure-connection-to-teradata)
 - [Run the Profiler](#run-the-profiler)
 - [PDCR Optional Mode](#pdcr-optional-mode)
+- [SQL Text Redaction](#sql-text-redaction)
 - [International Character Support](#international-character-support)
 
 ## Prerequisites
@@ -17,7 +18,7 @@ import Admonition from '@theme/Admonition';
 ### 1. Teradata connectivity and driver
 
 - Network access to the Teradata system.
-- Python package dependency used by Lakebridge: `teradatasqlalchemy` (installed automatically with Lakebridge).
+- No driver install required for the Teradata profiler — the `teradatasql` driver ships with Lakebridge.
 - Access to the Teradata database with appropriate permissions.
 
 ### 2. Required permissions on system views
@@ -78,11 +79,6 @@ The generated credential block (written to `~/.databricks/labs/lakebridge/.crede
 - `teradata.user`
 - `teradata.password`
 - `teradata.database`
-- Optional override: `teradata.profiler.use_pdcr`
-
-<Admonition type="tip" title="Storing the password securely">
-Choose `env` as the secret vault type to avoid storing the password in plain text. In `env` mode the stored value is the name of an environment variable that Lakebridge resolves at runtime (falling back to plain text if the variable is not set).
-</Admonition>
 
 ## Run the Profiler
 
@@ -95,13 +91,17 @@ databricks labs lakebridge test-profiler-connection --source-tech teradata
 Then run the extraction:
 
 ```console
-databricks labs lakebridge execute-database-profiler --source-tech teradata
+databricks labs lakebridge execute-database-profiler --source-tech teradata --output-folder /path/to/output
 ```
 
-This executes the extraction steps defined in the Teradata pipeline configuration and produces a local DuckDB extract at:
+`--output-folder` is optional; if omitted you are prompted for it (defaulting to
+`~/.databricks/labs/lakebridge_profilers/teradata_assessment`).
+
+This executes the extraction steps defined in the Teradata pipeline configuration and produces a local DuckDB
+extract in the output folder, named:
 
 ```
-~/.databricks/labs/lakebridge_profilers/teradata_assessment/profiler_extract.db
+profiler_extract_teradata_<version>_<YYYYMMDD>.db
 ```
 
 The extract contains the system, storage, object, user-database, UDF, and workload (PDCR or DBQL-core) tables gathered from the source.
@@ -128,12 +128,17 @@ When `teradata.profiler.use_pdcr = false`:
 Without PDCR, available data is typically narrower (for example, recent days from DBQL instead of long historical aggregates).
 This can reduce long-horizon trend analysis and may underrepresent short-query aggregate metrics.
 
+## SQL Text Redaction
+
+The Teradata profiler does **not** export raw SQL query text. In the DBQL-core extract the `SQLTextInfo`
+column is redacted to a fixed `[REDACTED]` value at extraction time, so query text never leaves the source
+system. Workload analysis relies on statement classification and performance metrics rather than the raw SQL.
+
 ## International Character Support
 
-Lakebridge supports multilingual query text and metadata (for example Japanese, Korean, and Thai text) in Teradata profiler extracts.
+Lakebridge preserves multilingual metadata (for example Japanese, Korean, and Thai text) in Teradata profiler extracts.
 
-- Teradata extraction runs over UTF-8-capable driver paths.
-- During extraction, Lakebridge normalizes text values to UTF-8-safe strings.
-- Invalid byte sequences are safely replaced instead of failing the profiler run.
+- The `teradatasql` driver runs the session over UTF-8 and returns character data as already-decoded text,
+  so international characters are preserved end to end with no lossy client-side re-encoding.
 
 [Back to Configure Profiler](../#configure-profiler)
