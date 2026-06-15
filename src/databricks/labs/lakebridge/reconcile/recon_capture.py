@@ -325,9 +325,7 @@ class ReconCapture:
             if self.source_connection.catalog is None
             else f"{self.source_connection.catalog}.{self.source_connection.schema}.{table_conf.source_name}"
         )
-        full_target_table = (
-            f"{self.target_connection.catalog}.{self.target_connection.schema}.{table_conf.target_name}"
-        )
+        full_target_table = f"{self.target_connection.catalog}.{self.target_connection.schema}.{table_conf.target_name}"
         return hash(f"{self.recon_id}{full_source_table}{full_target_table}")
 
     def _insert_into_main_table(
