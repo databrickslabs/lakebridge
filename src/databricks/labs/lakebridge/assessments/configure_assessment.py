@@ -2,7 +2,9 @@ from abc import ABC, abstractmethod
 from collections.abc import Callable
 from pathlib import Path
 import logging
+import os
 import shutil
+from typing import Any
 import yaml
 
 from databricks.labs.blueprint.tui import Prompts
@@ -14,7 +16,7 @@ from databricks.labs.lakebridge.connections.credential_manager import (
 )
 from databricks.labs.lakebridge.connections.database_manager import DatabaseManager
 from databricks.labs.lakebridge.connections.env_getter import EnvGetter
-from databricks.labs.lakebridge.assessments import CONNECTOR_REQUIRED
+from databricks.labs.lakebridge.assessments import CONNECTOR_REQUIRED, source_system_family
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +43,7 @@ class AssessmentConfigurator(ABC):
         self._source_name = source_name
 
     @abstractmethod
-    def _configure_credentials(self) -> str:
+    def _configure_credentials(self) -> None:
         pass
 
     @staticmethod
@@ -63,7 +65,8 @@ class AssessmentConfigurator(ABC):
     def run(self):
         """Run the assessment configuration process."""
         logger.info(f"Welcome to the {self._product_name} Assessment Configuration")
-        source = self._configure_credentials()
+        self._configure_credentials()
+        source = self._source_name
         logger.info(f"{source.capitalize()} details and credentials received.")
         if CONNECTOR_REQUIRED.get(self._source_name, True):
             if self.prompts.confirm(f"Do you want to test the connection to {source}?"):
@@ -76,7 +79,7 @@ class AssessmentConfigurator(ABC):
 class ConfigureOracleAssessment(AssessmentConfigurator):
     """Oracle specific assessment configuration."""
 
-    def _configure_credentials(self) -> str:
+    def _configure_credentials(self) -> None:
         cred_file = self._credential_file
         source = self._source_name
 
@@ -99,7 +102,6 @@ class ConfigureOracleAssessment(AssessmentConfigurator):
 
         _save_to_disk(credential, cred_file)
         logger.info(f"Credential template created for {source}.")
-        return source
 
 
 class ConfigureSqlServerAssessment(AssessmentConfigurator):
@@ -110,7 +112,7 @@ class ConfigureSqlServerAssessment(AssessmentConfigurator):
     is the pool name).
     """
 
-    def _configure_credentials(self) -> str:
+    def _configure_credentials(self) -> None:
         cred_file = self._credential_file
         source = self._source_name
 
@@ -143,13 +145,101 @@ class ConfigureSqlServerAssessment(AssessmentConfigurator):
 
         _save_to_disk(credential, cred_file)
         logger.info(f"Credential template created for {source}.")
-        return source
+
+
+# Redshift auth types mirror the values ``RedshiftConnector._connect`` accepts. Keep the
+# two lists in sync; if a new branch is added there, expose it here too.
+REDSHIFT_AUTH_TYPES = ["sql_authentication", "iam"]
+
+REDSHIFT_CREDENTIAL_SOURCES = ["local", "env", "file"]
+
+
+class ConfigureRedshiftAssessment(AssessmentConfigurator):
+    """Redshift specific assessment configuration."""
+
+    def _prompt_iam_fields(self, source_creds: dict[str, Any]) -> None:
+        """Prompt for the optional IAM extra-knob fields and write them only when set.
+
+        ``redshift_connector`` resolves AWS credentials from the standard chain (env vars,
+        ``~/.aws/credentials``, IAM instance profile); every field below is optional, and
+        writing empty strings would poison the connector config, so empties are skipped.
+        """
+        fields = [
+            (
+                "db_user",
+                "DB user to assume via GetClusterCredentials (leave empty to let IAM identity resolve)",
+                "",
+            ),
+            (
+                "cluster_identifier",
+                "Cluster identifier (provisioned Redshift; leave empty for serverless or to auto-detect)",
+                "",
+            ),
+            ("aws_profile", "AWS profile name (leave empty for default)", os.environ.get("AWS_PROFILE", "")),
+            ("region", "AWS region (leave empty for default)", os.environ.get("AWS_REGION", "")),
+        ]
+        for key, prompt_text, default in fields:
+            value = self.prompts.question(prompt_text, default=default)
+            if value:
+                source_creds[key] = value
+
+    def _configure_credentials(self) -> None:
+        cred_file = self._credential_file
+        source = self._source_name
+
+        logger.info(
+            "Redshift authentication: sql_authentication (user/password) or iam (AWS IAM identity, "
+            "credentials resolved from env/~/.aws/credentials/instance profile). "
+            "Credentials are provided via local (plain text in file), env (environment variables), "
+            "or file (use existing credential file if valid else prompt)."
+        )
+        auth_type = str(self.prompts.choice("Authentication type", REDSHIFT_AUTH_TYPES)).lower()
+        choice = str(self.prompts.choice("Credential source (local | env | file)", REDSHIFT_CREDENTIAL_SOURCES)).lower()
+        if choice == "file":
+            if cred_file.exists():
+                try:
+                    with open(cred_file, encoding="utf-8") as f:
+                        data = yaml.safe_load(f)
+                except (yaml.YAMLError, OSError):
+                    data = None
+                existing_creds = data.get(source) if data and isinstance(data, dict) else None
+                required = ["host", "port", "database"]
+                if (existing_creds or {}).get("auth_type") == "sql_authentication":
+                    required = required + ["user", "password"]
+                if existing_creds and isinstance(existing_creds, dict) and all(k in existing_creds for k in required):
+                    logger.info(f"Using existing credential file at {cred_file}.")
+                    return
+
+            logger.info("Credential file not found or incomplete, prompting for connection details.")
+            choice = "local"
+        secret_vault_type = choice
+        secret_vault_name = None
+
+        logger.info("Please refer to the documentation to understand the difference between local and env.")
+
+        source_creds: dict[str, Any] = {"auth_type": auth_type, "ssl": "yes"}
+        source_creds["host"] = self.prompts.question("Enter the Redshift cluster endpoint (host)")
+        source_creds["port"] = int(self.prompts.question("Enter the port details", valid_number=True, default="5439"))
+        source_creds["database"] = self.prompts.question("Enter the database name")
+        if auth_type == "sql_authentication":
+            source_creds["user"] = self.prompts.question("Enter the user details")
+            source_creds["password"] = self.prompts.password("Enter the password details")
+        else:
+            self._prompt_iam_fields(source_creds)
+        credential = {
+            "secret_vault_type": secret_vault_type,
+            "secret_vault_name": secret_vault_name,
+            source: source_creds,
+        }
+
+        _save_to_disk(credential, cred_file)
+        logger.info(f"Credential template created for {source}.")
 
 
 class ConfigureSynapseAssessment(AssessmentConfigurator):
     """Synapse specific assessment configuration."""
 
-    def _configure_credentials(self) -> str:
+    def _configure_credentials(self) -> None:
         cred_file = self._credential_file
         source = self._source_name
 
@@ -215,13 +305,12 @@ class ConfigureSynapseAssessment(AssessmentConfigurator):
         _save_to_disk(credential, cred_file)
 
         logger.info(f"Credential template created for {source}.")
-        return source
 
 
 class ConfigureSnowflakeAssessment(AssessmentConfigurator):
     """Snowflake specific assessment configuration."""
 
-    def _configure_credentials(self) -> str:
+    def _configure_credentials(self) -> None:
         cred_file = self._credential_file
         source = self._source_name
 
@@ -269,7 +358,6 @@ class ConfigureSnowflakeAssessment(AssessmentConfigurator):
         _save_to_disk(credential, cred_file)
 
         logger.info(f"Credential template created for {source}.")
-        return source
 
 
 ConfiguratorFactory = Callable[[str, Prompts, str, Path | str | None], AssessmentConfigurator]
@@ -304,7 +392,7 @@ class ConfigureBigQueryAssessment(AssessmentConfigurator):
             raise ValueError("At least one project/region pair is required (e.g. proj-a.us)")
         return pairs
 
-    def _configure_credentials(self) -> str:
+    def _configure_credentials(self) -> None:
         cred_file = self._credential_file
         source = self._source_name
 
@@ -350,15 +438,14 @@ class ConfigureBigQueryAssessment(AssessmentConfigurator):
         _save_to_disk(credential, cred_file)
 
         logger.info(f"Credential template created for {source}.")
-        return source
 
 
 def create_assessment_configurator(
     source_system: str, product_name: str, prompts: Prompts, credential_file: Path | str | None = None
 ) -> AssessmentConfigurator:
-    """Factory function to create the appropriate assessment configurator."""
     configurators: dict[str, ConfiguratorFactory] = {
         "mssql": ConfigureSqlServerAssessment,
+        "redshift": ConfigureRedshiftAssessment,
         "synapse": ConfigureSynapseAssessment,
         "snowflake": ConfigureSnowflakeAssessment,
         "legacy_synapse": ConfigureSqlServerAssessment,
@@ -366,7 +453,8 @@ def create_assessment_configurator(
         "bigquery": ConfigureBigQueryAssessment,
     }
 
-    if source_system not in configurators:
+    key = source_system_family(source_system)
+    if key not in configurators:
         raise ValueError(f"Unsupported source system: {source_system}")
 
-    return configurators[source_system](product_name, prompts, source_system, credential_file)
+    return configurators[key](product_name, prompts, key, credential_file)

@@ -32,6 +32,8 @@ def _config(*step_specs: tuple[str, str, str]) -> PipelineConfig:
             False,
             [],
         ),
+        # No warning: source_ddl before DDL (source_ddl runs on source, not counted as early non-DDL)
+        ([("source_ddl1", "source_ddl", "active"), ("ddl1", "ddl", "active")], False, []),
         # Warning: one active SQL step before DDL
         ([("sql1", "sql", "active"), ("ddl1", "ddl", "active")], True, ["sql1"]),
         # Warning: two active SQL steps before DDL — both named
@@ -55,6 +57,7 @@ def _config(*step_specs: tuple[str, str, str]) -> PipelineConfig:
         "inactive_non_ddl_before_ddl_no_warning",
         "empty_steps_no_warning",
         "interleaved_ddl_first_no_warning",
+        "source_ddl_before_ddl_no_warning",
         "one_active_sql_before_ddl_warns",
         "two_active_sql_before_ddl_warns",
         "python_before_ddl_warns",

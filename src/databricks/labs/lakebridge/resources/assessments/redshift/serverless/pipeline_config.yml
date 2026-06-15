@@ -1,6 +1,5 @@
 name: redshift_assessment_serverless
 version: "1.0"
-extract_folder: "/tmp/data/redshift_assessment/serverless"
 steps:
   - name: drop_query_view
     type: source_ddl

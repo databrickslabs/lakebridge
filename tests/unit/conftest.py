@@ -239,9 +239,6 @@ def mock_workspace_client() -> WorkspaceClient:
         "/Users/foo/.lakebridge/recon_config.yml": yaml.dump(
             {
                 'version': 1,
-                'source_schema': "src_schema",
-                'target_catalog': "src_catalog",
-                'target_schema': "tgt_schema",
                 'tables': [
                     {
                         "source_name": 'src_table',
@@ -256,7 +253,6 @@ def mock_workspace_client() -> WorkspaceClient:
                         "filters": None,
                     }
                 ],
-                'source_catalog': "src_catalog",
             }
         ),
     }

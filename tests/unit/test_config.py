@@ -115,10 +115,6 @@ def test_reconcile_table_config_default_serialization() -> None:
     installation = MockInstallation(
         {
             "recon_config.yml": {
-                "source_schema": "schema1",
-                "target_schema": "schema2",
-                "source_catalog": "catalog1",
-                "target_catalog": "catalog2",
                 "tables": [
                     {
                         "source_name": "source1",

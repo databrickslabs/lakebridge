@@ -11,7 +11,14 @@ from databricks.labs.blueprint.tui import MockPrompts
 from databricks.labs.blueprint.installation import MockInstallation
 from databricks.labs.lakebridge import cli
 from databricks.labs.lakebridge.assessments.profiler import default_output_folder
-from databricks.labs.lakebridge.config import LSPConfigOptionV1, LSPPromptMethod
+from databricks.labs.lakebridge.config import (
+    LSPConfigOptionV1,
+    LSPPromptMethod,
+    ReconcileConfig,
+    ReconcileMetadataConfig,
+    SourceConnectionConfig,
+    TargetConnectionConfig,
+)
 from databricks.labs.lakebridge.contexts.application import ApplicationContext
 from databricks.labs.lakebridge.helpers.recon_config_utils import ReconConfigPrompts
 
@@ -82,6 +89,17 @@ def app_factory(w: WorkspaceClient) -> ApplicationContext:
         }
     )
     ctx_mock.prompts = prompts
+    ctx_mock.recon_config = ReconcileConfig(
+        report_type="all",
+        source=SourceConnectionConfig(
+            dialect="snowflake",
+            catalog="src_catalog",
+            schema="src_schema",
+            uc_connection_name="conn",
+        ),
+        target=TargetConnectionConfig(catalog="tgt_catalog", schema="tgt_schema"),
+        metadata_config=ReconcileMetadataConfig(),
+    )
     return ctx_mock
 
 
