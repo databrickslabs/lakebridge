@@ -526,7 +526,7 @@ class MorpheusInstaller(TranspilerInstaller):
     def install(self, artifact: Path | None = None) -> bool:
         if not self.is_java_version_okay():
             logger.error(
-                "The morpheus transpiler requires Java 11 or above. Please install Java and re-run 'install-transpile'."
+                "The morpheus transpiler requires Java 21 or above. Please install Java and re-run 'install-transpile'."
             )
             return False
         artifact_id = "databricks-morph-plugin"
@@ -549,7 +549,7 @@ class MorpheusInstaller(TranspilerInstaller):
                 display_version = repr(raw_version)[2:-1]  # Strip b'' from the repr.
                 logger.warning(f"Java found ({java_executable}), but could not parse the version:\n{display_version}")
                 return False
-            case (java_executable, tuple() as old_version) if old_version < (11, 0, 0, 0):
+            case (java_executable, tuple() as old_version) if old_version < (21, 0, 0, 0):
                 version_str = ".".join(str(v) for v in old_version)
                 logger.warning(f"Java found ({java_executable}), but version {version_str} is too old.")
                 return False
