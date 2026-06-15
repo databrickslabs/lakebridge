@@ -6,21 +6,110 @@
 | ------------------------ | --------------------------------------------------------------------------------------------------------------------- |
 | **Databricks workspace** | Any workspace (production, development, or [free trial](https://www.databricks.com/try-databricks))                   |
 | **Databricks CLI**       | [Install here](https://docs.databricks.com/en/dev-tools/cli/install.html) and configure with PAT or Service Principal |
-| **Python**               | 3.10.1 – 3.13.x (Python 3.14 not supported)                                                                           |
-| **Java**                 | Java 11 or above (required for the Morpheus transpiler)                                                               |
-| **Network access**       | GitHub, Maven Central (`repo1.maven.org`), PyPI                                                                       |
+| **Python**               | 3.10.1–3.14.x                                                                                                         |
+| **Java**                 | Java 21 or above (required for the Morpheus transpiler)                                                               |
+| **Network access**       | GitHub, Maven Central, PyPI                                                                                           |
 
-Restricted environments
+### Python and Java[​](#python-and-java "Direct link to Python and Java")
 
-Hardened & Security-Restricted Environments If you are operating in a hardened environment with internet restrictions, firewall rules, or security policies, you must whitelist the following resources before installation:
+If necessary:
 
-* **GitHub:** `github.com`, `raw.githubusercontent.com` - For Lakebridge source code
-* **Maven Central:** `repo1.maven.org`, `central.sonatype.com` - For transpiler plugins
-* **PyPI:** `pypi.org`, `files.pythonhosted.org` - For Python packages
-* **Python Downloads:** `python.org` - If installing Python
-* **Java Downloads:** `oracle.com` or OpenJDK mirrors - If installing Java
+* Python can be obtained [here](https://python.org/); if installing on Windows, please ensure you install the 64-bit version.
+* Java can be obtained [here](https://adoptium.net/temurin/releases); the current LTS release is recommended.
 
-Action Required: Contact your IT Security, CyberSecOps, or Infrastructure team to request whitelisting. Consider setting up a private repository/artifact mirror for organizations with strict internet access policies.
+To verify these are installed and available, from the terminal the following should work and display the installed versions:
+
+```console
+python -V
+java -version
+
+```
+
+### Internet resources[​](#internet-resources "Direct link to Internet resources")
+
+The installation below requires access to the following network resources:
+
+| Site          | Hosts                                         | Purpose                                                                         |
+| ------------- | --------------------------------------------- | ------------------------------------------------------------------------------- |
+| GitHub        | `github.com`<br />`raw.githubusercontent.com` | Packages and metadata used for general installation and upgrades of Lakebridge. |
+| Maven Central | `repo1.maven.org`                             | Installing and upgrading transpiler plugins.                                    |
+| PyPI          | `pypi.org`<br />`files.pythonhosted.org`      |                                                                                 |
+
+Support for proxies or mirrors to access these Internet resources can be configured.
+
+#### General HTTP proxy configuration[​](#general-http-proxy-configuration "Direct link to General HTTP proxy configuration")
+
+To configure general HTTP proxy for network access, set an environment variable named `https_proxy` to the URL of the HTTPS proxy.
+
+* MacOS
+* Windows
+* Linux
+
+```bash
+export https_proxy=http://my-proxy.example.com:3128/
+
+```
+
+```command
+set https_proxy=http://my-proxy.example.com:3128/
+
+```
+
+```bash
+export https_proxy=http://my-proxy.example.com:3128/
+
+```
+
+Contact your IT team if necessary for information on the URL to use. If authentication is needed, refer to the [section below](#proxy-or-mirror-authentication).
+
+#### Maven Central[​](#maven-central "Direct link to Maven Central")
+
+If a local mirror should be used for downloading resources from Maven Central, set the `LAKEBRIDGE_MAVEN_URL` environment to the URL of the mirror.
+
+* MacOS
+* Windows
+* Linux
+
+```bash
+export LAKEBRIDGE_MAVEN_URL=https://mirror.example.com/maven/releases/
+
+```
+
+```command
+set LAKEBRIDGE_MAVEN_URL=https://mirror.example.com/maven/releases/
+
+```
+
+```bash
+export LAKEBRIDGE_MAVEN_URL=https://mirror.example.com/maven/releases/
+
+```
+
+Contact your IT team if necessary for information on the URL to use. If authentication is needed, refer to the [section below](#proxy-or-mirror-authentication).
+
+#### PyPI[​](#pypi "Direct link to PyPI")
+
+If a local mirror should be used for downloaded resources from PyPI, this needs to be configured with pip:
+
+```shell
+pip3 config --user set global.index-url https://mirror.example.com/pypi
+
+```
+
+Contact your IT team if necessary for information on the URL to use. If authentication is needed, refer to the [section below](#proxy-or-mirror-authentication).
+
+#### Proxy or Mirror Authentication[​](#proxy-or-mirror-authentication "Direct link to Proxy or Mirror Authentication")
+
+If authentication is needed to access a mirror or proxy, a `~/.netrc` file can be used to specify the credentials to use. The format is of the form:
+
+```netrc
+machine my-proxy.example.com
+login bobby
+password tAble5
+
+```
+
+Note that `my-proxy.example.com` should be the host from the URL (and not the entire URL).
 
 ### Configure the Databricks CLI[​](#configure-the-databricks-cli "Direct link to Configure the Databricks CLI")
 
@@ -125,7 +214,7 @@ databricks labs lakebridge configure-reconcile
 
 ```
 
-The command will prompt for your source connection and Databricks catalog to reconcile, and install Lakebridge and create the required workspace resources to run Reconcile.
+The command will prompt for your source connection and Databricks catalog to reconcile, and install Lakebridge and create the required workspace resources to run Reconcile. Optionally, the command can discover the tables in your source and generate a base config to run reconcile. This autoconfiguration should be reviewed before running reconcile.
 
 If you don't have permission to create SQL warehouses or clusters, add a `warehouse_id` or a `cluster_id` to your Databricks CLI profile:
 

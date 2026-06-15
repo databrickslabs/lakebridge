@@ -13,13 +13,14 @@ Lakebridge Reconcile validates data fidelity after migration by comparing your s
 
 ## Supported Source Systems[​](#supported-source-systems "Direct link to Supported Source Systems")
 
-| Source     | Schema | Row | Data | All |
-| ---------- | ------ | --- | ---- | --- |
-| Oracle     | Yes    | Yes | Yes  | Yes |
-| Snowflake  | Yes    | Yes | Yes  | Yes |
-| SQL Server | Yes    | Yes | Yes  | Yes |
-| Redshift   | Yes    | Yes | Yes  | Yes |
-| Databricks | Yes    | Yes | Yes  | Yes |
+| Source     | Schema | Row                                     | Data                                    | All                                     |
+| ---------- | ------ | --------------------------------------- | --------------------------------------- | --------------------------------------- |
+| Oracle     | Yes    | Yes                                     | Yes                                     | Yes                                     |
+| Snowflake  | Yes    | Yes                                     | Yes                                     | Yes                                     |
+| SQL Server | Yes    | Yes                                     | Yes                                     | Yes                                     |
+| Redshift   | Yes    | Yes                                     | Yes                                     | Yes                                     |
+| Teradata   | Yes    | Yes [1](#user-content-fn-teradata-hash) | Yes [1](#user-content-fn-teradata-hash) | Yes [1](#user-content-fn-teradata-hash) |
+| Databricks | Yes    | Yes                                     | Yes                                     | Yes                                     |
 
 ***
 
@@ -46,7 +47,7 @@ databricks labs lakebridge configure-reconcile
 
 ```
 
-This sets up Lakebridge workspace resources, deploys the reconciliation dashboards and creates the config file. See [Installation → Configure Reconcile](/lakebridge/docs/installation.md#configure-reconcile) for details.
+This sets up Lakebridge workspace resources. See [Installation → Configure Reconcile](/lakebridge/docs/installation.md#configure-reconcile) for details.
 
 ### Config file[​](#config-file "Direct link to Config file")
 
@@ -104,3 +105,9 @@ Reconcile automatically adapts to the cluster type:
 ## Run[​](#run "Direct link to Run")
 
 See [Running Reconcile](/lakebridge/docs/reconcile/running.md) for CLI execution, notebook usage, and automation.
+
+<!-- -->
+
+## Footnotes[​](#footnote-label "Direct link to Footnotes")
+
+1. Teradata has no portable cryptographic hash in pure SQL, so row-hash report types (`row`, `data`, `all`) require a user-installed hash UDF on the source and an explicit `hash_expression_overrides.source` entry on the recon config. See [Hash Expression](/lakebridge/docs/reconcile/configuration.md#hash-expression) for wiring. [↩](#user-content-fnref-teradata-hash) [↩2](#user-content-fnref-teradata-hash-2) [↩3](#user-content-fnref-teradata-hash-3)

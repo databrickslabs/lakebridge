@@ -33,6 +33,7 @@ Place the file in `.lakebridge/` in your Databricks workspace home folder.
 * Snowflake
 * Oracle
 * MS SQL Server (incl. Synapse)
+* Teradata
 * Databricks
 
 recon\_config\_snowflake\_sample\_data\_all.json
@@ -76,6 +77,29 @@ report_type: data
 
 ```
 
+recon\_config\_teradata\_teradata\_sandbox\_all.json
+
+```yaml
+source:
+    dialect: teradata
+    catalog: DBC
+    schema: lakebridge_test
+    uc_connection_name: teradata_sandbox
+target:
+    catalog: migrated
+    schema: migrated
+report_type: all
+
+```
+
+Required: install a hash UDF on the Teradata source
+
+Teradata does not provide a portable cryptographic hash function in pure SQL, so **you must install your own hash UDF on the Teradata source** before running any `row`, `data`, or `all` report (the `schema` report type does not need it). Any deterministic hash (SHA-256, MD5, etc.) works as long as the source and target sides produce the same string for the same input.
+
+You must also tell Lakebridge how to call the UDF by setting `hash_expression_overrides.source` on the recon config (see [Hash Expression](#hash-expression)).
+
+Refer to the Teradata documentation for how to create and register UDFs on your release and platform. For a real-world example, Teradata publishes an MD5 message-digest UDF you can install as-is or adapt: [MD5 Message Digest UDF](https://downloads.teradata.com/download/extensibility/md5-message-digest-udf).
+
 recon\_config\_databricks\_hms\_schema.json
 
 ```yaml
@@ -90,8 +114,6 @@ target:
 report_type: data
 
 ```
-
-***
 
 ## TABLE Config Schema[​](#table-config-schema "Direct link to TABLE Config Schema")
 
@@ -273,6 +295,39 @@ Transformation(
 )
 
 ```
+
+***
+
+## Hash Expression[​](#hash-expression "Direct link to Hash Expression")
+
+Override the row-hash function with your own SQL. Each value is raw SQL containing a single `{}` placeholder that Lakebridge replaces with the concatenated hash input.
+
+* `source` is **required** when the block is set: the source-side expression Lakebridge will emit on the source dialect.
+* `target` defaults to `sha2({}, 256)` (the target is always Databricks); override it if you use a non-SHA-256 hash.
+
+The block itself is optional for most dialects, omit it to use the source dialect's default. For Teradata sources the block is **mandatory**, since Teradata has no out-of-the-box cryptographic hash.
+
+* Python
+* YAML
+
+```python
+@dataclass
+class HashExpressionOverrides:
+    source: str
+    target: str = "sha2({}, 256)"
+
+```
+
+```yaml
+hash_expression_overrides:
+  source: "my_sha256({})"
+  target: "sha2({}, 256)"
+
+```
+
+Same hash on both sides
+
+The source and target expressions must produce the **same string for the same logical row** — that is what the comparison query joins on. Lakebridge wraps both sides with `LOWER(...)` automatically, so case alone won't cause mismatches; the bytes produced by the hash itself must match across systems.
 
 ***
 

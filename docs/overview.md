@@ -43,21 +43,21 @@ For more information on using the data reconciliation tools, refer to the [Recon
 | Source system type | Source Technology     | Assessment - Profiler | Assessment - Analyzer | Converter | Reconcile |
 | ------------------ | --------------------- | --------------------- | --------------------- | --------- | --------- |
 | SQL                | athena                |                       | ✅                    |           |           |
-|                    | big query             |                       | ✅                    |           |           |
+|                    | big query             | ✅                    | ✅                    |           |           |
 |                    | db2                   |                       | ✅                    |           |           |
 |                    | greenplum             |                       | ✅                    |           |           |
 |                    | hive                  |                       | ✅                    |           |           |
-|                    | mssql                 |                       | ✅                    | ✅        | ✅        |
+|                    | mssql                 | ✅                    | ✅                    | ✅        | ✅        |
 |                    | mysql                 |                       | ✅                    | ✅        |           |
 |                    | netezza               |                       | ✅                    | ✅        |           |
-|                    | oracle                |                       | ✅                    | ✅        | ✅        |
+|                    | oracle                | ✅                    | ✅                    | ✅        | ✅        |
 |                    | postgresql            |                       | ✅                    | ✅        |           |
 |                    | presto                |                       | ✅                    |           |           |
-|                    | redshift              |                       | ✅                    | ✅        |           |
+|                    | redshift              |                       | ✅                    | ✅        | ✅        |
 |                    | sap hana (calc views) |                       | ✅                    |           |           |
-|                    | snowflake             |                       | ✅                    | ✅        | ✅        |
+|                    | snowflake             | ✅                    | ✅                    | ✅        | ✅        |
 |                    | synapse               | ✅                    | ✅                    | ✅        | ✅        |
-|                    | teradata              |                       | ✅                    | ✅        |           |
+|                    | teradata              |                       | ✅                    | ✅        | ✅        |
 |                    | vertica               |                       | ✅                    |           |           |
 | ETL                | abinitio              |                       | ✅                    |           |           |
 |                    | alteryx               |                       | ✅                    |           |           |

@@ -475,10 +475,15 @@ Each system will have different prerequisites either for connection, or metrics 
 
 #### Supported Source Systems[​](#supported-source-systems "Direct link to Supported Source Systems")
 
-| Source Platform                 | Configuration Status |
-| ------------------------------- | -------------------- |
-| [Azure Synapse](./synapse)      | ✅                   |
-| [Microsoft SQL Server](./mssql) | ✅                   |
+| Source Platform                                         | Configuration Status |
+| ------------------------------------------------------- | -------------------- |
+| [Azure Synapse](./synapse)                              | ✅                   |
+| [Snowflake](./snowflake)                                | ✅                   |
+| [Microsoft SQL Server](./mssql)                         | ✅                   |
+| [Legacy Synapse (Dedicated SQL Pool)](./legacy_synapse) | ✅                   |
+| [Oracle](./oracle)                                      | ✅                   |
+| [Google BigQuery](./bigquery)                           | ✅                   |
+| [Amazon Redshift](./redshift)                           | ✅                   |
 
 #### Configure Profiler[​](#configure-profiler "Direct link to Configure Profiler")
 
@@ -534,6 +539,139 @@ The profiler can be run multiple times to capture different time periods or upda
 #### Publish Profiler Summary Dashboard[​](#publish-profiler-summary-dashboard "Direct link to Publish Profiler Summary Dashboard")
 
 Visualize your profiler results as a Lakeview dashboard deployed directly to your Databricks workspace. See the full guide: [Profiler Summary Dashboard](/lakebridge/docs/assessment/profiler/dashboards.md).
+
+For **Amazon Redshift**, dashboard creation is limited to uploading the profiler extract; see [Amazon Redshift Profiler Details](/lakebridge/docs/assessment/profiler/redshift.md) for details.
+
+
+---
+
+### BigQuery Profiler Details
+
+* [Prerequisites](#prerequisites)
+* [Configure Connection to BigQuery](#configure-connection-to-bigquery)
+* [Execute the profiler](#execute-the-profiler)
+
+#### Prerequisites[​](#prerequisites "Direct link to Prerequisites")
+
+##### 1. Download[​](#1-download "Direct link to 1. Download")
+
+* gcloud CLI (<https://cloud.google.com/sdk/docs/install>)
+
+* No driver install required for the BigQuery profiler
+
+##### 2. Authenticate to GCP[​](#2-authenticate-to-gcp "Direct link to 2. Authenticate to GCP")
+
+The profiler authenticates with [Application Default Credentials (ADC)](https://docs.cloud.google.com/docs/authentication/application-default-credentials). The simplest setup is:
+
+```bash
+gcloud auth application-default login
+
+```
+
+For more options, please review the docs.
+
+##### 3. Required IAM permissions on the target BigQuery project(s)[​](#3-required-iam-permissions-on-the-target-bigquery-projects "Direct link to 3. Required IAM permissions on the target BigQuery project(s)")
+
+The executing identity needs the following permissions. `roles/bigquery.admin` covers all of them; for least-privilege deployments grant the discrete permissions below.
+
+```text
+bigquery.jobs.create
+bigquery.jobs.list
+bigquery.datasets.get
+bigquery.datasets.getIamPolicy
+bigquery.tables.get
+bigquery.tables.getData
+bigquery.routines.list
+bigquery.readSessions.create
+bigquery.reservations.list                  # Editions customers only
+bigquery.reservationAssignments.list        # Editions customers only
+bigquery.capacityCommitments.list           # Editions customers only
+
+```
+
+##### 4. INFORMATION\_SCHEMA / region-scoped views accessed[​](#4-information_schema--region-scoped-views-accessed "Direct link to 4. INFORMATION_SCHEMA / region-scoped views accessed")
+
+| Profiler aspect                                                    | Region-scoped view                                                                | Required permission                                            |
+| ------------------------------------------------------------------ | --------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| Job history (workload, timeline, fulfillment, jobs-by-reservation) | `region-{region}.INFORMATION_SCHEMA.JOBS_BY_PROJECT`, `JOBS_TIMELINE`             | `bigquery.jobs.list` (job-owner sees own jobs; admin sees all) |
+| Table storage                                                      | `region-{region}.INFORMATION_SCHEMA.TABLE_STORAGE_BY_PROJECT`                     | `bigquery.tables.get` + `bigquery.tables.getData`              |
+| Streaming inserts                                                  | `region-{region}.INFORMATION_SCHEMA.STREAMING_TIMELINE_BY_PROJECT`                | `bigquery.jobs.list`                                           |
+| Write API                                                          | `region-{region}.INFORMATION_SCHEMA.WRITE_API_TIMELINE_BY_PROJECT`                | `bigquery.jobs.list`                                           |
+| Reservation timeline                                               | `region-{region}.INFORMATION_SCHEMA.RESERVATIONS_TIMELINE`, `RESERVATION_CHANGES` | `bigquery.reservations.list`                                   |
+| Capacity commitments                                               | `region-{region}.INFORMATION_SCHEMA.CAPACITY_COMMITMENT_CHANGES_BY_PROJECT`       | `bigquery.capacityCommitments.list` (admin project only)       |
+
+Attention:
+
+Skip the reservation/commitment permissions if the customer is on **Pay-as-you-go pricing** rather than BigQuery Editions. The corresponding SQL files will return empty results — harmless. You can also set `exclude_reservations_data: true` during configuration to skip those queries entirely (saves BigQuery slot time; the corresponding DuckDB tables are still created as empty stubs so the output schema stays consistent).
+
+Attention:
+
+Some queries (commitments, capacity commitments) only return data when run against the customer's **administrative project** — the one that owns the BigQuery Edition slot reservations. For non-admin projects they return empty.
+
+#### Configure Connection to BigQuery[​](#configure-connection-to-bigquery "Direct link to Configure Connection to BigQuery")
+
+```console
+databricks labs lakebridge configure-database-profiler
+
+Please select the source system you want to configure
+[0] bigquery
+[1] mssql
+[2] synapse
+Enter a number between 0 and 2: 0
+
+(local | env)
+local means values are read as plain text
+env means values are read from environment variables, and fall back to plain text if not variable is not found
+
+Enter secret vault type (local | env)
+[0] env
+[1] local
+Enter a number between 0 and 1: 1
+Please provide BigQuery connection settings:
+
+Enter BigQuery project and region pairs (Format: comma-separated project.region. Example: my-proj-a.us, my-proj-b.eu-west-1): customer-prod-1.us, customer-admin.us
+Enter lookback window in days to profile (default: 180):
+Enter max parallel SQLs per (project, region) iteration (default: 8):
+Please configure profiler settings:
+Exclude reservations and commitments data? (default: no):
+Exclude streaming and write API summary? (default: no):
+
+```
+
+The resulting `~/.databricks/labs/lakebridge/.credentials.yml` looks like:
+
+```yaml
+secret_vault_type: local
+secret_vault_name: null
+bigquery:
+  pairs:
+    - project: customer-prod-1
+      region: us
+    - project: customer-admin
+      region: us
+  profiler:
+    profiling_window_days: 180
+    max_parallel_sqls: 8
+    redact_query_text: true
+    exclude_reservations_data: false
+    exclude_streaming_metrics: false
+
+```
+
+#### Execute the profiler[​](#execute-the-profiler "Direct link to Execute the profiler")
+
+```bash
+databricks labs lakebridge execute-database-profiler --source-tech bigquery
+
+```
+
+The pipeline runs `bq_metadata_extract` — connects to BigQuery and runs 16 vendored SQL queries serially across the configured `(project, region)` pairs and in parallel within each iteration (`max_parallel_sqls` workers). Results land in `~/.databricks/labs/lakebridge_profilers/bigquery_assessment/profiler_extract.db` (DuckDB).
+
+The final DuckDB contains **12 analysis tables** by default (one per `analysis_type`).
+
+Setting `exclude_reservations_data: true` skips the 6 reservation/commitment BigQuery queries — the corresponding DuckDB tables are still created (empty) to keep the output schema consistent.
+
+[Back to Configure Profiler](/lakebridge/docs/assessment/profiler.md#configure-profiler)
 
 
 ---
@@ -640,6 +778,147 @@ In addition to the table overwrite, any previously deployed profiler dashboard i
 
 ---
 
+### Legacy Synapse Profiler Details
+
+* [Prerequisites](#prerequisites)
+* [Profiled Tables and Views](#profiled-tables-and-views)
+* [Configure Connection to Legacy Synapse](#configure-connection-to-legacy-synapse)
+* [Execute the Profiler](#execute-the-profiler)
+
+info
+
+This profiler targets **Azure Synapse dedicated SQL pool** (formerly Azure SQL Data Warehouse). For serverless SQL pools, Spark pools, and the Synapse workspace control plane, use the [Synapse profiler](/lakebridge/docs/assessment/profiler/synapse.md) instead.
+
+#### Prerequisites[​](#prerequisites "Direct link to Prerequisites")
+
+##### 1. Download[​](#1-download "Direct link to 1. Download")
+
+* **ODBC driver for SQL Server** — required for `pyodbc` to talk to the dedicated SQL pool. [Download](https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server?view=sql-server-ver18).
+* **(Windows only) Microsoft Visual C++ Redistributable (x64)** — required by `pyodbc` and the ODBC driver, both of which are native binaries linked against the MSVC runtime. [Download](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170).
+
+##### 2. Authentication[​](#2-authentication "Direct link to 2. Authentication")
+
+Attention:
+
+The profiler currently authenticates via **SQL Authentication** only. Please use a SQL login with MFA disabled.
+
+##### 3. Required Database Permissions[​](#3-required-database-permissions "Direct link to 3. Required Database Permissions")
+
+The SQL user configured for the profiler must have read access to the system catalog views and PDW Dynamic Management Views listed in [Profiled Tables and Views](#profiled-tables-and-views).
+
+Connect to the target dedicated SQL pool as an admin and run:
+
+```sql
+-- Create a contained user from the server login
+CREATE USER [<user_name>] FROM LOGIN [<user_name>];
+
+-- Grant access to PDW Dynamic Management Views (sys.dm_pdw_*)
+GRANT VIEW DATABASE STATE TO [<user_name>];
+
+-- Grant access to object definitions (routines, views)
+GRANT VIEW DEFINITION TO [<user_name>];
+
+-- Grant read access to INFORMATION_SCHEMA views
+GRANT SELECT ON SCHEMA::INFORMATION_SCHEMA TO [<user_name>];
+
+```
+
+tip
+
+The profiler queries server-level catalog views such as `sys.databases` from the target database context. `VIEW DATABASE STATE` covers the `sys.dm_pdw_*` DMVs used to extract sessions, requests, and per-node storage statistics.
+
+#### Profiled Tables and Views[​](#profiled-tables-and-views "Direct link to Profiled Tables and Views")
+
+The profiler executes queries against the following system tables and PDW DMVs. The results are organized into two extraction steps: **schema metadata** and **activity metrics**.
+
+##### Schema Metadata[​](#schema-metadata "Direct link to Schema Metadata")
+
+| Query     | Source Table(s)               | Description                                                                                            |
+| --------- | ----------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Databases | `sys.databases`               | Lists each database by name.                                                                           |
+| Tables    | `INFORMATION_SCHEMA.TABLES`   | Extracts table definitions and types from the dedicated SQL pool.                                      |
+| Views     | `INFORMATION_SCHEMA.VIEWS`    | Extracts view definitions (SQL text is redacted for security).                                         |
+| Columns   | `INFORMATION_SCHEMA.COLUMNS`  | Column-level metadata including data types, nullability, precision, collation, and domain information. |
+| Routines  | `INFORMATION_SCHEMA.ROUTINES` | Stored procedures and user-defined functions (routine definitions are redacted for security).          |
+
+##### Activity Metrics[​](#activity-metrics "Direct link to Activity Metrics")
+
+| Query        | Source Table(s)                       | Description                                                                                                                          |
+| ------------ | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Requests     | `sys.dm_pdw_exec_requests`            | Recently executed PDW requests with submit/start/end times, total elapsed time, status, resource class, and the originating command. |
+| Sessions     | `sys.dm_pdw_exec_sessions`            | Active user sessions with login info, app names, query counts, and transaction state. System sessions are excluded.                  |
+| Storage Info | `sys.dm_pdw_nodes_db_partition_stats` | Per-compute-node storage usage: reserved and used space (MB), aggregated across all partitions on each node.                         |
+
+#### Configure Connection to Legacy Synapse[​](#configure-connection-to-legacy-synapse "Direct link to Configure Connection to Legacy Synapse")
+
+Run the following command to configure the profiler connection to your dedicated SQL pool:
+
+```console
+databricks labs lakebridge configure-database-profiler
+
+Please select the source system you want to configure
+[0] synapse
+[1] mssql
+[2] legacy_synapse
+Enter a number between 0 and 2: 2
+
+(local | env)
+local means values are read as plain text
+env means values are read from environment variables, and fall back to plain text if not variable is not found
+
+Enter secret vault type (local | env)
+[0] env
+[1] local
+Enter a number between 0 and 1: 1
+Enter fetch size (default: 1000):
+Enter login timeout (seconds) (default: 30):
+Enter the fully-qualified server name: my-dw-server.database.windows.net
+Enter the port details: 1433
+Enter the database name: my_pool
+Enter the SQL username: profiler_user
+Enter the SQL password:
+Trust server certificate (default: no):
+Enter timezone (e.g. America/New_York) (default: UTC):
+Enter the ODBC driver installed locally (default: ODBC Driver 18 for SQL Server):
+
+```
+
+##### Configuration Parameters[​](#configuration-parameters "Direct link to Configuration Parameters")
+
+| Parameter                    | Description                                                                                                                                      | Default                         |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------- |
+| **Secret vault type**        | `local` for plain text values, `env` to read from environment variables                                                                          | —                               |
+| **Fetch size**               | Number of rows fetched per batch from the source                                                                                                 | `1000`                          |
+| **Login timeout**            | Connection timeout in seconds                                                                                                                    | `30`                            |
+| **Server name**              | Fully-qualified hostname of the dedicated SQL pool                                                                                               | —                               |
+| **Port**                     | Server port number                                                                                                                               | —                               |
+| **Database**                 | The dedicated SQL pool name to connect to. Dedicated pools do not have a `master` database, so this must be set to the pool you want to profile. | —                               |
+| **SQL username**             | SQL Authentication username                                                                                                                      | —                               |
+| **SQL password**             | SQL Authentication password (hidden input)                                                                                                       | —                               |
+| **Trust server certificate** | Skip TLS certificate validation when connecting. Leave as `no` for Azure-hosted dedicated SQL pools, which present valid certificates.           | `no`                            |
+| **Timezone**                 | Timezone for timestamp normalization                                                                                                             | `UTC`                           |
+| **ODBC driver**              | Locally installed ODBC driver name                                                                                                               | `ODBC Driver 18 for SQL Server` |
+
+#### Execute the Profiler[​](#execute-the-profiler "Direct link to Execute the Profiler")
+
+Once configured, run the profiler to extract metadata and activity metrics from your dedicated SQL pool:
+
+```bash
+databricks labs lakebridge execute-database-profiler --source-tech legacy_synapse
+
+```
+
+The profiler will:
+
+1. Connect to your dedicated SQL pool using the configured credentials
+2. Execute the schema metadata and activity metric extraction queries
+3. Store the results in a local DuckDB extract file
+
+[Back to Configure Profiler](/lakebridge/docs/assessment/profiler.md#configure-profiler)
+
+
+---
+
 ### MSSQL Profiler Details
 
 * [Prerequisites](#prerequisites)
@@ -728,7 +1007,7 @@ The MSSQL profiler executes queries against the following system tables and DMVs
 
 | Query          | Source Table(s)                            | Description                                                                                            |
 | -------------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------ |
-| System Info    | `sys.dm_os_sys_info`                       | Instance-level metadata including memory, CPU count, and scheduler configuration.                      |
+| System Info    | `sys.dm_os_sys_info`                       | Instance-level metadata: CPU topology, memory, virtualization, and SQL Server start time.              |
 | Databases      | `sys.databases`                            | Lists all user databases (excluding system databases) with IDs, names, collation, and creation dates.  |
 | Tables         | `INFORMATION_SCHEMA.TABLES`                | Extracts table definitions and types from each database.                                               |
 | Views          | `INFORMATION_SCHEMA.VIEWS`                 | Extracts view definitions (SQL text is redacted for security).                                         |
@@ -771,8 +1050,10 @@ Enter fetch size (default: 1000):
 Enter login timeout (seconds) (default: 30):
 Enter the fully-qualified server name: my-server.database.windows.net
 Enter the port details: 1433
+Enter the database name: MyAppDB
 Enter the SQL username: profiler_user
 Enter the SQL password:
+Trust server certificate (default: no):
 Enter timezone (e.g. America/New_York) (default: UTC):
 Enter the ODBC driver installed locally (default: ODBC Driver 18 for SQL Server):
 Do you want to test the connection to mssql? (yes/no): yes
@@ -781,17 +1062,19 @@ Do you want to test the connection to mssql? (yes/no): yes
 
 ##### Configuration Parameters[​](#configuration-parameters "Direct link to Configuration Parameters")
 
-| Parameter             | Description                                                             | Default                         |
-| --------------------- | ----------------------------------------------------------------------- | ------------------------------- |
-| **Secret vault type** | `local` for plain text values, `env` to read from environment variables | —                               |
-| **Fetch size**        | Number of rows fetched per batch from the source                        | `1000`                          |
-| **Login timeout**     | Connection timeout in seconds                                           | `30`                            |
-| **Server name**       | Fully-qualified SQL Server hostname                                     | —                               |
-| **Port**              | SQL Server port number                                                  | —                               |
-| **SQL username**      | SQL Authentication username                                             | —                               |
-| **SQL password**      | SQL Authentication password (hidden input)                              | —                               |
-| **Timezone**          | Timezone for timestamp normalization                                    | `UTC`                           |
-| **ODBC driver**       | Locally installed ODBC driver name                                      | `ODBC Driver 18 for SQL Server` |
+| Parameter                    | Description                                                                                                                                                                                                                                       | Default                         |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
+| **Secret vault type**        | `local` for plain text values, `env` to read from environment variables                                                                                                                                                                           | —                               |
+| **Fetch size**               | Number of rows fetched per batch from the source                                                                                                                                                                                                  | `1000`                          |
+| **Login timeout**            | Connection timeout in seconds                                                                                                                                                                                                                     | `30`                            |
+| **Server name**              | Fully-qualified SQL Server hostname                                                                                                                                                                                                               | —                               |
+| **Port**                     | SQL Server port number                                                                                                                                                                                                                            | —                               |
+| **Database**                 | Database to connect to. `INFORMATION_SCHEMA` queries are scoped to this database; other databases on the instance are still discovered via `sys.databases`.                                                                                       | —                               |
+| **SQL username**             | SQL Authentication username                                                                                                                                                                                                                       | —                               |
+| **SQL password**             | SQL Authentication password (hidden input)                                                                                                                                                                                                        | —                               |
+| **Trust server certificate** | Skip TLS certificate validation when connecting. Set to `yes` only when the server uses a self-signed or untrusted certificate (e.g., local/dev SQL Server). Leave as `no` for Azure SQL Database and production servers with valid certificates. | `no`                            |
+| **Timezone**                 | Timezone for timestamp normalization                                                                                                                                                                                                              | `UTC`                           |
+| **ODBC driver**              | Locally installed ODBC driver name                                                                                                                                                                                                                | `ODBC Driver 18 for SQL Server` |
 
 #### Execute the Profiler[​](#execute-the-profiler "Direct link to Execute the Profiler")
 
@@ -808,23 +1091,350 @@ The profiler will:
 2. Execute the schema metadata and activity metric extraction queries
 3. Store the results in a local DuckDB extract file
 
-##### Publish Profiler Summary Dashboard[​](#publish-profiler-summary-dashboard "Direct link to Publish Profiler Summary Dashboard")
+[Back to Configure Profiler](/lakebridge/docs/assessment/profiler.md#configure-profiler)
 
-After executing the profiler, you can upload the results and deploy a summary dashboard to your Databricks workspace:
 
-```bash
-databricks labs lakebridge create-profiler-dashboard \
-  --extract-file /tmp/data/mssql_assessment/profiler_extract.db \
-  --source-tech mssql \
-  --volume-path /Volumes/lakebridge_profiler/profiler_runs \
-  --catalog-name lakebridge_profiler \
-  --schema-name profiler_runs
+---
+
+### Oracle Profiler Details
+
+* [Prerequisites](#prerequisites)
+* [Profiled Tables and Views](#profiled-tables-and-views)
+* [Configure Connection to Oracle](#configure-connection-to-oracle)
+* [Execute the Profiler](#execute-the-profiler)
+
+info
+
+The Oracle profiler targets **multitenant container databases (CDB)** and reads from `CDB_*`, `GV$*`, and AWR views. It must be run against `CDB$ROOT`, not an individual PDB.
+
+#### Prerequisites[​](#prerequisites "Direct link to Prerequisites")
+
+##### 1. Download[​](#1-download "Direct link to 1. Download")
+
+No local Oracle client install is required.
+
+##### 2. Network and Authentication[​](#2-network-and-authentication "Direct link to 2. Network and Authentication")
+
+Attention:
+
+The profiler connects with **username and password over TCP** only. The following are **not supported**:
+
+* TCPS / TLS-encrypted listener connections
+* Oracle Wallet (mTLS, externally identified users)
+* Kerberos / OS authentication
+* Multi-factor authentication
+
+The Oracle listener must be reachable from the host running `databricks labs lakebridge` on the configured TNS port.
+
+##### 3. Required Database Permissions[​](#3-required-database-permissions "Direct link to 3. Required Database Permissions")
+
+The Oracle user configured for the profiler must be able to read the data dictionary and AWR views listed in [Profiled Tables and Views](#profiled-tables-and-views).
+
+Connect to `CDB$ROOT` as `SYS` (or a DBA-privileged user) and run:
+
+```sql
+-- Create a common profiler user (skip if reusing an existing account)
+CREATE USER c##lakebridge_profiler IDENTIFIED BY <password> CONTAINER=ALL;
+GRANT CREATE SESSION TO c##lakebridge_profiler CONTAINER=ALL;
+GRANT SET CONTAINER TO c##lakebridge_profiler CONTAINER=ALL;
+
+-- Catalog and AWR access
+GRANT SELECT_CATALOG_ROLE TO c##lakebridge_profiler CONTAINER=ALL;
 
 ```
 
-Refer to the [Profiler Guide](/lakebridge/docs/assessment/profiler.md#publish-profiler-summary-dashboard) for full details on dashboard deployment options.
+Diagnostic Pack license
+
+The performance queries read from AWR (`CDB_HIST_*`), which requires an Oracle **Diagnostic Pack** license. AWR views return data on any Enterprise Edition database whether or not the pack is licensed — querying them without a license is an audit-time violation, not a runtime error.
+
+By running the profiler against an Oracle source you are asserting that your database is appropriately licensed.
+
+#### Profiled Tables and Views[​](#profiled-tables-and-views "Direct link to Profiled Tables and Views")
+
+The Oracle profiler executes queries against the following Oracle data dictionary and AWR views. The results are organized into two extraction steps: **configuration metadata** and **performance metrics**.
+
+##### Configuration Metadata[​](#configuration-metadata "Direct link to Configuration Metadata")
+
+| Query            | Source View(s)                                                     | Description                                                                                   |
+| ---------------- | ------------------------------------------------------------------ | --------------------------------------------------------------------------------------------- |
+| Containers       | `gv$containers`                                                    | CDB and PDB inventory across all RAC instances.                                               |
+| DB Features      | `product_component_version`, `gv$instance`, `gv$pdbs`, `gv$osstat` | Database version, instance count, PDB list, and CPU/core/socket counts.                       |
+| Instance         | `gv$instance`                                                      | Instance id, name, version, and database type.                                                |
+| Memory Evolution | `cdb_hist_parameter`, `cdb_hist_snapshot`                          | Historical SGA/PGA/buffer-cache parameter values across AWR snapshots.                        |
+| PDB Objects      | `cdb_objects`, `cdb_users`                                         | Object counts per PDB, owner, and object type (Oracle-maintained schemas excluded).           |
+| PDB Partitions   | `cdb_tables`, `cdb_indexes`, `cdb_lobs`                            | Partitioned vs. non-partitioned counts for tables, indexes, and LOBs per PDB and owner.       |
+| Storage          | `cdb_data_files`, `cdb_free_space`, `cdb_tablespaces`              | Allocated, free, and max sizes per container, grouped into `SYSTEM`, `UNDO`, and `USER_DATA`. |
+
+##### Performance Metrics[​](#performance-metrics "Direct link to Performance Metrics")
+
+| Query                        | Source View(s)                                          | Description                                                                                                                                                     |
+| ---------------------------- | ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| CPU & Waits                  | `cdb_hist_active_sess_history`                          | Hourly wait-event and CPU-time breakdown per PDB and instance from ASH samples.                                                                                 |
+| Foreground Session Evolution | `cdb_hist_active_sess_history`, `cdb_users`             | Per-minute distinct foreground session counts by PDB, instance, and end-user.                                                                                   |
+| CPU Heatmap                  | `cdb_hist_active_sess_history`, `gv$osstat`             | Hourly Average Active Sessions normalized by CPU core count.                                                                                                    |
+| SQL Text                     | `cdb_hist_sqlstat`, `cdb_hist_sqltext`, `audit_actions` | SQL statements from AWR, classified into workload categories (BI/QUERY, ETL, DML, DDL, PL/SQL) with execution counts and total elapsed time per schema and PDB. |
+
+#### Configure Connection to Oracle[​](#configure-connection-to-oracle "Direct link to Configure Connection to Oracle")
+
+Run the following command to configure the profiler connection to your Oracle CDB:
+
+```console
+databricks labs lakebridge configure-database-profiler
+
+Please select the source system you want to configure
+[0] synapse
+[1] mssql
+[2] oracle
+Enter a number between 0 and 2: 2
+
+(local | env)
+local means values are read as plain text
+env means values are read from environment variables, and fall back to plain text if not variable is not found
+
+Enter secret vault type (local | env)
+[0] env
+[1] local
+Enter a number between 0 and 1: 1
+Enter the host details (Server name, IP address, SCAN Name): oracle-host.example.com
+Enter the host port number (default: 1521):
+Enter the service name (default: orcl): ORCLCDB
+Enter user with privileges:
+Enter user password:
+
+```
+
+##### Configuration Parameters[​](#configuration-parameters "Direct link to Configuration Parameters")
+
+| Parameter             | Description                                                                                                                                                                                          | Default |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| **Secret vault type** | `local` for plain text values, `env` to read from environment variables                                                                                                                              | —       |
+| **Host**              | Oracle server hostname, IP, or RAC SCAN name                                                                                                                                                         | —       |
+| **Port**              | Port the Oracle listener is bound to                                                                                                                                                                 | `1521`  |
+| **Service name**      | Service name registered in the Oracle listener (the CDB service)                                                                                                                                     | `orcl`  |
+| **User**              | Database user with the grants from [Required Database Permissions](#3-required-database-permissions). `SYSTEM` works out of the box but is over-privileged; the dedicated user above is recommended. | —       |
+| **Password**          | Password for the database user (hidden input)                                                                                                                                                        | —       |
+
+#### Execute the Profiler[​](#execute-the-profiler "Direct link to Execute the Profiler")
+
+Once configured, run the profiler to extract metadata and performance metrics from your Oracle CDB:
+
+```bash
+databricks labs lakebridge execute-database-profiler --source-tech oracle
+
+```
+
+The profiler will:
+
+1. Connect to your Oracle CDB using the configured credentials
+2. Execute the configuration and performance metric extraction queries
+3. Store the results in a local DuckDB extract file
 
 [Back to Configure Profiler](/lakebridge/docs/assessment/profiler.md#configure-profiler)
+
+
+---
+
+### Amazon Redshift Profiler Details
+
+* [Prerequisites](#prerequisites)
+* [Configure Connection to Redshift](#configure-connection-to-redshift)
+* [Run the profiler](#run-the-profiler)
+* [Profiler output and dashboards](#profiler-output-and-dashboards)
+
+#### Prerequisites[​](#prerequisites "Direct link to Prerequisites")
+
+##### 1. Environment[​](#1-environment "Direct link to 1. Environment")
+
+* **Lakebridge CLI** installed and configured for your Databricks workspace (same as other profiler sources).
+
+##### 2. Choose the Redshift deployment variant[​](#2-choose-the-redshift-deployment-variant "Direct link to 2. Choose the Redshift deployment variant")
+
+The profiler ships **three extract pipelines** — pick the one that matches your Redshift instance:
+
+| Variant                    | Use when                      |
+| -------------------------- | ----------------------------- |
+| **serverless**             | Amazon Redshift Serverless    |
+| **provisioned**            | Single-AZ provisioned cluster |
+| **provisioned\_multi\_az** | Multi-AZ provisioned cluster  |
+
+##### 3. Network connectivity[​](#3-network-connectivity "Direct link to 3. Network connectivity")
+
+The machine running the profiler must reach the Redshift cluster **endpoint** (hostname) on the cluster port (default **5439**), subject to your security groups / VPC / routing rules.
+
+##### 4. Authentication[​](#4-authentication "Direct link to 4. Authentication")
+
+During configuration you choose an **authentication type** and where secrets are read from (**local**, **env**, or **file**):
+
+| Authentication type     | Typical use                                                  |
+| ----------------------- | ------------------------------------------------------------ |
+| **sql\_authentication** | Native database user and password                            |
+| **iam**                 | IAM-authenticated connection using AWS credential resolution |
+
+For IAM authentication you typically need:
+
+* **AWS credentials** available to the process (for example `AWS_PROFILE`, environment variables for keys, or instance/profile credentials).
+* **IAM permissions** allowing Amazon Redshift credential APIs appropriate for your setup (for example `redshift:GetClusterCredentials` where applicable).
+
+Use **`local`** to store plaintext values in `~/.databricks/labs/lakebridge/.credentials.yml`, **`env`** to substitute values from environment variables (with fallback), or **`file`** to reuse an existing credential file when it already contains valid Redshift entries.
+
+##### 5. Database privileges[​](#5-database-privileges "Direct link to 5. Database privileges")
+
+The profiler connects as your configured user and runs read-only extracts. The pipeline includes **source\_ddl** steps that create a helper view **`query_view`** in the database (via `CREATE OR REPLACE VIEW`). The connecting user therefore needs permission to:
+
+* **Create (and replace) views** in the target database used for profiling.
+* **Select** from the Amazon Redshift system relations used by the extracts (see below).
+
+**Provisioned clusters** (`provisioned` / `provisioned_multi_az`) — objects referenced by the bundled SQL include, among others:
+
+* `stl_query`, `stl_query_metrics`
+* `stv_node_storage_capacity`, `stv_partitions`
+* `sys_external_query_detail`
+
+**Serverless** (`serverless`) — examples include:
+
+* `sys_query_history`, `sys_query_detail`
+* `sys_external_query_detail`, `sys_serverless_usage`
+
+Exact object access is determined by Amazon Redshift documentation for your edition; grant **minimum read** access consistent with those views/tables.
+
+tip
+
+If you cannot grant broad catalog access, narrow to the relations used in the YAML pipeline for your variant under `resources/assessments/redshift/<variant>/` in the Lakebridge package.
+
+#### Configure Connection to Redshift[​](#configure-connection-to-redshift "Direct link to Configure Connection to Redshift")
+
+```bash
+databricks labs lakebridge configure-database-profiler
+
+```
+
+Select one Redshift source variant when prompted (`redshift_serverless`, `redshift_provisioned`, or `redshift_provisioned_multi_az`). The wizard will ask for authentication type, credential source (`local` | `env` | `file`), and connection details — for password auth, for example:
+
+* Redshift cluster **endpoint** (host)
+* **Port** (default 5439)
+* **Database** name
+* **User** and **password**
+
+For IAM auth, expect prompts for optional fields such as **DB user**, **cluster identifier**, **AWS profile**, and **region**.
+
+Example-style transcript (values are illustrative):
+
+```console
+databricks labs lakebridge configure-database-profiler
+
+Please select the source system you want to configure
+[0] redshift_provisioned
+[1] redshift_provisioned_multi_az
+[2] redshift_serverless
+...
+Enter a number ...: 0
+
+Redshift authentication: sql_authentication or iam.
+
+Authentication type
+[0] iam
+[1] sql_authentication
+Enter a number between 0 and 1: 1
+Credential source (local | env | file)
+[0] local
+[1] env
+[2] file
+...
+
+Enter the Redshift cluster endpoint (host): mycluster.abc123.us-east-1.redshift.amazonaws.com
+Enter the port details (default: 5439): 5439
+Enter the database name: dev
+Enter the user details: profiler_reader
+Enter the password details: ********
+
+Do you want to test the connection to redshift? [y/n]: y
+
+```
+
+#### Run the profiler[​](#run-the-profiler "Direct link to Run the profiler")
+
+After configuration and a successful connection test (optional):
+
+```bash
+databricks labs lakebridge execute-database-profiler --help
+
+```
+
+Run the profiler (interactive source selection):
+
+```bash
+databricks labs lakebridge execute-database-profiler
+
+```
+
+You can pass the source explicitly:
+
+```bash
+databricks labs lakebridge execute-database-profiler --source-tech redshift_provisioned
+
+```
+
+Execution will:
+
+1. Load `pipeline_config.yml` for the chosen source variant.
+2. Run **source\_ddl** steps on the cluster (including creating/updating **`query_view`**).
+3. Run SQL extracts and persist results into a timestamped DuckDB file under the selected `--output-folder`.
+
+#### Profiler output and dashboards[​](#profiler-output-and-dashboards "Direct link to Profiler output and dashboards")
+
+For Redshift source variants, Lakebridge currently uploads the profiler extract to UC Volume but skips dashboard template and ingestion-job deployment. You can still use the extract artifact for downstream analysis.
+
+[Back to Configure Profiler](/lakebridge/docs/assessment/profiler.md#configure-profiler)
+
+
+---
+
+### Snowflake Profiler Details
+
+#### Prerequisites[​](#prerequisites "Direct link to Prerequisites")
+
+* A Snowflake user with permission to create Personal Access Tokens (PATs) and to query the `SNOWFLAKE.ACCOUNT_USAGE` schema (e.g., the `ACCOUNTADMIN` role or a role granted `IMPORTED PRIVILEGES ON DATABASE SNOWFLAKE`).
+* The `rate_sheet` step also reads `SNOWFLAKE.ORGANIZATION_USAGE.RATE_SHEET_DAILY` for the effective credit rate and account tier. This is available to `ACCOUNTADMIN` in an ORGADMIN-enabled account (the first account in an organization is ORGADMIN-enabled by default, so single-account orgs are covered), or to a custom role granted the `ORGANIZATION_BILLING_VIEWER` database role. If the account isn't ORGADMIN-enabled — or the organization is on a reseller contract — the view returns no rows, so `rate_sheet` is skipped and the rest of the profile still completes.
+* Network access from the machine running Lakebridge to your Snowflake account.
+
+#### Authentication[​](#authentication "Direct link to Authentication")
+
+The Snowflake profiler authenticates with a **Programmatic Access Token (PAT)**. Follow Snowflake's official guide to generate one:
+
+[Snowflake docs: Programmatic access tokens](https://docs.snowflake.com/en/user-guide/programmatic-access-tokens#generating-a-programmatic-access-token)
+
+You'll need:
+
+* `account` — your Snowflake account identifier (e.g., `myorg-myaccount.snowflakecomputing.com`)
+* `user` — Snowflake username
+* `role`, `warehouse`, `database`, `schema` — typically `ACCOUNTADMIN`, `COMPUTE_WH`, `SNOWFLAKE`, `ACCOUNT_USAGE`
+* The PAT itself (paste when prompted; it's stored under `pat` in the credentials file)
+
+If your account or user has a network policy, also see Snowflake's docs on [bypassing the network policy on a PAT](https://docs.snowflake.com/en/user-guide/programmatic-access-tokens) for short-term testing from a dynamic IP.
+
+#### Configure and run the profiler[​](#configure-and-run-the-profiler "Direct link to Configure and run the profiler")
+
+```bash
+databricks labs lakebridge configure-database-profiler
+
+```
+
+Pick **snowflake** when prompted, then paste the connection details and PAT.
+
+```bash
+databricks labs lakebridge execute-database-profiler
+
+```
+
+The extract is written to a DuckDB file at `~/.databricks/labs/lakebridge_profilers/snowflake_assessment/profiler_extract.db`. It contains raw `SNOWFLAKE.ACCOUNT_USAGE` data — warehouse usage, query history, storage, users, and (when applicable) pipe / autoclustering / materialized-view refresh credits. By default each extract looks back 90 days. Inspect it with:
+
+```bash
+cd ~/.databricks/labs/lakebridge_profilers/snowflake_assessment
+duckdb profiler_extract.db "SHOW TABLES;"
+duckdb profiler_extract.db "SELECT * FROM warehouse_usage LIMIT 10;"
+duckdb profiler_extract.db "SELECT * FROM query_history LIMIT 10;"
+
+```
 
 
 ---
@@ -2309,6 +2919,7 @@ databricks labs lakebridge llm-transpile \
   [--schema-name your_schema] \
   [--volume your_volume] \
   [--foundation-model your_foundation_model] \
+  [--switch-config-path /Workspace/path/to/switch_config.yml] \
   [--profile profile_name]
 
 ```
@@ -2343,22 +2954,25 @@ Switch provides flexible configuration through two tiers: command-line parameter
 
 The `llm-transpile` command accepts the following parameters:
 
-| Parameter            | Specification                                 | Description                                                                                                           | Example                                          |
-| -------------------- | --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
-| `--input-source`     | Required                                      | Local file system path containing files to convert (automatically uploaded to Volume)                                 | `/local/path/to/input`                           |
-| `--output-ws-folder` | Required                                      | Databricks workspace path for generated outputs (must start with `/Workspace/`)                                       | `/Workspace/path/to/output`                      |
-| `--source-dialect`   | Required                                      | Source technology/dialect to convert from (see [Source Format Support](#source-format-support) for available options) | `snowflake`, `oracle`, `python`, `airflow`, etc. |
-| `--accept-terms`     | Required                                      | Whether to accept the terms for using LLM-based transpilation (`true\|false`)                                         | `true`                                           |
-| `--catalog-name`     | Optional (prompted, default: `lakebridge`)    | Unity Catalog for Switch Delta tables and Volume                                                                      | `your_catalog`                                   |
-| `--schema-name`      | Optional (prompted, default: `switch`)        | Schema within the catalog for Switch Delta tables and Volume                                                          | `your_schema`                                    |
-| `--volume`           | Optional (prompted, default: `switch_volume`) | Unity Catalog Volume for uploaded input source files                                                                  | `your_volume`                                    |
-| `--foundation-model` | Optional (prompted from available FM APIs)    | Model serving endpoint name for conversions                                                                           | `databricks-claude-sonnet-4-5`                   |
+| Parameter              | Specification                                 | Description                                                                                                                                                                                                                                 | Example                                          |
+| ---------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| `--input-source`       | Required                                      | Local file system path containing files to convert (automatically uploaded to Volume)                                                                                                                                                       | `/local/path/to/input`                           |
+| `--output-ws-folder`   | Required                                      | Databricks workspace path for generated outputs (must start with `/Workspace/`)                                                                                                                                                             | `/Workspace/path/to/output`                      |
+| `--source-dialect`     | Required                                      | Source technology/dialect to convert from (see [Source Format Support](#source-format-support) for available options)                                                                                                                       | `snowflake`, `oracle`, `python`, `airflow`, etc. |
+| `--accept-terms`       | Required                                      | Whether to accept the terms for using LLM-based transpilation (`true\|false`)                                                                                                                                                               | `true`                                           |
+| `--catalog-name`       | Optional (prompted, default: `lakebridge`)    | Unity Catalog for Switch Delta tables and Volume                                                                                                                                                                                            | `your_catalog`                                   |
+| `--schema-name`        | Optional (prompted, default: `switch`)        | Schema within the catalog for Switch Delta tables and Volume                                                                                                                                                                                | `your_schema`                                    |
+| `--volume`             | Optional (prompted, default: `switch_volume`) | Unity Catalog Volume for uploaded input source files                                                                                                                                                                                        | `your_volume`                                    |
+| `--foundation-model`   | Optional (prompted from available FM APIs)    | Model serving endpoint name for conversions                                                                                                                                                                                                 | `databricks-claude-sonnet-4-5`                   |
+| `--switch-config-path` | Optional                                      | Workspace path to a custom Switch configuration file. Overrides the default configuration file location. Must start with `/Workspace/`. See [Switch Configuration File](#switch-configuration-file) for available configuration parameters. | `/Workspace/Users/user/switch_config.yml`        |
 
 ##### Switch Configuration File[​](#switch-configuration-file "Direct link to Switch Configuration File")
 
 Additional conversion parameters are managed in the Switch configuration file. You can edit this file directly in your workspace to customize Switch's conversion behavior.
 
-**File location:** `/Workspace/Users/{user}/.lakebridge/switch/resources/switch_config.yml`
+**Default file location:** `/Workspace/Users/{user}/.lakebridge/switch/resources/switch_config.yml`
+
+You can also specify a custom configuration file path using the `--switch-config-path` command-line parameter, which overrides the default location.
 
 | Parameter                | Description                                                                                                                                                                                                                                                                                                                                                                                     | Default Value | Available Options                                                                                  |
 | ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- | -------------------------------------------------------------------------------------------------- |
@@ -5170,13 +5784,14 @@ Lakebridge Reconcile validates data fidelity after migration by comparing your s
 
 #### Supported Source Systems[​](#supported-source-systems "Direct link to Supported Source Systems")
 
-| Source     | Schema | Row | Data | All |
-| ---------- | ------ | --- | ---- | --- |
-| Oracle     | Yes    | Yes | Yes  | Yes |
-| Snowflake  | Yes    | Yes | Yes  | Yes |
-| SQL Server | Yes    | Yes | Yes  | Yes |
-| Redshift   | Yes    | Yes | Yes  | Yes |
-| Databricks | Yes    | Yes | Yes  | Yes |
+| Source     | Schema | Row                                     | Data                                    | All                                     |
+| ---------- | ------ | --------------------------------------- | --------------------------------------- | --------------------------------------- |
+| Oracle     | Yes    | Yes                                     | Yes                                     | Yes                                     |
+| Snowflake  | Yes    | Yes                                     | Yes                                     | Yes                                     |
+| SQL Server | Yes    | Yes                                     | Yes                                     | Yes                                     |
+| Redshift   | Yes    | Yes                                     | Yes                                     | Yes                                     |
+| Teradata   | Yes    | Yes [1](#user-content-fn-teradata-hash) | Yes [1](#user-content-fn-teradata-hash) | Yes [1](#user-content-fn-teradata-hash) |
+| Databricks | Yes    | Yes                                     | Yes                                     | Yes                                     |
 
 ***
 
@@ -5203,7 +5818,7 @@ databricks labs lakebridge configure-reconcile
 
 ```
 
-This sets up Lakebridge workspace resources, deploys the reconciliation dashboards and creates the config file. See [Installation → Configure Reconcile](/lakebridge/docs/installation.md#configure-reconcile) for details.
+This sets up Lakebridge workspace resources. See [Installation → Configure Reconcile](/lakebridge/docs/installation.md#configure-reconcile) for details.
 
 ##### Config file[​](#config-file "Direct link to Config file")
 
@@ -5262,6 +5877,12 @@ Reconcile automatically adapts to the cluster type:
 
 See [Running Reconcile](/lakebridge/docs/reconcile/running.md) for CLI execution, notebook usage, and automation.
 
+<!-- -->
+
+#### Footnotes[​](#footnote-label "Direct link to Footnotes")
+
+1. Teradata has no portable cryptographic hash in pure SQL, so row-hash report types (`row`, `data`, `all`) require a user-installed hash UDF on the source and an explicit `hash_expression_overrides.source` entry on the recon config. See [Hash Expression](/lakebridge/docs/reconcile/configuration.md#hash-expression) for wiring. [↩](#user-content-fnref-teradata-hash) [↩2](#user-content-fnref-teradata-hash-2) [↩3](#user-content-fnref-teradata-hash-3)
+
 
 ---
 
@@ -5300,6 +5921,7 @@ Place the file in `.lakebridge/` in your Databricks workspace home folder.
 * Snowflake
 * Oracle
 * MS SQL Server (incl. Synapse)
+* Teradata
 * Databricks
 
 recon\_config\_snowflake\_sample\_data\_all.json
@@ -5343,6 +5965,29 @@ report_type: data
 
 ```
 
+recon\_config\_teradata\_teradata\_sandbox\_all.json
+
+```yaml
+source:
+    dialect: teradata
+    catalog: DBC
+    schema: lakebridge_test
+    uc_connection_name: teradata_sandbox
+target:
+    catalog: migrated
+    schema: migrated
+report_type: all
+
+```
+
+Required: install a hash UDF on the Teradata source
+
+Teradata does not provide a portable cryptographic hash function in pure SQL, so **you must install your own hash UDF on the Teradata source** before running any `row`, `data`, or `all` report (the `schema` report type does not need it). Any deterministic hash (SHA-256, MD5, etc.) works as long as the source and target sides produce the same string for the same input.
+
+You must also tell Lakebridge how to call the UDF by setting `hash_expression_overrides.source` on the recon config (see [Hash Expression](#hash-expression)).
+
+Refer to the Teradata documentation for how to create and register UDFs on your release and platform. For a real-world example, Teradata publishes an MD5 message-digest UDF you can install as-is or adapt: [MD5 Message Digest UDF](https://downloads.teradata.com/download/extensibility/md5-message-digest-udf).
+
 recon\_config\_databricks\_hms\_schema.json
 
 ```yaml
@@ -5357,8 +6002,6 @@ target:
 report_type: data
 
 ```
-
-***
 
 #### TABLE Config Schema[​](#table-config-schema "Direct link to TABLE Config Schema")
 
@@ -5540,6 +6183,39 @@ Transformation(
 )
 
 ```
+
+***
+
+#### Hash Expression[​](#hash-expression "Direct link to Hash Expression")
+
+Override the row-hash function with your own SQL. Each value is raw SQL containing a single `{}` placeholder that Lakebridge replaces with the concatenated hash input.
+
+* `source` is **required** when the block is set: the source-side expression Lakebridge will emit on the source dialect.
+* `target` defaults to `sha2({}, 256)` (the target is always Databricks); override it if you use a non-SHA-256 hash.
+
+The block itself is optional for most dialects, omit it to use the source dialect's default. For Teradata sources the block is **mandatory**, since Teradata has no out-of-the-box cryptographic hash.
+
+* Python
+* YAML
+
+```python
+@dataclass
+class HashExpressionOverrides:
+    source: str
+    target: str = "sha2({}, 256)"
+
+```
+
+```yaml
+hash_expression_overrides:
+  source: "my_sha256({})"
+  target: "sha2({}, 256)"
+
+```
+
+Same hash on both sides
+
+The source and target expressions must produce the **same string for the same logical row** — that is what the comparison query joins on. Lakebridge wraps both sides with `LOWER(...)` automatically, so case alone won't cause mismatches; the bytes produced by the hash itself must match across systems.
 
 ***
 
@@ -5826,7 +6502,7 @@ Parameters:
 
   <!-- -->
 
-  * `dialect`: The dialect of the source. Supported values: `snowflake`, `oracle`, `mssql`, `synapse`, `databricks`, `redshift`.
+  * `dialect`: The dialect of the source. Supported values: `snowflake`, `oracle`, `mssql`, `synapse`, `databricks`, `redshift`, `teradata`.
   * `catalog`: The source database/catalog name. catalog is used for consistency in naming
   * `schema`: The source schema name.
   * `uc_connection_name`: the connection name for the source as configured in workspace `Connections`. Not allowed for `databricks`
@@ -5979,9 +6655,144 @@ except ReconciliationException as e:
 
 After running, use the `recon_id` to drill into the results on the AI/BI Dashboard deployed in your workspace during installation.
 
+***
+
+#### Auto-configure Table Mappings[​](#auto-configure-table-mappings "Direct link to Auto-configure Table Mappings")
+
+When you have many tables to reconcile, you can skip writing the `TableRecon` by hand. The `auto-configure-recon-tables` command discovers source/target table pairs by matching their names, fills in `column_mapping` where source and target column names differ, and drops unmatched columns, and uploads the resulting reconcile config file to your install folder.
+
+This is the automated alternative to [Step 4: Configure TableRecon](#step-4-configure-tablerecon) above.
+
+##### Prerequisites[​](#prerequisites "Direct link to Prerequisites")
+
+* CLI users: `configure-reconcile` has been run (the reconcile config file must exist in your install folder).
+* Python users: [Step 3: Configure ReconcileConfig](#step-3-configure-reconcileconfig)
+
+##### Run[​](#run "Direct link to Run")
+
+```bash
+databricks labs lakebridge auto-configure-recon-tables
+
+```
+
+The matcher normalizes tables and columns names (case, underscores vs. hyphens, simple plural/singular) so `Customers` matches `customers`, `Order_Items` matches `order-items`, `orders` matches `order`. Source tables the matcher cannot pair with a target table are **omitted** from the draft and logged so you can add them manually.
+
+When the workspace job finishes, the resulting `recon_config_<...>.json` is uploaded to your install folder.
+
+danger
+
+Running auto-configure **overwrites** existing config if the user approves. Apply manual edits *after* running auto-configure.
+
+##### Python[​](#python "Direct link to Python")
+
+The auto-configure module exposes two automation entry points:
+
+* `discover_tables(...)` — matches table pairs from the configured catalogs and schemas.
+* `auto_configure_tables(table_recon, ...)` — apply all registered configurers (column mapping today; join keys, transformations, ... as they're added) to each Table in `table_recon` and return the result.
+
+Both take the `reconcile_config` from [Step 3](#step-3-configure-reconcileconfig) and return `TableRecon`, that can be passed to `TriggerReconService.trigger_recon` ([Step 5](#step-5-run)):
+
+```python
+from databricks.labs.lakebridge.reconcile.config_generator.execute import (
+    auto_configure_tables,
+    discover_tables,
+)
+
+# `reconcile_config` from Step 3 above.
+discovered = discover_tables(reconcile_config=reconcile_config, spark=spark)
+table_recon = auto_configure_tables(discovered, reconcile_config=reconcile_config, spark=spark)
+
+for t in table_recon.tables:
+    print(t.source_name, "→", t.target_name)
+
+```
+
+##### Recommended flow: discover, review, then auto-configure[​](#recommended-flow-discover-review-then-auto-configure "Direct link to Recommended flow: discover, review, then auto-configure")
+
+The recommended pattern is to split discovery from auto-configuration so you can review the discovered pairs before any column mappings are filled in:
+
+1. **Discover** — call `discover_tables(...)` and inspect the returned `TableRecon`.
+2. **Review** — drop pairs you don't want to reconcile, fix names the matcher got wrong, and add tables it couldn't auto-match (look for the warning in the logs).
+3. **Auto-configure** — pass the curated `TableRecon` to `auto_configure_tables(curated, ...)`.
+
+```python
+discovered = discover_tables(reconcile_config=reconcile_config, spark=spark)
+
+# Review/curate in memory — or save the file, edit it in the workspace, and load it back.
+curated = TableRecon(tables=[t for t in discovered.tables if t.source_name != "audit_log"])
+
+table_recon = auto_configure_tables(curated, reconcile_config=reconcile_config, spark=spark)
+
+```
+
 note
 
-Improved bulk automation tooling is in development. Check back for updates.
+From the CLI this is two runs of `auto-configure-recon-tables`:
+
+1. **First run** — no existing file. Answer **yes** to "Discover tables now?", then **no** to "Also run auto-configure in the same job (skips the recommended review step)?". This emits a discover-only draft for you to review.
+2. **Second run** — existing file. Answer **yes** to "Auto-configure and use existing table mappings (no discovery)?" — auto-configure applies its configurers to your curated draft.
+
+If you'd rather discover and auto-configure in one job (and skip the review step), accept the "Also run auto-configure in the same job" prompt during the first run.
+
+##### Plugging in a custom configurer[​](#plugging-in-a-custom-configurer "Direct link to Plugging in a custom configurer")
+
+`auto_configure_tables` and `auto_configure_table` both accept an `auto_configurers` parameter (defaults to `SUPPORTED_AUTO_CONFIGURERS`). Pass your own list of `TableAutoConfigurer` implementations to extend or replace the defaults — e.g. an LLM-driven mapper, a join-key inferrer, or a transformation suggester:
+
+```python
+from databricks.labs.lakebridge.reconcile.config_generator.configure import TableAutoConfigurer
+from databricks.labs.lakebridge.reconcile.config_generator.execute import (
+    SUPPORTED_AUTO_CONFIGURERS,
+    auto_configure_tables,
+)
+
+class MyConfigurer(TableAutoConfigurer):
+    def configure(self, table, ctx):
+        ...  # inspect ctx.source_columns / ctx.target_columns and return an updated Table
+        return table
+
+auto_configure_tables(
+    table_recon,
+    reconcile_config=reconcile_config,
+    spark=spark,
+    auto_configurers=[*SUPPORTED_AUTO_CONFIGURERS, MyConfigurer()],
+)
+
+```
+
+Each configurer in the list runs in order on each table; later configurers see the table as updated by earlier ones via the `ctx` they share.
+
+##### Auto-configure a single table[​](#auto-configure-a-single-table "Direct link to Auto-configure a single table")
+
+To run all supported configurers against just one table — e.g. after a column was added on the source — call `auto_configure_table`:
+
+```python
+from databricks.labs.lakebridge.reconcile.config_generator.execute import auto_configure_table
+from databricks.labs.lakebridge.reconcile.recon_config import Table
+
+configured = auto_configure_table(
+    table=Table(source_name="orders", target_name="orders"),
+    reconcile_config=reconcile_config,
+    spark=spark,
+)
+
+print(configured)
+
+```
+
+##### Review the output[​](#review-the-output "Direct link to Review the output")
+
+Auto-discovery fills in table pairs, `column_mapping`, `select_columns` (matched source columns when any source column couldn't be paired), and `drop_columns` (unmatched target columns). The following fields are not auto-discovered and must be added manually for the tables that need them:
+
+* `join_columns` — required for `data` and `all` report types.
+* `column_thresholds`, `table_thresholds` — numeric tolerance bounds.
+* `transformations` — column-level SQL transforms.
+* `filters` — source/target WHERE clauses.
+
+See [Configuration Reference](/lakebridge/docs/reconcile/configuration.md) for the full schema.
+
+note
+
+This command is experimental. Review the output before running reconcile.
 
 
 ---
@@ -6475,21 +7286,110 @@ See [Reconcile Guide](/lakebridge/docs/reconcile.md) for full configuration deta
 | ------------------------ | --------------------------------------------------------------------------------------------------------------------- |
 | **Databricks workspace** | Any workspace (production, development, or [free trial](https://www.databricks.com/try-databricks))                   |
 | **Databricks CLI**       | [Install here](https://docs.databricks.com/en/dev-tools/cli/install.html) and configure with PAT or Service Principal |
-| **Python**               | 3.10.1 – 3.13.x (Python 3.14 not supported)                                                                           |
-| **Java**                 | Java 11 or above (required for the Morpheus transpiler)                                                               |
-| **Network access**       | GitHub, Maven Central (`repo1.maven.org`), PyPI                                                                       |
+| **Python**               | 3.10.1–3.14.x                                                                                                         |
+| **Java**                 | Java 21 or above (required for the Morpheus transpiler)                                                               |
+| **Network access**       | GitHub, Maven Central, PyPI                                                                                           |
 
-Restricted environments
+##### Python and Java[​](#python-and-java "Direct link to Python and Java")
 
-Hardened & Security-Restricted Environments If you are operating in a hardened environment with internet restrictions, firewall rules, or security policies, you must whitelist the following resources before installation:
+If necessary:
 
-* **GitHub:** `github.com`, `raw.githubusercontent.com` - For Lakebridge source code
-* **Maven Central:** `repo1.maven.org`, `central.sonatype.com` - For transpiler plugins
-* **PyPI:** `pypi.org`, `files.pythonhosted.org` - For Python packages
-* **Python Downloads:** `python.org` - If installing Python
-* **Java Downloads:** `oracle.com` or OpenJDK mirrors - If installing Java
+* Python can be obtained [here](https://python.org/); if installing on Windows, please ensure you install the 64-bit version.
+* Java can be obtained [here](https://adoptium.net/temurin/releases); the current LTS release is recommended.
 
-Action Required: Contact your IT Security, CyberSecOps, or Infrastructure team to request whitelisting. Consider setting up a private repository/artifact mirror for organizations with strict internet access policies.
+To verify these are installed and available, from the terminal the following should work and display the installed versions:
+
+```console
+python -V
+java -version
+
+```
+
+##### Internet resources[​](#internet-resources "Direct link to Internet resources")
+
+The installation below requires access to the following network resources:
+
+| Site          | Hosts                                         | Purpose                                                                         |
+| ------------- | --------------------------------------------- | ------------------------------------------------------------------------------- |
+| GitHub        | `github.com`<br />`raw.githubusercontent.com` | Packages and metadata used for general installation and upgrades of Lakebridge. |
+| Maven Central | `repo1.maven.org`                             | Installing and upgrading transpiler plugins.                                    |
+| PyPI          | `pypi.org`<br />`files.pythonhosted.org`      |                                                                                 |
+
+Support for proxies or mirrors to access these Internet resources can be configured.
+
+###### General HTTP proxy configuration[​](#general-http-proxy-configuration "Direct link to General HTTP proxy configuration")
+
+To configure general HTTP proxy for network access, set an environment variable named `https_proxy` to the URL of the HTTPS proxy.
+
+* MacOS
+* Windows
+* Linux
+
+```bash
+export https_proxy=http://my-proxy.example.com:3128/
+
+```
+
+```command
+set https_proxy=http://my-proxy.example.com:3128/
+
+```
+
+```bash
+export https_proxy=http://my-proxy.example.com:3128/
+
+```
+
+Contact your IT team if necessary for information on the URL to use. If authentication is needed, refer to the [section below](#proxy-or-mirror-authentication).
+
+###### Maven Central[​](#maven-central "Direct link to Maven Central")
+
+If a local mirror should be used for downloading resources from Maven Central, set the `LAKEBRIDGE_MAVEN_URL` environment to the URL of the mirror.
+
+* MacOS
+* Windows
+* Linux
+
+```bash
+export LAKEBRIDGE_MAVEN_URL=https://mirror.example.com/maven/releases/
+
+```
+
+```command
+set LAKEBRIDGE_MAVEN_URL=https://mirror.example.com/maven/releases/
+
+```
+
+```bash
+export LAKEBRIDGE_MAVEN_URL=https://mirror.example.com/maven/releases/
+
+```
+
+Contact your IT team if necessary for information on the URL to use. If authentication is needed, refer to the [section below](#proxy-or-mirror-authentication).
+
+###### PyPI[​](#pypi "Direct link to PyPI")
+
+If a local mirror should be used for downloaded resources from PyPI, this needs to be configured with pip:
+
+```shell
+pip3 config --user set global.index-url https://mirror.example.com/pypi
+
+```
+
+Contact your IT team if necessary for information on the URL to use. If authentication is needed, refer to the [section below](#proxy-or-mirror-authentication).
+
+###### Proxy or Mirror Authentication[​](#proxy-or-mirror-authentication "Direct link to Proxy or Mirror Authentication")
+
+If authentication is needed to access a mirror or proxy, a `~/.netrc` file can be used to specify the credentials to use. The format is of the form:
+
+```netrc
+machine my-proxy.example.com
+login bobby
+password tAble5
+
+```
+
+Note that `my-proxy.example.com` should be the host from the URL (and not the entire URL).
 
 ##### Configure the Databricks CLI[​](#configure-the-databricks-cli "Direct link to Configure the Databricks CLI")
 
@@ -6594,7 +7494,7 @@ databricks labs lakebridge configure-reconcile
 
 ```
 
-The command will prompt for your source connection and Databricks catalog to reconcile, and install Lakebridge and create the required workspace resources to run Reconcile.
+The command will prompt for your source connection and Databricks catalog to reconcile, and install Lakebridge and create the required workspace resources to run Reconcile. Optionally, the command can discover the tables in your source and generate a base config to run reconcile. This autoconfiguration should be reviewed before running reconcile.
 
 If you don't have permission to create SQL warehouses or clusters, add a `warehouse_id` or a `cluster_id` to your Databricks CLI profile:
 
@@ -6667,21 +7567,21 @@ For more information on using the data reconciliation tools, refer to the [Recon
 | Source system type | Source Technology     | Assessment - Profiler | Assessment - Analyzer | Converter | Reconcile |
 | ------------------ | --------------------- | --------------------- | --------------------- | --------- | --------- |
 | SQL                | athena                |                       | ✅                    |           |           |
-|                    | big query             |                       | ✅                    |           |           |
+|                    | big query             | ✅                    | ✅                    |           |           |
 |                    | db2                   |                       | ✅                    |           |           |
 |                    | greenplum             |                       | ✅                    |           |           |
 |                    | hive                  |                       | ✅                    |           |           |
-|                    | mssql                 |                       | ✅                    | ✅        | ✅        |
+|                    | mssql                 | ✅                    | ✅                    | ✅        | ✅        |
 |                    | mysql                 |                       | ✅                    | ✅        |           |
 |                    | netezza               |                       | ✅                    | ✅        |           |
-|                    | oracle                |                       | ✅                    | ✅        | ✅        |
+|                    | oracle                | ✅                    | ✅                    | ✅        | ✅        |
 |                    | postgresql            |                       | ✅                    | ✅        |           |
 |                    | presto                |                       | ✅                    |           |           |
-|                    | redshift              |                       | ✅                    | ✅        |           |
+|                    | redshift              |                       | ✅                    | ✅        | ✅        |
 |                    | sap hana (calc views) |                       | ✅                    |           |           |
-|                    | snowflake             |                       | ✅                    | ✅        | ✅        |
+|                    | snowflake             | ✅                    | ✅                    | ✅        | ✅        |
 |                    | synapse               | ✅                    | ✅                    | ✅        | ✅        |
-|                    | teradata              |                       | ✅                    | ✅        |           |
+|                    | teradata              |                       | ✅                    | ✅        | ✅        |
 |                    | vertica               |                       | ✅                    |           |           |
 | ETL                | abinitio              |                       | ✅                    |           |           |
 |                    | alteryx               |                       | ✅                    |           |           |

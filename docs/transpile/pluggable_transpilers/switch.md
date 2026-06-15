@@ -148,6 +148,7 @@ databricks labs lakebridge llm-transpile \
   [--schema-name your_schema] \
   [--volume your_volume] \
   [--foundation-model your_foundation_model] \
+  [--switch-config-path /Workspace/path/to/switch_config.yml] \
   [--profile profile_name]
 
 ```
@@ -182,22 +183,25 @@ Switch provides flexible configuration through two tiers: command-line parameter
 
 The `llm-transpile` command accepts the following parameters:
 
-| Parameter            | Specification                                 | Description                                                                                                           | Example                                          |
-| -------------------- | --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
-| `--input-source`     | Required                                      | Local file system path containing files to convert (automatically uploaded to Volume)                                 | `/local/path/to/input`                           |
-| `--output-ws-folder` | Required                                      | Databricks workspace path for generated outputs (must start with `/Workspace/`)                                       | `/Workspace/path/to/output`                      |
-| `--source-dialect`   | Required                                      | Source technology/dialect to convert from (see [Source Format Support](#source-format-support) for available options) | `snowflake`, `oracle`, `python`, `airflow`, etc. |
-| `--accept-terms`     | Required                                      | Whether to accept the terms for using LLM-based transpilation (`true\|false`)                                         | `true`                                           |
-| `--catalog-name`     | Optional (prompted, default: `lakebridge`)    | Unity Catalog for Switch Delta tables and Volume                                                                      | `your_catalog`                                   |
-| `--schema-name`      | Optional (prompted, default: `switch`)        | Schema within the catalog for Switch Delta tables and Volume                                                          | `your_schema`                                    |
-| `--volume`           | Optional (prompted, default: `switch_volume`) | Unity Catalog Volume for uploaded input source files                                                                  | `your_volume`                                    |
-| `--foundation-model` | Optional (prompted from available FM APIs)    | Model serving endpoint name for conversions                                                                           | `databricks-claude-sonnet-4-5`                   |
+| Parameter              | Specification                                 | Description                                                                                                                                                                                                                                 | Example                                          |
+| ---------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| `--input-source`       | Required                                      | Local file system path containing files to convert (automatically uploaded to Volume)                                                                                                                                                       | `/local/path/to/input`                           |
+| `--output-ws-folder`   | Required                                      | Databricks workspace path for generated outputs (must start with `/Workspace/`)                                                                                                                                                             | `/Workspace/path/to/output`                      |
+| `--source-dialect`     | Required                                      | Source technology/dialect to convert from (see [Source Format Support](#source-format-support) for available options)                                                                                                                       | `snowflake`, `oracle`, `python`, `airflow`, etc. |
+| `--accept-terms`       | Required                                      | Whether to accept the terms for using LLM-based transpilation (`true\|false`)                                                                                                                                                               | `true`                                           |
+| `--catalog-name`       | Optional (prompted, default: `lakebridge`)    | Unity Catalog for Switch Delta tables and Volume                                                                                                                                                                                            | `your_catalog`                                   |
+| `--schema-name`        | Optional (prompted, default: `switch`)        | Schema within the catalog for Switch Delta tables and Volume                                                                                                                                                                                | `your_schema`                                    |
+| `--volume`             | Optional (prompted, default: `switch_volume`) | Unity Catalog Volume for uploaded input source files                                                                                                                                                                                        | `your_volume`                                    |
+| `--foundation-model`   | Optional (prompted from available FM APIs)    | Model serving endpoint name for conversions                                                                                                                                                                                                 | `databricks-claude-sonnet-4-5`                   |
+| `--switch-config-path` | Optional                                      | Workspace path to a custom Switch configuration file. Overrides the default configuration file location. Must start with `/Workspace/`. See [Switch Configuration File](#switch-configuration-file) for available configuration parameters. | `/Workspace/Users/user/switch_config.yml`        |
 
 ### Switch Configuration File[​](#switch-configuration-file "Direct link to Switch Configuration File")
 
 Additional conversion parameters are managed in the Switch configuration file. You can edit this file directly in your workspace to customize Switch's conversion behavior.
 
-**File location:** `/Workspace/Users/{user}/.lakebridge/switch/resources/switch_config.yml`
+**Default file location:** `/Workspace/Users/{user}/.lakebridge/switch/resources/switch_config.yml`
+
+You can also specify a custom configuration file path using the `--switch-config-path` command-line parameter, which overrides the default location.
 
 | Parameter                | Description                                                                                                                                                                                                                                                                                                                                                                                     | Default Value | Available Options                                                                                  |
 | ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- | -------------------------------------------------------------------------------------------------- |
