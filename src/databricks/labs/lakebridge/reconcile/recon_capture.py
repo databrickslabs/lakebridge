@@ -280,18 +280,17 @@ class ReconCapture:
             legacy_spark = ws
             if (
                 not isinstance(legacy_report_type, str)
-                or legacy_source_dialect is None
-                or legacy_ws is None
-                or legacy_spark is None
+                or not isinstance(legacy_source_dialect, Dialect)
+                or not isinstance(legacy_ws, WorkspaceClient)
+                or not isinstance(legacy_spark, SparkSession)
             ):
                 raise ValueError("Invalid legacy ReconCapture constructor arguments")
+            source_dialect_key = get_key_from_dialect(legacy_source_dialect)
             source_connection = SourceConnectionConfig(
-                dialect=get_key_from_dialect(legacy_source_dialect),
+                dialect=source_dialect_key,
                 catalog=legacy_db.source_catalog,
                 schema=legacy_db.source_schema,
-                uc_connection_name=(
-                    "remorph_connection" if get_key_from_dialect(legacy_source_dialect) != "databricks" else None
-                ),
+                uc_connection_name=("remorph_connection" if source_dialect_key != "databricks" else None),
             )
             target_connection = TargetConnectionConfig(
                 catalog=legacy_db.target_catalog,
