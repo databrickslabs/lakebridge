@@ -80,6 +80,7 @@ DIAMONDS_JDBC_READER_OPTIONS = JdbcReaderOptions(
     fetchsize=100,
 )
 
+
 @pytest.fixture
 def recon_catalog(make_catalog) -> str:
     try:

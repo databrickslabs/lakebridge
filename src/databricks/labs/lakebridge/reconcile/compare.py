@@ -13,6 +13,7 @@ Three flows share ``_aliased_join`` / ``_join_prepare_persist`` / ``_filter_to_v
 
 See `lakebridge#745` (Data Compare consolidation).
 """
+
 import logging
 from collections.abc import Callable
 from functools import reduce
@@ -166,10 +167,10 @@ def prepare_persisted_aggregate_join(
     target_alias = "tgt"
     if key_columns:
         how = "full"
-        on = _generate_agg_join_condition(source_alias, target_alias, key_columns)
+        join_condition = _generate_agg_join_condition(source_alias, target_alias, key_columns)
     else:
         how = "cross"
-        on = None
+        join_condition = None
     return _join_prepare_persist(
         source,
         target,
@@ -177,11 +178,10 @@ def prepare_persisted_aggregate_join(
         source_alias=source_alias,
         target_alias=target_alias,
         how=how,
-        on=on,
-        prepare=lambda joined: _select_aggregate_joined_columns(
-            joined, source=source, target=target
-        ),
+        on=join_condition,
+        prepare=lambda joined: _select_aggregate_joined_columns(joined, source=source, target=target),
     )
+
 
 def _build_mismatch_column(table, column):
     return col(DialectUtils.ansi_normalize_identifier(column)).alias(
@@ -191,9 +191,7 @@ def _build_mismatch_column(table, column):
 
 def _mismatch_projection_for_prefixed_columns(df: DataFrame, side_alias: str):
     return [
-        _build_mismatch_column(side_alias, col_name)
-        for col_name in df.columns
-        if col_name.startswith(f"{side_alias}_")
+        _build_mismatch_column(side_alias, col_name) for col_name in df.columns if col_name.startswith(f"{side_alias}_")
     ]
 
 
@@ -313,12 +311,8 @@ def reconcile_data(
 
     mismatch = _get_mismatch_data(df, source_alias, target_alias) if report_type in {"all", "data"} else None
 
-    missing_in_src = _joined_rows_missing_on_side(
-        df, absent_side_alias=source_alias, present_side_alias=target_alias
-    )
-    missing_in_tgt = _joined_rows_missing_on_side(
-        df, absent_side_alias=target_alias, present_side_alias=source_alias
-    )
+    missing_in_src = _joined_rows_missing_on_side(df, absent_side_alias=source_alias, present_side_alias=target_alias)
+    missing_in_tgt = _joined_rows_missing_on_side(df, absent_side_alias=target_alias, present_side_alias=source_alias)
     return _data_reconcile_output(
         mismatch_df=mismatch,
         missing_in_src=missing_in_src,
@@ -388,15 +382,15 @@ def _unnormalize_mismatch_df_col(column, suffix):
 
 
 def _capture_mismatch_base_compare_projections(column_list: list[str]):
-    sa, ca = _CAPTURE_SOURCE_ALIAS, _CAPTURE_TARGET_ALIAS
+    source_alias, compare_alias = _CAPTURE_SOURCE_ALIAS, _CAPTURE_TARGET_ALIAS
     source_aliased = [
-        col(f"{sa}." + DialectUtils.ansi_normalize_identifier(column)).alias(
+        col(f"{source_alias}." + DialectUtils.ansi_normalize_identifier(column)).alias(
             _unnormalize_mismatch_df_col(column, "_base")
         )
         for column in column_list
     ]
     target_aliased = [
-        col(f"{ca}." + DialectUtils.ansi_normalize_identifier(column)).alias(
+        col(f"{compare_alias}." + DialectUtils.ansi_normalize_identifier(column)).alias(
             _unnormalize_mismatch_df_col(column, "_compare")
         )
         for column in column_list
@@ -566,9 +560,7 @@ def reconcile_agg_data_per_rule(
 
     joined_df_with_rule_cols = joined_df.select(*df_rule_columns)
 
-    mismatch = _mismatch_rows_for_aggregate_mappings(
-        joined_df_with_rule_cols, rule_select_columns, rule_group_columns
-    )
+    mismatch = _mismatch_rows_for_aggregate_mappings(joined_df_with_rule_cols, rule_select_columns, rule_group_columns)
 
     # Data missing in Source DataFrame
     rule_target_columns = set(target_columns).intersection([mapping.target_name for mapping in rule_select_columns])
@@ -590,6 +582,7 @@ def reconcile_agg_data_per_rule(
         missing_in_src=missing_in_src,
         missing_in_tgt=missing_in_tgt,
     )
+
 
 # Backward-compatible alias for existing imports/callers
 join_aggregate_data = prepare_persisted_aggregate_join
