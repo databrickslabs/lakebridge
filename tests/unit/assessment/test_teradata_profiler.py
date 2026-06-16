@@ -1,8 +1,6 @@
 from importlib import resources
 from pathlib import Path
 
-from unittest.mock import MagicMock
-
 import pytest
 
 import databricks.labs.lakebridge.resources.assessments as assessment_resources
@@ -26,7 +24,7 @@ def test_teradata_profile_execution_with_invalid_config(platform: str, test_reso
     with pytest.raises(FileNotFoundError):
         config_file = test_resources / "assessments" / "invalid_pipeline_config.yml"
         pipeline_config = profiler.path_modifier(config_file=config_file, path_prefix=test_resources)
-        profiler.profile(pipeline_config=pipeline_config, extractor=MagicMock())
+        profiler.profile(pipeline_config=pipeline_config, output_folder=test_resources / "out")
 
 
 def _load_variant_config(variant: str) -> PipelineConfig:

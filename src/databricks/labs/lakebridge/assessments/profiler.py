@@ -55,7 +55,6 @@ class Profiler:
         self,
         *,
         pipeline_config: PipelineConfig | None = None,
-        extractor: DatabaseManager | None = None,
         output_folder: Path | None = None,
         cred_file_path: Path | None = None,
     ) -> None:
@@ -66,7 +65,7 @@ class Profiler:
             pipeline_config = self._pipeline_config
         resolved_output_folder = output_folder or default_output_folder(platform)
         resolved_creds_path = cred_file_path or cred_file()
-        self._execute(platform, pipeline_config, resolved_output_folder, resolved_creds_path, extractor)
+        self._execute(platform, pipeline_config, resolved_output_folder, resolved_creds_path)
 
     def _execute(
         self,
@@ -74,11 +73,9 @@ class Profiler:
         pipeline_config: PipelineConfig,
         output_folder: Path,
         cred_file_path: Path,
-        extractor: DatabaseManager | None = None,
     ) -> None:
         try:
-            if extractor is None and self._connector_required:
-                extractor = Profiler._setup_extractor(platform, cred_file_path)
+            extractor = Profiler._setup_extractor(platform, cred_file_path) if self._connector_required else None
             db_path = output_folder / make_profiler_db_filename(platform)
             result = PipelineClass(pipeline_config, extractor, db_path, cred_file_path).execute()
             logger.info(f"Profiler extract written to {db_path.expanduser()}")

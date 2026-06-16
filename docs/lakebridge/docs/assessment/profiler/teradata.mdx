@@ -129,6 +129,12 @@ workload extraction:
 The `teradata_core` workload data is typically narrower (recent days from DBQL instead of long historical
 aggregates), which can reduce long-horizon trend analysis and may underrepresent short-query aggregate metrics.
 
+<Admonition type="warning" title="PDCR not available?">
+If you run `teradata_pdcr` and the profiler fails with `Error 3802 ... Database 'PDCRINFO' does not exist`,
+the PDCR repository is not present (or not accessible) in this environment. Re-run with `--source-tech teradata_core`,
+which uses only the core `DBC`/DBQL tables.
+</Admonition>
+
 ## SQL Text Redaction
 
 The Teradata profiler does **not** export raw SQL query text. In the DBQL-core extract the `SQLTextInfo`

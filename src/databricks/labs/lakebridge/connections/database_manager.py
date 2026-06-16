@@ -296,8 +296,11 @@ class DatabaseManager:
         try:
             return self.connector.fetch(query)
         except OperationalError as e:
-            logger.exception(f"Error connecting to the database: {e}")
-            raise ConnectionError(f"Error connecting to the database check credentials: {e}") from e
+            # Drivers (notably teradatasql) embed a full stack trace and the offending SQL in the error
+            # message; keep that detail at debug level and surface only the concise first line.
+            logger.debug("Database query failed", exc_info=True)
+            reason = str(getattr(e, "orig", e)).split("\n", 1)[0].strip()
+            raise ConnectionError(f"Database query failed: {reason}") from e
 
     def check_connection(self) -> bool:
         return self.connector.health_check()
