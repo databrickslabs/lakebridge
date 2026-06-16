@@ -354,7 +354,12 @@ def test_reconcile_aggregate_data_mismatch_and_missing_records(
     }
 
     target_schema_repository = {(CATALOG, SCHEMA, TGT_TABLE): tgt_schema}
-    source_connection = SourceConnectionConfig(dialect="snowflake", catalog=CATALOG, schema=SCHEMA)
+    source_connection = SourceConnectionConfig(
+        dialect="snowflake",
+        catalog=CATALOG,
+        schema=SCHEMA,
+        uc_connection_name="remorph_snowflake",
+    )
     target_connection = TargetConnectionConfig(catalog=CATALOG, schema=SCHEMA)
     source = MockDataSource(source_dataframe_repository, source_schema_repository, delimiter='"')
     target = MockDataSource(target_dataframe_repository, target_schema_repository)
