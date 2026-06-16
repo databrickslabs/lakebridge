@@ -5,6 +5,7 @@ from ._constants import (
     SOURCE_SYSTEM_TO_PIPELINE_CFG,
     CONNECTOR_REQUIRED,
     REDSHIFT_VARIANTS,
+    TERADATA_VARIANTS,
     source_system_family,
 )
 
@@ -15,5 +16,6 @@ __all__ = [
     "SOURCE_SYSTEM_TO_PIPELINE_CFG",
     "CONNECTOR_REQUIRED",
     "REDSHIFT_VARIANTS",
+    "TERADATA_VARIANTS",
     "source_system_family",
 ]

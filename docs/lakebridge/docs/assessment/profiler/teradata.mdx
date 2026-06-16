@@ -9,7 +9,7 @@ import Admonition from '@theme/Admonition';
 - [Prerequisites](#prerequisites)
 - [Configure Connection to Teradata](#configure-connection-to-teradata)
 - [Run the Profiler](#run-the-profiler)
-- [PDCR Optional Mode](#pdcr-optional-mode)
+- [Choosing a Profiler Variant](#choosing-a-profiler-variant)
 - [SQL Text Redaction](#sql-text-redaction)
 - [International Character Support](#international-character-support)
 
@@ -18,7 +18,7 @@ import Admonition from '@theme/Admonition';
 ### 1. Teradata connectivity and driver
 
 - Network access to the Teradata system.
-- No driver install required for the Teradata profiler — the `teradatasql` driver ships with Lakebridge.
+- No driver install required for the Teradata profiler.
 - Access to the Teradata database with appropriate permissions.
 
 ### 2. Required permissions on system views
@@ -34,14 +34,14 @@ Grant `SELECT` access to:
 
 ### 3. Optional PDCR access for longer-history analysis
 
-For richer, aggregated history (up to 180 days in the default extraction), grant `SELECT` access to:
+The `teradata_pdcr` variant uses Teradata PDCR tables for richer, aggregated history (up to 180 days). To use it, grant `SELECT` access to:
 
 - `PDCRINFO.DBQlogTbl_Hst`
 - `PDCRINFO.DBQLSummaryTbl_Hst`
 - `PDCRINFO.UserInfo`
 
 <Admonition type="info" title="PDCR is optional">
-If PDCR is not enabled in the customer environment, Lakebridge can run in fallback mode using core DBQL tables only. See [PDCR Optional Mode](#pdcr-optional-mode).
+If PDCR is not available in the environment, use the `teradata_core` variant, which relies only on the core `DBC`/DBQL tables. See [Choosing a Profiler Variant](#choosing-a-profiler-variant).
 </Admonition>
 
 ## Configure Connection to Teradata
@@ -54,10 +54,14 @@ Select the source technology
 [1] legacy_synapse
 [2] mssql
 [3] oracle
-[4] snowflake
-[5] synapse
-[6] teradata
-Enter a number between 0 and 6: 6
+[4] redshift_provisioned
+[5] redshift_provisioned_multi_az
+[6] redshift_serverless
+[7] snowflake
+[8] synapse
+[9] teradata_core
+[10] teradata_pdcr
+Enter a number between 0 and 10: 9
 
 (local | env)
 local means values are read as plain text
@@ -82,51 +86,48 @@ The generated credential block (written to `~/.databricks/labs/lakebridge/.crede
 
 ## Run the Profiler
 
-Optionally verify connectivity first:
+Use the variant you configured (`teradata_core` or `teradata_pdcr`). Optionally verify connectivity first:
 
 ```console
-databricks labs lakebridge test-profiler-connection --source-tech teradata
+databricks labs lakebridge test-profiler-connection --source-tech teradata_core
 ```
 
 Then run the extraction:
 
 ```console
-databricks labs lakebridge execute-database-profiler --source-tech teradata --output-folder /path/to/output
+databricks labs lakebridge execute-database-profiler --source-tech teradata_core --output-folder /path/to/output
 ```
 
 `--output-folder` is optional; if omitted you are prompted for it (defaulting to
-`~/.databricks/labs/lakebridge_profilers/teradata_assessment`).
+`~/.databricks/labs/lakebridge_profilers/<source-tech>_assessment`).
 
-This executes the extraction steps defined in the Teradata pipeline configuration and produces a local DuckDB
-extract in the output folder, named:
+This executes the extraction steps defined in the selected variant's pipeline configuration and produces a local
+DuckDB extract in the output folder, named:
 
 ```
-profiler_extract_teradata_<version>_<YYYYMMDD>.db
+profiler_extract_<source-tech>_<version>_<YYYYMMDD>.db
 ```
 
-The extract contains the system, storage, object, user-database, UDF, and workload (PDCR or DBQL-core) tables gathered from the source.
+The extract contains the system, storage, object, user-database, UDF, and workload tables gathered from the source.
 
-## PDCR Optional Mode
+## Choosing a Profiler Variant
 
-Default behavior (when `teradata.profiler.use_pdcr` is omitted or `true`):
+The Teradata profiler ships as two variants. They share the same connection and credentials; choose the one that
+matches the access available in your environment:
 
-- Lakebridge first checks PDCR accessibility with a lightweight preflight probe.
-- If accessible, Lakebridge extracts PDCR aggregated datasets:
-  - `td_pdcr_info_agg_extract`
-  - `td_pdcr_sp_exe_info_agg_extract`
-- If PDCR is unavailable, Lakebridge automatically falls back to DBQL core extraction:
-  - `td_dbql_core_info_extract`
+| Variant | Workload source | Use when |
+|---|---|---|
+| `teradata_core` | Core `DBC` / DBQL tables | The baseline. Works on any Teradata system with the system-view grants above. |
+| `teradata_pdcr` | PDCR aggregated history (`PDCRINFO`) | You have PDCR access and want richer, longer-history workload aggregates. |
 
-When `teradata.profiler.use_pdcr = false`:
+Both variants extract the same system, storage, object, user-database, and UDF tables; they differ only in the
+workload extraction:
 
-- Lakebridge disables the PDCR extraction steps.
-- Lakebridge enables DBQL fallback extraction:
-  - `td_dbql_core_info_extract`
+- `teradata_core` extracts `td_dbql_core_info_extract`.
+- `teradata_pdcr` extracts `td_pdcr_info_agg_extract` and `td_pdcr_sp_exe_info_agg_extract`.
 
-### Fallback data limitations
-
-Without PDCR, available data is typically narrower (for example, recent days from DBQL instead of long historical aggregates).
-This can reduce long-horizon trend analysis and may underrepresent short-query aggregate metrics.
+The `teradata_core` workload data is typically narrower (recent days from DBQL instead of long historical
+aggregates), which can reduce long-horizon trend analysis and may underrepresent short-query aggregate metrics.
 
 ## SQL Text Redaction
 

@@ -181,11 +181,13 @@ def test_create_assessment_configurator():
     )
     assert isinstance(synapse_configurator, ConfigureSynapseAssessment)
 
-    # Test Teradata configurator
-    teradata_configurator = create_assessment_configurator(
-        source_system="teradata", product_name="lakebridge", prompts=prompts
-    )
-    assert isinstance(teradata_configurator, ConfigureTeradataAssessment)
+    # Test Teradata configurators: both variants share the "teradata" family configurator
+    for variant in ("teradata_core", "teradata_pdcr"):
+        teradata_configurator = create_assessment_configurator(
+            source_system=variant, product_name="lakebridge", prompts=prompts
+        )
+        assert isinstance(teradata_configurator, ConfigureTeradataAssessment)
+        assert vars(teradata_configurator)["_source_name"] == "teradata"
     # legacy_synapse (Azure Synapse dedicated SQL pool) reuses the SQL Server configurator
     legacy_synapse_configurator = create_assessment_configurator(
         source_system="legacy_synapse", product_name="lakebridge", prompts=prompts

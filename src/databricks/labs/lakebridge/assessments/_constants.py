@@ -4,10 +4,10 @@ PRODUCT_NAME = "lakebridge"
 PRODUCT_PATH_PREFIX = Path.home() / ".databricks" / "labs" / PRODUCT_NAME / "lib"
 
 REDSHIFT_VARIANTS = ("serverless", "provisioned", "provisioned_multi_az")
+TERADATA_VARIANTS = ("core", "pdcr")
 
 SOURCE_SYSTEM_TO_PIPELINE_CFG = {
     "synapse": "src/databricks/labs/lakebridge/resources/assessments/synapse/pipeline_config.yml",
-    "teradata": "src/databricks/labs/lakebridge/resources/assessments/teradata/pipeline_config.yml",
     "snowflake": "src/databricks/labs/lakebridge/resources/assessments/snowflake/pipeline_config.yml",
     "oracle": "src/databricks/labs/lakebridge/resources/assessments/oracle/pipeline_config.yml",
     "mssql": "src/databricks/labs/lakebridge/resources/assessments/mssql/pipeline_config.yml",
@@ -18,6 +18,12 @@ SOURCE_SYSTEM_TO_PIPELINE_CFG = {
             f"src/databricks/labs/lakebridge/resources/assessments/redshift/{variant}/pipeline_config.yml"
         )
         for variant in REDSHIFT_VARIANTS
+    },
+    **{
+        f"teradata_{variant}": (
+            f"src/databricks/labs/lakebridge/resources/assessments/teradata/{variant}/pipeline_config.yml"
+        )
+        for variant in TERADATA_VARIANTS
     },
 }
 
@@ -43,4 +49,6 @@ CONNECTOR_REQUIRED = {
 def source_system_family(source: str) -> str:
     if source.startswith("redshift_"):
         return "redshift"
+    if source.startswith("teradata_"):
+        return "teradata"
     return source

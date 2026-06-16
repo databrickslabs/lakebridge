@@ -9,13 +9,13 @@ from tests.unit.profiler_test_helpers import build_overridden_pipeline_config
 
 def test_teradata_profile_execution(test_resources: Path, tmp_path: Path) -> None:
     """Test successful Teradata profiling execution with pipeline config."""
-    profiler = Profiler("teradata", True)
+    profiler = Profiler("teradata_core", True)
     config_file = test_resources / "assessments" / "pipeline_config_main.yml"
     output_folder = tmp_path / "teradata_profiler_main"
     config = profiler.path_modifier(config_file=config_file, path_prefix=test_resources)
     profiler.profile(pipeline_config=config, extractor=MagicMock(), output_folder=output_folder)
     assert (
-        output_folder / make_profiler_db_filename("teradata")
+        output_folder / make_profiler_db_filename("teradata_core")
     ).exists(), "Profiler extract database should be created"
 
 
@@ -29,9 +29,9 @@ def test_teradata_profile_execution_config_override(test_resources: Path, tmp_pa
     )
 
     output_folder = tmp_path / "teradata_profiler_db"
-    profiler = Profiler("teradata", True)
+    profiler = Profiler("teradata_core", True)
     pipeline_config = PipelineClass.load_config_from_yaml(config_file_dest)
     profiler.profile(pipeline_config=pipeline_config, extractor=MagicMock(), output_folder=output_folder)
     assert (
-        output_folder / make_profiler_db_filename("teradata")
+        output_folder / make_profiler_db_filename("teradata_core")
     ).exists(), "Profiler extract database should be created"

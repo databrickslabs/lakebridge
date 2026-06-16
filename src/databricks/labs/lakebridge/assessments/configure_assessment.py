@@ -374,8 +374,6 @@ class ConfigureTeradataAssessment(AssessmentConfigurator):
         secret_vault_type = str(self.prompts.choice("Enter secret vault type (local | env)", ["local", "env"])).lower()
         secret_vault_name = None
 
-        # In env mode the stored value is the name of an environment variable that
-        # EnvGetter resolves at runtime, not the password itself, so prompt accordingly.
         if secret_vault_type == "env":
             password = self.prompts.question("Enter the environment variable name holding the password")
         else:

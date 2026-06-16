@@ -38,9 +38,7 @@ class FetchResult:
     def to_df(self) -> pd.DataFrame:
         """Create a pandas dataframe based on these results."""
         # Row emulates a named tuple, which Pandas understands natively. So the columns are safely inferred unless
-        # we have an empty result-set. Character data arrives already decoded as ``str`` from the drivers
-        # (e.g. teradatasql runs a UTF-8 session), so no post-hoc text normalization is applied here — that
-        # would only risk silently masking genuine encoding problems.
+        # we have an empty result-set.
         return pd.DataFrame(data=self.rows) if self.rows else pd.DataFrame(columns=list(self.columns))
 
 
@@ -165,10 +163,6 @@ class MSSQLConnector(_BaseConnector):
 
 class TeradataConnector(_BaseConnector):
     def _connect(self) -> Engine:
-        # teradatasql communicates with the database over a UTF-8 session and returns CHAR/VARCHAR/CLOB
-        # values as already-decoded ``str``, so international text (e.g. Japanese, Korean, accented Latin)
-        # is preserved without any client-side re-encoding. Only binary types (BYTE/VARBYTE/BLOB) come
-        # back as ``bytes``; the profiler queries do not select those.
         query_params: dict[str, str] = {}
         if self.config.get("database"):
             query_params["database"] = str(self.config["database"])
@@ -302,11 +296,7 @@ class DatabaseManager:
         try:
             return self.connector.fetch(query)
         except OperationalError as e:
-            # Log quietly and let the caller decide how to surface this. Some callers treat a failure
-            # as expected (e.g. the Teradata PDCR preflight probe falling back to DBQL-core), and even
-            # genuine failures are re-logged with context by the pipeline/profiler. Emitting a full
-            # ERROR-level stack trace here would alarm users for handled, recoverable cases.
-            logger.debug(f"Database query failed: {e}")
+            logger.exception(f"Error connecting to the database: {e}")
             raise ConnectionError(f"Error connecting to the database check credentials: {e}") from e
 
     def check_connection(self) -> bool:

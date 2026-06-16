@@ -2,7 +2,6 @@ import logging
 from pathlib import Path
 
 from databricks.labs.lakebridge.assessments.pipeline import PipelineClass, make_profiler_db_filename
-from databricks.labs.lakebridge.assessments.pipeline_configurators import PIPELINE_CONFIGURATORS
 from databricks.labs.lakebridge.assessments.profiler_config import PipelineConfig
 from databricks.labs.lakebridge.connections.database_manager import DatabaseManager
 from databricks.labs.lakebridge.connections.credential_manager import (
@@ -45,10 +44,6 @@ class Profiler:
         connector_required = CONNECTOR_REQUIRED[source_system_family(platform)]
         return cls(platform, connector_required, pipeline_config)
 
-    @classmethod
-    def supported_platforms(cls) -> list[str]:
-        return list(SOURCE_SYSTEM_TO_PIPELINE_CFG.keys())
-
     @staticmethod
     def path_modifier(*, config_file: str | Path, path_prefix: Path = PRODUCT_PATH_PREFIX) -> PipelineConfig:
         # TODO: Choose a better name for this.
@@ -73,31 +68,6 @@ class Profiler:
         resolved_creds_path = cred_file_path or cred_file()
         self._execute(platform, pipeline_config, resolved_output_folder, resolved_creds_path, extractor)
 
-    def _prepare_extractor_and_config(
-        self,
-        platform: str,
-        pipeline_config: PipelineConfig,
-        extractor: DatabaseManager | None,
-        cred_file_path: Path,
-    ) -> tuple[PipelineConfig, DatabaseManager | None]:
-        # Only build an extractor from credentials when the caller didn't inject one (e.g. tests)
-        # and the source actually needs a connector. Otherwise leave the pipeline untouched so the
-        # credentials file is never read unnecessarily.
-        if extractor is not None or not self._connector_required:
-            return pipeline_config, extractor
-
-        extractor = self._setup_extractor(platform, cred_file_path)
-
-        # Let a source optionally adjust its pipeline at runtime (e.g. toggle steps based on
-        # credentials or probed capabilities). The agnostic profiler stays source-unaware.
-        configurator = PIPELINE_CONFIGURATORS.get(platform)
-        if configurator is not None:
-            cred_manager = create_credential_manager(PRODUCT_NAME, EnvGetter(), creds_path=cred_file_path)
-            connect_config = cred_manager.get_credentials(source_system_family(platform))
-            pipeline_config = configurator(pipeline_config, connect_config, extractor)
-
-        return pipeline_config, extractor
-
     def _execute(
         self,
         platform: str,
@@ -106,12 +76,9 @@ class Profiler:
         cred_file_path: Path,
         extractor: DatabaseManager | None = None,
     ) -> None:
-        # Keeping a broad execution guard here ensures the CLI returns a stable,
-        # user-facing RuntimeError regardless of underlying connector/runtime failures.
         try:
-            pipeline_config, extractor = self._prepare_extractor_and_config(
-                platform, pipeline_config, extractor, cred_file_path
-            )
+            if extractor is None and self._connector_required:
+                extractor = Profiler._setup_extractor(platform, cred_file_path)
             db_path = output_folder / make_profiler_db_filename(platform)
             result = PipelineClass(pipeline_config, extractor, db_path, cred_file_path).execute()
             logger.info(f"Profiler extract written to {db_path.expanduser()}")
