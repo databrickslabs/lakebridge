@@ -42,6 +42,13 @@ class ProfilerDashboardDeployment:
         if not self._upload_profiler_extract(profiler_dashboard_config):
             logger.error("Profiler extract upload failed. Aborting installation.")
             return
+        if self._is_dashboard_unsupported(profiler_dashboard_config.source_tech):
+            logger.info(
+                f"No profiler dashboard template ships for source_tech "
+                f"'{profiler_dashboard_config.source_tech}'. Skipping dashboard and ingestion-job "
+                f"deployment; the profiler extract has been uploaded to the UC Volume."
+            )
+            return
         try:
             dashboard_id = self._deploy_dashboards(profiler_dashboard_config)
             self._deploy_jobs(profiler_dashboard_config, wheel_path)
@@ -52,6 +59,15 @@ class ProfilerDashboardDeployment:
             error_msg = f"Failed to deploy profiler dashboard and ingestion job: {e}"
             logger.error(error_msg)
             raise SystemExit(error_msg) from e
+
+    @staticmethod
+    def _is_dashboard_unsupported(source_tech: str) -> bool:
+        """Return True if no profiler dashboard template ships for this source technology.
+
+        Currently true for all Redshift variants (serverless / provisioned /
+        provisioned_multi_az), which still need the DuckDB extract delivered to UC Volume.
+        """
+        return source_tech.lower().startswith("redshift_")
 
     def _trigger_ingestion_job(self, dashboard_id: str) -> None:
         job_id_str = self._install_state.jobs.get(PROFILER_INGESTION_JOB_NAME)

@@ -14,6 +14,7 @@ from typing import NoReturn, TextIO
 
 from databricks.sdk.service.sql import CreateWarehouseRequestWarehouseType
 from databricks.sdk import WorkspaceClient
+from databricks.sdk.errors import NotFound
 
 from databricks.labs.blueprint.cli import App
 from databricks.labs.blueprint.entrypoint import get_logger
@@ -22,10 +23,10 @@ from databricks.labs.blueprint.tui import Prompts
 
 
 from databricks.labs.lakebridge.assessments.configure_assessment import create_assessment_configurator
-from databricks.labs.lakebridge.assessments import PROFILER_SOURCE_SYSTEM, PRODUCT_NAME
+from databricks.labs.lakebridge.assessments import PROFILER_SOURCE_SYSTEM, PRODUCT_NAME, source_system_family
 from databricks.labs.lakebridge.assessments.profiler import Profiler, default_output_folder
 
-from databricks.labs.lakebridge.config import TranspileConfig, LSPConfigOptionV1
+from databricks.labs.lakebridge.config import TableRecon, TranspileConfig, LSPConfigOptionV1
 from databricks.labs.lakebridge.contexts.application import ApplicationContext
 from databricks.labs.lakebridge.connections.credential_manager import cred_file, create_credential_manager
 from databricks.labs.lakebridge.connections.database_manager import DatabaseManager
@@ -35,7 +36,13 @@ from databricks.labs.lakebridge.helpers.recon_config_utils import ReconConfigPro
 from databricks.labs.lakebridge.helpers.telemetry_utils import make_alphanum_or_semver
 from databricks.labs.lakebridge.reconcile.runner import ReconcileRunner
 from databricks.labs.lakebridge.lineage import lineage_generator
-from databricks.labs.lakebridge.reconcile.recon_config import RECONCILE_OPERATION_NAME, AGG_RECONCILE_OPERATION_NAME
+from databricks.labs.lakebridge.reconcile.recon_config import (
+    AGG_RECONCILE_OPERATION_NAME,
+    AUTO_CONFIGURE_TABLES_OPERATION_NAME,
+    DISCOVER_AND_AUTO_CONFIGURE_TABLES_OPERATION_NAME,
+    DISCOVER_TABLES_OPERATION_NAME,
+    RECONCILE_OPERATION_NAME,
+)
 from databricks.labs.lakebridge.transpiler.describe import TranspilersDescription
 from databricks.labs.lakebridge.transpiler.execute import transpile as do_transpile
 from databricks.labs.lakebridge.transpiler.lsp.lsp_engine import LSPEngine
@@ -660,6 +667,9 @@ def reconcile(
     """[EXPERIMENTAL] Reconciles source to Databricks datasets"""
     ctx = ctx_factory(w)
     ctx.add_user_agent_extra("cmd", "execute-reconcile")
+    if ctx.recon_config:
+        ctx.add_user_agent_extra("reconcile_source_tech", make_alphanum_or_semver(ctx.recon_config.source.dialect))
+        ctx.add_user_agent_extra("reconcile_report_type", make_alphanum_or_semver(ctx.recon_config.report_type))
     user = ctx.current_user
     logger.debug(f"User: {user}")
     recon_runner = ReconcileRunner(
@@ -670,6 +680,88 @@ def reconcile(
     _, job_run_url = recon_runner.run(operation_name=RECONCILE_OPERATION_NAME)
     if ctx.prompts.confirm(f"Would you like to open the job run URL `{job_run_url}` in the browser?"):
         webbrowser.open(job_run_url)
+
+
+@lakebridge.command
+def auto_configure_recon_tables(
+    *, w: WorkspaceClient, ctx_factory: Callable[[WorkspaceClient], ApplicationContext] = ApplicationContext
+) -> None:
+    """[EXPERIMENTAL] Auto-discover source/target tables and generate the reconcile table mappings"""
+    ctx = ctx_factory(w)
+    ctx.add_user_agent_extra("cmd", "auto-configure-recon-tables")
+    if ctx.recon_config:
+        ctx.add_user_agent_extra("reconcile_source_tech", make_alphanum_or_semver(ctx.recon_config.source.dialect))
+        ctx.add_user_agent_extra("reconcile_report_type", make_alphanum_or_semver(ctx.recon_config.report_type))
+    user = ctx.current_user
+    logger.debug(f"User: {user}")
+    _run_auto_configure_recon_tables(ctx)
+
+
+def _run_auto_configure_recon_tables(ctx: ApplicationContext) -> None:
+    """Drives the recommended discover → review → auto-configure flow documented at
+    docs/reconcile/running.mdx#recommended-flow.
+
+    The two-step pattern (one job to discover, a second job to auto-configure the curated file) is
+    the default. As an opt-in escape, the user can also choose to discover and auto-configure in a
+    single job — skipping the review step the docs recommend.
+    """
+    recon_config = ctx.recon_config
+    if recon_config is None:
+        raise SystemExit("Reconcile is not configured. Run `databricks labs lakebridge configure-reconcile` first.")
+
+    filename = recon_config.table_recon_filename
+    file_exists = _table_recon_exists(ctx, filename)
+
+    if not file_exists:
+        logger.info(
+            "No existing table config found. The recommended flow is to discover first, review the "
+            "output in the workspace, then re-run this command to auto-configure the reviewed config."
+        )
+        operation_name = _discover_with_optional_auto_configure(ctx)
+        if not operation_name:
+            logger.info("Aborted by user; no discovery run.")
+            return
+    else:
+        ws_url = ctx.installation.workspace_link(filename)
+        logger.info(f"Existing table mappings found at `{ws_url}`.")
+        if ctx.prompts.confirm("Auto-configure and use existing table mappings (no discovery)?"):
+            operation_name = AUTO_CONFIGURE_TABLES_OPERATION_NAME
+        else:
+            operation_name = _discover_with_optional_auto_configure(ctx)
+
+        if not operation_name:
+            logger.info("Nothing to do; existing file preserved.")
+            return
+
+    _, job_run_url = ReconcileRunner(ctx.workspace_client, ctx.install_state).run(operation_name=operation_name)
+    if operation_name == DISCOVER_TABLES_OPERATION_NAME:
+        logger.info(
+            "When the job finishes, the discovered table mappings will be saved to the Lakebridge "
+            "install folder. Review the file, then re-run this command to auto-configure."
+        )
+    else:
+        logger.info(
+            "When the job finishes, the auto-configured table mappings will be saved to the "
+            "Lakebridge install folder. Edit the file to add join columns and any final touches."
+        )
+    if ctx.prompts.confirm(f"Would you like to open the job run URL `{job_run_url}` in the browser?"):
+        webbrowser.open(job_run_url)
+
+
+def _discover_with_optional_auto_configure(ctx: ApplicationContext) -> str:
+    if not ctx.prompts.confirm("Discover tables now (this will overwrite any existing table config)?"):
+        return ""
+    if ctx.prompts.confirm("Also run auto-configure in the same job (skips the recommended review step)?"):
+        return DISCOVER_AND_AUTO_CONFIGURE_TABLES_OPERATION_NAME
+    return DISCOVER_TABLES_OPERATION_NAME
+
+
+def _table_recon_exists(ctx: ApplicationContext, filename: str) -> bool:
+    try:
+        ctx.installation.load(type_ref=TableRecon, filename=filename)
+        return True
+    except NotFound:
+        return False
 
 
 @lakebridge.command
@@ -838,6 +930,9 @@ def configure_reconcile(
     logger.debug(f"Warehouse ID used for configuring reconcile: {w.config.warehouse_id}.")
     reconcile_installer = installer(w, transpiler_repository, is_interactive=True)
     reconcile_installer.run(module="reconcile")
+
+    if ctx.prompts.confirm("Auto-discover source/target tables and pre-fill the table mappings now?"):
+        _run_auto_configure_recon_tables(ctx)
 
 
 @lakebridge.command
@@ -1077,8 +1172,9 @@ def _test_database_connection(source_tech: str, raw_config: dict) -> None:
         logger.info("Connection to the source system successful")
         return
 
-    # For other source technologies, use DatabaseManager directly
-    with DatabaseManager(source_tech, raw_config) as db_manager:
+    # For other source technologies, use DatabaseManager directly. Redshift variants
+    # share a single connector keyed under "redshift".
+    with DatabaseManager(source_system_family(source_tech), raw_config) as db_manager:
         response = db_manager.check_connection()
     logger.debug(f"Connection response: {response}")
     logger.info("Connection to the source system successful")
@@ -1124,7 +1220,7 @@ def test_profiler_connection(
     cred_manager = create_credential_manager(PRODUCT_NAME, EnvGetter(), creds_path=credential_file)
 
     try:
-        raw_config = cred_manager.get_credentials(source_tech)
+        raw_config = cred_manager.get_credentials(source_system_family(source_tech))
     except KeyError as e:
         logger.error(f"Credential configuration error: {e}")
         raise SystemExit(

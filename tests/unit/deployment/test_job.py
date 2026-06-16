@@ -1,6 +1,5 @@
 from unittest.mock import create_autospec
 
-import pytest
 from databricks.labs.blueprint.installation import MockInstallation
 from databricks.labs.blueprint.installer import InstallState
 from databricks.labs.blueprint.wheels import ProductInfo
@@ -10,58 +9,10 @@ from databricks.sdk.service.jobs import Job
 
 from databricks.labs.lakebridge.config import (
     LakebridgeConfiguration,
-    ReconcileConfig,
-    ReconcileMetadataConfig,
-    SourceConnectionConfig,
-    TargetConnectionConfig,
     ProfilerDashboardConfig,
     ProfilerDashboardMetadataConfig,
 )
 from databricks.labs.lakebridge.deployment.job import JobDeployment
-
-
-@pytest.fixture
-def oracle_recon_config() -> ReconcileConfig:
-    return ReconcileConfig(
-        report_type="all",
-        source=SourceConnectionConfig(
-            dialect="oracle",
-            catalog="ORCL",
-            schema="tpch_sf10009",
-            uc_connection_name="remorph_oracle9",
-        ),
-        target=TargetConnectionConfig(
-            catalog="tpch9",
-            schema="1000gb9",
-        ),
-        metadata_config=ReconcileMetadataConfig(
-            catalog="remorph9",
-            schema="reconcile9",
-            volume="reconcile_volume9",
-        ),
-    )
-
-
-@pytest.fixture
-def snowflake_recon_config() -> ReconcileConfig:
-    return ReconcileConfig(
-        report_type="all",
-        source=SourceConnectionConfig(
-            dialect="snowflake",
-            catalog="snowflake_sample_data9",
-            schema="tpch_sf10009",
-            uc_connection_name="remorph_snowflake9",
-        ),
-        target=TargetConnectionConfig(
-            catalog="tpch9",
-            schema="1000gb9",
-        ),
-        metadata_config=ReconcileMetadataConfig(
-            catalog="remorph9",
-            schema="reconcile9",
-            volume="reconcile_volume9",
-        ),
-    )
 
 
 def test_deploy_existing_job(snowflake_recon_config):

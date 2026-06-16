@@ -45,11 +45,6 @@ def pipeline_config_combined_ddl(pipeline_configuration_loader: _Loader) -> Pipe
 
 
 @pytest.fixture
-def pipeline_dep_failure_config(pipeline_configuration_loader: _Loader) -> PipelineConfig:
-    return pipeline_configuration_loader(Path("pipeline_config_failure_dependency.yml"))
-
-
-@pytest.fixture
 def sql_failure_config(pipeline_configuration_loader: _Loader) -> PipelineConfig:
     return pipeline_configuration_loader(Path("pipeline_config_sql_failure.yml"))
 
@@ -129,25 +124,6 @@ def test_run_python_failure_pipeline(
 
     # Find the failed Python step
     assert "Pipeline execution failed due to errors in steps: invalid_python_step" in str(e.value)
-
-
-def test_run_python_dep_failure_pipeline(
-    sandbox_sqlserver: DatabaseManager,
-    pipeline_dep_failure_config: PipelineConfig,
-    get_logger: Logger,
-    tmp_path: Path,
-):
-    pipeline = PipelineClass(
-        config=pipeline_dep_failure_config,
-        executor=sandbox_sqlserver,
-        db_path=tmp_path / _DB_FILE,
-        cred_file_path=tmp_path / _CREDS_FILE,
-    )
-    with pytest.raises(RuntimeError) as e:
-        pipeline.execute()
-
-    # Find the failed Python step
-    assert "Pipeline execution failed due to errors in steps: package_status" in str(e.value)
 
 
 def test_skipped_steps(

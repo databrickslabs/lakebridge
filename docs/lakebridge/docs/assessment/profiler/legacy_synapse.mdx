@@ -170,6 +170,7 @@ Enter login timeout (seconds) (default: 30):
 Enter the fully-qualified server name: my-dw-server.database.windows.net
 Enter the port details: 1433
 Enter the database name: my_pool
+Trust server certificate (default: no):
 Enter timezone (e.g. America/New_York) (default: UTC):
 Enter the ODBC driver installed locally (default: ODBC Driver 18 for SQL Server):
 ```
@@ -186,6 +187,7 @@ Enter the ODBC driver installed locally (default: ODBC Driver 18 for SQL Server)
 | **Server name** | Fully-qualified hostname of the dedicated SQL pool | — |
 | **Port** | Server port number | — |
 | **Database** | The dedicated SQL pool name to connect to. Dedicated pools do not have a `master` database, so this must be set to the pool you want to profile. | — |
+| **Trust server certificate** | Skip TLS certificate validation when connecting. Leave as `no` for Azure-hosted dedicated SQL pools, which present valid certificates. | `no` |
 | **Timezone** | Timezone for timestamp normalization | `UTC` |
 | **ODBC driver** | Locally installed ODBC driver name | `ODBC Driver 18 for SQL Server` |
 

@@ -342,6 +342,12 @@ class FakeDataSource(DataSource):
     def get_schema(self, catalog: str | None, schema: str, table: str, normalize: bool = True) -> list[Schema]:
         raise RuntimeError("Not implemented")
 
+    def list_schemas(self, catalog: str) -> list[str]:
+        raise RuntimeError("Not implemented")
+
+    def list_tables(self, catalog: str, schema: str) -> list[str]:
+        raise RuntimeError("Not implemented")
+
     def normalize_identifier(self, identifier: str) -> NormalizedIdentifier:
         return DialectUtils.normalize_identifier(identifier, self.start_delimiter, self.end_delimiter)
 

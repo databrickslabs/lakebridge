@@ -95,7 +95,7 @@ def test_invalid_mode(invalid_mode: str) -> None:
         )
 
 
-@pytest.mark.parametrize("step_type", ["sql", "ddl", "python"])
+@pytest.mark.parametrize("step_type", ["sql", "ddl", "python", "source_ddl"])
 def test_valid_types(step_type: str) -> None:
     """Test that valid types are accepted."""
     step = Step(

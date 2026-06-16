@@ -1,0 +1,10 @@
+name: RedshiftExamplePipeline
+version: "1.0"
+steps:
+  - name: redshift_extract
+    type: python
+    # Relative to tests/resources/ within the project.
+    extract_source: assessments/db_extract_redshift.py
+    mode: overwrite
+    frequency: daily
+    flag: active
