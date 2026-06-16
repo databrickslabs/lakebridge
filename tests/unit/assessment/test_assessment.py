@@ -84,6 +84,7 @@ def test_configure_sqlserver_credentials_spn(tmp_path):
             r"Enter fetch size": "1000",
             r"Enter timezone.*": "UTC",
             r"Enter login timeout.*": 30,
+            r"Trust server certificate": "yes",
         }
     )
     file = tmp_path / ".credentials.yml"
@@ -116,6 +117,7 @@ def test_configure_sqlserver_credentials_ad_password(tmp_path):
             r"Enter fetch size": "1000",
             r"Enter timezone.*": "UTC",
             r"Enter login timeout.*": 30,
+            r"Trust server certificate": "yes",
         }
     )
     file = tmp_path / ".credentials.yml"
