@@ -1,7 +1,7 @@
 import logging
 from pathlib import Path
 
-from databricks.labs.lakebridge.assessments import CONNECTOR_REQUIRED, PRODUCT_PATH_PREFIX
+from databricks.labs.lakebridge.assessments import PRODUCT_PATH_PREFIX
 from databricks.labs.lakebridge.assessments.pipeline import PipelineClass, make_profiler_db_filename
 from databricks.labs.lakebridge.assessments.profiler_config import PipelineConfig
 from databricks.labs.lakebridge.connections.database_manager import DatabaseManager
@@ -29,14 +29,12 @@ class Profiler:
     def __init__(
         self,
         source_system: str,
-        connector_required: bool,
         variant: str | None = None,
         pipeline_configs: PipelineConfig | None = None,
     ):
         self._source_system = source_system
         self._variant = variant
         self._pipeline_config = pipeline_configs
-        self._connector_required = connector_required
 
     @classmethod
     def create(cls, source_system: str, variant: str | None) -> "Profiler":
@@ -45,8 +43,7 @@ class Profiler:
             raise FileNotFoundError(f"Configuration file not found: {pipeline_config_path}")
 
         pipeline_config = Profiler.path_modifier(config_file=pipeline_config_path)
-        connector_required = CONNECTOR_REQUIRED[source_system]
-        return cls(source_system, connector_required, variant, pipeline_config)
+        return cls(source_system, variant, pipeline_config)
 
     @staticmethod
     def path_modifier(*, config_file: str | Path, path_prefix: Path = PRODUCT_PATH_PREFIX) -> PipelineConfig:
@@ -79,7 +76,9 @@ class Profiler:
         cred_file_path: Path,
     ) -> None:
         try:
-            extractor = Profiler._setup_extractor(source_system, cred_file_path) if self._connector_required else None
+            # A source connector is needed for any step that isn't a self-managing python step.
+            connector_required = any(step.type != "python" for step in pipeline_config.steps if step.flag == "active")
+            extractor = Profiler._setup_extractor(source_system, cred_file_path) if connector_required else None
             db_path = output_folder / make_profiler_db_filename(source_system)
             result = PipelineClass(pipeline_config, extractor, db_path, cred_file_path).execute()
             logger.info(f"Profiler extract written to {db_path.expanduser()}")
