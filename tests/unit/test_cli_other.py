@@ -10,6 +10,7 @@ from databricks.sdk import WorkspaceClient
 from databricks.labs.blueprint.tui import MockPrompts
 from databricks.labs.blueprint.installation import MockInstallation
 from databricks.labs.lakebridge import cli
+from databricks.labs.lakebridge.assessments import SOURCE_SYSTEM_VARIANTS
 from databricks.labs.lakebridge.assessments.profiler import default_output_folder
 from databricks.labs.lakebridge.config import (
     LSPConfigOptionV1,
@@ -149,7 +150,7 @@ def test_cli_execute_database_profiler_output_folder(
             output_folder=output_folder_arg,
         )
 
-    create_mock.assert_called_once_with("snowflake")
+    create_mock.assert_called_once_with("snowflake", None)
     profiler.profile.assert_called_once_with(output_folder=expected_path, cred_file_path=fake_cred)
 
 
@@ -216,6 +217,34 @@ def test_cli_execute_database_profiler_missing_cred_file_raises(mock_workspace_c
             output_folder=str(tmp_path / "out"),
             cred_file_path=str(missing),
         )
+
+
+@pytest.mark.parametrize(
+    ("source_tech", "variant", "expected"),
+    (
+        ("redshift", "provisioned", "provisioned"),  # valid variant passes through
+        ("redshift", "PROVISIONED", "provisioned"),  # normalized to lower-case
+        ("snowflake", None, None),  # source has no variants, none requested
+        ("snowflake", "anything", None),  # source has no variants → stray input ignored
+    ),
+)
+def test_parse_profiler_variant_returns_expected(source_tech, variant, expected):
+    prompts = MagicMock()
+    assert cli.parse_profiler_variant(prompts, source_tech, variant) == expected
+    prompts.choice.assert_not_called()
+
+
+def test_parse_profiler_variant_prompts_when_omitted_for_variant_source():
+    """A variant-capable source with no explicit variant prompts the user to pick one."""
+    prompts = MagicMock()
+    prompts.choice.return_value = "serverless"
+    assert cli.parse_profiler_variant(prompts, "redshift", None) == "serverless"
+    prompts.choice.assert_called_once_with("Select a variant", SOURCE_SYSTEM_VARIANTS["redshift"])
+
+
+def test_parse_profiler_variant_rejects_unknown_variant():
+    with pytest.raises(ValueError, match="Invalid source technology variant"):
+        cli.parse_profiler_variant(MagicMock(), "redshift", "bogus")
 
 
 def test_cli_auto_configure_recon_tables_no_recon_config(mock_workspace_client):

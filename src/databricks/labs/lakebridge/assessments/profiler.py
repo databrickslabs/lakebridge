@@ -1,6 +1,7 @@
 import logging
 from pathlib import Path
 
+from databricks.labs.lakebridge.assessments import CONNECTOR_REQUIRED, PRODUCT_PATH_PREFIX
 from databricks.labs.lakebridge.assessments.pipeline import PipelineClass, make_profiler_db_filename
 from databricks.labs.lakebridge.assessments.profiler_config import PipelineConfig
 from databricks.labs.lakebridge.connections.database_manager import DatabaseManager
@@ -9,13 +10,6 @@ from databricks.labs.lakebridge.connections.credential_manager import (
     cred_file,
 )
 from databricks.labs.lakebridge.connections.env_getter import EnvGetter
-from databricks.labs.lakebridge.assessments import (
-    PRODUCT_NAME,
-    PRODUCT_PATH_PREFIX,
-    SOURCE_SYSTEM_TO_PIPELINE_CFG,
-    CONNECTOR_REQUIRED,
-    source_system_family,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -24,25 +18,35 @@ def default_output_folder(platform: str) -> Path:
     return Path.home() / ".databricks" / "labs" / "lakebridge_profilers" / f"{platform}_assessment"
 
 
+def get_pipeline(source_system: str, variant: str | None) -> Path:
+    file = "pipeline_config.yml"
+    base = PRODUCT_PATH_PREFIX / f"src/databricks/labs/lakebridge/resources/assessments/{source_system}"
+    return base / variant / file if variant else base / file
+
+
 class Profiler:
 
     def __init__(
         self,
-        platform: str,
+        source_system: str,
         connector_required: bool,
+        variant: str | None = None,
         pipeline_configs: PipelineConfig | None = None,
     ):
-        self._platform = platform
+        self._source_system = source_system
+        self._variant = variant
         self._pipeline_config = pipeline_configs
         self._connector_required = connector_required
 
     @classmethod
-    def create(cls, platform: str) -> "Profiler":
-        pipeline_config_path = SOURCE_SYSTEM_TO_PIPELINE_CFG[platform]
-        pipeline_config_absolute_path = Profiler._locate_config(pipeline_config_path)
-        pipeline_config = Profiler.path_modifier(config_file=pipeline_config_absolute_path)
-        connector_required = CONNECTOR_REQUIRED[source_system_family(platform)]
-        return cls(platform, connector_required, pipeline_config)
+    def create(cls, source_system: str, variant: str | None) -> "Profiler":
+        pipeline_config_path = get_pipeline(source_system, variant)
+        if not pipeline_config_path.exists():
+            raise FileNotFoundError(f"Configuration file not found: {pipeline_config_path}")
+
+        pipeline_config = Profiler.path_modifier(config_file=pipeline_config_path)
+        connector_required = CONNECTOR_REQUIRED[source_system]
+        return cls(source_system, connector_required, variant, pipeline_config)
 
     @staticmethod
     def path_modifier(*, config_file: str | Path, path_prefix: Path = PRODUCT_PATH_PREFIX) -> PipelineConfig:
@@ -58,45 +62,39 @@ class Profiler:
         output_folder: Path | None = None,
         cred_file_path: Path | None = None,
     ) -> None:
-        platform = self._platform.lower()
+
         if not pipeline_config:
             if not self._pipeline_config:
-                raise ValueError(f"Cannot Proceed without a valid pipeline configuration for {platform}")
+                raise ValueError(f"Cannot Proceed without a valid pipeline configuration for {self._source_system}")
             pipeline_config = self._pipeline_config
-        resolved_output_folder = output_folder or default_output_folder(platform)
+        resolved_output_folder = output_folder or default_output_folder(self._source_system)
         resolved_creds_path = cred_file_path or cred_file()
-        self._execute(platform, pipeline_config, resolved_output_folder, resolved_creds_path)
+        self._execute(self._source_system, pipeline_config, resolved_output_folder, resolved_creds_path)
 
     def _execute(
         self,
-        platform: str,
+        source_system: str,
         pipeline_config: PipelineConfig,
         output_folder: Path,
         cred_file_path: Path,
     ) -> None:
         try:
-            extractor = Profiler._setup_extractor(platform, cred_file_path) if self._connector_required else None
-            db_path = output_folder / make_profiler_db_filename(platform)
+            extractor = Profiler._setup_extractor(source_system, cred_file_path) if self._connector_required else None
+            db_path = output_folder / make_profiler_db_filename(source_system)
             result = PipelineClass(pipeline_config, extractor, db_path, cred_file_path).execute()
             logger.info(f"Profiler extract written to {db_path.expanduser()}")
-            logger.info(f"Profile execution has completed successfully for {platform} for more info check: {result}.")
+            logger.info(
+                f"Profile execution has completed successfully for {source_system} for more info check: {result}."
+            )
         except FileNotFoundError as e:
-            logger.error(f"Configuration file not found for source {platform}: {e}")
-            raise FileNotFoundError(f"Configuration file not found for source {platform}: {e}") from e
+            logger.error(f"Configuration file not found for source {source_system}: {e}")
+            raise FileNotFoundError(f"Configuration file not found for source {source_system}: {e}") from e
         except Exception as e:
-            logger.error(f"Error executing pipeline for source {platform}: {e}")
-            raise RuntimeError(f"Pipeline execution failed for source {platform} : {e}") from e
+            logger.error(f"Error executing pipeline for source {source_system}: {e}")
+            raise RuntimeError(f"Pipeline execution failed for source {source_system} : {e}") from e
 
     @staticmethod
-    def _setup_extractor(platform: str, cred_file_path: Path | None = None) -> DatabaseManager | None:
-        key = source_system_family(platform)
-        cred_manager = create_credential_manager(PRODUCT_NAME, EnvGetter(), creds_path=cred_file_path)
-        connect_config = cred_manager.get_credentials(key)
-        return DatabaseManager(key, connect_config)
-
-    @staticmethod
-    def _locate_config(config_path: str | Path) -> Path:
-        config_file = PRODUCT_PATH_PREFIX / config_path
-        if not config_file.exists():
-            raise FileNotFoundError(f"Configuration file not found: {config_file}")
-        return config_file
+    def _setup_extractor(source_system: str, cred_file_path: Path | None = None) -> DatabaseManager | None:
+        cred_manager = create_credential_manager(source_system, EnvGetter(), creds_path=cred_file_path)
+        connect_config = cred_manager.get_credentials(source_system)
+        return DatabaseManager(source_system, connect_config)

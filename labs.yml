@@ -115,6 +115,8 @@ commands:
     flags:
       - name: source-tech
         description: (Optional) The technology/platform of the sources to Profile
+      - name: variant
+        description: (Optional) The exact edition of the source technology/platform if any to Profile
       - name: output-folder
         description: (Optional) Folder where the extracted DuckDB file is written; if omitted, prompts with a smart default
       - name: cred-file-path
