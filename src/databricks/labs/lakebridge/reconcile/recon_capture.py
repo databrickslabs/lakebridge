@@ -12,7 +12,6 @@ from pyspark.errors import PySparkException
 from sqlglot import Dialect
 
 from databricks.labs.lakebridge.config import (
-    DatabaseConfig,
     SourceConnectionConfig,
     TargetConnectionConfig,
     Table,
@@ -258,55 +257,15 @@ class ReconCapture:
 
     def __init__(
         self,
-        source_connection: SourceConnectionConfig | DatabaseConfig,
-        target_connection: TargetConnectionConfig | str,
-        recon_id: str | None = None,
-        report_type: str | None = None,
-        source_dialect: Dialect | None = None,
-        ws: WorkspaceClient | None = None,
-        spark: SparkSession | None = None,
+        source_connection: SourceConnectionConfig,
+        target_connection: TargetConnectionConfig,
+        recon_id: str,
+        report_type: str,
+        source_dialect: Dialect,
+        ws: WorkspaceClient,
+        spark: SparkSession,
         metadata_config: ReconcileMetadataConfig = ReconcileMetadataConfig(),
     ):
-        if isinstance(source_connection, DatabaseConfig):
-            # Backward-compatible constructor support for tests still passing DatabaseConfig:
-            # ReconCapture(database_config, recon_id, report_type, source_dialect, ws, spark, ...)
-            legacy_db = source_connection
-            if not isinstance(target_connection, str):
-                raise ValueError("Expected recon_id as second argument when using DatabaseConfig")
-            legacy_recon_id = target_connection
-            legacy_report_type = recon_id
-            legacy_source_dialect = report_type
-            legacy_ws = source_dialect
-            legacy_spark = ws
-            if (
-                not isinstance(legacy_report_type, str)
-                or not isinstance(legacy_source_dialect, Dialect)
-                or not isinstance(legacy_ws, WorkspaceClient)
-                or not isinstance(legacy_spark, SparkSession)
-            ):
-                raise ValueError("Invalid legacy ReconCapture constructor arguments")
-            source_dialect_key = get_key_from_dialect(legacy_source_dialect)
-            source_connection = SourceConnectionConfig(
-                dialect=source_dialect_key,
-                catalog=legacy_db.source_catalog,
-                schema=legacy_db.source_schema,
-                uc_connection_name=("remorph_connection" if source_dialect_key != "databricks" else None),
-            )
-            target_connection = TargetConnectionConfig(
-                catalog=legacy_db.target_catalog,
-                schema=legacy_db.target_schema,
-            )
-            recon_id = legacy_recon_id
-            report_type = legacy_report_type
-            source_dialect = legacy_source_dialect
-            ws = legacy_ws
-            spark = legacy_spark
-
-        if recon_id is None or report_type is None or source_dialect is None or ws is None or spark is None:
-            raise ValueError("ReconCapture requires recon_id, report_type, source_dialect, ws, and spark")
-        if not isinstance(target_connection, TargetConnectionConfig):
-            raise ValueError("ReconCapture requires TargetConnectionConfig for target_connection")
-
         self.source_connection = source_connection
         self.target_connection = target_connection
         self.recon_id = recon_id
