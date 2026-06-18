@@ -350,9 +350,7 @@ def test_test_connection_default_uses_database_manager():
 
 def test_synapse_test_connection_delegates_to_pools():
     """Synapse overrides the check to validate each SQL pool instead of one connection."""
-    configurator = ConfigureSynapseAssessment(
-        product_name="lakebridge", source_name="synapse", prompts=MockPrompts({})
-    )
+    configurator = ConfigureSynapseAssessment(product_name="lakebridge", source_name="synapse", prompts=MockPrompts({}))
     raw_config = {"workspace": {"name": "ws"}}
     with (
         patch("databricks.labs.lakebridge.assessments.configure_assessment.create_credential_manager") as cred_manager,
