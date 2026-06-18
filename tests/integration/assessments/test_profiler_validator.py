@@ -53,7 +53,7 @@ PLATFORM_VALIDATOR_CONFIG: dict[str, _PlatformValidatorConfig] = {
         mixed_null_cols=["id", "sku"],
         expected_mixed_total=4,
     ),
-    "redshift_provisioned": _PlatformValidatorConfig(
+    "redshift": _PlatformValidatorConfig(
         schema_file="redshift_schema_def.yml",
         nonexistent_schema_file="redshift_scheme_def_nonexists.yml",
         schema_path_check_table="query_view",
