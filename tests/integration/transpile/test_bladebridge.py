@@ -318,7 +318,7 @@ PRIMARY KEY (col1,col3) )
 TBLPROPERTIES('delta.feature.allowColumnDefaults' = 'supported');"""
     expected_validation_failure_sql = """-------------- Exception Start-------------------
 /*
-[UNRESOLVED_ROUTINE] Cannot resolve routine `cole` on search path [`system`.`builtin`, `system`.`session`, `catalog`.`schema`].
+[UNRESOLVED_ROUTINE] Cannot resolve routine `cole` on search path [`system`.`session`, `system`.`builtin`, `system`.`ai`, `catalog`.`schema`].
 */
 select cole(hello) world from table;
 

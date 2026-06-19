@@ -81,7 +81,7 @@ async def _transpile_sql_file(
     # The expected SQL Block is custom formatted to match the output of Morpheus exactly.
     expected_failure_sql = """-------------- Exception Start-------------------
 /*
-[UNRESOLVED_ROUTINE] Cannot resolve routine `COLE` on search path [`system`.`builtin`, `system`.`session`, `catalog`.`schema`].
+[UNRESOLVED_ROUTINE] Cannot resolve routine `COLE` on search path [`system`.`session`, `system`.`builtin`, `system`.`ai`, `catalog`.`schema`].
 */
 SELECT COLE(hello) AS world FROM table;
  ---------------Exception End --------------------"""
