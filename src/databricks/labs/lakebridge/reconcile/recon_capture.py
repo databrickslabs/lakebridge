@@ -280,9 +280,7 @@ class ReconCapture:
         table_conf: Table,
     ) -> int:
         full_source_table = (
-            f"{self.source_connection.schema}.{table_conf.source_name}"
-            if self.source_connection.catalog is None
-            else f"{self.source_connection.catalog}.{self.source_connection.schema}.{table_conf.source_name}"
+            f"{self.source_connection.catalog}.{self.source_connection.schema}.{table_conf.source_name}"
         )
         full_target_table = f"{self.target_connection.catalog}.{self.target_connection.schema}.{table_conf.target_name}"
         return hash(f"{self.recon_id}{full_source_table}{full_target_table}")
@@ -305,7 +303,7 @@ class ReconCapture:
                     else '{source_dialect_key}'
                 end as source_type,
                 named_struct(
-                    'catalog', case when '{self.source_connection.catalog}' = 'None' then null else '{self.source_connection.catalog}' end,
+                    'catalog', '{self.source_connection.catalog}',
                     'schema', '{self.source_connection.schema}',
                     'table_name', '{table_conf.source_name}'
                 ) as source_table,
