@@ -52,3 +52,16 @@ def test_resolve_mssql_variant(engine_edition: int, expected: str) -> None:
         cred_manager.return_value.get_credentials.return_value = {}
         assert resolve_mssql_variant(Path("creds.yml")) == expected
     db_manager.fetch.assert_called_once_with("SELECT CAST(SERVERPROPERTY('EngineEdition') AS INT) AS engine_edition")
+
+
+def test_resolve_mssql_variant_with_configured_database_skips_probe() -> None:
+    """A configured database scopes profiling to that database (single_db) without probing the edition."""
+    db_manager = MagicMock()
+    db_manager.__enter__.return_value = db_manager
+    with (
+        patch("databricks.labs.lakebridge.assessments.profiler.DatabaseManager", return_value=db_manager),
+        patch("databricks.labs.lakebridge.assessments.profiler.create_credential_manager") as cred_manager,
+    ):
+        cred_manager.return_value.get_credentials.return_value = {"database": "AdventureWorks"}
+        assert resolve_mssql_variant(Path("creds.yml")) == "single_db"
+    db_manager.fetch.assert_not_called()

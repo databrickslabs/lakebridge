@@ -130,12 +130,13 @@ class ConfigureSqlServerAssessment(AssessmentConfigurator):
                 "login_timeout": self.prompts.question("Enter login timeout (seconds)", default="30"),
                 "server": self.prompts.question("Enter the fully-qualified server name"),
                 "port": int(self.prompts.question("Enter the port details", valid_number=True)),
-                # TODO: For the multi_db variant (on-prem SQL Server / Azure SQL Managed Instance) this is
-                # only the connection entry point -- the profiler enumerates and profiles every accessible
-                # database regardless. It is required for Azure SQL Database (single_db), which profiles only
-                # this database. The edition isn't known until the execute-time EngineEdition probe, so
-                # consider making this optional / edition-aware in a future change.
-                "database": self.prompts.question("Enter the database name"),
+                # mssql: blank profiles every accessible database (on-prem / Managed Instance); a name scopes
+                # to that one database. legacy_synapse (shares this configurator) needs the dedicated-pool name.
+                "database": (
+                    self.prompts.question("Enter the database name (blank = all databases)", default="")
+                    if source == "mssql"
+                    else self.prompts.question("Enter the dedicated pool name")
+                ),
                 "user": self.prompts.question("Enter the SQL username"),
                 "password": self.prompts.password("Enter the SQL password"),
                 "trust_server_certificate": self.prompts.confirm("Trust server certificate"),

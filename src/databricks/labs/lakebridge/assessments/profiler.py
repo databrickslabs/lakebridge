@@ -31,9 +31,17 @@ SQLSERVER_AZURE_SQL_DB_ENGINE_EDITION = 5
 
 
 def resolve_mssql_variant(cred_file_path: Path | None) -> str:
-    """Detect the SQL Server edition from a live connection and return the matching profiler variant."""
+    """Pick the SQL Server profiler variant from the configured database and the server edition.
+
+    A configured database scopes profiling to just that database (``single_db``) on any edition. When the
+    database is left blank the edition decides: Azure SQL Database falls back to the connected database
+    (``single_db``); on-prem SQL Server and Azure SQL Managed Instance profile every database (``multi_db``).
+    """
     cred_manager = create_credential_manager("mssql", EnvGetter(), creds_path=cred_file_path)
     connect_config = cred_manager.get_credentials("mssql")
+    if connect_config.get("database"):
+        # The user picked a specific database -> profile only that one, regardless of edition.
+        return "single_db"
     with DatabaseManager("mssql", connect_config) as db_manager:
         # SERVERPROPERTY returns sql_variant, which pyodbc cannot fetch (ODBC type -16); CAST to int.
         result = db_manager.fetch("SELECT CAST(SERVERPROPERTY('EngineEdition') AS INT) AS engine_edition")
