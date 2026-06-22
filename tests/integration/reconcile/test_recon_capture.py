@@ -170,7 +170,7 @@ def test_recon_capture_start_snowflake_all(ws, spark, recon_metadata):
     assert row.recon_metrics.column_comparison.mismatch_columns == "name"
     assert row.recon_metrics.schema_comparison is True
     assert row.run_metrics.status is False
-    assert row.run_metrics.run_by_user == "remorph"
+    assert row.run_metrics.run_by_user == ws.current_user.me().user_name
     assert row.run_metrics.exception_message == ""
 
     # assert details

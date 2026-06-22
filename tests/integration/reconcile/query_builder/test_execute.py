@@ -765,6 +765,7 @@ def test_recon_for_report_type_is_data(
         patch("databricks.labs.lakebridge.reconcile.trigger_recon_service.datetime") as mock_datetime,
         patch("databricks.labs.lakebridge.reconcile.recon_capture.datetime") as recon_datetime,
         patch("databricks.labs.lakebridge.reconcile.utils.initialise_data_source", return_value=(source, target)),
+        patch.object(ws.dbfs, "delete"),
         patch(
             "databricks.labs.lakebridge.reconcile.trigger_recon_service.uuid4",
             return_value=recon_id,
@@ -802,7 +803,7 @@ def test_recon_for_report_type_is_data(
             (
                 11111111111,
                 (3, 3, (1, 1), (1, 0, "s_address,s_phone"), None),
-                (False, "remorph", ""),
+                (False, ws.current_user.me().user_name, ""),
                 MOCK_TIMESTAMP,
             )
         ],
@@ -995,7 +996,7 @@ def test_recon_for_report_type_schema(
             (
                 22222222222,
                 (0, 0, None, None, True),
-                (True, "remorph", ""),
+                (True, ws.current_user.me().user_name, ""),
                 MOCK_TIMESTAMP,
             )
         ],
@@ -1222,7 +1223,7 @@ def test_recon_for_report_type_all(
             (
                 33333333333,
                 (3, 3, (1, 1), (1, 0, "s_address,s_phone"), False),
-                (False, "remorph", ""),
+                (False, ws.current_user.me().user_name, ""),
                 MOCK_TIMESTAMP,
             )
         ],
@@ -1502,7 +1503,7 @@ def test_recon_for_report_type_is_row(
             (
                 33333333333,
                 (3, 3, (2, 2), None, None),
-                (False, "remorph", ""),
+                (False, ws.current_user.me().user_name, ""),
                 MOCK_TIMESTAMP,
             )
         ],
@@ -1646,7 +1647,7 @@ def test_schema_recon_with_data_source_exception(
                 (0, 0, None, None, None),
                 (
                     False,
-                    "remorph",
+                    ws.current_user.me().user_name,
                     "Runtime exception occurred while fetching schema using (org, data, supplier) : Mock Exception",
                 ),
                 MOCK_TIMESTAMP,
@@ -1720,7 +1721,7 @@ def test_schema_recon_with_general_exception(
                 (0, 0, None, None, None),
                 (
                     False,
-                    "remorph",
+                    ws.current_user.me().user_name,
                     "Unknown Error",
                 ),
                 MOCK_TIMESTAMP,
@@ -1793,7 +1794,7 @@ def test_data_recon_with_general_exception(
                 (3, 3, None, None, None),
                 (
                     False,
-                    "remorph",
+                    ws.current_user.me().user_name,
                     "Unknown Error",
                 ),
                 MOCK_TIMESTAMP,
@@ -1866,7 +1867,7 @@ def test_data_recon_with_source_exception(
                 (3, 3, None, None, None),
                 (
                     False,
-                    "remorph",
+                    ws.current_user.me().user_name,
                     "Source Runtime Error",
                 ),
                 MOCK_TIMESTAMP,
