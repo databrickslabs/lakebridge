@@ -130,6 +130,11 @@ class ConfigureSqlServerAssessment(AssessmentConfigurator):
                 "login_timeout": self.prompts.question("Enter login timeout (seconds)", default="30"),
                 "server": self.prompts.question("Enter the fully-qualified server name"),
                 "port": int(self.prompts.question("Enter the port details", valid_number=True)),
+                # TODO: For the multi_db variant (on-prem SQL Server / Azure SQL Managed Instance) this is
+                # only the connection entry point -- the profiler enumerates and profiles every accessible
+                # database regardless. It is required for Azure SQL Database (single_db), which profiles only
+                # this database. The edition isn't known until the execute-time EngineEdition probe, so
+                # consider making this optional / edition-aware in a future change.
                 "database": self.prompts.question("Enter the database name"),
                 "user": self.prompts.question("Enter the SQL username"),
                 "password": self.prompts.password("Enter the SQL password"),

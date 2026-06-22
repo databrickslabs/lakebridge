@@ -3,7 +3,8 @@
  * `sys.views` with `sys.indexes`. Returns view details for those with a clustered
  * index (index_id = 1) along with a timestamp indicating when the data was extracted.
  */
-SELECT v.[name]      AS indexed_view_name,
+SELECT DB_NAME()    AS database_name,
+       v.[name]      AS indexed_view_name,
        s.[name]      AS schema_name,
        i.[name]      AS index_name,
        i.[type_desc] AS index_type,

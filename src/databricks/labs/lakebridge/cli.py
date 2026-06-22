@@ -27,6 +27,7 @@ from databricks.labs.lakebridge.assessments import (
     PROFILER_SOURCE_SYSTEM,
     PRODUCT_NAME,
     SOURCE_SYSTEM_VARIANTS,
+    AUTO,
 )
 from databricks.labs.lakebridge.assessments.profiler import Profiler, default_output_folder
 
@@ -1131,20 +1132,24 @@ def execute_database_profiler(
                 f"to set up connection details for {source_tech}."
             )
 
+    ctx.add_user_agent_extra("profiler_source_tech", make_alphanum_or_semver(source_tech))
+    user = ctx.current_user
+    logger.debug(f"User: {user}")
+
     if output_folder is None:
         output_folder = prompts.question(
             "Enter the profiler output folder path (directory)",
             default=str(default_output_folder(source_tech)),
         ).strip()
 
-    profiler = Profiler.create(source_tech, variant)
+    profiler = Profiler.create(source_tech, variant or AUTO, creds_path)
     # TODO: Add extractor logic to ApplicationContext instead of creating inside the Profiler class
     profiler.profile(output_folder=Path(output_folder), cred_file_path=creds_path)
 
 
 def parse_profiler_variant(prompts: Prompts, source_tech: str, variant: str | None) -> str | None:
-    variants = SOURCE_SYSTEM_VARIANTS.get(source_tech)
-    if variants:
+    variants = SOURCE_SYSTEM_VARIANTS.get(source_tech, ())
+    if len(variants) > 1:
         if variant:
             variant = variant.lower()
             if variant not in variants:

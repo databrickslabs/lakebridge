@@ -1,7 +1,8 @@
 import logging
+from collections.abc import Callable
 from pathlib import Path
 
-from databricks.labs.lakebridge.assessments import PRODUCT_PATH_PREFIX
+from databricks.labs.lakebridge.assessments import PRODUCT_PATH_PREFIX, SOURCE_SYSTEM_VARIANTS, AUTO
 from databricks.labs.lakebridge.assessments.pipeline import PipelineClass, make_profiler_db_filename
 from databricks.labs.lakebridge.assessments.profiler_config import PipelineConfig
 from databricks.labs.lakebridge.connections.database_manager import DatabaseManager
@@ -24,6 +25,60 @@ def get_pipeline(source_system: str, variant: str | None) -> Path:
     return base / variant / file if variant else base / file
 
 
+# Azure SQL Database is the only single-database SQL Server edition. On-prem SQL Server and Azure SQL
+# Managed Instance host multiple databases per instance and use the multi-database profiler variant.
+SQLSERVER_AZURE_SQL_DB_ENGINE_EDITION = 5
+
+
+def resolve_mssql_variant(cred_file_path: Path | None) -> str:
+    """Detect the SQL Server edition from a live connection and return the matching profiler variant."""
+    cred_manager = create_credential_manager("mssql", EnvGetter(), creds_path=cred_file_path)
+    connect_config = cred_manager.get_credentials("mssql")
+    with DatabaseManager("mssql", connect_config) as db_manager:
+        # SERVERPROPERTY returns sql_variant, which pyodbc cannot fetch (ODBC type -16); CAST to int.
+        result = db_manager.fetch("SELECT CAST(SERVERPROPERTY('EngineEdition') AS INT) AS engine_edition")
+    engine_edition = int(result.rows[0][0])
+    variant = "single_db" if engine_edition == SQLSERVER_AZURE_SQL_DB_ENGINE_EDITION else "multi_db"
+    logger.info(f"Detected SQL Server EngineEdition={engine_edition}; using '{variant}' profiler variant")
+    return variant
+
+
+# Sources whose variant is auto-detected from a live connection (probe) rather than supplied explicitly.
+VARIANT_RESOLVERS: dict[str, Callable[[Path | None], str]] = {
+    "mssql": resolve_mssql_variant,
+}
+
+
+def resolve_variant(source_system: str, variant: str | None, *, cred_file_path: Path | None = None) -> str | None:
+    """Resolve the effective pipeline variant for a source.
+
+    The ``SOURCE_SYSTEM_VARIANTS`` entry is either a tuple of explicit choices (the CLI prompts for one of
+    these) or the ``AUTO`` marker (the variant is probed from a live connection here). ``variant`` is an
+    explicit choice, the ``AUTO`` sentinel, or ``None``. This never prompts -- prompting lives in the CLI.
+    """
+    spec = SOURCE_SYSTEM_VARIANTS.get(source_system)
+    if spec is None:
+        if variant:
+            logger.warning(f"Ignoring variant '{variant}': source system '{source_system}' has no variants.")
+        return None
+
+    if AUTO in spec:
+        if variant != AUTO:
+            logger.warning(f"Ignoring variant '{variant}'. Auto-detecting for source system '{source_system}'.")
+        resolver = VARIANT_RESOLVERS.get(source_system)
+        if resolver is None:
+            raise ValueError(f"Source '{source_system}' is marked auto-detect but has no registered resolver.")
+        return resolver(cred_file_path)
+
+    if not variant:
+        raise ValueError(f"No variant selected for '{source_system}' (choices: {spec}); the CLI must prompt for one.")
+
+    chosen = variant.lower()
+    if chosen not in spec:
+        raise ValueError(f"Invalid variant '{chosen}' for '{source_system}'. Valid variants: {spec}.")
+    return chosen
+
+
 class Profiler:
 
     def __init__(
@@ -37,13 +92,14 @@ class Profiler:
         self._pipeline_config = pipeline_configs
 
     @classmethod
-    def create(cls, source_system: str, variant: str | None) -> "Profiler":
-        pipeline_config_path = get_pipeline(source_system, variant)
+    def create(cls, source_system: str, variant: str | None = AUTO, cred_file_path: Path | None = None) -> "Profiler":
+        resolved_variant = resolve_variant(source_system, variant, cred_file_path=cred_file_path)
+        pipeline_config_path = get_pipeline(source_system, resolved_variant)
         if not pipeline_config_path.exists():
             raise FileNotFoundError(f"Configuration file not found: {pipeline_config_path}")
 
         pipeline_config = Profiler.path_modifier(config_file=pipeline_config_path)
-        return cls(source_system, variant, pipeline_config)
+        return cls(source_system, resolved_variant, pipeline_config)
 
     @staticmethod
     def path_modifier(*, config_file: str | Path, path_prefix: Path = PRODUCT_PATH_PREFIX) -> PipelineConfig:

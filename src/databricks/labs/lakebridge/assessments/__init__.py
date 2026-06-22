@@ -1,6 +1,7 @@
 from ._constants import (
     PROFILER_SOURCE_SYSTEM,
     SOURCE_SYSTEM_VARIANTS,
+    AUTO,
     PRODUCT_PATH_PREFIX,
     PRODUCT_NAME,
 )
@@ -8,6 +9,7 @@ from ._constants import (
 __all__ = [
     "PROFILER_SOURCE_SYSTEM",
     "SOURCE_SYSTEM_VARIANTS",
+    "AUTO",
     "PRODUCT_PATH_PREFIX",
     "PRODUCT_NAME",
 ]
