@@ -1143,27 +1143,6 @@ def execute_database_profiler(
     profiler.profile(output_folder=Path(output_folder), cred_file_path=creds_path)
 
 
-@lakebridge.command()
-def visualize_profiler_results(
-    *,
-    w: WorkspaceClient,
-    transpiler_repository: TranspilerRepository = TranspilerRepository.user_home(),
-) -> None:
-    """Deploys a profiler summary as a Databricks dashboard"""
-    from databricks.labs.lakebridge.install import installer  # pylint: disable=cyclic-import, import-outside-toplevel
-
-    ctx = ApplicationContext(w)
-    ctx.add_user_agent_extra("cmd", "visualize-profiler-results")
-
-    # Deploy the profiler dashboard and ingestion job
-    if not w.config.warehouse_id:
-        dbsql_id = _create_warehouse(w)
-        w.config.warehouse_id = dbsql_id
-    logger.debug(f"Warehouse ID used for running the profiler dashboard: {w.config.warehouse_id}.")
-    profiler_dashboard_installer = installer(w, transpiler_repository, is_interactive=True)
-    profiler_dashboard_installer.run(module="profiler_dashboard")
-
-
 def _test_database_connection(source_tech: str, raw_config: dict) -> None:
     """Test connection to the source database with appropriate error handling."""
     # Handle synapse-specific validation using dedicated helper
