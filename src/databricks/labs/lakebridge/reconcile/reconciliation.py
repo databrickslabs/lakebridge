@@ -320,7 +320,7 @@ class Reconciliation:
         ):
             src_sampler = SamplingQueryBuilder(table_conf, src_schema, "source", self._source_engine, self._source)
             tgt_sampler = SamplingQueryBuilder(table_conf, tgt_schema, "target", self._target_engine, self._target)
-            if reconcile_output.mismatch_count > 0 and reconcile_output.mismatch is not None:
+            if reconcile_output.mismatch_count > 0:
                 mismatch = self._get_mismatch_data(
                     src_sampler,
                     tgt_sampler,

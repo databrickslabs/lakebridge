@@ -56,8 +56,6 @@ def test_compare_data_for_report_all(
         mismatch=mismatch,
     )
 
-    assert actual.mismatch is not None
-    assert expected.mismatch is not None
     assert actual.mismatch.mismatch_df is not None
     assert expected.mismatch.mismatch_df is not None
     assert actual.missing_in_src is not None
@@ -110,7 +108,6 @@ def test_compare_data_for_report_hash(spark, tmp_path: Path):
         missing_in_tgt_count=1,
     )
 
-    assert actual.mismatch is not None
     assert actual.mismatch.mismatch_df is None
     assert not actual.mismatch.mismatch_columns
     assert actual.missing_in_src is not None
@@ -294,8 +291,6 @@ def test_compare_data_special_column_names(spark, tmp_path: Path):
         mismatch=mismatch,
     )
 
-    assert actual.mismatch is not None
-    assert expected.mismatch is not None
     assert actual.mismatch.mismatch_df is not None
     assert expected.mismatch.mismatch_df is not None
     assert actual.missing_in_src is not None

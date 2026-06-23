@@ -140,7 +140,6 @@ def test_reconcile_aggregate_data_missing_records(
     assert actual[0].rule.column_from_rule == "min_s_acctbal_NA"
     assert actual[0].rule.rule_type == "AGGREGATE"
 
-    assert actual[0].reconcile_output.mismatch is not None
     assert actual[0].reconcile_output.mismatch.mismatch_df, "Mismatch dataframe must be present"
     assert not actual[0].reconcile_output.mismatch.mismatch_df.isEmpty()
 
@@ -166,8 +165,6 @@ def test_reconcile_aggregate_data_missing_records(
     assert actual[0].reconcile_output.mismatch_count == expected.mismatch_count
     assert actual[0].reconcile_output.missing_in_src_count == expected.missing_in_src_count
     assert actual[0].reconcile_output.missing_in_tgt_count == expected.missing_in_tgt_count
-    assert actual[0].reconcile_output.mismatch is not None
-    assert expected.mismatch is not None
     assert actual[0].reconcile_output.mismatch.mismatch_df is not None
     assert expected.mismatch.mismatch_df is not None
     assertDataFrameEqual(actual[0].reconcile_output.mismatch.mismatch_df, expected.mismatch.mismatch_df)
@@ -262,8 +259,6 @@ def _compare_reconcile_output(
 ) -> None:
     # Reconcile Output validations
     if actual_reconcile_output and expected_reconcile:
-        assert actual_reconcile_output.mismatch is not None
-        assert expected_reconcile.mismatch is not None
         assert actual_reconcile_output.mismatch.mismatch_df, "Mismatch dataframe must be present"
         assert actual_reconcile_output.missing_in_src, "Missing in source one record must be present"
         assert actual_reconcile_output.missing_in_tgt, "Missing in target one record must be present"

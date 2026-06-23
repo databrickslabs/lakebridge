@@ -295,8 +295,6 @@ def test_reconcile_data_with_mismatches_and_missing(
     assert actual_data_reconcile.mismatch_count == expected_data_reconcile.mismatch_count
     assert actual_data_reconcile.missing_in_src_count == expected_data_reconcile.missing_in_src_count
     assert actual_data_reconcile.missing_in_tgt_count == expected_data_reconcile.missing_in_tgt_count
-    assert actual_data_reconcile.mismatch is not None
-    assert expected_data_reconcile.mismatch is not None
     assert actual_data_reconcile.mismatch.mismatch_columns == expected_data_reconcile.mismatch.mismatch_columns
     assert actual_data_reconcile.mismatch.mismatch_df is not None
     assert expected_data_reconcile.mismatch.mismatch_df is not None
@@ -565,8 +563,6 @@ def test_reconcile_data_with_mismatch_and_no_missing(
     assert actual.mismatch_count == expected.mismatch_count
     assert actual.missing_in_src_count == expected.missing_in_src_count
     assert actual.missing_in_tgt_count == expected.missing_in_tgt_count
-    assert actual.mismatch is not None
-    assert expected.mismatch is not None
     assert actual.mismatch.mismatch_columns == expected.mismatch.mismatch_columns
     assert actual.missing_in_src is None
     assert actual.missing_in_tgt is None
@@ -653,10 +649,6 @@ def test_reconcile_data_missing_and_no_mismatch(
     assert actual.missing_in_src_count == expected.missing_in_src_count
     assert actual.missing_in_tgt_count == expected.missing_in_tgt_count
     assert actual.mismatch is None
-    assert actual.missing_in_src is not None
-    assert expected.missing_in_src is not None
-    assert actual.missing_in_tgt is not None
-    assert expected.missing_in_tgt is not None
     assertDataFrameEqual(actual.missing_in_src, expected.missing_in_src)
     assertDataFrameEqual(actual.missing_in_tgt, expected.missing_in_tgt)
 
