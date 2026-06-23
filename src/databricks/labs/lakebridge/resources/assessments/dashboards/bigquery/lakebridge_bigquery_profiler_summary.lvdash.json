@@ -1,0 +1,2056 @@
+{
+  "datasets": [
+    {
+      "name": "e2f51011",
+      "displayName": "fulfillment_analysis",
+      "queryLines": [
+        "SELECT * FROM <CATALOG_NAME>.<SCHEMA_NAME>.fulfillment_analysis\n",
+        "WHERE metadata_level = :metadata_level\n"
+      ],
+      "parameters": [
+        {
+          "displayName": "metadata_level",
+          "keyword": "metadata_level",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": ""
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "8f634869",
+      "displayName": "table_storage",
+      "queryLines": [
+        "SELECT t.* EXCEPT (total_physical_tb_to_migrate, source),\n",
+        "GREATEST((active_logical_tb - 0.01) * 20.0, 0.0)\n",
+        "+ GREATEST((long_term_logical_tb - 0.01) * 10.0, 0.0)\n",
+        "+ GREATEST((active_physical_tb + fail_safe_physical_tb - 0.01) * 40.0, 0.0)\n",
+        "+ GREATEST((long_term_physical_tb - 0.01) * 20.0, 0.0) AS storage_cost_bq\n",
+        "FROM <CATALOG_NAME>.<SCHEMA_NAME>.table_storage t\n",
+        "WHERE metadata_level = :metadata_level\n"
+      ],
+      "parameters": [
+        {
+          "displayName": "metadata_level",
+          "keyword": "metadata_level",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": ""
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4bdd37b3",
+      "displayName": "timeline_analysis",
+      "queryLines": [
+        "SELECT * FROM <CATALOG_NAME>.<SCHEMA_NAME>.timeline_analysis\n",
+        "WHERE metadata_level = :metadata_level\n"
+      ],
+      "parameters": [
+        {
+          "displayName": "metadata_level",
+          "keyword": "metadata_level",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": ""
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "41ad0eca",
+      "displayName": "workload_types",
+      "queryLines": [
+        "SELECT total_jobs,\n",
+        "total_slot_hours,\n",
+        "total_tb_processed,\n",
+        "CASE \n",
+        "    WHEN workload_type IS NULL THEN 'UNDEFINED'\n",
+        "    ELSE workload_type \n",
+        "END AS workload_type,\n",
+        "metadata_level\n",
+        " FROM \n",
+        "<CATALOG_NAME>.<SCHEMA_NAME>.workload_types\n",
+        "WHERE metadata_level = :metadata_level\n"
+      ],
+      "parameters": [
+        {
+          "displayName": "metadata_level",
+          "keyword": "metadata_level",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": ""
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "fedcedc7",
+      "displayName": "CustomerFilter",
+      "queryLines": [
+        "select distinct(schema_name) as schema_name\n",
+        "from <CATALOG_NAME>.information_schema.schemata\n",
+        "where schema_name not in ('information_schema', 'default', 'profiling_data')\n",
+        "order by schema_name;\n"
+      ]
+    },
+    {
+      "name": "2f4ca667",
+      "displayName": "CatalogSelector",
+      "queryLines": [
+        "select catalog_name from `system`.information_schema.catalogs ;\n"
+      ]
+    },
+    {
+      "name": "54626435",
+      "displayName": "fulfillment_rates",
+      "queryLines": [
+        "select date(time_window) as day,\n",
+        "-- fulfillment rate is the ratio of slots_fulfilled to slots_requested\n",
+        "TRY_DIVIDE(SUM(slots_fulfilled), SUM(slots_requested)) * 100.0 as fulfillment_rate\n",
+        "from <CATALOG_NAME>.<SCHEMA_NAME>.fulfillment_analysis\n",
+        "WHERE metadata_level = :metadata_level\n",
+        "GROUP BY \n",
+        "metadata_level,\n",
+        "date(time_window)\n"
+      ],
+      "parameters": [
+        {
+          "displayName": "metadata_level",
+          "keyword": "metadata_level",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": ""
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "8ad9732b",
+      "displayName": "ProjectRegion",
+      "queryLines": [
+        "select distinct metadata_level\n",
+        "from <CATALOG_NAME>.<SCHEMA_NAME>.timeline_analysis;\n"
+      ]
+    },
+    {
+      "name": "fd077de1",
+      "displayName": "merged_consumption_beyond_commitments",
+      "queryLines": [
+        "select edition,\n",
+        "round(sum(total_slot_seconds)/3600.0, 2) as slot_hours,\n",
+        "round(slot_hours * 0.06, 2) as consumption_dollars\n",
+        "FROM <CATALOG_NAME>.<SCHEMA_NAME>.consumption_beyond_commitments\n",
+        "group by edition\n",
+        "order by consumption_dollars desc\n"
+      ]
+    },
+    {
+      "name": "b626170f",
+      "displayName": "merged_consumption_thru_commitments",
+      "queryLines": [
+        "select edition,\n",
+        "commitment_plan,\n",
+        "round(sum(total_slot_seconds)/3600.0, 2) as slot_hours,\n",
+        "round(slot_hours * 0.06, 2) as consumption_dollars\n",
+        "FROM <CATALOG_NAME>.<SCHEMA_NAME>.consumption_through_commitments\n",
+        "group by edition, commitment_plan\n",
+        "order by consumption_dollars desc\n"
+      ]
+    },
+    {
+      "name": "1f1957c8",
+      "displayName": "merged_streaming",
+      "queryLines": [
+        "with error_adjusted_streaming_inserts as (\n",
+        "  select date_format(start_timestamp, 'yyyy-MM') as month_window,\n",
+        "  total_input_bytes / (1024.0*1024.0*1024.0*1024.0) as total_input_tb,\n",
+        "  (1 - coalesce(try_divide(total_error, total_requests), 0.0)) as salvage_rate,\n",
+        "  total_input_tb * salvage_rate as total_input_tb_error_adjusted\n",
+        "  from <CATALOG_NAME>.<SCHEMA_NAME>.streaming_summary\n",
+        "),\n",
+        "error_adjusted_write_api as (\n",
+        "  select date_format(start_timestamp, 'yyyy-MM') as month_window,\n",
+        "  split(metadata_level, \"\\\\.\")[1] as region,\n",
+        "  total_input_bytes / (1024.0*1024.0*1024.0*1024.0) as total_input_tb,\n",
+        "  (1 - coalesce(try_divide(total_error, total_requests), 0.0)) as salvage_rate,\n",
+        "  total_input_tb * salvage_rate as total_input_tb_error_adjusted\n",
+        "  from <CATALOG_NAME>.<SCHEMA_NAME>.write_api_summary\n",
+        "),\n",
+        "error_adjusted_write_api_region_wise as (\n",
+        "  select month_window, region,\n",
+        "  sum(total_input_tb) as total_input_tb,\n",
+        "  sum(total_input_tb_error_adjusted) as total_input_tb_error_adjusted\n",
+        "  from error_adjusted_write_api group by month_window, region\n",
+        "),\n",
+        "error_adjusted_write_api_region_wise_billable as (\n",
+        "  select month_window, region, total_input_tb,\n",
+        "  case when total_input_tb < 2.0 then 0.0 else (total_input_tb - 2.0) end as total_input_tb_billable,\n",
+        "  (case when total_input_tb < 2.0 then 0.0 else (total_input_tb - 2.0) end) * 25.0 as total_input_tb_cost,\n",
+        "  total_input_tb_error_adjusted,\n",
+        "  case when total_input_tb_error_adjusted < 2.0 then 0.0 else (total_input_tb_error_adjusted - 2.0) end as total_input_tb_error_adjusted_billable,\n",
+        "  (case when total_input_tb_error_adjusted < 2.0 then 0.0 else (total_input_tb_error_adjusted - 2.0) end) * 25.0 as total_input_tb_error_adjusted_cost\n",
+        "  from error_adjusted_write_api_region_wise\n",
+        ")\n",
+        "select month_window, 'Streaming Insert' as streaming_type,\n",
+        "round(sum(total_input_tb), 2) as total_input_tb,\n",
+        "round(sum(total_input_tb_error_adjusted), 2) as total_input_tb_error_adjusted,\n",
+        "round(sum(total_input_tb * 50.0), 2) as total_input_tb_cost,\n",
+        "round(sum(total_input_tb_error_adjusted * 50.0), 2) as total_input_tb_error_adjusted_cost\n",
+        "from error_adjusted_streaming_inserts group by month_window\n",
+        "UNION\n",
+        "select month_window, 'Write API' as streaming_type,\n",
+        "sum(total_input_tb) as total_input_tb,\n",
+        "round(sum(total_input_tb_error_adjusted), 2) as total_input_tb_error_adjusted,\n",
+        "round(sum(total_input_tb_cost), 2) as total_input_tb_cost,\n",
+        "round(sum(total_input_tb_error_adjusted_cost), 2) as total_input_tb_error_adjusted_cost\n",
+        "from error_adjusted_write_api_region_wise_billable group by month_window;\n"
+      ]
+    },
+    {
+      "name": "validation_health_summary",
+      "displayName": "validation_report",
+      "queryLines": [
+        "SELECT severity, strategy, count(*) AS check_count\n",
+        "FROM <CATALOG_NAME>.<SCHEMA_NAME>.validation_report\n",
+        "GROUP BY severity, strategy\n",
+        "ORDER BY severity, strategy;\n"
+      ]
+    },
+    {
+      "name": "ds_slotusage",
+      "displayName": "slot_usage_timeline",
+      "queryLines": [
+        "SELECT\n",
+        "  substr(CAST(time_window AS STRING),1,10) AS date_window,\n",
+        "  substr(CAST(time_window AS STRING),1,7)  AS month_window,\n",
+        "  slots_avg, slots_perc_50th, slots_perc_90th, slots_perc_99th, slots_max\n",
+        "FROM <CATALOG_NAME>.<SCHEMA_NAME>.timeline_analysis\n"
+      ]
+    },
+    {
+      "name": "ds_resv",
+      "displayName": "reservation_util",
+      "queryLines": [
+        "SELECT\n",
+        "  substr(CAST(period_start AS STRING),1,10) AS day,\n",
+        "  slots_assigned, slots_max_assigned, autoscale_current_slots, autoscale_max_slots\n",
+        "FROM <CATALOG_NAME>.<SCHEMA_NAME>.reservation_timeline_analysis\n"
+      ]
+    },
+    {
+      "name": "ds_comm",
+      "displayName": "commitments_inv",
+      "queryLines": [
+        "SELECT edition, commitment_plan, state, slot_count, is_flat_rate, renewal_plan\n",
+        "FROM <CATALOG_NAME>.<SCHEMA_NAME>.commitments\n"
+      ]
+    },
+    {
+      "name": "ds_commhist",
+      "displayName": "commitment_history",
+      "queryLines": [
+        "SELECT substr(CAST(change_timestamp AS STRING),1,19) AS change_time,\n",
+        "  action, edition, commitment_plan, slot_count, state\n",
+        "FROM <CATALOG_NAME>.<SCHEMA_NAME>.commitment_changes\n",
+        "ORDER BY change_time\n"
+      ]
+    }
+  ],
+  "pages": [
+    {
+      "name": "all_projects",
+      "displayName": "All Projects",
+      "layout": [
+        {
+          "widget": {
+            "name": "t_ap_0",
+            "multilineTextboxSpec": {
+              "lines": [
+                "## BigQuery account overview \u2014 usage & spend (BigQuery-native)"
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 12,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "t_ap_1",
+            "multilineTextboxSpec": {
+              "lines": [
+                "### Current BQ consumption vs commitments"
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 1,
+            "width": 12,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "c5e14457",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "fd077de1",
+                  "fields": [
+                    {
+                      "name": "edition",
+                      "expression": "`edition`"
+                    },
+                    {
+                      "name": "slot_hours",
+                      "expression": "`slot_hours`"
+                    },
+                    {
+                      "name": "consumption_dollars",
+                      "expression": "`consumption_dollars`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 1,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "edition",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "string",
+                    "displayAs": "string",
+                    "visible": true,
+                    "order": 100000,
+                    "title": "Edition",
+                    "allowSearch": false,
+                    "alignContent": "center",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "displayName": "edition"
+                  },
+                  {
+                    "fieldName": "slot_hours",
+                    "numberFormat": "\u20180,0\u2019",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "float",
+                    "displayAs": "number",
+                    "visible": true,
+                    "order": 100001,
+                    "title": "Slot Hours",
+                    "allowSearch": false,
+                    "alignContent": "center",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "displayName": "slot_hours"
+                  },
+                  {
+                    "fieldName": "consumption_dollars",
+                    "numberFormat": "\u2018$0,000.00\u2019",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "float",
+                    "displayAs": "number",
+                    "visible": true,
+                    "order": 100002,
+                    "title": "Consumption ($)",
+                    "allowSearch": false,
+                    "alignContent": "center",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "displayName": "consumption_dollars"
+                  }
+                ]
+              },
+              "invisibleColumns": [],
+              "allowHTMLByDefault": false,
+              "itemsPerPage": 25,
+              "paginationSize": "default",
+              "condensed": true,
+              "withRowNumber": false
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 2,
+            "width": 6,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "72b00834",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "b626170f",
+                  "fields": [
+                    {
+                      "name": "edition",
+                      "expression": "`edition`"
+                    },
+                    {
+                      "name": "commitment_plan",
+                      "expression": "`commitment_plan`"
+                    },
+                    {
+                      "name": "slot_hours",
+                      "expression": "`slot_hours`"
+                    },
+                    {
+                      "name": "consumption_dollars",
+                      "expression": "`consumption_dollars`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 1,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "edition",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "string",
+                    "displayAs": "string",
+                    "visible": true,
+                    "order": 100000,
+                    "title": "Edition",
+                    "allowSearch": false,
+                    "alignContent": "center",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "displayName": "edition"
+                  },
+                  {
+                    "fieldName": "commitment_plan",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "string",
+                    "displayAs": "string",
+                    "visible": true,
+                    "order": 100001,
+                    "title": "Commitment Plan",
+                    "allowSearch": false,
+                    "alignContent": "center",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "displayName": "commitment_plan"
+                  },
+                  {
+                    "fieldName": "slot_hours",
+                    "numberFormat": "\u20180,0\u2019",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "float",
+                    "displayAs": "number",
+                    "visible": true,
+                    "order": 100002,
+                    "title": "Slot Hours",
+                    "allowSearch": false,
+                    "alignContent": "right",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "displayName": "slot_hours"
+                  },
+                  {
+                    "fieldName": "consumption_dollars",
+                    "numberFormat": "\u2018$0,000.00\u2019",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "float",
+                    "displayAs": "number",
+                    "visible": true,
+                    "order": 100003,
+                    "title": "Consumption ($)",
+                    "allowSearch": false,
+                    "alignContent": "right",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "displayName": "consumption_dollars"
+                  }
+                ]
+              },
+              "invisibleColumns": [],
+              "allowHTMLByDefault": false,
+              "itemsPerPage": 25,
+              "paginationSize": "default",
+              "condensed": true,
+              "withRowNumber": false
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 2,
+            "width": 6,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "t_ap_8",
+            "multilineTextboxSpec": {
+              "lines": [
+                "### Slot usage over time (utilization percentiles)"
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 8,
+            "width": 12,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "w_slot_daily",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_slotusage",
+                  "fields": [
+                    {
+                      "name": "date_window",
+                      "expression": "`date_window`"
+                    },
+                    {
+                      "name": "max(slots_max)",
+                      "expression": "MAX(`slots_max`)"
+                    },
+                    {
+                      "name": "max(slots_perc_99th)",
+                      "expression": "MAX(`slots_perc_99th`)"
+                    },
+                    {
+                      "name": "max(slots_perc_90th)",
+                      "expression": "MAX(`slots_perc_90th`)"
+                    },
+                    {
+                      "name": "max(slots_perc_50th)",
+                      "expression": "MAX(`slots_perc_50th`)"
+                    },
+                    {
+                      "name": "max(slots_avg)",
+                      "expression": "MAX(`slots_avg`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "line",
+              "encodings": {
+                "x": {
+                  "fieldName": "date_window",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "displayName": "Day"
+                },
+                "y": {
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "fields": [
+                    {
+                      "fieldName": "max(slots_max)",
+                      "displayName": "Max Slots"
+                    },
+                    {
+                      "fieldName": "max(slots_perc_99th)",
+                      "displayName": "99th Percentile"
+                    },
+                    {
+                      "fieldName": "max(slots_perc_90th)",
+                      "displayName": "90th Percentile"
+                    },
+                    {
+                      "fieldName": "max(slots_perc_50th)",
+                      "displayName": "50th Percentile"
+                    },
+                    {
+                      "fieldName": "max(slots_avg)",
+                      "displayName": "Avg Slots"
+                    }
+                  ],
+                  "axis": {
+                    "title": "Slots"
+                  }
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Slot usage by day \u2014 utilization percentiles"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 9,
+            "width": 12,
+            "height": 7
+          }
+        },
+        {
+          "widget": {
+            "name": "w_slot_monthly",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_slotusage",
+                  "fields": [
+                    {
+                      "name": "month_window",
+                      "expression": "`month_window`"
+                    },
+                    {
+                      "name": "max(slots_max)",
+                      "expression": "MAX(`slots_max`)"
+                    },
+                    {
+                      "name": "max(slots_perc_99th)",
+                      "expression": "MAX(`slots_perc_99th`)"
+                    },
+                    {
+                      "name": "max(slots_perc_90th)",
+                      "expression": "MAX(`slots_perc_90th`)"
+                    },
+                    {
+                      "name": "max(slots_perc_50th)",
+                      "expression": "MAX(`slots_perc_50th`)"
+                    },
+                    {
+                      "name": "max(slots_avg)",
+                      "expression": "MAX(`slots_avg`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "line",
+              "encodings": {
+                "x": {
+                  "fieldName": "month_window",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "displayName": "Month"
+                },
+                "y": {
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "fields": [
+                    {
+                      "fieldName": "max(slots_max)",
+                      "displayName": "Max Slots"
+                    },
+                    {
+                      "fieldName": "max(slots_perc_99th)",
+                      "displayName": "99th Percentile"
+                    },
+                    {
+                      "fieldName": "max(slots_perc_90th)",
+                      "displayName": "90th Percentile"
+                    },
+                    {
+                      "fieldName": "max(slots_perc_50th)",
+                      "displayName": "50th Percentile"
+                    },
+                    {
+                      "fieldName": "max(slots_avg)",
+                      "displayName": "Avg Slots"
+                    }
+                  ],
+                  "axis": {
+                    "title": "Slots"
+                  }
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Slot usage by month \u2014 utilization percentiles"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 16,
+            "width": 12,
+            "height": 7
+          }
+        },
+        {
+          "widget": {
+            "name": "t_ap_23",
+            "multilineTextboxSpec": {
+              "lines": [
+                "### Reservation utilization"
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 23,
+            "width": 12,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "w_resv",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_resv",
+                  "fields": [
+                    {
+                      "name": "day",
+                      "expression": "`day`"
+                    },
+                    {
+                      "name": "max(slots_assigned)",
+                      "expression": "MAX(`slots_assigned`)"
+                    },
+                    {
+                      "name": "max(slots_max_assigned)",
+                      "expression": "MAX(`slots_max_assigned`)"
+                    },
+                    {
+                      "name": "max(autoscale_current_slots)",
+                      "expression": "MAX(`autoscale_current_slots`)"
+                    },
+                    {
+                      "name": "max(autoscale_max_slots)",
+                      "expression": "MAX(`autoscale_max_slots`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "line",
+              "encodings": {
+                "x": {
+                  "fieldName": "day",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "displayName": "Day"
+                },
+                "y": {
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "fields": [
+                    {
+                      "fieldName": "max(slots_assigned)",
+                      "displayName": "Assigned"
+                    },
+                    {
+                      "fieldName": "max(slots_max_assigned)",
+                      "displayName": "Max Assigned"
+                    },
+                    {
+                      "fieldName": "max(autoscale_current_slots)",
+                      "displayName": "Autoscale Current"
+                    },
+                    {
+                      "fieldName": "max(autoscale_max_slots)",
+                      "displayName": "Autoscale Max"
+                    }
+                  ],
+                  "axis": {
+                    "title": "Slots"
+                  }
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Reservation slots \u2014 assigned vs autoscale over time"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 24,
+            "width": 12,
+            "height": 7
+          }
+        },
+        {
+          "widget": {
+            "name": "t_ap_31",
+            "multilineTextboxSpec": {
+              "lines": [
+                "### Slot commitments"
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 31,
+            "width": 12,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "w_comm",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_comm",
+                  "fields": [
+                    {
+                      "name": "edition",
+                      "expression": "`edition`"
+                    },
+                    {
+                      "name": "commitment_plan",
+                      "expression": "`commitment_plan`"
+                    },
+                    {
+                      "name": "state",
+                      "expression": "`state`"
+                    },
+                    {
+                      "name": "slot_count",
+                      "expression": "`slot_count`"
+                    },
+                    {
+                      "name": "is_flat_rate",
+                      "expression": "`is_flat_rate`"
+                    },
+                    {
+                      "name": "renewal_plan",
+                      "expression": "`renewal_plan`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 1,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "edition",
+                    "type": "string",
+                    "displayAs": "string",
+                    "visible": true,
+                    "order": 0,
+                    "title": "Edition",
+                    "displayName": "edition",
+                    "allowSearch": false,
+                    "alignContent": "left"
+                  },
+                  {
+                    "fieldName": "commitment_plan",
+                    "type": "string",
+                    "displayAs": "string",
+                    "visible": true,
+                    "order": 1,
+                    "title": "Plan",
+                    "displayName": "commitment_plan",
+                    "allowSearch": false,
+                    "alignContent": "left"
+                  },
+                  {
+                    "fieldName": "state",
+                    "type": "string",
+                    "displayAs": "string",
+                    "visible": true,
+                    "order": 2,
+                    "title": "State",
+                    "displayName": "state",
+                    "allowSearch": false,
+                    "alignContent": "left"
+                  },
+                  {
+                    "fieldName": "slot_count",
+                    "type": "integer",
+                    "displayAs": "integer",
+                    "visible": true,
+                    "order": 3,
+                    "title": "Slots",
+                    "displayName": "slot_count",
+                    "allowSearch": false,
+                    "alignContent": "right"
+                  },
+                  {
+                    "fieldName": "is_flat_rate",
+                    "type": "boolean",
+                    "displayAs": "boolean",
+                    "visible": true,
+                    "order": 4,
+                    "title": "Flat Rate",
+                    "displayName": "is_flat_rate",
+                    "allowSearch": false,
+                    "alignContent": "right"
+                  },
+                  {
+                    "fieldName": "renewal_plan",
+                    "type": "string",
+                    "displayAs": "string",
+                    "visible": true,
+                    "order": 5,
+                    "title": "Renewal",
+                    "displayName": "renewal_plan",
+                    "allowSearch": false,
+                    "alignContent": "left"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Slot commitments (current)"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 32,
+            "width": 6,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "w_commhist",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_commhist",
+                  "fields": [
+                    {
+                      "name": "change_time",
+                      "expression": "`change_time`"
+                    },
+                    {
+                      "name": "action",
+                      "expression": "`action`"
+                    },
+                    {
+                      "name": "edition",
+                      "expression": "`edition`"
+                    },
+                    {
+                      "name": "commitment_plan",
+                      "expression": "`commitment_plan`"
+                    },
+                    {
+                      "name": "slot_count",
+                      "expression": "`slot_count`"
+                    },
+                    {
+                      "name": "state",
+                      "expression": "`state`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 1,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "change_time",
+                    "type": "string",
+                    "displayAs": "string",
+                    "visible": true,
+                    "order": 0,
+                    "title": "Time",
+                    "displayName": "change_time",
+                    "allowSearch": false,
+                    "alignContent": "left"
+                  },
+                  {
+                    "fieldName": "action",
+                    "type": "string",
+                    "displayAs": "string",
+                    "visible": true,
+                    "order": 1,
+                    "title": "Action",
+                    "displayName": "action",
+                    "allowSearch": false,
+                    "alignContent": "left"
+                  },
+                  {
+                    "fieldName": "edition",
+                    "type": "string",
+                    "displayAs": "string",
+                    "visible": true,
+                    "order": 2,
+                    "title": "Edition",
+                    "displayName": "edition",
+                    "allowSearch": false,
+                    "alignContent": "left"
+                  },
+                  {
+                    "fieldName": "commitment_plan",
+                    "type": "string",
+                    "displayAs": "string",
+                    "visible": true,
+                    "order": 3,
+                    "title": "Plan",
+                    "displayName": "commitment_plan",
+                    "allowSearch": false,
+                    "alignContent": "left"
+                  },
+                  {
+                    "fieldName": "slot_count",
+                    "type": "integer",
+                    "displayAs": "integer",
+                    "visible": true,
+                    "order": 4,
+                    "title": "Slots",
+                    "displayName": "slot_count",
+                    "allowSearch": false,
+                    "alignContent": "right"
+                  },
+                  {
+                    "fieldName": "state",
+                    "type": "string",
+                    "displayAs": "string",
+                    "visible": true,
+                    "order": 5,
+                    "title": "State",
+                    "displayName": "state",
+                    "allowSearch": false,
+                    "alignContent": "left"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Commitment changes (history)"
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 32,
+            "width": 6,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "t_ap_38",
+            "multilineTextboxSpec": {
+              "lines": [
+                "### Streaming (Streaming Insert & Write API)"
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 38,
+            "width": 12,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "545c3324",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "1f1957c8",
+                  "fields": [
+                    {
+                      "name": "streaming_type",
+                      "expression": "`streaming_type`"
+                    },
+                    {
+                      "name": "month_window",
+                      "expression": "`month_window`"
+                    },
+                    {
+                      "name": "sum(total_input_tb_error_adjusted_cost)",
+                      "expression": "SUM(`total_input_tb_error_adjusted_cost`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "month_window",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "displayName": "Month"
+                },
+                "y": {
+                  "fieldName": "sum(total_input_tb_error_adjusted_cost)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "format": {
+                    "type": "number-currency",
+                    "currencyCode": "USD",
+                    "abbreviation": "compact",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 2
+                    }
+                  },
+                  "displayName": "Compute"
+                },
+                "color": {
+                  "fieldName": "streaming_type",
+                  "scale": {
+                    "type": "categorical",
+                    "mappings": [
+                      {
+                        "value": "Streaming Insert",
+                        "color": "#FCA4A1"
+                      },
+                      {
+                        "value": "Write API",
+                        "color": "#AB4057"
+                      }
+                    ]
+                  },
+                  "displayName": "Streaming Type"
+                },
+                "label": {
+                  "show": true
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "BQ - Streaming data costs"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 39,
+            "width": 6,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "ed7888a6",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "1f1957c8",
+                  "fields": [
+                    {
+                      "name": "streaming_type",
+                      "expression": "`streaming_type`"
+                    },
+                    {
+                      "name": "month_window",
+                      "expression": "`month_window`"
+                    },
+                    {
+                      "name": "sum(total_input_tb_error_adjusted)",
+                      "expression": "SUM(`total_input_tb_error_adjusted`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "month_window",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "displayName": "Month"
+                },
+                "y": {
+                  "fieldName": "sum(total_input_tb_error_adjusted)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "format": {
+                    "type": "number-plain",
+                    "abbreviation": "compact",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 2
+                    }
+                  },
+                  "displayName": "Terabytes"
+                },
+                "color": {
+                  "fieldName": "streaming_type",
+                  "scale": {
+                    "type": "categorical",
+                    "mappings": [
+                      {
+                        "value": "Streaming Insert",
+                        "color": "#FCA4A1"
+                      },
+                      {
+                        "value": "Write API",
+                        "color": "#AB4057"
+                      }
+                    ]
+                  },
+                  "displayName": "Streaming Type"
+                },
+                "label": {
+                  "show": true
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "BQ - Streaming data volume"
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 39,
+            "width": 6,
+            "height": 6
+          }
+        }
+      ],
+      "pageType": "PAGE_TYPE_CANVAS"
+    },
+    {
+      "name": "specific_project",
+      "displayName": "Specific Project",
+      "layout": [
+        {
+          "widget": {
+            "name": "t_sp_0",
+            "multilineTextboxSpec": {
+              "lines": [
+                "# Per-project drill-down \u2014 pick a project/region"
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 12,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "b89b2a99",
+            "queries": [
+              {
+                "name": "dashboards/01efe260c87a1461bc9476769c6d5ee1/datasets/01efe260c87a1b779d67bdfe45d6a917_metadata_level",
+                "query": {
+                  "datasetName": "8ad9732b",
+                  "fields": [
+                    {
+                      "name": "metadata_level",
+                      "expression": "`metadata_level`"
+                    },
+                    {
+                      "name": "metadata_level_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "parameter_dashboards/01efe260c87a1461bc9476769c6d5ee1/datasets/01efe260c87a1aceba7db5f801e206be_metadata_level",
+                "query": {
+                  "datasetName": "e2f51011",
+                  "parameters": [
+                    {
+                      "name": "metadata_level",
+                      "keyword": "metadata_level"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "parameter_dashboards/01efe260c87a1461bc9476769c6d5ee1/datasets/01efe260c87a1adfa7aac89fdc7bb74e_metadata_level",
+                "query": {
+                  "datasetName": "8f634869",
+                  "parameters": [
+                    {
+                      "name": "metadata_level",
+                      "keyword": "metadata_level"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "parameter_dashboards/01efe260c87a1461bc9476769c6d5ee1/datasets/01efe260c87a1aed96644eea307e8245_metadata_level",
+                "query": {
+                  "datasetName": "4bdd37b3",
+                  "parameters": [
+                    {
+                      "name": "metadata_level",
+                      "keyword": "metadata_level"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "parameter_dashboards/01efe260c87a1461bc9476769c6d5ee1/datasets/01efe260c87a1af9a181f9595a989f6b_metadata_level",
+                "query": {
+                  "datasetName": "41ad0eca",
+                  "parameters": [
+                    {
+                      "name": "metadata_level",
+                      "keyword": "metadata_level"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "parameter_dashboards/01efe260c87a1461bc9476769c6d5ee1/datasets/01efe260c87a1b32ae490a079be8b112_metadata_level",
+                "query": {
+                  "datasetName": "54626435",
+                  "parameters": [
+                    {
+                      "name": "metadata_level",
+                      "keyword": "metadata_level"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-single-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "parameterName": "metadata_level",
+                    "queryName": "parameter_dashboards/01efe260c87a1461bc9476769c6d5ee1/datasets/01efe260c87a1a76bdff53979d7624b8_metadata_level"
+                  },
+                  {
+                    "parameterName": "metadata_level",
+                    "queryName": "parameter_dashboards/01efe260c87a1461bc9476769c6d5ee1/datasets/01efe260c87a1aceba7db5f801e206be_metadata_level"
+                  },
+                  {
+                    "parameterName": "metadata_level",
+                    "queryName": "parameter_dashboards/01efe260c87a1461bc9476769c6d5ee1/datasets/01efe260c87a1adfa7aac89fdc7bb74e_metadata_level"
+                  },
+                  {
+                    "parameterName": "metadata_level",
+                    "queryName": "parameter_dashboards/01efe260c87a1461bc9476769c6d5ee1/datasets/01efe260c87a1aed96644eea307e8245_metadata_level"
+                  },
+                  {
+                    "parameterName": "metadata_level",
+                    "queryName": "parameter_dashboards/01efe260c87a1461bc9476769c6d5ee1/datasets/01efe260c87a1af9a181f9595a989f6b_metadata_level"
+                  },
+                  {
+                    "parameterName": "metadata_level",
+                    "queryName": "parameter_dashboards/01efe260c87a1461bc9476769c6d5ee1/datasets/01efe260c87a1b1a95256a14c62f9752_metadata_level"
+                  },
+                  {
+                    "parameterName": "metadata_level",
+                    "queryName": "parameter_dashboards/01efe260c87a1461bc9476769c6d5ee1/datasets/01efe260c87a1b268fbae29c075a0643_metadata_level"
+                  },
+                  {
+                    "parameterName": "metadata_level",
+                    "queryName": "parameter_dashboards/01efe260c87a1461bc9476769c6d5ee1/datasets/01efe260c87a1b32ae490a079be8b112_metadata_level"
+                  },
+                  {
+                    "fieldName": "metadata_level",
+                    "displayName": "metadata_level",
+                    "queryName": "dashboards/01efe260c87a1461bc9476769c6d5ee1/datasets/01efe260c87a1b779d67bdfe45d6a917_metadata_level"
+                  }
+                ]
+              },
+              "disallowAll": true,
+              "selection": {
+                "defaultSelection": {
+                  "operator": {
+                    "operator": "OR",
+                    "args": []
+                  }
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "BQ Project and Region"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 1,
+            "width": 12,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "t_sp_2",
+            "multilineTextboxSpec": {
+              "lines": [
+                "## Workload breakdown by ETL / BI"
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 2,
+            "width": 12,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "31b51d3a",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "41ad0eca",
+                  "fields": [
+                    {
+                      "name": "sum(total_slot_hours)",
+                      "expression": "SUM(`total_slot_hours`)"
+                    },
+                    {
+                      "name": "workload_type",
+                      "expression": "`workload_type`"
+                    }
+                  ],
+                  "parameterValues": [
+                    {
+                      "keyword": "schema",
+                      "selection": {}
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "pie",
+              "encodings": {
+                "angle": {
+                  "fieldName": "sum(total_slot_hours)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "axis": {
+                    "title": " % of Total Slot hours"
+                  },
+                  "displayName": "Slot Hours"
+                },
+                "color": {
+                  "fieldName": "workload_type",
+                  "scale": {
+                    "type": "categorical",
+                    "mappings": [
+                      {
+                        "value": "BI",
+                        "color": "#FFAB00"
+                      },
+                      {
+                        "value": "ETL",
+                        "color": "#077A9D"
+                      }
+                    ]
+                  },
+                  "displayName": "Workload Type"
+                },
+                "label": {
+                  "show": true
+                }
+              },
+              "frame": {
+                "showDescription": true,
+                "description": "What workload type accounts for what portion of total slot-hours?",
+                "showTitle": true,
+                "title": "Based on Slot hours"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 3,
+            "width": 4,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "cc683b57",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "41ad0eca",
+                  "fields": [
+                    {
+                      "name": "sum(total_jobs)",
+                      "expression": "SUM(`total_jobs`)"
+                    },
+                    {
+                      "name": "workload_type",
+                      "expression": "`workload_type`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "pie",
+              "encodings": {
+                "angle": {
+                  "fieldName": "sum(total_jobs)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "axis": {
+                    "title": "% of Total jobs"
+                  },
+                  "displayName": "% of Total jobs"
+                },
+                "color": {
+                  "fieldName": "workload_type",
+                  "scale": {
+                    "type": "categorical",
+                    "mappings": [
+                      {
+                        "value": "BI",
+                        "color": "#FFAB00"
+                      },
+                      {
+                        "value": "ETL",
+                        "color": "#077A9D"
+                      }
+                    ]
+                  },
+                  "displayName": "Workload Type"
+                },
+                "label": {
+                  "show": true
+                }
+              },
+              "frame": {
+                "showDescription": true,
+                "description": "What workload type accounts for what portion of total jobs executed?",
+                "showTitle": true,
+                "title": "Based on Number of jobs"
+              }
+            }
+          },
+          "position": {
+            "x": 4,
+            "y": 3,
+            "width": 4,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "72d555fa",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "41ad0eca",
+                  "fields": [
+                    {
+                      "name": "sum(total_tb_processed)",
+                      "expression": "SUM(`total_tb_processed`)"
+                    },
+                    {
+                      "name": "workload_type",
+                      "expression": "`workload_type`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "pie",
+              "encodings": {
+                "angle": {
+                  "fieldName": "sum(total_tb_processed)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "axis": {
+                    "title": "% of Data processed"
+                  },
+                  "displayName": "Data processed (TB)"
+                },
+                "color": {
+                  "fieldName": "workload_type",
+                  "scale": {
+                    "type": "categorical",
+                    "mappings": [
+                      {
+                        "value": "BI",
+                        "color": "#FFAB00"
+                      },
+                      {
+                        "value": "ETL",
+                        "color": "#077A9D"
+                      }
+                    ]
+                  },
+                  "displayName": "Workload Type"
+                },
+                "label": {
+                  "show": true
+                }
+              },
+              "frame": {
+                "showDescription": true,
+                "description": "What workload type accounts for what portion of total data processed?",
+                "showTitle": true,
+                "title": "Based on Data processed "
+              }
+            }
+          },
+          "position": {
+            "x": 8,
+            "y": 3,
+            "width": 4,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "t_sp_9",
+            "multilineTextboxSpec": {
+              "lines": [
+                "## Slot fulfillment rates"
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 9,
+            "width": 12,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "c6a11cb2",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "54626435",
+                  "fields": [
+                    {
+                      "name": "daily(day)",
+                      "expression": "DATE_TRUNC(\"DAY\", `day`)"
+                    },
+                    {
+                      "name": "avg(fulfillment_rate)",
+                      "expression": "AVG(`fulfillment_rate`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "area",
+              "encodings": {
+                "x": {
+                  "fieldName": "daily(day)",
+                  "scale": {
+                    "type": "temporal"
+                  },
+                  "displayName": "day"
+                },
+                "y": {
+                  "fieldName": "avg(fulfillment_rate)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "format": {
+                    "type": "number-plain",
+                    "abbreviation": "compact",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 2
+                    }
+                  },
+                  "displayName": "Average fulfillment rate (%)"
+                },
+                "label": {
+                  "show": false
+                }
+              },
+              "frame": {
+                "title": "Day-wise Proportion of Slots Fulfilled",
+                "showTitle": true,
+                "showDescription": true,
+                "description": "What percentage of slots requested are fulfilled?"
+              },
+              "mark": {
+                "colors": [
+                  "#AB4057",
+                  "#FFAB00",
+                  "#00A972",
+                  "#FF3621",
+                  "#8BCAE7",
+                  "#AB4057",
+                  "#99DDB4",
+                  "#FCA4A1",
+                  "#919191",
+                  "#BF7080"
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 10,
+            "width": 12,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "t_sp_16",
+            "multilineTextboxSpec": {
+              "lines": [
+                "## Data storage (BigQuery)"
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 16,
+            "width": 12,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "13af4e5d",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "8f634869",
+                  "fields": [
+                    {
+                      "name": "storage_cost_bq",
+                      "expression": "`storage_cost_bq`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "storage_cost_bq",
+                  "displayName": "storage_cost_bq"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "showDescription": true,
+                "description": "Monthly in BQ Native Format",
+                "title": "Data storage costs on BQ ($)"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 17,
+            "width": 4,
+            "height": 4
+          }
+        },
+        {
+          "widget": {
+            "name": "b700e23f",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "8f634869",
+                  "fields": [
+                    {
+                      "name": "sum(active_logical_tb)",
+                      "expression": "SUM(`active_logical_tb`)"
+                    },
+                    {
+                      "name": "sum(long_term_logical_tb)",
+                      "expression": "SUM(`long_term_logical_tb`)"
+                    },
+                    {
+                      "name": "sum(active_physical_tb)",
+                      "expression": "SUM(`active_physical_tb`)"
+                    },
+                    {
+                      "name": "sum(long_term_physical_tb)",
+                      "expression": "SUM(`long_term_physical_tb`)"
+                    },
+                    {
+                      "name": "sum(fail_safe_physical_tb)",
+                      "expression": "SUM(`fail_safe_physical_tb`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "fields": [
+                    {
+                      "fieldName": "sum(active_logical_tb)",
+                      "displayName": "Active Logical"
+                    },
+                    {
+                      "fieldName": "sum(long_term_logical_tb)",
+                      "displayName": "Long-term Logical"
+                    },
+                    {
+                      "fieldName": "sum(active_physical_tb)",
+                      "displayName": "Active Physical"
+                    },
+                    {
+                      "fieldName": "sum(long_term_physical_tb)",
+                      "displayName": "Long-term Physical"
+                    },
+                    {
+                      "fieldName": "sum(fail_safe_physical_tb)",
+                      "displayName": "Fail-safe Physical"
+                    }
+                  ],
+                  "axis": {
+                    "title": "Terabytes"
+                  }
+                },
+                "label": {
+                  "show": true
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "showDescription": true,
+                "description": "Active Logical = $20/TB\nLong Term Logical = $10/TB\nActive Physical = $40/TB\nLong Term Physical = $20/TB",
+                "title": "Data Storage in BQ"
+              },
+              "mark": {
+                "layout": "group"
+              }
+            }
+          },
+          "position": {
+            "x": 4,
+            "y": 17,
+            "width": 8,
+            "height": 6
+          }
+        }
+      ],
+      "pageType": "PAGE_TYPE_CANVAS"
+    }
+  ],
+  "uiSettings": {
+    "theme": {
+      "widgetHeaderAlignment": "ALIGNMENT_UNSPECIFIED"
+    },
+    "genieSpace": {
+      "isEnabled": true,
+      "enablementMode": "ENABLED"
+    },
+    "applyModeEnabled": false
+  }
+}

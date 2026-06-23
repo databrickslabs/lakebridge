@@ -1,0 +1,234 @@
+source_tech: bigquery
+version: 0.1
+
+schemas:
+  main:
+    tables:
+      fulfillment_analysis:
+        columns:
+          - name: metadata_level
+            type: VARCHAR
+          - name: time_window
+            type: VARCHAR
+          - name: workload_category
+            type: VARCHAR
+          - name: slots_requested
+            type: DOUBLE
+          - name: slots_fulfilled
+            type: DOUBLE
+          - name: source
+            type: VARCHAR
+      table_storage:
+        columns:
+          - name: metadata_level
+            type: VARCHAR
+          - name: active_logical_tb
+            type: DOUBLE
+          - name: long_term_logical_tb
+            type: DOUBLE
+          - name: active_physical_tb
+            type: DOUBLE
+          - name: active_no_tt_physical_tb
+            type: DOUBLE
+          - name: long_term_physical_tb
+            type: DOUBLE
+          - name: time_travel_physical_tb
+            type: DOUBLE
+          - name: fail_safe_physical_tb
+            type: DOUBLE
+          - name: total_physical_tb_to_migrate
+            type: DOUBLE
+          - name: storage_billing_model
+            type: VARCHAR
+          - name: dataset_count
+            type: BIGINT
+          - name: source
+            type: VARCHAR
+      timeline_analysis:
+        columns:
+          - name: time_window
+            type: VARCHAR
+          - name: metadata_level
+            type: VARCHAR
+          - name: workload_type
+            type: VARCHAR
+          - name: slot_secs
+            type: DOUBLE
+          - name: slots_avg
+            type: DOUBLE
+          - name: slots_perc_50th
+            type: DOUBLE
+          - name: slots_perc_90th
+            type: DOUBLE
+          - name: slots_perc_99th
+            type: DOUBLE
+          - name: slots_max
+            type: DOUBLE
+          - name: cumulative_secs_spent_in_exec
+            type: DOUBLE
+          - name: source
+            type: VARCHAR
+      workload_types:
+        columns:
+          - name: total_jobs
+            type: BIGINT
+          - name: total_slot_hours
+            type: DOUBLE
+          - name: total_tb_processed
+            type: DOUBLE
+          - name: workload_type
+            type: VARCHAR
+          - name: metadata_level
+            type: VARCHAR
+          - name: source
+            type: VARCHAR
+      consumption_beyond_commitments:
+        columns:
+          - name: metadata_level
+            type: VARCHAR
+          - name: edition
+            type: VARCHAR
+          - name: total_slot_seconds
+            type: DOUBLE
+          - name: source
+            type: VARCHAR
+      consumption_through_commitments:
+        columns:
+          - name: metadata_level
+            type: VARCHAR
+          - name: edition
+            type: VARCHAR
+          - name: commitment_plan
+            type: VARCHAR
+          - name: total_slot_seconds
+            type: DOUBLE
+          - name: source
+            type: VARCHAR
+      commitment_changes:
+        columns:
+          - name: metadata_level
+            type: VARCHAR
+          - name: change_timestamp
+            type: TIMESTAMP WITH TIME ZONE
+          - name: capacity_commitment_id_hash
+            type: VARCHAR
+          - name: commitment_plan
+            type: VARCHAR
+          - name: state
+            type: VARCHAR
+          - name: slot_count
+            type: DOUBLE
+          - name: action
+            type: VARCHAR
+          - name: commitment_start_time
+            type: TIMESTAMP WITH TIME ZONE
+          - name: commitment_end_time
+            type: TIMESTAMP WITH TIME ZONE
+          - name: failure_status
+            type: VARCHAR
+          - name: renewal_plan
+            type: VARCHAR
+          - name: edition
+            type: VARCHAR
+          - name: is_flat_rate
+            type: BOOLEAN
+          - name: source
+            type: VARCHAR
+      commitments:
+        columns:
+          - name: metadata_level
+            type: VARCHAR
+          - name: capacity_commitment_id_hash
+            type: VARCHAR
+          - name: commitment_plan
+            type: VARCHAR
+          - name: state
+            type: VARCHAR
+          - name: slot_count
+            type: DOUBLE
+          - name: edition
+            type: VARCHAR
+          - name: is_flat_rate
+            type: BOOLEAN
+          - name: renewal_plan
+            type: VARCHAR
+          - name: source
+            type: VARCHAR
+      jobs_timeline_by_reservations:
+        columns:
+          - name: time_window_min
+            type: TIMESTAMP WITH TIME ZONE
+          - name: period_slot_ms
+            type: BIGINT
+          - name: slots
+            type: DOUBLE
+          - name: metadata_level
+            type: VARCHAR
+          - name: reservation_id_hash
+            type: VARCHAR
+          - name: source
+            type: VARCHAR
+      reservation_timeline_analysis:
+        columns:
+          - name: metadata_level
+            type: VARCHAR
+          - name: period_start
+            type: TIMESTAMP WITH TIME ZONE
+          - name: reservation_id_hash
+            type: VARCHAR
+          - name: slots_assigned
+            type: DOUBLE
+          - name: slots_max_assigned
+            type: DOUBLE
+          - name: autoscale_current_slots
+            type: DOUBLE
+          - name: autoscale_max_slots
+            type: DOUBLE
+          - name: ignore_idle_slots
+            type: BOOLEAN
+          - name: edition
+            type: VARCHAR
+          - name: source
+            type: VARCHAR
+      streaming_summary:
+        columns:
+          - name: metadata_level
+            type: VARCHAR
+          - name: start_timestamp
+            type: TIMESTAMP WITH TIME ZONE
+          - name: total_requests
+            type: BIGINT
+          - name: total_rows
+            type: BIGINT
+          - name: total_input_bytes
+            type: BIGINT
+          - name: quota_error
+            type: BIGINT
+          - name: user_error
+            type: BIGINT
+          - name: server_error
+            type: BIGINT
+          - name: total_error
+            type: BIGINT
+          - name: source
+            type: VARCHAR
+      write_api_summary:
+        columns:
+          - name: metadata_level
+            type: VARCHAR
+          - name: start_timestamp
+            type: TIMESTAMP WITH TIME ZONE
+          - name: total_requests
+            type: BIGINT
+          - name: total_rows
+            type: BIGINT
+          - name: total_input_bytes
+            type: BIGINT
+          - name: user_error
+            type: BIGINT
+          - name: server_error
+            type: BIGINT
+          - name: total_error
+            type: BIGINT
+          - name: source
+            type: VARCHAR
