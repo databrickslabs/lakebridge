@@ -120,7 +120,7 @@ def data_prep(spark: SparkSession):
     return reconcile_output, schema_output, table_conf, reconcile_process, row_count
 
 
-def test_recon_capture_start_snowflake_all(ws, spark, recon_metadata):
+def test_recon_capture_start_snowflake_all(ws, spark, recon_metadata, run_by_user):
     database_config = DatabaseConfig(
         "source_test_catalog", "source_test_schema", "target_test_catalog", "target_test_schema"
     )
@@ -170,7 +170,7 @@ def test_recon_capture_start_snowflake_all(ws, spark, recon_metadata):
     assert row.recon_metrics.column_comparison.mismatch_columns == "name"
     assert row.recon_metrics.schema_comparison is True
     assert row.run_metrics.status is False
-    assert row.run_metrics.run_by_user == ws.current_user.me().user_name
+    assert row.run_metrics.run_by_user == run_by_user
     assert row.run_metrics.exception_message == ""
 
     # assert details

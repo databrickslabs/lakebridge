@@ -487,6 +487,13 @@ def generate_recon_application_context(
     logger.info("Application context teardown complete for recon tests")
 
 
+@pytest.fixture
+def run_by_user(ws: WorkspaceClient) -> str:
+    user_name = ws.current_user.me().user_name
+    assert user_name is not None
+    return user_name
+
+
 class FakeReconIntermediatePersist(AbstractReconIntermediatePersist):
     @property
     def base_dir(self) -> Path:
