@@ -1,7 +1,7 @@
 from unittest.mock import patch
 
 import pytest
-
+from google.api_core.exceptions import GoogleAPICallError
 from databricks.labs.lakebridge.connections.bigquery_connection_helpers import validate_bigquery_pairs
 
 _CLIENT = "databricks.labs.lakebridge.connections.bigquery_connection_helpers.bigquery.Client"
@@ -20,7 +20,7 @@ def test_validate_bigquery_pairs_probes_each_pair():
 
 def test_validate_bigquery_pairs_aggregates_failures():
     with patch(_CLIENT) as client:
-        client.return_value.query.return_value.result.side_effect = RuntimeError("boom")
+        client.return_value.query.return_value.result.side_effect = GoogleAPICallError("boom")
         with pytest.raises(ConnectionError, match="Connection failed for BigQuery pairs"):
             validate_bigquery_pairs({"pairs": [{"project": "proj-a", "region": "us"}]})
 

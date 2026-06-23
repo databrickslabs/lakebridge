@@ -1,7 +1,7 @@
 import logging
 
 from google.cloud import bigquery
-from google.api_core.exceptions import GoogleAPICallError
+from google.api_core.exceptions import GoogleAPIError
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +25,7 @@ def validate_bigquery_pairs(raw_config: dict) -> None:
             client = bigquery.Client(project=pair["project"], location=pair["region"])
             client.query("SELECT 1").result()
             logger.info(f"BigQuery {label} connection successful")
-        except GoogleAPICallError as e:
+        except GoogleAPIError as e:
             logger.error(f"Failed to connect to BigQuery {label}: {e}")
             failures[label] = str(e)
 
