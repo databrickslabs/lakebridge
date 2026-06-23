@@ -9,6 +9,7 @@ import Admonition from '@theme/Admonition';
 - [Prerequisites](#prerequisites)
 - [Configure Connection to BigQuery](#configure-connection-to-bigquery)
 - [Execute the profiler](#execute-the-profiler)
+- [Visualize the results](#visualize-the-results)
 
 ## Prerequisites
 
@@ -123,5 +124,30 @@ The pipeline runs `bq_metadata_extract` — connects to BigQuery and runs 16 ven
 The final DuckDB contains **12 analysis tables** by default (one per `analysis_type`).
 
 Setting `exclude_reservations_data: true` skips the 6 reservation/commitment BigQuery queries — the corresponding DuckDB tables are still created (empty) to keep the output schema consistent.
+
+## Visualize the results
+
+Deploy the extract as a Lakeview dashboard in your Databricks workspace:
+
+```bash
+databricks labs lakebridge visualize-profiler-results
+```
+
+Select `bigquery` as the source tech and point the command at the extract produced above. It uploads the DuckDB extract to a Unity Catalog Volume, validates it against the BigQuery extract schema, ingests it into Delta tables, and deploys the BigQuery profiler summary dashboard. See [Profiler Summary Dashboard](./dashboards) for prerequisites, prompts, and re-run behavior.
+
+The dashboard surfaces **BigQuery-native usage and spend only**:
+
+- Slot-utilization percentiles over time (daily / monthly)
+- Slot fulfillment rates
+- Workload breakdown (ETL vs BI)
+- Storage volumes and BigQuery storage cost
+- Streaming (Streaming Insert / Write API) volume and cost
+- Consumption vs commitments
+- Reservation utilization (assigned vs autoscale slots)
+- Slot commitment inventory
+
+:::note
+Databricks-side cost / TCO / migration estimates are intentionally not part of this dashboard. Reservation, commitment, and consumption widgets render empty for Pay-as-you-go (non-Editions) projects.
+:::
 
 [Back to Configure Profiler](../#configure-profiler)
