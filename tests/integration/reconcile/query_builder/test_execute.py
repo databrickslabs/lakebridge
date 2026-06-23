@@ -866,13 +866,19 @@ def test_recon_for_report_type_is_data(
     )
 
     assertDataFrameEqual(
-        spark.sql(f"SELECT * FROM {metadata.catalog}.{metadata.schema}.MAIN"), expected_remorph_recon, ignoreNullable=True
+        spark.sql(f"SELECT * FROM {metadata.catalog}.{metadata.schema}.MAIN"),
+        expected_remorph_recon,
+        ignoreNullable=True,
     )
     assertDataFrameEqual(
-        spark.sql(f"SELECT * FROM {metadata.catalog}.{metadata.schema}.METRICS"), expected_remorph_recon_metrics, ignoreNullable=True
+        spark.sql(f"SELECT * FROM {metadata.catalog}.{metadata.schema}.METRICS"),
+        expected_remorph_recon_metrics,
+        ignoreNullable=True,
     )
     assertDataFrameEqual(
-        spark.sql(f"SELECT * FROM {metadata.catalog}.{metadata.schema}.DETAILS"), expected_remorph_recon_details, ignoreNullable=True
+        spark.sql(f"SELECT * FROM {metadata.catalog}.{metadata.schema}.DETAILS"),
+        expected_remorph_recon_details,
+        ignoreNullable=True,
     )
 
 
@@ -1057,13 +1063,19 @@ def test_recon_for_report_type_schema(
     )
 
     assertDataFrameEqual(
-        spark.sql(f"SELECT * FROM {metadata.catalog}.{metadata.schema}.MAIN"), expected_remorph_recon, ignoreNullable=True
+        spark.sql(f"SELECT * FROM {metadata.catalog}.{metadata.schema}.MAIN"),
+        expected_remorph_recon,
+        ignoreNullable=True,
     )
     assertDataFrameEqual(
-        spark.sql(f"SELECT * FROM {metadata.catalog}.{metadata.schema}.METRICS"), expected_remorph_recon_metrics, ignoreNullable=True
+        spark.sql(f"SELECT * FROM {metadata.catalog}.{metadata.schema}.METRICS"),
+        expected_remorph_recon_metrics,
+        ignoreNullable=True,
     )
     assertDataFrameEqual(
-        spark.sql(f"SELECT * FROM {metadata.catalog}.{metadata.schema}.DETAILS"), expected_remorph_recon_details, ignoreNullable=True
+        spark.sql(f"SELECT * FROM {metadata.catalog}.{metadata.schema}.DETAILS"),
+        expected_remorph_recon_details,
+        ignoreNullable=True,
     )
 
     assert final_reconcile_output.recon_id == recon_id.hex
@@ -1731,13 +1743,19 @@ def test_schema_recon_with_general_exception(
     expected_remorph_recon_details = spark.createDataFrame(data=[], schema=details_schema)
 
     assertDataFrameEqual(
-        spark.sql(f"SELECT * FROM {metadata.catalog}.{metadata.schema}.MAIN"), expected_remorph_recon, ignoreNullable=True
+        spark.sql(f"SELECT * FROM {metadata.catalog}.{metadata.schema}.MAIN"),
+        expected_remorph_recon,
+        ignoreNullable=True,
     )
     assertDataFrameEqual(
-        spark.sql(f"SELECT * FROM {metadata.catalog}.{metadata.schema}.METRICS"), expected_remorph_recon_metrics, ignoreNullable=True
+        spark.sql(f"SELECT * FROM {metadata.catalog}.{metadata.schema}.METRICS"),
+        expected_remorph_recon_metrics,
+        ignoreNullable=True,
     )
     assertDataFrameEqual(
-        spark.sql(f"SELECT * FROM {metadata.catalog}.{metadata.schema}.DETAILS"), expected_remorph_recon_details, ignoreNullable=True
+        spark.sql(f"SELECT * FROM {metadata.catalog}.{metadata.schema}.DETAILS"),
+        expected_remorph_recon_details,
+        ignoreNullable=True,
     )
 
 
@@ -1803,13 +1821,19 @@ def test_data_recon_with_general_exception(
     expected_remorph_recon_details = spark.createDataFrame(data=[], schema=details_schema)
 
     assertDataFrameEqual(
-        spark.sql(f"SELECT * FROM {metadata.catalog}.{metadata.schema}.MAIN"), expected_remorph_recon, ignoreNullable=True
+        spark.sql(f"SELECT * FROM {metadata.catalog}.{metadata.schema}.MAIN"),
+        expected_remorph_recon,
+        ignoreNullable=True,
     )
     assertDataFrameEqual(
-        spark.sql(f"SELECT * FROM {metadata.catalog}.{metadata.schema}.METRICS"), expected_remorph_recon_metrics, ignoreNullable=True
+        spark.sql(f"SELECT * FROM {metadata.catalog}.{metadata.schema}.METRICS"),
+        expected_remorph_recon_metrics,
+        ignoreNullable=True,
     )
     assertDataFrameEqual(
-        spark.sql(f"SELECT * FROM {metadata.catalog}.{metadata.schema}.DETAILS"), expected_remorph_recon_details, ignoreNullable=True
+        spark.sql(f"SELECT * FROM {metadata.catalog}.{metadata.schema}.DETAILS"),
+        expected_remorph_recon_details,
+        ignoreNullable=True,
     )
 
 
@@ -1875,13 +1899,19 @@ def test_data_recon_with_source_exception(
     expected_remorph_recon_details = spark.createDataFrame(data=[], schema=details_schema)
 
     assertDataFrameEqual(
-        spark.sql(f"SELECT * FROM {metadata.catalog}.{metadata.schema}.MAIN"), expected_remorph_recon, ignoreNullable=True
+        spark.sql(f"SELECT * FROM {metadata.catalog}.{metadata.schema}.MAIN"),
+        expected_remorph_recon,
+        ignoreNullable=True,
     )
     assertDataFrameEqual(
-        spark.sql(f"SELECT * FROM {metadata.catalog}.{metadata.schema}.METRICS"), expected_remorph_recon_metrics, ignoreNullable=True
+        spark.sql(f"SELECT * FROM {metadata.catalog}.{metadata.schema}.METRICS"),
+        expected_remorph_recon_metrics,
+        ignoreNullable=True,
     )
     assertDataFrameEqual(
-        spark.sql(f"SELECT * FROM {metadata.catalog}.{metadata.schema}.DETAILS"), expected_remorph_recon_details, ignoreNullable=True
+        spark.sql(f"SELECT * FROM {metadata.catalog}.{metadata.schema}.DETAILS"),
+        expected_remorph_recon_details,
+        ignoreNullable=True,
     )
 
 
