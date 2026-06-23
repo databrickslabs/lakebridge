@@ -1,5 +1,4 @@
 import logging
-from typing import Any, cast
 
 from pyspark.sql import DataFrame, SparkSession
 from sqlglot import Dialect
@@ -40,6 +39,7 @@ from databricks.labs.lakebridge.reconcile.recon_config import (
 )
 from databricks.labs.lakebridge.reconcile.recon_output_config import (
     DataReconcileOutput,
+    MismatchOutput,
     ThresholdOutput,
     ReconcileRecordCount,
     AggregateQueryOutput,
@@ -263,10 +263,6 @@ class Reconciliation:
             # For each Aggregate query, read the Source and Target Data and add a hash column
 
             rules_reconcile_output: list[AggregateQueryOutput] = []
-            src_data = None
-            tgt_data = None
-            joined_df = None
-            data_source_exception = None
             try:
                 src_data = self._source.read_data(
                     catalog=self._source_connection.catalog,
@@ -282,28 +278,25 @@ class Reconciliation:
                     query=tgt_query_with_rules.query,
                     options=table_conf.jdbc_reader_options,
                 )
-                # Join the Source and Target Aggregated data
                 joined_df = join_aggregate_data(
                     source=src_data,
                     target=tgt_data,
                     key_columns=src_query_with_rules.group_by_columns,
                     persistence=self.intermediate_persist,
                 )
-            except DataSourceRuntimeException as e:
-                data_source_exception = e
-
-            # For each Aggregated Query, reconcile the data based on the rule
-            for rule in src_query_with_rules.rules:
-                if data_source_exception:
-                    rule_reconcile_output = DataReconcileOutput(exception=str(data_source_exception))
-                else:
-                    assert joined_df is not None
-                    assert src_data is not None
-                    assert tgt_data is not None
+                for rule in src_query_with_rules.rules:
                     rule_reconcile_output = reconcile_agg_data_per_rule(
                         joined_df, src_data.columns, tgt_data.columns, rule
                     )
-                rules_reconcile_output.append(AggregateQueryOutput(rule=rule, reconcile_output=rule_reconcile_output))
+                    rules_reconcile_output.append(
+                        AggregateQueryOutput(rule=rule, reconcile_output=rule_reconcile_output)
+                    )
+            except DataSourceRuntimeException as e:
+                for rule in src_query_with_rules.rules:
+                    rule_reconcile_output = DataReconcileOutput(exception=str(e))
+                    rules_reconcile_output.append(
+                        AggregateQueryOutput(rule=rule, reconcile_output=rule_reconcile_output)
+                    )
 
             # For each table, there could be many Aggregated queries.
             # Collect the list of Rule Reconcile output per each Aggregate query and append it to the list
@@ -361,7 +354,7 @@ class Reconciliation:
                 )
 
         return DataReconcileOutput(
-            mismatch=cast(Any, mismatch),
+            mismatch=mismatch if mismatch is not None else MismatchOutput(),
             mismatch_count=reconcile_output.mismatch_count,
             missing_in_src_count=reconcile_output.missing_in_src_count,
             missing_in_tgt_count=reconcile_output.missing_in_tgt_count,
