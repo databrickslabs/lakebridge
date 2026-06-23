@@ -456,7 +456,7 @@ class ReconCapture:
         reconcile_output: DataReconcileOutput,
         schema_output: SchemaReconcileOutput,
     ):
-        if reconcile_output.mismatch_count > 0 and reconcile_output.mismatch.mismatch_df:
+        if reconcile_output.mismatch_count > 0 and reconcile_output.mismatch and reconcile_output.mismatch.mismatch_df:
             self._create_map_column_and_insert(
                 recon_table_id,
                 reconcile_output.mismatch.mismatch_df,
@@ -504,7 +504,7 @@ class ReconCapture:
     ):
 
         column_count = agg_data.mismatch_count
-        agg_df = agg_data.mismatch.mismatch_df
+        agg_df = agg_data.mismatch.mismatch_df if agg_data.mismatch else None
         match recon_type:
             case "missing_in_source":
                 column_count = agg_data.missing_in_src_count

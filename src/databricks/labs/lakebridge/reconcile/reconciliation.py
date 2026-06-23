@@ -39,7 +39,6 @@ from databricks.labs.lakebridge.reconcile.recon_config import (
 )
 from databricks.labs.lakebridge.reconcile.recon_output_config import (
     DataReconcileOutput,
-    MismatchOutput,
     ThresholdOutput,
     ReconcileRecordCount,
     AggregateQueryOutput,
@@ -321,7 +320,7 @@ class Reconciliation:
         ):
             src_sampler = SamplingQueryBuilder(table_conf, src_schema, "source", self._source_engine, self._source)
             tgt_sampler = SamplingQueryBuilder(table_conf, tgt_schema, "target", self._target_engine, self._target)
-            if reconcile_output.mismatch_count > 0:
+            if reconcile_output.mismatch_count > 0 and reconcile_output.mismatch is not None:
                 mismatch = self._get_mismatch_data(
                     src_sampler,
                     tgt_sampler,
@@ -354,7 +353,7 @@ class Reconciliation:
                 )
 
         return DataReconcileOutput(
-            mismatch=mismatch if mismatch is not None else MismatchOutput(),
+            mismatch=mismatch,
             mismatch_count=reconcile_output.mismatch_count,
             missing_in_src_count=reconcile_output.missing_in_src_count,
             missing_in_tgt_count=reconcile_output.missing_in_tgt_count,

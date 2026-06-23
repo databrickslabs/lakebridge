@@ -22,7 +22,7 @@ class DataReconcileOutput:
     mismatch_count: int = 0
     missing_in_src_count: int = 0
     missing_in_tgt_count: int = 0
-    mismatch: MismatchOutput = field(default_factory=MismatchOutput)
+    mismatch: MismatchOutput | None = None
     missing_in_src: DataFrame | None = None
     missing_in_tgt: DataFrame | None = None
     threshold_output: ThresholdOutput = field(default_factory=ThresholdOutput)
