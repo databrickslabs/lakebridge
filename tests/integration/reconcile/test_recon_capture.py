@@ -136,8 +136,7 @@ def _connection_configs_for(dialect: str) -> tuple[SourceConnectionConfig, Targe
     )
 
 
-def test_recon_capture_start_snowflake_all(mock_workspace_client, spark, recon_metadata):
-    ws = mock_workspace_client
+def test_recon_capture_start_snowflake_all(ws, spark, recon_metadata, run_by_user):
     source_type = get_dialect("snowflake")
     connection_configs = _connection_configs_for("snowflake")
     reconcile_output, schema_output, table_conf, reconcile_process, row_count = data_prep(spark)
@@ -185,7 +184,7 @@ def test_recon_capture_start_snowflake_all(mock_workspace_client, spark, recon_m
     assert row.recon_metrics.column_comparison.mismatch_columns == "name"
     assert row.recon_metrics.schema_comparison is True
     assert row.run_metrics.status is False
-    assert row.run_metrics.run_by_user == "remorph"
+    assert row.run_metrics.run_by_user == run_by_user
     assert row.run_metrics.exception_message == ""
 
     # assert details
@@ -219,8 +218,7 @@ def test_recon_capture_start_snowflake_all(mock_workspace_client, spark, recon_m
     assert rows[4].status is False
 
 
-def test_test_recon_capture_start_databricks_data(mock_workspace_client, spark, recon_metadata):
-    ws = mock_workspace_client
+def test_test_recon_capture_start_databricks_data(ws, spark, recon_metadata):
     source_type = get_dialect("databricks")
     connection_configs = _connection_configs_for("databricks")
     recon_capture = ReconCapture(
@@ -263,8 +261,7 @@ def test_test_recon_capture_start_databricks_data(mock_workspace_client, spark, 
     assert remorph_recon_details_df.select("recon_type").distinct().count() == 4
 
 
-def test_test_recon_capture_start_databricks_row(mock_workspace_client, spark, recon_metadata):
-    ws = mock_workspace_client
+def test_test_recon_capture_start_databricks_row(ws, spark, recon_metadata):
     source_type = get_dialect("databricks")
     connection_configs = _connection_configs_for("databricks")
     recon_capture = ReconCapture(
@@ -310,8 +307,7 @@ def test_test_recon_capture_start_databricks_row(mock_workspace_client, spark, r
     assert remorph_recon_details_df.select("recon_type").distinct().count() == 2
 
 
-def test_recon_capture_start_oracle_schema(mock_workspace_client, spark, recon_metadata):
-    ws = mock_workspace_client
+def test_recon_capture_start_oracle_schema(ws, spark, recon_metadata):
     source_type = get_dialect("oracle")
     connection_configs = _connection_configs_for("oracle")
     recon_capture = ReconCapture(
@@ -359,8 +355,7 @@ def test_recon_capture_start_oracle_schema(mock_workspace_client, spark, recon_m
     assert remorph_recon_details_df.select("recon_type").distinct().count() == 1
 
 
-def test_recon_capture_start_oracle_with_exception(mock_workspace_client, spark, recon_metadata):
-    ws = mock_workspace_client
+def test_recon_capture_start_oracle_with_exception(ws, spark, recon_metadata):
     source_type = get_dialect("oracle")
     connection_configs = _connection_configs_for("oracle")
     recon_capture = ReconCapture(
@@ -403,8 +398,7 @@ def test_recon_capture_start_oracle_with_exception(mock_workspace_client, spark,
     assert row.run_metrics.exception_message == "Test exception"
 
 
-def test_recon_capture_start_with_exception(mock_workspace_client, spark):
-    ws = mock_workspace_client
+def test_recon_capture_start_with_exception(ws, spark):
     source_type = get_dialect("snowflake")
     connection_configs = _connection_configs_for("snowflake")
     recon_capture = ReconCapture(
@@ -426,8 +420,7 @@ def test_recon_capture_start_with_exception(mock_workspace_client, spark):
         )
 
 
-def test_generate_final_reconcile_output_row(mock_workspace_client, spark, recon_metadata):
-    ws = mock_workspace_client
+def test_generate_final_reconcile_output_row(ws, spark, recon_metadata):
     source_type = get_dialect("databricks")
     connection_configs = _connection_configs_for("databricks")
     recon_capture = ReconCapture(
@@ -467,8 +460,7 @@ def test_generate_final_reconcile_output_row(mock_workspace_client, spark, recon
     )
 
 
-def test_generate_final_reconcile_output_data(mock_workspace_client, spark, recon_metadata):
-    ws = mock_workspace_client
+def test_generate_final_reconcile_output_data(ws, spark, recon_metadata):
     source_type = get_dialect("databricks")
     connection_configs = _connection_configs_for("databricks")
     recon_capture = ReconCapture(
@@ -508,8 +500,7 @@ def test_generate_final_reconcile_output_data(mock_workspace_client, spark, reco
     )
 
 
-def test_generate_final_reconcile_output_schema(mock_workspace_client, spark, recon_metadata):
-    ws = mock_workspace_client
+def test_generate_final_reconcile_output_schema(ws, spark, recon_metadata):
     source_type = get_dialect("databricks")
     connection_configs = _connection_configs_for("databricks")
     recon_capture = ReconCapture(
@@ -549,8 +540,7 @@ def test_generate_final_reconcile_output_schema(mock_workspace_client, spark, re
     )
 
 
-def test_generate_final_reconcile_output_all(mock_workspace_client, spark, recon_metadata):
-    ws = mock_workspace_client
+def test_generate_final_reconcile_output_all(ws, spark, recon_metadata):
     source_type = get_dialect("databricks")
     connection_configs = _connection_configs_for("databricks")
     recon_capture = ReconCapture(
@@ -591,8 +581,7 @@ def test_generate_final_reconcile_output_all(mock_workspace_client, spark, recon
     )
 
 
-def test_generate_final_reconcile_output_exception(mock_workspace_client, spark, recon_metadata):
-    ws = mock_workspace_client
+def test_generate_final_reconcile_output_exception(ws, spark, recon_metadata):
     source_type = get_dialect("databricks")
     connection_configs = _connection_configs_for("databricks")
     recon_capture = ReconCapture(
@@ -634,8 +623,7 @@ def test_generate_final_reconcile_output_exception(mock_workspace_client, spark,
     )
 
 
-def test_apply_threshold_for_mismatch_with_true_absolute(mock_workspace_client, spark, recon_metadata):
-    ws = mock_workspace_client
+def test_apply_threshold_for_mismatch_with_true_absolute(ws, spark, recon_metadata):
     source_type = get_dialect("snowflake")
     connection_configs = _connection_configs_for("snowflake")
     reconcile_output, schema_output, table_conf, reconcile_process, row_count = data_prep(spark)
@@ -669,8 +657,7 @@ def test_apply_threshold_for_mismatch_with_true_absolute(mock_workspace_client, 
     assert row.run_metrics.status is True
 
 
-def test_apply_threshold_for_mismatch_with_missing(mock_workspace_client, spark, recon_metadata):
-    ws = mock_workspace_client
+def test_apply_threshold_for_mismatch_with_missing(ws, spark, recon_metadata):
     source_type = get_dialect("snowflake")
     connection_configs = _connection_configs_for("snowflake")
     reconcile_output, schema_output, table_conf, reconcile_process, row_count = data_prep(spark)
@@ -700,8 +687,7 @@ def test_apply_threshold_for_mismatch_with_missing(mock_workspace_client, spark,
     assert row.run_metrics.status is False
 
 
-def test_apply_threshold_for_mismatch_with_schema_fail(mock_workspace_client, spark, recon_metadata):
-    ws = mock_workspace_client
+def test_apply_threshold_for_mismatch_with_schema_fail(ws, spark, recon_metadata):
     source_type = get_dialect("snowflake")
     connection_configs = _connection_configs_for("snowflake")
     reconcile_output, schema_output, table_conf, reconcile_process, row_count = data_prep(spark)
@@ -735,8 +721,7 @@ def test_apply_threshold_for_mismatch_with_schema_fail(mock_workspace_client, sp
     assert row.run_metrics.status is False
 
 
-def test_apply_threshold_for_mismatch_with_wrong_absolute_bound(mock_workspace_client, spark, recon_metadata):
-    ws = mock_workspace_client
+def test_apply_threshold_for_mismatch_with_wrong_absolute_bound(ws, spark, recon_metadata):
     source_type = get_dialect("snowflake")
     connection_configs = _connection_configs_for("snowflake")
     reconcile_output, schema_output, table_conf, reconcile_process, row_count = data_prep(spark)
@@ -771,8 +756,7 @@ def test_apply_threshold_for_mismatch_with_wrong_absolute_bound(mock_workspace_c
     assert row.run_metrics.status is False
 
 
-def test_apply_threshold_for_mismatch_with_wrong_percentage_bound(mock_workspace_client, spark, recon_metadata):
-    ws = mock_workspace_client
+def test_apply_threshold_for_mismatch_with_wrong_percentage_bound(ws, spark, recon_metadata):
     source_type = get_dialect("snowflake")
     connection_configs = _connection_configs_for("snowflake")
     reconcile_output, schema_output, table_conf, reconcile_process, row_count = data_prep(spark)
@@ -807,8 +791,7 @@ def test_apply_threshold_for_mismatch_with_wrong_percentage_bound(mock_workspace
     assert row.run_metrics.status is False
 
 
-def test_apply_threshold_for_mismatch_with_true_percentage_bound(mock_workspace_client, spark, recon_metadata):
-    ws = mock_workspace_client
+def test_apply_threshold_for_mismatch_with_true_percentage_bound(ws, spark, recon_metadata):
     source_type = get_dialect("snowflake")
     connection_configs = _connection_configs_for("snowflake")
     reconcile_output, schema_output, table_conf, reconcile_process, row_count = data_prep(spark)
@@ -842,8 +825,7 @@ def test_apply_threshold_for_mismatch_with_true_percentage_bound(mock_workspace_
     assert row.run_metrics.status is True
 
 
-def test_apply_threshold_for_mismatch_with_invalid_bounds(mock_workspace_client, spark):
-    ws = mock_workspace_client
+def test_apply_threshold_for_mismatch_with_invalid_bounds(ws, spark):
     source_type = get_dialect("snowflake")
     connection_configs = _connection_configs_for("snowflake")
     reconcile_output, schema_output, table_conf, reconcile_process, row_count = data_prep(spark)
@@ -886,8 +868,7 @@ def test_apply_threshold_for_mismatch_with_invalid_bounds(mock_workspace_client,
         )
 
 
-def test_apply_threshold_for_only_threshold_mismatch_with_true_absolute(mock_workspace_client, spark, recon_metadata):
-    ws = mock_workspace_client
+def test_apply_threshold_for_only_threshold_mismatch_with_true_absolute(ws, spark, recon_metadata):
     source_type = get_dialect("snowflake")
     connection_configs = _connection_configs_for("snowflake")
     reconcile_output, schema_output, table_conf, reconcile_process, row_count = data_prep(spark)

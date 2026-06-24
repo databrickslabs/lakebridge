@@ -25,7 +25,7 @@ _TEST_PLATFORMS = ["synapse", "redshift_provisioned"]
 def test_profile_missing_platform_config(platform: str) -> None:
     """Constructing Profiler directly with no pipeline_config and no override raises."""
     with pytest.raises(ValueError, match=f"Cannot Proceed without a valid pipeline configuration for {platform}"):
-        profiler = Profiler(platform, False)
+        profiler = Profiler(platform)
         profiler.profile()
 
 
@@ -34,7 +34,7 @@ def test_profile_execution(platform: str, test_resources: Path, tmp_path: Path) 
     """Test successful profiling execution using script-based pipeline (no live DB)"""
     config_file = test_resources / "assessments" / PLATFORM_MAIN_CONFIG[platform]
     output_folder = tmp_path / "profiler_main"
-    profiler = Profiler(platform, False)
+    profiler = Profiler(platform)
     config = Profiler.path_modifier(config_file=config_file, path_prefix=test_resources)
     profiler.profile(pipeline_config=config, output_folder=output_folder)
     assert (output_folder / make_profiler_db_filename(platform)).exists(), "Profiler extract database should be created"
@@ -43,7 +43,7 @@ def test_profile_execution(platform: str, test_resources: Path, tmp_path: Path) 
 @pytest.mark.parametrize("platform", _TEST_PLATFORMS)
 def test_profile_execution_with_invalid_config(platform: str, test_resources: Path, tmp_path: Path) -> None:
     """Test profiling execution with invalid configuration"""
-    profiler = Profiler(platform, False)
+    profiler = Profiler(platform)
     with pytest.raises(FileNotFoundError):
         config_file = test_resources / "assessments" / "invalid_pipeline_config.yml"
         pipeline_config = Profiler.path_modifier(config_file=config_file, path_prefix=test_resources)
@@ -70,7 +70,7 @@ def test_profile_execution_config_override(platform: str, test_resources: Path, 
     with open(config_file_dest, "w", encoding="utf-8") as file:
         yaml.safe_dump(config_data, file)
 
-    profiler = Profiler(platform, False)
+    profiler = Profiler(platform)
     pipeline_config = PipelineClass.load_config_from_yaml(config_file_dest)
     profiler.profile(pipeline_config=pipeline_config, output_folder=output_folder)
     assert (output_folder / make_profiler_db_filename(platform)).exists(), "Profiler extract database should be created"

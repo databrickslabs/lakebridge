@@ -743,16 +743,16 @@ def mock_for_report_type_data(
 
 
 def test_recon_for_report_type_is_data(
-    mock_workspace_client, spark, report_tables_schema, mock_for_report_type_data, tmp_path: Path, recon_id: UUID
+    ws, spark, run_by_user, report_tables_schema, mock_for_report_type_data, tmp_path: Path, recon_id: UUID
 ):
     recon_schema, metrics_schema, details_schema = report_tables_schema
     table_recon, source, target, reconcile_config_data = mock_for_report_type_data
-    catalog = reconcile_config_data.metadata_config.catalog
-    schema = reconcile_config_data.metadata_config.schema
+    metadata = reconcile_config_data.metadata_config
     with (
         patch("databricks.labs.lakebridge.reconcile.trigger_recon_service.datetime") as mock_datetime,
         patch("databricks.labs.lakebridge.reconcile.recon_capture.datetime") as recon_datetime,
         patch("databricks.labs.lakebridge.reconcile.utils.initialise_data_source", return_value=(source, target)),
+        patch.object(ws.dbfs, "delete"),
         patch(
             "databricks.labs.lakebridge.reconcile.trigger_recon_service.uuid4",
             return_value=recon_id,
@@ -765,9 +765,7 @@ def test_recon_for_report_type_is_data(
         mock_datetime.now.return_value = MOCK_TIMESTAMP
         recon_datetime.now.return_value = MOCK_TIMESTAMP
 
-        reconcile_output = TriggerReconService.trigger_recon(
-            mock_workspace_client, spark, table_recon, reconcile_config_data
-        )
+        reconcile_output = TriggerReconService.trigger_recon(ws, spark, table_recon, reconcile_config_data)
 
         assert reconcile_output.recon_id == recon_id.hex
 
@@ -792,7 +790,7 @@ def test_recon_for_report_type_is_data(
             (
                 11111111111,
                 (3, 3, (1, 1), (1, 0, "s_address,s_phone"), None),
-                (False, "remorph", ""),
+                (False, run_by_user, ""),
                 MOCK_TIMESTAMP,
             )
         ],
@@ -856,13 +854,19 @@ def test_recon_for_report_type_is_data(
     )
 
     assertDataFrameEqual(
-        spark.sql(f"SELECT * FROM {catalog}.{schema}.MAIN"), expected_remorph_recon, ignoreNullable=True
+        spark.sql(f"SELECT * FROM {metadata.catalog}.{metadata.schema}.MAIN"),
+        expected_remorph_recon,
+        ignoreNullable=True,
     )
     assertDataFrameEqual(
-        spark.sql(f"SELECT * FROM {catalog}.{schema}.METRICS"), expected_remorph_recon_metrics, ignoreNullable=True
+        spark.sql(f"SELECT * FROM {metadata.catalog}.{metadata.schema}.METRICS"),
+        expected_remorph_recon_metrics,
+        ignoreNullable=True,
     )
     assertDataFrameEqual(
-        spark.sql(f"SELECT * FROM {catalog}.{schema}.DETAILS"), expected_remorph_recon_details, ignoreNullable=True
+        spark.sql(f"SELECT * FROM {metadata.catalog}.{metadata.schema}.DETAILS"),
+        expected_remorph_recon_details,
+        ignoreNullable=True,
     )
 
 
@@ -944,12 +948,11 @@ def mock_for_report_type_schema(
 
 
 def test_recon_for_report_type_schema(
-    mock_workspace_client, spark, report_tables_schema, mock_for_report_type_schema, tmp_path: Path, recon_id: UUID
+    ws, spark, run_by_user, report_tables_schema, mock_for_report_type_schema, tmp_path: Path, recon_id: UUID
 ):
     recon_schema, metrics_schema, details_schema = report_tables_schema
     table_recon, source, target, reconcile_config_schema = mock_for_report_type_schema
-    catalog = reconcile_config_schema.metadata_config.catalog
-    schema = reconcile_config_schema.metadata_config.schema
+    metadata = reconcile_config_schema.metadata_config
     with (
         patch("databricks.labs.lakebridge.reconcile.trigger_recon_service.datetime") as mock_datetime,
         patch("databricks.labs.lakebridge.reconcile.recon_capture.datetime") as recon_datetime,
@@ -962,9 +965,7 @@ def test_recon_for_report_type_schema(
     ):
         mock_datetime.now.return_value = MOCK_TIMESTAMP
         recon_datetime.now.return_value = MOCK_TIMESTAMP
-        final_reconcile_output = TriggerReconService.trigger_recon(
-            mock_workspace_client, spark, table_recon, reconcile_config_schema
-        )
+        final_reconcile_output = TriggerReconService.trigger_recon(ws, spark, table_recon, reconcile_config_schema)
 
     expected_remorph_recon = spark.createDataFrame(
         data=[
@@ -987,7 +988,7 @@ def test_recon_for_report_type_schema(
             (
                 22222222222,
                 (0, 0, None, None, True),
-                (True, "remorph", ""),
+                (True, run_by_user, ""),
                 MOCK_TIMESTAMP,
             )
         ],
@@ -1050,13 +1051,19 @@ def test_recon_for_report_type_schema(
     )
 
     assertDataFrameEqual(
-        spark.sql(f"SELECT * FROM {catalog}.{schema}.MAIN"), expected_remorph_recon, ignoreNullable=True
+        spark.sql(f"SELECT * FROM {metadata.catalog}.{metadata.schema}.MAIN"),
+        expected_remorph_recon,
+        ignoreNullable=True,
     )
     assertDataFrameEqual(
-        spark.sql(f"SELECT * FROM {catalog}.{schema}.METRICS"), expected_remorph_recon_metrics, ignoreNullable=True
+        spark.sql(f"SELECT * FROM {metadata.catalog}.{metadata.schema}.METRICS"),
+        expected_remorph_recon_metrics,
+        ignoreNullable=True,
     )
     assertDataFrameEqual(
-        spark.sql(f"SELECT * FROM {catalog}.{schema}.DETAILS"), expected_remorph_recon_details, ignoreNullable=True
+        spark.sql(f"SELECT * FROM {metadata.catalog}.{metadata.schema}.DETAILS"),
+        expected_remorph_recon_details,
+        ignoreNullable=True,
     )
 
     assert final_reconcile_output.recon_id == recon_id.hex
@@ -1064,7 +1071,6 @@ def test_recon_for_report_type_schema(
 
 @pytest.fixture
 def mock_for_report_type_all(
-    mock_workspace_client,
     normalized_table_conf_with_opts,
     table_schema_oracle_ansi,
     spark,
@@ -1162,8 +1168,9 @@ def mock_for_report_type_all(
 
 @pytest.mark.skip(reason="Will be fixed in a following PR")
 def test_recon_for_report_type_all(
-    mock_workspace_client,
+    ws,
     spark,
+    run_by_user,
     report_tables_schema,
     mock_for_report_type_all,
     tmp_path: Path,
@@ -1190,7 +1197,7 @@ def test_recon_for_report_type_all(
         mock_datetime.now.return_value = MOCK_TIMESTAMP
         recon_datetime.now.return_value = MOCK_TIMESTAMP
         with pytest.raises(ReconciliationException) as exc_info:
-            TriggerReconService.trigger_recon(mock_workspace_client, spark, table_recon, reconcile_config_all)
+            TriggerReconService.trigger_recon(ws, spark, table_recon, reconcile_config_all)
         if exc_info.value.reconcile_output is not None:
             assert exc_info.value.reconcile_output.recon_id == "00112233-4455-6677-8899-aabbccddeeff"
 
@@ -1215,7 +1222,7 @@ def test_recon_for_report_type_all(
             (
                 33333333333,
                 (3, 3, (1, 1), (1, 0, "s_address,s_phone"), False),
-                (False, "remorph", ""),
+                (False, run_by_user, ""),
                 MOCK_TIMESTAMP,
             )
         ],
@@ -1442,8 +1449,9 @@ def mock_for_report_type_row(
 
 @pytest.mark.skip(reason="Will be fixed in a following PR")
 def test_recon_for_report_type_is_row(
-    mock_workspace_client,
+    ws,
     spark,
+    run_by_user,
     mock_for_report_type_row,
     report_tables_schema,
     tmp_path: Path,
@@ -1469,7 +1477,7 @@ def test_recon_for_report_type_is_row(
         mock_datetime.now.return_value = MOCK_TIMESTAMP
         recon_datetime.now.return_value = MOCK_TIMESTAMP
         with pytest.raises(ReconciliationException) as exc_info:
-            TriggerReconService.trigger_recon(mock_workspace_client, spark, table_recon, reconcile_config_row)
+            TriggerReconService.trigger_recon(ws, spark, table_recon, reconcile_config_row)
 
         if exc_info.value.reconcile_output is not None:
             assert exc_info.value.reconcile_output.recon_id == "00112233-4455-6677-8899-aabbccddeeff"
@@ -1495,7 +1503,7 @@ def test_recon_for_report_type_is_row(
             (
                 33333333333,
                 (3, 3, (2, 2), None, None),
-                (False, "remorph", ""),
+                (False, run_by_user, ""),
                 MOCK_TIMESTAMP,
             )
         ],
@@ -1591,7 +1599,7 @@ def mock_for_recon_exception(normalized_table_conf_with_opts, recon_metadata):
 
 
 def test_schema_recon_with_data_source_exception(
-    mock_workspace_client, spark, report_tables_schema, mock_for_recon_exception, tmp_path: Path, recon_id: UUID
+    ws, spark, run_by_user, report_tables_schema, mock_for_recon_exception, tmp_path: Path, recon_id: UUID
 ):
     recon_schema, metrics_schema, details_schema = report_tables_schema
     table_recon, source, target, reconcile_config_exception = mock_for_recon_exception
@@ -1614,7 +1622,7 @@ def test_schema_recon_with_data_source_exception(
     ):
         mock_datetime.now.return_value = MOCK_TIMESTAMP
         recon_datetime.now.return_value = MOCK_TIMESTAMP
-        TriggerReconService.trigger_recon(mock_workspace_client, spark, table_recon, reconcile_config_exception)
+        TriggerReconService.trigger_recon(ws, spark, table_recon, reconcile_config_exception)
 
     expected_remorph_recon = spark.createDataFrame(
         data=[
@@ -1639,7 +1647,7 @@ def test_schema_recon_with_data_source_exception(
                 (0, 0, None, None, None),
                 (
                     False,
-                    "remorph",
+                    run_by_user,
                     "Runtime exception occurred while fetching schema using (org, data, supplier) : Mock Exception",
                 ),
                 MOCK_TIMESTAMP,
@@ -1661,13 +1669,12 @@ def test_schema_recon_with_data_source_exception(
 
 
 def test_schema_recon_with_general_exception(
-    mock_workspace_client, spark, report_tables_schema, mock_for_report_type_schema, tmp_path: Path, recon_id: UUID
+    ws, spark, run_by_user, report_tables_schema, mock_for_report_type_schema, tmp_path: Path, recon_id: UUID
 ):
     recon_schema, metrics_schema, details_schema = report_tables_schema
     table_recon, source, target, reconcile_config_schema = mock_for_report_type_schema
     reconcile_config_schema.source.dialect = "snowflake"
-    catalog = reconcile_config_schema.metadata_config.catalog
-    schema = reconcile_config_schema.metadata_config.schema
+    metadata = reconcile_config_schema.metadata_config
     with (
         patch("databricks.labs.lakebridge.reconcile.trigger_recon_service.datetime") as mock_datetime,
         patch("databricks.labs.lakebridge.reconcile.recon_capture.datetime") as recon_datetime,
@@ -1688,7 +1695,7 @@ def test_schema_recon_with_general_exception(
         schema_source_mock.side_effect = PySparkException("Unknown Error")
         mock_datetime.now.return_value = MOCK_TIMESTAMP
         recon_datetime.now.return_value = MOCK_TIMESTAMP
-        TriggerReconService.trigger_recon(mock_workspace_client, spark, table_recon, reconcile_config_schema)
+        TriggerReconService.trigger_recon(ws, spark, table_recon, reconcile_config_schema)
 
     expected_remorph_recon = spark.createDataFrame(
         data=[
@@ -1713,7 +1720,7 @@ def test_schema_recon_with_general_exception(
                 (0, 0, None, None, None),
                 (
                     False,
-                    "remorph",
+                    run_by_user,
                     "Unknown Error",
                 ),
                 MOCK_TIMESTAMP,
@@ -1724,23 +1731,28 @@ def test_schema_recon_with_general_exception(
     expected_remorph_recon_details = spark.createDataFrame(data=[], schema=details_schema)
 
     assertDataFrameEqual(
-        spark.sql(f"SELECT * FROM {catalog}.{schema}.MAIN"), expected_remorph_recon, ignoreNullable=True
+        spark.sql(f"SELECT * FROM {metadata.catalog}.{metadata.schema}.MAIN"),
+        expected_remorph_recon,
+        ignoreNullable=True,
     )
     assertDataFrameEqual(
-        spark.sql(f"SELECT * FROM {catalog}.{schema}.METRICS"), expected_remorph_recon_metrics, ignoreNullable=True
+        spark.sql(f"SELECT * FROM {metadata.catalog}.{metadata.schema}.METRICS"),
+        expected_remorph_recon_metrics,
+        ignoreNullable=True,
     )
     assertDataFrameEqual(
-        spark.sql(f"SELECT * FROM {catalog}.{schema}.DETAILS"), expected_remorph_recon_details, ignoreNullable=True
+        spark.sql(f"SELECT * FROM {metadata.catalog}.{metadata.schema}.DETAILS"),
+        expected_remorph_recon_details,
+        ignoreNullable=True,
     )
 
 
 def test_data_recon_with_general_exception(
-    mock_workspace_client, spark, report_tables_schema, mock_for_report_type_schema, tmp_path: Path, recon_id: UUID
+    ws, spark, run_by_user, report_tables_schema, mock_for_report_type_schema, tmp_path: Path, recon_id: UUID
 ):
     recon_schema, metrics_schema, details_schema = report_tables_schema
     table_recon, source, target, reconcile_config = mock_for_report_type_schema
-    catalog = reconcile_config.metadata_config.catalog
-    schema = reconcile_config.metadata_config.schema
+    metadata = reconcile_config.metadata_config
     reconcile_config.source.dialect = "snowflake"
     reconcile_config.report_type = "data"
     with (
@@ -1761,7 +1773,7 @@ def test_data_recon_with_general_exception(
         data_source_mock.side_effect = DataSourceRuntimeException("Unknown Error")
         mock_datetime.now.return_value = MOCK_TIMESTAMP
         recon_datetime.now.return_value = MOCK_TIMESTAMP
-        TriggerReconService.trigger_recon(mock_workspace_client, spark, table_recon, reconcile_config)
+        TriggerReconService.trigger_recon(ws, spark, table_recon, reconcile_config)
 
     expected_remorph_recon = spark.createDataFrame(
         data=[
@@ -1786,7 +1798,7 @@ def test_data_recon_with_general_exception(
                 (3, 3, None, None, None),
                 (
                     False,
-                    "remorph",
+                    run_by_user,
                     "Unknown Error",
                 ),
                 MOCK_TIMESTAMP,
@@ -1797,23 +1809,28 @@ def test_data_recon_with_general_exception(
     expected_remorph_recon_details = spark.createDataFrame(data=[], schema=details_schema)
 
     assertDataFrameEqual(
-        spark.sql(f"SELECT * FROM {catalog}.{schema}.MAIN"), expected_remorph_recon, ignoreNullable=True
+        spark.sql(f"SELECT * FROM {metadata.catalog}.{metadata.schema}.MAIN"),
+        expected_remorph_recon,
+        ignoreNullable=True,
     )
     assertDataFrameEqual(
-        spark.sql(f"SELECT * FROM {catalog}.{schema}.METRICS"), expected_remorph_recon_metrics, ignoreNullable=True
+        spark.sql(f"SELECT * FROM {metadata.catalog}.{metadata.schema}.METRICS"),
+        expected_remorph_recon_metrics,
+        ignoreNullable=True,
     )
     assertDataFrameEqual(
-        spark.sql(f"SELECT * FROM {catalog}.{schema}.DETAILS"), expected_remorph_recon_details, ignoreNullable=True
+        spark.sql(f"SELECT * FROM {metadata.catalog}.{metadata.schema}.DETAILS"),
+        expected_remorph_recon_details,
+        ignoreNullable=True,
     )
 
 
 def test_data_recon_with_source_exception(
-    mock_workspace_client, spark, report_tables_schema, mock_for_report_type_schema, tmp_path: Path, recon_id: UUID
+    ws, spark, run_by_user, report_tables_schema, mock_for_report_type_schema, tmp_path: Path, recon_id: UUID
 ):
     recon_schema, metrics_schema, details_schema = report_tables_schema
     table_recon, source, target, reconcile_config = mock_for_report_type_schema
-    catalog = reconcile_config.metadata_config.catalog
-    schema = reconcile_config.metadata_config.schema
+    metadata = reconcile_config.metadata_config
     reconcile_config.source.dialect = "snowflake"
     reconcile_config.report_type = "data"
     with (
@@ -1834,7 +1851,7 @@ def test_data_recon_with_source_exception(
         data_source_mock.side_effect = DataSourceRuntimeException("Source Runtime Error")
         mock_datetime.now.return_value = MOCK_TIMESTAMP
         recon_datetime.now.return_value = MOCK_TIMESTAMP
-        TriggerReconService.trigger_recon(mock_workspace_client, spark, table_recon, reconcile_config)
+        TriggerReconService.trigger_recon(ws, spark, table_recon, reconcile_config)
 
     expected_remorph_recon = spark.createDataFrame(
         data=[
@@ -1859,7 +1876,7 @@ def test_data_recon_with_source_exception(
                 (3, 3, None, None, None),
                 (
                     False,
-                    "remorph",
+                    run_by_user,
                     "Source Runtime Error",
                 ),
                 MOCK_TIMESTAMP,
@@ -1870,13 +1887,19 @@ def test_data_recon_with_source_exception(
     expected_remorph_recon_details = spark.createDataFrame(data=[], schema=details_schema)
 
     assertDataFrameEqual(
-        spark.sql(f"SELECT * FROM {catalog}.{schema}.MAIN"), expected_remorph_recon, ignoreNullable=True
+        spark.sql(f"SELECT * FROM {metadata.catalog}.{metadata.schema}.MAIN"),
+        expected_remorph_recon,
+        ignoreNullable=True,
     )
     assertDataFrameEqual(
-        spark.sql(f"SELECT * FROM {catalog}.{schema}.METRICS"), expected_remorph_recon_metrics, ignoreNullable=True
+        spark.sql(f"SELECT * FROM {metadata.catalog}.{metadata.schema}.METRICS"),
+        expected_remorph_recon_metrics,
+        ignoreNullable=True,
     )
     assertDataFrameEqual(
-        spark.sql(f"SELECT * FROM {catalog}.{schema}.DETAILS"), expected_remorph_recon_details, ignoreNullable=True
+        spark.sql(f"SELECT * FROM {metadata.catalog}.{metadata.schema}.DETAILS"),
+        expected_remorph_recon_details,
+        ignoreNullable=True,
     )
 
 
@@ -1889,7 +1912,7 @@ def test_initialise_data_source(spark):
     assert isinstance(target, DatabricksDataSource)
 
 
-def test_recon_for_wrong_report_type(mock_workspace_client, spark, mock_for_report_type_row):
+def test_recon_for_wrong_report_type(ws, spark, mock_for_report_type_row):
     source, target, table_recon, reconcile_config = mock_for_report_type_row
     reconcile_config.report_type = "ro"
     with (
@@ -1908,7 +1931,7 @@ def test_recon_for_wrong_report_type(mock_workspace_client, spark, mock_for_repo
     ):
         mock_datetime.now.return_value = MOCK_TIMESTAMP
         recon_datetime.now.return_value = MOCK_TIMESTAMP
-        TriggerReconService.trigger_recon(mock_workspace_client, spark, table_recon, reconcile_config)
+        TriggerReconService.trigger_recon(ws, spark, table_recon, reconcile_config)
 
 
 def test_reconcile_data_with_threshold_and_row_report_type(
@@ -1988,7 +2011,7 @@ def test_reconcile_data_with_threshold_and_row_report_type(
 
 @patch('databricks.labs.lakebridge.reconcile.recon_capture.generate_final_reconcile_output')
 def test_recon_output_without_exception(mock_gen_final_recon_output):
-    mock_workspace_client = MagicMock()
+    ws_client_mock = MagicMock()
     spark = MagicMock()
     mock_table_recon = MagicMock()
     mock_gen_final_recon_output.return_value = ReconcileOutput(
@@ -2023,7 +2046,7 @@ def test_recon_output_without_exception(mock_gen_final_recon_output):
 
     try:
         TriggerReconService.trigger_recon(
-            mock_workspace_client,
+            ws_client_mock,
             spark,
             mock_table_recon,
             reconcile_config,

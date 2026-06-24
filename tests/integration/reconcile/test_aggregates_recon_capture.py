@@ -38,9 +38,7 @@ def agg_data_prep(spark: SparkSession):
     return agg_reconcile_output, table_conf, reconcile_process_duration
 
 
-def test_aggregates_reconcile_store_aggregate_metrics(
-    mock_workspace_client, spark, recon_metadata: ReconcileMetadataConfig
-):
+def test_aggregates_reconcile_store_aggregate_metrics(ws, spark, recon_metadata: ReconcileMetadataConfig):
     source_connection = SourceConnectionConfig(
         dialect="snowflake",
         catalog="source_test_schema",
@@ -60,7 +58,7 @@ def test_aggregates_reconcile_store_aggregate_metrics(
         recon_id,
         "",
         source_type,
-        mock_workspace_client,
+        ws,
         spark,
         metadata_config=recon_metadata,
     )
