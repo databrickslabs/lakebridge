@@ -16,11 +16,8 @@ from databricks.labs.lakebridge.config import (
     SourceConnectionConfig,
     TargetConnectionConfig,
     ReconcileMetadataConfig,
-    ProfilerDashboardConfig,
-    ProfilerDashboardMetadataConfig,
 )
 from databricks.labs.lakebridge.deployment.installation import WorkspaceInstallation
-from databricks.labs.lakebridge.deployment.profiler_dashboard import ProfilerDashboardDeployment
 from databricks.labs.lakebridge.deployment.recon import ReconDeployment
 from databricks.labs.lakebridge.deployment.switch import SwitchDeployment
 
@@ -37,7 +34,6 @@ def ws():
 def test_install_all(ws):
     recon_deployment = create_autospec(ReconDeployment)
     switch_deployment = create_autospec(SwitchDeployment)
-    profiler_dashboard_deployment = create_autospec(ProfilerDashboardDeployment)
     installation = create_autospec(Installation)
     product_info = create_autospec(ProductInfo)
     upgrades = create_autospec(Upgrades)
@@ -69,26 +65,14 @@ def test_install_all(ws):
             volume="reconcile_volume6",
         ),
     )
-    profiler_dashboard_config = ProfilerDashboardConfig(
-        source_tech="synapse",
-        extract_file_path="/tmp/data/synapse_assessment/profiler_extract.db",
-        metadata_config=ProfilerDashboardMetadataConfig(
-            catalog="lakebridge", schema="profiler", volume="ingestion_volume"
-        ),
-    )
-    config = LakebridgeConfiguration(
-        transpile=transpile_config, reconcile=reconcile_config, profiler_dashboard=profiler_dashboard_config
-    )
-    installation = WorkspaceInstallation(
-        ws, installation, recon_deployment, switch_deployment, profiler_dashboard_deployment, product_info, upgrades
-    )
+    config = LakebridgeConfiguration(transpile=transpile_config, reconcile=reconcile_config)
+    installation = WorkspaceInstallation(ws, installation, recon_deployment, switch_deployment, product_info, upgrades)
     installation.install(config)
 
 
 def test_no_recon_component_installation(ws):
     recon_deployment = create_autospec(ReconDeployment)
     switch_deployment = create_autospec(SwitchDeployment)
-    profiler_dashboard_deployment = create_autospec(ProfilerDashboardDeployment)
     installation = create_autospec(Installation)
     product_info = create_autospec(ProductInfo)
     upgrades = create_autospec(Upgrades)
@@ -102,10 +86,8 @@ def test_no_recon_component_installation(ws):
         catalog_name="remorph7",
         schema_name="transpiler7",
     )
-    config = LakebridgeConfiguration(transpile=transpile_config, reconcile=None, profiler_dashboard=None)
-    installation = WorkspaceInstallation(
-        ws, installation, recon_deployment, switch_deployment, profiler_dashboard_deployment, product_info, upgrades
-    )
+    config = LakebridgeConfiguration(transpile=transpile_config, reconcile=None)
+    installation = WorkspaceInstallation(ws, installation, recon_deployment, switch_deployment, product_info, upgrades)
     installation.install(config)
     recon_deployment.install.assert_not_called()
 
@@ -113,7 +95,6 @@ def test_no_recon_component_installation(ws):
 def test_recon_component_installation(ws):
     recon_deployment = create_autospec(ReconDeployment)
     switch_deployment = create_autospec(SwitchDeployment)
-    profiler_dashboard_deployment = create_autospec(ProfilerDashboardDeployment)
     installation = create_autospec(Installation)
     product_info = create_autospec(ProductInfo)
     upgrades = create_autospec(Upgrades)
@@ -136,10 +117,8 @@ def test_recon_component_installation(ws):
             volume="reconcile_volume8",
         ),
     )
-    config = LakebridgeConfiguration(reconcile=reconcile_config, transpile=None, profiler_dashboard=None)
-    installation = WorkspaceInstallation(
-        ws, installation, recon_deployment, switch_deployment, profiler_dashboard_deployment, product_info, upgrades
-    )
+    config = LakebridgeConfiguration(reconcile=reconcile_config, transpile=None)
+    installation = WorkspaceInstallation(ws, installation, recon_deployment, switch_deployment, product_info, upgrades)
     installation.install(config)
     recon_deployment.install.assert_called()
 
@@ -150,14 +129,11 @@ def test_missing_installation(ws):
     installation.install_folder.return_value = "~/mock"
     recon_deployment = create_autospec(ReconDeployment)
     switch_deployment = create_autospec(SwitchDeployment)
-    profiler_dashboard_deployment = create_autospec(ProfilerDashboardDeployment)
     wheels = create_autospec(WheelsV2)
     upgrades = create_autospec(Upgrades)
 
-    ws_installation = WorkspaceInstallation(
-        ws, installation, recon_deployment, switch_deployment, profiler_dashboard_deployment, wheels, upgrades
-    )
-    config = LakebridgeConfiguration(transpile=None, reconcile=None, profiler_dashboard=None)
+    ws_installation = WorkspaceInstallation(ws, installation, recon_deployment, switch_deployment, wheels, upgrades)
+    config = LakebridgeConfiguration(transpile=None, reconcile=None)
     ws_installation.uninstall(config)
     installation.remove.assert_not_called()
 
@@ -193,28 +169,14 @@ def test_uninstall_configs_exist(ws):
         ),
     )
 
-    profiler_dashboard_config = ProfilerDashboardConfig(
-        source_tech="snowflake",
-        extract_file_path="/tmp/data/synapse_assessment/profiler_extract.db",
-        metadata_config=ProfilerDashboardMetadataConfig(
-            catalog="lakebridge",
-            schema="profiler",
-            volume="ingestion_volume",
-        ),
-    )
-    config = LakebridgeConfiguration(
-        transpile=transpile_config, reconcile=reconcile_config, profiler_dashboard=profiler_dashboard_config
-    )
+    config = LakebridgeConfiguration(transpile=transpile_config, reconcile=reconcile_config)
     installation = MockInstallation({})
     recon_deployment = create_autospec(ReconDeployment)
     switch_deployment = create_autospec(SwitchDeployment)
-    profiler_dashboard_deployment = create_autospec(ProfilerDashboardDeployment)
     wheels = create_autospec(WheelsV2)
     upgrades = create_autospec(Upgrades)
 
-    ws_installation = WorkspaceInstallation(
-        ws, installation, recon_deployment, switch_deployment, profiler_dashboard_deployment, wheels, upgrades
-    )
+    ws_installation = WorkspaceInstallation(ws, installation, recon_deployment, switch_deployment, wheels, upgrades)
     ws_installation.uninstall(config)
     recon_deployment.uninstall.assert_called()
     installation.assert_removed()
@@ -224,14 +186,11 @@ def test_uninstall_configs_missing(ws):
     installation = MockInstallation()
     recon_deployment = create_autospec(ReconDeployment)
     switch_deployment = create_autospec(SwitchDeployment)
-    profiler_dashboard_deployment = create_autospec(ProfilerDashboardDeployment)
     wheels = create_autospec(WheelsV2)
     upgrades = create_autospec(Upgrades)
 
-    ws_installation = WorkspaceInstallation(
-        ws, installation, recon_deployment, switch_deployment, profiler_dashboard_deployment, wheels, upgrades
-    )
-    config = LakebridgeConfiguration(transpile=None, reconcile=None, profiler_dashboard=None)
+    ws_installation = WorkspaceInstallation(ws, installation, recon_deployment, switch_deployment, wheels, upgrades)
+    config = LakebridgeConfiguration(transpile=None, reconcile=None)
     ws_installation.uninstall(config)
     recon_deployment.uninstall.assert_not_called()
     installation.assert_removed()
@@ -243,17 +202,14 @@ class TestSwitchInstallation:
     def test_switch_install_uses_configured_resources(self, ws):
         recon_deployment = create_autospec(ReconDeployment)
         switch_deployment = create_autospec(SwitchDeployment)
-        profiler_dashboard_deployment = create_autospec(ProfilerDashboardDeployment)
         installation = create_autospec(Installation)
         product_info = create_autospec(ProductInfo)
         upgrades = create_autospec(Upgrades)
 
-        config = LakebridgeConfiguration(
-            transpile=TranspileConfig(), reconcile=None, profiler_dashboard=None, include_switch=True
-        )
+        config = LakebridgeConfiguration(transpile=TranspileConfig(), reconcile=None, include_switch=True)
 
         ws_installation = WorkspaceInstallation(
-            ws, installation, recon_deployment, switch_deployment, profiler_dashboard_deployment, product_info, upgrades
+            ws, installation, recon_deployment, switch_deployment, product_info, upgrades
         )
 
         ws_installation.install(config)
