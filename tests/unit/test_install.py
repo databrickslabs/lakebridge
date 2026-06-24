@@ -846,7 +846,6 @@ def test_configure_reconcile_bigquery_no_existing_installation(ws: WorkspaceClie
             ),
         ),
         transpile=None,
-        profiler_dashboard=None,
     )
     assert config == expected_config
 
