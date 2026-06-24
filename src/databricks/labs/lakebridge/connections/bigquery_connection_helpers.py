@@ -9,9 +9,8 @@ logger = logging.getLogger(__name__)
 def validate_bigquery_pairs(raw_config: dict) -> None:
     """Validate connectivity to each configured BigQuery (project, region) pair.
 
-    Mirrors ``validate_synapse_pools``: each pair is probed independently (a trivial
-    ``SELECT 1`` against that project/region) and all failures are aggregated into a
-    single ``ConnectionError``. Authentication uses the standard ADC chain.
+    Each pair is probed independently (a trivial ``SELECT 1`` against that project/region)
+    and all failures are aggregated into a single ``ConnectionError``.
     """
     pairs = raw_config.get("pairs", [])
     if not pairs:
