@@ -111,6 +111,9 @@ def test_fetch_result_to_df_preserves_international_text() -> None:
 
     frame = result.to_df()
 
+    # ``to_df`` builds the frame from ``rows`` directly (columns are only used for the empty-result
+    # case), so positional access maps to the deterministic ``raw_rows`` tuple order — the ``columns``
+    # set ordering never reaches the frame.
     assert frame.iloc[0, 0] == "こんにちは"
     assert frame.iloc[0, 1] == "안녕하세요"
     assert frame.iloc[0, 2] == "สวัสดี"

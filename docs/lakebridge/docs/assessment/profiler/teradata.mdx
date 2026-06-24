@@ -34,14 +34,14 @@ Grant `SELECT` access to:
 
 ### 3. Optional PDCR access for longer-history analysis
 
-The `teradata_pdcr` variant uses Teradata PDCR tables for richer, aggregated history (up to 180 days). To use it, grant `SELECT` access to:
+The `pdcr` variant uses Teradata PDCR tables for richer, aggregated history (up to 180 days). To use it, grant `SELECT` access to:
 
 - `PDCRINFO.DBQlogTbl_Hst`
 - `PDCRINFO.DBQLSummaryTbl_Hst`
 - `PDCRINFO.UserInfo`
 
 <Admonition type="info" title="PDCR is optional">
-If PDCR is not available in the environment, use the `teradata_core` variant, which relies only on the core `DBC`/DBQL tables. See [Choosing a Profiler Variant](#choosing-a-profiler-variant).
+If PDCR is not available in the environment, use the `core` variant, which relies only on the core `DBC`/DBQL tables. See [Choosing a Profiler Variant](#choosing-a-profiler-variant).
 </Admonition>
 
 ## Configure Connection to Teradata
@@ -54,14 +54,11 @@ Select the source technology
 [1] legacy_synapse
 [2] mssql
 [3] oracle
-[4] redshift_provisioned
-[5] redshift_provisioned_multi_az
-[6] redshift_serverless
-[7] snowflake
-[8] synapse
-[9] teradata_core
-[10] teradata_pdcr
-Enter a number between 0 and 10: 9
+[4] redshift
+[5] snowflake
+[6] synapse
+[7] teradata
+Enter a number between 0 and 7: 7
 
 (local | env)
 local means values are read as plain text
@@ -86,16 +83,16 @@ The generated credential block (written to `~/.databricks/labs/lakebridge/.crede
 
 ## Run the Profiler
 
-Use the variant you configured (`teradata_core` or `teradata_pdcr`). Optionally verify connectivity first:
+The variant (`core` or `pdcr`) is selected at extraction time via `--variant`. Optionally verify connectivity first:
 
 ```console
-databricks labs lakebridge test-profiler-connection --source-tech teradata_core
+databricks labs lakebridge test-profiler-connection --source-tech teradata
 ```
 
 Then run the extraction:
 
 ```console
-databricks labs lakebridge execute-database-profiler --source-tech teradata_core --output-folder /path/to/output
+databricks labs lakebridge execute-database-profiler --source-tech teradata --variant core --output-folder /path/to/output
 ```
 
 `--output-folder` is optional; if omitted you are prompted for it (defaulting to
@@ -117,21 +114,21 @@ matches the access available in your environment:
 
 | Variant | Workload source | Use when |
 |---|---|---|
-| `teradata_core` | Core `DBC` / DBQL tables | The baseline. Works on any Teradata system with the system-view grants above. |
-| `teradata_pdcr` | PDCR aggregated history (`PDCRINFO`) | You have PDCR access and want richer, longer-history workload aggregates. |
+| `core` | Core `DBC` / DBQL tables | The baseline. Works on any Teradata system with the system-view grants above. |
+| `pdcr` | PDCR aggregated history (`PDCRINFO`) | You have PDCR access and want richer, longer-history workload aggregates. |
 
 Both variants extract the same system, storage, object, user-database, and UDF tables; they differ only in the
 workload extraction:
 
-- `teradata_core` extracts `td_dbql_core_info_extract`.
-- `teradata_pdcr` extracts `td_pdcr_info_agg_extract` and `td_pdcr_sp_exe_info_agg_extract`.
+- `core` extracts `td_dbql_core_info_extract`.
+- `pdcr` extracts `td_pdcr_info_agg_extract` and `td_pdcr_sp_exe_info_agg_extract`.
 
-The `teradata_core` workload data is typically narrower (recent days from DBQL instead of long historical
+The `core` workload data is typically narrower (recent days from DBQL instead of long historical
 aggregates), which can reduce long-horizon trend analysis and may underrepresent short-query aggregate metrics.
 
 <Admonition type="warning" title="PDCR not available?">
-If you run `teradata_pdcr` and the profiler fails with `Error 3802 ... Database 'PDCRINFO' does not exist`,
-the PDCR repository is not present (or not accessible) in this environment. Re-run with `--source-tech teradata_core`,
+If you run the `pdcr` variant and the profiler fails with `Error 3802 ... Database 'PDCRINFO' does not exist`,
+the PDCR repository is not present (or not accessible) in this environment. Re-run with `--source-tech teradata --variant core`,
 which uses only the core `DBC`/DBQL tables.
 </Admonition>
 

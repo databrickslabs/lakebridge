@@ -385,6 +385,7 @@ class ConfigureTeradataAssessment(AssessmentConfigurator):
             "secret_vault_name": secret_vault_name,
             source: {
                 "host": self.prompts.question("Enter the Teradata server or host details"),
+                "port": int(self.prompts.question("Enter the port details", valid_number=True, default="1025")),
                 "user": self.prompts.question("Enter the user details"),
                 "password": password,
                 "database": self.prompts.question("Enter the default database name", default="DBC"),

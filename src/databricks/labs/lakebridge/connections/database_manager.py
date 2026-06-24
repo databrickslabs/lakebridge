@@ -172,6 +172,7 @@ class TeradataConnector(_BaseConnector):
             username=str(self.config['user']),
             password=str(self.config['password']),
             host=str(self.config['host']),
+            port=int(str(self.config.get('port', 1025))),
             query=query_params,
         )
         return create_engine(connection_string)

@@ -8,19 +8,19 @@ from databricks.labs.lakebridge.assessments.pipeline import PipelineClass
 from databricks.labs.lakebridge.assessments.profiler_config import PipelineConfig
 from databricks.labs.lakebridge.assessments.profiler import Profiler
 
-TERADATA_PLATFORMS = ["teradata_core", "teradata_pdcr"]
+TERADATA_VARIANTS = [("teradata", "core"), ("teradata", "pdcr")]
 
 
-@pytest.mark.parametrize("platform", TERADATA_PLATFORMS)
-def test_teradata_profile_missing_platform_config(platform: str) -> None:
-    with pytest.raises(ValueError, match=f"Cannot Proceed without a valid pipeline configuration for {platform}"):
-        Profiler(platform).profile()
+@pytest.mark.parametrize("source_system,variant", TERADATA_VARIANTS)
+def test_teradata_profile_missing_platform_config(source_system: str, variant: str) -> None:
+    with pytest.raises(ValueError, match=f"Cannot Proceed without a valid pipeline configuration for {source_system}"):
+        Profiler(source_system, variant).profile()
 
 
-@pytest.mark.parametrize("platform", TERADATA_PLATFORMS)
-def test_teradata_profile_execution_with_invalid_config(platform: str, test_resources: Path) -> None:
+@pytest.mark.parametrize("source_system,variant", TERADATA_VARIANTS)
+def test_teradata_profile_execution_with_invalid_config(source_system: str, variant: str, test_resources: Path) -> None:
     """Test Teradata profiling execution with invalid configuration."""
-    profiler = Profiler(platform)
+    profiler = Profiler(source_system, variant)
     with pytest.raises(FileNotFoundError):
         config_file = test_resources / "assessments" / "invalid_pipeline_config.yml"
         pipeline_config = profiler.path_modifier(config_file=config_file, path_prefix=test_resources)
