@@ -80,9 +80,6 @@ commands:
   - name: configure-database-profiler
     description: (Experimental) Configure database profiler
 
-  - name: visualize-profiler-results
-    description: (Experimental) Visualize profiler results as a Databricks Lakeview dashboard
-
   - name: install-transpile
     description: Install & optionally configure 'transpile' dependencies
     flags:
