@@ -16,7 +16,7 @@ from databricks.labs.lakebridge.connections.credential_manager import (
 )
 from databricks.labs.lakebridge.connections.database_manager import DatabaseManager
 from databricks.labs.lakebridge.connections.env_getter import EnvGetter
-from databricks.labs.lakebridge.assessments import CONNECTOR_REQUIRED, source_system_family
+from databricks.labs.lakebridge.assessments import CONNECTOR_REQUIRED
 
 logger = logging.getLogger(__name__)
 
@@ -453,8 +453,7 @@ def create_assessment_configurator(
         "bigquery": ConfigureBigQueryAssessment,
     }
 
-    key = source_system_family(source_system)
-    if key not in configurators:
+    if source_system not in configurators:
         raise ValueError(f"Unsupported source system: {source_system}")
 
-    return configurators[key](product_name, prompts, key, credential_file)
+    return configurators[source_system](product_name, prompts, source_system, credential_file)

@@ -119,7 +119,6 @@ test = [
     "databricks-connect~=17.3.8; python_version >= '3.12'",
     "databricks-labs-pytester>=0.3.0,<0.8.0",
     "cattrs~=26.1",
-    "faker~=40.15.0",
     # Transitive via databricks-connect, but needed for binary packages to be available.
     "numpy>=2.0.0,<3.0.0; python_version >= '3.12.0'",
 ]
@@ -132,7 +131,6 @@ yq = [
 
 [project.entry-points.databricks]
 reconcile = "databricks.labs.lakebridge.reconcile.execute:main"
-profiler_dashboards = "databricks.labs.lakebridge.assessments.dashboards.execute:main"
 
 [tool.uv]
 exclude-newer = "7d"
