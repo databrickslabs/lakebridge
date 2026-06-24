@@ -27,9 +27,12 @@ Lakebridge Reconcile validates data fidelity after migration by comparing your s
 | SQL Server | Yes | Yes | Yes | Yes |
 | Redshift | Yes | Yes | Yes | Yes |
 | Teradata | Yes | Yes [^teradata-hash] | Yes [^teradata-hash] | Yes [^teradata-hash] |
+| BigQuery | Yes [^bigquery-types] | Yes | Yes | Yes |
 | Databricks | Yes | Yes | Yes | Yes |
 
 [^teradata-hash]: Teradata has no portable cryptographic hash in pure SQL, so row-hash report types (`row`, `data`, `all`) require a user-installed hash UDF on the source and an explicit `hash_expression_overrides.source` entry on the recon config. See [Hash Expression](/docs/reconcile/configuration#hash-expression) for wiring.
+
+[^bigquery-types]: A few BigQuery types have no exact Databricks equivalent and are reconciled against their standard migration target (`BIGNUMERIC`→`STRING`, `TIME`→`STRING`, `JSON`→`VARIANT`, `RANGE<T>`→`STRUCT<start, end>`, `DATETIME`→`TIMESTAMP_NTZ`). If your migration chose a different target the `schema` report flags it for review. `INTERVAL` migrates to two Databricks columns and is not supported by `schema` reconciliation.
 
 ---
 
