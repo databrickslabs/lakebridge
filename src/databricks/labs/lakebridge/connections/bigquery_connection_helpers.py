@@ -21,8 +21,8 @@ def validate_bigquery_pairs(raw_config: dict) -> None:
         label = f"{pair['project']}.{pair['region']}"
         logger.info(f"Testing connection to BigQuery {label}...")
         try:
-            client = bigquery.Client(project=pair["project"], location=pair["region"])
-            client.query("SELECT 1").result()
+            with bigquery.Client(project=pair["project"], location=pair["region"]) as client:
+                client.query("SELECT 1").result()
             logger.info(f"BigQuery {label} connection successful")
         except GoogleAPIError as e:
             logger.error(f"Failed to connect to BigQuery {label}: {e}")

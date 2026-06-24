@@ -9,6 +9,7 @@ _CLIENT = "databricks.labs.lakebridge.connections.bigquery_connection_helpers.bi
 
 def test_validate_bigquery_pairs_probes_each_pair():
     with patch(_CLIENT) as client:
+        client.return_value.__enter__.return_value = client.return_value
         validate_bigquery_pairs(
             {"pairs": [{"project": "proj-a", "region": "us"}, {"project": "proj-b", "region": "eu"}]}
         )
@@ -20,6 +21,7 @@ def test_validate_bigquery_pairs_probes_each_pair():
 
 def test_validate_bigquery_pairs_aggregates_failures():
     with patch(_CLIENT) as client:
+        client.return_value.__enter__.return_value = client.return_value
         client.return_value.query.return_value.result.side_effect = GoogleAPICallError("boom")
         with pytest.raises(ConnectionError, match="Connection failed for BigQuery pairs"):
             validate_bigquery_pairs({"pairs": [{"project": "proj-a", "region": "us"}]})
