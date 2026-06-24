@@ -1,4 +1,5 @@
-import pytest
+from unittest.mock import patch
+
 import yaml
 from databricks.labs.blueprint.tui import MockPrompts
 from databricks.labs.lakebridge.assessments.configure_assessment import (
@@ -181,13 +182,12 @@ def test_create_assessment_configurator():
     )
     assert isinstance(synapse_configurator, ConfigureSynapseAssessment)
 
-    # Test Teradata configurators: both variants share the "teradata" family configurator
-    for variant in ("teradata_core", "teradata_pdcr"):
-        teradata_configurator = create_assessment_configurator(
-            source_system=variant, product_name="lakebridge", prompts=prompts
-        )
-        assert isinstance(teradata_configurator, ConfigureTeradataAssessment)
-        assert vars(teradata_configurator)["_source_name"] == "teradata"
+    # Test Teradata configurator
+    teradata_configurator = create_assessment_configurator(
+        source_system="teradata", product_name="lakebridge", prompts=prompts
+    )
+    assert isinstance(teradata_configurator, ConfigureTeradataAssessment)
+
     # legacy_synapse (Azure Synapse dedicated SQL pool) reuses the SQL Server configurator
     legacy_synapse_configurator = create_assessment_configurator(
         source_system="legacy_synapse", product_name="lakebridge", prompts=prompts
@@ -199,6 +199,11 @@ def test_create_assessment_configurator():
         source_system="bigquery", product_name="lakebridge", prompts=prompts
     )
     assert isinstance(bigquery_configurator, ConfigureBigQueryAssessment)
+
+    redshift_configurator = create_assessment_configurator(
+        source_system="redshift", product_name="lakebridge", prompts=prompts
+    )
+    assert isinstance(redshift_configurator, ConfigureRedshiftAssessment)
 
     # Test invalid source system
     try:
@@ -241,16 +246,6 @@ def test_configure_teradata_credentials(tmp_path):
         credentials = yaml.safe_load(handle)
 
     assert credentials == expected_credentials
-
-
-@pytest.mark.parametrize("variant", ["redshift_serverless", "redshift_provisioned", "redshift_provisioned_multi_az"])
-def test_create_assessment_configurator_redshift_variants(variant):
-    prompts = MockPrompts({})
-    configurator = create_assessment_configurator(source_system=variant, product_name="lakebridge", prompts=prompts)
-    assert isinstance(configurator, ConfigureRedshiftAssessment)
-    # All three variants share the "redshift" credentials key (verified end-to-end via
-    # vars() to avoid touching the protected attribute syntactically).
-    assert vars(configurator)["_source_name"] == "redshift"
 
 
 def test_configure_redshift_credentials_sql_authentication(tmp_path):
@@ -377,3 +372,47 @@ def test_redshift_configurator_writes_only_connector_supported_auth_types():
         f"Configurator offers auth_type(s) {set(REDSHIFT_AUTH_TYPES) - connector_supported} "
         f"that RedshiftConnector._connect does not implement."
     )
+
+
+def test_test_connection_default_uses_database_manager():
+    """Sources without an override go through DatabaseManager (the JDBC connector)."""
+    configurator = ConfigureRedshiftAssessment(
+        product_name="lakebridge", source_name="redshift", prompts=MockPrompts({})
+    )
+    raw_config = {"host": "redshift.example.com", "database": "dev"}
+    with (
+        patch("databricks.labs.lakebridge.assessments.configure_assessment.create_credential_manager") as cred_manager,
+        patch("databricks.labs.lakebridge.assessments.configure_assessment.DatabaseManager") as database_manager,
+    ):
+        cred_manager.return_value.get_credentials.return_value = raw_config
+        database_manager.return_value.__enter__.return_value.check_connection.return_value = True
+        configurator.test_connection()
+    database_manager.assert_called_once_with("redshift", raw_config)
+
+
+def test_synapse_test_connection_delegates_to_pools():
+    """Synapse overrides the check to validate each SQL pool instead of one connection."""
+    configurator = ConfigureSynapseAssessment(product_name="lakebridge", source_name="synapse", prompts=MockPrompts({}))
+    raw_config = {"workspace": {"name": "ws"}}
+    with (
+        patch("databricks.labs.lakebridge.assessments.configure_assessment.create_credential_manager") as cred_manager,
+        patch("databricks.labs.lakebridge.assessments.configure_assessment.validate_synapse_pools") as validate,
+    ):
+        cred_manager.return_value.get_credentials.return_value = raw_config
+        configurator.test_connection()
+    validate.assert_called_once_with(raw_config)
+
+
+def test_bigquery_test_connection_delegates_to_pairs():
+    """BigQuery overrides the check to probe each (project, region) pair."""
+    configurator = ConfigureBigQueryAssessment(
+        product_name="lakebridge", source_name="bigquery", prompts=MockPrompts({})
+    )
+    raw_config = {"pairs": [{"project": "p", "region": "us"}]}
+    with (
+        patch("databricks.labs.lakebridge.assessments.configure_assessment.create_credential_manager") as cred_manager,
+        patch("databricks.labs.lakebridge.assessments.configure_assessment.validate_bigquery_pairs") as validate,
+    ):
+        cred_manager.return_value.get_credentials.return_value = raw_config
+        configurator.test_connection()
+    validate.assert_called_once_with(raw_config)

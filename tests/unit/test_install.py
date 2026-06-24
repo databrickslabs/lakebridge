@@ -18,8 +18,6 @@ from databricks.labs.lakebridge.config import (
     SourceConnectionConfig,
     TargetConnectionConfig,
     TranspileConfig,
-    ProfilerDashboardConfig,
-    ProfilerDashboardMetadataConfig,
 )
 from databricks.labs.lakebridge.contexts.application import ApplicationContext
 from databricks.labs.lakebridge.deployment.configurator import ResourceConfigurator
@@ -30,7 +28,6 @@ from databricks.labs.lakebridge.transpiler.installers import (
     TranspilerInstaller,
 )
 from databricks.labs.lakebridge.transpiler.repository import TranspilerRepository
-from databricks.labs.lakebridge.assessments import PROFILER_SOURCE_SYSTEM
 
 RECONCILE_DATA_SOURCES = sorted([source_type.value for source_type in ReconSourceType])
 RECONCILE_REPORT_TYPES = sorted([report_type.value for report_type in ReconReportType])
@@ -110,7 +107,7 @@ def test_workspace_installer_run_install_not_called_in_test(
         workspace_installation=ws_installation,
     )
 
-    provided_config = LakebridgeConfiguration(transpile=None, reconcile=None, profiler_dashboard=None)
+    provided_config = LakebridgeConfiguration(transpile=None, reconcile=None)
     workspace_installer = ws_installer(
         ctx.workspace_client,
         ctx.prompts,
@@ -137,7 +134,7 @@ def test_workspace_installer_run_install_called_with_provided_config(
         resource_configurator=create_autospec(ResourceConfigurator),
         workspace_installation=ws_installation,
     )
-    provided_config = LakebridgeConfiguration(transpile=None, reconcile=None, profiler_dashboard=None)
+    provided_config = LakebridgeConfiguration(transpile=None, reconcile=None)
     workspace_installer = ws_installer(
         ctx.workspace_client,
         ctx.prompts,
@@ -271,7 +268,7 @@ def test_configure_transpile_no_existing_installation(
         catalog_name="remorph",
         schema_name="transpiler",
     )
-    expected_config = LakebridgeConfiguration(transpile=expected_morph_config, reconcile=None, profiler_dashboard=None)
+    expected_config = LakebridgeConfiguration(transpile=expected_morph_config, reconcile=None)
     assert config == expected_config
     installation.assert_file_written(
         "config.yml",
@@ -402,7 +399,7 @@ def test_configure_transpile_installation_config_error_continue_install(
         catalog_name="remorph",
         schema_name="transpiler",
     )
-    expected_config = LakebridgeConfiguration(transpile=expected_morph_config, reconcile=None, profiler_dashboard=None)
+    expected_config = LakebridgeConfiguration(transpile=expected_morph_config, reconcile=None)
     assert config == expected_config
     installation.assert_file_written(
         "config.yml",
@@ -465,7 +462,7 @@ def test_configure_transpile_installation_with_no_validation(ws, ws_installer):
         catalog_name="remorph",
         schema_name="transpiler",
     )
-    expected_config = LakebridgeConfiguration(transpile=expected_morph_config, reconcile=None, profiler_dashboard=None)
+    expected_config = LakebridgeConfiguration(transpile=expected_morph_config, reconcile=None)
     assert config == expected_config
     installation.assert_file_written(
         "config.yml",
@@ -538,7 +535,6 @@ def test_configure_transpile_installation_with_validation_and_warehouse_id_from_
             sdk_config={"warehouse_id": "w_id"},
         ),
         reconcile=None,
-        profiler_dashboard=None,
     )
     assert config == expected_config
     installation.assert_file_written(
@@ -685,7 +681,6 @@ def test_configure_reconcile_installation_config_error_continue_install(ws: Work
             ),
         ),
         transpile=None,
-        profiler_dashboard=None,
     )
     assert config == expected_config
     installation.assert_file_written(
@@ -771,7 +766,6 @@ def test_configure_reconcile_no_existing_installation(ws: WorkspaceClient) -> No
             ),
         ),
         transpile=None,
-        profiler_dashboard=None,
     )
     assert config == expected_config
     installation.assert_file_written(
@@ -906,7 +900,6 @@ def test_configure_reconcile_databricks_no_existing_installation(ws: WorkspaceCl
             ),
         ),
         transpile=None,
-        profiler_dashboard=None,
     )
     assert config == expected_config
     installation.assert_file_written(
@@ -953,8 +946,6 @@ def test_configure_all_override_installation(
             r"Enter .* schema name": "tpch_sf1000",
             r"Enter target Databricks catalog name": "tpch",
             r"Enter target Databricks schema name": "1000gb",
-            r"Select the source technology": str(PROFILER_SOURCE_SYSTEM.index("snowflake")),
-            r"Enter the path to the profiler output file": "/tmp/profiler_extract.db",
         }
     )
     installation = MockInstallation(
@@ -1050,20 +1041,9 @@ def test_configure_all_override_installation(
         ),
     )
 
-    expected_profiler_dash_config = ProfilerDashboardConfig(
-        source_tech="snowflake",
-        extract_file_path="/tmp/profiler_extract.db",
-        metadata_config=ProfilerDashboardMetadataConfig(
-            catalog="remorph",
-            schema="reconcile",
-            volume="reconcile_volume",
-        ),
-    )
-
     expected_config = LakebridgeConfiguration(
         transpile=expected_transpile_config,
         reconcile=expected_reconcile_config,
-        profiler_dashboard=expected_profiler_dash_config,
     )
     assert config == expected_config
     installation.assert_file_written(
@@ -1185,7 +1165,6 @@ def test_runs_upgrades_on_more_recent_version(
                 skip_validation=True,
             ),
             reconcile=None,
-            profiler_dashboard=None,
         )
     )
 
@@ -1257,7 +1236,6 @@ def test_runs_and_stores_confirm_config_option(
             sdk_config={"warehouse_id": "w_id"},
         ),
         reconcile=None,
-        profiler_dashboard=None,
     )
     assert config == expected_config
     installation.assert_file_written(
@@ -1347,7 +1325,6 @@ def test_runs_and_stores_force_config_option(
             sdk_config={"warehouse_id": "w_id"},
         ),
         reconcile=None,
-        profiler_dashboard=None,
     )
     assert config == expected_config
     installation.assert_file_written(
@@ -1430,7 +1407,6 @@ def test_runs_and_stores_question_config_option(
             sdk_config={"warehouse_id": "w_id"},
         ),
         reconcile=None,
-        profiler_dashboard=None,
     )
     assert config == expected_config
     installation.assert_file_written(
@@ -1519,7 +1495,6 @@ def test_runs_and_stores_choice_config_option(
             sdk_config={"warehouse_id": "w_id"},
         ),
         reconcile=None,
-        profiler_dashboard=None,
     )
     assert config == expected_config
     installation.assert_file_written(
