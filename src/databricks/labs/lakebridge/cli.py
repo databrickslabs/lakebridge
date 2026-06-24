@@ -110,11 +110,6 @@ def _create_warehouse(ws: WorkspaceClient) -> str:
     return dbsql.id
 
 
-def _remove_warehouse(ws: WorkspaceClient, warehouse_id: str):
-    ws.warehouses.delete(warehouse_id)
-    logger.info(f"Removed warehouse post installation with id: {warehouse_id}")
-
-
 @lakebridge.command
 def transpile(  # pylint: disable=too-many-arguments
     *,
