@@ -834,7 +834,7 @@ def test_configure_reconcile_bigquery_no_existing_installation(ws: WorkspaceClie
             report_type="all",
             source=SourceConnectionConfig(
                 dialect="bigquery",
-                catalog="",
+                catalog="sample_dataset",
                 schema="sample_dataset",
                 uc_connection_name="my_bq_conn",
             ),

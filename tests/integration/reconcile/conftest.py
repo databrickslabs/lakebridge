@@ -498,7 +498,9 @@ def bigquery_recon_config(recon_cluster: str, recon_schema: SchemaInfo, make_vol
         report_type="schema",
         source=SourceConnectionConfig(
             dialect="bigquery",
-            catalog="",
+            # BigQuery has no separate catalog; mirror the dataset so the value round-trips through
+            # serde (the connector ignores catalog and uses two-part dataset.table).
+            catalog=BIGQUERY_SCHEMA,
             schema=BIGQUERY_SCHEMA,
             uc_connection_name=BIGQUERY_CONNECTION,
         ),

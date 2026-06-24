@@ -365,7 +365,8 @@ class WorkspaceInstaller:
             catalog = self._prompts.question("Enter source Databricks catalog name", default="hive_metastore")
         elif dialect == ReconSourceType.BIGQUERY.value:
             # The BigQuery project is abstracted by the UC connection (its default project scopes
-            # unqualified names), so no project is needed; the connector uses two-part dataset.table.
+            # unqualified names), so no project is prompted; the connector uses two-part dataset.table.
+            # catalog is set to the dataset below (it must be non-empty to round-trip through serde).
             catalog = ""
         else:
             catalog = self._prompts.question(f"Enter {dialect.capitalize()} database name")
@@ -377,6 +378,11 @@ class WorkspaceInstaller:
             schema_prompt = "Enter source BigQuery dataset name"
 
         schema = self._prompts.question(schema_prompt)
+
+        if dialect == ReconSourceType.BIGQUERY.value:
+            # BigQuery has no separate catalog; mirror the dataset so the value is non-empty (the
+            # connector ignores it). The project is abstracted by the UC connection.
+            catalog = schema
 
         return SourceConnectionConfig(
             dialect=dialect,
