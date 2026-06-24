@@ -70,6 +70,10 @@ TERADATA_CONNECTION = "teradata_sandbox"
 TERADATA_CATALOG = "DBC"
 TERADATA_SCHEMA = "lf_test_user"
 TERADATA_TABLE = "diamonds"
+BIGQUERY_CONNECTION = "bigquery_sandbox"
+# BigQuery uses two-part naming: the project is abstracted by the UC connection, so there is no catalog.
+BIGQUERY_SCHEMA = "public"
+BIGQUERY_TABLE = "bigquery_demo_nyc_pizza"
 
 
 @pytest.fixture
@@ -453,6 +457,59 @@ def teradata_recon_config(recon_cluster: str, recon_schema: SchemaInfo, make_vol
         ),
         job_overrides=deployment_overrides,
         hash_expression_overrides=HashExpressionOverrides(source="{}", target="{}"),
+    )
+
+
+@pytest.fixture
+def bigquery_recon_table_config(recon_schema: SchemaInfo, recon_tables: tuple[TableInfo, TableInfo]) -> TableRecon:
+    _, tgt_table = recon_tables
+    assert tgt_table.name
+
+    # report_type is "schema" for BigQuery (see bigquery_recon_config), so join_columns are not used
+    # in a source data query; they only need to be present on the config.
+    return TableRecon(
+        [
+            Table(
+                source_name=BIGQUERY_TABLE,
+                target_name=tgt_table.name,
+                join_columns=["color", "clarity"],
+            )
+        ]
+    )
+
+
+@pytest.fixture
+def bigquery_recon_config(recon_cluster: str, recon_schema: SchemaInfo, make_volume) -> ReconcileConfig:
+    volume = make_volume(catalog_name=recon_schema.catalog_name, schema_name=recon_schema.name, name=recon_schema.name)
+
+    deployment_overrides = ReconcileJobConfig(
+        existing_cluster_id=recon_cluster,
+        tags={"lakebridge": "reconcile_test"},
+    )
+    logger.info(f"Using recon job overrides: {deployment_overrides}")
+
+    assert recon_schema.catalog_name
+    assert recon_schema.name
+    # "schema" report: the BigQuery source (bigquery_demo_nyc_pizza) and the generic DIAMONDS target
+    # don't share columns/data, so schema reconciliation is what exercises the connector end-to-end
+    # (remote_query + two-part get_schema) while the job still terminates SUCCESS regardless of
+    # column differences. catalog is empty: the project is abstracted by the UC connection.
+    return ReconcileConfig(
+        report_type="schema",
+        source=SourceConnectionConfig(
+            dialect="bigquery",
+            catalog="",
+            schema=BIGQUERY_SCHEMA,
+            uc_connection_name=BIGQUERY_CONNECTION,
+        ),
+        target=TargetConnectionConfig(
+            catalog=recon_schema.catalog_name,
+            schema=recon_schema.name,
+        ),
+        metadata_config=ReconcileMetadataConfig(
+            catalog=recon_schema.catalog_name, schema=recon_schema.name, volume=volume.name
+        ),
+        job_overrides=deployment_overrides,
     )
 
 

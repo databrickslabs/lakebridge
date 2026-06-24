@@ -22,8 +22,10 @@ class BigQueryDataSource(DataSource):
     Data is fetched via the `remote_query` table-valued function (same path as Snowflake/Oracle/etc.),
     so credentials live in the UC connection and no JDBC driver is required here.
 
-    Naming/quoting follows GoogleSQL: identifiers are backtick-quoted and tables are three-part
-    `project.dataset.table` (project == catalog, dataset == schema).
+    Naming/quoting follows GoogleSQL: identifiers are backtick-quoted and tables are referenced
+    two-part as `dataset.table` (dataset == schema), the same way the other federated connectors
+    keep the top-level container out of the dotted name. The project is abstracted by the UC
+    connection (its default project scopes unqualified names), so the `catalog` argument is unused.
 
     The `_SCHEMA_QUERY` `CASE` is the *Stage-1* type canonicalization for schema reconciliation: it
     emits, for the handful of BigQuery types that sqlglot cannot bridge to Databricks on its own, the
@@ -42,8 +44,8 @@ class BigQueryDataSource(DataSource):
 
     _IDENTIFIER_DELIMITER = "`"
 
-    _LIST_SCHEMAS_QUERY = "select schema_name from `{catalog}`.INFORMATION_SCHEMA.SCHEMATA order by schema_name"
-    _LIST_TABLES_QUERY = "select table_name from `{catalog}`.`{schema}`.INFORMATION_SCHEMA.TABLES order by table_name"
+    _LIST_SCHEMAS_QUERY = "select schema_name from INFORMATION_SCHEMA.SCHEMATA order by schema_name"
+    _LIST_TABLES_QUERY = "select table_name from `{schema}`.INFORMATION_SCHEMA.TABLES order by table_name"
     _SCHEMA_QUERY = """select column_name,
                                   case
                                         when data_type like 'BIGNUMERIC%' then 'string'
@@ -57,7 +59,7 @@ class BigQueryDataSource(DataSource):
                                             then 'struct<start timestamp, end timestamp>'
                                         else data_type
                                   end as data_type
-                                  from `{catalog}`.`{schema}`.INFORMATION_SCHEMA.COLUMNS
+                                  from `{schema}`.INFORMATION_SCHEMA.COLUMNS
                                   where table_name = '{table}'
                                   order by ordinal_position"""
 
@@ -88,7 +90,7 @@ class BigQueryDataSource(DataSource):
         # sqlglot's BigQuery generator renders the `:tbl` placeholder as `@tbl` (BigQuery parameter
         # syntax), so substitute both forms — `@tbl` for builder-generated queries, `:tbl` for any
         # raw query string still using the convention.
-        table_ref = f"`{catalog}`.`{schema}`.`{table}`"
+        table_ref = f"`{schema}`.`{table}`"
         table_query = query.replace(":tbl", table_ref).replace("@tbl", table_ref)
         try:
             logger.info(f"Fetching data using query: \n`{table_query}`")
@@ -109,7 +111,7 @@ class BigQueryDataSource(DataSource):
         schema_query = re.sub(
             r'\s+',
             ' ',
-            BigQueryDataSource._SCHEMA_QUERY.format(catalog=catalog, schema=schema, table=table),
+            BigQueryDataSource._SCHEMA_QUERY.format(schema=schema, table=table),
         )
         try:
             logger.debug(f"Fetching schema using query: \n`{schema_query}`")
@@ -122,17 +124,18 @@ class BigQueryDataSource(DataSource):
             return self.log_and_throw_exception(e, "schema", schema_query)
 
     def list_schemas(self, catalog: str) -> list[str]:
-        # SCHEMATA is project-level (no single dataset), so the discovery path needs an explicit
-        # materialization_dataset configured on the connector.
-        query = BigQueryDataSource._LIST_SCHEMAS_QUERY.format(catalog=catalog)
+        # SCHEMATA is project-level: the connection's default project scopes it (no project prefix).
+        # It is not tied to a single dataset, so the discovery path needs an explicit
+        # materialization_dataset configured on the connector for the remote_query pushdown.
+        query = BigQueryDataSource._LIST_SCHEMAS_QUERY
         try:
-            df = self._reader.read_data(query, self._mat_dataset(catalog), "materializationDataset", "query")
+            df = self._reader.read_data(query, self._mat_dataset(""), "materializationDataset", "query")
             return [row.schema_name for row in df.select(col("schema_name").alias("schema_name")).collect()]
         except (RuntimeError, PySparkException) as e:
             return self.log_and_throw_exception(e, "schemas", query)
 
     def list_tables(self, catalog: str, schema: str) -> list[str]:
-        query = BigQueryDataSource._LIST_TABLES_QUERY.format(catalog=catalog, schema=schema)
+        query = BigQueryDataSource._LIST_TABLES_QUERY.format(schema=schema)
         try:
             df = self._reader.read_data(query, self._mat_dataset(schema), "materializationDataset", "query")
             return [row.table_name for row in df.select(col("table_name").alias("table_name")).collect()]

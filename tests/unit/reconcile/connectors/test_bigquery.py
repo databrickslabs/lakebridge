@@ -18,15 +18,17 @@ def initial_setup():
     return engine, reader
 
 
-def test_read_data_builds_three_part_backtick_quoted_name():
+def test_read_data_builds_two_part_backtick_quoted_name():
     engine, reader = initial_setup()
     dfds = BigQueryDataSource(engine, reader)
 
+    # catalog ("proj") is ignored: the project is abstracted by the UC connection, so the table
+    # is referenced two-part as `dataset`.`table` (the connection's default project scopes it).
     dfds.read_data("proj", "dataset", "employee", "select 1 from :tbl", None)
 
     # BigQuery remote_query rejects `database`; results materialize into the dataset (no project option)
     reader.read_data.assert_called_once_with(
-        "select 1 from `proj`.`dataset`.`employee`",
+        "select 1 from `dataset`.`employee`",
         "dataset",
         "materializationDataset",
         "query",
@@ -42,7 +44,7 @@ def test_read_data_substitutes_bigquery_rendered_placeholder():
     dfds.read_data("proj", "dataset", "employee", "select 1 from @tbl", None)
 
     reader.read_data.assert_called_once_with(
-        "select 1 from `proj`.`dataset`.`employee`",
+        "select 1 from `dataset`.`employee`",
         "dataset",
         "materializationDataset",
         "query",
@@ -57,7 +59,7 @@ def test_read_data_uses_configured_materialization_dataset():
     dfds.read_data("proj", "dataset", "employee", "select 1 from :tbl", None)
 
     reader.read_data.assert_called_once_with(
-        "select 1 from `proj`.`dataset`.`employee`",
+        "select 1 from `dataset`.`employee`",
         "scratch_ds",
         "materializationDataset",
         "query",
@@ -74,7 +76,7 @@ def test_read_data_exception_handling():
         DataSourceRuntimeException,
         match=re.escape(
             "Runtime exception occurred while fetching data using "
-            "select 1 from `proj`.`dataset`.`employee` : Test Exception"
+            "select 1 from `dataset`.`employee` : Test Exception"
         ),
     ):
         dfds.read_data("proj", "dataset", "employee", "select 1 from :tbl", None)
@@ -96,7 +98,7 @@ def test_get_schema_query_targets_information_schema_with_type_canonicalization(
     dfds.get_schema("proj", "dataset", "supplier")
 
     schema_query = reader.read_data.call_args.args[0]
-    assert "`proj`.`dataset`.INFORMATION_SCHEMA.COLUMNS" in schema_query
+    assert "`dataset`.INFORMATION_SCHEMA.COLUMNS" in schema_query
     assert "where table_name = 'supplier'" in schema_query
     # Stage-1 canonicalization for the BQ types sqlglot cannot bridge to Databricks on its own
     assert "when data_type like 'BIGNUMERIC%' then 'string'" in schema_query
@@ -110,11 +112,14 @@ def test_list_schemas_and_tables():
     engine, reader = initial_setup()
     dfds = BigQueryDataSource(engine, reader)
 
+    # SCHEMATA is project-level and unqualified (the connection's default project scopes it).
     dfds.list_schemas("proj")
-    assert "`proj`.INFORMATION_SCHEMA.SCHEMATA" in reader.read_data.call_args.args[0]
+    schemas_query = reader.read_data.call_args.args[0]
+    assert "INFORMATION_SCHEMA.SCHEMATA" in schemas_query
+    assert "`proj`" not in schemas_query
 
     dfds.list_tables("proj", "dataset")
-    assert "`proj`.`dataset`.INFORMATION_SCHEMA.TABLES" in reader.read_data.call_args.args[0]
+    assert "`dataset`.INFORMATION_SCHEMA.TABLES" in reader.read_data.call_args.args[0]
 
 
 def test_hash_query_emits_bigquery_compatible_sql():

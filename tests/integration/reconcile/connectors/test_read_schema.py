@@ -3,6 +3,7 @@ import uuid
 from pyspark.sql import SparkSession
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.service.catalog import TableInfo
+from databricks.labs.lakebridge.reconcile.connectors.bigquery import BigQueryDataSource
 from databricks.labs.lakebridge.reconcile.connectors.databricks import (
     DatabricksDataSource,
     DatabricksNonUnityCatalogDataSource,
@@ -200,3 +201,31 @@ def test_teradata_list_tables_happy(spark: SparkSession) -> None:
 
     tables = connector.list_tables("DBC", "lf_test_user")
     assert "diamonds" in tables
+
+
+def _bigquery_connector(spark: SparkSession) -> BigQueryDataSource:
+    # catalog (project) is abstracted by the connection; a materialization dataset is required for the
+    # remote_query pushdown (and is project-level for list_schemas).
+    reader = RemoteQueryReader(spark, "bigquery_sandbox")
+    return BigQueryDataSource(get_dialect("bigquery"), reader, materialization_dataset="public")
+
+
+def test_bigquery_read_schema_happy(spark: SparkSession) -> None:
+    connector = _bigquery_connector(spark)
+
+    columns = connector.get_schema("", "public", "bigquery_demo_nyc_pizza")
+    assert columns
+
+
+def test_bigquery_list_schemas_happy(spark: SparkSession) -> None:
+    connector = _bigquery_connector(spark)
+
+    schemas = connector.list_schemas("")
+    assert "public" in schemas
+
+
+def test_bigquery_list_tables_happy(spark: SparkSession) -> None:
+    connector = _bigquery_connector(spark)
+
+    tables = connector.list_tables("", "public")
+    assert "bigquery_demo_nyc_pizza" in tables
