@@ -14,13 +14,13 @@ TERADATA_PLATFORMS = ["teradata_core", "teradata_pdcr"]
 @pytest.mark.parametrize("platform", TERADATA_PLATFORMS)
 def test_teradata_profile_missing_platform_config(platform: str) -> None:
     with pytest.raises(ValueError, match=f"Cannot Proceed without a valid pipeline configuration for {platform}"):
-        Profiler(platform, True).profile()
+        Profiler(platform).profile()
 
 
 @pytest.mark.parametrize("platform", TERADATA_PLATFORMS)
 def test_teradata_profile_execution_with_invalid_config(platform: str, test_resources: Path) -> None:
     """Test Teradata profiling execution with invalid configuration."""
-    profiler = Profiler(platform, True)
+    profiler = Profiler(platform)
     with pytest.raises(FileNotFoundError):
         config_file = test_resources / "assessments" / "invalid_pipeline_config.yml"
         pipeline_config = profiler.path_modifier(config_file=config_file, path_prefix=test_resources)
