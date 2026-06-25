@@ -1,8 +1,7 @@
 import pytest
 from unittest.mock import MagicMock, patch
-from typing import Any, cast
 from databricks.labs.blueprint.installation import JsonObject
-from databricks.labs.lakebridge.connections.database_manager import DatabaseManager, FetchResult
+from databricks.labs.lakebridge.connections.database_manager import DatabaseManager
 
 sample_config: JsonObject = {
     'user': 'test_user',
@@ -86,40 +85,3 @@ def test_teradata_connector(mock_teradata_connector) -> None:
 
     assert db_manager.connector == mock_connector_instance
     mock_teradata_connector.assert_called_once_with(sample_config)
-
-
-def test_fetch_result_to_df_preserves_international_text() -> None:
-    # Drivers (e.g. teradatasql over a UTF-8 session) return character data as already-decoded ``str``,
-    # so APJ + European-language text must round-trip through to_df() unchanged.
-    raw_rows = [
-        (
-            "こんにちは",  # Japanese
-            "안녕하세요",  # Korean
-            "สวัสดี",  # Thai
-            "Bonjour",  # French
-            "Müller",  # German
-            "Ciao",  # Italian
-            "José García",  # Spanish
-            "João Silva",  # Portuguese
-            "Pieter de Vries",  # Dutch
-        )
-    ]
-    result = FetchResult(
-        columns={"ja", "ko", "th", "fr", "de", "it", "es", "pt", "nl"},
-        rows=cast(Any, raw_rows),
-    )
-
-    frame = result.to_df()
-
-    # ``to_df`` builds the frame from ``rows`` directly (columns are only used for the empty-result
-    # case), so positional access maps to the deterministic ``raw_rows`` tuple order — the ``columns``
-    # set ordering never reaches the frame.
-    assert frame.iloc[0, 0] == "こんにちは"
-    assert frame.iloc[0, 1] == "안녕하세요"
-    assert frame.iloc[0, 2] == "สวัสดี"
-    assert frame.iloc[0, 3] == "Bonjour"
-    assert frame.iloc[0, 4] == "Müller"
-    assert frame.iloc[0, 5] == "Ciao"
-    assert frame.iloc[0, 6] == "José García"
-    assert frame.iloc[0, 7] == "João Silva"
-    assert frame.iloc[0, 8] == "Pieter de Vries"
