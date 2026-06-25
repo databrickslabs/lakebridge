@@ -853,7 +853,7 @@ requires-dist = [
     { name = "sqlalchemy", specifier = "~=2.0.40" },
     { name = "sqlglot", specifier = "==28.5.0" },
     { name = "standard-distutils", marker = "python_full_version >= '3.11'", specifier = "~=3.11.9" },
-    { name = "teradatasqlalchemy" },
+    { name = "teradatasqlalchemy", specifier = "~=20.0.0.9" },
 ]
 
 [package.metadata.requires-dev]
