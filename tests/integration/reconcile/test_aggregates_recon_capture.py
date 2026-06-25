@@ -34,9 +34,7 @@ def agg_data_prep(spark: SparkSession):
     return agg_reconcile_output, table_conf, reconcile_process_duration
 
 
-def test_aggregates_reconcile_store_aggregate_metrics(
-    mock_workspace_client, spark, recon_metadata: ReconcileMetadataConfig
-):
+def test_aggregates_reconcile_store_aggregate_metrics(ws, spark, recon_metadata: ReconcileMetadataConfig):
     database_config = DatabaseConfig(
         "source_test_schema", "target_test_catalog", "target_test_schema", "source_test_catalog"
     )
@@ -51,7 +49,7 @@ def test_aggregates_reconcile_store_aggregate_metrics(
         recon_id,
         "",
         source_type,
-        mock_workspace_client,
+        ws,
         spark,
         metadata_config=recon_metadata,
     )
