@@ -5,7 +5,8 @@ import pytest
 import yaml
 
 from databricks.labs.lakebridge.assessments import SOURCE_SYSTEM_VARIANTS, AUTO
-from databricks.labs.lakebridge.assessments.profiler import get_pipeline, resolve_mssql_variant
+from databricks.labs.lakebridge.assessments.profiler import get_pipeline
+from databricks.labs.lakebridge.assessments.variants import resolve_mssql_variant
 
 # mssql is registered as AUTO in the registry; these are the resolver's outputs / the config directories.
 MSSQL_VARIANTS = ("single_db", "multi_db")
@@ -46,8 +47,8 @@ def test_resolve_mssql_variant(engine_edition: int, expected: str) -> None:
     db_manager.__enter__.return_value = db_manager
     db_manager.fetch.return_value = MagicMock(rows=[[engine_edition]])
     with (
-        patch("databricks.labs.lakebridge.assessments.profiler.DatabaseManager", return_value=db_manager),
-        patch("databricks.labs.lakebridge.assessments.profiler.create_credential_manager") as cred_manager,
+        patch("databricks.labs.lakebridge.assessments.variants.DatabaseManager", return_value=db_manager),
+        patch("databricks.labs.lakebridge.assessments.variants.create_credential_manager") as cred_manager,
     ):
         cred_manager.return_value.get_credentials.return_value = {}
         assert resolve_mssql_variant(Path("creds.yml")) == expected
@@ -59,8 +60,8 @@ def test_resolve_mssql_variant_with_configured_database_skips_probe() -> None:
     db_manager = MagicMock()
     db_manager.__enter__.return_value = db_manager
     with (
-        patch("databricks.labs.lakebridge.assessments.profiler.DatabaseManager", return_value=db_manager),
-        patch("databricks.labs.lakebridge.assessments.profiler.create_credential_manager") as cred_manager,
+        patch("databricks.labs.lakebridge.assessments.variants.DatabaseManager", return_value=db_manager),
+        patch("databricks.labs.lakebridge.assessments.variants.create_credential_manager") as cred_manager,
     ):
         cred_manager.return_value.get_credentials.return_value = {"database": "AdventureWorks"}
         assert resolve_mssql_variant(Path("creds.yml")) == "single_db"
