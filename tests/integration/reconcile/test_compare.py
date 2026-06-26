@@ -135,7 +135,9 @@ def test_capture_mismatch_data_and_cols(spark):
         ]
     )
 
-    actual = capture_mismatch_data_and_columns(source=source, target=target, key_columns=["s_suppkey", "s_nationkey"])
+    actual = capture_mismatch_data_and_columns(
+        source=source, target=target, key_columns=["s_suppkey", "s_nationkey"], persistence=FakeReconIntermediatePersist()
+    )
 
     expected_df = spark.createDataFrame(
         [
@@ -194,7 +196,9 @@ def test_capture_mismatch_data_and_cols_no_mismatch(spark):
         ]
     )
 
-    actual = capture_mismatch_data_and_columns(source=source, target=target, key_columns=["s_suppkey", "s_nationkey"])
+    actual = capture_mismatch_data_and_columns(
+        source=source, target=target, key_columns=["s_suppkey", "s_nationkey"], persistence=FakeReconIntermediatePersist()
+    )
 
     expected_df = spark.createDataFrame(
         [
@@ -242,7 +246,9 @@ def test_capture_mismatch_data_and_cols_fail(spark):
     )
 
     with pytest.raises(ColumnMismatchException) as exception:
-        capture_mismatch_data_and_columns(source=source, target=target, key_columns=["s_suppkey"])
+        capture_mismatch_data_and_columns(
+            source=source, target=target, key_columns=["s_suppkey"], persistence=FakeReconIntermediatePersist()
+        )
 
     assert str(exception.value) == (
         "source and target should have same columns for capturing the mismatch data\n"
@@ -320,7 +326,12 @@ def test_capture_mismatch_data_and_cols_special_column_names(spark):
         ]
     )
 
-    actual = capture_mismatch_data_and_columns(source=source, target=target, key_columns=["`s``supp#`", "`s_nation#`"])
+    actual = capture_mismatch_data_and_columns(
+        source=source,
+        target=target,
+        key_columns=["`s``supp#`", "`s_nation#`"],
+        persistence=FakeReconIntermediatePersist(),
+    )
 
     expected_df = spark.createDataFrame(
         [

@@ -156,7 +156,7 @@ def capture_mismatch_data_and_columns(
     source: DataFrame,
     target: DataFrame,
     key_columns: list[str],
-    persistence: AbstractReconIntermediatePersist | None = None,
+    persistence: AbstractReconIntermediatePersist,
 ) -> MismatchOutput:
     source_df = _build_capture_df(source)
     target_df = _build_capture_df(target)
@@ -172,9 +172,9 @@ def capture_mismatch_data_and_columns(
         raise _raise_column_mismatch_exception(message, source_missing, target_missing)
 
     check_columns = [column for column in source_columns if column not in unnormalized_key_columns]
-    mismatch_df = _get_mismatch_df(source_df, target_df, unnormalized_key_columns, check_columns)
-    if persistence is not None:
-        mismatch_df = persistence.write_and_read_df_with_volumes(mismatch_df)
+    mismatch_df = persistence.write_and_read_df_with_volumes(
+        _get_mismatch_df(source_df, target_df, unnormalized_key_columns, check_columns)
+    )
     mismatch_columns = _get_mismatch_columns(mismatch_df, check_columns)
     return MismatchOutput(mismatch_df, mismatch_columns)
 
