@@ -136,7 +136,10 @@ def test_capture_mismatch_data_and_cols(spark):
     )
 
     actual = capture_mismatch_data_and_columns(
-        source=source, target=target, key_columns=["s_suppkey", "s_nationkey"], persistence=FakeReconIntermediatePersist()
+        source=source,
+        target=target,
+        key_columns=["s_suppkey", "s_nationkey"],
+        persistence=FakeReconIntermediatePersist(),
     )
 
     expected_df = spark.createDataFrame(
@@ -197,7 +200,10 @@ def test_capture_mismatch_data_and_cols_no_mismatch(spark):
     )
 
     actual = capture_mismatch_data_and_columns(
-        source=source, target=target, key_columns=["s_suppkey", "s_nationkey"], persistence=FakeReconIntermediatePersist()
+        source=source,
+        target=target,
+        key_columns=["s_suppkey", "s_nationkey"],
+        persistence=FakeReconIntermediatePersist(),
     )
 
     expected_df = spark.createDataFrame(
