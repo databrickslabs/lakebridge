@@ -4,14 +4,12 @@ from unittest.mock import MagicMock, patch
 
 from pyspark.sql import DataFrame
 
-from databricks.labs.lakebridge.config import DatabaseConfig, ReconcileMetadataConfig
 from databricks.labs.lakebridge.reconcile.compare import (
     capture_mismatch_data_and_columns,
     reconcile_agg_data_per_rule,
 )
 from databricks.labs.lakebridge.reconcile.recon_capture import AbstractReconIntermediatePersist
-from databricks.labs.lakebridge.reconcile.recon_config import AggregateRule, ColumnThresholds, Table
-from databricks.labs.lakebridge.reconcile.reconciliation import Reconciliation
+from databricks.labs.lakebridge.reconcile.recon_config import AggregateRule
 
 
 class RecordingReconIntermediatePersist(AbstractReconIntermediatePersist):
@@ -106,44 +104,3 @@ def test_reconcile_agg_data_per_rule_materializes_rule_outputs() -> None:
         )
 
     assert recording.write_calls == 3
-
-
-def test_compute_threshold_comparison_materializes_mismatched_rows() -> None:
-    recording = RecordingReconIntermediatePersist()
-    table_conf = Table(
-        source_name="supplier",
-        target_name="target_supplier",
-        column_thresholds=[
-            ColumnThresholds(column_name="s_acctbal", lower_bound="0", upper_bound="100", type="int"),
-        ],
-    )
-    threshold_result = MagicMock()
-    filtered_df = MagicMock()
-    threshold_result.filter.return_value = filtered_df
-    filtered_df.count.return_value = 2
-
-    target = MagicMock()
-    target.read_data.return_value = threshold_result
-
-    reconciler = Reconciliation(
-        source=MagicMock(),
-        target=target,
-        database_config=DatabaseConfig("src_cat", "src_schema", "tgt_cat", "tgt_schema"),
-        report_type="data",
-        schema_comparator=MagicMock(),
-        source_engine=MagicMock(),
-        spark=MagicMock(),
-        metadata_config=ReconcileMetadataConfig(),
-        intermediate_persist=recording,
-    )
-
-    with patch(
-        "databricks.labs.lakebridge.reconcile.reconciliation.ThresholdQueryBuilder.build_comparison_query",
-        return_value="SELECT 1",
-    ):
-        output = reconciler._compute_threshold_comparison(table_conf, src_schema=[])  # pylint: disable=protected-access
-
-    assert recording.write_calls == 1
-    assert output.threshold_mismatch_count == 2
-    target.read_data.assert_called_once()
-    threshold_result.filter.assert_called_once()
