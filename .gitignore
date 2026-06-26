@@ -23,3 +23,6 @@ remorph_transpile/
 .mypy_cache
 .env
 /tests/resources/lsp_transpiler/test-lsp-server.log
+.credentials.yml
+.credentials.bak
+.credentials.*
