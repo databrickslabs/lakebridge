@@ -12,7 +12,11 @@ PROFILER_SOURCE_SYSTEM = sorted(
         "legacy_synapse",
         "bigquery",
         "redshift",
+        "teradata",
     ]
 )
 
-SOURCE_SYSTEM_VARIANTS = {"redshift": ("serverless", "provisioned", "provisioned_multi_az")}
+SOURCE_SYSTEM_VARIANTS = {
+    "redshift": ("serverless", "provisioned", "provisioned_multi_az"),
+    "teradata": ("core", "pdcr"),
+}

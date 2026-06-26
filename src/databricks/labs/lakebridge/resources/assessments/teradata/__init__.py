@@ -1,0 +1,1 @@
+# Teradata profiler assessment resources
