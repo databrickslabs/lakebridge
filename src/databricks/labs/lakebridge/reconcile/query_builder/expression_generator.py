@@ -4,7 +4,6 @@ from functools import partial, reduce
 from pyspark.sql.types import DataType, NumericType
 from sqlglot import Dialect
 from sqlglot import expressions as exp
-from sqlglot.errors import ParseError
 
 from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
 from databricks.labs.lakebridge.reconcile.recon_config import HashAlgoMapping
@@ -163,31 +162,6 @@ def transform_expression(
     return expr
 
 
-def bigquery_decimal_transform(datatype: str) -> list[partial]:
-    """Scale-aware decimal→string for BigQuery row hashing.
-
-    BigQuery ``CAST(NUMERIC AS STRING)`` strips trailing zeros (``23.7989``) while Spark
-    ``CAST(DECIMAL(p,s) AS STRING)`` pads to the column scale (``23.798900000``), so identical values
-    would hash differently. ``FORMAT('%.<scale>f', col)`` pads on the BigQuery side and is precision-safe
-    for NUMERIC/BIGNUMERIC (not routed through FLOAT64). Scale is read from the column type; it defaults to
-    9 (BigQuery NUMERIC's fixed scale) when absent.
-    """
-    scale = 9
-    try:
-        params = exp.DataType.build(datatype, dialect=get_dialect("bigquery")).expressions
-        if len(params) >= 2:
-            scale = int(params[1].name)
-    except (ParseError, ValueError, IndexError):
-        scale = 9
-    return [
-        partial(
-            anonymous,
-            func="COALESCE(FORMAT('%." + str(scale) + "f', {}), '_null_recon_')",
-            dialect=get_dialect("bigquery"),
-        )
-    ]
-
-
 def get_hash_transform(
     source: Dialect,
     layer: str,
@@ -280,9 +254,7 @@ def _get_is_string(column_types_dict: dict[str, DataType], column_name: str) -> 
 DataType_transform_mapping: dict[str, dict[str, list[partial[exp.Expression]]]] = {  # pylint: disable=invalid-name
     "universal": {"default": [partial(coalesce, default='_null_recon_', is_string=True), partial(trim)]},
     "bigquery": {
-        # BigQuery CONCAT/|| and TRIM/COALESCE require STRING operands, so cast every column to STRING
-        # before concatenation (mirrors the tsql default). DATE/INT64/NUMERIC/STRING cast deterministically;
-        # TIMESTAMP/FLOAT64 string formatting parity with Databricks is a follow-up (explicit FORMAT needed).
+        # TODO: add timestamps and numbers handling
         "default": [partial(anonymous, func="COALESCE(TRIM(CAST({} AS STRING)), '_null_recon_')")],
     },
     "snowflake": {exp.DataType.Type.ARRAY.value: [partial(array_to_string), partial(array_sort)]},

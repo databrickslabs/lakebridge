@@ -22,14 +22,11 @@ def test_read_data_builds_two_part_backtick_quoted_name():
     engine, reader = initial_setup()
     dfds = BigQueryDataSource(engine, reader)
 
-    # catalog ("proj") is ignored: the project is abstracted by the UC connection, so the table
-    # is referenced two-part as `dataset`.`table` (the connection's default project scopes it).
-    dfds.read_data("proj", "dataset", "employee", "select 1 from :tbl", None)
+    dfds.read_data("scratch_ds", "dataset", "employee", "select 1 from :tbl", None)
 
-    # BigQuery remote_query rejects `database`; results materialize into the dataset (no project option)
     reader.read_data.assert_called_once_with(
         "select 1 from `dataset`.`employee`",
-        "dataset",
+        "scratch_ds",
         "materializationDataset",
         "query",
         None,
@@ -41,22 +38,7 @@ def test_read_data_substitutes_bigquery_rendered_placeholder():
     engine, reader = initial_setup()
     dfds = BigQueryDataSource(engine, reader)
 
-    dfds.read_data("proj", "dataset", "employee", "select 1 from @tbl", None)
-
-    reader.read_data.assert_called_once_with(
-        "select 1 from `dataset`.`employee`",
-        "dataset",
-        "materializationDataset",
-        "query",
-        None,
-    )
-
-
-def test_read_data_uses_configured_materialization_dataset():
-    engine, reader = initial_setup()
-    dfds = BigQueryDataSource(engine, reader, materialization_dataset="scratch_ds")
-
-    dfds.read_data("proj", "dataset", "employee", "select 1 from :tbl", None)
+    dfds.read_data("scratch_ds", "dataset", "employee", "select 1 from @tbl", None)
 
     reader.read_data.assert_called_once_with(
         "select 1 from `dataset`.`employee`",
@@ -138,26 +120,11 @@ def test_hash_query_emits_bigquery_compatible_sql():
 
     # hex-wrapped SHA-256 (matches Databricks sha2(...,256))
     assert "TO_HEX(SHA256(" in query
-    # non-decimal columns cast to STRING for concatenation
+    # every column cast to STRING for concatenation
     assert "CAST(`id` AS STRING)" in query
-    # decimals use scale-aware FORMAT (not CAST) so trailing zeros match Spark's DECIMAL(38,9) string
-    assert "FORMAT('%.9f', `amount`)" in query
-    assert "CAST(`amount` AS STRING)" not in query
+    assert "CAST(`amount` AS STRING)" in query
     # sqlglot renders the :tbl placeholder as @tbl for BigQuery — read_data handles both
     assert "@tbl" in query or ":tbl" in query
-
-
-def test_hash_query_decimal_format_is_scale_aware():
-    # parameterized decimal scale must drive the FORMAT precision so BQ padding matches Spark's scale
-    engine, reader = initial_setup()
-    data_source = BigQueryDataSource(engine, reader)
-    norm = data_source.normalize_identifier("amount")
-    schema = [Schema(norm.ansi_normalized, "decimal(10,2)", norm.ansi_normalized, norm.source_normalized)]
-    table_conf = Table(source_name="t", target_name="t", join_columns=["amount"])
-
-    query = HashQueryBuilder(table_conf, schema, "source", engine, data_source).build_query("row")
-
-    assert "FORMAT('%.2f', `amount`)" in query
 
 
 def test_list_schemas_exception_handling():

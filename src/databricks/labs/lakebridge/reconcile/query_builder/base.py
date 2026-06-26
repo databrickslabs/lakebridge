@@ -12,7 +12,6 @@ from databricks.labs.lakebridge.reconcile.connectors.snowflake import SnowflakeD
 from databricks.labs.lakebridge.reconcile.exception import InvalidInputException
 from databricks.labs.lakebridge.reconcile.query_builder.expression_generator import (
     DataType_transform_mapping,
-    bigquery_decimal_transform,
     transform_expression,
     build_column,
 )
@@ -144,10 +143,6 @@ class QueryBuilder(ABC):
                 parsed = exp.DataType.build(datatype, source).this.value
             except sqlglot.errors.ParseError:
                 logger.warning(f"Could not parse datatype {datatype} for source {source_dialect}")
-
-            # BigQuery decimals need scale-aware padding to match Spark's CAST(DECIMAL AS STRING).
-            if source_dialect == "bigquery" and parsed == exp.DataType.Type.DECIMAL.value:
-                return bigquery_decimal_transform(datatype)
 
             if source_mapping.get(parsed) is not None:
                 return source_mapping.get(parsed)

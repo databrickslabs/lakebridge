@@ -204,28 +204,26 @@ def test_teradata_list_tables_happy(spark: SparkSession) -> None:
 
 
 def _bigquery_connector(spark: SparkSession) -> BigQueryDataSource:
-    # catalog (project) is abstracted by the connection; a materialization dataset is required for the
-    # remote_query pushdown (and is project-level for list_schemas).
     reader = RemoteQueryReader(spark, "bigquery_sandbox")
-    return BigQueryDataSource(get_dialect("bigquery"), reader, materialization_dataset="public")
+    return BigQueryDataSource(get_dialect("bigquery"), reader)
 
 
 def test_bigquery_read_schema_happy(spark: SparkSession) -> None:
     connector = _bigquery_connector(spark)
 
-    columns = connector.get_schema("", "public", "bigquery_demo_nyc_pizza")
+    columns = connector.get_schema("public", "public", "bigquery_demo_nyc_pizza")
     assert columns
 
 
 def test_bigquery_list_schemas_happy(spark: SparkSession) -> None:
     connector = _bigquery_connector(spark)
 
-    schemas = connector.list_schemas("")
+    schemas = connector.list_schemas("public")
     assert "public" in schemas
 
 
 def test_bigquery_list_tables_happy(spark: SparkSession) -> None:
     connector = _bigquery_connector(spark)
 
-    tables = connector.list_tables("", "public")
+    tables = connector.list_tables("public", "public")
     assert "bigquery_demo_nyc_pizza" in tables

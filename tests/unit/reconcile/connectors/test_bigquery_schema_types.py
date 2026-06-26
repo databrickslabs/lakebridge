@@ -13,12 +13,7 @@ knowledge.
 
 import pytest
 from sqlglot import parse_one
-from sqlglot import expressions as exp
 
-from databricks.labs.lakebridge.reconcile.query_builder.expression_generator import (
-    bigquery_decimal_transform,
-    transform_expression,
-)
 from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
 
 _BQ = get_dialect("bigquery")
@@ -85,17 +80,3 @@ def test_raw_type_fails_without_stage1(bq_type, target):
     assert not _schema_compare_valid(
         bq_type, target
     ), f"{bq_type} now reconciles raw to {target!r}; the Stage-1 CASE may be unnecessary — re-check."
-
-
-@pytest.mark.parametrize(
-    "datatype, expected_format",
-    [
-        ("decimal(10,2)", "%.2f"),  # parameterized scale drives FORMAT precision
-        ("decimal(38,9)", "%.9f"),
-        ("decimal", "%.9f"),  # no params -> default scale 9
-        ("not-a-valid-type", "%.9f"),  # unparseable -> default scale 9 (except branch)
-    ],
-)
-def test_bigquery_decimal_transform_scale(datatype, expected_format):
-    rendered = transform_expression(exp.column("c"), bigquery_decimal_transform(datatype)).sql(dialect=_BQ)
-    assert expected_format in rendered

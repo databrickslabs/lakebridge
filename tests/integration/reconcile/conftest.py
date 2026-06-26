@@ -71,7 +71,6 @@ TERADATA_CATALOG = "DBC"
 TERADATA_SCHEMA = "lf_test_user"
 TERADATA_TABLE = "diamonds"
 BIGQUERY_CONNECTION = "bigquery_sandbox"
-# BigQuery uses two-part naming: the project is abstracted by the UC connection, so there is no catalog.
 BIGQUERY_SCHEMA = "public"
 BIGQUERY_TABLE = "bigquery_demo_nyc_pizza"
 
@@ -465,8 +464,6 @@ def bigquery_recon_table_config(recon_schema: SchemaInfo, recon_tables: tuple[Ta
     _, tgt_table = recon_tables
     assert tgt_table.name
 
-    # report_type is "schema" for BigQuery (see bigquery_recon_config), so join_columns are not used
-    # in a source data query; they only need to be present on the config.
     return TableRecon(
         [
             Table(
@@ -490,16 +487,12 @@ def bigquery_recon_config(recon_cluster: str, recon_schema: SchemaInfo, make_vol
 
     assert recon_schema.catalog_name
     assert recon_schema.name
-    # "schema" report: the BigQuery source (bigquery_demo_nyc_pizza) and the generic DIAMONDS target
-    # don't share columns/data, so schema reconciliation is what exercises the connector end-to-end
-    # (remote_query + two-part get_schema) while the job still terminates SUCCESS regardless of
-    # column differences. catalog is empty: the project is abstracted by the UC connection.
+    # "schema" report: the BigQuery source and the generic DIAMONDS target don't share columns, so
+    # schema reconciliation exercises the connection end-to-end while the job still terminates SUCCESS.
     return ReconcileConfig(
         report_type="schema",
         source=SourceConnectionConfig(
             dialect="bigquery",
-            # BigQuery has no separate catalog; mirror the dataset so the value round-trips through
-            # serde (the connector ignores catalog and uses two-part dataset.table).
             catalog=BIGQUERY_SCHEMA,
             schema=BIGQUERY_SCHEMA,
             uc_connection_name=BIGQUERY_CONNECTION,
