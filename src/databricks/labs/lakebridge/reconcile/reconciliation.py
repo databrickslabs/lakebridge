@@ -294,7 +294,7 @@ class Reconciliation:
                     rule_reconcile_output = DataReconcileOutput(exception=str(data_source_exception))
                 else:
                     rule_reconcile_output = reconcile_agg_data_per_rule(
-                        joined_df, src_data.columns, tgt_data.columns, rule
+                        joined_df, src_data.columns, tgt_data.columns, rule, self.intermediate_persist
                     )
                 rules_reconcile_output.append(AggregateQueryOutput(rule=rule, reconcile_output=rule_reconcile_output))
 
@@ -410,7 +410,9 @@ class Reconciliation:
             options=None,
         )
 
-        return capture_mismatch_data_and_columns(source=src_data, target=tgt_data, key_columns=key_columns)
+        return capture_mismatch_data_and_columns(
+            source=src_data, target=tgt_data, key_columns=key_columns, persistence=self.intermediate_persist
+        )
 
     def _reconcile_threshold_data(
         self,
@@ -475,8 +477,9 @@ class Reconciliation:
         failed_where_cond = " OR ".join(
             ["`" + DialectUtils.unnormalize_identifier(name) + "_match` = 'Failed'" for name in threshold_columns]
         )
-        mismatched_df = threshold_result.filter(failed_where_cond)
-        # TODO write `mismatched_df` to delta
+        mismatched_df = self.intermediate_persist.write_and_read_df_with_volumes(
+            threshold_result.filter(failed_where_cond)
+        )
         mismatched_count = mismatched_df.count()
         threshold_df = None
         if mismatched_count > 0:
