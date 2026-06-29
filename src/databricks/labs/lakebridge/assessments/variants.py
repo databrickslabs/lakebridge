@@ -62,7 +62,7 @@ def resolve_variant(
 
     The ``SOURCE_SYSTEM_VARIANTS`` entry is either a tuple of explicit choices (the CLI prompts for one of
     these) or the ``AUTO`` marker (the variant is probed from a live connection here). ``variant`` is an
-    explicit choice, the ``AUTO`` sentinel, or ``None``. This never prompts -- prompting lives in the CLI.
+    explicit choice, the ``AUTO`` sentinel, or ``None``.
     """
     resolvers = resolvers if resolvers else VARIANT_RESOLVERS
     spec = SOURCE_SYSTEM_VARIANTS.get(source_system)
@@ -72,7 +72,7 @@ def resolve_variant(
         return None
 
     if AUTO in spec:
-        if variant != AUTO:
+        if variant and variant != AUTO:
             logger.warning(f"Ignoring variant '{variant}'. Auto-detecting for source system '{source_system}'.")
         resolver = resolvers.get(source_system)
         if resolver is None:
