@@ -182,7 +182,8 @@ def test_recon_capture_start_snowflake_all(ws, spark, recon_metadata, run_by_use
     # assert details (record-level model; schema comparison now lives in schema_details)
     prefix = f"{recon_metadata.catalog}.{recon_metadata.schema}"
     remorph_recon_details_df = spark.sql(f"select * from {prefix}.details")
-    assert remorph_recon_details_df.count() == 4
+    # One row per sampled record: 2 mismatch + 3 missing_in_source + 4 missing_in_target + 2 threshold.
+    assert remorph_recon_details_df.count() == 11
     recon_types = {row.recon_type for row in remorph_recon_details_df.select("recon_type").distinct().collect()}
     assert recon_types == {"mismatch", "missing_in_source", "missing_in_target", "threshold_mismatch"}
 
@@ -241,9 +242,10 @@ def test_test_recon_capture_start_databricks_data(ws, spark, recon_metadata):
     assert row.recon_metrics.schema_comparison is None
     assert row.run_metrics.status is False
 
-    # assert details
+    # assert details: one row per sampled record (2 mismatch + 3 missing_in_source + 4 missing_in_target
+    # + 2 threshold) across the 4 recon_types.
     remorph_recon_details_df = spark.sql(f"select * from {recon_metadata.catalog}.{recon_metadata.schema}.details")
-    assert remorph_recon_details_df.count() == 4
+    assert remorph_recon_details_df.count() == 11
     assert remorph_recon_details_df.select("recon_type").distinct().count() == 4
 
 
@@ -289,9 +291,10 @@ def test_test_recon_capture_start_databricks_row(ws, spark, recon_metadata):
     assert row.recon_metrics.schema_comparison is None
     assert row.run_metrics.status is False
 
-    # assert details
+    # assert details: row-only run keeps just the missing records (3 missing_in_source + 4 missing_in_target)
+    # across the 2 recon_types.
     remorph_recon_details_df = spark.sql(f"select * from {recon_metadata.catalog}.{recon_metadata.schema}.details")
-    assert remorph_recon_details_df.count() == 2
+    assert remorph_recon_details_df.count() == 7
     assert remorph_recon_details_df.select("recon_type").distinct().count() == 2
 
 

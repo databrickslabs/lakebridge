@@ -11,9 +11,6 @@ CREATE TABLE IF NOT EXISTS aggregate_metrics (
                         run_by_user: STRING NOT NULL COMMENT 'User that ran the reconcile.',
                         exception_message: STRING COMMENT 'Non-empty means the run errored.'
                        > NOT NULL COMMENT 'Run verdict and execution status.',
-    inserted_ts TIMESTAMP NOT NULL COMMENT 'Row insert timestamp.',
-    CONSTRAINT aggregate_metrics_pk PRIMARY KEY (recon_table_id, rule_id),
-    CONSTRAINT agg_metrics_main_fk FOREIGN KEY (recon_table_id) REFERENCES main (recon_table_id),
-    CONSTRAINT agg_metrics_rules_fk FOREIGN KEY (rule_id) REFERENCES aggregate_rules (rule_id)
+    inserted_ts TIMESTAMP NOT NULL COMMENT 'Row insert timestamp.'
 )
 COMMENT 'Aggregates-reconcile results per (table, rule). Join main on recon_table_id, aggregate_rules on rule_id.';

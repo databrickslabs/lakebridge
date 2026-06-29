@@ -1,3 +1,4 @@
+import json
 import logging
 from datetime import timedelta
 from pathlib import Path
@@ -62,9 +63,7 @@ class DashboardDeployment:
                 # survive a round-trip through the deploy.
                 valid_dashboard_refs.add(self._dashboard_reference(entry))
                 dashboard_id = self._update_or_create_json_dashboard(entry, parent_path, metadata_config)
-                logger.info(
-                    f"Dashboard deployed with URL: {self._ws.config.host}/sql/dashboardsv3/{dashboard_id}"
-                )
+                logger.info(f"Dashboard deployed with URL: {self._ws.config.host}/sql/dashboardsv3/{dashboard_id}")
                 self._install_state.save()
 
         self._remove_deprecated_dashboards(valid_dashboard_refs)

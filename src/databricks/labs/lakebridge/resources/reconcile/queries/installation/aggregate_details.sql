@@ -6,9 +6,7 @@ CREATE TABLE IF NOT EXISTS aggregate_details (
     source_row       VARIANT COMMENT 'Source-side aggregate image.',
     target_row       VARIANT COMMENT 'Target-side aggregate image.',
     mismatch_columns ARRAY<STRING> COMMENT 'Aggregate columns that differ.',
-    inserted_ts      TIMESTAMP        NOT NULL COMMENT 'Row insert timestamp.',
-    CONSTRAINT agg_details_main_fk FOREIGN KEY (recon_table_id) REFERENCES main (recon_table_id),
-    CONSTRAINT agg_details_rules_fk FOREIGN KEY (rule_id) REFERENCES aggregate_rules (rule_id)
+    inserted_ts      TIMESTAMP        NOT NULL COMMENT 'Row insert timestamp.'
 )
 CLUSTER BY (recon_table_id, rule_id)
 COMMENT 'Sampled example aggregate groups for aggregates-reconcile. Join main on recon_table_id, aggregate_rules on rule_id.';

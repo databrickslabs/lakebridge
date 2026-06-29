@@ -15,9 +15,7 @@ CREATE TABLE IF NOT EXISTS main (
     report_type STRING NOT NULL COMMENT 'Checks run: schema | row | data | all. Gates which metrics columns are populated.',
     operation_name  STRING NOT NULL COMMENT 'reconcile | aggregates-reconcile.',
     start_ts TIMESTAMP COMMENT 'Run start timestamp.',
-    end_ts TIMESTAMP COMMENT 'Run end timestamp.',
-    CONSTRAINT main_pk PRIMARY KEY (recon_table_id),
-    CONSTRAINT main_run_context_fk FOREIGN KEY (recon_id) REFERENCES recon_run_context (recon_id)
+    end_ts TIMESTAMP COMMENT 'Run end timestamp.'
 )
 COMMENT 'Header/identity row per reconciled table per run. Join metrics/details/schema_details on recon_table_id; recon_run_context on recon_id.'
 TBLPROPERTIES (

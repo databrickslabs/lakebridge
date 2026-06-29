@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -808,63 +809,6 @@ def test_recon_for_report_type_is_data(
         ],
         schema=metrics_schema,
     )
-    expected_remorph_recon_details = spark.createDataFrame(
-        data=[
-            (
-                11111111111,
-                "mismatch",
-                False,
-                [
-                    {
-                        "s_suppkey": "2",
-                        "s_nationkey": "22",
-                        "s_address_base": "address-2",
-                        "s_address_compare": "address-22",
-                        "s_address_match": "false",
-                        "s_name_base": "name-2",
-                        "s_name_compare": "name-2",
-                        "s_name_match": "true",
-                        "s_phone_base": "222-2",
-                        "s_phone_compare": "222",
-                        "s_phone_match": "false",
-                    }
-                ],
-                MOCK_TIMESTAMP,
-            ),
-            (
-                11111111111,
-                "missing_in_source",
-                False,
-                [
-                    {
-                        "s_address": "address-4",
-                        "s_name": "name-4",
-                        "s_nationkey": "44",
-                        "s_phone": "444",
-                        "s_suppkey": "4",
-                    }
-                ],
-                MOCK_TIMESTAMP,
-            ),
-            (
-                11111111111,
-                "missing_in_target",
-                False,
-                [
-                    {
-                        "s_address": "address-3",
-                        "s_name": "name-3",
-                        "s_nationkey": "33",
-                        "s_phone": "333",
-                        "s_suppkey": "3",
-                    }
-                ],
-                MOCK_TIMESTAMP,
-            ),
-        ],
-        schema=details_schema,
-    )
-
     assertDataFrameEqual(
         spark.sql(f"SELECT * FROM {metadata.catalog}.{metadata.schema}.MAIN"),
         expected_remorph_recon,
@@ -875,11 +819,51 @@ def test_recon_for_report_type_is_data(
         expected_remorph_recon_metrics,
         ignoreNullable=True,
     )
-    assertDataFrameEqual(
-        spark.sql(f"SELECT * FROM {metadata.catalog}.{metadata.schema}.DETAILS"),
-        expected_remorph_recon_details,
-        ignoreNullable=True,
-    )
+    # Record-level details: one row per sampled record, with VARIANT row images. record_key /
+    # source_row / target_row come back as JSON; compare as dicts so key order is irrelevant.
+    details_rows = {
+        r.recon_type: r
+        for r in spark.sql(
+            f"SELECT recon_type, to_json(record_key) rk, to_json(source_row) sr, "
+            f"to_json(target_row) tr, mismatch_columns mc "
+            f"FROM {metadata.catalog}.{metadata.schema}.DETAILS"
+        ).collect()
+    }
+    assert set(details_rows) == {"mismatch", "missing_in_source", "missing_in_target"}
+
+    # Mismatch record: join keys in record_key, the differing column values on each side, and only
+    # the columns that actually differ in mismatch_columns (s_name matches, so it is excluded).
+    mismatch = details_rows["mismatch"]
+    assert json.loads(mismatch.rk) == {"s_suppkey": 2, "s_nationkey": 22}
+    assert json.loads(mismatch.sr) == {"s_address": "address-2", "s_name": "name-2", "s_phone": "222-2"}
+    assert json.loads(mismatch.tr) == {"s_address": "address-22", "s_name": "name-2", "s_phone": "222"}
+    assert sorted(mismatch.mc) == ["s_address", "s_phone"]
+
+    # missing_in_source rows exist only on the target side: source_row is null, target_row holds the image.
+    missing_src = details_rows["missing_in_source"]
+    missing_src_row = {
+        "s_address": "address-4",
+        "s_name": "name-4",
+        "s_nationkey": 44,
+        "s_phone": "444",
+        "s_suppkey": 4,
+    }
+    assert missing_src.sr is None
+    assert json.loads(missing_src.tr) == missing_src_row
+    assert missing_src.mc is None
+
+    # missing_in_target rows exist only on the source side: target_row is null, source_row holds the image.
+    missing_tgt = details_rows["missing_in_target"]
+    missing_tgt_row = {
+        "s_address": "address-3",
+        "s_name": "name-3",
+        "s_nationkey": 33,
+        "s_phone": "333",
+        "s_suppkey": 3,
+    }
+    assert missing_tgt.tr is None
+    assert json.loads(missing_tgt.sr) == missing_tgt_row
+    assert missing_tgt.mc is None
 
 
 @pytest.fixture
@@ -1006,62 +990,6 @@ def test_recon_for_report_type_schema(
         ],
         schema=metrics_schema,
     )
-    expected_remorph_recon_details = spark.createDataFrame(
-        data=[
-            (
-                22222222222,
-                "schema",
-                True,
-                [
-                    {
-                        "source_column": "s_suppkey",
-                        "source_datatype": "number",
-                        "databricks_column": "s_suppkey_t",
-                        "databricks_datatype": "number",
-                        "is_valid": "true",
-                    },
-                    {
-                        "source_column": "s_name",
-                        "source_datatype": "varchar",
-                        "databricks_column": "s_name",
-                        "databricks_datatype": "varchar",
-                        "is_valid": "true",
-                    },
-                    {
-                        "source_column": "s_address",
-                        "source_datatype": "varchar",
-                        "databricks_column": "s_address_t",
-                        "databricks_datatype": "varchar",
-                        "is_valid": "true",
-                    },
-                    {
-                        "source_column": "s_nationkey",
-                        "source_datatype": "number",
-                        "databricks_column": "s_nationkey_t",
-                        "databricks_datatype": "number",
-                        "is_valid": "true",
-                    },
-                    {
-                        "source_column": "s_phone",
-                        "source_datatype": "varchar",
-                        "databricks_column": "s_phone_t",
-                        "databricks_datatype": "varchar",
-                        "is_valid": "true",
-                    },
-                    {
-                        "source_column": "s_acctbal",
-                        "source_datatype": "number",
-                        "databricks_column": "s_acctbal_t",
-                        "databricks_datatype": "number",
-                        "is_valid": "true",
-                    },
-                ],
-                MOCK_TIMESTAMP,
-            )
-        ],
-        schema=details_schema,
-    )
-
     assertDataFrameEqual(
         spark.sql(f"SELECT * FROM {metadata.catalog}.{metadata.schema}.MAIN"),
         expected_remorph_recon,
@@ -1072,11 +1000,25 @@ def test_recon_for_report_type_schema(
         expected_remorph_recon_metrics,
         ignoreNullable=True,
     )
-    assertDataFrameEqual(
-        spark.sql(f"SELECT * FROM {metadata.catalog}.{metadata.schema}.DETAILS"),
-        expected_remorph_recon_details,
-        ignoreNullable=True,
+
+    # A schema-only run writes no row-level details; the per-column schema comparison goes to
+    # schema_details (one row per compared column).
+    details_df = spark.sql(f"SELECT * FROM {metadata.catalog}.{metadata.schema}.DETAILS")
+    assert details_df.count() == 0
+
+    schema_details_df = spark.sql(f"SELECT * FROM {metadata.catalog}.{metadata.schema}.SCHEMA_DETAILS")
+    expected_schema_details = spark.createDataFrame(
+        data=[
+            (22222222222, "s_suppkey", "number", "s_suppkey_t", "number", True, MOCK_TIMESTAMP),
+            (22222222222, "s_name", "varchar", "s_name", "varchar", True, MOCK_TIMESTAMP),
+            (22222222222, "s_address", "varchar", "s_address_t", "varchar", True, MOCK_TIMESTAMP),
+            (22222222222, "s_nationkey", "number", "s_nationkey_t", "number", True, MOCK_TIMESTAMP),
+            (22222222222, "s_phone", "varchar", "s_phone_t", "varchar", True, MOCK_TIMESTAMP),
+            (22222222222, "s_acctbal", "number", "s_acctbal_t", "number", True, MOCK_TIMESTAMP),
+        ],
+        schema=schema_details_df.schema,
     )
+    assertDataFrameEqual(schema_details_df, expected_schema_details, ignoreNullable=True)
 
     assert final_reconcile_output.recon_id == recon_id.hex
 
@@ -2028,7 +1970,7 @@ def test_reconcile_data_with_threshold_and_row_report_type(
 def test_recon_output_without_exception(mock_gen_final_recon_output):
     ws_client_mock = MagicMock()
     spark = MagicMock()
-    mock_table_recon = MagicMock()
+    mock_table_recon = TableRecon(tables=[])
     mock_gen_final_recon_output.return_value = ReconcileOutput(
         recon_id="00112233-4455-6677-8899-aabbccddeeff",
         results=[
