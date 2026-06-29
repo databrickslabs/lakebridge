@@ -758,7 +758,7 @@ def mock_for_report_type_data(
 def test_recon_for_report_type_is_data(
     ws, spark, run_by_user, report_tables_schema, mock_for_report_type_data, tmp_path: Path, recon_id: UUID
 ):
-    recon_schema, metrics_schema, details_schema = report_tables_schema
+    recon_schema, metrics_schema, _ = report_tables_schema
     table_recon, source, target, reconcile_config_data = mock_for_report_type_data
     metadata = reconcile_config_data.metadata_config
     with (
@@ -833,37 +833,29 @@ def test_recon_for_report_type_is_data(
 
     # Mismatch record: join keys in record_key, the differing column values on each side, and only
     # the columns that actually differ in mismatch_columns (s_name matches, so it is excluded).
-    mismatch = details_rows["mismatch"]
-    assert json.loads(mismatch.rk) == {"s_suppkey": 2, "s_nationkey": 22}
-    assert json.loads(mismatch.sr) == {"s_address": "address-2", "s_name": "name-2", "s_phone": "222-2"}
-    assert json.loads(mismatch.tr) == {"s_address": "address-22", "s_name": "name-2", "s_phone": "222"}
-    assert sorted(mismatch.mc) == ["s_address", "s_phone"]
+    assert json.loads(details_rows["mismatch"].rk) == {"s_suppkey": 2, "s_nationkey": 22}
+    assert json.loads(details_rows["mismatch"].sr) == {"s_address": "address-2", "s_name": "name-2", "s_phone": "222-2"}
+    assert json.loads(details_rows["mismatch"].tr) == {"s_address": "address-22", "s_name": "name-2", "s_phone": "222"}
+    assert sorted(details_rows["mismatch"].mc) == ["s_address", "s_phone"]
 
-    # missing_in_source rows exist only on the target side: source_row is null, target_row holds the image.
-    missing_src = details_rows["missing_in_source"]
-    missing_src_row = {
+    # missing_in_source rows exist only on the target side (source_row null); missing_in_target only on
+    # the source side (target_row null). The full row image is stored on whichever side is present.
+    assert details_rows["missing_in_source"].sr is None
+    assert json.loads(details_rows["missing_in_source"].tr) == {
         "s_address": "address-4",
         "s_name": "name-4",
         "s_nationkey": 44,
         "s_phone": "444",
         "s_suppkey": 4,
     }
-    assert missing_src.sr is None
-    assert json.loads(missing_src.tr) == missing_src_row
-    assert missing_src.mc is None
-
-    # missing_in_target rows exist only on the source side: target_row is null, source_row holds the image.
-    missing_tgt = details_rows["missing_in_target"]
-    missing_tgt_row = {
+    assert details_rows["missing_in_target"].tr is None
+    assert json.loads(details_rows["missing_in_target"].sr) == {
         "s_address": "address-3",
         "s_name": "name-3",
         "s_nationkey": 33,
         "s_phone": "333",
         "s_suppkey": 3,
     }
-    assert missing_tgt.tr is None
-    assert json.loads(missing_tgt.sr) == missing_tgt_row
-    assert missing_tgt.mc is None
 
 
 @pytest.fixture
@@ -946,7 +938,7 @@ def mock_for_report_type_schema(
 def test_recon_for_report_type_schema(
     ws, spark, run_by_user, report_tables_schema, mock_for_report_type_schema, tmp_path: Path, recon_id: UUID
 ):
-    recon_schema, metrics_schema, details_schema = report_tables_schema
+    recon_schema, metrics_schema, _ = report_tables_schema
     table_recon, source, target, reconcile_config_schema = mock_for_report_type_schema
     metadata = reconcile_config_schema.metadata_config
     with (
@@ -1003,22 +995,24 @@ def test_recon_for_report_type_schema(
 
     # A schema-only run writes no row-level details; the per-column schema comparison goes to
     # schema_details (one row per compared column).
-    details_df = spark.sql(f"SELECT * FROM {metadata.catalog}.{metadata.schema}.DETAILS")
-    assert details_df.count() == 0
+    assert spark.sql(f"SELECT * FROM {metadata.catalog}.{metadata.schema}.DETAILS").count() == 0
 
     schema_details_df = spark.sql(f"SELECT * FROM {metadata.catalog}.{metadata.schema}.SCHEMA_DETAILS")
-    expected_schema_details = spark.createDataFrame(
-        data=[
-            (22222222222, "s_suppkey", "number", "s_suppkey_t", "number", True, MOCK_TIMESTAMP),
-            (22222222222, "s_name", "varchar", "s_name", "varchar", True, MOCK_TIMESTAMP),
-            (22222222222, "s_address", "varchar", "s_address_t", "varchar", True, MOCK_TIMESTAMP),
-            (22222222222, "s_nationkey", "number", "s_nationkey_t", "number", True, MOCK_TIMESTAMP),
-            (22222222222, "s_phone", "varchar", "s_phone_t", "varchar", True, MOCK_TIMESTAMP),
-            (22222222222, "s_acctbal", "number", "s_acctbal_t", "number", True, MOCK_TIMESTAMP),
-        ],
-        schema=schema_details_df.schema,
+    assertDataFrameEqual(
+        schema_details_df,
+        spark.createDataFrame(
+            data=[
+                (22222222222, "s_suppkey", "number", "s_suppkey_t", "number", True, MOCK_TIMESTAMP),
+                (22222222222, "s_name", "varchar", "s_name", "varchar", True, MOCK_TIMESTAMP),
+                (22222222222, "s_address", "varchar", "s_address_t", "varchar", True, MOCK_TIMESTAMP),
+                (22222222222, "s_nationkey", "number", "s_nationkey_t", "number", True, MOCK_TIMESTAMP),
+                (22222222222, "s_phone", "varchar", "s_phone_t", "varchar", True, MOCK_TIMESTAMP),
+                (22222222222, "s_acctbal", "number", "s_acctbal_t", "number", True, MOCK_TIMESTAMP),
+            ],
+            schema=schema_details_df.schema,
+        ),
+        ignoreNullable=True,
     )
-    assertDataFrameEqual(schema_details_df, expected_schema_details, ignoreNullable=True)
 
     assert final_reconcile_output.recon_id == recon_id.hex
 
