@@ -66,3 +66,18 @@ def test_resolve_mssql_variant_with_configured_database_skips_probe() -> None:
         cred_manager.return_value.get_credentials.return_value = {"database": "AdventureWorks"}
         assert resolve_mssql_variant(Path("creds.yml")) == "single_db"
     db_manager.fetch.assert_not_called()
+
+
+@pytest.mark.parametrize("database", ["*", "  ", "", None])
+def test_resolve_mssql_variant_all_databases_probes(database) -> None:
+    """The '*' sentinel and blank/whitespace all mean 'all databases' -> probe the edition, not single_db."""
+    db_manager = MagicMock()
+    db_manager.__enter__.return_value = db_manager
+    db_manager.fetch.return_value = MagicMock(rows=[[3]])  # on-prem Enterprise -> multi_db
+    config = {} if database is None else {"database": database}
+    with (
+        patch("databricks.labs.lakebridge.assessments.variants.DatabaseManager", return_value=db_manager),
+        patch("databricks.labs.lakebridge.assessments.variants.create_credential_manager") as cred_manager,
+    ):
+        cred_manager.return_value.get_credentials.return_value = config
+        assert resolve_mssql_variant(Path("creds.yml")) == "multi_db"

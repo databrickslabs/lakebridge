@@ -10,7 +10,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from databricks.labs.lakebridge.assessments import SOURCE_SYSTEM_VARIANTS, AUTO
-from databricks.labs.lakebridge.connections.database_manager import DatabaseManager
+from databricks.labs.lakebridge.connections.database_manager import DatabaseManager, ALL_DATABASES
 from databricks.labs.lakebridge.connections.credential_manager import create_credential_manager
 from databricks.labs.lakebridge.connections.env_getter import EnvGetter
 
@@ -25,13 +25,15 @@ SQLSERVER_AZURE_SQL_DB_ENGINE_EDITION = 5
 def resolve_mssql_variant(cred_file_path: Path | None) -> str:
     """Pick the SQL Server profiler variant from the configured database and the server edition.
 
-    A configured database scopes profiling to just that database (``single_db``) on any edition. When the
-    database is left blank the edition decides: Azure SQL Database falls back to the connected database
-    (``single_db``); on-prem SQL Server and Azure SQL Managed Instance profile every database (``multi_db``).
+    A specific database scopes profiling to just that database (``single_db``) on any edition. A blank value
+    or the ``ALL_DATABASES`` (``*``) sentinel means "all": the edition then decides — Azure SQL Database falls
+    back to the connected database (``single_db``); on-prem SQL Server and Azure SQL Managed Instance profile
+    every database (``multi_db``).
     """
     cred_manager = create_credential_manager("mssql", EnvGetter(), creds_path=cred_file_path)
     connect_config = cred_manager.get_credentials("mssql")
-    if connect_config.get("database"):
+    database = str(connect_config.get("database") or "").strip()
+    if database and database != ALL_DATABASES:
         # The user picked a specific database -> profile only that one, regardless of edition.
         return "single_db"
     with DatabaseManager("mssql", connect_config) as db_manager:

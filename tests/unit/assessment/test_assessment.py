@@ -61,7 +61,7 @@ def test_configure_sqlserver_credentials(tmp_path):
 
 
 def test_configure_sqlserver_credentials_blank_database(tmp_path):
-    """mssql allows a blank database (stored as ""), signalling 'profile all databases'."""
+    """A blank mssql database is stored as the '*' sentinel, signalling 'profile all databases'."""
     prompts = MockPrompts(
         {
             r"Enter secret vault type \(local \| env\)": sorted(['local', 'env']).index("env"),
@@ -86,7 +86,7 @@ def test_configure_sqlserver_credentials_blank_database(tmp_path):
     with open(file, 'r', encoding='utf-8') as handle:
         credentials = yaml.safe_load(handle)
 
-    assert credentials['mssql']['database'] == ""
+    assert credentials['mssql']['database'] == "*"
 
 
 def test_configure_synapse_credentials(tmp_path):
