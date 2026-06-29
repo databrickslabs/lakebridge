@@ -49,9 +49,8 @@ class BigQueryDataSource(DataSource):
         self._engine = engine
         self._reader = reader
 
-    def _read(self, query: str, catalog: str, options: JdbcReaderOptions | None = None) -> DataFrame:
-        logger.info(f"Using catalog '{catalog}' as the BigQuery materializationDataset")
-        return self._reader.read_data(query, catalog, "materializationDataset", "query", options)
+    def _read(self, query: str, materialization_dataset: str) -> DataFrame:
+        return self._reader.read_data_direct(query, "query", {"materializationDataset": materialization_dataset})
 
     def read_data(
         self,
@@ -61,11 +60,11 @@ class BigQueryDataSource(DataSource):
         query: str,
         options: JdbcReaderOptions | None,
     ) -> DataFrame:
-        table_ref = f"`{schema}`.`{table}`"
+        table_ref = f"`{catalog}.{schema}.{table}`"
         table_query = query.replace(":tbl", table_ref).replace("@tbl", table_ref)
         try:
             logger.info(f"Fetching data using query: \n`{table_query}`")
-            df = self._read(table_query, catalog, options)
+            df = self._read(table_query, schema)
             return df.select([col(column).alias(column.lower()) for column in df.columns])
         except (RuntimeError, PySparkException) as e:
             return self.log_and_throw_exception(e, "data", table_query)
@@ -85,7 +84,7 @@ class BigQueryDataSource(DataSource):
         try:
             logger.debug(f"Fetching schema using query: \n`{schema_query}`")
             logger.info(f"Fetching Schema: Started at: {datetime.now()}")
-            df = self._read(schema_query, catalog)
+            df = self._read(schema_query, schema)
             schema_metadata = df.select([col(c).alias(c.lower()) for c in df.columns]).collect()
             logger.info(f"Schema fetched successfully. Completed at: {datetime.now()}")
             return [self._map_meta_column(field, normalize) for field in schema_metadata]
@@ -95,7 +94,7 @@ class BigQueryDataSource(DataSource):
     def list_schemas(self, catalog: str) -> list[str]:
         query = BigQueryDataSource._LIST_SCHEMAS_QUERY
         try:
-            df = self._read(query, catalog)
+            df = self._read(query, catalog)  # User has to create a dataset with the value
             return [row.schema_name for row in df.select(col("schema_name").alias("schema_name")).collect()]
         except (RuntimeError, PySparkException) as e:
             return self.log_and_throw_exception(e, "schemas", query)
@@ -103,7 +102,7 @@ class BigQueryDataSource(DataSource):
     def list_tables(self, catalog: str, schema: str) -> list[str]:
         query = BigQueryDataSource._LIST_TABLES_QUERY.format(schema=schema)
         try:
-            df = self._read(query, catalog)
+            df = self._read(query, schema)
             return [row.table_name for row in df.select(col("table_name").alias("table_name")).collect()]
         except (RuntimeError, PySparkException) as e:
             return self.log_and_throw_exception(e, "tables", query)

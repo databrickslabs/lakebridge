@@ -71,8 +71,9 @@ TERADATA_CATALOG = "DBC"
 TERADATA_SCHEMA = "lf_test_user"
 TERADATA_TABLE = "diamonds"
 BIGQUERY_CONNECTION = "bigquery_sandbox"
-BIGQUERY_SCHEMA = "public"
-BIGQUERY_TABLE = "bigquery_demo_nyc_pizza"
+BIGQUERY_PROJECT = "databricks-dev-customer"
+BIGQUERY_SCHEMA = "lakebridge"
+BIGQUERY_TABLE = "diamonds"
 
 
 @pytest.fixture
@@ -490,10 +491,10 @@ def bigquery_recon_config(recon_cluster: str, recon_schema: SchemaInfo, make_vol
     # "schema" report: the BigQuery source and the generic DIAMONDS target don't share columns, so
     # schema reconciliation exercises the connection end-to-end while the job still terminates SUCCESS.
     return ReconcileConfig(
-        report_type="schema",
+        report_type="all",
         source=SourceConnectionConfig(
             dialect="bigquery",
-            catalog=BIGQUERY_SCHEMA,
+            catalog=BIGQUERY_PROJECT,
             schema=BIGQUERY_SCHEMA,
             uc_connection_name=BIGQUERY_CONNECTION,
         ),
