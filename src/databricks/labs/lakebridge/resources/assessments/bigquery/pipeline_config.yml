@@ -1,0 +1,8 @@
+name: bigquery_assessment
+version: "1.0"
+steps:
+  - name: bq_metadata_extract
+    type: python
+    mode: overwrite
+    frequency: once
+    flag: active

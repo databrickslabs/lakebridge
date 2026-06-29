@@ -9,6 +9,7 @@ import Admonition from '@theme/Admonition';
 ## Prerequisites
 
 - A Snowflake user with permission to create Personal Access Tokens (PATs) and to query the `SNOWFLAKE.ACCOUNT_USAGE` schema (e.g., the `ACCOUNTADMIN` role or a role granted `IMPORTED PRIVILEGES ON DATABASE SNOWFLAKE`).
+- The `rate_sheet` step also reads `SNOWFLAKE.ORGANIZATION_USAGE.RATE_SHEET_DAILY` for the effective credit rate and account tier. This is available to `ACCOUNTADMIN` in an ORGADMIN-enabled account (the first account in an organization is ORGADMIN-enabled by default, so single-account orgs are covered), or to a custom role granted the `ORGANIZATION_BILLING_VIEWER` database role. If the account isn't ORGADMIN-enabled — or the organization is on a reseller contract — the view returns no rows, so `rate_sheet` is skipped and the rest of the profile still completes.
 - Network access from the machine running Lakebridge to your Snowflake account.
 
 ## Authentication

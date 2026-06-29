@@ -1,6 +1,5 @@
 name: snowflake_assessment
 version: "1.0"
-extract_folder: "~/.databricks/labs/lakebridge_profilers/snowflake_assessment"
 steps:
   - name: account_info
     type: sql
@@ -65,4 +64,14 @@ steps:
     extract_source: src/databricks/labs/lakebridge/resources/assessments/snowflake/materialized_view_refresh.sql
     mode: overwrite
     frequency: daily
+    flag: active
+
+  # Effective rate per credit/unit and the account tier (SERVICE_LEVEL). Requires
+  # SNOWFLAKE.ORGANIZATION_USAGE access (ACCOUNTADMIN in an ORGADMIN-enabled account).
+  # Feeds the downstream TCO model.
+  - name: rate_sheet
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/snowflake/rate_sheet.sql
+    mode: overwrite
+    frequency: once
     flag: active

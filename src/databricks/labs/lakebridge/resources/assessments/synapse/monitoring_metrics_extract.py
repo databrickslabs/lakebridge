@@ -26,7 +26,7 @@ logger = get_logger(__file__)
 
 def execute():
     db_path, creds_file = arguments_loader(desc="Monitoring Metrics Extract Script")
-    cred_manager = create_credential_manager(PRODUCT_NAME, EnvGetter())
+    cred_manager = create_credential_manager(PRODUCT_NAME, EnvGetter(), creds_file)
     synapse_workspace_settings = cred_manager.get_credentials("synapse")
     synapse_profiler_settings = synapse_workspace_settings["profiler"]
 

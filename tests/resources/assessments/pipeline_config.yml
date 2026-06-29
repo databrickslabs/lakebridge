@@ -1,7 +1,5 @@
 name: ExamplePipeline
 version: "1.0"
-# Value replaced prior to actual use:
-extract_folder: /replaced/after/loading/
 steps:
   # Paths for extract_source are relative to the tests/resources/ directory within the project.
   - name: inventory
@@ -28,6 +26,3 @@ steps:
     mode: overwrite
     frequency: daily
     flag: active
-    dependencies:
-      - pandas
-      - duckdb

@@ -95,7 +95,7 @@ def test_invalid_mode(invalid_mode: str) -> None:
         )
 
 
-@pytest.mark.parametrize("step_type", ["sql", "ddl", "python"])
+@pytest.mark.parametrize("step_type", ["sql", "ddl", "python", "source_ddl"])
 def test_valid_types(step_type: str) -> None:
     """Test that valid types are accepted."""
     step = Step(
@@ -145,7 +145,6 @@ def test_pipeline_config_with_valid_steps() -> None:
     config = PipelineConfig(
         name="TestPipeline",
         version="1.0",
-        extract_folder="/tmp/test",
         steps=steps,
     )
 

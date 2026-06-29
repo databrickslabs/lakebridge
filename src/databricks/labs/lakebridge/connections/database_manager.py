@@ -132,6 +132,9 @@ class MSSQLConnector(_BaseConnector):
         query_params: dict[str, str] = {
             "driver": str(self.config['driver']),
             "loginTimeout": "30",
+            "TrustServerCertificate": (
+                "no" if str(self.config.get('trust_server_certificate', 'False')) == 'False' else "yes"
+            ),
         }
 
         if auth_type == "ad_passwd_authentication":
@@ -153,6 +156,23 @@ class MSSQLConnector(_BaseConnector):
             host=str(self.config['server']),
             port=int(str(self.config.get('port', '1433'))),
             database=db_name,
+            query=query_params,
+        )
+        return create_engine(connection_string)
+
+
+class TeradataConnector(_BaseConnector):
+    def _connect(self) -> Engine:
+        query_params: dict[str, str] = {}
+        if self.config.get("database"):
+            query_params["database"] = str(self.config["database"])
+
+        connection_string = URL.create(
+            drivername="teradatasql",
+            username=str(self.config['user']),
+            password=str(self.config['password']),
+            host=str(self.config['host']),
+            port=int(str(self.config.get('port', 1025))),
             query=query_params,
         )
         return create_engine(connection_string)
@@ -206,15 +226,13 @@ class RedshiftConnector(DatabaseConnector):
                 ssl=ssl,
                 iam=True,
                 region=str(self.config["region"]) if "region" in self.config else None,
-                profile=str(self.config["profile"]) if "profile" in self.config else None,
+                profile=str(self.config["aws_profile"]) if "aws_profile" in self.config else None,
                 cluster_identifier=(
                     str(self.config["cluster_identifier"]) if "cluster_identifier" in self.config else None
                 ),
                 db_user=str(self.config["db_user"]) if "db_user" in self.config else None,
             )
-        if auth_type == "secrets_manager":
-            raise NotImplementedError("Redshift Secrets Manager authentication not implemented yet")
-        raise ConnectionError(f"Invalid Redshift auth_type: {auth_type}")
+        raise ConnectionError(f"Invalid Redshift auth_type: {auth_type}. Expected one of: sql_authentication, iam")
 
     def fetch(self, query: str) -> FetchResult:
         cursor = self._conn.cursor()
@@ -246,6 +264,7 @@ def _create_connector(db_type: str, config: JsonObject) -> DatabaseConnector:
         "legacy_synapse": MSSQLConnector,
         "redshift": RedshiftConnector,
         "oracle": OracleConnector,
+        "teradata": TeradataConnector,
     }
 
     connector_class = connectors.get(db_type.lower())
@@ -278,8 +297,11 @@ class DatabaseManager:
         try:
             return self.connector.fetch(query)
         except OperationalError as e:
-            logger.exception(f"Error connecting to the database: {e}")
-            raise ConnectionError(f"Error connecting to the database check credentials: {e}") from e
+            # Drivers (notably teradatasql) embed a full stack trace and the offending SQL in the error
+            # message; keep that detail at debug level and surface only the concise first line.
+            logger.debug("Database query failed", exc_info=True)
+            reason = str(getattr(e, "orig", e)).split("\n", 1)[0].strip()
+            raise ConnectionError(f"Database query failed: {reason}") from e
 
     def check_connection(self) -> bool:
         return self.connector.health_check()

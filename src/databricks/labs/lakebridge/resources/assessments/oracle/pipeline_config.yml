@@ -1,6 +1,5 @@
 name: oracle_assessment
 version: "1.0"
-extract_folder: "/tmp/data/oracle_assessment"
 steps:
   - name: config_containers
     type: ddl

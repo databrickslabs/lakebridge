@@ -1,9 +1,15 @@
+from unittest.mock import patch
+
 import yaml
 from databricks.labs.blueprint.tui import MockPrompts
 from databricks.labs.lakebridge.assessments.configure_assessment import (
     create_assessment_configurator,
+    ConfigureBigQueryAssessment,
+    ConfigureRedshiftAssessment,
     ConfigureSqlServerAssessment,
     ConfigureSynapseAssessment,
+    ConfigureTeradataAssessment,
+    REDSHIFT_AUTH_TYPES,
 )
 
 
@@ -17,6 +23,7 @@ def test_configure_sqlserver_credentials(tmp_path):
             r"Enter the port details": "1433",
             r"Enter the SQL username": "TEST_TSQL_USER",
             r"Enter the SQL password": "TEST_TSQL_PASS",
+            r"Trust server certificate": "no",
             r"Do you want to test the connection to mssql?.*": "no",
             r"Enter fetch size": "4000",
             r"Enter timezone.*": "UTC",
@@ -43,6 +50,7 @@ def test_configure_sqlserver_credentials(tmp_path):
             'server': 'URL',
             'tz_info': 'UTC',
             'user': 'TEST_TSQL_USER',
+            'trust_server_certificate': False,
         },
     }
 
@@ -118,6 +126,47 @@ def test_configure_synapse_credentials(tmp_path):
     assert credentials == expected_credentials
 
 
+def test_configure_bigquery_credentials(tmp_path):
+    prompts = MockPrompts(
+        {
+            r"Enter secret vault type \(local \| env\)": sorted(['local', 'env']).index("local"),
+            r"Enter BigQuery project and region pairs.*": "customer-prod-1.us, customer-admin.eu",
+            r"Enter lookback window in days to profile": "180",
+            r"Enter max parallel SQLs per.*": "8",
+            r"Exclude reservations and commitments data\?": "no",
+            r"Exclude streaming and write API summary\?": "no",
+            r"Do you want to test the connection to bigquery\?": "no",
+        }
+    )
+    file = tmp_path / ".credentials.yml"
+    assessment = ConfigureBigQueryAssessment(
+        product_name="lakebridge", source_name="bigquery", prompts=prompts, credential_file=file
+    )
+    assessment.run()
+
+    expected_credentials = {
+        'secret_vault_type': 'local',
+        'secret_vault_name': None,
+        'bigquery': {
+            'pairs': [
+                {'project': 'customer-prod-1', 'region': 'us'},
+                {'project': 'customer-admin', 'region': 'eu'},
+            ],
+            'profiler': {
+                'profiling_window_days': 180,
+                'max_parallel_sqls': 8,
+                'exclude_reservations_data': False,
+                'exclude_streaming_metrics': False,
+            },
+        },
+    }
+
+    with open(file, 'r', encoding='utf-8') as file:
+        credentials = yaml.safe_load(file)
+
+    assert credentials == expected_credentials
+
+
 def test_create_assessment_configurator():
     prompts = MockPrompts({})
 
@@ -133,11 +182,28 @@ def test_create_assessment_configurator():
     )
     assert isinstance(synapse_configurator, ConfigureSynapseAssessment)
 
+    # Test Teradata configurator
+    teradata_configurator = create_assessment_configurator(
+        source_system="teradata", product_name="lakebridge", prompts=prompts
+    )
+    assert isinstance(teradata_configurator, ConfigureTeradataAssessment)
+
     # legacy_synapse (Azure Synapse dedicated SQL pool) reuses the SQL Server configurator
     legacy_synapse_configurator = create_assessment_configurator(
         source_system="legacy_synapse", product_name="lakebridge", prompts=prompts
     )
     assert isinstance(legacy_synapse_configurator, ConfigureSqlServerAssessment)
+
+    # Test BigQuery configurator
+    bigquery_configurator = create_assessment_configurator(
+        source_system="bigquery", product_name="lakebridge", prompts=prompts
+    )
+    assert isinstance(bigquery_configurator, ConfigureBigQueryAssessment)
+
+    redshift_configurator = create_assessment_configurator(
+        source_system="redshift", product_name="lakebridge", prompts=prompts
+    )
+    assert isinstance(redshift_configurator, ConfigureRedshiftAssessment)
 
     # Test invalid source system
     try:
@@ -145,3 +211,210 @@ def test_create_assessment_configurator():
         assert False, "Expected ValueError for invalid source system"
     except ValueError as e:
         assert str(e) == "Unsupported source system: invalid"
+
+
+def test_configure_teradata_credentials(tmp_path):
+    prompts = MockPrompts(
+        {
+            r"Enter secret vault type \(local \| env\)": sorted(['local', 'env']).index("env"),
+            r"Enter the Teradata server or host details": "TERADATA_HOST",
+            r"Enter the port details": "1025",
+            r"Enter the user details": "TERADATA_USER",
+            r"Enter the environment variable name holding the password": "TERADATA_PASSWORD",
+            r"Enter the default database name": "DBC",
+            r"Do you want to test the connection to teradata\?": "no",
+        }
+    )
+    file = tmp_path / ".credentials.yml"
+    assessment = ConfigureTeradataAssessment(
+        product_name="lakebridge", source_name="teradata", prompts=prompts, credential_file=file
+    )
+    assessment.run()
+
+    expected_credentials = {
+        'secret_vault_type': 'env',
+        'secret_vault_name': None,
+        'teradata': {
+            'host': 'TERADATA_HOST',
+            'port': 1025,
+            'user': 'TERADATA_USER',
+            # In env mode the stored value is the env var *name*, resolved by EnvGetter at runtime.
+            'password': 'TERADATA_PASSWORD',
+            'database': 'DBC',
+        },
+    }
+
+    with open(file, 'r', encoding='utf-8') as handle:
+        credentials = yaml.safe_load(handle)
+
+    assert credentials == expected_credentials
+
+
+def test_configure_redshift_credentials_sql_authentication(tmp_path):
+    # ``MockPrompts.choice`` matches against the option *labels*, sorted; the answer here
+    # is the index after sorting. ``sorted(["sql_authentication", "iam"])`` puts ``iam``
+    # at index 0 and ``sql_authentication`` at index 1.
+    prompts = MockPrompts(
+        {
+            r"Authentication type": sorted(["sql_authentication", "iam"]).index("sql_authentication"),
+            r"Credential source \(local \| env \| file\)": sorted(["local", "env", "file"]).index("local"),
+            r"Enter the Redshift cluster endpoint \(host\)": "redshift.example.com",
+            r"Enter the port details": "5439",
+            r"Enter the database name": "dev",
+            r"Enter the user details": "test_user",
+            r"Enter the password details": "test_password",
+            r"Do you want to test the connection to redshift?.*": "no",
+        }
+    )
+    file = tmp_path / ".credentials.yml"
+    ConfigureRedshiftAssessment(
+        product_name="lakebridge", source_name="redshift", prompts=prompts, credential_file=file
+    ).run()
+
+    with open(file, "r", encoding="utf-8") as f:
+        credentials = yaml.safe_load(f)
+
+    assert credentials == {
+        "secret_vault_type": "local",
+        "secret_vault_name": None,
+        "redshift": {
+            "auth_type": "sql_authentication",
+            "ssl": "yes",
+            "host": "redshift.example.com",
+            "port": 5439,
+            "database": "dev",
+            "user": "test_user",
+            "password": "test_password",
+        },
+    }
+
+
+def test_configure_redshift_credentials_iam(tmp_path):
+    prompts = MockPrompts(
+        {
+            r"Authentication type": sorted(["sql_authentication", "iam"]).index("iam"),
+            r"Credential source \(local \| env \| file\)": sorted(["local", "env", "file"]).index("local"),
+            r"Enter the Redshift cluster endpoint \(host\)": "redshift.example.com",
+            r"Enter the port details": "5439",
+            r"Enter the database name": "dev",
+            r"DB user to assume via GetClusterCredentials.*": "awsuser",
+            r"Cluster identifier.*": "my-cluster",
+            r"AWS profile name.*": "default",
+            r"AWS region.*": "us-west-2",
+            r"Do you want to test the connection to redshift?.*": "no",
+        }
+    )
+    file = tmp_path / ".credentials.yml"
+    ConfigureRedshiftAssessment(
+        product_name="lakebridge", source_name="redshift", prompts=prompts, credential_file=file
+    ).run()
+
+    with open(file, "r", encoding="utf-8") as f:
+        credentials = yaml.safe_load(f)
+
+    redshift_creds = credentials["redshift"]
+    # IAM path must not write user/password — the connector resolves AWS identity instead.
+    assert "user" not in redshift_creds
+    assert "password" not in redshift_creds
+    assert redshift_creds == {
+        "auth_type": "iam",
+        "ssl": "yes",
+        "host": "redshift.example.com",
+        "port": 5439,
+        "database": "dev",
+        "db_user": "awsuser",
+        "cluster_identifier": "my-cluster",
+        "aws_profile": "default",
+        "region": "us-west-2",
+    }
+
+
+def test_configure_redshift_credentials_iam_optional_fields_skipped(tmp_path):
+    """Empty answers to optional IAM fields must not write the key (no '' poisoning)."""
+    prompts = MockPrompts(
+        {
+            r"Authentication type": sorted(["sql_authentication", "iam"]).index("iam"),
+            r"Credential source \(local \| env \| file\)": sorted(["local", "env", "file"]).index("local"),
+            r"Enter the Redshift cluster endpoint \(host\)": "redshift.example.com",
+            r"Enter the port details": "5439",
+            r"Enter the database name": "dev",
+            r"DB user to assume via GetClusterCredentials.*": "",
+            r"Cluster identifier.*": "",
+            r"AWS profile name.*": "",
+            r"AWS region.*": "",
+            r"Do you want to test the connection to redshift?.*": "no",
+        }
+    )
+    file = tmp_path / ".credentials.yml"
+    ConfigureRedshiftAssessment(
+        product_name="lakebridge", source_name="redshift", prompts=prompts, credential_file=file
+    ).run()
+
+    with open(file, "r", encoding="utf-8") as f:
+        credentials = yaml.safe_load(f)
+
+    assert credentials["redshift"] == {
+        "auth_type": "iam",
+        "ssl": "yes",
+        "host": "redshift.example.com",
+        "port": 5439,
+        "database": "dev",
+    }
+
+
+def test_redshift_configurator_writes_only_connector_supported_auth_types():
+    """Regression guard for the configurator/connector contract.
+
+    Any auth_type the configurator can write MUST be a value the connector knows how to
+    handle (see ``RedshiftConnector._connect``). This catches drift before users hit
+    runtime ``ConnectionError`` after configuring credentials.
+    """
+    connector_supported = {"sql_authentication", "iam"}
+    assert set(REDSHIFT_AUTH_TYPES) <= connector_supported, (
+        f"Configurator offers auth_type(s) {set(REDSHIFT_AUTH_TYPES) - connector_supported} "
+        f"that RedshiftConnector._connect does not implement."
+    )
+
+
+def test_test_connection_default_uses_database_manager():
+    """Sources without an override go through DatabaseManager (the JDBC connector)."""
+    configurator = ConfigureRedshiftAssessment(
+        product_name="lakebridge", source_name="redshift", prompts=MockPrompts({})
+    )
+    raw_config = {"host": "redshift.example.com", "database": "dev"}
+    with (
+        patch("databricks.labs.lakebridge.assessments.configure_assessment.create_credential_manager") as cred_manager,
+        patch("databricks.labs.lakebridge.assessments.configure_assessment.DatabaseManager") as database_manager,
+    ):
+        cred_manager.return_value.get_credentials.return_value = raw_config
+        database_manager.return_value.__enter__.return_value.check_connection.return_value = True
+        configurator.test_connection()
+    database_manager.assert_called_once_with("redshift", raw_config)
+
+
+def test_synapse_test_connection_delegates_to_pools():
+    """Synapse overrides the check to validate each SQL pool instead of one connection."""
+    configurator = ConfigureSynapseAssessment(product_name="lakebridge", source_name="synapse", prompts=MockPrompts({}))
+    raw_config = {"workspace": {"name": "ws"}}
+    with (
+        patch("databricks.labs.lakebridge.assessments.configure_assessment.create_credential_manager") as cred_manager,
+        patch("databricks.labs.lakebridge.assessments.configure_assessment.validate_synapse_pools") as validate,
+    ):
+        cred_manager.return_value.get_credentials.return_value = raw_config
+        configurator.test_connection()
+    validate.assert_called_once_with(raw_config)
+
+
+def test_bigquery_test_connection_delegates_to_pairs():
+    """BigQuery overrides the check to probe each (project, region) pair."""
+    configurator = ConfigureBigQueryAssessment(
+        product_name="lakebridge", source_name="bigquery", prompts=MockPrompts({})
+    )
+    raw_config = {"pairs": [{"project": "p", "region": "us"}]}
+    with (
+        patch("databricks.labs.lakebridge.assessments.configure_assessment.create_credential_manager") as cred_manager,
+        patch("databricks.labs.lakebridge.assessments.configure_assessment.validate_bigquery_pairs") as validate,
+    ):
+        cred_manager.return_value.get_credentials.return_value = raw_config
+        configurator.test_connection()
+    validate.assert_called_once_with(raw_config)

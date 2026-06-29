@@ -80,9 +80,6 @@ commands:
   - name: configure-database-profiler
     description: (Experimental) Configure database profiler
 
-  - name: visualize-profiler-results
-    description: (Experimental) Visualize profiler results as a Databricks Lakeview dashboard
-
   - name: install-transpile
     description: Install & optionally configure 'transpile' dependencies
     flags:
@@ -115,6 +112,12 @@ commands:
     flags:
       - name: source-tech
         description: (Optional) The technology/platform of the sources to Profile
+      - name: variant
+        description: (Optional) The exact edition of the source technology/platform if any to Profile
+      - name: output-folder
+        description: (Optional) Folder where the extracted DuckDB file is written; if omitted, prompts with a smart default
+      - name: cred-file-path
+        description: (Optional) Local `path` of the credential file to use; defaults to the file written by `configure-database-profiler`
 
   - name: test-profiler-connection
     description: (Internal) Test the connection to the source database for profiling
