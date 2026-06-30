@@ -2,7 +2,11 @@ from datetime import datetime, timezone
 
 from pyspark.sql import Row, SparkSession
 
-from databricks.labs.lakebridge.config import DatabaseConfig, ReconcileMetadataConfig
+from databricks.labs.lakebridge.config import (
+    ReconcileMetadataConfig,
+    SourceConnectionConfig,
+    TargetConnectionConfig,
+)
 from databricks.labs.lakebridge.reconcile.recon_capture import (
     ReconCapture,
 )
@@ -35,9 +39,13 @@ def agg_data_prep(spark: SparkSession):
 
 
 def test_aggregates_reconcile_store_aggregate_metrics(ws, spark, recon_metadata: ReconcileMetadataConfig):
-    database_config = DatabaseConfig(
-        "source_test_schema", "target_test_catalog", "target_test_schema", "source_test_catalog"
+    source_connection = SourceConnectionConfig(
+        dialect="snowflake",
+        catalog="source_test_schema",
+        schema="target_test_catalog",
+        uc_connection_name="remorph_snowflake",
     )
+    target_connection = TargetConnectionConfig(catalog="target_test_schema", schema="source_test_catalog")
 
     source_type = get_dialect("snowflake")
     agg_reconcile_output, table_conf, reconcile_process_duration = agg_data_prep(spark)
@@ -45,7 +53,8 @@ def test_aggregates_reconcile_store_aggregate_metrics(ws, spark, recon_metadata:
     recon_id = "999fygdrs-dbb7-489f-bad1-6a7e8f4821b1"
 
     recon_capture = ReconCapture(
-        database_config,
+        source_connection,
+        target_connection,
         recon_id,
         "",
         source_type,

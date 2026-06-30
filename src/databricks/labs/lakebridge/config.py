@@ -222,16 +222,6 @@ class TableRecon:
         return raw
 
 
-@dataclass(frozen=True)
-class DatabaseConfig:
-    """TODO remove. this was kept for backwards compatibility while migrating to ReconcileConfig v2"""
-
-    source_catalog: str
-    source_schema: str
-    target_catalog: str
-    target_schema: str
-
-
 @dataclass
 class SourceConnectionConfig:
     dialect: str
@@ -340,16 +330,6 @@ class ReconcileConfig:
         }
         raw["version"] = 2
         return raw
-
-    @property
-    def database_config(self) -> DatabaseConfig:
-        """TODO remove. this was kept for backwards compatibility while migrating to ReconcileConfig v2"""
-        return DatabaseConfig(
-            source_catalog=self.source.catalog,
-            source_schema=self.source.schema,
-            target_catalog=self.target.catalog,
-            target_schema=self.target.schema,
-        )
 
     @property
     def table_recon_filename(self) -> str:
