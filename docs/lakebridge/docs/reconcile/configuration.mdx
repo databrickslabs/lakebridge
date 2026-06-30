@@ -109,7 +109,7 @@ Place the file in `.lakebridge/` in your Databricks workspace home folder.
         ```yaml title="recon_config_bigquery_sample_data_all.json"
         source:
             dialect: bigquery
-            catalog: sample_dataset
+            catalog: bq_project_name
             schema: sample_dataset
             uc_connection_name: example_connection_bigquery
         target:
@@ -118,27 +118,17 @@ Place the file in `.lakebridge/` in your Databricks workspace home folder.
         report_type: all
         ```
 
-        :::note BigQuery naming and type mapping
-        The BigQuery **project is taken from the UC connection**, so tables are referenced two-part as
-        `dataset.table` — `schema` is the **dataset** and `catalog` simply mirrors it (no separate
-        project is needed). A few BigQuery
-        types have no exact Databricks equivalent and are reconciled against their standard migration
+        :::note BigQuery type mapping
+        A few BigQuery types have no exact Databricks equivalent and are reconciled against their standard migration
         target: `BIGNUMERIC`→`STRING`, `TIME`→`STRING`, `JSON`→`VARIANT`, `RANGE<T>`→`STRUCT<start, end>`,
         `DATETIME`→`TIMESTAMP_NTZ`. If your migration used a different target, the `schema` report
         flags those columns for review. `INTERVAL` migrates to two Databricks columns and is not
         supported by `schema` reconciliation.
         :::
 
-        :::warning Compute requirement
-        BigQuery reads use the `remote_query` function, which requires **Databricks Runtime 17.3 or
-        above** (or **serverless** compute). The reconciliation job's default cluster may run an older
-        runtime, so point it at a DBR 17.3+ cluster via `job_overrides.existing_cluster_id`, or run the
-        job on serverless. (This applies to all Lakehouse Federation reconcile sources.)
-        :::
-
         :::warning Writable dataset required
-        `remote_query` materializes its results into a BigQuery dataset, which defaults to the source
-        dataset (`schema`). Ensure that dataset — or a dedicated materialization dataset — is
+        `remote_query` materializes its results into a BigQuery dataset, which defaults to
+        `lakebridge_reconcile`. Ensure that dataset exists and is
         **writable** by the connection's service account, otherwise reads will fail.
         :::
     </TabItem>

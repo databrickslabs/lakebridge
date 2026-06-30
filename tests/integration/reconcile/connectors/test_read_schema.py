@@ -218,7 +218,7 @@ def test_bigquery_read_schema_happy(spark: SparkSession) -> None:
 def test_bigquery_list_schemas_happy(spark: SparkSession) -> None:
     connector = _bigquery_connector(spark)
 
-    schemas = connector.list_schemas("lakebridge")
+    schemas = connector.list_schemas("NOT_USED")
     assert "lakebridge" in schemas
 
 

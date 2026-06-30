@@ -26,7 +26,7 @@ def test_read_data_builds_two_part_backtick_quoted_name():
 
     reader.read_data.assert_called_once_with(
         "select 1 from `project.dataset.employee`",
-        "dataset",
+        "lakebridge_reconcile",
         "materializationDataset",
     )
 
@@ -40,7 +40,7 @@ def test_read_data_substitutes_bigquery_rendered_placeholder():
 
     reader.read_data.assert_called_once_with(
         "select 1 from `scratch_ds.dataset.employee`",
-        "dataset",
+        "lakebridge_reconcile",
         "materializationDataset",
     )
 
