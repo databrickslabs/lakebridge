@@ -8,6 +8,7 @@ from databricks.labs.lakebridge.assessments.configure_assessment import (
     ConfigureRedshiftAssessment,
     ConfigureSqlServerAssessment,
     ConfigureSynapseAssessment,
+    ConfigureTeradataAssessment,
     REDSHIFT_AUTH_TYPES,
 )
 
@@ -181,6 +182,12 @@ def test_create_assessment_configurator():
     )
     assert isinstance(synapse_configurator, ConfigureSynapseAssessment)
 
+    # Test Teradata configurator
+    teradata_configurator = create_assessment_configurator(
+        source_system="teradata", product_name="lakebridge", prompts=prompts
+    )
+    assert isinstance(teradata_configurator, ConfigureTeradataAssessment)
+
     # legacy_synapse (Azure Synapse dedicated SQL pool) reuses the SQL Server configurator
     legacy_synapse_configurator = create_assessment_configurator(
         source_system="legacy_synapse", product_name="lakebridge", prompts=prompts
@@ -204,6 +211,43 @@ def test_create_assessment_configurator():
         assert False, "Expected ValueError for invalid source system"
     except ValueError as e:
         assert str(e) == "Unsupported source system: invalid"
+
+
+def test_configure_teradata_credentials(tmp_path):
+    prompts = MockPrompts(
+        {
+            r"Enter secret vault type \(local \| env\)": sorted(['local', 'env']).index("env"),
+            r"Enter the Teradata server or host details": "TERADATA_HOST",
+            r"Enter the port details": "1025",
+            r"Enter the user details": "TERADATA_USER",
+            r"Enter the environment variable name holding the password": "TERADATA_PASSWORD",
+            r"Enter the default database name": "DBC",
+            r"Do you want to test the connection to teradata\?": "no",
+        }
+    )
+    file = tmp_path / ".credentials.yml"
+    assessment = ConfigureTeradataAssessment(
+        product_name="lakebridge", source_name="teradata", prompts=prompts, credential_file=file
+    )
+    assessment.run()
+
+    expected_credentials = {
+        'secret_vault_type': 'env',
+        'secret_vault_name': None,
+        'teradata': {
+            'host': 'TERADATA_HOST',
+            'port': 1025,
+            'user': 'TERADATA_USER',
+            # In env mode the stored value is the env var *name*, resolved by EnvGetter at runtime.
+            'password': 'TERADATA_PASSWORD',
+            'database': 'DBC',
+        },
+    }
+
+    with open(file, 'r', encoding='utf-8') as handle:
+        credentials = yaml.safe_load(handle)
+
+    assert credentials == expected_credentials
 
 
 def test_configure_redshift_credentials_sql_authentication(tmp_path):

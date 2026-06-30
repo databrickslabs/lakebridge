@@ -361,6 +361,42 @@ class ConfigureSnowflakeAssessment(AssessmentConfigurator):
         logger.info(f"Credential template created for {source}.")
 
 
+class ConfigureTeradataAssessment(AssessmentConfigurator):
+    """Teradata specific assessment configuration."""
+
+    def _configure_credentials(self) -> None:
+        cred_file = self._credential_file
+        source = self._source_name
+
+        logger.info(
+            "\n(local | env) \nlocal means values are read as plain text \nenv means values are read "
+            "from environment variables fall back to plain text if not variable is not found\n",
+        )
+        secret_vault_type = str(self.prompts.choice("Enter secret vault type (local | env)", ["local", "env"])).lower()
+        secret_vault_name = None
+
+        if secret_vault_type == "env":
+            password = self.prompts.question("Enter the environment variable name holding the password")
+        else:
+            password = self.prompts.password("Enter the password details")
+
+        credential = {
+            "secret_vault_type": secret_vault_type,
+            "secret_vault_name": secret_vault_name,
+            source: {
+                "host": self.prompts.question("Enter the Teradata server or host details"),
+                "port": int(self.prompts.question("Enter the port details", valid_number=True, default="1025")),
+                "user": self.prompts.question("Enter the user details"),
+                "password": password,
+                "database": self.prompts.question("Enter the default database name", default="DBC"),
+            },
+        }
+
+        _save_to_disk(credential, cred_file)
+
+        logger.info(f"Credential template created for {source}.")
+
+
 ConfiguratorFactory = Callable[[str, Prompts, str, Path | str | None], AssessmentConfigurator]
 
 
@@ -454,6 +490,7 @@ def create_assessment_configurator(
         "snowflake": ConfigureSnowflakeAssessment,
         "legacy_synapse": ConfigureSqlServerAssessment,
         "oracle": ConfigureOracleAssessment,
+        "teradata": ConfigureTeradataAssessment,
         "bigquery": ConfigureBigQueryAssessment,
     }
 
