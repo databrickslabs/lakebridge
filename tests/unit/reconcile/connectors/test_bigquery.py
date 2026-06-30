@@ -22,14 +22,12 @@ def test_read_data_builds_two_part_backtick_quoted_name():
     engine, reader = initial_setup()
     dfds = BigQueryDataSource(engine, reader)
 
-    dfds.read_data("scratch_ds", "dataset", "employee", "select 1 from :tbl", None)
+    dfds.read_data("project", "dataset", "employee", "select 1 from :tbl", None)
 
     reader.read_data.assert_called_once_with(
-        "select 1 from `dataset`.`employee`",
-        "scratch_ds",
+        "select 1 from `project.dataset.employee`",
+        "lakebridge_reconcile",
         "materializationDataset",
-        "query",
-        None,
     )
 
 
@@ -41,11 +39,9 @@ def test_read_data_substitutes_bigquery_rendered_placeholder():
     dfds.read_data("scratch_ds", "dataset", "employee", "select 1 from @tbl", None)
 
     reader.read_data.assert_called_once_with(
-        "select 1 from `dataset`.`employee`",
-        "scratch_ds",
+        "select 1 from `scratch_ds.dataset.employee`",
+        "lakebridge_reconcile",
         "materializationDataset",
-        "query",
-        None,
     )
 
 
@@ -58,7 +54,7 @@ def test_read_data_exception_handling():
         DataSourceRuntimeException,
         match=re.escape(
             "Runtime exception occurred while fetching data using "
-            "select 1 from `dataset`.`employee` : Test Exception"
+            "select 1 from `proj.dataset.employee` : Test Exception"
         ),
     ):
         dfds.read_data("proj", "dataset", "employee", "select 1 from :tbl", None)
