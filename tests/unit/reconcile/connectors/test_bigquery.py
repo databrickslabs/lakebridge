@@ -24,10 +24,10 @@ def test_read_data_builds_two_part_backtick_quoted_name():
 
     dfds.read_data("project", "dataset", "employee", "select 1 from :tbl", None)
 
-    reader.read_data_direct.assert_called_once_with(
+    reader.read_data.assert_called_once_with(
         "select 1 from `project.dataset.employee`",
-        "query",
-        {"materializationDataset": "dataset"},
+        "dataset",
+        "materializationDataset",
     )
 
 
@@ -38,17 +38,17 @@ def test_read_data_substitutes_bigquery_rendered_placeholder():
 
     dfds.read_data("scratch_ds", "dataset", "employee", "select 1 from @tbl", None)
 
-    reader.read_data_direct.assert_called_once_with(
+    reader.read_data.assert_called_once_with(
         "select 1 from `scratch_ds.dataset.employee`",
-        "query",
-        {"materializationDataset": "dataset"},
+        "dataset",
+        "materializationDataset",
     )
 
 
 def test_read_data_exception_handling():
     engine, reader = initial_setup()
     dfds = BigQueryDataSource(engine, reader)
-    reader.read_data_direct.side_effect = RuntimeError("Test Exception")
+    reader.read_data.side_effect = RuntimeError("Test Exception")
 
     with pytest.raises(
         DataSourceRuntimeException,
@@ -63,7 +63,7 @@ def test_read_data_exception_handling():
 def test_get_schema_exception_handling():
     engine, reader = initial_setup()
     dfds = BigQueryDataSource(engine, reader)
-    reader.read_data_direct.side_effect = RuntimeError("Test Exception")
+    reader.read_data.side_effect = RuntimeError("Test Exception")
 
     with pytest.raises(DataSourceRuntimeException, match=re.escape("Runtime exception occurred while fetching schema")):
         dfds.get_schema("proj", "dataset", "supplier")
@@ -75,7 +75,7 @@ def test_get_schema_query_targets_information_schema_with_type_canonicalization(
 
     dfds.get_schema("proj", "dataset", "supplier")
 
-    schema_query = reader.read_data_direct.call_args.args[0]
+    schema_query = reader.read_data.call_args.args[0]
     assert "`dataset`.INFORMATION_SCHEMA.COLUMNS" in schema_query
     assert "where table_name = 'supplier'" in schema_query
     # Stage-1 canonicalization for the BQ types sqlglot cannot bridge to Databricks on its own
@@ -92,12 +92,12 @@ def test_list_schemas_and_tables():
 
     # SCHEMATA is project-level and unqualified (the connection's default project scopes it).
     dfds.list_schemas("proj")
-    schemas_query = reader.read_data_direct.call_args.args[0]
+    schemas_query = reader.read_data.call_args.args[0]
     assert "INFORMATION_SCHEMA.SCHEMATA" in schemas_query
     assert "`proj`" not in schemas_query
 
     dfds.list_tables("proj", "dataset")
-    assert "`dataset`.INFORMATION_SCHEMA.TABLES" in reader.read_data_direct.call_args.args[0]
+    assert "`dataset`.INFORMATION_SCHEMA.TABLES" in reader.read_data.call_args.args[0]
 
 
 def test_hash_query_emits_bigquery_compatible_sql():
@@ -126,7 +126,7 @@ def test_hash_query_emits_bigquery_compatible_sql():
 def test_list_schemas_exception_handling():
     engine, reader = initial_setup()
     dfds = BigQueryDataSource(engine, reader)
-    reader.read_data_direct.side_effect = RuntimeError("Test Exception")
+    reader.read_data.side_effect = RuntimeError("Test Exception")
     with pytest.raises(
         DataSourceRuntimeException, match=re.escape("Runtime exception occurred while fetching schemas")
     ):
@@ -136,7 +136,7 @@ def test_list_schemas_exception_handling():
 def test_list_tables_exception_handling():
     engine, reader = initial_setup()
     dfds = BigQueryDataSource(engine, reader)
-    reader.read_data_direct.side_effect = RuntimeError("Test Exception")
+    reader.read_data.side_effect = RuntimeError("Test Exception")
     with pytest.raises(DataSourceRuntimeException, match=re.escape("Runtime exception occurred while fetching tables")):
         dfds.list_tables("proj", "dataset")
 

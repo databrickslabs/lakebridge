@@ -36,17 +36,6 @@ class RemoteQueryReader:
         logger.debug(f"Executing query: {query}")
         return self._spark.sql(query)
 
-    def read_data_direct(
-        self,
-        source_query: str,
-        source_query_key: str = "query",
-        options: dict[str, str] | None = None,
-    ) -> DataFrame:
-        parsed = ", ".join([f"{k} => '{v}'" for k, v in options.items()]) if options else ""
-        query = self._build_query(parsed, source_query, source_query_key)
-        logger.debug(f"Executing query: {query}")
-        return self._spark.sql(query)
-
     def _build_query(self, query_options: str, source_query: str, source_query_key: str) -> str:
         escaped = source_query.replace("'", r"\'")
         return f"SELECT * FROM remote_query('{self._connection_name}', {source_query_key} => '{escaped}'" + (

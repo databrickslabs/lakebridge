@@ -50,7 +50,7 @@ class BigQueryDataSource(DataSource):
         self._reader = reader
 
     def _read(self, query: str, materialization_dataset: str) -> DataFrame:
-        return self._reader.read_data_direct(query, "query", {"materializationDataset": materialization_dataset})
+        return self._reader.read_data(query, materialization_dataset, "materializationDataset")
 
     def read_data(
         self,
