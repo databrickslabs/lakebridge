@@ -46,8 +46,6 @@ class DashboardDeployment:
         valid_dashboard_refs = set()
         for entry in folder.iterdir():
             if entry.is_file() and entry.name.endswith(".lvdash.json"):
-                # Source-of-truth is the serialized Lakeview JSON, so manual UI edits
-                # (conditional formatting, etc.) survive a round-trip through the deploy.
                 valid_dashboard_refs.add(self._dashboard_reference(entry))
                 dashboard_id = self._update_or_create_json_dashboard(entry, parent_path, metadata_config)
                 logger.info(f"Dashboard deployed with URL: {self._ws.config.host}/sql/dashboardsv3/{dashboard_id}")
@@ -56,9 +54,7 @@ class DashboardDeployment:
         self._remove_deprecated_dashboards(valid_dashboard_refs)
 
     def _dashboard_reference(self, entry: Path) -> str:
-        # Drop the ``.lvdash.json`` suffix so the reference key is the bare dashboard name.
-        # This matches the install_state key a prior YAML-based deploy of the same dashboard
-        # used, so upgrading installs update it in place instead of creating a duplicate.
+        # Key must match a prior YAML-based deploy's key so existing installs update in place.
         name = entry.name
         if name.endswith(".lvdash.json"):
             return name[: -len(".lvdash.json")].lower()
@@ -70,8 +66,7 @@ class DashboardDeployment:
         ws_parent_path: str,
         config: ReconcileMetadataConfig,
     ) -> str:
-        # Substitute the placeholder catalog/schema baked into the source JSON
-        # with this workspace's configured values (mirrors lsql's replace_database).
+        # Replace the placeholder catalog/schema baked into the source JSON.
         raw = json_path.read_text()
         raw = raw.replace("remorph.reconcile.", f"{config.catalog}.{config.schema}.")
 
@@ -97,7 +92,7 @@ class DashboardDeployment:
                     logger.debug(f"Deleted dangling dashboard {display_name} ({dashboard_id}): {dashboard_path}")
                 except NotFound:
                     pass
-                dashboard_id = None
+                dashboard_id = None  # Recreate the dashboard if it's reference is corrupted (manually)
 
         if dashboard_id is None:
             created = self._ws.lakeview.create(
@@ -142,7 +137,7 @@ class DashboardDeployment:
         return dashboard_id  # Update the existing dashboard
 
     def _remove_deprecated_dashboards(self, valid_dashboard_refs: set[str]):
-        # Snapshot the items so we can `del` entries inside the loop.
+        # list() so we can del entries while iterating.
         for ref, dashboard_id in list(self._install_state.dashboards.items()):
             if ref not in valid_dashboard_refs:
                 try:

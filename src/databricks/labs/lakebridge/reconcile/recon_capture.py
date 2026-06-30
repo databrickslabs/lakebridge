@@ -49,7 +49,7 @@ _RECON_AGGREGATE_RULES_TABLE_NAME = "aggregate_rules"
 _RECON_AGGREGATE_METRICS_TABLE_NAME = "aggregate_metrics"
 _RECON_AGGREGATE_DETAILS_TABLE_NAME = "aggregate_details"
 
-# Suffixes that `compare._get_mismatch_df` appends to per-column source/target/match columns.
+# Suffixes appended to per-column source/target/match values in mismatch detail rows.
 _MISMATCH_SUFFIXES = ("_base", "_compare", "_match")
 
 
@@ -486,8 +486,7 @@ class ReconCapture:
         join_columns = table_conf.join_columns
         inserted_ts = datetime.now(tz=timezone.utc)
 
-        # All detail recon_types share one schema now, so collect them and write once
-        # (single Delta commit / fewer small files) instead of one append per recon_type.
+        # All detail recon_types share one schema, so collect and write them in a single append.
         detail_dfs: list[DataFrame] = []
         if reconcile_output.mismatch_count > 0 and reconcile_output.mismatch and reconcile_output.mismatch.mismatch_df:
             detail_dfs.append(

@@ -39,8 +39,7 @@ from databricks.labs.lakebridge.reconcile.recon_config import (
 
 
 def data_prep(spark: SparkSession):
-    # Mismatch DataFrame
-    # Mismatch frame uses the production convention: key columns + <col>_base / <col>_compare / <col>_match.
+    # Mismatch DataFrame: key columns + <col>_base / <col>_compare / <col>_match suffixes.
     data = [
         Row(id=1, name_base='source1', name_compare='target1', name_match=False),
         Row(id=2, name_base='source2', name_compare='target2', name_match=False),
@@ -179,15 +178,14 @@ def test_recon_capture_start_snowflake_all(ws, spark, recon_metadata, run_by_use
     assert row.run_metrics.run_by_user == run_by_user
     assert row.run_metrics.exception_message == ""
 
-    # assert details (record-level model; schema comparison now lives in schema_details)
+    # assert details
     prefix = f"{recon_metadata.catalog}.{recon_metadata.schema}"
     remorph_recon_details_df = spark.sql(f"select * from {prefix}.details")
-    # One row per sampled record: 2 mismatch + 3 missing_in_source + 4 missing_in_target + 2 threshold.
+    # 2 mismatch + 3 missing_in_source + 4 missing_in_target + 2 threshold = 11
     assert remorph_recon_details_df.count() == 11
     recon_types = {row.recon_type for row in remorph_recon_details_df.select("recon_type").distinct().collect()}
     assert recon_types == {"mismatch", "missing_in_source", "missing_in_target", "threshold_mismatch"}
 
-    # the two sampled mismatch records, with their VARIANT row images and differing columns
     mismatch_rows = spark.sql(
         f"SELECT to_json(record_key) AS rk, to_json(source_row) AS sr, to_json(target_row) AS tr, "
         f"mismatch_columns AS mc FROM {prefix}.details WHERE recon_type = 'mismatch' ORDER BY rk"
@@ -242,8 +240,7 @@ def test_test_recon_capture_start_databricks_data(ws, spark, recon_metadata):
     assert row.recon_metrics.schema_comparison is None
     assert row.run_metrics.status is False
 
-    # assert details: one row per sampled record (2 mismatch + 3 missing_in_source + 4 missing_in_target
-    # + 2 threshold) across the 4 recon_types.
+    # assert details: 2 mismatch + 3 missing_in_source + 4 missing_in_target + 2 threshold = 11
     remorph_recon_details_df = spark.sql(f"select * from {recon_metadata.catalog}.{recon_metadata.schema}.details")
     assert remorph_recon_details_df.count() == 11
     assert remorph_recon_details_df.select("recon_type").distinct().count() == 4
@@ -291,8 +288,7 @@ def test_test_recon_capture_start_databricks_row(ws, spark, recon_metadata):
     assert row.recon_metrics.schema_comparison is None
     assert row.run_metrics.status is False
 
-    # assert details: row-only run keeps just the missing records (3 missing_in_source + 4 missing_in_target)
-    # across the 2 recon_types.
+    # assert details: 3 missing_in_source + 4 missing_in_target = 7
     remorph_recon_details_df = spark.sql(f"select * from {recon_metadata.catalog}.{recon_metadata.schema}.details")
     assert remorph_recon_details_df.count() == 7
     assert remorph_recon_details_df.select("recon_type").distinct().count() == 2
@@ -982,7 +978,7 @@ def test_store_run_context(mock_workspace_client, spark, recon_metadata):
     prefix = f"{recon_metadata.catalog}.{recon_metadata.schema}"
     ctx = spark.sql(f"select * from {prefix}.recon_run_context")
     assert ctx.count() == 1
-    # config is one VARIANT blob; read intent fields schema-on-read
+    # config is a VARIANT blob; extract fields by path.
     row = spark.sql(
         f"SELECT recon_id, "
         f"config:reconcile:report_type::string AS report_type, "

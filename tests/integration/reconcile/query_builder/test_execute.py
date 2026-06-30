@@ -819,8 +819,7 @@ def test_recon_for_report_type_is_data(
         expected_remorph_recon_metrics,
         ignoreNullable=True,
     )
-    # Record-level details: one row per sampled record, with VARIANT row images. record_key /
-    # source_row / target_row come back as JSON; compare as dicts so key order is irrelevant.
+    # Compare VARIANT columns as dicts (via to_json) so key order doesn't matter.
     details_rows = {
         r.recon_type: r
         for r in spark.sql(
@@ -831,15 +830,13 @@ def test_recon_for_report_type_is_data(
     }
     assert set(details_rows) == {"mismatch", "missing_in_source", "missing_in_target"}
 
-    # Mismatch record: join keys in record_key, the differing column values on each side, and only
-    # the columns that actually differ in mismatch_columns (s_name matches, so it is excluded).
+    # mismatch_columns lists only the differing columns (s_name matches, so it is excluded).
     assert json.loads(details_rows["mismatch"].rk) == {"s_suppkey": 2, "s_nationkey": 22}
     assert json.loads(details_rows["mismatch"].sr) == {"s_address": "address-2", "s_name": "name-2", "s_phone": "222-2"}
     assert json.loads(details_rows["mismatch"].tr) == {"s_address": "address-22", "s_name": "name-2", "s_phone": "222"}
     assert sorted(details_rows["mismatch"].mc) == ["s_address", "s_phone"]
 
-    # missing_in_source rows exist only on the target side (source_row null); missing_in_target only on
-    # the source side (target_row null). The full row image is stored on whichever side is present.
+    # missing rows carry the full image only on the present side (the other side is null).
     assert details_rows["missing_in_source"].sr is None
     assert json.loads(details_rows["missing_in_source"].tr) == {
         "s_address": "address-4",
@@ -993,8 +990,7 @@ def test_recon_for_report_type_schema(
         ignoreNullable=True,
     )
 
-    # A schema-only run writes no row-level details; the per-column schema comparison goes to
-    # schema_details (one row per compared column).
+    # A schema-only run writes no row-level details; the comparison goes to schema_details.
     assert spark.sql(f"SELECT * FROM {metadata.catalog}.{metadata.schema}.DETAILS").count() == 0
 
     schema_details_df = spark.sql(f"SELECT * FROM {metadata.catalog}.{metadata.schema}.SCHEMA_DETAILS")

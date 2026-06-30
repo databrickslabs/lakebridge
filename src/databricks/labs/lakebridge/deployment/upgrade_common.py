@@ -16,8 +16,7 @@ def replace_patterns(sql_text: str) -> str:
     Strip inline COMMENT clauses and STRUCT / MAP datatype bodies from the SQL text so the
     remaining text can be split into column definitions.
     """
-    # Remove inline COMMENT '...' clauses (column-, struct-field-, and table-level). Their text can
-    # contain commas and parentheses that would otherwise be mistaken for column separators.
+    # Strip inline COMMENT '...' clauses; their text can contain commas/parens that break column splitting.
     sql_text = re.sub(r"COMMENT\s+'(?:[^']|'')*'", "", sql_text, flags=re.IGNORECASE)
     # Pattern to match nested STRUCT and MAP datatypes
     pattern = r'(STRUCT<[^<>]*?(?:<[^<>]*?>[^<>]*?)*>|MAP<[^<>]*?(?:<[^<>]*?>[^<>]*?)*>)'

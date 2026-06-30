@@ -131,7 +131,6 @@ def recon_metadata(spark, recon_schema, make_volume, report_tables_schema) -> Re
     spark.createDataFrame(data=[], schema=main_schema).write.saveAsTable(f"{prefix}.MAIN")
     spark.createDataFrame(data=[], schema=metrics_schema).write.saveAsTable(f"{prefix}.METRICS")
     spark.createDataFrame(data=[], schema=details_schema).write.saveAsTable(f"{prefix}.DETAILS")
-    # schema comparison moved out of details into its own typed table
     spark.sql(
         f"CREATE TABLE IF NOT EXISTS {prefix}.SCHEMA_DETAILS ("
         "recon_table_id BIGINT NOT NULL, source_column STRING, source_datatype STRING, "
