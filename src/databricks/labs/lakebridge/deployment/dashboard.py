@@ -1,14 +1,11 @@
 import json
 import logging
-from datetime import timedelta
 from pathlib import Path
 
 from databricks.labs.blueprint.installation import Installation
 from databricks.labs.blueprint.installer import InstallState
-from databricks.labs.lsql.dashboards import DashboardMetadata, Dashboards
 from databricks.sdk import WorkspaceClient
-from databricks.sdk.errors import InvalidParameterValue, NotFound, DeadlineExceeded, InternalError
-from databricks.sdk.retries import retried
+from databricks.sdk.errors import InvalidParameterValue, NotFound
 from databricks.sdk.service.dashboards import LifecycleState, Dashboard
 from databricks.sdk.errors.platform import ResourceAlreadyExists
 from databricks.labs.lakebridge.config import ReconcileMetadataConfig
@@ -34,10 +31,9 @@ class DashboardDeployment:
         metadata_config: ReconcileMetadataConfig,
     ):
         """
-        Create dashboards from Dashboard metadata files.
-        The given folder is expected to contain subfolders each containing metadata for individual dashboards.
+        Create dashboards from the ``*.lvdash.json`` files in the given folder.
 
-        :param folder: Path to the base folder.
+        :param folder: Path to the folder holding the serialized Lakeview dashboards.
         :param metadata_config: Meta configuration for reconciliation.
         """
         logger.info(f"Deploying dashboards from base folder {folder}")
@@ -49,18 +45,9 @@ class DashboardDeployment:
 
         valid_dashboard_refs = set()
         for entry in folder.iterdir():
-            if entry.is_dir() and entry.joinpath("dashboard.yml").exists():
-                # YAML + lsql path
-                valid_dashboard_refs.add(self._dashboard_reference(entry))
-                dashboard = self._update_or_create_dashboard(entry, parent_path, metadata_config)
-                logger.info(
-                    f"Dashboard deployed with URL: {self._ws.config.host}/sql/dashboardsv3/{dashboard.dashboard_id}"
-                )
-                self._install_state.save()
-            elif entry.is_file() and entry.name.endswith(".lvdash.json"):
-                # Raw-JSON path: source-of-truth is the serialized Lakeview JSON,
-                # bypassing lsql so manual UI edits (conditional formatting, etc.)
-                # survive a round-trip through the deploy.
+            if entry.is_file() and entry.name.endswith(".lvdash.json"):
+                # Source-of-truth is the serialized Lakeview JSON, so manual UI edits
+                # (conditional formatting, etc.) survive a round-trip through the deploy.
                 valid_dashboard_refs.add(self._dashboard_reference(entry))
                 dashboard_id = self._update_or_create_json_dashboard(entry, parent_path, metadata_config)
                 logger.info(f"Dashboard deployed with URL: {self._ws.config.host}/sql/dashboardsv3/{dashboard_id}")
@@ -69,10 +56,9 @@ class DashboardDeployment:
         self._remove_deprecated_dashboards(valid_dashboard_refs)
 
     def _dashboard_reference(self, entry: Path) -> str:
-        # For ``foo.lvdash.json``, drop both suffixes so the reference key matches the
-        # corresponding YAML-based ``foo/`` directory's install_state entry. That lets
-        # the JSON cutover update the existing dashboard in place rather than create a
-        # new one + trash the old.
+        # Drop the ``.lvdash.json`` suffix so the reference key is the bare dashboard name.
+        # This matches the install_state key a prior YAML-based deploy of the same dashboard
+        # used, so upgrading installs update it in place instead of creating a duplicate.
         name = entry.name
         if name.endswith(".lvdash.json"):
             return name[: -len(".lvdash.json")].lower()
@@ -107,7 +93,8 @@ class DashboardDeployment:
                 logger.info(f"Recovering invalid dashboard: {display_name} ({dashboard_id})")
                 try:
                     dashboard_path = f"{ws_parent_path}/{display_name}.lvdash.json"
-                    self._ws.workspace.delete(dashboard_path)
+                    self._ws.workspace.delete(dashboard_path)  # Cannot recreate dashboard if file still exists
+                    logger.debug(f"Deleted dangling dashboard {display_name} ({dashboard_id}): {dashboard_path}")
                 except NotFound:
                     pass
                 dashboard_id = None
@@ -140,53 +127,6 @@ class DashboardDeployment:
         assert dashboard_id is not None
         self._install_state.dashboards[reference] = dashboard_id
         return dashboard_id
-
-    # InternalError and DeadlineExceeded are retried because of Lakeview internal issues
-    # These issues have been reported to and are resolved by the Lakeview team
-    # Keeping the retry for resilience
-    @retried(on=[InternalError, DeadlineExceeded], timeout=timedelta(minutes=3))
-    def _update_or_create_dashboard(
-        self,
-        folder: Path,
-        ws_parent_path: str,
-        config: ReconcileMetadataConfig,
-    ) -> Dashboard:
-        logger.info(f"Reading dashboard folder {folder}")
-        metadata = DashboardMetadata.from_path(folder).replace_database(
-            catalog=config.catalog,
-            catalog_to_replace="remorph",
-            database=config.schema,
-            database_to_replace="reconcile",
-        )
-
-        metadata.display_name = self._name_with_prefix(metadata.display_name)
-        reference = self._dashboard_reference(folder)
-        dashboard_id = self._install_state.dashboards.get(reference)
-        if dashboard_id is not None:
-            try:
-                dashboard_id = self._handle_existing_dashboard(dashboard_id, metadata.display_name)
-            except (NotFound, InvalidParameterValue):
-                logger.info(f"Recovering invalid dashboard: {metadata.display_name} ({dashboard_id})")
-                try:
-                    dashboard_path = f"{ws_parent_path}/{metadata.display_name}.lvdash.json"
-                    self._ws.workspace.delete(dashboard_path)  # Cannot recreate dashboard if file still exists
-                    logger.debug(
-                        f"Deleted dangling dashboard {metadata.display_name} ({dashboard_id}): {dashboard_path}"
-                    )
-                except NotFound:
-                    pass
-                dashboard_id = None  # Recreate the dashboard if it's reference is corrupted (manually)
-
-        dashboard = Dashboards(self._ws).create_dashboard(
-            metadata,
-            dashboard_id=dashboard_id,
-            parent_path=ws_parent_path,
-            warehouse_id=self._ws.config.warehouse_id,
-            publish=True,
-        )
-        assert dashboard.dashboard_id is not None
-        self._install_state.dashboards[reference] = dashboard.dashboard_id
-        return dashboard
 
     def _name_with_prefix(self, name: str) -> str:
         prefix = self._installation.product()

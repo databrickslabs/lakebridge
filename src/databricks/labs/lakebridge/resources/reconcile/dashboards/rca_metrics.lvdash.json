@@ -47,7 +47,7 @@
         "  metrics.run_metrics.run_by_user AS executed_by,\n",
         "  main.start_ts,\n",
         "  main.end_ts,\n",
-        "  IF(metrics.run_metrics.status, 'PASSING', 'FAILING') AS status_label,\n",
+        "  IF(metrics.run_metrics.status, 'PASSED', 'FAILED') AS status_label,\n",
         "  COALESCE(metrics.recon_metrics.column_comparison.absolute_mismatch, 0) AS mismatched_rows,\n",
         "  COALESCE(metrics.recon_metrics.row_comparison.missing_in_source, 0) AS missing_in_source,\n",
         "  COALESCE(metrics.recon_metrics.row_comparison.missing_in_target, 0) AS missing_in_target,\n",
@@ -230,7 +230,7 @@
         "    ) AS source_table,\n",
         "    metrics.run_metrics.run_by_user AS executed_by,\n",
         "    main.start_ts,\n",
-        "    IF(metrics.run_metrics.status, 'PASSING', 'FAILING') AS status_label,\n",
+        "    IF(metrics.run_metrics.status, 'PASSED', 'FAILED') AS status_label,\n",
         "    COALESCE(metrics.recon_metrics.column_comparison.absolute_mismatch, 0) AS mismatched_rows,\n",
         "    COALESCE(metrics.recon_metrics.row_comparison.missing_in_source, 0) AS missing_in_source,\n",
         "    COALESCE(metrics.recon_metrics.row_comparison.missing_in_target, 0) AS missing_in_target,\n",
@@ -1161,7 +1161,7 @@
                           "condition": {
                             "operand": {
                               "type": "data-value",
-                              "value": "PASSING"
+                              "value": "PASSED"
                             },
                             "operator": "=",
                             "fieldName": "status_label"
@@ -1173,7 +1173,7 @@
                           "condition": {
                             "operand": {
                               "type": "data-value",
-                              "value": "FAILING"
+                              "value": "FAILED"
                             },
                             "operator": "=",
                             "fieldName": "status_label"
@@ -1194,7 +1194,7 @@
                           "condition": {
                             "operand": {
                               "type": "data-value",
-                              "value": "PASSING"
+                              "value": "PASSED"
                             },
                             "operator": "=",
                             "fieldName": "status_label"
@@ -1206,7 +1206,7 @@
                           "condition": {
                             "operand": {
                               "type": "data-value",
-                              "value": "FAILING"
+                              "value": "FAILED"
                             },
                             "operator": "=",
                             "fieldName": "status_label"
@@ -1227,7 +1227,7 @@
                           "condition": {
                             "operand": {
                               "type": "data-value",
-                              "value": "PASSING"
+                              "value": "PASSED"
                             },
                             "operator": "=",
                             "fieldName": "status_label"
@@ -1239,7 +1239,7 @@
                           "condition": {
                             "operand": {
                               "type": "data-value",
-                              "value": "FAILING"
+                              "value": "FAILED"
                             },
                             "operator": "=",
                             "fieldName": "status_label"
@@ -1260,7 +1260,7 @@
                           "condition": {
                             "operand": {
                               "type": "data-value",
-                              "value": "PASSING"
+                              "value": "PASSED"
                             },
                             "operator": "=",
                             "fieldName": "status_label"
@@ -1272,7 +1272,7 @@
                           "condition": {
                             "operand": {
                               "type": "data-value",
-                              "value": "FAILING"
+                              "value": "FAILED"
                             },
                             "operator": "=",
                             "fieldName": "status_label"
@@ -1293,7 +1293,7 @@
                           "condition": {
                             "operand": {
                               "type": "data-value",
-                              "value": "PASSING"
+                              "value": "PASSED"
                             },
                             "operator": "=",
                             "fieldName": "status_label"
@@ -1305,7 +1305,7 @@
                           "condition": {
                             "operand": {
                               "type": "data-value",
-                              "value": "FAILING"
+                              "value": "FAILED"
                             },
                             "operator": "=",
                             "fieldName": "status_label"
@@ -1326,7 +1326,7 @@
                           "condition": {
                             "operand": {
                               "type": "data-value",
-                              "value": "PASSING"
+                              "value": "PASSED"
                             },
                             "operator": "=",
                             "fieldName": "status_label"
@@ -1338,7 +1338,7 @@
                           "condition": {
                             "operand": {
                               "type": "data-value",
-                              "value": "FAILING"
+                              "value": "FAILED"
                             },
                             "operator": "=",
                             "fieldName": "status_label"
@@ -1359,7 +1359,7 @@
                           "condition": {
                             "operand": {
                               "type": "data-value",
-                              "value": "PASSING"
+                              "value": "PASSED"
                             },
                             "operator": "=",
                             "fieldName": "status_label"
@@ -1371,7 +1371,7 @@
                           "condition": {
                             "operand": {
                               "type": "data-value",
-                              "value": "FAILING"
+                              "value": "FAILED"
                             },
                             "operator": "=",
                             "fieldName": "status_label"
@@ -1392,7 +1392,7 @@
                           "condition": {
                             "operand": {
                               "type": "data-value",
-                              "value": "PASSING"
+                              "value": "PASSED"
                             },
                             "operator": "=",
                             "fieldName": "status_label"
@@ -1404,7 +1404,7 @@
                           "condition": {
                             "operand": {
                               "type": "data-value",
-                              "value": "FAILING"
+                              "value": "FAILED"
                             },
                             "operator": "=",
                             "fieldName": "status_label"
@@ -1425,7 +1425,7 @@
                           "condition": {
                             "operand": {
                               "type": "data-value",
-                              "value": "PASSING"
+                              "value": "PASSED"
                             },
                             "operator": "=",
                             "fieldName": "status_label"
@@ -1437,7 +1437,7 @@
                           "condition": {
                             "operand": {
                               "type": "data-value",
-                              "value": "FAILING"
+                              "value": "FAILED"
                             },
                             "operator": "=",
                             "fieldName": "status_label"
@@ -1458,7 +1458,7 @@
                           "condition": {
                             "operand": {
                               "type": "data-value",
-                              "value": "PASSING"
+                              "value": "PASSED"
                             },
                             "operator": "=",
                             "fieldName": "status_label"
@@ -1470,7 +1470,7 @@
                           "condition": {
                             "operand": {
                               "type": "data-value",
-                              "value": "FAILING"
+                              "value": "FAILED"
                             },
                             "operator": "=",
                             "fieldName": "status_label"
@@ -1491,7 +1491,7 @@
                           "condition": {
                             "operand": {
                               "type": "data-value",
-                              "value": "PASSING"
+                              "value": "PASSED"
                             },
                             "operator": "=",
                             "fieldName": "status_label"
@@ -1503,7 +1503,7 @@
                           "condition": {
                             "operand": {
                               "type": "data-value",
-                              "value": "FAILING"
+                              "value": "FAILED"
                             },
                             "operator": "=",
                             "fieldName": "status_label"
@@ -1524,7 +1524,7 @@
                           "condition": {
                             "operand": {
                               "type": "data-value",
-                              "value": "PASSING"
+                              "value": "PASSED"
                             },
                             "operator": "=",
                             "fieldName": "status_label"
@@ -1536,7 +1536,7 @@
                           "condition": {
                             "operand": {
                               "type": "data-value",
-                              "value": "FAILING"
+                              "value": "FAILED"
                             },
                             "operator": "=",
                             "fieldName": "status_label"
@@ -1821,7 +1821,7 @@
                   "fields": [
                     {
                       "name": "daily(start_ts)",
-                      "expression": "DATE_TRUNC(\"HOUR\", `start_ts`)"
+                      "expression": "DATE_TRUNC(\"DAY\", `start_ts`)"
                     },
                     {
                       "name": "sum(succeeded)",
@@ -1895,7 +1895,7 @@
                   "fields": [
                     {
                       "name": "daily(start_ts)",
-                      "expression": "DATE_TRUNC(\"HOUR\", `start_ts`)"
+                      "expression": "DATE_TRUNC(\"DAY\", `start_ts`)"
                     },
                     {
                       "name": "sum(mismatched)",
@@ -2134,7 +2134,7 @@
                           "condition": {
                             "operand": {
                               "type": "data-value",
-                              "value": "PASSING"
+                              "value": "PASSED"
                             },
                             "operator": "=",
                             "fieldName": "status_label"
@@ -2147,7 +2147,7 @@
                           "condition": {
                             "operand": {
                               "type": "data-value",
-                              "value": "FAILING"
+                              "value": "FAILED"
                             },
                             "operator": "=",
                             "fieldName": "status_label"
@@ -2168,7 +2168,7 @@
                           "condition": {
                             "operand": {
                               "type": "data-value",
-                              "value": "PASSING"
+                              "value": "PASSED"
                             },
                             "operator": "=",
                             "fieldName": "status_label"
@@ -2180,7 +2180,7 @@
                           "condition": {
                             "operand": {
                               "type": "data-value",
-                              "value": "FAILING"
+                              "value": "FAILED"
                             },
                             "operator": "=",
                             "fieldName": "status_label"
@@ -2200,7 +2200,7 @@
                           "condition": {
                             "operand": {
                               "type": "data-value",
-                              "value": "PASSING"
+                              "value": "PASSED"
                             },
                             "operator": "=",
                             "fieldName": "status_label"
@@ -2212,7 +2212,7 @@
                           "condition": {
                             "operand": {
                               "type": "data-value",
-                              "value": "FAILING"
+                              "value": "FAILED"
                             },
                             "operator": "=",
                             "fieldName": "status_label"
@@ -2232,7 +2232,7 @@
                           "condition": {
                             "operand": {
                               "type": "data-value",
-                              "value": "PASSING"
+                              "value": "PASSED"
                             },
                             "operator": "=",
                             "fieldName": "status_label"
@@ -2244,7 +2244,7 @@
                           "condition": {
                             "operand": {
                               "type": "data-value",
-                              "value": "FAILING"
+                              "value": "FAILED"
                             },
                             "operator": "=",
                             "fieldName": "status_label"
@@ -2264,7 +2264,7 @@
                           "condition": {
                             "operand": {
                               "type": "data-value",
-                              "value": "PASSING"
+                              "value": "PASSED"
                             },
                             "operator": "=",
                             "fieldName": "status_label"
@@ -2276,7 +2276,7 @@
                           "condition": {
                             "operand": {
                               "type": "data-value",
-                              "value": "FAILING"
+                              "value": "FAILED"
                             },
                             "operator": "=",
                             "fieldName": "status_label"
@@ -2296,7 +2296,7 @@
                           "condition": {
                             "operand": {
                               "type": "data-value",
-                              "value": "PASSING"
+                              "value": "PASSED"
                             },
                             "operator": "=",
                             "fieldName": "status_label"
@@ -2308,7 +2308,7 @@
                           "condition": {
                             "operand": {
                               "type": "data-value",
-                              "value": "FAILING"
+                              "value": "FAILED"
                             },
                             "operator": "=",
                             "fieldName": "status_label"
@@ -2328,7 +2328,7 @@
                           "condition": {
                             "operand": {
                               "type": "data-value",
-                              "value": "PASSING"
+                              "value": "PASSED"
                             },
                             "operator": "=",
                             "fieldName": "status_label"
@@ -2340,7 +2340,7 @@
                           "condition": {
                             "operand": {
                               "type": "data-value",
-                              "value": "FAILING"
+                              "value": "FAILED"
                             },
                             "operator": "=",
                             "fieldName": "status_label"
@@ -2360,7 +2360,7 @@
                           "condition": {
                             "operand": {
                               "type": "data-value",
-                              "value": "PASSING"
+                              "value": "PASSED"
                             },
                             "operator": "=",
                             "fieldName": "status_label"
@@ -2372,7 +2372,7 @@
                           "condition": {
                             "operand": {
                               "type": "data-value",
-                              "value": "FAILING"
+                              "value": "FAILED"
                             },
                             "operator": "=",
                             "fieldName": "status_label"
@@ -2392,7 +2392,7 @@
                           "condition": {
                             "operand": {
                               "type": "data-value",
-                              "value": "PASSING"
+                              "value": "PASSED"
                             },
                             "operator": "=",
                             "fieldName": "status_label"
@@ -2404,7 +2404,7 @@
                           "condition": {
                             "operand": {
                               "type": "data-value",
-                              "value": "FAILING"
+                              "value": "FAILED"
                             },
                             "operator": "=",
                             "fieldName": "status_label"
@@ -2424,7 +2424,7 @@
                           "condition": {
                             "operand": {
                               "type": "data-value",
-                              "value": "PASSING"
+                              "value": "PASSED"
                             },
                             "operator": "=",
                             "fieldName": "status_label"
@@ -2436,7 +2436,7 @@
                           "condition": {
                             "operand": {
                               "type": "data-value",
-                              "value": "FAILING"
+                              "value": "FAILED"
                             },
                             "operator": "=",
                             "fieldName": "status_label"
@@ -2456,7 +2456,7 @@
                           "condition": {
                             "operand": {
                               "type": "data-value",
-                              "value": "PASSING"
+                              "value": "PASSED"
                             },
                             "operator": "=",
                             "fieldName": "status_label"
@@ -2468,7 +2468,7 @@
                           "condition": {
                             "operand": {
                               "type": "data-value",
-                              "value": "FAILING"
+                              "value": "FAILED"
                             },
                             "operator": "=",
                             "fieldName": "status_label"
@@ -3875,7 +3875,7 @@
                   "fields": [
                     {
                       "name": "daily(start_ts)",
-                      "expression": "DATE_TRUNC(\"HOUR\", `start_ts`)"
+                      "expression": "DATE_TRUNC(\"DAY\", `start_ts`)"
                     },
                     {
                       "name": "sum(succeeded)",
@@ -3947,7 +3947,7 @@
                   "fields": [
                     {
                       "name": "daily(start_ts)",
-                      "expression": "DATE_TRUNC(\"HOUR\", `start_ts`)"
+                      "expression": "DATE_TRUNC(\"DAY\", `start_ts`)"
                     },
                     {
                       "name": "sum(mismatched)",
