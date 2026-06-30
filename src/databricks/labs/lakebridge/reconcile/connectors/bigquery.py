@@ -19,9 +19,9 @@ logger = logging.getLogger(__name__)
 class BigQueryDataSource(DataSource):
     """BigQuery source read through a Databricks Lakehouse Federation UC connection.
 
-    Tables are referenced two-part as ``dataset.table``; the project comes from the UC connection.
-    ``catalog`` is used as the ``remote_query`` ``materializationDataset`` and must be a BigQuery
-    dataset writable by the connection's service account.
+    Tables are referenced three-part as ``project.dataset.table`` (``catalog`` is the project).
+    Results materialize into the ``lakebridge_reconcile`` dataset, which must exist and be writable
+    by the connection's service account.
     """
 
     _IDENTIFIER_DELIMITER = "`"
