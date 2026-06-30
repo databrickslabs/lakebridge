@@ -22,9 +22,30 @@ steps:
     frequency: daily
     flag: active
 
+  # Bounded RANDOM sample of query history (incl. QUERY_TEXT) for workload
+  # classification. Replaces the unbounded 90-day full-text pull that produced
+  # multi-GB extracts on high-volume accounts (issue #2532).
   - name: query_history
     type: sql
     extract_source: src/databricks/labs/lakebridge/resources/assessments/snowflake/query_history.sql
+    mode: overwrite
+    frequency: daily
+    flag: active
+
+  # Top-N most expensive queries (with QUERY_TEXT) so the random sample never
+  # misses the outliers that drive a large share of spend.
+  - name: query_history_top
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/snowflake/query_history_top.sql
+    mode: overwrite
+    frequency: daily
+    flag: active
+
+  # Full-window aggregate (no query text): true totals + per-group distribution
+  # and percentiles the downstream skill applies the sampled category mix against.
+  - name: query_history_stats
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/snowflake/query_history_stats.sql
     mode: overwrite
     frequency: daily
     flag: active

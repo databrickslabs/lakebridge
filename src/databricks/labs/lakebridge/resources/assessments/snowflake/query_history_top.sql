@@ -1,18 +1,14 @@
--- Query History — bounded RANDOM sample for workload classification
+-- Query History — Top-N most expensive queries (outlier protection)
 --
--- Issue #2532: the previous step pulled the full 90-day QUERY_HISTORY including
--- QUERY_TEXT (avg ~500 chars, up to ~1M chars), producing multi-GB extracts on
--- high-volume accounts that exceeded export limits. This step now returns a
--- bounded RANDOM sample, so the extract is a flat, predictable size regardless
--- of account volume. The downstream skill classifies these sampled queries
--- (BI/ETL/ingest/etc.), derives the category mix, and applies that distribution
--- to the true totals from query_history_stats. Outliers the sample might miss
--- are covered by query_history_top.
+-- The random sample in query_history.sql gives a representative workload mix but,
+-- by design, can miss the handful of very expensive queries that drive a large
+-- share of spend. This step captures the top 20 queries by credits (with
+-- QUERY_TEXT) so those outliers are always present for the downstream skill to
+-- sense-check the sampled distribution against.
 --
--- Per-query credits come from QUERY_ATTRIBUTION_HISTORY (accurate compute
--- attribution). Where that view has no matching row (older queries, or account
--- tiers where it isn't populated), ESTIMATED_CREDITS falls back to an
--- execution-time x warehouse-size-rate estimate and IS_CREDITS_ESTIMATED is set.
+-- Credits come from QUERY_ATTRIBUTION_HISTORY (accurate compute attribution),
+-- falling back to an execution-time x warehouse-size-rate estimate where the
+-- attribution view has no row (IS_CREDITS_ESTIMATED flags those).
 
 WITH attributed AS (
     SELECT
@@ -58,5 +54,5 @@ SELECT
 FROM SNOWFLAKE.ACCOUNT_USAGE.QUERY_HISTORY qh
 LEFT JOIN attributed a ON qh.QUERY_ID = a.QUERY_ID
 WHERE qh.START_TIME >= DATEADD('day', -90, CURRENT_TIMESTAMP())
-ORDER BY RANDOM()
-LIMIT 10000;
+ORDER BY ESTIMATED_CREDITS DESC NULLS LAST
+LIMIT 20;
