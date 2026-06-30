@@ -57,13 +57,6 @@ steps:
     frequency: daily
     flag: active
 
-  - name: user_activity
-    type: sql
-    extract_source: src/databricks/labs/lakebridge/resources/assessments/snowflake/user_activity.sql
-    mode: overwrite
-    frequency: daily
-    flag: active
-
   # Background-service usage tables. Optional because accounts that don't use
   # these features won't have rows; missing categories cleanly degrade to zero.
   - name: pipe_usage

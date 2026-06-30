@@ -39,7 +39,7 @@ Pick **snowflake** when prompted, then paste the connection details and PAT.
 databricks labs lakebridge execute-database-profiler
 ```
 
-The extract is written to a DuckDB file at `~/.databricks/labs/lakebridge_profilers/snowflake_assessment/profiler_extract.db`. It contains raw `SNOWFLAKE.ACCOUNT_USAGE` data — warehouse usage, query history, storage, users, and (when applicable) pipe / autoclustering / materialized-view refresh credits. By default each extract looks back 90 days. Inspect it with:
+The extract is written to a DuckDB file at `~/.databricks/labs/lakebridge_profilers/snowflake_assessment/profiler_extract.db`. It contains raw `SNOWFLAKE.ACCOUNT_USAGE` data — warehouse usage, query history, storage, and (when applicable) pipe / autoclustering / materialized-view refresh credits. By default each extract looks back 90 days. Inspect it with:
 
 ```bash
 cd ~/.databricks/labs/lakebridge_profilers/snowflake_assessment
@@ -56,4 +56,4 @@ On high-volume accounts the full query history — driven mostly by `QUERY_TEXT`
 - **`query_history_top`** — the **top 20 most expensive queries** (with `QUERY_TEXT`), so the outliers that drive a large share of spend are never missed by the sample.
 - **`query_history_stats`** — full-window **aggregates** (no query text) grouped by query type and warehouse size: query counts and the total/avg/median/p90 of credits and elapsed time. This carries the true totals that the sampled category mix is applied against.
 
-Per-query credits come from `SNOWFLAKE.ACCOUNT_USAGE.QUERY_ATTRIBUTION_HISTORY` where available, falling back to an execution-time × warehouse-size-rate estimate (flagged by `IS_CREDITS_ESTIMATED`). The `user_activity` table is likewise a per-user summary of `LOGIN_HISTORY` rather than a per-event dump.
+Per-query credits come from `SNOWFLAKE.ACCOUNT_USAGE.QUERY_ATTRIBUTION_HISTORY` where available, falling back to an execution-time × warehouse-size-rate estimate (flagged by `IS_CREDITS_ESTIMATED`).
