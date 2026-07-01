@@ -7,7 +7,12 @@ from pyspark.sql import SparkSession
 
 from databricks.sdk import WorkspaceClient
 
-from databricks.labs.lakebridge.config import ReconcileConfig, TableRecon, DatabaseConfig
+from databricks.labs.lakebridge.config import (
+    ReconcileConfig,
+    TableRecon,
+    SourceConnectionConfig,
+    TargetConnectionConfig,
+)
 from databricks.labs.lakebridge.reconcile import utils
 from databricks.labs.lakebridge.reconcile.connectors.data_source import DataSource
 from databricks.labs.lakebridge.reconcile.exception import DataSourceRuntimeException, ReconciliationException
@@ -87,7 +92,8 @@ class TriggerReconService:
         reconciler = Reconciliation(
             source,
             target,
-            reconcile_config.database_config,
+            reconcile_config.source,
+            reconcile_config.target,
             report_type,
             SchemaCompare(spark=spark),
             get_dialect(source_dialect),
@@ -98,7 +104,8 @@ class TriggerReconService:
         )
 
         recon_capture = ReconCapture(
-            database_config=reconcile_config.database_config,
+            source_connection=reconcile_config.source,
+            target_connection=reconcile_config.target,
             recon_id=recon_id,
             report_type=report_type,
             source_dialect=get_dialect(source_dialect),
@@ -142,7 +149,7 @@ class TriggerReconService:
 
         try:
             src_schema, tgt_schema = TriggerReconService.get_schemas(
-                reconciler.source, reconciler.target, table_conf, reconcile_config.database_config, True
+                reconciler.source, reconciler.target, table_conf, reconcile_config.source, reconcile_config.target, True
             )
         except DataSourceRuntimeException as e:
             schema_reconcile_output = SchemaReconcileOutput(is_valid=False, exception=str(e))
@@ -173,19 +180,20 @@ class TriggerReconService:
         source: DataSource,
         target: DataSource,
         table_conf: Table,
-        database_config: DatabaseConfig,
+        source_connection: SourceConnectionConfig,
+        target_connection: TargetConnectionConfig,
         normalize: bool,
     ) -> tuple[list[Schema], list[Schema]]:
         src_schema = source.get_schema(
-            catalog=database_config.source_catalog,
-            schema=database_config.source_schema,
+            catalog=source_connection.catalog,
+            schema=source_connection.schema,
             table=table_conf.source_name,
             normalize=normalize,
         )
 
         tgt_schema = target.get_schema(
-            catalog=database_config.target_catalog,
-            schema=database_config.target_schema,
+            catalog=target_connection.catalog,
+            schema=target_connection.schema,
             table=table_conf.target_name,
             normalize=normalize,
         )
