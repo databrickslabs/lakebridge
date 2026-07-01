@@ -15,6 +15,7 @@ from databricks.labs.lakebridge.config import (
 )
 from databricks.labs.lakebridge.reconcile import utils
 from databricks.labs.lakebridge.reconcile.connectors.data_source import DataSource
+from databricks.labs.lakebridge.reconcile.constants import RECON_SAMPLE_VIEW_PREFIX
 from databricks.labs.lakebridge.reconcile.exception import DataSourceRuntimeException, ReconciliationException
 from databricks.labs.lakebridge.reconcile.recon_capture import (
     ReconCapture,
@@ -52,7 +53,10 @@ class TriggerReconService:
 
         try:
             for table_conf in table_recon.tables:
-                TriggerReconService.recon_one(reconciler, recon_capture, reconcile_config, table_conf)
+                try:
+                    TriggerReconService.recon_one(reconciler, recon_capture, reconcile_config, table_conf)
+                finally:
+                    TriggerReconService._drop_sample_temp_views(spark)
 
             return TriggerReconService.verify_successful_reconciliation(
                 generate_final_reconcile_output(
@@ -67,6 +71,24 @@ class TriggerReconService:
                 ws.dbfs.delete(str(reconciler.intermediate_persist.base_dir), recursive=True)
             except IOError:
                 logger.exception("Cleaning intermediate storage failed. Resuming program")
+
+    @staticmethod
+    def _drop_sample_temp_views(spark: SparkSession) -> None:
+        """Drop the per-call sampling temp views (RECON_SAMPLE_VIEW_PREFIX) left by the Databricks
+        sampling path. Uses SHOW VIEWS (metadata-only) rather than spark.catalog.listTables(), which
+        resolves every table in the current schema and fails if any can't be loaded. Best-effort and
+        pattern-scoped: only session temp views carrying our prefix are removed; a cleanup failure
+        must not fail the reconcile run.
+        """
+        try:
+            temp_views = spark.sql("SHOW VIEWS").where("isTemporary = true").collect()
+            for row in temp_views:
+                name = row["viewName"]
+                if name.startswith(RECON_SAMPLE_VIEW_PREFIX):
+                    spark.sql(f"DROP VIEW IF EXISTS {name}")
+                    logger.info(f"Dropped sampling temp view {name}")
+        except PySparkException:
+            logger.exception("Cleaning sampling temp views failed. Resuming program")
 
     @staticmethod
     def create_recon_dependencies(
