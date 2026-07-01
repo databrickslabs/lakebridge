@@ -11,7 +11,6 @@ from pyspark.errors import PySparkException
 from pyspark.testing import assertDataFrameEqual
 
 from databricks.labs.lakebridge.config import (
-    DatabaseConfig,
     TableRecon,
     ReconcileMetadataConfig,
     ReconcileConfig,
@@ -232,19 +231,16 @@ def test_reconcile_data_with_mismatches_and_missing(
         ),
     }
     target_schema_repository = {(CATALOG, SCHEMA, TGT_TABLE): tgt_schema}
-    database_config = DatabaseConfig(
-        source_catalog=CATALOG,
-        source_schema=SCHEMA,
-        target_catalog=CATALOG,
-        target_schema=SCHEMA,
-    )
+    source_connection = SourceConnectionConfig(dialect="databricks", catalog=CATALOG, schema=SCHEMA)
+    target_connection = TargetConnectionConfig(catalog=CATALOG, schema=SCHEMA)
     schema_comparator = SchemaCompare(spark)
     source = MockDataSource(source_dataframe_repository, source_schema_repository)
     target = MockDataSource(target_dataframe_repository, target_schema_repository)
     actual_data_reconcile = Reconciliation(
         source,
         target,
-        database_config,
+        source_connection,
+        target_connection,
         "data",
         schema_comparator,
         get_dialect("databricks"),
@@ -314,7 +310,8 @@ def test_reconcile_data_with_mismatches_and_missing(
     actual_schema_reconcile = Reconciliation(
         source,
         target,
-        database_config,
+        source_connection,
+        target_connection,
         "data",
         schema_comparator,
         get_dialect("databricks"),
@@ -440,19 +437,16 @@ def test_reconcile_data_without_mismatches_and_missing(
         ),
     }
     target_schema_repository = {(CATALOG, SCHEMA, TGT_TABLE): tgt_schema}
-    database_config = DatabaseConfig(
-        source_catalog=CATALOG,
-        source_schema=SCHEMA,
-        target_catalog=CATALOG,
-        target_schema=SCHEMA,
-    )
+    source_connection = SourceConnectionConfig(dialect="databricks", catalog=CATALOG, schema=SCHEMA)
+    target_connection = TargetConnectionConfig(catalog=CATALOG, schema=SCHEMA)
     schema_comparator = SchemaCompare(spark)
     source = MockDataSource(source_dataframe_repository, source_schema_repository)
     target = MockDataSource(target_dataframe_repository, target_schema_repository)
     actual = Reconciliation(
         source,
         target,
-        database_config,
+        source_connection,
+        target_connection,
         "data",
         schema_comparator,
         get_dialect("databricks"),
@@ -523,19 +517,16 @@ def test_reconcile_data_with_mismatch_and_no_missing(
         ),
     }
     target_schema_repository = {(CATALOG, SCHEMA, TGT_TABLE): tgt_schema}
-    database_config = DatabaseConfig(
-        source_catalog=CATALOG,
-        source_schema=SCHEMA,
-        target_catalog=CATALOG,
-        target_schema=SCHEMA,
-    )
+    source_connection = SourceConnectionConfig(dialect="databricks", catalog=CATALOG, schema=SCHEMA)
+    target_connection = TargetConnectionConfig(catalog=CATALOG, schema=SCHEMA)
     schema_comparator = SchemaCompare(spark)
     source = MockDataSource(source_dataframe_repository, source_schema_repository)
     target = MockDataSource(target_dataframe_repository, target_schema_repository)
     actual = Reconciliation(
         source,
         target,
-        database_config,
+        source_connection,
+        target_connection,
         "data",
         schema_comparator,
         get_dialect("databricks"),
@@ -626,19 +617,16 @@ def test_reconcile_data_missing_and_no_mismatch(
         ),
     }
     target_schema_repository = {(CATALOG, SCHEMA, TGT_TABLE): tgt_schema}
-    database_config = DatabaseConfig(
-        source_catalog=CATALOG,
-        source_schema=SCHEMA,
-        target_catalog=CATALOG,
-        target_schema=SCHEMA,
-    )
+    source_connection = SourceConnectionConfig(dialect="databricks", catalog=CATALOG, schema=SCHEMA)
+    target_connection = TargetConnectionConfig(catalog=CATALOG, schema=SCHEMA)
     schema_comparator = SchemaCompare(spark)
     source = MockDataSource(source_dataframe_repository, source_schema_repository)
     target = MockDataSource(target_dataframe_repository, target_schema_repository)
     actual = Reconciliation(
         source,
         target,
-        database_config,
+        source_connection,
+        target_connection,
         "data",
         schema_comparator,
         get_dialect("databricks"),
@@ -1927,12 +1915,8 @@ def test_reconcile_data_with_threshold_and_row_report_type(
     }
 
     target_schema_repository = {(CATALOG, SCHEMA, TGT_TABLE): tgt_schema}
-    database_config = DatabaseConfig(
-        source_catalog=CATALOG,
-        source_schema=SCHEMA,
-        target_catalog=CATALOG,
-        target_schema=SCHEMA,
-    )
+    source_connection = SourceConnectionConfig(dialect="databricks", catalog=CATALOG, schema=SCHEMA)
+    target_connection = TargetConnectionConfig(catalog=CATALOG, schema=SCHEMA)
     schema_comparator = SchemaCompare(spark)
     source = MockDataSource(source_dataframe_repository, source_schema_repository)
     target = MockDataSource(target_dataframe_repository, target_schema_repository)
@@ -1940,7 +1924,8 @@ def test_reconcile_data_with_threshold_and_row_report_type(
     actual = Reconciliation(
         source,
         target,
-        database_config,
+        source_connection,
+        target_connection,
         "row",
         schema_comparator,
         get_dialect("databricks"),

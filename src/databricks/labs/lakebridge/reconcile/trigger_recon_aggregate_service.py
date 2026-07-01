@@ -68,7 +68,12 @@ class TriggerReconAggregateService:
         recon_process_duration = ReconcileProcessDuration(start_ts=str(datetime.now(tz=timezone.utc)), end_ts=None)
         try:
             src_schema, tgt_schema = TriggerReconService.get_schemas(
-                reconciler.source, reconciler.target, normalized_table_conf, reconcile_config.database_config, True
+                reconciler.source,
+                reconciler.target,
+                normalized_table_conf,
+                reconcile_config.source,
+                reconcile_config.target,
+                True,
             )
 
             table_reconcile_agg_output_list = reconciler.reconcile_aggregates(
