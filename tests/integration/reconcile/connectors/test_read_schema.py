@@ -211,19 +211,19 @@ def _bigquery_connector(spark: SparkSession) -> BigQueryDataSource:
 def test_bigquery_read_schema_happy(spark: SparkSession) -> None:
     connector = _bigquery_connector(spark)
 
-    columns = connector.get_schema("NOT_USED", "lakebridge", "diamonds")
+    columns = connector.get_schema("databricks-dev-customer", "lakebridge", "diamonds")
     assert columns
 
 
 def test_bigquery_list_schemas_happy(spark: SparkSession) -> None:
     connector = _bigquery_connector(spark)
 
-    schemas = connector.list_schemas("NOT_USED")
+    schemas = connector.list_schemas("databricks-dev-customer")
     assert "lakebridge" in schemas
 
 
 def test_bigquery_list_tables_happy(spark: SparkSession) -> None:
     connector = _bigquery_connector(spark)
 
-    tables = connector.list_tables("NOT_USED", "lakebridge")
+    tables = connector.list_tables("databricks-dev-customer", "lakebridge")
     assert "diamonds" in tables
