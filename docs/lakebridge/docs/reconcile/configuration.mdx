@@ -118,18 +118,9 @@ Place the file in `.lakebridge/` in your Databricks workspace home folder.
         report_type: all
         ```
 
-        :::note BigQuery type mapping
-        A few BigQuery types have no exact Databricks equivalent and are reconciled against their standard migration
-        target: `BIGNUMERIC`→`STRING`, `TIME`→`STRING`, `JSON`→`VARIANT`, `RANGE<T>`→`STRUCT<start, end>`,
-        `DATETIME`→`TIMESTAMP_NTZ`. If your migration used a different target, the `schema` report
-        flags those columns for review. `INTERVAL` migrates to two Databricks columns and is not
-        supported by `schema` reconciliation.
-        :::
-
         :::warning Writable dataset required
-        `remote_query` materializes its results into the `lakebridge_reconcile` BigQuery dataset.
-        Create it in the same region as your source data and make it **writable** by the connection's
-        service account, otherwise reads will fail.
+        Results materialize into the ``lakebridge_reconcile`` dataset, which must exist in
+        the same region as source data and be writable by the connection's service account.
         :::
     </TabItem>
     <TabItem value="databricks" label="Databricks">

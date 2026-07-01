@@ -353,6 +353,56 @@ def teradata_databricks_schema():
     return src_schema, tgt_schema
 
 
+def bigquery_databricks_schema():
+    src_schema = [
+        schema_fixture_factory("col_int64", "int64"),
+        schema_fixture_factory("col_float64", "float64"),
+        schema_fixture_factory("col_bool", "bool"),
+        schema_fixture_factory("col_string", "string"),
+        schema_fixture_factory("col_bytes", "bytes"),
+        schema_fixture_factory("col_date", "date"),
+        schema_fixture_factory("col_datetime", "datetime"),
+        schema_fixture_factory("col_timestamp", "timestamp"),
+        schema_fixture_factory("col_numeric_ps", "numeric(10, 2)"),
+        schema_fixture_factory("col_geography", "geography"),
+        schema_fixture_factory("col_array_int", "array<int64>"),
+        schema_fixture_factory("col_struct_int", "struct<a int64>"),
+        schema_fixture_factory("col_numeric", "decimal(38, 9)"),
+        schema_fixture_factory("col_bignumeric", "decimal(38, 9)"),
+        schema_fixture_factory("col_json", "variant"),
+        schema_fixture_factory("col_time", "time"),
+        schema_fixture_factory("col_array_time", "array<time>"),
+        schema_fixture_factory("col_struct_json", "struct<a json>"),
+        schema_fixture_factory("col_range_date", "range<date>"),
+        schema_fixture_factory("col_range_datetime", "range<datetime>"),
+        schema_fixture_factory("col_range_timestamp", "range<timestamp>"),
+    ]
+    tgt_schema = [
+        schema_fixture_factory("col_int64", "bigint"),
+        schema_fixture_factory("col_float64", "double"),
+        schema_fixture_factory("col_bool", "boolean"),
+        schema_fixture_factory("col_string", "string"),
+        schema_fixture_factory("col_bytes", "binary"),
+        schema_fixture_factory("col_date", "date"),
+        schema_fixture_factory("col_datetime", "timestamp_ntz"),
+        schema_fixture_factory("col_timestamp", "timestamp"),
+        schema_fixture_factory("col_numeric_ps", "decimal(10,2)"),
+        schema_fixture_factory("col_geography", "string"),
+        schema_fixture_factory("col_array_int", "array<bigint>"),
+        schema_fixture_factory("col_struct_int", "struct<a: bigint>"),
+        schema_fixture_factory("col_numeric", "decimal(38,9)"),
+        schema_fixture_factory("col_bignumeric", "decimal(38,9)"),
+        schema_fixture_factory("col_json", "variant"),
+        schema_fixture_factory("col_time", "string"),
+        schema_fixture_factory("col_array_time", "array<string>"),
+        schema_fixture_factory("col_struct_json", "struct<a: variant>"),
+        schema_fixture_factory("col_range_date", "struct<start: date, end: date>"),
+        schema_fixture_factory("col_range_datetime", "struct<start: timestamp_ntz, end: timestamp_ntz>"),
+        schema_fixture_factory("col_range_timestamp", "struct<start: timestamp, end: timestamp>"),
+    ]
+    return src_schema, tgt_schema
+
+
 @pytest.fixture
 def schemas():
     return {
@@ -362,6 +412,7 @@ def schemas():
         "tsql_databricks_schema": tsql_databricks_schema(),
         "redshift_databricks_schema": redshift_databricks_schema(),
         "teradata_databricks_schema": teradata_databricks_schema(),
+        "bigquery_databricks_schema": bigquery_databricks_schema(),
     }
 
 
@@ -510,6 +561,23 @@ def test_schema_compare(spark):
     assert df.count() == 2
     assert df.filter("is_valid = 'true'").count() == 2
     assert df.filter("is_valid = 'false'").count() == 0
+
+
+def test_bigquery_schema_compare(schemas, spark):
+    src_schema, tgt_schema = schemas["bigquery_databricks_schema"]
+    table_conf = Table(source_name="supplier", target_name="supplier")
+
+    schema_compare_output = SchemaCompare(spark).compare(
+        src_schema,
+        tgt_schema,
+        get_dialect("bigquery"),
+        table_conf,
+    )
+    df = schema_compare_output.compare_df
+    assert not schema_compare_output.is_valid
+    assert df.count() == 21
+    assert df.filter("is_valid = 'true'").count() == 15
+    assert df.filter("is_valid = 'false'").count() == 6
 
 
 def test_redshift_schema_compare(schemas, spark):

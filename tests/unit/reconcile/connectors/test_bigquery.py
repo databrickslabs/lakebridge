@@ -18,7 +18,7 @@ def initial_setup():
     return engine, reader
 
 
-def test_read_data_builds_two_part_backtick_quoted_name():
+def test_read_data_builds_three_part_backtick_quoted_name():
     engine, reader = initial_setup()
     dfds = BigQueryDataSource(engine, reader)
 
@@ -69,7 +69,7 @@ def test_get_schema_exception_handling():
         dfds.get_schema("proj", "dataset", "supplier")
 
 
-def test_get_schema_query_targets_information_schema_with_type_canonicalization():
+def test_get_schema_query_canonicalizes_types_within_family():
     engine, reader = initial_setup()
     dfds = BigQueryDataSource(engine, reader)
 
@@ -78,12 +78,10 @@ def test_get_schema_query_targets_information_schema_with_type_canonicalization(
     schema_query = reader.read_data.call_args.args[0]
     assert "`proj.dataset`.INFORMATION_SCHEMA.COLUMNS" in schema_query
     assert "where table_name = 'supplier'" in schema_query
-    # Stage-1 canonicalization for the BQ types sqlglot cannot bridge to Databricks on its own
-    assert "when data_type like 'BIGNUMERIC%' then 'string'" in schema_query
-    assert "when data_type = 'NUMERIC' then 'decimal(38,9)'" in schema_query
-    assert "when data_type = 'TIME' then 'string'" in schema_query
+    # Same-family mappings for the types sqlglot can't bridge on its own.
+    assert "when data_type = 'NUMERIC' then 'decimal(38, 9)'" in schema_query
+    assert "when data_type like 'BIGNUMERIC%' then 'decimal(38, 9)'" in schema_query
     assert "when data_type = 'JSON' then 'variant'" in schema_query
-    assert "when data_type = 'RANGE<DATE>' then 'struct<start date, end date>'" in schema_query
 
 
 def test_list_schemas_and_tables():

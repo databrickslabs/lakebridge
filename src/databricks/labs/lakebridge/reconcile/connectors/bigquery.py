@@ -17,28 +17,32 @@ logger = logging.getLogger(__name__)
 
 
 class BigQueryDataSource(DataSource):
-    """BigQuery source read through a Databricks Lakehouse Federation UC connection.
-
-    Tables are referenced three-part as ``project.dataset.table`` (``catalog`` is the project).
+    """BigQuery tables are referenced as ``project.dataset.table`` (``catalog`` is the project).
     Results materialize into the ``lakebridge_reconcile`` dataset, which must exist and be writable
     by the connection's service account.
+
+    Schema type handling
+    ---------------------
+    * ``NUMERIC``/``BIGNUMERIC`` -> ``decimal(38, 9)`` (BigQuery's NUMERIC default; BIGNUMERIC is
+      truncated to fit Databricks' max precision of 38 — a lossy but same-family mapping).
+    * ``JSON`` -> ``variant``.
+
+    Columns with no same-family equivalent (``TIME``, ``RANGE<T>``, ``INTERVAL`` or these nested in
+    ``ARRAY``/``STRUCT``) can be reported as schema mismatches even when the migration is correct — an
+    accepted false negative, logged in ``get_schema`` so the user knows to verify them manually.
     """
 
     _IDENTIFIER_DELIMITER = "`"
+
+    _APPROXIMATE_TYPES = ("time", "bignumeric", "range", "interval")
 
     _LIST_SCHEMAS_QUERY = "select schema_name from `{catalog}`.INFORMATION_SCHEMA.SCHEMATA order by schema_name"
     _LIST_TABLES_QUERY = "select table_name from `{catalog}.{schema}`.INFORMATION_SCHEMA.TABLES order by table_name"
     _SCHEMA_QUERY = """select column_name,
                                   case
-                                        when data_type like 'BIGNUMERIC%' then 'string'
-                                        when data_type = 'NUMERIC' then 'decimal(38,9)'
-                                        when data_type = 'TIME' then 'string'
+                                        when data_type = 'NUMERIC' then 'decimal(38, 9)'
+                                        when data_type like 'BIGNUMERIC%' then 'decimal(38, 9)'
                                         when data_type = 'JSON' then 'variant'
-                                        when data_type = 'RANGE<DATE>' then 'struct<start date, end date>'
-                                        when data_type = 'RANGE<DATETIME>'
-                                            then 'struct<start timestamp_ntz, end timestamp_ntz>'
-                                        when data_type = 'RANGE<TIMESTAMP>'
-                                            then 'struct<start timestamp, end timestamp>'
                                         else data_type
                                   end as data_type
                                   from `{catalog}.{schema}`.INFORMATION_SCHEMA.COLUMNS
@@ -83,15 +87,29 @@ class BigQueryDataSource(DataSource):
             ' ',
             BigQueryDataSource._SCHEMA_QUERY.format(catalog=catalog, schema=schema, table=table),
         )
+        logger.debug(f"Fetching schema using query: \n`{schema_query}`")
+        logger.info(f"Fetching Schema: Started at: {datetime.now()}")
         try:
-            logger.debug(f"Fetching schema using query: \n`{schema_query}`")
-            logger.info(f"Fetching Schema: Started at: {datetime.now()}")
             df = self._read(schema_query)
             schema_metadata = df.select([col(c).alias(c.lower()) for c in df.columns]).collect()
             logger.info(f"Schema fetched successfully. Completed at: {datetime.now()}")
-            return [self._map_meta_column(field, normalize) for field in schema_metadata]
+            schemas = [self._map_meta_column(field, normalize) for field in schema_metadata]
         except (RuntimeError, PySparkException) as e:
             return self.log_and_throw_exception(e, "schema", schema_query)
+
+        self._warn_on_approximate_types(schemas)
+        return schemas
+
+    def _warn_on_approximate_types(self, schema: list[Schema]) -> None:
+        """Log columns whose BigQuery type has no exact Databricks equivalent."""
+        pattern = rf"\b({'|'.join(BigQueryDataSource._APPROXIMATE_TYPES)})\b"
+        approximate = [s.column_name for s in schema if re.search(pattern, s.data_type.lower())]
+        if approximate:
+            logger.warning(
+                f"BigQuery columns {approximate} use a type with no exact Databricks equivalent (e.g. TIME, "
+                "BIGNUMERIC, RANGE, INTERVAL, or these nested in ARRAY/STRUCT); schema reconciliation may report "
+                "them as mismatches even when the data migrated correctly. Verify these columns manually."
+            )
 
     def list_schemas(self, catalog: str) -> list[str]:
         query = BigQueryDataSource._LIST_SCHEMAS_QUERY.format(catalog=catalog)
