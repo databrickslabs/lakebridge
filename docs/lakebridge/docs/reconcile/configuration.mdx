@@ -127,9 +127,9 @@ Place the file in `.lakebridge/` in your Databricks workspace home folder.
         :::
 
         :::warning Writable dataset required
-        `remote_query` materializes its results into a BigQuery dataset, which defaults to
-        `lakebridge_reconcile`. Ensure that dataset exists and is
-        **writable** by the connection's service account, otherwise reads will fail.
+        `remote_query` materializes its results into the `lakebridge_reconcile` BigQuery dataset.
+        Create it in the same region as your source data and make it **writable** by the connection's
+        service account, otherwise reads will fail.
         :::
     </TabItem>
     <TabItem value="databricks" label="Databricks">

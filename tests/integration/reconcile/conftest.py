@@ -488,8 +488,6 @@ def bigquery_recon_config(recon_cluster: str, recon_schema: SchemaInfo, make_vol
 
     assert recon_schema.catalog_name
     assert recon_schema.name
-    # "schema" report: the BigQuery source and the generic DIAMONDS target don't share columns, so
-    # schema reconciliation exercises the connection end-to-end while the job still terminates SUCCESS.
     return ReconcileConfig(
         report_type="all",
         source=SourceConnectionConfig(

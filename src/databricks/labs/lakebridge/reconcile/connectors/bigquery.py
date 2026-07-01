@@ -26,8 +26,8 @@ class BigQueryDataSource(DataSource):
 
     _IDENTIFIER_DELIMITER = "`"
 
-    _LIST_SCHEMAS_QUERY = "select schema_name from INFORMATION_SCHEMA.SCHEMATA order by schema_name"
-    _LIST_TABLES_QUERY = "select table_name from `{schema}`.INFORMATION_SCHEMA.TABLES order by table_name"
+    _LIST_SCHEMAS_QUERY = "select schema_name from `{catalog}`.INFORMATION_SCHEMA.SCHEMATA order by schema_name"
+    _LIST_TABLES_QUERY = "select table_name from `{catalog}.{schema}`.INFORMATION_SCHEMA.TABLES order by table_name"
     _SCHEMA_QUERY = """select column_name,
                                   case
                                         when data_type like 'BIGNUMERIC%' then 'string'
@@ -41,7 +41,7 @@ class BigQueryDataSource(DataSource):
                                             then 'struct<start timestamp, end timestamp>'
                                         else data_type
                                   end as data_type
-                                  from `{schema}`.INFORMATION_SCHEMA.COLUMNS
+                                  from `{catalog}.{schema}`.INFORMATION_SCHEMA.COLUMNS
                                   where table_name = '{table}'
                                   order by ordinal_position"""
 
@@ -81,7 +81,7 @@ class BigQueryDataSource(DataSource):
         schema_query = re.sub(
             r'\s+',
             ' ',
-            BigQueryDataSource._SCHEMA_QUERY.format(schema=schema, table=table),
+            BigQueryDataSource._SCHEMA_QUERY.format(catalog=catalog, schema=schema, table=table),
         )
         try:
             logger.debug(f"Fetching schema using query: \n`{schema_query}`")
@@ -94,7 +94,7 @@ class BigQueryDataSource(DataSource):
             return self.log_and_throw_exception(e, "schema", schema_query)
 
     def list_schemas(self, catalog: str) -> list[str]:
-        query = BigQueryDataSource._LIST_SCHEMAS_QUERY
+        query = BigQueryDataSource._LIST_SCHEMAS_QUERY.format(catalog=catalog)
         try:
             df = self._read(query)
             return [row.schema_name for row in df.select(col("schema_name").alias("schema_name")).collect()]
@@ -102,7 +102,7 @@ class BigQueryDataSource(DataSource):
             return self.log_and_throw_exception(e, "schemas", query)
 
     def list_tables(self, catalog: str, schema: str) -> list[str]:
-        query = BigQueryDataSource._LIST_TABLES_QUERY.format(schema=schema)
+        query = BigQueryDataSource._LIST_TABLES_QUERY.format(catalog=catalog, schema=schema)
         try:
             df = self._read(query)
             return [row.table_name for row in df.select(col("table_name").alias("table_name")).collect()]

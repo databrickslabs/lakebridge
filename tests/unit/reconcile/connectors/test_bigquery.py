@@ -76,7 +76,7 @@ def test_get_schema_query_targets_information_schema_with_type_canonicalization(
     dfds.get_schema("proj", "dataset", "supplier")
 
     schema_query = reader.read_data.call_args.args[0]
-    assert "`dataset`.INFORMATION_SCHEMA.COLUMNS" in schema_query
+    assert "`proj.dataset`.INFORMATION_SCHEMA.COLUMNS" in schema_query
     assert "where table_name = 'supplier'" in schema_query
     # Stage-1 canonicalization for the BQ types sqlglot cannot bridge to Databricks on its own
     assert "when data_type like 'BIGNUMERIC%' then 'string'" in schema_query
@@ -90,14 +90,11 @@ def test_list_schemas_and_tables():
     engine, reader = initial_setup()
     dfds = BigQueryDataSource(engine, reader)
 
-    # SCHEMATA is project-level and unqualified (the connection's default project scopes it).
     dfds.list_schemas("proj")
-    schemas_query = reader.read_data.call_args.args[0]
-    assert "INFORMATION_SCHEMA.SCHEMATA" in schemas_query
-    assert "`proj`" not in schemas_query
+    assert "`proj`.INFORMATION_SCHEMA.SCHEMATA" in reader.read_data.call_args.args[0]
 
     dfds.list_tables("proj", "dataset")
-    assert "`dataset`.INFORMATION_SCHEMA.TABLES" in reader.read_data.call_args.args[0]
+    assert "`proj.dataset`.INFORMATION_SCHEMA.TABLES" in reader.read_data.call_args.args[0]
 
 
 def test_hash_query_emits_bigquery_compatible_sql():

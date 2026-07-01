@@ -37,7 +37,6 @@ TYPE_CASES = [
     ("GEOGRAPHY", "GEOGRAPHY", "STRING", False),
     ("ARRAY<INT64>", "ARRAY<INT64>", "ARRAY<BIGINT>", False),
     ("STRUCT<a INT64>", "STRUCT<a INT64>", "STRUCT<a: BIGINT>", False),
-    # NO-NATIVE / sqlglot-mishandled types — canonicalized in Stage 1
     ("NUMERIC", "decimal(38,9)", "DECIMAL(38,9)", True),
     ("BIGNUMERIC", "string", "STRING", True),
     ("TIME", "string", "STRING", True),

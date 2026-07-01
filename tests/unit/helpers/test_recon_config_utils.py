@@ -9,7 +9,15 @@ from databricks.sdk.service.workspace import SecretScope
 
 # Indices follow the alphabetically-sorted ReconSourceType values (Prompts.choice sorts):
 # bigquery, databricks, mssql, oracle, redshift, snowflake, synapse, teradata
-SOURCE_DICT = {"databricks": "1", "mssql": "2", "oracle": "3", "redshift": "4", "snowflake": "5", "synapse": "6"}
+SOURCE_DICT = {
+    "bigquery": "0",
+    "databricks": "1",
+    "mssql": "2",
+    "oracle": "3",
+    "redshift": "4",
+    "snowflake": "5",
+    "synapse": "6",
+}
 SCOPE_NAME = "dummy_scope"
 
 
