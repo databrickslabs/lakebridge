@@ -153,7 +153,12 @@ def _build_capture_df(df: DataFrame) -> DataFrame:
     return df.select(*columns)
 
 
-def capture_mismatch_data_and_columns(source: DataFrame, target: DataFrame, key_columns: list[str]) -> MismatchOutput:
+def capture_mismatch_data_and_columns(
+    source: DataFrame,
+    target: DataFrame,
+    key_columns: list[str],
+    persistence: AbstractReconIntermediatePersist,
+) -> MismatchOutput:
     source_df = _build_capture_df(source)
     target_df = _build_capture_df(target)
     unnormalized_key_columns = [DialectUtils.unnormalize_identifier(column) for column in key_columns]
@@ -168,8 +173,9 @@ def capture_mismatch_data_and_columns(source: DataFrame, target: DataFrame, key_
         raise _raise_column_mismatch_exception(message, source_missing, target_missing)
 
     check_columns = [column for column in source_columns if column not in unnormalized_key_columns]
-    mismatch_df = _get_mismatch_df(source_df, target_df, unnormalized_key_columns, check_columns)
-    # TODO write `mismatch_df` to delta
+    mismatch_df = persistence.write_and_read_df_with_volumes(
+        _get_mismatch_df(source_df, target_df, unnormalized_key_columns, check_columns)
+    )
     mismatch_columns = _get_mismatch_columns(mismatch_df, check_columns)
     return MismatchOutput(mismatch_df, mismatch_columns)
 
@@ -358,6 +364,7 @@ def reconcile_agg_data_per_rule(
     source_columns: list[str],
     target_columns: list[str],
     rule: AggregateRule,
+    persistence: AbstractReconIntermediatePersist,
 ) -> DataReconcileOutput:
     """ "
     Generates the reconciliation output for the given rule
@@ -387,22 +394,26 @@ def reconcile_agg_data_per_rule(
     joined_df_with_rule_cols = joined_df.select(*df_rule_columns)
 
     # Data mismatch between Source and Target aggregated data
-    mismatch = _get_mismatch_agg_data(joined_df_with_rule_cols, rule_select_columns, rule_group_columns)
+    mismatch = persistence.write_and_read_df_with_volumes(
+        _get_mismatch_agg_data(joined_df_with_rule_cols, rule_select_columns, rule_group_columns)
+    )
 
     # Data missing in Source DataFrame
     rule_target_columns = set(target_columns).intersection([mapping.target_name for mapping in rule_select_columns])
 
-    missing_in_src = joined_df_with_rule_cols.filter(_agg_conditions(rule_select_columns, "missing_in_src")).select(
-        *rule_target_columns
+    missing_in_src = persistence.write_and_read_df_with_volumes(
+        joined_df_with_rule_cols.filter(_agg_conditions(rule_select_columns, "missing_in_src")).select(
+            *rule_target_columns
+        )
     )
-    # TODO write `missing_in_tgt` to delta
 
     # Data missing in Target DataFrame
     rule_source_columns = set(source_columns).intersection([mapping.source_name for mapping in rule_select_columns])
-    missing_in_tgt = joined_df_with_rule_cols.filter(_agg_conditions(rule_select_columns, "missing_in_tgt")).select(
-        *rule_source_columns
+    missing_in_tgt = persistence.write_and_read_df_with_volumes(
+        joined_df_with_rule_cols.filter(_agg_conditions(rule_select_columns, "missing_in_tgt")).select(
+            *rule_source_columns
+        )
     )
-    # TODO write `missing_in_tgt` to delta
 
     mismatch_count = 0
     if mismatch:

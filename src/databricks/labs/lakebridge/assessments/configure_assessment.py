@@ -11,12 +11,12 @@ from databricks.labs.blueprint.tui import Prompts
 
 from databricks.labs.lakebridge.connections.credential_manager import (
     cred_file as creds,
-    CredentialManager,
     create_credential_manager,
 )
 from databricks.labs.lakebridge.connections.database_manager import DatabaseManager
 from databricks.labs.lakebridge.connections.env_getter import EnvGetter
-from databricks.labs.lakebridge.assessments import CONNECTOR_REQUIRED, source_system_family
+from databricks.labs.lakebridge.connections.synapse_connection_helpers import validate_synapse_pools
+from databricks.labs.lakebridge.connections.bigquery_connection_helpers import validate_bigquery_pairs
 
 logger = logging.getLogger(__name__)
 
@@ -46,21 +46,18 @@ class AssessmentConfigurator(ABC):
     def _configure_credentials(self) -> None:
         pass
 
-    @staticmethod
-    def _test_connection(source: str, cred_manager: CredentialManager):
-        config = cred_manager.get_credentials(source)
+    def test_connection(self) -> None:
+        """Validate connectivity to the configured source using its saved credentials."""
+        cred_manager = create_credential_manager(self._product_name, EnvGetter(), creds_path=self._credential_file)
+        raw_config = cred_manager.get_credentials(self._source_name)
+        self._check_connection(raw_config)
+        logger.info("Connection to the source system successful")
 
-        try:
-            db_manager = DatabaseManager(source, config)
-            if db_manager.check_connection():
-                logger.info("Connection to the source system successful")
-            else:
-                logger.error("Connection to the source system failed, check logs in debug mode")
-                raise SystemExit("Connection validation failed. Exiting...")
-
-        except ConnectionError as e:
-            logger.error(f"Failed to connect to the source system: {e}")
-            raise SystemExit("Connection validation failed. Exiting...") from e
+    def _check_connection(self, raw_config: dict) -> None:
+        """Default check: open a ``DatabaseManager`` connection and run a health check."""
+        with DatabaseManager(self._source_name, raw_config) as db_manager:
+            if not db_manager.check_connection():
+                raise ConnectionError(f"Connection to {self._source_name} failed")
 
     def run(self):
         """Run the assessment configuration process."""
@@ -68,11 +65,12 @@ class AssessmentConfigurator(ABC):
         self._configure_credentials()
         source = self._source_name
         logger.info(f"{source.capitalize()} details and credentials received.")
-        if CONNECTOR_REQUIRED.get(self._source_name, True):
-            if self.prompts.confirm(f"Do you want to test the connection to {source}?"):
-                cred_manager = create_credential_manager("lakebridge", EnvGetter())
-                if cred_manager:
-                    self._test_connection(source, cred_manager)
+        if self.prompts.confirm(f"Do you want to test the connection to {source}?"):
+            try:
+                self.test_connection()
+            except ConnectionError as e:
+                logger.error(f"Failed to connect to the source system: {e}")
+                raise SystemExit("Connection validation failed. Exiting...") from e
         logger.info(f"{source.capitalize()} Assessment Configuration Completed")
 
 
@@ -239,6 +237,9 @@ class ConfigureRedshiftAssessment(AssessmentConfigurator):
 class ConfigureSynapseAssessment(AssessmentConfigurator):
     """Synapse specific assessment configuration."""
 
+    def _check_connection(self, raw_config: dict) -> None:
+        validate_synapse_pools(raw_config)
+
     def _configure_credentials(self) -> None:
         cred_file = self._credential_file
         source = self._source_name
@@ -360,10 +361,49 @@ class ConfigureSnowflakeAssessment(AssessmentConfigurator):
         logger.info(f"Credential template created for {source}.")
 
 
+class ConfigureTeradataAssessment(AssessmentConfigurator):
+    """Teradata specific assessment configuration."""
+
+    def _configure_credentials(self) -> None:
+        cred_file = self._credential_file
+        source = self._source_name
+
+        logger.info(
+            "\n(local | env) \nlocal means values are read as plain text \nenv means values are read "
+            "from environment variables fall back to plain text if not variable is not found\n",
+        )
+        secret_vault_type = str(self.prompts.choice("Enter secret vault type (local | env)", ["local", "env"])).lower()
+        secret_vault_name = None
+
+        if secret_vault_type == "env":
+            password = self.prompts.question("Enter the environment variable name holding the password")
+        else:
+            password = self.prompts.password("Enter the password details")
+
+        credential = {
+            "secret_vault_type": secret_vault_type,
+            "secret_vault_name": secret_vault_name,
+            source: {
+                "host": self.prompts.question("Enter the Teradata server or host details"),
+                "port": int(self.prompts.question("Enter the port details", valid_number=True, default="1025")),
+                "user": self.prompts.question("Enter the user details"),
+                "password": password,
+                "database": self.prompts.question("Enter the default database name", default="DBC"),
+            },
+        }
+
+        _save_to_disk(credential, cred_file)
+
+        logger.info(f"Credential template created for {source}.")
+
+
 ConfiguratorFactory = Callable[[str, Prompts, str, Path | str | None], AssessmentConfigurator]
 
 
 class ConfigureBigQueryAssessment(AssessmentConfigurator):
+    def _check_connection(self, raw_config: dict) -> None:
+        validate_bigquery_pairs(raw_config)
+
     @classmethod
     def _parse_project_region_pairs(cls, raw: str) -> list[dict[str, str]]:
         """Parse `project.region, project.region, ...` into a list of {project, region} dicts.
@@ -450,11 +490,11 @@ def create_assessment_configurator(
         "snowflake": ConfigureSnowflakeAssessment,
         "legacy_synapse": ConfigureSqlServerAssessment,
         "oracle": ConfigureOracleAssessment,
+        "teradata": ConfigureTeradataAssessment,
         "bigquery": ConfigureBigQueryAssessment,
     }
 
-    key = source_system_family(source_system)
-    if key not in configurators:
+    if source_system not in configurators:
         raise ValueError(f"Unsupported source system: {source_system}")
 
-    return configurators[key](product_name, prompts, key, credential_file)
+    return configurators[source_system](product_name, prompts, source_system, credential_file)

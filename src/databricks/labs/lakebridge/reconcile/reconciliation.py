@@ -4,9 +4,10 @@ from pyspark.sql import DataFrame, SparkSession
 from sqlglot import Dialect
 
 from databricks.labs.lakebridge.config import (
-    DatabaseConfig,
     HashExpressionOverrides,
     ReconcileMetadataConfig,
+    SourceConnectionConfig,
+    TargetConnectionConfig,
 )
 from databricks.labs.lakebridge.reconcile.compare import (
     capture_mismatch_data_and_columns,
@@ -55,7 +56,8 @@ class Reconciliation:
         self,
         source: DataSource,
         target: DataSource,
-        database_config: DatabaseConfig,
+        source_connection: SourceConnectionConfig,
+        target_connection: TargetConnectionConfig,
         report_type: str,
         schema_comparator: SchemaCompare,
         source_engine: Dialect,
@@ -67,7 +69,8 @@ class Reconciliation:
         self._source = source
         self._target = target
         self._report_type = report_type
-        self._database_config = database_config
+        self._source_connection = source_connection
+        self._target_connection = target_connection
         self._schema_comparator = schema_comparator
         self._target_engine = get_dialect("databricks")
         self._source_engine = source_engine
@@ -149,15 +152,15 @@ class Reconciliation:
             ),
         ).build_query(report_type=self._report_type)
         src_data = self._source.read_data(
-            catalog=self._database_config.source_catalog,
-            schema=self._database_config.source_schema,
+            catalog=self._source_connection.catalog,
+            schema=self._source_connection.schema,
             table=table_conf.source_name,
             query=src_hash_query,
             options=table_conf.jdbc_reader_options,
         )
         tgt_data = self._target.read_data(
-            catalog=self._database_config.target_catalog,
-            schema=self._database_config.target_schema,
+            catalog=self._target_connection.catalog,
+            schema=self._target_connection.schema,
             table=table_conf.target_name,
             query=tgt_hash_query,
             options=table_conf.jdbc_reader_options,
@@ -259,44 +262,40 @@ class Reconciliation:
             # For each Aggregate query, read the Source and Target Data and add a hash column
 
             rules_reconcile_output: list[AggregateQueryOutput] = []
-            src_data = None
-            tgt_data = None
-            joined_df = None
-            data_source_exception = None
             try:
                 src_data = self._source.read_data(
-                    catalog=self._database_config.source_catalog,
-                    schema=self._database_config.source_schema,
+                    catalog=self._source_connection.catalog,
+                    schema=self._source_connection.schema,
                     table=table_conf.source_name,
                     query=src_query_with_rules.query,
                     options=table_conf.jdbc_reader_options,
                 )
                 tgt_data = self._target.read_data(
-                    catalog=self._database_config.target_catalog,
-                    schema=self._database_config.target_schema,
+                    catalog=self._target_connection.catalog,
+                    schema=self._target_connection.schema,
                     table=table_conf.target_name,
                     query=tgt_query_with_rules.query,
                     options=table_conf.jdbc_reader_options,
                 )
-                # Join the Source and Target Aggregated data
                 joined_df = join_aggregate_data(
                     source=src_data,
                     target=tgt_data,
                     key_columns=src_query_with_rules.group_by_columns,
                     persistence=self.intermediate_persist,
                 )
-            except DataSourceRuntimeException as e:
-                data_source_exception = e
-
-            # For each Aggregated Query, reconcile the data based on the rule
-            for rule in src_query_with_rules.rules:
-                if data_source_exception:
-                    rule_reconcile_output = DataReconcileOutput(exception=str(data_source_exception))
-                else:
+                for rule in src_query_with_rules.rules:
                     rule_reconcile_output = reconcile_agg_data_per_rule(
-                        joined_df, src_data.columns, tgt_data.columns, rule
+                        joined_df, src_data.columns, tgt_data.columns, rule, self.intermediate_persist
                     )
-                rules_reconcile_output.append(AggregateQueryOutput(rule=rule, reconcile_output=rule_reconcile_output))
+                    rules_reconcile_output.append(
+                        AggregateQueryOutput(rule=rule, reconcile_output=rule_reconcile_output)
+                    )
+            except DataSourceRuntimeException as e:
+                for rule in src_query_with_rules.rules:
+                    rule_reconcile_output = DataReconcileOutput(exception=str(e))
+                    rules_reconcile_output.append(
+                        AggregateQueryOutput(rule=rule, reconcile_output=rule_reconcile_output)
+                    )
 
             # For each table, there could be many Aggregated queries.
             # Collect the list of Rule Reconcile output per each Aggregate query and append it to the list
@@ -338,8 +337,8 @@ class Reconciliation:
                     self._target,
                     tgt_sampler,
                     reconcile_output.missing_in_src,
-                    self._database_config.target_catalog,
-                    self._database_config.target_schema,
+                    self._target_connection.catalog,
+                    self._target_connection.schema,
                     table_conf.target_name,
                 )
 
@@ -348,8 +347,8 @@ class Reconciliation:
                     self._source,
                     src_sampler,
                     reconcile_output.missing_in_tgt,
-                    self._database_config.source_catalog,
-                    self._database_config.source_schema,
+                    self._source_connection.catalog,
+                    self._source_connection.schema,
                     table_conf.source_name,
                 )
 
@@ -377,8 +376,8 @@ class Reconciliation:
         tgt_sampling_query = tgt_sampler.build_query_with_alias()
 
         sampling_model_target = self._target.read_data(
-            catalog=self._database_config.target_catalog,
-            schema=self._database_config.target_schema,
+            catalog=self._target_connection.catalog,
+            schema=self._target_connection.schema,
             table=tgt_table,
             query=tgt_sampling_query,
             options=None,
@@ -396,21 +395,23 @@ class Reconciliation:
         tgt_mismatch_sample_query = tgt_sampler.build_query(df)
 
         src_data = self._source.read_data(
-            catalog=self._database_config.source_catalog,
-            schema=self._database_config.source_schema,
+            catalog=self._source_connection.catalog,
+            schema=self._source_connection.schema,
             table=src_table,
             query=src_mismatch_sample_query,
             options=None,
         )
         tgt_data = self._target.read_data(
-            catalog=self._database_config.target_catalog,
-            schema=self._database_config.target_schema,
+            catalog=self._target_connection.catalog,
+            schema=self._target_connection.schema,
             table=tgt_table,
             query=tgt_mismatch_sample_query,
             options=None,
         )
 
-        return capture_mismatch_data_and_columns(source=src_data, target=tgt_data, key_columns=key_columns)
+        return capture_mismatch_data_and_columns(
+            source=src_data, target=tgt_data, key_columns=key_columns, persistence=self.intermediate_persist
+        )
 
     def _reconcile_threshold_data(
         self,
@@ -443,15 +444,15 @@ class Reconciliation:
         ).build_threshold_query()
 
         src_data = self._source.read_data(
-            catalog=self._database_config.source_catalog,
-            schema=self._database_config.source_schema,
+            catalog=self._source_connection.catalog,
+            schema=self._source_connection.schema,
             table=table_conf.source_name,
             query=src_threshold_query,
             options=table_conf.jdbc_reader_options,
         )
         tgt_data = self._target.read_data(
-            catalog=self._database_config.target_catalog,
-            schema=self._database_config.target_schema,
+            catalog=self._target_connection.catalog,
+            schema=self._target_connection.schema,
             table=table_conf.target_name,
             query=tgt_threshold_query,
             options=table_conf.jdbc_reader_options,
@@ -465,8 +466,8 @@ class Reconciliation:
         ).build_comparison_query()
 
         threshold_result = self._target.read_data(
-            catalog=self._database_config.target_catalog,
-            schema=self._database_config.target_schema,
+            catalog=self._target_connection.catalog,
+            schema=self._target_connection.schema,
             table=table_conf.target_name,
             query=threshold_comparison_query,
             options=table_conf.jdbc_reader_options,
@@ -475,8 +476,9 @@ class Reconciliation:
         failed_where_cond = " OR ".join(
             ["`" + DialectUtils.unnormalize_identifier(name) + "_match` = 'Failed'" for name in threshold_columns]
         )
-        mismatched_df = threshold_result.filter(failed_where_cond)
-        # TODO write `mismatched_df` to delta
+        mismatched_df = self.intermediate_persist.write_and_read_df_with_volumes(
+            threshold_result.filter(failed_where_cond)
+        )
         mismatched_count = mismatched_df.count()
         threshold_df = None
         if mismatched_count > 0:
@@ -489,15 +491,15 @@ class Reconciliation:
             source_count_query = CountQueryBuilder(table_conf, "source", self._source_engine).build_query()
             target_count_query = CountQueryBuilder(table_conf, "target", self._target_engine).build_query()
             source_count_row = self._source.read_data(
-                catalog=self._database_config.source_catalog,
-                schema=self._database_config.source_schema,
+                catalog=self._source_connection.catalog,
+                schema=self._source_connection.schema,
                 table=table_conf.source_name,
                 query=source_count_query,
                 options=None,
             ).first()
             target_count_row = self._target.read_data(
-                catalog=self._database_config.target_catalog,
-                schema=self._database_config.target_schema,
+                catalog=self._target_connection.catalog,
+                schema=self._target_connection.schema,
                 table=table_conf.target_name,
                 query=target_count_query,
                 options=None,

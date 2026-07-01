@@ -510,7 +510,7 @@ def generate_recon_application_context(
     recon_table_config: TableRecon | None = None,
 ) -> Generator[ApplicationContext]:
     logger.info("Setting up application context for recon tests")
-    config = LakebridgeConfiguration(None, recon_config, None)
+    config = LakebridgeConfiguration(None, recon_config)
     ws = application_ctx.workspace_client
     logger.info("Installing app and recon configuration into workspace")
     application_ctx.installation.save(recon_config)
@@ -527,6 +527,13 @@ def generate_recon_application_context(
     if WorkspacePath(ws, application_ctx.installation.install_folder()).exists():
         application_ctx.installation.remove()
     logger.info("Application context teardown complete for recon tests")
+
+
+@pytest.fixture
+def run_by_user(ws: WorkspaceClient) -> str:
+    user_name = ws.current_user.me().user_name
+    assert user_name is not None
+    return user_name
 
 
 class FakeReconIntermediatePersist(AbstractReconIntermediatePersist):
