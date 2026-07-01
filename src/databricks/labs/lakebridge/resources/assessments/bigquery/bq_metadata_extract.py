@@ -103,10 +103,9 @@ def _run_iteration(
     max_parallel_sqls: int,
     accumulators: dict[str, list[pd.DataFrame]],
     accumulator_lock: threading.Lock,
-    bigquery_client_factory: Callable[[str, str], bigquery.Client],
+    bq_client: bigquery.Client,
 ) -> None:
     project_region = f"{project_id}.region-{region}"
-    bq_client = bigquery_client_factory(project_id, region)
     substitution_vars: dict[str, Any] = {
         "project_region": project_region,
         "profiling_window_in_days": profiling_window_days,
@@ -216,16 +215,17 @@ def execute(
             project_id, region = pair["project"], pair["region"]
             logger.info(f"Extracting from project={project_id} region={region}")
             try:
-                _run_iteration(
-                    project_id=project_id,
-                    region=region,
-                    sql_files=sql_files,
-                    profiling_window_days=profiling_window_days,
-                    max_parallel_sqls=max_parallel_sqls,
-                    accumulators=accumulators,
-                    accumulator_lock=accumulator_lock,
-                    bigquery_client_factory=bigquery_client_factory,
-                )
+                with bigquery_client_factory(project_id, region) as bq_client:
+                    _run_iteration(
+                        project_id=project_id,
+                        region=region,
+                        sql_files=sql_files,
+                        profiling_window_days=profiling_window_days,
+                        max_parallel_sqls=max_parallel_sqls,
+                        accumulators=accumulators,
+                        accumulator_lock=accumulator_lock,
+                        bq_client=bq_client,
+                    )
             except Exception as exc:
                 # Soft-fail a single (project, region): one missing IAM grant or unreadable
                 # region must not abort sizing for every other project — bulk multi-project

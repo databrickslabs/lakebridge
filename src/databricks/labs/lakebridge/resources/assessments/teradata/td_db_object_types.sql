@@ -1,0 +1,36 @@
+SELECT T.DatabaseName,
+    T.TableKind,
+    count(*) as TableKindCount
+FROM DBC.TablesV T
+WHERE T.DatabaseName NOT IN (
+    'All',
+    'Crashdumps',
+    'DBC',
+    'dbcmngr',
+    'Default',
+    'External_AP',
+    'EXTUSER',
+    'LockLogShredder',
+    'PUBLIC',
+    'Sys_Calendar',
+    'SysAdmin',
+    'SYSBAR',
+    'SYSJDBC',
+    'SYSLIB',
+    'SystemFe',
+    'SYSUDTLIB',
+    'SYSUIF',
+    'TD_SERVER_DB',
+    'TDStats',
+    'TD_SYSGPL',
+    'TD_SYSXML',
+    'TDMaps',
+    'TDPUSER',
+    'TDQCD',
+    'tdwm',
+    'SQLJ',
+    'TD_SYSFNLIB',
+    'SYSSPATIAL'
+)
+GROUP BY T.DatabaseName,
+    T.TableKind;
