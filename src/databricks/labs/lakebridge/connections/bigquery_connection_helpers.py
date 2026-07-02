@@ -1,7 +1,12 @@
 import logging
+import warnings
 
-from google.cloud import bigquery
-from google.api_core.exceptions import GoogleAPIError
+# google.api_core emits a FutureWarning about Python <3.11 EOL on import; not actionable here.
+# Scope the suppression to the import so we don't mask the same warning elsewhere.
+with warnings.catch_warnings():
+    warnings.filterwarnings("ignore", message="You are using a Python version", category=FutureWarning)
+    from google.cloud import bigquery
+    from google.api_core.exceptions import GoogleAPIError
 
 logger = logging.getLogger(__name__)
 
