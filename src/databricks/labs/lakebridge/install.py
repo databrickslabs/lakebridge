@@ -364,7 +364,7 @@ class WorkspaceInstaller:
         elif dialect == ReconSourceType.DATABRICKS.value:
             catalog = self._prompts.question("Enter source Databricks catalog name", default="hive_metastore")
         elif dialect == ReconSourceType.BIGQUERY.value:
-            catalog = self._prompts.question("Enter BigQuery project name")
+            catalog = self._prompts.question("Enter BigQuery project ID")
         else:
             catalog = self._prompts.question(f"Enter {dialect.capitalize()} database name")
 

@@ -15,6 +15,8 @@ from databricks.labs.lakebridge.reconcile.recon_config import JdbcReaderOptions,
 
 logger = logging.getLogger(__name__)
 
+_DOCS_URL = "https://databrickslabs.github.io/lakebridge/docs/reconcile/"
+
 
 class BigQueryDataSource(DataSource):
     """BigQuery tables are referenced as ``project.dataset.table`` (``catalog`` is the project).
@@ -23,25 +25,25 @@ class BigQueryDataSource(DataSource):
 
     Schema type handling
     ---------------------
-    * ``NUMERIC``/``BIGNUMERIC`` -> ``decimal(38, 9)`` (BigQuery's NUMERIC default; BIGNUMERIC is
-      truncated to fit Databricks' max precision of 38 — a lossy but same-family mapping).
-    * ``JSON`` -> ``variant``.
+    * ``NUMERIC`` -> ``decimal(38, 9)`` (BigQuery's NUMERIC default precision/scale; same-family, exact).
+    * ``JSON`` -> ``variant`` (top-level columns only; nested ``JSON`` is left as-is — see below).
 
-    Columns with no same-family equivalent (``TIME``, ``RANGE<T>``, ``INTERVAL`` or these nested in
-    ``ARRAY``/``STRUCT``) can be reported as schema mismatches even when the migration is correct — an
-    accepted false negative, logged in ``get_schema`` so the user knows to verify them manually.
+    Columns with no same-family Databricks equivalent (``TIME``, ``BIGNUMERIC`` — its precision of up
+    to 76 digits exceeds Databricks' DECIMAL max of 38, ``RANGE<T>``, nested ``JSON`` such as
+    ``ARRAY<JSON>``, or any of these nested inside ``ARRAY``/``STRUCT``) are left as their original
+    BigQuery type; ``get_schema`` logs a warning naming those columns so the user knows to verify them
+    manually.
     """
 
     _IDENTIFIER_DELIMITER = "`"
 
-    _APPROXIMATE_TYPES = ("time", "bignumeric", "range", "interval")
+    _APPROXIMATE_TYPES = ("time", "bignumeric", "range", "json")
 
     _LIST_SCHEMAS_QUERY = "select schema_name from `{catalog}`.INFORMATION_SCHEMA.SCHEMATA order by schema_name"
     _LIST_TABLES_QUERY = "select table_name from `{catalog}.{schema}`.INFORMATION_SCHEMA.TABLES order by table_name"
     _SCHEMA_QUERY = """select column_name,
                                   case
                                         when data_type = 'NUMERIC' then 'decimal(38, 9)'
-                                        when data_type like 'BIGNUMERIC%' then 'decimal(38, 9)'
                                         when data_type = 'JSON' then 'variant'
                                         else data_type
                                   end as data_type
@@ -106,9 +108,8 @@ class BigQueryDataSource(DataSource):
         approximate = [s.column_name for s in schema if re.search(pattern, s.data_type.lower())]
         if approximate:
             logger.warning(
-                f"BigQuery columns {approximate} use a type with no exact Databricks equivalent (e.g. TIME, "
-                "BIGNUMERIC, RANGE, INTERVAL, or these nested in ARRAY/STRUCT); schema reconciliation may report "
-                "them as mismatches even when the data migrated correctly. Verify these columns manually."
+                f"BigQuery columns {approximate} have no exact Databricks equivalent and may be reported as "
+                f"schema mismatches even when migrated correctly; verify manually. See {_DOCS_URL}"
             )
 
     def list_schemas(self, catalog: str) -> list[str]:

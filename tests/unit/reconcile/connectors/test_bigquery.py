@@ -2,6 +2,7 @@ import re
 from unittest.mock import create_autospec
 
 import pytest
+from sqlglot import parse_one
 
 from databricks.labs.lakebridge.reconcile.connectors.bigquery import BigQueryDataSource
 from databricks.labs.lakebridge.reconcile.connectors.models import NormalizedIdentifier
@@ -80,8 +81,34 @@ def test_get_schema_query_canonicalizes_types_within_family():
     assert "where table_name = 'supplier'" in schema_query
     # Same-family mappings for the types sqlglot can't bridge on its own.
     assert "when data_type = 'NUMERIC' then 'decimal(38, 9)'" in schema_query
-    assert "when data_type like 'BIGNUMERIC%' then 'decimal(38, 9)'" in schema_query
     assert "when data_type = 'JSON' then 'variant'" in schema_query
+    # BIGNUMERIC has no exact Databricks equivalent, so it passes through rather than truncating.
+    assert "BIGNUMERIC" not in schema_query
+
+
+@pytest.mark.parametrize(
+    "bigquery_type, sqlglot_databricks_output",
+    [
+        # No Databricks TIME type, so sqlglot silently rewrites it to TIMESTAMP (different semantics).
+        ("TIME", "TIMESTAMP"),
+        # BIGNUMERIC maps to BIGDECIMAL, which is not a Databricks type.
+        ("BIGNUMERIC", "BIGDECIMAL"),
+        # RANGE<T> is passed through unchanged; Databricks has no RANGE type.
+        ("RANGE<DATE>", "RANGE<DATE>"),
+        # Nesting is not bridged either. Nested JSON stays JSON (Databricks uses variant), so unlike
+        # top-level JSON — which the schema query maps to variant — array<json> is not canonicalized.
+        ("ARRAY<TIME>", "ARRAY<TIMESTAMP>"),
+        ("ARRAY<JSON>", "ARRAY<JSON>"),
+    ],
+)
+def test_sqlglot_has_no_native_databricks_equivalent_for_approximate_types(bigquery_type, sqlglot_databricks_output):
+    """Rationale for BigQueryDataSource_APPROXIMATE_TYPES: sqlglot's own BigQuery -> Databricks conversion yields a
+    non-Databricks or semantically different type, so these columns can be false schema mismatches."""
+
+    converted = parse_one(f"create table t (c {bigquery_type})", read=get_dialect("bigquery")).sql(
+        dialect=get_dialect("databricks")
+    )
+    assert converted == f"CREATE TABLE t (c {sqlglot_databricks_output})"
 
 
 def test_list_schemas_and_tables():

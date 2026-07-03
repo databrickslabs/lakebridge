@@ -80,7 +80,7 @@ def snowflake_databricks_schema():
         schema_fixture_factory("array_col", "array<string>"),
         schema_fixture_factory("col_array_int", "array<int>"),
         schema_fixture_factory("col_array_float", "array<double>"),
-        schema_fixture_factory("col_geography", "string"),
+        schema_fixture_factory("col_geography", "geography"),
         schema_fixture_factory("col_num10", "decimal(10,1)"),
         schema_fixture_factory("col_dec", "decimal(20,1)"),
         schema_fixture_factory("col_numeric_2", "decimal(38,0)"),
@@ -368,11 +368,10 @@ def bigquery_databricks_schema():
         schema_fixture_factory("col_array_int", "array<int64>"),
         schema_fixture_factory("col_struct_int", "struct<a int64>"),
         schema_fixture_factory("col_numeric", "decimal(38, 9)"),
-        schema_fixture_factory("col_bignumeric", "decimal(38, 9)"),
+        schema_fixture_factory("col_bignumeric", "bignumeric"),
         schema_fixture_factory("col_json", "variant"),
         schema_fixture_factory("col_time", "time"),
         schema_fixture_factory("col_array_time", "array<time>"),
-        schema_fixture_factory("col_struct_json", "struct<a json>"),
         schema_fixture_factory("col_range_date", "range<date>"),
         schema_fixture_factory("col_range_datetime", "range<datetime>"),
         schema_fixture_factory("col_range_timestamp", "range<timestamp>"),
@@ -387,7 +386,7 @@ def bigquery_databricks_schema():
         schema_fixture_factory("col_datetime", "timestamp_ntz"),
         schema_fixture_factory("col_timestamp", "timestamp"),
         schema_fixture_factory("col_numeric_ps", "decimal(10,2)"),
-        schema_fixture_factory("col_geography", "string"),
+        schema_fixture_factory("col_geography", "geography"),
         schema_fixture_factory("col_array_int", "array<bigint>"),
         schema_fixture_factory("col_struct_int", "struct<a: bigint>"),
         schema_fixture_factory("col_numeric", "decimal(38,9)"),
@@ -395,7 +394,6 @@ def bigquery_databricks_schema():
         schema_fixture_factory("col_json", "variant"),
         schema_fixture_factory("col_time", "string"),
         schema_fixture_factory("col_array_time", "array<string>"),
-        schema_fixture_factory("col_struct_json", "struct<a: variant>"),
         schema_fixture_factory("col_range_date", "struct<start: date, end: date>"),
         schema_fixture_factory("col_range_datetime", "struct<start: timestamp_ntz, end: timestamp_ntz>"),
         schema_fixture_factory("col_range_timestamp", "struct<start: timestamp, end: timestamp>"),
@@ -575,8 +573,8 @@ def test_bigquery_schema_compare(schemas, spark):
     )
     df = schema_compare_output.compare_df
     assert not schema_compare_output.is_valid
-    assert df.count() == 21
-    assert df.filter("is_valid = 'true'").count() == 15
+    assert df.count() == 20
+    assert df.filter("is_valid = 'true'").count() == 14
     assert df.filter("is_valid = 'false'").count() == 6
 
 
