@@ -423,7 +423,7 @@ class Databricks(SqlglotDatabricks):  #
             exp.DataType.Type.VARIANT: "VARIANT",
             exp.DataType.Type.FLOAT: "DOUBLE",
             exp.DataType.Type.OBJECT: "STRING",
-            exp.DataType.Type.GEOGRAPHY: "STRING",
+            exp.DataType.Type.GEOGRAPHY: "GEOGRAPHY",
         }
 
         TRANSFORMS = {

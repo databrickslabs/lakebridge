@@ -372,7 +372,7 @@ class WorkspaceInstaller:
         if dialect == ReconSourceType.ORACLE.value:
             schema_prompt = "Enter Oracle database name"
         elif dialect == ReconSourceType.BIGQUERY.value:
-            schema_prompt = "Enter source BigQuery dataset name"
+            schema_prompt = "Enter BigQuery dataset name"
 
         schema = self._prompts.question(schema_prompt)
 
