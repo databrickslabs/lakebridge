@@ -26,9 +26,10 @@ def resolve_mssql_variant(cred_file_path: Path | None) -> str:
     """Pick the SQL Server profiler variant from the configured database and the server edition.
 
     A specific database scopes profiling to just that database (``single_db``) on any edition. A blank value
-    or the ``ALL_DATABASES`` (``*``) sentinel means "all": the edition then decides — Azure SQL Database falls
-    back to the connected database (``single_db``); on-prem SQL Server and Azure SQL Managed Instance profile
-    every database (``multi_db``).
+    or the ``ALL_DATABASES`` (``*``) sentinel means "all": the edition then decides — on-prem SQL Server and
+    Azure SQL Managed Instance profile every database (``multi_db``). Azure SQL Database is one database per
+    connection with no cross-database access, so "all" is not meaningful there: it requires a concrete
+    database name (otherwise the connection falls back to ``master`` and profiles the wrong database).
     """
     cred_manager = create_credential_manager("mssql", EnvGetter(), creds_path=cred_file_path)
     connect_config = cred_manager.get_credentials("mssql")
@@ -40,9 +41,13 @@ def resolve_mssql_variant(cred_file_path: Path | None) -> str:
         # SERVERPROPERTY returns sql_variant, which pyodbc cannot fetch (ODBC type -16); CAST to int.
         result = db_manager.fetch("SELECT CAST(SERVERPROPERTY('EngineEdition') AS INT) AS engine_edition")
     engine_edition = int(result.rows[0][0])
-    variant = "single_db" if engine_edition == SQLSERVER_AZURE_SQL_DB_ENGINE_EDITION else "multi_db"
-    logger.info(f"Detected SQL Server EngineEdition={engine_edition}; using '{variant}' profiler variant")
-    return variant
+    if engine_edition == SQLSERVER_AZURE_SQL_DB_ENGINE_EDITION:
+        raise ValueError(
+            "Azure SQL Database profiles a single database per connection and does not support "
+            "'*'/all-databases. Set a concrete database name in the mssql credentials."
+        )
+    logger.info(f"Detected SQL Server EngineEdition={engine_edition}; using 'multi_db' profiler variant")
+    return "multi_db"
 
 
 Resolvers = dict[str, Callable[[Path | None], str]]

@@ -60,12 +60,12 @@ def test_configure_sqlserver_credentials(tmp_path):
     assert credentials == expected_credentials
 
 
-def test_configure_sqlserver_credentials_blank_database(tmp_path):
-    """A blank mssql database is stored as the '*' sentinel, signalling 'profile all databases'."""
+def test_configure_sqlserver_credentials_all_databases(tmp_path):
+    """A blank mssql database is stored verbatim; downstream treats blank the same as the '*' sentinel."""
     prompts = MockPrompts(
         {
             r"Enter secret vault type \(local \| env\)": sorted(['local', 'env']).index("env"),
-            r"Enter the database name": "",
+            r"Enter the database name": "*",
             r"Enter the ODBC driver installed locally.*": "ODBC Driver 18 for SQL Server",
             r"Enter the fully-qualified server name": "URL",
             r"Enter the port details": "1433",
@@ -86,7 +86,7 @@ def test_configure_sqlserver_credentials_blank_database(tmp_path):
     with open(file, 'r', encoding='utf-8') as handle:
         credentials = yaml.safe_load(handle)
 
-    assert credentials['mssql']['database'] == "*"
+    assert credentials['mssql']['database'] == ""
 
 
 def test_configure_synapse_credentials(tmp_path):

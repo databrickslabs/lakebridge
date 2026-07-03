@@ -36,7 +36,6 @@ def test_mssql_variant_config_references_existing_files(variant: str) -> None:
 @pytest.mark.parametrize(
     ("engine_edition", "expected"),
     [
-        (5, "single_db"),  # Azure SQL Database
         (8, "multi_db"),  # Azure SQL Managed Instance
         (3, "multi_db"),  # on-prem Enterprise
         (2, "multi_db"),  # on-prem Standard
@@ -53,6 +52,20 @@ def test_resolve_mssql_variant(engine_edition: int, expected: str) -> None:
         cred_manager.return_value.get_credentials.return_value = {}
         assert resolve_mssql_variant(Path("creds.yml")) == expected
     db_manager.fetch.assert_called_once_with("SELECT CAST(SERVERPROPERTY('EngineEdition') AS INT) AS engine_edition")
+
+
+def test_resolve_mssql_variant_azure_sql_db_without_database_raises() -> None:
+    """Azure SQL Database (edition 5) with no concrete database must not silently profile master."""
+    db_manager = MagicMock()
+    db_manager.__enter__.return_value = db_manager
+    db_manager.fetch.return_value = MagicMock(rows=[[5]])  # Azure SQL Database
+    with (
+        patch("databricks.labs.lakebridge.assessments.variants.DatabaseManager", return_value=db_manager),
+        patch("databricks.labs.lakebridge.assessments.variants.create_credential_manager") as cred_manager,
+    ):
+        cred_manager.return_value.get_credentials.return_value = {"database": "*"}
+        with pytest.raises(ValueError, match="Azure SQL Database"):
+            resolve_mssql_variant(Path("creds.yml"))
 
 
 def test_resolve_mssql_variant_with_configured_database_skips_probe() -> None:

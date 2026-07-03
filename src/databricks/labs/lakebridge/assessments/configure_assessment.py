@@ -135,7 +135,7 @@ class ConfigureSqlServerAssessment(AssessmentConfigurator):
                 # mssql: `*` profiles every accessible database (on-prem / Managed Instance); a name scopes
                 # to that one database. legacy_synapse (shares this configurator) needs the dedicated-pool name.
                 "database": (
-                    self.prompts.question("Enter the database name (* = all databases)", default="*")
+                    self.prompts.question("Enter the database name (* = all databases)")
                     if source == "mssql"
                     else self.prompts.question("Enter the dedicated pool name")
                 ),
