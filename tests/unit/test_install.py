@@ -799,7 +799,7 @@ def test_configure_reconcile_bigquery_no_existing_installation(ws: WorkspaceClie
             r"Select the report type": str(RECONCILE_REPORT_TYPES.index("all")),
             r"Enter Unity Catalog .* connection name": "my_bq_conn",
             r"Enter BigQuery project ID": "my-gcp-project",
-            r"Enter source BigQuery dataset name": "sample_dataset",
+            r"Enter BigQuery dataset name": "sample_dataset",
             r"Enter target Databricks catalog name": "tpch",
             r"Enter target Databricks schema name": "1000gb",
             r"Open .* in the browser?": "no",
