@@ -298,6 +298,7 @@ class ReconCapture:
                     when '{source_dialect_key}' = 'databricks' then 'Databricks'
                     when '{source_dialect_key}' = 'snowflake' then 'Snowflake'
                     when '{source_dialect_key}' = 'oracle' then 'Oracle'
+                    when '{source_dialect_key}' = 'bigquery' then 'BigQuery'
                     else '{source_dialect_key}'
                 end as source_type,
                 named_struct(
