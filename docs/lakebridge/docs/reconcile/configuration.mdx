@@ -105,6 +105,24 @@ Place the file in `.lakebridge/` in your Databricks workspace home folder.
         [MD5 Message Digest UDF](https://downloads.teradata.com/download/extensibility/md5-message-digest-udf).
         :::
     </TabItem>
+    <TabItem value="bigquery" label="BigQuery">
+        ```yaml title="recon_config_bigquery_sample_data_all.json"
+        source:
+            dialect: bigquery
+            catalog: bq_project_name
+            schema: sample_dataset
+            uc_connection_name: example_connection_bigquery
+        target:
+            catalog: migrated
+            schema: migrated
+        report_type: all
+        ```
+
+        :::warning Writable dataset required
+        Results materialize into the ``lakebridge_reconcile`` dataset. Make sure a dataset with this name
+        exist in the same region as the source data and be writable by the connection's service account.
+        :::
+    </TabItem>
     <TabItem value="databricks" label="Databricks">
         ```yaml title="recon_config_databricks_hms_schema.json"
         source:

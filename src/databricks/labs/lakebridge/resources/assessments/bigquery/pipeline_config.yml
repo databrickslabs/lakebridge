@@ -3,6 +3,7 @@ version: "1.0"
 steps:
   - name: bq_metadata_extract
     type: python
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/bigquery/bq_metadata_extract.py
     mode: overwrite
     frequency: once
     flag: active

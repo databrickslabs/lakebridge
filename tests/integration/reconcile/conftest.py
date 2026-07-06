@@ -70,6 +70,10 @@ TERADATA_CONNECTION = "teradata_sandbox"
 TERADATA_CATALOG = "DBC"
 TERADATA_SCHEMA = "lf_test_user"
 TERADATA_TABLE = "diamonds"
+BIGQUERY_CONNECTION = "bigquery_sandbox"
+BIGQUERY_PROJECT = "databricks-dev-customer"
+BIGQUERY_SCHEMA = "lakebridge"
+BIGQUERY_TABLE = "diamonds"
 
 
 @pytest.fixture
@@ -459,6 +463,53 @@ def teradata_recon_config(recon_cluster: str, recon_schema: SchemaInfo, make_vol
         ),
         job_overrides=deployment_overrides,
         hash_expression_overrides=HashExpressionOverrides(source="{}", target="{}"),
+    )
+
+
+@pytest.fixture
+def bigquery_recon_table_config(recon_schema: SchemaInfo, recon_tables: tuple[TableInfo, TableInfo]) -> TableRecon:
+    _, tgt_table = recon_tables
+    assert tgt_table.name
+
+    return TableRecon(
+        [
+            Table(
+                source_name=BIGQUERY_TABLE,
+                target_name=tgt_table.name,
+                join_columns=["color", "clarity"],
+            )
+        ]
+    )
+
+
+@pytest.fixture
+def bigquery_recon_config(recon_cluster: str, recon_schema: SchemaInfo, make_volume) -> ReconcileConfig:
+    volume = make_volume(catalog_name=recon_schema.catalog_name, schema_name=recon_schema.name, name=recon_schema.name)
+
+    deployment_overrides = ReconcileJobConfig(
+        existing_cluster_id=recon_cluster,
+        tags={"lakebridge": "reconcile_test"},
+    )
+    logger.info(f"Using recon job overrides: {deployment_overrides}")
+
+    assert recon_schema.catalog_name
+    assert recon_schema.name
+    return ReconcileConfig(
+        report_type="all",
+        source=SourceConnectionConfig(
+            dialect="bigquery",
+            catalog=BIGQUERY_PROJECT,
+            schema=BIGQUERY_SCHEMA,
+            uc_connection_name=BIGQUERY_CONNECTION,
+        ),
+        target=TargetConnectionConfig(
+            catalog=recon_schema.catalog_name,
+            schema=recon_schema.name,
+        ),
+        metadata_config=ReconcileMetadataConfig(
+            catalog=recon_schema.catalog_name, schema=recon_schema.name, volume=volume.name
+        ),
+        job_overrides=deployment_overrides,
     )
 
 
