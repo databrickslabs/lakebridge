@@ -70,7 +70,7 @@ SELECT recon_table_id, rule_id, recon_type, parse_json(to_json(rec)), parse_json
 FROM (SELECT recon_table_id, rule_id, recon_type, explode(data) AS rec, inserted_ts FROM {legacy})"""
 
 
-def _migrate_details_table(ws: WorkspaceClient, prefix: str) -> bool:
+def migrate_details_table(ws: WorkspaceClient, prefix: str) -> bool:
     """Migrate the row-level details table; schema rows are split out into schema_details."""
     identifier = f"{prefix}.details"
     if "data" not in installed_table_columns(ws, identifier):
@@ -88,7 +88,7 @@ def _migrate_details_table(ws: WorkspaceClient, prefix: str) -> bool:
     return True
 
 
-def _migrate_aggregate_details_table(ws: WorkspaceClient, prefix: str) -> bool:
+def migrate_aggregate_details_table(ws: WorkspaceClient, prefix: str) -> bool:
     identifier = f"{prefix}.aggregate_details"
     if "data" not in installed_table_columns(ws, identifier):
         logger.info(f"{identifier} is already on the record-level schema; nothing to migrate")
@@ -116,8 +116,8 @@ def upgrade(installation: Installation, ws: WorkspaceClient):
         logger.info("No reconcile configuration found; skipping recon details migration")
         return
     prefix = f"{reconcile_config.metadata_config.catalog}.{reconcile_config.metadata_config.schema}"
-    migrated = _migrate_details_table(ws, prefix)
-    migrated = _migrate_aggregate_details_table(ws, prefix) or migrated
+    migrated = migrate_details_table(ws, prefix)
+    migrated = migrate_aggregate_details_table(ws, prefix) or migrated
     if migrated:
         installation.save(reconcile_config)
-        logger.info("Reconcile details/aggregate_details migrated to the record-level VARIANT schema")
+        logger.info("Reconcile metadata tables migrated to the new schema")

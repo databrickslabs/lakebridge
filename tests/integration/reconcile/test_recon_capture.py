@@ -908,8 +908,7 @@ class ReconIntermediatePersistUnderTest(ReconIntermediatePersist):
         return self._format
 
 
-def test_store_run_context(mock_workspace_client, spark, recon_metadata):
-    ws = mock_workspace_client
+def test_store_run_context(ws, spark, recon_metadata):
     recon_capture = ReconCapture(
         *_connection_configs_for("snowflake"),
         "73b44582-dbb7-489f-bad1-6a7e8f4821b1",
