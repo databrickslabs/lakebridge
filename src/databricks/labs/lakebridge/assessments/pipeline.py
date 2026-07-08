@@ -174,9 +174,7 @@ class PipelineClass:
             case StepExecutionStatus.ERROR:
                 logger.error(f"Step {result.step_name} failed with error: {result.error_message}")
             case StepExecutionStatus.ABSENT:
-                logger.warning(
-                    f"Step {result.step_name} was absent for this deployment: {result.error_message}"
-                )
+                logger.warning(f"Step {result.step_name} was absent for this deployment: {result.error_message}")
             case StepExecutionStatus.SKIPPED:
                 logger.info(f"Step {result.step_name} was skipped.")
             case StepExecutionStatus.COMPLETE:

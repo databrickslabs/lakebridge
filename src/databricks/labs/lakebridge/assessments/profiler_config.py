@@ -70,9 +70,7 @@ class Step:
 
     def _validate_optional(self) -> None:
         if not isinstance(self.optional, bool):
-            raise ValueError(
-                f"Invalid optional value for step '{self.name}': {self.optional!r}. Expected a boolean."
-            )
+            raise ValueError(f"Invalid optional value for step '{self.name}': {self.optional!r}. Expected a boolean.")
 
     def copy(self, /, **changes) -> "Step":
         return dataclasses.replace(self, **changes)

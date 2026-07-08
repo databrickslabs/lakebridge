@@ -50,6 +50,11 @@ def sql_failure_config(pipeline_configuration_loader: _Loader) -> PipelineConfig
 
 
 @pytest.fixture
+def optional_absence_config(pipeline_configuration_loader: _Loader) -> PipelineConfig:
+    return pipeline_configuration_loader(Path("pipeline_config_optional_absence.yml"))
+
+
+@pytest.fixture
 def python_failure_config(pipeline_configuration_loader: _Loader) -> PipelineConfig:
     return pipeline_configuration_loader(Path("pipeline_config_python_failure.yml"))
 
@@ -105,6 +110,31 @@ def test_run_sql_failure_pipeline(
 
     # Find the failed SQL step
     assert "Pipeline execution failed due to errors in steps: invalid_sql_step" in str(e.value)
+
+
+def test_run_optional_absence_pipeline(
+    sandbox_sqlserver: DatabaseManager,
+    optional_absence_config: PipelineConfig,
+    tmp_path: Path,
+) -> None:
+    """A missing object on the real source, marked optional, degrades to ABSENT instead of aborting.
+
+    This is the only place the SQLSTATE extraction + ABSENCE classification is exercised against the
+    live MSSQL driver rather than a mock: the missing-table error must map to ABSENCE so the optional
+    step is tolerated while the required step still completes and the run succeeds.
+    """
+    pipeline = PipelineClass(
+        config=optional_absence_config,
+        executor=sandbox_sqlserver,
+        db_path=tmp_path / _DB_FILE,
+        cred_file_path=tmp_path / _CREDS_FILE,
+    )
+    result = pipeline.execute()
+
+    statuses = {r.step_name: r.status for r in result.steps}
+    assert statuses["required_metric"] == StepExecutionStatus.COMPLETE
+    assert statuses["optional_missing_table"] == StepExecutionStatus.ABSENT
+    assert result.summary.absent == 1
 
 
 def test_run_python_failure_pipeline(

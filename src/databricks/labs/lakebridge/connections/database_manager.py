@@ -12,12 +12,11 @@ import pandas as pd
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine, URL
 from sqlalchemy import text
-from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm.session import Session
 import redshift_connector  # type: ignore[import-untyped]
 
 from databricks.labs.blueprint.installation import JsonObject
-from databricks.labs.lakebridge.assessments.errors import ErrorCategory, SourceQueryError, classify_sqlstate
+from databricks.labs.lakebridge.assessments.errors import SourceQueryError, classify_sqlstate
 from databricks.labs.lakebridge.connections.snowflake_utils import (
     parse_snowflake_account,
     is_valid_snowflake_account,

@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import cast
 
 import pytest
 
@@ -10,7 +11,7 @@ from databricks.labs.lakebridge.assessments.pipeline import (
 )
 from databricks.labs.lakebridge.assessments.profiler import Profiler
 from databricks.labs.lakebridge.assessments.profiler_config import PipelineConfig, Step
-from databricks.labs.lakebridge.connections.database_manager import FetchResult
+from databricks.labs.lakebridge.connections.database_manager import DatabaseManager, FetchResult
 
 
 class _FakeExecutor:
@@ -40,7 +41,7 @@ def _write_query(tmp_path: Path, name: str, sql: str) -> str:
 
 
 def _run(config: PipelineConfig, executor: _FakeExecutor, tmp_path: Path) -> PipelineExecutionResult:
-    return PipelineClass(config, executor, tmp_path / "out.db", tmp_path / "creds.yml").execute()
+    return PipelineClass(config, cast(DatabaseManager, executor), tmp_path / "out.db", tmp_path / "creds.yml").execute()
 
 
 # --- Category -> status policy (the core mapping, including the "optional never rescues our bugs" guarantee) ---
@@ -60,9 +61,7 @@ def _run(config: PipelineConfig, executor: _FakeExecutor, tmp_path: Path) -> Pip
         (ErrorCategory.UNKNOWN, False, StepExecutionStatus.ERROR),
     ],
 )
-def test_status_for_source_error(
-    category: ErrorCategory, optional: bool, expected: StepExecutionStatus
-) -> None:
+def test_status_for_source_error(category: ErrorCategory, optional: bool, expected: StepExecutionStatus) -> None:
     assert PipelineClass._status_for_source_error(category, optional) == expected
 
 
@@ -112,9 +111,7 @@ def test_optional_absence_step_completes_pipeline(tmp_path: Path) -> None:
 def test_required_absence_step_fails_pipeline(tmp_path: Path) -> None:
     query_path = _write_query(tmp_path, "missing.sql", "SELECT 1")
     config = _config(Step(name="required_metric", type="sql", extract_source=query_path))
-    executor = _FakeExecutor(
-        {"SELECT 1": SourceQueryError(ErrorCategory.ABSENCE, "42P01", "relation does not exist")}
-    )
+    executor = _FakeExecutor({"SELECT 1": SourceQueryError(ErrorCategory.ABSENCE, "42P01", "relation does not exist")})
 
     with pytest.raises(RuntimeError, match="errors in steps: required_metric"):
         _run(config, executor, tmp_path)
@@ -123,9 +120,7 @@ def test_required_absence_step_fails_pipeline(tmp_path: Path) -> None:
 def test_all_sql_steps_absent_triggers_success_floor(tmp_path: Path) -> None:
     query_path = _write_query(tmp_path, "missing.sql", "SELECT 1")
     config = _config(Step(name="optional_metric", type="sql", extract_source=query_path, optional=True))
-    executor = _FakeExecutor(
-        {"SELECT 1": SourceQueryError(ErrorCategory.ABSENCE, "42P01", "relation does not exist")}
-    )
+    executor = _FakeExecutor({"SELECT 1": SourceQueryError(ErrorCategory.ABSENCE, "42P01", "relation does not exist")})
 
     with pytest.raises(RuntimeError, match="every active SQL step was absent"):
         _run(config, executor, tmp_path)
