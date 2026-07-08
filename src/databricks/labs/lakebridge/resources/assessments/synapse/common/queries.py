@@ -129,7 +129,7 @@ class SynapseQueries:
                """
 
     @staticmethod
-    def list_dedicated_sessions(pool_name: str, last_login_time: str | None = None) -> str:
+    def list_dedicated_sessions(pool_name: str, workspace_name: str, last_login_time: str | None = None) -> str:
         """Get session list with transformed login names and client IDs"""
         cond = "AND login_time > '" + last_login_time + "'" if last_login_time else ""
         return f"""
@@ -144,6 +144,7 @@ class SynapseQueries:
                       SESSION_ID,
                       SQL_SPID,
                       STATUS,
+                      '{workspace_name}' as WORKSPACE_NAME,
                       '{pool_name}' as POOL_NAME,
                       CURRENT_TIMESTAMP as EXTRACT_TS
                      FROM SYS.DM_PDW_EXEC_SESSIONS
@@ -152,7 +153,9 @@ class SynapseQueries:
                      """
 
     @staticmethod
-    def list_serverless_sessions(pool_name: str, min_last_request_start_time: str | None = None) -> str:
+    def list_serverless_sessions(
+        pool_name: str, workspace_name: str, min_last_request_start_time: str | None = None
+    ) -> str:
         """Get session list with transformed login names and client IDs"""
         cond = (
             "AND last_request_start_time > '" + min_last_request_start_time + "'" if min_last_request_start_time else ""
@@ -207,6 +210,7 @@ class SynapseQueries:
           TOTAL_SCHEDULED_TIME,
           TRANSACTION_ISOLATION_LEVEL,
           WRITES,
+          '{workspace_name}' as WORKSPACE_NAME,
           '{pool_name}' as POOL_NAME,
           CURRENT_TIMESTAMP as EXTRACT_TS
            FROM sys.dm_exec_sessions
@@ -214,7 +218,9 @@ class SynapseQueries:
         """
 
     @staticmethod
-    def list_dedicated_requests(pool_name: str, min_end_time: str | None = None, redact_sql_text: bool = True) -> str:
+    def list_dedicated_requests(
+        pool_name: str, workspace_name: str, min_end_time: str | None = None, redact_sql_text: bool = True
+    ) -> str:
         """Get session request list with command type classification"""
         command_col = "'[REDACTED]' as COMMAND" if redact_sql_text else "COMMAND"
         end_time_filter = f"AND END_TIME > '{min_end_time}'" if min_end_time else ""
@@ -240,6 +246,7 @@ class SynapseQueries:
                 STATUS,
                 SUBMIT_TIME,
                 TOTAL_ELAPSED_TIME,
+                '{workspace_name}' AS WORKSPACE_NAME,
                 '{pool_name}' AS POOL_NAME,
                 CURRENT_TIMESTAMP AS EXTRACT_TS
             FROM (
@@ -323,12 +330,13 @@ class SynapseQueries:
         """
 
     @staticmethod
-    def get_db_storage_info(pool_name: str) -> str:
+    def get_db_storage_info(pool_name: str, workspace_name: str) -> str:
         """Get database storage information"""
         return f"""SELECT
                        PDW_NODE_ID AS NODE_ID,
                        (SUM(RESERVED_PAGE_COUNT) * 8) / 1024 AS RESERVEDSPACEMB,
                        (SUM(USED_PAGE_COUNT)  * 8) / 1024 AS USEDSPACEMB,
+                       '{workspace_name}' as WORKSPACE_NAME,
                        '{pool_name}' as POOL_NAME,
                         CURRENT_TIMESTAMP AS EXTRACT_TS
                     FROM SYS.DM_PDW_NODES_DB_PARTITION_STATS
@@ -336,7 +344,7 @@ class SynapseQueries:
                """
 
     @staticmethod
-    def list_serverless_requests(pool_name: str, min_start_time: str | None):
+    def list_serverless_requests(pool_name: str, workspace_name: str, min_start_time: str | None):
         """
         Get list of requests with start time filter
         """
@@ -400,6 +408,7 @@ class SynapseQueries:
               WAIT_TIME,
               WAIT_TYPE,
               WRITES,
+              '{workspace_name}' as WORKSPACE_NAME,
               '{pool_name}' as POOL_NAME,
               CURRENT_TIMESTAMP as EXTRACT_TS
             FROM sys.dm_exec_requests
@@ -539,11 +548,12 @@ class SynapseQueries:
         {"WHERE end_time > '"+min_end_time+"'" if min_end_time else ""}"""
 
     @staticmethod
-    def data_processed(pool_name: str) -> str:
+    def data_processed(pool_name: str, workspace_name: str) -> str:
         return f"""
         SELECT
             DATA_PROCESSED_MB,
             TYPE,
+            '{workspace_name}' as WORKSPACE_NAME,
             '{pool_name}' as POOL_NAME,
             CURRENT_TIMESTAMP AS EXTRACT_TS
             FROM SYS.DM_EXTERNAL_DATA_PROCESSED
