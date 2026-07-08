@@ -76,7 +76,7 @@ def test_run_pipeline(
         db_path=tmp_path / _DB_FILE,
         cred_file_path=tmp_path / _CREDS_FILE,
     )
-    results = pipeline.execute()
+    results = pipeline.execute().steps
 
     # Verify all steps completed successfully
     for result in results:
@@ -141,7 +141,7 @@ def test_skipped_steps(
         db_path=tmp_path / _DB_FILE,
         cred_file_path=tmp_path / _CREDS_FILE,
     )
-    results = pipeline.execute()
+    results = pipeline.execute().steps
 
     # Verify all steps are marked as skipped
     assert len(results) > 0, "Expected at least one step"
@@ -216,7 +216,7 @@ def test_run_empty_result_pipeline(
         db_path=tmp_path / _DB_FILE,
         cred_file_path=tmp_path / _CREDS_FILE,
     )
-    results = pipeline.execute()
+    results = pipeline.execute().steps
 
     # Verify step completed successfully despite empty results
     assert len(results) == 1
@@ -246,7 +246,7 @@ def test_run_pipeline_with_ddl(
         db_path=tmp_path / _DB_FILE,
         cred_file_path=tmp_path / _CREDS_FILE,
     )
-    results = pipeline.execute()
+    results = pipeline.execute().steps
 
     # Verify all steps completed successfully
     for result in results:
@@ -294,7 +294,7 @@ def test_run_pipeline_with_combined_ddl(
         db_path=tmp_path / _DB_FILE,
         cred_file_path=tmp_path / _CREDS_FILE,
     )
-    results = pipeline.execute()
+    results = pipeline.execute().steps
 
     # Verify all steps completed successfully
     for result in results:

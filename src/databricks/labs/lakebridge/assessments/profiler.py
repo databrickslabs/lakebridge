@@ -80,10 +80,18 @@ class Profiler:
             connector_required = any(step.type != "python" for step in pipeline_config.steps if step.flag == "active")
             extractor = Profiler._setup_extractor(source_system, cred_file_path) if connector_required else None
             db_path = output_folder / make_profiler_db_filename(source_system)
-            result = PipelineClass(pipeline_config, extractor, db_path, cred_file_path).execute()
+            execution = PipelineClass(pipeline_config, extractor, db_path, cred_file_path).execute()
             logger.info(f"Profiler extract written to {db_path.expanduser()}")
+            if execution.summary.absent:
+                logger.info(
+                    "Profile execution completed for %s with %s expected-absent metric(s) for this deployment.",
+                    source_system,
+                    execution.summary.absent,
+                )
             logger.info(
-                f"Profile execution has completed successfully for {source_system} for more info check: {result}."
+                "Profile execution has completed successfully for %s; summary=%s.",
+                source_system,
+                execution.summary,
             )
         except FileNotFoundError as e:
             logger.error(f"Configuration file not found for source {source_system}: {e}")

@@ -12,6 +12,7 @@ import yaml
 
 from databricks.labs.blueprint.paths import read_text
 from databricks.labs.lakebridge import __version__ as lakebridge_version
+from databricks.labs.lakebridge.assessments.errors import ErrorCategory, SourceQueryError
 from databricks.labs.lakebridge.assessments.profiler_config import PipelineConfig, Step
 from databricks.labs.lakebridge.connections.database_manager import DatabaseManager, FetchResult
 
@@ -26,6 +27,7 @@ class StepExecutionStatus(str, Enum):
     COMPLETE = "COMPLETE"
     ERROR = "ERROR"
     SKIPPED = "SKIPPED"
+    ABSENT = "ABSENT"
 
 
 @dataclass
@@ -33,6 +35,20 @@ class StepExecutionResult:
     step_name: str
     status: StepExecutionStatus
     error_message: str | None = None
+
+
+@dataclass
+class PipelineExecutionSummary:
+    complete: int = 0
+    absent: int = 0
+    error: int = 0
+    skipped: int = 0
+
+
+@dataclass
+class PipelineExecutionResult:
+    steps: list[StepExecutionResult]
+    summary: PipelineExecutionSummary
 
 
 class PipelineClass:
@@ -49,24 +65,28 @@ class PipelineClass:
         self._create_dir(self._db_path.parent)
         self._cred_file_path = cred_file_path
 
-    def execute(self) -> list[StepExecutionResult]:
+    def execute(self) -> PipelineExecutionResult:
         logging.info(f"Pipeline initialized with config: {self.config.name}, version: {self.config.version}")
         execution_results: list[StepExecutionResult] = []
 
         for step in self.config.steps:
-            result = self._process_step(step)
+            try:
+                result = self._process_step(step)
+            except SourceQueryError as e:
+                error_msg = f"Pipeline execution aborted at step '{step.name}': {e.reason}"
+                logger.error(error_msg)
+                raise RuntimeError(error_msg) from e
+
             execution_results.append(result)
             self._log_step_result(result)
 
-            # Fail immediately if a DDL (local DuckDB) or source_ddl (source-side) step failed
-            if step.type in {"ddl", "source_ddl"} and result.status == StepExecutionStatus.ERROR:
+            if step.type == "ddl" and result.status == StepExecutionStatus.ERROR:
                 error_msg = f"Pipeline execution failed due to error in DDL step: {result.step_name}"
                 if result.error_message:
                     error_msg += f" - {result.error_message}"
                 logger.error(error_msg)
                 raise RuntimeError(error_msg)
 
-        # Check if any non-DDL steps failed
         failed_steps = [r for r in execution_results if r.status == StepExecutionStatus.ERROR]
         if failed_steps:
             error_msg = (
@@ -75,7 +95,17 @@ class PipelineClass:
             logger.error(error_msg)
             raise RuntimeError(error_msg)
 
-        return execution_results
+        self._enforce_success_floor(execution_results)
+
+        summary = self._summarize(execution_results)
+        logger.info(
+            "Pipeline execution summary: complete=%s absent=%s error=%s skipped=%s",
+            summary.complete,
+            summary.absent,
+            summary.error,
+            summary.skipped,
+        )
+        return PipelineExecutionResult(steps=execution_results, summary=summary)
 
     def _process_step(self, step: Step) -> StepExecutionResult:
         logger.info(f"Executing step: {step.name}")
@@ -85,7 +115,6 @@ class PipelineClass:
             return StepExecutionResult(step_name=step.name, status=StepExecutionStatus.SKIPPED)
 
         try:
-            # Execute based on step type
             match step.type:
                 case "sql":
                     self._execute_sql_step(step)
@@ -99,13 +128,55 @@ class PipelineClass:
                     raise RuntimeError(f"Unsupported step type: {step.type}")
 
             return StepExecutionResult(step_name=step.name, status=StepExecutionStatus.COMPLETE)
+        except SourceQueryError as e:
+            if e.is_fatal():
+                raise
+            status = self._status_for_source_error(e.category, step.optional)
+            return StepExecutionResult(step_name=step.name, status=status, error_message=e.reason)
         except RuntimeError as e:
             return StepExecutionResult(step_name=step.name, status=StepExecutionStatus.ERROR, error_message=str(e))
+
+    @staticmethod
+    def _status_for_source_error(category: ErrorCategory, optional: bool) -> StepExecutionStatus:
+        if category in {ErrorCategory.ABSENCE, ErrorCategory.PERMISSION} and optional:
+            return StepExecutionStatus.ABSENT
+        return StepExecutionStatus.ERROR
+
+    def _enforce_success_floor(self, execution_results: list[StepExecutionResult]) -> None:
+        active_sql_steps = [step for step in self.config.steps if step.flag == "active" and step.type == "sql"]
+        if not active_sql_steps:
+            return
+
+        results_by_name = {result.step_name: result for result in execution_results}
+        sql_results = [results_by_name[step.name] for step in active_sql_steps if step.name in results_by_name]
+        if sql_results and all(result.status == StepExecutionStatus.ABSENT for result in sql_results):
+            error_msg = "Pipeline execution failed: every active SQL step was absent for this deployment"
+            logger.error(error_msg)
+            raise RuntimeError(error_msg)
+
+    @staticmethod
+    def _summarize(execution_results: list[StepExecutionResult]) -> PipelineExecutionSummary:
+        summary = PipelineExecutionSummary()
+        for result in execution_results:
+            match result.status:
+                case StepExecutionStatus.COMPLETE:
+                    summary.complete += 1
+                case StepExecutionStatus.ABSENT:
+                    summary.absent += 1
+                case StepExecutionStatus.ERROR:
+                    summary.error += 1
+                case StepExecutionStatus.SKIPPED:
+                    summary.skipped += 1
+        return summary
 
     def _log_step_result(self, result: StepExecutionResult):
         match result.status:
             case StepExecutionStatus.ERROR:
                 logger.error(f"Step {result.step_name} failed with error: {result.error_message}")
+            case StepExecutionStatus.ABSENT:
+                logger.warning(
+                    f"Step {result.step_name} was absent for this deployment: {result.error_message}"
+                )
             case StepExecutionStatus.SKIPPED:
                 logger.info(f"Step {result.step_name} was skipped.")
             case StepExecutionStatus.COMPLETE:
@@ -119,16 +190,9 @@ class PipelineClass:
             logging.error("DatabaseManager executor is not set.")
             raise RuntimeError("DatabaseManager executor is not set.")
 
-        # Execute the query using the database manager
         logging.info(f"Executing query: {query}")
-        try:
-            result = self.executor.fetch(query)
-
-            # Save the result to duckdb
-            self._save_to_db(result, step.name, str(step.mode))
-        except Exception as e:
-            logging.error(f"SQL execution failed: {str(e)}")
-            raise RuntimeError(f"SQL execution failed: {str(e)}") from e
+        result = self.executor.fetch(query)
+        self._save_to_db(result, step.name, str(step.mode))
 
     def _execute_source_ddl_step(self, step: Step):
         """Run a no-result DDL statement against the *source* database (one statement per file).
@@ -150,11 +214,7 @@ class PipelineClass:
             return
 
         logging.info(f"Executing source_ddl step '{step.name}' on source")
-        try:
-            self.executor.fetch(content)
-        except Exception as e:
-            logging.error(f"source_ddl step failed: {str(e)}")
-            raise RuntimeError(f"source_ddl step failed: {str(e)}") from e
+        self.executor.fetch(content)
 
     def _execute_ddl_step(self, step: Step):
         logging.debug(f"Reading DDL from file: {step.extract_source}")
@@ -180,7 +240,6 @@ class PipelineClass:
 
     def _execute_python_step(self, step: Step):
         logging.debug(f"Executing Python script: {step.extract_source}")
-        # Run the step script with the labs-managed venv
         logger.info(f"Executing Python script for step '{step.name}' using interpreter: {sys.executable}")
         self._run_python_script(sys.executable, step.extract_source, self._db_path, self._cred_file_path)
 

@@ -1,7 +1,11 @@
 import pytest
 from unittest.mock import MagicMock, patch
+
+from sqlalchemy.exc import OperationalError
+
 from databricks.labs.blueprint.installation import JsonObject
-from databricks.labs.lakebridge.connections.database_manager import DatabaseManager
+from databricks.labs.lakebridge.assessments.errors import ErrorCategory, SourceQueryError
+from databricks.labs.lakebridge.connections.database_manager import DatabaseManager, extract_sqlstate
 
 sample_config: JsonObject = {
     'user': 'test_user',
@@ -85,3 +89,35 @@ def test_teradata_connector(mock_teradata_connector) -> None:
 
     assert db_manager.connector == mock_connector_instance
     mock_teradata_connector.assert_called_once_with(sample_config)
+
+
+@patch('databricks.labs.lakebridge.connections.database_manager.MSSQLConnector')
+def test_fetch_raises_source_query_error_for_absence(mock_mssql_connector) -> None:
+    mock_connector_instance = MagicMock()
+    mock_mssql_connector.return_value = mock_connector_instance
+
+    orig = MagicMock()
+    orig.sqlstate = "42P01"
+    operational_error = OperationalError("statement", {}, Exception("relation does not exist"))
+    operational_error.orig = orig
+    mock_connector_instance.fetch.side_effect = operational_error
+
+    db_manager = DatabaseManager("mssql", sample_config)
+
+    with pytest.raises(SourceQueryError) as exc_info:
+        db_manager.fetch("SELECT 1")
+
+    assert exc_info.value.category == ErrorCategory.ABSENCE
+    assert exc_info.value.sqlstate == "42P01"
+
+
+def test_extract_sqlstate_from_redshift_error_dict() -> None:
+    error = Exception({"C": "42P01", "M": "relation does not exist"})
+    assert extract_sqlstate(error) == "42P01"
+
+
+def test_extract_sqlstate_from_sqlalchemy_orig() -> None:
+    orig = MagicMock()
+    orig.sqlstate = "42601"
+    error = OperationalError("statement", {}, orig)
+    assert extract_sqlstate(error) == "42601"

@@ -20,12 +20,14 @@ class Step:
     frequency: str = "once"
     flag: str = "active"
     comment: str | None = None
+    optional: bool = False
 
     def __post_init__(self) -> None:
         """Validate step configuration to prevent SQL injection and configuration errors."""
         self._validate_name()
         self._validate_mode()
         self._validate_type()
+        self._validate_optional()
 
     def _validate_name(self) -> None:
         """Validate step name uses only safe SQL identifier characters."""
@@ -64,6 +66,12 @@ class Step:
             raise ValueError(
                 f"Invalid type '{self.type}' for step '{self.name}'. "
                 f"Valid types are: {', '.join(sorted(valid_types))}"
+            )
+
+    def _validate_optional(self) -> None:
+        if not isinstance(self.optional, bool):
+            raise ValueError(
+                f"Invalid optional value for step '{self.name}': {self.optional!r}. Expected a boolean."
             )
 
     def copy(self, /, **changes) -> "Step":

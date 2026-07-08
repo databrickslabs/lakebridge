@@ -13,6 +13,7 @@ from databricks.labs.lakebridge.connections.credential_manager import (
     cred_file as creds,
     create_credential_manager,
 )
+from databricks.labs.lakebridge.assessments.errors import SourceQueryError
 from databricks.labs.lakebridge.connections.database_manager import DatabaseManager
 from databricks.labs.lakebridge.connections.env_getter import EnvGetter
 from databricks.labs.lakebridge.connections.synapse_connection_helpers import validate_synapse_pools
@@ -68,7 +69,10 @@ class AssessmentConfigurator(ABC):
         if self.prompts.confirm(f"Do you want to test the connection to {source}?"):
             try:
                 self.test_connection()
-            except ConnectionError as e:
+            except (ConnectionError, SourceQueryError) as e:
+                if isinstance(e, SourceQueryError) and not e.is_fatal():
+                    logger.error(f"Unexpected query error during connection test: {e}")
+                    raise SystemExit("Connection test failed. Exiting...") from e
                 logger.error(f"Failed to connect to the source system: {e}")
                 raise SystemExit("Connection validation failed. Exiting...") from e
         logger.info(f"{source.capitalize()} Assessment Configuration Completed")

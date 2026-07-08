@@ -17,6 +17,7 @@ from sqlalchemy.orm.session import Session
 import redshift_connector  # type: ignore[import-untyped]
 
 from databricks.labs.blueprint.installation import JsonObject
+from databricks.labs.lakebridge.assessments.errors import ErrorCategory, SourceQueryError, classify_sqlstate
 from databricks.labs.lakebridge.connections.snowflake_utils import (
     parse_snowflake_account,
     is_valid_snowflake_account,
@@ -40,6 +41,27 @@ class FetchResult:
         # Row emulates a named tuple, which Pandas understands natively. So the columns are safely inferred unless
         # we have an empty result-set.
         return pd.DataFrame(data=self.rows) if self.rows else pd.DataFrame(columns=list(self.columns))
+
+
+def _concise_error_message(exc: Exception) -> str:
+    return str(getattr(exc, "orig", exc)).split("\n", 1)[0].strip()
+
+
+def extract_sqlstate(exc: Exception) -> str | None:
+    """Extract SQLSTATE from a driver exception when available."""
+    if exc.args and isinstance(exc.args[0], dict):
+        sqlstate = exc.args[0].get("C")
+        if isinstance(sqlstate, str) and sqlstate:
+            return sqlstate
+
+    orig = getattr(exc, "orig", None)
+    if orig is not None:
+        for attr in ("sqlstate", "pgcode"):
+            value = getattr(orig, attr, None)
+            if isinstance(value, str) and value:
+                return value
+
+    return None
 
 
 class DatabaseConnector(contextlib.AbstractContextManager):
@@ -296,12 +318,23 @@ class DatabaseManager:
     def fetch(self, query: str) -> FetchResult:
         try:
             return self.connector.fetch(query)
-        except OperationalError as e:
-            # Drivers (notably teradatasql) embed a full stack trace and the offending SQL in the error
-            # message; keep that detail at debug level and surface only the concise first line.
+        except SourceQueryError:
+            raise
+        except Exception as e:
             logger.debug("Database query failed", exc_info=True)
-            reason = str(getattr(e, "orig", e)).split("\n", 1)[0].strip()
-            raise ConnectionError(f"Database query failed: {reason}") from e
+            reason = _concise_error_message(e)
+            sqlstate = extract_sqlstate(e)
+            category = classify_sqlstate(sqlstate, reason)
+            raise SourceQueryError(category, sqlstate, reason) from e
 
     def check_connection(self) -> bool:
-        return self.connector.health_check()
+        try:
+            return self.connector.health_check()
+        except SourceQueryError:
+            raise
+        except Exception as e:
+            logger.debug("Database health check failed", exc_info=True)
+            reason = _concise_error_message(e)
+            sqlstate = extract_sqlstate(e)
+            category = classify_sqlstate(sqlstate, reason)
+            raise SourceQueryError(category, sqlstate, reason) from e

@@ -29,6 +29,7 @@ from databricks.labs.lakebridge.assessments import (
     SOURCE_SYSTEM_VARIANTS,
 )
 from databricks.labs.lakebridge.assessments.profiler import Profiler, default_output_folder
+from databricks.labs.lakebridge.assessments.errors import SourceQueryError
 
 from databricks.labs.lakebridge.config import TableRecon, TranspileConfig, LSPConfigOptionV1
 from databricks.labs.lakebridge.contexts.application import ApplicationContext
@@ -1212,6 +1213,12 @@ def test_profiler_connection(
         if any(pattern in error_msg for pattern in ("im002", "odbc driver not found", "can't open lib")):
             raise SystemExit("Missing ODBC driver, Please install pre-req. Exiting...") from e
         raise SystemExit("Connection validation failed. Exiting...") from e
+    except SourceQueryError as e:
+        if e.is_fatal():
+            logger.error(f"Failed to connect to the source system: {e}")
+            raise SystemExit("Connection validation failed. Exiting...") from e
+        logger.error(f"Unexpected query error during connection test: {e}")
+        raise SystemExit("Connection test failed. Exiting...") from e
     except Exception as e:  # noqa: BLE001
         logger.error(f"Unexpected error during connection test: {e}")
         raise SystemExit("Connection test failed. Exiting...") from e
