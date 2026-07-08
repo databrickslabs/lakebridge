@@ -2,7 +2,11 @@ import logging
 from pathlib import Path
 
 from databricks.labs.lakebridge.assessments import PRODUCT_PATH_PREFIX
-from databricks.labs.lakebridge.assessments.pipeline import PipelineClass, make_profiler_db_filename
+from databricks.labs.lakebridge.assessments.pipeline import (
+    PipelineClass,
+    PipelineExecutionResult,
+    make_profiler_db_filename,
+)
 from databricks.labs.lakebridge.assessments.profiler_config import PipelineConfig
 from databricks.labs.lakebridge.connections.database_manager import DatabaseManager
 from databricks.labs.lakebridge.connections.credential_manager import (
@@ -82,23 +86,24 @@ class Profiler:
             db_path = output_folder / make_profiler_db_filename(source_system)
             execution = PipelineClass(pipeline_config, extractor, db_path, cred_file_path).execute()
             logger.info(f"Profiler extract written to {db_path.expanduser()}")
-            if execution.summary.absent:
-                logger.info(
-                    "Profile execution completed for %s with %s expected-absent metric(s) for this deployment.",
-                    source_system,
-                    execution.summary.absent,
-                )
-            logger.info(
-                "Profile execution has completed successfully for %s; summary=%s.",
-                source_system,
-                execution.summary,
-            )
+            Profiler._log_execution_completion(source_system, execution)
         except FileNotFoundError as e:
             logger.error(f"Configuration file not found for source {source_system}: {e}")
             raise FileNotFoundError(f"Configuration file not found for source {source_system}: {e}") from e
         except Exception as e:
             logger.error(f"Error executing pipeline for source {source_system}: {e}")
             raise RuntimeError(f"Pipeline execution failed for source {source_system} : {e}") from e
+
+    @staticmethod
+    def _log_execution_completion(source_system: str, execution: PipelineExecutionResult) -> None:
+        if execution.summary.absent:
+            logger.info(
+                f"Profile execution completed for {source_system} with "
+                f"{execution.summary.absent} expected-absent metric(s) for this deployment."
+            )
+        logger.info(
+            f"Profile execution has completed successfully for {source_system}; summary={execution.summary}."
+        )
 
     @staticmethod
     def _setup_extractor(source_system: str, cred_file_path: Path | None = None) -> DatabaseManager | None:
