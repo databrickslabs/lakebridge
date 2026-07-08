@@ -101,9 +101,7 @@ class Profiler:
                 f"Profile execution completed for {source_system} with "
                 f"{execution.summary.absent} expected-absent metric(s) for this deployment."
             )
-        logger.info(
-            f"Profile execution has completed successfully for {source_system}; summary={execution.summary}."
-        )
+        logger.info(f"Profile execution has completed successfully for {source_system}; summary={execution.summary}.")
 
     @staticmethod
     def _setup_extractor(source_system: str, cred_file_path: Path | None = None) -> DatabaseManager | None:
