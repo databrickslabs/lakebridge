@@ -1,6 +1,6 @@
-import pytest
 from unittest.mock import MagicMock, patch
 
+import pytest
 from sqlalchemy.exc import OperationalError
 
 from databricks.labs.blueprint.installation import JsonObject
@@ -121,3 +121,27 @@ def test_extract_sqlstate_from_sqlalchemy_orig() -> None:
     orig.sqlstate = "42601"
     error = OperationalError("statement", {}, orig)
     assert extract_sqlstate(error) == "42601"
+
+
+def test_extract_sqlstate_from_pyodbc_args() -> None:
+    """pyodbc has no .sqlstate attribute; SQLSTATE is the first element of args."""
+
+    class _PyodbcError(Exception):
+        pass
+
+    orig = _PyodbcError("42S02", "[42S02] [Microsoft][ODBC Driver 18 for SQL Server]Invalid object name 'x'. (208)")
+    error = OperationalError("statement", {}, Exception("placeholder"))
+    error.orig = orig
+    assert extract_sqlstate(error) == "42S02"
+
+
+def test_extract_sqlstate_ignores_non_sqlstate_args() -> None:
+    """A message-only first arg (not a 5-char SQLSTATE) must not be mistaken for a code."""
+
+    class _DriverError(Exception):
+        pass
+
+    orig = _DriverError("connection to server failed")
+    error = OperationalError("statement", {}, Exception("placeholder"))
+    error.orig = orig
+    assert extract_sqlstate(error) is None

@@ -51,6 +51,18 @@ class PipelineExecutionResult:
     summary: PipelineExecutionSummary
 
 
+def status_for_source_error(category: ErrorCategory, optional: bool) -> StepExecutionStatus:
+    """Map a non-fatal source error to a step outcome.
+
+    Benign absence/permission on an ``optional`` step degrades to ``ABSENT``; everything
+    else (including syntax/unknown errors, which signal our own bugs) stays ``ERROR`` so
+    that ``optional`` never hides a real failure.
+    """
+    if category in {ErrorCategory.ABSENCE, ErrorCategory.PERMISSION} and optional:
+        return StepExecutionStatus.ABSENT
+    return StepExecutionStatus.ERROR
+
+
 class PipelineClass:
     def __init__(
         self,
@@ -99,11 +111,8 @@ class PipelineClass:
 
         summary = self._summarize(execution_results)
         logger.info(
-            "Pipeline execution summary: complete=%s absent=%s error=%s skipped=%s",
-            summary.complete,
-            summary.absent,
-            summary.error,
-            summary.skipped,
+            f"Pipeline execution summary: complete={summary.complete} absent={summary.absent} "
+            f"error={summary.error} skipped={summary.skipped}"
         )
         return PipelineExecutionResult(steps=execution_results, summary=summary)
 
@@ -115,32 +124,28 @@ class PipelineClass:
             return StepExecutionResult(step_name=step.name, status=StepExecutionStatus.SKIPPED)
 
         try:
-            match step.type:
-                case "sql":
-                    self._execute_sql_step(step)
-                case "ddl":
-                    self._execute_ddl_step(step)
-                case "source_ddl":
-                    self._execute_source_ddl_step(step)
-                case "python":
-                    self._execute_python_step(step)
-                case _:
-                    raise RuntimeError(f"Unsupported step type: {step.type}")
-
+            self._dispatch_step(step)
             return StepExecutionResult(step_name=step.name, status=StepExecutionStatus.COMPLETE)
         except SourceQueryError as e:
             if e.is_fatal():
                 raise
-            status = self._status_for_source_error(e.category, step.optional)
+            status = status_for_source_error(e.category, step.optional)
             return StepExecutionResult(step_name=step.name, status=status, error_message=e.reason)
         except RuntimeError as e:
             return StepExecutionResult(step_name=step.name, status=StepExecutionStatus.ERROR, error_message=str(e))
 
-    @staticmethod
-    def _status_for_source_error(category: ErrorCategory, optional: bool) -> StepExecutionStatus:
-        if category in {ErrorCategory.ABSENCE, ErrorCategory.PERMISSION} and optional:
-            return StepExecutionStatus.ABSENT
-        return StepExecutionStatus.ERROR
+    def _dispatch_step(self, step: Step) -> None:
+        match step.type:
+            case "sql":
+                self._execute_sql_step(step)
+            case "ddl":
+                self._execute_ddl_step(step)
+            case "source_ddl":
+                self._execute_source_ddl_step(step)
+            case "python":
+                self._execute_python_step(step)
+            case _:
+                raise RuntimeError(f"Unsupported step type: {step.type}")
 
     def _enforce_success_floor(self, execution_results: list[StepExecutionResult]) -> None:
         active_sql_steps = [step for step in self.config.steps if step.flag == "active" and step.type == "sql"]

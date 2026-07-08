@@ -2,6 +2,7 @@ import contextlib
 import dataclasses
 import importlib
 import logging
+import re
 from abc import abstractmethod
 from types import TracebackType
 from collections.abc import Callable, Sequence, Set
@@ -46,8 +47,18 @@ def _concise_error_message(exc: Exception) -> str:
     return str(getattr(exc, "orig", exc)).split("\n", 1)[0].strip()
 
 
+_SQLSTATE_PATTERN = re.compile(r"[0-9A-Za-z]{5}")
+
+
 def extract_sqlstate(exc: Exception) -> str | None:
-    """Extract SQLSTATE from a driver exception when available."""
+    """Extract SQLSTATE from a driver exception when available.
+
+    Handles the three shapes across our drivers:
+      - Redshift (``redshift_connector``): SQLSTATE lives in ``exc.args[0]["C"]``.
+      - Postgres-family (psycopg/pg8000): exposed as ``orig.sqlstate`` / ``orig.pgcode``.
+      - pyodbc (MSSQL/Synapse): no attribute; SQLSTATE is the first element of
+        ``orig.args`` as a 5-character string (e.g. ``('42S02', '[42S02] ...')``).
+    """
     if exc.args and isinstance(exc.args[0], dict):
         sqlstate = exc.args[0].get("C")
         if isinstance(sqlstate, str) and sqlstate:
@@ -59,6 +70,10 @@ def extract_sqlstate(exc: Exception) -> str | None:
             value = getattr(orig, attr, None)
             if isinstance(value, str) and value:
                 return value
+
+        orig_args = getattr(orig, "args", ())
+        if orig_args and isinstance(orig_args[0], str) and _SQLSTATE_PATTERN.fullmatch(orig_args[0]):
+            return orig_args[0]
 
     return None
 

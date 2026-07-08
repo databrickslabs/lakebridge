@@ -8,6 +8,7 @@ from databricks.labs.lakebridge.assessments.pipeline import (
     PipelineClass,
     PipelineExecutionResult,
     StepExecutionStatus,
+    status_for_source_error,
 )
 from databricks.labs.lakebridge.assessments.profiler import Profiler
 from databricks.labs.lakebridge.assessments.profiler_config import PipelineConfig, Step
@@ -62,7 +63,7 @@ def _run(config: PipelineConfig, executor: _FakeExecutor, tmp_path: Path) -> Pip
     ],
 )
 def test_status_for_source_error(category: ErrorCategory, optional: bool, expected: StepExecutionStatus) -> None:
-    assert PipelineClass._status_for_source_error(category, optional) == expected
+    assert status_for_source_error(category, optional) == expected
 
 
 # --- Fatal categories abort the whole run immediately, regardless of step type or optionality ---
