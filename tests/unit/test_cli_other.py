@@ -223,8 +223,8 @@ def test_cli_execute_database_profiler_missing_cred_file_raises(mock_workspace_c
 @pytest.mark.parametrize(
     ("source_tech", "variant", "expected"),
     (
-        ("redshift", "provisioned", "provisioned"),  # valid variant passes through
-        ("redshift", "PROVISIONED", "provisioned"),  # normalized to lower-case
+        ("redshift", None, None),  # unified pipeline, no variant required
+        ("redshift", "provisioned", None),  # legacy variant input is ignored
         ("snowflake", None, None),  # source has no variants, none requested
         ("snowflake", "anything", None),  # source has no variants → stray input ignored
         ("teradata", None, None),  # unified pipeline, no variant required
@@ -237,17 +237,12 @@ def test_parse_profiler_variant_returns_expected(source_tech, variant, expected)
     prompts.choice.assert_not_called()
 
 
-def test_parse_profiler_variant_prompts_when_omitted_for_variant_source():
-    """A variant-capable source with no explicit variant prompts the user to pick one."""
+def test_parse_profiler_variant_does_not_prompt_when_no_variants_registered():
+    """With an empty variant registry, omitted variant never prompts."""
     prompts = MagicMock()
-    prompts.choice.return_value = "serverless"
-    assert cli.parse_profiler_variant(prompts, "redshift", None) == "serverless"
-    prompts.choice.assert_called_once_with("Select a variant", SOURCE_SYSTEM_VARIANTS["redshift"])
-
-
-def test_parse_profiler_variant_rejects_unknown_variant():
-    with pytest.raises(ValueError, match="Invalid source technology variant"):
-        cli.parse_profiler_variant(MagicMock(), "redshift", "bogus")
+    assert SOURCE_SYSTEM_VARIANTS == {}
+    assert cli.parse_profiler_variant(prompts, "redshift", None) is None
+    prompts.choice.assert_not_called()
 
 
 def test_cli_auto_configure_recon_tables_no_recon_config(mock_workspace_client):

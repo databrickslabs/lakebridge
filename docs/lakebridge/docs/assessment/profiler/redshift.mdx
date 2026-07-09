@@ -17,21 +17,11 @@ import Admonition from '@theme/Admonition';
 
 - **Lakebridge CLI** installed and configured for your Databricks workspace (same as other profiler sources).
 
-### 2. Choose the Redshift deployment variant
-
-The profiler ships **three extract pipelines** — pick the one that matches your Redshift instance:
-
-| Variant | Use when |
-|--------|-----------|
-| **serverless** | Amazon Redshift Serverless |
-| **provisioned** | Single-AZ provisioned cluster |
-| **provisioned_multi_az** | Multi-AZ provisioned cluster |
-
-### 3. Network connectivity
+### 2. Network connectivity
 
 The machine running the profiler must reach the Redshift cluster **endpoint** (hostname) on the cluster port (default **5439**), subject to your security groups / VPC / routing rules.
 
-### 4. Authentication
+### 3. Authentication
 
 During configuration you choose an **authentication type** and where secrets are read from (**local**, **env**, or **file**):
 
@@ -47,28 +37,29 @@ For IAM authentication you typically need:
 
 Use **`local`** to store plaintext values in `~/.databricks/labs/lakebridge/.credentials.yml`, **`env`** to substitute values from environment variables (with fallback), or **`file`** to reuse an existing credential file when it already contains valid Redshift entries.
 
-### 5. Database privileges
+### 4. Database privileges
 
 The profiler connects as your configured user and runs read-only extracts. The pipeline includes **source_ddl** steps that create a helper view **`query_view`** in the database (via `CREATE OR REPLACE VIEW`). The connecting user therefore needs permission to:
 
 - **Create (and replace) views** in the target database used for profiling.
 - **Select** from the Amazon Redshift system relations used by the extracts (see below).
 
-**Provisioned clusters** (`provisioned` / `provisioned_multi_az`) — objects referenced by the bundled SQL include, among others:
-
-- `stl_query`, `stl_query_metrics`
-- `stv_node_storage_capacity`, `stv_partitions`
-- `sys_external_query_detail`
-
-**Serverless** (`serverless`) — examples include:
+The unified pipeline standardizes on **SYS** monitoring views for query history and CPU charts. Objects referenced by the bundled SQL include, among others:
 
 - `sys_query_history`, `sys_query_detail`
-- `sys_external_query_detail`, `sys_serverless_usage`
+- `sys_external_query_detail`
+
+**Deployment-specific (optional) metrics** — these steps are marked optional and degrade to absent when the underlying objects are not available:
+
+| Metric | Single-AZ provisioned | Multi-AZ provisioned | Serverless |
+|--------|----------------------|----------------------|------------|
+| Managed storage / nodes | `stv_node_storage_capacity`, `stv_partitions` | absent | `sys_serverless_usage` |
+| Cost incurred | absent | absent | `sys_serverless_usage` |
 
 Exact object access is determined by Amazon Redshift documentation for your edition; grant **minimum read** access consistent with those views/tables.
 
 :::tip
-If you cannot grant broad catalog access, narrow to the relations used in the YAML pipeline for your variant under `resources/assessments/redshift/<variant>/` in the Lakebridge package.
+If you cannot grant broad catalog access, narrow to the relations used in `resources/assessments/redshift/` in the Lakebridge package.
 :::
 
 ## Configure Connection to Redshift
@@ -77,7 +68,7 @@ If you cannot grant broad catalog access, narrow to the relations used in the YA
 databricks labs lakebridge configure-database-profiler
 ```
 
-Select one Redshift source variant when prompted (`redshift_serverless`, `redshift_provisioned`, or `redshift_provisioned_multi_az`). The wizard will ask for authentication type, credential source (`local` | `env` | `file`), and connection details — for password auth, for example:
+Select **`redshift`** when prompted for the source system. The wizard will ask for authentication type, credential source (`local` | `env` | `file`), and connection details — for password auth, for example:
 
 - Redshift cluster **endpoint** (host)
 - **Port** (default 5439)
@@ -92,11 +83,15 @@ Example-style transcript (values are illustrative):
 databricks labs lakebridge configure-database-profiler
 
 Please select the source system you want to configure
-[0] redshift_provisioned
-[1] redshift_provisioned_multi_az
-[2] redshift_serverless
-...
-Enter a number ...: 0
+[0] bigquery
+[1] legacy_synapse
+[2] mssql
+[3] oracle
+[4] redshift
+[5] snowflake
+[6] synapse
+[7] teradata
+Enter a number ...: 4
 
 Redshift authentication: sql_authentication or iam.
 
@@ -136,12 +131,14 @@ databricks labs lakebridge execute-database-profiler
 You can pass the source explicitly:
 
 ```bash
-databricks labs lakebridge execute-database-profiler --source-tech redshift_provisioned
+databricks labs lakebridge execute-database-profiler --source-tech redshift
 ```
+
+There is no deployment-variant prompt. A single pipeline covers serverless, single-AZ provisioned, and multi-AZ provisioned clusters; capacity and cost extracts that do not apply to the connected deployment are reported as expected-absent.
 
 Execution will:
 
-1. Load `pipeline_config.yml` for the chosen source variant.
+1. Load `pipeline_config.yml` for Redshift.
 2. Run **source_ddl** steps on the cluster (including creating/updating **`query_view`**).
 3. Run SQL extracts and persist results into a timestamped DuckDB file under the selected `--output-folder`.
 

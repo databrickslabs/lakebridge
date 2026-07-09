@@ -16,6 +16,4 @@ PROFILER_SOURCE_SYSTEM = sorted(
     ]
 )
 
-SOURCE_SYSTEM_VARIANTS = {
-    "redshift": ("serverless", "provisioned", "provisioned_multi_az"),
-}
+SOURCE_SYSTEM_VARIANTS = {}
