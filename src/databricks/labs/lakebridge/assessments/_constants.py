@@ -16,4 +16,4 @@ PROFILER_SOURCE_SYSTEM = sorted(
     ]
 )
 
-SOURCE_SYSTEM_VARIANTS = {}
+SOURCE_SYSTEM_VARIANTS: dict[str, tuple[str, ...]] = {}

@@ -5,7 +5,7 @@ import pytest
 
 import databricks.labs.lakebridge.resources.assessments as assessment_resources
 from databricks.labs.lakebridge.assessments.pipeline import PipelineClass
-from databricks.labs.lakebridge.assessments.profiler_config import PipelineConfig
+from databricks.labs.lakebridge.assessments.profiler_config import PipelineConfig, Step
 from databricks.labs.lakebridge.assessments.profiler import Profiler, get_pipeline
 
 
@@ -48,12 +48,8 @@ def test_redshift_unified_pipeline_includes_universal_and_optional_metrics() -> 
 
 def test_redshift_deployment_bound_sql_steps_are_optional() -> None:
     config = _load_pipeline_config()
-    optional_sql = [
-        step
-        for step in config.steps
-        if step.flag == "active" and step.type == "sql" and step.optional
-    ]
-    optional_by_name = {}
+    optional_sql = [step for step in config.steps if step.flag == "active" and step.type == "sql" and step.optional]
+    optional_by_name: dict[str, list[Step]] = {}
     for step in optional_sql:
         optional_by_name.setdefault(step.name, []).append(step)
 
@@ -98,9 +94,7 @@ def _read_step_sql(extract_source: str) -> str:
 def test_redshift_cpu_charts_use_sys_query_detail() -> None:
     config = _load_pipeline_config()
     cpu_steps = [
-        step
-        for step in config.steps
-        if step.flag == "active" and step.name.startswith("chart_cpu_consumption")
+        step for step in config.steps if step.flag == "active" and step.name.startswith("chart_cpu_consumption")
     ]
     assert len(cpu_steps) == 2
     for step in cpu_steps:
