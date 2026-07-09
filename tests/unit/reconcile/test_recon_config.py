@@ -66,9 +66,11 @@ def test_sampling_specifications_none_value_defaults_to_50():
 
 
 @pytest.mark.parametrize("bad_value", [0, -1, -100])
-def test_sampling_specifications_floors_non_positive_value(bad_value):
-    spec = SamplingSpecifications(value=bad_value)
+def test_sampling_specifications_floors_non_positive_value(bad_value, caplog):
+    with caplog.at_level("WARNING"):
+        spec = SamplingSpecifications(value=bad_value)
     assert spec.value == 50
+    assert any(f"value={bad_value} is not positive" in rec.message for rec in caplog.records)
 
 
 @pytest.mark.parametrize("bad_value", [True, False, "abc", [1]])

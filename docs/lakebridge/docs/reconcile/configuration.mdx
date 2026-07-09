@@ -425,6 +425,13 @@ Filters must use dialect-specific SQL expressions — they are applied directly 
 
 For `data` and `all` report types, Reconcile captures sample rows for each mismatch / missing-in-source / missing-in-target bucket. `sampling_options` controls **how many** rows are sampled and **how** they are drawn.
 
+:::note
+`sampling_options` applies to **row-level** reconcile (`data` / `all` report types) only.
+[Aggregates Reconciliation](#aggregates-reconciliation) always samples up to `50`
+(`DEFAULT_SAMPLE_ROWS`) rows per missing-in-source / missing-in-target set and ignores
+`sampling_options` (both the sampling method and size).
+:::
+
 ### SamplingSpecifications
 
 Controls the sample-size policy.
@@ -528,6 +535,12 @@ Stratified sampling — 10 strata on `ss_store_sk`, up to 500 sample rows total 
 ## Aggregates Reconciliation
 
 Reconcile aggregate metrics (MIN, MAX, COUNT, SUM, AVG, etc.) between source and target instead of comparing raw rows.
+
+:::note
+Aggregates reconcile always samples up to `50` (`DEFAULT_SAMPLE_ROWS`) rows per
+missing-in-source / missing-in-target set; [`sampling_options`](#sampling-options) does not
+apply here.
+:::
 
 ### Supported Functions
 

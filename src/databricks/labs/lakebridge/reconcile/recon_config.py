@@ -80,6 +80,9 @@ class SamplingSpecifications:
         # Safe today because FRACTION raises above; revisit when FRACTION is enabled.
         self.value = int(self.value)
         if self.value <= 0:
+            logger.warning(
+                f"SamplingSpecifications: value={self.value} is not positive; defaulting to {DEFAULT_SAMPLE_ROWS}"
+            )
             self.value = DEFAULT_SAMPLE_ROWS
 
 
