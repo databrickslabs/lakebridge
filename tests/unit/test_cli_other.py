@@ -240,7 +240,7 @@ def test_parse_profiler_variant_returns_expected(source_tech, variant, expected)
 def test_parse_profiler_variant_does_not_prompt_when_no_variants_registered():
     """With an empty variant registry, omitted variant never prompts."""
     prompts = MagicMock()
-    assert SOURCE_SYSTEM_VARIANTS == {}
+    assert not SOURCE_SYSTEM_VARIANTS
     assert cli.parse_profiler_variant(prompts, "redshift", None) is None
     prompts.choice.assert_not_called()
 

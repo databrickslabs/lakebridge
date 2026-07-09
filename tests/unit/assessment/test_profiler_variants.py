@@ -19,4 +19,4 @@ def test_variants_resolve_pipeline_config_path(source: str, variant: str) -> Non
 
 def test_no_source_system_variants_registered() -> None:
     """Profiler sources currently resolve without a variant subpath."""
-    assert SOURCE_SYSTEM_VARIANTS == {}
+    assert not SOURCE_SYSTEM_VARIANTS
