@@ -30,6 +30,7 @@ class ReconSourceType(AutoName):
     SYNAPSE = auto()
     REDSHIFT = auto()
     TERADATA = auto()
+    BIGQUERY = auto()
 
 
 class ReconReportType(AutoName):

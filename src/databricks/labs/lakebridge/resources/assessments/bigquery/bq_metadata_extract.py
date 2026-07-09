@@ -3,11 +3,11 @@ import json
 import sys
 import threading
 import time
+import warnings
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Callable
 
 import pandas as pd
-from google.cloud import bigquery
 
 from databricks.labs.lakebridge import initialize_logging
 from databricks.labs.lakebridge.assessments import PRODUCT_NAME
@@ -17,6 +17,12 @@ from databricks.labs.lakebridge.resources.assessments.common.sql_substituter imp
 from databricks.labs.blueprint.entrypoint import get_logger
 from databricks.labs.lakebridge.resources.assessments.common.cli import arguments_loader
 from databricks.labs.lakebridge.resources.assessments.common.duckdb_helpers import save_to_duckdb
+
+# google.api_core emits a FutureWarning about Python <3.11 EOL on import; not actionable here.
+# Scope the suppression to the import so we don't mask the same warning elsewhere.
+with warnings.catch_warnings():
+    warnings.filterwarnings("ignore", message="You are using a Python version", category=FutureWarning)
+    from google.cloud import bigquery
 
 logger = get_logger(__file__)
 

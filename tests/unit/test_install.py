@@ -792,6 +792,65 @@ def test_configure_reconcile_no_existing_installation(ws: WorkspaceClient) -> No
     )
 
 
+def test_configure_reconcile_bigquery_no_existing_installation(ws: WorkspaceClient) -> None:
+    prompts = MockPrompts(
+        {
+            r"Select the Data Source": str(RECONCILE_DATA_SOURCES.index("bigquery")),
+            r"Select the report type": str(RECONCILE_REPORT_TYPES.index("all")),
+            r"Enter Unity Catalog .* connection name": "my_bq_conn",
+            r"Enter BigQuery project ID": "my-gcp-project",
+            r"Enter BigQuery dataset name": "sample_dataset",
+            r"Enter target Databricks catalog name": "tpch",
+            r"Enter target Databricks schema name": "1000gb",
+            r"Open .* in the browser?": "no",
+        }
+    )
+    installation = MockInstallation()
+    resource_configurator = create_autospec(ResourceConfigurator)
+    resource_configurator.prompt_for_catalog_setup.return_value = "remorph"
+    resource_configurator.prompt_for_schema_setup.return_value = "reconcile"
+    resource_configurator.prompt_for_volume_setup.return_value = "reconcile_volume"
+
+    ctx = ApplicationContext(ws)
+    ctx.replace(
+        prompts=prompts,
+        installation=installation,
+        resource_configurator=resource_configurator,
+        workspace_installation=create_autospec(WorkspaceInstallation),
+    )
+
+    workspace_installer = WorkspaceInstaller(
+        ctx.workspace_client,
+        ctx.prompts,
+        ctx.installation,
+        ctx.install_state,
+        ctx.product_info,
+        ctx.resource_configurator,
+        ctx.workspace_installation,
+    )
+    config = workspace_installer.configure(module="reconcile")
+
+    expected_config = LakebridgeConfiguration(
+        reconcile=ReconcileConfig(
+            report_type="all",
+            source=SourceConnectionConfig(
+                dialect="bigquery",
+                catalog="my-gcp-project",
+                schema="sample_dataset",
+                uc_connection_name="my_bq_conn",
+            ),
+            target=TargetConnectionConfig(catalog="tpch", schema="1000gb"),
+            metadata_config=ReconcileMetadataConfig(
+                catalog="remorph",
+                schema="reconcile",
+                volume="reconcile_volume",
+            ),
+        ),
+        transpile=None,
+    )
+    assert config == expected_config
+
+
 def _teradata_install_ctx(workspace_client: WorkspaceClient, prompts: MockPrompts) -> WorkspaceInstaller:
     installation = MockInstallation()
     resource_configurator = create_autospec(ResourceConfigurator)
