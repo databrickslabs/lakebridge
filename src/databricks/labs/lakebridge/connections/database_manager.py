@@ -48,16 +48,17 @@ def _concise_error_message(exc: Exception) -> str:
 
 
 _SQLSTATE_PATTERN = re.compile(r"[0-9A-Za-z]{5}")
+_SQLSTATE_IN_MESSAGE = re.compile(r"\[SQLState ([0-9A-Za-z]{5})\]")
 
 
 def extract_sqlstate(exc: Exception) -> str | None:
     """Extract SQLSTATE from a driver exception when available.
 
-    Handles the three shapes across our drivers:
+    Handles shapes across our drivers:
       - Redshift (``redshift_connector``): SQLSTATE lives in ``exc.args[0]["C"]``.
       - Postgres-family (psycopg/pg8000): exposed as ``orig.sqlstate`` / ``orig.pgcode``.
-      - pyodbc (MSSQL/Synapse): no attribute; SQLSTATE is the first element of
-        ``orig.args`` as a 5-character string (e.g. ``('42S02', '[42S02] ...')``).
+      - pyodbc (MSSQL/Synapse): SQLSTATE is the first element of ``orig.args``.
+      - Teradata (``teradatasql``): embedded in the message as ``[SQLState XXXXX]``.
     """
     if exc.args and isinstance(exc.args[0], dict):
         sqlstate = exc.args[0].get("C")
@@ -74,6 +75,11 @@ def extract_sqlstate(exc: Exception) -> str | None:
         orig_args = getattr(orig, "args", ())
         if orig_args and isinstance(orig_args[0], str) and _SQLSTATE_PATTERN.fullmatch(orig_args[0]):
             return orig_args[0]
+
+    for candidate in (orig, exc) if orig is not None else (exc,):
+        match = _SQLSTATE_IN_MESSAGE.search(str(candidate))
+        if match:
+            return match.group(1)
 
     return None
 
@@ -198,10 +204,6 @@ class MSSQLConnector(_BaseConnector):
 
 
 class TeradataConnector(_BaseConnector):
-    # teradatasql exposes no SQLSTATE attribute; it embeds the token in the message
-    # text, e.g. "... [Error 3802] [SQLState 42S02] Database 'x' does not exist."
-    _SQLSTATE_IN_MESSAGE = re.compile(r"\[SQLState ([0-9A-Za-z]{5})\]")
-
     def _connect(self) -> Engine:
         query_params: dict[str, str] = {}
         if self.config.get("database"):
@@ -216,27 +218,6 @@ class TeradataConnector(_BaseConnector):
             query=query_params,
         )
         return create_engine(connection_string)
-
-    def fetch(self, query: str) -> FetchResult:
-        # Classify Teradata driver errors here rather than in the shared DatabaseManager
-        # path: the generic extract_sqlstate() cannot read teradatasql's SQLSTATE (it is
-        # only present in the message text). Raising a SourceQueryError directly keeps
-        # this driver-specific parsing isolated from the other connectors, and
-        # DatabaseManager.fetch re-raises SourceQueryError without re-wrapping it.
-        try:
-            return super().fetch(query)
-        except SourceQueryError:
-            raise
-        except Exception as e:
-            reason = _concise_error_message(e)
-            sqlstate = self._extract_sqlstate(e)
-            category = classify_sqlstate(sqlstate, reason)
-            raise SourceQueryError(category, sqlstate, reason) from e
-
-    @classmethod
-    def _extract_sqlstate(cls, exc: Exception) -> str | None:
-        match = cls._SQLSTATE_IN_MESSAGE.search(str(getattr(exc, "orig", exc)))
-        return match.group(1) if match else None
 
 
 class OracleConnector(_BaseConnector):

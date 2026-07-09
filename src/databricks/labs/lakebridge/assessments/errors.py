@@ -2,7 +2,7 @@ import re
 from enum import Enum
 
 # Teradata driver embeds numeric codes in messages when SQLSTATE is unavailable.
-_TERADATA_ABSENCE_CODES = frozenset({"3807"})
+_TERADATA_ABSENCE_CODES = frozenset({"3802", "3807"})
 _TERADATA_PERMISSION_CODES = frozenset({"3523"})
 
 _ABSENCE_SQLSTATES = frozenset({"42P01", "42703", "42S02", "3F000"})
