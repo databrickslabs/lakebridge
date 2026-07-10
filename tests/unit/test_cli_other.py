@@ -227,6 +227,8 @@ def test_cli_execute_database_profiler_missing_cred_file_raises(mock_workspace_c
         ("redshift", "PROVISIONED", "provisioned"),  # normalized to lower-case
         ("snowflake", None, None),  # source has no variants, none requested
         ("snowflake", "anything", None),  # source has no variants → stray input ignored
+        ("teradata", None, None),  # unified pipeline, no variant required
+        ("teradata", "core", None),  # legacy variant input is ignored
     ),
 )
 def test_parse_profiler_variant_returns_expected(source_tech, variant, expected):

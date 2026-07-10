@@ -19,6 +19,7 @@ from databricks.labs.lakebridge.assessments.errors import ErrorCategory, classif
         ("42501", "", ErrorCategory.PERMISSION),
         ("42601", "", ErrorCategory.SYNTAX),
         # Teradata numeric fallback parsed from the message when SQLSTATE is absent
+        (None, "[Error 3802] Database 'pdcrinfo' does not exist", ErrorCategory.ABSENCE),
         (None, "[Error 3807] Object 'FOO' does not exist", ErrorCategory.ABSENCE),
         (None, "[Error 3523] The user does not have privilege", ErrorCategory.PERMISSION),
         # SQLSTATE takes precedence over the message fallback

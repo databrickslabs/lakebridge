@@ -145,3 +145,29 @@ def test_extract_sqlstate_ignores_non_sqlstate_args() -> None:
     error = OperationalError("statement", {}, Exception("placeholder"))
     error.orig = orig
     assert extract_sqlstate(error) is None
+
+
+def test_extract_sqlstate_from_teradata_message() -> None:
+    orig = Exception(
+        "[Version 20.0.0.61] [Session 1] [Teradata Database] "
+        "[Error 3802] [SQLState 42S02] Database 'pdcrinfo' does not exist."
+    )
+    error = OperationalError("statement", {}, orig)
+    assert extract_sqlstate(error) == "42S02"
+
+
+@patch('databricks.labs.lakebridge.connections.database_manager.TeradataConnector')
+def test_fetch_raises_source_query_error_for_teradata_missing_database(mock_teradata_connector) -> None:
+    mock_connector_instance = MagicMock()
+    mock_teradata_connector.return_value = mock_connector_instance
+
+    orig = Exception("[Error 3802] [SQLState 42S02] Database 'pdcrinfo' does not exist.")
+    mock_connector_instance.fetch.side_effect = OperationalError("statement", {}, orig)
+
+    db_manager = DatabaseManager("teradata", sample_config)
+
+    with pytest.raises(SourceQueryError) as exc_info:
+        db_manager.fetch("SELECT 1 FROM PDCRINFO.DBQLogTbl_Hst")
+
+    assert exc_info.value.category == ErrorCategory.ABSENCE
+    assert exc_info.value.sqlstate == "42S02"
