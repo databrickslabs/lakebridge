@@ -4,7 +4,9 @@
  * name, total rows, reserved, used, and unused space (MB), breakdown of data vs.
  * index space, and a timestamp indicating when the data was extracted.
  */
-SELECT o.NAME                                                               AS
+SELECT DB_NAME()                                                            AS
+       database_name,
+       o.NAME                                                               AS
        TableName,
        Sum(ps.row_count)                                                    AS
        [RowCount],

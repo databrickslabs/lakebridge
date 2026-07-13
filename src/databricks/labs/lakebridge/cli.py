@@ -1138,14 +1138,14 @@ def execute_database_profiler(
             default=str(default_output_folder(source_tech)),
         ).strip()
 
-    profiler = Profiler.create(source_tech, variant)
+    profiler = Profiler.create(source_tech, variant, creds_path)
     # TODO: Add extractor logic to ApplicationContext instead of creating inside the Profiler class
     profiler.profile(output_folder=Path(output_folder), cred_file_path=creds_path)
 
 
 def parse_profiler_variant(prompts: Prompts, source_tech: str, variant: str | None) -> str | None:
-    variants = SOURCE_SYSTEM_VARIANTS.get(source_tech)
-    if variants:
+    variants = SOURCE_SYSTEM_VARIANTS.get(source_tech, ())
+    if len(variants) > 1:
         if variant:
             variant = variant.lower()
             if variant not in variants:

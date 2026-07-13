@@ -8,6 +8,7 @@ from databricks.labs.lakebridge.assessments.pipeline import (
     make_profiler_db_filename,
 )
 from databricks.labs.lakebridge.assessments.profiler_config import PipelineConfig
+from databricks.labs.lakebridge.assessments.variants import resolve_variant
 from databricks.labs.lakebridge.connections.database_manager import DatabaseManager
 from databricks.labs.lakebridge.connections.credential_manager import (
     create_credential_manager,
@@ -41,13 +42,14 @@ class Profiler:
         self._pipeline_config = pipeline_configs
 
     @classmethod
-    def create(cls, source_system: str, variant: str | None) -> "Profiler":
-        pipeline_config_path = get_pipeline(source_system, variant)
+    def create(cls, source_system: str, variant: str | None = None, cred_file_path: Path | None = None) -> "Profiler":
+        resolved_variant = resolve_variant(source_system, variant, cred_file_path=cred_file_path)
+        pipeline_config_path = get_pipeline(source_system, resolved_variant)
         if not pipeline_config_path.exists():
             raise FileNotFoundError(f"Configuration file not found: {pipeline_config_path}")
 
         pipeline_config = Profiler.path_modifier(config_file=pipeline_config_path)
-        return cls(source_system, variant, pipeline_config)
+        return cls(source_system, resolved_variant, pipeline_config)
 
     @staticmethod
     def path_modifier(*, config_file: str | Path, path_prefix: Path = PRODUCT_PATH_PREFIX) -> PipelineConfig:

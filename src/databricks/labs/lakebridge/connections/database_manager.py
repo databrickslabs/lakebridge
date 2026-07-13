@@ -164,11 +164,16 @@ class SnowflakeConnector(_BaseConnector):
         return create_engine(snowflake_url)
 
 
+# In the mssql credential's ``database`` field, this sentinel (or a blank/whitespace value) means "no
+# specific database": connect to ``master``. The multi-database SQL Server profiler then enumerates all DBs.
+ALL_DATABASES = "*"
+
+
 class MSSQLConnector(_BaseConnector):
     def _connect(self) -> Engine:
         auth_type = self.config.get('auth_type', 'sql_authentication')
-        db_value = self.config.get('database')
-        db_name = str(db_value) if db_value else None
+        db_value = str(self.config.get('database') or "").strip()
+        db_name = db_value if db_value and db_value != ALL_DATABASES else "master"
 
         query_params: dict[str, str] = {
             "driver": str(self.config['driver']),
