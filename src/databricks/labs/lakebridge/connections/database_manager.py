@@ -6,15 +6,17 @@ import re
 from abc import abstractmethod
 from types import TracebackType
 from collections.abc import Callable, Sequence, Set
-from typing import Any, NoReturn
+from typing import Any, NoReturn, TypeVar
 
 import pandas as pd
 
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine, URL
 from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm.session import Session
 import redshift_connector  # type: ignore[import-untyped]
+from redshift_connector import error as redshift_error
 
 from databricks.labs.blueprint.installation import JsonObject
 from databricks.labs.lakebridge.assessments.errors import (
@@ -34,6 +36,9 @@ from databricks.labs.lakebridge.connections.snowflake_utils import (
 importlib.import_module("snowflake.sqlalchemy")
 
 logger = logging.getLogger(__name__)
+
+T = TypeVar("T")
+_SOURCE_QUERY_ERRORS = (SQLAlchemyError, ConnectionError, redshift_error.Error)
 
 
 @dataclasses.dataclass
@@ -390,20 +395,21 @@ class DatabaseManager:
     def _raise_source_query_error(self, exc: Exception) -> NoReturn:
         raise SourceQueryError(self.connector.parse_source_error(exc)) from exc
 
-    def fetch(self, query: str) -> FetchResult:
+    def _with_source_query_error_handling(self, operation: Callable[[], T], debug_message: str) -> T:
         try:
-            return self.connector.fetch(query)
-        except SourceQueryError:
-            raise
-        except Exception as e:  # pylint: disable=broad-exception-caught
-            logger.debug("Database query failed", exc_info=True)
+            return operation()
+        except _SOURCE_QUERY_ERRORS as e:
+            logger.debug(debug_message, exc_info=True)
             self._raise_source_query_error(e)
 
+    def fetch(self, query: str) -> FetchResult:
+        return self._with_source_query_error_handling(
+            lambda: self.connector.fetch(query),
+            "Database query failed",
+        )
+
     def check_connection(self) -> bool:
-        try:
-            return self.connector.health_check()
-        except SourceQueryError:
-            raise
-        except Exception as e:  # pylint: disable=broad-exception-caught
-            logger.debug("Database health check failed", exc_info=True)
-            self._raise_source_query_error(e)
+        return self._with_source_query_error_handling(
+            self.connector.health_check,
+            "Database health check failed",
+        )
