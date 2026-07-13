@@ -10,7 +10,6 @@ from databricks.sdk import WorkspaceClient
 from databricks.labs.blueprint.tui import MockPrompts
 from databricks.labs.blueprint.installation import MockInstallation
 from databricks.labs.lakebridge import cli
-from databricks.labs.lakebridge.assessments import SOURCE_SYSTEM_VARIANTS
 from databricks.labs.lakebridge.assessments.profiler import default_output_folder
 from databricks.labs.lakebridge.config import (
     LSPConfigOptionV1,
@@ -151,7 +150,7 @@ def test_cli_execute_database_profiler_output_folder(
             output_folder=output_folder_arg,
         )
 
-    create_mock.assert_called_once_with("snowflake", None)
+    create_mock.assert_called_once_with("snowflake", None, fake_cred)
     profiler.profile.assert_called_once_with(output_folder=expected_path, cred_file_path=fake_cred)
 
 
@@ -237,11 +236,11 @@ def test_parse_profiler_variant_returns_expected(source_tech, variant, expected)
     prompts.choice.assert_not_called()
 
 
-def test_parse_profiler_variant_does_not_prompt_when_no_variants_registered():
-    """With an empty variant registry, omitted variant never prompts."""
+def test_parse_profiler_variant_does_not_prompt_for_unified_sources():
+    """Unified pipelines (redshift, teradata) never prompt for a variant."""
     prompts = MagicMock()
-    assert not SOURCE_SYSTEM_VARIANTS
     assert cli.parse_profiler_variant(prompts, "redshift", None) is None
+    assert cli.parse_profiler_variant(prompts, "teradata", None) is None
     prompts.choice.assert_not_called()
 
 

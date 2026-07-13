@@ -3,7 +3,7 @@ from typing import cast
 
 import pytest
 
-from databricks.labs.lakebridge.assessments.errors import ErrorCategory, SourceQueryError
+from databricks.labs.lakebridge.assessments.errors import ErrorCategory, SourceFailure, SourceQueryError
 from databricks.labs.lakebridge.assessments.pipeline import (
     PipelineClass,
     PipelineExecutionResult,
@@ -45,6 +45,15 @@ def _run(config: PipelineConfig, executor: _FakeExecutor, tmp_path: Path) -> Pip
     return PipelineClass(config, cast(DatabaseManager, executor), tmp_path / "out.db", tmp_path / "creds.yml").execute()
 
 
+def _source_query_error(
+    category: ErrorCategory,
+    reason: str,
+    *,
+    sqlstate: str | None = None,
+) -> SourceQueryError:
+    return SourceQueryError(SourceFailure(category=category, reason=reason, sqlstate=sqlstate))
+
+
 # --- Category -> status policy (the core mapping, including the "optional never rescues our bugs" guarantee) ---
 
 
@@ -79,7 +88,7 @@ def test_status_for_source_error(category: ErrorCategory, optional: bool, expect
 def test_fatal_error_aborts_pipeline(category: ErrorCategory, sqlstate: str, tmp_path: Path) -> None:
     query_path = _write_query(tmp_path, "first.sql", "SELECT 1")
     config = _config(Step(name="first", type="sql", extract_source=query_path, optional=True))
-    executor = _FakeExecutor({"SELECT 1": SourceQueryError(category, sqlstate, "cannot reach source")})
+    executor = _FakeExecutor({"SELECT 1": _source_query_error(category, "cannot reach source", sqlstate=sqlstate)})
 
     with pytest.raises(RuntimeError, match="aborted at step 'first'"):
         _run(config, executor, tmp_path)
@@ -98,7 +107,7 @@ def test_optional_absence_step_completes_pipeline(tmp_path: Path) -> None:
     executor = _FakeExecutor(
         {
             "SELECT 2": FetchResult({"value"}, [(1,)]),
-            "SELECT 1": SourceQueryError(ErrorCategory.ABSENCE, "42P01", "relation does not exist"),
+            "SELECT 1": _source_query_error(ErrorCategory.ABSENCE, "relation does not exist", sqlstate="42P01"),
         }
     )
 
@@ -112,7 +121,9 @@ def test_optional_absence_step_completes_pipeline(tmp_path: Path) -> None:
 def test_required_absence_step_fails_pipeline(tmp_path: Path) -> None:
     query_path = _write_query(tmp_path, "missing.sql", "SELECT 1")
     config = _config(Step(name="required_metric", type="sql", extract_source=query_path))
-    executor = _FakeExecutor({"SELECT 1": SourceQueryError(ErrorCategory.ABSENCE, "42P01", "relation does not exist")})
+    executor = _FakeExecutor(
+        {"SELECT 1": _source_query_error(ErrorCategory.ABSENCE, "relation does not exist", sqlstate="42P01")}
+    )
 
     with pytest.raises(RuntimeError, match="errors in steps: required_metric"):
         _run(config, executor, tmp_path)
@@ -121,7 +132,9 @@ def test_required_absence_step_fails_pipeline(tmp_path: Path) -> None:
 def test_all_sql_steps_absent_triggers_success_floor(tmp_path: Path) -> None:
     query_path = _write_query(tmp_path, "missing.sql", "SELECT 1")
     config = _config(Step(name="optional_metric", type="sql", extract_source=query_path, optional=True))
-    executor = _FakeExecutor({"SELECT 1": SourceQueryError(ErrorCategory.ABSENCE, "42P01", "relation does not exist")})
+    executor = _FakeExecutor(
+        {"SELECT 1": _source_query_error(ErrorCategory.ABSENCE, "relation does not exist", sqlstate="42P01")}
+    )
 
     with pytest.raises(RuntimeError, match="every active SQL step was absent"):
         _run(config, executor, tmp_path)
@@ -138,7 +151,11 @@ def test_source_ddl_optional_absence_is_tolerated(tmp_path: Path) -> None:
     )
     executor = _FakeExecutor(
         {
-            view_sql: SourceQueryError(ErrorCategory.ABSENCE, "42P01", "relation missing_base_table does not exist"),
+            view_sql: _source_query_error(
+                ErrorCategory.ABSENCE,
+                "relation missing_base_table does not exist",
+                sqlstate="42P01",
+            ),
             "SELECT 3": FetchResult({"value"}, [(3,)]),
         }
     )
@@ -168,7 +185,11 @@ def test_optional_absence_integration_fixture(test_resources: Path, tmp_path: Pa
     executor = _FakeExecutor(
         {
             required_sql: FetchResult({"sql_handle"}, [("abc",)]),
-            missing_sql: SourceQueryError(ErrorCategory.ABSENCE, "42S02", "Invalid object name 'non_existent_table'."),
+            missing_sql: _source_query_error(
+                ErrorCategory.ABSENCE,
+                "Invalid object name 'non_existent_table'.",
+                sqlstate="42S02",
+            ),
         }
     )
 
