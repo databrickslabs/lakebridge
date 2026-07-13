@@ -253,6 +253,10 @@ def _get_is_string(column_types_dict: dict[str, DataType], column_name: str) -> 
 
 DataType_transform_mapping: dict[str, dict[str, list[partial[exp.Expression]]]] = {  # pylint: disable=invalid-name
     "universal": {"default": [partial(coalesce, default='_null_recon_', is_string=True), partial(trim)]},
+    "bigquery": {
+        # TODO: add timestamps and numbers handling
+        "default": [partial(anonymous, func="COALESCE(TRIM(CAST({} AS STRING)), '_null_recon_')")],
+    },
     "snowflake": {exp.DataType.Type.ARRAY.value: [partial(array_to_string), partial(array_sort)]},
     "oracle": {
         exp.DataType.Type.NCHAR.value: [
@@ -384,6 +388,17 @@ Dialect_hash_algo_mapping: dict[Dialect, HashAlgoMapping] = {  # pylint: disable
     ),
     get_dialect("redshift"): HashAlgoMapping(
         source=sha256_partial,
+        target=sha256_partial,
+    ),
+    get_dialect("bigquery"): HashAlgoMapping(
+        # sqlglot renders exp.SHA2 as BigQuery SHA256() which returns BYTES; wrap in TO_HEX to match
+        # Databricks' sha2(..., 256) lowercase-hex output (verified equal on real BigQuery).
+        source=partial(
+            anonymous,
+            func="TO_HEX(SHA256({}))",
+            is_expr=True,
+            dialect=get_dialect("bigquery"),
+        ),
         target=sha256_partial,
     ),
     # Teradata is intentionally absent: it has no portable cryptographic hash in pure SQL, so

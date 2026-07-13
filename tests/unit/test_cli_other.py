@@ -25,7 +25,8 @@ from databricks.labs.lakebridge.helpers.recon_config_utils import ReconConfigPro
 
 
 def test_configure_secrets_databricks(mock_workspace_client):
-    source_dict = {"databricks": "0", "netezza": "1", "oracle": "2", "snowflake": "3"}
+    # index into the alphabetically-sorted ReconSourceType values (bigquery sorts first → databricks is 1)
+    source_dict = {"databricks": "1", "oracle": "3", "snowflake": "5"}
     prompts = MockPrompts(
         {
             r"Select the source": source_dict["databricks"],
