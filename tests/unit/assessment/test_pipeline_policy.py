@@ -121,7 +121,9 @@ def test_optional_absence_step_completes_pipeline(tmp_path: Path) -> None:
 def test_required_absence_step_fails_pipeline(tmp_path: Path) -> None:
     query_path = _write_query(tmp_path, "missing.sql", "SELECT 1")
     config = _config(Step(name="required_metric", type="sql", extract_source=query_path))
-    executor = _FakeExecutor({"SELECT 1": _source_query_error(ErrorCategory.ABSENCE, "relation does not exist", sqlstate="42P01")})
+    executor = _FakeExecutor(
+        {"SELECT 1": _source_query_error(ErrorCategory.ABSENCE, "relation does not exist", sqlstate="42P01")}
+    )
 
     with pytest.raises(RuntimeError, match="errors in steps: required_metric"):
         _run(config, executor, tmp_path)
@@ -130,7 +132,9 @@ def test_required_absence_step_fails_pipeline(tmp_path: Path) -> None:
 def test_all_sql_steps_absent_triggers_success_floor(tmp_path: Path) -> None:
     query_path = _write_query(tmp_path, "missing.sql", "SELECT 1")
     config = _config(Step(name="optional_metric", type="sql", extract_source=query_path, optional=True))
-    executor = _FakeExecutor({"SELECT 1": _source_query_error(ErrorCategory.ABSENCE, "relation does not exist", sqlstate="42P01")})
+    executor = _FakeExecutor(
+        {"SELECT 1": _source_query_error(ErrorCategory.ABSENCE, "relation does not exist", sqlstate="42P01")}
+    )
 
     with pytest.raises(RuntimeError, match="every active SQL step was absent"):
         _run(config, executor, tmp_path)

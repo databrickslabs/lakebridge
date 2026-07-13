@@ -395,7 +395,7 @@ class DatabaseManager:
             return self.connector.fetch(query)
         except SourceQueryError:
             raise
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-exception-caught
             logger.debug("Database query failed", exc_info=True)
             self._raise_source_query_error(e)
 
@@ -404,6 +404,6 @@ class DatabaseManager:
             return self.connector.health_check()
         except SourceQueryError:
             raise
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-exception-caught
             logger.debug("Database health check failed", exc_info=True)
             self._raise_source_query_error(e)
