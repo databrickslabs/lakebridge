@@ -86,7 +86,7 @@ def test_configure_sqlserver_credentials_all_databases(tmp_path):
     with open(file, 'r', encoding='utf-8') as handle:
         credentials = yaml.safe_load(handle)
 
-    assert credentials['mssql']['database'] == ""
+    assert credentials['mssql']['database'] == "*"
 
 
 def test_configure_synapse_credentials(tmp_path):
