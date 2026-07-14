@@ -1103,7 +1103,7 @@ def execute_database_profiler(
 
     On success the profiler writes a DuckDB ``.db`` extract and a compressed
     sibling ``.db.zst``. Share the ``.db.zst`` with Databricks; keep the ``.db``
-    for local inspection. See the Profiler Guide ("Sharing profiler extracts").
+    for local inspection.
     """
     ctx = ApplicationContext(w)
     ctx.add_user_agent_extra("cmd", "execute-profiler")
