@@ -1,4 +1,4 @@
-"""Compress profiler DuckDB extracts to a sibling ``.db.zst`` for sharing."""
+"""Compress profiler DuckDB extracts to a sibling ``.db.zst``."""
 
 from __future__ import annotations
 
@@ -10,18 +10,13 @@ import zstandard as zstd
 ZSTD_LEVEL = 3
 
 
-def compressed_extract_path(db_path: Path) -> Path:
-    """Return the sibling ``.db.zst`` path for a profiler DuckDB file."""
-    return Path(f"{db_path}.zst")
-
-
 def compress_profiler_db(db_path: Path, *, level: int = ZSTD_LEVEL) -> Path:
     """Write a zstd-compressed sibling of ``db_path`` (``*.db.zst``)."""
     source = db_path.expanduser()
     if not source.is_file():
         raise FileNotFoundError(f"Profiler extract not found: {source}")
 
-    dest = compressed_extract_path(source)
+    dest = Path(f"{source}.zst")
     compressor = zstd.ZstdCompressor(level=level, threads=-1)
     with source.open("rb") as input_handle, dest.open("wb") as output_handle:
         compressor.copy_stream(input_handle, output_handle)

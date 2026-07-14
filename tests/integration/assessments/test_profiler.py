@@ -37,7 +37,9 @@ def test_profile_execution(platform: str, test_resources: Path, tmp_path: Path) 
     profiler = Profiler(platform)
     config = Profiler.path_modifier(config_file=config_file, path_prefix=test_resources)
     profiler.profile(pipeline_config=config, output_folder=output_folder)
-    assert (output_folder / make_profiler_db_filename(platform)).exists(), "Profiler extract database should be created"
+    db_path = output_folder / make_profiler_db_filename(platform)
+    assert db_path.exists(), "Profiler extract database should be created"
+    assert Path(f"{db_path}.zst").exists(), "Compressed sibling .db.zst should be written with the extract"
 
 
 @pytest.mark.parametrize("platform", _TEST_PLATFORMS)
@@ -73,4 +75,6 @@ def test_profile_execution_config_override(platform: str, test_resources: Path, 
     profiler = Profiler(platform)
     pipeline_config = PipelineClass.load_config_from_yaml(config_file_dest)
     profiler.profile(pipeline_config=pipeline_config, output_folder=output_folder)
-    assert (output_folder / make_profiler_db_filename(platform)).exists(), "Profiler extract database should be created"
+    db_path = output_folder / make_profiler_db_filename(platform)
+    assert db_path.exists(), "Profiler extract database should be created"
+    assert Path(f"{db_path}.zst").exists(), "Compressed sibling .db.zst should be written with the extract"
