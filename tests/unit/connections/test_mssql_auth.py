@@ -24,8 +24,8 @@ def test_sql_password_returns_user_and_password_from_config() -> None:
     resolved = SqlPassword.resolve_credentials({"user": "alice", "password": "secret"})
     assert resolved.username == "alice"
     assert resolved.password == "secret"
-    assert resolved.authentication_param == "SqlPassword"
-    assert resolved.engine_kwargs == {}
+    # Plain UID/PWD SQL auth: no Authentication= keyword is emitted
+    assert resolved.authentication_param is None
 
 
 def test_sql_password_missing_user_raises_key_error() -> None:
@@ -122,7 +122,7 @@ def test_default_auth_type_is_sql_password() -> None:
     resolved = resolve_mssql_credentials({"user": "u", "password": "p"})
     assert resolved.username == "u"
     assert resolved.password == "p"
-    assert resolved.authentication_param == "SqlPassword"
+    assert resolved.authentication_param is None
 
 
 def test_invalid_legacy_auth_type_no_longer_aliased(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -133,28 +133,60 @@ def test_invalid_legacy_auth_type_no_longer_aliased(monkeypatch: pytest.MonkeyPa
         resolve_mssql_credentials({"auth_type": "spn_authentication"})
 
 
-def test_mssql_connector_applies_resolved_credentials_to_url(monkeypatch: pytest.MonkeyPatch) -> None:
-    """MSSQLConnector calls resolve_mssql_credentials and applies the result to URL.create + create_engine."""
+def test_mssql_connector_applies_resolved_credentials_to_connection_string(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """MSSQLConnector calls resolve_mssql_credentials and applies the result to mssql_python.connect."""
     monkeypatch.setenv("AZURE_CLIENT_ID", "spn-id")
     monkeypatch.setenv("AZURE_CLIENT_SECRET", "spn-secret")
 
     captured = {}
 
-    def fake_create_engine(connection_string, **kwargs):
-        captured["url"] = connection_string
+    def fake_connect(connection_string, **kwargs):
+        captured["connection_string"] = connection_string
         captured["kwargs"] = kwargs
         return object()
 
-    with patch("databricks.labs.lakebridge.connections.database_manager.create_engine", side_effect=fake_create_engine):
+    with patch(
+        "databricks.labs.lakebridge.connections.database_manager.mssql_python.connect", side_effect=fake_connect
+    ):
         MSSQLConnector(
             {
                 "auth_type": "ActiveDirectoryServicePrincipal",
                 "server": "test-server",
                 "port": 1433,
                 "database": "master",
+            }
+        )
+
+    assert "Server=test-server,1433" in captured["connection_string"]
+    assert "Authentication=ActiveDirectoryServicePrincipal" in captured["connection_string"]
+    assert "UID=spn-id" in captured["connection_string"]
+    assert captured["kwargs"]["timeout"] == 30
+
+
+def test_mssql_connector_sql_password_omits_authentication_keyword() -> None:
+    """SQL auth is plain UID/PWD; a legacy `driver` key from old credential files is ignored."""
+    captured = {}
+
+    def fake_connect(connection_string, **kwargs):
+        captured["connection_string"] = connection_string
+        return object()
+
+    with patch(
+        "databricks.labs.lakebridge.connections.database_manager.mssql_python.connect", side_effect=fake_connect
+    ):
+        MSSQLConnector(
+            {
+                "server": "test-server",
+                "port": 1433,
+                "database": "master",
+                "user": "alice",
+                "password": "secret",
                 "driver": "ODBC Driver 18 for SQL Server",
             }
         )
 
-    assert "ActiveDirectoryServicePrincipal" in str(captured["url"])
-    assert "spn-id" in str(captured["url"])
+    assert "Authentication=" not in captured["connection_string"]
+    assert "UID=alice" in captured["connection_string"]
+    assert "PWD=secret" in captured["connection_string"]

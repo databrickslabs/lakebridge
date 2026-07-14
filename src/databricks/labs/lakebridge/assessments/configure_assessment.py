@@ -163,9 +163,6 @@ class ConfigureSqlServerAssessment(AssessmentConfigurator):
             ),
             "trust_server_certificate": self.prompts.confirm("Trust server certificate"),
             "tz_info": self.prompts.question("Enter timezone (e.g. America/New_York)", default="UTC"),
-            "driver": self.prompts.question(
-                "Enter the ODBC driver installed locally", default="ODBC Driver 18 for SQL Server"
-            ),
         }
 
         credential = {
@@ -302,9 +299,6 @@ class ConfigureSynapseAssessment(AssessmentConfigurator):
             "fetch_size": self.prompts.question("Enter fetch size", default="1000"),
             "login_timeout": self.prompts.question("Enter login timeout (seconds)", default="30"),
             "tz_info": self.prompts.question("Enter timezone (e.g. America/New_York)", default="UTC"),
-            "driver": self.prompts.question(
-                "Enter the ODBC driver installed locally", default="ODBC Driver 18 for SQL Server"
-            ),
         }
 
         # Profiler Settings

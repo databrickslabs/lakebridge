@@ -24,7 +24,6 @@ def create_synapse_connection(
         raise ValueError(f"Endpoint '{endpoint_key}' not found in workspace config")
 
     config: dict = {
-        "driver": workspace_config['driver'],
         "server": server,
         "database": database,
         "port": workspace_config.get('port', 1433),
@@ -82,7 +81,6 @@ def validate_synapse_pools(raw_config: dict) -> None:
         ...         'serverless_sql_endpoint': 'workspace-ondemand.sql.azuresynapse.net',
         ...         'user': 'admin',
         ...         'password': 'pass',
-        ...         'driver': 'ODBC Driver 18 for SQL Server',
         ...         'auth_type': 'SqlPassword',
         ...     },
         ...     'profiler': {'exclude_serverless_sql_pool': False},

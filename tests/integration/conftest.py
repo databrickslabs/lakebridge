@@ -89,7 +89,6 @@ def sandbox_sqlserver_config() -> JsonObject:
         "password": env.get("TEST_TSQL_PASS"),
         "server": server,
         "database": database,
-        "driver": "ODBC Driver 18 for SQL Server",
     }
     return config
 
@@ -108,7 +107,6 @@ def sandbox_synapse_config(sandbox_sqlserver_config: JsonObject) -> JsonObject:
         "server": sandbox_sqlserver_config["server"],
         "user": sandbox_sqlserver_config["user"],
         "password": sandbox_sqlserver_config["password"],
-        "driver": sandbox_sqlserver_config["driver"],
         "database": sandbox_sqlserver_config["database"],
         "auth_type": "SqlPassword",
         "port": 1433,
@@ -141,7 +139,6 @@ def sandbox_synapse_cred_config(sandbox_sqlserver_config: JsonObject) -> JsonObj
                 "password": sandbox_sqlserver_config["password"],
                 "fetch_size": "1000",
                 "login_timeout": "30",
-                "driver": sandbox_sqlserver_config["driver"],
                 "tz_info": "UTC",
             },
             "profiler": {

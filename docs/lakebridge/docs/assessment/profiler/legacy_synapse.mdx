@@ -20,12 +20,12 @@ For serverless SQL pools, Spark pools, and the Synapse workspace control plane, 
 
 ### 1. Download
 
-- **ODBC driver for SQL Server** — required for `pyodbc` to talk to the dedicated SQL pool. [Download](https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server?view=sql-server-ver18).
-- **(Windows only) Microsoft Visual C++ Redistributable (x64)** — required by `pyodbc` and the ODBC driver, both of which are native binaries linked against the MSVC runtime. [Download](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170).
+No driver installation is required: the profiler connects with Microsoft's
+[mssql-python](https://github.com/microsoft/mssql-python) driver, which bundles its own connectivity layer.
 
 ### 2. Authentication
 
-The profiler supports the following ODBC `Authentication=` modes (`configure-database-profiler` prompts for one):
+The profiler supports the following authentication modes (`configure-database-profiler` prompts for one):
 
 | Auth method | Description | MFA-capable |
 |---|---|---|
@@ -172,7 +172,6 @@ Enter the port details: 1433
 Enter the database name: my_pool
 Trust server certificate (default: no):
 Enter timezone (e.g. America/New_York) (default: UTC):
-Enter the ODBC driver installed locally (default: ODBC Driver 18 for SQL Server):
 ```
 
 ### Configuration Parameters
@@ -189,7 +188,6 @@ Enter the ODBC driver installed locally (default: ODBC Driver 18 for SQL Server)
 | **Database** | The dedicated SQL pool name to connect to. Dedicated pools do not have a `master` database, so this must be set to the pool you want to profile. | — |
 | **Trust server certificate** | Skip TLS certificate validation when connecting. Leave as `no` for Azure-hosted dedicated SQL pools, which present valid certificates. | `no` |
 | **Timezone** | Timezone for timestamp normalization | `UTC` |
-| **ODBC driver** | Locally installed ODBC driver name | `ODBC Driver 18 for SQL Server` |
 
 ## Execute the Profiler
 

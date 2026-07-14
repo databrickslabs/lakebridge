@@ -15,12 +15,12 @@ import Admonition from '@theme/Admonition';
 
 ### 1. Download
 
-- **ODBC driver for SQL Server** — required for `pyodbc` to talk to SQL Server. [Download](https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server?view=sql-server-ver18).
-- **(Windows only) Microsoft Visual C++ Redistributable (x64)** — required by `pyodbc` and the ODBC driver, both of which are native binaries linked against the MSVC runtime. [Download](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170).
+No driver installation is required: the profiler connects with Microsoft's
+[mssql-python](https://github.com/microsoft/mssql-python) driver, which bundles its own connectivity layer.
 
 ### 2. Authentication
 
-The profiler supports the following ODBC `Authentication=` modes (`configure-database-profiler` prompts for one):
+The profiler supports the following authentication modes (`configure-database-profiler` prompts for one):
 
 | Auth method | Description | MFA-capable |
 |---|---|---|
@@ -223,7 +223,6 @@ Enter the port details: 1433
 Enter the database name: MyAppDB
 Trust server certificate (default: no):
 Enter timezone (e.g. America/New_York) (default: UTC):
-Enter the ODBC driver installed locally (default: ODBC Driver 18 for SQL Server):
 Do you want to test the connection to mssql? (yes/no): yes
 ```
 
@@ -243,7 +242,6 @@ For `ActiveDirectoryServicePrincipal`, the `Enter the username` / `Enter the pas
 | **Database** | Database to connect to. `INFORMATION_SCHEMA` queries are scoped to this database; other databases on the instance are still discovered via `sys.databases`. | — |
 | **Trust server certificate** | Skip TLS certificate validation when connecting. Set to `yes` only when the server uses a self-signed or untrusted certificate (e.g., local/dev SQL Server). Leave as `no` for Azure SQL Database and production servers with valid certificates. | `no` |
 | **Timezone** | Timezone for timestamp normalization | `UTC` |
-| **ODBC driver** | Locally installed ODBC driver name | `ODBC Driver 18 for SQL Server` |
 
 ## Execute the Profiler
 

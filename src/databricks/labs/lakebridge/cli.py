@@ -1208,9 +1208,6 @@ def test_profiler_connection(
         ) from e
     except ConnectionError as e:
         logger.error(f"Failed to connect to the source system: {e}")
-        error_msg = str(e).lower()
-        if any(pattern in error_msg for pattern in ("im002", "odbc driver not found", "can't open lib")):
-            raise SystemExit("Missing ODBC driver, Please install pre-req. Exiting...") from e
         raise SystemExit("Connection validation failed. Exiting...") from e
     except Exception as e:  # noqa: BLE001
         logger.error(f"Unexpected error during connection test: {e}")

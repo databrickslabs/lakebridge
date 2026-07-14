@@ -44,7 +44,6 @@ def test_synapse_with_credential_format(sandbox_synapse_cred_config: JsonObject)
     manager = DatabaseManager(
         "synapse",
         {
-            "driver": workspace_config['driver'],
             "server": workspace_config['dedicated_sql_endpoint'],
             "database": db_name,
             "user": workspace_config['user'],
@@ -117,7 +116,6 @@ def test_synapse_query_execution(sandbox_synapse_cred_config: JsonObject) -> Non
     manager = DatabaseManager(
         "synapse",
         {
-            "driver": workspace_config['driver'],
             "server": workspace_config['dedicated_sql_endpoint'],
             "database": db_name,
             "user": workspace_config['user'],
