@@ -6,7 +6,9 @@ from pathlib import Path
 
 import zstandard as zstd
 
-# Level 3 matches measured ~12x ratio with good wall-clock on multi-GB extracts.
+
+# zstd compression level. Range: 1 (fastest/lowest) to 22 (slowest/highest).
+# Level 3 is the standard default.
 ZSTD_LEVEL = 3
 
 
