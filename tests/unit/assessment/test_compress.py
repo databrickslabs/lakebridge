@@ -1,21 +1,12 @@
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 import zstandard as zstd
 
-from databricks.labs.lakebridge.assessments.compress import (
-    compress_profiler_db,
-    compressed_extract_path,
-    format_bytes,
-    log_share_instructions,
-)
-
-
-def test_format_bytes() -> None:
-    assert format_bytes(500) == "500 B"
-    assert format_bytes(2048) == "2.0 KiB"
-    assert format_bytes(5 * 1024 * 1024) == "5.0 MiB"
+from databricks.labs.lakebridge.assessments.compress import compress_profiler_db, compressed_extract_path
+from databricks.labs.lakebridge.assessments.profiler import Profiler
 
 
 def test_compressed_extract_path() -> None:
@@ -51,30 +42,7 @@ def test_compress_profiler_db_missing_source(tmp_path: Path) -> None:
         pass
 
 
-def test_log_share_instructions(tmp_path: Path, caplog) -> None:
-    import logging
-
-    db_path = tmp_path / "extract.db"
-    zst_path = tmp_path / "extract.db.zst"
-    db_path.write_bytes(b"db-bytes")
-    zst_path.write_bytes(b"zst-bytes")
-
-    with caplog.at_level(logging.INFO, logger="databricks.labs.lakebridge.assessments.compress"):
-        log_share_instructions(db_path, zst_path)
-
-    joined = "\n".join(r.message for r in caplog.records)
-    assert "SHARE THIS" in joined
-    assert ".db.zst" in joined
-    assert "Do not send the raw .db" in joined
-    assert str(db_path) in joined
-    assert str(zst_path) in joined
-
-
-def test_profiler_compress_failure_is_non_fatal(tmp_path: Path, caplog, monkeypatch) -> None:
-    import logging
-
-    from databricks.labs.lakebridge.assessments.profiler import Profiler
-
+def test_write_compressed_extract_failure_is_non_fatal(tmp_path: Path, caplog, monkeypatch) -> None:
     db_path = tmp_path / "extract.db"
     db_path.write_bytes(b"data")
 
@@ -84,7 +52,7 @@ def test_profiler_compress_failure_is_non_fatal(tmp_path: Path, caplog, monkeypa
     monkeypatch.setattr("databricks.labs.lakebridge.assessments.profiler.compress_profiler_db", _boom)
 
     with caplog.at_level(logging.WARNING, logger="databricks.labs.lakebridge.assessments.profiler"):
-        Profiler._compress_for_sharing(db_path)
+        assert Profiler._write_compressed_extract(db_path) is None
 
-    assert any("Could not create compressed share package" in r.message for r in caplog.records)
+    assert any("Could not write compressed extract" in r.message for r in caplog.records)
     assert db_path.is_file()
