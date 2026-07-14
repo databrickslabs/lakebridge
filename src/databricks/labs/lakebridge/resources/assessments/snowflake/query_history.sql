@@ -1,5 +1,5 @@
 -- Query History and Performance Analysis
--- Full-window extract WITHOUT QUERY_TEXT (see issue #2532).
+-- Full-window extract WITHOUT QUERY_TEXT.
 -- SQL text for downstream heuristics lives in query_samples (bounded random sample).
 -- QUERY_TYPE and metrics here drive exact workload spend-mix classification.
 

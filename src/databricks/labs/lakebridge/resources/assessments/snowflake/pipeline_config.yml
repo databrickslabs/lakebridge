@@ -30,7 +30,7 @@ steps:
     flag: active
 
   # Bounded SQL-text sample for downstream heuristics (migration_complexity).
-  # Full query_history omits QUERY_TEXT to bound extract size (#2532).
+  # Full query_history omits QUERY_TEXT to bound extract size.
   - name: query_samples
     type: sql
     extract_source: src/databricks/labs/lakebridge/resources/assessments/snowflake/query_samples.sql

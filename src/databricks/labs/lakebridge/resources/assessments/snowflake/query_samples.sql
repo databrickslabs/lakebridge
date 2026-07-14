@@ -1,8 +1,7 @@
--- Query Samples — bounded RANDOM sample WITH QUERY_TEXT (see issue #2532).
+-- Query Samples — bounded RANDOM sample WITH QUERY_TEXT.
 --
 -- Full query_history omits SQL text to keep extracts shareable and fast.
--- This step returns a flat 10k-row sample so downstream heuristics
--- (e.g. lakebridge-profilers migration_complexity) still have text to inspect.
+-- This step returns a flat 10k-row sample so downstream heuristics still have text to inspect.
 -- Join to query_history on QUERY_ID for the full metric row.
 
 SELECT
