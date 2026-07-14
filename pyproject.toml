@@ -57,6 +57,7 @@ dependencies = [
   "google-cloud-bigquery-storage>=2.0.0,<3",
   "google-auth>=2.0.0,<3",
   "db-dtypes>=1.0.0,<2",
+  "zstandard>=0.22,<1",
 ]
 
 [project.urls]

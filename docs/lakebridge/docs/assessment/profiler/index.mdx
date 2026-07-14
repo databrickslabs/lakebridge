@@ -83,11 +83,67 @@ Global Flags:
 The profiler will:
 1. Connect to your source system using the configured credentials
 2. Execute the profiling pipeline to extract metadata and metrics
-3. Store the results in the configured output location
-4. Generate a summary report of the profiling execution
+3. Store the results in the configured output location as a DuckDB ``.db`` file
+4. Also write a compressed sibling ``.db.zst`` (zstd level 3) for sharing
+5. Log paths and sizes for both artifacts when the run completes
 
 :::tip
 The profiler can be run multiple times to capture different time periods or updated configurations.
 Each execution will create a timestamped snapshot of your source environment.
 :::
+
+## Sharing profiler extracts with Databricks
+
+After a successful run you will have **two** files in the output folder (same basename):
+
+| File | Purpose |
+|------|---------|
+| `profiler_extract_<source>_<version>_<YYYYMMDD>.db` | Local working copy — open with DuckDB / internal tools |
+| `profiler_extract_<source>_<version>_<YYYYMMDD>.db.zst` | **Share this** — compressed handoff package |
+
+### What to send
+
+**Send the `.db.zst` file** to your Databricks contact (upload link, Drive, email, etc.).
+
+Do **not** send the raw `.db` unless asked. On large accounts the uncompressed file can be many gigabytes; the `.zst` is typically much smaller and is the supported share artifact.
+
+### What to keep locally
+
+Keep the `.db` on the machine that ran the profiler if you want to inspect tables yourself:
+
+```bash
+duckdb /path/to/profiler_extract_….db "SHOW TABLES;"
+```
+
+DuckDB **cannot** open a `.zst` file directly. If you only have the compressed package, decompress first:
+
+```bash
+# Requires the zstd CLI (https://github.com/facebook/zstd)
+zstd -d profiler_extract_….db.zst -o profiler_extract_….db
+```
+
+Or with Python (``zstandard`` is installed with Lakebridge):
+
+```bash
+python - <<'PY'
+from pathlib import Path
+import zstandard as zstd
+
+src = Path("profiler_extract_….db.zst")
+dst = Path(str(src).removesuffix(".zst"))
+with src.open("rb") as input_handle, dst.open("wb") as output_handle:
+    zstd.ZstdDecompressor().copy_stream(input_handle, output_handle)
+print(f"Wrote {dst}")
+PY
+```
+
+### If compression failed
+
+If the run logged a warning that the `.db.zst` could not be created, the uncompressed `.db` is still valid. Compress it manually before sharing:
+
+```bash
+zstd -3 /path/to/profiler_extract_….db
+```
+
+That writes `/path/to/profiler_extract_….db.zst` beside the original.
 

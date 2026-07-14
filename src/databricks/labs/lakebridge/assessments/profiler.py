@@ -2,6 +2,7 @@ import logging
 from pathlib import Path
 
 from databricks.labs.lakebridge.assessments import PRODUCT_PATH_PREFIX
+from databricks.labs.lakebridge.assessments.compress import compress_profiler_db, log_share_instructions
 from databricks.labs.lakebridge.assessments.pipeline import PipelineClass, make_profiler_db_filename
 from databricks.labs.lakebridge.assessments.profiler_config import PipelineConfig
 from databricks.labs.lakebridge.assessments.variants import resolve_variant
@@ -84,6 +85,7 @@ class Profiler:
             db_path = output_folder / make_profiler_db_filename(source_system)
             result = PipelineClass(pipeline_config, extractor, db_path, cred_file_path).execute()
             logger.info(f"Profiler extract written to {db_path.expanduser()}")
+            self._compress_for_sharing(db_path)
             logger.info(
                 f"Profile execution has completed successfully for {source_system} for more info check: {result}."
             )
@@ -93,6 +95,23 @@ class Profiler:
         except Exception as e:
             logger.error(f"Error executing pipeline for source {source_system}: {e}")
             raise RuntimeError(f"Pipeline execution failed for source {source_system} : {e}") from e
+
+    @staticmethod
+    def _compress_for_sharing(db_path: Path) -> None:
+        """Write a sibling ``.db.zst`` for customer handoff; never fail the profile run on compression errors."""
+        try:
+            zst_path = compress_profiler_db(db_path)
+            log_share_instructions(db_path, zst_path)
+        except Exception as e:  # noqa: BLE001 — sharing aid must not fail the extract
+            logger.warning(
+                "Could not create compressed share package (.db.zst): %s. "
+                "The uncompressed extract is still available at %s. "
+                "If you need to share this extract, compress it manually "
+                "(e.g. `zstd -3 %s`) or re-run after fixing the error.",
+                e,
+                db_path.expanduser(),
+                db_path.expanduser(),
+            )
 
     @staticmethod
     def _setup_extractor(source_system: str, cred_file_path: Path | None = None) -> DatabaseManager | None:
