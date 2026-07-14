@@ -101,6 +101,11 @@ def test_deploy_new_job(oracle_recon_config):
     job_deployer.deploy_recon_job(name, oracle_recon_config, "lakebridge-x.y.z-py3-none-any.whl")
     workspace_client.jobs.create.assert_called_once()
     assert install_state.jobs[name] == str(job.job_id)
+    # The default job cluster must select a Scala 2.13 runtime (DBR 17.3+): remote_query(),
+    # used for all uc_connection sources, is unavailable on 16.4 LTS and below.
+    workspace_client.clusters.select_spark_version.assert_called_once_with(
+        latest=True, long_term_support=True, scala="2.13"
+    )
 
 
 def test_parse_package_name() -> None:

@@ -136,7 +136,12 @@ class JobDeployment:
         return task
 
     def _default_job_cluster(self) -> JobCluster:
-        latest_lts_spark = self._ws.clusters.select_spark_version(latest=True, long_term_support=True)
+        # Reconcile reads every non-Databricks source through the remote_query() table-valued
+        # function, which classic clusters only support on DBR 17.3+. DBR 17.x ships with
+        # Scala 2.13 only, while select_spark_version defaults to scala="2.12" and would cap
+        # the selection at DBR 16.4 LTS, where recon jobs fail with
+        # UNRESOLVABLE_TABLE_VALUED_FUNCTION.
+        latest_lts_spark = self._ws.clusters.select_spark_version(latest=True, long_term_support=True, scala="2.13")
         return JobCluster(
             job_cluster_key=self.DEFAULT_CLUSTER_NAME,
             new_cluster=compute.ClusterSpec(
