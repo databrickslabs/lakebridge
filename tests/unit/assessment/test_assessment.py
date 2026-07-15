@@ -60,6 +60,35 @@ def test_configure_sqlserver_credentials(tmp_path):
     assert credentials == expected_credentials
 
 
+def test_configure_sqlserver_credentials_all_databases(tmp_path):
+    """A blank mssql database is stored verbatim; downstream treats blank the same as the '*' sentinel."""
+    prompts = MockPrompts(
+        {
+            r"Enter secret vault type \(local \| env\)": sorted(['local', 'env']).index("env"),
+            r"Enter the database name": "*",
+            r"Enter the ODBC driver installed locally.*": "ODBC Driver 18 for SQL Server",
+            r"Enter the fully-qualified server name": "URL",
+            r"Enter the port details": "1433",
+            r"Enter the SQL username": "TEST_TSQL_USER",
+            r"Enter the SQL password": "TEST_TSQL_PASS",
+            r"Trust server certificate": "no",
+            r"Do you want to test the connection to mssql?.*": "no",
+            r"Enter fetch size": "4000",
+            r"Enter timezone.*": "UTC",
+            r"Enter login timeout.*": 5,
+        }
+    )
+    file = tmp_path / ".credentials.yml"
+    ConfigureSqlServerAssessment(
+        product_name="lakebridge", source_name="mssql", prompts=prompts, credential_file=file
+    ).run()
+
+    with open(file, 'r', encoding='utf-8') as handle:
+        credentials = yaml.safe_load(handle)
+
+    assert credentials['mssql']['database'] == "*"
+
+
 def test_configure_synapse_credentials(tmp_path):
     prompts = MockPrompts(
         {
