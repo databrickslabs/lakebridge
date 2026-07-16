@@ -18,7 +18,12 @@ from tests.conftest import oracle_schema_fixture_factory, ansi_schema_fixture_fa
 
 
 def test_build_query_for_snowflake_src(
-    spark, table_conf, table_schema_oracle_ansi, fake_oracle_datasource, fake_databricks_datasource
+    spark,
+    table_conf,
+    table_schema_oracle_ansi,
+    fake_oracle_datasource,
+    fake_databricks_datasource,
+    fixed_recon_view_uuid,
 ):
     sch, sch_with_alias = table_schema_oracle_ansi
     df_schema = StructType(
@@ -89,9 +94,8 @@ def test_build_query_for_snowflake_src(
         "`s_name`, COALESCE(TRIM(`s_nationkey_t`), '_null_recon_') AS `s_nationkey`, "
         "COALESCE(TRIM(`s_phone_t`), '_null_recon_') AS `s_phone`, "
         "COALESCE(TRIM(`s_suppkey_t`), '_null_recon_') AS `s_suppkey` FROM :tbl) AS src "
-        'INNER JOIN (SELECT 11 AS `s_nationkey`, 1 AS `s_suppkey` UNION SELECT 22 '
-        'AS `s_nationkey`, 2 AS `s_suppkey`) AS recon ON src.`s_nationkey` = '
-        'recon.`s_nationkey` AND src.`s_suppkey` = recon.`s_suppkey`'
+        f'INNER JOIN (SELECT * FROM recon_keys_{fixed_recon_view_uuid}) AS recon ON '
+        'src.`s_nationkey` = recon.`s_nationkey` AND src.`s_suppkey` = recon.`s_suppkey`'
     )
 
     assert src_actual == src_expected
@@ -105,6 +109,7 @@ def test_build_query_for_oracle_src(
     normalized_column_mapping,
     fake_oracle_datasource,
     fake_databricks_datasource,
+    fixed_recon_view_uuid,
 ):
     _, sch_with_alias = table_schema_oracle_ansi
     df_schema = StructType(
@@ -177,17 +182,15 @@ def test_build_query_for_oracle_src(
         "COALESCE(TRIM(`s_nationkey_t`), '_null_recon_') AS `s_nationkey`, "
         "COALESCE(TRIM(`s_phone_t`), '_null_recon_') AS `s_phone`, "
         "COALESCE(TRIM(`s_suppkey_t`), '_null_recon_') AS `s_suppkey` FROM :tbl) AS src "
-        'INNER JOIN (SELECT 11 AS `s_nationkey`, 1 AS `s_suppkey` UNION SELECT 22 AS '
-        '`s_nationkey`, 2 AS `s_suppkey` UNION SELECT 33 AS `s_nationkey`, 3 AS '
-        '`s_suppkey`) AS recon ON src.`s_nationkey` = recon.`s_nationkey` AND '
-        'src.`s_suppkey` = recon.`s_suppkey`'
+        f'INNER JOIN (SELECT * FROM recon_keys_{fixed_recon_view_uuid}) AS recon ON '
+        'src.`s_nationkey` = recon.`s_nationkey` AND src.`s_suppkey` = recon.`s_suppkey`'
     )
 
     assert src_actual == src_expected
     assert tgt_actual == tgt_expected
 
 
-def test_build_query_for_databricks_src(spark, table_conf, fake_databricks_datasource):
+def test_build_query_for_databricks_src(spark, table_conf, fake_databricks_datasource, fixed_recon_view_uuid):
     df_schema = StructType(
         [
             StructField('s_suppkey', IntegerType()),
@@ -226,15 +229,19 @@ def test_build_query_for_databricks_src(spark, table_conf, fake_databricks_datas
         "COALESCE(TRIM(`s_nationkey`), '_null_recon_') AS `s_nationkey`, "
         "COALESCE(TRIM(`s_phone`), '_null_recon_') AS `s_phone`, "
         "COALESCE(TRIM(`s_suppkey`), '_null_recon_') AS `s_suppkey` FROM :tbl) AS src "
-        'INNER JOIN (SELECT CAST(11 AS bigint) AS `s_nationkey`, CAST(1 AS bigint) '
-        'AS `s_suppkey`) AS recon ON src.`s_nationkey` = recon.`s_nationkey` AND '
-        'src.`s_suppkey` = recon.`s_suppkey`'
+        f'INNER JOIN (SELECT * FROM recon_keys_{fixed_recon_view_uuid}) AS recon ON '
+        'src.`s_nationkey` = recon.`s_nationkey` AND src.`s_suppkey` = recon.`s_suppkey`'
     )
     assert src_actual == src_expected
 
 
 def test_build_query_for_snowflake_without_transformations(
-    spark, table_conf, table_schema_oracle_ansi, fake_oracle_datasource, fake_databricks_datasource
+    spark,
+    table_conf,
+    table_schema_oracle_ansi,
+    fake_oracle_datasource,
+    fake_databricks_datasource,
+    fixed_recon_view_uuid,
 ):
     sch, sch_with_alias = table_schema_oracle_ansi
     df_schema = StructType(
@@ -302,10 +309,9 @@ def test_build_query_for_snowflake_without_transformations(
         "'_null_recon_') AS `s_comment`, `s_name` AS `s_name`, "
         "COALESCE(TRIM(`s_nationkey_t`), '_null_recon_') AS `s_nationkey`, "
         "COALESCE(TRIM(`s_phone_t`), '_null_recon_') AS `s_phone`, `s_suppkey_t` AS "
-        '`s_suppkey` FROM :tbl) AS src INNER JOIN (SELECT 11 AS `s_nationkey`, 1 AS '
-        '`s_suppkey` UNION SELECT 22 AS `s_nationkey`, 2 AS `s_suppkey`) AS recon ON '
-        'src.`s_nationkey` = recon.`s_nationkey` AND src.`s_suppkey` = '
-        'recon.`s_suppkey`'
+        '`s_suppkey` FROM :tbl) AS src '
+        f'INNER JOIN (SELECT * FROM recon_keys_{fixed_recon_view_uuid}) AS recon ON '
+        'src.`s_nationkey` = recon.`s_nationkey` AND src.`s_suppkey` = recon.`s_suppkey`'
     )
 
     assert src_actual == src_expected
@@ -367,7 +373,7 @@ def test_build_query_for_tsql(spark, fake_tsql_datasource, fake_databricks_datas
 
 
 def test_build_query_for_snowflake_src_for_non_integer_primary_keys(
-    spark, table_conf, fake_oracle_datasource, fake_databricks_datasource
+    spark, table_conf, fake_oracle_datasource, fake_databricks_datasource, fixed_recon_view_uuid
 ):
     sch = [
         oracle_schema_fixture_factory("s_suppkey", "varchar"),
@@ -427,10 +433,9 @@ def test_build_query_for_snowflake_src_for_non_integer_primary_keys(
         'SELECT src.`s_name`, src.`s_nationkey`, src.`s_suppkey` FROM (SELECT '
         "COALESCE(TRIM(`s_name`), '_null_recon_') AS `s_name`, "
         "COALESCE(TRIM(`s_nationkey_t`), '_null_recon_') AS `s_nationkey`, "
-        "COALESCE(TRIM(`s_suppkey_t`), '_null_recon_') AS `s_suppkey` FROM :tbl) AS "
-        "src INNER JOIN (SELECT 11 AS `s_nationkey`, 'a' AS `s_suppkey` UNION SELECT "
-        "22 AS `s_nationkey`, 'b' AS `s_suppkey`) AS recon ON src.`s_nationkey` = "
-        'recon.`s_nationkey` AND src.`s_suppkey` = recon.`s_suppkey`'
+        "COALESCE(TRIM(`s_suppkey_t`), '_null_recon_') AS `s_suppkey` FROM :tbl) AS src "
+        f'INNER JOIN (SELECT * FROM recon_keys_{fixed_recon_view_uuid}) AS recon ON '
+        'src.`s_nationkey` = recon.`s_nationkey` AND src.`s_suppkey` = recon.`s_suppkey`'
     )
 
     assert src_actual == src_expected

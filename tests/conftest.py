@@ -116,6 +116,7 @@ def table_conf():
             transformations=kwargs.get('transformations', None),
             column_thresholds=kwargs.get('thresholds', None),
             filters=kwargs.get('filters', None),
+            sampling_options=kwargs.get('sampling_options', None),
         )
 
     return _table_conf
