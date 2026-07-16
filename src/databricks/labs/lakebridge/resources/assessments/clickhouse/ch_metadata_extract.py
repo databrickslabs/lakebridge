@@ -18,6 +18,7 @@ import sys
 from datetime import datetime, timezone
 from typing import Any
 
+import duckdb
 import pandas as pd
 
 from databricks.labs.lakebridge import initialize_logging
@@ -26,6 +27,7 @@ from databricks.labs.lakebridge.connections.credential_manager import Credential
 from databricks.labs.lakebridge.connections.env_getter import EnvGetter
 from databricks.labs.lakebridge.resources.assessments.common.cli import arguments_loader
 from databricks.labs.lakebridge.resources.assessments.common.duckdb_helpers import save_to_duckdb
+from databricks.labs.lakebridge.resources.assessments.clickhouse import CLICKHOUSE_CLOUD_HOST_SUFFIX
 from databricks.labs.lakebridge.resources.assessments.clickhouse.connection import ClickHouseConnection
 from databricks.labs.lakebridge.resources.assessments.clickhouse.collectors.base import (
     ProfilerJSONEncoder,
@@ -43,6 +45,33 @@ from databricks.labs.blueprint.entrypoint import get_logger
 logger = get_logger(__file__)
 
 _CLICKHOUSE_RESOURCES = "databricks.labs.lakebridge.resources.assessments.clickhouse"
+
+
+def _detect_cloud(conn: ClickHouseConnection, config: dict[str, Any]) -> bool:
+    """Return True for ClickHouse Cloud, False for self-managed (OSS).
+
+    Same rule as ``variants.resolve_clickhouse_variant``: a ``*.clickhouse.cloud`` host is a definitive
+    yes; otherwise the ``cloud_mode`` server setting decides (``1`` on Cloud; absent/``0`` on OSS).
+    """
+    host = str(config.get("host") or "").strip().lower()
+    if host.endswith(CLICKHOUSE_CLOUD_HOST_SUFFIX):
+        return True
+    try:
+        rows = conn.query("SELECT value FROM system.settings WHERE name = 'cloud_mode'")
+    except Exception:  # missing setting on older OSS builds -> treat as self-managed
+        return False
+    return bool(rows) and str(rows[0].get("value", "")).strip().lower() in {"1", "true"}
+
+
+def _reset_duckdb(db_path: str) -> None:
+    """Drop every existing table in the output DuckDB so this run's tables are created fresh.
+
+    The extract owns the file exclusively, and some tables change shape by variant, so overwriting
+    in place (TRUNCATE + INSERT) against a prior run's schema is unsafe.
+    """
+    with duckdb.connect(db_path) as conn:
+        for (table_name,) in conn.execute("SHOW TABLES").fetchall():
+            conn.execute(f'DROP TABLE IF EXISTS "{table_name}"')
 
 
 def _load_table_schemas() -> dict[str, list[list[str]]]:
@@ -134,11 +163,24 @@ def execute(credential_manager: CredentialManager, db_path: str) -> None:
     redact = bool(profiler_cfg.get("redact", True))
 
     table_schemas = _load_table_schemas()
+    # Drop any tables left by a prior run into the same output DuckDB. The extract owns this file
+    # entirely (single python step), and some tables change shape by variant (e.g. costs_pricing_config
+    # is 8 columns on Cloud, 4 on OSS). save_to_duckdb's overwrite TRUNCATEs an existing table in place,
+    # so without this a Cloud-then-OSS re-run into the same folder would insert into a stale schema.
+    _reset_duckdb(db_path)
     conn = ClickHouseConnection(config)
     try:
         conn.connect()
         server_version = conn.server_version()
-        logger.info(f"Connected to ClickHouse {server_version}; days_back={config['days_back']}, redact={redact}")
+        # Detect Cloud once (shared by every collector via config["is_cloud"]) so per-node log tables
+        # are read across replicas with clusterAllReplicas(). Same rule as variants.resolve_clickhouse_variant.
+        config["is_cloud"] = _detect_cloud(conn, config)
+        if config["is_cloud"]:
+            conn.enable_cluster_reads()
+        logger.info(
+            f"Connected to ClickHouse {server_version}; is_cloud={config['is_cloud']}, "
+            f"days_back={config['days_back']}, redact={redact}"
+        )
 
         row_counts: dict[str, int] = {}
         errors: list[str] = []

@@ -153,7 +153,7 @@ class SecurityCollector(BaseCollector):
                 uniqExact(client_hostname) AS distinct_hosts,
                 min(event_time) AS first_seen,
                 max(event_time) AS last_seen
-            FROM system.session_log
+            FROM {self.source('session_log')}
             WHERE event_time >= now() - INTERVAL {d} DAY
             GROUP BY type, user, auth_type
             ORDER BY event_count DESC
@@ -168,7 +168,7 @@ class SecurityCollector(BaseCollector):
                 priv,
                 count() AS query_count,
                 uniqExact(user) AS distinct_users
-            FROM system.query_log
+            FROM {self.source('query_log')}
             ARRAY JOIN used_privileges AS priv
             WHERE type = 'QueryFinish'
               AND event_time >= now() - INTERVAL {d} DAY

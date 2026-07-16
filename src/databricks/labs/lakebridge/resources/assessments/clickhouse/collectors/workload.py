@@ -30,7 +30,7 @@ class WorkloadCollector(BaseCollector):
                 sum(read_rows) AS total_read_rows,
                 sum(written_rows) AS total_written_rows,
                 sum(result_rows) AS total_result_rows
-            FROM system.query_log
+            FROM {self.source('query_log')}
             WHERE event_time >= now() - INTERVAL {d} DAY
               AND is_initial_query = 1
             GROUP BY query_kind
@@ -50,7 +50,7 @@ class WorkloadCollector(BaseCollector):
                 uniqExact(user) AS active_users,
                 sum(read_bytes) AS read_bytes,
                 sum(written_bytes) AS written_bytes
-            FROM system.query_log
+            FROM {self.source('query_log')}
             WHERE event_time >= now() - INTERVAL {d} DAY
               AND is_initial_query = 1
             GROUP BY day
@@ -75,7 +75,7 @@ class WorkloadCollector(BaseCollector):
                 sum(read_bytes) AS total_read_bytes,
                 sum(read_rows) AS total_read_rows,
                 any(query) AS sample_query
-            FROM system.query_log
+            FROM {self.source('query_log')}
             WHERE type = 'QueryFinish'
               AND is_initial_query = 1
               AND event_time >= now() - INTERVAL {d} DAY
@@ -103,7 +103,7 @@ class WorkloadCollector(BaseCollector):
                 databases,
                 tables,
                 query
-            FROM system.query_log
+            FROM {self.source('query_log')}
             WHERE type = 'QueryFinish'
               AND is_initial_query = 1
               AND event_time >= now() - INTERVAL {d} DAY
@@ -125,7 +125,7 @@ class WorkloadCollector(BaseCollector):
                 quantileTDigest(0.95)(query_duration_ms) AS p95_ms,
                 avg(memory_usage) AS avg_memory,
                 any(query) AS sample_query
-            FROM system.query_log
+            FROM {self.source('query_log')}
             WHERE type = 'QueryFinish'
               AND is_initial_query = 1
               AND event_time >= now() - INTERVAL {d} DAY
@@ -147,7 +147,7 @@ class WorkloadCollector(BaseCollector):
                 quantileTDigest(0.95)(query_duration_ms) AS p95_duration_ms,
                 quantileTDigest(0.99)(query_duration_ms) AS p99_duration_ms,
                 sum(read_bytes) AS total_read_bytes
-            FROM system.query_log
+            FROM {self.source('query_log')}
             WHERE type = 'QueryFinish'
               AND is_initial_query = 1
               AND event_time >= now() - INTERVAL {d} DAY
@@ -177,7 +177,7 @@ class WorkloadCollector(BaseCollector):
                 uniqExact(user) AS distinct_users,
                 sum(read_bytes) AS total_read_bytes,
                 avg(query_duration_ms) AS avg_duration_ms
-            FROM system.query_log
+            FROM {self.source('query_log')}
             WHERE type = 'QueryFinish'
               AND is_initial_query = 1
               AND event_time >= now() - INTERVAL {d} DAY
@@ -203,7 +203,7 @@ class WorkloadCollector(BaseCollector):
                 max(memory_usage) AS peak_memory,
                 min(event_time) AS first_seen,
                 max(event_time) AS last_seen
-            FROM system.query_log
+            FROM {self.source('query_log')}
             WHERE type = 'QueryFinish'
               AND is_initial_query = 1
               AND event_time >= now() - INTERVAL {d} DAY
@@ -224,7 +224,7 @@ class WorkloadCollector(BaseCollector):
                 quantileTDigest(0.95)(query_duration_ms) AS p95_ms,
                 quantileTDigest(0.99)(query_duration_ms) AS p99_ms,
                 max(query_duration_ms) AS max_ms
-            FROM system.query_log
+            FROM {self.source('query_log')}
             WHERE type = 'QueryFinish'
               AND is_initial_query = 1
               AND event_time >= now() - INTERVAL {d} DAY
@@ -245,7 +245,7 @@ class WorkloadCollector(BaseCollector):
                 uniqExact(normalized_query_hash) AS distinct_queries,
                 min(event_time) AS first_seen,
                 max(event_time) AS last_seen
-            FROM system.query_log
+            FROM {self.source('query_log')}
             WHERE type IN ('ExceptionBeforeStart', 'ExceptionWhileProcessing')
               AND event_time >= now() - INTERVAL {d} DAY
             GROUP BY exception_code

@@ -8,6 +8,7 @@ import pytest
 
 from databricks.labs.lakebridge.resources.assessments.clickhouse import ch_metadata_extract
 from databricks.labs.lakebridge.resources.assessments.clickhouse.collectors.workload import WorkloadCollector
+from databricks.labs.lakebridge.resources.assessments.clickhouse.collectors.security import SecurityCollector
 
 
 class _FakeConnection:
@@ -35,6 +36,9 @@ class _FakeConnection:
         if "system.session_log" in sql:
             return []
         return [{"query": "SELECT secret FROM t", "runs": 5, "compute_weight": 100}]
+
+    def enable_cluster_reads(self) -> None:
+        pass
 
     def close(self):
         pass
@@ -145,6 +149,39 @@ def test_costs_oss_has_no_dollar_tables(monkeypatch, tmp_path, oss_credentials):
     assert "total_disk_gb" in footprint
 
 
+def test_rerun_into_same_db_resets_variant_shaped_tables(monkeypatch, tmp_path):
+    """Re-running into the same output DuckDB must reset tables that change shape by variant.
+    A Cloud run writes an 8-column costs_pricing_config; a subsequent OSS run into the same file must
+    replace it with the 4-column OSS shape (regression: previously TRUNCATE-into-stale-schema errored)."""
+    db_path = tmp_path / "clickhouse_extract.db"
+    monkeypatch.setattr(ch_metadata_extract, "ClickHouseConnection", _FakeConnection)
+    cred_manager = MagicMock()
+
+    # Run 1: Cloud-shaped (host suffix -> is_cloud True -> pricing_config carries region/tier metadata).
+    cred_manager.get_credentials.return_value = {
+        "host": "svc.us-east-1.aws.clickhouse.cloud",
+        "profiler": {"days_back": 7, "redact": True},
+    }
+    ch_metadata_extract.execute(credential_manager=cred_manager, db_path=str(db_path))
+    with duckdb.connect(str(db_path)) as conn:
+        cloud_cols = {c[0] for c in conn.execute("DESCRIBE costs_pricing_config").fetchall()}
+    assert "region_detected" in cloud_cols  # Cloud-only column
+    assert "deployment" not in cloud_cols
+
+    # Run 2: OSS-shaped into the SAME db -> must succeed and carry the OSS shape, not the stale Cloud one.
+    cred_manager.get_credentials.return_value = {
+        "host": "127.0.0.1",
+        "profiler": {"days_back": 7, "redact": True},
+    }
+    ch_metadata_extract.execute(credential_manager=cred_manager, db_path=str(db_path))
+    with duckdb.connect(str(db_path)) as conn:
+        oss_cols = {c[0] for c in conn.execute("DESCRIBE costs_pricing_config").fetchall()}
+        is_cloud = conn.execute("SELECT is_cloud FROM costs_pricing_config").fetchone()[0]
+    assert "region_detected" not in oss_cols  # Cloud-only column must be gone after reset
+    assert "deployment" in oss_cols  # OSS-only column
+    assert is_cloud is False
+
+
 @pytest.mark.parametrize(
     ("raw_days_back", "expected"),
     [
@@ -161,3 +198,34 @@ def test_base_collector_coerces_days_back_to_int(raw_days_back, expected):
     collector = WorkloadCollector(conn=MagicMock(), config={"days_back": raw_days_back})
     assert collector.days_back == expected
     assert isinstance(collector.days_back, int)
+
+
+def test_source_wraps_per_node_logs_on_cloud_only():
+    """On Cloud, per-node log tables are wrapped in clusterAllReplicas so all replicas are read;
+    replicated metadata tables are never wrapped, and OSS wraps nothing (single node)."""
+    cloud = WorkloadCollector(conn=MagicMock(), config={"is_cloud": True})
+    oss = WorkloadCollector(conn=MagicMock(), config={"is_cloud": False})
+
+    # Per-node append-only logs -> wrapped on Cloud, direct on OSS.
+    for tbl in ("query_log", "session_log", "query_views_log", "asynchronous_insert_log"):
+        assert cloud.source(tbl) == f"clusterAllReplicas('default', system.{tbl})"
+        assert oss.source(tbl) == f"system.{tbl}"
+
+    # Replicated / consistent metadata -> never wrapped, even on Cloud (would duplicate/error).
+    for tbl in ("tables", "columns", "parts", "users", "grants"):
+        assert cloud.source(tbl) == f"system.{tbl}"
+        assert oss.source(tbl) == f"system.{tbl}"
+
+
+def test_cloud_collectors_read_query_log_across_replicas():
+    """Regression for the review finding: non-cost collectors must use clusterAllReplicas for
+    query_log/session_log on Cloud (otherwise they see only the connected replica)."""
+    for cls in (WorkloadCollector, SecurityCollector):
+        seen: list[str] = []
+        collector = cls(conn=MagicMock(), config={"days_back": 7, "is_cloud": True})
+        collector.conn.query = lambda sql, sink=seen: sink.append(sql) or []
+        collector.collect()
+        joined = "\n".join(seen)
+        assert "clusterAllReplicas('default', system.query_log)" in joined
+        # no un-interpolated placeholder leaked into the SQL
+        assert "{self.source" not in joined

@@ -12,7 +12,6 @@ produced; a resource footprint plus the full usage attribution is reported inste
 """
 
 from typing import Any
-from databricks.labs.lakebridge.resources.assessments.clickhouse import CLICKHOUSE_CLOUD_HOST_SUFFIX
 from databricks.labs.lakebridge.resources.assessments.clickhouse.collectors.base import BaseCollector
 
 
@@ -46,14 +45,16 @@ class CostsCollector(BaseCollector):
             if self.config.get("tier")
             else (cloud_meta or {}).get("tier_source") if (cloud_meta or {}).get("tier") else "unknown"
         )
-        # Cloud vs self-managed (OSS). Actual dollar cost comes only from the Cloud usageCost API;
-        # for OSS (or Cloud without API creds) we report a resource footprint + attribution telemetry.
-        is_cloud = self._detect_cloud()
+        # Cloud vs self-managed (OSS) is detected once in the extract and shared via config["is_cloud"].
+        # Actual dollar cost comes only from the Cloud usageCost API; for OSS (or Cloud without API
+        # creds) we report a resource footprint + attribution telemetry.
+        is_cloud = self.is_cloud
 
-        # Source table expression: use clusterAllReplicas on Cloud
-        ql_source = "clusterAllReplicas('default', system.query_log)" if is_cloud else "system.query_log"
-        parts_source = "system.parts"  # parts is replicated on Cloud
-        skip_settings = "SETTINGS skip_unavailable_shards = 1" if is_cloud else ""
+        # Per-node log tables are read across replicas on Cloud via self.source() (skip_unavailable_shards
+        # is set once on the connection). system.parts is replicated, so it is queried directly.
+        ql_source = self.source("query_log")
+        ail_source = self.source("asynchronous_insert_log")
+        parts_source = "system.parts"
 
         if is_cloud:
             results["pricing_config"] = {
@@ -202,7 +203,6 @@ class CostsCollector(BaseCollector):
               AND event_time >= now() - INTERVAL {d} DAY
             GROUP BY user
             ORDER BY compute_weight DESC
-            {skip_settings}
             """,
         )
 
@@ -225,7 +225,6 @@ class CostsCollector(BaseCollector):
               AND db NOT IN ('system', 'information_schema', 'INFORMATION_SCHEMA')
             GROUP BY db
             ORDER BY compute_weight DESC
-            {skip_settings}
             """,
         )
 
@@ -247,7 +246,6 @@ class CostsCollector(BaseCollector):
               AND event_time >= now() - INTERVAL {d} DAY
             GROUP BY query_kind
             ORDER BY compute_weight DESC
-            {skip_settings}
             """,
         )
 
@@ -274,7 +272,6 @@ class CostsCollector(BaseCollector):
             GROUP BY normalized_query_hash
             ORDER BY compute_weight DESC
             LIMIT 30
-            {skip_settings}
             """,
         )
         # Truncate sample queries for readability / redaction.
@@ -299,7 +296,6 @@ class CostsCollector(BaseCollector):
               AND event_time >= now() - INTERVAL {d} DAY
             GROUP BY hour_of_day
             ORDER BY hour_of_day
-            {skip_settings}
             """,
         )
 
@@ -319,7 +315,6 @@ class CostsCollector(BaseCollector):
               AND event_time >= now() - INTERVAL {d} DAY
             GROUP BY day
             ORDER BY day
-            {skip_settings}
             """,
         )
 
@@ -348,7 +343,6 @@ class CostsCollector(BaseCollector):
             GROUP BY normalized_query_hash
             ORDER BY total_read_bytes DESC
             LIMIT 30
-            {skip_settings}
             """,
         )
         if results["top_scan_heavy_queries"]:
@@ -384,7 +378,6 @@ class CostsCollector(BaseCollector):
               AND NOT startsWith(tbl, 'information_schema.')
             GROUP BY tbl
             ORDER BY total_written_bytes DESC
-            {skip_settings}
             """,
         )
 
@@ -398,7 +391,7 @@ class CostsCollector(BaseCollector):
                 sum(bytes) AS async_inserted_bytes,
                 sum(rows) AS async_inserted_rows,
                 count() AS async_insert_batches
-            FROM system.asynchronous_insert_log
+            FROM {ail_source}
             WHERE event_time >= now() - INTERVAL {d} DAY
               AND status = 'Ok'
             GROUP BY database, table
@@ -432,7 +425,6 @@ class CostsCollector(BaseCollector):
             HAVING scan_efficiency_pct < 1 AND runs >= 2
             ORDER BY compute_weight DESC
             LIMIT 20
-            {skip_settings}
             """,
         )
         if results["waste_indicators"]:
@@ -478,24 +470,6 @@ class CostsCollector(BaseCollector):
         }
 
         return results
-
-    def _detect_cloud(self) -> bool:
-        """Return True for ClickHouse Cloud, False for self-managed (OSS).
-
-        Uses the same rule as ``variants.resolve_clickhouse_variant`` so the two never disagree: a
-        hostname ending in ``.clickhouse.cloud`` is a definitive yes; otherwise the authoritative
-        ``cloud_mode`` server setting decides (``1`` on Cloud; absent on older OSS builds → OSS).
-        """
-        host = str(self.config.get("host") or "").strip().lower()
-        if host.endswith(CLICKHOUSE_CLOUD_HOST_SUFFIX):
-            return True
-        rows = self.safe_query(
-            "cloud_mode_check",
-            "SELECT value FROM system.settings WHERE name = 'cloud_mode'",
-        )
-        if rows:
-            return str(rows[0].get("value", "")).strip().lower() in ("1", "true")
-        return False
 
     # Provider tokens as they appear in ClickHouse Cloud service hostnames.
     _CLOUD_PROVIDERS = ("aws", "gcp", "azure")

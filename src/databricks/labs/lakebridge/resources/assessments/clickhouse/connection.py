@@ -26,6 +26,14 @@ class ClickHouseConnection:
         )
         return self
 
+    def enable_cluster_reads(self) -> None:
+        """Tolerate an unavailable replica in ``clusterAllReplicas()`` reads (Cloud).
+
+        Applied once after Cloud is detected. Harmless for direct (non-cluster) queries, so it is a
+        no-op risk on OSS; the profiler only calls it when running against Cloud.
+        """
+        self._client().set_client_setting("skip_unavailable_shards", 1)
+
     def _client(self) -> ClickHouseClient:
         if self.client is None:
             self.connect()

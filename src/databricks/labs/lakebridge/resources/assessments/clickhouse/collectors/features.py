@@ -36,7 +36,7 @@ class FeaturesCollector(BaseCollector):
                 func,
                 count() AS query_count,
                 uniqExact(user) AS distinct_users
-            FROM system.query_log
+            FROM {self.source('query_log')}
             ARRAY JOIN used_functions AS func
             WHERE type = 'QueryFinish'
               AND is_initial_query = 1
@@ -55,7 +55,7 @@ class FeaturesCollector(BaseCollector):
                 storage,
                 count() AS query_count,
                 uniqExact(user) AS distinct_users
-            FROM system.query_log
+            FROM {self.source('query_log')}
             ARRAY JOIN used_storages AS storage
             WHERE type = 'QueryFinish'
               AND event_time >= now() - INTERVAL {d} DAY
@@ -72,7 +72,7 @@ class FeaturesCollector(BaseCollector):
                 tf,
                 count() AS query_count,
                 uniqExact(user) AS distinct_users
-            FROM system.query_log
+            FROM {self.source('query_log')}
             ARRAY JOIN used_table_functions AS tf
             WHERE type = 'QueryFinish'
               AND event_time >= now() - INTERVAL {d} DAY
@@ -88,7 +88,7 @@ class FeaturesCollector(BaseCollector):
             SELECT
                 fmt,
                 count() AS query_count
-            FROM system.query_log
+            FROM {self.source('query_log')}
             ARRAY JOIN used_formats AS fmt
             WHERE type = 'QueryFinish'
               AND event_time >= now() - INTERVAL {d} DAY
@@ -104,7 +104,7 @@ class FeaturesCollector(BaseCollector):
             SELECT
                 af,
                 count() AS query_count
-            FROM system.query_log
+            FROM {self.source('query_log')}
             ARRAY JOIN used_aggregate_functions AS af
             WHERE type = 'QueryFinish'
               AND event_time >= now() - INTERVAL {d} DAY

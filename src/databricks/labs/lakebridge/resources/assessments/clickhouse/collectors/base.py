@@ -76,8 +76,30 @@ class BaseCollector(ABC):
             self.days_back = int(config.get("days_back", 30))
         except (TypeError, ValueError):
             self.days_back = 30
+        # Set once by the extract script from the resolved variant / cloud_mode probe. On ClickHouse
+        # Cloud, per-node append-only log tables are local to each replica, so a complete view needs
+        # clusterAllReplicas() (see source()); replicated metadata tables must NOT be wrapped.
+        self.is_cloud: bool = bool(config.get("is_cloud", False))
         self.results: dict[str, Any] = {}
         self.errors: list[str] = []
+
+    # Per-node append-only log tables: local to each replica on ClickHouse Cloud, so querying them
+    # directly returns only the connected replica's rows. clusterAllReplicas() gives the full view.
+    # Replicated metadata (tables/columns/parts/users/…) is consistent across replicas and must be
+    # queried directly — wrapping it would duplicate rows or error.
+    _PER_NODE_LOG_TABLES = frozenset({"query_log", "session_log", "query_views_log", "asynchronous_insert_log"})
+
+    def source(self, table: str) -> str:
+        """Return the source-table expression for a ``system.<table>`` reference.
+
+        On Cloud, per-node log tables are wrapped in ``clusterAllReplicas('default', ...)`` so all
+        replicas are included; everything else (and all of OSS) is queried directly. The
+        ``skip_unavailable_shards`` setting these queries rely on is applied once as a session setting
+        on the Cloud connection (see ``ClickHouseConnection``), so no per-query SETTINGS clause is needed.
+        """
+        if self.is_cloud and table in self._PER_NODE_LOG_TABLES:
+            return f"clusterAllReplicas('default', system.{table})"
+        return f"system.{table}"
 
     @abstractmethod
     def collect(self) -> dict[str, Any]:

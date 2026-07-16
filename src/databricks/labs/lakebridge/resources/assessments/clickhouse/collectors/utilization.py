@@ -195,7 +195,7 @@ class UtilizationCollector(BaseCollector):
                 avg(peak_threads_usage) AS avg_threads_used,
                 avg(memory_usage) AS avg_memory_usage,
                 max(memory_usage) AS max_memory_usage
-            FROM system.query_log
+            FROM {self.source('query_log')}
             WHERE type = 'QueryFinish'
               AND is_initial_query = 1
               AND event_time >= now() - INTERVAL {d} DAY
@@ -273,7 +273,7 @@ class UtilizationCollector(BaseCollector):
                 round(countIf(query_duration_ms > 30000) * 100.0 / count(), 2) AS pct_queries_over_30s,
                 toStartOfMonth(min(event_time)) AS period_start,
                 toStartOfMonth(max(event_time)) AS period_end
-            FROM system.query_log
+            FROM {self.source('query_log')}
             WHERE type = 'QueryFinish'
               AND is_initial_query = 1
               AND event_time >= now() - INTERVAL {d} DAY

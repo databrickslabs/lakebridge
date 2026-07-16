@@ -41,7 +41,7 @@ class DependenciesCollector(BaseCollector):
                 groupUniqArrayArray(tables) AS accessed_tables,
                 count() AS runs,
                 sum(read_bytes) AS total_read_bytes
-            FROM system.query_log
+            FROM {self.source('query_log')}
             WHERE type = 'QueryFinish'
               AND is_initial_query = 1
               AND event_time >= now() - INTERVAL {d} DAY
@@ -63,7 +63,7 @@ class DependenciesCollector(BaseCollector):
                 uniqExact(query_kind) AS query_kinds,
                 sum(read_bytes) AS total_read_bytes,
                 groupUniqArray(query_kind) AS query_kind_list
-            FROM system.query_log
+            FROM {self.source('query_log')}
             ARRAY JOIN tables AS tbl
             WHERE type = 'QueryFinish'
               AND is_initial_query = 1
@@ -82,7 +82,7 @@ class DependenciesCollector(BaseCollector):
                 col,
                 count() AS access_count,
                 uniqExact(user) AS distinct_users
-            FROM system.query_log
+            FROM {self.source('query_log')}
             ARRAY JOIN columns AS col
             WHERE type = 'QueryFinish'
               AND is_initial_query = 1
@@ -109,7 +109,7 @@ class DependenciesCollector(BaseCollector):
                 sum(written_bytes) AS total_written_bytes,
                 avg(view_duration_ms) AS avg_duration_ms,
                 max(peak_memory_usage) AS max_memory
-            FROM system.query_views_log
+            FROM {self.source('query_views_log')}
             WHERE event_time >= now() - INTERVAL {d} DAY
             GROUP BY view_name, view_type, view_target, view_query
             ORDER BY executions DESC
@@ -122,7 +122,7 @@ class DependenciesCollector(BaseCollector):
             f"""
             WITH accessed AS (
                 SELECT DISTINCT arrayJoin(tables) AS tbl
-                FROM system.query_log
+                FROM {self.source('query_log')}
                 WHERE type = 'QueryFinish'
                   AND event_time >= now() - INTERVAL {d} DAY
             )
