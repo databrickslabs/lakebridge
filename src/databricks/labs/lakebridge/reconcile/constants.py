@@ -1,5 +1,14 @@
 from enum import Enum, auto
 
+# Default number of sample rows captured per result set (mismatch / missing-in-source /
+# missing-in-target) when sampling_options is not configured. Single source of truth.
+DEFAULT_SAMPLE_ROWS = 50
+
+# Prefix for the per-call temp views registered by the Databricks sampling path (created in
+# SamplingQueryBuilder._recon_subquery_from_temp_view). Dropped once per run in
+# TriggerReconService.trigger_recon. Single source of truth.
+RECON_SAMPLE_VIEW_PREFIX = "recon_keys_"
+
 
 class AutoName(Enum):
     """

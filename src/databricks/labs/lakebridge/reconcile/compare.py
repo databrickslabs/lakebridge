@@ -12,6 +12,7 @@ from databricks.labs.lakebridge.reconcile.recon_output_config import (
     DataReconcileOutput,
     MismatchOutput,
 )
+from databricks.labs.lakebridge.reconcile.constants import DEFAULT_SAMPLE_ROWS
 from databricks.labs.lakebridge.reconcile.recon_config import (
     AggregateRule,
     ColumnMapping,
@@ -20,7 +21,6 @@ from databricks.labs.lakebridge.reconcile.recon_config import (
 logger = logging.getLogger(__name__)
 
 _HASH_COLUMN_NAME = "hash_value_recon"
-_SAMPLE_ROWS = 50
 
 
 def _raise_column_mismatch_exception(msg: str, source_missing: list[str], target_missing: list[str]) -> Exception:
@@ -59,6 +59,7 @@ def reconcile_data(
     key_columns: list[str],
     report_type: str,
     persistence: AbstractReconIntermediatePersist,
+    max_sample_size: int = DEFAULT_SAMPLE_ROWS,
 ) -> DataReconcileOutput:
     source_alias = "src"
     target_alias = "tgt"
@@ -116,8 +117,8 @@ def reconcile_data(
         mismatch_count=mismatch_count,
         missing_in_src_count=missing_in_src_count,
         missing_in_tgt_count=missing_in_tgt_count,
-        missing_in_src=missing_in_src.limit(_SAMPLE_ROWS),
-        missing_in_tgt=missing_in_tgt.limit(_SAMPLE_ROWS),
+        missing_in_src=missing_in_src.limit(max_sample_size),
+        missing_in_tgt=missing_in_tgt.limit(max_sample_size),
         mismatch=MismatchOutput(mismatch_df=mismatch),
     )
 
@@ -422,8 +423,8 @@ def reconcile_agg_data_per_rule(
         mismatch_count=mismatch_count,
         missing_in_src_count=missing_in_src.count(),
         missing_in_tgt_count=missing_in_tgt.count(),
-        missing_in_src=missing_in_src.limit(_SAMPLE_ROWS),
-        missing_in_tgt=missing_in_tgt.limit(_SAMPLE_ROWS),
+        missing_in_src=missing_in_src.limit(DEFAULT_SAMPLE_ROWS),
+        missing_in_tgt=missing_in_tgt.limit(DEFAULT_SAMPLE_ROWS),
         mismatch=MismatchOutput(mismatch_df=mismatch),
     )
 
