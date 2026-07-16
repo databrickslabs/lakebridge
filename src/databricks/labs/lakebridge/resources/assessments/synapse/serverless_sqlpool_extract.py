@@ -58,6 +58,7 @@ def execute():
     cred_manager = create_credential_manager(PRODUCT_NAME, EnvGetter(), creds_file)
     synapse_workspace_settings = cred_manager.get_credentials("synapse")
     config = synapse_workspace_settings["workspace"]
+    workspace_name = config["name"]
     auth_type = synapse_workspace_settings["workspace"].get("auth_type", "SqlPassword")
     synapse_profiler_settings = synapse_workspace_settings["profiler"]
 
@@ -137,7 +138,7 @@ def execute():
             # Data Processed - server-level DMV, must be queried from master database
             table_name = "serverless_data_processed"
             logger.info(f"Loading '{table_name}' for pool: %s", pool_name)
-            data_processed_query = SynapseQueries.data_processed(pool_name)
+            data_processed_query = SynapseQueries.data_processed(pool_name, workspace_name)
 
             session_result = connection.fetch(data_processed_query)
             save_to_duckdb(
@@ -148,7 +149,7 @@ def execute():
             table_name = "serverless_sessions"
             logger.info(f"Loading '{table_name}' for pool: %s", pool_name)
             prev_max_login_time = get_max_column_value_duckdb("login_time", table_name, db_path)
-            session_query = SynapseQueries.list_serverless_sessions(pool_name, prev_max_login_time)
+            session_query = SynapseQueries.list_serverless_sessions(pool_name, workspace_name, prev_max_login_time)
 
             session_result = connection.fetch(session_query)
             save_to_duckdb(
@@ -158,7 +159,9 @@ def execute():
             table_name = "serverless_session_requests"
             logger.info(f"Loading '{table_name}' for pool: %s", pool_name)
             prev_max_end_time = get_max_column_value_duckdb("start_time", table_name, db_path)
-            session_request_query = SynapseQueries.list_serverless_requests(pool_name, prev_max_end_time)
+            session_request_query = SynapseQueries.list_serverless_requests(
+                pool_name, workspace_name, prev_max_end_time
+            )
 
             session_request_result = connection.fetch(session_request_query)
             save_to_duckdb(

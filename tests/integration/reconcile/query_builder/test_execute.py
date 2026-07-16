@@ -10,7 +10,6 @@ from pyspark.errors import PySparkException
 from pyspark.testing import assertDataFrameEqual
 
 from databricks.labs.lakebridge.config import (
-    DatabaseConfig,
     TableRecon,
     ReconcileMetadataConfig,
     ReconcileConfig,
@@ -45,7 +44,24 @@ SCHEMA = "data"
 SRC_TABLE = "supplier"
 TGT_TABLE = "target_supplier"
 
+# Sentinel uuids used in expected sampling SQL strings; tests inject these via `recon_view_uuid_seq`
+# in the order the production sampling_query builder consumes them. See `_get_sample_data` in
+# reconciliation.py for the call order: mismatch (src, tgt), missing-in-src (tgt), missing-in-tgt (src).
+_UUID_SRC_MISMATCH = "a" * 32
+_UUID_TGT_MISMATCH = "b" * 32
+_UUID_SRC_MISSING = "c" * 32  # source_missing_query — fetched from target (uses tgt sampler)
+_UUID_TGT_MISSING = "d" * 32  # target_missing_query — fetched from source (uses src sampler)
+
 MOCK_TIMESTAMP = datetime(2024, 5, 23, 9, 21, 25, 122185, tzinfo=timezone.utc)
+
+
+def _normalize_details_rows(df):
+    """Collect rows as dicts and sort the `data` array by source_column for order-independent comparison."""
+    rows = [row.asDict(recursive=True) for row in df.collect()]
+    for row in rows:
+        if row.get("data"):
+            row["data"] = sorted(row["data"], key=lambda d: d["source_column"])
+    return rows
 
 
 @dataclass
@@ -105,10 +121,10 @@ class QueryStore:
 def query_store(spark):
     source_hash_query = "SELECT LOWER(SHA2(TRIM(s_address) || TRIM(s_name) || COALESCE(TRIM(`s_nationkey`), '_null_recon_') || TRIM(s_phone) || COALESCE(TRIM(`s_suppkey`), '_null_recon_'), 256)) AS hash_value_recon, `s_nationkey` AS `s_nationkey`, `s_suppkey` AS `s_suppkey` FROM :tbl WHERE s_name = 't' AND s_address = 'a'"
     target_hash_query = "SELECT LOWER(SHA2(TRIM(s_address_t) || TRIM(s_name) || COALESCE(TRIM(`s_nationkey_t`), '_null_recon_') || TRIM(s_phone_t) || COALESCE(TRIM(`s_suppkey_t`), '_null_recon_'), 256)) AS hash_value_recon, `s_nationkey_t` AS `s_nationkey`, `s_suppkey_t` AS `s_suppkey` FROM :tbl WHERE s_name = 't' AND s_address_t = 'a'"
-    source_mismatch_query = "SELECT src.`s_address`, src.`s_name`, src.`s_nationkey`, src.`s_phone`, src.`s_suppkey` FROM (SELECT TRIM(s_address) AS `s_address`, TRIM(s_name) AS `s_name`, COALESCE(TRIM(`s_nationkey`), '_null_recon_') AS `s_nationkey`, TRIM(s_phone) AS `s_phone`, COALESCE(TRIM(`s_suppkey`), '_null_recon_') AS `s_suppkey` FROM :tbl WHERE s_name = 't' AND s_address = 'a') AS src INNER JOIN (SELECT CAST(22 AS number) AS `s_nationkey`, CAST(2 AS number) AS `s_suppkey`) AS recon ON src.`s_nationkey` = recon.`s_nationkey` AND src.`s_suppkey` = recon.`s_suppkey`"
-    target_mismatch_query = "SELECT src.`s_address`, src.`s_name`, src.`s_nationkey`, src.`s_phone`, src.`s_suppkey` FROM (SELECT TRIM(s_address_t) AS `s_address`, TRIM(s_name) AS `s_name`, COALESCE(TRIM(`s_nationkey_t`), '_null_recon_') AS `s_nationkey`, TRIM(s_phone_t) AS `s_phone`, COALESCE(TRIM(`s_suppkey_t`), '_null_recon_') AS `s_suppkey` FROM :tbl WHERE s_name = 't' AND s_address_t = 'a') AS src INNER JOIN (SELECT 22 AS `s_nationkey`, 2 AS `s_suppkey`) AS recon ON src.`s_nationkey` = recon.`s_nationkey` AND src.`s_suppkey` = recon.`s_suppkey`"
-    source_missing_query = "SELECT src.`s_address`, src.`s_name`, src.`s_nationkey`, src.`s_phone`, src.`s_suppkey` FROM (SELECT TRIM(s_address_t) AS `s_address`, TRIM(s_name) AS `s_name`, COALESCE(TRIM(`s_nationkey_t`), '_null_recon_') AS `s_nationkey`, TRIM(s_phone_t) AS `s_phone`, COALESCE(TRIM(`s_suppkey_t`), '_null_recon_') AS `s_suppkey` FROM :tbl WHERE s_name = 't' AND s_address_t = 'a') AS src INNER JOIN (SELECT 44 AS `s_nationkey`, 4 AS `s_suppkey`) AS recon ON src.`s_nationkey` = recon.`s_nationkey` AND src.`s_suppkey` = recon.`s_suppkey`"
-    target_missing_query = "SELECT src.`s_address`, src.`s_name`, src.`s_nationkey`, src.`s_phone`, src.`s_suppkey` FROM (SELECT TRIM(s_address) AS `s_address`, TRIM(s_name) AS `s_name`, COALESCE(TRIM(`s_nationkey`), '_null_recon_') AS `s_nationkey`, TRIM(s_phone) AS `s_phone`, COALESCE(TRIM(`s_suppkey`), '_null_recon_') AS `s_suppkey` FROM :tbl WHERE s_name = 't' AND s_address = 'a') AS src INNER JOIN (SELECT CAST(33 AS number) AS `s_nationkey`, CAST(3 AS number) AS `s_suppkey`) AS recon ON src.`s_nationkey` = recon.`s_nationkey` AND src.`s_suppkey` = recon.`s_suppkey`"
+    source_mismatch_query = f"SELECT src.`s_address`, src.`s_name`, src.`s_nationkey`, src.`s_phone`, src.`s_suppkey` FROM (SELECT TRIM(s_address) AS `s_address`, TRIM(s_name) AS `s_name`, COALESCE(TRIM(`s_nationkey`), '_null_recon_') AS `s_nationkey`, TRIM(s_phone) AS `s_phone`, COALESCE(TRIM(`s_suppkey`), '_null_recon_') AS `s_suppkey` FROM :tbl WHERE s_name = 't' AND s_address = 'a') AS src INNER JOIN (SELECT * FROM recon_keys_{_UUID_SRC_MISMATCH}) AS recon ON src.`s_nationkey` = recon.`s_nationkey` AND src.`s_suppkey` = recon.`s_suppkey`"
+    target_mismatch_query = f"SELECT src.`s_address`, src.`s_name`, src.`s_nationkey`, src.`s_phone`, src.`s_suppkey` FROM (SELECT TRIM(s_address_t) AS `s_address`, TRIM(s_name) AS `s_name`, COALESCE(TRIM(`s_nationkey_t`), '_null_recon_') AS `s_nationkey`, TRIM(s_phone_t) AS `s_phone`, COALESCE(TRIM(`s_suppkey_t`), '_null_recon_') AS `s_suppkey` FROM :tbl WHERE s_name = 't' AND s_address_t = 'a') AS src INNER JOIN (SELECT * FROM recon_keys_{_UUID_TGT_MISMATCH}) AS recon ON src.`s_nationkey` = recon.`s_nationkey` AND src.`s_suppkey` = recon.`s_suppkey`"
+    source_missing_query = f"SELECT src.`s_address`, src.`s_name`, src.`s_nationkey`, src.`s_phone`, src.`s_suppkey` FROM (SELECT TRIM(s_address_t) AS `s_address`, TRIM(s_name) AS `s_name`, COALESCE(TRIM(`s_nationkey_t`), '_null_recon_') AS `s_nationkey`, TRIM(s_phone_t) AS `s_phone`, COALESCE(TRIM(`s_suppkey_t`), '_null_recon_') AS `s_suppkey` FROM :tbl WHERE s_name = 't' AND s_address_t = 'a') AS src INNER JOIN (SELECT * FROM recon_keys_{_UUID_SRC_MISSING}) AS recon ON src.`s_nationkey` = recon.`s_nationkey` AND src.`s_suppkey` = recon.`s_suppkey`"
+    target_missing_query = f"SELECT src.`s_address`, src.`s_name`, src.`s_nationkey`, src.`s_phone`, src.`s_suppkey` FROM (SELECT TRIM(s_address) AS `s_address`, TRIM(s_name) AS `s_name`, COALESCE(TRIM(`s_nationkey`), '_null_recon_') AS `s_nationkey`, TRIM(s_phone) AS `s_phone`, COALESCE(TRIM(`s_suppkey`), '_null_recon_') AS `s_suppkey` FROM :tbl WHERE s_name = 't' AND s_address = 'a') AS src INNER JOIN (SELECT * FROM recon_keys_{_UUID_TGT_MISSING}) AS recon ON src.`s_nationkey` = recon.`s_nationkey` AND src.`s_suppkey` = recon.`s_suppkey`"
     source_threshold_query = "SELECT `s_nationkey` AS `s_nationkey`, `s_suppkey` AS `s_suppkey`, `s_acctbal` AS `s_acctbal` FROM :tbl WHERE s_name = 't' AND s_address = 'a'"
     target_threshold_query = "SELECT `s_nationkey_t` AS `s_nationkey`, `s_suppkey_t` AS `s_suppkey`, `s_acctbal_t` AS `s_acctbal` FROM :tbl WHERE s_name = 't' AND s_address_t = 'a'"
     threshold_comparison_query = "SELECT COALESCE(source.`s_acctbal`, 0) AS `s_acctbal_source`, COALESCE(databricks.`s_acctbal`, 0) AS `s_acctbal_databricks`, CASE WHEN (COALESCE(source.`s_acctbal`, 0) - COALESCE(databricks.`s_acctbal`, 0)) = 0 THEN 'Match' WHEN (COALESCE(source.`s_acctbal`, 0) - COALESCE(databricks.`s_acctbal`, 0)) BETWEEN 0 AND 100 THEN 'Warning' ELSE 'Failed' END AS `s_acctbal_match`, source.`s_nationkey` AS `s_nationkey_source`, source.`s_suppkey` AS `s_suppkey_source` FROM source_supplier_df_threshold_vw AS source INNER JOIN target_target_supplier_df_threshold_vw AS databricks ON source.`s_nationkey` <=> databricks.`s_nationkey` AND source.`s_suppkey` <=> databricks.`s_suppkey` WHERE (1 = 1 OR 1 = 1) OR (COALESCE(source.`s_acctbal`, 0) - COALESCE(databricks.`s_acctbal`, 0)) <> 0"
@@ -161,7 +177,9 @@ def test_reconcile_data_with_mismatches_and_missing(
     query_store,
     tmp_path: Path,
     recon_metadata: ReconcileMetadataConfig,
+    recon_view_uuid_seq,
 ):
+    recon_view_uuid_seq([_UUID_SRC_MISMATCH, _UUID_TGT_MISMATCH, _UUID_SRC_MISSING, _UUID_TGT_MISSING])
     src_schema, tgt_schema = table_schema_ansi_ansi
     source_dataframe_repository = {
         (
@@ -230,20 +248,16 @@ def test_reconcile_data_with_mismatches_and_missing(
             ]
         ),
     }
-    target_schema_repository = {(CATALOG, SCHEMA, TGT_TABLE): tgt_schema}
-    database_config = DatabaseConfig(
-        source_catalog=CATALOG,
-        source_schema=SCHEMA,
-        target_catalog=CATALOG,
-        target_schema=SCHEMA,
-    )
+    source_connection = SourceConnectionConfig(dialect="databricks", catalog=CATALOG, schema=SCHEMA)
+    target_connection = TargetConnectionConfig(catalog=CATALOG, schema=SCHEMA)
     schema_comparator = SchemaCompare(spark)
     source = MockDataSource(source_dataframe_repository, source_schema_repository)
-    target = MockDataSource(target_dataframe_repository, target_schema_repository)
+    target = MockDataSource(target_dataframe_repository, {(CATALOG, SCHEMA, TGT_TABLE): tgt_schema})
     actual_data_reconcile = Reconciliation(
         source,
         target,
-        database_config,
+        source_connection,
+        target_connection,
         "data",
         schema_comparator,
         get_dialect("databricks"),
@@ -313,7 +327,8 @@ def test_reconcile_data_with_mismatches_and_missing(
     actual_schema_reconcile = Reconciliation(
         source,
         target,
-        database_config,
+        source_connection,
+        target_connection,
         "data",
         schema_comparator,
         get_dialect("databricks"),
@@ -439,19 +454,16 @@ def test_reconcile_data_without_mismatches_and_missing(
         ),
     }
     target_schema_repository = {(CATALOG, SCHEMA, TGT_TABLE): tgt_schema}
-    database_config = DatabaseConfig(
-        source_catalog=CATALOG,
-        source_schema=SCHEMA,
-        target_catalog=CATALOG,
-        target_schema=SCHEMA,
-    )
+    source_connection = SourceConnectionConfig(dialect="databricks", catalog=CATALOG, schema=SCHEMA)
+    target_connection = TargetConnectionConfig(catalog=CATALOG, schema=SCHEMA)
     schema_comparator = SchemaCompare(spark)
     source = MockDataSource(source_dataframe_repository, source_schema_repository)
     target = MockDataSource(target_dataframe_repository, target_schema_repository)
     actual = Reconciliation(
         source,
         target,
-        database_config,
+        source_connection,
+        target_connection,
         "data",
         schema_comparator,
         get_dialect("databricks"),
@@ -476,7 +488,9 @@ def test_reconcile_data_with_mismatch_and_no_missing(
     query_store,
     tmp_path: Path,
     recon_metadata: ReconcileMetadataConfig,
+    recon_view_uuid_seq,
 ):
+    recon_view_uuid_seq([_UUID_SRC_MISMATCH, _UUID_TGT_MISMATCH])
     src_schema, tgt_schema = table_schema_ansi_ansi
     normalized_table_conf_with_opts.drop_columns = ["`s_acctbal`"]
     normalized_table_conf_with_opts.column_thresholds = None
@@ -522,19 +536,16 @@ def test_reconcile_data_with_mismatch_and_no_missing(
         ),
     }
     target_schema_repository = {(CATALOG, SCHEMA, TGT_TABLE): tgt_schema}
-    database_config = DatabaseConfig(
-        source_catalog=CATALOG,
-        source_schema=SCHEMA,
-        target_catalog=CATALOG,
-        target_schema=SCHEMA,
-    )
+    source_connection = SourceConnectionConfig(dialect="databricks", catalog=CATALOG, schema=SCHEMA)
+    target_connection = TargetConnectionConfig(catalog=CATALOG, schema=SCHEMA)
     schema_comparator = SchemaCompare(spark)
     source = MockDataSource(source_dataframe_repository, source_schema_repository)
     target = MockDataSource(target_dataframe_repository, target_schema_repository)
     actual = Reconciliation(
         source,
         target,
-        database_config,
+        source_connection,
+        target_connection,
         "data",
         schema_comparator,
         get_dialect("databricks"),
@@ -587,7 +598,9 @@ def test_reconcile_data_missing_and_no_mismatch(
     query_store,
     tmp_path: Path,
     recon_metadata: ReconcileMetadataConfig,
+    recon_view_uuid_seq,
 ):
+    recon_view_uuid_seq([_UUID_SRC_MISSING, _UUID_TGT_MISSING])
     src_schema, tgt_schema = table_schema_ansi_ansi
     normalized_table_conf_with_opts.drop_columns = ["`s_acctbal`"]
     normalized_table_conf_with_opts.column_thresholds = None
@@ -625,19 +638,16 @@ def test_reconcile_data_missing_and_no_mismatch(
         ),
     }
     target_schema_repository = {(CATALOG, SCHEMA, TGT_TABLE): tgt_schema}
-    database_config = DatabaseConfig(
-        source_catalog=CATALOG,
-        source_schema=SCHEMA,
-        target_catalog=CATALOG,
-        target_schema=SCHEMA,
-    )
+    source_connection = SourceConnectionConfig(dialect="databricks", catalog=CATALOG, schema=SCHEMA)
+    target_connection = TargetConnectionConfig(catalog=CATALOG, schema=SCHEMA)
     schema_comparator = SchemaCompare(spark)
     source = MockDataSource(source_dataframe_repository, source_schema_repository)
     target = MockDataSource(target_dataframe_repository, target_schema_repository)
     actual = Reconciliation(
         source,
         target,
-        database_config,
+        source_connection,
+        target_connection,
         "data",
         schema_comparator,
         get_dialect("databricks"),
@@ -755,16 +765,24 @@ def mock_for_report_type_data(
 
 
 def test_recon_for_report_type_is_data(
-    mock_workspace_client, spark, report_tables_schema, mock_for_report_type_data, tmp_path: Path, recon_id: UUID
+    ws,
+    spark,
+    run_by_user,
+    report_tables_schema,
+    mock_for_report_type_data,
+    tmp_path: Path,
+    recon_id: UUID,
+    recon_view_uuid_seq,
 ):
+    recon_view_uuid_seq([_UUID_SRC_MISMATCH, _UUID_TGT_MISMATCH, _UUID_SRC_MISSING, _UUID_TGT_MISSING])
     recon_schema, metrics_schema, details_schema = report_tables_schema
     table_recon, source, target, reconcile_config_data = mock_for_report_type_data
-    catalog = reconcile_config_data.metadata_config.catalog
-    schema = reconcile_config_data.metadata_config.schema
+    metadata = reconcile_config_data.metadata_config
     with (
         patch("databricks.labs.lakebridge.reconcile.trigger_recon_service.datetime") as mock_datetime,
         patch("databricks.labs.lakebridge.reconcile.recon_capture.datetime") as recon_datetime,
         patch("databricks.labs.lakebridge.reconcile.utils.initialise_data_source", return_value=(source, target)),
+        patch.object(ws.dbfs, "delete"),
         patch(
             "databricks.labs.lakebridge.reconcile.trigger_recon_service.uuid4",
             return_value=recon_id,
@@ -777,11 +795,16 @@ def test_recon_for_report_type_is_data(
         mock_datetime.now.return_value = MOCK_TIMESTAMP
         recon_datetime.now.return_value = MOCK_TIMESTAMP
 
-        reconcile_output = TriggerReconService.trigger_recon(
-            mock_workspace_client, spark, table_recon, reconcile_config_data
-        )
+        assert TriggerReconService.trigger_recon(ws, spark, table_recon, reconcile_config_data).recon_id == recon_id.hex
 
-        assert reconcile_output.recon_id == recon_id.hex
+        # Sampling temp views (recon_keys_*) are dropped per table; none of this run's should remain.
+        assert not (
+            {row["viewName"] for row in spark.sql("SHOW VIEWS").where("isTemporary = true").collect()}
+            & {
+                f"recon_keys_{u}"
+                for u in (_UUID_SRC_MISMATCH, _UUID_TGT_MISMATCH, _UUID_SRC_MISSING, _UUID_TGT_MISSING)
+            }
+        )
 
     expected_remorph_recon = spark.createDataFrame(
         data=[
@@ -804,7 +827,7 @@ def test_recon_for_report_type_is_data(
             (
                 11111111111,
                 (3, 3, (1, 1), (1, 0, "s_address,s_phone"), None),
-                (False, "remorph", ""),
+                (False, run_by_user, ""),
                 MOCK_TIMESTAMP,
             )
         ],
@@ -868,13 +891,19 @@ def test_recon_for_report_type_is_data(
     )
 
     assertDataFrameEqual(
-        spark.sql(f"SELECT * FROM {catalog}.{schema}.MAIN"), expected_remorph_recon, ignoreNullable=True
+        spark.sql(f"SELECT * FROM {metadata.catalog}.{metadata.schema}.MAIN"),
+        expected_remorph_recon,
+        ignoreNullable=True,
     )
     assertDataFrameEqual(
-        spark.sql(f"SELECT * FROM {catalog}.{schema}.METRICS"), expected_remorph_recon_metrics, ignoreNullable=True
+        spark.sql(f"SELECT * FROM {metadata.catalog}.{metadata.schema}.METRICS"),
+        expected_remorph_recon_metrics,
+        ignoreNullable=True,
     )
     assertDataFrameEqual(
-        spark.sql(f"SELECT * FROM {catalog}.{schema}.DETAILS"), expected_remorph_recon_details, ignoreNullable=True
+        spark.sql(f"SELECT * FROM {metadata.catalog}.{metadata.schema}.DETAILS"),
+        expected_remorph_recon_details,
+        ignoreNullable=True,
     )
 
 
@@ -956,12 +985,11 @@ def mock_for_report_type_schema(
 
 
 def test_recon_for_report_type_schema(
-    mock_workspace_client, spark, report_tables_schema, mock_for_report_type_schema, tmp_path: Path, recon_id: UUID
+    ws, spark, run_by_user, report_tables_schema, mock_for_report_type_schema, tmp_path: Path, recon_id: UUID
 ):
     recon_schema, metrics_schema, details_schema = report_tables_schema
     table_recon, source, target, reconcile_config_schema = mock_for_report_type_schema
-    catalog = reconcile_config_schema.metadata_config.catalog
-    schema = reconcile_config_schema.metadata_config.schema
+    metadata = reconcile_config_schema.metadata_config
     with (
         patch("databricks.labs.lakebridge.reconcile.trigger_recon_service.datetime") as mock_datetime,
         patch("databricks.labs.lakebridge.reconcile.recon_capture.datetime") as recon_datetime,
@@ -974,9 +1002,7 @@ def test_recon_for_report_type_schema(
     ):
         mock_datetime.now.return_value = MOCK_TIMESTAMP
         recon_datetime.now.return_value = MOCK_TIMESTAMP
-        final_reconcile_output = TriggerReconService.trigger_recon(
-            mock_workspace_client, spark, table_recon, reconcile_config_schema
-        )
+        final_reconcile_output = TriggerReconService.trigger_recon(ws, spark, table_recon, reconcile_config_schema)
 
     expected_remorph_recon = spark.createDataFrame(
         data=[
@@ -999,7 +1025,7 @@ def test_recon_for_report_type_schema(
             (
                 22222222222,
                 (0, 0, None, None, True),
-                (True, "remorph", ""),
+                (True, run_by_user, ""),
                 MOCK_TIMESTAMP,
             )
         ],
@@ -1062,13 +1088,19 @@ def test_recon_for_report_type_schema(
     )
 
     assertDataFrameEqual(
-        spark.sql(f"SELECT * FROM {catalog}.{schema}.MAIN"), expected_remorph_recon, ignoreNullable=True
+        spark.sql(f"SELECT * FROM {metadata.catalog}.{metadata.schema}.MAIN"),
+        expected_remorph_recon,
+        ignoreNullable=True,
     )
     assertDataFrameEqual(
-        spark.sql(f"SELECT * FROM {catalog}.{schema}.METRICS"), expected_remorph_recon_metrics, ignoreNullable=True
+        spark.sql(f"SELECT * FROM {metadata.catalog}.{metadata.schema}.METRICS"),
+        expected_remorph_recon_metrics,
+        ignoreNullable=True,
     )
     assertDataFrameEqual(
-        spark.sql(f"SELECT * FROM {catalog}.{schema}.DETAILS"), expected_remorph_recon_details, ignoreNullable=True
+        spark.sql(f"SELECT * FROM {metadata.catalog}.{metadata.schema}.DETAILS"),
+        expected_remorph_recon_details,
+        ignoreNullable=True,
     )
 
     assert final_reconcile_output.recon_id == recon_id.hex
@@ -1076,7 +1108,6 @@ def test_recon_for_report_type_schema(
 
 @pytest.fixture
 def mock_for_report_type_all(
-    mock_workspace_client,
     normalized_table_conf_with_opts,
     table_schema_oracle_ansi,
     spark,
@@ -1174,16 +1205,18 @@ def mock_for_report_type_all(
 
 @pytest.mark.skip(reason="Will be fixed in a following PR")
 def test_recon_for_report_type_all(
-    mock_workspace_client,
+    ws,
     spark,
+    run_by_user,
     report_tables_schema,
     mock_for_report_type_all,
     tmp_path: Path,
+    recon_view_uuid_seq,
 ):
+    recon_view_uuid_seq([_UUID_SRC_MISMATCH, _UUID_TGT_MISMATCH, _UUID_SRC_MISSING, _UUID_TGT_MISSING])
     recon_schema, metrics_schema, details_schema = report_tables_schema
     table_recon, source, target, reconcile_config_all = mock_for_report_type_all
-    catalog = reconcile_config_all.metadata_config.catalog
-    schema = reconcile_config_all.metadata_config.schema
+    metadata = reconcile_config_all.metadata_config
 
     with (
         patch("databricks.labs.lakebridge.reconcile.trigger_recon_service.datetime") as mock_datetime,
@@ -1202,7 +1235,7 @@ def test_recon_for_report_type_all(
         mock_datetime.now.return_value = MOCK_TIMESTAMP
         recon_datetime.now.return_value = MOCK_TIMESTAMP
         with pytest.raises(ReconciliationException) as exc_info:
-            TriggerReconService.trigger_recon(mock_workspace_client, spark, table_recon, reconcile_config_all)
+            TriggerReconService.trigger_recon(ws, spark, table_recon, reconcile_config_all)
         if exc_info.value.reconcile_output is not None:
             assert exc_info.value.reconcile_output.recon_id == "00112233-4455-6677-8899-aabbccddeeff"
 
@@ -1227,7 +1260,7 @@ def test_recon_for_report_type_all(
             (
                 33333333333,
                 (3, 3, (1, 1), (1, 0, "s_address,s_phone"), False),
-                (False, "remorph", ""),
+                (False, run_by_user, ""),
                 MOCK_TIMESTAMP,
             )
         ],
@@ -1334,13 +1367,19 @@ def test_recon_for_report_type_all(
     )
 
     assertDataFrameEqual(
-        spark.sql(f"SELECT * FROM {catalog}.{schema}.MAIN"), expected_remorph_recon, ignoreNullable=True
+        spark.sql(f"SELECT * FROM {metadata.catalog}.{metadata.schema}.MAIN"),
+        expected_remorph_recon,
+        ignoreNullable=True,
     )
     assertDataFrameEqual(
-        spark.sql(f"SELECT * FROM {catalog}.{schema}.METRICS"), expected_remorph_recon_metrics, ignoreNullable=True
+        spark.sql(f"SELECT * FROM {metadata.catalog}.{metadata.schema}.METRICS"),
+        expected_remorph_recon_metrics,
+        ignoreNullable=True,
     )
     assertDataFrameEqual(
-        spark.sql(f"SELECT * FROM {catalog}.{schema}.DETAILS"), expected_remorph_recon_details, ignoreNullable=True
+        spark.sql(f"SELECT * FROM {metadata.catalog}.{metadata.schema}.DETAILS"),
+        expected_remorph_recon_details,
+        ignoreNullable=True,
     )
 
 
@@ -1454,8 +1493,9 @@ def mock_for_report_type_row(
 
 @pytest.mark.skip(reason="Will be fixed in a following PR")
 def test_recon_for_report_type_is_row(
-    mock_workspace_client,
+    ws,
     spark,
+    run_by_user,
     mock_for_report_type_row,
     report_tables_schema,
     tmp_path: Path,
@@ -1481,7 +1521,7 @@ def test_recon_for_report_type_is_row(
         mock_datetime.now.return_value = MOCK_TIMESTAMP
         recon_datetime.now.return_value = MOCK_TIMESTAMP
         with pytest.raises(ReconciliationException) as exc_info:
-            TriggerReconService.trigger_recon(mock_workspace_client, spark, table_recon, reconcile_config_row)
+            TriggerReconService.trigger_recon(ws, spark, table_recon, reconcile_config_row)
 
         if exc_info.value.reconcile_output is not None:
             assert exc_info.value.reconcile_output.recon_id == "00112233-4455-6677-8899-aabbccddeeff"
@@ -1507,7 +1547,7 @@ def test_recon_for_report_type_is_row(
             (
                 33333333333,
                 (3, 3, (2, 2), None, None),
-                (False, "remorph", ""),
+                (False, run_by_user, ""),
                 MOCK_TIMESTAMP,
             )
         ],
@@ -1603,7 +1643,7 @@ def mock_for_recon_exception(normalized_table_conf_with_opts, recon_metadata):
 
 
 def test_schema_recon_with_data_source_exception(
-    mock_workspace_client, spark, report_tables_schema, mock_for_recon_exception, tmp_path: Path, recon_id: UUID
+    ws, spark, run_by_user, report_tables_schema, mock_for_recon_exception, tmp_path: Path, recon_id: UUID
 ):
     recon_schema, metrics_schema, details_schema = report_tables_schema
     table_recon, source, target, reconcile_config_exception = mock_for_recon_exception
@@ -1626,7 +1666,7 @@ def test_schema_recon_with_data_source_exception(
     ):
         mock_datetime.now.return_value = MOCK_TIMESTAMP
         recon_datetime.now.return_value = MOCK_TIMESTAMP
-        TriggerReconService.trigger_recon(mock_workspace_client, spark, table_recon, reconcile_config_exception)
+        TriggerReconService.trigger_recon(ws, spark, table_recon, reconcile_config_exception)
 
     expected_remorph_recon = spark.createDataFrame(
         data=[
@@ -1651,7 +1691,7 @@ def test_schema_recon_with_data_source_exception(
                 (0, 0, None, None, None),
                 (
                     False,
-                    "remorph",
+                    run_by_user,
                     "Runtime exception occurred while fetching schema using (org, data, supplier) : Mock Exception",
                 ),
                 MOCK_TIMESTAMP,
@@ -1673,13 +1713,12 @@ def test_schema_recon_with_data_source_exception(
 
 
 def test_schema_recon_with_general_exception(
-    mock_workspace_client, spark, report_tables_schema, mock_for_report_type_schema, tmp_path: Path, recon_id: UUID
+    ws, spark, run_by_user, report_tables_schema, mock_for_report_type_schema, tmp_path: Path, recon_id: UUID
 ):
     recon_schema, metrics_schema, details_schema = report_tables_schema
     table_recon, source, target, reconcile_config_schema = mock_for_report_type_schema
     reconcile_config_schema.source.dialect = "snowflake"
-    catalog = reconcile_config_schema.metadata_config.catalog
-    schema = reconcile_config_schema.metadata_config.schema
+    metadata = reconcile_config_schema.metadata_config
     with (
         patch("databricks.labs.lakebridge.reconcile.trigger_recon_service.datetime") as mock_datetime,
         patch("databricks.labs.lakebridge.reconcile.recon_capture.datetime") as recon_datetime,
@@ -1700,7 +1739,7 @@ def test_schema_recon_with_general_exception(
         schema_source_mock.side_effect = PySparkException("Unknown Error")
         mock_datetime.now.return_value = MOCK_TIMESTAMP
         recon_datetime.now.return_value = MOCK_TIMESTAMP
-        TriggerReconService.trigger_recon(mock_workspace_client, spark, table_recon, reconcile_config_schema)
+        TriggerReconService.trigger_recon(ws, spark, table_recon, reconcile_config_schema)
 
     expected_remorph_recon = spark.createDataFrame(
         data=[
@@ -1725,7 +1764,7 @@ def test_schema_recon_with_general_exception(
                 (0, 0, None, None, None),
                 (
                     False,
-                    "remorph",
+                    run_by_user,
                     "Unknown Error",
                 ),
                 MOCK_TIMESTAMP,
@@ -1736,23 +1775,28 @@ def test_schema_recon_with_general_exception(
     expected_remorph_recon_details = spark.createDataFrame(data=[], schema=details_schema)
 
     assertDataFrameEqual(
-        spark.sql(f"SELECT * FROM {catalog}.{schema}.MAIN"), expected_remorph_recon, ignoreNullable=True
+        spark.sql(f"SELECT * FROM {metadata.catalog}.{metadata.schema}.MAIN"),
+        expected_remorph_recon,
+        ignoreNullable=True,
     )
     assertDataFrameEqual(
-        spark.sql(f"SELECT * FROM {catalog}.{schema}.METRICS"), expected_remorph_recon_metrics, ignoreNullable=True
+        spark.sql(f"SELECT * FROM {metadata.catalog}.{metadata.schema}.METRICS"),
+        expected_remorph_recon_metrics,
+        ignoreNullable=True,
     )
     assertDataFrameEqual(
-        spark.sql(f"SELECT * FROM {catalog}.{schema}.DETAILS"), expected_remorph_recon_details, ignoreNullable=True
+        spark.sql(f"SELECT * FROM {metadata.catalog}.{metadata.schema}.DETAILS"),
+        expected_remorph_recon_details,
+        ignoreNullable=True,
     )
 
 
 def test_data_recon_with_general_exception(
-    mock_workspace_client, spark, report_tables_schema, mock_for_report_type_schema, tmp_path: Path, recon_id: UUID
+    ws, spark, run_by_user, report_tables_schema, mock_for_report_type_schema, tmp_path: Path, recon_id: UUID
 ):
     recon_schema, metrics_schema, details_schema = report_tables_schema
     table_recon, source, target, reconcile_config = mock_for_report_type_schema
-    catalog = reconcile_config.metadata_config.catalog
-    schema = reconcile_config.metadata_config.schema
+    metadata = reconcile_config.metadata_config
     reconcile_config.source.dialect = "snowflake"
     reconcile_config.report_type = "data"
     with (
@@ -1773,7 +1817,7 @@ def test_data_recon_with_general_exception(
         data_source_mock.side_effect = DataSourceRuntimeException("Unknown Error")
         mock_datetime.now.return_value = MOCK_TIMESTAMP
         recon_datetime.now.return_value = MOCK_TIMESTAMP
-        TriggerReconService.trigger_recon(mock_workspace_client, spark, table_recon, reconcile_config)
+        TriggerReconService.trigger_recon(ws, spark, table_recon, reconcile_config)
 
     expected_remorph_recon = spark.createDataFrame(
         data=[
@@ -1798,7 +1842,7 @@ def test_data_recon_with_general_exception(
                 (3, 3, None, None, None),
                 (
                     False,
-                    "remorph",
+                    run_by_user,
                     "Unknown Error",
                 ),
                 MOCK_TIMESTAMP,
@@ -1809,23 +1853,28 @@ def test_data_recon_with_general_exception(
     expected_remorph_recon_details = spark.createDataFrame(data=[], schema=details_schema)
 
     assertDataFrameEqual(
-        spark.sql(f"SELECT * FROM {catalog}.{schema}.MAIN"), expected_remorph_recon, ignoreNullable=True
+        spark.sql(f"SELECT * FROM {metadata.catalog}.{metadata.schema}.MAIN"),
+        expected_remorph_recon,
+        ignoreNullable=True,
     )
     assertDataFrameEqual(
-        spark.sql(f"SELECT * FROM {catalog}.{schema}.METRICS"), expected_remorph_recon_metrics, ignoreNullable=True
+        spark.sql(f"SELECT * FROM {metadata.catalog}.{metadata.schema}.METRICS"),
+        expected_remorph_recon_metrics,
+        ignoreNullable=True,
     )
     assertDataFrameEqual(
-        spark.sql(f"SELECT * FROM {catalog}.{schema}.DETAILS"), expected_remorph_recon_details, ignoreNullable=True
+        spark.sql(f"SELECT * FROM {metadata.catalog}.{metadata.schema}.DETAILS"),
+        expected_remorph_recon_details,
+        ignoreNullable=True,
     )
 
 
 def test_data_recon_with_source_exception(
-    mock_workspace_client, spark, report_tables_schema, mock_for_report_type_schema, tmp_path: Path, recon_id: UUID
+    ws, spark, run_by_user, report_tables_schema, mock_for_report_type_schema, tmp_path: Path, recon_id: UUID
 ):
     recon_schema, metrics_schema, details_schema = report_tables_schema
     table_recon, source, target, reconcile_config = mock_for_report_type_schema
-    catalog = reconcile_config.metadata_config.catalog
-    schema = reconcile_config.metadata_config.schema
+    metadata = reconcile_config.metadata_config
     reconcile_config.source.dialect = "snowflake"
     reconcile_config.report_type = "data"
     with (
@@ -1846,7 +1895,7 @@ def test_data_recon_with_source_exception(
         data_source_mock.side_effect = DataSourceRuntimeException("Source Runtime Error")
         mock_datetime.now.return_value = MOCK_TIMESTAMP
         recon_datetime.now.return_value = MOCK_TIMESTAMP
-        TriggerReconService.trigger_recon(mock_workspace_client, spark, table_recon, reconcile_config)
+        TriggerReconService.trigger_recon(ws, spark, table_recon, reconcile_config)
 
     expected_remorph_recon = spark.createDataFrame(
         data=[
@@ -1871,7 +1920,7 @@ def test_data_recon_with_source_exception(
                 (3, 3, None, None, None),
                 (
                     False,
-                    "remorph",
+                    run_by_user,
                     "Source Runtime Error",
                 ),
                 MOCK_TIMESTAMP,
@@ -1882,13 +1931,19 @@ def test_data_recon_with_source_exception(
     expected_remorph_recon_details = spark.createDataFrame(data=[], schema=details_schema)
 
     assertDataFrameEqual(
-        spark.sql(f"SELECT * FROM {catalog}.{schema}.MAIN"), expected_remorph_recon, ignoreNullable=True
+        spark.sql(f"SELECT * FROM {metadata.catalog}.{metadata.schema}.MAIN"),
+        expected_remorph_recon,
+        ignoreNullable=True,
     )
     assertDataFrameEqual(
-        spark.sql(f"SELECT * FROM {catalog}.{schema}.METRICS"), expected_remorph_recon_metrics, ignoreNullable=True
+        spark.sql(f"SELECT * FROM {metadata.catalog}.{metadata.schema}.METRICS"),
+        expected_remorph_recon_metrics,
+        ignoreNullable=True,
     )
     assertDataFrameEqual(
-        spark.sql(f"SELECT * FROM {catalog}.{schema}.DETAILS"), expected_remorph_recon_details, ignoreNullable=True
+        spark.sql(f"SELECT * FROM {metadata.catalog}.{metadata.schema}.DETAILS"),
+        expected_remorph_recon_details,
+        ignoreNullable=True,
     )
 
 
@@ -1901,7 +1956,7 @@ def test_initialise_data_source(spark):
     assert isinstance(target, DatabricksDataSource)
 
 
-def test_recon_for_wrong_report_type(mock_workspace_client, spark, mock_for_report_type_row):
+def test_recon_for_wrong_report_type(ws, spark, mock_for_report_type_row):
     source, target, table_recon, reconcile_config = mock_for_report_type_row
     reconcile_config.report_type = "ro"
     with (
@@ -1920,7 +1975,7 @@ def test_recon_for_wrong_report_type(mock_workspace_client, spark, mock_for_repo
     ):
         mock_datetime.now.return_value = MOCK_TIMESTAMP
         recon_datetime.now.return_value = MOCK_TIMESTAMP
-        TriggerReconService.trigger_recon(mock_workspace_client, spark, table_recon, reconcile_config)
+        TriggerReconService.trigger_recon(ws, spark, table_recon, reconcile_config)
 
 
 def test_reconcile_data_with_threshold_and_row_report_type(
@@ -1972,12 +2027,8 @@ def test_reconcile_data_with_threshold_and_row_report_type(
     }
 
     target_schema_repository = {(CATALOG, SCHEMA, TGT_TABLE): tgt_schema}
-    database_config = DatabaseConfig(
-        source_catalog=CATALOG,
-        source_schema=SCHEMA,
-        target_catalog=CATALOG,
-        target_schema=SCHEMA,
-    )
+    source_connection = SourceConnectionConfig(dialect="databricks", catalog=CATALOG, schema=SCHEMA)
+    target_connection = TargetConnectionConfig(catalog=CATALOG, schema=SCHEMA)
     schema_comparator = SchemaCompare(spark)
     source = MockDataSource(source_dataframe_repository, source_schema_repository)
     target = MockDataSource(target_dataframe_repository, target_schema_repository)
@@ -1985,7 +2036,8 @@ def test_reconcile_data_with_threshold_and_row_report_type(
     actual = Reconciliation(
         source,
         target,
-        database_config,
+        source_connection,
+        target_connection,
         "row",
         schema_comparator,
         get_dialect("databricks"),
@@ -2003,7 +2055,7 @@ def test_reconcile_data_with_threshold_and_row_report_type(
 
 @patch('databricks.labs.lakebridge.reconcile.recon_capture.generate_final_reconcile_output')
 def test_recon_output_without_exception(mock_gen_final_recon_output):
-    mock_workspace_client = MagicMock()
+    ws_client_mock = MagicMock()
     spark = MagicMock()
     mock_table_recon = MagicMock()
     mock_gen_final_recon_output.return_value = ReconcileOutput(
@@ -2038,7 +2090,7 @@ def test_recon_output_without_exception(mock_gen_final_recon_output):
 
     try:
         TriggerReconService.trigger_recon(
-            mock_workspace_client,
+            ws_client_mock,
             spark,
             mock_table_recon,
             reconcile_config,

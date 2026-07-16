@@ -3,6 +3,7 @@ import uuid
 from pyspark.sql import SparkSession
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.service.catalog import TableInfo
+from databricks.labs.lakebridge.reconcile.connectors.bigquery import BigQueryDataSource
 from databricks.labs.lakebridge.reconcile.connectors.databricks import (
     DatabricksDataSource,
     DatabricksNonUnityCatalogDataSource,
@@ -199,4 +200,30 @@ def test_teradata_list_tables_happy(spark: SparkSession) -> None:
     connector = TeradataDataSource(get_dialect("teradata"), reader)
 
     tables = connector.list_tables("DBC", "lf_test_user")
+    assert "diamonds" in tables
+
+
+def _bigquery_connector(spark: SparkSession) -> BigQueryDataSource:
+    reader = RemoteQueryReader(spark, "bigquery_sandbox")
+    return BigQueryDataSource(get_dialect("bigquery"), reader)
+
+
+def test_bigquery_read_schema_happy(spark: SparkSession) -> None:
+    connector = _bigquery_connector(spark)
+
+    columns = connector.get_schema("databricks-dev-customer", "lakebridge", "diamonds")
+    assert columns
+
+
+def test_bigquery_list_schemas_happy(spark: SparkSession) -> None:
+    connector = _bigquery_connector(spark)
+
+    schemas = connector.list_schemas("databricks-dev-customer")
+    assert "lakebridge" in schemas
+
+
+def test_bigquery_list_tables_happy(spark: SparkSession) -> None:
+    connector = _bigquery_connector(spark)
+
+    tables = connector.list_tables("databricks-dev-customer", "lakebridge")
     assert "diamonds" in tables

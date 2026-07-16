@@ -23,15 +23,16 @@ from databricks.labs.blueprint.tui import Prompts
 
 
 from databricks.labs.lakebridge.assessments.configure_assessment import create_assessment_configurator
-from databricks.labs.lakebridge.assessments import PROFILER_SOURCE_SYSTEM, PRODUCT_NAME, source_system_family
+from databricks.labs.lakebridge.assessments import (
+    PROFILER_SOURCE_SYSTEM,
+    PRODUCT_NAME,
+    SOURCE_SYSTEM_VARIANTS,
+)
 from databricks.labs.lakebridge.assessments.profiler import Profiler, default_output_folder
 
 from databricks.labs.lakebridge.config import TableRecon, TranspileConfig, LSPConfigOptionV1
 from databricks.labs.lakebridge.contexts.application import ApplicationContext
-from databricks.labs.lakebridge.connections.credential_manager import cred_file, create_credential_manager
-from databricks.labs.lakebridge.connections.database_manager import DatabaseManager
-from databricks.labs.lakebridge.connections.env_getter import EnvGetter
-from databricks.labs.lakebridge.connections.synapse_connection_helpers import validate_synapse_pools
+from databricks.labs.lakebridge.connections.credential_manager import cred_file
 from databricks.labs.lakebridge.helpers.recon_config_utils import ReconConfigPrompts
 from databricks.labs.lakebridge.helpers.telemetry_utils import make_alphanum_or_semver
 from databricks.labs.lakebridge.reconcile.runner import ReconcileRunner
@@ -107,11 +108,6 @@ def _create_warehouse(ws: WorkspaceClient) -> str:
 
     logger.info(f"Created warehouse with id: {dbsql.id}")
     return dbsql.id
-
-
-def _remove_warehouse(ws: WorkspaceClient, warehouse_id: str):
-    ws.warehouses.delete(warehouse_id)
-    logger.info(f"Removed warehouse post installation with id: {warehouse_id}")
 
 
 @lakebridge.command
@@ -1099,6 +1095,7 @@ def llm_transpile(
 def execute_database_profiler(
     w: WorkspaceClient,
     source_tech: str | None = None,
+    variant: str | None = None,
     output_folder: str | None = None,
     cred_file_path: str | None = None,
 ) -> None:
@@ -1107,12 +1104,14 @@ def execute_database_profiler(
     ctx.add_user_agent_extra("cmd", "execute-profiler")
     prompts = ctx.prompts
     if source_tech is None:
-        source_tech = prompts.choice("Select the source technology", PROFILER_SOURCE_SYSTEM)
+        source_tech = prompts.choice("Select the source technology", PROFILER_SOURCE_SYSTEM, sort=False)
     source_tech = source_tech.lower()
 
     if source_tech not in PROFILER_SOURCE_SYSTEM:
         logger.error(f"Only the following source systems are supported: {PROFILER_SOURCE_SYSTEM}")
         raise_validation_exception(f"Invalid source technology {source_tech}")
+
+    variant = parse_profiler_variant(prompts, source_tech, variant)
 
     ctx.add_user_agent_extra("profiler_source_tech", make_alphanum_or_semver(source_tech))
     user = ctx.current_user
@@ -1138,46 +1137,27 @@ def execute_database_profiler(
             default=str(default_output_folder(source_tech)),
         ).strip()
 
-    profiler = Profiler.create(source_tech)
+    profiler = Profiler.create(source_tech, variant, creds_path)
     # TODO: Add extractor logic to ApplicationContext instead of creating inside the Profiler class
     profiler.profile(output_folder=Path(output_folder), cred_file_path=creds_path)
 
 
-@lakebridge.command()
-def visualize_profiler_results(
-    *,
-    w: WorkspaceClient,
-    transpiler_repository: TranspilerRepository = TranspilerRepository.user_home(),
-) -> None:
-    """Deploys a profiler summary as a Databricks dashboard"""
-    from databricks.labs.lakebridge.install import installer  # pylint: disable=cyclic-import, import-outside-toplevel
+def parse_profiler_variant(prompts: Prompts, source_tech: str, variant: str | None) -> str | None:
+    variants = SOURCE_SYSTEM_VARIANTS.get(source_tech, ())
+    if len(variants) > 1:
+        if variant:
+            variant = variant.lower()
+            if variant not in variants:
+                logger.error(f"Only the following source systems variants are supported: {variants}")
+                raise_validation_exception(f"Invalid source technology variant {variant}")
+        else:
+            variant = prompts.choice("Select a variant", variants)
+        return variant
 
-    ctx = ApplicationContext(w)
-    ctx.add_user_agent_extra("cmd", "visualize-profiler-results")
+    if variant:
+        logger.warning(f"Ignoring variant input. Not a valid option for source system: {source_tech}")
 
-    # Deploy the profiler dashboard and ingestion job
-    if not w.config.warehouse_id:
-        dbsql_id = _create_warehouse(w)
-        w.config.warehouse_id = dbsql_id
-    logger.debug(f"Warehouse ID used for running the profiler dashboard: {w.config.warehouse_id}.")
-    profiler_dashboard_installer = installer(w, transpiler_repository, is_interactive=True)
-    profiler_dashboard_installer.run(module="profiler_dashboard")
-
-
-def _test_database_connection(source_tech: str, raw_config: dict) -> None:
-    """Test connection to the source database with appropriate error handling."""
-    # Handle synapse-specific validation using dedicated helper
-    if source_tech == "synapse":
-        validate_synapse_pools(raw_config)
-        logger.info("Connection to the source system successful")
-        return
-
-    # For other source technologies, use DatabaseManager directly. Redshift variants
-    # share a single connector keyed under "redshift".
-    with DatabaseManager(source_system_family(source_tech), raw_config) as db_manager:
-        response = db_manager.check_connection()
-    logger.debug(f"Connection response: {response}")
-    logger.info("Connection to the source system successful")
+    return None
 
 
 @lakebridge.command()
@@ -1217,18 +1197,15 @@ def test_profiler_connection(
 
     logger.info(f"Testing connection for source technology: {source_tech}")
 
-    cred_manager = create_credential_manager(PRODUCT_NAME, EnvGetter(), creds_path=credential_file)
+    configurator = create_assessment_configurator(source_tech, PRODUCT_NAME, prompts, credential_file)
 
     try:
-        raw_config = cred_manager.get_credentials(source_system_family(source_tech))
+        configurator.test_connection()
     except KeyError as e:
         logger.error(f"Credential configuration error: {e}")
         raise SystemExit(
             f"Invalid credentials for {source_tech}. Please run `databricks labs lakebridge configure-database-profiler`."
         ) from e
-
-    try:
-        _test_database_connection(source_tech, raw_config)
     except ConnectionError as e:
         logger.error(f"Failed to connect to the source system: {e}")
         error_msg = str(e).lower()

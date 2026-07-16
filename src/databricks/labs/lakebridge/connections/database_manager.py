@@ -124,10 +124,15 @@ class SnowflakeConnector(_BaseConnector):
         return create_engine(snowflake_url)
 
 
+# In the mssql credential's ``database`` field, this sentinel (or a blank/whitespace value) means "no
+# specific database": connect to ``master``. The multi-database SQL Server profiler then enumerates all DBs.
+ALL_DATABASES = "*"
+
+
 class MSSQLConnector(_BaseConnector):
     def _connect(self) -> Engine:
-        db_value = self.config.get('database')
-        db_name = str(db_value) if db_value else None
+        db_value = str(self.config.get('database') or "").strip()
+        db_name = db_value if db_value and db_value != ALL_DATABASES else "master"
 
         resolved = resolve_mssql_credentials(self.config)
 
@@ -154,6 +159,23 @@ class MSSQLConnector(_BaseConnector):
 
         connection_string = URL.create(**url_kwargs)
         return create_engine(connection_string, **resolved.engine_kwargs)
+
+
+class TeradataConnector(_BaseConnector):
+    def _connect(self) -> Engine:
+        query_params: dict[str, str] = {}
+        if self.config.get("database"):
+            query_params["database"] = str(self.config["database"])
+
+        connection_string = URL.create(
+            drivername="teradatasql",
+            username=str(self.config['user']),
+            password=str(self.config['password']),
+            host=str(self.config['host']),
+            port=int(str(self.config.get('port', 1025))),
+            query=query_params,
+        )
+        return create_engine(connection_string)
 
 
 class OracleConnector(_BaseConnector):
@@ -242,6 +264,7 @@ def _create_connector(db_type: str, config: JsonObject) -> DatabaseConnector:
         "legacy_synapse": MSSQLConnector,
         "redshift": RedshiftConnector,
         "oracle": OracleConnector,
+        "teradata": TeradataConnector,
     }
 
     connector_class = connectors.get(db_type.lower())
@@ -274,8 +297,11 @@ class DatabaseManager:
         try:
             return self.connector.fetch(query)
         except OperationalError as e:
-            logger.exception(f"Error connecting to the database: {e}")
-            raise ConnectionError(f"Error connecting to the database check credentials: {e}") from e
+            # Drivers (notably teradatasql) embed a full stack trace and the offending SQL in the error
+            # message; keep that detail at debug level and surface only the concise first line.
+            logger.debug("Database query failed", exc_info=True)
+            reason = str(getattr(e, "orig", e)).split("\n", 1)[0].strip()
+            raise ConnectionError(f"Database query failed: {reason}") from e
 
     def check_connection(self) -> bool:
         return self.connector.health_check()
