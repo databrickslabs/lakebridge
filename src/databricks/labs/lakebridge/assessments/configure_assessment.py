@@ -488,6 +488,95 @@ class ConfigureBigQueryAssessment(AssessmentConfigurator):
         logger.info(f"Credential template created for {source}.")
 
 
+class ConfigureClickHouseAssessment(AssessmentConfigurator):
+    """ClickHouse assessment configuration (ClickHouse Cloud and self-managed / OSS).
+
+    Connection keys (``host``/``port``/``user``/``password``/``secure``) are stored flat so the
+    ``ClickHouseConnector`` and the OSS-vs-Cloud variant probe can read them directly. Profiler knobs
+    (``days_back``, ``redact``) nest under ``profiler``. An optional ``cloud_api`` block enables pulling
+    the actual billed cost + real sizing + plan tier from the ClickHouse Cloud API (Cloud only).
+    """
+
+    def _configure_credentials(self) -> None:
+        cred_file = self._credential_file
+        source = self._source_name
+
+        logger.info(
+            "\n(local | env) \nlocal means values are read as plain text \nenv means values are read "
+            "from environment variables fall back to plain text if not variable is not found\n",
+        )
+        secret_vault_type = str(self.prompts.choice("Enter secret vault type (local | env)", ["local", "env"])).lower()
+        secret_vault_name = None
+
+        logger.info("Please provide ClickHouse connection settings:")
+        # Cloud uses TLS on 8443; self-managed / OSS defaults to plain HTTP on 8123.
+        secure = self.prompts.confirm("Use a secure (TLS) connection? (required for ClickHouse Cloud)")
+        default_port = "8443" if secure else "8123"
+        source_creds: dict[str, Any] = {
+            "host": self.prompts.question("Enter the ClickHouse host", default="127.0.0.1"),
+            "port": int(
+                self.prompts.question("Enter the ClickHouse HTTP port", default=default_port, valid_number=True)
+            ),
+            "user": self.prompts.question("Enter the ClickHouse user", default="default"),
+            "password": self.prompts.password("Enter the ClickHouse password"),
+            "secure": secure,
+            "profiler": {
+                "days_back": int(
+                    self.prompts.question("Enter lookback window in days to profile", default="30", valid_number=True)
+                ),
+                # Default ON: strip auth params, host IPs/allow-lists, row-policy filters, and SQL text.
+                # Aggregate metrics, counts, and grant structure are preserved either way. Presented as a
+                # yes-first choice so the safe default is selected unless the user explicitly opts out.
+                "redact": str(
+                    self.prompts.choice(
+                        "Redact sensitive fields (SQL text, auth params, IPs, row-policy filters) from output?",
+                        ["yes", "no"],
+                    )
+                ).lower()
+                == "yes",
+            },
+        }
+
+        # Optional Cloud API credentials: authoritative provider/region, real compute sizing, actual
+        # billed cost, and the plan tier (Basic/Scale/Enterprise). Read-only. Cloud only.
+        if self.prompts.confirm("Configure ClickHouse Cloud API credentials for actual billed cost? (Cloud only)"):
+            cloud_api: dict[str, Any] = {
+                "key_id": self.prompts.question("Enter the Cloud API Key ID"),
+                "key_secret": self.prompts.password("Enter the Cloud API Key Secret"),
+            }
+            organization_id = self.prompts.question(
+                "Enter the Cloud organization id (optional, blank to auto-detect)", default=""
+            ).strip()
+            if organization_id:
+                cloud_api["organization_id"] = organization_id
+            service_id = self.prompts.question(
+                "Enter the Cloud service id (optional, blank to auto-detect)", default=""
+            ).strip()
+            if service_id:
+                cloud_api["service_id"] = service_id
+            # Optional plan-tier override; recorded as metadata (tier_source: config). Blank = detect
+            # from the Cloud API organizationTier.
+            tier = (
+                self.prompts.question(
+                    "Override plan tier (basic | scale | enterprise; blank to auto-detect)", default=""
+                )
+                .strip()
+                .lower()
+            )
+            if tier:
+                cloud_api["tier"] = tier
+            source_creds["cloud_api"] = cloud_api
+
+        credential = {
+            "secret_vault_type": secret_vault_type,
+            "secret_vault_name": secret_vault_name,
+            source: source_creds,
+        }
+        _save_to_disk(credential, cred_file)
+
+        logger.info(f"Credential template created for {source}.")
+
+
 def create_assessment_configurator(
     source_system: str, product_name: str, prompts: Prompts, credential_file: Path | str | None = None
 ) -> AssessmentConfigurator:
@@ -500,6 +589,7 @@ def create_assessment_configurator(
         "oracle": ConfigureOracleAssessment,
         "teradata": ConfigureTeradataAssessment,
         "bigquery": ConfigureBigQueryAssessment,
+        "clickhouse": ConfigureClickHouseAssessment,
     }
 
     if source_system not in configurators:

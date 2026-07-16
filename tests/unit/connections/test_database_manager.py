@@ -1,5 +1,6 @@
-import pytest
 from unittest.mock import MagicMock, patch
+
+import pytest
 from databricks.labs.blueprint.installation import JsonObject
 from databricks.labs.lakebridge.connections.database_manager import DatabaseManager
 
@@ -85,3 +86,72 @@ def test_teradata_connector(mock_teradata_connector) -> None:
 
     assert db_manager.connector == mock_connector_instance
     mock_teradata_connector.assert_called_once_with(sample_config)
+
+
+clickhouse_config: JsonObject = {
+    'host': '127.0.0.1',
+    'port': 8123,
+    'user': 'default',
+    'password': 'test_pass',
+    'secure': False,
+}
+
+
+@patch('databricks.labs.lakebridge.connections.database_manager.ClickHouseConnector')
+def test_clickhouse_connector_registered(mock_clickhouse_connector) -> None:
+    mock_connector_instance = MagicMock()
+    mock_clickhouse_connector.return_value = mock_connector_instance
+
+    db_manager = DatabaseManager("clickhouse", clickhouse_config)
+
+    assert db_manager.connector == mock_connector_instance
+    mock_clickhouse_connector.assert_called_once_with(clickhouse_config)
+
+
+@patch('databricks.labs.lakebridge.connections.database_manager.clickhouse_connect')
+def test_clickhouse_connector_fetch_maps_result(mock_clickhouse_connect) -> None:
+    """fetch() maps the clickhouse-connect result (column_names/result_rows) into a FetchResult."""
+    mock_client = MagicMock()
+    mock_clickhouse_connect.get_client.return_value = mock_client
+    mock_client.query.return_value = MagicMock(
+        column_names=["engine_edition", "name"],
+        result_rows=[[3, "prod"]],
+    )
+
+    db_manager = DatabaseManager("clickhouse", clickhouse_config)
+    result = db_manager.fetch("SELECT 1")
+
+    assert result.columns == {"engine_edition", "name"}
+    assert result.rows == [[3, "prod"]]
+    mock_client.query.assert_called_once_with("SELECT 1")
+
+
+@patch('databricks.labs.lakebridge.connections.database_manager.clickhouse_connect')
+def test_clickhouse_connector_health_check_and_close(mock_clickhouse_connect) -> None:
+    mock_client = MagicMock()
+    mock_clickhouse_connect.get_client.return_value = mock_client
+    mock_client.query.return_value = MagicMock(column_names=["test_column"], result_rows=[[101]])
+
+    with DatabaseManager("clickhouse", clickhouse_config) as db_manager:
+        assert db_manager.check_connection() is True
+
+    # __exit__ closes the underlying client.
+    mock_client.close.assert_called_once()
+
+
+@patch('databricks.labs.lakebridge.connections.database_manager.clickhouse_connect')
+def test_clickhouse_connector_secure_default_is_host_derived(mock_clickhouse_connect) -> None:
+    """With `secure` absent, a *.clickhouse.cloud host defaults to TLS on 8443; any other host
+    defaults to plaintext on 8123 (never insecure-by-default for Cloud)."""
+    mock_clickhouse_connect.get_client.return_value = MagicMock()
+
+    DatabaseManager("clickhouse", {"host": "abc.us-east-1.aws.clickhouse.cloud", "password": "p"})
+    cloud_kwargs = mock_clickhouse_connect.get_client.call_args.kwargs
+    assert cloud_kwargs["secure"] is True
+    assert cloud_kwargs["port"] == 8443
+
+    mock_clickhouse_connect.get_client.reset_mock()
+    DatabaseManager("clickhouse", {"host": "10.0.0.5", "password": "p"})
+    oss_kwargs = mock_clickhouse_connect.get_client.call_args.kwargs
+    assert oss_kwargs["secure"] is False
+    assert oss_kwargs["port"] == 8123

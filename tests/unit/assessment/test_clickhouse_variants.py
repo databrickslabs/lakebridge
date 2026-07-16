@@ -1,0 +1,106 @@
+from pathlib import Path
+from unittest.mock import MagicMock, patch
+
+import pytest
+import yaml
+
+from databricks.labs.lakebridge.assessments import SOURCE_SYSTEM_VARIANTS, AUTO
+from databricks.labs.lakebridge.assessments.profiler import get_pipeline
+from databricks.labs.lakebridge.assessments.variants import resolve_clickhouse_variant
+from databricks.labs.lakebridge.resources.assessments.clickhouse.collectors.costs import CostsCollector
+
+# clickhouse is registered as AUTO in the registry; these are the resolver's outputs / config directories.
+CLICKHOUSE_VARIANTS = ("oss", "cloud")
+_REPO_ROOT = Path(__file__).resolve().parents[3]
+_CLICKHOUSE_RESOURCES = _REPO_ROOT / "src/databricks/labs/lakebridge/resources/assessments/clickhouse"
+
+_PROBE_SQL = "SELECT value FROM system.settings WHERE name = 'cloud_mode'"
+
+
+def test_clickhouse_is_registered_as_auto_variant_source() -> None:
+    assert SOURCE_SYSTEM_VARIANTS["clickhouse"] == (AUTO,)
+
+
+@pytest.mark.parametrize("variant", CLICKHOUSE_VARIANTS)
+def test_clickhouse_variants_have_pipeline_config_path(variant: str) -> None:
+    cfg_path = get_pipeline("clickhouse", variant)
+    assert f"/clickhouse/{variant}/pipeline_config.yml" in str(cfg_path)
+
+
+@pytest.mark.parametrize("variant", CLICKHOUSE_VARIANTS)
+def test_clickhouse_variant_config_references_existing_files(variant: str) -> None:
+    """Every extract_source referenced by a variant config must point at a real script."""
+    config = yaml.safe_load((_CLICKHOUSE_RESOURCES / variant / "pipeline_config.yml").read_text())
+    for step in config["steps"]:
+        extract_source = _REPO_ROOT / step["extract_source"]
+        assert extract_source.exists(), f"{variant} step '{step['name']}' references missing file {extract_source}"
+
+
+@pytest.mark.parametrize(
+    ("cloud_mode_value", "expected"),
+    [
+        ("1", "cloud"),
+        ("true", "cloud"),
+        ("0", "oss"),
+        ("", "oss"),
+    ],
+)
+def test_resolve_clickhouse_variant_probes_cloud_mode(cloud_mode_value: str, expected: str) -> None:
+    """With a non-cloud host, the cloud_mode server setting decides oss vs cloud."""
+    db_manager = MagicMock()
+    db_manager.__enter__.return_value = db_manager
+    rows = [[cloud_mode_value]] if cloud_mode_value != "" else []
+    db_manager.fetch.return_value = MagicMock(rows=rows)
+    with (
+        patch("databricks.labs.lakebridge.assessments.variants.DatabaseManager", return_value=db_manager),
+        patch("databricks.labs.lakebridge.assessments.variants.create_credential_manager") as cred_manager,
+    ):
+        cred_manager.return_value.get_credentials.return_value = {"host": "10.0.0.5"}
+        assert resolve_clickhouse_variant(Path("creds.yml")) == expected
+    db_manager.fetch.assert_called_once_with(_PROBE_SQL)
+
+
+def test_resolve_clickhouse_variant_cloud_host_short_circuits() -> None:
+    """A *.clickhouse.cloud host resolves to cloud without probing the server."""
+    db_manager = MagicMock()
+    db_manager.__enter__.return_value = db_manager
+    with (
+        patch("databricks.labs.lakebridge.assessments.variants.DatabaseManager", return_value=db_manager),
+        patch("databricks.labs.lakebridge.assessments.variants.create_credential_manager") as cred_manager,
+    ):
+        cred_manager.return_value.get_credentials.return_value = {
+            "host": "abc123.us-east-1.aws.clickhouse.cloud",
+        }
+        assert resolve_clickhouse_variant(Path("creds.yml")) == "cloud"
+    db_manager.fetch.assert_not_called()
+
+
+def test_resolve_clickhouse_variant_lookalike_host_is_not_cloud() -> None:
+    """A host that merely CONTAINS 'clickhouse.cloud' (not a real suffix) must NOT be treated as
+    Cloud by the suffix short-circuit -> it falls through to the cloud_mode probe (regression: the
+    resolver and CostsCollector._detect_cloud must agree, both use endswith)."""
+    db_manager = MagicMock()
+    db_manager.__enter__.return_value = db_manager
+    db_manager.fetch.return_value = MagicMock(rows=[["0"]])  # on-prem -> oss
+    with (
+        patch("databricks.labs.lakebridge.assessments.variants.DatabaseManager", return_value=db_manager),
+        patch("databricks.labs.lakebridge.assessments.variants.create_credential_manager") as cred_manager,
+    ):
+        cred_manager.return_value.get_credentials.return_value = {"host": "my-clickhouse.cloudco.internal"}
+        assert resolve_clickhouse_variant(Path("creds.yml")) == "oss"
+    db_manager.fetch.assert_called_once_with(_PROBE_SQL)
+
+
+def test_costs_cloud_detection_matches_resolver_via_public_collect() -> None:
+    """The costs collector's Cloud detection agrees with the resolver: a lookalike host that merely
+    contains 'clickhouse.cloud' (cloud_mode=0) is treated as OSS -> pricing_config.is_cloud is False,
+    no actual_billed_cost. Exercised through the public collect() path (no protected-member access)."""
+    conn = MagicMock()
+    # Empty result for every query keeps collect() cheap; cloud_mode=0 drives the OSS branch.
+    conn.query.return_value = [{"value": "0"}]
+    collector = CostsCollector(conn=conn, config={"host": "my-clickhouse.cloudco.internal", "days_back": 7})
+    results = collector.collect()
+
+    assert results["pricing_config"]["is_cloud"] is False
+    assert "actual_billed_cost" not in results["pricing_config"]
+    assert results["resource_footprint"]["deployment"] == "self-managed (OSS)"

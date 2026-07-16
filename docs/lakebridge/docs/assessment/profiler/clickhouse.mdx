@@ -1,0 +1,207 @@
+---
+sidebar_position: 4
+title: ClickHouse Profiler Details
+---
+import Admonition from '@theme/Admonition';
+
+# ClickHouse Profiler Details
+
+- [Prerequisites](#prerequisites)
+- [OSS vs Cloud (auto-detected)](#oss-vs-cloud-auto-detected)
+- [Profiled Collectors and Tables](#profiled-collectors-and-tables)
+- [Cost Attribution](#cost-attribution)
+- [Data Privacy and Redaction](#data-privacy-and-redaction)
+- [Configure Connection to ClickHouse](#configure-connection-to-clickhouse)
+- [Execute the Profiler](#execute-the-profiler)
+
+## Prerequisites
+
+### 1. Download
+- No ODBC driver is required. The ClickHouse profiler connects over the HTTP interface using the
+  [`clickhouse-connect`](https://clickhouse.com/docs/integrations/python) client, which is installed with Lakebridge.
+
+### 2. Connectivity
+- **ClickHouse Cloud**: connect on port **8443** with TLS (`secure`). The host ends in `.clickhouse.cloud`.
+- **Self-managed / OSS**: connect over the HTTP interface (default port **8123**). The native protocol port (9000)
+  is **not** used.
+
+### 3. System log tables (OSS only)
+System log tables must be enabled for the workload, features, dependencies, and utilization collectors to return
+data. ClickHouse Cloud enables them by default; on self-managed builds ensure `query_log`, `part_log`, and
+`metric_log` are configured. Some tables (e.g. `system.session_log`, `system.query_views_log`) do not exist on all
+builds — the profiler records a non-fatal warning and continues, and the corresponding table is still created empty.
+
+### 4. Required Permissions
+
+The profiler runs **read-only** queries against `system.*` metadata and `information_schema`. It never reads user
+data or modifies anything. For a dedicated profiler user:
+
+```sql
+CREATE USER profiler IDENTIFIED BY '<password>';
+GRANT SELECT ON system.* TO profiler;
+GRANT SELECT ON information_schema.* TO profiler;
+GRANT SHOW TABLES ON *.* TO profiler;
+GRANT SHOW COLUMNS ON *.* TO profiler;
+GRANT SHOW DATABASES ON *.* TO profiler;
+```
+
+On ClickHouse Cloud, the built-in `default` user (or any user with the `default` role) already has the required
+access.
+
+## OSS vs Cloud (auto-detected)
+
+ClickHouse has two profiler variants, **`oss`** and **`cloud`**, which are **detected automatically** — you do not
+select one. A host ending in `.clickhouse.cloud` is treated as Cloud; otherwise the profiler reads the
+`cloud_mode` server setting (`1` on Cloud, absent/`0` on self-managed). On Cloud, queries read across replicas via
+`clusterAllReplicas(...)`; on OSS they read the single node.
+
+## Profiled Collectors and Tables
+
+The ClickHouse profiler runs seven collectors. Each collector produces several named result sets, and each result set
+is written to its own DuckDB table named `<collector>_<result_set>` (for example `workload_query_volume_summary`,
+`objects_tables`). Every table is always created — result sets with no rows are written as empty, typed tables so the
+output schema is consistent across runs and deployments.
+
+<table>
+  <thead>
+    <tr>
+      <th>Collector</th>
+      <th>Description</th>
+      <th>Primary System Tables</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>workload</strong></td>
+      <td>Query volume, trends, top/slowest queries, latency SLA buckets, per-user summary, error analysis.</td>
+      <td><code>system.query_log</code></td>
+    </tr>
+    <tr>
+      <td><strong>objects</strong></td>
+      <td>Databases, tables, columns, parts/storage layout, projections, data-skipping indices, dictionaries.</td>
+      <td><code>system.databases</code>, <code>system.tables</code>, <code>system.columns</code>, <code>system.parts</code>, <code>system.parts_columns</code></td>
+    </tr>
+    <tr>
+      <td><strong>features</strong></td>
+      <td>Engine usage, functions/formats/table-functions used, materialized views, TTL and partitioned tables.</td>
+      <td><code>system.tables</code>, <code>system.query_log</code>, <code>system.table_engines</code>, <code>system.view_refreshes</code></td>
+    </tr>
+    <tr>
+      <td><strong>dependencies</strong></td>
+      <td>Object dependencies, runtime table/column access, view execution lineage, potentially unused tables.</td>
+      <td><code>system.tables</code>, <code>system.query_log</code>, <code>system.query_views_log</code></td>
+    </tr>
+    <tr>
+      <td><strong>utilization</strong></td>
+      <td>Metrics, merges, mutations, replicas, disks, cluster topology, resource-utilization trend, compute footprint.</td>
+      <td><code>system.metrics</code>, <code>system.events</code>, <code>system.asynchronous_metrics</code>, <code>system.merges</code>, <code>system.mutations</code>, <code>system.part_log</code>, <code>system.metric_log</code>, <code>system.replicas</code>, <code>system.disks</code></td>
+    </tr>
+    <tr>
+      <td><strong>security</strong></td>
+      <td>Users, roles, grants, row policies, quotas, settings profiles, session activity, privileges used.</td>
+      <td><code>system.users</code>, <code>system.roles</code>, <code>system.grants</code>, <code>system.row_policies</code>, <code>system.quotas</code>, <code>system.session_log</code></td>
+    </tr>
+    <tr>
+      <td><strong>costs</strong></td>
+      <td>Usage attribution across storage, compute, scan, and ingestion by database/user/query, plus a resource footprint and (Cloud only) the actual billed cost.</td>
+      <td><code>system.parts</code>, <code>system.query_log</code>, <code>system.asynchronous_insert_log</code></td>
+    </tr>
+  </tbody>
+</table>
+
+## Cost Attribution
+
+The `costs` collector attributes usage across four buckets — **storage**, **compute**, **scan**, and **ingestion** —
+from `system.parts` and `system.query_log`, and always reports a **resource footprint** (compressed/disk GB,
+compute-weight distribution, query activity).
+
+Dollar figures are **actual billed cost only**, never a synthetic estimate:
+
+- On **self-managed / OSS**, no dollar figures are produced — ClickHouse Cloud metered pricing does not apply. Use the
+  resource footprint to size against your own infrastructure.
+- On **ClickHouse Cloud**, when Cloud API credentials are configured, the profiler reads the **actual billed cost**
+  and the **plan tier** (Basic / Scale / Enterprise) from the Cloud `usageCost` API, along with the service's real
+  provider/region and compute sizing. Without Cloud API credentials, the footprint and usage attribution are still
+  reported, but no dollar figures.
+
+<Admonition type="info" title="Plan tier">
+    The plan tier is recorded as metadata (from the Cloud API <code>organizationTier</code>) and does not drive any
+    pricing calculation. It reflects billed history and can lag a same-day plan change; set <code>tier</code> in the
+    Cloud API configuration to override it.
+</Admonition>
+
+## Data Privacy and Redaction
+
+The profiler reads only `system.*` metadata, but some fields can be sensitive (raw SQL text, authentication
+parameters, host IPs/allow-lists, row-policy filters). Redaction is **on by default** and replaces those fields with
+`[REDACTED]` in the output. Aggregate metrics, counts, and grant structure are always preserved. You can opt out
+during configuration.
+
+## Configure Connection to ClickHouse
+
+Run the following command to configure the profiler connection to your ClickHouse instance:
+
+```console
+databricks labs lakebridge configure-database-profiler
+
+Please select the source system you want to configure
+...
+Enter a number: <clickhouse>
+
+(local | env)
+local means values are read as plain text
+env means values are read from environment variables, and fall back to plain text if not variable is not found
+
+Enter secret vault type (local | env)
+[0] env
+[1] local
+Enter a number between 0 and 1: 1
+Use a secure (TLS) connection? (required for ClickHouse Cloud) (yes/no): yes
+Enter the ClickHouse host: my-service.us-east-1.aws.clickhouse.cloud
+Enter the ClickHouse HTTP port (default: 8443):
+Enter the ClickHouse user (default: default):
+Enter the ClickHouse password:
+Enter lookback window in days to profile (default: 30):
+Redact sensitive fields (SQL text, auth params, IPs, row-policy filters) from output?
+[0] no
+[1] yes
+Enter a number between 0 and 1: 1
+Configure ClickHouse Cloud API credentials for actual billed cost? (Cloud only) (yes/no): yes
+Enter the Cloud API Key ID: <key-id>
+Enter the Cloud API Key Secret:
+Enter the Cloud organization id (optional, blank to auto-detect):
+Enter the Cloud service id (optional, blank to auto-detect):
+Override plan tier (basic | scale | enterprise; blank to auto-detect):
+Do you want to test the connection to clickhouse? (yes/no): yes
+```
+
+### Configuration Parameters
+
+| Parameter | Description | Default |
+|:----------|:------------|:--------|
+| **Secret vault type** | `local` for plain text values, `env` to read from environment variables | — |
+| **Secure (TLS)** | Use a TLS connection. Required for ClickHouse Cloud; typically `no` for local/OSS. | — |
+| **Host** | ClickHouse host. A `*.clickhouse.cloud` host selects the Cloud variant automatically. | `127.0.0.1` |
+| **Port** | ClickHouse HTTP port. | `8443` (secure) / `8123` |
+| **User** | ClickHouse username. | `default` |
+| **Password** | ClickHouse password (hidden input). | — |
+| **Days back** | Lookback window (days) for query-history collectors. | `30` |
+| **Redact** | Replace sensitive fields (SQL text, auth params, IPs, row-policy filters) with `[REDACTED]`. | `yes` |
+| **Cloud API Key ID / Secret** | ClickHouse Cloud API key for actual billed cost, real sizing, and plan tier (Cloud only, optional). | — |
+| **Organization / Service id** | Optional Cloud API scoping; auto-detected when there is exactly one. | — |
+| **Tier override** | Force the plan tier (`basic`/`scale`/`enterprise`) instead of auto-detecting. | — |
+
+## Execute the Profiler
+
+Once configured, run the profiler to extract metadata and metrics from your ClickHouse instance:
+
+```bash
+databricks labs lakebridge execute-database-profiler --source-tech clickhouse
+```
+
+The profiler will:
+1. Connect to your ClickHouse instance and auto-detect the `oss` / `cloud` variant
+2. Run the seven collectors' read-only `system.*` queries
+3. Store the results in a local DuckDB extract file (one table per collector result set)
+
+[Back to Configure Profiler](../#configure-profiler)

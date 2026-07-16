@@ -14,7 +14,11 @@ from sqlalchemy.engine import Engine, URL
 from sqlalchemy import text
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm.session import Session
+import clickhouse_connect
+from clickhouse_connect.driver.client import Client as ClickHouseClient
 import redshift_connector  # type: ignore[import-untyped]
+
+from databricks.labs.lakebridge.resources.assessments.clickhouse import CLICKHOUSE_CLOUD_HOST_SUFFIX
 
 from databricks.labs.blueprint.installation import JsonObject
 from databricks.labs.lakebridge.connections.snowflake_utils import (
@@ -261,6 +265,49 @@ class RedshiftConnector(DatabaseConnector):
         return result.rows[0][0] == 101
 
 
+class ClickHouseConnector(DatabaseConnector):
+    """ClickHouse connector over the clickhouse-connect HTTP client.
+
+    Not SQLAlchemy-based (like Redshift), so it subclasses the ABC directly. Works against both
+    ClickHouse Cloud (``secure=True``, port 8443) and self-managed / OSS (port 8123). Only read-only
+    ``system.*`` metadata queries are ever run through it.
+    """
+
+    def __init__(self, config: JsonObject):
+        self.config = config
+        self._client: ClickHouseClient = self._connect()
+
+    def _connect(self) -> ClickHouseClient:
+        host = str(self.config["host"])
+        # The configurator always writes `secure` explicitly; this fallback is for a minimal
+        # hand-written credentials file. Default to TLS for managed ClickHouse Cloud hosts (which only
+        # accept TLS) and plaintext for self-managed / OSS (HTTP on 8123) — never insecure-by-default
+        # for Cloud. Port defaults follow suit.
+        is_cloud_host = host.strip().lower().endswith(CLICKHOUSE_CLOUD_HOST_SUFFIX)
+        secure = str(self.config.get("secure", str(is_cloud_host))).lower() in {"true", "yes", "1"}
+        default_port = "8443" if secure else "8123"
+        return clickhouse_connect.get_client(
+            host=host,
+            port=int(str(self.config.get("port", default_port))),
+            username=str(self.config.get("user", "default")),
+            password=str(self.config.get("password", "")),
+            secure=secure,
+        )
+
+    def fetch(self, query: str) -> FetchResult:
+        result = self._client.query(query)
+        columns = set(result.column_names)
+        return FetchResult(columns, result.result_rows)
+
+    def close(self) -> None:
+        self._client.close()
+
+    def health_check(self) -> bool:
+        query = "SELECT 101 AS test_column"
+        result = self.fetch(query)
+        return result.rows[0][0] == 101
+
+
 def _create_connector(db_type: str, config: JsonObject) -> DatabaseConnector:
     connectors: dict[str, Callable[[JsonObject], DatabaseConnector]] = {
         "snowflake": SnowflakeConnector,
@@ -270,6 +317,7 @@ def _create_connector(db_type: str, config: JsonObject) -> DatabaseConnector:
         "redshift": RedshiftConnector,
         "oracle": OracleConnector,
         "teradata": TeradataConnector,
+        "clickhouse": ClickHouseConnector,
     }
 
     connector_class = connectors.get(db_type.lower())

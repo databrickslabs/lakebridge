@@ -1,0 +1,9 @@
+name: clickhouse_assessment_oss
+version: "1.0"
+steps:
+  - name: ch_metadata_extract
+    type: python
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/ch_metadata_extract.py
+    mode: overwrite
+    frequency: once
+    flag: active
