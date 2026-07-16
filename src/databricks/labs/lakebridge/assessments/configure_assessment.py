@@ -151,18 +151,16 @@ class ConfigureSqlServerAssessment(AssessmentConfigurator):
             "auth_type": auth_type,
             **auth_credentials,
             "fetch_size": self.prompts.question("Enter fetch size", default="1000", valid_number=True),
-            "login_timeout": self.prompts.question(
-                    "Enter login timeout (seconds)", default="30", valid_number=True
-                ),
+            "login_timeout": self.prompts.question("Enter login timeout (seconds)", default="30", valid_number=True),
             "server": self.prompts.question("Enter the fully-qualified server name"),
             "port": int(self.prompts.question("Enter the port details", default="1433", valid_number=True)),
             # mssql: `*` profiles every accessible database (on-prem / Managed Instance); a name scopes
             # to that one database. legacy_synapse (shares this configurator) needs the dedicated-pool name.
             "database": (
-                    self.prompts.question("Enter the database name (* = all databases)")
-                    if source == "mssql"
-                    else self.prompts.question("Enter the dedicated pool name")
-                ),
+                self.prompts.question("Enter the database name (* = all databases)")
+                if source == "mssql"
+                else self.prompts.question("Enter the dedicated pool name")
+            ),
             "trust_server_certificate": self.prompts.confirm("Trust server certificate"),
             "tz_info": self.prompts.question("Enter timezone (e.g. America/New_York)", default="UTC"),
             "driver": self.prompts.question(
