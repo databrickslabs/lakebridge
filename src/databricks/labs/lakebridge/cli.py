@@ -1137,8 +1137,8 @@ def execute_database_profiler(
             default=str(default_output_folder(source_tech)),
         ).strip()
 
-    profiler = Profiler.create(source_tech, variant, creds_path)
     try:
+        profiler = Profiler.create(source_tech, variant, creds_path)
         profiler.profile(output_folder=Path(output_folder), cred_file_path=creds_path)
     except (RuntimeError, FileNotFoundError, ValueError) as e:
         raise SystemExit(f"Profiler execution failed: {e}") from e
