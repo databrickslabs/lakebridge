@@ -1,7 +1,8 @@
 """Authentication strategies for MSSQL-family connections (mssql-python driver).
 
 Each class is named after the `Authentication=` connection-string literal it maps to
-(e.g. `ActiveDirectoryServicePrincipal`).
+(e.g. `ActiveDirectoryServicePrincipal`), or after the Azure SDK credential class the
+driver uses internally (`DefaultAzureCredential`).
 
 The single point of contract is `MSSQLAuth.resolve_credentials(config)` — each class
 returns a fully-resolved `ResolvedCredentials` that the connector applies verbatim
@@ -87,14 +88,14 @@ class ActiveDirectoryServicePrincipal:
         )
 
 
-class ActiveDirectoryDefault:
+class DefaultAzureCredential:
     """Entra ID via the driver's `Authentication=ActiveDirectoryDefault` mode.
 
-    mssql-python resolves the identity internally with the Azure SDK
-    `DefaultAzureCredential` chain — SPN env vars (`AZURE_TENANT_ID` /
-    `AZURE_CLIENT_ID` / `AZURE_CLIENT_SECRET`), managed identity, then `az login`
-    — so no credentials appear in the connection string or on disk. MFA-capable:
-    the interactive step, if any, happens in `az login` before the profiler runs.
+    Named after the Azure SDK class mssql-python uses internally: the identity is
+    resolved by the `DefaultAzureCredential` chain — SPN env vars (`AZURE_TENANT_ID` /
+    `AZURE_CLIENT_ID` / `AZURE_CLIENT_SECRET`), managed identity, then `az login` —
+    so no credentials appear in the connection string or on disk. MFA-capable: the
+    interactive step, if any, happens in `az login` before the profiler runs.
     """
 
     @classmethod
@@ -105,7 +106,7 @@ class ActiveDirectoryDefault:
 # User-selectable auth methods, in the order they appear in the configurator prompt.
 AUTH_CHOICES: list[type[MSSQLAuth]] = [
     SqlPassword,
-    ActiveDirectoryDefault,
+    DefaultAzureCredential,
     ActiveDirectoryPassword,
     ActiveDirectoryServicePrincipal,
 ]

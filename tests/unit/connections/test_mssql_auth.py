@@ -11,9 +11,9 @@ import pytest
 from databricks.labs.lakebridge.connections.database_manager import MSSQLConnector
 from databricks.labs.lakebridge.connections.mssql_auth import (
     AUTH_CHOICES,
-    ActiveDirectoryDefault,
     ActiveDirectoryPassword,
     ActiveDirectoryServicePrincipal,
+    DefaultAzureCredential,
     SqlPassword,
     resolve_mssql_credentials,
 )
@@ -85,24 +85,24 @@ def test_active_directory_service_principal_missing_only_secret(monkeypatch: pyt
     assert "AZURE_CLIENT_ID" not in str(exc.value)
 
 
-def test_active_directory_default_emits_keyword_and_no_credentials() -> None:
+def test_default_azure_credential_emits_keyword_and_no_credentials() -> None:
     """The driver resolves the identity itself; nothing is read from config."""
-    resolved = ActiveDirectoryDefault.resolve_credentials({})
+    resolved = DefaultAzureCredential.resolve_credentials({})
     assert resolved.authentication_param == "ActiveDirectoryDefault"
     assert resolved.username is None
     assert resolved.password is None
 
 
-def test_active_directory_default_is_dispatchable() -> None:
-    resolved = resolve_mssql_credentials({"auth_type": "ActiveDirectoryDefault"})
+def test_default_azure_credential_is_dispatchable() -> None:
+    resolved = resolve_mssql_credentials({"auth_type": "DefaultAzureCredential"})
     assert resolved.authentication_param == "ActiveDirectoryDefault"
 
 
-def test_auth_choices_class_names_are_authentication_literals() -> None:
-    """Class names must match the `Authentication=` connection-string literal exactly."""
+def test_auth_choices_class_names_are_odbc_or_azure_literals() -> None:
+    """Class names match the `Authentication=` literal, or the Azure SDK class for the default chain."""
     literals = {
         "SqlPassword",
-        "ActiveDirectoryDefault",
+        "DefaultAzureCredential",
         "ActiveDirectoryPassword",
         "ActiveDirectoryServicePrincipal",
     }
@@ -190,8 +190,8 @@ def test_mssql_connector_sql_password_omits_authentication_keyword() -> None:
     assert "PWD=secret" in captured["connection_string"]
 
 
-def test_mssql_connector_active_directory_default_has_no_uid_pwd() -> None:
-    """ActiveDirectoryDefault delegates identity to the driver: keyword only, no credentials."""
+def test_mssql_connector_default_azure_credential_has_no_uid_pwd() -> None:
+    """DefaultAzureCredential delegates identity to the driver: keyword only, no credentials."""
     captured = {}
 
     def fake_connect(connection_string, **kwargs):
@@ -203,7 +203,7 @@ def test_mssql_connector_active_directory_default_has_no_uid_pwd() -> None:
     ):
         MSSQLConnector(
             {
-                "auth_type": "ActiveDirectoryDefault",
+                "auth_type": "DefaultAzureCredential",
                 "server": "test-server",
                 "port": 1433,
                 "database": "master",

@@ -164,7 +164,7 @@ def sandbox_spn_sqlserver_config(sandbox_sqlserver_config: JsonObject, monkeypat
 
 @pytest.fixture()
 def sandbox_ad_default_config(sandbox_sqlserver_config: JsonObject, monkeypatch: pytest.MonkeyPatch) -> JsonObject:
-    """ActiveDirectoryDefault via the environment leg of the DefaultAzureCredential chain.
+    """DefaultAzureCredential via the environment leg of its credential chain.
 
     Unlike the driver-native SPN path, azure-identity's EnvironmentCredential also
     needs the tenant id, which not every sandbox env provides — skip when absent.
@@ -178,7 +178,7 @@ def sandbox_ad_default_config(sandbox_sqlserver_config: JsonObject, monkeypatch:
     monkeypatch.setenv("AZURE_CLIENT_ID", env.get("TOOLS_CLIENT_ID"))
     monkeypatch.setenv("AZURE_CLIENT_SECRET", env.get("TOOLS_CLIENT_SECRET"))
     config = {k: v for k, v in sandbox_sqlserver_config.items() if k not in ("user", "password")}
-    return {**config, "auth_type": "ActiveDirectoryDefault"}
+    return {**config, "auth_type": "DefaultAzureCredential"}
 
 
 @pytest.fixture()

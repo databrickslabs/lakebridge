@@ -101,11 +101,11 @@ def test_configure_sqlserver_credentials_spn(tmp_path):
 
 
 def test_configure_sqlserver_credentials_ad_default(tmp_path):
-    """ActiveDirectoryDefault: no user/password prompts; the driver resolves the identity at run time."""
+    """DefaultAzureCredential: no user/password prompts; the driver resolves the identity at run time."""
     prompts = MockPrompts(
         {
             r"Enter secret vault type \(local \| env\)": sorted(['local', 'env']).index("env"),
-            r"Select authentication method": _auth_choice_index("ActiveDirectoryDefault"),
+            r"Select authentication method": _auth_choice_index("DefaultAzureCredential"),
             r"Enter the database name": "TEST_DB",
             r"Enter the fully-qualified server name": "URL",
             r"Enter the port details": "1433",
@@ -125,7 +125,7 @@ def test_configure_sqlserver_credentials_ad_default(tmp_path):
     with open(file, 'r', encoding='utf-8') as fstream:
         credentials = yaml.safe_load(fstream)
 
-    assert credentials["mssql"]["auth_type"] == "ActiveDirectoryDefault"
+    assert credentials["mssql"]["auth_type"] == "DefaultAzureCredential"
     assert "user" not in credentials["mssql"]
     assert "password" not in credentials["mssql"]
 
