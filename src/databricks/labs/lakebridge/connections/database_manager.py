@@ -3,7 +3,7 @@ import dataclasses
 import importlib
 import logging
 from abc import abstractmethod
-from collections.abc import Callable, Sequence, Set
+from collections.abc import Callable, Sequence
 from types import TracebackType
 from typing import Any
 
@@ -34,11 +34,11 @@ logger = logging.getLogger(__name__)
 
 @dataclasses.dataclass
 class FetchResult:
-    columns: Set[str]
+    columns: Sequence[str]
     rows: Sequence[Sequence[Any]]
 
     def to_df(self) -> pd.DataFrame:
-        return pd.DataFrame.from_records(self.rows, columns=self.columns)
+        return pd.DataFrame.from_records(self.rows, columns=list(self.columns))
 
 
 class DatabaseConnector(contextlib.AbstractContextManager):
@@ -80,7 +80,7 @@ class _BaseConnector(DatabaseConnector):
 
         with Session(self.engine) as session, session.begin():
             result = session.execute(text(query))
-            return FetchResult(result.keys(), result.fetchall())
+            return FetchResult(list(result.keys()), result.fetchall())
 
     def health_check(self) -> bool:
         query = "SELECT 101 AS test_column"
@@ -152,19 +152,22 @@ class MSSQLConnector(DatabaseConnector):
         trust = "no" if str(self.config.get('trust_server_certificate', 'False')) == 'False' else "yes"
         parts.append(f"TrustServerCertificate={trust}")
 
-        return mssql_python.connect(
-            ";".join(parts),
-            autocommit=True,
-            timeout=int(str(self.config.get('login_timeout', '30'))),
-        )
+        try:
+            return mssql_python.connect(
+                ";".join(parts),
+                autocommit=True,
+                timeout=int(str(self.config.get('login_timeout', '30'))),
+            )
+        except mssql_python.Error as e:
+            raise ConnectionError(f"Failed to connect to {server}: {e}") from e
 
     def fetch(self, query: str) -> FetchResult:
         cursor = self._conn.cursor()
         try:
             cursor.execute(query)
             if cursor.description is None:
-                return FetchResult(set(), [])
-            names = {desc[0] for desc in cursor.description}
+                return FetchResult([], [])
+            names = [desc[0] for desc in cursor.description]
             rows = [tuple(row) for row in cursor.fetchall()]
             return FetchResult(names, rows)
         finally:
@@ -257,9 +260,9 @@ class RedshiftConnector(DatabaseConnector):
             cursor.execute(query)
             # DDL (e.g. DROP, CREATE VIEW) has no result set; return empty result
             if cursor.description is None:
-                return FetchResult(set(), [])
+                return FetchResult([], [])
             rows = cursor.fetchall()
-            columns = {desc[0] for desc in cursor.description} if cursor.description else set()
+            columns = [desc[0] for desc in cursor.description]
             return FetchResult(columns, rows)
         finally:
             cursor.close()

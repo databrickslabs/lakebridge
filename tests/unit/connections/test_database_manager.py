@@ -1,7 +1,8 @@
+import mssql_python
 import pytest
 from unittest.mock import MagicMock, patch
 from databricks.labs.blueprint.installation import JsonObject
-from databricks.labs.lakebridge.connections.database_manager import DatabaseManager
+from databricks.labs.lakebridge.connections.database_manager import DatabaseManager, MSSQLConnector
 
 sample_config: JsonObject = {
     'user': 'test_user',
@@ -84,3 +85,11 @@ def test_teradata_connector(mock_teradata_connector) -> None:
 
     assert db_manager.connector == mock_connector_instance
     mock_teradata_connector.assert_called_once_with(sample_config)
+
+
+@patch('databricks.labs.lakebridge.connections.database_manager.mssql_python.connect')
+def test_mssql_connect_failure_raises_connection_error(mock_connect) -> None:
+    mock_connect.side_effect = mssql_python.OperationalError("login failed", "ddbc details")
+
+    with pytest.raises(ConnectionError, match="test_server"):
+        MSSQLConnector(sample_config)
