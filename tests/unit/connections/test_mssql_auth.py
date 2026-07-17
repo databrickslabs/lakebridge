@@ -11,11 +11,10 @@ import pytest
 from databricks.labs.lakebridge.connections.database_manager import MSSQLConnector
 from databricks.labs.lakebridge.connections.mssql_auth import (
     AUTH_CHOICES,
+    ActiveDirectoryDefault,
     ActiveDirectoryPassword,
     ActiveDirectoryServicePrincipal,
-    DefaultAzureCredential,
     SqlPassword,
-    _AUTH_REGISTRY,
     resolve_mssql_credentials,
 )
 
@@ -86,29 +85,28 @@ def test_active_directory_service_principal_missing_only_secret(monkeypatch: pyt
     assert "AZURE_CLIENT_ID" not in str(exc.value)
 
 
-def test_default_azure_credential_is_wired_but_not_implemented() -> None:
-    """DefaultAzureCredential is in the registry but `resolve_credentials()` raises until implemented."""
-    with pytest.raises(NotImplementedError):
-        DefaultAzureCredential.resolve_credentials({})
+def test_active_directory_default_emits_keyword_and_no_credentials() -> None:
+    """The driver resolves the identity itself; nothing is read from config."""
+    resolved = ActiveDirectoryDefault.resolve_credentials({})
+    assert resolved.authentication_param == "ActiveDirectoryDefault"
+    assert resolved.username is None
+    assert resolved.password is None
 
 
-def test_default_azure_credential_is_not_dispatchable_until_implemented() -> None:
-    """Out of `_AUTH_REGISTRY` until token injection is implemented — a hand-edited YAML
-    hits the dispatcher's `Invalid MSSQL auth_type:` error instead of NotImplementedError
-    deep inside `MSSQLConnector._connect()`.
-    """
-    assert "DefaultAzureCredential" not in _AUTH_REGISTRY
-    assert DefaultAzureCredential not in AUTH_CHOICES
+def test_active_directory_default_is_dispatchable() -> None:
+    resolved = resolve_mssql_credentials({"auth_type": "ActiveDirectoryDefault"})
+    assert resolved.authentication_param == "ActiveDirectoryDefault"
 
 
-def test_auth_choices_class_names_are_odbc_or_azure_literals() -> None:
-    """Class names must match the ODBC `Authentication=` literal (or Azure SDK class name) exactly."""
-    odbc_literals = {
+def test_auth_choices_class_names_are_authentication_literals() -> None:
+    """Class names must match the `Authentication=` connection-string literal exactly."""
+    literals = {
         "SqlPassword",
+        "ActiveDirectoryDefault",
         "ActiveDirectoryPassword",
         "ActiveDirectoryServicePrincipal",
     }
-    assert {cls.__name__ for cls in AUTH_CHOICES} == odbc_literals
+    assert {cls.__name__ for cls in AUTH_CHOICES} == literals
 
 
 def test_invalid_auth_type_raises_connection_error() -> None:
@@ -190,3 +188,28 @@ def test_mssql_connector_sql_password_omits_authentication_keyword() -> None:
     assert "Authentication=" not in captured["connection_string"]
     assert "UID=alice" in captured["connection_string"]
     assert "PWD=secret" in captured["connection_string"]
+
+
+def test_mssql_connector_active_directory_default_has_no_uid_pwd() -> None:
+    """ActiveDirectoryDefault delegates identity to the driver: keyword only, no credentials."""
+    captured = {}
+
+    def fake_connect(connection_string, **kwargs):
+        captured["connection_string"] = connection_string
+        return object()
+
+    with patch(
+        "databricks.labs.lakebridge.connections.database_manager.mssql_python.connect", side_effect=fake_connect
+    ):
+        MSSQLConnector(
+            {
+                "auth_type": "ActiveDirectoryDefault",
+                "server": "test-server",
+                "port": 1433,
+                "database": "master",
+            }
+        )
+
+    assert "Authentication=ActiveDirectoryDefault" in captured["connection_string"]
+    assert "UID=" not in captured["connection_string"]
+    assert "PWD=" not in captured["connection_string"]

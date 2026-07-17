@@ -100,6 +100,36 @@ def test_configure_sqlserver_credentials_spn(tmp_path):
     assert "password" not in credentials["mssql"]
 
 
+def test_configure_sqlserver_credentials_ad_default(tmp_path):
+    """ActiveDirectoryDefault: no user/password prompts; the driver resolves the identity at run time."""
+    prompts = MockPrompts(
+        {
+            r"Enter secret vault type \(local \| env\)": sorted(['local', 'env']).index("env"),
+            r"Select authentication method": _auth_choice_index("ActiveDirectoryDefault"),
+            r"Enter the database name": "TEST_DB",
+            r"Enter the fully-qualified server name": "URL",
+            r"Enter the port details": "1433",
+            r"Do you want to test the connection to mssql?.*": "no",
+            r"Enter fetch size": "1000",
+            r"Enter timezone.*": "UTC",
+            r"Enter login timeout.*": 30,
+            r"Trust server certificate": "no",
+        }
+    )
+    file = tmp_path / ".credentials.yml"
+    assessment = ConfigureSqlServerAssessment(
+        product_name="lakebridge", source_name="mssql", prompts=prompts, credential_file=file
+    )
+    assessment.run()
+
+    with open(file, 'r', encoding='utf-8') as fstream:
+        credentials = yaml.safe_load(fstream)
+
+    assert credentials["mssql"]["auth_type"] == "ActiveDirectoryDefault"
+    assert "user" not in credentials["mssql"]
+    assert "password" not in credentials["mssql"]
+
+
 def test_configure_sqlserver_credentials_ad_password(tmp_path):
     """ActiveDirectoryPassword: prompts for username and password (same shape as SQL auth)."""
     prompts = MockPrompts(

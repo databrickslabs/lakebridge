@@ -47,11 +47,13 @@ Create or reuse a SQL user with access to the system tables and DMVs listed in [
 | Auth method | Description | MFA-capable |
 |---|---|---|
 | `SqlPassword` | SQL Authentication — username + password from credentials file | No |
+| `ActiveDirectoryDefault` | Entra ID via the `DefaultAzureCredential` chain — `az login`, SPN env vars, or managed identity. Recommended, and the same chain the management API path uses: one `az login` covers both | Yes (via `az login`) |
 | `ActiveDirectoryPassword` | Entra ID (Azure AD) username + password | No |
 | `ActiveDirectoryServicePrincipal` | Service Principal — `AZURE_CLIENT_ID` / `AZURE_CLIENT_SECRET` env vars | No |
 
 :::warning
-For `ActiveDirectoryServicePrincipal`, set `AZURE_CLIENT_ID` and `AZURE_CLIENT_SECRET` env vars before running the profiler. `AZURE_TENANT_ID` is **not** required for the SQL path — it is only consumed by the management API path above.
+For `ActiveDirectoryServicePrincipal`, set `AZURE_CLIENT_ID` and `AZURE_CLIENT_SECRET` env vars before running the profiler. `AZURE_TENANT_ID` is **not** required for this mode — the driver negotiates the tenant with the server.
+For `ActiveDirectoryDefault`, run `az login` first; for unattended runs its environment-variable leg needs all three (`AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`).
 :::
 
 
@@ -147,9 +149,10 @@ Enter secret vault type (local | env)
 Enter a number between 0 and 1: 1
 Select authentication method
 [0] SqlPassword
-[1] ActiveDirectoryPassword
-[2] ActiveDirectoryServicePrincipal
-Enter a number between 0 and 2: 0
+[1] ActiveDirectoryDefault
+[2] ActiveDirectoryPassword
+[3] ActiveDirectoryServicePrincipal
+Enter a number between 0 and 3: 0
 Enter the username: user
 Enter the password:
 Please provide Synapse Workspace settings:
