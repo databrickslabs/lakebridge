@@ -140,6 +140,12 @@ class ClickHouseCloudAPI:
         transfer = sum(v for k, v in totals.items() if "DataTransferCHC" in k) + totals.get("initialLoadCHC", 0.0)
         total = round(compute + storage + backup + transfer, 6)
 
+        # True TCO: the org-wide grand total across ALL services plus org-level charges (backups,
+        # ClickPipes, shared costs) that aren't attributed to any single service. This is >= the
+        # per-service sum above; the gap is org-level spend the serviceId filter can't see.
+        grand_total = usage.get("grandTotalCHC")
+        org_total = round(float(grand_total), 6) if isinstance(grand_total, (int, float)) else None
+
         return {
             "tier": org_tier.lower() if isinstance(org_tier, str) else None,
             "organization_tier_raw": org_tier,
@@ -155,6 +161,9 @@ class ClickHouseCloudAPI:
             },
             # ClickHouse Credits are denominated 1 CHC = 1 USD (before discounts).
             "actual_total_usd": total,
+            # Org-wide grand total (all services + org-level charges) = true TCO. May exceed
+            # actual_total_usd, which is scoped to the profiled service.
+            "org_total_usd": org_total,
         }
 
     def discover_service(

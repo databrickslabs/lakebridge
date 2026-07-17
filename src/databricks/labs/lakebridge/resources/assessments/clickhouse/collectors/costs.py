@@ -99,23 +99,32 @@ class CostsCollector(BaseCollector):
                 "config.tier explicitly — it takes precedence over the API. tier_days shows "
                 "the per-tier day counts when the plan changed during the window.",
             }
-            # Actual billed cost from the usageCost API — the only dollar figure this collector emits.
+            # Actual billed cost from the usageCost API — the only dollar figures this collector emits.
             actual = cloud_meta.get("actual_cost") or {}
             if actual.get("record_count"):
                 window_days = (cloud_meta.get("actual_cost_window_days")) or min(self.days_back, 30)
+                service_total = actual.get("actual_total_usd")
+                # True TCO: org-wide grand total (all services + org-level charges like backups /
+                # ClickPipes / shared cost). >= the per-service total; falls back to it if the API
+                # didn't return a grand total.
+                org_total = actual.get("org_total_usd")
+                tco_total = org_total if org_total is not None else service_total
                 results["pricing_config"]["actual_billed_cost"] = {
                     "source": "cloud_usage_cost_api",
                     "window_days": window_days,
                     "currency": "CHC (1 CHC ≈ 1 USD, before discounts)",
                     "breakdown_chc": actual.get("actual_cost_chc"),
-                    "total_usd": actual.get("actual_total_usd"),
-                    "monthly_total_usd": (
-                        round(actual["actual_total_usd"] * (30 / max(window_days, 1)), 2)
-                        if actual.get("actual_total_usd")
-                        else None
-                    ),
-                    "note": "Real billed cost for the window (authoritative), plus a 30-day-normalized "
-                    "monthly figure. Reflects actual tier changes/scaling day-by-day.",
+                    # Per-service spend attributed to the profiled service.
+                    "service_total_usd": service_total,
+                    # Org-wide TCO across all services + org-level charges.
+                    "org_total_usd": org_total,
+                    # total_usd is the TCO headline (org total when available); kept for consumers
+                    # that read a single figure.
+                    "total_usd": tco_total,
+                    "monthly_total_usd": (round(tco_total * (30 / max(window_days, 1)), 2) if tco_total else None),
+                    "note": "Total cost of ownership: org-wide billed cost (all services + org-level "
+                    "charges) for the window, plus a 30-day-normalized monthly figure. service_total_usd "
+                    "is the profiled service's share. Reflects actual tier changes/scaling day-by-day.",
                 }
 
         # ============================================================
