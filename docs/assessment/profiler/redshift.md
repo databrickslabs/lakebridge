@@ -3,7 +3,7 @@
 * [Prerequisites](#prerequisites)
 * [Configure Connection to Redshift](#configure-connection-to-redshift)
 * [Run the profiler](#run-the-profiler)
-* [Profiler output and dashboards](#profiler-output-and-dashboards)
+* [Profiler output](#profiler-output)
 
 ## Prerequisites[​](#prerequisites "Direct link to Prerequisites")
 
@@ -144,8 +144,8 @@ Execution will:
 2. Run **source\_ddl** steps on the cluster (including creating/updating **`query_view`**).
 3. Run SQL extracts and persist results into a timestamped DuckDB file under the selected `--output-folder`.
 
-## Profiler output and dashboards[​](#profiler-output-and-dashboards "Direct link to Profiler output and dashboards")
+## Profiler output[​](#profiler-output "Direct link to Profiler output")
 
-For Redshift source variants, Lakebridge currently uploads the profiler extract to UC Volume but skips dashboard template and ingestion-job deployment. You can still use the extract artifact for downstream analysis.
+The profiler extract is written as a timestamped DuckDB file under the selected `--output-folder` and uploaded to the configured UC Volume for downstream analysis.
 
 [Back to Configure Profiler](/lakebridge/docs/assessment/profiler.md#configure-profiler)

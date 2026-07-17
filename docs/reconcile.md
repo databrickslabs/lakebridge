@@ -13,14 +13,15 @@ Lakebridge Reconcile validates data fidelity after migration by comparing your s
 
 ## Supported Source Systems[​](#supported-source-systems "Direct link to Supported Source Systems")
 
-| Source     | Schema | Row                                     | Data                                    | All                                     |
-| ---------- | ------ | --------------------------------------- | --------------------------------------- | --------------------------------------- |
-| Oracle     | Yes    | Yes                                     | Yes                                     | Yes                                     |
-| Snowflake  | Yes    | Yes                                     | Yes                                     | Yes                                     |
-| SQL Server | Yes    | Yes                                     | Yes                                     | Yes                                     |
-| Redshift   | Yes    | Yes                                     | Yes                                     | Yes                                     |
-| Teradata   | Yes    | Yes [1](#user-content-fn-teradata-hash) | Yes [1](#user-content-fn-teradata-hash) | Yes [1](#user-content-fn-teradata-hash) |
-| Databricks | Yes    | Yes                                     | Yes                                     | Yes                                     |
+| Source     | Schema                                   | Row                                     | Data                                    | All                                     |
+| ---------- | ---------------------------------------- | --------------------------------------- | --------------------------------------- | --------------------------------------- |
+| Oracle     | Yes                                      | Yes                                     | Yes                                     | Yes                                     |
+| Snowflake  | Yes                                      | Yes                                     | Yes                                     | Yes                                     |
+| SQL Server | Yes                                      | Yes                                     | Yes                                     | Yes                                     |
+| Redshift   | Yes                                      | Yes                                     | Yes                                     | Yes                                     |
+| Teradata   | Yes                                      | Yes [1](#user-content-fn-teradata-hash) | Yes [1](#user-content-fn-teradata-hash) | Yes [1](#user-content-fn-teradata-hash) |
+| BigQuery   | Yes [2](#user-content-fn-bigquery-types) | Yes                                     | Yes                                     | Yes                                     |
+| Databricks | Yes                                      | Yes                                     | Yes                                     | Yes                                     |
 
 ***
 
@@ -111,3 +112,5 @@ See [Running Reconcile](/lakebridge/docs/reconcile/running.md) for CLI execution
 ## Footnotes[​](#footnote-label "Direct link to Footnotes")
 
 1. Teradata has no portable cryptographic hash in pure SQL, so row-hash report types (`row`, `data`, `all`) require a user-installed hash UDF on the source and an explicit `hash_expression_overrides.source` entry on the recon config. See [Hash Expression](/lakebridge/docs/reconcile/configuration.md#hash-expression) for wiring. [↩](#user-content-fnref-teradata-hash) [↩2](#user-content-fnref-teradata-hash-2) [↩3](#user-content-fnref-teradata-hash-3)
+
+2. BigQuery types with no equivalent in Databricks — `BIGNUMERIC`, `TIME`, `RANGE<T>`, nested `JSON` such as `ARRAY<JSON>`, or these nested inside `ARRAY`/`STRUCT` — are left as their original BigQuery type and may be reported as `schema` mismatches even when the data migrated correctly. [↩](#user-content-fnref-bigquery-types)

@@ -13,13 +13,13 @@
 - [Exporting Legacy Metadata](/lakebridge/docs/assessment/analyzer/export_metadata.md): Analyzer expects all the legacy code to be exported into a folder accessible by it.For SQL code exporting, most times a database export can be used to export object definitions (tables, views procedures, functions etc...) in bulk.  Ideally, each SQL file should contain a single artifact.
 - [Profiler Guide](/lakebridge/docs/assessment/profiler.md): The Profiler is currently an Experimental feature in Lakebridge. For any feedback and/or issues, feel free to reach out
 - [BigQuery Profiler Details](/lakebridge/docs/assessment/profiler/bigquery.md): - Prerequisites
-- [Profiler Summary Dashboard](/lakebridge/docs/assessment/profiler/dashboards.md): The Profiler Summary Dashboard is currently an Experimental feature in Lakebridge. For any feedback and/or issues,
 - [Legacy Synapse Profiler Details](/lakebridge/docs/assessment/profiler/legacy_synapse.md): - Prerequisites
 - [MSSQL Profiler Details](/lakebridge/docs/assessment/profiler/mssql.md): - Prerequisites
 - [Oracle Profiler Details](/lakebridge/docs/assessment/profiler/oracle.md): - Prerequisites
 - [Amazon Redshift Profiler Details](/lakebridge/docs/assessment/profiler/redshift.md): - Prerequisites
 - [Snowflake Profiler Details](/lakebridge/docs/assessment/profiler/snowflake.md): Prerequisites
 - [Synapse Profiler Details](/lakebridge/docs/assessment/profiler/synapse.md): - Prerequisites
+- [Teradata Profiler Details](/lakebridge/docs/assessment/profiler/teradata.md): - Prerequisites
 
 ## Transpile Guide
 

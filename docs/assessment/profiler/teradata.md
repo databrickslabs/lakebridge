@@ -1,0 +1,136 @@
+# Teradata Profiler Details
+
+* [Prerequisites](#prerequisites)
+* [Configure Connection to Teradata](#configure-connection-to-teradata)
+* [Run the Profiler](#run-the-profiler)
+* [Choosing a Profiler Variant](#choosing-a-profiler-variant)
+* [SQL Text Redaction](#sql-text-redaction)
+* [International Character Support](#international-character-support)
+
+## Prerequisites[​](#prerequisites "Direct link to Prerequisites")
+
+### 1. Teradata connectivity and driver[​](#1-teradata-connectivity-and-driver "Direct link to 1. Teradata connectivity and driver")
+
+* Network access to the Teradata system.
+* No driver install required for the Teradata profiler.
+* Access to the Teradata database with appropriate permissions.
+
+### 2. Required permissions on system views[​](#2-required-permissions-on-system-views "Direct link to 2. Required permissions on system views")
+
+Grant `SELECT` access to:
+
+* `DBC.DBCInfoTbl`
+* `DBC.ResUsageSpma`
+* `DBC.DiskSpaceV`
+* `DBC.TablesV`
+* `DBC.FunctionsV`
+* `DBC.ColumnsV`
+
+### 3. Optional PDCR access for longer-history analysis[​](#3-optional-pdcr-access-for-longer-history-analysis "Direct link to 3. Optional PDCR access for longer-history analysis")
+
+The `pdcr` variant uses Teradata PDCR tables for richer, aggregated history (up to 180 days). To use it, grant `SELECT` access to:
+
+* `PDCRINFO.DBQlogTbl_Hst`
+* `PDCRINFO.DBQLSummaryTbl_Hst`
+* `PDCRINFO.UserInfo`
+
+PDCR is optional
+
+If PDCR is not available in the environment, use the `core` variant, which relies only on the core `DBC`/DBQL tables. See [Choosing a Profiler Variant](#choosing-a-profiler-variant).
+
+## Configure Connection to Teradata[​](#configure-connection-to-teradata "Direct link to Configure Connection to Teradata")
+
+```console
+databricks labs lakebridge configure-database-profiler
+
+Select the source technology
+[0] bigquery
+[1] legacy_synapse
+[2] mssql
+[3] oracle
+[4] redshift
+[5] snowflake
+[6] synapse
+[7] teradata
+Enter a number between 0 and 7: 7
+
+(local | env)
+local means values are read as plain text
+env means values are read from environment variables fall back to plain text if not variable is not found
+
+Enter secret vault type (local | env)
+[0] env
+[1] local
+Enter a number between 0 and 1: 1
+Enter the Teradata server or host details: td-host.example.com
+Enter the user details: dbc_user
+Enter the password details:
+Enter the default database name (default: DBC):
+
+```
+
+The generated credential block (written to `~/.databricks/labs/lakebridge/.credentials.yml`) includes:
+
+* `teradata.host`
+* `teradata.user`
+* `teradata.password`
+* `teradata.database`
+
+## Run the Profiler[​](#run-the-profiler "Direct link to Run the Profiler")
+
+The variant (`core` or `pdcr`) is selected at extraction time via `--variant`. Optionally verify connectivity first:
+
+```console
+databricks labs lakebridge test-profiler-connection --source-tech teradata
+
+```
+
+Then run the extraction:
+
+```console
+databricks labs lakebridge execute-database-profiler --source-tech teradata --variant core --output-folder /path/to/output
+
+```
+
+`--output-folder` is optional; if omitted you are prompted for it (defaulting to `~/.databricks/labs/lakebridge_profilers/<source-tech>_assessment`).
+
+This executes the extraction steps defined in the selected variant's pipeline configuration and produces a local DuckDB extract in the output folder, named:
+
+```text
+profiler_extract_<source-tech>_<version>_<YYYYMMDD>.db
+
+```
+
+The extract contains the system, storage, object, user-database, UDF, and workload tables gathered from the source.
+
+## Choosing a Profiler Variant[​](#choosing-a-profiler-variant "Direct link to Choosing a Profiler Variant")
+
+The Teradata profiler ships as two variants. They share the same connection and credentials; choose the one that matches the access available in your environment:
+
+| Variant | Workload source                      | Use when                                                                      |
+| ------- | ------------------------------------ | ----------------------------------------------------------------------------- |
+| `core`  | Core `DBC` / DBQL tables             | The baseline. Works on any Teradata system with the system-view grants above. |
+| `pdcr`  | PDCR aggregated history (`PDCRINFO`) | You have PDCR access and want richer, longer-history workload aggregates.     |
+
+Both variants extract the same system, storage, object, user-database, and UDF tables; they differ only in the workload extraction:
+
+* `core` extracts `td_dbql_core_info_extract`.
+* `pdcr` extracts `td_pdcr_info_agg_extract` and `td_pdcr_sp_exe_info_agg_extract`.
+
+The `core` workload data is typically narrower (recent days from DBQL instead of long historical aggregates), which can reduce long-horizon trend analysis and may underrepresent short-query aggregate metrics.
+
+PDCR not available?
+
+If you run the `pdcr` variant and the profiler fails with `Error 3802 ... Database 'PDCRINFO' does not exist`, the PDCR repository is not present (or not accessible) in this environment. Re-run with `--source-tech teradata --variant core`, which uses only the core `DBC`/DBQL tables.
+
+## SQL Text Redaction[​](#sql-text-redaction "Direct link to SQL Text Redaction")
+
+The Teradata profiler does **not** export raw SQL query text. In the DBQL-core extract the `SQLTextInfo` column is redacted to a fixed `[REDACTED]` value at extraction time, so query text never leaves the source system. Workload analysis relies on statement classification and performance metrics rather than the raw SQL.
+
+## International Character Support[​](#international-character-support "Direct link to International Character Support")
+
+Lakebridge preserves multilingual metadata (for example Japanese, Korean, and Thai text) in Teradata profiler extracts.
+
+* The `teradatasql` driver runs the session over UTF-8 and returns character data as already-decoded text, so international characters are preserved end to end with no lossy client-side re-encoding.
+
+[Back to Configure Profiler](/lakebridge/docs/assessment/profiler.md#configure-profiler)

@@ -23,6 +23,7 @@ Each system will have different prerequisites either for connection, or metrics 
 | Source Platform                                         | Configuration Status |
 | ------------------------------------------------------- | -------------------- |
 | [Azure Synapse](./synapse)                              | ✅                   |
+| [Teradata](./teradata)                                  | ✅                   |
 | [Snowflake](./snowflake)                                | ✅                   |
 | [Microsoft SQL Server](./mssql)                         | ✅                   |
 | [Legacy Synapse (Dedicated SQL Pool)](./legacy_synapse) | ✅                   |
@@ -80,9 +81,3 @@ The profiler will:
 tip
 
 The profiler can be run multiple times to capture different time periods or updated configurations. Each execution will create a timestamped snapshot of your source environment.
-
-## Publish Profiler Summary Dashboard[​](#publish-profiler-summary-dashboard "Direct link to Publish Profiler Summary Dashboard")
-
-Visualize your profiler results as a Lakeview dashboard deployed directly to your Databricks workspace. See the full guide: [Profiler Summary Dashboard](/lakebridge/docs/assessment/profiler/dashboards.md).
-
-For **Amazon Redshift**, dashboard creation is limited to uploading the profiler extract; see [Amazon Redshift Profiler Details](/lakebridge/docs/assessment/profiler/redshift.md) for details.

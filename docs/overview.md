@@ -57,7 +57,7 @@ For more information on using the data reconciliation tools, refer to the [Recon
 |                    | sap hana (calc views) |                       | ✅                    |           |           |
 |                    | snowflake             | ✅                    | ✅                    | ✅        | ✅        |
 |                    | synapse               | ✅                    | ✅                    | ✅        | ✅        |
-|                    | teradata              |                       | ✅                    | ✅        | ✅        |
+|                    | teradata              | ✅                    | ✅                    | ✅        | ✅        |
 |                    | vertica               |                       | ✅                    |           |           |
 | ETL                | abinitio              |                       | ✅                    |           |           |
 |                    | alteryx               |                       | ✅                    |           |           |

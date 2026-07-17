@@ -478,6 +478,7 @@ Each system will have different prerequisites either for connection, or metrics 
 | Source Platform                                         | Configuration Status |
 | ------------------------------------------------------- | -------------------- |
 | [Azure Synapse](./synapse)                              | ✅                   |
+| [Teradata](./teradata)                                  | ✅                   |
 | [Snowflake](./snowflake)                                | ✅                   |
 | [Microsoft SQL Server](./mssql)                         | ✅                   |
 | [Legacy Synapse (Dedicated SQL Pool)](./legacy_synapse) | ✅                   |
@@ -535,12 +536,6 @@ The profiler will:
 tip
 
 The profiler can be run multiple times to capture different time periods or updated configurations. Each execution will create a timestamped snapshot of your source environment.
-
-#### Publish Profiler Summary Dashboard[​](#publish-profiler-summary-dashboard "Direct link to Publish Profiler Summary Dashboard")
-
-Visualize your profiler results as a Lakeview dashboard deployed directly to your Databricks workspace. See the full guide: [Profiler Summary Dashboard](/lakebridge/docs/assessment/profiler/dashboards.md).
-
-For **Amazon Redshift**, dashboard creation is limited to uploading the profiler extract; see [Amazon Redshift Profiler Details](/lakebridge/docs/assessment/profiler/redshift.md) for details.
 
 
 ---
@@ -672,108 +667,6 @@ The final DuckDB contains **12 analysis tables** by default (one per `analysis_t
 Setting `exclude_reservations_data: true` skips the 6 reservation/commitment BigQuery queries — the corresponding DuckDB tables are still created (empty) to keep the output schema consistent.
 
 [Back to Configure Profiler](/lakebridge/docs/assessment/profiler.md#configure-profiler)
-
-
----
-
-### Profiler Summary Dashboard
-
-Attention:
-
-The Profiler Summary Dashboard is currently an Experimental feature in Lakebridge. For any feedback and/or issues, feel free to reach out via Github issues.
-
-#### Overview[​](#overview "Direct link to Overview")
-
-The `visualize-profiler-results` command uploads a DuckDB profiler extract file to a Unity Catalog Volume, deploys a source-specific Lakeview dashboard template to your Databricks workspace, and triggers an ingestion job that loads the extract data into Delta tables. The result is a live dashboard you can open immediately in your browser.
-
-#### Prerequisites[​](#prerequisites "Direct link to Prerequisites")
-
-* Unity Catalog must be enabled on your Databricks workspace.
-
-* Your user account must have sufficient privileges on the target catalog, schema, and volume:
-
-  <!-- -->
-
-  * `CREATE CATALOG` (or `USE CATALOG` on an existing catalog)
-  * `CREATE SCHEMA` (or `USE SCHEMA` on an existing schema)
-  * `CREATE VOLUME` (or `READ VOLUME` + `WRITE VOLUME` on an existing volume)
-
-* At least one **PRO** or **SERVERLESS** SQL warehouse must be available in the workspace.
-
-* A profiler extract file (`.db`) must already exist locally, produced by a previous `execute-database-profiler` run.
-
-#### Supported Sources[​](#supported-sources "Direct link to Supported Sources")
-
-| Source Platform             | Configuration Status |
-| --------------------------- | -------------------- |
-| [Azure Synapse](../synapse) | ✅                   |
-
-#### Running the Command[​](#running-the-command "Direct link to Running the Command")
-
-```bash
-databricks labs lakebridge visualize-profiler-results
-
-```
-
-The command is fully interactive — there are no CLI flags. It walks you through the following prompts:
-
-```console
-# Shown only when a profiler dashboard is already installed
-Do you want to override the existing installation? [y/n]:
-
-Enter the source tech: [synapse]
-Enter the path to the profiler extract file: [/tmp/data/synapse_assessment/profiler_extract.db]
-Enter catalog name [remorph]:
-Enter schema name [profiler]:
-Enter volume name [ingestion_volume]:
-
-# Shown if the catalog does not exist
-Catalog `<name>` doesn't exist. Create it? [y/n]:
-
-# Shown if the schema does not exist in the catalog
-Schema `<name>` doesn't exist in catalog `<catalog>`. Create it? [y/n]:
-
-# Shown if the volume does not exist in the catalog and schema
-Volume `<name>` doesn't exist in catalog `<catalog>` and schema `<schema>`. Create it? [y/n]:
-
-```
-
-Default values are shown in brackets `[…]`. Press **Enter** to accept a default.
-
-#### What Happens After You Run[​](#what-happens-after-you-run "Direct link to What Happens After You Run")
-
-1. **Extract uploaded** — the local file is uploaded to the UC Volume at `/Volumes/<catalog>/<schema>/<volume>/<filename>`.
-2. **Dashboard deployed** — a Lakeview dashboard is created from the source-specific template. The placeholders `` `PROFILER_CATALOG` `` and `` `PROFILER_SCHEMA` `` in the template are substituted with the catalog and schema names you provided.
-3. **Ingestion job created and run** — a Databricks job named `"Profiler Dashboard Ingestion Job"` is created in your workspace and immediately executed. It **overwrites** all profiler Delta tables with the data from the extract file you specified. Existing table data is not preserved.
-4. **Configuration saved** — your choices are persisted to `profiler_dashboard.yml` in the Lakebridge install folder for future reference.
-
-#### Data Behavior Details[​](#data-behavior-details "Direct link to Data Behavior Details")
-
-**Volume path resolution** The extract file is uploaded to `/Volumes/<catalog>/<schema>/<volume>`. If the resolved UC Volume path already ends with a file suffix (e.g. `.db`), that path is used as-is. Otherwise the extract filename is automatically appended to the volume path.
-
-**Re-running the command**
-
-Data overwrite — no append support
-
-Each run **completely replaces** the profiler Delta tables with the contents of the extract file you provide. Data from previous runs is not preserved or merged. If you have run `execute-database-profiler` multiple times and want to keep historical data, you must manage that yourself before re-running this command.
-
-In addition to the table overwrite, any previously deployed profiler dashboard is automatically deleted and replaced with the latest template. You will be prompted to confirm the override before any changes are made.
-
-**Configuration persistence** Answers to all prompts are saved as `profiler_dashboard.yml` in the Lakebridge install folder. On subsequent runs the command detects this file and asks `Do you want to override the existing installation?` before proceeding.
-
-#### Error Reference[​](#error-reference "Direct link to Error Reference")
-
-| Condition                  | Logged Message                                                 | Remediation                                                                                 |
-| -------------------------- | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| Local extract file missing | `Local file not found: <path>`                                 | Verify the path; run `execute-database-profiler` first to generate the extract              |
-| Volume path invalid        | `Invalid Volume path provided`                                 | Ensure the volume exists and that the path resolves to a location starting with `/Volumes/` |
-| Insufficient permissions   | `Insufficient privileges detected while accessing Volume path` | Grant `CREATE`/`WRITE` privileges on the catalog, schema, and volume to your user           |
-| Databricks internal error  | `Internal Databricks error while uploading extract file`       | Retry the command; contact Databricks support if the error persists                         |
-
-#### Related Commands[​](#related-commands "Direct link to Related Commands")
-
-* [Configure Profiler](/lakebridge/docs/assessment/profiler.md#configure-profiler) — set up connection details before profiling
-* [Execute Profiler](/lakebridge/docs/assessment/profiler.md#execute-profiler) — run the profiler to generate the extract file consumed by this command
 
 
 ---
@@ -1239,7 +1132,7 @@ The profiler will:
 * [Prerequisites](#prerequisites)
 * [Configure Connection to Redshift](#configure-connection-to-redshift)
 * [Run the profiler](#run-the-profiler)
-* [Profiler output and dashboards](#profiler-output-and-dashboards)
+* [Profiler output](#profiler-output)
 
 #### Prerequisites[​](#prerequisites "Direct link to Prerequisites")
 
@@ -1380,9 +1273,9 @@ Execution will:
 2. Run **source\_ddl** steps on the cluster (including creating/updating **`query_view`**).
 3. Run SQL extracts and persist results into a timestamped DuckDB file under the selected `--output-folder`.
 
-#### Profiler output and dashboards[​](#profiler-output-and-dashboards "Direct link to Profiler output and dashboards")
+#### Profiler output[​](#profiler-output "Direct link to Profiler output")
 
-For Redshift source variants, Lakebridge currently uploads the profiler extract to UC Volume but skips dashboard template and ingestion-job deployment. You can still use the extract artifact for downstream analysis.
+The profiler extract is written as a timestamped DuckDB file under the selected `--output-folder` and uploaded to the configured UC Volume for downstream analysis.
 
 [Back to Configure Profiler](/lakebridge/docs/assessment/profiler.md#configure-profiler)
 
@@ -1426,13 +1319,18 @@ databricks labs lakebridge execute-database-profiler
 
 ```
 
-The extract is written to a DuckDB file at `~/.databricks/labs/lakebridge_profilers/snowflake_assessment/profiler_extract.db`. It contains raw `SNOWFLAKE.ACCOUNT_USAGE` data — warehouse usage, query history, storage, users, and (when applicable) pipe / autoclustering / materialized-view refresh credits. By default each extract looks back 90 days. Inspect it with:
+The extract is written to a DuckDB file at `~/.databricks/labs/lakebridge_profilers/snowflake_assessment/profiler_extract.db`. It contains raw `SNOWFLAKE.ACCOUNT_USAGE` data — warehouse usage, query history, storage, and (when applicable) pipe / autoclustering / materialized-view refresh credits. By default each extract looks back 90 days.
+
+To keep extracts shareable on high-volume accounts, `query_history` includes metrics and `QUERY_TYPE` for every query in the window but **omits `QUERY_TEXT`**. A separate `query_samples` table holds a random sample of **10,000** rows **with** `QUERY_TEXT` (join to `query_history` on `QUERY_ID` for full metrics). Login history (`user_activity`) is not extracted.
+
+Inspect it with:
 
 ```bash
 cd ~/.databricks/labs/lakebridge_profilers/snowflake_assessment
 duckdb profiler_extract.db "SHOW TABLES;"
 duckdb profiler_extract.db "SELECT * FROM warehouse_usage LIMIT 10;"
 duckdb profiler_extract.db "SELECT * FROM query_history LIMIT 10;"
+duckdb profiler_extract.db "SELECT query_id, query_type, left(query_text, 80) FROM query_samples LIMIT 10;"
 
 ```
 
@@ -1572,6 +1470,146 @@ Exclude monitoring metrics from profiling? (default: no):
 Redact SQL pools SQL text? (default: no):
 
 ```
+
+[Back to Configure Profiler](/lakebridge/docs/assessment/profiler.md#configure-profiler)
+
+
+---
+
+### Teradata Profiler Details
+
+* [Prerequisites](#prerequisites)
+* [Configure Connection to Teradata](#configure-connection-to-teradata)
+* [Run the Profiler](#run-the-profiler)
+* [Choosing a Profiler Variant](#choosing-a-profiler-variant)
+* [SQL Text Redaction](#sql-text-redaction)
+* [International Character Support](#international-character-support)
+
+#### Prerequisites[​](#prerequisites "Direct link to Prerequisites")
+
+##### 1. Teradata connectivity and driver[​](#1-teradata-connectivity-and-driver "Direct link to 1. Teradata connectivity and driver")
+
+* Network access to the Teradata system.
+* No driver install required for the Teradata profiler.
+* Access to the Teradata database with appropriate permissions.
+
+##### 2. Required permissions on system views[​](#2-required-permissions-on-system-views "Direct link to 2. Required permissions on system views")
+
+Grant `SELECT` access to:
+
+* `DBC.DBCInfoTbl`
+* `DBC.ResUsageSpma`
+* `DBC.DiskSpaceV`
+* `DBC.TablesV`
+* `DBC.FunctionsV`
+* `DBC.ColumnsV`
+
+##### 3. Optional PDCR access for longer-history analysis[​](#3-optional-pdcr-access-for-longer-history-analysis "Direct link to 3. Optional PDCR access for longer-history analysis")
+
+The `pdcr` variant uses Teradata PDCR tables for richer, aggregated history (up to 180 days). To use it, grant `SELECT` access to:
+
+* `PDCRINFO.DBQlogTbl_Hst`
+* `PDCRINFO.DBQLSummaryTbl_Hst`
+* `PDCRINFO.UserInfo`
+
+PDCR is optional
+
+If PDCR is not available in the environment, use the `core` variant, which relies only on the core `DBC`/DBQL tables. See [Choosing a Profiler Variant](#choosing-a-profiler-variant).
+
+#### Configure Connection to Teradata[​](#configure-connection-to-teradata "Direct link to Configure Connection to Teradata")
+
+```console
+databricks labs lakebridge configure-database-profiler
+
+Select the source technology
+[0] bigquery
+[1] legacy_synapse
+[2] mssql
+[3] oracle
+[4] redshift
+[5] snowflake
+[6] synapse
+[7] teradata
+Enter a number between 0 and 7: 7
+
+(local | env)
+local means values are read as plain text
+env means values are read from environment variables fall back to plain text if not variable is not found
+
+Enter secret vault type (local | env)
+[0] env
+[1] local
+Enter a number between 0 and 1: 1
+Enter the Teradata server or host details: td-host.example.com
+Enter the user details: dbc_user
+Enter the password details:
+Enter the default database name (default: DBC):
+
+```
+
+The generated credential block (written to `~/.databricks/labs/lakebridge/.credentials.yml`) includes:
+
+* `teradata.host`
+* `teradata.user`
+* `teradata.password`
+* `teradata.database`
+
+#### Run the Profiler[​](#run-the-profiler "Direct link to Run the Profiler")
+
+The variant (`core` or `pdcr`) is selected at extraction time via `--variant`. Optionally verify connectivity first:
+
+```console
+databricks labs lakebridge test-profiler-connection --source-tech teradata
+
+```
+
+Then run the extraction:
+
+```console
+databricks labs lakebridge execute-database-profiler --source-tech teradata --variant core --output-folder /path/to/output
+
+```
+
+`--output-folder` is optional; if omitted you are prompted for it (defaulting to `~/.databricks/labs/lakebridge_profilers/<source-tech>_assessment`).
+
+This executes the extraction steps defined in the selected variant's pipeline configuration and produces a local DuckDB extract in the output folder, named:
+
+```text
+profiler_extract_<source-tech>_<version>_<YYYYMMDD>.db
+
+```
+
+The extract contains the system, storage, object, user-database, UDF, and workload tables gathered from the source.
+
+#### Choosing a Profiler Variant[​](#choosing-a-profiler-variant "Direct link to Choosing a Profiler Variant")
+
+The Teradata profiler ships as two variants. They share the same connection and credentials; choose the one that matches the access available in your environment:
+
+| Variant | Workload source                      | Use when                                                                      |
+| ------- | ------------------------------------ | ----------------------------------------------------------------------------- |
+| `core`  | Core `DBC` / DBQL tables             | The baseline. Works on any Teradata system with the system-view grants above. |
+| `pdcr`  | PDCR aggregated history (`PDCRINFO`) | You have PDCR access and want richer, longer-history workload aggregates.     |
+
+Both variants extract the same system, storage, object, user-database, and UDF tables; they differ only in the workload extraction:
+
+* `core` extracts `td_dbql_core_info_extract`.
+* `pdcr` extracts `td_pdcr_info_agg_extract` and `td_pdcr_sp_exe_info_agg_extract`.
+
+The `core` workload data is typically narrower (recent days from DBQL instead of long historical aggregates), which can reduce long-horizon trend analysis and may underrepresent short-query aggregate metrics.
+
+PDCR not available?
+
+If you run the `pdcr` variant and the profiler fails with `Error 3802 ... Database 'PDCRINFO' does not exist`, the PDCR repository is not present (or not accessible) in this environment. Re-run with `--source-tech teradata --variant core`, which uses only the core `DBC`/DBQL tables.
+
+#### SQL Text Redaction[​](#sql-text-redaction "Direct link to SQL Text Redaction")
+
+The Teradata profiler does **not** export raw SQL query text. In the DBQL-core extract the `SQLTextInfo` column is redacted to a fixed `[REDACTED]` value at extraction time, so query text never leaves the source system. Workload analysis relies on statement classification and performance metrics rather than the raw SQL.
+
+#### International Character Support[​](#international-character-support "Direct link to International Character Support")
+
+Lakebridge preserves multilingual metadata (for example Japanese, Korean, and Thai text) in Teradata profiler extracts.
+
+* The `teradatasql` driver runs the session over UTF-8 and returns character data as already-decoded text, so international characters are preserved end to end with no lossy client-side re-encoding.
 
 [Back to Configure Profiler](/lakebridge/docs/assessment/profiler.md#configure-profiler)
 
@@ -5784,14 +5822,15 @@ Lakebridge Reconcile validates data fidelity after migration by comparing your s
 
 #### Supported Source Systems[​](#supported-source-systems "Direct link to Supported Source Systems")
 
-| Source     | Schema | Row                                     | Data                                    | All                                     |
-| ---------- | ------ | --------------------------------------- | --------------------------------------- | --------------------------------------- |
-| Oracle     | Yes    | Yes                                     | Yes                                     | Yes                                     |
-| Snowflake  | Yes    | Yes                                     | Yes                                     | Yes                                     |
-| SQL Server | Yes    | Yes                                     | Yes                                     | Yes                                     |
-| Redshift   | Yes    | Yes                                     | Yes                                     | Yes                                     |
-| Teradata   | Yes    | Yes [1](#user-content-fn-teradata-hash) | Yes [1](#user-content-fn-teradata-hash) | Yes [1](#user-content-fn-teradata-hash) |
-| Databricks | Yes    | Yes                                     | Yes                                     | Yes                                     |
+| Source     | Schema                                   | Row                                     | Data                                    | All                                     |
+| ---------- | ---------------------------------------- | --------------------------------------- | --------------------------------------- | --------------------------------------- |
+| Oracle     | Yes                                      | Yes                                     | Yes                                     | Yes                                     |
+| Snowflake  | Yes                                      | Yes                                     | Yes                                     | Yes                                     |
+| SQL Server | Yes                                      | Yes                                     | Yes                                     | Yes                                     |
+| Redshift   | Yes                                      | Yes                                     | Yes                                     | Yes                                     |
+| Teradata   | Yes                                      | Yes [1](#user-content-fn-teradata-hash) | Yes [1](#user-content-fn-teradata-hash) | Yes [1](#user-content-fn-teradata-hash) |
+| BigQuery   | Yes [2](#user-content-fn-bigquery-types) | Yes                                     | Yes                                     | Yes                                     |
+| Databricks | Yes                                      | Yes                                     | Yes                                     | Yes                                     |
 
 ***
 
@@ -5883,6 +5922,8 @@ See [Running Reconcile](/lakebridge/docs/reconcile/running.md) for CLI execution
 
 1. Teradata has no portable cryptographic hash in pure SQL, so row-hash report types (`row`, `data`, `all`) require a user-installed hash UDF on the source and an explicit `hash_expression_overrides.source` entry on the recon config. See [Hash Expression](/lakebridge/docs/reconcile/configuration.md#hash-expression) for wiring. [↩](#user-content-fnref-teradata-hash) [↩2](#user-content-fnref-teradata-hash-2) [↩3](#user-content-fnref-teradata-hash-3)
 
+2. BigQuery types with no equivalent in Databricks — `BIGNUMERIC`, `TIME`, `RANGE<T>`, nested `JSON` such as `ARRAY<JSON>`, or these nested inside `ARRAY`/`STRUCT` — are left as their original BigQuery type and may be reported as `schema` mismatches even when the data migrated correctly. [↩](#user-content-fnref-bigquery-types)
+
 
 ---
 
@@ -5922,6 +5963,7 @@ Place the file in `.lakebridge/` in your Databricks workspace home folder.
 * Oracle
 * MS SQL Server (incl. Synapse)
 * Teradata
+* BigQuery
 * Databricks
 
 recon\_config\_snowflake\_sample\_data\_all.json
@@ -5988,6 +6030,25 @@ You must also tell Lakebridge how to call the UDF by setting `hash_expression_ov
 
 Refer to the Teradata documentation for how to create and register UDFs on your release and platform. For a real-world example, Teradata publishes an MD5 message-digest UDF you can install as-is or adapt: [MD5 Message Digest UDF](https://downloads.teradata.com/download/extensibility/md5-message-digest-udf).
 
+recon\_config\_bigquery\_sample\_data\_all.json
+
+```yaml
+source:
+    dialect: bigquery
+    catalog: bq_project_name
+    schema: sample_dataset
+    uc_connection_name: example_connection_bigquery
+target:
+    catalog: migrated
+    schema: migrated
+report_type: all
+
+```
+
+Writable dataset required
+
+Results materialize into the `lakebridge_reconcile` dataset. Make sure a dataset with this name exist in the same region as the source data and be writable by the connection's service account.
+
 recon\_config\_databricks\_hms\_schema.json
 
 ```yaml
@@ -6023,6 +6084,7 @@ class Table:
     column_thresholds: list[ColumnThresholds] | None = None
     filters: Filters | None = None
     table_thresholds: list[TableThresholds] | None = None
+    sampling_options: SamplingOptions | None = None
 
 ```
 
@@ -6039,27 +6101,29 @@ class Table:
     "transformation": null,
     "column_thresholds": null,
     "filters": null,
-    "table_thresholds": null
+    "table_thresholds": null,
+    "sampling_options": null
 }
 
 ```
 
 ##### Configuration Parameters[​](#configuration-parameters "Direct link to Configuration Parameters")
 
-| Parameter             | Type                    | Required | Description                                                                   |
-| --------------------- | ----------------------- | -------- | ----------------------------------------------------------------------------- |
-| `source_name`         | string                  | Yes      | Source table name                                                             |
-| `target_name`         | string                  | Yes      | Target table name                                                             |
-| `join_columns`        | list\[string]           | No       | Primary key columns for row-level joins                                       |
-| `aggregates`          | list\[Aggregate]        | No       | Aggregate reconciliation rules (see [Aggregates](#aggregates-reconciliation)) |
-| `jdbc_reader_options` | object                  | No       | JDBC read parallelization (see [JDBC Reader Options](#jdbc-reader-options))   |
-| `select_columns`      | list\[string]           | No       | Columns to include in reconciliation                                          |
-| `drop_columns`        | list\[string]           | No       | Columns to exclude from reconciliation                                        |
-| `column_mapping`      | list\[ColumnMapping]    | No       | Source-to-target column name mapping                                          |
-| `transformations`     | list\[Transformation]   | No       | Column-level SQL transformation expressions                                   |
-| `column_thresholds`   | list\[ColumnThresholds] | No       | Acceptable variance per column                                                |
-| `table_thresholds`    | list\[TableThresholds]  | No       | Acceptable mismatch rate at table level                                       |
-| `filters`             | Filters                 | No       | WHERE-clause filters for source and/or target                                 |
+| Parameter             | Type                    | Required | Description                                                                                                                               |
+| --------------------- | ----------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `source_name`         | string                  | Yes      | Source table name                                                                                                                         |
+| `target_name`         | string                  | Yes      | Target table name                                                                                                                         |
+| `join_columns`        | list\[string]           | No       | Primary key columns for row-level joins                                                                                                   |
+| `aggregates`          | list\[Aggregate]        | No       | Aggregate reconciliation rules (see [Aggregates](#aggregates-reconciliation))                                                             |
+| `jdbc_reader_options` | object                  | No       | JDBC read parallelization (see [JDBC Reader Options](#jdbc-reader-options))                                                               |
+| `select_columns`      | list\[string]           | No       | Columns to include in reconciliation                                                                                                      |
+| `drop_columns`        | list\[string]           | No       | Columns to exclude from reconciliation                                                                                                    |
+| `column_mapping`      | list\[ColumnMapping]    | No       | Source-to-target column name mapping                                                                                                      |
+| `transformations`     | list\[Transformation]   | No       | Column-level SQL transformation expressions                                                                                               |
+| `column_thresholds`   | list\[ColumnThresholds] | No       | Acceptable variance per column                                                                                                            |
+| `table_thresholds`    | list\[TableThresholds]  | No       | Acceptable mismatch rate at table level                                                                                                   |
+| `filters`             | Filters                 | No       | WHERE-clause filters for source and/or target                                                                                             |
+| `sampling_options`    | SamplingOptions         | No       | Caps the rows pulled into each sample bucket — mismatch, missing-in-source, missing-in-target (see [Sampling Options](#sampling-options)) |
 
 ***
 
@@ -6281,9 +6345,127 @@ Filters must use dialect-specific SQL expressions — they are applied directly 
 
 ***
 
+#### Sampling Options[​](#sampling-options "Direct link to Sampling Options")
+
+For `data` and `all` report types, Reconcile captures sample rows for each mismatch / missing-in-source / missing-in-target bucket. `sampling_options` controls **how many** rows are sampled and **how** they are drawn.
+
+note
+
+`sampling_options` applies to **row-level** reconcile (`data` / `all` report types) only. [Aggregates Reconciliation](#aggregates-reconciliation) always samples up to `50` (`DEFAULT_SAMPLE_ROWS`) rows per missing-in-source / missing-in-target set and ignores `sampling_options` (both the sampling method and size).
+
+##### SamplingSpecifications[​](#samplingspecifications "Direct link to SamplingSpecifications")
+
+Controls the sample-size policy.
+
+* Python
+* JSON
+
+```python
+@dataclass
+class SamplingSpecifications:
+    type: SamplingSpecificationsType = SamplingSpecificationsType.COUNT
+    value: int | float = 50
+
+```
+
+```json
+"specifications": {
+    "type": "count",
+    "value": 50
+}
+
+```
+
+| field   | type                     | description                                                                                                   | default |
+| ------- | ------------------------ | ------------------------------------------------------------------------------------------------------------- | ------- |
+| `type`  | `count` | `fraction`    | `count` = absolute row cap. `fraction` is reserved and currently disabled — passing it raises a config error. | `count` |
+| `value` | int (float for fraction) | Maximum rows per sample set (mismatch / missing-in-source / missing-in-target).                               | `50`    |
+
+**Engine-aware bounds on `value`:**
+
+Each source has a `max_sample_size` (a property on its connector):
+
+* **Databricks source:** honored up to `50_000`.
+* **Non-Databricks source:** honored up to `400`.
+* Values above the source's limit are capped to it with a `WARNING` log (`exceeds the limit of <max> for <connector>; capping to <max>`).
+* `value <= 0` falls back to `50`.
+
+##### SamplingOptions[​](#samplingoptions "Direct link to SamplingOptions")
+
+Wraps `SamplingSpecifications` and selects the sampling method.
+
+* Python
+* JSON
+
+```python
+@dataclass
+class SamplingOptions:
+    method: SamplingOptionMethod = SamplingOptionMethod.RANDOM
+    specifications: SamplingSpecifications = field(default_factory=SamplingSpecifications)
+    stratified_columns: list[str] | None = None
+    stratified_buckets: int | None = None
+
+```
+
+```json
+"sampling_options": {
+    "method": "random",
+    "specifications": { "type": "count", "value": 50 },
+    "stratified_columns": null,
+    "stratified_buckets": null
+}
+
+```
+
+| field                | type                     | description                                                                              | default        |
+| -------------------- | ------------------------ | ---------------------------------------------------------------------------------------- | -------------- |
+| `method`             | `random` | `stratified` | Sampling strategy.                                                                       | `random`       |
+| `specifications`     | SamplingSpecifications   | Size policy (see [above](#samplingspecifications)).                                      | `count` / `50` |
+| `stratified_columns` | list\[string]            | **Required when `method = stratified`.** Columns whose values define the strata.         | `null`         |
+| `stratified_buckets` | int                      | **Required when `method = stratified`.** Number of strata buckets. Clamped to `[2, 50]`. | `null`         |
+
+When `method = stratified`, rows are bucketed by `pmod(abs(hash(stratified_columns)), stratified_buckets)` and sampling proceeds within each bucket. Missing `stratified_columns` or `stratified_buckets` raises a `ValueError`.
+
+**Examples**
+
+Random sampling (Databricks source) — limit each sample set (mismatch, missing-in-source, missing-in-target) to 500 rows:
+
+```json
+"sampling_options": {
+  "method": "random",
+  "specifications": { "type": "count", "value": 500 }
+}
+
+```
+
+Shortest form (relies on defaults of `random` and `count`):
+
+```json
+"sampling_options": { "specifications": { "value": 500 } }
+
+```
+
+Stratified sampling — 10 strata on `ss_store_sk`, up to 500 sample rows total (allocated proportionally across buckets):
+
+```json
+"sampling_options": {
+  "method": "stratified",
+  "specifications": { "type": "count", "value": 500 },
+  "stratified_columns": ["ss_store_sk"],
+  "stratified_buckets": 10
+}
+
+```
+
+***
+
 #### Aggregates Reconciliation[​](#aggregates-reconciliation "Direct link to Aggregates Reconciliation")
 
 Reconcile aggregate metrics (MIN, MAX, COUNT, SUM, AVG, etc.) between source and target instead of comparing raw rows.
+
+note
+
+Aggregates reconcile always samples up to `50` (`DEFAULT_SAMPLE_ROWS`) rows per missing-in-source / missing-in-target set; [`sampling_options`](#sampling-options) does not apply here.
 
 ##### Supported Functions[​](#supported-functions "Direct link to Supported Functions")
 
@@ -6356,6 +6538,10 @@ note
       "filters": {
         "source": "p_id > 0",
         "target": "product_id > 0"
+      },
+      "sampling_options": {
+        "method": "random",
+        "specifications": { "type": "count", "value": 100 }
       }
     }
   ]
@@ -7581,7 +7767,7 @@ For more information on using the data reconciliation tools, refer to the [Recon
 |                    | sap hana (calc views) |                       | ✅                    |           |           |
 |                    | snowflake             | ✅                    | ✅                    | ✅        | ✅        |
 |                    | synapse               | ✅                    | ✅                    | ✅        | ✅        |
-|                    | teradata              |                       | ✅                    | ✅        | ✅        |
+|                    | teradata              | ✅                    | ✅                    | ✅        | ✅        |
 |                    | vertica               |                       | ✅                    |           |           |
 | ETL                | abinitio              |                       | ✅                    |           |           |
 |                    | alteryx               |                       | ✅                    |           |           |
