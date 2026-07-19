@@ -1,9 +1,10 @@
 -- Query History and Performance Analysis
--- Extract query execution patterns, performance metrics, and user activity
+-- Full-window extract WITHOUT QUERY_TEXT.
+-- SQL text for downstream heuristics lives in query_samples (bounded random sample).
+-- QUERY_TYPE and metrics here drive exact workload spend-mix classification.
 
 SELECT
     QUERY_ID,
-    QUERY_TEXT,
     QUERY_TYPE,
     DATABASE_NAME,
     SCHEMA_NAME,
