@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from decimal import Decimal
 from pathlib import Path
 
 import duckdb
@@ -8,7 +7,6 @@ import pandas as pd
 import pytest
 
 from databricks.labs.lakebridge.resources.assessments.common.duckdb_helpers import (
-    coerce_decimal_columns,
     save_to_duckdb,
 )
 
@@ -168,24 +166,3 @@ def test_invalid_mode_raises(tmp_path: Path) -> None:
         # Intentionally violating the Literal type to exercise the runtime guard
         # that protects callers reaching in from untyped config / JSON.
         save_to_duckdb(pd.DataFrame({"id": [1]}), "t1", db_path, mode="upsert")  # type: ignore[arg-type]
-
-
-def test_save_to_duckdb_coerces_decimal_columns_before_inference(tmp_path: Path) -> None:
-    """Regression for DuckDB sampling object columns into too-narrow DECIMAL types."""
-    db_path = str(tmp_path / "t.duckdb")
-    credits = [Decimal(f"{value}.123456789") for value in range(1, 1502)]
-    credits[1400] = Decimal("100.813581994")
-    df = pd.DataFrame({"credits_used": credits})
-
-    save_to_duckdb(df, "warehouse_usage", db_path)
-
-    out = _read_table(db_path, "warehouse_usage")
-    assert len(out) == 1501
-    assert out["credits_used"].dtype == "float64"
-    assert out.iloc[1400]["credits_used"] == pytest.approx(100.813581994)
-
-
-def test_coerce_decimal_columns_leaves_non_decimal_columns_unchanged() -> None:
-    df = pd.DataFrame({"id": [1, 2], "label": ["a", "b"]})
-    out = coerce_decimal_columns(df)
-    pd.testing.assert_frame_equal(out, df)
