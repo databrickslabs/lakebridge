@@ -117,11 +117,10 @@ def test_run_optional_absence_pipeline(
     optional_absence_config: PipelineConfig,
     tmp_path: Path,
 ) -> None:
-    """A missing object on the real source, marked optional, degrades to ABSENT instead of aborting.
+    """A missing object on the real source, marked optional, is tolerated instead of aborting.
 
-    This is the only place the SQLSTATE extraction + ABSENCE classification is exercised against the
-    live MSSQL driver rather than a mock: the missing-table error must map to ABSENCE so the optional
-    step is tolerated while the required step still completes and the run succeeds.
+    Exercises the live MSSQL driver: the missing-table error becomes ConnectionError, the optional
+    step degrades to ABSENT, and the required step still completes so the run succeeds.
     """
     pipeline = PipelineClass(
         config=optional_absence_config,
@@ -135,6 +134,8 @@ def test_run_optional_absence_pipeline(
     assert statuses["required_metric"] == StepExecutionStatus.COMPLETE
     assert statuses["optional_missing_table"] == StepExecutionStatus.ABSENT
     assert result.summary.absent == 1
+    absent = next(r for r in result.steps if r.step_name == "optional_missing_table")
+    assert absent.error_message
 
 
 def test_run_python_failure_pipeline(

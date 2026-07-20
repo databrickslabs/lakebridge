@@ -12,7 +12,6 @@ import yaml
 
 from databricks.labs.blueprint.paths import read_text
 from databricks.labs.lakebridge import __version__ as lakebridge_version
-from databricks.labs.lakebridge.assessments.errors import ErrorCategory, SourceQueryError
 from databricks.labs.lakebridge.assessments.profiler_config import PipelineConfig, Step
 from databricks.labs.lakebridge.connections.database_manager import DatabaseManager, FetchResult
 
@@ -51,18 +50,6 @@ class PipelineExecutionResult:
     summary: PipelineExecutionSummary
 
 
-def status_for_source_error(category: ErrorCategory, optional: bool) -> StepExecutionStatus:
-    """Map a non-fatal source error to a step outcome.
-
-    Benign absence/permission on an ``optional`` step degrades to ``ABSENT``; everything
-    else (including syntax/unknown errors, which signal our own bugs) stays ``ERROR`` so
-    that ``optional`` never hides a real failure.
-    """
-    if category in {ErrorCategory.ABSENCE, ErrorCategory.PERMISSION} and optional:
-        return StepExecutionStatus.ABSENT
-    return StepExecutionStatus.ERROR
-
-
 class PipelineClass:
     def __init__(
         self,
@@ -82,13 +69,7 @@ class PipelineClass:
         execution_results: list[StepExecutionResult] = []
 
         for step in self.config.steps:
-            try:
-                result = self._process_step(step)
-            except SourceQueryError as e:
-                error_msg = f"Pipeline execution aborted at step '{step.name}': {e.reason}"
-                logger.error(error_msg)
-                raise RuntimeError(error_msg) from e
-
+            result = self._process_step(step)
             execution_results.append(result)
             self._log_step_result(result)
 
@@ -126,13 +107,11 @@ class PipelineClass:
         try:
             self._dispatch_step(step)
             return StepExecutionResult(step_name=step.name, status=StepExecutionStatus.COMPLETE)
-        except SourceQueryError as e:
-            if e.is_fatal():
-                raise
-            status = status_for_source_error(e.category, step.optional)
-            return StepExecutionResult(step_name=step.name, status=status, error_message=e.reason)
-        except RuntimeError as e:
-            return StepExecutionResult(step_name=step.name, status=StepExecutionStatus.ERROR, error_message=str(e))
+        except (RuntimeError, ConnectionError) as e:
+            # Optional steps tolerate any failure so deployment-specific missing objects (and
+            # unparsed driver errors) do not abort the assessment. Required steps stay fatal.
+            status = StepExecutionStatus.ABSENT if step.optional else StepExecutionStatus.ERROR
+            return StepExecutionResult(step_name=step.name, status=status, error_message=str(e))
 
     def _dispatch_step(self, step: Step) -> None:
         match step.type:
@@ -179,7 +158,7 @@ class PipelineClass:
             case StepExecutionStatus.ERROR:
                 logger.error(f"Step {result.step_name} failed with error: {result.error_message}")
             case StepExecutionStatus.ABSENT:
-                logger.warning(f"Step {result.step_name} was absent for this deployment: {result.error_message}")
+                logger.warning(f"Optional step {result.step_name} failed and was tolerated: {result.error_message}")
             case StepExecutionStatus.SKIPPED:
                 logger.info(f"Step {result.step_name} was skipped.")
             case StepExecutionStatus.COMPLETE:

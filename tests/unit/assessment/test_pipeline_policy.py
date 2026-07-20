@@ -3,12 +3,10 @@ from typing import cast
 
 import pytest
 
-from databricks.labs.lakebridge.assessments.errors import ErrorCategory, SourceFailure, SourceQueryError
 from databricks.labs.lakebridge.assessments.pipeline import (
     PipelineClass,
     PipelineExecutionResult,
     StepExecutionStatus,
-    status_for_source_error,
 )
 from databricks.labs.lakebridge.assessments.profiler import Profiler
 from databricks.labs.lakebridge.assessments.profiler_config import PipelineConfig, Step
@@ -45,59 +43,7 @@ def _run(config: PipelineConfig, executor: _FakeExecutor, tmp_path: Path) -> Pip
     return PipelineClass(config, cast(DatabaseManager, executor), tmp_path / "out.db", tmp_path / "creds.yml").execute()
 
 
-def _source_query_error(
-    category: ErrorCategory,
-    reason: str,
-    *,
-    sqlstate: str | None = None,
-) -> SourceQueryError:
-    return SourceQueryError(SourceFailure(category=category, reason=reason, sqlstate=sqlstate))
-
-
-# --- Category -> status policy (the core mapping, including the "optional never rescues our bugs" guarantee) ---
-
-
-@pytest.mark.parametrize(
-    ("category", "optional", "expected"),
-    [
-        (ErrorCategory.ABSENCE, True, StepExecutionStatus.ABSENT),
-        (ErrorCategory.ABSENCE, False, StepExecutionStatus.ERROR),
-        (ErrorCategory.PERMISSION, True, StepExecutionStatus.ABSENT),
-        (ErrorCategory.PERMISSION, False, StepExecutionStatus.ERROR),
-        # Syntax/unknown are our own bugs: optional must NOT downgrade them to ABSENT.
-        (ErrorCategory.SYNTAX, True, StepExecutionStatus.ERROR),
-        (ErrorCategory.SYNTAX, False, StepExecutionStatus.ERROR),
-        (ErrorCategory.UNKNOWN, True, StepExecutionStatus.ERROR),
-        (ErrorCategory.UNKNOWN, False, StepExecutionStatus.ERROR),
-    ],
-)
-def test_status_for_source_error(category: ErrorCategory, optional: bool, expected: StepExecutionStatus) -> None:
-    assert status_for_source_error(category, optional) == expected
-
-
-# --- Fatal categories abort the whole run immediately, regardless of step type or optionality ---
-
-
-@pytest.mark.parametrize(
-    ("category", "sqlstate"),
-    [
-        (ErrorCategory.CONNECTION, "08001"),
-        (ErrorCategory.AUTH, "28000"),
-    ],
-)
-def test_fatal_error_aborts_pipeline(category: ErrorCategory, sqlstate: str, tmp_path: Path) -> None:
-    query_path = _write_query(tmp_path, "first.sql", "SELECT 1")
-    config = _config(Step(name="first", type="sql", extract_source=query_path, optional=True))
-    executor = _FakeExecutor({"SELECT 1": _source_query_error(category, "cannot reach source", sqlstate=sqlstate)})
-
-    with pytest.raises(RuntimeError, match="aborted at step 'first'"):
-        _run(config, executor, tmp_path)
-
-
-# --- End-to-end behaviors through execute() ---
-
-
-def test_optional_absence_step_completes_pipeline(tmp_path: Path) -> None:
+def test_optional_step_tolerates_any_failure(tmp_path: Path) -> None:
     required_path = _write_query(tmp_path, "required.sql", "SELECT 2")
     optional_path = _write_query(tmp_path, "missing.sql", "SELECT 1")
     config = _config(
@@ -107,7 +53,7 @@ def test_optional_absence_step_completes_pipeline(tmp_path: Path) -> None:
     executor = _FakeExecutor(
         {
             "SELECT 2": FetchResult({"value"}, [(1,)]),
-            "SELECT 1": _source_query_error(ErrorCategory.ABSENCE, "relation does not exist", sqlstate="42P01"),
+            "SELECT 1": ConnectionError("Database query failed: relation does not exist"),
         }
     )
 
@@ -116,14 +62,34 @@ def test_optional_absence_step_completes_pipeline(tmp_path: Path) -> None:
     assert result.summary.complete == 1
     assert result.summary.absent == 1
     assert result.steps[1].status == StepExecutionStatus.ABSENT
+    assert result.steps[1].error_message == "Database query failed: relation does not exist"
 
 
-def test_required_absence_step_fails_pipeline(tmp_path: Path) -> None:
+def test_optional_step_tolerates_unclassified_driver_errors(tmp_path: Path) -> None:
+    """Optional must tolerate failures even when the driver message is opaque."""
+    required_path = _write_query(tmp_path, "required.sql", "SELECT 2")
+    optional_path = _write_query(tmp_path, "opaque.sql", "SELECT 1")
+    config = _config(
+        Step(name="required_metric", type="sql", extract_source=required_path),
+        Step(name="optional_metric", type="sql", extract_source=optional_path, optional=True),
+    )
+    executor = _FakeExecutor(
+        {
+            "SELECT 2": FetchResult({"value"}, [(1,)]),
+            "SELECT 1": ConnectionError("Database query failed: driver said something opaque"),
+        }
+    )
+
+    result = _run(config, executor, tmp_path)
+
+    assert result.steps[1].status == StepExecutionStatus.ABSENT
+    assert result.summary.absent == 1
+
+
+def test_required_step_failure_fails_pipeline(tmp_path: Path) -> None:
     query_path = _write_query(tmp_path, "missing.sql", "SELECT 1")
     config = _config(Step(name="required_metric", type="sql", extract_source=query_path))
-    executor = _FakeExecutor(
-        {"SELECT 1": _source_query_error(ErrorCategory.ABSENCE, "relation does not exist", sqlstate="42P01")}
-    )
+    executor = _FakeExecutor({"SELECT 1": ConnectionError("Database query failed: relation does not exist")})
 
     with pytest.raises(RuntimeError, match="errors in steps: required_metric"):
         _run(config, executor, tmp_path)
@@ -132,15 +98,13 @@ def test_required_absence_step_fails_pipeline(tmp_path: Path) -> None:
 def test_all_sql_steps_absent_triggers_success_floor(tmp_path: Path) -> None:
     query_path = _write_query(tmp_path, "missing.sql", "SELECT 1")
     config = _config(Step(name="optional_metric", type="sql", extract_source=query_path, optional=True))
-    executor = _FakeExecutor(
-        {"SELECT 1": _source_query_error(ErrorCategory.ABSENCE, "relation does not exist", sqlstate="42P01")}
-    )
+    executor = _FakeExecutor({"SELECT 1": ConnectionError("Database query failed: relation does not exist")})
 
     with pytest.raises(RuntimeError, match="every active SQL step was absent"):
         _run(config, executor, tmp_path)
 
 
-def test_source_ddl_optional_absence_is_tolerated(tmp_path: Path) -> None:
+def test_source_ddl_optional_failure_is_tolerated(tmp_path: Path) -> None:
     """A wrong-variant view create referencing a missing base object degrades to ABSENT, not abort."""
     view_sql = "create view query_view as select * from missing_base_table;"
     ddl_path = _write_query(tmp_path, "view.sql", view_sql)
@@ -151,11 +115,7 @@ def test_source_ddl_optional_absence_is_tolerated(tmp_path: Path) -> None:
     )
     executor = _FakeExecutor(
         {
-            view_sql: _source_query_error(
-                ErrorCategory.ABSENCE,
-                "relation missing_base_table does not exist",
-                sqlstate="42P01",
-            ),
+            view_sql: ConnectionError("Database query failed: relation missing_base_table does not exist"),
             "SELECT 3": FetchResult({"value"}, [(3,)]),
         }
     )
@@ -185,11 +145,7 @@ def test_optional_absence_integration_fixture(test_resources: Path, tmp_path: Pa
     executor = _FakeExecutor(
         {
             required_sql: FetchResult({"sql_handle"}, [("abc",)]),
-            missing_sql: _source_query_error(
-                ErrorCategory.ABSENCE,
-                "Invalid object name 'non_existent_table'.",
-                sqlstate="42S02",
-            ),
+            missing_sql: ConnectionError("Database query failed: Invalid object name 'non_existent_table'."),
         }
     )
 

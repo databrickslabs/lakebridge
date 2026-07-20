@@ -5,6 +5,7 @@ from databricks.labs.lakebridge.assessments import PRODUCT_PATH_PREFIX
 from databricks.labs.lakebridge.assessments.pipeline import (
     PipelineClass,
     PipelineExecutionResult,
+    StepExecutionStatus,
     make_profiler_db_filename,
 )
 from databricks.labs.lakebridge.assessments.profiler_config import PipelineConfig
@@ -98,10 +99,15 @@ class Profiler:
 
     @staticmethod
     def _log_execution_completion(source_system: str, execution: PipelineExecutionResult) -> None:
-        if execution.summary.absent:
+        absent_steps = [step for step in execution.steps if step.status == StepExecutionStatus.ABSENT]
+        if absent_steps:
+            details = "; ".join(
+                f"{step.step_name}: {step.error_message}" if step.error_message else step.step_name
+                for step in absent_steps
+            )
             logger.info(
                 f"Profile execution completed for {source_system} with "
-                f"{execution.summary.absent} expected-absent metric(s) for this deployment."
+                f"{execution.summary.absent} tolerated optional failure(s): {details}"
             )
         logger.info(f"Profile execution has completed successfully for {source_system}; summary={execution.summary}.")
 
