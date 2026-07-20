@@ -12,7 +12,6 @@ import yaml
 
 from databricks.labs.blueprint.paths import read_text
 from databricks.labs.lakebridge import __version__ as lakebridge_version
-from databricks.labs.lakebridge.assessments.errors import ErrorCategory, SourceQueryError
 from databricks.labs.lakebridge.assessments.profiler_config import PipelineConfig, Step
 from databricks.labs.lakebridge.connections.database_manager import DatabaseManager, FetchResult
 
@@ -37,32 +36,6 @@ class StepExecutionResult:
     error_message: str | None = None
 
 
-@dataclass
-class PipelineExecutionSummary:
-    complete: int = 0
-    absent: int = 0
-    error: int = 0
-    skipped: int = 0
-
-
-@dataclass
-class PipelineExecutionResult:
-    steps: list[StepExecutionResult]
-    summary: PipelineExecutionSummary
-
-
-def status_for_source_error(category: ErrorCategory, optional: bool) -> StepExecutionStatus:
-    """Map a non-fatal source error to a step outcome.
-
-    Benign absence/permission on an ``optional`` step degrades to ``ABSENT``; everything
-    else (including syntax/unknown errors, which signal our own bugs) stays ``ERROR`` so
-    that ``optional`` never hides a real failure.
-    """
-    if category in {ErrorCategory.ABSENCE, ErrorCategory.PERMISSION} and optional:
-        return StepExecutionStatus.ABSENT
-    return StepExecutionStatus.ERROR
-
-
 class PipelineClass:
     def __init__(
         self,
@@ -77,18 +50,12 @@ class PipelineClass:
         self._create_dir(self._db_path.parent)
         self._cred_file_path = cred_file_path
 
-    def execute(self) -> PipelineExecutionResult:
+    def execute(self) -> list[StepExecutionResult]:
         logging.info(f"Pipeline initialized with config: {self.config.name}, version: {self.config.version}")
         execution_results: list[StepExecutionResult] = []
 
         for step in self.config.steps:
-            try:
-                result = self._process_step(step)
-            except SourceQueryError as e:
-                error_msg = f"Pipeline execution aborted at step '{step.name}': {e.reason}"
-                logger.error(error_msg)
-                raise RuntimeError(error_msg) from e
-
+            result = self._process_step(step)
             execution_results.append(result)
             self._log_step_result(result)
 
@@ -107,14 +74,7 @@ class PipelineClass:
             logger.error(error_msg)
             raise RuntimeError(error_msg)
 
-        self._enforce_success_floor(execution_results)
-
-        summary = self._summarize(execution_results)
-        logger.info(
-            f"Pipeline execution summary: complete={summary.complete} absent={summary.absent} "
-            f"error={summary.error} skipped={summary.skipped}"
-        )
-        return PipelineExecutionResult(steps=execution_results, summary=summary)
+        return execution_results
 
     def _process_step(self, step: Step) -> StepExecutionResult:
         logger.info(f"Executing step: {step.name}")
@@ -126,13 +86,11 @@ class PipelineClass:
         try:
             self._dispatch_step(step)
             return StepExecutionResult(step_name=step.name, status=StepExecutionStatus.COMPLETE)
-        except SourceQueryError as e:
-            if e.is_fatal():
-                raise
-            status = status_for_source_error(e.category, step.optional)
-            return StepExecutionResult(step_name=step.name, status=status, error_message=e.reason)
-        except RuntimeError as e:
-            return StepExecutionResult(step_name=step.name, status=StepExecutionStatus.ERROR, error_message=str(e))
+        except (RuntimeError, ConnectionError) as e:
+            # Optional: warn + ABSENT (customer isn't failed; maintainers get the cause).
+            # Required: ERROR, which fails the run below.
+            status = StepExecutionStatus.ABSENT if step.optional else StepExecutionStatus.ERROR
+            return StepExecutionResult(step_name=step.name, status=status, error_message=str(e))
 
     def _dispatch_step(self, step: Step) -> None:
         match step.type:
@@ -147,39 +105,12 @@ class PipelineClass:
             case _:
                 raise RuntimeError(f"Unsupported step type: {step.type}")
 
-    def _enforce_success_floor(self, execution_results: list[StepExecutionResult]) -> None:
-        active_sql_steps = [step for step in self.config.steps if step.flag == "active" and step.type == "sql"]
-        if not active_sql_steps:
-            return
-
-        results_by_name = {result.step_name: result for result in execution_results}
-        sql_results = [results_by_name[step.name] for step in active_sql_steps if step.name in results_by_name]
-        if sql_results and all(result.status == StepExecutionStatus.ABSENT for result in sql_results):
-            error_msg = "Pipeline execution failed: every active SQL step was absent for this deployment"
-            logger.error(error_msg)
-            raise RuntimeError(error_msg)
-
-    @staticmethod
-    def _summarize(execution_results: list[StepExecutionResult]) -> PipelineExecutionSummary:
-        summary = PipelineExecutionSummary()
-        for result in execution_results:
-            match result.status:
-                case StepExecutionStatus.COMPLETE:
-                    summary.complete += 1
-                case StepExecutionStatus.ABSENT:
-                    summary.absent += 1
-                case StepExecutionStatus.ERROR:
-                    summary.error += 1
-                case StepExecutionStatus.SKIPPED:
-                    summary.skipped += 1
-        return summary
-
     def _log_step_result(self, result: StepExecutionResult):
         match result.status:
             case StepExecutionStatus.ERROR:
                 logger.error(f"Step {result.step_name} failed with error: {result.error_message}")
             case StepExecutionStatus.ABSENT:
-                logger.warning(f"Step {result.step_name} was absent for this deployment: {result.error_message}")
+                logger.warning(f"Optional step {result.step_name} failed and was tolerated: {result.error_message}")
             case StepExecutionStatus.SKIPPED:
                 logger.info(f"Step {result.step_name} was skipped.")
             case StepExecutionStatus.COMPLETE:
