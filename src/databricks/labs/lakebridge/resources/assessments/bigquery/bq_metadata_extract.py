@@ -289,7 +289,7 @@ if __name__ == "__main__":
     initialize_logging()
     _db_path, _creds_file = arguments_loader(desc="BigQuery Metadata Extract Script")
     execute(
-        credential_manager=create_credential_manager(PRODUCT_NAME, EnvGetter()),
+        credential_manager=create_credential_manager(PRODUCT_NAME, EnvGetter(), _creds_file),
         bigquery_client_factory=create_bigquery_client,
         db_path=_db_path,
     )
