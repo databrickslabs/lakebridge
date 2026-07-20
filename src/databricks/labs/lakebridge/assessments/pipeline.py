@@ -36,20 +36,6 @@ class StepExecutionResult:
     error_message: str | None = None
 
 
-@dataclass
-class PipelineExecutionSummary:
-    complete: int = 0
-    absent: int = 0
-    error: int = 0
-    skipped: int = 0
-
-
-@dataclass
-class PipelineExecutionResult:
-    steps: list[StepExecutionResult]
-    summary: PipelineExecutionSummary
-
-
 class PipelineClass:
     def __init__(
         self,
@@ -64,7 +50,7 @@ class PipelineClass:
         self._create_dir(self._db_path.parent)
         self._cred_file_path = cred_file_path
 
-    def execute(self) -> PipelineExecutionResult:
+    def execute(self) -> list[StepExecutionResult]:
         logging.info(f"Pipeline initialized with config: {self.config.name}, version: {self.config.version}")
         execution_results: list[StepExecutionResult] = []
 
@@ -89,13 +75,7 @@ class PipelineClass:
             raise RuntimeError(error_msg)
 
         self._enforce_success_floor(execution_results)
-
-        summary = self._summarize(execution_results)
-        logger.info(
-            f"Pipeline execution summary: complete={summary.complete} absent={summary.absent} "
-            f"error={summary.error} skipped={summary.skipped}"
-        )
-        return PipelineExecutionResult(steps=execution_results, summary=summary)
+        return execution_results
 
     def _process_step(self, step: Step) -> StepExecutionResult:
         logger.info(f"Executing step: {step.name}")
@@ -108,8 +88,8 @@ class PipelineClass:
             self._dispatch_step(step)
             return StepExecutionResult(step_name=step.name, status=StepExecutionStatus.COMPLETE)
         except (RuntimeError, ConnectionError) as e:
-            # Optional steps tolerate any failure so deployment-specific missing objects (and
-            # unparsed driver errors) do not abort the assessment. Required steps stay fatal.
+            # Optional: warn + ABSENT (customer isn't failed; maintainers get the cause).
+            # Required: ERROR, which fails the run below.
             status = StepExecutionStatus.ABSENT if step.optional else StepExecutionStatus.ERROR
             return StepExecutionResult(step_name=step.name, status=status, error_message=str(e))
 
@@ -134,24 +114,9 @@ class PipelineClass:
         results_by_name = {result.step_name: result for result in execution_results}
         sql_results = [results_by_name[step.name] for step in active_sql_steps if step.name in results_by_name]
         if sql_results and all(result.status == StepExecutionStatus.ABSENT for result in sql_results):
-            error_msg = "Pipeline execution failed: every active SQL step was absent for this deployment"
+            error_msg = "Pipeline execution failed: every active SQL step was absent"
             logger.error(error_msg)
             raise RuntimeError(error_msg)
-
-    @staticmethod
-    def _summarize(execution_results: list[StepExecutionResult]) -> PipelineExecutionSummary:
-        summary = PipelineExecutionSummary()
-        for result in execution_results:
-            match result.status:
-                case StepExecutionStatus.COMPLETE:
-                    summary.complete += 1
-                case StepExecutionStatus.ABSENT:
-                    summary.absent += 1
-                case StepExecutionStatus.ERROR:
-                    summary.error += 1
-                case StepExecutionStatus.SKIPPED:
-                    summary.skipped += 1
-        return summary
 
     def _log_step_result(self, result: StepExecutionResult):
         match result.status:

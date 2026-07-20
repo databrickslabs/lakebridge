@@ -2,12 +2,7 @@ import logging
 from pathlib import Path
 
 from databricks.labs.lakebridge.assessments import PRODUCT_PATH_PREFIX
-from databricks.labs.lakebridge.assessments.pipeline import (
-    PipelineClass,
-    PipelineExecutionResult,
-    StepExecutionStatus,
-    make_profiler_db_filename,
-)
+from databricks.labs.lakebridge.assessments.pipeline import PipelineClass, make_profiler_db_filename
 from databricks.labs.lakebridge.assessments.profiler_config import PipelineConfig
 from databricks.labs.lakebridge.assessments.variants import resolve_variant
 from databricks.labs.lakebridge.connections.database_manager import DatabaseManager
@@ -87,29 +82,17 @@ class Profiler:
             connector_required = any(step.type != "python" for step in pipeline_config.steps if step.flag == "active")
             extractor = Profiler._setup_extractor(source_system, cred_file_path) if connector_required else None
             db_path = output_folder / make_profiler_db_filename(source_system)
-            execution = PipelineClass(pipeline_config, extractor, db_path, cred_file_path).execute()
+            result = PipelineClass(pipeline_config, extractor, db_path, cred_file_path).execute()
             logger.info(f"Profiler extract written to {db_path.expanduser()}")
-            Profiler._log_execution_completion(source_system, execution)
+            logger.info(
+                f"Profile execution has completed successfully for {source_system} for more info check: {result}."
+            )
         except FileNotFoundError as e:
             logger.error(f"Configuration file not found for source {source_system}: {e}")
             raise FileNotFoundError(f"Configuration file not found for source {source_system}: {e}") from e
         except Exception as e:
             logger.error(f"Error executing pipeline for source {source_system}: {e}")
             raise RuntimeError(f"Pipeline execution failed for source {source_system} : {e}") from e
-
-    @staticmethod
-    def _log_execution_completion(source_system: str, execution: PipelineExecutionResult) -> None:
-        absent_steps = [step for step in execution.steps if step.status == StepExecutionStatus.ABSENT]
-        if absent_steps:
-            details = "; ".join(
-                f"{step.step_name}: {step.error_message}" if step.error_message else step.step_name
-                for step in absent_steps
-            )
-            logger.info(
-                f"Profile execution completed for {source_system} with "
-                f"{execution.summary.absent} tolerated optional failure(s): {details}"
-            )
-        logger.info(f"Profile execution has completed successfully for {source_system}; summary={execution.summary}.")
 
     @staticmethod
     def _setup_extractor(source_system: str, cred_file_path: Path | None = None) -> DatabaseManager | None:

@@ -5,7 +5,7 @@ import logging
 from abc import abstractmethod
 from types import TracebackType
 from collections.abc import Callable, Sequence, Set
-from typing import Any, TypeVar
+from typing import Any
 
 import pandas as pd
 
@@ -30,7 +30,7 @@ importlib.import_module("snowflake.sqlalchemy")
 
 logger = logging.getLogger(__name__)
 
-T = TypeVar("T")
+# Driver failures we normalize to ConnectionError so callers (pipeline, CLI) see one type.
 _SOURCE_QUERY_ERRORS = (SQLAlchemyError, ConnectionError, redshift_error.Error)
 
 
@@ -44,10 +44,6 @@ class FetchResult:
         # Row emulates a named tuple, which Pandas understands natively. So the columns are safely inferred unless
         # we have an empty result-set.
         return pd.DataFrame(data=self.rows) if self.rows else pd.DataFrame(columns=list(self.columns))
-
-
-def _concise_error_message(exc: Exception) -> str:
-    return str(getattr(exc, "orig", exc)).split("\n", 1)[0].strip()
 
 
 class DatabaseConnector(contextlib.AbstractContextManager):
@@ -306,23 +302,20 @@ class DatabaseManager:
         """Clean up connector resources when exiting context."""
         self.connector.__exit__(exc_type, exc_val, exc_tb)
 
-    def _with_connection_error(self, operation: Callable[[], T], debug_message: str) -> T:
-        try:
-            return operation()
-        except _SOURCE_QUERY_ERRORS as e:
-            # Drivers (notably teradatasql) embed a full stack trace and the offending SQL in the error
-            # message; keep that detail at debug level and surface only the concise first line.
-            logger.debug(debug_message, exc_info=True)
-            raise ConnectionError(f"{debug_message}: {_concise_error_message(e)}") from e
-
     def fetch(self, query: str) -> FetchResult:
-        return self._with_connection_error(
-            lambda: self.connector.fetch(query),
-            "Database query failed",
-        )
+        try:
+            return self.connector.fetch(query)
+        except _SOURCE_QUERY_ERRORS as e:
+            # Drivers (notably teradatasql) embed a full stack trace and the offending SQL;
+            # keep that at debug and surface only the first line.
+            logger.debug("Database query failed", exc_info=True)
+            reason = str(getattr(e, "orig", e)).split("\n", 1)[0].strip()
+            raise ConnectionError(f"Database query failed: {reason}") from e
 
     def check_connection(self) -> bool:
-        return self._with_connection_error(
-            self.connector.health_check,
-            "Database health check failed",
-        )
+        try:
+            return self.connector.health_check()
+        except _SOURCE_QUERY_ERRORS as e:
+            logger.debug("Database health check failed", exc_info=True)
+            reason = str(getattr(e, "orig", e)).split("\n", 1)[0].strip()
+            raise ConnectionError(f"Database health check failed: {reason}") from e

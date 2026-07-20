@@ -5,7 +5,7 @@ import pytest
 
 from databricks.labs.lakebridge.assessments.pipeline import (
     PipelineClass,
-    PipelineExecutionResult,
+    StepExecutionResult,
     StepExecutionStatus,
 )
 from databricks.labs.lakebridge.assessments.profiler import Profiler
@@ -39,7 +39,7 @@ def _write_query(tmp_path: Path, name: str, sql: str) -> str:
     return str(path)
 
 
-def _run(config: PipelineConfig, executor: _FakeExecutor, tmp_path: Path) -> PipelineExecutionResult:
+def _run(config: PipelineConfig, executor: _FakeExecutor, tmp_path: Path) -> list[StepExecutionResult]:
     return PipelineClass(config, cast(DatabaseManager, executor), tmp_path / "out.db", tmp_path / "creds.yml").execute()
 
 
@@ -57,12 +57,11 @@ def test_optional_step_tolerates_any_failure(tmp_path: Path) -> None:
         }
     )
 
-    result = _run(config, executor, tmp_path)
+    results = _run(config, executor, tmp_path)
 
-    assert result.summary.complete == 1
-    assert result.summary.absent == 1
-    assert result.steps[1].status == StepExecutionStatus.ABSENT
-    assert result.steps[1].error_message == "Database query failed: relation does not exist"
+    assert results[0].status == StepExecutionStatus.COMPLETE
+    assert results[1].status == StepExecutionStatus.ABSENT
+    assert results[1].error_message == "Database query failed: relation does not exist"
 
 
 def test_optional_step_tolerates_unclassified_driver_errors(tmp_path: Path) -> None:
@@ -80,10 +79,10 @@ def test_optional_step_tolerates_unclassified_driver_errors(tmp_path: Path) -> N
         }
     )
 
-    result = _run(config, executor, tmp_path)
+    results = _run(config, executor, tmp_path)
 
-    assert result.steps[1].status == StepExecutionStatus.ABSENT
-    assert result.summary.absent == 1
+    assert results[1].status == StepExecutionStatus.ABSENT
+    assert results[1].error_message == "Database query failed: driver said something opaque"
 
 
 def test_required_step_failure_fails_pipeline(tmp_path: Path) -> None:
@@ -120,10 +119,10 @@ def test_source_ddl_optional_failure_is_tolerated(tmp_path: Path) -> None:
         }
     )
 
-    result = _run(config, executor, tmp_path)
+    results = _run(config, executor, tmp_path)
 
-    assert result.steps[0].status == StepExecutionStatus.ABSENT
-    assert result.steps[1].status == StepExecutionStatus.COMPLETE
+    assert results[0].status == StepExecutionStatus.ABSENT
+    assert results[1].status == StepExecutionStatus.COMPLETE
 
 
 def test_ddl_failure_is_fatal(tmp_path: Path) -> None:
@@ -149,8 +148,8 @@ def test_optional_absence_integration_fixture(test_resources: Path, tmp_path: Pa
         }
     )
 
-    result = _run(config, executor, tmp_path)
+    results = _run(config, executor, tmp_path)
 
-    assert result.summary.complete == 1
-    assert result.summary.absent == 1
-    assert result.steps[1].status == StepExecutionStatus.ABSENT
+    assert results[0].status == StepExecutionStatus.COMPLETE
+    assert results[1].status == StepExecutionStatus.ABSENT
+    assert results[1].error_message
