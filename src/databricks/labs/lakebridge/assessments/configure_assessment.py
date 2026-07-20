@@ -131,13 +131,21 @@ class ConfigureOracleAssessment(AssessmentConfigurator):
         logger.info(f"Credential template created for {source}.")
 
 
-class ConfigureSqlServerAssessment(AssessmentConfigurator):
-    """SQL Server-family assessment configuration.
+class _ConfigureSqlServerFamilyAssessment(AssessmentConfigurator):
+    """Shared configuration flow for the SQL Server-family sources.
 
-    Used for both `mssql` (regular SQL Server / Azure SQL Database) and
-    `legacy_synapse` (Azure Synapse dedicated SQL pool, where the database
-    is the pool name).
+    Concrete subclasses differ only in how the target database is prompted and in
+    any source-specific extras; everything else (auth method, connection knobs) is
+    common. Not registered directly — see ``ConfigureSqlServerAssessment`` and
+    ``ConfigureLegacySynapseAssessment``.
     """
+
+    def _prompt_database(self) -> str:
+        raise NotImplementedError
+
+    def _extra_section(self) -> dict:
+        """Source-specific credential fields to merge into the section (default: none)."""
+        return {}
 
     def _configure_credentials(self) -> None:
         cred_file = self._credential_file
@@ -161,31 +169,11 @@ class ConfigureSqlServerAssessment(AssessmentConfigurator):
             "login_timeout": self.prompts.question("Enter login timeout (seconds)", default="30", valid_number=True),
             "server": self.prompts.question("Enter the fully-qualified server name"),
             "port": int(self.prompts.question("Enter the port details", default="1433", valid_number=True)),
-            # mssql: `*` profiles every accessible database (on-prem / Managed Instance); a name scopes
-            # to that one database. legacy_synapse (shares this configurator) needs the dedicated-pool name.
-            "database": (
-                self.prompts.question("Enter the database name (* = all databases)")
-                if source == "mssql"
-                else self.prompts.question("Enter the dedicated pool name")
-            ),
+            "database": self._prompt_database(),
             "trust_server_certificate": self.prompts.confirm("Trust server certificate"),
             "tz_info": self.prompts.question("Enter timezone (e.g. America/New_York)", default="UTC"),
+            **self._extra_section(),
         }
-
-        # legacy_synapse collects CPU/DWU utilization from Azure Monitor. A standalone
-        # dedicated pool has no Synapse control plane to hand back its ARM resource id,
-        # so we build it from subscription + resource group (server = FQDN first label,
-        # database = pool name, both already captured above).
-        if source == "legacy_synapse":
-            logger.info(
-                "Azure Monitor access is required to collect CPU/DWU utilization metrics. "
-                "The identity resolved by your selected authentication method needs the "
-                "Monitoring Reader role on the dedicated pool."
-            )
-            credential_section["azure"] = {
-                "subscription_id": self.prompts.question("Enter the Azure subscription ID"),
-                "resource_group": self.prompts.question("Enter the Azure resource group"),
-            }
 
         credential = {
             "secret_vault_type": secret_vault_type,
@@ -195,6 +183,43 @@ class ConfigureSqlServerAssessment(AssessmentConfigurator):
 
         _save_to_disk(credential, cred_file)
         logger.info(f"Credential template created for {source}.")
+
+
+class ConfigureSqlServerAssessment(_ConfigureSqlServerFamilyAssessment):
+    """SQL Server / Azure SQL Database (`mssql`) assessment configuration."""
+
+    def _prompt_database(self) -> str:
+        # `*` profiles every accessible database (on-prem / Managed Instance);
+        # a name scopes to that one database.
+        return self.prompts.question("Enter the database name (* = all databases)")
+
+
+class ConfigureLegacySynapseAssessment(_ConfigureSqlServerFamilyAssessment):
+    """Azure Synapse dedicated SQL pool (`legacy_synapse`) assessment configuration.
+
+    Shares the SQL Server connection flow but targets a single dedicated pool and
+    additionally collects the Azure coordinates needed for the Azure Monitor
+    utilization-metrics extract.
+    """
+
+    def _prompt_database(self) -> str:
+        return self.prompts.question("Enter the dedicated pool name")
+
+    def _extra_section(self) -> dict:
+        # A standalone dedicated pool has no Synapse control plane to hand back its
+        # ARM resource id, so we build it from subscription + resource group (server =
+        # FQDN first label, database = pool name, both captured by the base flow).
+        logger.info(
+            "Azure Monitor access is required to collect CPU/DWU utilization metrics. "
+            "The identity resolved by your selected authentication method needs the "
+            "Monitoring Reader role on the dedicated pool."
+        )
+        return {
+            "azure": {
+                "subscription_id": self.prompts.question("Enter the Azure subscription ID"),
+                "resource_group": self.prompts.question("Enter the Azure resource group"),
+            }
+        }
 
 
 # Redshift auth types mirror the values ``RedshiftConnector._connect`` accepts. Keep the
@@ -526,7 +551,7 @@ def create_assessment_configurator(
         "redshift": ConfigureRedshiftAssessment,
         "synapse": ConfigureSynapseAssessment,
         "snowflake": ConfigureSnowflakeAssessment,
-        "legacy_synapse": ConfigureSqlServerAssessment,
+        "legacy_synapse": ConfigureLegacySynapseAssessment,
         "oracle": ConfigureOracleAssessment,
         "teradata": ConfigureTeradataAssessment,
         "bigquery": ConfigureBigQueryAssessment,

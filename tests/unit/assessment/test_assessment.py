@@ -5,6 +5,7 @@ from databricks.labs.blueprint.tui import MockPrompts
 from databricks.labs.lakebridge.assessments.configure_assessment import (
     create_assessment_configurator,
     ConfigureBigQueryAssessment,
+    ConfigureLegacySynapseAssessment,
     ConfigureRedshiftAssessment,
     ConfigureSqlServerAssessment,
     ConfigureSynapseAssessment,
@@ -132,7 +133,7 @@ def test_configure_sqlserver_credentials_ad_default(tmp_path):
 
 def test_configure_legacy_synapse_collects_azure_block(tmp_path):
     """legacy_synapse additionally prompts for the Azure subscription/resource group used by
-    the Azure Monitor metrics extract; mssql (same configurator) does not."""
+    the Azure Monitor metrics extract; mssql (sibling configurator) does not."""
     prompts = MockPrompts(
         {
             r"Enter secret vault type \(local \| env\)": sorted(['local', 'env']).index("env"),
@@ -150,7 +151,7 @@ def test_configure_legacy_synapse_collects_azure_block(tmp_path):
         }
     )
     file = tmp_path / ".credentials.yml"
-    assessment = ConfigureSqlServerAssessment(
+    assessment = ConfigureLegacySynapseAssessment(
         product_name="lakebridge", source_name="legacy_synapse", prompts=prompts, credential_file=file
     )
     assessment.run()
@@ -163,7 +164,7 @@ def test_configure_legacy_synapse_collects_azure_block(tmp_path):
 
 
 def test_configure_mssql_has_no_azure_block(tmp_path):
-    """mssql shares the configurator but must not collect the legacy_synapse-only Azure block."""
+    """mssql is a sibling configurator and must not collect the legacy_synapse-only Azure block."""
     prompts = MockPrompts(
         {
             r"Enter secret vault type \(local \| env\)": sorted(['local', 'env']).index("env"),
@@ -441,11 +442,11 @@ def test_create_assessment_configurator():
     )
     assert isinstance(teradata_configurator, ConfigureTeradataAssessment)
 
-    # legacy_synapse (Azure Synapse dedicated SQL pool) reuses the SQL Server configurator
+    # legacy_synapse (Azure Synapse dedicated SQL pool) has its own SQL Server-family configurator
     legacy_synapse_configurator = create_assessment_configurator(
         source_system="legacy_synapse", product_name="lakebridge", prompts=prompts
     )
-    assert isinstance(legacy_synapse_configurator, ConfigureSqlServerAssessment)
+    assert isinstance(legacy_synapse_configurator, ConfigureLegacySynapseAssessment)
 
     # Test BigQuery configurator
     bigquery_configurator = create_assessment_configurator(

@@ -1,7 +1,7 @@
 from unittest.mock import Mock
 
 from databricks.labs.lakebridge.resources.assessments.legacy_synapse.monitoring_metrics_extract import (
-    _build_resource_id,
+    build_resource_id,
 )
 from databricks.labs.lakebridge.resources.assessments.synapse.common.profiler_classes import SynapseMetrics
 
@@ -9,7 +9,7 @@ from databricks.labs.lakebridge.resources.assessments.synapse.common.profiler_cl
 def test_build_resource_id_uses_server_short_name():
     """Server short name is the first FQDN label; the pool name is the database segment."""
     azure = {"subscription_id": "sub-123", "resource_group": "rg-analytics"}
-    resource_id = _build_resource_id(azure, "my-dw-server.database.windows.net", "my_pool")
+    resource_id = build_resource_id(azure, "my-dw-server.database.windows.net", "my_pool")
     assert resource_id == (
         "/subscriptions/sub-123/resourceGroups/rg-analytics"
         "/providers/Microsoft.Sql/servers/my-dw-server/databases/my_pool"

@@ -18,7 +18,7 @@ from databricks.labs.lakebridge.resources.assessments.synapse.common.profiler_cl
 logger = get_logger(__file__)
 
 
-def _build_resource_id(azure: dict, server_fqdn: str, database: str) -> str:
+def build_resource_id(azure: dict, server_fqdn: str, database: str) -> str:
     """Build the ARM resource id for a standalone dedicated SQL pool.
 
     Unlike a Synapse workspace pool (whose resource id is returned by the control-plane
@@ -49,7 +49,7 @@ def execute():
                 "subscription ID and resource group."
             )
 
-        resource_id = _build_resource_id(azure, settings["server"], settings["database"])
+        resource_id = build_resource_id(azure, settings["server"], settings["database"])
         logger.info(f"dedicated pool resource_id: {resource_id}")
 
         urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
