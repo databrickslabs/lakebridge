@@ -18,7 +18,7 @@ import clickhouse_connect
 from clickhouse_connect.driver.client import Client as ClickHouseClient
 import redshift_connector  # type: ignore[import-untyped]
 
-from databricks.labs.lakebridge.resources.assessments.clickhouse import CLICKHOUSE_CLOUD_HOST_SUFFIX
+from databricks.labs.lakebridge.resources.assessments.clickhouse import normalize_secure_and_port
 
 from databricks.labs.blueprint.installation import JsonObject
 from databricks.labs.lakebridge.connections.snowflake_utils import (
@@ -280,15 +280,14 @@ class ClickHouseConnector(DatabaseConnector):
     def _connect(self) -> ClickHouseClient:
         host = str(self.config["host"])
         # The configurator always writes `secure` explicitly; this fallback is for a minimal
-        # hand-written credentials file. Default to TLS for managed ClickHouse Cloud hosts (which only
-        # accept TLS) and plaintext for self-managed / OSS (HTTP on 8123) — never insecure-by-default
-        # for Cloud. Port defaults follow suit.
-        is_cloud_host = host.strip().lower().endswith(CLICKHOUSE_CLOUD_HOST_SUFFIX)
-        secure = str(self.config.get("secure", str(is_cloud_host))).lower() in {"true", "yes", "1"}
-        default_port = "8443" if secure else "8123"
+        # hand-written credentials file. normalize_secure_and_port forces TLS/8443 for managed
+        # ClickHouse Cloud hosts (which only accept TLS) and defaults to plaintext/8123 for
+        # self-managed / OSS — never insecure-by-default for Cloud. Shared with the extraction
+        # ClickHouseConnection so both paths behave identically.
+        secure, port = normalize_secure_and_port(self.config)
         return clickhouse_connect.get_client(
             host=host,
-            port=int(str(self.config.get("port", default_port))),
+            port=port,
             username=str(self.config.get("user", "default")),
             password=str(self.config.get("password", "")),
             secure=secure,

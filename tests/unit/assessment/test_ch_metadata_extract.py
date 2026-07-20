@@ -7,6 +7,10 @@ import duckdb
 import pytest
 
 from databricks.labs.lakebridge.resources.assessments.clickhouse import ch_metadata_extract
+from databricks.labs.lakebridge.resources.assessments.clickhouse.collectors.base import (
+    SENSITIVE_FIELDS,
+    redact_value,
+)
 from databricks.labs.lakebridge.resources.assessments.clickhouse.collectors.workload import WorkloadCollector
 from databricks.labs.lakebridge.resources.assessments.clickhouse.collectors.security import SecurityCollector
 
@@ -35,7 +39,17 @@ class _FakeConnection:
         # Mimic an OSS-empty / absent system table (e.g. session_log): zero rows.
         if "system.session_log" in sql:
             return []
-        return [{"query": "SELECT secret FROM t", "runs": 5, "compute_weight": 100}]
+        # Carry several sensitive fields + a benign metric so both redaction and preservation can be
+        # asserted end-to-end through the real DuckDB write path.
+        return [
+            {
+                "query": "SELECT secret FROM t",
+                "command": "ALTER TABLE t DELETE WHERE ssn = '123'",
+                "source": "clickhouse://user:pw@10.0.0.1:9000/db",
+                "runs": 5,
+                "compute_weight": 100,
+            }
+        ]
 
     def enable_cluster_reads(self) -> None:
         pass
@@ -89,7 +103,13 @@ def test_extract_redacts_sensitive_fields_by_default(monkeypatch, tmp_path, oss_
     with duckdb.connect(str(db_path)) as conn:
         # The `query` column is sensitive -> must be redacted with redact defaulting on.
         value = conn.execute("SELECT query FROM workload_slowest_queries LIMIT 1").fetchone()[0]
+        # Regression for the review finding: mutations.command and dictionaries.source are also
+        # sensitive and must be redacted end-to-end (not just query).
+        command = conn.execute("SELECT command FROM utilization_mutations LIMIT 1").fetchone()[0]
+        source = conn.execute("SELECT source FROM objects_dictionaries LIMIT 1").fetchone()[0]
     assert value == "[REDACTED]"
+    assert command == "[REDACTED]"
+    assert source == "[REDACTED]"
 
 
 def test_extract_keeps_sensitive_fields_when_redaction_disabled(monkeypatch, tmp_path):
@@ -137,6 +157,26 @@ def test_table_schema_catalog_covers_every_result_set():
     catalog = json.loads((package_dir / "table_schemas.json").read_text(encoding="utf-8"))
     missing = expected - set(catalog)
     assert not missing, f"table_schemas.json missing entries: {sorted(missing)}"
+
+
+@pytest.mark.parametrize(
+    ("table", "enrichment_columns"),
+    [
+        # Columns added in Python AFTER the query (not returned by ClickHouse). A populated run has
+        # them; an empty run gets them only if the catalog declares them. If they drift, the empty
+        # stub and the populated table would differ in shape — this pins the catalog to include them.
+        ("costs_storage_by_table", {"compressed_gb", "disk_gb"}),
+        ("costs_compute_by_user", {"compute_weight_pct"}),
+        ("costs_compute_by_database", {"compute_weight_pct"}),
+    ],
+)
+def test_schema_catalog_declares_python_enrichment_columns(table, enrichment_columns):
+    """The empty-stub schema for an enriched table must include the columns added post-query, so an
+    empty run and a populated run produce the same table shape."""
+    package_dir = Path(ch_metadata_extract.__file__).parent
+    catalog = json.loads((package_dir / "table_schemas.json").read_text(encoding="utf-8"))
+    declared = {col for col, _ in catalog.get(table, [])}
+    assert enrichment_columns <= declared, f"{table} catalog missing enrichment cols {enrichment_columns - declared}"
 
 
 def test_costs_oss_has_no_dollar_tables(monkeypatch, tmp_path, oss_credentials):
@@ -229,3 +269,74 @@ def test_cloud_collectors_read_query_log_across_replicas():
         assert "clusterAllReplicas('default', system.query_log)" in joined
         # no un-interpolated placeholder leaked into the SQL
         assert "{self.source" not in joined
+
+
+@pytest.mark.parametrize(
+    "field",
+    [
+        # Regression for the review finding: these are collected but were not being redacted.
+        "source",  # system.dictionaries.source — external-source host/port/user/db
+        "command",  # system.mutations.command — raw ALTER/DELETE DDL
+        "latest_fail_reason",  # system.mutations.latest_fail_reason — echoes the failing command
+        "default_expression",  # system.columns.default_expression — may embed literal values
+        # Existing coverage kept for confidence.
+        "query",
+        "auth_params",
+        "select_filter",
+        "host_ip",
+    ],
+)
+def test_redact_value_covers_all_sensitive_fields(field):
+    """Every declared sensitive top-level column is replaced with [REDACTED] when redaction is on."""
+    assert field in SENSITIVE_FIELDS
+    assert redact_value(field, "SECRET-VALUE") == "[REDACTED]"
+    # A benign quantitative field is never touched.
+    assert redact_value("benign_metric", 42) == 42
+
+
+def test_redact_value_is_top_level_key_match_only():
+    """Redaction keys on the exact top-level column name; a nested `source` (e.g.
+    actual_billed_cost.source in costs_pricing_config) is passed through unchanged since only
+    top-level keys are ever redacted (the extract redacts each row's own keys, not nested ones)."""
+    nested = {"source": "cloud_usage_cost_api", "total_usd": 100}
+    # The parent key is benign -> the whole nested dict passes through untouched.
+    assert redact_value("actual_billed_cost", nested) is nested
+
+
+def test_safe_query_missing_object_error_is_a_warning_not_an_error():
+    """A missing table/column (expected on OSS builds) degrades to an empty result + WARN-level entry."""
+    collector = WorkloadCollector(conn=MagicMock(), config={"days_back": 7})
+    collector.conn.query = MagicMock(side_effect=Exception("Code: 60. DB::Exception: Table system.foo doesn't exist"))
+    rows = collector.safe_query("probe", "SELECT 1")
+    assert rows == []
+    assert len(collector.errors) == 1
+    assert not collector.errors[0].startswith("[ERROR]")
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "Code: 497. DB::Exception: profiler: Not enough privileges. To execute this query...",  # permission
+        "Code: 62. DB::Exception: Syntax error: failed at position 1",  # bad SQL
+        "Connection refused",  # transport
+    ],
+)
+def test_safe_query_real_error_is_surfaced_as_error(message):
+    """A permission/SQL/connection failure must NOT be masked as a successful empty extract —
+    it is recorded as an [ERROR]-tagged entry so it surfaces in the run payload's warnings."""
+    collector = WorkloadCollector(conn=MagicMock(), config={"days_back": 7})
+    collector.conn.query = MagicMock(side_effect=Exception(message))
+    rows = collector.safe_query("probe", "SELECT 1")
+    assert rows == []
+    assert len(collector.errors) == 1
+    assert collector.errors[0].startswith("[ERROR]")
+
+
+@pytest.mark.parametrize("raw_days_back", [7, "14", "garbage", None])
+def test_extract_coerces_days_back_without_aborting(monkeypatch, tmp_path, raw_days_back):
+    """execute() must coerce days_back the same way BaseCollector does (fall back to 30) rather than
+    aborting the whole extract on a non-numeric credential."""
+    creds = {"host": "127.0.0.1", "port": 8123, "profiler": {"days_back": raw_days_back, "redact": True}}
+    db_path = _run(monkeypatch, tmp_path, creds)
+    # The run completed and produced tables (would have raised on a bare int() of "garbage" / None).
+    assert _tables(db_path)

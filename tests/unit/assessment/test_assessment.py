@@ -246,7 +246,8 @@ def test_configure_clickhouse_credentials_cloud_with_api(tmp_path):
             r"Enter the Cloud API Key Secret": "key-secret",
             r"Enter the Cloud organization id.*": "",
             r"Enter the Cloud service id.*": "",
-            r"Override plan tier.*": "enterprise",
+            r"Override the plan tier\?.*": "yes",
+            r"Select the plan tier": sorted(["basic", "scale", "enterprise"]).index("enterprise"),
             r"Do you want to test the connection to clickhouse\?": "no",
         }
     )
@@ -261,6 +262,41 @@ def test_configure_clickhouse_credentials_cloud_with_api(tmp_path):
     clickhouse = credentials["clickhouse"]
     assert clickhouse['secure'] is True
     assert clickhouse['cloud_api'] == {'key_id': 'key-id', 'key_secret': 'key-secret', 'tier': 'enterprise'}
+
+
+def test_configure_clickhouse_credentials_cloud_tier_auto_detect(tmp_path):
+    """Declining the tier-override confirm records no `tier` key (auto-detect), and must not hang on an
+    empty prompt — regression for the tier prompt re-looping when Enter was pressed."""
+    prompts = MockPrompts(
+        {
+            r"Enter secret vault type \(local \| env\)": sorted(['local', 'env']).index("local"),
+            r"Use a secure \(TLS\) connection\?.*": "yes",
+            r"Enter the ClickHouse host": "abc.us-east-1.aws.clickhouse.cloud",
+            r"Enter the ClickHouse HTTP port": "8443",
+            r"Enter the ClickHouse user": "default",
+            r"Enter the ClickHouse password": "s3cret",
+            r"Enter lookback window in days to profile": "30",
+            r"Redact sensitive fields.*": sorted(['yes', 'no']).index("yes"),
+            r"Configure ClickHouse Cloud API credentials.*": "yes",
+            r"Enter the Cloud API Key ID": "key-id",
+            r"Enter the Cloud API Key Secret": "key-secret",
+            r"Enter the Cloud organization id.*": "",
+            r"Enter the Cloud service id.*": "",
+            r"Override the plan tier\?.*": "no",
+            r"Do you want to test the connection to clickhouse\?": "no",
+        }
+    )
+    file = tmp_path / ".credentials.yml"
+    ConfigureClickHouseAssessment(
+        product_name="lakebridge", source_name="clickhouse", prompts=prompts, credential_file=file
+    ).run()
+
+    with open(file, 'r', encoding='utf-8') as handle:
+        credentials = yaml.safe_load(handle)
+
+    cloud_api = credentials["clickhouse"]["cloud_api"]
+    assert cloud_api == {'key_id': 'key-id', 'key_secret': 'key-secret'}
+    assert 'tier' not in cloud_api
 
 
 def test_create_assessment_configurator():

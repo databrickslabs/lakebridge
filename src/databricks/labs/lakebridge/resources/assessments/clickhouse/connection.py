@@ -10,6 +10,8 @@ from typing import Any
 import clickhouse_connect
 from clickhouse_connect.driver.client import Client as ClickHouseClient
 
+from databricks.labs.lakebridge.resources.assessments.clickhouse import normalize_secure_and_port
+
 
 class ClickHouseConnection:
     def __init__(self, config: dict):
@@ -17,12 +19,16 @@ class ClickHouseConnection:
         self.client: ClickHouseClient | None = None
 
     def connect(self) -> "ClickHouseConnection":
+        # Host-derived TLS/port so this connection — which carries the password during profiling —
+        # is never plaintext-by-default against a Cloud host (and a stray secure: "false" can't
+        # downgrade it). Shared with the probe ClickHouseConnector via normalize_secure_and_port.
+        secure, port = normalize_secure_and_port(self.config)
         self.client = clickhouse_connect.get_client(
             host=self.config.get("host", "127.0.0.1"),
-            port=int(self.config.get("port", 8123)),
+            port=port,
             username=self.config.get("user", "default"),
             password=self.config.get("password", ""),
-            secure=bool(self.config.get("secure", False)),
+            secure=secure,
         )
         return self
 

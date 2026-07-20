@@ -554,17 +554,13 @@ class ConfigureClickHouseAssessment(AssessmentConfigurator):
             ).strip()
             if service_id:
                 cloud_api["service_id"] = service_id
-            # Optional plan-tier override; recorded as metadata (tier_source: config). Blank = detect
-            # from the Cloud API organizationTier.
-            tier = (
-                self.prompts.question(
-                    "Override plan tier (basic | scale | enterprise; blank to auto-detect)", default=""
-                )
-                .strip()
-                .lower()
-            )
-            if tier:
-                cloud_api["tier"] = tier
+            # Optional plan-tier override; recorded as metadata (tier_source: config). Gated behind a
+            # yes/no so the common case (auto-detect from the Cloud API organizationTier) needs no
+            # answer — an empty text prompt re-asks instead of accepting a blank skip.
+            if self.prompts.confirm("Override the plan tier? (default: auto-detect from the Cloud API)"):
+                cloud_api["tier"] = str(
+                    self.prompts.choice("Select the plan tier", ["basic", "scale", "enterprise"])
+                ).lower()
             source_creds["cloud_api"] = cloud_api
 
         credential = {

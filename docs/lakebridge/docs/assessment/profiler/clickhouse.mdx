@@ -59,8 +59,9 @@ select one. A host ending in `.clickhouse.cloud` is treated as Cloud; otherwise 
 
 The ClickHouse profiler runs seven collectors. Each collector produces several named result sets, and each result set
 is written to its own DuckDB table named `<collector>_<result_set>` (for example `workload_query_volume_summary`,
-`objects_tables`). Every table is always created — result sets with no rows are written as empty, typed tables so the
-output schema is consistent across runs and deployments.
+`objects_tables`). A result set with no rows is still written as an empty, typed table from a declared schema
+catalog, so the output schema stays consistent across runs and deployments. (A test asserts the catalog covers every
+result set a collector can emit; a result set with no rows and no catalog entry is skipped rather than created empty.)
 
 <table>
   <thead>
@@ -171,7 +172,7 @@ Enter the Cloud API Key ID: <key-id>
 Enter the Cloud API Key Secret:
 Enter the Cloud organization id (optional, blank to auto-detect):
 Enter the Cloud service id (optional, blank to auto-detect):
-Override plan tier (basic | scale | enterprise; blank to auto-detect):
+Override the plan tier? (default: auto-detect from the Cloud API) (yes/no): no
 Do you want to test the connection to clickhouse? (yes/no): yes
 ```
 
@@ -190,6 +191,72 @@ Do you want to test the connection to clickhouse? (yes/no): yes
 | **Cloud API Key ID / Secret** | ClickHouse Cloud API key for actual billed cost, real sizing, and plan tier (Cloud only, optional). | — |
 | **Organization / Service id** | Optional Cloud API scoping; auto-detected when there is exactly one. | — |
 | **Tier override** | Force the plan tier (`basic`/`scale`/`enterprise`) instead of auto-detecting. | — |
+
+### Credentials File Format
+
+`configure-database-profiler` writes the answers above to a credentials YAML at the default Lakebridge
+location. You can also write this file by hand (or keep a separate one per environment and point at it
+with `--cred-file-path`). The connection keys (`host`, `port`, `user`, `password`, `secure`) are flat
+under the `clickhouse` block; the profiler knobs (`days_back`, `redact`) nest under `profiler`; and the
+optional ClickHouse Cloud API settings nest under `cloud_api`. The `oss` / `cloud` variant is
+auto-detected from the host and `secure` — there is no variant field.
+
+<Admonition type="warning" title="Keep secrets out of version control">
+    This file holds plain-text passwords and (on Cloud) API secrets when the secret vault type is
+    <code>local</code>. Store it outside your repo, restrict its permissions, and delete it when you are
+    done. To avoid plain text, set the secret vault type to <code>env</code> and put the environment
+    variable <em>names</em> in the file instead of the values.
+</Admonition>
+
+**Self-managed / OSS** — no TLS, no Cloud API block, no dollar figures produced:
+
+```yaml
+secret_vault_type: local
+secret_vault_name: null
+clickhouse:
+  host: 127.0.0.1
+  port: 8123
+  user: <username>
+  password: "<password>"       # empty string "" if the user has no password
+  secure: false
+  profiler:
+    days_back: 30
+    redact: true
+```
+
+**ClickHouse Cloud** — TLS on 8443, with the optional `cloud_api` block for actual billed cost and
+plan-tier detection:
+
+```yaml
+secret_vault_type: local
+secret_vault_name: null
+clickhouse:
+  host: <service-id>.<region>.<cloud>.clickhouse.cloud   # the *.clickhouse.cloud host selects the Cloud variant
+  port: 8443
+  user: default
+  password: "<service-password>"
+  secure: true
+  profiler:
+    days_back: 30
+    redact: true
+  # Optional: pulls actual billed cost, real compute sizing, and plan tier from the Cloud API.
+  # Remove this whole block to skip it — the usage footprint and attribution are still reported,
+  # just without dollar figures.
+  cloud_api:
+    key_id: "<CLOUD_API_KEY_ID>"
+    key_secret: "<CLOUD_API_KEY_SECRET>"
+    # organization_id: "<org-uuid>"   # optional; auto-detected when you have exactly one org
+    # service_id: "<service-uuid>"    # optional; else matched by host
+    # tier: scale                     # optional override: basic | scale | enterprise
+```
+
+<Admonition type="info" title="Cloud host, password, and API key are different things">
+    The <code>host</code> and <code>password</code> are the service's SQL/HTTPS connection details (from
+    the service's <strong>Connect</strong> screen in the Cloud console) — the profiler needs them to run
+    the <code>system.*</code> collectors. The <code>cloud_api</code> key pair is a separate API key
+    (Cloud console → <strong>API Keys</strong>) used only for the cost/tier lookup. Supplying the API key
+    alone is not enough to connect.
+</Admonition>
 
 ## Execute the Profiler
 

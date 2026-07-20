@@ -155,3 +155,31 @@ def test_clickhouse_connector_secure_default_is_host_derived(mock_clickhouse_con
     oss_kwargs = mock_clickhouse_connect.get_client.call_args.kwargs
     assert oss_kwargs["secure"] is False
     assert oss_kwargs["port"] == 8123
+
+
+@patch('databricks.labs.lakebridge.connections.database_manager.clickhouse_connect')
+def test_clickhouse_connector_cloud_host_cannot_be_downgraded(mock_clickhouse_connect) -> None:
+    """A stray `secure: "false"` (or bool False) in a hand-written creds file must NOT downgrade a
+    Cloud host to plaintext — the connection carries the password. bool("false") is True in Python,
+    so this also guards against a naive bool() coercion silently doing the right thing by accident."""
+    mock_clickhouse_connect.get_client.return_value = MagicMock()
+
+    for bad_secure in ("false", False, "no", 0):
+        mock_clickhouse_connect.get_client.reset_mock()
+        DatabaseManager(
+            "clickhouse",
+            {"host": "abc.us-east-1.aws.clickhouse.cloud", "password": "p", "secure": bad_secure},
+        )
+        kwargs = mock_clickhouse_connect.get_client.call_args.kwargs
+        assert kwargs["secure"] is True, f"cloud host downgraded with secure={bad_secure!r}"
+        assert kwargs["port"] == 8443
+
+
+@patch('databricks.labs.lakebridge.connections.database_manager.clickhouse_connect')
+def test_clickhouse_connector_parses_string_secure_true(mock_clickhouse_connect) -> None:
+    """A non-Cloud host with secure="true" (string, from a creds file) must connect with TLS."""
+    mock_clickhouse_connect.get_client.return_value = MagicMock()
+    DatabaseManager("clickhouse", {"host": "10.0.0.5", "password": "p", "secure": "true"})
+    kwargs = mock_clickhouse_connect.get_client.call_args.kwargs
+    assert kwargs["secure"] is True
+    assert kwargs["port"] == 8443

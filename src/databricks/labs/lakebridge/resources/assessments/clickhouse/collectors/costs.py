@@ -12,6 +12,10 @@ produced; a resource footprint plus the full usage attribution is reported inste
 """
 
 from typing import Any
+from databricks.labs.lakebridge.resources.assessments.clickhouse import (
+    CLICKHOUSE_CLOUD_HOST_SUFFIX,
+    is_cloud_host,
+)
 from databricks.labs.lakebridge.resources.assessments.clickhouse.collectors.base import BaseCollector
 
 
@@ -38,11 +42,14 @@ class CostsCollector(BaseCollector):
             else "cloud_api" if cloud_meta and cloud_meta.get("region_key") not in (None, "default") else "hostname"
         )
         # Plan tier (Basic/Scale/Enterprise) recorded as metadata: explicit config override >
-        # Cloud API organizationTier (from usageCost) > unknown. No pricing depends on it.
-        tier = self.config.get("tier") or (cloud_meta or {}).get("tier")
+        # Cloud API organizationTier (from usageCost) > unknown. No pricing depends on it. The
+        # configurator nests the override under cloud_api.tier, so accept either the top-level `tier`
+        # or cloud_api.tier (top-level wins) — otherwise a configured override is silently dropped.
+        config_tier = self._config_tier_override()
+        tier = config_tier or (cloud_meta or {}).get("tier")
         tier_source = (
             "config"
-            if self.config.get("tier")
+            if config_tier
             else (cloud_meta or {}).get("tier_source") if (cloud_meta or {}).get("tier") else "unknown"
         )
         # Cloud vs self-managed (OSS) is detected once in the extract and shared via config["is_cloud"].
@@ -119,12 +126,19 @@ class CostsCollector(BaseCollector):
                     # Org-wide TCO across all services + org-level charges.
                     "org_total_usd": org_total,
                     # total_usd is the TCO headline (org total when available); kept for consumers
-                    # that read a single figure.
+                    # that read a single figure. This is the ACTUAL billed cost for the window.
                     "total_usd": tco_total,
-                    "monthly_total_usd": (round(tco_total * (30 / max(window_days, 1)), 2) if tco_total else None),
-                    "note": "Total cost of ownership: org-wide billed cost (all services + org-level "
-                    "charges) for the window, plus a 30-day-normalized monthly figure. service_total_usd "
-                    "is the profiled service's share. Reflects actual tier changes/scaling day-by-day.",
+                    # Explicitly a PROJECTION, not a bill: the window total normalized to 30 days. Named
+                    # *_projected and split from the actual figures so no consumer mistakes it for an
+                    # actual monthly bill (the collector's contract is actual-billed-only). Null when
+                    # there is no billed cost to project from.
+                    "monthly_total_usd_projected": (
+                        round(tco_total * (30 / max(window_days, 1)), 2) if tco_total else None
+                    ),
+                    "note": "Total cost of ownership: org-wide ACTUAL billed cost (all services + "
+                    "org-level charges) for the window. service_total_usd is the profiled service's "
+                    "share. Reflects actual tier changes/scaling day-by-day. monthly_total_usd_projected "
+                    "is a 30-day normalization of the window total — a projection, NOT a billed figure.",
                 }
 
         # ============================================================
@@ -480,6 +494,19 @@ class CostsCollector(BaseCollector):
 
         return results
 
+    def _config_tier_override(self) -> str | None:
+        """Return the explicit plan-tier override from config, or None.
+
+        The configurator writes the override under ``cloud_api.tier``; a hand-written creds file may
+        put it at the top level. Top-level wins. Empty/blank is treated as "not set" so it doesn't
+        shadow the Cloud API tier.
+        """
+        top = self.config.get("tier")
+        nested = (self.config.get("cloud_api") or {}).get("tier")
+        chosen = top or nested
+        chosen = chosen.strip() if isinstance(chosen, str) else chosen
+        return chosen or None
+
     # Provider tokens as they appear in ClickHouse Cloud service hostnames.
     _CLOUD_PROVIDERS = ("aws", "gcp", "azure")
 
@@ -572,8 +599,10 @@ class CostsCollector(BaseCollector):
             return cloud_meta["region_key"]
 
         host = self.config.get("host", "")
-        if "clickhouse.cloud" in host:
-            prefix = host.split(".clickhouse.cloud", 1)[0]
+        # Suffix match (not a bare substring) so a lookalike like `notclickhouse.cloud.example.com`
+        # isn't parsed as a Cloud host — consistent with is_cloud_host / the variant resolver.
+        if is_cloud_host(host):
+            prefix = host.strip().lower().split(CLICKHOUSE_CLOUD_HOST_SUFFIX, 1)[0]
             tokens = prefix.split(".")
             if len(tokens) >= 3:
                 provider = tokens[-1].lower()

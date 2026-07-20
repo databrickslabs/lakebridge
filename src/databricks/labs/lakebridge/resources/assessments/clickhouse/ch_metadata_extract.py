@@ -158,7 +158,13 @@ def execute(credential_manager: CredentialManager, db_path: str) -> None:
     # Profiler knobs (days_back, redact) are nested under "profiler"; connection keys are flat.
     profiler_cfg: dict[str, Any] = ch_settings.get("profiler", {}) or {}
     config: dict[str, Any] = dict(ch_settings)
-    config["days_back"] = int(profiler_cfg.get("days_back", 30))
+    # Coerce days_back the same way BaseCollector does (falls back to 30 on a non-numeric value)
+    # rather than aborting the whole extract on a bad credential; BaseCollector re-coerces per
+    # collector, so this stays consistent end-to-end.
+    try:
+        config["days_back"] = int(profiler_cfg.get("days_back", 30))
+    except (TypeError, ValueError):
+        config["days_back"] = 30
     # Redaction defaults ON — strip auth params, host IPs, row-policy filters, and SQL text.
     redact = bool(profiler_cfg.get("redact", True))
 
