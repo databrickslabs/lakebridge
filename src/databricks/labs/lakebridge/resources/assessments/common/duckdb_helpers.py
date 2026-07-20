@@ -9,6 +9,7 @@ with the mechanics of getting a DataFrame into a DuckDB table.
 from __future__ import annotations
 
 import logging
+from decimal import Decimal
 from typing import Literal
 
 import duckdb
@@ -17,6 +18,27 @@ import pandas as pd
 logger = logging.getLogger(__name__)
 
 SaveMode = Literal["overwrite", "append"]
+
+
+def coerce_decimal_columns(df: pd.DataFrame) -> pd.DataFrame:
+    """Convert object columns containing Decimal values to float64.
+
+    Source databases often return NUMBER/DECIMAL columns as Python Decimal
+    objects. DuckDB samples the first rows of object columns to infer a DECIMAL
+    type, which can be too narrow when larger values appear later in the batch.
+    """
+    if df.empty:
+        return df
+
+    out = df.copy()
+    for col in out.columns:
+        if out[col].dtype != object:
+            continue
+        series = out[col]
+        if not series.map(lambda value: isinstance(value, Decimal)).any():
+            continue
+        out[col] = series.map(lambda value: float(value) if isinstance(value, Decimal) else value)
+    return out
 
 
 def save_to_duckdb(
@@ -50,10 +72,11 @@ def save_to_duckdb(
     """
     try:
         with duckdb.connect(db_path) as conn:
+            prepared_df = coerce_decimal_columns(df)
             if mode == "overwrite":
-                _save_overwrite(conn, df, table_name, schema)
+                _save_overwrite(conn, prepared_df, table_name, schema)
             elif mode == "append":
-                _save_append(conn, df, table_name, schema)
+                _save_append(conn, prepared_df, table_name, schema)
             else:
                 raise ValueError(f"Unsupported mode '{mode}'. Must be 'overwrite' or 'append'.")
             logger.info("Wrote %d rows to '%s' (mode=%s).", len(df), table_name, mode)

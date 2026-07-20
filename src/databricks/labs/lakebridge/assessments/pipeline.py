@@ -14,6 +14,7 @@ from databricks.labs.blueprint.paths import read_text
 from databricks.labs.lakebridge import __version__ as lakebridge_version
 from databricks.labs.lakebridge.assessments.profiler_config import PipelineConfig, Step
 from databricks.labs.lakebridge.connections.database_manager import DatabaseManager, FetchResult
+from databricks.labs.lakebridge.resources.assessments.common.duckdb_helpers import coerce_decimal_columns
 
 logger = logging.getLogger(__name__)
 
@@ -239,6 +240,7 @@ class PipelineClass:
 
         row_count = len(result.rows)
         logging.info(f"Query for step '{step_name}' returned {row_count} rows.")
+        result_frame = coerce_decimal_columns(result.to_df())
 
         with duckdb.connect(self._db_path) as conn:
             # Note: step_name is validated to be SQL-safe by Step.__post_init__
@@ -246,7 +248,7 @@ class PipelineClass:
             conn.begin()
             if table_exists and mode == 'overwrite':
                 # Table exists and overwrite mode: Truncate then insert within a transaction to preserve existing DDL schema
-                _result_frame = result.to_df()
+                _result_frame = result_frame
                 # Note: step_name is validated to be SQL-safe by Step.__post_init__
                 logging.debug(f"Overwriting existing table '{step_name}'")
                 conn.execute(f"TRUNCATE {step_name}")
@@ -254,14 +256,14 @@ class PipelineClass:
             else:
                 if table_exists:
                     # Table exists and append mode: insert into existing table (DuckDB handles type conversion)
-                    _result_frame = result.to_df()
+                    _result_frame = result_frame
                     # Note: step_name is validated to be SQL-safe by Step.__post_init__
                     statement = f"INSERT INTO {step_name} SELECT * FROM _result_frame"
                     logging.debug(f"Appending to existing table '{step_name}'")
                 else:
                     # Table doesn't exist: create table with native types from query result
                     # Use DDL steps for explicit type control when needed
-                    _result_frame = result.to_df()
+                    _result_frame = result_frame
                     # Note: step_name is validated to be SQL-safe by Step.__post_init__
                     statement = f"CREATE TABLE {step_name} AS SELECT * FROM _result_frame"
                     logging.debug(f"Creating new table '{step_name}' with native types")
