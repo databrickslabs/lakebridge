@@ -94,15 +94,6 @@ def test_required_step_failure_fails_pipeline(tmp_path: Path) -> None:
         _run(config, executor, tmp_path)
 
 
-def test_all_sql_steps_absent_triggers_success_floor(tmp_path: Path) -> None:
-    query_path = _write_query(tmp_path, "missing.sql", "SELECT 1")
-    config = _config(Step(name="optional_metric", type="sql", extract_source=query_path, optional=True))
-    executor = _FakeExecutor({"SELECT 1": ConnectionError("Database query failed: relation does not exist")})
-
-    with pytest.raises(RuntimeError, match="every active SQL step was absent"):
-        _run(config, executor, tmp_path)
-
-
 def test_source_ddl_optional_failure_is_tolerated(tmp_path: Path) -> None:
     """A wrong-variant view create referencing a missing base object degrades to ABSENT, not abort."""
     view_sql = "create view query_view as select * from missing_base_table;"

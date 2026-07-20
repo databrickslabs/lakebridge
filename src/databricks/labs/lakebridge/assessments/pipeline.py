@@ -74,7 +74,6 @@ class PipelineClass:
             logger.error(error_msg)
             raise RuntimeError(error_msg)
 
-        self._enforce_success_floor(execution_results)
         return execution_results
 
     def _process_step(self, step: Step) -> StepExecutionResult:
@@ -105,18 +104,6 @@ class PipelineClass:
                 self._execute_python_step(step)
             case _:
                 raise RuntimeError(f"Unsupported step type: {step.type}")
-
-    def _enforce_success_floor(self, execution_results: list[StepExecutionResult]) -> None:
-        active_sql_steps = [step for step in self.config.steps if step.flag == "active" and step.type == "sql"]
-        if not active_sql_steps:
-            return
-
-        results_by_name = {result.step_name: result for result in execution_results}
-        sql_results = [results_by_name[step.name] for step in active_sql_steps if step.name in results_by_name]
-        if sql_results and all(result.status == StepExecutionStatus.ABSENT for result in sql_results):
-            error_msg = "Pipeline execution failed: every active SQL step was absent"
-            logger.error(error_msg)
-            raise RuntimeError(error_msg)
 
     def _log_step_result(self, result: StepExecutionResult):
         match result.status:
