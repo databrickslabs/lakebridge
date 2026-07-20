@@ -1137,9 +1137,11 @@ def execute_database_profiler(
             default=str(default_output_folder(source_tech)),
         ).strip()
 
-    profiler = Profiler.create(source_tech, variant, creds_path)
-    # TODO: Add extractor logic to ApplicationContext instead of creating inside the Profiler class
-    profiler.profile(output_folder=Path(output_folder), cred_file_path=creds_path)
+    try:
+        profiler = Profiler.create(source_tech, variant, creds_path)
+        profiler.profile(output_folder=Path(output_folder), cred_file_path=creds_path)
+    except Exception as e:  # noqa: BLE001
+        raise SystemExit(f"Profiler execution failed: {e}") from e
 
 
 def parse_profiler_variant(prompts: Prompts, source_tech: str, variant: str | None) -> str | None:
