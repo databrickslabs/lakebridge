@@ -172,6 +172,21 @@ class ConfigureSqlServerAssessment(AssessmentConfigurator):
             "tz_info": self.prompts.question("Enter timezone (e.g. America/New_York)", default="UTC"),
         }
 
+        # legacy_synapse collects CPU/DWU utilization from Azure Monitor. A standalone
+        # dedicated pool has no Synapse control plane to hand back its ARM resource id,
+        # so we build it from subscription + resource group (server = FQDN first label,
+        # database = pool name, both already captured above).
+        if source == "legacy_synapse":
+            logger.info(
+                "Azure Monitor access is required to collect CPU/DWU utilization metrics. "
+                "The identity resolved by your selected authentication method needs the "
+                "Monitoring Reader role on the dedicated pool."
+            )
+            credential_section["azure"] = {
+                "subscription_id": self.prompts.question("Enter the Azure subscription ID"),
+                "resource_group": self.prompts.question("Enter the Azure resource group"),
+            }
+
         credential = {
             "secret_vault_type": secret_vault_type,
             "secret_vault_name": secret_vault_name,
