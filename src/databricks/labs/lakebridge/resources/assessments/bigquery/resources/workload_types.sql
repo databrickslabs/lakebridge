@@ -41,8 +41,8 @@ SELECT * FROM UNNEST([STRUCT<statement_type string, workload_category STRING>
 ])
 )
 SELECT sum(num_jobs) as total_jobs,
-        CAST(sum(slot_ms) as NUMERIC) / (3600.0 * 1000.0) AS total_slot_hours,
-        CAST(sum(bytes_processed) AS NUMERIC) / POWER(2.0, 40) AS total_tb_processed,
+        CAST(sum(slot_ms) AS FLOAT64) / (3600.0 * 1000.0) AS total_slot_hours,
+        CAST(sum(bytes_processed) AS FLOAT64) / POWER(2.0, 40) AS total_tb_processed,
         workload_type,
         '{{project_region}}' AS metadata_level
 FROM(
