@@ -1,20 +1,19 @@
-"""Authentication strategies for MSSQL-family ODBC connections.
+"""Authentication strategies for MSSQL-family connections (mssql-python driver).
 
-Each class is named after the ODBC `Authentication=` literal it maps to (e.g.
-`ActiveDirectoryServicePrincipal`), or after the Azure SDK class it uses for
-token-injection paths (e.g. `DefaultAzureCredential`).
+Each class is named after the `Authentication=` connection-string literal it maps to
+(e.g. `ActiveDirectoryServicePrincipal`), or after the Azure SDK credential class the
+driver uses internally (`DefaultAzureCredential`).
 
 The single point of contract is `MSSQLAuth.resolve_credentials(config)` — each class
 returns a fully-resolved `ResolvedCredentials` that the connector applies verbatim
-to the connection string and `create_engine` call. No conventions, no class
-attributes acting as switches.
+to the connection string. No conventions, no class attributes acting as switches.
 """
 
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass, field
-from typing import Any, Protocol
+from dataclasses import dataclass
+from typing import Protocol
 
 from databricks.labs.blueprint.installation import JsonObject
 
@@ -23,15 +22,14 @@ from databricks.labs.blueprint.installation import JsonObject
 class ResolvedCredentials:
     """Everything `MSSQLConnector` needs to open a connection.
 
-    - `authentication_param`: value of the ODBC `Authentication=` query parameter.
-    - `username` / `password`: included in the SQLAlchemy URL when non-None.
-    - `engine_kwargs`: forwarded to `sqlalchemy.create_engine` (used by token-injection paths).
+    - `authentication_param`: value of the `Authentication=` connection-string
+      keyword; None uses SQL authentication
+    - `username` / `password`: emitted as `UID=` / `PWD=` when non-None.
     """
 
-    authentication_param: str
+    authentication_param: str | None = None
     username: str | None = None
     password: str | None = None
-    engine_kwargs: dict[str, Any] = field(default_factory=dict)
 
 
 class MSSQLAuth(Protocol):
@@ -54,7 +52,6 @@ class SqlPassword:
     def resolve_credentials(cls, config: JsonObject) -> ResolvedCredentials:
         user, password = _require_user_password(cls.__name__, config)
         return ResolvedCredentials(
-            authentication_param="SqlPassword",
             username=user,
             password=password,
         )
@@ -92,24 +89,21 @@ class ActiveDirectoryServicePrincipal:
 
 
 class DefaultAzureCredential:
-    """Token injection via Azure SDK `DefaultAzureCredential` + `SQL_COPT_SS_ACCESS_TOKEN`.
+    """Entra ID via the driver's `Authentication=ActiveDirectoryDefault` mode.
 
-    Wired into the dispatch surface so the configurator and registry know about it,
-    but not yet implemented. A follow-up PR fills in `resolve_credentials` with the
-    token-acquisition + `attrs_before` plumbing — no other class needs to change.
+    The identity is resolved by the `DefaultAzureCredential` chain so no credentials appear in the connection string or on disk.
+    MFA-capable: the interactive step, if any, happens in `az login` before the profiler runs.
     """
 
     @classmethod
     def resolve_credentials(cls, _config: JsonObject) -> ResolvedCredentials:
-        raise NotImplementedError(
-            "DefaultAzureCredential token injection is not yet implemented; pick another auth method."
-        )
+        return ResolvedCredentials(authentication_param="ActiveDirectoryDefault")
 
 
 # User-selectable auth methods, in the order they appear in the configurator prompt.
-# `DefaultAzureCredential` is intentionally excluded until its `resolve_credentials()` is implemented.
 AUTH_CHOICES: list[type[MSSQLAuth]] = [
     SqlPassword,
+    DefaultAzureCredential,
     ActiveDirectoryPassword,
     ActiveDirectoryServicePrincipal,
 ]

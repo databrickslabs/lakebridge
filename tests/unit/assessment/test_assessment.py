@@ -30,7 +30,6 @@ def test_configure_sqlserver_credentials(tmp_path):
             r"Enter secret vault type \(local \| env\)": sorted(['local', 'env']).index("env"),
             r"Select authentication method": _auth_choice_index("SqlPassword"),
             r"Enter the database name": "TEST_TSQL_JDBC",
-            r"Enter the ODBC driver installed locally.*": "ODBC Driver 18 for SQL Server",
             r"Enter the fully-qualified server name": "URL",
             r"Enter the port details": "1433",
             r"Enter the username": "TEST_TSQL_USER",
@@ -54,7 +53,6 @@ def test_configure_sqlserver_credentials(tmp_path):
         'mssql': {
             'auth_type': 'SqlPassword',
             'database': 'TEST_TSQL_JDBC',
-            'driver': 'ODBC Driver 18 for SQL Server',
             'fetch_size': '4000',
             'login_timeout': 5,
             'password': 'TEST_TSQL_PASS',
@@ -79,7 +77,6 @@ def test_configure_sqlserver_credentials_spn(tmp_path):
             r"Enter secret vault type \(local \| env\)": sorted(['local', 'env']).index("env"),
             r"Select authentication method": _auth_choice_index("ActiveDirectoryServicePrincipal"),
             r"Enter the database name": "TEST_DB",
-            r"Enter the ODBC driver installed locally.*": "ODBC Driver 18 for SQL Server",
             r"Enter the fully-qualified server name": "URL",
             r"Enter the port details": "1433",
             r"Do you want to test the connection to mssql?.*": "no",
@@ -103,6 +100,36 @@ def test_configure_sqlserver_credentials_spn(tmp_path):
     assert "password" not in credentials["mssql"]
 
 
+def test_configure_sqlserver_credentials_ad_default(tmp_path):
+    """DefaultAzureCredential: no user/password prompts; the driver resolves the identity at run time."""
+    prompts = MockPrompts(
+        {
+            r"Enter secret vault type \(local \| env\)": sorted(['local', 'env']).index("env"),
+            r"Select authentication method": _auth_choice_index("DefaultAzureCredential"),
+            r"Enter the database name": "TEST_DB",
+            r"Enter the fully-qualified server name": "URL",
+            r"Enter the port details": "1433",
+            r"Do you want to test the connection to mssql?.*": "no",
+            r"Enter fetch size": "1000",
+            r"Enter timezone.*": "UTC",
+            r"Enter login timeout.*": 30,
+            r"Trust server certificate": "no",
+        }
+    )
+    file = tmp_path / ".credentials.yml"
+    assessment = ConfigureSqlServerAssessment(
+        product_name="lakebridge", source_name="mssql", prompts=prompts, credential_file=file
+    )
+    assessment.run()
+
+    with open(file, 'r', encoding='utf-8') as fstream:
+        credentials = yaml.safe_load(fstream)
+
+    assert credentials["mssql"]["auth_type"] == "DefaultAzureCredential"
+    assert "user" not in credentials["mssql"]
+    assert "password" not in credentials["mssql"]
+
+
 def test_configure_sqlserver_credentials_ad_password(tmp_path):
     """ActiveDirectoryPassword: prompts for username and password (same shape as SQL auth)."""
     prompts = MockPrompts(
@@ -110,7 +137,6 @@ def test_configure_sqlserver_credentials_ad_password(tmp_path):
             r"Enter secret vault type \(local \| env\)": sorted(['local', 'env']).index("env"),
             r"Select authentication method": _auth_choice_index("ActiveDirectoryPassword"),
             r"Enter the database name": "TEST_DB",
-            r"Enter the ODBC driver installed locally.*": "ODBC Driver 18 for SQL Server",
             r"Enter the fully-qualified server name": "URL",
             r"Enter the port details": "1433",
             r"Enter the username": "aad-user@example.com",
@@ -141,12 +167,12 @@ def test_configure_sqlserver_credentials_all_databases(tmp_path):
     prompts = MockPrompts(
         {
             r"Enter secret vault type \(local \| env\)": sorted(['local', 'env']).index("env"),
+            r"Select authentication method": _auth_choice_index("SqlPassword"),
             r"Enter the database name": "*",
-            r"Enter the ODBC driver installed locally.*": "ODBC Driver 18 for SQL Server",
             r"Enter the fully-qualified server name": "URL",
             r"Enter the port details": "1433",
-            r"Enter the SQL username": "TEST_TSQL_USER",
-            r"Enter the SQL password": "TEST_TSQL_PASS",
+            r"Enter the username": "TEST_TSQL_USER",
+            r"Enter the password": "TEST_TSQL_PASS",
             r"Trust server certificate": "no",
             r"Do you want to test the connection to mssql?.*": "no",
             r"Enter fetch size": "4000",
@@ -173,7 +199,6 @@ def test_configure_synapse_credentials(tmp_path):
             r"Enter the username": "test-user",
             r"Enter the password": "test-password",
             r"Enter timezone \(e.g. America/New_York\)": "UTC",
-            r"Enter the ODBC driver installed locally": "ODBC Driver 18 for SQL Server",
             r"Enter development endpoint": "test-dev-endpoint",
             r"Select authentication method": _auth_choice_index("SqlPassword"),
             r"Enter fetch size": "1000",
@@ -207,7 +232,6 @@ def test_configure_synapse_credentials(tmp_path):
                 'fetch_size': '1000',
                 'login_timeout': '30',
                 'tz_info': 'UTC',
-                'driver': 'ODBC Driver 18 for SQL Server',
             },
             'profiler': {
                 'exclude_serverless_sql_pool': False,
@@ -273,7 +297,6 @@ def test_configure_synapse_credentials_spn(tmp_path):
             r"Enter secret vault type \(local \| env\)": sorted(['local', 'env']).index("env"),
             r"Enter Synapse workspace name": "test-workspace",
             r"Enter timezone \(e.g. America/New_York\)": "UTC",
-            r"Enter the ODBC driver installed locally": "ODBC Driver 18 for SQL Server",
             r"Enter development endpoint": "test-dev-endpoint",
             r"Select authentication method": _auth_choice_index("ActiveDirectoryServicePrincipal"),
             r"Enter fetch size": "1000",
@@ -297,6 +320,40 @@ def test_configure_synapse_credentials_spn(tmp_path):
 
     workspace = credentials["synapse"]["workspace"]
     assert workspace["auth_type"] == "ActiveDirectoryServicePrincipal"
+    assert "user" not in workspace
+    assert "password" not in workspace
+
+
+def test_configure_synapse_credentials_ad_default(tmp_path):
+    """Synapse DefaultAzureCredential: workspace omits user/password; the driver resolves the identity."""
+    prompts = MockPrompts(
+        {
+            r"Enter secret vault type \(local \| env\)": sorted(['local', 'env']).index("env"),
+            r"Enter Synapse workspace name": "test-workspace",
+            r"Enter timezone \(e.g. America/New_York\)": "UTC",
+            r"Enter development endpoint": "test-dev-endpoint",
+            r"Select authentication method": _auth_choice_index("DefaultAzureCredential"),
+            r"Enter fetch size": "1000",
+            r"Enter login timeout \(seconds\)": "30",
+            r"Exclude serverless SQL pool from profiling\?": "no",
+            r"Exclude dedicated SQL pools from profiling\?": "no",
+            r"Exclude Spark pools from profiling\?": "no",
+            r"Exclude monitoring metrics from profiling\?": "no",
+            r"Redact SQL pools SQL text\?": "no",
+            r"Do you want to test the connection to synapse?": "no",
+        }
+    )
+    file = tmp_path / ".credentials.yml"
+    assessment = ConfigureSynapseAssessment(
+        product_name="lakebridge", source_name="synapse", prompts=prompts, credential_file=file
+    )
+    assessment.run()
+
+    with open(file, 'r', encoding='utf-8') as fstream:
+        credentials = yaml.safe_load(fstream)
+
+    workspace = credentials["synapse"]["workspace"]
+    assert workspace["auth_type"] == "DefaultAzureCredential"
     assert "user" not in workspace
     assert "password" not in workspace
 
@@ -511,19 +568,19 @@ def test_redshift_configurator_writes_only_connector_supported_auth_types():
 
 
 def test_test_connection_default_uses_database_manager():
-    """Sources without an override go through DatabaseManager (the JDBC connector)."""
+    """Sources without an override go through create_connector (the JDBC connector)."""
     configurator = ConfigureRedshiftAssessment(
         product_name="lakebridge", source_name="redshift", prompts=MockPrompts({})
     )
     raw_config = {"host": "redshift.example.com", "database": "dev"}
     with (
         patch("databricks.labs.lakebridge.assessments.configure_assessment.create_credential_manager") as cred_manager,
-        patch("databricks.labs.lakebridge.assessments.configure_assessment.DatabaseManager") as database_manager,
+        patch("databricks.labs.lakebridge.assessments.configure_assessment.create_connector") as create_connector,
     ):
         cred_manager.return_value.get_credentials.return_value = raw_config
-        database_manager.return_value.__enter__.return_value.check_connection.return_value = True
+        create_connector.return_value.__enter__.return_value.health_check.return_value = True
         configurator.test_connection()
-    database_manager.assert_called_once_with("redshift", raw_config)
+    create_connector.assert_called_once_with("redshift", raw_config)
 
 
 def test_synapse_test_connection_delegates_to_pools():

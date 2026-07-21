@@ -42,25 +42,25 @@ def test_mssql_variant_config_references_existing_files(variant: str) -> None:
     ],
 )
 def test_resolve_mssql_variant(engine_edition: int, expected: str) -> None:
-    db_manager = MagicMock()
-    db_manager.__enter__.return_value = db_manager
-    db_manager.fetch.return_value = MagicMock(rows=[[engine_edition]])
+    connector = MagicMock()
+    connector.__enter__.return_value = connector
+    connector.fetch.return_value = MagicMock(rows=[[engine_edition]])
     with (
-        patch("databricks.labs.lakebridge.assessments.variants.DatabaseManager", return_value=db_manager),
+        patch("databricks.labs.lakebridge.assessments.variants.create_connector", return_value=connector),
         patch("databricks.labs.lakebridge.assessments.variants.create_credential_manager") as cred_manager,
     ):
         cred_manager.return_value.get_credentials.return_value = {}
         assert resolve_mssql_variant(Path("creds.yml")) == expected
-    db_manager.fetch.assert_called_once_with("SELECT CAST(SERVERPROPERTY('EngineEdition') AS INT) AS engine_edition")
+    connector.fetch.assert_called_once_with("SELECT CAST(SERVERPROPERTY('EngineEdition') AS INT) AS engine_edition")
 
 
 def test_resolve_mssql_variant_azure_sql_db_without_database_raises() -> None:
     """Azure SQL Database (edition 5) with no concrete database must not silently profile master."""
-    db_manager = MagicMock()
-    db_manager.__enter__.return_value = db_manager
-    db_manager.fetch.return_value = MagicMock(rows=[[5]])  # Azure SQL Database
+    connector = MagicMock()
+    connector.__enter__.return_value = connector
+    connector.fetch.return_value = MagicMock(rows=[[5]])  # Azure SQL Database
     with (
-        patch("databricks.labs.lakebridge.assessments.variants.DatabaseManager", return_value=db_manager),
+        patch("databricks.labs.lakebridge.assessments.variants.create_connector", return_value=connector),
         patch("databricks.labs.lakebridge.assessments.variants.create_credential_manager") as cred_manager,
     ):
         cred_manager.return_value.get_credentials.return_value = {"database": "*"}
@@ -70,26 +70,26 @@ def test_resolve_mssql_variant_azure_sql_db_without_database_raises() -> None:
 
 def test_resolve_mssql_variant_with_configured_database_skips_probe() -> None:
     """A configured database scopes profiling to that database (single_db) without probing the edition."""
-    db_manager = MagicMock()
-    db_manager.__enter__.return_value = db_manager
+    connector = MagicMock()
+    connector.__enter__.return_value = connector
     with (
-        patch("databricks.labs.lakebridge.assessments.variants.DatabaseManager", return_value=db_manager),
+        patch("databricks.labs.lakebridge.assessments.variants.create_connector", return_value=connector),
         patch("databricks.labs.lakebridge.assessments.variants.create_credential_manager") as cred_manager,
     ):
         cred_manager.return_value.get_credentials.return_value = {"database": "AdventureWorks"}
         assert resolve_mssql_variant(Path("creds.yml")) == "single_db"
-    db_manager.fetch.assert_not_called()
+    connector.fetch.assert_not_called()
 
 
 @pytest.mark.parametrize("database", ["*", "  ", "", None])
 def test_resolve_mssql_variant_all_databases_probes(database) -> None:
     """The '*' sentinel and blank/whitespace all mean 'all databases' -> probe the edition, not single_db."""
-    db_manager = MagicMock()
-    db_manager.__enter__.return_value = db_manager
-    db_manager.fetch.return_value = MagicMock(rows=[[3]])  # on-prem Enterprise -> multi_db
+    connector = MagicMock()
+    connector.__enter__.return_value = connector
+    connector.fetch.return_value = MagicMock(rows=[[3]])  # on-prem Enterprise -> multi_db
     config = {} if database is None else {"database": database}
     with (
-        patch("databricks.labs.lakebridge.assessments.variants.DatabaseManager", return_value=db_manager),
+        patch("databricks.labs.lakebridge.assessments.variants.create_connector", return_value=connector),
         patch("databricks.labs.lakebridge.assessments.variants.create_credential_manager") as cred_manager,
     ):
         cred_manager.return_value.get_credentials.return_value = config

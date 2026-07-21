@@ -13,7 +13,7 @@ from databricks.labs.lakebridge.connections.credential_manager import (
     cred_file as creds,
     create_credential_manager,
 )
-from databricks.labs.lakebridge.connections.database_manager import DatabaseManager
+from databricks.labs.lakebridge.connections.database_manager import create_connector
 from databricks.labs.lakebridge.connections.mssql_auth import AUTH_CHOICES
 from databricks.labs.lakebridge.connections.env_getter import EnvGetter
 from databricks.labs.lakebridge.connections.synapse_connection_helpers import validate_synapse_pools
@@ -38,6 +38,13 @@ def _prompt_mssql_auth_credentials(prompts: Prompts, auth_type: str) -> dict[str
             "ActiveDirectoryServicePrincipal selected. "
             "Ensure AZURE_CLIENT_ID and AZURE_CLIENT_SECRET are set as environment variables "
             "before running the profiler."
+        )
+        return {}
+    if auth_type == "DefaultAzureCredential":
+        logger.info(
+            "DefaultAzureCredential selected. The driver resolves the identity via the "
+            "DefaultAzureCredential chain: run `az login` before the profiler, or set "
+            "AZURE_TENANT_ID / AZURE_CLIENT_ID / AZURE_CLIENT_SECRET for unattended runs."
         )
         return {}
     return {}
@@ -76,9 +83,9 @@ class AssessmentConfigurator(ABC):
         logger.info("Connection to the source system successful")
 
     def _check_connection(self, raw_config: dict) -> None:
-        """Default check: open a ``DatabaseManager`` connection and run a health check."""
-        with DatabaseManager(self._source_name, raw_config) as db_manager:
-            if not db_manager.check_connection():
+        """Default check: open a connection and run a health check."""
+        with create_connector(self._source_name, raw_config) as connector:
+            if not connector.health_check():
                 raise ConnectionError(f"Connection to {self._source_name} failed")
 
     def run(self):
@@ -163,9 +170,6 @@ class ConfigureSqlServerAssessment(AssessmentConfigurator):
             ),
             "trust_server_certificate": self.prompts.confirm("Trust server certificate"),
             "tz_info": self.prompts.question("Enter timezone (e.g. America/New_York)", default="UTC"),
-            "driver": self.prompts.question(
-                "Enter the ODBC driver installed locally", default="ODBC Driver 18 for SQL Server"
-            ),
         }
 
         credential = {
@@ -302,9 +306,6 @@ class ConfigureSynapseAssessment(AssessmentConfigurator):
             "fetch_size": self.prompts.question("Enter fetch size", default="1000"),
             "login_timeout": self.prompts.question("Enter login timeout (seconds)", default="30"),
             "tz_info": self.prompts.question("Enter timezone (e.g. America/New_York)", default="UTC"),
-            "driver": self.prompts.question(
-                "Enter the ODBC driver installed locally", default="ODBC Driver 18 for SQL Server"
-            ),
         }
 
         # Profiler Settings
