@@ -68,17 +68,7 @@ def _save_overwrite(
     table_name: str,
     schema: str | None,
 ) -> None:
-    """Replace ``table_name`` with ``df`` (definition and data).
-
-    - ``schema`` provided: ``DROP`` + ``CREATE TABLE (...schema...)`` + ``INSERT``
-      (the ``INSERT`` is skipped when ``df`` is empty).
-    - ``schema`` omitted: ``DROP`` + ``CREATE TABLE AS SELECT *`` from ``df``
-      (with ``LIMIT 0`` when ``df`` is empty so the columns still land). Types
-      always follow this write's data, not a prior run's inferred schema.
-    - ``schema`` omitted and ``df`` has no columns: ``DROP`` the table if it
-      exists; otherwise warn and skip. There is nothing we can do without
-      either a schema or column metadata from the DataFrame.
-    """
+    """Replace ``table_name`` with ``df`` (definition and data)."""
     table_exists = _table_exists(conn, table_name)
 
     if schema is not None:
