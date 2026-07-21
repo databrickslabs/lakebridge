@@ -119,12 +119,9 @@ class PipelineClass:
             logging.error("Database executor is not set.")
             raise RuntimeError("Database executor is not set.")
 
-        # Execute the query using the database manager
         logging.info(f"Executing query: {query}")
         try:
             result = self.executor.fetch(query)
-
-            # Save the result to duckdb
             self._save_to_db(result, step.name, str(step.mode))
         except Exception as e:
             logging.error(f"SQL execution failed: {str(e)}")

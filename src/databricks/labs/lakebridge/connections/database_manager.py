@@ -12,7 +12,7 @@ import pandas as pd
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine, URL
 from sqlalchemy import text
-from sqlalchemy.exc import DatabaseError
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm.session import Session
 import mssql_python
 import redshift_connector  # type: ignore[import-untyped]
@@ -81,7 +81,7 @@ class _BaseConnector(DatabaseConnector):
             try:
                 result = session.execute(text(query))
                 return FetchResult(list(result.keys()), result.fetchall())
-            except DatabaseError as e:
+            except DBAPIError as e:
                 logger.debug("Database query failed", exc_info=True)
                 reason = str(getattr(e, "orig", e)).split("\n", 1)[0].strip()
                 raise ConnectionError(f"Database query failed: {reason}") from e
