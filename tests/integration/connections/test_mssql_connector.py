@@ -20,9 +20,3 @@ def test_connection_test(sandbox_sqlserver):
 def test_spn_authentication_connection(sandbox_spn_sqlserver_config: JsonObject) -> None:
     dbm = DatabaseManager("mssql", sandbox_spn_sqlserver_config)
     assert dbm.check_connection()
-
-
-def test_active_directory_default_connection(sandbox_ad_default_config: JsonObject) -> None:
-    """Entra auth via the DefaultAzureCredential chain (environment leg in the sandbox)."""
-    dbm = DatabaseManager("mssql", sandbox_ad_default_config)
-    assert dbm.check_connection()

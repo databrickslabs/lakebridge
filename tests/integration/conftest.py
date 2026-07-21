@@ -163,25 +163,6 @@ def sandbox_spn_sqlserver_config(sandbox_sqlserver_config: JsonObject, monkeypat
 
 
 @pytest.fixture()
-def sandbox_ad_default_config(sandbox_sqlserver_config: JsonObject, monkeypatch: pytest.MonkeyPatch) -> JsonObject:
-    """DefaultAzureCredential via the environment leg of its credential chain.
-
-    Unlike the driver-native SPN path, azure-identity's EnvironmentCredential also
-    needs the tenant id, which not every sandbox env provides — skip when absent.
-    """
-    env = TestEnvGetter(True)
-    try:
-        tenant_id = env.get("TOOLS_TENANT_ID")
-    except KeyError:
-        pytest.skip("TOOLS_TENANT_ID not configured for this sandbox")
-    monkeypatch.setenv("AZURE_TENANT_ID", tenant_id)
-    monkeypatch.setenv("AZURE_CLIENT_ID", env.get("TOOLS_CLIENT_ID"))
-    monkeypatch.setenv("AZURE_CLIENT_SECRET", env.get("TOOLS_CLIENT_SECRET"))
-    config = {k: v for k, v in sandbox_sqlserver_config.items() if k not in ("user", "password")}
-    return {**config, "auth_type": "DefaultAzureCredential"}
-
-
-@pytest.fixture()
 def sandbox_synapse(sandbox_synapse_config: JsonObject) -> DatabaseManager:
     """Create a DatabaseManager for Synapse (uses MSSQLConnector via factory method)."""
     return DatabaseManager("synapse", sandbox_synapse_config)

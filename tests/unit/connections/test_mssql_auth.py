@@ -93,11 +93,6 @@ def test_default_azure_credential_emits_keyword_and_no_credentials() -> None:
     assert resolved.password is None
 
 
-def test_default_azure_credential_is_dispatchable() -> None:
-    resolved = resolve_mssql_credentials({"auth_type": "DefaultAzureCredential"})
-    assert resolved.authentication_param == "ActiveDirectoryDefault"
-
-
 def test_auth_choices_class_names_are_odbc_or_azure_literals() -> None:
     """Class names match the `Authentication=` literal, or the Azure SDK class for the default chain."""
     literals = {

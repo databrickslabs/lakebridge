@@ -91,11 +91,8 @@ class ActiveDirectoryServicePrincipal:
 class DefaultAzureCredential:
     """Entra ID via the driver's `Authentication=ActiveDirectoryDefault` mode.
 
-    Named after the Azure SDK class mssql-python uses internally: the identity is
-    resolved by the `DefaultAzureCredential` chain — SPN env vars (`AZURE_TENANT_ID` /
-    `AZURE_CLIENT_ID` / `AZURE_CLIENT_SECRET`), managed identity, then `az login` —
-    so no credentials appear in the connection string or on disk. MFA-capable: the
-    interactive step, if any, happens in `az login` before the profiler runs.
+    The identity is resolved by the `DefaultAzureCredential` chain so no credentials appear in the connection string or on disk.
+    MFA-capable: the interactive step, if any, happens in `az login` before the profiler runs.
     """
 
     @classmethod
