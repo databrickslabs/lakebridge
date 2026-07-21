@@ -139,7 +139,6 @@ def test_configure_sqlserver_credentials_all_databases(tmp_path):
             r"Enter secret vault type \(local \| env\)": sorted(['local', 'env']).index("env"),
             r"Select authentication method": _auth_choice_index("SqlPassword"),
             r"Enter the database name": "*",
-            r"Enter the ODBC driver installed locally.*": "ODBC Driver 18 for SQL Server",
             r"Enter the fully-qualified server name": "URL",
             r"Enter the port details": "1433",
             r"Enter the username": "TEST_TSQL_USER",
