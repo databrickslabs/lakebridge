@@ -12,7 +12,7 @@ import pandas as pd
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine, URL
 from sqlalchemy import text
-from sqlalchemy.exc import OperationalError
+from sqlalchemy.exc import DatabaseError
 from sqlalchemy.orm.session import Session
 import mssql_python
 import redshift_connector  # type: ignore[import-untyped]
@@ -43,8 +43,7 @@ class FetchResult:
 
 class DatabaseConnector(contextlib.AbstractContextManager):
     @abstractmethod
-    def fetch(self, query: str) -> FetchResult:
-        pass
+    def fetch(self, query: str) -> FetchResult: ...
 
     @abstractmethod
     def close(self) -> None:
@@ -79,8 +78,13 @@ class _BaseConnector(DatabaseConnector):
             raise ConnectionError("Not connected to the database.")
 
         with Session(self.engine) as session, session.begin():
-            result = session.execute(text(query))
-            return FetchResult(list(result.keys()), result.fetchall())
+            try:
+                result = session.execute(text(query))
+                return FetchResult(list(result.keys()), result.fetchall())
+            except DatabaseError as e:
+                logger.debug("Database query failed", exc_info=True)
+                reason = str(getattr(e, "orig", e)).split("\n", 1)[0].strip()
+                raise ConnectionError(f"Database query failed: {reason}") from e
 
     def health_check(self) -> bool:
         query = "SELECT 101 AS test_column"
@@ -170,6 +174,10 @@ class MSSQLConnector(DatabaseConnector):
             names = [desc[0] for desc in cursor.description]
             rows = [tuple(row) for row in cursor.fetchall()]
             return FetchResult(names, rows)
+        except mssql_python.Error as e:
+            logger.debug("Database query failed", exc_info=True)
+            reason = str(e).split("\n", 1)[0].strip()
+            raise ConnectionError(f"Database query failed: {reason}") from e
         finally:
             cursor.close()
 
@@ -264,6 +272,10 @@ class RedshiftConnector(DatabaseConnector):
             rows = cursor.fetchall()
             columns = [desc[0] for desc in cursor.description]
             return FetchResult(columns, rows)
+        except redshift_connector.Error as e:
+            logger.debug("Database query failed", exc_info=True)
+            reason = str(e).split("\n", 1)[0].strip()
+            raise ConnectionError(f"Database query failed: {reason}") from e
         finally:
             cursor.close()
 
@@ -276,7 +288,7 @@ class RedshiftConnector(DatabaseConnector):
         return result.rows[0][0] == 101
 
 
-def _create_connector(db_type: str, config: JsonObject) -> DatabaseConnector:
+def create_connector(db_type: str, config: JsonObject) -> DatabaseConnector:
     connectors: dict[str, Callable[[JsonObject], DatabaseConnector]] = {
         "snowflake": SnowflakeConnector,
         "mssql": MSSQLConnector,
@@ -293,35 +305,3 @@ def _create_connector(db_type: str, config: JsonObject) -> DatabaseConnector:
         raise ValueError(f"Unsupported database type: {db_type}")
 
     return connector_class(config)
-
-
-# TODO remove this class, connectors are managed using ContextManager
-class DatabaseManager:
-    def __init__(self, db_type: str, config: JsonObject):
-        self.connector: DatabaseConnector = _create_connector(db_type, config)
-
-    def __enter__(self) -> "DatabaseManager":
-        """Support context manager protocol for resource management."""
-        return self
-
-    def __exit__(
-        self,
-        exc_type: type[BaseException] | None,
-        exc_val: BaseException | None,
-        exc_tb: TracebackType | None,
-    ) -> None:
-        """Clean up connector resources when exiting context."""
-        self.connector.__exit__(exc_type, exc_val, exc_tb)
-
-    def fetch(self, query: str) -> FetchResult:
-        try:
-            return self.connector.fetch(query)
-        except OperationalError as e:
-            # Drivers (notably teradatasql) embed a full stack trace and the offending SQL in the error
-            # message; keep that detail at debug level and surface only the concise first line.
-            logger.debug("Database query failed", exc_info=True)
-            reason = str(getattr(e, "orig", e)).split("\n", 1)[0].strip()
-            raise ConnectionError(f"Database query failed: {reason}") from e
-
-    def check_connection(self) -> bool:
-        return self.connector.health_check()

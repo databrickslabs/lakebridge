@@ -13,7 +13,7 @@ import yaml
 from databricks.labs.blueprint.paths import read_text
 from databricks.labs.lakebridge import __version__ as lakebridge_version
 from databricks.labs.lakebridge.assessments.profiler_config import PipelineConfig, Step
-from databricks.labs.lakebridge.connections.database_manager import DatabaseManager, FetchResult
+from databricks.labs.lakebridge.connections.database_manager import DatabaseConnector, FetchResult
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +39,7 @@ class PipelineClass:
     def __init__(
         self,
         config: PipelineConfig,
-        executor: DatabaseManager | None,
+        executor: DatabaseConnector | None,
         db_path: Path,
         cred_file_path: Path,
     ):
@@ -116,8 +116,8 @@ class PipelineClass:
         query = read_text(Path(step.extract_source))
 
         if self.executor is None:
-            logging.error("DatabaseManager executor is not set.")
-            raise RuntimeError("DatabaseManager executor is not set.")
+            logging.error("Database executor is not set.")
+            raise RuntimeError("Database executor is not set.")
 
         # Execute the query using the database manager
         logging.info(f"Executing query: {query}")
@@ -134,7 +134,7 @@ class PipelineClass:
         """Run a no-result DDL statement against the *source* database (one statement per file).
 
         Distinct from ``ddl`` (which targets the local DuckDB extract) and from ``sql``
-        (which expects a result set: ``DatabaseManager.fetch`` calls ``fetchall()`` and
+        (which expects a result set: ``DatabaseConnector.fetch`` calls ``fetchall()`` and
         raises on statements that return no rows). Used to create/drop source-side
         views or objects that subsequent ``sql`` steps depend on.
         """
@@ -142,8 +142,8 @@ class PipelineClass:
         content = read_text(Path(step.extract_source)).strip()
 
         if self.executor is None:
-            logging.error("DatabaseManager executor is not set.")
-            raise RuntimeError("DatabaseManager executor is not set.")
+            logging.error("Database executor is not set.")
+            raise RuntimeError("Database executor is not set.")
 
         if not content or all(line.strip().startswith("--") for line in content.split("\n")):
             logging.warning(f"source_ddl step '{step.name}' has no statement in {step.extract_source}")
