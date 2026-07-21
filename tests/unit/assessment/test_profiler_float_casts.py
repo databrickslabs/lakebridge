@@ -32,9 +32,7 @@ REQUIRED_CASTS: dict[str, tuple[str, ...]] = {
     "redshift/provisioned/4_rs_avg_concurrent_users.sql": (
         "round(avg(distinct_users),0)::double precision avg_concurrent_users",
     ),
-    "redshift/provisioned/5_rs_avg_queries_minute.sql": (
-        "avg(query_cnt)::double precision avg_queries_minute",
-    ),
+    "redshift/provisioned/5_rs_avg_queries_minute.sql": ("avg(query_cnt)::double precision avg_queries_minute",),
     "redshift/provisioned/7_chart_cpu_consumption_by_query_type.sql": (
         "cpu_time/1000000.0 end as cpu_time",
         "run_time/1000000.0 end as run_time",
@@ -68,15 +66,11 @@ REQUIRED_CASTS: dict[str, tuple[str, ...]] = {
     "redshift/serverless/2_rs_managed_storage_gb.sql": (
         "round(avg(data_storage) / 1024.0, 2)::double precision as rs_managed_storage_gb",
     ),
-    "redshift/serverless/3_rs_nodes.sql": (
-        "sum(compute_seconds)::double precision as compute_seconds",
-    ),
+    "redshift/serverless/3_rs_nodes.sql": ("sum(compute_seconds)::double precision as compute_seconds",),
     "redshift/serverless/4_rs_avg_concurrent_users.sql": (
         "round(avg(distinct_users),0)::double precision avg_concurrent_users",
     ),
-    "redshift/serverless/5_rs_avg_queries_minute.sql": (
-        "avg(query_cnt)::double precision avg_queries_minute",
-    ),
+    "redshift/serverless/5_rs_avg_queries_minute.sql": ("avg(query_cnt)::double precision avg_queries_minute",),
     "redshift/serverless/7_chart_cpu_consumption_by_query_type.sql": (
         "duration/1000.0 as run_time_ms",
         "sum(run_time_ms)::double precision as sum_cpu_time",
