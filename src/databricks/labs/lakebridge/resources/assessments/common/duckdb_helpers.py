@@ -68,17 +68,16 @@ def _save_overwrite(
     table_name: str,
     schema: str | None,
 ) -> None:
-    """Replace the contents of ``table_name`` with ``df``.
+    """Replace ``table_name`` with ``df`` (definition and data).
 
     - ``schema`` provided: ``DROP`` + ``CREATE TABLE (...schema...)`` + ``INSERT``
       (the ``INSERT`` is skipped when ``df`` is empty).
-    - ``schema`` omitted, table exists: ``TRUNCATE`` + ``INSERT``. This
-      preserves any DDL-declared column types from a prior run.
-    - ``schema`` omitted, table missing: ``CREATE TABLE AS SELECT *`` from
-      ``df`` (with ``LIMIT 0`` when ``df`` is empty so the columns still land).
-    - ``schema`` omitted, table missing, and ``df`` has no columns: warn and
-      skip. There is nothing we can do without either a schema or column
-      metadata from the DataFrame.
+    - ``schema`` omitted: ``DROP`` + ``CREATE TABLE AS SELECT *`` from ``df``
+      (with ``LIMIT 0`` when ``df`` is empty so the columns still land). Types
+      always follow this write's data, not a prior run's inferred schema.
+    - ``schema`` omitted and ``df`` has no columns: ``DROP`` the table if it
+      exists; otherwise warn and skip. There is nothing we can do without
+      either a schema or column metadata from the DataFrame.
     """
     table_exists = _table_exists(conn, table_name)
 
@@ -92,7 +91,7 @@ def _save_overwrite(
 
     if len(df.columns) == 0:
         if table_exists:
-            conn.execute(f"TRUNCATE {table_name}")
+            conn.execute(f"DROP TABLE IF EXISTS {table_name}")
         else:
             logger.warning(
                 "Cannot create table '%s': empty DataFrame with no columns and no schema provided.",
@@ -101,13 +100,7 @@ def _save_overwrite(
         return
 
     conn.register("_lakebridge_df", df)
-
-    if table_exists:
-        conn.execute(f"TRUNCATE {table_name}")
-        if not df.empty:
-            conn.execute(f"INSERT INTO {table_name} SELECT * FROM _lakebridge_df")
-        return
-
+    conn.execute(f"DROP TABLE IF EXISTS {table_name}")
     limit_clause = " LIMIT 0" if df.empty else ""
     conn.execute(f"CREATE TABLE {table_name} AS SELECT * FROM _lakebridge_df{limit_clause}")
 

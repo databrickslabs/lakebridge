@@ -48,6 +48,9 @@ class PipelineClass:
         self._db_path = db_path.expanduser()
         self._create_dir(self._db_path.parent)
         self._cred_file_path = cred_file_path
+        # Tables recreated by a ddl step in this run; SQL overwrite inserts into them
+        # rather than DROP+CTAS so declared types are preserved.
+        self._ddl_tables: set[str] = set()
 
     def execute(self) -> list[StepExecutionResult]:
         logging.info(f"Pipeline initialized with config: {self.config.name}, version: {self.config.version}")
@@ -163,17 +166,15 @@ class PipelineClass:
         logging.info(f"Executing DDL for table '{step.name}'")
 
         try:
-            # TODO: Handle schema evolution
-            # Current implementation just checks for table existence;
-            # mode logic becomes irrelevant for ddl step.
+            # Always DROP + recreate so declared types apply on same-day reruns.
+            # MSSQL DDL uses CREATE TABLE IF NOT EXISTS; Oracle/Teradata use CREATE TABLE.
             with duckdb.connect(self._db_path) as conn:
                 conn.begin()
-                if not self._table_exists(conn, step.name):
-                    conn.execute(ddl)
-                    conn.commit()
-                    logging.debug(f"Created new table '{step.name}'")
-                else:
-                    logging.debug(f"Table '{step.name}' already exists, skipping DDL execution")
+                conn.execute(f"DROP TABLE IF EXISTS {step.name}")
+                conn.execute(ddl)
+                conn.commit()
+                logging.debug(f"Created table '{step.name}'")
+            self._ddl_tables.add(step.name)
         except Exception as e:
             logging.error(f"DDL execution failed: {str(e)}")
             raise RuntimeError(f"DDL execution failed: {str(e)}") from e
@@ -244,28 +245,28 @@ class PipelineClass:
             # Note: step_name is validated to be SQL-safe by Step.__post_init__
             table_exists = self._table_exists(conn, step_name)
             conn.begin()
-            if table_exists and mode == 'overwrite':
-                # Table exists and overwrite mode: Truncate then insert within a transaction to preserve existing DDL schema
-                _result_frame = result.to_df()
-                # Note: step_name is validated to be SQL-safe by Step.__post_init__
-                logging.debug(f"Overwriting existing table '{step_name}'")
-                conn.execute(f"TRUNCATE {step_name}")
-                conn.execute(f"INSERT INTO {step_name} SELECT * FROM _result_frame")
-            else:
-                if table_exists:
-                    # Table exists and append mode: insert into existing table (DuckDB handles type conversion)
-                    _result_frame = result.to_df()
-                    # Note: step_name is validated to be SQL-safe by Step.__post_init__
-                    statement = f"INSERT INTO {step_name} SELECT * FROM _result_frame"
-                    logging.debug(f"Appending to existing table '{step_name}'")
-                else:
-                    # Table doesn't exist: create table with native types from query result
-                    # Use DDL steps for explicit type control when needed
-                    _result_frame = result.to_df()
-                    # Note: step_name is validated to be SQL-safe by Step.__post_init__
-                    statement = f"CREATE TABLE {step_name} AS SELECT * FROM _result_frame"
-                    logging.debug(f"Creating new table '{step_name}' with native types")
+            _result_frame = result.to_df()
 
+            if mode == 'overwrite':
+                if step_name in self._ddl_tables:
+                    # DDL step just recreated an empty typed table; insert into it.
+                    logging.debug(f"Inserting into DDL-owned table '{step_name}'")
+                    conn.execute(f"INSERT INTO {step_name} SELECT * FROM _result_frame")
+                else:
+                    # Replace the relation so types follow this run's data, not a prior CTAS.
+                    logging.debug(f"Replacing table '{step_name}' via DROP + CREATE AS SELECT")
+                    conn.execute(f"DROP TABLE IF EXISTS {step_name}")
+                    conn.execute(f"CREATE TABLE {step_name} AS SELECT * FROM _result_frame")
+            elif table_exists:
+                # Append mode: insert into existing table (DuckDB handles type conversion)
+                statement = f"INSERT INTO {step_name} SELECT * FROM _result_frame"
+                logging.debug(f"Appending to existing table '{step_name}'")
+                logging.debug(f"Executing: {statement}")
+                conn.execute(statement)
+            else:
+                # Table doesn't exist: create table with native types from query result
+                statement = f"CREATE TABLE {step_name} AS SELECT * FROM _result_frame"
+                logging.debug(f"Creating new table '{step_name}' with native types")
                 logging.debug(f"Executing: {statement}")
                 conn.execute(statement)
 
