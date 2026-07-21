@@ -100,6 +100,36 @@ def test_configure_sqlserver_credentials_spn(tmp_path):
     assert "password" not in credentials["mssql"]
 
 
+def test_configure_sqlserver_credentials_ad_default(tmp_path):
+    """DefaultAzureCredential: no user/password prompts; the driver resolves the identity at run time."""
+    prompts = MockPrompts(
+        {
+            r"Enter secret vault type \(local \| env\)": sorted(['local', 'env']).index("env"),
+            r"Select authentication method": _auth_choice_index("DefaultAzureCredential"),
+            r"Enter the database name": "TEST_DB",
+            r"Enter the fully-qualified server name": "URL",
+            r"Enter the port details": "1433",
+            r"Do you want to test the connection to mssql?.*": "no",
+            r"Enter fetch size": "1000",
+            r"Enter timezone.*": "UTC",
+            r"Enter login timeout.*": 30,
+            r"Trust server certificate": "no",
+        }
+    )
+    file = tmp_path / ".credentials.yml"
+    assessment = ConfigureSqlServerAssessment(
+        product_name="lakebridge", source_name="mssql", prompts=prompts, credential_file=file
+    )
+    assessment.run()
+
+    with open(file, 'r', encoding='utf-8') as fstream:
+        credentials = yaml.safe_load(fstream)
+
+    assert credentials["mssql"]["auth_type"] == "DefaultAzureCredential"
+    assert "user" not in credentials["mssql"]
+    assert "password" not in credentials["mssql"]
+
+
 def test_configure_sqlserver_credentials_ad_password(tmp_path):
     """ActiveDirectoryPassword: prompts for username and password (same shape as SQL auth)."""
     prompts = MockPrompts(
@@ -290,6 +320,40 @@ def test_configure_synapse_credentials_spn(tmp_path):
 
     workspace = credentials["synapse"]["workspace"]
     assert workspace["auth_type"] == "ActiveDirectoryServicePrincipal"
+    assert "user" not in workspace
+    assert "password" not in workspace
+
+
+def test_configure_synapse_credentials_ad_default(tmp_path):
+    """Synapse DefaultAzureCredential: workspace omits user/password; the driver resolves the identity."""
+    prompts = MockPrompts(
+        {
+            r"Enter secret vault type \(local \| env\)": sorted(['local', 'env']).index("env"),
+            r"Enter Synapse workspace name": "test-workspace",
+            r"Enter timezone \(e.g. America/New_York\)": "UTC",
+            r"Enter development endpoint": "test-dev-endpoint",
+            r"Select authentication method": _auth_choice_index("DefaultAzureCredential"),
+            r"Enter fetch size": "1000",
+            r"Enter login timeout \(seconds\)": "30",
+            r"Exclude serverless SQL pool from profiling\?": "no",
+            r"Exclude dedicated SQL pools from profiling\?": "no",
+            r"Exclude Spark pools from profiling\?": "no",
+            r"Exclude monitoring metrics from profiling\?": "no",
+            r"Redact SQL pools SQL text\?": "no",
+            r"Do you want to test the connection to synapse?": "no",
+        }
+    )
+    file = tmp_path / ".credentials.yml"
+    assessment = ConfigureSynapseAssessment(
+        product_name="lakebridge", source_name="synapse", prompts=prompts, credential_file=file
+    )
+    assessment.run()
+
+    with open(file, 'r', encoding='utf-8') as fstream:
+        credentials = yaml.safe_load(fstream)
+
+    workspace = credentials["synapse"]["workspace"]
+    assert workspace["auth_type"] == "DefaultAzureCredential"
     assert "user" not in workspace
     assert "password" not in workspace
 

@@ -1,8 +1,8 @@
 """Authentication strategies for MSSQL-family connections (mssql-python driver).
 
 Each class is named after the `Authentication=` connection-string literal it maps to
-(e.g. `ActiveDirectoryServicePrincipal`), or after the Azure SDK class the driver uses
-internally (e.g. `DefaultAzureCredential`).
+(e.g. `ActiveDirectoryServicePrincipal`), or after the Azure SDK credential class the
+driver uses internally (`DefaultAzureCredential`).
 
 The single point of contract is `MSSQLAuth.resolve_credentials(config)` — each class
 returns a fully-resolved `ResolvedCredentials` that the connector applies verbatim
@@ -91,21 +91,19 @@ class ActiveDirectoryServicePrincipal:
 class DefaultAzureCredential:
     """Entra ID via the driver's `Authentication=ActiveDirectoryDefault` mode.
 
-    mssql-python implements this internally with the Azure SDK `DefaultAzureCredential`
-    chain (az login, SPN env vars, managed identity). Wired into the dispatch surface so
-    the configurator and registry know about it, but enabled in a follow-up PR — no
-    other class needs to change.
+    The identity is resolved by the `DefaultAzureCredential` chain so no credentials appear in the connection string or on disk.
+    MFA-capable: the interactive step, if any, happens in `az login` before the profiler runs.
     """
 
     @classmethod
     def resolve_credentials(cls, _config: JsonObject) -> ResolvedCredentials:
-        raise NotImplementedError("DefaultAzureCredential authentication is not yet enabled; pick another auth method.")
+        return ResolvedCredentials(authentication_param="ActiveDirectoryDefault")
 
 
 # User-selectable auth methods, in the order they appear in the configurator prompt.
-# `DefaultAzureCredential` is intentionally excluded until its `resolve_credentials()` is implemented.
 AUTH_CHOICES: list[type[MSSQLAuth]] = [
     SqlPassword,
+    DefaultAzureCredential,
     ActiveDirectoryPassword,
     ActiveDirectoryServicePrincipal,
 ]

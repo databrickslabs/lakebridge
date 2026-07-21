@@ -40,6 +40,13 @@ def _prompt_mssql_auth_credentials(prompts: Prompts, auth_type: str) -> dict[str
             "before running the profiler."
         )
         return {}
+    if auth_type == "DefaultAzureCredential":
+        logger.info(
+            "DefaultAzureCredential selected. The driver resolves the identity via the "
+            "DefaultAzureCredential chain: run `az login` before the profiler, or set "
+            "AZURE_TENANT_ID / AZURE_CLIENT_ID / AZURE_CLIENT_SECRET for unattended runs."
+        )
+        return {}
     return {}
 
 
