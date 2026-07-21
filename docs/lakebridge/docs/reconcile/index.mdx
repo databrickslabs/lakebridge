@@ -88,6 +88,18 @@ The User configuring reconcile must have permission to:
 - `USE CATALOG` and `CREATE SCHEMA` on the target catalog
 - `CREATE VOLUME` if using a pre-existing schema on a serverless cluster
 
+### Runtime requirements
+
+- The job / interactive cluster running reconcile must be on **DBR 15.4 LTS or later**
+  for the standard data-comparison path.
+- If `reconcile_optimizer` is enabled (see
+  [Configuration Reference → Fingerprint Pre-check](/docs/reconcile/configuration#fingerprint-pre-check-experimental)),
+  the cluster must be on **DBR 17.3 or later**. The Stage-2 source-side fetch uses
+  Databricks' `remote_query()` table-valued function, which became available on DBR
+  17.3. On earlier runtimes, leave the flag off; otherwise the JDBC call fails
+  mid-fetch and the recon falls open to the full pipeline (correct, but the precheck
+  buys you nothing while paying for itself in cluster time).
+
 ### Serverless cluster support
 
 Reconcile automatically detects the cluster type and optimizes intermediate data persistence accordingly:

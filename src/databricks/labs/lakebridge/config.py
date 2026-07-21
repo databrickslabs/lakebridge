@@ -291,7 +291,7 @@ class ReconcileJobConfig:
 @dataclass
 class ReconcileConfig:
     __file__ = "reconcile.yml"
-    __version__ = 2
+    __version__ = 3
 
     report_type: str
     source: SourceConnectionConfig
@@ -299,6 +299,14 @@ class ReconcileConfig:
     metadata_config: ReconcileMetadataConfig
     job_overrides: ReconcileJobConfig | None = None
     hash_expression_overrides: HashExpressionOverrides | None = None
+    reconcile_optimizer: bool = False
+    # Optional explicit row count for fingerprint tier selection. When set,
+    # overrides Delta ``DESCRIBE DETAIL`` numRecords lookup so customers whose
+    # target is non-Delta (or whose Delta stats are stale) can pick the right
+    # sub-bucket tier without waiting for a full COUNT(*). ``None`` keeps the
+    # default heuristic. Values ``<= 0`` are treated as "unset" by
+    # ``fetch_target_row_count``.
+    fingerprint_row_count_override: int | None = None
 
     def __post_init__(self):
         # Teradata has no out of the box cryptographic hash in pure SQL, so the user has to configure
@@ -329,6 +337,30 @@ class ReconcileConfig:
             "schema": db_config["target_schema"],
         }
         raw["version"] = 2
+        return raw
+
+    @classmethod
+    def v2_migrate(cls, raw: dict[str, Any]) -> dict[str, Any]:
+        """v2 → v3: introduce the source-agnostic ``reconcile_optimizer`` flag.
+
+        Older field names (``fingerprint_precheck``, ``redshift_fingerprint_precheck``,
+        ``use_fingerprint_precheck``) from earlier deployments are folded into the new
+        flag if present; otherwise the field defaults to ``False`` so existing v2 configs
+        keep their current behaviour.
+        """
+        _legacy_optimizer_flags = (
+            "fingerprint_precheck",
+            "redshift_fingerprint_precheck",
+            "use_fingerprint_precheck",
+        )
+        if "reconcile_optimizer" not in raw:
+            for legacy in _legacy_optimizer_flags:
+                if legacy in raw:
+                    raw["reconcile_optimizer"] = raw.pop(legacy)
+                    break
+        for legacy in _legacy_optimizer_flags:
+            raw.pop(legacy, None)
+        raw["version"] = 3
         return raw
 
     @property

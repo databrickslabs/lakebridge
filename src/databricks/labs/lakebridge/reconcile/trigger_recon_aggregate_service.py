@@ -32,6 +32,11 @@ class TriggerReconAggregateService:
         table_recon: TableRecon,
         reconcile_config: ReconcileConfig,
     ) -> ReconcileOutput:
+        # Captured before create_recon_dependencies may pin it to UTC for a Redshift
+        # source (see TriggerReconService.pin_utc_session), so it can be restored
+        # once this recon completes — the mutation must not outlive the recon on a
+        # shared/interactive cluster. Mirrors TriggerReconService.trigger_recon.
+        original_tz: str = spark.conf.get("spark.sql.session.timeZone", "UTC") or "UTC"
         reconciler, recon_capture = TriggerReconService.create_recon_dependencies(ws, spark, reconcile_config)
 
         try:
@@ -49,10 +54,7 @@ class TriggerReconAggregateService:
                 report_type="aggregate",
             )
         finally:
-            try:
-                ws.dbfs.delete(str(reconciler.intermediate_persist.base_dir), recursive=True)
-            except IOError:
-                logger.exception("Cleaning intermediate storage failed. Resuming program")
+            TriggerReconService.finalize_recon_session(ws, spark, reconciler, original_tz)
 
     @staticmethod
     def recon_aggregate_one(

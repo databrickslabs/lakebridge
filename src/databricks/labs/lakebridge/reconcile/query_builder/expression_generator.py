@@ -1,12 +1,16 @@
-from collections.abc import Callable, Iterable
+import logging
+from collections.abc import Callable, Iterable, Sequence
 from functools import partial, reduce
 
+import sqlglot
 from pyspark.sql.types import DataType, NumericType
 from sqlglot import Dialect
 from sqlglot import expressions as exp
 
-from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
+from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect, SQLGLOT_DIALECTS
 from databricks.labs.lakebridge.reconcile.recon_config import HashAlgoMapping
+
+logger = logging.getLogger(__name__)
 
 
 def _apply_func_expr(expr: exp.Expression, expr_func: Callable, **kwargs) -> exp.Expression:
@@ -152,7 +156,7 @@ def build_literal(this: exp.ExpOrStr, alias=None, quoted=False, is_string=True, 
 
 def transform_expression(
     expr: exp.Expression,
-    funcs: list[Callable[[exp.Expression], exp.Expression]],
+    funcs: Sequence[Callable[[exp.Expression], exp.Expression]],
 ) -> exp.Expression:
     for func in funcs:
         expr = func(expr)
@@ -160,6 +164,74 @@ def transform_expression(
         f"Func returned an instance of type [{type(expr)}], " "should have been Expression."
     )
     return expr
+
+
+def _dialect_key(dialect: Dialect) -> str:
+    keys = [key for key, value in SQLGLOT_DIALECTS.items() if value == dialect]
+    return keys[0] if keys else "universal"
+
+
+# Dialects whose mapping pins a DOUBLE to a fixed-scale ``DECIMAL(38,10)`` string.
+# That pin only yields a byte-identical hash when *both* engines pin, so it is only
+# emitted when the reconcile counterpart also pins (see ``get_transform_for_type``).
+_DOUBLE_PINNING_DIALECTS = frozenset({"redshift", "databricks"})
+
+
+def get_transform_for_type(
+    datatype: str, source: Dialect, counterpart: Dialect | None = None
+) -> list[partial[exp.Expression]]:
+    """Resolve the ``DataType_transform_mapping`` transforms for ``datatype`` on ``source``.
+
+    Single definition of the dialect/type -> transform lookup, shared by the row-hash
+    query builder (``QueryBuilder._default_transformer``) and the fingerprint pre-check,
+    so the two cannot serialise the same column type differently. Falls back to the
+    dialect ``default`` and then the universal ``default``.
+
+    ``counterpart`` is the *other* engine in the reconcile (target when ``source`` is the
+    source layer, and vice versa). It only affects the DOUBLE pin: that pin normalises a
+    DOUBLE to a fixed-scale ``DECIMAL(38,10)`` string and is only byte-identical when both
+    engines pin (currently Redshift <-> Databricks). When the counterpart does NOT pin
+    (e.g. a BigQuery/Snowflake/Oracle/TSQL source reconciling into a Databricks target),
+    we fall back to the universal default so both sides serialise a DOUBLE the same way --
+    otherwise every double-bearing row false-mismatches.
+    """
+    source_dialect = _dialect_key(source)
+    source_mapping = DataType_transform_mapping.get(source_dialect, {})
+
+    parsed = datatype
+    try:
+        parsed = exp.DataType.build(datatype, source).this.value
+    except sqlglot.errors.ParseError:
+        logger.warning(f"Could not parse datatype {datatype} for source {source_dialect}")
+
+    if (
+        parsed == exp.DataType.Type.DOUBLE.value
+        and source_dialect in _DOUBLE_PINNING_DIALECTS
+        and counterpart is not None
+        and _dialect_key(counterpart) not in _DOUBLE_PINNING_DIALECTS
+    ):
+        return DataType_transform_mapping["universal"]["default"]
+
+    if source_mapping.get(parsed) is not None:
+        return source_mapping[parsed]
+    if source_mapping.get("default") is not None:
+        return source_mapping["default"]
+    return DataType_transform_mapping["universal"]["default"]
+
+
+def serialize_column_for_hash(column_ref: str, datatype: str, source: Dialect) -> str:
+    """Render one column's hash-serialised SQL for ``source`` dialect.
+
+    ``column_ref`` is the *source-normalised* (already dialect-quoted) column reference,
+    exactly as the row-hash path feeds ``build_column_no_alias`` -- e.g. the double-quoted
+    form for Redshift or the backtick-quoted form for Databricks. Applying the dialect/type
+    transforms here means the fingerprint source (Redshift) and target (Databricks)
+    serialisers produce a per-column byte stream identical to the row-hash compare path by
+    construction, rather than via three hand-maintained copies kept in sync by tests.
+    """
+    node = build_column_no_alias(this=column_ref)
+    transformed = transform_expression(node, get_transform_for_type(datatype, source))
+    return transformed.sql(dialect=source)
 
 
 def get_hash_transform(
@@ -270,6 +342,56 @@ DataType_transform_mapping: dict[str, dict[str, list[partial[exp.Expression]]]] 
         exp.DataType.Type.ARRAY.value: [
             partial(anonymous, func="CONCAT_WS(',', SORT_ARRAY({}))", dialect=get_dialect("databricks"))
         ],
+        # Align with Redshift's ``TO_CHAR(ts, 'YYYY-MM-DD HH24:MI:SS.US')`` so
+        # the per-row SHA2 inputs are byte-identical for Redshift -> Databricks reconciles.
+        exp.DataType.Type.TIMESTAMP.value: [
+            partial(
+                anonymous,
+                func="COALESCE(DATE_FORMAT({}, 'yyyy-MM-dd HH:mm:ss.SSSSSS'), '_null_recon_')",
+                dialect=get_dialect("databricks"),
+            )
+        ],
+        # NOTE: sqlglot's Databricks dialect maps both ``TIMESTAMP`` and
+        # ``TIMESTAMPTZ`` to this single entry (Spark timestamps are instant /
+        # TIMESTAMP_LTZ), so this handler renders *every* Databricks timestamp.
+        # It intentionally does NOT pin a timezone here: the Spark render is made
+        # deterministic by pinning ``spark.sql.session.timeZone='UTC'`` for the
+        # reconcile session (see ``TriggerReconService.create_recon_dependencies``),
+        # which keeps naive TIMESTAMP and TIMESTAMPTZ correct without a per-type
+        # branch this dialect cannot express. The Redshift side pins TIMESTAMPTZ
+        # to UTC via ``AT TIME ZONE 'UTC'`` so both engines emit the same UTC
+        # wall clock.
+        exp.DataType.Type.TIMESTAMPTZ.value: [
+            partial(
+                anonymous,
+                func="COALESCE(DATE_FORMAT({}, 'yyyy-MM-dd HH:mm:ss.SSSSSS'), '_null_recon_')",
+                dialect=get_dialect("databricks"),
+            )
+        ],
+        # Redshift ``double precision`` and Databricks ``DOUBLE`` serialise to
+        # different strings under the universal ``TRIM(CAST(_ AS STRING))`` default
+        # (Redshift emits full 17-digit precision, Spark the shortest round-trip),
+        # so every double-bearing row false-mismatches on a Redshift -> Databricks
+        # reconcile. Pinning both sides to a fixed-scale ``DECIMAL(38,10)`` string
+        # makes the byte stream identical. Mirrors the Redshift handler below. Only
+        # emitted when the reconcile counterpart also pins (see ``get_transform_for_type``);
+        # against a non-pinning source (BigQuery/Snowflake/Oracle/TSQL) the Databricks
+        # target falls back to the universal default so the two sides still agree.
+        # NaN / Infinity bypass the DECIMAL cast (Spark raises ``NumberFormatException``
+        # casting either to a fixed-scale DECIMAL) and fall back to a direct string
+        # cast instead, so a customer DOUBLE column carrying either special value
+        # degrades to "compares as its own string" rather than erroring the recon.
+        exp.DataType.Type.DOUBLE.value: [
+            partial(
+                anonymous,
+                func=(
+                    "COALESCE(CASE WHEN ISNAN({0}) OR {0} IN (CAST('Infinity' AS DOUBLE), "
+                    "CAST('-Infinity' AS DOUBLE)) THEN CAST({0} AS STRING) "
+                    "ELSE CAST(CAST({0} AS DECIMAL(38,10)) AS STRING) END, '_null_recon_')"
+                ),
+                dialect=get_dialect("databricks"),
+            )
+        ],
     },
     "tsql": {
         "default": [partial(anonymous, func="COALESCE(TRIM(CAST({} AS VARCHAR(MAX))), '_null_recon_')")],
@@ -299,10 +421,56 @@ DataType_transform_mapping: dict[str, dict[str, list[partial[exp.Expression]]]] 
                 dialect=get_dialect("redshift"),
             )
         ],
+        # ``AT TIME ZONE 'UTC'`` pins the render to UTC so it does not depend on
+        # the Redshift session ``TIMEZONE`` setting. Without it a non-UTC session
+        # renders TIMESTAMPTZ columns in local time and diverges from the Spark
+        # target — every TIMESTAMPTZ row would then false-mismatch. The Spark side
+        # cannot pin per-type here (sqlglot's Databricks dialect maps TIMESTAMP and
+        # TIMESTAMPTZ to one type), so it is pinned at the session level instead —
+        # ``spark.sql.session.timeZone='UTC'`` set in
+        # ``TriggerReconService.create_recon_dependencies`` — and both sides then
+        # emit the same UTC wall clock. No-op when both sessions are already UTC.
         exp.DataType.Type.TIMESTAMPTZ.value: [
             partial(
                 anonymous,
-                func="COALESCE(TO_CHAR({}, 'YYYY-MM-DD HH24:MI:SS.US'), '_null_recon_')",
+                func="COALESCE(TO_CHAR({} AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS.US'), '_null_recon_')",
+                dialect=get_dialect("redshift"),
+            )
+        ],
+        # Redshift rejects every form of CAST(boolean AS VARCHAR/TEXT) and the
+        # universal default applies TRIM to the column, which yields
+        # ``btrim(boolean)`` and the function-not-found error customers see.
+        # CASE WHEN produces the same lowercase 'true'/'false' that
+        # Spark's cast(boolean AS string) emits, keeping source and target
+        # row hashes byte-identical. Mirrors the boolean handler in
+        # ``fingerprint/query_builders/redshift.py``.
+        exp.DataType.Type.BOOLEAN.value: [
+            partial(
+                anonymous,
+                func="COALESCE(CASE WHEN {0} THEN 'true' WHEN NOT {0} THEN 'false' ELSE NULL END, '_null_recon_')",
+                dialect=get_dialect("redshift"),
+            )
+        ],
+        # Redshift ``double precision`` implicitly casts to a full-precision string
+        # (e.g. ``0.28999999999999998``) while Spark's ``CAST(_ AS STRING)`` emits the
+        # shortest round-trip (``0.29``), so the universal TRIM default false-mismatches
+        # every double row on a Redshift -> Databricks reconcile. Pin both engines to a
+        # fixed-scale ``DECIMAL(38,10)`` string so the bytes are identical. Mirrors the
+        # Databricks handler above.
+        # NaN / Infinity bypass the DECIMAL cast (Redshift raises "numeric field
+        # overflow" / "cannot convert NaN to numeric" for either) and fall back to a
+        # direct VARCHAR cast instead. Postgres-family engines (Redshift included)
+        # treat NaN as equal to itself for comparison purposes, so the ``IN`` check
+        # below is well-defined despite IEEE-754 NaN != NaN elsewhere.
+        exp.DataType.Type.DOUBLE.value: [
+            partial(
+                anonymous,
+                func=(
+                    "COALESCE(CASE WHEN {0} IN (CAST('NaN' AS DOUBLE PRECISION), "
+                    "CAST('Infinity' AS DOUBLE PRECISION), CAST('-Infinity' AS DOUBLE PRECISION)) "
+                    "THEN CAST({0} AS VARCHAR) "
+                    "ELSE CAST(CAST({0} AS DECIMAL(38,10)) AS VARCHAR) END, '_null_recon_')"
+                ),
                 dialect=get_dialect("redshift"),
             )
         ],

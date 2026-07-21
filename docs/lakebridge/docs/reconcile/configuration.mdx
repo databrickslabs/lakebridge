@@ -138,6 +138,79 @@ Place the file in `.lakebridge/` in your Databricks workspace home folder.
     </TabItem>
 </Tabs>
 
+---
+
+## Fingerprint Pre-check (Experimental)
+
+The fingerprint pre-check is an opt-in optimisation that, when source and target are
+already in sync, replaces the per-row hash-and-join pipeline with a sub-bucket-level
+aggregate comparison. On a 1 M-row Redshift fixture in MATCH state, the precheck
+short-circuits the recon at roughly **30–45 % of the v3 baseline wall-clock**; on
+MISMATCH it surgically fetches only the differing rows instead of streaming the full
+column set across JDBC. When neither the MATCH nor the surgical-fetch path applies the
+recon falls open to the full pipeline so correctness is never compromised.
+
+### When to enable
+
+- The source / target tables are expected to be **mostly identical** (post-migration,
+  ongoing CDC) — the precheck pays off most when MATCH is the common outcome.
+- The runtime targets **DBR 17.3 or later**. The Stage-2 source-side fetch uses
+  Databricks' `remote_query()` table-valued function which requires DBR 17.3+. On
+  earlier runtimes, leave the flag off — the eligibility gate doesn't yet check DBR
+  version, so the JDBC call would fail mid-fetch and trigger the fail-open path.
+- The source dialect has a registered fingerprint query builder. Today only
+  `redshift` is wired. Other dialects fall through to the full pipeline silently.
+
+### Configuration
+
+Add to `recon_config_*.json` at the top level:
+
+```yaml
+reconcile_optimizer: true
+# Optional. When set, overrides the target Delta DESCRIBE DETAIL numRecords
+# lookup used to pick the sub-bucket tier. Use this when the target is non-Delta
+# (DESCRIBE DETAIL returns no numRecords) or when Delta stats are stale and the
+# heuristic lands on a tier that is too coarse / too fine for your workload.
+# Values <= 0 are treated as unset.
+fingerprint_row_count_override: 250000000
+```
+
+### Eligibility rules
+
+The pre-check declines (and the recon proceeds via the full pipeline) when **any** of
+the conditions below hold. These reasons are recorded in
+`recon_metrics.fingerprint_metrics.ineligibility_reason` so adoption queries can
+distinguish "feature off" from "feature on but table ineligible".
+
+| Reason value | Meaning |
+| --- | --- |
+| `flag_disabled` | `reconcile_optimizer` is false (default). |
+| `unsupported_dialect` | The source dialect has no registered fingerprint query builder (today: anything other than `redshift`). |
+| `report_type_not_data` | `report_type` is `schema` (precheck operates on data-level reconciles). |
+| `no_join_columns` | `join_columns` is empty. The precheck needs primary-key columns to disambiguate culprit rows during Stage-2. |
+| `filters_configured` | `filters.source` or `filters.target` is set. The precheck does not project filter predicates into Stage-1 aggregates yet. |
+| `transforms_configured` | `transformations` is set. Custom transformations are not supported on the fingerprint hash path. |
+| `column_thresholds_configured` | `column_thresholds` is set. Threshold semantics conflict with exact-hash comparison. |
+| `table_thresholds_configured` | `table_thresholds` is set. Same rationale as column thresholds. |
+
+A separate runtime gate validates that every `column_mapping.target_name` resolves to
+a real target column before issuing the source-side scan — a typo in the mapping is
+caught at eligibility time, not after Stage-1 has already pulled across JDBC.
+
+### Tuning and observability
+
+- The pre-check selects a sub-bucket / bucket count adaptively from the target's
+  Delta `numRecords` (DESCRIBE DETAIL). On a non-Delta target, or when the metric
+  is missing, it falls back to a static `(1 048 576, 32 768)` pair. Override
+  explicitly via `ReconcileConfig.fingerprint_row_count_override` (an
+  approximate target row count) when the heuristic picks a tier that you can
+  show is wrong for your workload.
+- Every recon writes a `fingerprint_metrics` named-struct to
+  `recon_metrics.fingerprint_metrics` regardless of eligibility, so adoption,
+  fall-open rate, and verdict distribution can be tracked from one query.
+
+---
+
 ## TABLE Config Schema
 
 <Tabs>
