@@ -12,7 +12,7 @@ from databricks.labs.lakebridge.assessments.pipeline import (
 )
 from databricks.labs.lakebridge.assessments.profiler import Profiler
 from databricks.labs.lakebridge.assessments.profiler_config import Step, PipelineConfig
-from databricks.labs.lakebridge.connections.database_manager import DatabaseManager
+from databricks.labs.lakebridge.connections.database_manager import DatabaseConnector
 
 _Loader: TypeAlias = Callable[[Path], PipelineConfig]
 
@@ -65,7 +65,7 @@ def empty_result_config() -> PipelineConfig:
 
 
 def test_run_pipeline(
-    sandbox_sqlserver: DatabaseManager,
+    sandbox_sqlserver: DatabaseConnector,
     pipeline_config: PipelineConfig,
     get_logger: Logger,
     tmp_path: Path,
@@ -89,7 +89,7 @@ def test_run_pipeline(
 
 
 def test_run_sql_failure_pipeline(
-    sandbox_sqlserver: DatabaseManager,
+    sandbox_sqlserver: DatabaseConnector,
     sql_failure_config: PipelineConfig,
     get_logger: Logger,
     tmp_path: Path,
@@ -108,7 +108,7 @@ def test_run_sql_failure_pipeline(
 
 
 def test_run_python_failure_pipeline(
-    sandbox_sqlserver: DatabaseManager,
+    sandbox_sqlserver: DatabaseConnector,
     python_failure_config: PipelineConfig,
     get_logger: Logger,
     tmp_path: Path,
@@ -127,7 +127,7 @@ def test_run_python_failure_pipeline(
 
 
 def test_skipped_steps(
-    sandbox_sqlserver: DatabaseManager,
+    sandbox_sqlserver: DatabaseConnector,
     pipeline_config: PipelineConfig,
     tmp_path: Path,
 ) -> None:
@@ -224,7 +224,7 @@ def test_pipeline_step_comments() -> None:
 
 
 def test_run_empty_result_pipeline(
-    sandbox_sqlserver: DatabaseManager,
+    sandbox_sqlserver: DatabaseConnector,
     empty_result_config: PipelineConfig,
     get_logger: Logger,
     tmp_path: Path,
@@ -253,7 +253,7 @@ def test_run_empty_result_pipeline(
 
 
 def test_run_pipeline_with_ddl(
-    sandbox_sqlserver: DatabaseManager,
+    sandbox_sqlserver: DatabaseConnector,
     pipeline_config_with_ddl: PipelineConfig,
     get_logger: Logger,
     tmp_path: Path,
@@ -301,7 +301,7 @@ def test_run_pipeline_with_ddl(
 
 
 def test_run_pipeline_with_combined_ddl(
-    sandbox_sqlserver: DatabaseManager,
+    sandbox_sqlserver: DatabaseConnector,
     pipeline_config_combined_ddl: PipelineConfig,
     get_logger: Logger,
     tmp_path: Path,

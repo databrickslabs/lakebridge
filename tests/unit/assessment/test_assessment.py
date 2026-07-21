@@ -504,19 +504,19 @@ def test_redshift_configurator_writes_only_connector_supported_auth_types():
 
 
 def test_test_connection_default_uses_database_manager():
-    """Sources without an override go through DatabaseManager (the JDBC connector)."""
+    """Sources without an override go through create_connector (the JDBC connector)."""
     configurator = ConfigureRedshiftAssessment(
         product_name="lakebridge", source_name="redshift", prompts=MockPrompts({})
     )
     raw_config = {"host": "redshift.example.com", "database": "dev"}
     with (
         patch("databricks.labs.lakebridge.assessments.configure_assessment.create_credential_manager") as cred_manager,
-        patch("databricks.labs.lakebridge.assessments.configure_assessment.DatabaseManager") as database_manager,
+        patch("databricks.labs.lakebridge.assessments.configure_assessment.create_connector") as create_connector,
     ):
         cred_manager.return_value.get_credentials.return_value = raw_config
-        database_manager.return_value.__enter__.return_value.check_connection.return_value = True
+        create_connector.return_value.__enter__.return_value.health_check.return_value = True
         configurator.test_connection()
-    database_manager.assert_called_once_with("redshift", raw_config)
+    create_connector.assert_called_once_with("redshift", raw_config)
 
 
 def test_synapse_test_connection_delegates_to_pools():

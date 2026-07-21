@@ -13,7 +13,7 @@ from databricks.labs.lakebridge.connections.credential_manager import (
     cred_file as creds,
     create_credential_manager,
 )
-from databricks.labs.lakebridge.connections.database_manager import DatabaseManager
+from databricks.labs.lakebridge.connections.database_manager import create_connector
 from databricks.labs.lakebridge.connections.mssql_auth import AUTH_CHOICES
 from databricks.labs.lakebridge.connections.env_getter import EnvGetter
 from databricks.labs.lakebridge.connections.synapse_connection_helpers import validate_synapse_pools
@@ -76,9 +76,9 @@ class AssessmentConfigurator(ABC):
         logger.info("Connection to the source system successful")
 
     def _check_connection(self, raw_config: dict) -> None:
-        """Default check: open a ``DatabaseManager`` connection and run a health check."""
-        with DatabaseManager(self._source_name, raw_config) as db_manager:
-            if not db_manager.check_connection():
+        """Default check: open a connection and run a health check."""
+        with create_connector(self._source_name, raw_config) as connector:
+            if not connector.health_check():
                 raise ConnectionError(f"Connection to {self._source_name} failed")
 
     def run(self):

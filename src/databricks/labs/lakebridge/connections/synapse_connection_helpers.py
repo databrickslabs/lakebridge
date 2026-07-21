@@ -1,5 +1,5 @@
 import logging
-from databricks.labs.lakebridge.connections.database_manager import DatabaseManager
+from databricks.labs.lakebridge.connections.database_manager import DatabaseConnector, create_connector
 
 logger = logging.getLogger(__name__)
 
@@ -9,15 +9,15 @@ def create_synapse_connection(
     database: str,
     endpoint_key: str = 'dedicated_sql_endpoint',
     auth_type: str = 'SqlPassword',
-) -> DatabaseManager:
-    """Create a DatabaseManager connection to a Synapse SQL pool.
+) -> DatabaseConnector:
+    """Create a connection to a Synapse SQL pool.
 
     Selects the requested endpoint and forwards the workspace's credential fields to
     `MSSQLConnector` unchanged; the configured `MSSQLAuth` strategy decides whether
     to use them at connect time.
 
     Returns:
-        DatabaseManager configured for the specified Synapse SQL pool
+        DatabaseConnector configured for the specified Synapse SQL pool
     """
     server = workspace_config.get(endpoint_key)
     if not server:
@@ -31,7 +31,7 @@ def create_synapse_connection(
         "password": workspace_config.get('password'),
         "auth_type": auth_type,
     }
-    return DatabaseManager(db_type="synapse", config=config)
+    return create_connector(db_type="synapse", config=config)
 
 
 def _test_pool_connection(
@@ -56,8 +56,8 @@ def _test_pool_connection(
     logger.info(f"Testing connection to {pool_name} SQL pool...")
 
     try:
-        with create_synapse_connection(workspace_config, database, endpoint_key, auth_type) as db_manager:
-            if db_manager.check_connection():
+        with create_synapse_connection(workspace_config, database, endpoint_key, auth_type) as connector:
+            if connector.health_check():
                 logger.info(f"✓ {pool_name.capitalize()} SQL pool connection successful")
                 return True, None
             logger.error(f"✗ {pool_name.capitalize()} SQL pool connection failed")

@@ -10,7 +10,7 @@ from databricks.labs.blueprint.paths import WorkspacePath
 from databricks.labs.blueprint.wheels import ProductInfo
 from databricks.labs.blueprint.installation import JsonObject
 from databricks.labs.lakebridge.__about__ import __version__
-from databricks.labs.lakebridge.connections.database_manager import DatabaseManager
+from databricks.labs.lakebridge.connections.database_manager import DatabaseConnector, create_connector
 from databricks.labs.lakebridge.contexts.application import ApplicationContext
 from databricks.sdk import WorkspaceClient
 
@@ -94,13 +94,13 @@ def sandbox_sqlserver_config() -> JsonObject:
 
 
 @pytest.fixture()
-def sandbox_sqlserver(sandbox_sqlserver_config) -> DatabaseManager:
-    return DatabaseManager("mssql", sandbox_sqlserver_config)
+def sandbox_sqlserver(sandbox_sqlserver_config) -> DatabaseConnector:
+    return create_connector("mssql", sandbox_sqlserver_config)
 
 
 @pytest.fixture()
 def sandbox_synapse_config(sandbox_sqlserver_config: JsonObject) -> JsonObject:
-    """Convert SQL Server config to Synapse config format for direct DatabaseManager usage."""
+    """Convert SQL Server config to Synapse config format for direct connector usage."""
     # Transform MSSQL config to Synapse format
     # In testing, we use SQL Server as a stand-in for Synapse since they use the same protocol
     return {
@@ -163,9 +163,9 @@ def sandbox_spn_sqlserver_config(sandbox_sqlserver_config: JsonObject, monkeypat
 
 
 @pytest.fixture()
-def sandbox_synapse(sandbox_synapse_config: JsonObject) -> DatabaseManager:
-    """Create a DatabaseManager for Synapse (uses MSSQLConnector via factory method)."""
-    return DatabaseManager("synapse", sandbox_synapse_config)
+def sandbox_synapse(sandbox_synapse_config: JsonObject) -> DatabaseConnector:
+    """Create a connector for Synapse (uses MSSQLConnector via factory method)."""
+    return create_connector("synapse", sandbox_synapse_config)
 
 
 @pytest.fixture()
@@ -184,8 +184,8 @@ def sandbox_redshift_config() -> JsonObject:
 
 
 @pytest.fixture()
-def sandbox_redshift(sandbox_redshift_config: JsonObject) -> DatabaseManager:
-    return DatabaseManager("redshift", sandbox_redshift_config)
+def sandbox_redshift(sandbox_redshift_config: JsonObject) -> DatabaseConnector:
+    return create_connector("redshift", sandbox_redshift_config)
 
 
 @pytest.fixture()
