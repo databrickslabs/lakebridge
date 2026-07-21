@@ -30,7 +30,7 @@ The profiler supports the following authentication modes (`configure-database-pr
 | Auth method | Description | MFA-capable |
 |---|---|---|
 | `SqlPassword` | SQL Authentication — username + password from credentials file | No |
-| `DefaultAzureCredential` | Entra ID via the driver's `Authentication=ActiveDirectoryDefault` mode — `az login`, SPN env vars, or managed identity. Recommended for Azure-hosted targets | Yes (via `az login`) |
+| `DefaultAzureCredential` | Entra ID via the Azure Identity credentials chain. Recommended for Azure-hosted targets | Yes |
 | `ActiveDirectoryPassword` | Entra ID (Azure AD) username + password | No |
 | `ActiveDirectoryServicePrincipal` | Service Principal — `AZURE_CLIENT_ID` / `AZURE_CLIENT_SECRET` env vars | No |
 

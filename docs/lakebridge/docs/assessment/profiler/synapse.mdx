@@ -24,36 +24,31 @@ No database driver installation is required: the profiler connects to SQL pools 
 This page covers a full Synapse Workspace. If you are profiling a standalone SQL Dedicated Pool (formerly Azure SQL DW), use the [Legacy Synapse profiler](./legacy_synapse.mdx) instead.
 :::
 
-The synapse profiler has **two independent auth paths**, each resolves credentials in its own way:
+The synapse profiler has **two auth paths**:
 
 #### Azure Management REST API (workspace metadata, pool listing, monitoring metrics)
 
-Uses Azure SDK's `DefaultAzureCredential`, which tries the following in order until one succeeds:
+Uses Azure SDK's `DefaultAzureCredential`. Run `az login` first or set env vars `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, and `AZURE_CLIENT_SECRET`.
 
-| Source | Required env vars / setup |
-|---|---|
-| Environment variables (SPN) | `AZURE_TENANT_ID` + `AZURE_CLIENT_ID` + `AZURE_CLIENT_SECRET` |
-| Managed Identity (Azure VM / App Service) | — |
-| Azure CLI | `az login` |
-| Visual Studio Code | — |
-| Azure PowerShell | — |
-
-The authenticated identity needs the **Synapse Artifact User** and **Monitoring Reader** roles on the workspace. Granting Synapse Administrator alone is **not** enough — both roles must be explicitly assigned. Assign from Synapse Workspace → Manage Access → Access Control and Synapse Workspace → IAM respectively. See [Azure documentation](https://learn.microsoft.com/en-us/azure/synapse-analytics/security/how-to-manage-synapse-rbac-role-assignments).
+The authenticated identity needs the **Synapse Artifact User** and **Monitoring Reader** roles on the workspace.
+Granting Synapse Administrator alone is **not** enough — both roles must be explicitly assigned.
+Assign from Synapse Workspace → Manage Access → Access Control and Synapse Workspace → IAM respectively. See [Azure documentation](https://learn.microsoft.com/en-us/azure/synapse-analytics/security/how-to-manage-synapse-rbac-role-assignments).
 
 #### SQL connection to SQL pools
 
-Create or reuse a SQL user with access to the system tables and DMVs listed in [section 3](#3-required-database-permissions), then pick one of the following authentication modes (`configure-database-profiler` prompts for one):
+Picking authentication mode `DefaultAzureCredential` will use the same credentials as the previous section. The authenticated identity needs the right permissions on the sql pools listed in [section 3](#3-required-database-permissions).
+Or pick one of the other authentication modes (`configure-database-profiler` prompts for one):
 
 | Auth method | Description | MFA-capable |
 |---|---|---|
 | `SqlPassword` | SQL Authentication — username + password from credentials file | No |
-| `DefaultAzureCredential` | Entra ID via the driver's `Authentication=ActiveDirectoryDefault` mode — `az login`, SPN env vars, or managed identity. Recommended, and the same chain the management API path uses: one `az login` covers both | Yes (via `az login`) |
+| `DefaultAzureCredential` | Entra ID via the Azure Identity credentials chain. Recommended for Azure-hosted targets | Yes |
 | `ActiveDirectoryPassword` | Entra ID (Azure AD) username + password | No |
 | `ActiveDirectoryServicePrincipal` | Service Principal — `AZURE_CLIENT_ID` / `AZURE_CLIENT_SECRET` env vars | No |
 
 :::warning
-For `ActiveDirectoryServicePrincipal`, set `AZURE_CLIENT_ID` and `AZURE_CLIENT_SECRET` env vars before running the profiler. `AZURE_TENANT_ID` is **not** required for this mode — the driver negotiates the tenant with the server.
-For `DefaultAzureCredential`, run `az login` first; for unattended runs its environment-variable leg needs all three (`AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`).
+For `ActiveDirectoryServicePrincipal`, set `AZURE_CLIENT_ID` and `AZURE_CLIENT_SECRET` env vars before running the profiler.
+For `DefaultAzureCredential`, run `az login` first; for unattended runs set `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, and `AZURE_CLIENT_SECRET`.
 :::
 
 
