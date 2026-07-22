@@ -8,15 +8,25 @@ import pytest
 from databricks.sdk import WorkspaceClient
 
 from databricks.labs.blueprint.tui import MockPrompts
+from databricks.labs.blueprint.installation import MockInstallation
 from databricks.labs.lakebridge import cli
+from databricks.labs.lakebridge.assessments import SOURCE_SYSTEM_VARIANTS
 from databricks.labs.lakebridge.assessments.profiler import default_output_folder
-from databricks.labs.lakebridge.config import LSPConfigOptionV1, LSPPromptMethod
+from databricks.labs.lakebridge.config import (
+    LSPConfigOptionV1,
+    LSPPromptMethod,
+    ReconcileConfig,
+    ReconcileMetadataConfig,
+    SourceConnectionConfig,
+    TargetConnectionConfig,
+)
 from databricks.labs.lakebridge.contexts.application import ApplicationContext
 from databricks.labs.lakebridge.helpers.recon_config_utils import ReconConfigPrompts
 
 
 def test_configure_secrets_databricks(mock_workspace_client):
-    source_dict = {"databricks": "0", "netezza": "1", "oracle": "2", "snowflake": "3"}
+    # index into the alphabetically-sorted ReconSourceType values (bigquery sorts first → databricks is 1)
+    source_dict = {"databricks": "1", "oracle": "3", "snowflake": "5"}
     prompts = MockPrompts(
         {
             r"Select the source": source_dict["databricks"],
@@ -81,6 +91,17 @@ def app_factory(w: WorkspaceClient) -> ApplicationContext:
         }
     )
     ctx_mock.prompts = prompts
+    ctx_mock.recon_config = ReconcileConfig(
+        report_type="all",
+        source=SourceConnectionConfig(
+            dialect="snowflake",
+            catalog="src_catalog",
+            schema="src_schema",
+            uc_connection_name="conn",
+        ),
+        target=TargetConnectionConfig(catalog="tgt_catalog", schema="tgt_schema"),
+        metadata_config=ReconcileMetadataConfig(),
+    )
     return ctx_mock
 
 
@@ -130,7 +151,7 @@ def test_cli_execute_database_profiler_output_folder(
             output_folder=output_folder_arg,
         )
 
-    create_mock.assert_called_once_with("snowflake")
+    create_mock.assert_called_once_with("snowflake", None, fake_cred)
     profiler.profile.assert_called_once_with(output_folder=expected_path, cred_file_path=fake_cred)
 
 
@@ -177,6 +198,28 @@ def test_cli_execute_database_profiler_cred_file_path(
     )
 
 
+def test_cli_execute_database_profiler_prompts_variant_for_tuple_source(mock_workspace_client, tmp_path):
+    """redshift (a fixed-choice variant source) is prompted in the CLI and the choice is passed to create."""
+    fake_cred = tmp_path / "credentials.yml"
+    fake_cred.touch()
+
+    ctx_mock = create_autospec(spec=ApplicationContext, spec_set=True)
+    type(ctx_mock).workspace_client = PropertyMock(return_value=mock_workspace_client)
+    ctx_mock.current_user = "tester"
+    # choice() sorts the options; sorted(redshift variants)[0] == "provisioned".
+    ctx_mock.prompts = MockPrompts({r"Enter the profiler output.*": "", r"Select a variant": "0"})
+
+    profiler = MagicMock()
+    with (
+        patch("databricks.labs.lakebridge.cli.ApplicationContext", return_value=ctx_mock),
+        patch("databricks.labs.lakebridge.cli.cred_file", return_value=fake_cred),
+        patch("databricks.labs.lakebridge.cli.Profiler.create", return_value=profiler) as create_mock,
+    ):
+        cli.execute_database_profiler(w=mock_workspace_client, source_tech="redshift")
+
+    create_mock.assert_called_once_with("redshift", "provisioned", fake_cred)
+
+
 def test_cli_execute_database_profiler_missing_cred_file_raises(mock_workspace_client, tmp_path):
     """A `--cred-file-path` pointing at a non-existent file fails the pre-flight check."""
     missing = tmp_path / "does-not-exist.yml"
@@ -197,6 +240,204 @@ def test_cli_execute_database_profiler_missing_cred_file_raises(mock_workspace_c
             output_folder=str(tmp_path / "out"),
             cred_file_path=str(missing),
         )
+
+
+@pytest.mark.parametrize(
+    ("source_tech", "variant", "expected"),
+    (
+        ("redshift", "provisioned", "provisioned"),  # valid variant passes through
+        ("redshift", "PROVISIONED", "provisioned"),  # normalized to lower-case
+        ("snowflake", None, None),  # source has no variants, none requested
+        ("snowflake", "anything", None),  # source has no variants → stray input ignored
+        ("teradata", None, None),  # unified pipeline, no variant required
+        ("teradata", "core", None),  # legacy variant input is ignored
+    ),
+)
+def test_parse_profiler_variant_returns_expected(source_tech, variant, expected):
+    prompts = MagicMock()
+    assert cli.parse_profiler_variant(prompts, source_tech, variant) == expected
+    prompts.choice.assert_not_called()
+
+
+def test_parse_profiler_variant_prompts_when_omitted_for_variant_source():
+    """A variant-capable source with no explicit variant prompts the user to pick one."""
+    prompts = MagicMock()
+    prompts.choice.return_value = "serverless"
+    assert cli.parse_profiler_variant(prompts, "redshift", None) == "serverless"
+    prompts.choice.assert_called_once_with("Select a variant", SOURCE_SYSTEM_VARIANTS["redshift"])
+
+
+def test_parse_profiler_variant_rejects_unknown_variant():
+    with pytest.raises(ValueError, match="Invalid source technology variant"):
+        cli.parse_profiler_variant(MagicMock(), "redshift", "bogus")
+
+
+def test_cli_auto_configure_recon_tables_no_recon_config(mock_workspace_client):
+    installation = MockInstallation({})
+    ctx = ApplicationContext(mock_workspace_client)
+    ctx.replace(prompts=MockPrompts({}), installation=installation)
+    with pytest.raises(SystemExit, match="Reconcile is not configured"):
+        cli.auto_configure_recon_tables(w=mock_workspace_client, ctx_factory=lambda ws: ctx)
+
+
+def test_cli_auto_configure_recon_tables_when_no_file_runs_discover(mock_workspace_client, snowflake_recon_config):
+    """First run of the recommended flow: no existing file → discover only (decline the one-job opt-in)."""
+    installation = MockInstallation({})
+    ctx = ApplicationContext(mock_workspace_client)
+    ctx.replace(
+        prompts=MockPrompts(
+            {
+                r"Discover tables now.*\?": "yes",
+                r"Also run auto-configure in the same job .*": "no",
+                r"Would you like to open the job run URL .*": "no",
+            }
+        ),
+        installation=installation,
+        recon_config=snowflake_recon_config,
+    )
+
+    with patch(
+        "databricks.labs.lakebridge.reconcile.runner.ReconcileRunner.run",
+        return_value=(MagicMock(), "link1"),
+    ) as mock_run:
+        cli.auto_configure_recon_tables(w=mock_workspace_client, ctx_factory=lambda ws: ctx)
+
+    mock_run.assert_called_once_with(operation_name="discover-tables")
+
+
+def test_cli_auto_configure_recon_tables_one_shot_discover_and_auto_configure(
+    mock_workspace_client, snowflake_recon_config
+):
+    """Opt-in path: no file, discover, AND auto-configure in a single job (skips review)."""
+    installation = MockInstallation({})
+    ctx = ApplicationContext(mock_workspace_client)
+    ctx.replace(
+        prompts=MockPrompts(
+            {
+                r"Discover tables now.*\?": "yes",
+                r"Also run auto-configure in the same job .*": "yes",
+                r"Would you like to open the job run URL .*": "no",
+            }
+        ),
+        installation=installation,
+        recon_config=snowflake_recon_config,
+    )
+
+    with patch(
+        "databricks.labs.lakebridge.reconcile.runner.ReconcileRunner.run",
+        return_value=(MagicMock(), "link1"),
+    ) as mock_run:
+        cli.auto_configure_recon_tables(w=mock_workspace_client, ctx_factory=lambda ws: ctx)
+
+    mock_run.assert_called_once_with(operation_name="discover-auto-configure-tables")
+
+
+def test_cli_auto_configure_recon_tables_when_no_file_aborts_on_decline(mock_workspace_client, snowflake_recon_config):
+    """No existing file + user declines discovery → no job run."""
+    installation = MockInstallation({})
+    ctx = ApplicationContext(mock_workspace_client)
+    ctx.replace(
+        prompts=MockPrompts({r"Discover tables now.*\?": "no"}),
+        installation=installation,
+        recon_config=snowflake_recon_config,
+    )
+
+    with patch("databricks.labs.lakebridge.reconcile.runner.ReconcileRunner.run") as mock_run:
+        cli.auto_configure_recon_tables(w=mock_workspace_client, ctx_factory=lambda ws: ctx)
+
+    mock_run.assert_not_called()
+
+
+def test_cli_auto_configure_recon_tables_when_file_exists_rediscover(mock_workspace_client, snowflake_recon_config):
+    """Existing file + user declines using existing mappings, then chooses to discover → discover-tables overwrites."""
+    installation = MockInstallation(
+        {
+            snowflake_recon_config.table_recon_filename: {
+                "tables": [{"source_name": "source", "target_name": "target"}],
+                "version": 2,
+            }
+        }
+    )
+    ctx = ApplicationContext(mock_workspace_client)
+    ctx.replace(
+        prompts=MockPrompts(
+            {
+                r"Auto-configure and use existing table mappings \(no discovery\)\?": "no",
+                r"Discover tables now.*\?": "yes",
+                r"Also run auto-configure in the same job .*": "no",
+                r"Would you like to open the job run URL .*": "no",
+            }
+        ),
+        installation=installation,
+        recon_config=snowflake_recon_config,
+    )
+
+    with patch(
+        "databricks.labs.lakebridge.reconcile.runner.ReconcileRunner.run",
+        return_value=(MagicMock(), "link1"),
+    ) as mock_run:
+        cli.auto_configure_recon_tables(w=mock_workspace_client, ctx_factory=lambda ws: ctx)
+
+    mock_run.assert_called_once_with(operation_name="discover-tables")
+
+
+def test_cli_auto_configure_recon_tables_when_file_exists_auto_configure(mock_workspace_client, snowflake_recon_config):
+    """Second run of the recommended flow: existing file, accept using the curated mappings → auto-configure-tables."""
+    installation = MockInstallation(
+        {
+            snowflake_recon_config.table_recon_filename: {
+                "tables": [{"source_name": "source", "target_name": "target"}],
+                "version": 2,
+            }
+        }
+    )
+    ctx = ApplicationContext(mock_workspace_client)
+    ctx.replace(
+        prompts=MockPrompts(
+            {
+                r"Auto-configure and use existing table mappings \(no discovery\)\?": "yes",
+                r"Would you like to open the job run URL .*": "no",
+            }
+        ),
+        installation=installation,
+        recon_config=snowflake_recon_config,
+    )
+
+    with patch(
+        "databricks.labs.lakebridge.reconcile.runner.ReconcileRunner.run",
+        return_value=(MagicMock(), "link1"),
+    ) as mock_run:
+        cli.auto_configure_recon_tables(w=mock_workspace_client, ctx_factory=lambda ws: ctx)
+
+    mock_run.assert_called_once_with(operation_name="auto-configure-tables")
+
+
+def test_cli_auto_configure_recon_tables_aborts(mock_workspace_client, snowflake_recon_config):
+    """Existing file + user declines auto-configure and declines discovery → no job run."""
+    installation = MockInstallation(
+        {
+            snowflake_recon_config.table_recon_filename: {
+                "tables": [{"source_name": "source", "target_name": "target"}],
+                "version": 2,
+            }
+        }
+    )
+    ctx = ApplicationContext(mock_workspace_client)
+    ctx.replace(
+        prompts=MockPrompts(
+            {
+                r"Auto-configure and use existing table mappings \(no discovery\)\?": "no",
+                r"Discover tables now.*\?": "no",
+            }
+        ),
+        installation=installation,
+        recon_config=snowflake_recon_config,
+    )
+
+    with patch("databricks.labs.lakebridge.reconcile.runner.ReconcileRunner.run") as mock_run:
+        cli.auto_configure_recon_tables(w=mock_workspace_client, ctx_factory=lambda ws: ctx)
+
+    mock_run.assert_not_called()
 
 
 def test_prompts_question():

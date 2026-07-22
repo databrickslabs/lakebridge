@@ -222,16 +222,6 @@ class TableRecon:
         return raw
 
 
-@dataclass(frozen=True)
-class DatabaseConfig:
-    """TODO remove. this was kept for backwards compatibility while migrating to ReconcileConfig v2"""
-
-    source_catalog: str
-    source_schema: str
-    target_catalog: str
-    target_schema: str
-
-
 @dataclass
 class SourceConnectionConfig:
     dialect: str
@@ -342,45 +332,16 @@ class ReconcileConfig:
         return raw
 
     @property
-    def database_config(self) -> DatabaseConfig:
-        """TODO remove. this was kept for backwards compatibility while migrating to ReconcileConfig v2"""
-        return DatabaseConfig(
-            source_catalog=self.source.catalog,
-            source_schema=self.source.schema,
-            target_catalog=self.target.catalog,
-            target_schema=self.target.schema,
-        )
-
-
-@dataclass
-class ProfilerDashboardMetadataConfig:
-    catalog: str = "lakebridge"
-    schema: str = "profiler"
-    volume: str = "ingestion_volume"
-
-
-@dataclass
-class IngestionJobConfig:
-    existing_cluster_id: str
-    tags: dict[str, str]
-
-
-@dataclass
-class ProfilerDashboardConfig:
-    __file__ = "profiler_dashboard.yml"
-    __version__ = 1
-
-    source_tech: str
-    extract_file_path: str
-    metadata_config: ProfilerDashboardMetadataConfig
-    job_overrides: IngestionJobConfig | None = None
+    def table_recon_filename(self) -> str:
+        """Canonical filename of the `TableRecon` config file in the install folder."""
+        connection_or_catalog = self.source.uc_connection_name or self.source.catalog
+        return f"recon_config_{self.source.dialect}_{connection_or_catalog}_{self.report_type}.json"
 
 
 @dataclass
 class LakebridgeConfiguration:
     transpile: TranspileConfig | None
     reconcile: ReconcileConfig | None
-    profiler_dashboard: ProfilerDashboardConfig | None
     # Temporary flag, indicating whether to include the LLM-based Switch transpiler.
     include_switch: bool = False
     # Internal: Use serverless compute for Switch job. Set via LAKEBRIDGE_CLUSTER_TYPE env var.

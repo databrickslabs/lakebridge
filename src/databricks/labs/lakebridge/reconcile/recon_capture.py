@@ -11,7 +11,12 @@ from pyspark.sql.functions import col, collect_list, create_map, lit
 from pyspark.errors import PySparkException
 from sqlglot import Dialect
 
-from databricks.labs.lakebridge.config import DatabaseConfig, Table, ReconcileMetadataConfig
+from databricks.labs.lakebridge.config import (
+    SourceConnectionConfig,
+    TargetConnectionConfig,
+    Table,
+    ReconcileMetadataConfig,
+)
 from databricks.labs.lakebridge.reconcile.recon_config import TableThresholds
 from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_key_from_dialect
 from databricks.labs.lakebridge.reconcile.exception import (
@@ -252,7 +257,8 @@ class ReconCapture:
 
     def __init__(
         self,
-        database_config: DatabaseConfig,
+        source_connection: SourceConnectionConfig,
+        target_connection: TargetConnectionConfig,
         recon_id: str,
         report_type: str,
         source_dialect: Dialect,
@@ -260,7 +266,8 @@ class ReconCapture:
         spark: SparkSession,
         metadata_config: ReconcileMetadataConfig = ReconcileMetadataConfig(),
     ):
-        self.database_config = database_config
+        self.source_connection = source_connection
+        self.target_connection = target_connection
         self.recon_id = recon_id
         self.report_type = report_type
         self.source_dialect = source_dialect
@@ -272,14 +279,8 @@ class ReconCapture:
         self,
         table_conf: Table,
     ) -> int:
-        full_source_table = (
-            f"{self.database_config.source_schema}.{table_conf.source_name}"
-            if self.database_config.source_catalog is None
-            else f"{self.database_config.source_catalog}.{self.database_config.source_schema}.{table_conf.source_name}"
-        )
-        full_target_table = (
-            f"{self.database_config.target_catalog}.{self.database_config.target_schema}.{table_conf.target_name}"
-        )
+        full_source_table = f"{self.source_connection.catalog}.{self.source_connection.schema}.{table_conf.source_name}"
+        full_target_table = f"{self.target_connection.catalog}.{self.target_connection.schema}.{table_conf.target_name}"
         return hash(f"{self.recon_id}{full_source_table}{full_target_table}")
 
     def _insert_into_main_table(
@@ -297,16 +298,17 @@ class ReconCapture:
                     when '{source_dialect_key}' = 'databricks' then 'Databricks'
                     when '{source_dialect_key}' = 'snowflake' then 'Snowflake'
                     when '{source_dialect_key}' = 'oracle' then 'Oracle'
+                    when '{source_dialect_key}' = 'bigquery' then 'BigQuery'
                     else '{source_dialect_key}'
                 end as source_type,
                 named_struct(
-                    'catalog', case when '{self.database_config.source_catalog}' = 'None' then null else '{self.database_config.source_catalog}' end,
-                    'schema', '{self.database_config.source_schema}',
+                    'catalog', '{self.source_connection.catalog}',
+                    'schema', '{self.source_connection.schema}',
                     'table_name', '{table_conf.source_name}'
                 ) as source_table,
                 named_struct(
-                    'catalog', '{self.database_config.target_catalog}',
-                    'schema', '{self.database_config.target_schema}',
+                    'catalog', '{self.target_connection.catalog}',
+                    'schema', '{self.target_connection.schema}',
                     'table_name', '{table_conf.target_name}'
                 ) as target_table,
                 '{self.report_type}' as report_type,

@@ -1,8 +1,10 @@
 from pyspark.sql import SparkSession
 from sqlglot import Dialect
+from sqlglot.dialects.bigquery import BigQuery
 from sqlglot.dialects.redshift import Redshift
 from sqlglot.dialects.teradata import Teradata
 
+from databricks.labs.lakebridge.reconcile.connectors.bigquery import BigQueryDataSource
 from databricks.labs.lakebridge.reconcile.connectors.data_source import DataSource
 from databricks.labs.lakebridge.reconcile.connectors.databricks import (
     DatabricksDataSource,
@@ -42,4 +44,6 @@ def create_adapter(
         return RedshiftDataSource(engine, reader)
     if isinstance(engine, Teradata):
         return TeradataDataSource(engine, reader)
+    if isinstance(engine, BigQuery):
+        return BigQueryDataSource(engine, reader)
     raise ValueError(f"Unsupported source type --> {engine}")

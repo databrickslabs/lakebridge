@@ -12,9 +12,10 @@ import pandas as pd
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine, URL
 from sqlalchemy import text
-from sqlalchemy.exc import OperationalError
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm.session import Session
 import redshift_connector  # type: ignore[import-untyped]
+from redshift_connector import error as redshift_error
 
 from databricks.labs.blueprint.installation import JsonObject
 from databricks.labs.lakebridge.connections.snowflake_utils import (
@@ -28,6 +29,9 @@ from databricks.labs.lakebridge.connections.snowflake_utils import (
 importlib.import_module("snowflake.sqlalchemy")
 
 logger = logging.getLogger(__name__)
+
+# Driver failures we normalize to ConnectionError so callers (pipeline, CLI) see one type.
+_SOURCE_QUERY_ERRORS = (SQLAlchemyError, ConnectionError, redshift_error.Error)
 
 
 @dataclasses.dataclass
@@ -123,15 +127,23 @@ class SnowflakeConnector(_BaseConnector):
         return create_engine(snowflake_url)
 
 
+# In the mssql credential's ``database`` field, this sentinel (or a blank/whitespace value) means "no
+# specific database": connect to ``master``. The multi-database SQL Server profiler then enumerates all DBs.
+ALL_DATABASES = "*"
+
+
 class MSSQLConnector(_BaseConnector):
     def _connect(self) -> Engine:
         auth_type = self.config.get('auth_type', 'sql_authentication')
-        db_value = self.config.get('database')
-        db_name = str(db_value) if db_value else None
+        db_value = str(self.config.get('database') or "").strip()
+        db_name = db_value if db_value and db_value != ALL_DATABASES else "master"
 
         query_params: dict[str, str] = {
             "driver": str(self.config['driver']),
             "loginTimeout": "30",
+            "TrustServerCertificate": (
+                "no" if str(self.config.get('trust_server_certificate', 'False')) == 'False' else "yes"
+            ),
         }
 
         if auth_type == "ad_passwd_authentication":
@@ -153,6 +165,23 @@ class MSSQLConnector(_BaseConnector):
             host=str(self.config['server']),
             port=int(str(self.config.get('port', '1433'))),
             database=db_name,
+            query=query_params,
+        )
+        return create_engine(connection_string)
+
+
+class TeradataConnector(_BaseConnector):
+    def _connect(self) -> Engine:
+        query_params: dict[str, str] = {}
+        if self.config.get("database"):
+            query_params["database"] = str(self.config["database"])
+
+        connection_string = URL.create(
+            drivername="teradatasql",
+            username=str(self.config['user']),
+            password=str(self.config['password']),
+            host=str(self.config['host']),
+            port=int(str(self.config.get('port', 1025))),
             query=query_params,
         )
         return create_engine(connection_string)
@@ -206,15 +235,13 @@ class RedshiftConnector(DatabaseConnector):
                 ssl=ssl,
                 iam=True,
                 region=str(self.config["region"]) if "region" in self.config else None,
-                profile=str(self.config["profile"]) if "profile" in self.config else None,
+                profile=str(self.config["aws_profile"]) if "aws_profile" in self.config else None,
                 cluster_identifier=(
                     str(self.config["cluster_identifier"]) if "cluster_identifier" in self.config else None
                 ),
                 db_user=str(self.config["db_user"]) if "db_user" in self.config else None,
             )
-        if auth_type == "secrets_manager":
-            raise NotImplementedError("Redshift Secrets Manager authentication not implemented yet")
-        raise ConnectionError(f"Invalid Redshift auth_type: {auth_type}")
+        raise ConnectionError(f"Invalid Redshift auth_type: {auth_type}. Expected one of: sql_authentication, iam")
 
     def fetch(self, query: str) -> FetchResult:
         cursor = self._conn.cursor()
@@ -246,6 +273,7 @@ def _create_connector(db_type: str, config: JsonObject) -> DatabaseConnector:
         "legacy_synapse": MSSQLConnector,
         "redshift": RedshiftConnector,
         "oracle": OracleConnector,
+        "teradata": TeradataConnector,
     }
 
     connector_class = connectors.get(db_type.lower())
@@ -277,9 +305,17 @@ class DatabaseManager:
     def fetch(self, query: str) -> FetchResult:
         try:
             return self.connector.fetch(query)
-        except OperationalError as e:
-            logger.exception(f"Error connecting to the database: {e}")
-            raise ConnectionError(f"Error connecting to the database check credentials: {e}") from e
+        except _SOURCE_QUERY_ERRORS as e:
+            # Drivers (notably teradatasql) embed a full stack trace and the offending SQL;
+            # keep that at debug and surface only the first line.
+            logger.debug("Database query failed", exc_info=True)
+            reason = str(getattr(e, "orig", e)).split("\n", 1)[0].strip()
+            raise ConnectionError(f"Database query failed: {reason}") from e
 
     def check_connection(self) -> bool:
-        return self.connector.health_check()
+        try:
+            return self.connector.health_check()
+        except _SOURCE_QUERY_ERRORS as e:
+            logger.debug("Database health check failed", exc_info=True)
+            reason = str(getattr(e, "orig", e)).split("\n", 1)[0].strip()
+            raise ConnectionError(f"Database health check failed: {reason}") from e

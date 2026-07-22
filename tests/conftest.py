@@ -116,6 +116,7 @@ def table_conf():
             transformations=kwargs.get('transformations', None),
             column_thresholds=kwargs.get('thresholds', None),
             filters=kwargs.get('filters', None),
+            sampling_options=kwargs.get('sampling_options', None),
         )
 
     return _table_conf
@@ -340,6 +341,12 @@ class FakeDataSource(DataSource):
         self.end_delimiter = end_delimiter
 
     def get_schema(self, catalog: str | None, schema: str, table: str, normalize: bool = True) -> list[Schema]:
+        raise RuntimeError("Not implemented")
+
+    def list_schemas(self, catalog: str) -> list[str]:
+        raise RuntimeError("Not implemented")
+
+    def list_tables(self, catalog: str, schema: str) -> list[str]:
         raise RuntimeError("Not implemented")
 
     def normalize_identifier(self, identifier: str) -> NormalizedIdentifier:

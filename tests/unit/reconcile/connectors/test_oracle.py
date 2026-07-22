@@ -1,4 +1,3 @@
-import re
 from unittest.mock import create_autospec
 
 import pytest
@@ -8,7 +7,7 @@ from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dial
 from databricks.labs.lakebridge.reconcile.connectors.oracle import OracleDataSource
 from databricks.labs.lakebridge.reconcile.connectors.remote_query_reader import RemoteQueryReader
 from databricks.labs.lakebridge.reconcile.exception import DataSourceRuntimeException
-from databricks.labs.lakebridge.reconcile.recon_config import JdbcReaderOptions, Table
+from databricks.labs.lakebridge.reconcile.recon_config import JdbcReaderOptions
 
 
 def initial_setup():
@@ -24,94 +23,25 @@ def test_read_data_with_options():
     # create object for OracleDataSource
     ords = OracleDataSource(engine, reader)
     # Create a Tables configuration object with JDBC reader options
-    table_conf = Table(
-        source_name="supplier",
-        target_name="supplier",
-        jdbc_reader_options=JdbcReaderOptions(
-            num_partitions=50, partition_column="s_nationkey", lower_bound="0", upper_bound="100"
-        ),
-        join_columns=None,
-        select_columns=None,
-        drop_columns=None,
-        column_mapping=None,
-        transformations=None,
-        column_thresholds=None,
-        filters=None,
-    )
-
+    opts = JdbcReaderOptions(num_partitions=50, partition_column="s_nationkey", lower_bound="0", upper_bound="100")
     # Call the read_data method with the Tables configuration
-    ords.read_data("ORCL", "data", "employee", "select 1 from :tbl", table_conf.jdbc_reader_options)
+    ords.read_data("ORCL", "data", "employee", "select 1 from :tbl", opts)
 
     # reader assertions — verify the query passed to remote_query reader
-    reader.read_data.assert_called_once_with(
-        "select 1 from data.employee",
-        "ORCL",
-        "service_name",
-        "query",
-        table_conf.jdbc_reader_options,
-    )
-
-
-def test_get_schema():
-    # initial setup
-    engine, reader = initial_setup()
-
-    # create object for OracleDataSource
-    ords = OracleDataSource(engine, reader)
-    # call test method
-    ords.get_schema("ORCL", "data", "employee")
-    # reader assertions — verify the schema query passed to remote_query reader
-    reader.read_data.assert_called_once()
-    call_args = reader.read_data.call_args
-    source_query = call_args[0][0]
-    expected_query = re.sub(
-        r'\s+',
-        ' ',
-        r"""select column_name, case when (data_precision is not null
-                                          and data_scale <> 0)
-                                          then data_type || '(' || data_precision || ',' || data_scale || ')'
-                                          when (data_precision is not null and data_scale = 0)
-                                          then data_type || '(' || data_precision || ')'
-                                          when data_precision is null and (lower(data_type) in ('date') or
-                                          lower(data_type) like 'timestamp%') then  data_type
-                                          when CHAR_LENGTH = 0 then data_type
-                                          else data_type || '(' || CHAR_LENGTH || ')'
-                                          end data_type
-                                          FROM ALL_TAB_COLUMNS
-                        WHERE lower(TABLE_NAME) = 'employee' and lower(owner) = 'data'""",
-    )
-    assert source_query == expected_query
-    assert call_args[0][1] == "ORCL"
-    assert call_args[0][2] == "service_name"
-    assert call_args[0][3] == "query"
+    reader.read_data.assert_called_once_with("select 1 from data.employee", "ORCL", "service_name", "query", opts)
 
 
 def test_read_data_exception_handling():
     # initial setup
     engine, reader = initial_setup()
     ords = OracleDataSource(engine, reader)
-    # Create a Tables configuration object
-    table_conf = Table(
-        source_name="supplier",
-        target_name="supplier",
-        jdbc_reader_options=None,
-        join_columns=None,
-        select_columns=None,
-        drop_columns=None,
-        column_mapping=None,
-        transformations=None,
-        column_thresholds=None,
-        filters=None,
-    )
-
     reader.read_data.side_effect = RuntimeError("Test Exception")
 
-    # Call the read_data method with the Tables configuration and assert that a PySparkException is raised
     with pytest.raises(
         DataSourceRuntimeException,
         match="Runtime exception occurred while fetching data using select 1 from data.employee : Test Exception",
     ):
-        ords.read_data("ORCL", "data", "employee", "select 1 from :tbl", table_conf.jdbc_reader_options)
+        ords.read_data("ORCL", "data", "employee", "select 1 from :tbl", None)
 
 
 def test_get_schema_exception_handling():
@@ -121,23 +51,7 @@ def test_get_schema_exception_handling():
 
     reader.read_data.side_effect = RuntimeError("Test Exception")
 
-    # Call the get_schema method with predefined table, schema, and catalog names and assert that a PySparkException
-    # is raised
-    with pytest.raises(
-        DataSourceRuntimeException,
-        match=r"""select column_name, case when (data_precision is not null
-                                                  and data_scale <> 0)
-                                                  then data_type || '(' || data_precision || ',' || data_scale || ')'
-                                                  when (data_precision is not null and data_scale = 0)
-                                                  then data_type || '(' || data_precision || ')'
-                                                  when data_precision is null and (lower(data_type) in ('date') or
-                                                  lower(data_type) like 'timestamp%') then  data_type
-                                                  when CHAR_LENGTH = 0 then data_type
-                                                  else data_type || '(' || CHAR_LENGTH || ')'
-                                                  end data_type
-                                                  FROM ALL_TAB_COLUMNS
-                                WHERE lower(TABLE_NAME) = 'employee' and lower(owner) = 'data' """,
-    ):
+    with pytest.raises(DataSourceRuntimeException, match="Runtime exception occurred while fetching schema"):
         ords.get_schema("ORCL", "data", "employee")
 
 

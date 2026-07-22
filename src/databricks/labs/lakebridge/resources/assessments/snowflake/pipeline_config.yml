@@ -29,16 +29,18 @@ steps:
     frequency: daily
     flag: active
 
-  - name: storage_usage
+  # Bounded SQL-text sample for downstream heuristics (migration_complexity).
+  # Full query_history omits QUERY_TEXT to bound extract size.
+  - name: query_samples
     type: sql
-    extract_source: src/databricks/labs/lakebridge/resources/assessments/snowflake/storage_usage.sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/snowflake/query_samples.sql
     mode: overwrite
     frequency: daily
     flag: active
 
-  - name: user_activity
+  - name: storage_usage
     type: sql
-    extract_source: src/databricks/labs/lakebridge/resources/assessments/snowflake/user_activity.sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/snowflake/storage_usage.sql
     mode: overwrite
     frequency: daily
     flag: active
@@ -64,4 +66,14 @@ steps:
     extract_source: src/databricks/labs/lakebridge/resources/assessments/snowflake/materialized_view_refresh.sql
     mode: overwrite
     frequency: daily
+    flag: active
+
+  # Effective rate per credit/unit and the account tier (SERVICE_LEVEL). Requires
+  # SNOWFLAKE.ORGANIZATION_USAGE access (ACCOUNTADMIN in an ORGADMIN-enabled account).
+  # Feeds the downstream TCO model.
+  - name: rate_sheet
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/snowflake/rate_sheet.sql
+    mode: overwrite
+    frequency: once
     flag: active

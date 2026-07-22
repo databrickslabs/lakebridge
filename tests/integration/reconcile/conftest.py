@@ -6,6 +6,7 @@ from collections.abc import Generator
 from contextlib import contextmanager
 from dataclasses import asdict
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -70,6 +71,51 @@ TERADATA_CONNECTION = "teradata_sandbox"
 TERADATA_CATALOG = "DBC"
 TERADATA_SCHEMA = "lf_test_user"
 TERADATA_TABLE = "diamonds"
+BIGQUERY_CONNECTION = "bigquery_sandbox"
+BIGQUERY_PROJECT = "databricks-dev-customer"
+BIGQUERY_SCHEMA = "lakebridge"
+BIGQUERY_TABLE = "diamonds"
+
+_FIXED_RECON_VIEW_HEX = "0" * 32
+
+
+@pytest.fixture
+def fixed_recon_view_uuid(monkeypatch):
+    """Pin uuid.uuid4().hex inside sampling_query so the temp-view name is predictable in tests
+    that make a single temp-view build_query call. Returns the fixed hex.
+    """
+    fake = MagicMock()
+    fake.uuid4.return_value.hex = _FIXED_RECON_VIEW_HEX
+    monkeypatch.setattr(
+        "databricks.labs.lakebridge.reconcile.query_builder.sampling_query.uuid",
+        fake,
+    )
+    return _FIXED_RECON_VIEW_HEX
+
+
+@pytest.fixture
+def recon_view_uuid_seq(monkeypatch):
+    """Patch uuid.uuid4 inside sampling_query to return a sequence of hex values, one per call.
+
+    Returns a callable that the test invokes with the list of hex strings to use in order.
+    Use for tests that trigger multiple temp-view build_query calls (e.g. mismatch + missing paths).
+    """
+
+    def _patch(hexes: list[str]) -> list[str]:
+        hex_iter = iter(hexes)
+
+        def _next_uuid():
+            return type("U", (), {"hex": next(hex_iter)})()
+
+        fake = MagicMock()
+        fake.uuid4.side_effect = _next_uuid
+        monkeypatch.setattr(
+            "databricks.labs.lakebridge.reconcile.query_builder.sampling_query.uuid",
+            fake,
+        )
+        return hexes
+
+    return _patch
 
 
 @pytest.fixture
@@ -456,6 +502,53 @@ def teradata_recon_config(recon_cluster: str, recon_schema: SchemaInfo, make_vol
     )
 
 
+@pytest.fixture
+def bigquery_recon_table_config(recon_schema: SchemaInfo, recon_tables: tuple[TableInfo, TableInfo]) -> TableRecon:
+    _, tgt_table = recon_tables
+    assert tgt_table.name
+
+    return TableRecon(
+        [
+            Table(
+                source_name=BIGQUERY_TABLE,
+                target_name=tgt_table.name,
+                join_columns=["color", "clarity"],
+            )
+        ]
+    )
+
+
+@pytest.fixture
+def bigquery_recon_config(recon_cluster: str, recon_schema: SchemaInfo, make_volume) -> ReconcileConfig:
+    volume = make_volume(catalog_name=recon_schema.catalog_name, schema_name=recon_schema.name, name=recon_schema.name)
+
+    deployment_overrides = ReconcileJobConfig(
+        existing_cluster_id=recon_cluster,
+        tags={"lakebridge": "reconcile_test"},
+    )
+    logger.info(f"Using recon job overrides: {deployment_overrides}")
+
+    assert recon_schema.catalog_name
+    assert recon_schema.name
+    return ReconcileConfig(
+        report_type="all",
+        source=SourceConnectionConfig(
+            dialect="bigquery",
+            catalog=BIGQUERY_PROJECT,
+            schema=BIGQUERY_SCHEMA,
+            uc_connection_name=BIGQUERY_CONNECTION,
+        ),
+        target=TargetConnectionConfig(
+            catalog=recon_schema.catalog_name,
+            schema=recon_schema.name,
+        ),
+        metadata_config=ReconcileMetadataConfig(
+            catalog=recon_schema.catalog_name, schema=recon_schema.name, volume=volume.name
+        ),
+        job_overrides=deployment_overrides,
+    )
+
+
 def recon_config_filename(recon_config: ReconcileConfig) -> str:
     connection_or_catalog = recon_config.source.uc_connection_name or recon_config.source.catalog
     return f"recon_config_{recon_config.source.dialect}_{connection_or_catalog}_{recon_config.report_type}.json"
@@ -465,15 +558,16 @@ def recon_config_filename(recon_config: ReconcileConfig) -> str:
 def generate_recon_application_context(
     application_ctx: ApplicationContext,
     recon_config: ReconcileConfig,
-    recon_table_config: TableRecon,
+    recon_table_config: TableRecon | None = None,
 ) -> Generator[ApplicationContext]:
     logger.info("Setting up application context for recon tests")
-    config = LakebridgeConfiguration(None, recon_config, None)
+    config = LakebridgeConfiguration(None, recon_config)
     ws = application_ctx.workspace_client
     logger.info("Installing app and recon configuration into workspace")
     application_ctx.installation.save(recon_config)
-    filename = recon_config_filename(recon_config)
-    application_ctx.installation.upload(filename, json.dumps(asdict(recon_table_config)).encode())
+    if recon_table_config:
+        filename = recon_config_filename(recon_config)
+        application_ctx.installation.upload(filename, json.dumps(asdict(recon_table_config)).encode())
     application_ctx.workspace_installation.install(config)
 
     logger.info("Application context setup complete for recon tests")
@@ -484,6 +578,13 @@ def generate_recon_application_context(
     if WorkspacePath(ws, application_ctx.installation.install_folder()).exists():
         application_ctx.installation.remove()
     logger.info("Application context teardown complete for recon tests")
+
+
+@pytest.fixture
+def run_by_user(ws: WorkspaceClient) -> str:
+    user_name = ws.current_user.me().user_name
+    assert user_name is not None
+    return user_name
 
 
 class FakeReconIntermediatePersist(AbstractReconIntermediatePersist):

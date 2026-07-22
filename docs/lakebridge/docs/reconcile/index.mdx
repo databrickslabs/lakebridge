@@ -27,9 +27,12 @@ Lakebridge Reconcile validates data fidelity after migration by comparing your s
 | SQL Server | Yes | Yes | Yes | Yes |
 | Redshift | Yes | Yes | Yes | Yes |
 | Teradata | Yes | Yes [^teradata-hash] | Yes [^teradata-hash] | Yes [^teradata-hash] |
+| BigQuery | Yes [^bigquery-types] | Yes | Yes | Yes |
 | Databricks | Yes | Yes | Yes | Yes |
 
 [^teradata-hash]: Teradata has no portable cryptographic hash in pure SQL, so row-hash report types (`row`, `data`, `all`) require a user-installed hash UDF on the source and an explicit `hash_expression_overrides.source` entry on the recon config. See [Hash Expression](/docs/reconcile/configuration#hash-expression) for wiring.
+
+[^bigquery-types]: BigQuery types with no equivalent in Databricks — `BIGNUMERIC`, `TIME`, `RANGE<T>`, nested `JSON` such as `ARRAY<JSON>`, or these nested inside `ARRAY`/`STRUCT` — are left as their original BigQuery type and may be reported as `schema` mismatches even when the data migrated correctly.
 
 ---
 
@@ -54,7 +57,7 @@ If you haven't already, complete the initial setup:
 databricks labs lakebridge configure-reconcile
 ```
 
-This sets up Lakebridge workspace resources, deploys the reconciliation dashboards and creates the config file. See [Installation → Configure Reconcile](/docs/installation#configure-reconcile) for details.
+This sets up Lakebridge workspace resources. See [Installation → Configure Reconcile](/docs/installation#configure-reconcile) for details.
 
 ### Config file
 A reconcile config file is created under the path:

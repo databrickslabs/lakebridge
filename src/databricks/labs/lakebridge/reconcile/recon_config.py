@@ -2,12 +2,16 @@ from __future__ import annotations
 
 import logging
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from collections.abc import Callable
 from sqlglot import expressions as exp
 
 from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import DialectUtils
-from databricks.labs.lakebridge.reconcile.constants import SamplingOptionMethod, SamplingSpecificationsType
+from databricks.labs.lakebridge.reconcile.constants import (
+    DEFAULT_SAMPLE_ROWS,
+    SamplingOptionMethod,
+    SamplingSpecificationsType,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +30,16 @@ _SUPPORTED_AGG_TYPES: set[str] = {
 
 RECONCILE_OPERATION_NAME = "reconcile"
 AGG_RECONCILE_OPERATION_NAME = "aggregates-reconcile"
+DISCOVER_TABLES_OPERATION_NAME = "discover-tables"
+AUTO_CONFIGURE_TABLES_OPERATION_NAME = "auto-configure-tables"
+DISCOVER_AND_AUTO_CONFIGURE_TABLES_OPERATION_NAME = "discover-auto-configure-tables"
+SUPPORTED_OPERATIONS = {
+    RECONCILE_OPERATION_NAME,
+    AGG_RECONCILE_OPERATION_NAME,
+    DISCOVER_TABLES_OPERATION_NAME,
+    AUTO_CONFIGURE_TABLES_OPERATION_NAME,
+    DISCOVER_AND_AUTO_CONFIGURE_TABLES_OPERATION_NAME,
+}
 
 PrimitiveType = bool | int | float | str
 OptionalPrimitiveType = PrimitiveType | None
@@ -47,23 +61,35 @@ class HashAlgoMapping:
 
 @dataclass
 class SamplingSpecifications:
-    type: SamplingSpecificationsType
-    value: float
+    type: SamplingSpecificationsType = SamplingSpecificationsType.COUNT
+    value: int | float = DEFAULT_SAMPLE_ROWS
 
     def __post_init__(self):
         if not isinstance(self.type, SamplingSpecificationsType):
             self.type = SamplingSpecificationsType(str(self.type).lower())
         # Disabled
+        if self.type == SamplingSpecificationsType.FRACTION and (self.value is None or (not 0 < self.value < 1)):
+            raise ValueError("SamplingSpecifications: Fraction value must be greater than 0 and less than 1")
         if self.type == SamplingSpecificationsType.FRACTION:
             raise ValueError("SamplingSpecifications: 'FRACTION' type is disabled")
-        if self.type == SamplingSpecificationsType.FRACTION and (self.value is None or (not 0 < self.value < 1)):
-            raise ValueError("SamplingSpecifications: Fraction value must be greater than  0 and less than 1")
+        if self.value is None:
+            logger.warning("SamplingSpecifications: value is None; defaulting to 50")
+            self.value = DEFAULT_SAMPLE_ROWS
+        if isinstance(self.value, bool) or not isinstance(self.value, (int, float)):
+            raise ValueError(f"SamplingSpecifications: value must be int|float, got {type(self.value).__name__}")
+        # Safe today because FRACTION raises above; revisit when FRACTION is enabled.
+        self.value = int(self.value)
+        if self.value <= 0:
+            logger.warning(
+                f"SamplingSpecifications: value={self.value} is not positive; defaulting to {DEFAULT_SAMPLE_ROWS}"
+            )
+            self.value = DEFAULT_SAMPLE_ROWS
 
 
 @dataclass
 class SamplingOptions:
-    method: SamplingOptionMethod
-    specifications: SamplingSpecifications
+    method: SamplingOptionMethod = SamplingOptionMethod.RANDOM
+    specifications: SamplingSpecifications = field(default_factory=SamplingSpecifications)
     stratified_columns: list[str] | None = None
     stratified_buckets: int | None = None
 
@@ -199,6 +225,12 @@ class Table:
         self.select_columns = to_lower_case(self.select_columns) if self.select_columns else None
         self.drop_columns = to_lower_case(self.drop_columns) if self.drop_columns else None
         self.join_columns = to_lower_case(self.join_columns) if self.join_columns else None
+
+    def get_max_sample_size(self) -> int:
+        """Sample-row cap. The engine-aware upper bound is applied by NormalizeReconConfigService."""
+        if self.sampling_options is None:
+            return DEFAULT_SAMPLE_ROWS
+        return int(self.sampling_options.specifications.value)
 
     @property
     def to_src_col_map(self):

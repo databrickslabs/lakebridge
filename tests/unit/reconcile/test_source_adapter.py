@@ -4,6 +4,7 @@ import pytest
 
 from databricks.connect import DatabricksSession
 from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
+from databricks.labs.lakebridge.reconcile.connectors.bigquery import BigQueryDataSource
 from databricks.labs.lakebridge.reconcile.connectors.databricks import (
     DatabricksDataSource,
     DatabricksNonUnityCatalogDataSource,
@@ -73,6 +74,16 @@ def test_create_adapter_for_teradata_dialect():
     data_source = create_adapter(engine, spark, connection_name)
 
     assert isinstance(data_source, TeradataDataSource)
+
+
+def test_create_adapter_for_bigquery_dialect():
+    spark = create_autospec(DatabricksSession)
+    engine = get_dialect("bigquery")
+    connection_name = "bigquery"
+
+    data_source = create_adapter(engine, spark, connection_name)
+
+    assert isinstance(data_source, BigQueryDataSource)
 
 
 def test_raise_exception_for_unknown_dialect():
