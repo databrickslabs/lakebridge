@@ -244,9 +244,11 @@ def test_llm_transpile_with_incorrect_dialect(
         resource_configurator=mock_configurator,
     )
 
-    error_msg = "Invalid value for '--source-dialect': 'agent_sql' must be one of: airflow, mssql, mysql, netezza, oracle, postgresql, pyspark, python, redshift, scala, snowflake, synapse, teradata, unknown_etl"
-    with pytest.raises(ValueError, match=rf"{error_msg}"):
+    expected_dialects = ", ".join(sorted(_switch_dialects))
+    error_msg = f"Invalid value for '--source-dialect': 'agent_sql' must be one of: {expected_dialects}"
+    with pytest.raises(ValueError) as exc_info:
         cli.llm_transpile(w=mock_ws, accept_terms=True, source_dialect="agent_sql", ctx=ctx)
+    assert str(exc_info.value) == error_msg
 
 
 def test_llm_transpile_with_switch_config_path(

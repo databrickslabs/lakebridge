@@ -835,7 +835,7 @@ requires-dist = [
     { name = "databricks-labs-blueprint", extras = ["yaml"], specifier = ">=0.12.0,<0.13.0" },
     { name = "databricks-labs-lsql", specifier = "==0.16.0" },
     { name = "databricks-sdk", specifier = "~=0.85.0" },
-    { name = "databricks-switch-plugin", specifier = "~=0.1.7" },
+    { name = "databricks-switch-plugin", specifier = "~=0.2.0" },
     { name = "db-dtypes", specifier = ">=1.0.0,<2" },
     { name = "duckdb", specifier = ">=1.2.2,<1.5.0" },
     { name = "google-auth", specifier = ">=2.0.0,<3" },
@@ -975,11 +975,11 @@ wheels = [
 
 [[package]]
 name = "databricks-switch-plugin"
-version = "0.1.8"
+version = "0.2.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/b3/27/531c2fd0c787752ee6b27cfa95ee04ee5197f700343fcc8f0356788c03b4/databricks_switch_plugin-0.1.8.tar.gz", hash = "sha256:c7dece48c1490c56782adf335b366bad0401ea06350f06041d607fe810129b35", upload-time = "2026-03-24T03:47:17.53Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/93/18/34252a6830aaa76cb7286de6d17eefa6298adc1ef110635424f7949504f6/databricks_switch_plugin-0.2.0.tar.gz", hash = "sha256:5725e51841c914af668b9ac21f1efeed1f287b169bb22da028a1558ad8372ab3", upload-time = "2026-06-12T20:26:59.024Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/4c/0b/f0d3a4ef90aad8f7b66be4cafb7aebc3003b449be0f79cf8b9ce02eb68aa/databricks_switch_plugin-0.1.8-py3-none-any.whl", hash = "sha256:c4a6ee8e3c0603a97ec3180d7bd2a952c5bc9eb9fe3c0316b09a0eca095980c8", upload-time = "2026-03-24T03:47:15.705Z" },
+    { url = "https://files.pythonhosted.org/packages/56/59/3447989ce572c96131543d2746dd270adb1bc786c75b0dddbdac4af8598a/databricks_switch_plugin-0.2.0-py3-none-any.whl", hash = "sha256:c4d1936e16981e77929afbd0687f528988f4d4fe4efda77d46838118544077c4", upload-time = "2026-06-12T20:26:57.741Z" },
 ]
 
 [[package]]
