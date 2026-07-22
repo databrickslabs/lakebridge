@@ -1,0 +1,16 @@
+name: "Optional Absence Pipeline"
+version: "1.0"
+steps:
+  - name: required_metric
+    type: sql
+    flag: active
+    extract_source: assessments/usage.sql
+    mode: overwrite
+    frequency: daily
+  - name: optional_missing_table
+    type: sql
+    flag: active
+    optional: true
+    extract_source: assessments/missing_table_query.sql
+    mode: overwrite
+    frequency: daily
