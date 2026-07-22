@@ -1135,9 +1135,12 @@ def execute_database_profiler(
         ).strip()
 
     # Variant selection is resolved inside Profiler.create (AUTO probe or none); legacy --variant is ignored there.
-    profiler = Profiler.create(source_tech, variant, creds_path)
-    # TODO: Add extractor logic to ApplicationContext instead of creating inside the Profiler class
-    profiler.profile(output_folder=Path(output_folder), cred_file_path=creds_path)
+    try:
+        profiler = Profiler.create(source_tech, variant, creds_path)
+        # TODO: Add extractor logic to ApplicationContext instead of creating inside the Profiler class
+        profiler.profile(output_folder=Path(output_folder), cred_file_path=creds_path)
+    except Exception as e:  # noqa: BLE001
+        raise SystemExit(f"Profiler execution failed: {e}") from e
 
 
 @lakebridge.command()

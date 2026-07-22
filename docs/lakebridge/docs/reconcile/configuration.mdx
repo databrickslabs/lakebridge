@@ -157,6 +157,7 @@ Place the file in `.lakebridge/` in your Databricks workspace home folder.
             column_thresholds: list[ColumnThresholds] | None = None
             filters: Filters | None = None
             table_thresholds: list[TableThresholds] | None = None
+            sampling_options: SamplingOptions | None = None
         ```
     </TabItem>
     <TabItem value="json" label="JSON">
@@ -173,7 +174,8 @@ Place the file in `.lakebridge/` in your Databricks workspace home folder.
             "transformation": null,
             "column_thresholds": null,
             "filters": null,
-            "table_thresholds": null
+            "table_thresholds": null,
+            "sampling_options": null
         }
         ```
     </TabItem>
@@ -195,6 +197,7 @@ Place the file in `.lakebridge/` in your Databricks workspace home folder.
 | `column_thresholds` | list[ColumnThresholds] | No | Acceptable variance per column |
 | `table_thresholds` | list[TableThresholds] | No | Acceptable mismatch rate at table level |
 | `filters` | Filters | No | WHERE-clause filters for source and/or target |
+| `sampling_options` | SamplingOptions | No | Caps the rows pulled into each sample bucket — mismatch, missing-in-source, missing-in-target (see [Sampling Options](#sampling-options)) |
 
 ---
 
@@ -302,7 +305,8 @@ Apply SQL expressions to source or target columns before comparison. Use this wh
 </Tabs>
 
 :::danger Handling Nulls
-When you provide a transformation expression, Reconcile uses it as-is. **You must handle nulls explicitly** in the expression. Use `coalesce(..., '_null_recon_')` to avoid null mismatches.
+When you provide a transformation expression, Reconcile uses it as-is. **You must handle nulls and cast to string explicitly** in the expression.
+Use `coalesce(cast(... as string), '_null_recon_')` to avoid null mismatches and incompatibility with the internal transformations that rely on strings.
 :::
 
 :::tip Timestamp Columns
@@ -418,9 +422,126 @@ Filters must use dialect-specific SQL expressions — they are applied directly 
 
 ---
 
+## Sampling Options
+
+For `data` and `all` report types, Reconcile captures sample rows for each mismatch / missing-in-source / missing-in-target bucket. `sampling_options` controls **how many** rows are sampled and **how** they are drawn.
+
+:::note
+`sampling_options` applies to **row-level** reconcile (`data` / `all` report types) only.
+[Aggregates Reconciliation](#aggregates-reconciliation) always samples up to `50`
+(`DEFAULT_SAMPLE_ROWS`) rows per missing-in-source / missing-in-target set and ignores
+`sampling_options` (both the sampling method and size).
+:::
+
+### SamplingSpecifications
+
+Controls the sample-size policy.
+
+<Tabs>
+  <TabItem value="python" label="Python" default>
+    ```python
+    @dataclass
+    class SamplingSpecifications:
+        type: SamplingSpecificationsType = SamplingSpecificationsType.COUNT
+        value: int | float = 50
+    ```
+  </TabItem>
+  <TabItem value="json" label="JSON">
+    ```json
+    "specifications": {
+        "type": "count",
+        "value": 50
+    }
+    ```
+  </TabItem>
+</Tabs>
+
+| field | type | description | default |
+|---|---|---|---|
+| `type` | `count` \| `fraction` | `count` = absolute row cap. `fraction` is reserved and currently disabled — passing it raises a config error. | `count` |
+| `value` | int (float for fraction) | Maximum rows per sample set (mismatch / missing-in-source / missing-in-target). | `50` |
+
+**Engine-aware bounds on `value`:**
+
+Each source has a `max_sample_size` (a property on its connector):
+
+- **Databricks source:** honored up to `50_000`.
+- **Non-Databricks source:** honored up to `400`.
+- Values above the source's limit are capped to it with a `WARNING` log (`exceeds the limit of <max> for <connector>; capping to <max>`).
+- `value <= 0` falls back to `50`.
+
+### SamplingOptions
+
+Wraps `SamplingSpecifications` and selects the sampling method.
+
+<Tabs>
+  <TabItem value="python" label="Python" default>
+    ```python
+    @dataclass
+    class SamplingOptions:
+        method: SamplingOptionMethod = SamplingOptionMethod.RANDOM
+        specifications: SamplingSpecifications = field(default_factory=SamplingSpecifications)
+        stratified_columns: list[str] | None = None
+        stratified_buckets: int | None = None
+    ```
+  </TabItem>
+  <TabItem value="json" label="JSON">
+    ```json
+    "sampling_options": {
+        "method": "random",
+        "specifications": { "type": "count", "value": 50 },
+        "stratified_columns": null,
+        "stratified_buckets": null
+    }
+    ```
+  </TabItem>
+</Tabs>
+
+| field | type | description | default |
+|---|---|---|---|
+| `method` | `random` \| `stratified` | Sampling strategy. | `random` |
+| `specifications` | SamplingSpecifications | Size policy (see [above](#samplingspecifications)). | `count` / `50` |
+| `stratified_columns` | list[string] | **Required when `method = stratified`.** Columns whose values define the strata. | `null` |
+| `stratified_buckets` | int | **Required when `method = stratified`.** Number of strata buckets. Clamped to `[2, 50]`. | `null` |
+
+When `method = stratified`, rows are bucketed by `pmod(abs(hash(stratified_columns)), stratified_buckets)` and sampling proceeds within each bucket. Missing `stratified_columns` or `stratified_buckets` raises a `ValueError`.
+
+**Examples**
+
+Random sampling (Databricks source) — limit each sample set (mismatch, missing-in-source, missing-in-target) to 500 rows:
+```json
+"sampling_options": {
+  "method": "random",
+  "specifications": { "type": "count", "value": 500 }
+}
+```
+
+Shortest form (relies on defaults of `random` and `count`):
+```json
+"sampling_options": { "specifications": { "value": 500 } }
+```
+
+Stratified sampling — 10 strata on `ss_store_sk`, up to 500 sample rows total (allocated proportionally across buckets):
+```json
+"sampling_options": {
+  "method": "stratified",
+  "specifications": { "type": "count", "value": 500 },
+  "stratified_columns": ["ss_store_sk"],
+  "stratified_buckets": 10
+}
+```
+
+---
+
 ## Aggregates Reconciliation
 
 Reconcile aggregate metrics (MIN, MAX, COUNT, SUM, AVG, etc.) between source and target instead of comparing raw rows.
+
+:::note
+Aggregates reconcile always samples up to `50` (`DEFAULT_SAMPLE_ROWS`) rows per
+missing-in-source / missing-in-target set; [`sampling_options`](#sampling-options) does not
+apply here.
+:::
 
 ### Supported Functions
 
@@ -493,6 +614,10 @@ MIN, MAX, COUNT, SUM, AVG, MEAN, MODE, STDDEV, VARIANCE, MEDIAN
       "filters": {
         "source": "p_id > 0",
         "target": "product_id > 0"
+      },
+      "sampling_options": {
+        "method": "random",
+        "specifications": { "type": "count", "value": 100 }
       }
     }
   ]

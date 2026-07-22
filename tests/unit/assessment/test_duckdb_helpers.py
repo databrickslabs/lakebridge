@@ -62,6 +62,40 @@ def test_overwrite_empty_dataframe_with_columns_creates_empty_table(tmp_path: Pa
     assert list(out.columns) == ["id", "name"]
 
 
+def test_overwrite_zero_column_dataframe_skips_without_error(tmp_path: Path) -> None:
+    """Guards the workspace extract path when json_normalize([]) yields no columns."""
+    db_path = str(tmp_path / "t.duckdb")
+    df = pd.DataFrame()
+
+    save_to_duckdb(df, "workspace_sql_pools", db_path)
+
+    with duckdb.connect(db_path) as conn:
+        tables = conn.execute("SHOW TABLES").fetchdf()["name"].tolist()
+    assert "workspace_sql_pools" not in tables
+
+
+def test_overwrite_zero_column_dataframe_truncates_existing_table(tmp_path: Path) -> None:
+    db_path = str(tmp_path / "t.duckdb")
+    save_to_duckdb(pd.DataFrame({"id": [1]}), "t1", db_path)
+
+    save_to_duckdb(pd.DataFrame(), "t1", db_path)
+
+    out = _read_table(db_path, "t1")
+    assert out.empty
+    assert list(out.columns) == ["id"]
+
+
+def test_overwrite_empty_dataframe_with_schema_creates_empty_table(tmp_path: Path) -> None:
+    db_path = str(tmp_path / "t.duckdb")
+    df = pd.DataFrame()
+
+    save_to_duckdb(df, "serverless_routines", db_path, schema="ROUTINE_SCHEMA STRING, ROUTINE_NAME STRING")
+
+    out = _read_table(db_path, "serverless_routines")
+    assert out.empty
+    assert list(out.columns) == ["ROUTINE_SCHEMA", "ROUTINE_NAME"]
+
+
 def test_append_creates_table_when_missing(tmp_path: Path) -> None:
     db_path = str(tmp_path / "t.duckdb")
     df = pd.DataFrame({"id": [1, 2]})

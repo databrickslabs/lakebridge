@@ -1,6 +1,6 @@
 --3
 with cte as (select compute_capacity as rs_nodes_type
-                   ,sum(compute_seconds) as compute_seconds
+                   ,sum(compute_seconds)::double precision as compute_seconds
                from sys_serverless_usage 
               where compute_capacity > 0
               group by 1)
