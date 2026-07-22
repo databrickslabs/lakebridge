@@ -12,7 +12,7 @@ with query_metrics as (
 select 
     'chart_cpu_consumption_by_hour_and_query_type' as set_name,
     query_type,
-    sum(cpu_time) as sum_cpu_time,
+    sum(cpu_time)::double precision as sum_cpu_time,
     date_part(hour, start_time) as hour
 from query_metrics
 where cpu_time > 0
