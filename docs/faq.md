@@ -225,7 +225,7 @@ This means the entire file failed to parse. Check that:
 
 Lakebridge downloads transpiler components from GitHub, Maven Central, and PyPI. If you are in a restricted network:
 
-1. Whitelist the required endpoints (see [Installation — Prerequisites](/lakebridge/docs/installation.md#prerequisites))
+1. Whitelist the required endpoints (see [Installation — Network access](/lakebridge/docs/installation.md#network-access-proxies-and-mirrors))
 2. Or set up a private artifact mirror (Artifactory, Nexus) and configure it as the download source
 
 ### How do I report a bug or request a feature?[​](#how-do-i-report-a-bug-or-request-a-feature "Direct link to How do I report a bug or request a feature?")

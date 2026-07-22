@@ -55,6 +55,6 @@
 - [Which Tool Should I Use?](/lakebridge/docs/choosing_tools.md): Lakebridge provides multiple tools for assessment and transpilation. Use this guide to choose the right one for your migration.
 - [FAQs](/lakebridge/docs/faq.md): General
 - [Getting Started with Lakebridge](/lakebridge/docs/getting_started.md): This guide walks you through a complete end-to-end migration using SQL Server as the source and Databricks SQL as the target. You will assess your SQL code, transpile it, and validate the output — in about 15 minutes.
-- [Installation](/lakebridge/docs/installation.md): Prerequisites
+- [Installation](/lakebridge/docs/installation.md): Lakebridge can be installed in two ways. Pick the path that fits your environment:
 - [Overview](/lakebridge/docs/overview.md): Overview
 - [SQL Splitter](/lakebridge/docs/sql_splitter.md): Overview

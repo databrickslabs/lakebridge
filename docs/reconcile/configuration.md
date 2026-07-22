@@ -304,7 +304,7 @@ class Transformation:
 
 Handling Nulls
 
-When you provide a transformation expression, Reconcile uses it as-is. **You must handle nulls explicitly** in the expression. Use `coalesce(..., '_null_recon_')` to avoid null mismatches.
+When you provide a transformation expression, Reconcile uses it as-is. **You must handle nulls and cast to string explicitly** in the expression. Use `coalesce(cast(... as string), '_null_recon_')` to avoid null mismatches and incompatibility with the internal transformations that rely on strings.
 
 Timestamp Columns
 
