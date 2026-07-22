@@ -11,7 +11,7 @@ Lakebridge can be installed in two ways. Pick the path that fits your environmen
 
 - **[Desktop App](#desktop-app)** — a graphical installer for macOS and Windows. Best if you prefer a UI and want the
   fewest manual steps: it bundles the Databricks CLI and Python and installs Lakebridge for you. Available from
-  release **v0.14.2** onwards.
+  release **v0.14.0** onwards.
 - **[Command-line (CLI)](#command-line-cli)** — install via the Databricks CLI. Best for automation, headless or
   server environments, Linux, or if you already work in the terminal.
 
@@ -24,7 +24,12 @@ self-contained — follow the one you chose.
 ## Desktop App
 
 The desktop app is a graphical installer for macOS and Windows. The installer is published as an asset on each
-[GitHub release](https://github.com/databrickslabs/lakebridge/releases), from **v0.14.2** onwards.
+[GitHub release](https://github.com/databrickslabs/lakebridge/releases), from **v0.14.0** onwards.
+
+:::note
+The desktop app has its own version line (e.g. `1.3.2`), which is independent of the Lakebridge release tag it
+ships with — so the version in the installer filename does not match the release version.
+:::
 
 ### Requirements
 
@@ -46,8 +51,8 @@ Choose the build that matches your operating system and CPU architecture:
 
 | Platform | Apple Silicon / ARM               | Intel / AMD (x64)               |
 |----------|-----------------------------------|---------------------------------|
-| macOS    | `MacOS-Lakebridge-<version>-arm64.dmg` | `MacOS-Lakebridge-<version>-x64.dmg` |
-| Windows  | `Windows-Lakebridge-<version>-arm64.exe` | `Windows-Lakebridge-<version>-x64.exe` |
+| macOS    | `MacOS-Lakebridge-<app-version>-arm64.dmg` | `MacOS-Lakebridge-<app-version>-x64.dmg` |
+| Windows  | `Windows-Lakebridge-<app-version>-arm64.exe` | `Windows-Lakebridge-<app-version>-x64.exe` |
 
 :::tip Which architecture?
 - **macOS:** Apple Silicon (M1/M2/M3/M4) uses `arm64`; older Intel Macs use `x64`.
