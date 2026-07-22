@@ -219,31 +219,6 @@ def test_cli_execute_database_profiler_missing_cred_file_raises(mock_workspace_c
         )
 
 
-@pytest.mark.parametrize(
-    ("source_tech", "variant", "expected"),
-    (
-        ("redshift", None, None),  # unified pipeline, no variant required
-        ("redshift", "provisioned", None),  # legacy variant input is ignored
-        ("snowflake", None, None),  # source has no variants, none requested
-        ("snowflake", "anything", None),  # source has no variants → stray input ignored
-        ("teradata", None, None),  # unified pipeline, no variant required
-        ("teradata", "core", None),  # legacy variant input is ignored
-    ),
-)
-def test_parse_profiler_variant_returns_expected(source_tech, variant, expected):
-    prompts = MagicMock()
-    assert cli.parse_profiler_variant(prompts, source_tech, variant) == expected
-    prompts.choice.assert_not_called()
-
-
-def test_parse_profiler_variant_does_not_prompt_for_unified_sources():
-    """Unified pipelines (redshift, teradata) never prompt for a variant."""
-    prompts = MagicMock()
-    assert cli.parse_profiler_variant(prompts, "redshift", None) is None
-    assert cli.parse_profiler_variant(prompts, "teradata", None) is None
-    prompts.choice.assert_not_called()
-
-
 def test_cli_auto_configure_recon_tables_no_recon_config(mock_workspace_client):
     installation = MockInstallation({})
     ctx = ApplicationContext(mock_workspace_client)

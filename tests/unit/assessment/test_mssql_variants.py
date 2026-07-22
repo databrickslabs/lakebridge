@@ -6,7 +6,7 @@ import yaml
 
 from databricks.labs.lakebridge.assessments import SOURCE_SYSTEM_VARIANTS, AUTO
 from databricks.labs.lakebridge.assessments.profiler import get_pipeline
-from databricks.labs.lakebridge.assessments.variants import resolve_mssql_variant
+from databricks.labs.lakebridge.assessments.variants import resolve_mssql_variant, resolve_variant
 
 # mssql is registered as AUTO in the registry; these are the resolver's outputs / the config directories.
 MSSQL_VARIANTS = ("single_db", "multi_db")
@@ -16,6 +16,12 @@ _MSSQL_RESOURCES = _REPO_ROOT / "src/databricks/labs/lakebridge/resources/assess
 
 def test_mssql_is_registered_as_auto_variant_source() -> None:
     assert SOURCE_SYSTEM_VARIANTS["mssql"] == (AUTO,)
+
+
+def test_unified_sources_have_no_fixed_variant_choices() -> None:
+    """Redshift and Teradata use a single pipeline config without variant subpaths."""
+    assert "redshift" not in SOURCE_SYSTEM_VARIANTS
+    assert "teradata" not in SOURCE_SYSTEM_VARIANTS
 
 
 @pytest.mark.parametrize("variant", MSSQL_VARIANTS)
@@ -31,6 +37,42 @@ def test_mssql_variant_config_references_existing_files(variant: str) -> None:
     for step in config["steps"]:
         extract_source = _REPO_ROOT / step["extract_source"]
         assert extract_source.exists(), f"{variant} step '{step['name']}' references missing file {extract_source}"
+
+
+@pytest.mark.parametrize(
+    ("source", "variant"),
+    [
+        ("snowflake", AUTO),
+        ("snowflake", "anything"),
+        ("redshift", "provisioned"),
+        ("teradata", "core"),
+    ],
+)
+def test_resolve_variant_no_variants_returns_none(source: str, variant: str | None) -> None:
+    assert resolve_variant(source, variant) is None
+
+
+def test_resolve_variant_auto_source_ignores_explicit_variant() -> None:
+    # An AUTO source always auto-detects; an explicit variant is ignored and the resolver still runs.
+    assert (
+        resolve_variant(
+            "mssql", "single_db", resolvers={"mssql": lambda cred_file_path: "multi_db"}, cred_file_path=Path("x")
+        )
+        == "multi_db"
+    )
+
+
+def test_resolve_variant_auto_source_probes_resolver() -> None:
+    assert (
+        resolve_variant(
+            "mssql", AUTO, resolvers={"mssql": lambda cred_file_path: "multi_db"}, cred_file_path=Path("creds.yml")
+        )
+        == "multi_db"
+    )
+
+
+def test_resolve_variant_auto_source_none_probes_resolver() -> None:
+    assert resolve_variant("mssql", None, resolvers={"mssql": lambda cred_file_path: "single_db"}) == "single_db"
 
 
 @pytest.mark.parametrize(

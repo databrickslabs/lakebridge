@@ -26,7 +26,6 @@ from databricks.labs.lakebridge.assessments.configure_assessment import create_a
 from databricks.labs.lakebridge.assessments import (
     PROFILER_SOURCE_SYSTEM,
     PRODUCT_NAME,
-    SOURCE_SYSTEM_VARIANTS,
 )
 from databricks.labs.lakebridge.assessments.profiler import Profiler, default_output_folder
 
@@ -1111,8 +1110,6 @@ def execute_database_profiler(
         logger.error(f"Only the following source systems are supported: {PROFILER_SOURCE_SYSTEM}")
         raise_validation_exception(f"Invalid source technology {source_tech}")
 
-    variant = parse_profiler_variant(prompts, source_tech, variant)
-
     ctx.add_user_agent_extra("profiler_source_tech", make_alphanum_or_semver(source_tech))
     user = ctx.current_user
     logger.debug(f"User: {user}")
@@ -1137,27 +1134,10 @@ def execute_database_profiler(
             default=str(default_output_folder(source_tech)),
         ).strip()
 
+    # Variant selection is resolved inside Profiler.create (AUTO probe or none); legacy --variant is ignored there.
     profiler = Profiler.create(source_tech, variant, creds_path)
     # TODO: Add extractor logic to ApplicationContext instead of creating inside the Profiler class
     profiler.profile(output_folder=Path(output_folder), cred_file_path=creds_path)
-
-
-def parse_profiler_variant(prompts: Prompts, source_tech: str, variant: str | None) -> str | None:
-    variants = SOURCE_SYSTEM_VARIANTS.get(source_tech, ())
-    if len(variants) > 1:
-        if variant:
-            variant = variant.lower()
-            if variant not in variants:
-                logger.error(f"Only the following source systems variants are supported: {variants}")
-                raise_validation_exception(f"Invalid source technology variant {variant}")
-        else:
-            variant = prompts.choice("Select a variant", variants)
-        return variant
-
-    if variant:
-        logger.warning(f"Ignoring variant input. Not a valid option for source system: {source_tech}")
-
-    return None
 
 
 @lakebridge.command()

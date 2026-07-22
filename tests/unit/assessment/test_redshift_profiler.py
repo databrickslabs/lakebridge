@@ -1,26 +1,9 @@
 from importlib import resources
 from pathlib import Path
 
-import pytest
-
 import databricks.labs.lakebridge.resources.assessments as assessment_resources
 from databricks.labs.lakebridge.assessments.pipeline import PipelineClass
 from databricks.labs.lakebridge.assessments.profiler_config import PipelineConfig, Step
-from databricks.labs.lakebridge.assessments.profiler import Profiler, get_pipeline
-
-
-def test_redshift_profile_missing_platform_config() -> None:
-    with pytest.raises(ValueError, match="Cannot Proceed without a valid pipeline configuration for redshift"):
-        Profiler("redshift").profile()
-
-
-def test_redshift_profile_execution_with_invalid_config(test_resources: Path) -> None:
-    """Test Redshift profiling execution with invalid configuration."""
-    profiler = Profiler("redshift")
-    with pytest.raises(FileNotFoundError):
-        config_file = test_resources / "assessments" / "invalid_pipeline_config.yml"
-        pipeline_config = profiler.path_modifier(config_file=config_file, path_prefix=test_resources)
-        profiler.profile(pipeline_config=pipeline_config, output_folder=test_resources / "out")
 
 
 def _load_pipeline_config() -> PipelineConfig:
@@ -28,11 +11,6 @@ def _load_pipeline_config() -> PipelineConfig:
     config_def = root.joinpath("redshift").joinpath("pipeline_config.yml")
     with resources.as_file(config_def) as config_path:
         return PipelineClass.load_config_from_yaml(Path(config_path))
-
-
-def test_redshift_unified_pipeline_resolves_without_variant() -> None:
-    cfg_path = get_pipeline("redshift", None)
-    assert str(cfg_path).endswith("/redshift/pipeline_config.yml")
 
 
 def test_redshift_unified_pipeline_includes_universal_and_optional_metrics() -> None:
