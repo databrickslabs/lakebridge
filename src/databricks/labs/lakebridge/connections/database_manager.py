@@ -12,9 +12,10 @@ import pandas as pd
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine, URL
 from sqlalchemy import text
-from sqlalchemy.exc import OperationalError
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm.session import Session
 import redshift_connector  # type: ignore[import-untyped]
+from redshift_connector import error as redshift_error
 
 from databricks.labs.blueprint.installation import JsonObject
 from databricks.labs.lakebridge.connections.snowflake_utils import (
@@ -28,6 +29,9 @@ from databricks.labs.lakebridge.connections.snowflake_utils import (
 importlib.import_module("snowflake.sqlalchemy")
 
 logger = logging.getLogger(__name__)
+
+# Driver failures we normalize to ConnectionError so callers (pipeline, CLI) see one type.
+_SOURCE_QUERY_ERRORS = (SQLAlchemyError, ConnectionError, redshift_error.Error)
 
 
 @dataclasses.dataclass
@@ -301,12 +305,17 @@ class DatabaseManager:
     def fetch(self, query: str) -> FetchResult:
         try:
             return self.connector.fetch(query)
-        except OperationalError as e:
-            # Drivers (notably teradatasql) embed a full stack trace and the offending SQL in the error
-            # message; keep that detail at debug level and surface only the concise first line.
+        except _SOURCE_QUERY_ERRORS as e:
+            # Drivers (notably teradatasql) embed a full stack trace and the offending SQL;
+            # keep that at debug and surface only the first line.
             logger.debug("Database query failed", exc_info=True)
             reason = str(getattr(e, "orig", e)).split("\n", 1)[0].strip()
             raise ConnectionError(f"Database query failed: {reason}") from e
 
     def check_connection(self) -> bool:
-        return self.connector.health_check()
+        try:
+            return self.connector.health_check()
+        except _SOURCE_QUERY_ERRORS as e:
+            logger.debug("Database health check failed", exc_info=True)
+            reason = str(getattr(e, "orig", e)).split("\n", 1)[0].strip()
+            raise ConnectionError(f"Database health check failed: {reason}") from e
