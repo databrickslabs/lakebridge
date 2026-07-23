@@ -1,12 +1,14 @@
 import json
 import sys
+from typing import Callable
 
 import urllib3
+from azure.monitor.query import MetricsQueryClient
 from databricks.labs.blueprint.entrypoint import get_logger
 
 from databricks.labs.lakebridge import initialize_logging
 from databricks.labs.lakebridge.assessments import PRODUCT_NAME
-from databricks.labs.lakebridge.connections.credential_manager import create_credential_manager
+from databricks.labs.lakebridge.connections.credential_manager import CredentialManager, create_credential_manager
 from databricks.labs.lakebridge.connections.env_getter import EnvGetter
 from databricks.labs.lakebridge.resources.assessments.common.cli import arguments_loader
 from databricks.labs.lakebridge.resources.assessments.common.duckdb_helpers import save_to_duckdb
@@ -35,10 +37,12 @@ def build_resource_id(azure: dict, server_fqdn: str, database: str) -> str:
     )
 
 
-def execute():
-    db_path, creds_file = arguments_loader(desc="Legacy Synapse Monitoring Metrics Extract Script")
-    cred_manager = create_credential_manager(PRODUCT_NAME, EnvGetter(), creds_file)
-    settings = cred_manager.get_credentials("legacy_synapse")
+def execute(
+    credential_manager: CredentialManager,
+    metrics_client_factory: Callable[[], MetricsQueryClient],
+    db_path: str,
+) -> None:
+    settings = credential_manager.get_credentials("legacy_synapse")
 
     try:
         azure = settings.get("azure")
@@ -53,8 +57,7 @@ def execute():
         logger.info(f"dedicated pool resource_id: {resource_id}")
 
         urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-        metrics_client = create_azure_metrics_query_client()
-        synapse_metrics = SynapseMetrics(metrics_client)
+        synapse_metrics = SynapseMetrics(metrics_client_factory())
 
         metrics_df = synapse_metrics.get_sql_dw_metrics(resource_id)
         if not metrics_df.empty:
@@ -72,4 +75,9 @@ def execute():
 
 if __name__ == '__main__':
     initialize_logging()
-    execute()
+    _db_path, _creds_file = arguments_loader(desc="Legacy Synapse Monitoring Metrics Extract Script")
+    execute(
+        credential_manager=create_credential_manager(PRODUCT_NAME, EnvGetter(), _creds_file),
+        metrics_client_factory=create_azure_metrics_query_client,
+        db_path=_db_path,
+    )
