@@ -10,7 +10,7 @@ from databricks.labs.lakebridge.assessments.pipeline import (
 )
 from databricks.labs.lakebridge.assessments.profiler import Profiler
 from databricks.labs.lakebridge.assessments.profiler_config import PipelineConfig, Step
-from databricks.labs.lakebridge.connections.database_manager import DatabaseManager, FetchResult
+from databricks.labs.lakebridge.connections.database_manager import FetchResult, DatabaseConnector
 
 
 class _FakeExecutor:
@@ -40,7 +40,9 @@ def _write_query(tmp_path: Path, name: str, sql: str) -> str:
 
 
 def _run(config: PipelineConfig, executor: _FakeExecutor, tmp_path: Path) -> list[StepExecutionResult]:
-    return PipelineClass(config, cast(DatabaseManager, executor), tmp_path / "out.db", tmp_path / "creds.yml").execute()
+    return PipelineClass(
+        config, cast(DatabaseConnector, executor), tmp_path / "out.db", tmp_path / "creds.yml"
+    ).execute()
 
 
 def test_optional_step_tolerates_any_failure(tmp_path: Path) -> None:
@@ -52,7 +54,7 @@ def test_optional_step_tolerates_any_failure(tmp_path: Path) -> None:
     )
     executor = _FakeExecutor(
         {
-            "SELECT 2": FetchResult({"value"}, [(1,)]),
+            "SELECT 2": FetchResult(["value"], [(1,)]),
             "SELECT 1": ConnectionError("Database query failed: relation does not exist"),
         }
     )
@@ -74,7 +76,7 @@ def test_optional_step_tolerates_unclassified_driver_errors(tmp_path: Path) -> N
     )
     executor = _FakeExecutor(
         {
-            "SELECT 2": FetchResult({"value"}, [(1,)]),
+            "SELECT 2": FetchResult(["value"], [(1,)]),
             "SELECT 1": ConnectionError("Database query failed: driver said something opaque"),
         }
     )
@@ -106,7 +108,7 @@ def test_source_ddl_optional_failure_is_tolerated(tmp_path: Path) -> None:
     executor = _FakeExecutor(
         {
             view_sql: ConnectionError("Database query failed: relation missing_base_table does not exist"),
-            "SELECT 3": FetchResult({"value"}, [(3,)]),
+            "SELECT 3": FetchResult(["value"], [(3,)]),
         }
     )
 
@@ -134,7 +136,7 @@ def test_optional_absence_integration_fixture(test_resources: Path, tmp_path: Pa
     missing_sql = (test_resources / "assessments" / "missing_table_query.sql").read_text(encoding="utf-8")
     executor = _FakeExecutor(
         {
-            required_sql: FetchResult({"sql_handle"}, [("abc",)]),
+            required_sql: FetchResult(["sql_handle"], [("abc",)]),
             missing_sql: ConnectionError("Database query failed: Invalid object name 'non_existent_table'."),
         }
     )

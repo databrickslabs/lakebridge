@@ -3,8 +3,8 @@ import dataclasses
 import importlib
 import logging
 from abc import abstractmethod
+from collections.abc import Callable, Sequence
 from types import TracebackType
-from collections.abc import Callable, Sequence, Set
 from typing import Any
 
 import pandas as pd
@@ -12,12 +12,13 @@ import pandas as pd
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine, URL
 from sqlalchemy import text
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm.session import Session
+import mssql_python
 import redshift_connector  # type: ignore[import-untyped]
-from redshift_connector import error as redshift_error
 
 from databricks.labs.blueprint.installation import JsonObject
+from databricks.labs.lakebridge.connections.mssql_auth import resolve_mssql_credentials
 from databricks.labs.lakebridge.connections.snowflake_utils import (
     parse_snowflake_account,
     is_valid_snowflake_account,
@@ -30,26 +31,19 @@ importlib.import_module("snowflake.sqlalchemy")
 
 logger = logging.getLogger(__name__)
 
-# Driver failures we normalize to ConnectionError so callers (pipeline, CLI) see one type.
-_SOURCE_QUERY_ERRORS = (SQLAlchemyError, ConnectionError, redshift_error.Error)
-
 
 @dataclasses.dataclass
 class FetchResult:
-    columns: Set[str]
+    columns: Sequence[str]
     rows: Sequence[Sequence[Any]]
 
     def to_df(self) -> pd.DataFrame:
-        """Create a pandas dataframe based on these results."""
-        # Row emulates a named tuple, which Pandas understands natively. So the columns are safely inferred unless
-        # we have an empty result-set.
-        return pd.DataFrame(data=self.rows) if self.rows else pd.DataFrame(columns=list(self.columns))
+        return pd.DataFrame.from_records(self.rows, columns=list(self.columns))
 
 
 class DatabaseConnector(contextlib.AbstractContextManager):
     @abstractmethod
-    def fetch(self, query: str) -> FetchResult:
-        pass
+    def fetch(self, query: str) -> FetchResult: ...
 
     @abstractmethod
     def close(self) -> None:
@@ -84,8 +78,13 @@ class _BaseConnector(DatabaseConnector):
             raise ConnectionError("Not connected to the database.")
 
         with Session(self.engine) as session, session.begin():
-            result = session.execute(text(query))
-            return FetchResult(result.keys(), result.fetchall())
+            try:
+                result = session.execute(text(query))
+                return FetchResult(list(result.keys()), result.fetchall())
+            except DBAPIError as e:
+                logger.debug("Database query failed", exc_info=True)
+                reason = str(getattr(e, "orig", e)).split("\n", 1)[0].strip()
+                raise ConnectionError(f"Database query failed: {reason}") from e
 
     def health_check(self) -> bool:
         query = "SELECT 101 AS test_column"
@@ -132,42 +131,62 @@ class SnowflakeConnector(_BaseConnector):
 ALL_DATABASES = "*"
 
 
-class MSSQLConnector(_BaseConnector):
-    def _connect(self) -> Engine:
-        auth_type = self.config.get('auth_type', 'sql_authentication')
+class MSSQLConnector(DatabaseConnector):
+    def __init__(self, config: JsonObject):
+        self.config = config
+        self._conn: mssql_python.Connection = self._connect()
+
+    def _connect(self) -> mssql_python.Connection:
         db_value = str(self.config.get('database') or "").strip()
         db_name = db_value if db_value and db_value != ALL_DATABASES else "master"
 
-        query_params: dict[str, str] = {
-            "driver": str(self.config['driver']),
-            "loginTimeout": "30",
-            "TrustServerCertificate": (
-                "no" if str(self.config.get('trust_server_certificate', 'False')) == 'False' else "yes"
-            ),
-        }
+        resolved = resolve_mssql_credentials(self.config)
 
-        if auth_type == "ad_passwd_authentication":
-            query_params = {
-                **query_params,
-                "authentication": "ActiveDirectoryPassword",
-            }
-        elif auth_type == "spn_authentication":
-            raise NotImplementedError("SPN Authentication not implemented yet")
-        elif auth_type == "sql_authentication":
-            pass
-        else:
-            raise ConnectionError(f"Invalid MSSQL auth_type: {auth_type}")
+        server = str(self.config['server'])
+        port = int(str(self.config.get('port', '1433')))
+        parts = [f"Server={server},{port}"]
+        if self.config.get('database'):
+            parts.append(f"Database={db_name}")
+        if resolved.authentication_param is not None:
+            parts.append(f"Authentication={resolved.authentication_param}")
+        if resolved.username is not None:
+            parts.append(f"UID={resolved.username}")
+        if resolved.password is not None:
+            parts.append(f"PWD={resolved.password}")
+        trust = "no" if str(self.config.get('trust_server_certificate', 'False')) == 'False' else "yes"
+        parts.append(f"TrustServerCertificate={trust}")
 
-        connection_string = URL.create(
-            drivername="mssql+pyodbc",
-            username=str(self.config['user']),
-            password=str(self.config['password']),
-            host=str(self.config['server']),
-            port=int(str(self.config.get('port', '1433'))),
-            database=db_name,
-            query=query_params,
-        )
-        return create_engine(connection_string)
+        try:
+            return mssql_python.connect(
+                ";".join(parts),
+                autocommit=True,
+                timeout=int(str(self.config.get('login_timeout', '30'))),
+            )
+        except mssql_python.Error as e:
+            raise ConnectionError(f"Failed to connect to {server}: {e}") from e
+
+    def fetch(self, query: str) -> FetchResult:
+        cursor = self._conn.cursor()
+        try:
+            cursor.execute(query)
+            if cursor.description is None:
+                return FetchResult([], [])
+            names = [desc[0] for desc in cursor.description]
+            rows = [tuple(row) for row in cursor.fetchall()]
+            return FetchResult(names, rows)
+        except mssql_python.Error as e:
+            logger.debug("Database query failed", exc_info=True)
+            reason = str(e).split("\n", 1)[0].strip()
+            raise ConnectionError(f"Database query failed: {reason}") from e
+        finally:
+            cursor.close()
+
+    def close(self) -> None:
+        self._conn.close()
+
+    def health_check(self) -> bool:
+        result = self.fetch("SELECT 101 AS test_column")
+        return result.rows[0][0] == 101
 
 
 class TeradataConnector(_BaseConnector):
@@ -249,10 +268,14 @@ class RedshiftConnector(DatabaseConnector):
             cursor.execute(query)
             # DDL (e.g. DROP, CREATE VIEW) has no result set; return empty result
             if cursor.description is None:
-                return FetchResult(set(), [])
+                return FetchResult([], [])
             rows = cursor.fetchall()
-            columns = {desc[0] for desc in cursor.description} if cursor.description else set()
+            columns = [desc[0] for desc in cursor.description]
             return FetchResult(columns, rows)
+        except redshift_connector.Error as e:
+            logger.debug("Database query failed", exc_info=True)
+            reason = str(e).split("\n", 1)[0].strip()
+            raise ConnectionError(f"Database query failed: {reason}") from e
         finally:
             cursor.close()
 
@@ -265,7 +288,7 @@ class RedshiftConnector(DatabaseConnector):
         return result.rows[0][0] == 101
 
 
-def _create_connector(db_type: str, config: JsonObject) -> DatabaseConnector:
+def create_connector(db_type: str, config: JsonObject) -> DatabaseConnector:
     connectors: dict[str, Callable[[JsonObject], DatabaseConnector]] = {
         "snowflake": SnowflakeConnector,
         "mssql": MSSQLConnector,
@@ -282,40 +305,3 @@ def _create_connector(db_type: str, config: JsonObject) -> DatabaseConnector:
         raise ValueError(f"Unsupported database type: {db_type}")
 
     return connector_class(config)
-
-
-# TODO remove this class, connectors are managed using ContextManager
-class DatabaseManager:
-    def __init__(self, db_type: str, config: JsonObject):
-        self.connector: DatabaseConnector = _create_connector(db_type, config)
-
-    def __enter__(self) -> "DatabaseManager":
-        """Support context manager protocol for resource management."""
-        return self
-
-    def __exit__(
-        self,
-        exc_type: type[BaseException] | None,
-        exc_val: BaseException | None,
-        exc_tb: TracebackType | None,
-    ) -> None:
-        """Clean up connector resources when exiting context."""
-        self.connector.__exit__(exc_type, exc_val, exc_tb)
-
-    def fetch(self, query: str) -> FetchResult:
-        try:
-            return self.connector.fetch(query)
-        except _SOURCE_QUERY_ERRORS as e:
-            # Drivers (notably teradatasql) embed a full stack trace and the offending SQL;
-            # keep that at debug and surface only the first line.
-            logger.debug("Database query failed", exc_info=True)
-            reason = str(getattr(e, "orig", e)).split("\n", 1)[0].strip()
-            raise ConnectionError(f"Database query failed: {reason}") from e
-
-    def check_connection(self) -> bool:
-        try:
-            return self.connector.health_check()
-        except _SOURCE_QUERY_ERRORS as e:
-            logger.debug("Database health check failed", exc_info=True)
-            reason = str(getattr(e, "orig", e)).split("\n", 1)[0].strip()
-            raise ConnectionError(f"Database health check failed: {reason}") from e
