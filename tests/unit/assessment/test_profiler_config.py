@@ -117,6 +117,36 @@ def test_invalid_type(invalid_type: str) -> None:
         )
 
 
+@pytest.mark.parametrize("optional", [True, False])
+def test_valid_optional(optional: bool) -> None:
+    """Test that boolean optional values are accepted."""
+    step = Step(
+        name="test_table",
+        type="sql",
+        extract_source="test.sql",
+        optional=optional,
+    )
+    assert step.optional is optional
+
+
+def test_optional_defaults_false() -> None:
+    """Test that optional defaults to False so existing steps stay required."""
+    step = Step(name="test_table", type="sql", extract_source="test.sql")
+    assert step.optional is False
+
+
+@pytest.mark.parametrize("invalid_optional", ["true", 1, None])
+def test_invalid_optional(invalid_optional: object) -> None:
+    """Test that non-boolean optional values are rejected."""
+    with pytest.raises(ValueError, match="Invalid optional value"):
+        Step(
+            name="test_table",
+            type="sql",
+            extract_source="test.sql",
+            optional=invalid_optional,  # type: ignore[arg-type]
+        )
+
+
 def test_step_copy_preserves_validation() -> None:
     """Test that copying a step preserves validation."""
     original = Step(

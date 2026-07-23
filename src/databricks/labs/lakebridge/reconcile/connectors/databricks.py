@@ -48,6 +48,9 @@ class DatabricksDataSource(DataSource):
 
     _IDENTIFIER_DELIMITER = "`"
 
+    # Temp-view sampling keeps the generated SQL small, so large sample sizes scale here.
+    max_sample_size: int = 50_000
+
     def __init__(
         self,
         engine: Dialect,

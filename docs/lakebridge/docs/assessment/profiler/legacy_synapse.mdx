@@ -20,14 +20,25 @@ For serverless SQL pools, Spark pools, and the Synapse workspace control plane, 
 
 ### 1. Download
 
-- **ODBC driver for SQL Server** — required for `pyodbc` to talk to the dedicated SQL pool. [Download](https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server?view=sql-server-ver18).
-- **(Windows only) Microsoft Visual C++ Redistributable (x64)** — required by `pyodbc` and the ODBC driver, both of which are native binaries linked against the MSVC runtime. [Download](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170).
+No driver installation is required: the profiler connects with Microsoft's
+[mssql-python](https://github.com/microsoft/mssql-python) driver, which bundles its own connectivity layer.
 
 ### 2. Authentication
 
-:::warning Attention:
-The profiler currently authenticates via **SQL Authentication** only. Please use a SQL login with MFA disabled.
+The profiler supports the following authentication modes (`configure-database-profiler` prompts for one):
+
+| Auth method | Description | MFA-capable |
+|---|---|---|
+| `SqlPassword` | SQL Authentication — username + password from credentials file | No |
+| `DefaultAzureCredential` | Entra ID via the Azure Identity credentials chain. Recommended for Azure-hosted targets | Yes |
+| `ActiveDirectoryPassword` | Entra ID (Azure AD) username + password | No |
+| `ActiveDirectoryServicePrincipal` | Service Principal — `AZURE_CLIENT_ID` / `AZURE_CLIENT_SECRET` env vars | No |
+
+:::warning
+For `ActiveDirectoryServicePrincipal`, set `AZURE_CLIENT_ID` and `AZURE_CLIENT_SECRET` env vars before running the profiler.
+For `DefaultAzureCredential`, run `az login` first; for unattended runs set `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, and `AZURE_CLIENT_SECRET`.
 :::
+
 
 ### 3. Required Database Permissions
 
@@ -149,16 +160,21 @@ Enter secret vault type (local | env)
 [0] env
 [1] local
 Enter a number between 0 and 1: 1
+Select authentication method
+[0] SqlPassword
+[1] DefaultAzureCredential
+[2] ActiveDirectoryPassword
+[3] ActiveDirectoryServicePrincipal
+Enter a number between 0 and 3: 0
+Enter the username: profiler_user
+Enter the password:
 Enter fetch size (default: 1000):
 Enter login timeout (seconds) (default: 30):
 Enter the fully-qualified server name: my-dw-server.database.windows.net
 Enter the port details: 1433
 Enter the database name: my_pool
-Enter the SQL username: profiler_user
-Enter the SQL password:
 Trust server certificate (default: no):
 Enter timezone (e.g. America/New_York) (default: UTC):
-Enter the ODBC driver installed locally (default: ODBC Driver 18 for SQL Server):
 ```
 
 ### Configuration Parameters
@@ -166,16 +182,15 @@ Enter the ODBC driver installed locally (default: ODBC Driver 18 for SQL Server)
 | Parameter | Description | Default |
 |:----------|:------------|:--------|
 | **Secret vault type** | `local` for plain text values, `env` to read from environment variables | — |
+| **Authentication method** | One of the four modes in the table above | `SqlPassword` |
+| **Username / Password** | Required for `SqlPassword` and `ActiveDirectoryPassword`. Skipped for `DefaultAzureCredential` and `ActiveDirectoryServicePrincipal`. | — |
 | **Fetch size** | Number of rows fetched per batch from the source | `1000` |
 | **Login timeout** | Connection timeout in seconds | `30` |
 | **Server name** | Fully-qualified hostname of the dedicated SQL pool | — |
 | **Port** | Server port number | — |
 | **Database** | The dedicated SQL pool name to connect to. Dedicated pools do not have a `master` database, so this must be set to the pool you want to profile. | — |
-| **SQL username** | SQL Authentication username | — |
-| **SQL password** | SQL Authentication password (hidden input) | — |
 | **Trust server certificate** | Skip TLS certificate validation when connecting. Leave as `no` for Azure-hosted dedicated SQL pools, which present valid certificates. | `no` |
 | **Timezone** | Timezone for timestamp normalization | `UTC` |
-| **ODBC driver** | Locally installed ODBC driver name | `ODBC Driver 18 for SQL Server` |
 
 ## Execute the Profiler
 

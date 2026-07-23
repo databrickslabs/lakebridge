@@ -13,12 +13,41 @@ from databricks.labs.lakebridge.connections.credential_manager import (
     cred_file as creds,
     create_credential_manager,
 )
-from databricks.labs.lakebridge.connections.database_manager import DatabaseManager
+from databricks.labs.lakebridge.connections.database_manager import create_connector
+from databricks.labs.lakebridge.connections.mssql_auth import AUTH_CHOICES
 from databricks.labs.lakebridge.connections.env_getter import EnvGetter
 from databricks.labs.lakebridge.connections.synapse_connection_helpers import validate_synapse_pools
 from databricks.labs.lakebridge.connections.bigquery_connection_helpers import validate_bigquery_pairs
 
 logger = logging.getLogger(__name__)
+
+
+def _prompt_mssql_auth_credentials(prompts: Prompts, auth_type: str) -> dict[str, str]:
+    """Prompt for the credential fields required by the chosen MSSQL auth strategy.
+
+    Returns a partial config dict to merge into the source's credential section.
+    Field names match what `MSSQLConnector` / `synapse_connection_helpers` consume.
+    """
+    if auth_type in {"SqlPassword", "ActiveDirectoryPassword"}:
+        return {
+            "user": prompts.question("Enter the username"),
+            "password": prompts.password("Enter the password"),
+        }
+    if auth_type == "ActiveDirectoryServicePrincipal":
+        logger.info(
+            "ActiveDirectoryServicePrincipal selected. "
+            "Ensure AZURE_CLIENT_ID and AZURE_CLIENT_SECRET are set as environment variables "
+            "before running the profiler."
+        )
+        return {}
+    if auth_type == "DefaultAzureCredential":
+        logger.info(
+            "DefaultAzureCredential selected. The driver resolves the identity via the "
+            "DefaultAzureCredential chain: run `az login` before the profiler, or set "
+            "AZURE_TENANT_ID / AZURE_CLIENT_ID / AZURE_CLIENT_SECRET for unattended runs."
+        )
+        return {}
+    return {}
 
 
 def _save_to_disk(credential: dict, cred_file: Path) -> None:
@@ -54,9 +83,9 @@ class AssessmentConfigurator(ABC):
         logger.info("Connection to the source system successful")
 
     def _check_connection(self, raw_config: dict) -> None:
-        """Default check: open a ``DatabaseManager`` connection and run a health check."""
-        with DatabaseManager(self._source_name, raw_config) as db_manager:
-            if not db_manager.check_connection():
+        """Default check: open a connection and run a health check."""
+        with create_connector(self._source_name, raw_config) as connector:
+            if not connector.health_check():
                 raise ConnectionError(f"Connection to {self._source_name} failed")
 
     def run(self):
@@ -121,24 +150,32 @@ class ConfigureSqlServerAssessment(AssessmentConfigurator):
         secret_vault_type = str(self.prompts.choice("Enter secret vault type (local | env)", ["local", "env"])).lower()
         secret_vault_name = None
 
+        auth_choices = [cls.__name__ for cls in AUTH_CHOICES]
+        auth_type = self.prompts.choice("Select authentication method", auth_choices, sort=False)
+        auth_credentials = _prompt_mssql_auth_credentials(self.prompts, auth_type)
+
+        credential_section: dict = {
+            "auth_type": auth_type,
+            **auth_credentials,
+            "fetch_size": self.prompts.question("Enter fetch size", default="1000", valid_number=True),
+            "login_timeout": self.prompts.question("Enter login timeout (seconds)", default="30", valid_number=True),
+            "server": self.prompts.question("Enter the fully-qualified server name"),
+            "port": int(self.prompts.question("Enter the port details", default="1433", valid_number=True)),
+            # mssql: `*` profiles every accessible database (on-prem / Managed Instance); a name scopes
+            # to that one database. legacy_synapse (shares this configurator) needs the dedicated-pool name.
+            "database": (
+                self.prompts.question("Enter the database name (* = all databases)")
+                if source == "mssql"
+                else self.prompts.question("Enter the dedicated pool name")
+            ),
+            "trust_server_certificate": self.prompts.confirm("Trust server certificate"),
+            "tz_info": self.prompts.question("Enter timezone (e.g. America/New_York)", default="UTC"),
+        }
+
         credential = {
             "secret_vault_type": secret_vault_type,
             "secret_vault_name": secret_vault_name,
-            source: {
-                "auth_type": "sql_authentication",
-                "fetch_size": self.prompts.question("Enter fetch size", default="1000"),
-                "login_timeout": self.prompts.question("Enter login timeout (seconds)", default="30"),
-                "server": self.prompts.question("Enter the fully-qualified server name"),
-                "port": int(self.prompts.question("Enter the port details", valid_number=True)),
-                "database": self.prompts.question("Enter the database name"),
-                "user": self.prompts.question("Enter the SQL username"),
-                "password": self.prompts.password("Enter the SQL password"),
-                "trust_server_certificate": self.prompts.confirm("Trust server certificate"),
-                "tz_info": self.prompts.question("Enter timezone (e.g. America/New_York)", default="UTC"),
-                "driver": self.prompts.question(
-                    "Enter the ODBC driver installed locally", default="ODBC Driver 18 for SQL Server"
-                ),
-            },
+            source: credential_section,
         }
 
         _save_to_disk(credential, cred_file)
@@ -251,36 +288,24 @@ class ConfigureSynapseAssessment(AssessmentConfigurator):
         secret_vault_type = str(self.prompts.choice("Enter secret vault type (local | env)", ["local", "env"])).lower()
         secret_vault_name = None
 
+        # Authentication
+        auth_choices = [cls.__name__ for cls in AUTH_CHOICES]
+        auth_type = self.prompts.choice("Select authentication method", auth_choices, sort=False)
+        auth_credentials = _prompt_mssql_auth_credentials(self.prompts, auth_type)
+
         # Synapse Workspace Settings
         logger.info("Please provide Synapse Workspace settings:")
         workspace_name = self.prompts.question("Enter Synapse workspace name")
-        synapse_workspace = {
+        synapse_workspace: dict = {
             "name": workspace_name,
             "dedicated_sql_endpoint": f"{workspace_name}.sql.azuresynapse.net",
             "serverless_sql_endpoint": f"{workspace_name}-ondemand.sql.azuresynapse.net",
-            "sql_user": self.prompts.question("Enter SQL user"),
-            "sql_password": self.prompts.password("Enter SQL password"),
-            "tz_info": self.prompts.question("Enter timezone (e.g. America/New_York)", default="UTC"),
-            "driver": self.prompts.question(
-                "Enter the ODBC driver installed locally", default="ODBC Driver 18 for SQL Server"
-            ),
-        }
-
-        # Azure API Access Settings
-        logger.info("Please provide Azure access settings:")
-        # Users use az cli to login to their Azure account and we just need the endpoint
-        azure_api_access = {"development_endpoint": self.prompts.question("Enter development endpoint")}
-
-        # JDBC Settings
-        logger.info("Please select JDBC authentication type:")
-        auth_type = self.prompts.choice(
-            "Select authentication type", ["sql_authentication", "ad_passwd_authentication", "spn_authentication"]
-        )
-
-        synapse_jdbc = {
+            "development_endpoint": self.prompts.question("Enter development endpoint"),
             "auth_type": auth_type,
+            **auth_credentials,
             "fetch_size": self.prompts.question("Enter fetch size", default="1000"),
             "login_timeout": self.prompts.question("Enter login timeout (seconds)", default="30"),
+            "tz_info": self.prompts.question("Enter timezone (e.g. America/New_York)", default="UTC"),
         }
 
         # Profiler Settings
@@ -298,8 +323,6 @@ class ConfigureSynapseAssessment(AssessmentConfigurator):
             "secret_vault_name": secret_vault_name,
             source: {
                 "workspace": synapse_workspace,
-                "azure_api_access": azure_api_access,
-                "jdbc": synapse_jdbc,
                 "profiler": synapse_profiler,
             },
         }

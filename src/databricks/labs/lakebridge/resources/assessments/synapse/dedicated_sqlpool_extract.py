@@ -30,7 +30,8 @@ def execute():
     cred_manager = create_credential_manager(PRODUCT_NAME, EnvGetter(), creds_file)
     synapse_workspace_settings = cred_manager.get_credentials("synapse")
     config = synapse_workspace_settings["workspace"]
-    auth_type = synapse_workspace_settings["jdbc"].get("auth_type", "sql_authentication")
+    workspace_name = config["name"]
+    auth_type = synapse_workspace_settings["workspace"].get("auth_type", "SqlPassword")
     synapse_profiler_settings = synapse_workspace_settings["profiler"]
 
     tz_info = synapse_workspace_settings["workspace"]["tz_info"]
@@ -107,7 +108,7 @@ def execute():
 
             # storage_info
             table_name = "dedicated_storage_info"
-            storage_info_query = SynapseQueries.get_db_storage_info(pool_name)
+            storage_info_query = SynapseQueries.get_db_storage_info(pool_name, workspace_name)
             logger.info(f"Loading '{table_name}' for pool: %s", pool_name)
             result = connection.fetch(storage_info_query)
             save_to_duckdb(result.to_df(), table_name, db_path, mode=mode, schema=SYNAPSE_SCHEMAS[table_name])
@@ -132,7 +133,7 @@ def execute():
             table_name = "dedicated_sessions"
             prev_max_login_time = get_max_column_value_duckdb("login_time", table_name, db_path)
             session_query = SynapseQueries.list_dedicated_sessions(
-                pool_name=sqlpool_name, last_login_time=prev_max_login_time
+                pool_name=sqlpool_name, workspace_name=workspace_name, last_login_time=prev_max_login_time
             )
 
             session_result = connection.fetch(session_query)
@@ -142,7 +143,9 @@ def execute():
 
             table_name = "dedicated_session_requests"
             prev_max_end_time = get_max_column_value_duckdb("end_time", table_name, db_path)
-            session_request_query = SynapseQueries.list_dedicated_requests(sqlpool_name, prev_max_end_time)
+            session_request_query = SynapseQueries.list_dedicated_requests(
+                sqlpool_name, workspace_name, prev_max_end_time
+            )
 
             session_request_result = connection.fetch(session_request_query)
             save_to_duckdb(

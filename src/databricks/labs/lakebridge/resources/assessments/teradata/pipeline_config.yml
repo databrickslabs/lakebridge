@@ -104,3 +104,31 @@ steps:
     mode: overwrite
     frequency: once
     flag: active
+
+  - name: td_pdcr_info_agg_extract
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/teradata/pdcr/td_pdcr_info_agg_extract_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: td_pdcr_info_agg_extract
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/teradata/pdcr/td_pdcr_info_agg_extract.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+
+  - name: td_pdcr_sp_exe_info_agg_extract
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/teradata/pdcr/td_pdcr_sp_exe_info_agg_extract_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: td_pdcr_sp_exe_info_agg_extract
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/teradata/pdcr/td_pdcr_sp_exe_info_agg_extract.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true

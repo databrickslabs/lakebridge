@@ -3,7 +3,8 @@
  * database by querying INFORMATION_SCHEMA.COLUMNS. Returns column attributes
  * along with a timestamp indicating when the data was extracted.
  */
-SELECT table_catalog,
+SELECT DB_NAME() AS database_name,
+       table_catalog,
        table_schema,
        table_name,
        column_name,
