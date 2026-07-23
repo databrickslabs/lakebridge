@@ -1,1 +1,1 @@
-SELECT * FROM non_existent_table;
+SELCT 1;

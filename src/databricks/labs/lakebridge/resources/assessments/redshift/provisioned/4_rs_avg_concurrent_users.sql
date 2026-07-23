@@ -4,5 +4,5 @@ with base as (select count(distinct userid) as distinct_users, date_part(hour,st
                 group by 2
                 order by 2)
 select 'rs_avg_concurrent_users' set_name
-      ,round(avg(distinct_users),0) avg_concurrent_users from base
+      ,round(avg(distinct_users),0)::double precision avg_concurrent_users from base
 ;

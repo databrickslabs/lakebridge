@@ -1,6 +1,10 @@
 import mssql_python
 import pytest
 from unittest.mock import MagicMock, patch
+
+import pytest
+from sqlalchemy.exc import OperationalError
+
 from databricks.labs.blueprint.installation import JsonObject
 from databricks.labs.lakebridge.connections.database_manager import create_connector, MSSQLConnector
 
@@ -18,7 +22,6 @@ def test_create_connector_unsupported_db_type() -> None:
         create_connector("unsupported_db", sample_config)
 
 
-# Test case for MSSQLConnector
 @patch('databricks.labs.lakebridge.connections.database_manager.MSSQLConnector')
 def test_mssql_connector(mock_mssql_connector) -> None:
     mock_connector_instance = MagicMock()
@@ -30,7 +33,6 @@ def test_mssql_connector(mock_mssql_connector) -> None:
     mock_mssql_connector.assert_called_once_with(sample_config)
 
 
-# Test case for legacy_synapse (Azure Synapse dedicated SQL pool — dispatches to MSSQLConnector)
 @patch('databricks.labs.lakebridge.connections.database_manager.MSSQLConnector')
 def test_legacy_synapse_connector(mock_mssql_connector) -> None:
     mock_connector_instance = MagicMock()
