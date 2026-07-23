@@ -238,6 +238,24 @@ Verify:
 databricks labs lakebridge reconcile --help
 ```
 
+:::note Upgrading from an older Reconcile schema
+Upgrading Lakebridge migrates the reconcile `details` and `aggregate_details`
+metadata tables to a new schema. The original tables are preserved as
+`<catalog>.<schema>.details_backup` and `aggregate_details_backup`, so the raw
+rows are never lost.
+
+The migration is not automatically resumable. If it fails midway, rerun the
+upgrade after restoring the original tables manually:
+
+- If `details` no longer exists, rename the backup back and rerun:
+  `ALTER TABLE <catalog>.<schema>.details_backup RENAME TO <catalog>.<schema>.details`
+- If a new (empty or partial) `details` was already created, drop it, rename the
+  backup back as above, then rerun.
+
+Apply the same steps to `aggregate_details` / `aggregate_details_backup`. Once
+the migrated tables are verified, the `*_backup` tables can be dropped.
+:::
+
 ---
 
 ## Service Principal Setup (Optional)
