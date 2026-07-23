@@ -128,7 +128,6 @@ class PipelineClass:
         result = self.executor.fetch(query)
         self._save_to_db(result, step.name, str(step.mode))
 
-
     def _execute_source_ddl_step(self, step: Step):
         """Run a no-result DDL statement against the *source* database (one statement per file).
 

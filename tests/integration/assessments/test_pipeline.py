@@ -113,7 +113,7 @@ def test_run_sql_failure_pipeline(
 
 
 def test_run_optional_absence_pipeline(
-    sandbox_sqlserver: DatabaseManager,
+    sandbox_sqlserver: DatabaseConnector,
     optional_absence_config: PipelineConfig,
     tmp_path: Path,
 ) -> None:

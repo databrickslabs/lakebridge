@@ -16,7 +16,6 @@ from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm.session import Session
 import mssql_python
 import redshift_connector  # type: ignore[import-untyped]
-from redshift_connector import error as redshift_error
 
 from databricks.labs.blueprint.installation import JsonObject
 from databricks.labs.lakebridge.connections.mssql_auth import resolve_mssql_credentials
@@ -31,9 +30,6 @@ from databricks.labs.lakebridge.connections.snowflake_utils import (
 importlib.import_module("snowflake.sqlalchemy")
 
 logger = logging.getLogger(__name__)
-
-# Driver failures we normalize to ConnectionError so callers (pipeline, CLI) see one type.
-_SOURCE_QUERY_ERRORS = (SQLAlchemyError, ConnectionError, redshift_error.Error)
 
 
 @dataclasses.dataclass

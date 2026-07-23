@@ -2,8 +2,6 @@ import mssql_python
 import pytest
 from unittest.mock import MagicMock, patch
 
-import pytest
-from sqlalchemy.exc import OperationalError
 
 from databricks.labs.blueprint.installation import JsonObject
 from databricks.labs.lakebridge.connections.database_manager import create_connector, MSSQLConnector
