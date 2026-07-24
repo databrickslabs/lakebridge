@@ -177,6 +177,12 @@ def recon_metadata(spark, recon_schema, make_volume, report_tables_schema) -> Re
     spark.createDataFrame(data=[], schema=main_schema).write.saveAsTable(f"{prefix}.MAIN")
     spark.createDataFrame(data=[], schema=metrics_schema).write.saveAsTable(f"{prefix}.METRICS")
     spark.createDataFrame(data=[], schema=details_schema).write.saveAsTable(f"{prefix}.DETAILS")
+    spark.sql(
+        f"CREATE TABLE IF NOT EXISTS {prefix}.SCHEMA_DETAILS ("
+        "recon_table_id BIGINT NOT NULL, source_column STRING, source_datatype STRING, "
+        "databricks_column STRING, databricks_datatype STRING, is_valid BOOLEAN, "
+        "inserted_ts TIMESTAMP NOT NULL)"
+    )
 
     volume = make_volume(catalog_name=recon_schema.catalog_name, schema_name=recon_schema.name, name=recon_schema.name)
     return ReconcileMetadataConfig(catalog=recon_schema.catalog_name, schema=recon_schema.name, volume=volume.name)
