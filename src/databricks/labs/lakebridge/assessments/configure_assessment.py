@@ -173,12 +173,7 @@ class ConfigureSqlServerAssessment(AssessmentConfigurator):
 
 
 class ConfigureLegacySynapseAssessment(AssessmentConfigurator):
-    """Azure Synapse dedicated SQL pool (`legacy_synapse`) assessment configuration.
-
-    Uses the same SQL Server connection knobs, but targets a single dedicated pool and
-    additionally collects the Azure coordinates needed for the Azure Monitor
-    utilization-metrics extract.
-    """
+    """Azure Synapse dedicated SQL pool (`legacy_synapse`) assessment configuration."""
 
     def _configure_credentials(self) -> None:
         cred_file = self._credential_file
@@ -194,9 +189,6 @@ class ConfigureLegacySynapseAssessment(AssessmentConfigurator):
         auth_type = self.prompts.choice("Select authentication method", auth_choices, sort=False)
         auth_credentials = _prompt_mssql_auth_credentials(self.prompts, auth_type)
 
-        # A standalone dedicated pool has no Synapse control plane to hand back its ARM
-        # resource id, so we build it from subscription + resource group (server = FQDN
-        # first label, database = pool name). Azure Monitor access is required for metrics.
         logger.info(
             "Azure Monitor access is required to collect CPU/DWU utilization metrics. "
             "The identity resolved by your selected authentication method needs the "

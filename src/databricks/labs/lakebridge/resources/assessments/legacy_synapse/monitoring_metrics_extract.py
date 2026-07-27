@@ -66,13 +66,9 @@ def execute(
             metrics_df.insert(loc=0, column="pool_name", value=settings["database"])
         save_to_duckdb(metrics_df, "metrics_dedicated_pool_metrics", db_path)
 
-        # pipeline._run_python_script parses the LAST stdout line as the step's JSON result,
-        # so the success payload must be printed to stdout (not logged) to be seen as success.
         print(json.dumps({"status": "success", "message": "Data loaded successfully"}))
 
     except Exception as e:
-        # No stdout payload on failure: the non-zero exit code fails the step, and the pipeline
-        # reports the error from the logs.
         logger.error(f"Failed to extract Legacy Synapse Monitoring Metrics: {str(e)}")
         sys.exit(1)
 
