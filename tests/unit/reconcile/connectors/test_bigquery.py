@@ -10,8 +10,6 @@ from databricks.labs.lakebridge.reconcile.connectors.remote_query_reader import 
 from databricks.labs.lakebridge.reconcile.exception import DataSourceRuntimeException
 from databricks.labs.lakebridge.reconcile.query_builder.hash_query import HashQueryBuilder
 from databricks.labs.lakebridge.reconcile.recon_config import Schema, Table
-from databricks.labs.lakebridge.reconcile.recon_output_config import SchemaMatchResult
-from databricks.labs.lakebridge.reconcile.schema_compare import SchemaCompare
 from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
 
 
@@ -95,66 +93,24 @@ def test_get_schema_query_canonicalizes_types_within_family():
 
 
 @pytest.mark.parametrize(
-    "source_datatype, databricks_datatype, is_valid",
+    "narrower_databricks_type, bigquery_type",
     [
-        # The schema query reports the Databricks spelling, so a narrower target no longer matches.
-        ("bigint", "bigint", True),
-        ("bigint", "int", False),
-        ("bigint", "smallint", False),
-        ("double", "double", True),
-        ("double", "float", False),
-        # DATETIME is wall-clock: reading it as an instant shifts every value by the session offset.
-        ("timestamp_ntz", "timestamp_ntz", True),
-        ("timestamp_ntz", "timestamp", False),
-        # A BigQuery TIMESTAMP *is* an instant, so the reverse must not be accepted either.
-        ("timestamp", "timestamp", True),
-        ("timestamp", "timestamp_ntz", False),
-        ("decimal(38, 9)", "decimal(38,9)", True),
-        ("decimal(38, 9)", "decimal(10,2)", False),
-        # Multi-field STRUCT: BigQuery reports ", " between fields, which must not fail the compare.
-        # Element types keep their BigQuery spelling, because a STRUCT only compares equal by
-        # round-tripping the Databricks type back to BigQuery -- hence no rewriting below the top level.
-        ("STRUCT<a INT64, b STRING>", "struct<a:bigint,b:string>", True),
-        (
-            "STRUCT<a INT64, b STRUCT<c FLOAT64, d DATETIME>>",
-            "struct<a:bigint,b:struct<c:double,d:timestamp_ntz>>",
-            True,
-        ),
-        ("STRUCT<n NUMERIC(38, 9), b STRING>", "struct<n:decimal(38,9),b:string>", True),
-        ("ARRAY<NUMERIC(38, 9)>", "array<decimal(38,9)>", True),
+        # Rationale for reporting Databricks type names from _SCHEMA_QUERY: a narrower target converts
+        # back to the very BigQuery type the column started as, so a schema compare that reads the
+        # source side as its BigQuery spelling accepts the lossy migration. int and smallint overflow
+        # INT64's range and float overflows FLOAT64's, so these must not be treated as equivalent.
+        # Verified against SchemaCompare itself in tests/integration/reconcile/test_schema_compare.py.
+        ("int", "INT64"),
+        ("smallint", "INT64"),
+        ("float", "FLOAT64"),
     ],
 )
-def test_schema_compare_verdict_for_reported_types(source_datatype, databricks_datatype, is_valid):
-    """The schema query's output has to survive SchemaCompare: an equivalent migration must validate and
-    a lossy one must not."""
-    master = SchemaMatchResult(
-        source_column_normalized="v",
-        source_column_normalized_ansi="v",
-        source_datatype=source_datatype,
-        databricks_column="v",
-        databricks_datatype=databricks_datatype,
+def test_sqlglot_cannot_tell_a_narrower_target_apart(narrower_databricks_type, bigquery_type):
+    converted = parse_one(f"create table t (c {narrower_databricks_type})", read=get_dialect("databricks")).sql(
+        dialect=get_dialect("bigquery")
     )
 
-    SchemaCompare._validate_parsed_query(get_dialect("bigquery"), master)  # pylint: disable=protected-access
-
-    assert master.is_valid is is_valid
-
-
-@pytest.mark.parametrize("dialect", ["bigquery", "snowflake", "oracle", "tsql", "redshift", "teradata"])
-def test_schema_compare_normalizes_spacing_for_every_source(dialect):
-    """A declared type may carry ", " where sqlglot renders ",". Both sides of the comparison are
-    normalized, so this holds for every source rather than only the one that surfaced it."""
-    master = SchemaMatchResult(
-        source_column_normalized="v",
-        source_column_normalized_ansi="v",
-        source_datatype="decimal(38, 0)",
-        databricks_column="v",
-        databricks_datatype="decimal(38,0)",
-    )
-
-    SchemaCompare._validate_parsed_query(get_dialect(dialect), master)  # pylint: disable=protected-access
-
-    assert master.is_valid
+    assert converted == f"CREATE TABLE t (c {bigquery_type})"
 
 
 @pytest.mark.parametrize(

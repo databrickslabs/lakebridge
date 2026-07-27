@@ -602,6 +602,33 @@ def test_bigquery_schema_compare(schemas, spark):
     }
 
 
+def test_bigquery_schema_compare_rejects_lossy_targets(spark):
+    """A target in the same sqlglot category but of a narrower type is not an equivalent migration:
+    int/smallint overflow BigQuery's INT64 range, float overflows FLOAT64, and reading a DATETIME as an
+    instant shifts every wall-clock value by the session offset."""
+    lossy = [
+        ("col_int64", "bigint", "int"),
+        ("col_int64_small", "bigint", "smallint"),
+        ("col_float64", "double", "float"),
+        ("col_datetime", "timestamp_ntz", "timestamp"),
+        ("col_timestamp", "timestamp", "timestamp_ntz"),
+        ("col_numeric", "decimal(38, 9)", "decimal(10,2)"),
+    ]
+    src_schema = [schema_fixture_factory(name, src) for name, src, _ in lossy]
+    tgt_schema = [schema_fixture_factory(name, tgt) for name, _, tgt in lossy]
+    table_conf = Table(source_name="supplier", target_name="supplier")
+
+    schema_compare_output = SchemaCompare(spark).compare(
+        src_schema,
+        tgt_schema,
+        get_dialect("bigquery"),
+        table_conf,
+    )
+
+    assert not schema_compare_output.is_valid
+    assert schema_compare_output.compare_df.filter("is_valid = 'true'").count() == 0
+
+
 def test_redshift_schema_compare(schemas, spark):
     src_schema, tgt_schema = schemas["redshift_databricks_schema"]
     table_conf = Table(
