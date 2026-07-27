@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from decimal import Decimal
 from pathlib import Path
 
 import duckdb
@@ -74,15 +75,15 @@ def test_overwrite_zero_column_dataframe_skips_without_error(tmp_path: Path) -> 
     assert "workspace_sql_pools" not in tables
 
 
-def test_overwrite_zero_column_dataframe_truncates_existing_table(tmp_path: Path) -> None:
+def test_overwrite_zero_column_dataframe_drops_existing_table(tmp_path: Path) -> None:
     db_path = str(tmp_path / "t.duckdb")
     save_to_duckdb(pd.DataFrame({"id": [1]}), "t1", db_path)
 
     save_to_duckdb(pd.DataFrame(), "t1", db_path)
 
-    out = _read_table(db_path, "t1")
-    assert out.empty
-    assert list(out.columns) == ["id"]
+    with duckdb.connect(db_path) as conn:
+        tables = conn.execute("SHOW TABLES").fetchdf()["name"].tolist()
+    assert "t1" not in tables
 
 
 def test_overwrite_empty_dataframe_with_schema_creates_empty_table(tmp_path: Path) -> None:
@@ -145,19 +146,24 @@ def test_append_with_explicit_schema_survives_dtype_drift(tmp_path: Path) -> Non
     assert out["login_time"].tolist() == [None, None, "2025-01-01", "2025-01-02"]
 
 
-def test_overwrite_without_schema_truncates_when_table_exists(tmp_path: Path) -> None:
-    """Existing DDL-declared column types should survive an overwrite without ``schema``."""
+def test_overwrite_without_schema_replaces_table_and_types(tmp_path: Path) -> None:
+    """Overwrite replaces the relation so types follow the latest data, not a prior CTAS.
+
+    Guards the Redshift-style failure: a first write of tiny Decimal values freezes a
+    narrow DECIMAL(p,s); a same-day overwrite with larger values must succeed.
+    """
     db_path = str(tmp_path / "t.duckdb")
-    with duckdb.connect(db_path) as conn:
-        conn.execute("CREATE TABLE t1 (id BIGINT, label VARCHAR)")
-        conn.execute("INSERT INTO t1 VALUES (1, 'old')")
+    save_to_duckdb(pd.DataFrame({"sum_cpu_time": [Decimal("0.00001234")]}), "t1", db_path)
 
-    save_to_duckdb(pd.DataFrame({"id": [2], "label": ["new"]}), "t1", db_path)
+    types_after_first = _column_types(db_path, "t1")
+    assert "DECIMAL" in types_after_first["sum_cpu_time"]
 
-    types = _column_types(db_path, "t1")
-    assert types == {"id": "BIGINT", "label": "VARCHAR"}
+    save_to_duckdb(pd.DataFrame({"sum_cpu_time": [Decimal("648")]}), "t1", db_path)
+
     out = _read_table(db_path, "t1")
-    assert out["label"].tolist() == ["new"]
+    assert out["sum_cpu_time"].tolist() == [Decimal("648")]
+    types_after_second = _column_types(db_path, "t1")
+    assert types_after_second["sum_cpu_time"] != types_after_first["sum_cpu_time"]
 
 
 def test_invalid_mode_raises(tmp_path: Path) -> None:
