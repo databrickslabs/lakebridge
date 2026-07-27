@@ -12,6 +12,7 @@ from databricks.labs.lakebridge.reconcile.connectors.snowflake import SnowflakeD
 from databricks.labs.lakebridge.reconcile.exception import InvalidInputException
 from databricks.labs.lakebridge.reconcile.query_builder.expression_generator import (
     DataType_transform_mapping,
+    bigquery_decimal_transform,
     transform_expression,
     build_column,
 )
@@ -140,7 +141,13 @@ class QueryBuilder(ABC):
 
             parsed = datatype
             try:
-                parsed = exp.DataType.build(datatype, source).this.value
+                built = exp.DataType.build(datatype, source)
+                parsed = built.this.value
+                if source_dialect == "bigquery":
+                    # DECIMAL needs the declared scale, which `parsed` discards.
+                    scaled_transform = bigquery_decimal_transform(built)
+                    if scaled_transform is not None:
+                        return scaled_transform
             except sqlglot.errors.ParseError:
                 logger.warning(f"Could not parse datatype {datatype} for source {source_dialect}")
 

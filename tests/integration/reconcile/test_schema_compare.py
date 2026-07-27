@@ -354,19 +354,27 @@ def teradata_databricks_schema():
 
 
 def bigquery_databricks_schema():
+    # Source types are what BigQueryDataSource._SCHEMA_QUERY reports, not the raw INFORMATION_SCHEMA
+    # value: top-level scalars come back in their Databricks spelling, while types nested in
+    # ARRAY/STRUCT keep the BigQuery spelling. Targets are Databricks `full_data_type`, which has no
+    # space after a struct field's colon.
     src_schema = [
-        schema_fixture_factory("col_int64", "int64"),
-        schema_fixture_factory("col_float64", "float64"),
+        schema_fixture_factory("col_int64", "bigint"),
+        schema_fixture_factory("col_float64", "double"),
         schema_fixture_factory("col_bool", "bool"),
         schema_fixture_factory("col_string", "string"),
         schema_fixture_factory("col_bytes", "bytes"),
         schema_fixture_factory("col_date", "date"),
-        schema_fixture_factory("col_datetime", "datetime"),
+        schema_fixture_factory("col_datetime", "timestamp_ntz"),
         schema_fixture_factory("col_timestamp", "timestamp"),
         schema_fixture_factory("col_numeric_ps", "numeric(10, 2)"),
         schema_fixture_factory("col_geography", "geography"),
         schema_fixture_factory("col_array_int", "array<int64>"),
         schema_fixture_factory("col_struct_int", "struct<a int64>"),
+        schema_fixture_factory("col_struct_multi", "struct<a int64, b string, c float64>"),
+        schema_fixture_factory("col_struct_nested", "struct<a int64, b struct<c float64, d datetime>>"),
+        schema_fixture_factory("col_array_numeric", "array<numeric(38, 9)>"),
+        schema_fixture_factory("col_struct_numeric", "struct<n numeric(38, 9), b string>"),
         schema_fixture_factory("col_numeric", "decimal(38, 9)"),
         schema_fixture_factory("col_bignumeric", "bignumeric"),
         schema_fixture_factory("col_json", "variant"),
@@ -388,15 +396,21 @@ def bigquery_databricks_schema():
         schema_fixture_factory("col_numeric_ps", "decimal(10,2)"),
         schema_fixture_factory("col_geography", "geography"),
         schema_fixture_factory("col_array_int", "array<bigint>"),
-        schema_fixture_factory("col_struct_int", "struct<a: bigint>"),
+        schema_fixture_factory("col_struct_int", "struct<a:bigint>"),
+        schema_fixture_factory("col_struct_multi", "struct<a:bigint,b:string,c:double>"),
+        schema_fixture_factory("col_struct_nested", "struct<a:bigint,b:struct<c:double,d:timestamp_ntz>>"),
+        schema_fixture_factory("col_array_numeric", "array<decimal(38,9)>"),
+        schema_fixture_factory("col_struct_numeric", "struct<n:decimal(38,9),b:string>"),
         schema_fixture_factory("col_numeric", "decimal(38,9)"),
-        schema_fixture_factory("col_bignumeric", "decimal(38,9)"),
+        # BIGNUMERIC's precision of up to 76 digits exceeds Databricks' DECIMAL max of 38, so a
+        # lossless migration lands on string. Still reported as a mismatch: see _APPROXIMATE_TYPES.
+        schema_fixture_factory("col_bignumeric", "string"),
         schema_fixture_factory("col_json", "variant"),
         schema_fixture_factory("col_time", "string"),
         schema_fixture_factory("col_array_time", "array<string>"),
-        schema_fixture_factory("col_range_date", "struct<start: date, end: date>"),
-        schema_fixture_factory("col_range_datetime", "struct<start: timestamp_ntz, end: timestamp_ntz>"),
-        schema_fixture_factory("col_range_timestamp", "struct<start: timestamp, end: timestamp>"),
+        schema_fixture_factory("col_range_date", "struct<start:date,end:date>"),
+        schema_fixture_factory("col_range_datetime", "struct<start:timestamp_ntz,end:timestamp_ntz>"),
+        schema_fixture_factory("col_range_timestamp", "struct<start:timestamp,end:timestamp>"),
     ]
     return src_schema, tgt_schema
 
@@ -573,9 +587,19 @@ def test_bigquery_schema_compare(schemas, spark):
     )
     df = schema_compare_output.compare_df
     assert not schema_compare_output.is_valid
-    assert df.count() == 20
-    assert df.filter("is_valid = 'true'").count() == 14
+    assert df.count() == 24
+    assert df.filter("is_valid = 'true'").count() == 18
+    # The only remaining mismatches are the types with no Databricks equivalent, which
+    # BigQueryDataSource._APPROXIMATE_TYPES warns about: BIGNUMERIC, TIME, ARRAY<TIME> and the RANGEs.
     assert df.filter("is_valid = 'false'").count() == 6
+    assert {row.source_column for row in df.filter("is_valid = 'false'").collect()} == {
+        "col_bignumeric",
+        "col_time",
+        "col_array_time",
+        "col_range_date",
+        "col_range_datetime",
+        "col_range_timestamp",
+    }
 
 
 def test_redshift_schema_compare(schemas, spark):

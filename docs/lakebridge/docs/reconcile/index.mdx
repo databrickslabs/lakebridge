@@ -27,12 +27,14 @@ Lakebridge Reconcile validates data fidelity after migration by comparing your s
 | SQL Server | Yes | Yes | Yes | Yes |
 | Redshift | Yes | Yes | Yes | Yes |
 | Teradata | Yes | Yes [^teradata-hash] | Yes [^teradata-hash] | Yes [^teradata-hash] |
-| BigQuery | Yes [^bigquery-types] | Yes | Yes | Yes |
+| BigQuery | Yes [^bigquery-types] | Yes [^bigquery-float] | Yes [^bigquery-float] | Yes [^bigquery-float] |
 | Databricks | Yes | Yes | Yes | Yes |
 
 [^teradata-hash]: Teradata has no portable cryptographic hash in pure SQL, so row-hash report types (`row`, `data`, `all`) require a user-installed hash UDF on the source and an explicit `hash_expression_overrides.source` entry on the recon config. See [Hash Expression](/docs/reconcile/configuration#hash-expression) for wiring.
 
 [^bigquery-types]: BigQuery types with no equivalent in Databricks — `BIGNUMERIC`, `TIME`, `RANGE<T>`, nested `JSON` such as `ARRAY<JSON>`, or these nested inside `ARRAY`/`STRUCT` — are left as their original BigQuery type and may be reported as `schema` mismatches even when the data migrated correctly.
+
+[^bigquery-float]: `FLOAT64` columns whose magnitude falls outside roughly `1e-3` to `1e7` may be reported as row mismatches even when the data migrated correctly: Databricks renders such a value in scientific notation (`1.0E20`) and BigQuery has no format that reproduces it, so the two row hashes differ. Use `column_thresholds` for the column to compare it numerically, or supply your own `transformations` entry. Values inside that range, and all `NUMERIC`/`DECIMAL` columns, hash identically on both sides.
 
 ---
 

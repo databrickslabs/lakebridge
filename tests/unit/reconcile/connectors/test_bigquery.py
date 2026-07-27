@@ -10,6 +10,8 @@ from databricks.labs.lakebridge.reconcile.connectors.remote_query_reader import 
 from databricks.labs.lakebridge.reconcile.exception import DataSourceRuntimeException
 from databricks.labs.lakebridge.reconcile.query_builder.hash_query import HashQueryBuilder
 from databricks.labs.lakebridge.reconcile.recon_config import Schema, Table
+from databricks.labs.lakebridge.reconcile.recon_output_config import SchemaMatchResult
+from databricks.labs.lakebridge.reconcile.schema_compare import SchemaCompare
 from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
 
 
@@ -82,8 +84,77 @@ def test_get_schema_query_canonicalizes_types_within_family():
     # Same-family mappings for the types sqlglot can't bridge on its own.
     assert "when data_type = 'NUMERIC' then 'decimal(38, 9)'" in schema_query
     assert "when data_type = 'JSON' then 'variant'" in schema_query
+    # Pinned to the exact Databricks type so a narrower target is not accepted as equivalent.
+    assert "when data_type = 'INT64' then 'bigint'" in schema_query
+    assert "when data_type = 'FLOAT64' then 'double'" in schema_query
+    assert "when data_type = 'DATETIME' then 'timestamp_ntz'" in schema_query
+    # Nested NUMERIC gets its implied precision/scale, in BigQuery's own spelling.
+    assert "NUMERIC(38, 9)" in schema_query
     # BIGNUMERIC has no exact Databricks equivalent, so it passes through rather than truncating.
     assert "BIGNUMERIC" not in schema_query
+
+
+@pytest.mark.parametrize(
+    "source_datatype, databricks_datatype, is_valid",
+    [
+        # The schema query reports the Databricks spelling, so a narrower target no longer matches.
+        ("bigint", "bigint", True),
+        ("bigint", "int", False),
+        ("bigint", "smallint", False),
+        ("double", "double", True),
+        ("double", "float", False),
+        # DATETIME is wall-clock: reading it as an instant shifts every value by the session offset.
+        ("timestamp_ntz", "timestamp_ntz", True),
+        ("timestamp_ntz", "timestamp", False),
+        # A BigQuery TIMESTAMP *is* an instant, so the reverse must not be accepted either.
+        ("timestamp", "timestamp", True),
+        ("timestamp", "timestamp_ntz", False),
+        ("decimal(38, 9)", "decimal(38,9)", True),
+        ("decimal(38, 9)", "decimal(10,2)", False),
+        # Multi-field STRUCT: BigQuery reports ", " between fields, which must not fail the compare.
+        # Element types keep their BigQuery spelling, because a STRUCT only compares equal by
+        # round-tripping the Databricks type back to BigQuery -- hence no rewriting below the top level.
+        ("STRUCT<a INT64, b STRING>", "struct<a:bigint,b:string>", True),
+        (
+            "STRUCT<a INT64, b STRUCT<c FLOAT64, d DATETIME>>",
+            "struct<a:bigint,b:struct<c:double,d:timestamp_ntz>>",
+            True,
+        ),
+        ("STRUCT<n NUMERIC(38, 9), b STRING>", "struct<n:decimal(38,9),b:string>", True),
+        ("ARRAY<NUMERIC(38, 9)>", "array<decimal(38,9)>", True),
+    ],
+)
+def test_schema_compare_verdict_for_reported_types(source_datatype, databricks_datatype, is_valid):
+    """The schema query's output has to survive SchemaCompare: an equivalent migration must validate and
+    a lossy one must not."""
+    master = SchemaMatchResult(
+        source_column_normalized="v",
+        source_column_normalized_ansi="v",
+        source_datatype=source_datatype,
+        databricks_column="v",
+        databricks_datatype=databricks_datatype,
+    )
+
+    SchemaCompare._validate_parsed_query(get_dialect("bigquery"), master)  # pylint: disable=protected-access
+
+    assert master.is_valid is is_valid
+
+
+@pytest.mark.parametrize("dialect", ["bigquery", "snowflake", "oracle", "tsql", "redshift", "teradata"])
+def test_schema_compare_normalizes_spacing_for_every_source(dialect):
+    """A declared type may carry ", " where sqlglot renders ",". Both sides of the comparison are
+    normalized, so this holds for every source rather than only the one that surfaced it."""
+    master = SchemaMatchResult(
+        source_column_normalized="v",
+        source_column_normalized_ansi="v",
+        source_datatype="decimal(38, 0)",
+        databricks_column="v",
+        databricks_datatype="decimal(38,0)",
+    )
+
+    SchemaCompare._validate_parsed_query(get_dialect(dialect), master)  # pylint: disable=protected-access
+
+    assert master.is_valid
 
 
 @pytest.mark.parametrize(
@@ -122,27 +193,60 @@ def test_list_schemas_and_tables():
     assert "`proj.dataset`.INFORMATION_SCHEMA.TABLES" in reader.read_data.call_args.args[0]
 
 
-def test_hash_query_emits_bigquery_compatible_sql():
-    # Regression for the hash path: BigQuery needs a Dialect_hash_algo_mapping entry (else ValueError)
-    # and a cast-to-STRING transform (else CONCAT/TRIM fail on non-string columns).
-    engine, reader = initial_setup()
-    data_source = BigQueryDataSource(engine, reader)
-    cols = [("id", "int64"), ("amount", "decimal(38,9)"), ("name", "string")]
+def _build_hash_query(data_source, engine, cols):
     schema = []
     for name, dtype in cols:
         norm = data_source.normalize_identifier(name)
         schema.append(Schema(norm.ansi_normalized, dtype, norm.ansi_normalized, norm.source_normalized))
     table_conf = Table(source_name="t", target_name="t", join_columns=["id"])
+    return HashQueryBuilder(table_conf, schema, "source", engine, data_source).build_query("data")
 
-    query = HashQueryBuilder(table_conf, schema, "source", engine, data_source).build_query("data")
+
+def test_hash_query_emits_bigquery_compatible_sql():
+    # Regression for the hash path: BigQuery needs a Dialect_hash_algo_mapping entry (else ValueError)
+    # and a cast-to-STRING transform (else CONCAT/TRIM fail on non-string columns).
+    engine, reader = initial_setup()
+    data_source = BigQueryDataSource(engine, reader)
+
+    query = _build_hash_query(data_source, engine, [("id", "int64"), ("amount", "decimal(38,9)"), ("name", "string")])
 
     # hex-wrapped SHA-256 (matches Databricks sha2(...,256))
     assert "TO_HEX(SHA256(" in query
-    # every column cast to STRING for concatenation
+    # types without a dedicated transform are cast to STRING for concatenation
     assert "CAST(`id` AS STRING)" in query
-    assert "CAST(`amount` AS STRING)" in query
+    assert "CAST(`name` AS STRING)" in query
     # sqlglot renders the :tbl placeholder as @tbl for BigQuery — read_data handles both
     assert "@tbl" in query or ":tbl" in query
+
+
+def test_hash_query_formats_types_that_cast_differently_to_spark():
+    """BigQuery's CAST(... AS STRING) disagrees with Spark for these types, which changes the row hash:
+    it strips a decimal's trailing zeros, drops a whole FLOAT64's fractional part, and appends a UTC
+    offset to a TIMESTAMP. Verified equal against live BigQuery and Databricks."""
+    engine, reader = initial_setup()
+    data_source = BigQueryDataSource(engine, reader)
+
+    query = _build_hash_query(
+        data_source,
+        engine,
+        [
+            ("id", "bigint"),
+            ("amount", "decimal(38, 9)"),
+            ("pct", "decimal(10, 2)"),
+            ("score", "double"),
+            ("ts", "timestamp"),
+            ("dt", "timestamp_ntz"),
+        ],
+    )
+
+    # Scale is read from the column's own declared type, not a fixed default.
+    assert "FORMAT('%.9f', `amount`)" in query
+    assert "FORMAT('%.2f', `pct`)" in query
+    assert "FORMAT('%t', `score`)" in query
+    # %E*S emits only the fractional-second digits present, as Spark does; 'UTC' drops the +00 suffix.
+    assert "FORMAT_TIMESTAMP('%F %H:%M:%E*S', `ts`, 'UTC')" in query
+    assert "FORMAT_DATETIME('%F %H:%M:%E*S', `dt`)" in query
+    assert "CAST(`amount` AS STRING)" not in query
 
 
 def test_list_schemas_exception_handling():

@@ -25,7 +25,15 @@ class BigQueryDataSource(DataSource):
 
     Schema type handling
     ---------------------
-    * ``NUMERIC`` -> ``decimal(38, 9)`` (BigQuery's NUMERIC default precision/scale; same-family, exact).
+    The schema query reports each column as the Databricks type an equivalent migration produces, so
+    that schema compare flags a target that is merely in the same sqlglot category:
+
+    * ``INT64`` -> ``bigint``, ``FLOAT64`` -> ``double`` (otherwise ``int``/``float`` compare as equal
+      even though they overflow BigQuery's range).
+    * ``DATETIME`` -> ``timestamp_ntz`` (otherwise ``timestamp`` compares as equal, silently shifting
+      every wall-clock value by the session offset).
+    * ``NUMERIC`` -> ``decimal(38, 9)``, its implied precision/scale; nested ``NUMERIC`` becomes
+      ``NUMERIC(38, 9)``, which is what ``decimal(38, 9)`` round-trips to inside ``ARRAY``/``STRUCT``.
     * ``JSON`` -> ``variant`` (top-level columns only; nested ``JSON`` is left as-is — see below).
 
     Columns with no same-family Databricks equivalent (``TIME``, ``BIGNUMERIC`` — its precision of up
@@ -33,6 +41,12 @@ class BigQueryDataSource(DataSource):
     ``ARRAY<JSON>``, or any of these nested inside ``ARRAY``/``STRUCT``) are left as their original
     BigQuery type; ``get_schema`` logs a warning naming those columns so the user knows to verify them
     manually.
+
+    Row hashing
+    -----------
+    ``CAST(... AS STRING)`` does not agree with Spark for every type, and the row hash is built from
+    those strings. See ``DataType_transform_mapping["bigquery"]`` for the per-type formatting that
+    keeps the two sides equal, and its ``DOUBLE`` note for the one case that cannot be fully aligned.
     """
 
     _IDENTIFIER_DELIMITER = "`"
@@ -41,11 +55,25 @@ class BigQueryDataSource(DataSource):
 
     _LIST_SCHEMAS_QUERY = "select schema_name from `{catalog}`.INFORMATION_SCHEMA.SCHEMATA order by schema_name"
     _LIST_TABLES_QUERY = "select table_name from `{catalog}.{schema}`.INFORMATION_SCHEMA.TABLES order by table_name"
-    _SCHEMA_QUERY = """select column_name,
+    # Top-level scalars are pinned to their exact Databricks spelling so that schema compare rejects a
+    # narrower target: sqlglot maps INT64/INT/SMALLINT and FLOAT64/FLOAT to a single category each, so
+    # leaving the BigQuery spelling in place makes INT64 -> int and FLOAT64 -> float compare as equal.
+    #
+    # Nested types are handled differently. Inside ARRAY<...>/STRUCT<...> a match is only reached by
+    # round-tripping the Databricks type back to its BigQuery spelling, so an element rewritten to the
+    # Databricks name would never match. Bare NUMERIC is instead given its implied precision/scale --
+    # NUMERIC(38, 9) -- which is what decimal(38, 9) round-trips to. The `(` guard keeps an explicit
+    # NUMERIC(p, s) untouched, and requiring a preceding space avoids matching BIGNUMERIC.
+    _SCHEMA_QUERY = r"""select column_name,
                                   case
+                                        when data_type = 'INT64' then 'bigint'
+                                        when data_type = 'FLOAT64' then 'double'
+                                        when data_type = 'DATETIME' then 'timestamp_ntz'
                                         when data_type = 'NUMERIC' then 'decimal(38, 9)'
                                         when data_type = 'JSON' then 'variant'
-                                        else data_type
+                                        else regexp_replace(
+                                                data_type,
+                                                r'([ <])NUMERIC([,>])', r'\1NUMERIC(38, 9)\2')
                                   end as data_type
                                   from `{catalog}.{schema}`.INFORMATION_SCHEMA.COLUMNS
                                   where table_name = '{table}'
