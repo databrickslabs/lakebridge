@@ -9,7 +9,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from databricks.labs.lakebridge.assessments import SOURCE_SYSTEM_VARIANTS, AUTO
-from databricks.labs.lakebridge.connections.database_manager import DatabaseManager, ALL_DATABASES
+from databricks.labs.lakebridge.connections.database_manager import create_connector, ALL_DATABASES
 from databricks.labs.lakebridge.connections.credential_manager import create_credential_manager
 from databricks.labs.lakebridge.connections.env_getter import EnvGetter
 
@@ -36,9 +36,9 @@ def resolve_mssql_variant(cred_file_path: Path | None) -> str:
     if database and database != ALL_DATABASES:
         # The user picked a specific database -> profile only that one, regardless of edition.
         return "single_db"
-    with DatabaseManager("mssql", connect_config) as db_manager:
+    with create_connector("mssql", connect_config) as connector:
         # SERVERPROPERTY returns sql_variant, which pyodbc cannot fetch (ODBC type -16); CAST to int.
-        result = db_manager.fetch("SELECT CAST(SERVERPROPERTY('EngineEdition') AS INT) AS engine_edition")
+        result = connector.fetch("SELECT CAST(SERVERPROPERTY('EngineEdition') AS INT) AS engine_edition")
     engine_edition = int(result.rows[0][0])
     if engine_edition == SQLSERVER_AZURE_SQL_DB_ENGINE_EDITION:
         raise ValueError(

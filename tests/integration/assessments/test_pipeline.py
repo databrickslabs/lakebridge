@@ -12,7 +12,7 @@ from databricks.labs.lakebridge.assessments.pipeline import (
 )
 from databricks.labs.lakebridge.assessments.profiler import Profiler
 from databricks.labs.lakebridge.assessments.profiler_config import Step, PipelineConfig
-from databricks.labs.lakebridge.connections.database_manager import DatabaseManager
+from databricks.labs.lakebridge.connections.database_manager import DatabaseConnector
 
 _Loader: TypeAlias = Callable[[Path], PipelineConfig]
 
@@ -70,7 +70,7 @@ def empty_result_config() -> PipelineConfig:
 
 
 def test_run_pipeline(
-    sandbox_sqlserver: DatabaseManager,
+    sandbox_sqlserver: DatabaseConnector,
     pipeline_config: PipelineConfig,
     get_logger: Logger,
     tmp_path: Path,
@@ -94,7 +94,7 @@ def test_run_pipeline(
 
 
 def test_run_sql_failure_pipeline(
-    sandbox_sqlserver: DatabaseManager,
+    sandbox_sqlserver: DatabaseConnector,
     sql_failure_config: PipelineConfig,
     get_logger: Logger,
     tmp_path: Path,
@@ -113,7 +113,7 @@ def test_run_sql_failure_pipeline(
 
 
 def test_run_optional_absence_pipeline(
-    sandbox_sqlserver: DatabaseManager,
+    sandbox_sqlserver: DatabaseConnector,
     optional_absence_config: PipelineConfig,
     tmp_path: Path,
 ) -> None:
@@ -138,7 +138,7 @@ def test_run_optional_absence_pipeline(
 
 
 def test_run_python_failure_pipeline(
-    sandbox_sqlserver: DatabaseManager,
+    sandbox_sqlserver: DatabaseConnector,
     python_failure_config: PipelineConfig,
     get_logger: Logger,
     tmp_path: Path,
@@ -157,7 +157,7 @@ def test_run_python_failure_pipeline(
 
 
 def test_skipped_steps(
-    sandbox_sqlserver: DatabaseManager,
+    sandbox_sqlserver: DatabaseConnector,
     pipeline_config: PipelineConfig,
     tmp_path: Path,
 ) -> None:
@@ -181,10 +181,23 @@ def test_skipped_steps(
 
 
 def verify_output(get_logger, path):
+    expected_tables = ["usage", "inventory", "random_data"]
+    expected_columns = {
+        "inventory": ["db_id", "name", "collation_name", "create_date", "extract_ts"],
+        "usage": [
+            "sql_handle",
+            "creation_time",
+            "last_execution_time",
+            "execution_count",
+            "total_worker_time",
+            "total_elapsed_time",
+            "total_rows",
+        ],
+    }
+
+    logger = get_logger
     conn = duckdb.connect(path)
 
-    expected_tables = ["usage", "inventory", "random_data"]
-    logger = get_logger
     for table in expected_tables:
         try:
             result = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()
@@ -196,8 +209,14 @@ def verify_output(get_logger, path):
             logger.debug(f"Table {table} does not exist")
             return False
 
+    for table, expected in expected_columns.items():
+        actual = [desc[0] for desc in conn.execute(f"SELECT * FROM {table} LIMIT 0").description]
+        if actual != expected:
+            logger.debug(f"Table {table} has columns {actual}, expected {expected}")
+            return False
+
     conn.close()
-    logger.info("All expected tables exist and are not empty")
+    logger.info("All expected tables and columns exist and are not empty")
     return True
 
 
@@ -235,7 +254,7 @@ def test_pipeline_step_comments() -> None:
 
 
 def test_run_empty_result_pipeline(
-    sandbox_sqlserver: DatabaseManager,
+    sandbox_sqlserver: DatabaseConnector,
     empty_result_config: PipelineConfig,
     get_logger: Logger,
     tmp_path: Path,
@@ -264,7 +283,7 @@ def test_run_empty_result_pipeline(
 
 
 def test_run_pipeline_with_ddl(
-    sandbox_sqlserver: DatabaseManager,
+    sandbox_sqlserver: DatabaseConnector,
     pipeline_config_with_ddl: PipelineConfig,
     get_logger: Logger,
     tmp_path: Path,
@@ -312,7 +331,7 @@ def test_run_pipeline_with_ddl(
 
 
 def test_run_pipeline_with_combined_ddl(
-    sandbox_sqlserver: DatabaseManager,
+    sandbox_sqlserver: DatabaseConnector,
     pipeline_config_combined_ddl: PipelineConfig,
     get_logger: Logger,
     tmp_path: Path,

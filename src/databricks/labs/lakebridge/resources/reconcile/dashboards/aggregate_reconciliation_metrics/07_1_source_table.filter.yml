@@ -1,4 +1,0 @@
-columns:
-- dd_source_table
-type: MULTI_SELECT
-title: Source Table Name

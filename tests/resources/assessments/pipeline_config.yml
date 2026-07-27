@@ -20,6 +20,12 @@ steps:
     mode: overwrite
     frequency: daily
     flag: inactive
+  - name: source_side_ddl
+    type: source_ddl
+    extract_source: assessments/source_side_ddl.sql
+    mode: overwrite
+    frequency: daily
+    flag: active
   - name: random_data
     type: python
     extract_source: assessments/db_extract.py
