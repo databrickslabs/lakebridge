@@ -20,7 +20,7 @@ from databricks.labs.lakebridge.resources.assessments.synapse.common.profiler_cl
 logger = get_logger(__file__)
 
 
-def build_resource_id(azure: dict, server_fqdn: str, database: str) -> str:
+def build_resource_id(subscription_id: str, resource_group: str, server_fqdn: str, database: str) -> str:
     """Build the ARM resource id for a standalone dedicated SQL pool.
 
     Unlike a Synapse workspace pool (whose resource id is returned by the control-plane
@@ -30,8 +30,8 @@ def build_resource_id(azure: dict, server_fqdn: str, database: str) -> str:
     """
     server_name = server_fqdn.split(".")[0]
     return (
-        f"/subscriptions/{azure['subscription_id']}"
-        f"/resourceGroups/{azure['resource_group']}"
+        f"/subscriptions/{subscription_id}"
+        f"/resourceGroups/{resource_group}"
         f"/providers/Microsoft.Sql/servers/{server_name}"
         f"/databases/{database}"
     )
@@ -53,7 +53,9 @@ def execute(
                 "subscription ID and resource group."
             )
 
-        resource_id = build_resource_id(azure, settings["server"], settings["database"])
+        resource_id = build_resource_id(
+            azure["subscription_id"], azure["resource_group"], settings["server"], settings["database"]
+        )
         logger.info(f"dedicated pool resource_id: {resource_id}")
 
         urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -64,12 +66,14 @@ def execute(
             metrics_df.insert(loc=0, column="pool_name", value=settings["database"])
         save_to_duckdb(metrics_df, "metrics_dedicated_pool_metrics", db_path)
 
-        # This is the output format expected by the pipeline.py which orchestrates the execution of this script
+        # pipeline._run_python_script parses the LAST stdout line as the step's JSON result,
+        # so the success payload must be printed to stdout (not logged) to be seen as success.
         print(json.dumps({"status": "success", "message": "Data loaded successfully"}))
 
     except Exception as e:
+        # No stdout payload on failure: the non-zero exit code fails the step, and the pipeline
+        # reports the error from the logs.
         logger.error(f"Failed to extract Legacy Synapse Monitoring Metrics: {str(e)}")
-        print(json.dumps({"status": "error", "message": str(e)}), file=sys.stderr)
         sys.exit(1)
 
 

@@ -412,7 +412,6 @@ def test_create_assessment_configurator():
     )
     assert isinstance(teradata_configurator, ConfigureTeradataAssessment)
 
-    # legacy_synapse (Azure Synapse dedicated SQL pool) has its own SQL Server-family configurator
     legacy_synapse_configurator = create_assessment_configurator(
         source_system="legacy_synapse", product_name="lakebridge", prompts=prompts
     )

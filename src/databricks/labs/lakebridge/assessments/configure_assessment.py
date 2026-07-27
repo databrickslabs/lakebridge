@@ -131,21 +131,8 @@ class ConfigureOracleAssessment(AssessmentConfigurator):
         logger.info(f"Credential template created for {source}.")
 
 
-class _ConfigureSqlServerFamilyAssessment(AssessmentConfigurator):
-    """Shared configuration flow for the SQL Server-family sources.
-
-    Concrete subclasses differ only in how the target database is prompted and in
-    any source-specific extras; everything else (auth method, connection knobs) is
-    common. Not registered directly — see ``ConfigureSqlServerAssessment`` and
-    ``ConfigureLegacySynapseAssessment``.
-    """
-
-    def _prompt_database(self) -> str:
-        raise NotImplementedError
-
-    def _extra_section(self) -> dict:
-        """Source-specific credential fields to merge into the section (default: none)."""
-        return {}
+class ConfigureSqlServerAssessment(AssessmentConfigurator):
+    """SQL Server / Azure SQL Database (`mssql`) assessment configuration."""
 
     def _configure_credentials(self) -> None:
         cred_file = self._credential_file
@@ -156,70 +143,90 @@ class _ConfigureSqlServerFamilyAssessment(AssessmentConfigurator):
             "from environment variables fall back to plain text if not variable is not found\n",
         )
         secret_vault_type = str(self.prompts.choice("Enter secret vault type (local | env)", ["local", "env"])).lower()
-        secret_vault_name = None
 
         auth_choices = [cls.__name__ for cls in AUTH_CHOICES]
         auth_type = self.prompts.choice("Select authentication method", auth_choices, sort=False)
         auth_credentials = _prompt_mssql_auth_credentials(self.prompts, auth_type)
 
-        credential_section: dict = {
-            "auth_type": auth_type,
-            **auth_credentials,
-            "fetch_size": self.prompts.question("Enter fetch size", default="1000", valid_number=True),
-            "login_timeout": self.prompts.question("Enter login timeout (seconds)", default="30", valid_number=True),
-            "server": self.prompts.question("Enter the fully-qualified server name"),
-            "port": int(self.prompts.question("Enter the port details", default="1433", valid_number=True)),
-            "database": self._prompt_database(),
-            "trust_server_certificate": self.prompts.confirm("Trust server certificate"),
-            "tz_info": self.prompts.question("Enter timezone (e.g. America/New_York)", default="UTC"),
-            **self._extra_section(),
-        }
-
         credential = {
             "secret_vault_type": secret_vault_type,
-            "secret_vault_name": secret_vault_name,
-            source: credential_section,
+            "secret_vault_name": None,
+            source: {
+                "auth_type": auth_type,
+                **auth_credentials,
+                "fetch_size": self.prompts.question("Enter fetch size", default="1000", valid_number=True),
+                "login_timeout": self.prompts.question(
+                    "Enter login timeout (seconds)", default="30", valid_number=True
+                ),
+                "server": self.prompts.question("Enter the fully-qualified server name"),
+                "port": int(self.prompts.question("Enter the port details", default="1433", valid_number=True)),
+                # `*` profiles every accessible database (on-prem / Managed Instance);
+                # a name scopes to that one database.
+                "database": self.prompts.question("Enter the database name (* = all databases)"),
+                "trust_server_certificate": self.prompts.confirm("Trust server certificate"),
+                "tz_info": self.prompts.question("Enter timezone (e.g. America/New_York)", default="UTC"),
+            },
         }
 
         _save_to_disk(credential, cred_file)
         logger.info(f"Credential template created for {source}.")
 
 
-class ConfigureSqlServerAssessment(_ConfigureSqlServerFamilyAssessment):
-    """SQL Server / Azure SQL Database (`mssql`) assessment configuration."""
-
-    def _prompt_database(self) -> str:
-        # `*` profiles every accessible database (on-prem / Managed Instance);
-        # a name scopes to that one database.
-        return self.prompts.question("Enter the database name (* = all databases)")
-
-
-class ConfigureLegacySynapseAssessment(_ConfigureSqlServerFamilyAssessment):
+class ConfigureLegacySynapseAssessment(AssessmentConfigurator):
     """Azure Synapse dedicated SQL pool (`legacy_synapse`) assessment configuration.
 
-    Shares the SQL Server connection flow but targets a single dedicated pool and
+    Uses the same SQL Server connection knobs, but targets a single dedicated pool and
     additionally collects the Azure coordinates needed for the Azure Monitor
     utilization-metrics extract.
     """
 
-    def _prompt_database(self) -> str:
-        return self.prompts.question("Enter the dedicated pool name")
+    def _configure_credentials(self) -> None:
+        cred_file = self._credential_file
+        source = self._source_name
 
-    def _extra_section(self) -> dict:
-        # A standalone dedicated pool has no Synapse control plane to hand back its
-        # ARM resource id, so we build it from subscription + resource group (server =
-        # FQDN first label, database = pool name, both captured by the base flow).
+        logger.info(
+            "\n(local | env) \nlocal means values are read as plain text \nenv means values are read "
+            "from environment variables fall back to plain text if not variable is not found\n",
+        )
+        secret_vault_type = str(self.prompts.choice("Enter secret vault type (local | env)", ["local", "env"])).lower()
+
+        auth_choices = [cls.__name__ for cls in AUTH_CHOICES]
+        auth_type = self.prompts.choice("Select authentication method", auth_choices, sort=False)
+        auth_credentials = _prompt_mssql_auth_credentials(self.prompts, auth_type)
+
+        # A standalone dedicated pool has no Synapse control plane to hand back its ARM
+        # resource id, so we build it from subscription + resource group (server = FQDN
+        # first label, database = pool name). Azure Monitor access is required for metrics.
         logger.info(
             "Azure Monitor access is required to collect CPU/DWU utilization metrics. "
             "The identity resolved by your selected authentication method needs the "
             "Monitoring Reader role on the dedicated pool."
         )
-        return {
-            "azure": {
-                "subscription_id": self.prompts.question("Enter the Azure subscription ID"),
-                "resource_group": self.prompts.question("Enter the Azure resource group"),
-            }
+
+        credential = {
+            "secret_vault_type": secret_vault_type,
+            "secret_vault_name": None,
+            source: {
+                "auth_type": auth_type,
+                **auth_credentials,
+                "fetch_size": self.prompts.question("Enter fetch size", default="1000", valid_number=True),
+                "login_timeout": self.prompts.question(
+                    "Enter login timeout (seconds)", default="30", valid_number=True
+                ),
+                "server": self.prompts.question("Enter the fully-qualified server name"),
+                "port": int(self.prompts.question("Enter the port details", default="1433", valid_number=True)),
+                "database": self.prompts.question("Enter the dedicated pool name"),
+                "trust_server_certificate": self.prompts.confirm("Trust server certificate"),
+                "tz_info": self.prompts.question("Enter timezone (e.g. America/New_York)", default="UTC"),
+                "azure": {
+                    "subscription_id": self.prompts.question("Enter the Azure subscription ID"),
+                    "resource_group": self.prompts.question("Enter the Azure resource group"),
+                },
+            },
         }
+
+        _save_to_disk(credential, cred_file)
+        logger.info(f"Credential template created for {source}.")
 
 
 # Redshift auth types mirror the values ``RedshiftConnector._connect`` accepts. Keep the

@@ -43,10 +43,7 @@ For `DefaultAzureCredential`, run `az login` first; for unattended runs set `AZU
 
 The profiler collects dedicated-pool utilization metrics (CPU %, DWU %, memory %, active/queued
 queries, and more) from **Azure Monitor**. This requires the identity resolved by your chosen
-authentication method to hold the **Monitoring Reader** role on the dedicated pool, and the
-configuration to include the pool's Azure **subscription ID** and **resource group** (the profiler
-builds the pool's Azure resource ID from these plus the server name and pool name). Both are collected
-by `configure-database-profiler`.
+authentication method to hold the **Monitoring Reader** role on the dedicated pool.
 
 
 ### 4. Required Database Permissions
