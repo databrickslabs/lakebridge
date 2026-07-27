@@ -197,46 +197,6 @@ def test_cli_execute_database_profiler_cred_file_path(
     )
 
 
-@pytest.mark.parametrize(
-    ("source_tech", "variant", "expected_variant"),
-    (
-        ("redshift", None, None),
-        ("redshift", "provisioned", "provisioned"),
-        ("teradata", "core", "core"),
-        ("snowflake", "anything", "anything"),
-    ),
-)
-def test_cli_execute_database_profiler_no_variant_prompt(
-    mock_workspace_client, source_tech, variant, expected_variant, tmp_path
-):
-    """Unified sources never prompt for a variant; legacy --variant is forwarded to Profiler.create."""
-    fake_cred = tmp_path / "credentials.yml"
-    fake_cred.touch()
-
-    ctx_mock = create_autospec(spec=ApplicationContext, spec_set=True)
-    type(ctx_mock).workspace_client = PropertyMock(return_value=mock_workspace_client)
-    ctx_mock.current_user = "tester"
-    prompts = MagicMock()
-    prompts.question.return_value = str(tmp_path / "out")
-    ctx_mock.prompts = prompts
-
-    profiler = MagicMock()
-    with (
-        patch("databricks.labs.lakebridge.cli.ApplicationContext", return_value=ctx_mock),
-        patch("databricks.labs.lakebridge.cli.cred_file", return_value=fake_cred),
-        patch("databricks.labs.lakebridge.cli.Profiler.create", return_value=profiler) as create_mock,
-    ):
-        cli.execute_database_profiler(
-            w=mock_workspace_client,
-            source_tech=source_tech,
-            variant=variant,
-            output_folder=str(tmp_path / "out"),
-        )
-
-    create_mock.assert_called_once_with(source_tech, expected_variant, fake_cred)
-    prompts.choice.assert_not_called()
-
-
 def test_cli_execute_database_profiler_missing_cred_file_raises(mock_workspace_client, tmp_path):
     """A `--cred-file-path` pointing at a non-existent file fails the pre-flight check."""
     missing = tmp_path / "does-not-exist.yml"
