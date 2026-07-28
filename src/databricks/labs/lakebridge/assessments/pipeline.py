@@ -89,32 +89,27 @@ class PipelineClass:
         identify their originating source system. Overwrites any prior row.
         """
         if not self._source_system:
-            logger.warning("No source_system provided; skipping %s", PROFILER_RUN_METADATA_TABLE)
+            logger.warning(f"No source_system provided; skipping {PROFILER_RUN_METADATA_TABLE}")
             return
 
         generated_at = datetime.now(timezone.utc)
         with duckdb.connect(self._db_path) as conn:
             conn.execute(f"DROP TABLE IF EXISTS {PROFILER_RUN_METADATA_TABLE}")
-            conn.execute(
-                f"""
+            conn.execute(f"""
                 CREATE TABLE {PROFILER_RUN_METADATA_TABLE} (
                     source_system VARCHAR,
                     lakebridge_version VARCHAR,
                     generated_at TIMESTAMPTZ
                 )
-                """
-            )
+                """)
             conn.execute(
                 f"INSERT INTO {PROFILER_RUN_METADATA_TABLE} VALUES (?, ?, ?)",
                 [self._source_system, lakebridge_version, generated_at],
             )
             conn.commit()
         logger.info(
-            "Wrote %s (source_system=%s, lakebridge_version=%s, generated_at=%s)",
-            PROFILER_RUN_METADATA_TABLE,
-            self._source_system,
-            lakebridge_version,
-            generated_at.isoformat(),
+            f"Wrote {PROFILER_RUN_METADATA_TABLE} (source_system={self._source_system}, "
+            f"lakebridge_version={lakebridge_version}, generated_at={generated_at.isoformat()})"
         )
 
     def _process_step(self, step: Step) -> StepExecutionResult:
