@@ -3,10 +3,28 @@ import pytest
 from databricks.labs.lakebridge.assessments.profiler_config import PipelineConfig, Step
 
 
-def _sql(**kwargs) -> Step:
-    defaults = dict(name="test_table", type="sql", extract_source="test.sql", ddl_source="test_ddl.sql")
-    defaults.update(kwargs)
-    return Step(**defaults)
+def _sql(
+    name: str = "test_table",
+    *,
+    extract_source: str = "test.sql",
+    ddl_source: str = "test_ddl.sql",
+    mode: str = "append",
+    optional: bool = False,
+    flag: str = "active",
+    frequency: str = "once",
+    comment: str | None = None,
+) -> Step:
+    return Step(
+        name=name,
+        type="sql",
+        extract_source=extract_source,
+        ddl_source=ddl_source,
+        mode=mode,
+        optional=optional,
+        flag=flag,
+        frequency=frequency,
+        comment=comment,
+    )
 
 
 @pytest.mark.parametrize(

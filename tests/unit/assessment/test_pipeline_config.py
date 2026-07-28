@@ -1,5 +1,3 @@
-import pytest
-
 from databricks.labs.lakebridge.assessments.profiler_config import PipelineConfig, Step
 
 
