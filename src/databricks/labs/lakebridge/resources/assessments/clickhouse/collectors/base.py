@@ -1,9 +1,8 @@
 """Base collector class for all ClickHouse profiling categories.
 
-Ported from the standalone Field Engineering ClickHouse profiler. Each collector runs read-only
-queries against ``system.*`` and returns a dict of named result sets. Persistence is owned by the
-extract script (``ch_metadata_extract.py``), which flattens each result set into a DuckDB table —
-so this base no longer writes per-collector JSON files.
+Each collector runs read-only queries against ``system.*`` and returns a dict of named result sets.
+Persistence is owned by the extract script (``ch_metadata_extract.py``), which flattens each result
+set into a DuckDB table.
 """
 
 import json

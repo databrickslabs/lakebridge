@@ -1,8 +1,8 @@
 """ClickHouse metadata extract step for the Lakebridge profiler.
 
-Ported from the standalone Field Engineering ClickHouse profiler. Runs the read-only ``system.*``
-collectors and writes each named result set as its own DuckDB table (``<collector>_<result_set>``),
-mirroring the BigQuery extractor's one-table-per-analysis convention. The pipeline invokes this file
+Runs the read-only ``system.*`` collectors and writes each named result set as its own DuckDB table
+(``<collector>_<result_set>``), mirroring the BigQuery extractor's one-table-per-analysis
+convention. The pipeline invokes this file
 by path: ``python ch_metadata_extract.py --db-path <db> --credential-config-path <creds.yml>``; the
 final stdout line is the structured status payload the pipeline parses.
 
