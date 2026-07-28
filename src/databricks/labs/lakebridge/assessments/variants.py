@@ -1,7 +1,8 @@
 """Profiler variant resolution.
 
-A source's ``SOURCE_SYSTEM_VARIANTS`` entry carries the ``AUTO`` marker when the variant is
-auto-detected here from a live connection. Sources absent from the registry have no variant.
+A source's ``SOURCE_SYSTEM_VARIANTS`` entry is either a tuple of explicit choices (the CLI prompts the
+user for one) or carries the ``AUTO`` marker (the variant is auto-detected here from a live connection).
+This module owns the execute-time resolution; prompting stays in the CLI.
 """
 
 import logging
@@ -66,9 +67,9 @@ def resolve_variant(
 ) -> str | None:
     """Resolve the effective pipeline variant for a source.
 
-    Sources absent from ``SOURCE_SYSTEM_VARIANTS`` have no variant. Sources marked ``AUTO`` probe a
-    live connection via the registered resolver. Explicit ``variant`` input is ignored with a warning
-    in both cases.
+    The ``SOURCE_SYSTEM_VARIANTS`` entry is either a tuple of explicit choices (the CLI prompts for one of
+    these) or the ``AUTO`` marker (the variant is probed from a live connection here). ``variant`` is an
+    explicit choice, the ``AUTO`` sentinel, or ``None``.
     """
     resolvers = resolvers if resolvers else VARIANT_RESOLVERS
     spec = SOURCE_SYSTEM_VARIANTS.get(source_system)
@@ -77,12 +78,18 @@ def resolve_variant(
             logger.warning(f"Ignoring variant '{variant}': source system '{source_system}' has no variants.")
         return None
 
-    if AUTO not in spec:
-        raise ValueError(f"Source '{source_system}' has unsupported variant spec {spec}; only AUTO is supported.")
+    if AUTO in spec:
+        if variant and variant != AUTO:
+            logger.warning(f"Ignoring variant '{variant}'. Auto-detecting for source system '{source_system}'.")
+        resolver = resolvers.get(source_system)
+        if resolver is None:
+            raise ValueError(f"Source '{source_system}' is marked auto-detect but has no registered resolver.")
+        return resolver(cred_file_path)
 
-    if variant and variant != AUTO:
-        logger.warning(f"Ignoring variant '{variant}'. Auto-detecting for source system '{source_system}'.")
-    resolver = resolvers.get(source_system)
-    if resolver is None:
-        raise ValueError(f"Source '{source_system}' is marked auto-detect but has no registered resolver.")
-    return resolver(cred_file_path)
+    if not variant:
+        raise ValueError(f"No variant selected for '{source_system}' (choices: {spec}); the CLI must prompt for one.")
+
+    chosen = variant.lower()
+    if chosen not in spec:
+        raise ValueError(f"Invalid variant '{chosen}' for '{source_system}'. Valid variants: {spec}.")
+    return chosen
