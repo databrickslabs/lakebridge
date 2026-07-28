@@ -16,10 +16,8 @@ from uuid import UUID
 
 from databricks.labs.lakebridge.resources.assessments.clickhouse.connection import ClickHouseConnection
 
-# Fields that may contain sensitive data (raw SQL, credentials, network info). When redaction is
-# enabled (default ON in the Lakebridge port), these are replaced with "[REDACTED]" in the output.
-# Matching is by exact top-level column/key name — the extract only redacts top-level keys, so a
-# benign nested occurrence (e.g. actual_billed_cost.source in costs_pricing_config) is untouched.
+# Fields that may contain sensitive data (raw SQL, credentials, network info); replaced with
+# "[REDACTED]" when redaction is enabled (default ON). Matched by exact key name.
 SENSITIVE_FIELDS = {
     # Raw SQL text — may contain filter values, business logic, PII in predicates
     "query",
@@ -54,6 +52,16 @@ REDACTED = "[REDACTED]"
 def redact_value(key: str, value: Any) -> Any:
     """Return ``[REDACTED]`` for a sensitive key, else the value unchanged."""
     return REDACTED if key in SENSITIVE_FIELDS else value
+
+
+def redact_structure(value: Any) -> Any:
+    """Redact sensitive keys at any depth of a nested dict/list (struct/map columns), unlike the
+    top-level-only ``redact_value``. Applied to query-result rows, not the author-built payloads."""
+    if isinstance(value, dict):
+        return {key: (REDACTED if key in SENSITIVE_FIELDS else redact_structure(inner)) for key, inner in value.items()}
+    if isinstance(value, list):
+        return [redact_structure(item) for item in value]
+    return value
 
 
 class ProfilerJSONEncoder(json.JSONEncoder):

@@ -1,5 +1,4 @@
 import json
-import re
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -9,6 +8,7 @@ import pytest
 from databricks.labs.lakebridge.resources.assessments.clickhouse import ch_metadata_extract
 from databricks.labs.lakebridge.resources.assessments.clickhouse.collectors.base import (
     SENSITIVE_FIELDS,
+    redact_structure,
     redact_value,
 )
 from databricks.labs.lakebridge.resources.assessments.clickhouse.collectors.workload import WorkloadCollector
@@ -139,20 +139,18 @@ def test_empty_result_set_creates_typed_table_from_catalog(monkeypatch, tmp_path
 
 
 def test_table_schema_catalog_covers_every_result_set():
-    """The schema catalog must declare an entry for every <collector>_<result_set> a collector can
-    emit, so an empty result set always gets a typed stub table. Guards against a new collector query
-    landing without a catalog entry (which would silently skip the table)."""
+    """Every <collector>_<result_set> a collector emits must have a catalog entry, else its empty run
+    silently skips the table. Drives collect() under both variants (catching dynamic/updated keys a
+    regex scan would miss) and checks the keys actually returned."""
     package_dir = Path(ch_metadata_extract.__file__).parent
-    collectors_dir = package_dir / "collectors"
     expected: set[str] = set()
-    for collector_file in collectors_dir.glob("*.py"):
-        if collector_file.stem in {"__init__", "base"}:
-            continue
-        text = collector_file.read_text(encoding="utf-8")
-        name_match = re.search(r'name\s*=\s*["\']([a-z_]+)["\']', text)
-        collector_name = name_match.group(1) if name_match else collector_file.stem
-        for key in re.findall(r'results\[["\']([a-z_]+)["\']\]', text):
-            expected.add(f"{collector_name}_{key}")
+    for is_cloud in (False, True):
+        conn = _FakeConnection({"_test_cloud_mode": "1" if is_cloud else "0"})
+        config = {"days_back": 7, "is_cloud": is_cloud}
+        for collector_cls in ch_metadata_extract.COLLECTORS:
+            collector = collector_cls(conn, config)
+            for key in collector.collect():
+                expected.add(f"{collector.name}_{key}")
 
     catalog = json.loads((package_dir / "table_schemas.json").read_text(encoding="utf-8"))
     missing = expected - set(catalog)
@@ -240,6 +238,28 @@ def test_base_collector_coerces_days_back_to_int(raw_days_back, expected):
     assert isinstance(collector.days_back, int)
 
 
+def test_detect_cloud_reraises_real_connection_error():
+    """A real connection/permission failure is re-raised, not silently read as OSS (wrong variant)."""
+    conn = MagicMock()
+    conn.query = MagicMock(side_effect=Exception("Connection refused"))
+    with pytest.raises(Exception, match="Connection refused"):
+        ch_metadata_extract._detect_cloud(conn, {"host": "10.0.0.5"})
+
+
+def test_detect_cloud_treats_missing_object_error_as_oss():
+    """A missing-object error (unusual builds without system.settings) degrades to OSS."""
+    conn = MagicMock()
+    conn.query = MagicMock(side_effect=Exception("Code: 60. DB::Exception: Table system.settings doesn't exist"))
+    assert ch_metadata_extract._detect_cloud(conn, {"host": "10.0.0.5"}) is False
+
+
+def test_detect_cloud_absent_setting_is_oss():
+    """cloud_mode absent -> zero rows -> OSS."""
+    conn = MagicMock()
+    conn.query = MagicMock(return_value=[])
+    assert ch_metadata_extract._detect_cloud(conn, {"host": "10.0.0.5"}) is False
+
+
 def test_source_wraps_per_node_logs_on_cloud_only():
     """On Cloud, per-node log tables are wrapped in clusterAllReplicas so all replicas are read;
     replicated metadata tables are never wrapped, and OSS wraps nothing (single node)."""
@@ -299,8 +319,55 @@ def test_redact_value_is_top_level_key_match_only():
     actual_billed_cost.source in costs_pricing_config) is passed through unchanged since only
     top-level keys are ever redacted (the extract redacts each row's own keys, not nested ones)."""
     nested = {"source": "cloud_usage_cost_api", "total_usd": 100}
-    # The parent key is benign -> the whole nested dict passes through untouched.
+    # The parent key is benign -> the whole nested dict passes through untouched by redact_value.
     assert redact_value("actual_billed_cost", nested) is nested
+
+
+def test_redact_structure_redacts_sensitive_keys_at_any_depth():
+    """A sensitive field nested inside a struct/map column (not the top-level column) is still redacted."""
+    value = {
+        "settings": {"query": "SELECT secret FROM t", "max_threads": 8},
+        "connections": [{"auth_params": "user:pw", "count": 3}],
+        "benign_metric": 42,
+    }
+    redacted = redact_structure(value)
+    assert redacted["settings"]["query"] == "[REDACTED]"
+    assert redacted["settings"]["max_threads"] == 8
+    assert redacted["connections"][0]["auth_params"] == "[REDACTED]"
+    assert redacted["connections"][0]["count"] == 3
+    assert redacted["benign_metric"] == 42
+
+
+def test_redact_structure_leaves_benign_scalars_untouched():
+    assert redact_structure("cloud_usage_cost_api") == "cloud_usage_cost_api"
+    assert redact_structure(100) == 100
+
+
+def test_extract_redacts_nested_sensitive_field_in_struct_column(monkeypatch, tmp_path):
+    """A sensitive field nested in a struct column is redacted before it is JSON-encoded into DuckDB."""
+
+    class _NestedSecretConnection(_FakeConnection):
+        def query(self, sql: str, _parameters=None):
+            if "cloud_mode" in sql:
+                return [{"value": "0"}]
+            if "system.session_log" in sql:
+                return []
+            return [{"details": {"query": "SELECT secret FROM t", "rows": 10}, "runs": 5, "compute_weight": 100}]
+
+    monkeypatch.setattr(ch_metadata_extract, "ClickHouseConnection", _NestedSecretConnection)
+    cred_manager = MagicMock()
+    cred_manager.get_credentials.return_value = {
+        "host": "127.0.0.1",
+        "port": 8123,
+        "profiler": {"days_back": 7, "redact": True},
+    }
+    db_path = tmp_path / "clickhouse_extract.db"
+    ch_metadata_extract.execute(credential_manager=cred_manager, db_path=str(db_path))
+
+    with duckdb.connect(str(db_path)) as conn:
+        details = conn.execute("SELECT details FROM workload_slowest_queries LIMIT 1").fetchone()[0]
+    assert "SELECT secret FROM t" not in details
+    assert "[REDACTED]" in details
 
 
 def test_safe_query_missing_object_error_is_a_warning_not_an_error():

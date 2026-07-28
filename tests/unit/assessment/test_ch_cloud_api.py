@@ -1,8 +1,29 @@
-from databricks.labs.lakebridge.resources.assessments.clickhouse.cloud_api import ClickHouseCloudAPI
+import io
+from contextlib import contextmanager
+from unittest.mock import patch
+
+import pytest
+
+from databricks.labs.lakebridge.resources.assessments.clickhouse.cloud_api import ClickHouseCloudAPI, CloudAPIError
 
 
 def _usage(grand_total, records):
     return {"grandTotalCHC": grand_total, "costs": records}
+
+
+@contextmanager
+def _fake_urlopen(body: bytes):
+    """Patch urllib.request.urlopen so the response body reads back as ``body``."""
+
+    @contextmanager
+    def _open(_req, timeout=None):
+        yield io.BytesIO(body)
+
+    with patch(
+        "databricks.labs.lakebridge.resources.assessments.clickhouse.cloud_api.urllib.request.urlopen",
+        side_effect=_open,
+    ):
+        yield
 
 
 def test_summarize_reports_org_total_as_tco():
@@ -36,3 +57,31 @@ def test_summarize_org_total_none_when_grand_total_absent():
 
     assert summary["actual_total_usd"] == 0.5
     assert summary["org_total_usd"] is None
+
+
+def test_get_raises_cloud_api_error_on_non_json_body():
+    """A non-JSON body (e.g. a proxy's HTML error page) surfaces as CloudAPIError, not a bare ValueError."""
+    api = ClickHouseCloudAPI("key-id", "key-secret")
+    with _fake_urlopen(b"<html>502 Bad Gateway</html>"):
+        with pytest.raises(CloudAPIError, match="invalid JSON response"):
+            api.list_organizations()
+
+
+def test_get_raises_cloud_api_error_on_non_dict_payload():
+    """A non-object JSON body (e.g. a bare list) surfaces as CloudAPIError, not AttributeError."""
+    api = ClickHouseCloudAPI("key-id", "key-secret")
+    with _fake_urlopen(b"[1, 2, 3]"):
+        with pytest.raises(CloudAPIError, match="unexpected response shape"):
+            api.list_organizations()
+
+
+def test_discover_service_matches_host_case_insensitively():
+    """A configured host differing only in case from the endpoint host still resolves that service."""
+    api = ClickHouseCloudAPI("key-id", "key-secret")
+    services = [
+        {"id": "svc-a", "endpoints": [{"protocol": "https", "host": "abc.us-east-1.aws.clickhouse.cloud"}]},
+        {"id": "svc-b", "endpoints": [{"protocol": "https", "host": "xyz.us-west-2.aws.clickhouse.cloud"}]},
+    ]
+    with patch.object(api, "list_services", return_value=services):
+        meta = api.discover_service(org_id="org-1", host="ABC.US-EAST-1.AWS.CLICKHOUSE.CLOUD")
+    assert meta["service_id"] == "svc-a"

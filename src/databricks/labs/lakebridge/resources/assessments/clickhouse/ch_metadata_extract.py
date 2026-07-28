@@ -30,7 +30,9 @@ from databricks.labs.lakebridge.resources.assessments.common.duckdb_helpers impo
 from databricks.labs.lakebridge.resources.assessments.clickhouse import CLICKHOUSE_CLOUD_HOST_SUFFIX
 from databricks.labs.lakebridge.resources.assessments.clickhouse.connection import ClickHouseConnection
 from databricks.labs.lakebridge.resources.assessments.clickhouse.collectors.base import (
+    BaseCollector,
     ProfilerJSONEncoder,
+    redact_structure,
     redact_value,
 )
 from databricks.labs.lakebridge.resources.assessments.clickhouse.collectors.workload import WorkloadCollector
@@ -50,16 +52,20 @@ _CLICKHOUSE_RESOURCES = "databricks.labs.lakebridge.resources.assessments.clickh
 def _detect_cloud(conn: ClickHouseConnection, config: dict[str, Any]) -> bool:
     """Return True for ClickHouse Cloud, False for self-managed (OSS).
 
-    Same rule as ``variants.resolve_clickhouse_variant``: a ``*.clickhouse.cloud`` host is a definitive
-    yes; otherwise the ``cloud_mode`` server setting decides (``1`` on Cloud; absent/``0`` on OSS).
+    A ``*.clickhouse.cloud`` host is a definitive yes; otherwise the ``cloud_mode`` server setting
+    decides (``1`` on Cloud; absent/``0`` on OSS). Same rule as ``variants.resolve_clickhouse_variant``.
     """
     host = str(config.get("host") or "").strip().lower()
     if host.endswith(CLICKHOUSE_CLOUD_HOST_SUFFIX):
         return True
     try:
         rows = conn.query("SELECT value FROM system.settings WHERE name = 'cloud_mode'")
-    except Exception:  # missing setting on older OSS builds -> treat as self-managed
-        return False
+    except Exception as e:
+        # A missing setting degrades to OSS; a real connection/permission error must fail loudly
+        # rather than be mis-typed as OSS and run the extract against the wrong variant.
+        if BaseCollector._is_missing_object_error(str(e)):  # pylint: disable=protected-access
+            return False
+        raise
     return bool(rows) and str(rows[0].get("value", "")).strip().lower() in {"1", "true"}
 
 
@@ -111,6 +117,9 @@ def _rows_to_dataframe(rows: list[dict[str, Any]], redact: bool) -> pd.DataFrame
         for key, value in row.items():
             if redact:
                 value = redact_value(key, value)
+                # Recurse into struct/map columns so a nested sensitive field is caught, not just the column.
+                if isinstance(value, (list, dict)):
+                    value = redact_structure(value)
             if isinstance(value, (list, dict)):
                 value = json.dumps(value, cls=ProfilerJSONEncoder)
             clean[key] = value

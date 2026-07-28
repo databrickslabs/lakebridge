@@ -79,6 +79,11 @@ class ClickHouseCloudAPI:
             raise CloudAPIError(f"GET {path} -> HTTP {e.code}") from e
         except urllib.error.URLError as e:
             raise CloudAPIError(f"GET {path} -> {e.reason}") from e
+        except (ValueError, json.JSONDecodeError) as e:
+            # Non-JSON body (e.g. a proxy's HTML error page): surface as CloudAPIError, not a bare ValueError.
+            raise CloudAPIError(f"GET {path} -> invalid JSON response") from e
+        if not isinstance(payload, dict):
+            raise CloudAPIError(f"GET {path} -> unexpected response shape ({type(payload).__name__})")
         return payload.get("result")
 
     def list_organizations(self) -> list[dict]:
@@ -196,8 +201,14 @@ class ClickHouseCloudAPI:
             if svc is None:
                 raise CloudAPIError(f"Service {service_id} not found in organization {org_id}")
         elif host:
+            # Normalize both sides so a case-only mismatch still resolves the service.
+            want = host.strip().lower()
             svc = next(
-                (s for s in services if any(host == ep.get("host") for ep in (s.get("endpoints") or []))),
+                (
+                    s
+                    for s in services
+                    if any(want == str(ep.get("host") or "").strip().lower() for ep in (s.get("endpoints") or []))
+                ),
                 None,
             )
 
