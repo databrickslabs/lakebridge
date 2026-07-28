@@ -52,7 +52,7 @@ def test_resolve_clickhouse_variant_probes_cloud_mode(cloud_mode_value: str, exp
     rows = [[cloud_mode_value]] if cloud_mode_value != "" else []
     db_manager.fetch.return_value = MagicMock(rows=rows)
     with (
-        patch("databricks.labs.lakebridge.assessments.variants.DatabaseManager", return_value=db_manager),
+        patch("databricks.labs.lakebridge.assessments.variants.create_connector", return_value=db_manager),
         patch("databricks.labs.lakebridge.assessments.variants.create_credential_manager") as cred_manager,
     ):
         cred_manager.return_value.get_credentials.return_value = {"host": "10.0.0.5"}
@@ -65,7 +65,7 @@ def test_resolve_clickhouse_variant_cloud_host_short_circuits() -> None:
     db_manager = MagicMock()
     db_manager.__enter__.return_value = db_manager
     with (
-        patch("databricks.labs.lakebridge.assessments.variants.DatabaseManager", return_value=db_manager),
+        patch("databricks.labs.lakebridge.assessments.variants.create_connector", return_value=db_manager),
         patch("databricks.labs.lakebridge.assessments.variants.create_credential_manager") as cred_manager,
     ):
         cred_manager.return_value.get_credentials.return_value = {
@@ -83,7 +83,7 @@ def test_resolve_clickhouse_variant_lookalike_host_is_not_cloud() -> None:
     db_manager.__enter__.return_value = db_manager
     db_manager.fetch.return_value = MagicMock(rows=[["0"]])  # on-prem -> oss
     with (
-        patch("databricks.labs.lakebridge.assessments.variants.DatabaseManager", return_value=db_manager),
+        patch("databricks.labs.lakebridge.assessments.variants.create_connector", return_value=db_manager),
         patch("databricks.labs.lakebridge.assessments.variants.create_credential_manager") as cred_manager,
     ):
         cred_manager.return_value.get_credentials.return_value = {"host": "my-clickhouse.cloudco.internal"}

@@ -10,7 +10,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from databricks.labs.lakebridge.assessments import SOURCE_SYSTEM_VARIANTS, AUTO
-from databricks.labs.lakebridge.connections.database_manager import DatabaseManager, ALL_DATABASES
+from databricks.labs.lakebridge.connections.database_manager import create_connector, ALL_DATABASES
 from databricks.labs.lakebridge.connections.credential_manager import create_credential_manager
 from databricks.labs.lakebridge.connections.env_getter import EnvGetter
 from databricks.labs.lakebridge.resources.assessments.clickhouse import CLICKHOUSE_CLOUD_HOST_SUFFIX
@@ -38,9 +38,9 @@ def resolve_mssql_variant(cred_file_path: Path | None) -> str:
     if database and database != ALL_DATABASES:
         # The user picked a specific database -> profile only that one, regardless of edition.
         return "single_db"
-    with DatabaseManager("mssql", connect_config) as db_manager:
+    with create_connector("mssql", connect_config) as connector:
         # SERVERPROPERTY returns sql_variant, which pyodbc cannot fetch (ODBC type -16); CAST to int.
-        result = db_manager.fetch("SELECT CAST(SERVERPROPERTY('EngineEdition') AS INT) AS engine_edition")
+        result = connector.fetch("SELECT CAST(SERVERPROPERTY('EngineEdition') AS INT) AS engine_edition")
     engine_edition = int(result.rows[0][0])
     if engine_edition == SQLSERVER_AZURE_SQL_DB_ENGINE_EDITION:
         raise ValueError(
@@ -64,8 +64,8 @@ def resolve_clickhouse_variant(cred_file_path: Path | None) -> str:
     if host.endswith(CLICKHOUSE_CLOUD_HOST_SUFFIX):
         logger.info("Detected ClickHouse Cloud from host suffix; using 'cloud' profiler variant")
         return "cloud"
-    with DatabaseManager("clickhouse", connect_config) as db_manager:
-        result = db_manager.fetch("SELECT value FROM system.settings WHERE name = 'cloud_mode'")
+    with create_connector("clickhouse", connect_config) as connector:
+        result = connector.fetch("SELECT value FROM system.settings WHERE name = 'cloud_mode'")
     cloud_mode = str(result.rows[0][0]).strip().lower() if result.rows else ""
     variant = "cloud" if cloud_mode in {"1", "true"} else "oss"
     logger.info(f"Detected ClickHouse cloud_mode={cloud_mode!r}; using '{variant}' profiler variant")
