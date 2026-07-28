@@ -17,6 +17,8 @@ from databricks.labs.lakebridge.connections.database_manager import DatabaseConn
 
 logger = logging.getLogger(__name__)
 
+PROFILER_RUN_METADATA_TABLE = "profiler_run_metadata"
+
 
 def make_profiler_db_filename(platform: str) -> str:
     return f"profiler_extract_{platform}_{lakebridge_version}_{datetime.now(timezone.utc).strftime('%Y%m%d')}.db"
@@ -43,15 +45,19 @@ class PipelineClass:
         executor: DatabaseConnector | None,
         db_path: Path,
         cred_file_path: Path,
+        *,
+        source_system: str | None = None,
     ):
         self.config = config
         self.executor = executor
         self._db_path = db_path.expanduser()
         self._create_dir(self._db_path.parent)
         self._cred_file_path = cred_file_path
+        self._source_system = source_system
 
     def execute(self) -> list[StepExecutionResult]:
         logging.info(f"Pipeline initialized with config: {self.config.name}, version: {self.config.version}")
+        self._write_run_metadata()
         execution_results: list[StepExecutionResult] = []
 
         for step in self.config.steps:
@@ -75,6 +81,41 @@ class PipelineClass:
             raise RuntimeError(error_msg)
 
         return execution_results
+
+    def _write_run_metadata(self) -> None:
+        """Persist source-independent run metadata into the DuckDB extract.
+
+        Written at the start of every run so partial / best-effort extracts still
+        identify their originating source system. Overwrites any prior row.
+        """
+        if not self._source_system:
+            logger.warning("No source_system provided; skipping %s", PROFILER_RUN_METADATA_TABLE)
+            return
+
+        generated_at = datetime.now(timezone.utc)
+        with duckdb.connect(self._db_path) as conn:
+            conn.execute(f"DROP TABLE IF EXISTS {PROFILER_RUN_METADATA_TABLE}")
+            conn.execute(
+                f"""
+                CREATE TABLE {PROFILER_RUN_METADATA_TABLE} (
+                    source_system VARCHAR,
+                    lakebridge_version VARCHAR,
+                    generated_at TIMESTAMPTZ
+                )
+                """
+            )
+            conn.execute(
+                f"INSERT INTO {PROFILER_RUN_METADATA_TABLE} VALUES (?, ?, ?)",
+                [self._source_system, lakebridge_version, generated_at],
+            )
+            conn.commit()
+        logger.info(
+            "Wrote %s (source_system=%s, lakebridge_version=%s, generated_at=%s)",
+            PROFILER_RUN_METADATA_TABLE,
+            self._source_system,
+            lakebridge_version,
+            generated_at.isoformat(),
+        )
 
     def _process_step(self, step: Step) -> StepExecutionResult:
         logger.info(f"Executing step: {step.name}")
