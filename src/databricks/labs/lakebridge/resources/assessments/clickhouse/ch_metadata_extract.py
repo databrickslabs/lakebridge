@@ -30,8 +30,8 @@ from databricks.labs.lakebridge.resources.assessments.common.duckdb_helpers impo
 from databricks.labs.lakebridge.resources.assessments.clickhouse import CLICKHOUSE_CLOUD_HOST_SUFFIX
 from databricks.labs.lakebridge.resources.assessments.clickhouse.connection import ClickHouseConnection
 from databricks.labs.lakebridge.resources.assessments.clickhouse.collectors.base import (
-    BaseCollector,
     ProfilerJSONEncoder,
+    is_missing_object_error,
     redact_structure,
     redact_value,
 )
@@ -63,7 +63,7 @@ def _detect_cloud(conn: ClickHouseConnection, config: dict[str, Any]) -> bool:
     except Exception as e:
         # A missing setting degrades to OSS; a real connection/permission error must fail loudly
         # rather than be mis-typed as OSS and run the extract against the wrong variant.
-        if BaseCollector._is_missing_object_error(str(e)):  # pylint: disable=protected-access
+        if is_missing_object_error(str(e)):
             return False
         raise
     return bool(rows) and str(rows[0].get("value", "")).strip().lower() in {"1", "true"}

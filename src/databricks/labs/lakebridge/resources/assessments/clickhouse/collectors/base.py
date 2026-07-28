@@ -63,6 +63,23 @@ def redact_structure(value: Any) -> Any:
     return value
 
 
+# ClickHouse server error codes for a missing schema object (table/database/column/identifier). These
+# are EXPECTED on some OSS builds (e.g. session_log / query_views_log absent) and degrade to an empty
+# result; anything else (permissions, syntax, connection) is a real error that must be surfaced.
+_MISSING_OBJECT_ERROR_CODES = frozenset({16, 47, 60, 81})  # NO_SUCH_COLUMN, UNKNOWN_IDENTIFIER,
+#                                                             UNKNOWN_TABLE, UNKNOWN_DATABASE
+
+
+def is_missing_object_error(message: str) -> bool:
+    """True when an exception message denotes a missing table/column/database (expected on OSS)."""
+    text = message.lower()
+    code_match = re.search(r"code:\s*(\d+)", text)
+    if code_match and int(code_match.group(1)) in _MISSING_OBJECT_ERROR_CODES:
+        return True
+    # Fall back to phrase matching for clients/builds that don't surface a numeric code.
+    return "doesn't exist" in text or "does not exist" in text or "unknown table" in text
+
+
 class ProfilerJSONEncoder(json.JSONEncoder):
     """JSON encoder for ClickHouse data types (used for struct/nested columns)."""
 
@@ -123,23 +140,6 @@ class BaseCollector(ABC):
     def collect(self) -> dict[str, Any]:
         """Run all collection queries and return a dict of named result sets."""
 
-    # ClickHouse server error codes for a missing schema object (table/database/column/identifier).
-    # These are EXPECTED on some OSS builds (e.g. session_log / query_views_log absent) and degrade
-    # to an empty result. Anything else (permissions, syntax, connection) is a real error that must be
-    # surfaced rather than masked as a "successful" empty extract.
-    _MISSING_OBJECT_ERROR_CODES = frozenset({16, 47, 60, 81})  # NO_SUCH_COLUMN, UNKNOWN_IDENTIFIER,
-    #                                                              UNKNOWN_TABLE, UNKNOWN_DATABASE
-
-    @classmethod
-    def _is_missing_object_error(cls, message: str) -> bool:
-        """True when an exception message denotes a missing table/column/database (expected on OSS)."""
-        text = message.lower()
-        code_match = re.search(r"code:\s*(\d+)", text)
-        if code_match and int(code_match.group(1)) in cls._MISSING_OBJECT_ERROR_CODES:
-            return True
-        # Fall back to phrase matching for clients/builds that don't surface a numeric code.
-        return "doesn't exist" in text or "does not exist" in text or "unknown table" in text
-
     def safe_query(self, label: str, sql: str) -> list[dict[str, Any]]:
         """Execute a query, returning rows or an empty list.
 
@@ -155,7 +155,7 @@ class BaseCollector(ABC):
             return rows
         except Exception as e:  # non-fatal: classify below, record, and continue with an empty result
             detail = str(e)[:200]
-            if self._is_missing_object_error(str(e)):
+            if is_missing_object_error(str(e)):
                 err_msg = f"[{self.name}] {label}: {detail}"
                 self.errors.append(err_msg)
                 print(f"    [WARN] {err_msg}")
