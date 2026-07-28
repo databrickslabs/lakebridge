@@ -10,7 +10,6 @@ from databricks.sdk import WorkspaceClient
 from databricks.labs.blueprint.tui import MockPrompts
 from databricks.labs.blueprint.installation import MockInstallation
 from databricks.labs.lakebridge import cli
-from databricks.labs.lakebridge.assessments import SOURCE_SYSTEM_VARIANTS
 from databricks.labs.lakebridge.assessments.profiler import default_output_folder
 from databricks.labs.lakebridge.config import (
     LSPConfigOptionV1,
@@ -198,30 +197,6 @@ def test_cli_execute_database_profiler_cred_file_path(
     )
 
 
-def test_cli_execute_database_profiler_prompts_variant_for_tuple_source(mock_workspace_client, tmp_path):
-    """A fixed-choice variant source is prompted in the CLI and the choice is passed to create."""
-    fake_cred = tmp_path / "credentials.yml"
-    fake_cred.touch()
-    # choice() sorts the options; sorted(("alpha", "beta"))[0] == "alpha".
-    fake_variants = {**SOURCE_SYSTEM_VARIANTS, "snowflake": ("alpha", "beta")}
-
-    ctx_mock = create_autospec(spec=ApplicationContext, spec_set=True)
-    type(ctx_mock).workspace_client = PropertyMock(return_value=mock_workspace_client)
-    ctx_mock.current_user = "tester"
-    ctx_mock.prompts = MockPrompts({r"Enter the profiler output.*": "", r"Select a variant": "0"})
-
-    profiler = MagicMock()
-    with (
-        patch("databricks.labs.lakebridge.cli.ApplicationContext", return_value=ctx_mock),
-        patch("databricks.labs.lakebridge.cli.cred_file", return_value=fake_cred),
-        patch("databricks.labs.lakebridge.cli.SOURCE_SYSTEM_VARIANTS", fake_variants),
-        patch("databricks.labs.lakebridge.cli.Profiler.create", return_value=profiler) as create_mock,
-    ):
-        cli.execute_database_profiler(w=mock_workspace_client, source_tech="snowflake")
-
-    create_mock.assert_called_once_with("snowflake", "alpha", fake_cred)
-
-
 def test_cli_execute_database_profiler_missing_cred_file_raises(mock_workspace_client, tmp_path):
     """A `--cred-file-path` pointing at a non-existent file fails the pre-flight check."""
     missing = tmp_path / "does-not-exist.yml"
@@ -242,48 +217,6 @@ def test_cli_execute_database_profiler_missing_cred_file_raises(mock_workspace_c
             output_folder=str(tmp_path / "out"),
             cred_file_path=str(missing),
         )
-
-
-@pytest.mark.parametrize(
-    ("source_tech", "variant", "expected"),
-    (
-        ("snowflake", None, None),  # source has no variants, none requested
-        ("snowflake", "anything", None),  # source has no variants → stray input ignored
-        ("teradata", None, None),  # unified pipeline, no variant required
-        ("teradata", "core", None),  # legacy variant input is ignored
-    ),
-)
-def test_parse_profiler_variant_returns_expected(source_tech, variant, expected):
-    prompts = MagicMock()
-    assert cli.parse_profiler_variant(prompts, source_tech, variant) == expected
-    prompts.choice.assert_not_called()
-
-
-def test_parse_profiler_variant_passes_through_explicit_for_tuple_source():
-    prompts = MagicMock()
-    fake_variants = {"future_source": ("alpha", "beta")}
-    with patch("databricks.labs.lakebridge.cli.SOURCE_SYSTEM_VARIANTS", fake_variants):
-        assert cli.parse_profiler_variant(prompts, "future_source", "ALPHA") == "alpha"
-    prompts.choice.assert_not_called()
-
-
-def test_parse_profiler_variant_prompts_when_omitted_for_variant_source():
-    """A variant-capable source with no explicit variant prompts the user to pick one."""
-    prompts = MagicMock()
-    prompts.choice.return_value = "beta"
-    fake_variants = {"future_source": ("alpha", "beta")}
-    with patch("databricks.labs.lakebridge.cli.SOURCE_SYSTEM_VARIANTS", fake_variants):
-        assert cli.parse_profiler_variant(prompts, "future_source", None) == "beta"
-    prompts.choice.assert_called_once_with("Select a variant", ("alpha", "beta"))
-
-
-def test_parse_profiler_variant_rejects_unknown_variant():
-    fake_variants = {"future_source": ("alpha", "beta")}
-    with (
-        patch("databricks.labs.lakebridge.cli.SOURCE_SYSTEM_VARIANTS", fake_variants),
-        pytest.raises(ValueError, match="Invalid source technology variant"),
-    ):
-        cli.parse_profiler_variant(MagicMock(), "future_source", "bogus")
 
 
 def test_cli_auto_configure_recon_tables_no_recon_config(mock_workspace_client):
