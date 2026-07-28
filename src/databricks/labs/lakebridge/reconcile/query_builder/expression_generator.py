@@ -254,8 +254,27 @@ def _get_is_string(column_types_dict: dict[str, DataType], column_name: str) -> 
 DataType_transform_mapping: dict[str, dict[str, list[partial[exp.Expression]]]] = {  # pylint: disable=invalid-name
     "universal": {"default": [partial(coalesce, default='_null_recon_', is_string=True), partial(trim)]},
     "bigquery": {
-        # TODO: add timestamps and numbers handling
+        # TODO: add numbers handling
+        # CAST(... AS STRING) does not render a timestamp the way Spark does: BigQuery appends a UTC
+        # offset (2023-12-31 19:00:00+00) and pads fractional seconds to milliseconds (...00.100),
+        # where Spark emits neither. Those differences change the row hash, so both timestamp families
+        # are formatted explicitly. %E*S emits only the fractional-second digits that are present,
+        # which is what Spark does, and the explicit 'UTC' drops the offset suffix.
         "default": [partial(anonymous, func="COALESCE(TRIM(CAST({} AS STRING)), '_null_recon_')")],
+        exp.DataType.Type.TIMESTAMPTZ.value: [
+            partial(
+                anonymous,
+                func="COALESCE(FORMAT_TIMESTAMP('%F %H:%M:%E*S', {}, 'UTC'), '_null_recon_')",
+            )
+        ],
+        # A BigQuery DATETIME parses as TIMESTAMP; the schema query reports it as timestamp_ntz, which
+        # parses as TIMESTAMPNTZ. Both spellings reach here, so both are mapped.
+        exp.DataType.Type.TIMESTAMP.value: [
+            partial(anonymous, func="COALESCE(FORMAT_DATETIME('%F %H:%M:%E*S', {}), '_null_recon_')")
+        ],
+        exp.DataType.Type.TIMESTAMPNTZ.value: [
+            partial(anonymous, func="COALESCE(FORMAT_DATETIME('%F %H:%M:%E*S', {}), '_null_recon_')")
+        ],
     },
     "snowflake": {exp.DataType.Type.ARRAY.value: [partial(array_to_string), partial(array_sort)]},
     "oracle": {

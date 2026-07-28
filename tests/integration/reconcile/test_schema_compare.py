@@ -354,19 +354,25 @@ def teradata_databricks_schema():
 
 
 def bigquery_databricks_schema():
+    # Source types are what BigQueryDataSource._SCHEMA_QUERY reports, not the raw INFORMATION_SCHEMA
+    # value: top-level scalars come back in their Databricks spelling, while types nested in
+    # ARRAY/STRUCT keep the BigQuery spelling. Targets are Databricks `full_data_type`, which has no
+    # space after a struct field's colon -- the multi-field structs below cover that.
     src_schema = [
-        schema_fixture_factory("col_int64", "int64"),
-        schema_fixture_factory("col_float64", "float64"),
+        schema_fixture_factory("col_int64", "bigint"),
+        schema_fixture_factory("col_float64", "double"),
         schema_fixture_factory("col_bool", "bool"),
         schema_fixture_factory("col_string", "string"),
         schema_fixture_factory("col_bytes", "bytes"),
         schema_fixture_factory("col_date", "date"),
-        schema_fixture_factory("col_datetime", "datetime"),
+        schema_fixture_factory("col_datetime", "timestamp_ntz"),
         schema_fixture_factory("col_timestamp", "timestamp"),
         schema_fixture_factory("col_numeric_ps", "numeric(10, 2)"),
         schema_fixture_factory("col_geography", "geography"),
         schema_fixture_factory("col_array_int", "array<int64>"),
         schema_fixture_factory("col_struct_int", "struct<a int64>"),
+        schema_fixture_factory("col_struct_multi", "struct<a int64, b string, c float64>"),
+        schema_fixture_factory("col_struct_nested", "struct<a int64, b struct<c float64, d datetime>>"),
         schema_fixture_factory("col_numeric", "decimal(38, 9)"),
         schema_fixture_factory("col_bignumeric", "bignumeric"),
         schema_fixture_factory("col_json", "variant"),
@@ -388,15 +394,17 @@ def bigquery_databricks_schema():
         schema_fixture_factory("col_numeric_ps", "decimal(10,2)"),
         schema_fixture_factory("col_geography", "geography"),
         schema_fixture_factory("col_array_int", "array<bigint>"),
-        schema_fixture_factory("col_struct_int", "struct<a: bigint>"),
+        schema_fixture_factory("col_struct_int", "struct<a:bigint>"),
+        schema_fixture_factory("col_struct_multi", "struct<a:bigint,b:string,c:double>"),
+        schema_fixture_factory("col_struct_nested", "struct<a:bigint,b:struct<c:double,d:timestamp_ntz>>"),
         schema_fixture_factory("col_numeric", "decimal(38,9)"),
         schema_fixture_factory("col_bignumeric", "decimal(38,9)"),
         schema_fixture_factory("col_json", "variant"),
         schema_fixture_factory("col_time", "string"),
         schema_fixture_factory("col_array_time", "array<string>"),
-        schema_fixture_factory("col_range_date", "struct<start: date, end: date>"),
-        schema_fixture_factory("col_range_datetime", "struct<start: timestamp_ntz, end: timestamp_ntz>"),
-        schema_fixture_factory("col_range_timestamp", "struct<start: timestamp, end: timestamp>"),
+        schema_fixture_factory("col_range_date", "struct<start:date,end:date>"),
+        schema_fixture_factory("col_range_datetime", "struct<start:timestamp_ntz,end:timestamp_ntz>"),
+        schema_fixture_factory("col_range_timestamp", "struct<start:timestamp,end:timestamp>"),
     ]
     return src_schema, tgt_schema
 
@@ -573,9 +581,45 @@ def test_bigquery_schema_compare(schemas, spark):
     )
     df = schema_compare_output.compare_df
     assert not schema_compare_output.is_valid
-    assert df.count() == 20
-    assert df.filter("is_valid = 'true'").count() == 14
+    assert df.count() == 22
+    assert df.filter("is_valid = 'true'").count() == 16
+    # The only remaining mismatches are the types with no Databricks equivalent, which
+    # BigQueryDataSource._APPROXIMATE_TYPES warns about: BIGNUMERIC, TIME, ARRAY<TIME> and the RANGEs.
     assert df.filter("is_valid = 'false'").count() == 6
+    assert {row.source_column for row in df.filter("is_valid = 'false'").collect()} == {
+        "col_bignumeric",
+        "col_time",
+        "col_array_time",
+        "col_range_date",
+        "col_range_datetime",
+        "col_range_timestamp",
+    }
+
+
+def test_bigquery_schema_compare_rejects_lossy_targets(spark):
+    """A target in the same sqlglot category but of a narrower type is not an equivalent migration:
+    int/smallint overflow BigQuery's INT64 range, float overflows FLOAT64, and reading a DATETIME as an
+    instant shifts every wall-clock value by the session offset."""
+    lossy = [
+        ("col_int64", "bigint", "int"),
+        ("col_int64_small", "bigint", "smallint"),
+        ("col_float64", "double", "float"),
+        ("col_datetime", "timestamp_ntz", "timestamp"),
+        ("col_timestamp", "timestamp", "timestamp_ntz"),
+    ]
+    src_schema = [schema_fixture_factory(name, src) for name, src, _ in lossy]
+    tgt_schema = [schema_fixture_factory(name, tgt) for name, _, tgt in lossy]
+    table_conf = Table(source_name="supplier", target_name="supplier")
+
+    schema_compare_output = SchemaCompare(spark).compare(
+        src_schema,
+        tgt_schema,
+        get_dialect("bigquery"),
+        table_conf,
+    )
+
+    assert not schema_compare_output.is_valid
+    assert schema_compare_output.compare_df.filter("is_valid = 'true'").count() == 0
 
 
 def test_redshift_schema_compare(schemas, spark):

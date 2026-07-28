@@ -25,6 +25,13 @@ class BigQueryDataSource(DataSource):
 
     Schema type handling
     ---------------------
+    Each column is reported as the Databricks type an equivalent migration produces, so that schema
+    compare flags a target that is merely in the same sqlglot category:
+
+    * ``INT64`` -> ``bigint``, ``FLOAT64`` -> ``double`` (otherwise ``int``/``float`` compare as equal
+      even though they overflow BigQuery's range).
+    * ``DATETIME`` -> ``timestamp_ntz`` (otherwise ``timestamp`` compares as equal, silently shifting
+      every wall-clock value by the session offset).
     * ``NUMERIC`` -> ``decimal(38, 9)`` (BigQuery's NUMERIC default precision/scale; same-family, exact).
     * ``JSON`` -> ``variant`` (top-level columns only; nested ``JSON`` is left as-is — see below).
 
@@ -41,8 +48,16 @@ class BigQueryDataSource(DataSource):
 
     _LIST_SCHEMAS_QUERY = "select schema_name from `{catalog}`.INFORMATION_SCHEMA.SCHEMATA order by schema_name"
     _LIST_TABLES_QUERY = "select table_name from `{catalog}.{schema}`.INFORMATION_SCHEMA.TABLES order by table_name"
+    # Top-level scalars are pinned to their exact Databricks spelling so that schema compare rejects a
+    # narrower target: sqlglot maps INT64/INT/SMALLINT and FLOAT64/FLOAT to a single category each, so
+    # leaving the BigQuery spelling in place makes INT64 -> int and FLOAT64 -> float compare as equal.
+    # Types nested inside ARRAY<...>/STRUCT<...> keep their BigQuery spelling, because there a match is
+    # only reached by round-tripping the Databricks type back to BigQuery.
     _SCHEMA_QUERY = """select column_name,
                                   case
+                                        when data_type = 'INT64' then 'bigint'
+                                        when data_type = 'FLOAT64' then 'double'
+                                        when data_type = 'DATETIME' then 'timestamp_ntz'
                                         when data_type = 'NUMERIC' then 'decimal(38, 9)'
                                         when data_type = 'JSON' then 'variant'
                                         else data_type
