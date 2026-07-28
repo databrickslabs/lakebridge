@@ -20,6 +20,7 @@ class Step:
     flag: str = "active"
     comment: str | None = None
     optional: bool = False
+    ddl_source: str | None = None
 
     def __post_init__(self) -> None:
         """Validate step configuration to prevent SQL injection and configuration errors."""
@@ -27,6 +28,7 @@ class Step:
         self._validate_mode()
         self._validate_type()
         self._validate_optional()
+        self._validate_ddl_source()
 
     def _validate_name(self) -> None:
         """Validate step name uses only safe SQL identifier characters."""
@@ -60,7 +62,7 @@ class Step:
 
     def _validate_type(self) -> None:
         """Validate type is a recognized value."""
-        valid_types = {'sql', 'ddl', 'python', 'source_ddl'}
+        valid_types = {'sql', 'python', 'source_ddl'}
         if self.type not in valid_types:
             raise ValueError(
                 f"Invalid type '{self.type}' for step '{self.name}'. "
@@ -70,6 +72,20 @@ class Step:
     def _validate_optional(self) -> None:
         if not isinstance(self.optional, bool):
             raise ValueError(f"Invalid optional value for step '{self.name}': {self.optional!r}. Expected a boolean.")
+
+    def _validate_ddl_source(self) -> None:
+        if self.type == "sql":
+            if not self.ddl_source:
+                raise ValueError(
+                    f"Step '{self.name}' of type 'sql' requires ddl_source "
+                    f"(path to a DuckDB CREATE TABLE statement)."
+                )
+            return
+        if self.ddl_source is not None:
+            raise ValueError(
+                f"Step '{self.name}' of type '{self.type}' must not set ddl_source "
+                f"(ddl_source is only valid for type 'sql')."
+            )
 
     def copy(self, /, **changes) -> "Step":
         return dataclasses.replace(self, **changes)
@@ -81,21 +97,6 @@ class PipelineConfig:
     version: str
     comment: str | None = None
     steps: list[Step] = field(default_factory=list)
-
-    def __post_init__(self) -> None:
-        # Warn if any active non-DDL step precedes the first active DDL step.
-        # Inactive steps are excluded: they are skipped at runtime and have no ordering impact.
-        active_steps = [s for s in self.steps if s.flag == "active"]
-        first_ddl_index = next((i for i, s in enumerate(active_steps) if s.type == "ddl"), None)
-        if first_ddl_index is not None and first_ddl_index > 0:
-            early_non_ddl = [s.name for s in active_steps[:first_ddl_index] if s.type not in ("ddl", "source_ddl")]
-            if early_non_ddl:
-                names = ", ".join(early_non_ddl)
-                logger.warning(
-                    f"The following active steps run before the first DDL step and may fail if the "
-                    f"target tables have not yet been created: {names}. "
-                    f"Consider moving DDL steps earlier in the pipeline configuration."
-                )
 
     def copy(self, /, **changes) -> "PipelineConfig":
         return dataclasses.replace(self, **changes)
