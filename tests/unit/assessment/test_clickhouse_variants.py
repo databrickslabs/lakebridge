@@ -78,7 +78,7 @@ def test_resolve_clickhouse_variant_cloud_host_short_circuits() -> None:
 def test_resolve_clickhouse_variant_lookalike_host_is_not_cloud() -> None:
     """A host that merely CONTAINS 'clickhouse.cloud' (not a real suffix) must NOT be treated as
     Cloud by the suffix short-circuit -> it falls through to the cloud_mode probe (regression: the
-    resolver and CostsCollector._detect_cloud must agree, both use endswith)."""
+    resolver and the extract's cloud detection must agree, both use endswith)."""
     db_manager = MagicMock()
     db_manager.__enter__.return_value = db_manager
     db_manager.fetch.return_value = MagicMock(rows=[["0"]])  # on-prem -> oss

@@ -49,7 +49,7 @@ logger = get_logger(__file__)
 _CLICKHOUSE_RESOURCES = "databricks.labs.lakebridge.resources.assessments.clickhouse"
 
 
-def _detect_cloud(conn: ClickHouseConnection, config: dict[str, Any]) -> bool:
+def detect_cloud(conn: ClickHouseConnection, config: dict[str, Any]) -> bool:
     """Return True for ClickHouse Cloud, False for self-managed (OSS).
 
     A ``*.clickhouse.cloud`` host is a definitive yes; otherwise the ``cloud_mode`` server setting
@@ -189,7 +189,7 @@ def execute(credential_manager: CredentialManager, db_path: str) -> None:
         server_version = conn.server_version()
         # Detect Cloud once (shared by every collector via config["is_cloud"]) so per-node log tables
         # are read across replicas with clusterAllReplicas(). Same rule as variants.resolve_clickhouse_variant.
-        config["is_cloud"] = _detect_cloud(conn, config)
+        config["is_cloud"] = detect_cloud(conn, config)
         if config["is_cloud"]:
             conn.enable_cluster_reads()
         logger.info(

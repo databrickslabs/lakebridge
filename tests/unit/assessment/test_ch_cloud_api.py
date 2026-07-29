@@ -16,7 +16,7 @@ def _fake_urlopen(body: bytes):
     """Patch urllib.request.urlopen so the response body reads back as ``body``."""
 
     @contextmanager
-    def _open(_req, timeout=None):
+    def _open(_req, **_kwargs):  # absorbs the timeout= keyword urlopen is called with
         yield io.BytesIO(body)
 
     with patch(

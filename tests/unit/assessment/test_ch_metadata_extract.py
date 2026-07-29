@@ -6,6 +6,7 @@ import duckdb
 import pytest
 
 from databricks.labs.lakebridge.resources.assessments.clickhouse import ch_metadata_extract
+from databricks.labs.lakebridge.resources.assessments.clickhouse.ch_metadata_extract import detect_cloud
 from databricks.labs.lakebridge.resources.assessments.clickhouse.collectors.base import (
     SENSITIVE_FIELDS,
     redact_structure,
@@ -243,21 +244,21 @@ def test_detect_cloud_reraises_real_connection_error():
     conn = MagicMock()
     conn.query = MagicMock(side_effect=Exception("Connection refused"))
     with pytest.raises(Exception, match="Connection refused"):
-        ch_metadata_extract._detect_cloud(conn, {"host": "10.0.0.5"})
+        detect_cloud(conn, {"host": "10.0.0.5"})
 
 
 def test_detect_cloud_treats_missing_object_error_as_oss():
     """A missing-object error (unusual builds without system.settings) degrades to OSS."""
     conn = MagicMock()
     conn.query = MagicMock(side_effect=Exception("Code: 60. DB::Exception: Table system.settings doesn't exist"))
-    assert ch_metadata_extract._detect_cloud(conn, {"host": "10.0.0.5"}) is False
+    assert detect_cloud(conn, {"host": "10.0.0.5"}) is False
 
 
 def test_detect_cloud_absent_setting_is_oss():
     """cloud_mode absent -> zero rows -> OSS."""
     conn = MagicMock()
     conn.query = MagicMock(return_value=[])
-    assert ch_metadata_extract._detect_cloud(conn, {"host": "10.0.0.5"}) is False
+    assert detect_cloud(conn, {"host": "10.0.0.5"}) is False
 
 
 def test_source_wraps_per_node_logs_on_cloud_only():
