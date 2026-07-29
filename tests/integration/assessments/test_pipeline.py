@@ -18,6 +18,7 @@ _Loader: TypeAlias = Callable[[Path], PipelineConfig]
 
 _DB_FILE = "test_profiler.db"
 _CREDS_FILE = "test_creds.yml"
+_SOURCE_SYSTEM = "mssql"
 
 
 @pytest.fixture
@@ -80,6 +81,7 @@ def test_run_pipeline(
         executor=sandbox_sqlserver,
         db_path=tmp_path / _DB_FILE,
         cred_file_path=tmp_path / _CREDS_FILE,
+        source_system=_SOURCE_SYSTEM,
     )
     results = pipeline.execute()
 
@@ -104,6 +106,7 @@ def test_run_sql_failure_pipeline(
         executor=sandbox_sqlserver,
         db_path=tmp_path / _DB_FILE,
         cred_file_path=tmp_path / _CREDS_FILE,
+        source_system=_SOURCE_SYSTEM,
     )
     with pytest.raises(RuntimeError) as e:
         pipeline.execute()
@@ -127,6 +130,7 @@ def test_run_optional_absence_pipeline(
         executor=sandbox_sqlserver,
         db_path=tmp_path / _DB_FILE,
         cred_file_path=tmp_path / _CREDS_FILE,
+        source_system=_SOURCE_SYSTEM,
     )
     results = pipeline.execute()
 
@@ -148,6 +152,7 @@ def test_run_python_failure_pipeline(
         executor=sandbox_sqlserver,
         db_path=tmp_path / _DB_FILE,
         cred_file_path=tmp_path / _CREDS_FILE,
+        source_system=_SOURCE_SYSTEM,
     )
     with pytest.raises(RuntimeError) as e:
         pipeline.execute()
@@ -170,6 +175,7 @@ def test_skipped_steps(
         executor=sandbox_sqlserver,
         db_path=tmp_path / _DB_FILE,
         cred_file_path=tmp_path / _CREDS_FILE,
+        source_system=_SOURCE_SYSTEM,
     )
     results = pipeline.execute()
 
@@ -264,6 +270,7 @@ def test_run_empty_result_pipeline(
         executor=sandbox_sqlserver,
         db_path=tmp_path / _DB_FILE,
         cred_file_path=tmp_path / _CREDS_FILE,
+        source_system=_SOURCE_SYSTEM,
     )
     results = pipeline.execute()
 
@@ -294,6 +301,7 @@ def test_run_pipeline_with_ddl(
         executor=sandbox_sqlserver,
         db_path=tmp_path / _DB_FILE,
         cred_file_path=tmp_path / _CREDS_FILE,
+        source_system=_SOURCE_SYSTEM,
     )
     results = pipeline.execute()
 
@@ -342,6 +350,7 @@ def test_run_pipeline_with_combined_ddl(
         executor=sandbox_sqlserver,
         db_path=tmp_path / _DB_FILE,
         cred_file_path=tmp_path / _CREDS_FILE,
+        source_system=_SOURCE_SYSTEM,
     )
     results = pipeline.execute()
 

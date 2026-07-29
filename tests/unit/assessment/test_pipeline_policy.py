@@ -41,7 +41,11 @@ def _write_query(tmp_path: Path, name: str, sql: str) -> str:
 
 def _run(config: PipelineConfig, executor: _FakeExecutor, tmp_path: Path) -> list[StepExecutionResult]:
     return PipelineClass(
-        config, cast(DatabaseConnector, executor), tmp_path / "out.db", tmp_path / "creds.yml"
+        config,
+        cast(DatabaseConnector, executor),
+        tmp_path / "out.db",
+        tmp_path / "creds.yml",
+        source_system="mssql",
     ).execute()
 
 

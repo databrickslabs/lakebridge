@@ -46,7 +46,7 @@ class PipelineClass:
         db_path: Path,
         cred_file_path: Path,
         *,
-        source_system: str | None = None,
+        source_system: str,
     ):
         self.config = config
         self.executor = executor
@@ -88,10 +88,6 @@ class PipelineClass:
         Written at the start of every run so partial / best-effort extracts still
         identify their originating source system. Overwrites any prior row.
         """
-        if not self._source_system:
-            logger.warning(f"No source_system provided; skipping {PROFILER_RUN_METADATA_TABLE}")
-            return
-
         generated_at = datetime.now(timezone.utc)
         with duckdb.connect(self._db_path) as conn:
             conn.execute(f"DROP TABLE IF EXISTS {PROFILER_RUN_METADATA_TABLE}")
