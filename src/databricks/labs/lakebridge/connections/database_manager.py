@@ -16,6 +16,7 @@ from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm.session import Session
 import clickhouse_connect
 from clickhouse_connect.driver.client import Client as ClickHouseClient
+from clickhouse_connect.driver.exceptions import ClickHouseError
 import mssql_python
 import redshift_connector  # type: ignore[import-untyped]
 
@@ -321,7 +322,15 @@ class ClickHouseConnector(DatabaseConnector):
         )
 
     def fetch(self, query: str) -> FetchResult:
-        result = self._client.query(query)
+        # Wrap driver errors as ConnectionError so the pipeline can classify them: an optional step
+        # that hits a missing/disabled system table (e.g. system.session_log on an OSS build) degrades
+        # to ABSENT instead of aborting the whole run. Mirrors the other connectors (e.g. Redshift).
+        try:
+            result = self._client.query(query)
+        except ClickHouseError as e:
+            logger.debug("Database query failed", exc_info=True)
+            reason = str(e).split("\n", 1)[0].strip()
+            raise ConnectionError(f"Database query failed: {reason}") from e
         return FetchResult(list(result.column_names), result.result_rows)
 
     def close(self) -> None:

@@ -507,9 +507,11 @@ class ConfigureClickHouseAssessment(AssessmentConfigurator):
     """ClickHouse assessment configuration (ClickHouse Cloud and self-managed / OSS).
 
     Connection keys (``host``/``port``/``user``/``password``/``secure``) are stored flat so the
-    ``ClickHouseConnector`` and the OSS-vs-Cloud variant probe can read them directly. Profiler knobs
-    (``days_back``, ``redact``) nest under ``profiler``. An optional ``cloud_api`` block enables pulling
-    the actual billed cost + real sizing + plan tier from the ClickHouse Cloud API (Cloud only).
+    ``ClickHouseConnector`` and the OSS-vs-Cloud variant probe can read them directly. The profiler
+    itself is SQL/DDL: the query-history window is a fixed 30 days and sensitive fields (SQL text, auth
+    params, host IPs, row-policy filters) are always redacted to ``[REDACTED]`` in the SQL, so there
+    are no ``days_back`` / ``redact`` knobs. An optional ``cloud_api`` block enables pulling the actual
+    billed cost + real sizing + plan tier from the ClickHouse Cloud API (Cloud only).
     """
 
     def _configure_credentials(self) -> None:
@@ -535,21 +537,6 @@ class ConfigureClickHouseAssessment(AssessmentConfigurator):
             "user": self.prompts.question("Enter the ClickHouse user", default="default"),
             "password": self.prompts.password("Enter the ClickHouse password"),
             "secure": secure,
-            "profiler": {
-                "days_back": int(
-                    self.prompts.question("Enter lookback window in days to profile", default="30", valid_number=True)
-                ),
-                # Default ON: strip auth params, host IPs/allow-lists, row-policy filters, and SQL text.
-                # Aggregate metrics, counts, and grant structure are preserved either way. Presented as a
-                # yes-first choice so the safe default is selected unless the user explicitly opts out.
-                "redact": str(
-                    self.prompts.choice(
-                        "Redact sensitive fields (SQL text, auth params, IPs, row-policy filters) from output?",
-                        ["yes", "no"],
-                    )
-                ).lower()
-                == "yes",
-            },
         }
 
         # Optional Cloud API credentials: authoritative provider/region, real compute sizing, actual

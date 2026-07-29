@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -7,7 +8,7 @@ import yaml
 from databricks.labs.lakebridge.assessments import SOURCE_SYSTEM_VARIANTS, AUTO
 from databricks.labs.lakebridge.assessments.profiler import get_pipeline
 from databricks.labs.lakebridge.assessments.variants import resolve_clickhouse_variant
-from databricks.labs.lakebridge.resources.assessments.clickhouse.collectors.costs import CostsCollector
+from databricks.labs.lakebridge.resources.assessments.clickhouse.cloud import cost_enrich
 
 # clickhouse is registered as AUTO in the registry; these are the resolver's outputs / config directories.
 CLICKHOUSE_VARIANTS = ("oss", "cloud")
@@ -91,70 +92,47 @@ def test_resolve_clickhouse_variant_lookalike_host_is_not_cloud() -> None:
     db_manager.fetch.assert_called_once_with(_PROBE_SQL)
 
 
-def test_costs_cloud_detection_matches_resolver_via_public_collect() -> None:
-    """The costs collector's Cloud detection agrees with the resolver: a lookalike host that merely
-    contains 'clickhouse.cloud' (cloud_mode=0) is treated as OSS -> pricing_config.is_cloud is False,
-    no actual_billed_cost. Exercised through the public collect() path (no protected-member access)."""
-    conn = MagicMock()
-    # Empty result for every query keeps collect() cheap; cloud_mode=0 drives the OSS branch.
-    conn.query.return_value = [{"value": "0"}]
-    collector = CostsCollector(conn=conn, config={"host": "my-clickhouse.cloudco.internal", "days_back": 7})
-    results = collector.collect()
+def _pricing_row(config: dict, cloud_meta: dict) -> dict:
+    """Build a costs_pricing_config row via the Cloud enrichment step's pure row-builder.
 
-    assert results["pricing_config"]["is_cloud"] is False
-    assert "actual_billed_cost" not in results["pricing_config"]
-    assert results["resource_footprint"]["deployment"] == "self-managed (OSS)"
+    cost_enrich is the single optional Cloud python step; build_pricing_row is its pure core (no
+    DuckDB, no live API), so tier precedence / billed-cost projection are exercised directly."""
+    return cost_enrich.build_pricing_row(config, cloud_meta, note="test")
 
 
-def _cloud_costs_collector(config: dict, cloud_meta: dict) -> CostsCollector:
-    """A CostsCollector on the Cloud branch (is_cloud=True) with the Cloud API metadata stubbed.
-
-    Subclasses to override the Cloud API fetch so the test needs no live API and no protected-member
-    assignment.
-    """
-
-    class _StubbedCostsCollector(CostsCollector):
-        def _get_cloud_metadata(self) -> dict:
-            return cloud_meta
-
-    conn = MagicMock()
-    conn.query.return_value = []  # keep the bucket queries cheap/empty
-    cfg = {"days_back": 7, "is_cloud": True, **config}
-    return _StubbedCostsCollector(conn=conn, config=cfg)
+def _decode_billed(row: dict) -> dict:
+    """The actual_billed_cost column is JSON-encoded into a VARCHAR; decode it back to a dict."""
+    return json.loads(row["actual_billed_cost"])
 
 
-def test_costs_config_tier_override_wins_over_cloud_api() -> None:
-    """Blocking #4: the configurator nests the plan-tier override under cloud_api.tier. It must win
-    over the Cloud API organizationTier and be recorded with tier_source=config (was silently
-    dropped: only top-level `tier` was read, so a configured override came out as tier=None)."""
+def test_cost_enrich_config_tier_override_wins_over_cloud_api() -> None:
+    """The configurator nests the plan-tier override under cloud_api.tier. It must win over the Cloud
+    API organizationTier and be recorded with tier_source=config."""
     cloud_meta = {"tier": "scale", "tier_source": "usage_cost", "region_key": "aws:us-east-1"}
-    collector = _cloud_costs_collector({"cloud_api": {"tier": "enterprise"}}, cloud_meta)
-    results = collector.collect()
-    assert results["pricing_config"]["tier"] == "enterprise"
-    assert results["pricing_config"]["tier_source"] == "config"
+    row = _pricing_row({"cloud_api": {"tier": "enterprise"}}, cloud_meta)
+    assert row["tier"] == "enterprise"
+    assert row["tier_source"] == "config"
 
 
-def test_costs_top_level_tier_override_also_honored() -> None:
+def test_cost_enrich_top_level_tier_override_also_honored() -> None:
     """A hand-written creds file may put the override at the top level; that is honored too."""
     cloud_meta = {"tier": "scale", "tier_source": "usage_cost", "region_key": "aws:us-east-1"}
-    collector = _cloud_costs_collector({"tier": "basic"}, cloud_meta)
-    results = collector.collect()
-    assert results["pricing_config"]["tier"] == "basic"
-    assert results["pricing_config"]["tier_source"] == "config"
+    row = _pricing_row({"tier": "basic"}, cloud_meta)
+    assert row["tier"] == "basic"
+    assert row["tier_source"] == "config"
 
 
-def test_costs_tier_falls_back_to_cloud_api_when_no_override() -> None:
+def test_cost_enrich_tier_falls_back_to_cloud_api_when_no_override() -> None:
     """With no config override, the Cloud API organizationTier drives the recorded tier."""
     cloud_meta = {"tier": "scale", "tier_source": "usage_cost", "region_key": "aws:us-east-1"}
-    collector = _cloud_costs_collector({}, cloud_meta)
-    results = collector.collect()
-    assert results["pricing_config"]["tier"] == "scale"
-    assert results["pricing_config"]["tier_source"] == "usage_cost"
+    row = _pricing_row({}, cloud_meta)
+    assert row["tier"] == "scale"
+    assert row["tier_source"] == "usage_cost"
 
 
-def test_costs_emits_no_actual_monthly_dollar_field() -> None:
-    """Blocking #3: the actual-billed-cost block must not carry a field that looks like an actual
-    monthly bill. The 30-day normalization is a projection and must be explicitly named as such."""
+def test_cost_enrich_emits_no_actual_monthly_dollar_field() -> None:
+    """The actual-billed-cost block must not carry a field that looks like an actual monthly bill.
+    The 30-day normalization is a projection and must be explicitly named as such."""
     cloud_meta = {
         "tier": "scale",
         "tier_source": "usage_cost",
@@ -162,9 +140,7 @@ def test_costs_emits_no_actual_monthly_dollar_field() -> None:
         "actual_cost": {"record_count": 5, "actual_total_usd": 700.0, "org_total_usd": 900.0},
         "actual_cost_window_days": 7,
     }
-    collector = _cloud_costs_collector({}, cloud_meta)
-    results = collector.collect()
-    billed = results["pricing_config"]["actual_billed_cost"]
+    billed = _decode_billed(_pricing_row({}, cloud_meta))
     # The actual figures are present and untouched.
     assert billed["total_usd"] == 900.0
     assert billed["service_total_usd"] == 700.0

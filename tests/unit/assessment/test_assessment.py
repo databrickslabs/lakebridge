@@ -292,7 +292,8 @@ def test_configure_bigquery_credentials(tmp_path):
 
 
 def test_configure_clickhouse_credentials_oss(tmp_path):
-    """OSS: plain connection, redact defaults to yes, no Cloud API block."""
+    """OSS: plain connection, no Cloud API block. The profiler is SQL/DDL with a fixed window and
+    always-on redaction, so there is no profiler knob block."""
     prompts = MockPrompts(
         {
             r"Enter secret vault type \(local \| env\)": sorted(['local', 'env']).index("local"),
@@ -301,8 +302,6 @@ def test_configure_clickhouse_credentials_oss(tmp_path):
             r"Enter the ClickHouse HTTP port": "8123",
             r"Enter the ClickHouse user": "default",
             r"Enter the ClickHouse password": "s3cret",
-            r"Enter lookback window in days to profile": "30",
-            r"Redact sensitive fields.*": sorted(['yes', 'no']).index("yes"),
             r"Configure ClickHouse Cloud API credentials.*": "no",
             r"Do you want to test the connection to clickhouse\?": "no",
         }
@@ -319,7 +318,7 @@ def test_configure_clickhouse_credentials_oss(tmp_path):
     assert clickhouse['host'] == "10.0.0.5"
     assert clickhouse['port'] == 8123
     assert clickhouse['secure'] is False
-    assert clickhouse['profiler'] == {'days_back': 30, 'redact': True}
+    assert 'profiler' not in clickhouse
     assert 'cloud_api' not in clickhouse
 
 
@@ -333,8 +332,6 @@ def test_configure_clickhouse_credentials_cloud_with_api(tmp_path):
             r"Enter the ClickHouse HTTP port": "8443",
             r"Enter the ClickHouse user": "default",
             r"Enter the ClickHouse password": "s3cret",
-            r"Enter lookback window in days to profile": "30",
-            r"Redact sensitive fields.*": sorted(['yes', 'no']).index("yes"),
             r"Configure ClickHouse Cloud API credentials.*": "yes",
             r"Enter the Cloud API Key ID": "key-id",
             r"Enter the Cloud API Key Secret": "key-secret",
@@ -369,8 +366,6 @@ def test_configure_clickhouse_credentials_cloud_tier_auto_detect(tmp_path):
             r"Enter the ClickHouse HTTP port": "8443",
             r"Enter the ClickHouse user": "default",
             r"Enter the ClickHouse password": "s3cret",
-            r"Enter lookback window in days to profile": "30",
-            r"Redact sensitive fields.*": sorted(['yes', 'no']).index("yes"),
             r"Configure ClickHouse Cloud API credentials.*": "yes",
             r"Enter the Cloud API Key ID": "key-id",
             r"Enter the Cloud API Key Secret": "key-secret",

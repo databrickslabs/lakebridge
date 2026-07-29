@@ -1,5 +1,5 @@
 # Managed ClickHouse Cloud service hostnames always end in this suffix; a definitive Cloud signal.
-# Single source of truth shared by the variant resolver and the costs collector's Cloud detection.
+# Single source of truth shared by the variant resolver and the Cloud cost-enrichment step.
 CLICKHOUSE_CLOUD_HOST_SUFFIX = ".clickhouse.cloud"
 
 # Default HTTP ports: TLS on 8443 (Cloud), plaintext on 8123 (self-managed / OSS).
