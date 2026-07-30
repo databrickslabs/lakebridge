@@ -14,6 +14,7 @@ from databricks.labs.blueprint.paths import read_text
 from databricks.labs.lakebridge import __version__ as lakebridge_version
 from databricks.labs.lakebridge.assessments.profiler_config import PipelineConfig, Step
 from databricks.labs.lakebridge.connections.database_manager import DatabaseManager, FetchResult
+from databricks.labs.lakebridge.resources.assessments.common.duckdb_helpers import connect_to_profiler_db
 
 logger = logging.getLogger(__name__)
 
@@ -166,7 +167,7 @@ class PipelineClass:
             # TODO: Handle schema evolution
             # Current implementation just checks for table existence;
             # mode logic becomes irrelevant for ddl step.
-            with duckdb.connect(self._db_path) as conn:
+            with connect_to_profiler_db(self._db_path) as conn:
                 conn.begin()
                 if not self._table_exists(conn, step.name):
                     conn.execute(ddl)
@@ -240,7 +241,7 @@ class PipelineClass:
         row_count = len(result.rows)
         logging.info(f"Query for step '{step_name}' returned {row_count} rows.")
 
-        with duckdb.connect(self._db_path) as conn:
+        with connect_to_profiler_db(self._db_path) as conn:
             # Note: step_name is validated to be SQL-safe by Step.__post_init__
             table_exists = self._table_exists(conn, step_name)
             conn.begin()

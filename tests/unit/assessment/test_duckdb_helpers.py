@@ -132,30 +132,3 @@ def test_invalid_mode_raises(tmp_path: Path) -> None:
         # Intentionally violating the Literal type to exercise the runtime guard
         # that protects callers reaching in from untyped config / JSON.
         save_to_duckdb(pd.DataFrame({"id": [1]}), "t1", db_path, mode="upsert")  # type: ignore[arg-type]
-
-
-def test_compress_profiler_db_after_duckdb_write(tmp_path: Path) -> None:
-    """After writing a real DuckDB extract, compress to a sibling .zst and keep the .db."""
-    import zstandard as zstd
-
-    from databricks.labs.lakebridge.assessments.compress import compress_profiler_db
-
-    db_path = tmp_path / "profiler_extract_test.db"
-    save_to_duckdb(pd.DataFrame({"id": [1, 2], "name": ["a", "b"]}), "t1", str(db_path))
-    original_bytes = db_path.read_bytes()
-
-    zst_path = compress_profiler_db(db_path)
-
-    assert zst_path == Path(f"{db_path}.zst")
-    assert zst_path.is_file()
-    assert db_path.is_file()
-    assert db_path.read_bytes() == original_bytes
-    assert zst_path.stat().st_size < db_path.stat().st_size
-
-    round_trip = tmp_path / "round_trip.db"
-    with zst_path.open("rb") as input_handle, round_trip.open("wb") as output_handle:
-        zstd.ZstdDecompressor().copy_stream(input_handle, output_handle)
-    assert round_trip.read_bytes() == original_bytes
-    out = _read_table(str(round_trip), "t1").sort_values("id").reset_index(drop=True)
-    assert out["id"].tolist() == [1, 2]
-    assert out["name"].tolist() == ["a", "b"]

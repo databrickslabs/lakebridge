@@ -2,7 +2,6 @@ import logging
 from pathlib import Path
 
 from databricks.labs.lakebridge.assessments import PRODUCT_PATH_PREFIX
-from databricks.labs.lakebridge.assessments.compress import compress_profiler_db
 from databricks.labs.lakebridge.assessments.pipeline import PipelineClass, make_profiler_db_filename
 from databricks.labs.lakebridge.assessments.profiler_config import PipelineConfig
 from databricks.labs.lakebridge.assessments.variants import resolve_variant
@@ -84,13 +83,7 @@ class Profiler:
             extractor = Profiler._setup_extractor(source_system, cred_file_path) if connector_required else None
             db_path = output_folder / make_profiler_db_filename(source_system)
             result = PipelineClass(pipeline_config, extractor, db_path, cred_file_path).execute()
-            zst_path = self._write_compressed_extract(db_path)
-            if zst_path is not None:
-                logger.info(
-                    f"Profiler extract written to {db_path.expanduser()} and {zst_path.expanduser()}"
-                )
-            else:
-                logger.info(f"Profiler extract written to {db_path.expanduser()}")
+            logger.info(f"Profiler extract written to {db_path.expanduser()}")
             logger.info(
                 f"Profile execution has completed successfully for {source_system} for more info check: {result}."
             )
@@ -100,19 +93,6 @@ class Profiler:
         except Exception as e:
             logger.error(f"Error executing pipeline for source {source_system}: {e}")
             raise RuntimeError(f"Pipeline execution failed for source {source_system} : {e}") from e
-
-    @staticmethod
-    def _write_compressed_extract(db_path: Path) -> Path | None:
-        """Compress the extract beside the ``.db``. Returns the ``.zst`` path, or None on failure."""
-        try:
-            return compress_profiler_db(db_path)
-        except Exception as e:  # noqa: BLE001 — compression must not fail the extract
-            logger.warning(
-                "Could not write compressed extract (.db.zst): %s. Uncompressed extract is at %s.",
-                e,
-                db_path.expanduser(),
-            )
-            return None
 
     @staticmethod
     def _setup_extractor(source_system: str, cred_file_path: Path | None = None) -> DatabaseManager | None:

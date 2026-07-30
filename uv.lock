@@ -759,7 +759,6 @@ dependencies = [
     { name = "sqlglot" },
     { name = "standard-distutils", marker = "python_full_version >= '3.11'" },
     { name = "teradatasqlalchemy" },
-    { name = "zstandard" },
 ]
 
 [package.dev-dependencies]
@@ -855,7 +854,6 @@ requires-dist = [
     { name = "sqlglot", specifier = "==28.5.0" },
     { name = "standard-distutils", marker = "python_full_version >= '3.11'", specifier = "~=3.11.9" },
     { name = "teradatasqlalchemy", specifier = "~=20.0.0.9" },
-    { name = "zstandard", specifier = ">=0.22,<1" },
 ]
 
 [package.metadata.requires-dev]

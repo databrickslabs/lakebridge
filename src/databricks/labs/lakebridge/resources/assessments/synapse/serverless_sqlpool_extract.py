@@ -1,7 +1,6 @@
 import json
 import sys
 
-import duckdb
 from databricks.labs.blueprint.entrypoint import get_logger
 
 from databricks.labs.lakebridge import initialize_logging
@@ -11,6 +10,7 @@ from databricks.labs.lakebridge.connections.env_getter import EnvGetter
 from databricks.labs.lakebridge.connections.synapse_connection_helpers import create_synapse_connection
 from databricks.labs.lakebridge.resources.assessments.common.cli import arguments_loader
 from databricks.labs.lakebridge.resources.assessments.common.duckdb_helpers import (
+    connect_to_profiler_db,
     get_max_column_value_duckdb,
     save_to_duckdb,
 )
@@ -33,7 +33,7 @@ def get_serverless_database_groups(
     Returns:
         (serverless_database_groups, serverless_db_groups_in_scope)
     """
-    with duckdb.connect(db_path) as conn:
+    with connect_to_profiler_db(db_path) as conn:
         rows = conn.execute(f"SELECT name, collation_name FROM {table_name}").fetchall()
 
     serverless_database_groups = {}
