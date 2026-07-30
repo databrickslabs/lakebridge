@@ -1,0 +1,2425 @@
+{
+  "datasets": [
+    {
+      "name": "04_0_aggregate_summary_table",
+      "displayName": "04_0_aggregate_summary_table",
+      "queryLines": [
+        "/* --title 'Aggregates Summary Table' --width 6 --height 6 */\n",
+        "SELECT\n",
+        "  main.recon_id,\n",
+        "  main.source_type,\n",
+        "  main.source_table.`catalog` AS source_catalog,\n",
+        "  main.source_table.`schema` AS source_schema,\n",
+        "  main.source_table.table_name AS source_table_name,\n",
+        "  IF(\n",
+        "    ISNULL(source_catalog),\n",
+        "    CONCAT_WS('.', source_schema, source_table_name),\n",
+        "    CONCAT_WS('.', source_catalog, source_schema, source_table_name)\n",
+        "  ) AS source_table,\n",
+        "  main.target_table.`catalog` AS target_catalog,\n",
+        "  main.target_table.`schema` AS target_schema,\n",
+        "  main.target_table.table_name AS target_table_name,\n",
+        "  CONCAT_WS('.', target_catalog, target_schema, target_table_name) AS target_table,\n",
+        "  UPPER(rules.rule_info.agg_type) || CONCAT('(', rules.rule_info.agg_column, ')') AS aggregate_column,\n",
+        "  rules.rule_info.group_by_columns,\n",
+        "  metrics.run_metrics.status AS status,\n",
+        "  IF(metrics.run_metrics.status, 'PASSED', 'FAILED') AS status_label,\n",
+        "  metrics.run_metrics.exception_message AS exception,\n",
+        "  metrics.recon_metrics.missing_in_source AS missing_in_source,\n",
+        "  metrics.recon_metrics.missing_in_target AS missing_in_target,\n",
+        "  metrics.recon_metrics.mismatch AS mismatch,\n",
+        "  metrics.run_metrics.run_by_user AS executed_by,\n",
+        "  main.start_ts AS start_ts,\n",
+        "  main.end_ts AS end_ts\n",
+        "FROM remorph.reconcile.main AS main\n",
+        "INNER JOIN remorph.reconcile.aggregate_metrics AS metrics\n",
+        "  ON TRUE\n",
+        "INNER JOIN remorph.reconcile.aggregate_rules AS rules\n",
+        "  ON main.recon_table_id = metrics.recon_table_id AND rules.rule_id = metrics.rule_id\n",
+        "ORDER BY\n",
+        "  metrics.inserted_ts DESC,\n",
+        "  main.recon_id,\n",
+        "  main.target_table.table_name"
+      ]
+    },
+    {
+      "name": "08_0_aggregate_details_table",
+      "displayName": "08_0_aggregate_details_table",
+      "queryLines": [
+        "/* --title 'Aggregates Reconciliation Details' --width 6 --height 6 */\n",
+        "WITH details_view AS (\n",
+        "  SELECT\n",
+        "    recon_table_id,\n",
+        "    rule_id,\n",
+        "    recon_type,\n",
+        "    source_row AS agg_details\n",
+        "  FROM remorph.reconcile.aggregate_details\n",
+        "), metrics_view AS (\n",
+        "  SELECT\n",
+        "    recon_table_id,\n",
+        "    rule_id,\n",
+        "    recon_metrics,\n",
+        "    run_metrics\n",
+        "  FROM remorph.reconcile.aggregate_metrics\n",
+        ")\n",
+        "SELECT\n",
+        "  recon_id AS dd_recon_id,\n",
+        "  source_table AS dd_source_table,\n",
+        "  target_table AS dd_target_table,\n",
+        "  recon_type AS dd_recon_type,\n",
+        "  aggregate_type AS dd_aggregate_type,\n",
+        "  rule AS aggregate_column,\n",
+        "  source_value,\n",
+        "  target_value,\n",
+        "  TO_JSON(\n",
+        "    MAP_FROM_ARRAYS(\n",
+        "      TRANSFORM(rule_group_by_columns, groupby -> TRIM(groupby)),\n",
+        "      group_by_column_values\n",
+        "    )\n",
+        "  ) AS group_by_columns,\n",
+        "  IF(COALESCE(status, FALSE), 'PASSED', 'FAILED') AS status_label\n",
+        "FROM (\n",
+        "  SELECT\n",
+        "    main.recon_id,\n",
+        "    main.source_table.`catalog` AS source_catalog,\n",
+        "    main.source_table.`schema` AS source_schema,\n",
+        "    main.source_table.table_name AS source_table_name,\n",
+        "    IF(\n",
+        "      ISNULL(source_catalog),\n",
+        "      CONCAT_WS('.', source_schema, source_table_name),\n",
+        "      CONCAT_WS('.', source_catalog, source_schema, source_table_name)\n",
+        "    ) AS source_table,\n",
+        "    main.target_table.`catalog` AS target_catalog,\n",
+        "    main.target_table.`schema` AS target_schema,\n",
+        "    main.target_table.table_name AS target_table_name,\n",
+        "    CONCAT_WS('.', target_catalog, target_schema, target_table_name) AS target_table,\n",
+        "    dtl.recon_type,\n",
+        "    rul.rule_info.agg_type AS aggregate_type,\n",
+        "    UPPER(rul.rule_info.agg_type) || CONCAT('(', rul.rule_info.agg_column, ')') AS rule,\n",
+        "    CONCAT_WS('_', 'source', rul.rule_info.agg_type, rul.rule_info.agg_column) AS source_agg_column,\n",
+        "    TO_JSON(TRY_VARIANT_GET(dtl.agg_details, CONCAT('$[\"', source_agg_column, '\"]'))) AS source_value,\n",
+        "    CONCAT_WS('_', 'target', rul.rule_info.agg_type, rul.rule_info.agg_column) AS target_agg_column,\n",
+        "    TO_JSON(TRY_VARIANT_GET(dtl.agg_details, CONCAT('$[\"', target_agg_column, '\"]'))) AS target_value,\n",
+        "    SPLIT(rul.rule_info.group_by_columns, ',') AS rule_group_by_columns,\n",
+        "    TRANSFORM(\n",
+        "      rule_group_by_columns,\n",
+        "      colm -> COALESCE(\n",
+        "        TRY_VARIANT_GET(dtl.agg_details, CONCAT('$[\"source_group_by_', TRIM(colm), '\"]'), 'string'),\n",
+        "        TRY_VARIANT_GET(dtl.agg_details, CONCAT('$[\"target_group_by_', TRIM(colm), '\"]'), 'string')\n",
+        "      )\n",
+        "    ) AS group_by_column_values,\n",
+        "    CONCAT_WS('_', 'match', rul.rule_info.agg_type, rul.rule_info.agg_column) AS status_column,\n",
+        "    TRY_VARIANT_GET(dtl.agg_details, CONCAT('$[\"', status_column, '\"]'), 'boolean') AS status\n",
+        "  FROM metrics_view AS mtc\n",
+        "  INNER JOIN remorph.reconcile.main AS main\n",
+        "    ON main.recon_table_id = mtc.recon_table_id\n",
+        "  INNER JOIN details_view AS dtl\n",
+        "    ON mtc.recon_table_id = dtl.recon_table_id\n",
+        "  INNER JOIN remorph.reconcile.aggregate_rules AS rul\n",
+        "    ON mtc.rule_id = dtl.rule_id AND dtl.rule_id = rul.rule_id\n",
+        ")\n",
+        "ORDER BY\n",
+        "  recon_id"
+      ]
+    },
+    {
+      "name": "10_0_aggr_mismatched_records",
+      "displayName": "10_0_aggr_mismatched_records",
+      "queryLines": [
+        "/* --title 'Mismatched Records' --width 6 */\n",
+        "SELECT\n",
+        "  main.recon_id,\n",
+        "  CONCAT_WS(\n",
+        "    '.',\n",
+        "    main.target_table.`catalog`,\n",
+        "    main.target_table.`schema`,\n",
+        "    main.target_table.table_name\n",
+        "  ) AS target_table,\n",
+        "  main.start_ts,\n",
+        "  metrics.recon_metrics.mismatch AS mismatch\n",
+        "FROM remorph.reconcile.main AS main\n",
+        "INNER JOIN remorph.reconcile.aggregate_metrics AS metrics\n",
+        "  ON main.recon_table_id = metrics.recon_table_id\n",
+        "ORDER BY\n",
+        "  metrics.inserted_ts DESC,\n",
+        "  main.recon_id,\n",
+        "  main.target_table.table_name"
+      ]
+    },
+    {
+      "name": "11_0_aggr_missing_in_databricks",
+      "displayName": "11_0_aggr_missing_in_databricks",
+      "queryLines": [
+        "/* --title 'Missing in Databricks' --width 3 */\n",
+        "SELECT\n",
+        "  main.recon_id,\n",
+        "  CONCAT_WS(\n",
+        "    '.',\n",
+        "    main.target_table.`catalog`,\n",
+        "    main.target_table.`schema`,\n",
+        "    main.target_table.table_name\n",
+        "  ) AS target_table,\n",
+        "  main.start_ts,\n",
+        "  metrics.recon_metrics.missing_in_target AS missing_in_target\n",
+        "FROM remorph.reconcile.main AS main\n",
+        "INNER JOIN remorph.reconcile.aggregate_metrics AS metrics\n",
+        "  ON main.recon_table_id = metrics.recon_table_id\n",
+        "ORDER BY\n",
+        "  metrics.inserted_ts DESC,\n",
+        "  main.recon_id,\n",
+        "  main.target_table.table_name"
+      ]
+    },
+    {
+      "name": "11_1_aggr_missing_in_source",
+      "displayName": "11_1_aggr_missing_in_source",
+      "queryLines": [
+        "/* --title 'Missing in Source' --width 3 */\n",
+        "SELECT\n",
+        "  main.recon_id,\n",
+        "  CONCAT_WS(\n",
+        "    '.',\n",
+        "    main.target_table.`catalog`,\n",
+        "    main.target_table.`schema`,\n",
+        "    main.target_table.table_name\n",
+        "  ) AS target_table,\n",
+        "  main.start_ts,\n",
+        "  metrics.recon_metrics.missing_in_source AS missing_in_source\n",
+        "FROM remorph.reconcile.main AS main\n",
+        "INNER JOIN remorph.reconcile.aggregate_metrics AS metrics\n",
+        "  ON main.recon_table_id = metrics.recon_table_id\n",
+        "ORDER BY\n",
+        "  metrics.inserted_ts DESC,\n",
+        "  main.recon_id,\n",
+        "  main.target_table.table_name"
+      ]
+    }
+  ],
+  "pages": [
+    {
+      "name": "Lakebridge_Aggregate_Reconciliation_demo_",
+      "displayName": "Lakebridge Aggregate Reconciliation (demo)",
+      "layout": [
+        {
+          "widget": {
+            "name": "00_0_aggregate_recon_header_widget",
+            "multilineTextboxSpec": {
+              "lines": [
+                "# Aggregates Reconcile Table Metrics\n",
+                "### It provides the following information:\n",
+                "\n",
+                "* Mismatch\n",
+                "* Missing in Source\n",
+                "* Missing in Target\n"
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 6,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "01_0_recon_id_filter_widget",
+            "queries": [
+              {
+                "name": "MULTI_SELECT_08_0_aggregate_details_table_dd_recon_id",
+                "query": {
+                  "datasetName": "08_0_aggregate_details_table",
+                  "fields": [
+                    {
+                      "name": "dd_recon_id",
+                      "expression": "`dd_recon_id`"
+                    },
+                    {
+                      "name": "dd_recon_id_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "MULTI_SELECT_04_0_aggregate_summary_table_recon_id",
+                "query": {
+                  "datasetName": "04_0_aggregate_summary_table",
+                  "fields": [
+                    {
+                      "name": "recon_id",
+                      "expression": "`recon_id`"
+                    },
+                    {
+                      "name": "recon_id_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "MULTI_SELECT_11_1_aggr_missing_in_source_recon_id",
+                "query": {
+                  "datasetName": "11_1_aggr_missing_in_source",
+                  "fields": [
+                    {
+                      "name": "recon_id",
+                      "expression": "`recon_id`"
+                    },
+                    {
+                      "name": "recon_id_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "MULTI_SELECT_10_0_aggr_mismatched_records_recon_id",
+                "query": {
+                  "datasetName": "10_0_aggr_mismatched_records",
+                  "fields": [
+                    {
+                      "name": "recon_id",
+                      "expression": "`recon_id`"
+                    },
+                    {
+                      "name": "recon_id_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "MULTI_SELECT_11_0_aggr_missing_in_databricks_recon_id",
+                "query": {
+                  "datasetName": "11_0_aggr_missing_in_databricks",
+                  "fields": [
+                    {
+                      "name": "recon_id",
+                      "expression": "`recon_id`"
+                    },
+                    {
+                      "name": "recon_id_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-multi-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "displayName": "dd_recon_id",
+                    "fieldName": "dd_recon_id",
+                    "queryName": "MULTI_SELECT_08_0_aggregate_details_table_dd_recon_id"
+                  },
+                  {
+                    "displayName": "recon_id",
+                    "fieldName": "recon_id",
+                    "queryName": "MULTI_SELECT_04_0_aggregate_summary_table_recon_id"
+                  },
+                  {
+                    "displayName": "recon_id",
+                    "fieldName": "recon_id",
+                    "queryName": "MULTI_SELECT_11_1_aggr_missing_in_source_recon_id"
+                  },
+                  {
+                    "displayName": "recon_id",
+                    "fieldName": "recon_id",
+                    "queryName": "MULTI_SELECT_10_0_aggr_mismatched_records_recon_id"
+                  },
+                  {
+                    "displayName": "recon_id",
+                    "fieldName": "recon_id",
+                    "queryName": "MULTI_SELECT_11_0_aggr_missing_in_databricks_recon_id"
+                  }
+                ]
+              },
+              "frame": {
+                "description": "",
+                "showDescription": false,
+                "showTitle": true,
+                "title": "Recon Id"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 3,
+            "width": 2,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "01_1_executed_by_filter_widget",
+            "queries": [
+              {
+                "name": "MULTI_SELECT_04_0_aggregate_summary_table_executed_by",
+                "query": {
+                  "datasetName": "04_0_aggregate_summary_table",
+                  "fields": [
+                    {
+                      "name": "executed_by",
+                      "expression": "`executed_by`"
+                    },
+                    {
+                      "name": "executed_by_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-multi-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "displayName": "executed_by",
+                    "fieldName": "executed_by",
+                    "queryName": "MULTI_SELECT_04_0_aggregate_summary_table_executed_by"
+                  }
+                ]
+              },
+              "frame": {
+                "description": "",
+                "showDescription": false,
+                "showTitle": true,
+                "title": "Executed by"
+              }
+            }
+          },
+          "position": {
+            "x": 2,
+            "y": 3,
+            "width": 2,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "01_2_started_at_filter_widget",
+            "queries": [
+              {
+                "name": "DATE_RANGE_PICKER_11_1_aggr_missing_in_source_start_ts",
+                "query": {
+                  "datasetName": "11_1_aggr_missing_in_source",
+                  "fields": [
+                    {
+                      "name": "start_ts",
+                      "expression": "`start_ts`"
+                    },
+                    {
+                      "name": "start_ts_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "DATE_RANGE_PICKER_11_0_aggr_missing_in_databricks_start_ts",
+                "query": {
+                  "datasetName": "11_0_aggr_missing_in_databricks",
+                  "fields": [
+                    {
+                      "name": "start_ts",
+                      "expression": "`start_ts`"
+                    },
+                    {
+                      "name": "start_ts_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "DATE_RANGE_PICKER_10_0_aggr_mismatched_records_start_ts",
+                "query": {
+                  "datasetName": "10_0_aggr_mismatched_records",
+                  "fields": [
+                    {
+                      "name": "start_ts",
+                      "expression": "`start_ts`"
+                    },
+                    {
+                      "name": "start_ts_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "DATE_RANGE_PICKER_04_0_aggregate_summary_table_start_ts",
+                "query": {
+                  "datasetName": "04_0_aggregate_summary_table",
+                  "fields": [
+                    {
+                      "name": "start_ts",
+                      "expression": "`start_ts`"
+                    },
+                    {
+                      "name": "start_ts_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-date-range-picker",
+              "encodings": {
+                "fields": [
+                  {
+                    "displayName": "start_ts",
+                    "fieldName": "start_ts",
+                    "queryName": "DATE_RANGE_PICKER_11_1_aggr_missing_in_source_start_ts"
+                  },
+                  {
+                    "displayName": "start_ts",
+                    "fieldName": "start_ts",
+                    "queryName": "DATE_RANGE_PICKER_11_0_aggr_missing_in_databricks_start_ts"
+                  },
+                  {
+                    "displayName": "start_ts",
+                    "fieldName": "start_ts",
+                    "queryName": "DATE_RANGE_PICKER_10_0_aggr_mismatched_records_start_ts"
+                  },
+                  {
+                    "displayName": "start_ts",
+                    "fieldName": "start_ts",
+                    "queryName": "DATE_RANGE_PICKER_04_0_aggregate_summary_table_start_ts"
+                  }
+                ]
+              },
+              "frame": {
+                "description": "",
+                "showDescription": false,
+                "showTitle": true,
+                "title": "Started At"
+              }
+            }
+          },
+          "position": {
+            "x": 4,
+            "y": 3,
+            "width": 2,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "02_0_source_type_filter_widget",
+            "queries": [
+              {
+                "name": "MULTI_SELECT_04_0_aggregate_summary_table_source_type",
+                "query": {
+                  "datasetName": "04_0_aggregate_summary_table",
+                  "fields": [
+                    {
+                      "name": "source_type",
+                      "expression": "`source_type`"
+                    },
+                    {
+                      "name": "source_type_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-multi-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "displayName": "source_type",
+                    "fieldName": "source_type",
+                    "queryName": "MULTI_SELECT_04_0_aggregate_summary_table_source_type"
+                  }
+                ]
+              },
+              "frame": {
+                "description": "",
+                "showDescription": false,
+                "showTitle": true,
+                "title": "Source Type"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 5,
+            "width": 2,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "02_1_source_table_filter_widget",
+            "queries": [
+              {
+                "name": "MULTI_SELECT_04_0_aggregate_summary_table_source_table",
+                "query": {
+                  "datasetName": "04_0_aggregate_summary_table",
+                  "fields": [
+                    {
+                      "name": "source_table",
+                      "expression": "`source_table`"
+                    },
+                    {
+                      "name": "source_table_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-multi-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "displayName": "source_table",
+                    "fieldName": "source_table",
+                    "queryName": "MULTI_SELECT_04_0_aggregate_summary_table_source_table"
+                  }
+                ]
+              },
+              "frame": {
+                "description": "",
+                "showDescription": false,
+                "showTitle": true,
+                "title": "Source Table Name"
+              }
+            }
+          },
+          "position": {
+            "x": 2,
+            "y": 5,
+            "width": 2,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "02_2_target_table_filter_widget",
+            "queries": [
+              {
+                "name": "MULTI_SELECT_04_0_aggregate_summary_table_target_table",
+                "query": {
+                  "datasetName": "04_0_aggregate_summary_table",
+                  "fields": [
+                    {
+                      "name": "target_table",
+                      "expression": "`target_table`"
+                    },
+                    {
+                      "name": "target_table_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "MULTI_SELECT_11_1_aggr_missing_in_source_target_table",
+                "query": {
+                  "datasetName": "11_1_aggr_missing_in_source",
+                  "fields": [
+                    {
+                      "name": "target_table",
+                      "expression": "`target_table`"
+                    },
+                    {
+                      "name": "target_table_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "MULTI_SELECT_11_0_aggr_missing_in_databricks_target_table",
+                "query": {
+                  "datasetName": "11_0_aggr_missing_in_databricks",
+                  "fields": [
+                    {
+                      "name": "target_table",
+                      "expression": "`target_table`"
+                    },
+                    {
+                      "name": "target_table_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "MULTI_SELECT_10_0_aggr_mismatched_records_target_table",
+                "query": {
+                  "datasetName": "10_0_aggr_mismatched_records",
+                  "fields": [
+                    {
+                      "name": "target_table",
+                      "expression": "`target_table`"
+                    },
+                    {
+                      "name": "target_table_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-multi-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "displayName": "target_table",
+                    "fieldName": "target_table",
+                    "queryName": "MULTI_SELECT_04_0_aggregate_summary_table_target_table"
+                  },
+                  {
+                    "displayName": "target_table",
+                    "fieldName": "target_table",
+                    "queryName": "MULTI_SELECT_11_1_aggr_missing_in_source_target_table"
+                  },
+                  {
+                    "displayName": "target_table",
+                    "fieldName": "target_table",
+                    "queryName": "MULTI_SELECT_11_0_aggr_missing_in_databricks_target_table"
+                  },
+                  {
+                    "displayName": "target_table",
+                    "fieldName": "target_table",
+                    "queryName": "MULTI_SELECT_10_0_aggr_mismatched_records_target_table"
+                  }
+                ]
+              },
+              "frame": {
+                "description": "",
+                "showDescription": false,
+                "showTitle": true,
+                "title": "Target Table Name"
+              }
+            }
+          },
+          "position": {
+            "x": 4,
+            "y": 5,
+            "width": 2,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "04_0_aggregate_summary_table_widget",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "04_0_aggregate_summary_table",
+                  "fields": [
+                    {
+                      "name": "recon_id",
+                      "expression": "`recon_id`"
+                    },
+                    {
+                      "name": "source_type",
+                      "expression": "`source_type`"
+                    },
+                    {
+                      "name": "source_catalog",
+                      "expression": "`source_catalog`"
+                    },
+                    {
+                      "name": "source_schema",
+                      "expression": "`source_schema`"
+                    },
+                    {
+                      "name": "source_table_name",
+                      "expression": "`source_table_name`"
+                    },
+                    {
+                      "name": "source_table",
+                      "expression": "`source_table`"
+                    },
+                    {
+                      "name": "target_catalog",
+                      "expression": "`target_catalog`"
+                    },
+                    {
+                      "name": "target_schema",
+                      "expression": "`target_schema`"
+                    },
+                    {
+                      "name": "target_table_name",
+                      "expression": "`target_table_name`"
+                    },
+                    {
+                      "name": "target_table",
+                      "expression": "`target_table`"
+                    },
+                    {
+                      "name": "aggregate_column",
+                      "expression": "`aggregate_column`"
+                    },
+                    {
+                      "name": "group_by_columns",
+                      "expression": "`group_by_columns`"
+                    },
+                    {
+                      "name": "status",
+                      "expression": "`status`"
+                    },
+                    {
+                      "name": "exception",
+                      "expression": "`exception`"
+                    },
+                    {
+                      "name": "missing_in_source",
+                      "expression": "`missing_in_source`"
+                    },
+                    {
+                      "name": "missing_in_target",
+                      "expression": "`missing_in_target`"
+                    },
+                    {
+                      "name": "mismatch",
+                      "expression": "`mismatch`"
+                    },
+                    {
+                      "name": "executed_by",
+                      "expression": "`executed_by`"
+                    },
+                    {
+                      "name": "start_ts",
+                      "expression": "`start_ts`"
+                    },
+                    {
+                      "name": "end_ts",
+                      "expression": "`end_ts`"
+                    },
+                    {
+                      "name": "status_label",
+                      "expression": "`status_label`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "table",
+              "frame": {
+                "description": "",
+                "showDescription": false,
+                "showTitle": true,
+                "title": "Aggregates Summary Table"
+              },
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "recon_id",
+                    "displayName": "recon_id",
+                    "style": {
+                      "type": "basic",
+                      "rules": [
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "PASSED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#D4EDDA",
+                          "foregroundColor": "#155724"
+                        },
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "FAILED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#F8D7DA",
+                          "foregroundColor": "#721C24"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "fieldName": "source_type",
+                    "displayName": "source_type",
+                    "style": {
+                      "type": "basic",
+                      "rules": [
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "PASSED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#D4EDDA",
+                          "foregroundColor": "#155724"
+                        },
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "FAILED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#F8D7DA",
+                          "foregroundColor": "#721C24"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "fieldName": "source_catalog",
+                    "displayName": "source_catalog",
+                    "style": {
+                      "type": "basic",
+                      "rules": [
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "PASSED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#D4EDDA",
+                          "foregroundColor": "#155724"
+                        },
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "FAILED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#F8D7DA",
+                          "foregroundColor": "#721C24"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "fieldName": "source_schema",
+                    "displayName": "source_schema",
+                    "style": {
+                      "type": "basic",
+                      "rules": [
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "PASSED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#D4EDDA",
+                          "foregroundColor": "#155724"
+                        },
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "FAILED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#F8D7DA",
+                          "foregroundColor": "#721C24"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "fieldName": "source_table_name",
+                    "displayName": "source_table_name",
+                    "style": {
+                      "type": "basic",
+                      "rules": [
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "PASSED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#D4EDDA",
+                          "foregroundColor": "#155724"
+                        },
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "FAILED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#F8D7DA",
+                          "foregroundColor": "#721C24"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "fieldName": "source_table",
+                    "displayName": "source_table",
+                    "style": {
+                      "type": "basic",
+                      "rules": [
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "PASSED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#D4EDDA",
+                          "foregroundColor": "#155724"
+                        },
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "FAILED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#F8D7DA",
+                          "foregroundColor": "#721C24"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "fieldName": "target_catalog",
+                    "displayName": "target_catalog",
+                    "style": {
+                      "type": "basic",
+                      "rules": [
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "PASSED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#D4EDDA",
+                          "foregroundColor": "#155724"
+                        },
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "FAILED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#F8D7DA",
+                          "foregroundColor": "#721C24"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "fieldName": "target_schema",
+                    "displayName": "target_schema",
+                    "style": {
+                      "type": "basic",
+                      "rules": [
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "PASSED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#D4EDDA",
+                          "foregroundColor": "#155724"
+                        },
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "FAILED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#F8D7DA",
+                          "foregroundColor": "#721C24"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "fieldName": "target_table_name",
+                    "displayName": "target_table_name",
+                    "style": {
+                      "type": "basic",
+                      "rules": [
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "PASSED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#D4EDDA",
+                          "foregroundColor": "#155724"
+                        },
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "FAILED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#F8D7DA",
+                          "foregroundColor": "#721C24"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "fieldName": "target_table",
+                    "displayName": "target_table",
+                    "style": {
+                      "type": "basic",
+                      "rules": [
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "PASSED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#D4EDDA",
+                          "foregroundColor": "#155724"
+                        },
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "FAILED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#F8D7DA",
+                          "foregroundColor": "#721C24"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "fieldName": "aggregate_column",
+                    "displayName": "aggregate_column",
+                    "style": {
+                      "type": "basic",
+                      "rules": [
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "PASSED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#D4EDDA",
+                          "foregroundColor": "#155724"
+                        },
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "FAILED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#F8D7DA",
+                          "foregroundColor": "#721C24"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "fieldName": "group_by_columns",
+                    "displayName": "group_by_columns",
+                    "style": {
+                      "type": "basic",
+                      "rules": [
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "PASSED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#D4EDDA",
+                          "foregroundColor": "#155724"
+                        },
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "FAILED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#F8D7DA",
+                          "foregroundColor": "#721C24"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "fieldName": "status_label",
+                    "displayName": "Status",
+                    "style": {
+                      "type": "basic",
+                      "rules": [
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "PASSED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#D4EDDA",
+                          "foregroundColor": "#155724"
+                        },
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "FAILED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#F8D7DA",
+                          "foregroundColor": "#721C24"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "fieldName": "exception",
+                    "displayName": "exception",
+                    "style": {
+                      "type": "basic",
+                      "rules": [
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "PASSED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#D4EDDA",
+                          "foregroundColor": "#155724"
+                        },
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "FAILED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#F8D7DA",
+                          "foregroundColor": "#721C24"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "fieldName": "missing_in_source",
+                    "displayName": "missing_in_source",
+                    "style": {
+                      "type": "basic",
+                      "rules": [
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "PASSED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#D4EDDA",
+                          "foregroundColor": "#155724"
+                        },
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "FAILED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#F8D7DA",
+                          "foregroundColor": "#721C24"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "fieldName": "missing_in_target",
+                    "displayName": "missing_in_target",
+                    "style": {
+                      "type": "basic",
+                      "rules": [
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "PASSED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#D4EDDA",
+                          "foregroundColor": "#155724"
+                        },
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "FAILED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#F8D7DA",
+                          "foregroundColor": "#721C24"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "fieldName": "mismatch",
+                    "displayName": "mismatch",
+                    "style": {
+                      "type": "basic",
+                      "rules": [
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "PASSED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#D4EDDA",
+                          "foregroundColor": "#155724"
+                        },
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "FAILED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#F8D7DA",
+                          "foregroundColor": "#721C24"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "fieldName": "executed_by",
+                    "displayName": "executed_by",
+                    "style": {
+                      "type": "basic",
+                      "rules": [
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "PASSED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#D4EDDA",
+                          "foregroundColor": "#155724"
+                        },
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "FAILED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#F8D7DA",
+                          "foregroundColor": "#721C24"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "fieldName": "start_ts",
+                    "displayName": "start_ts",
+                    "style": {
+                      "type": "basic",
+                      "rules": [
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "PASSED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#D4EDDA",
+                          "foregroundColor": "#155724"
+                        },
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "FAILED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#F8D7DA",
+                          "foregroundColor": "#721C24"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "fieldName": "end_ts",
+                    "displayName": "end_ts",
+                    "style": {
+                      "type": "basic",
+                      "rules": [
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "PASSED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#D4EDDA",
+                          "foregroundColor": "#155724"
+                        },
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "FAILED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#F8D7DA",
+                          "foregroundColor": "#721C24"
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 7,
+            "width": 6,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "05_0_aggregate_recon_drilldown_header_widget",
+            "multilineTextboxSpec": {
+              "lines": [
+                "# Drill Down\n",
+                "### The Aggregates Reconcile details table contains all the sample records information of mismatches and missing entries.\n"
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 13,
+            "width": 6,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "06_0_recon_id_filter_widget",
+            "queries": [
+              {
+                "name": "MULTI_SELECT_08_0_aggregate_details_table_dd_recon_id",
+                "query": {
+                  "datasetName": "08_0_aggregate_details_table",
+                  "fields": [
+                    {
+                      "name": "dd_recon_id",
+                      "expression": "`dd_recon_id`"
+                    },
+                    {
+                      "name": "dd_recon_id_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-multi-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "displayName": "dd_recon_id",
+                    "fieldName": "dd_recon_id",
+                    "queryName": "MULTI_SELECT_08_0_aggregate_details_table_dd_recon_id"
+                  }
+                ]
+              },
+              "frame": {
+                "description": "",
+                "showDescription": false,
+                "showTitle": true,
+                "title": "Recon Id"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 16,
+            "width": 2,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "06_1_category_filter_widget",
+            "queries": [
+              {
+                "name": "MULTI_SELECT_08_0_aggregate_details_table_dd_recon_type",
+                "query": {
+                  "datasetName": "08_0_aggregate_details_table",
+                  "fields": [
+                    {
+                      "name": "dd_recon_type",
+                      "expression": "`dd_recon_type`"
+                    },
+                    {
+                      "name": "dd_recon_type_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-multi-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "displayName": "dd_recon_type",
+                    "fieldName": "dd_recon_type",
+                    "queryName": "MULTI_SELECT_08_0_aggregate_details_table_dd_recon_type"
+                  }
+                ]
+              },
+              "frame": {
+                "description": "",
+                "showDescription": false,
+                "showTitle": true,
+                "title": "Category"
+              }
+            }
+          },
+          "position": {
+            "x": 2,
+            "y": 16,
+            "width": 2,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "06_2_aggregate_type_filter_widget",
+            "queries": [
+              {
+                "name": "MULTI_SELECT_08_0_aggregate_details_table_dd_aggregate_type",
+                "query": {
+                  "datasetName": "08_0_aggregate_details_table",
+                  "fields": [
+                    {
+                      "name": "dd_aggregate_type",
+                      "expression": "`dd_aggregate_type`"
+                    },
+                    {
+                      "name": "dd_aggregate_type_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-multi-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "displayName": "dd_aggregate_type",
+                    "fieldName": "dd_aggregate_type",
+                    "queryName": "MULTI_SELECT_08_0_aggregate_details_table_dd_aggregate_type"
+                  }
+                ]
+              },
+              "frame": {
+                "description": "",
+                "showDescription": false,
+                "showTitle": true,
+                "title": "Aggregate Type"
+              }
+            }
+          },
+          "position": {
+            "x": 4,
+            "y": 16,
+            "width": 2,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "07_0_target_table_filter_widget",
+            "queries": [
+              {
+                "name": "MULTI_SELECT_08_0_aggregate_details_table_dd_target_table",
+                "query": {
+                  "datasetName": "08_0_aggregate_details_table",
+                  "fields": [
+                    {
+                      "name": "dd_target_table",
+                      "expression": "`dd_target_table`"
+                    },
+                    {
+                      "name": "dd_target_table_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-multi-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "displayName": "dd_target_table",
+                    "fieldName": "dd_target_table",
+                    "queryName": "MULTI_SELECT_08_0_aggregate_details_table_dd_target_table"
+                  }
+                ]
+              },
+              "frame": {
+                "description": "",
+                "showDescription": false,
+                "showTitle": true,
+                "title": "Target Table Name"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 18,
+            "width": 3,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "07_1_source_table_filter_widget",
+            "queries": [
+              {
+                "name": "MULTI_SELECT_08_0_aggregate_details_table_dd_source_table",
+                "query": {
+                  "datasetName": "08_0_aggregate_details_table",
+                  "fields": [
+                    {
+                      "name": "dd_source_table",
+                      "expression": "`dd_source_table`"
+                    },
+                    {
+                      "name": "dd_source_table_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-multi-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "displayName": "dd_source_table",
+                    "fieldName": "dd_source_table",
+                    "queryName": "MULTI_SELECT_08_0_aggregate_details_table_dd_source_table"
+                  }
+                ]
+              },
+              "frame": {
+                "description": "",
+                "showDescription": false,
+                "showTitle": true,
+                "title": "Source Table Name"
+              }
+            }
+          },
+          "position": {
+            "x": 3,
+            "y": 18,
+            "width": 3,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "08_0_aggregate_details_table_widget",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "08_0_aggregate_details_table",
+                  "fields": [
+                    {
+                      "name": "dd_recon_id",
+                      "expression": "`dd_recon_id`"
+                    },
+                    {
+                      "name": "dd_source_table",
+                      "expression": "`dd_source_table`"
+                    },
+                    {
+                      "name": "dd_target_table",
+                      "expression": "`dd_target_table`"
+                    },
+                    {
+                      "name": "dd_recon_type",
+                      "expression": "`dd_recon_type`"
+                    },
+                    {
+                      "name": "dd_aggregate_type",
+                      "expression": "`dd_aggregate_type`"
+                    },
+                    {
+                      "name": "aggregate_column",
+                      "expression": "`aggregate_column`"
+                    },
+                    {
+                      "name": "source_value",
+                      "expression": "`source_value`"
+                    },
+                    {
+                      "name": "target_value",
+                      "expression": "`target_value`"
+                    },
+                    {
+                      "name": "group_by_columns",
+                      "expression": "`group_by_columns`"
+                    },
+                    {
+                      "name": "status_label",
+                      "expression": "`status_label`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "table",
+              "frame": {
+                "description": "",
+                "showDescription": false,
+                "showTitle": true,
+                "title": "Aggregates Reconciliation Details"
+              },
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "dd_recon_id",
+                    "displayName": "recon_id",
+                    "style": {
+                      "type": "basic",
+                      "rules": [
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "PASSED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#D4EDDA",
+                          "foregroundColor": "#155724"
+                        },
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "FAILED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#F8D7DA",
+                          "foregroundColor": "#721C24"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "fieldName": "dd_source_table",
+                    "displayName": "source_table",
+                    "style": {
+                      "type": "basic",
+                      "rules": [
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "PASSED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#D4EDDA",
+                          "foregroundColor": "#155724"
+                        },
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "FAILED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#F8D7DA",
+                          "foregroundColor": "#721C24"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "fieldName": "dd_target_table",
+                    "displayName": "target_table",
+                    "style": {
+                      "type": "basic",
+                      "rules": [
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "PASSED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#D4EDDA",
+                          "foregroundColor": "#155724"
+                        },
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "FAILED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#F8D7DA",
+                          "foregroundColor": "#721C24"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "fieldName": "dd_recon_type",
+                    "displayName": "recon_type",
+                    "style": {
+                      "type": "basic",
+                      "rules": [
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "PASSED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#D4EDDA",
+                          "foregroundColor": "#155724"
+                        },
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "FAILED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#F8D7DA",
+                          "foregroundColor": "#721C24"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "fieldName": "dd_aggregate_type",
+                    "displayName": "aggregate_type",
+                    "style": {
+                      "type": "basic",
+                      "rules": [
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "PASSED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#D4EDDA",
+                          "foregroundColor": "#155724"
+                        },
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "FAILED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#F8D7DA",
+                          "foregroundColor": "#721C24"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "fieldName": "aggregate_column",
+                    "displayName": "aggregate_column",
+                    "style": {
+                      "type": "basic",
+                      "rules": [
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "PASSED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#D4EDDA",
+                          "foregroundColor": "#155724"
+                        },
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "FAILED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#F8D7DA",
+                          "foregroundColor": "#721C24"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "fieldName": "source_value",
+                    "displayName": "source_value",
+                    "style": {
+                      "type": "basic",
+                      "rules": [
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "PASSED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#D4EDDA",
+                          "foregroundColor": "#155724"
+                        },
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "FAILED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#F8D7DA",
+                          "foregroundColor": "#721C24"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "fieldName": "target_value",
+                    "displayName": "target_value",
+                    "style": {
+                      "type": "basic",
+                      "rules": [
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "PASSED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#D4EDDA",
+                          "foregroundColor": "#155724"
+                        },
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "FAILED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#F8D7DA",
+                          "foregroundColor": "#721C24"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "fieldName": "group_by_columns",
+                    "displayName": "group_by_columns",
+                    "style": {
+                      "type": "basic",
+                      "rules": [
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "PASSED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#D4EDDA",
+                          "foregroundColor": "#155724"
+                        },
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "FAILED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#F8D7DA",
+                          "foregroundColor": "#721C24"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "fieldName": "status_label",
+                    "displayName": "Status",
+                    "style": {
+                      "type": "basic",
+                      "rules": [
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "PASSED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#D4EDDA",
+                          "foregroundColor": "#155724"
+                        },
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "FAILED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#F8D7DA",
+                          "foregroundColor": "#721C24"
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 20,
+            "width": 6,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "09_0_aggregate_missing_mismatch_header_widget",
+            "multilineTextboxSpec": {
+              "lines": [
+                "# Visualization of Missing and Mismatched Records\n"
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 26,
+            "width": 6,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "10_0_aggr_mismatched_records_widget",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "10_0_aggr_mismatched_records",
+                  "fields": [
+                    {
+                      "name": "target_table",
+                      "expression": "`target_table`"
+                    },
+                    {
+                      "name": "daily(start_ts)",
+                      "expression": "DATE_TRUNC(\"DAY\", `start_ts`)"
+                    },
+                    {
+                      "name": "mismatch",
+                      "expression": "`mismatch`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "frame": {
+                "description": "",
+                "showDescription": false,
+                "showTitle": true,
+                "title": "Mismatched Records"
+              },
+              "widgetType": "area",
+              "encodings": {
+                "x": {
+                  "fieldName": "daily(start_ts)",
+                  "displayName": "Time",
+                  "scale": {
+                    "type": "temporal"
+                  }
+                },
+                "y": {
+                  "fieldName": "mismatch",
+                  "displayName": "Mismatch",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "color": {
+                  "fieldName": "target_table",
+                  "displayName": "target_table",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "label": {
+                  "show": false
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 29,
+            "width": 6,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "11_0_aggr_missing_in_databricks_widget",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "11_0_aggr_missing_in_databricks",
+                  "fields": [
+                    {
+                      "name": "target_table",
+                      "expression": "`target_table`"
+                    },
+                    {
+                      "name": "daily(start_ts)",
+                      "expression": "DATE_TRUNC(\"DAY\", `start_ts`)"
+                    },
+                    {
+                      "name": "missing_in_target",
+                      "expression": "`missing_in_target`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "frame": {
+                "description": "",
+                "showDescription": false,
+                "showTitle": true,
+                "title": "Missing in Databricks"
+              },
+              "widgetType": "area",
+              "encodings": {
+                "x": {
+                  "fieldName": "daily(start_ts)",
+                  "displayName": "Time",
+                  "scale": {
+                    "type": "temporal"
+                  }
+                },
+                "y": {
+                  "fieldName": "missing_in_target",
+                  "displayName": "Missing in Target",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "color": {
+                  "fieldName": "target_table",
+                  "displayName": "target_table",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "label": {
+                  "show": false
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 35,
+            "width": 3,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "11_1_aggr_missing_in_source_widget",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "11_1_aggr_missing_in_source",
+                  "fields": [
+                    {
+                      "name": "target_table",
+                      "expression": "`target_table`"
+                    },
+                    {
+                      "name": "daily(start_ts)",
+                      "expression": "DATE_TRUNC(\"DAY\", `start_ts`)"
+                    },
+                    {
+                      "name": "missing_in_source",
+                      "expression": "`missing_in_source`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "frame": {
+                "description": "",
+                "showDescription": false,
+                "showTitle": true,
+                "title": "Missing in Source"
+              },
+              "widgetType": "area",
+              "encodings": {
+                "x": {
+                  "fieldName": "daily(start_ts)",
+                  "displayName": "Time",
+                  "scale": {
+                    "type": "temporal"
+                  }
+                },
+                "y": {
+                  "fieldName": "missing_in_source",
+                  "displayName": "Missing in Source",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "color": {
+                  "fieldName": "target_table",
+                  "displayName": "target_table",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "label": {
+                  "show": false
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 3,
+            "y": 35,
+            "width": 3,
+            "height": 6
+          }
+        }
+      ],
+      "pageType": "PAGE_TYPE_CANVAS"
+    }
+  ]
+}

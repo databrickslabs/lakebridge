@@ -1,9 +1,11 @@
 import logging
+import uuid
 
 import sqlglot.expressions as exp
 from pyspark.sql import DataFrame
 from sqlglot import Dialect, parse_one, select
 
+from databricks.labs.lakebridge.reconcile.constants import RECON_SAMPLE_VIEW_PREFIX
 from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import DialectUtils
 from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect, get_key_from_dialect
 from databricks.labs.lakebridge.reconcile.query_builder.base import QueryBuilder
@@ -122,7 +124,13 @@ class SamplingQueryBuilder(QueryBuilder):
         Emits ``(SELECT 'a' AS c1, ... UNION SELECT ...) AS recon``. Dialects that reject a
         FROM-less ``SELECT`` as a UNION operand (Oracle, Teradata) get a one-row table in each
         operand's FROM clause; all others omit FROM.
+
+        Databricks instead registers the sample keys as a temp view and references it, so the
+        emitted SQL stays small regardless of sample size (an inline UNION of thousands of rows
+        overruns Spark Connect's gRPC retry limits).
         """
+        if get_key_from_dialect(self.engine) == "databricks":
+            return self._recon_subquery_from_temp_view(df)
         column_types_dict = {str(f.name).lower(): f.dataType for f in df.schema.fields}
         orig_types_dict = {
             schema.column_name: schema.data_type
@@ -155,3 +163,12 @@ class SamplingQueryBuilder(QueryBuilder):
             union_res.append(sel)
         union_statements = _union_concat(union_res, union_res[0], 0)
         return exp.Subquery(this=union_statements, alias=exp.TableAlias(this=exp.to_identifier("recon")))
+
+    @staticmethod
+    def _recon_subquery_from_temp_view(df: DataFrame) -> exp.Subquery:
+        view_name = f"{RECON_SAMPLE_VIEW_PREFIX}{uuid.uuid4().hex}"
+        df.createOrReplaceTempView(view_name)
+        return exp.Subquery(
+            this=select("*").from_(view_name),
+            alias=exp.TableAlias(this=exp.to_identifier("recon")),
+        )

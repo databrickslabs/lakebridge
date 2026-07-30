@@ -1,5 +1,420 @@
 # Version changelog
 
+# Release v0.14.1
+
+## Highlights
+
+- **Teradata is now a profiler source.** Teradata joins the set of supported profiler platforms, letting you assess a Teradata estate ahead of a migration to Databricks.
+
+- **Multi-database profiling for SQL Server.** The SQL Server profiler can now extract from multiple databases in a single run, rather than being scoped to one database at a time.
+
+- **BigQuery is now a reconcile source.** BigQuery can be used as a source platform for data-quality reconciliation, extending validation coverage for customers migrating off BigQuery.
+
+- **Java 21 is now required.** The Morpheus transpiler now requires Java 21 or above; `install-transpile` will prompt if an older runtime is detected.
+
+---
+
+## Profilers
+
+### New Sources
+
+- **Teradata ([#2343](https://github.com/databrickslabs/lakebridge/pull/2343))**
+  Adds Teradata as a profiler source, wiring the interactive configurator, extraction queries, and local extract population so Teradata estates can be assessed ahead of migration.
+
+### Enhancements
+
+- **Multi-database profiling for SQL Server ([#2536](https://github.com/databrickslabs/lakebridge/pull/2536))**
+  The SQL Server profiler can now extract across multiple databases in a single execution instead of being limited to one database per run.
+
+- **Profiler variants in `execute-profiler` ([#2511](https://github.com/databrickslabs/lakebridge/pull/2511))**
+  Introduces the concept of a profiler *variant*: when a source supports more than one variant, the user is prompted to select one at execution time.
+
+- **Correct exit code on profiler error ([#2571](https://github.com/databrickslabs/lakebridge/pull/2571))**
+  The profiler now returns a non-zero exit code when it fails, so failures surface correctly in scripted and CI environments.
+
+- **BigQuery test connection and profiler config cleanup ([#2512](https://github.com/databrickslabs/lakebridge/pull/2512))**
+  Implements the previously missing BigQuery `test-connection` path and tidies up the profiler configuration.
+
+- **Suppress noisy `google.api_core` warnings ([#2538](https://github.com/databrickslabs/lakebridge/pull/2538))**
+  Silences an unhelpful warning emitted by `google.api_core` during profiling.
+
+### Snowflake Profiler
+
+- **Reduce output size by decoupling query metrics from `QUERY_TEXT` ([#2567](https://github.com/databrickslabs/lakebridge/pull/2567))**
+  Query metrics are no longer joined against the full `QUERY_TEXT`, substantially shrinking the profiler output.
+
+- **Exclude system databases from `automatic_clustering` ([#2534](https://github.com/databrickslabs/lakebridge/pull/2534))**
+  System databases are now excluded from the automatic-clustering extract, avoiding irrelevant/noisy results.
+
+### Synapse Profiler
+
+- **Fix failures for empty SQL pools and serverless routines schema ([#2572](https://github.com/databrickslabs/lakebridge/pull/2572))**
+  Resolves profiler failures against empty SQL pools and corrects the serverless routines schema.
+
+- **Correct column order for tables and views in `schemas.py` ([#2531](https://github.com/databrickslabs/lakebridge/pull/2531))**
+  Fixes the column ordering for tables and views in the Synapse profiler schema definitions.
+
+- **Add `WORKSPACE_NAME` to activity extract tables ([#2549](https://github.com/databrickslabs/lakebridge/pull/2549))**
+  Adds a `WORKSPACE_NAME` column to the Synapse activity extract tables.
+
+### BigQuery Profiler
+
+- **Add missing BigQuery profiler extract source ([#2551](https://github.com/databrickslabs/lakebridge/pull/2551))**
+  Adds the extract source that was missing from the BigQuery profiler pipeline.
+
+### Removed
+
+- **Profiler dashboard removed ([#2524](https://github.com/databrickslabs/lakebridge/pull/2524))**
+  The profiler dashboard command has been removed, it will now be part of the desktop app. 
+
+---
+
+## Converters
+
+### Morpheus
+
+#### Redshift Improvements
+
+- **`CREATE PROCEDURE` support (#967)** for ANSI/PL-pgSQL stored procedures, including `IN`/`OUT`/`INOUT` parameter modes, `NONATOMIC`, and `SECURITY INVOKER`/`DEFINER`.
+- **SQL UDF bodies are now parsed and translated (#975, #976)** rather than emitted verbatim, and positional references (`$1`, `$2`, …) are resolved to parameter names via an IR rule.
+- **`SELECT INTO` (#972)** now handles both meanings — table creation (`CREATE TABLE ... AS SELECT`) and variable assignment inside PL/pgSQL bodies.
+- **Typed datetime literals (#953)** such as `DATE '...'`, `TIMESTAMP '...'`, and `INTERVAL '7' DAY` transpile to the correct `CAST(...)` forms.
+- **Extra-argument function forms (#968, #970, #971)** for scalar (`NVL`, `TO_DATE`, `ARRAY_CONTAINS`, `ARRAY_EXCEPT`), spatial (`ST_*`), and `REGEXP_*` families are now translated correctly instead of failing with `WRONG_NUM_ARGS`.
+- **`:=` procedure assignment and H3/spatial type alignment (#988).**
+- **Repaired truncated/invalid SQL in `CREATE PROCEDURE` functional tests (#969).**
+
+#### Snowflake Improvements
+
+- **Geospatial (`ST_*`) conversions fixed (#980)** — `ST_MAKELINE`, `ST_COLLECT`, `ST_COVEREDBY`, and others, moved into the shared `CallMapper` so every source dialect reuses them.
+- **`FROM` subqueries now accept CTEs and set-operations (#958).**
+- **Untyped `ARRAY` defaults to `ARRAY<STRING>` (#983)** instead of the invalid `ARRAY<>`.
+- **`DESC` parsed as a synonym for `DESCRIBE` (#985).**
+
+
+#### T-SQL Improvements
+
+- **`AT` allowed as a soft keyword / table alias (#1179)**, fixing a bug where a multi-CTE query was silently truncated.
+
+#### Cross-dialect Improvements
+
+- **Unified `CREATE PROCEDURE`, `CREATE TABLE` column, and `ALTER PROCEDURE` grammar (#977, #978, #981)**, fixing related T-SQL computed-column, constraint, and `COLLATE` bugs along the way.
+- **Cursor statements consolidated (#962)** — `OPEN`, `CLOSE`, `FETCH`, `DECLARE CURSOR`, `DEALLOCATE` now share one scripting path across dialects.
+- **`CURRENT_USER` translated to `SESSION_USER()` (#960)** consistently across dialects.
+- **Single-argument `CONCAT` accepted (#959).**
+- **Ambiguous trailing-comma grammar tightened plus an ANTLR diagnostic reporter (#966)** to reduce costly parser fallbacks.
+
+### Performance
+
+- **Trampolined `Transformation` monad (#963)** eliminates `StackOverflowError`s when transpiling very large procedures.
+
+---
+
+## Reconcile
+
+- NEW! **BigQuery as a reconcile source ([#2527](https://github.com/databrickslabs/lakebridge/pull/2527))**
+  Adds BigQuery as a supported source platform for reconciliation.
+
+- **Configurable sample size via `sampling_options` ([#2497](https://github.com/databrickslabs/lakebridge/pull/2497))**
+  Adds a `sampling_options` block to the reconcile table config so users can control how many sample rows are captured per result set, with engine-aware upper bounds.
+
+- **Materialize intermediate DataFrames during reconcile ([#2535](https://github.com/databrickslabs/lakebridge/pull/2535))**
+  Intermediate DataFrames are now materialized during reconciliation, improving stability and performance on larger jobs.
+
+- **Refactor `DatabaseConfig` usages in reconcile runtime ([#2503](https://github.com/databrickslabs/lakebridge/pull/2503))**
+  Reconcile runtime internals now use explicit `SourceConnectionConfig`/`TargetConnectionConfig` objects instead of the shared `DatabaseConfig`.
+
+- **Use the pytester `ws` fixture in reconcile integration tests ([#2521](https://github.com/databrickslabs/lakebridge/pull/2521))**
+  Migrates reconcile integration tests to the real pytester `ws` fixture in place of a mocked workspace client.
+
+---
+
+## Requirements
+
+- **Java 21 required for Morpheus ([#2507](https://github.com/databrickslabs/lakebridge/pull/2507))**
+  The Morpheus transpiler now requires Java 21 or above. `install-transpile` reports a clear message when an older Java runtime is detected.
+
+## New Contributors
+* @dey-abhishek made their first contribution in https://github.com/databrickslabs/lakebridge/pull/2343
+
+**Full Changelog**: https://github.com/databrickslabs/lakebridge/compare/v0.14.0...v0.14.1
+
+--
+
+# Release Notes — Lakebridge v0.14.0
+
+## Highlights
+
+- **Five new profiler sources.** Snowflake, Redshift, BigQuery, Oracle, and Legacy SQL DW are now all supported profiler targets, significantly expanding the set of platforms Lakebridge can assess ahead of a migration.
+
+- **Switch now supports SAS.** A new built-in prompt converts SAS programs to PySpark, adding SAS to the growing list of languages Switch can migrate automatically.
+
+- **Reconcile now supports Teradata.** Teradata can now be used as a source platform for data quality reconciliation, enabling validation for customers migrating from Teradata to Databricks.
+
+- **Automatic reconciliation configuration.** A new `auto-configure-recon-tables` command discovers source and target tables and generates the initial reconcile configuration automatically, replacing a previously manual setup step.
+
+---
+
+## Profilers
+
+### New Sources
+
+- **Redshift ([#2305](https://github.com/databrickslabs/lakebridge/pull/2305), [#2304](https://github.com/databrickslabs/lakebridge/pull/2304), [#2306](https://github.com/databrickslabs/lakebridge/pull/2306), [#2408](https://github.com/databrickslabs/lakebridge/pull/2408), [#2501](https://github.com/databrickslabs/lakebridge/pull/2501))**
+  Amazon Redshift is now a fully supported profiler source, covering all three deployment variants: provisioned, provisioned multi-AZ, and serverless. This includes credential flows (database password, federated user, AWS Secrets Manager ARN, temporary credentials with db user or IAM, with optional SSL), dedicated extraction queries and validation schemas for each variant, full CLI wiring, and user documentation. A bug in the serverless managed-storage aggregation was also fixed: the previous query summed hourly `sys_serverless_usage` snapshots, causing reported storage to grow linearly with the lookback window rather than reflecting the actual allocated amount.
+
+- **Snowflake ([#2420](https://github.com/databrickslabs/lakebridge/pull/2420), [#2499](https://github.com/databrickslabs/lakebridge/pull/2499))**
+  Adds Snowflake as a profiler source. The interactive configurator prompts for connection details and a Programmatic Access Token (PAT), then extracts warehouse usage, query history, storage, user activity, account info, and optional credits (pipe, autoclustering, materialized-view refresh) from `SNOWFLAKE.ACCOUNT_USAGE` into a timestamped DuckDB file. Post-extraction computations produce TCO summaries. A supplementary `rate_sheet` extract pulls the effective per-credit rate (90-day average) and account service tier from `SNOWFLAKE.ORGANIZATION_USAGE.RATE_SHEET_DAILY`, providing the inputs needed by the downstream TCO value model.
+
+- **BigQuery ([#2472](https://github.com/databrickslabs/lakebridge/pull/2472))**
+  Adds BigQuery as a profiler source. Running `configure-database-profiler` followed by `execute-database-profiler --source-tech bigquery` executes 16 region-qualified `INFORMATION_SCHEMA` queries against the customer's configured BigQuery project(s) and writes 12 analysis tables into a local DuckDB file at `~/.databricks/labs/lakebridge_profilers/bigquery_assessment/profiler_extract.db`. The pipeline structure mirrors existing source-techs.
+
+- **Oracle ([#2187](https://github.com/databrickslabs/lakebridge/pull/2187))**
+  Adds Oracle as a profiler source. Covers the interactive configuration dialog, extraction SQL scripts, and local DuckDB population from Oracle Database, with unit tests for all three components.
+
+- **Legacy SQL DW ([#2441](https://github.com/databrickslabs/lakebridge/pull/2441))**
+  Extends profiler coverage to legacy Azure SQL DW (pre-Synapse) deployments, adding the necessary extraction queries to assess this platform.
+
+### Enhancements
+
+- **SQL Server profiler switched to SQL scripts and shared DatabaseManager ([#2482](https://github.com/databrickslabs/lakebridge/pull/2482))**
+  The MSSQL profiler's activity and info extraction steps have been converted from per-step Python virtualenvs to in-process `sql`/`ddl` steps using the shared `DatabaseManager` connector. Thirteen SQL query/DDL pairs replace the previous Python scripts, eliminating the duplicated `get_sqlserver_reader` connector and aligning SQL Server with the architecture used by other profiler sources.
+
+- **User-configurable output folder ([#2488](https://github.com/databrickslabs/lakebridge/pull/2488))**
+  The profiler's DuckDB extract path is now exposed as a CLI flag (`--output-folder`) instead of being hardcoded per source in `pipeline_config.yml`. The default remains `~/.databricks/labs/lakebridge_profilers/<source>_assessment`. Output filenames now include a timestamp (`profiler_extract_<YYYYMMDD_HHMMSS>.db`) to prevent overwrites on repeated runs, and the absolute path to the extract is logged on successful completion.
+
+- **Custom credentials file path for `execute-database-profiler` ([#2494](https://github.com/databrickslabs/lakebridge/pull/2494))**
+  The `execute-database-profiler` command now accepts an optional `--cred-file-path` argument, letting users supply a non-default credentials file rather than the one written by `configure-database-profiler`. This makes it easier to manage multiple credential configurations or run the profiler in scripted, non-interactive environments.
+
+- **SQL Server: `TrustServerCertificate` support ([#2498](https://github.com/databrickslabs/lakebridge/pull/2498))**
+  The `configure-database-profiler` command for SQL Server now surfaces a `TrustServerCertificate` connection property, addressing a common customer request for environments where the server certificate cannot be validated.
+
+- **Fix: profiler steps no longer fail with `ModuleNotFoundError` ([#2485](https://github.com/databrickslabs/lakebridge/pull/2485))**
+  The Synapse and SQL Server profilers previously created a fresh virtualenv per pipeline step, installing only each step's declared dependencies. After `database_manager.py` began importing `redshift_connector` at module scope, every clean run of those profilers failed with `ModuleNotFoundError`. Profiler Python steps now run with the parent interpreter, inheriting all installed packages—faster, more robust, and immune to this class of transitive-import failures.
+
+---
+
+## Converters
+
+### Morpheus
+
+#### T-SQL Improvements
+
+- **Better date and number formatting from T-SQL `CONVERT`**
+  T-SQL's `CONVERT` function accepts a style code to format dates and numbers as strings (e.g. `CONVERT(VARCHAR, myDate, 103)` for `dd/MM/yyyy`). Morpheus now correctly translates these style codes to the equivalent Databricks SQL expressions, unblocking a large class of previously untranslatable queries.
+
+- **Fix integer-as-date behavior from T-SQL**
+  T-SQL allows using `0` (or any integer) where a date is expected, treating it as "N days after 1 Jan 1900". Morpheus now replicates this behavior, preventing runtime type errors when running translated queries on Databricks.
+
+- **Fix variable declarations with `VARCHAR(N)` / `CHAR(N)` types**
+  T-SQL local variables declared as `VARCHAR(N)` or `CHAR(N)` were being passed through verbatim and failing at runtime in Databricks. They are now automatically translated to `STRING`, the correct equivalent type for variable declarations.
+
+- **Fix T-SQL variable assignment queries with `ORDER BY`**
+  T-SQL queries that assign a value to a variable (e.g. `SELECT @var = col FROM t ORDER BY col`) were being incorrectly structured during translation. The `ORDER BY` and similar clauses are now placed correctly in the output.
+
+- **Support `HASH JOIN` query hint in T-SQL**
+  T-SQL's `OPTION(HASH JOIN)` query hint, which instructs the database to use a specific join strategy, is now correctly parsed and handled during translation.
+
+#### Snowflake Improvements
+
+- **Translate `REGEXP_SUBSTR_ALL` to `REGEXP_EXTRACT_ALL`**
+  Snowflake's `REGEXP_SUBSTR_ALL` (returns all regex matches as an array) is now translated to its Databricks SQL equivalent `REGEXP_EXTRACT_ALL`.
+
+- **Translate binary hash functions (`MD5_BINARY`, `SHA1_BINARY`, `SHA2_BINARY`)**
+  Snowflake's binary digest functions are now translated to their Databricks SQL equivalents by wrapping the hex output with `UNHEX()`.
+
+- **Translate hex hash function synonyms (`MD5_HEX`, `SHA1_HEX`, `SHA2_HEX`)**
+  Snowflake's `*_HEX` hash function aliases are now directly mapped to their identically-behaved Databricks SQL counterparts.
+
+- **Translate `UNICODE` and `TRY_TO_DOUBLE`**
+  Snowflake's `UNICODE()` (returns the code point of the first character) is now mapped to `ASCII()` in Databricks SQL, and `TRY_TO_DOUBLE()` is mapped to `TRY_CAST(_ AS DOUBLE)`. The `UNICODE` fix also applies to T-SQL.
+
+- **Translate type-check functions (`IS_DATE`, `IS_DOUBLE`, `IS_REAL`, etc.)**
+  Snowflake functions that test whether a value inside a semi-structured (VARIANT) column holds a specific type are now translated where possible (e.g. `IS_DATE` → `TRY_CAST(v AS DATE) IS NOT NULL`). Those with no equivalent in Databricks (`IS_TIME`, `IS_TIMESTAMP_TZ`) are flagged with a clear migration note.
+
+- **Flag unsupported functions (`CHECK_XML`, `PARSE_XML`, `IS_ROLE_IN_SESSION`, etc.) with migration notes**
+  Seven Snowflake-specific functions with no Databricks equivalent now produce a clear "FIXME" comment in the output instead of silently passing through and failing at runtime. `IS_NULL_VALUE` is also correctly translated to `IS_VARIANT_NULL`.
+
+- **Flag 12 more Snowflake-only functions with migration notes**
+  Additional Snowflake admin, statistical, and VARIANT-inspection functions (including `COMPRESS`, `NORMAL`, `ZIPF`, `INVOKER_ROLE`, `IS_BOOLEAN`) now produce clear FIXME annotations instead of failing silently at runtime.
+
+- **Flag Snowflake `INFORMATION_SCHEMA` metadata functions with migration notes**
+  Snowflake monitoring/metadata functions called via `INFORMATION_SCHEMA` (like `PIPE_USAGE_HISTORY`, `MATERIALIZED_VIEW_REFRESH_HISTORY`) no longer cause an `UNRESOLVED_ROUTINE` crash — they are now flagged with a clear migration note explaining that no equivalent exists.
+
+- **Translate Snowflake's row generator pattern to `RANGE()`**
+  Snowflake's `TABLE(GENERATOR(ROWCOUNT => N))` pattern (used to generate N rows, often with `SEQ4()` to get row numbers) is now automatically translated to Databricks SQL's `RANGE(0, N)`.
+
+- **Improve parsing of `COPY INTO` commands**
+  The parser now correctly handles both forms of Snowflake's `COPY INTO` — loading data into a table and unloading data to an external location — laying groundwork for future full translation support.
+
+#### Cross-dialect Improvements
+
+- **Support for cursor-based SQL across all dialects**
+  Cursor statements (`DECLARE`, `OPEN`, `FETCH`, `CLOSE`, `DEALLOCATE`) are now supported for migration across T-SQL, Snowflake, and Redshift.
+
+- **Clearer error messages for untranslatable statements**
+  When a SQL statement can't be automatically translated, the output now includes the original SQL text and a meaningful explanation in the FIXME comment, rather than a generic confusing error message.
+
+---
+
+### Switch
+
+#### New Source Format Support
+
+- **SAS code conversion**
+  New built-in prompt converts SAS programs (both inline `DATALINES` and external file patterns) to PySpark equivalents, with example input/output pairs included.
+
+- **Informatica ETL conversion**
+  New built-in prompt for migrating Informatica workflows to Lakeflow Spark Declarative Pipelines (SDP). Covers Source Qualifier, Expression, Router, Joiner, Lookup (connected and unconnected), Aggregator, Normalizer, Sequence Generator, and Update Strategy transformations to PySpark/Spark SQL.
+
+- **Custom ETL conversion**
+  A flexible companion template lets users define their own input/output specs and conversion logic for any ETL tool not covered by a dedicated prompt.
+
+#### New Reference Prompts
+
+- **Teradata stored procedures reference prompt**
+  Introduces a new category of reference prompts — field-tested, opt-in prompts users can point Switch at via `conversion_prompt_yaml`. This first entry converts Teradata stored procedures directly to Databricks SQL (no Python-notebook wrapping) and covers: `CREATE VOLATILE TABLE` + multiple `INSERT` → `CREATE OR REPLACE TEMPORARY VIEW ... UNION ALL`; `UPDATE...FROM` → `MERGE INTO`; multi-column `IN` deletes → `EXISTS`; epoch/timezone conversions; and Teradata-specific functions (`SYSLIB.OREPLACE`, `DELIMITEDCOUNT`, `DELIMITEDITEM`, etc.).
+
+#### Improved Built-in Prompts
+
+- **Snowflake**
+  Added conversion rules discovered during a customer dbt migration — `IFF`, `TRY_TO_*`, `PARSE_JSON`, `SELECT * EXCLUDE`, `QUALIFY`, `WITH RECURSIVE`, colon (`:`) JSON access, `TIMESTAMP_NTZ`, trailing comma removal, and a new date-format pattern mapping section (e.g. `HH24` → `HH`, `MI` → `mm`).
+
+- **Teradata**
+  Major expansion with rules found during BTEQ customer migrations. New coverage includes: BTEQ control commands (`.LOGON`, `.QUIT`, FastLoad, MultiLoad, FastExport statements); shell variable substitution via `dbutils.widgets` and Python f-strings; `(FORMAT)(CHAR)` shorthand cast patterns; `REPLACE VIEW` with column list, `RENAME TABLE`, `COLLECT STATISTICS`; `UPDATE...FROM` → `MERGE INTO`; extended DDL clause removal (`NO FALLBACK`, `COMPRESS`, `CASESPECIFIC`, `PARTITION BY RANGE_N`, etc.); and two new few-shot examples for BTEQ scripts with dynamic identifiers.
+
+- **Redshift**
+  Substantial update validated against ~30,000 real queries, producing more accurate and performant Databricks SQL output.
+
+#### Bug Fixes
+
+- **Serverless export failures**
+  Fixed a bug where exporting files or notebooks to subdirectories would fail on serverless compute with `ResourceDoesNotExist: The parent folder does not exist`. The root cause was `os.makedirs` only writing to the FUSE layer without materializing a real Workspace object. Replaced with `ws_client.workspace.mkdirs` in `export_to_file.py` and `export_to_notebook.py`, matching the pattern already used elsewhere in the codebase.
+
+#### Enhancements
+
+- **[#2256](https://github.com/databrickslabs/lakebridge/pull/2256) — Custom Switch configuration path for `llm-transpile`**
+  The `llm-transpile` CLI command now accepts an optional `--switch-config-path` parameter, allowing users to point Switch at a custom configuration file stored in their Databricks workspace (the path must start with `/Workspace/`). When omitted, Switch uses its default configuration as before.
+
+---
+
+## Reconcile
+
+- **[#2456](https://github.com/databrickslabs/lakebridge/pull/2456) — Teradata support**
+  Reconciliation now supports Teradata as a source platform, enabling data quality validation for customers migrating from Teradata to Databricks.
+
+- **[#2465](https://github.com/databrickslabs/lakebridge/pull/2465) — Unified sampling query across all dialects**
+  The reconcile sampling query is now implemented as a single derived-table-join shape that works across all supported dialects. The previous implementation used a CTE for non-T-SQL paths and a `VALUES` derived table for T-SQL; the latter failed at runtime on Azure Synapse Dedicated SQL Pool, which does not accept `VALUES` as a derived table.
+
+- **[#2392](https://github.com/databrickslabs/lakebridge/pull/2392) — Auto-discovery of source/target tables**
+  A new CLI command, `databricks labs lakebridge auto-configure-recon-tables`, discovers tables in source and target systems and automatically generates column mappings for the reconcile configuration. Users are guided through two interactive stages: table discovery, then auto-configuration of the discovered tables.
+
+- **[#2504](https://github.com/databrickslabs/lakebridge/pull/2504) — Source system logging in recon commands**
+  Reconciliation commands now include the source system and report type in user-agent extras, improving observability and making it easier to trace usage across different source platforms.
+
+---
+
+## Documentation
+
+- **[#2457](https://github.com/databrickslabs/lakebridge/pull/2457) — Document PyPI and Maven mirrors during installation**
+  The installation documentation now covers how to configure package mirrors and proxies when direct access to GitHub, PyPI, or Maven Central is unavailable — a common requirement in air-gapped or enterprise firewall environments.
+
+---
+
+## General
+
+- **Python 3.14 support ([#2333](https://github.com/databrickslabs/lakebridge/pull/2333))**
+  The CLI and its dependencies now support Python 3.14. This required updating `mypy`, `pylint`, and `pytest` to versions compatible with the new release, along with minor code changes to satisfy the updated tooling. Test coverage now runs across all supported Python versions. Downstream dependencies (Blueprint, Bladebridge) had already released Python 3.14 support.
+
+- **Remove explicit `cryptography` dependency ([#2458](https://github.com/databrickslabs/lakebridge/pull/2458))**
+  The explicit dependency on the `cryptography` package has been dropped. It was previously used directly for Snowflake connection setup but has not been needed since that code was revised. The package remains available as a transitive dependency.
+
+## New Contributors
+* @dgomez04 made their first contribution in https://github.com/databrickslabs/lakebridge/pull/2431
+* @ysmx-github made their first contribution in https://github.com/databrickslabs/lakebridge/pull/2305
+* @lolo115 made their first contribution in https://github.com/databrickslabs/lakebridge/pull/2187
+* @jneil17 made their first contribution in https://github.com/databrickslabs/lakebridge/pull/2420
+* @take60 made their first contribution in https://github.com/databrickslabs/lakebridge/pull/2472
+
+**Full Changelog**: https://github.com/databrickslabs/lakebridge/compare/v0.13.0...v0.14.0
+
+---
+
+# Lakebridge v0.13.0 Release Notes
+
+## Highlights
+
+A few headline changes in this release worth calling out:
+
+1. **SQL Server profiler is now available**, extending assessment coverage to Microsoft SQL Server alongside the existing Azure Synapse support.
+2. **Redshift reconciliation is now supported**. Redshift can be used as a source for all reconcile report types.
+3. **Major Morpheus conversion improvements for T-SQL and Redshift**, including a full Redshift dialect rollout (DDL, DML, functions, operators) and a wide expansion of T-SQL function and resilience handling.
+
+This release also includes a **major overhaul of the documentation**, aimed at simplifying the structure and making the docs easier to follow. 
+
+## Assessment
+
+### Profiler
+
+- Added a new SQL Server profiler that extends the existing assessment capabilities to Microsoft SQL Server, closely mirroring the Azure Synapse profiler design. The implementation exposes a `last_execution_time` parameter on all server queries, laying the groundwork for future incremental/scheduled extractions. On-prem SQL Server is not in scope. ([#2151](https://github.com/databrickslabs/lakebridge/pull/2151))
+- Updated the Azure Synapse Workspace profiler summary dashboard and introduced a new dashboard template for SQL Server. The Synapse template removes deprecated dashboard widget parameters, parameterizes table values so they can be set dynamically by Lakebridge, adds a dedicated-storage summary widget by SQL pool, renames datasets for clarity, fixes broken column references in SQL pool activity widgets, and reformats dataset queries. ([#2317](https://github.com/databrickslabs/lakebridge/pull/2317))
+- Reworked the `create-profiler-dashboard` CLI flow to bring it in line with the rest of the Lakebridge installer experience: clearer prompts for extract file location, UC catalog, schema, and volume; a helper to parse the extract path and UC volume upload location; and dashboard install/uninstall hooked into the standard Lakebridge installer/uninstaller. ([#2319](https://github.com/databrickslabs/lakebridge/pull/2319))
+- Fixed a bug that produced false positives in `test-profiler-connection`. ([#2342](https://github.com/databrickslabs/lakebridge/pull/2342))
+
+## Converters
+
+### Morpheus
+
+#### Snowflake
+
+- Tightened parsing of `CREATE FILE FORMAT` statements, including format type options, with clear diagnostics for unsupported variants.
+
+#### Synapse / T-SQL
+
+- Improved resilience by silently dropping unsupported constructs (table hints such as `WITH (NOLOCK)` and `READPAST`, `UPDATE STATISTICS`/`CREATE STATISTICS`, and other unsupported `CREATE TABLE` options) with warnings so surrounding scripts keep transpiling instead of failing.
+- Expanded function coverage with a batch of T-SQL "easy wins" (`DATEPART` unit aliases, `EOMONTH`, `ISNUMERIC`, `TIME → STRING` conversions) and richer date/time handling (`DATETRUNC`, `DATE_BUCKET`, `SYSDATETIME`, `DATENAME`, normalized `DATE_PART` units).
+- Added Databricks-compatible translations for `PATINDEX` (to `REGEXP_INSTR`, converting SQL wildcards to regex), `IIF` (mapped to `IF` at parse time), and `FORMATMESSAGE` (graceful fallback with diagnostics for unsupported format specifiers).
+- Migrated the T-SQL functional test suite to the new `eval`-based scenario runner, expanding executable coverage and removing legacy skips.
+
+#### Redshift
+
+- Added Redshift as a first-class source dialect: a full dialect mapping in the converter (parser, IR builder, generator), Language Server advertisement alongside Snowflake and T-SQL, and a published per-feature workplan.
+- Implemented Redshift DDL and DML coverage, including `CREATE TABLE` (distribution, sort key, constraint clauses), `DELETE … REMOVE DUPLICATES`, complex literals (arrays, super values, composite forms), and the supportable portion of the `SUPER` type with explicit rejection diagnostics for the rest.
+- Added wide function coverage across string, `VARBYTE`, window, admin, `OBJECT`, JSON, HLL, and math families, plus date/time (`DATEADD`, `DATE_CMP`, `TIMEZONE`, timezone comparisons, `TIMEOFDAY`, `LAST_DAY`, `MONTHS_BETWEEN`, `SYSDATE`, single-argument `TRUNC`), numeric coercion (`TEXT_TO_INT_ALT`, `TEXT_TO_NUMERIC_ALT`), hashing (`CHECKSUM`, `FARMHASH64`), and a staged `TO_TIMESTAMP` implementation.
+- Implemented Redshift-specific operators including the `+` overload (so string and date arithmetic disambiguate correctly) and the `|/` (square root) and `|//` (cube root) prefix operators.
+- Explicitly rejected `EXPLAIN_MODEL` since Databricks SQL has no equivalent ML-model explainer, surfacing actionable diagnostics rather than silent miscompilation.
+
+#### General
+
+- Broadened cross-dialect DDL with `CREATE FUNCTION` (as much as is feasible per dialect, with diagnostics for unsupported procedural features) and `CREATE SCHEMA` for Snowflake, T-SQL, and Redshift, both lowered to Databricks SQL.
+- Expanded shared function and expression support: `CURRENT_USER` across all dialects, additional `TIMESTAMP`-related functions, raw strings as proper IR expressions (so they participate in type inference and round-trip cleanly), and `EXECUTE IMMEDIATE` usable as an expression (not just a statement).
+- Added full coverage of H3 and ST spatial functions across every supported dialect, with normalized names and argument shapes.
+- Improved grammar flexibility by allowing reserved keywords `DATABASE` and `PRIMARY` to be used as identifiers in unambiguous contexts, unblocking real-world schemas.
+- Expanded `DELETE` to cover all Redshift, T-SQL, and Snowflake use cases (including dialect-specific extensions) and added `UPDATE`-to-`MERGE` lowering for Redshift and T-SQL when an update uses a join or source table.
+
+## Reconcile
+
+- Added a Redshift connector to reconcile so Redshift can be used as a source for data, row, schema, and full report types. ([#2339](https://github.com/databrickslabs/lakebridge/pull/2339))
+- Replaced direct JDBC connections (Oracle, Snowflake, SQL Server) with Databricks Unity Catalog `remote_query()` calls backed by **UC Connections**. Reconcile no longer manages JDBC URLs, secret scopes, or PEM keys directly — authentication and connectivity are handled by Databricks. This introduces a v2 configuration format that takes a `uc_connection_name` in place of `secret_scope`; existing v1 configs are auto-migrated on load. ([#2362](https://github.com/databrickslabs/lakebridge/pull/2362))
+- Fixed reconcile schema fetch failures on Foreign Catalogs created via Lakehouse Federation. Foreign catalogs lack the Databricks-specific `full_data_type` column in `information_schema.columns`, which previously caused `UNRESOLVED_COLUMN` errors for all report types (`schema`, `data`, `row`, `all`). A new `DatabricksNonUnityCatalogDataSource` now falls back to `DESCRIBE TABLE` and covers `hive_metastore`, `global_temp` views, and Foreign Catalogs, while the native `DatabricksDataSource` remains scoped to Unity Catalog tables. ([#2422](https://github.com/databrickslabs/lakebridge/pull/2422))
+- Fixed a T-SQL/Synapse reconciliation regression where switching to `VARCHAR(MAX)` in hash concatenation broke date/time columns: SQL Server accepts `VARCHAR(256) + DATE` via implicit conversion but rejects `VARCHAR(MAX) + DATE`. Temporal transforms now `CONVERT` `DATE`/`TIME`/`DATETIME` to `VARCHAR(10)`/`VARCHAR(12)`/`VARCHAR(23)` so all temporal columns produce `VARCHAR` output that concatenates safely in the hash input string. ([#2320](https://github.com/databrickslabs/lakebridge/pull/2320))
+- Improved Oracle reconcile coverage, fixed parsing of remote query options, and dropped the legacy Oracle test scripts and Docker harness that required heavy manual setup. ([#2433](https://github.com/databrickslabs/lakebridge/pull/2433))
+
+## Installer
+
+- Added minimal support for using a Maven mirror when installing Morpheus via `install-transpile`. Setting `LAKEBRIDGE_MAVEN_URL` overrides the default repository URL, and credentials can be supplied through `~/.netrc` (or via `NETRC`) so `install-transpile` works in environments without direct Maven Central access. ([#2405](https://github.com/databrickslabs/lakebridge/pull/2405))
+- Updated the wheel installer used during `install-transpile` to look up version information via `pip` instead of issuing a direct HTTP call to PyPI. This allows `install-transpile` to work in environments where only a local PyPI mirror is available. ([#2404](https://github.com/databrickslabs/lakebridge/pull/2404))
+
+## Documentation
+
+- Major revamp of the Lakebridge documentation focused on clarity, structure, and first-time user experience: added a new end-to-end **Getting Started** tutorial (SQL Server → Databricks SQL walkthrough), a **Choosing Tools** decision guide, a dedicated **Morpheus transpiler** page, and a split-out **Switch architecture** page. Reconcile docs were consolidated from 5 files (~1,400 lines) to 3 (~750 lines) with a new report-type comparison table and unified Configuration Reference and Running Reconcile pages. SSIS docs were moved into a dedicated subfolder with a collapsible sidebar category. The Installation page was rewritten for brevity, the FAQ expanded from 3 to 25+ questions, and the sidebar reordered to match the actual user journey: Installation → Getting Started → Choosing Tools → Assessment → Transpile → Reconcile → SQL Splitter → FAQ. ([#2365](https://github.com/databrickslabs/lakebridge/pull/2365))
+- Fixed the reconcile notebook documentation to match the v2 `TableRecon` API: the example now shows `TableRecon` as `tables: list[Table]` only (with `source_schema`, `target_catalog`, `target_schema`, and `source_catalog` configured via `DatabaseConfig` inside `ReconcileConfig`), corrected the location of `drop_columns` (it belongs on `Table`, not `TableRecon`), and added a migration note pointing users to `DatabaseConfig`. ([#2329](https://github.com/databrickslabs/lakebridge/pull/2329))
+- Patched documentation transitive dependencies via new `yarn` resolutions, clearing all 75 known `yarn audit` vulnerabilities (33 high, 37 moderate, 5 low). ([#2340](https://github.com/databrickslabs/lakebridge/pull/2340))
+
+## Build & Packaging
+
+- Migrated the project from Hatch to `uv`: all `Makefile` targets and CI/CD workflows now use `uv`, third-party dependencies are locked via `uv.lock` and `.build-constraints.txt`, workflow permissions have been narrowed, contribution documentation has been updated, the legacy release workflow has been removed, and the docusaurus `Makefile` targets have been refactored so `npm`/`yarn` no longer run package scripts and the `yarn.lock` is no longer auto-updated. ([#2374](https://github.com/databrickslabs/lakebridge/pull/2374))
+
+---
+
 ## 0.12.2
 
 ## Assessment

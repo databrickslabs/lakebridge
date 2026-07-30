@@ -5,7 +5,7 @@ from databricks.labs.lakebridge.assessments import PRODUCT_PATH_PREFIX
 from databricks.labs.lakebridge.assessments.pipeline import PipelineClass, make_profiler_db_filename
 from databricks.labs.lakebridge.assessments.profiler_config import PipelineConfig
 from databricks.labs.lakebridge.assessments.variants import resolve_variant
-from databricks.labs.lakebridge.connections.database_manager import DatabaseManager
+from databricks.labs.lakebridge.connections.database_manager import DatabaseConnector, create_connector
 from databricks.labs.lakebridge.connections.credential_manager import (
     create_credential_manager,
     cred_file,
@@ -95,7 +95,7 @@ class Profiler:
             raise RuntimeError(f"Pipeline execution failed for source {source_system} : {e}") from e
 
     @staticmethod
-    def _setup_extractor(source_system: str, cred_file_path: Path | None = None) -> DatabaseManager | None:
+    def _setup_extractor(source_system: str, cred_file_path: Path | None = None) -> DatabaseConnector | None:
         cred_manager = create_credential_manager(source_system, EnvGetter(), creds_path=cred_file_path)
         connect_config = cred_manager.get_credentials(source_system)
-        return DatabaseManager(source_system, connect_config)
+        return create_connector(source_system, connect_config)

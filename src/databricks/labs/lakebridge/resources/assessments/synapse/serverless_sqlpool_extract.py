@@ -59,7 +59,7 @@ def execute():
     synapse_workspace_settings = cred_manager.get_credentials("synapse")
     config = synapse_workspace_settings["workspace"]
     workspace_name = config["name"]
-    auth_type = synapse_workspace_settings["jdbc"].get("auth_type", "sql_authentication")
+    auth_type = synapse_workspace_settings["workspace"].get("auth_type", "SqlPassword")
     synapse_profiler_settings = synapse_workspace_settings["profiler"]
 
     connection = None

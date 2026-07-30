@@ -93,26 +93,31 @@ def _save_overwrite(
       metadata from the DataFrame.
     """
     table_exists = _table_exists(conn, table_name)
-    conn.register("_lakebridge_df", df)
 
     if schema is not None:
         conn.execute(f"DROP TABLE IF EXISTS {table_name}")
         conn.execute(f"CREATE TABLE {table_name} ({schema})")
         if not df.empty:
+            conn.register("_lakebridge_df", df)
             conn.execute(f"INSERT INTO {table_name} SELECT * FROM _lakebridge_df")
         return
+
+    if len(df.columns) == 0:
+        if table_exists:
+            conn.execute(f"TRUNCATE {table_name}")
+        else:
+            logger.warning(
+                "Cannot create table '%s': empty DataFrame with no columns and no schema provided.",
+                table_name,
+            )
+        return
+
+    conn.register("_lakebridge_df", df)
 
     if table_exists:
         conn.execute(f"TRUNCATE {table_name}")
         if not df.empty:
             conn.execute(f"INSERT INTO {table_name} SELECT * FROM _lakebridge_df")
-        return
-
-    if len(df.columns) == 0:
-        logger.warning(
-            "Cannot create table '%s': empty DataFrame with no columns and no schema provided.",
-            table_name,
-        )
         return
 
     limit_clause = " LIMIT 0" if df.empty else ""

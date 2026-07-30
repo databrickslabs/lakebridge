@@ -1,4 +1,0 @@
-columns:
-- dd_recon_type
-type: MULTI_SELECT
-title: Category

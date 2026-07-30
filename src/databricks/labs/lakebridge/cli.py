@@ -1137,9 +1137,11 @@ def execute_database_profiler(
             default=str(default_output_folder(source_tech)),
         ).strip()
 
-    profiler = Profiler.create(source_tech, variant, creds_path)
-    # TODO: Add extractor logic to ApplicationContext instead of creating inside the Profiler class
-    profiler.profile(output_folder=Path(output_folder), cred_file_path=creds_path)
+    try:
+        profiler = Profiler.create(source_tech, variant, creds_path)
+        profiler.profile(output_folder=Path(output_folder), cred_file_path=creds_path)
+    except Exception as e:  # noqa: BLE001
+        raise SystemExit(f"Profiler execution failed: {e}") from e
 
 
 def parse_profiler_variant(prompts: Prompts, source_tech: str, variant: str | None) -> str | None:
@@ -1208,9 +1210,6 @@ def test_profiler_connection(
         ) from e
     except ConnectionError as e:
         logger.error(f"Failed to connect to the source system: {e}")
-        error_msg = str(e).lower()
-        if any(pattern in error_msg for pattern in ("im002", "odbc driver not found", "can't open lib")):
-            raise SystemExit("Missing ODBC driver, Please install pre-req. Exiting...") from e
         raise SystemExit("Connection validation failed. Exiting...") from e
     except Exception as e:  # noqa: BLE001
         logger.error(f"Unexpected error during connection test: {e}")
