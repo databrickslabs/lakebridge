@@ -16,7 +16,7 @@ from databricks.labs.lakebridge.reconcile.query_builder.expression_generator imp
     transform_expression,
     trim,
 )
-from databricks.labs.lakebridge.reconcile.recon_config import Schema, Transformation
+from databricks.labs.lakebridge.reconcile.recon_config import Schema, Table
 from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect, SQLGLOT_DIALECTS
 
 logger = logging.getLogger(__name__)
@@ -169,12 +169,10 @@ class RuleBasedColumnTransformer(ColumnTransformer):
         self,
         source: ReconcileLayer,
         target: ReconcileLayer,
-        transformations: list[Transformation],
-        column_mapping: dict[str, str],
+        table_conf: Table,
     ):
         self._sides = {"source": source, "target": target}
-        self._transformations = transformations
-        self._column_mapping = column_mapping
+        self._table_conf = table_conf
 
     def transform(self, columns: list[exp.Expression], layer: str) -> list[TransformedColumn]:
         side = self._sides[layer]
@@ -210,16 +208,17 @@ class RuleBasedColumnTransformer(ColumnTransformer):
     def _user_map(self, layer: str) -> dict[str, str]:
         """Column ansi-name -> user-supplied SQL for `layer`, from the recon config."""
         side = self._sides[layer]
+        transformations = self._table_conf.transformations or []
         if layer == "source":
             return {
                 t.column_name: (t.source or side.data_source.normalize_identifier(t.column_name).source_normalized)
-                for t in self._transformations
+                for t in transformations
             }
         return {
-            self._column_mapping.get(t.column_name, t.column_name): (
-                t.target or self._column_mapping.get(t.column_name, t.column_name)
+            self._table_conf.get_layer_src_to_tgt_col_mapping(t.column_name, layer): (
+                t.target or self._table_conf.get_layer_src_to_tgt_col_mapping(t.column_name, layer)
             )
-            for t in self._transformations
+            for t in transformations
         }
 
     def _column_ansi(self, column: exp.Expression, side: ReconcileLayer) -> str:

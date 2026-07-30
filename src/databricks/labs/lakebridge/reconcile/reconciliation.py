@@ -136,8 +136,7 @@ class Reconciliation:
         return RuleBasedColumnTransformer(
             source=ReconcileLayer(self._source, self._source_engine, src_schema),
             target=ReconcileLayer(self._target, self._target_engine, tgt_schema),
-            transformations=table_conf.transformations or [],
-            column_mapping=table_conf.to_src_col_map or {},
+            table_conf=table_conf,
         )
 
     def _get_reconcile_output(

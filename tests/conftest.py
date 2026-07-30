@@ -275,14 +275,14 @@ def make_column_transformer(schema, dialect, data_source, conf=None):
 
     Both sides mirror the one schema/dialect/data_source under test; the
     transformer only reads the side matching the layer being built. User
-    transformations and the column mapping are taken from ``conf`` when given.
+    transformations and the column mapping come from ``conf``; when omitted, a
+    bare Table (no transformations or mapping) is used.
     """
     side = ReconcileLayer(data_source, dialect, schema)
     return RuleBasedColumnTransformer(
         source=side,
         target=side,
-        transformations=conf.transformations or [] if conf else [],
-        column_mapping=conf.to_src_col_map or {} if conf else {},
+        table_conf=conf or Table(source_name="t", target_name="t"),
     )
 
 
