@@ -5,6 +5,7 @@ from sqlglot import Dialect, parse_one
 
 from databricks.labs.lakebridge.reconcile.connectors.data_source import DataSource
 from databricks.labs.lakebridge.reconcile.query_builder.base import QueryBuilder
+from databricks.labs.lakebridge.reconcile.query_builder.column_transformer import ColumnTransformer
 from databricks.labs.lakebridge.reconcile.query_builder.expression_generator import (
     build_column,
     concat,
@@ -42,9 +43,10 @@ class HashQueryBuilder(QueryBuilder):
         layer: str,
         source_engine: Dialect,
         data_source: DataSource,
+        transformer: ColumnTransformer,
         hash_expression_override: str | None = None,
     ):
-        super().__init__(table_conf, schema, layer, source_engine, data_source)
+        super().__init__(table_conf, schema, layer, source_engine, data_source, transformer)
         self._hash_expression_override = hash_expression_override
 
     def build_query(self, report_type: str) -> str:
@@ -75,9 +77,9 @@ class HashQueryBuilder(QueryBuilder):
         sorted_hash_cols_with_alias = sorted(hash_cols_with_alias, key=lambda column: column["sort_key"].lower())
         hashcols_sorted_as_src_seq = [column["this"] for column in sorted_hash_cols_with_alias]
 
-        key_cols_with_transform = (
-            self._apply_user_transformation(cols_with_alias) if self.user_transformations else cols_with_alias
-        )
+        key_cols_with_transform = [
+            rendered.column for rendered in self._transformer.transform_user(cols_with_alias, self.layer)
+        ]
         hash_col_with_transform = [self._generate_hash_algorithm(hashcols_sorted_as_src_seq, _HASH_COLUMN_NAME)]
 
         res = (
@@ -96,7 +98,7 @@ class HashQueryBuilder(QueryBuilder):
         column_alias: str,
     ) -> exp.Expression:
         cols_no_alias = [build_column_no_alias(this=col) for col in cols]
-        cols_with_transform = self.add_transformations(cols_no_alias, self.engine)
+        cols_with_transform = [rendered.column for rendered in self._transformer.transform(cols_no_alias, self.layer)]
         col_exprs = exp.select(*cols_with_transform).iter_expressions()
         # We now use exp.Dpipe to force the use of CONCAT() function across all dialects to be dialect specific || or + in TSQL
         concat_expr = concat(col_exprs)

@@ -19,6 +19,10 @@ from databricks.sdk.service import iam
 from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import DialectUtils
 from databricks.labs.lakebridge.reconcile.connectors.models import NormalizedIdentifier
 from databricks.labs.lakebridge.reconcile.connectors.data_source import DataSource, MockDataSource
+from databricks.labs.lakebridge.reconcile.query_builder.column_transformer import (
+    RuleBasedColumnTransformer,
+    ReconcileLayer,
+)
 from databricks.labs.lakebridge.reconcile.recon_config import (
     Table,
     JdbcReaderOptions,
@@ -263,7 +267,23 @@ def schema_fixture_factory(
         normalized_ansi = normalized.ansi_normalized
         normalized_source = normalized.source_normalized
 
-    return Schema(normalized_ansi, data_type, normalized_ansi, normalized_source)  # Production uses ansi here
+    return Schema(normalized_ansi, data_type, normalized_source)
+
+
+def make_column_transformer(schema, dialect, data_source, conf=None):
+    """Build a RuleBasedColumnTransformer for tests that exercise a single layer.
+
+    Both sides mirror the one schema/dialect/data_source under test; the
+    transformer only reads the side matching the layer being built. User
+    transformations and the column mapping are taken from ``conf`` when given.
+    """
+    side = ReconcileLayer(data_source, dialect, schema)
+    return RuleBasedColumnTransformer(
+        source=side,
+        target=side,
+        transformations=conf.transformations or [] if conf else [],
+        column_mapping=conf.to_src_col_map or {} if conf else {},
+    )
 
 
 def oracle_schema_fixture_factory(column_name: str, data_type: str) -> Schema:
@@ -453,38 +473,38 @@ def tsql_table_conf_with_opts(normalize_config_service: NormalizeReconConfigServ
 @pytest.fixture
 def table_schema_oracle_ansi(table_schema):
     src_schema, tgt_schema = table_schema
-    src_schema = [oracle_schema_fixture_factory(s.column_name, s.data_type) for s in src_schema]
-    tgt_schema = [ansi_schema_fixture_factory(s.column_name, s.data_type) for s in tgt_schema]
+    src_schema = [oracle_schema_fixture_factory(s.ansi_normalized_column_name, s.data_type) for s in src_schema]
+    tgt_schema = [ansi_schema_fixture_factory(s.ansi_normalized_column_name, s.data_type) for s in tgt_schema]
     return src_schema, tgt_schema
 
 
 @pytest.fixture
 def table_schema_ansi_ansi(table_schema):
     src_schema, tgt_schema = table_schema
-    src_schema = [ansi_schema_fixture_factory(s.column_name, s.data_type) for s in src_schema]
-    tgt_schema = [ansi_schema_fixture_factory(s.column_name, s.data_type) for s in tgt_schema]
+    src_schema = [ansi_schema_fixture_factory(s.ansi_normalized_column_name, s.data_type) for s in src_schema]
+    tgt_schema = [ansi_schema_fixture_factory(s.ansi_normalized_column_name, s.data_type) for s in tgt_schema]
     return src_schema, tgt_schema
 
 
 @pytest.fixture
 def table_schema_redshift_ansi(table_schema):
     src_schema, tgt_schema = table_schema
-    src_schema = [redshift_schema_fixture_factory(s.column_name, s.data_type) for s in src_schema]
-    tgt_schema = [ansi_schema_fixture_factory(s.column_name, s.data_type) for s in tgt_schema]
+    src_schema = [redshift_schema_fixture_factory(s.ansi_normalized_column_name, s.data_type) for s in src_schema]
+    tgt_schema = [ansi_schema_fixture_factory(s.ansi_normalized_column_name, s.data_type) for s in tgt_schema]
     return src_schema, tgt_schema
 
 
 @pytest.fixture
 def table_schema_teradata_ansi(table_schema):
     src_schema, tgt_schema = table_schema
-    src_schema = [teradata_schema_fixture_factory(s.column_name, s.data_type) for s in src_schema]
-    tgt_schema = [ansi_schema_fixture_factory(s.column_name, s.data_type) for s in tgt_schema]
+    src_schema = [teradata_schema_fixture_factory(s.ansi_normalized_column_name, s.data_type) for s in src_schema]
+    tgt_schema = [ansi_schema_fixture_factory(s.ansi_normalized_column_name, s.data_type) for s in tgt_schema]
     return src_schema, tgt_schema
 
 
 @pytest.fixture
 def table_schema_tsql_ansi(table_schema):
     src_schema, tgt_schema = table_schema
-    src_schema = [tsql_schema_fixture_factory(s.column_name, s.data_type) for s in src_schema]
-    tgt_schema = [ansi_schema_fixture_factory(s.column_name, s.data_type) for s in tgt_schema]
+    src_schema = [tsql_schema_fixture_factory(s.ansi_normalized_column_name, s.data_type) for s in src_schema]
+    tgt_schema = [ansi_schema_fixture_factory(s.ansi_normalized_column_name, s.data_type) for s in tgt_schema]
     return src_schema, tgt_schema

@@ -177,8 +177,8 @@ class ColumnMappingAutoConfigurer(TableAutoConfigurer):
         self._strategy = strategy
 
     def configure(self, table: Table, ctx: AutoConfigureContext) -> Table:
-        source_names = [c.column_name for c in ctx.source_columns]
-        target_names = [c.column_name for c in ctx.target_columns]
+        source_names = [c.ansi_normalized_column_name for c in ctx.source_columns]
+        target_names = [c.ansi_normalized_column_name for c in ctx.target_columns]
 
         name_mapping = self._strategy.match_all(source_names, target_names)
 

@@ -22,6 +22,11 @@ from databricks.labs.lakebridge.reconcile.exception import (
 )
 from databricks.labs.lakebridge.reconcile.query_builder.aggregate_query import AggregateQueryBuilder
 from databricks.labs.lakebridge.reconcile.query_builder.count_query import CountQueryBuilder
+from databricks.labs.lakebridge.reconcile.query_builder.column_transformer import (
+    ColumnTransformer,
+    RuleBasedColumnTransformer,
+    ReconcileLayer,
+)
 from databricks.labs.lakebridge.reconcile.query_builder.hash_query import HashQueryBuilder
 from databricks.labs.lakebridge.reconcile.query_builder.sampling_query import (
     SamplingQueryBuilder,
@@ -125,18 +130,30 @@ class Reconciliation:
     ) -> list[AggregateQueryOutput]:
         return self._get_reconcile_aggregate_output(table_conf, src_schema, tgt_schema)
 
+    def _column_transformer(
+        self, table_conf: Table, src_schema: list[Schema], tgt_schema: list[Schema]
+    ) -> ColumnTransformer:
+        return RuleBasedColumnTransformer(
+            source=ReconcileLayer(self._source, self._source_engine, src_schema),
+            target=ReconcileLayer(self._target, self._target_engine, tgt_schema),
+            transformations=table_conf.transformations or [],
+            column_mapping=table_conf.to_src_col_map or {},
+        )
+
     def _get_reconcile_output(
         self,
         table_conf,
         src_schema,
         tgt_schema,
     ):
+        transformer = self._column_transformer(table_conf, src_schema, tgt_schema)
         src_hash_query = HashQueryBuilder(
             table_conf,
             src_schema,
             "source",
             self._source_engine,
             self._source,
+            transformer,
             hash_expression_override=(
                 self._hash_expression_overrides.source if self._hash_expression_overrides else None
             ),
@@ -147,6 +164,7 @@ class Reconciliation:
             "target",
             self._source_engine,
             self._target,
+            transformer,
             hash_expression_override=(
                 self._hash_expression_overrides.target if self._hash_expression_overrides else None
             ),
@@ -235,12 +253,14 @@ class Reconciliation:
 
         # build Aggregate queries for source, There could be one
         # or more queries per table based on the group by columns
+        transformer = self._column_transformer(table_conf, src_schema, tgt_schema)
         src_agg_queries = AggregateQueryBuilder(
             table_conf,
             src_schema,
             "source",
             self._source_engine,
             self._source,
+            transformer,
         ).build_queries()
 
         # build Aggregate queries for target(Databricks),
@@ -250,6 +270,7 @@ class Reconciliation:
             "target",
             self._target_engine,
             self._target,
+            transformer,
         ).build_queries()
 
         table_agg_output: list[AggregateQueryOutput] = []
@@ -318,8 +339,13 @@ class Reconciliation:
             or reconcile_output.missing_in_src_count > 0
             or reconcile_output.missing_in_tgt_count > 0
         ):
-            src_sampler = SamplingQueryBuilder(table_conf, src_schema, "source", self._source_engine, self._source)
-            tgt_sampler = SamplingQueryBuilder(table_conf, tgt_schema, "target", self._target_engine, self._target)
+            transformer = self._column_transformer(table_conf, src_schema, tgt_schema)
+            src_sampler = SamplingQueryBuilder(
+                table_conf, src_schema, "source", self._source_engine, self._source, transformer
+            )
+            tgt_sampler = SamplingQueryBuilder(
+                table_conf, tgt_schema, "target", self._target_engine, self._target, transformer
+            )
             if reconcile_output.mismatch_count > 0:
                 mismatch = self._get_mismatch_data(
                     src_sampler,
@@ -436,11 +462,12 @@ class Reconciliation:
         src_schema: list[Schema],
         tgt_schema: list[Schema],
     ) -> tuple[DataFrame, DataFrame]:
+        transformer = self._column_transformer(table_conf, src_schema, tgt_schema)
         src_threshold_query = ThresholdQueryBuilder(
-            table_conf, src_schema, "source", self._source_engine, self._source
+            table_conf, src_schema, "source", self._source_engine, self._source, transformer
         ).build_threshold_query()
         tgt_threshold_query = ThresholdQueryBuilder(
-            table_conf, tgt_schema, "target", self._target_engine, self._target
+            table_conf, tgt_schema, "target", self._target_engine, self._target, transformer
         ).build_threshold_query()
 
         src_data = self._source.read_data(
@@ -461,8 +488,9 @@ class Reconciliation:
         return src_data, tgt_data
 
     def _compute_threshold_comparison(self, table_conf: Table, src_schema: list[Schema]) -> ThresholdOutput:
+        transformer = self._column_transformer(table_conf, src_schema, src_schema)
         threshold_comparison_query = ThresholdQueryBuilder(
-            table_conf, src_schema, "target", self._target_engine, self._target
+            table_conf, src_schema, "target", self._target_engine, self._target, transformer
         ).build_comparison_query()
 
         threshold_result = self._target.read_data(
