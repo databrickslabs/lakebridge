@@ -20,9 +20,9 @@ logger = logging.getLogger(__name__)
 SaveMode = Literal["overwrite", "append"]
 
 _PROFILER_DUCKDB_CONFIG: dict[str, bool | float | int | list[str] | str] = {
-    "storage_compatibility_version": "v1.2.0",
+    "storage_compatibility_version": "v1.4.0",
     "force_compression": "auto",
-    "zstd_min_string_length": "8",
+    "zstd_min_string_length": 8,
 }
 
 
