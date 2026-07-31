@@ -45,6 +45,9 @@ SQL_FILE_TO_ANALYSIS_TYPE: dict[str, str] = {
     "consumption_through_commitments_standard.sql": "consumption_through_commitments",
     "consumption_through_commitments_enterprise.sql": "consumption_through_commitments",
     "consumption_through_commitments_enterprise_plus.sql": "consumption_through_commitments",
+    "table_definitions.sql": "table_definitions",
+    "column_definitions.sql": "column_definitions",
+    "routine_definitions.sql": "routine_definitions",
 }
 
 _RESERVATION_FILES = frozenset(
@@ -146,8 +149,8 @@ def _run_iteration(
 
 
 # BQ schema string types → pandas dtype strings. Used to build empty stub DataFrames so
-# downstream dashboards see all 12 tables even when reservations data is excluded — empty
-# rows render as empty widgets, missing tables show "TABLE_OR_VIEW_NOT_FOUND" errors.
+# downstream dashboards see all analysis tables even when reservations data is excluded —
+# empty rows render as empty widgets, missing tables show "TABLE_OR_VIEW_NOT_FOUND" errors.
 _BQ_TYPE_TO_PANDAS: dict[str, str] = {
     "string": "object",
     "double": "float64",

@@ -37,7 +37,9 @@ bigquery.jobs.list
 bigquery.datasets.get
 bigquery.datasets.getIamPolicy
 bigquery.tables.get
+bigquery.tables.list
 bigquery.tables.getData
+bigquery.routines.get
 bigquery.routines.list
 bigquery.readSessions.create
 bigquery.reservations.list                  # Editions customers only
@@ -51,10 +53,17 @@ bigquery.capacityCommitments.list           # Editions customers only
 |---|---|---|
 | Job history (workload, timeline, fulfillment, jobs-by-reservation) | `region-{region}.INFORMATION_SCHEMA.JOBS_BY_PROJECT`, `JOBS_TIMELINE` | `bigquery.jobs.list` (job-owner sees own jobs; admin sees all) |
 | Table storage | `region-{region}.INFORMATION_SCHEMA.TABLE_STORAGE_BY_PROJECT` | `bigquery.tables.get` + `bigquery.tables.getData` |
+| Table / view definitions (including recreation DDL) | `region-{region}.INFORMATION_SCHEMA.TABLES` | `bigquery.tables.get` + `bigquery.tables.list` |
+| Column definitions | `region-{region}.INFORMATION_SCHEMA.COLUMNS` | `bigquery.tables.get` + `bigquery.tables.list` |
+| Routine definitions (UDFs, procedures, including DDL) | `region-{region}.INFORMATION_SCHEMA.ROUTINES` | `bigquery.routines.get` + `bigquery.routines.list` |
 | Streaming inserts | `region-{region}.INFORMATION_SCHEMA.STREAMING_TIMELINE_BY_PROJECT` | `bigquery.jobs.list` |
 | Write API | `region-{region}.INFORMATION_SCHEMA.WRITE_API_TIMELINE_BY_PROJECT` | `bigquery.jobs.list` |
 | Reservation timeline | `region-{region}.INFORMATION_SCHEMA.RESERVATIONS_TIMELINE`, `RESERVATION_CHANGES` | `bigquery.reservations.list` |
 | Capacity commitments | `region-{region}.INFORMATION_SCHEMA.CAPACITY_COMMITMENT_CHANGES_BY_PROJECT` | `bigquery.capacityCommitments.list` (admin project only) |
+
+:::warning Attention:
+Object-definition extracts (`table_definitions`, `column_definitions`, `routine_definitions`) include recreation DDL and routine bodies. Treat the DuckDB output as sensitive — the same way you would treat exported object scripts. Clone/snapshot `base_table_*` and materialized-view `replica_source_*` columns capture **source structural provenance** (dependency links), not Unity Catalog runtime lineage.
+:::
 
 :::warning Attention:
 Skip the reservation/commitment permissions if the customer is on **Pay-as-you-go pricing** rather than BigQuery Editions. The corresponding SQL files will return empty results — harmless. You can also set `exclude_reservations_data: true` during configuration to skip those queries entirely (saves BigQuery slot time; the corresponding DuckDB tables are still created as empty stubs so the output schema stays consistent).
@@ -118,9 +127,9 @@ bigquery:
 databricks labs lakebridge execute-database-profiler --source-tech bigquery
 ```
 
-The pipeline runs `bq_metadata_extract` — connects to BigQuery and runs 16 vendored SQL queries serially across the configured `(project, region)` pairs and in parallel within each iteration (`max_parallel_sqls` workers). Results land in `~/.databricks/labs/lakebridge_profilers/bigquery_assessment/profiler_extract.db` (DuckDB).
+The pipeline runs `bq_metadata_extract` — connects to BigQuery and runs 19 vendored SQL queries serially across the configured `(project, region)` pairs and in parallel within each iteration (`max_parallel_sqls` workers). Results land in `~/.databricks/labs/lakebridge_profilers/bigquery_assessment/profiler_extract.db` (DuckDB).
 
-The final DuckDB contains **12 analysis tables** by default (one per `analysis_type`).
+The final DuckDB contains **15 analysis tables** by default (one per `analysis_type`): 12 sizing/workload tables plus `table_definitions`, `column_definitions`, and `routine_definitions`.
 
 Setting `exclude_reservations_data: true` skips the 6 reservation/commitment BigQuery queries — the corresponding DuckDB tables are still created (empty) to keep the output schema consistent.
 

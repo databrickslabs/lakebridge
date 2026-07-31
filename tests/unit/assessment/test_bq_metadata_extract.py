@@ -53,12 +53,12 @@ def _tables(db_path: Path) -> set[str]:
     return {row[0] for row in rows}
 
 
-def test_full_extract_produces_12_tables(monkeypatch, tmp_path, fake_credentials, capsys):
+def test_full_extract_produces_15_tables(monkeypatch, tmp_path, fake_credentials, capsys):
     db_path = _run_execute(monkeypatch, tmp_path, fake_credentials)
     tables = _tables(db_path)
 
     expected = {
-        # 12 analysis types
+        # 15 analysis types (12 sizing/workload + 3 object-definition extracts)
         "fulfillment_analysis",
         "table_storage",
         "timeline_analysis",
@@ -71,6 +71,9 @@ def test_full_extract_produces_12_tables(monkeypatch, tmp_path, fake_credentials
         "write_api_summary",
         "consumption_beyond_commitments",
         "consumption_through_commitments",
+        "table_definitions",
+        "column_definitions",
+        "routine_definitions",
     }
     assert tables == expected
 
