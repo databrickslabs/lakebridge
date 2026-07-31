@@ -26,9 +26,9 @@ _EXPECTED_STORAGE_VERSION = "v1.4.0+"
 def _storage_version(db_path: Path) -> str | None:
     """Fetch the on-disk storage format of a DuckDB file."""
     with duckdb.connect(str(db_path), read_only=True) as conn:
-        (tags,) = conn.execute(
-            "SELECT tags FROM duckdb_databases() WHERE database_name = current_database()"
-        ).fetchone()
+        row = conn.execute("SELECT tags FROM duckdb_databases() WHERE database_name = current_database()").fetchone()
+    assert row is not None
+    (tags,) = row
     return tags.get("storage_version")
 
 
