@@ -229,6 +229,11 @@ class RedshiftConnector(DatabaseConnector):
     def __init__(self, config: JsonObject):
         self.config = config
         self._conn: redshift_connector.Connection = self._connect()
+        # Extract steps are independent and optional ones are expected to fail (e.g. STV views on
+        # serverless). Without autocommit a single failure leaves the connection in an aborted
+        # transaction and every later step fails with 25P02. Rollback is not an alternative here:
+        # it would also discard the `query_view` created by the source_ddl step.
+        self._conn.autocommit = True
 
     def _connect(self) -> redshift_connector.Connection:
         auth_type = str(self.config.get("auth_type", "sql_authentication")).lower()
