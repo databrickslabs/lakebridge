@@ -68,18 +68,30 @@ class ReconDeployment:
         resources = files(databricks.labs.lakebridge.resources)
         query_dir = resources.joinpath("reconcile/queries/installation")
 
+        # Deploy the backing tables first; the views below select from them.
         sqls_to_deploy = [
+            "recon_run_context.sql",
             "main.sql",
             "metrics.sql",
             "details.sql",
+            "schema_details.sql",
+            "aggregate_rules.sql",
             "aggregate_metrics.sql",
             "aggregate_details.sql",
-            "aggregate_rules.sql",
         ]
 
         for sql_file in sqls_to_deploy:
             table_sql_file = query_dir.joinpath(sql_file)
             self._table_deployer.deploy_table_from_ddl_file(catalog, schema, sql_file.strip(".sql"), table_sql_file)
+
+        # Views must be created after their backing tables exist.
+        views_to_deploy = [
+            "details_columns.sql",
+            "aggregate_details_columns.sql",
+        ]
+        for sql_file in views_to_deploy:
+            view_sql_file = query_dir.joinpath(sql_file)
+            self._table_deployer.deploy_table_from_ddl_file(catalog, schema, sql_file.strip(".sql"), view_sql_file)
 
     def _deploy_dashboards(self, recon_config: ReconcileConfig):
         logger.info("Deploying reconciliation dashboards.")

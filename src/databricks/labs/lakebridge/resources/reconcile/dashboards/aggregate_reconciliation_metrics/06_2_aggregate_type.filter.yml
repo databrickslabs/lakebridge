@@ -1,5 +1,0 @@
-columns:
-- dd_aggregate_type
-type: MULTI_SELECT
-title: Aggregate Type
-width: 2

@@ -1,5 +1,0 @@
-columns:
-- report_type
-type: MULTI_SELECT
-title: Report Type
-width: 2

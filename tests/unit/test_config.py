@@ -2,6 +2,7 @@ from databricks.labs.blueprint.installation import MockInstallation
 
 from databricks.labs.lakebridge.config import (
     ReconcileConfig,
+    ReconcileJobConfig,
     ReconcileMetadataConfig,
     SourceConnectionConfig,
     TableRecon,
@@ -243,3 +244,28 @@ def test_reconcile_v1_migrate_drops_orphan_fields() -> None:
     loaded = installation.load(ReconcileConfig)
     assert loaded.source.dialect == "snowflake"
     assert loaded.target.catalog == "tgt"
+
+
+def test_reconcile_job_overrides_without_tags_keeps_existing_cluster_id() -> None:
+    """A job_overrides block that pins a cluster but omits tags must not silently drop the cluster."""
+    installation = MockInstallation(
+        {
+            "reconcile.yml": {
+                "report_type": "all",
+                "source": {
+                    "dialect": "snowflake",
+                    "catalog": "src_cat",
+                    "schema": "src_sch",
+                    "uc_connection_name": "c",
+                },
+                "target": {"catalog": "tgt_cat", "schema": "tgt_sch"},
+                "metadata_config": {"catalog": "remorph", "schema": "reconcile", "volume": "reconcile_volume"},
+                "job_overrides": {"existing_cluster_id": "0714-000000-abcdefgh"},
+                "version": 2,
+            }
+        }
+    )
+
+    loaded = installation.load(ReconcileConfig)
+
+    assert loaded.job_overrides == ReconcileJobConfig(existing_cluster_id="0714-000000-abcdefgh", tags={})
