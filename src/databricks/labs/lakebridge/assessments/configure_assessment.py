@@ -187,12 +187,6 @@ class ConfigureLegacySynapseAssessment(AssessmentConfigurator):
         auth_type = self.prompts.choice("Select authentication method", auth_choices, sort=False)
         auth_credentials = _prompt_mssql_auth_credentials(self.prompts, auth_type)
 
-        logger.info(
-            "Azure Monitor access is required to collect CPU/DWU utilization metrics. "
-            "The identity resolved by your selected authentication method needs the "
-            "Monitoring Reader role on the dedicated pool."
-        )
-
         credential = {
             "secret_vault_type": secret_vault_type,
             "secret_vault_name": None,
