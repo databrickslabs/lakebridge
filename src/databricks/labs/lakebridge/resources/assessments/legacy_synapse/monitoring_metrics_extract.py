@@ -70,6 +70,7 @@ def execute(
 
     except Exception as e:
         logger.error(f"Failed to extract Legacy Synapse Monitoring Metrics: {str(e)}")
+        print(json.dumps({"status": "error", "message": str(e)}), file=sys.stderr)
         sys.exit(1)
 
 

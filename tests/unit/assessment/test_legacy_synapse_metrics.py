@@ -90,8 +90,8 @@ def test_execute_tolerates_empty_metrics(tmp_path, capsys):
     assert "metrics_dedicated_pool_metrics" not in tables
 
 
-def test_execute_fails_without_azure_block(tmp_path):
-    """The azure block is required; execute exits non-zero and never touches Azure or DuckDB."""
+def test_execute_fails_without_azure_block(tmp_path, capsys):
+    """The azure block is required; execute emits a structured error and exits non-zero."""
     db_path = tmp_path / "profiler_extract.db"
     settings = {"server": "my-dw-server.database.windows.net", "database": "my_pool"}
     metrics_client_factory = Mock()
@@ -104,6 +104,9 @@ def test_execute_fails_without_azure_block(tmp_path):
         )
 
     assert exc_info.value.code == 1
+    error = _last_json_line(capsys.readouterr().err)
+    assert error["status"] == "error"
+    assert "Missing Azure settings" in error["message"]
     # We must fail before touching Azure or DuckDB.
     metrics_client_factory.assert_not_called()
     assert not db_path.exists()

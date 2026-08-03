@@ -128,7 +128,6 @@ class ConfigureOracleAssessment(AssessmentConfigurator):
         }
 
         _save_to_disk(credential, cred_file)
-        logger.info(f"Credential template created for {source}.")
 
 
 class ConfigureSqlServerAssessment(AssessmentConfigurator):
@@ -169,7 +168,6 @@ class ConfigureSqlServerAssessment(AssessmentConfigurator):
         }
 
         _save_to_disk(credential, cred_file)
-        logger.info(f"Credential template created for {source}.")
 
 
 class ConfigureLegacySynapseAssessment(AssessmentConfigurator):
@@ -208,7 +206,6 @@ class ConfigureLegacySynapseAssessment(AssessmentConfigurator):
                 "server": self.prompts.question("Enter the fully-qualified server name"),
                 "port": int(self.prompts.question("Enter the port details", default="1433", valid_number=True)),
                 "database": self.prompts.question("Enter the dedicated pool name"),
-                "trust_server_certificate": self.prompts.confirm("Trust server certificate"),
                 "tz_info": self.prompts.question("Enter timezone (e.g. America/New_York)", default="UTC"),
                 "azure": {
                     "subscription_id": self.prompts.question("Enter the Azure subscription ID"),
@@ -218,7 +215,6 @@ class ConfigureLegacySynapseAssessment(AssessmentConfigurator):
         }
 
         _save_to_disk(credential, cred_file)
-        logger.info(f"Credential template created for {source}.")
 
 
 # Redshift auth types mirror the values ``RedshiftConnector._connect`` accepts. Keep the
@@ -307,7 +303,6 @@ class ConfigureRedshiftAssessment(AssessmentConfigurator):
         }
 
         _save_to_disk(credential, cred_file)
-        logger.info(f"Credential template created for {source}.")
 
 
 class ConfigureSynapseAssessment(AssessmentConfigurator):
@@ -367,8 +362,6 @@ class ConfigureSynapseAssessment(AssessmentConfigurator):
         }
         _save_to_disk(credential, cred_file)
 
-        logger.info(f"Credential template created for {source}.")
-
 
 class ConfigureSnowflakeAssessment(AssessmentConfigurator):
     """Snowflake specific assessment configuration."""
@@ -420,8 +413,6 @@ class ConfigureSnowflakeAssessment(AssessmentConfigurator):
         }
         _save_to_disk(credential, cred_file)
 
-        logger.info(f"Credential template created for {source}.")
-
 
 class ConfigureTeradataAssessment(AssessmentConfigurator):
     """Teradata specific assessment configuration."""
@@ -455,8 +446,6 @@ class ConfigureTeradataAssessment(AssessmentConfigurator):
         }
 
         _save_to_disk(credential, cred_file)
-
-        logger.info(f"Credential template created for {source}.")
 
 
 ConfiguratorFactory = Callable[[str, Prompts, str, Path | str | None], AssessmentConfigurator]
@@ -538,8 +527,6 @@ class ConfigureBigQueryAssessment(AssessmentConfigurator):
             },
         }
         _save_to_disk(credential, cred_file)
-
-        logger.info(f"Credential template created for {source}.")
 
 
 def create_assessment_configurator(
