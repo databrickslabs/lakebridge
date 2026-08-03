@@ -131,8 +131,9 @@ _DATATYPE_TRANSFORM_MAPPING: dict[str, dict[str, list[partial[exp.Expression]]]]
 class TransformedColumn:
     """A column expression after transformation.
 
-    ``original_type`` is the column's declared type. It is ``None`` when a user
-    transformation changes the column.
+    ``original_type`` is the column's declared type, or ``None`` when a user
+    transformation changed the column -- the sampler uses it to decide whether to
+    cast a reconstructed literal back to the column's type.
     """
 
     column: exp.Expression
@@ -142,7 +143,8 @@ class TransformedColumn:
 
 @dataclass(frozen=True)
 class ReconcileLayer:
-    """One side (source or target) of a reconciliation."""
+    """One side (source or target) of a reconciliation: its data source (for
+    identifier normalization), SQL dialect, and column schema."""
 
     data_source: DataSource
     dialect: Dialect
@@ -150,14 +152,15 @@ class ReconcileLayer:
 
 
 class ColumnTransformer(ABC):
-    """Transforms reconciliation columns to their comparison form.
+    """Transforms reconciliation columns into the form used for comparison.
 
-    So a source column can be transformed with knowledge of its counterpart.
+    An implementation holds both the source and target sides, so a column can be
+    transformed with knowledge of its counterpart on the other side.
     """
 
     @abstractmethod
     def transform(self, columns: list[exp.Expression], layer: str) -> list[TransformedColumn]:
-        """Apply user overrides, then default per-type transforming to the rest."""
+        """Apply user overrides, then default per-type transforms to the rest."""
 
     @abstractmethod
     def transform_user(self, columns: list[exp.Expression], layer: str) -> list[TransformedColumn]:
@@ -165,6 +168,9 @@ class ColumnTransformer(ABC):
 
 
 class RuleBasedColumnTransformer(ColumnTransformer):
+    """Transforms columns from config rules: user overrides plus a per-dialect,
+    per-datatype transform table (`_DATATYPE_TRANSFORM_MAPPING`)."""
+
     def __init__(
         self,
         source: ReconcileLayer,
@@ -175,38 +181,50 @@ class RuleBasedColumnTransformer(ColumnTransformer):
         self._table_conf = table_conf
 
     def transform(self, columns: list[exp.Expression], layer: str) -> list[TransformedColumn]:
+        """Transform each column into its comparison form for `layer`.
+
+        1. Look up the user override SQL per column (`_user_overrides`).
+        2. Map the remaining columns to their declared type; a user-overridden
+           column is excluded, so its `original_type` is None and the sampler
+           leaves the (now retyped) value uncast.
+        3. Per column, substitute the user override if any, then normalize
+           whatever is left to its declared type.
+        """
         side = self._sides[layer]
-        user_map = self._user_map(layer)
-        # Type transforming never touches a user-transformed column: excluding it here means its
-        # original_type is also None, so the sampler leaves the (now retyped) value uncast.
+        user_overrides = self._get_user_overrides(layer)
         types_by_name = {
             s.ansi_normalized_column_name: s.data_type
             for s in side.schema
-            if s.ansi_normalized_column_name not in user_map
+            if s.ansi_normalized_column_name not in user_overrides
         }
         transformed = []
         for column in columns:
-            ansi_name = self._column_ansi(column, side)
-            new_column = column.transform(self._user_node, side, user_map).transform(
-                self._type_node, side, types_by_name
+            ansi_name = self._get_referenced_column_name(column, side)
+            new_column = column.transform(self._substitute_user_sql, side, user_overrides).transform(
+                self._normalize_by_type, side, types_by_name
             )
             transformed.append(TransformedColumn(new_column, ansi_name, types_by_name.get(ansi_name)))
         return transformed
 
     def transform_user(self, columns: list[exp.Expression], layer: str) -> list[TransformedColumn]:
+        """Substitute only user overrides; carry the declared type for un-overridden columns."""
         side = self._sides[layer]
-        user_map = self._user_map(layer)
+        user_overrides = self._get_user_overrides(layer)
         types_by_name = {s.ansi_normalized_column_name: s.data_type for s in side.schema}
         transformed = []
         for column in columns:
-            ansi_name = self._column_ansi(column, side)
-            new_column = column.transform(self._user_node, side, user_map)
-            original_type = None if ansi_name in user_map else types_by_name.get(ansi_name)
+            ansi_name = self._get_referenced_column_name(column, side)
+            new_column = column.transform(self._substitute_user_sql, side, user_overrides)
+            original_type = None if ansi_name in user_overrides else types_by_name.get(ansi_name)
             transformed.append(TransformedColumn(new_column, ansi_name, original_type))
         return transformed
 
-    def _user_map(self, layer: str) -> dict[str, str]:
-        """Column ansi-name -> user-supplied SQL for `layer`, from the recon config."""
+    def _get_user_overrides(self, layer: str) -> dict[str, str]:
+        """Ansi column name -> the SQL the user configured to replace it, for `layer`.
+
+        Source columns key on the transformation's own name; target columns key
+        through the column mapping, since a mapped column has a different name there.
+        """
         side = self._sides[layer]
         transformations = self._table_conf.transformations or []
         if layer == "source":
@@ -221,35 +239,42 @@ class RuleBasedColumnTransformer(ColumnTransformer):
             for t in transformations
         }
 
-    def _column_ansi(self, column: exp.Expression, side: ReconcileLayer) -> str:
+    def _get_referenced_column_name(self, column: exp.Expression, side: ReconcileLayer) -> str:
+        """The ansi name of the column this expression refers to, used to identify
+        it for type lookup and sampling; "" if the expression references no column."""
         for node in column.find_all(exp.Column):
             return side.data_source.normalize_identifier(node.name).ansi_normalized
         return ""
 
     @staticmethod
-    def _user_node(node: exp.Expression, side: ReconcileLayer, user_map: dict[str, str]) -> exp.Expression:
-        if isinstance(node, exp.Column) and user_map:
+    def _substitute_user_sql(node: exp.Expression, side: ReconcileLayer, user_overrides: dict[str, str]) -> exp.Expression:
+        """Tree visitor: swap a column node for the user's override SQL, if one exists."""
+        if isinstance(node, exp.Column) and user_overrides:
             normalized_column = side.data_source.normalize_identifier(node.name)
             ansi_name = normalized_column.ansi_normalized
-            if ansi_name in user_map:
-                return parse_one(user_map.get(ansi_name, normalized_column.source_normalized), read=side.dialect)
+            if ansi_name in user_overrides:
+                return parse_one(user_overrides.get(ansi_name, normalized_column.source_normalized), read=side.dialect)
         return node
 
-    def _type_node(
+    def _normalize_by_type(
         self,
         node: exp.Expression,
         side: ReconcileLayer,
         types_by_name: dict[str, str],
     ) -> exp.Expression:
+        """Tree visitor: wrap a column node so its value serializes identically
+        across engines, per the column's declared type."""
         if isinstance(node, exp.Column):
             ansi_name = side.data_source.normalize_identifier(node.name).ansi_normalized
             if ansi_name in types_by_name:
-                transform = self._resolve_type_transform(types_by_name[ansi_name], side.dialect)
-                return transform_expression(node, transform)
+                normalization = self._lookup_transformation_for_type(types_by_name[ansi_name], side.dialect)
+                return transform_expression(node, normalization)
         return node
 
     @staticmethod
-    def _resolve_type_transform(datatype: str, dialect: Dialect) -> list[partial[exp.Expression]]:
+    def _lookup_transformation_for_type(datatype: str, dialect: Dialect) -> list[partial[exp.Expression]]:
+        """The normalization functions for `datatype` under `dialect`: an exact-type
+        match, else the dialect's default, else the universal default."""
         dialect_names = [name for name, registered in SQLGLOT_DIALECTS.items() if registered == dialect]
         dialect_name = dialect_names[0] if dialect_names else "universal"
         dialect_mapping = _DATATYPE_TRANSFORM_MAPPING.get(dialect_name, {})
@@ -260,9 +285,9 @@ class RuleBasedColumnTransformer(ColumnTransformer):
         except sqlglot.errors.ParseError:
             logger.warning(f"Could not parse datatype {datatype} for source {dialect_name}")
 
-        type_transform = dialect_mapping.get(parsed)
-        if type_transform is not None:
-            return type_transform
+        exact_match = dialect_mapping.get(parsed)
+        if exact_match is not None:
+            return exact_match
         dialect_default = dialect_mapping.get("default")
         if dialect_default is not None:
             return dialect_default
