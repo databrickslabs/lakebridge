@@ -5,8 +5,9 @@ import logging
 import random
 import sys
 
-import duckdb
 import pandas as pd
+
+from databricks.labs.lakebridge.resources.assessments.common.duckdb_helpers import connect_to_profiler_db
 
 
 def generate_random_dataset(size: int = 10, rng=random.Random()) -> pd.DataFrame:
@@ -41,23 +42,18 @@ def execute():
     try:
         df = generate_random_dataset()
         logger.info(f'DataFrame columns: {df.columns}')
-        # Connect to DuckDB
-        conn = duckdb.connect(args.db_path)
-
-        # Create table with appropriate schema
-        conn.execute("""
-            CREATE OR REPLACE TABLE random_data (
-                id INTEGER,
-                date TIMESTAMP,
-                category VARCHAR,
-                department VARCHAR,
-                is_active BOOLEAN,
-                score DOUBLE
-            )
-        """)
-
-        conn.execute("INSERT INTO random_data SELECT * FROM df")
-        conn.close()
+        with connect_to_profiler_db(args.db_path) as conn:
+            conn.execute("""
+                CREATE OR REPLACE TABLE random_data (
+                    id INTEGER,
+                    date TIMESTAMP,
+                    category VARCHAR,
+                    department VARCHAR,
+                    is_active BOOLEAN,
+                    score DOUBLE
+                )
+            """)
+            conn.execute("INSERT INTO random_data SELECT * FROM df")
         # This is the output format expected by the pipeline.py which orchestrates the execution of this script
         print(json.dumps({"status": "success", "message": "Data loaded successfully"}))
 
