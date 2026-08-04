@@ -247,7 +247,9 @@ class RuleBasedColumnTransformer(ColumnTransformer):
         return ""
 
     @staticmethod
-    def _substitute_user_sql(node: exp.Expression, side: ReconcileLayer, user_overrides: dict[str, str]) -> exp.Expression:
+    def _substitute_user_sql(
+        node: exp.Expression, side: ReconcileLayer, user_overrides: dict[str, str]
+    ) -> exp.Expression:
         """Tree visitor: swap a column node for the user's override SQL, if one exists."""
         if isinstance(node, exp.Column) and user_overrides:
             normalized_column = side.data_source.normalize_identifier(node.name)
