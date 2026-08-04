@@ -39,8 +39,14 @@ For `ActiveDirectoryServicePrincipal`, set `AZURE_CLIENT_ID` and `AZURE_CLIENT_S
 For `DefaultAzureCredential`, run `az login` first; for unattended runs set `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, and `AZURE_CLIENT_SECRET`.
 :::
 
+### 3. Azure Monitor (CPU / DWU utilization metrics)
 
-### 3. Required Database Permissions
+The profiler collects dedicated-pool utilization metrics (CPU %, DWU %, memory %, active/queued
+queries, and more) from **Azure Monitor**. This requires the identity resolved by your chosen
+authentication method to hold the **Monitoring Reader** role on the dedicated pool.
+
+
+### 4. Required Database Permissions
 
 The SQL user configured for the profiler must have read access to the system catalog views and PDW Dynamic Management Views
 listed in [Profiled Tables and Views](#profiled-tables-and-views).
@@ -139,6 +145,25 @@ into two extraction steps: **schema metadata** and **activity metrics**.
   </tbody>
 </table>
 
+### Utilization Metrics (Azure Monitor)
+
+<table>
+  <thead>
+    <tr>
+      <th>Query</th>
+      <th>Source</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Monitoring Metrics</td>
+      <td>Azure Monitor (<code>Microsoft.Sql/servers/databases</code>)</td>
+      <td>Dedicated-pool utilization over the profiling window: <code>cpu_percent</code>, <code>dwu_consumption_percent</code>, <code>dwu_limit</code>, <code>dwu_used</code>, <code>memory_usage_percent</code>, <code>physical_data_read_percent</code>, <code>local_tempdb_usage_percent</code>, <code>active_queries</code>, and <code>queued_queries</code>. Requires the Azure settings and Monitoring Reader role described in <a href="#3-azure-monitor-cpu--dwu-utilization-metrics">Azure Monitor</a>.</td>
+    </tr>
+  </tbody>
+</table>
+
 ## Configure Connection to Legacy Synapse
 
 Run the following command to configure the profiler connection to your dedicated SQL pool:
@@ -175,6 +200,8 @@ Enter the port details: 1433
 Enter the database name: my_pool
 Trust server certificate (default: no):
 Enter timezone (e.g. America/New_York) (default: UTC):
+Enter the Azure subscription ID: 00000000-0000-0000-0000-000000000000
+Enter the Azure resource group: rg-analytics
 ```
 
 ### Configuration Parameters
@@ -191,6 +218,8 @@ Enter timezone (e.g. America/New_York) (default: UTC):
 | **Database** | The dedicated SQL pool name to connect to. Dedicated pools do not have a `master` database, so this must be set to the pool you want to profile. | — |
 | **Trust server certificate** | Skip TLS certificate validation when connecting. Leave as `no` for Azure-hosted dedicated SQL pools, which present valid certificates. | `no` |
 | **Timezone** | Timezone for timestamp normalization | `UTC` |
+| **Azure subscription ID** | Subscription containing the dedicated pool. Used to build the Azure resource ID for the Azure Monitor metrics extract. | — |
+| **Azure resource group** | Resource group containing the dedicated pool's logical SQL server. | — |
 
 ## Execute the Profiler
 
