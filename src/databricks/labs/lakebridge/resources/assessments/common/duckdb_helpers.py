@@ -9,6 +9,7 @@ with the mechanics of getting a DataFrame into a DuckDB table.
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from typing import Literal
 
 import duckdb
@@ -17,6 +18,17 @@ import pandas as pd
 logger = logging.getLogger(__name__)
 
 SaveMode = Literal["overwrite", "append"]
+
+_PROFILER_DUCKDB_CONFIG: dict[str, bool | float | int | list[str] | str] = {
+    "storage_compatibility_version": "v1.4.0",
+    "force_compression": "auto",
+    "zstd_min_string_length": 8,
+}
+
+
+def connect_to_profiler_db(db_path: str | Path) -> duckdb.DuckDBPyConnection:
+    """Connect to a profiler database with native compression enabled."""
+    return duckdb.connect(str(db_path), config=_PROFILER_DUCKDB_CONFIG)
 
 
 def save_to_duckdb(
@@ -49,7 +61,7 @@ def save_to_duckdb(
         Any underlying DuckDB error is logged and re-raised.
     """
     try:
-        with duckdb.connect(db_path) as conn:
+        with connect_to_profiler_db(db_path) as conn:
             if mode == "overwrite":
                 _save_overwrite(conn, df, table_name, schema)
             elif mode == "append":
@@ -172,7 +184,7 @@ def get_max_column_value_duckdb(
     """
     max_column_val = None
     try:
-        with duckdb.connect(db_path) as conn:
+        with connect_to_profiler_db(db_path) as conn:
             table_exists = table_name in conn.execute("SHOW TABLES").fetchdf()['name'].values
             if not table_exists:
                 logger.info(f"Table {table_name} does not exist in DuckDB. Returning None.")

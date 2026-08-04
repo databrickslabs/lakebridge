@@ -10,6 +10,17 @@ from databricks.labs.lakebridge.resources.assessments.common.duckdb_helpers impo
     save_to_duckdb,
 )
 
+_EXPECTED_STORAGE_VERSION = "v1.4.0+"
+
+
+def _storage_version(db_path: str | Path) -> str | None:
+    """Fetch the on-disk storage format of a DuckDB file."""
+    with duckdb.connect(str(db_path), read_only=True) as conn:
+        row = conn.execute("SELECT tags FROM duckdb_databases() WHERE database_name = current_database()").fetchone()
+    assert row is not None
+    (tags,) = row
+    return tags.get("storage_version")
+
 
 def _read_table(db_path: str, table_name: str) -> pd.DataFrame:
     with duckdb.connect(db_path) as conn:
@@ -166,3 +177,10 @@ def test_invalid_mode_raises(tmp_path: Path) -> None:
         # Intentionally violating the Literal type to exercise the runtime guard
         # that protects callers reaching in from untyped config / JSON.
         save_to_duckdb(pd.DataFrame({"id": [1]}), "t1", db_path, mode="upsert")  # type: ignore[arg-type]
+
+
+def test_save_to_duckdb_writes_storage_compatibility_version(tmp_path: Path) -> None:
+    db_path = tmp_path / "t.duckdb"
+    save_to_duckdb(pd.DataFrame({"id": [1]}), "t1", str(db_path))
+
+    assert _storage_version(db_path) == _EXPECTED_STORAGE_VERSION
