@@ -22,6 +22,7 @@ remorph_transpile/
 .databricks-login.json
 .mypy_cache
 .env
+/.isaac/
 /tests/resources/lsp_transpiler/test-lsp-server.log
 .credentials.yml
 .credentials.bak
