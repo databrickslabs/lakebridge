@@ -22,60 +22,26 @@ REQUIRED_CASTS: dict[str, tuple[str, ...]] = {
         "(SUM(reserved_page_count) * 8.0) / 1024.0 AS ReservedSpaceMB",
         "(SUM(used_page_count) * 8.0) / 1024.0 AS UsedSpaceMB",
     ),
-    "redshift/provisioned/1_rs_spectrum_tb_month.sql": (
+    "redshift/sql/1_rs_spectrum_tb_month.sql": (
         "round(sum(returned_bytes)/(1024.0*1024*1024*1024),4)::double precision s3_scanned_tb_month",
         "round(avg(s3_scanned_tb_month) over (), 4 )::double precision avg_daily_scanned_tb",
     ),
-    "redshift/provisioned/2_rs_managed_storage_gb.sql": (
+    "redshift/sql/2_rs_managed_storage_gb_stv.sql": (
         "round((sum(used) / 1024), 2)::double precision as rs_managed_storage_gb",
     ),
-    "redshift/provisioned/4_rs_avg_concurrent_users.sql": (
-        "round(avg(distinct_users),0)::double precision avg_concurrent_users",
-    ),
-    "redshift/provisioned/5_rs_avg_queries_minute.sql": ("avg(query_cnt)::double precision avg_queries_minute",),
-    "redshift/provisioned/7_chart_cpu_consumption_by_query_type.sql": (
-        "cpu_time/1000000.0 end as cpu_time",
-        "run_time/1000000.0 end as run_time",
-        "sum(cpu_time)::double precision as sum_cpu_time",
-    ),
-    "redshift/provisioned/9_chart_cpu_consumption_by_hour_and_query_type.sql": (
-        "cpu_time/1000000.0 end as cpu_time",
-        "run_time/1000000.0 end as run_time",
-        "sum(cpu_time)::double precision as sum_cpu_time",
-    ),
-    "redshift/provisioned_multi_az/1_rs_spectrum_tb_month.sql": (
-        "round(sum(returned_bytes)/(1024.0*1024*1024*1024),4)::double precision s3_scanned_tb_month",
-        "round(avg(s3_scanned_tb_month) over (), 4 )::double precision avg_daily_scanned_tb",
-    ),
-    "redshift/provisioned_multi_az/4_rs_avg_concurrent_users.sql": (
-        "round(avg(distinct_users),0)::double precision avg_concurrent_users",
-    ),
-    "redshift/provisioned_multi_az/5_rs_avg_queries_minute.sql": (
-        "avg(query_cnt)::double precision avg_queries_minute",
-    ),
-    "redshift/provisioned_multi_az/7_chart_cpu_consumption_by_query_type.sql": (
-        "sum(run_time_ms)::double precision as sum_cpu_time",
-    ),
-    "redshift/provisioned_multi_az/9_chart_cpu_consumption_by_hour_and_query_type.sql": (
-        "sum(cpu_time)::double precision as sum_cpu_time",
-    ),
-    "redshift/serverless/1_rs_spectrum_tb_month.sql": (
-        "round(sum(returned_bytes)/(1024.0*1024*1024*1024),4)::double precision s3_scanned_tb_month",
-        "round(avg(s3_scanned_tb_month) over (), 4 )::double precision avg_daily_scanned_tb",
-    ),
-    "redshift/serverless/2_rs_managed_storage_gb.sql": (
+    "redshift/sql/2_rs_managed_storage_gb_serverless.sql": (
         "round(avg(data_storage) / 1024.0, 2)::double precision as rs_managed_storage_gb",
     ),
-    "redshift/serverless/3_rs_nodes.sql": ("sum(compute_seconds)::double precision as compute_seconds",),
-    "redshift/serverless/4_rs_avg_concurrent_users.sql": (
+    "redshift/sql/3_rs_nodes_serverless.sql": ("sum(compute_seconds)::double precision as compute_seconds",),
+    "redshift/sql/4_rs_avg_concurrent_users.sql": (
         "round(avg(distinct_users),0)::double precision avg_concurrent_users",
     ),
-    "redshift/serverless/5_rs_avg_queries_minute.sql": ("avg(query_cnt)::double precision avg_queries_minute",),
-    "redshift/serverless/7_chart_cpu_consumption_by_query_type.sql": (
+    "redshift/sql/5_rs_avg_queries_minute.sql": ("avg(query_cnt)::double precision avg_queries_minute",),
+    "redshift/sql/7_chart_cpu_consumption_by_query_type.sql": (
         "duration/1000.0 as run_time_ms",
         "sum(run_time_ms)::double precision as sum_cpu_time",
     ),
-    "redshift/serverless/9_chart_cpu_consumption_by_hour_and_query_type.sql": (
+    "redshift/sql/9_chart_cpu_consumption_by_hour_and_query_type.sql": (
         "duration/1000.0 as run_time_ms",
         "sum(run_time_ms)::double precision as sum_cpu_time",
     ),
