@@ -538,6 +538,44 @@ class SynapseMetrics:
         # Fetch Metrics
         return self.fetch_metrics(response.metrics)
 
+    # get_sql_dw_metrics
+    def get_sql_dw_metrics(self, resource_id: str) -> pd.DataFrame:
+        """
+        Query metrics for a standalone dedicated SQL pool (formerly Azure SQL DW),
+        i.e. a ``Microsoft.Sql/servers/databases`` resource rather than a Synapse
+        workspace pool. The metric names are the REST API names for that resource
+        type, which differ from the Synapse-workspace pool names used by
+        ``get_dedicated_sql_pool_metrics``.
+
+        resource_id: input SQL database (dedicated pool) resource id
+        Returns a pandas DataFrame with metrics
+        """
+        response = self.client.query_resource(
+            resource_id,
+            metric_names=[
+                "cpu_percent",
+                "dwu_consumption_percent",
+                "dwu_limit",
+                "dwu_used",
+                "memory_usage_percent",
+                "physical_data_read_percent",
+                "local_tempdb_usage_percent",
+                "active_queries",
+                "queued_queries",
+            ],
+            timespan=dt.timedelta(days=self.num_days),
+            granularity=dt.timedelta(minutes=self.granularity_mins),
+            aggregations=[
+                MetricAggregationType.AVERAGE,
+                MetricAggregationType.COUNT,
+                MetricAggregationType.MINIMUM,
+                MetricAggregationType.MAXIMUM,
+                MetricAggregationType.TOTAL,
+            ],
+        )
+        # Fetch Metrics
+        return self.fetch_metrics(response.metrics)
+
     # get_workspace_level_metrics
     def get_workspace_level_metrics(self, resource_id: str) -> pd.DataFrame:
         """
