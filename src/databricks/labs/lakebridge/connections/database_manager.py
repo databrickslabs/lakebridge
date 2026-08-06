@@ -3,19 +3,21 @@ import dataclasses
 import importlib
 import logging
 from abc import abstractmethod
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from types import TracebackType
 from typing import Any
 
 import pandas as pd
 
 from sqlalchemy import create_engine
-from sqlalchemy.engine import Engine, URL
+from sqlalchemy.engine import CursorResult, Engine, URL
 from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm.session import Session
 import mssql_python
 import redshift_connector  # type: ignore[import-untyped]
+from snowflake.connector.errors import Error as SnowflakeError
+from snowflake.connector.errors import NotSupportedError as SnowflakeNotSupportedError
 
 from databricks.labs.blueprint.installation import JsonObject
 from databricks.labs.lakebridge.connections.mssql_auth import resolve_mssql_credentials
@@ -124,6 +126,24 @@ class SnowflakeConnector(_BaseConnector):
             query={"warehouse": warehouse, "role": role},
         )
         return create_engine(snowflake_url)
+
+    def stream(self, query: str) -> Iterator[pd.DataFrame]:
+        if not self.engine:
+            raise ConnectionError("Not connected to the database.")
+
+        with Session(self.engine) as session, session.begin():
+            try:
+                result = session.execute(text(query))
+                if not isinstance(result, CursorResult):
+                    return
+                cursor = result.cursor
+                if cursor is None:
+                    return
+                yield from cursor.fetch_pandas_batches()
+            except (DBAPIError, SnowflakeNotSupportedError, SnowflakeError) as e:
+                logger.debug("Database query failed", exc_info=True)
+                reason = str(getattr(e, "orig", e)).split("\n", 1)[0].strip()
+                raise ConnectionError(f"Database query failed: {reason}") from e
 
 
 # In the mssql credential's ``database`` field, this sentinel (or a blank/whitespace value) means "no
