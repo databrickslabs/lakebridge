@@ -14,7 +14,11 @@ from databricks.labs.blueprint.paths import read_text
 from databricks.labs.lakebridge import __version__ as lakebridge_version
 from databricks.labs.lakebridge.assessments.profiler_config import PipelineConfig, Step
 from databricks.labs.lakebridge.connections.database_manager import DatabaseConnector, FetchResult
-from databricks.labs.lakebridge.resources.assessments.common.duckdb_helpers import connect_to_profiler_db
+from databricks.labs.lakebridge.resources.assessments.common.duckdb_helpers import (
+    SaveMode,
+    connect_to_profiler_db,
+    save_to_duckdb,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -126,8 +130,18 @@ class PipelineClass:
             raise RuntimeError("Database executor is not set.")
 
         logging.info(f"Executing query: {query}")
+        if hasattr(self.executor, "stream"):
+            first = True
+            for df in self.executor.stream(query):
+                if df.empty:
+                    continue
+                write_mode: SaveMode = "overwrite" if first and step.mode == "overwrite" else "append"
+                save_to_duckdb(df, step.name, str(self._db_path), mode=write_mode)
+                first = False
+            return
+
         result = self.executor.fetch(query)
-        self._save_to_db(result, step.name, str(step.mode))
+        self._save_to_db(result, step.name, step.mode)
 
     def _execute_source_ddl_step(self, step: Step):
         """Run a no-result DDL statement against the *source* database (one statement per file).
