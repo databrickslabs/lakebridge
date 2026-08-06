@@ -13,7 +13,7 @@ import yaml
 from databricks.labs.blueprint.paths import read_text
 from databricks.labs.lakebridge import __version__ as lakebridge_version
 from databricks.labs.lakebridge.assessments.profiler_config import PipelineConfig, Step
-from databricks.labs.lakebridge.connections.database_manager import DatabaseConnector, FetchResult
+from databricks.labs.lakebridge.connections.database_manager import DatabaseConnector, FetchResult, StreamResult
 from databricks.labs.lakebridge.resources.assessments.common.duckdb_helpers import (
     SaveMode,
     connect_to_profiler_db,
@@ -129,19 +129,84 @@ class PipelineClass:
             logging.error("Database executor is not set.")
             raise RuntimeError("Database executor is not set.")
 
-        logging.info(f"Executing query: {query}")
+        logger.info("%s: Submitting query to source.", step.name)
+        logger.debug("Executing query: %s", query)
+
         if hasattr(self.executor, "stream"):
-            first = True
-            for df in self.executor.stream(query):
+            self._execute_sql_step_stream(step, query)
+            return
+
+        self._execute_sql_step_fetch(step, query)
+
+    def _execute_sql_step_stream(self, step: Step, query: str) -> None:
+        assert self.executor is not None
+        stream = getattr(self.executor, "stream")
+        try:
+            stream_result: StreamResult = stream(query)
+        except ConnectionError as e:
+            logger.info("%s: Query execution failed: %s", step.name, e)
+            raise
+
+        logger.info("%s: Query execution completed successfully.", step.name)
+        first = True
+        chunks_seen = 0
+        try:
+            for i, df in enumerate(stream_result.batches, start=1):
+                chunks_seen = i
+                total = stream_result.total_chunks if stream_result.total_chunks > 0 else i
+                logger.info(
+                    "%s: Fetching and writing results (%d/%d).",
+                    step.name,
+                    i,
+                    total,
+                )
                 if df.empty:
                     continue
                 write_mode: SaveMode = "overwrite" if first and step.mode == "overwrite" else "append"
                 save_to_duckdb(df, step.name, str(self._db_path), mode=write_mode)
                 first = False
+
+            if chunks_seen == 0:
+                logging.warning(
+                    "Query for step '%s' returned 0 chunks. Skipping table creation and data insertion.",
+                    step.name,
+                )
+        except Exception as e:
+            logger.info("%s: Fetching and writing results failed: %s", step.name, e)
+            raise
+        finally:
+            stream_result.close()
+
+    def _execute_sql_step_fetch(self, step: Step, query: str) -> None:
+        assert self.executor is not None
+        fetch_started = False
+
+        def on_executed() -> None:
+            nonlocal fetch_started
+            logger.info("%s: Query execution completed successfully.", step.name)
+            logger.info("%s: Fetching results.", step.name)
+            fetch_started = True
+
+        try:
+            result = self.executor.fetch(query, on_executed=on_executed)
+        except ConnectionError as e:
+            if fetch_started:
+                logger.info("%s: Fetching results failed: %s", step.name, e)
+            else:
+                logger.info("%s: Query execution failed: %s", step.name, e)
+            raise
+
+        if not result.rows:
+            self._save_to_db(result, step.name, step.mode)
             return
 
-        result = self.executor.fetch(query)
-        self._save_to_db(result, step.name, step.mode)
+        logger.info("%s: Writing data to duckdb...", step.name)
+        try:
+            self._save_to_db(result, step.name, step.mode)
+        except Exception as e:
+            logger.info("%s: Writing data to duckdb failed: %s", step.name, e)
+            raise
+        logger.info("%s: Data written to duckdb successfully.", step.name)
 
     def _execute_source_ddl_step(self, step: Step):
         """Run a no-result DDL statement against the *source* database (one statement per file).
@@ -246,7 +311,7 @@ class PipelineClass:
             return
 
         row_count = len(result.rows)
-        logging.info(f"Query for step '{step_name}' returned {row_count} rows.")
+        logging.debug(f"Query for step '{step_name}' returned {row_count} rows.")
 
         with connect_to_profiler_db(self._db_path) as conn:
             # Note: step_name is validated to be SQL-safe by Step.__post_init__
@@ -279,7 +344,7 @@ class PipelineClass:
 
             # Explicit commit before context exit
             conn.commit()
-            logging.info(f"Successfully processed {row_count} rows for table '{step_name}'.")
+            logging.debug(f"Successfully processed {row_count} rows for table '{step_name}'.")
 
     @staticmethod
     def _table_exists(conn: duckdb.DuckDBPyConnection, table_name: str) -> bool:

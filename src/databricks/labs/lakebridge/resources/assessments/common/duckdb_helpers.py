@@ -68,7 +68,7 @@ def save_to_duckdb(
                 _save_append(conn, df, table_name, schema)
             else:
                 raise ValueError(f"Unsupported mode '{mode}'. Must be 'overwrite' or 'append'.")
-            logger.info("Wrote %d rows to '%s' (mode=%s).", len(df), table_name, mode)
+            logger.debug("Wrote %d rows to '%s' (mode=%s).", len(df), table_name, mode)
     except Exception as e:
         logger.error("Error in save_to_duckdb for table '%s': %s", table_name, str(e))
         raise

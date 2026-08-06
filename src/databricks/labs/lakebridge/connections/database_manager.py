@@ -43,9 +43,29 @@ class FetchResult:
         return pd.DataFrame.from_records(self.rows, columns=list(self.columns))
 
 
+@dataclasses.dataclass
+class StreamResult:
+    """Chunked query results after warehouse execution has finished.
+
+    ``total_chunks`` is known once Snowflake returns result metadata.
+    ``batches`` must be fully consumed (or :meth:`close` called) so the
+    underlying DB session is released.
+    """
+
+    total_chunks: int
+    batches: Iterator[pd.DataFrame]
+    _close: Callable[[], None] = dataclasses.field(default=lambda: None, repr=False, compare=False)
+    _closed: bool = dataclasses.field(default=False, repr=False, compare=False)
+
+    def close(self) -> None:
+        if not self._closed:
+            self._closed = True
+            self._close()
+
+
 class DatabaseConnector(contextlib.AbstractContextManager):
     @abstractmethod
-    def fetch(self, query: str) -> FetchResult: ...
+    def fetch(self, query: str, *, on_executed: Callable[[], None] | None = None) -> FetchResult: ...
 
     @abstractmethod
     def close(self) -> None:
@@ -75,13 +95,15 @@ class _BaseConnector(DatabaseConnector):
     def close(self) -> None:
         self.engine.dispose()
 
-    def fetch(self, query: str) -> FetchResult:
+    def fetch(self, query: str, *, on_executed: Callable[[], None] | None = None) -> FetchResult:
         if not self.engine:
             raise ConnectionError("Not connected to the database.")
 
         with Session(self.engine) as session, session.begin():
             try:
                 result = session.execute(text(query))
+                if on_executed is not None:
+                    on_executed()
                 return FetchResult(list(result.keys()), result.fetchall())
             except DBAPIError as e:
                 logger.debug("Database query failed", exc_info=True)
@@ -92,6 +114,10 @@ class _BaseConnector(DatabaseConnector):
         query = "SELECT 101 AS test_column"
         result = self.fetch(query)
         return result.rows[0][0] == 101
+
+
+def _connection_error_reason(exc: BaseException) -> str:
+    return str(getattr(exc, "orig", exc)).split("\n", 1)[0].strip()
 
 
 class SnowflakeConnector(_BaseConnector):
@@ -127,23 +153,48 @@ class SnowflakeConnector(_BaseConnector):
         )
         return create_engine(snowflake_url)
 
-    def stream(self, query: str) -> Iterator[pd.DataFrame]:
+    def stream(self, query: str) -> StreamResult:
+        """Execute ``query`` and return chunked pandas batches.
+
+        Warehouse execution finishes before this method returns; callers can log
+        query-complete then iterate :attr:`StreamResult.batches` for download/write.
+        The returned result must be closed (consuming batches does this) so the
+        SQLAlchemy session is released.
+        """
         if not self.engine:
             raise ConnectionError("Not connected to the database.")
 
-        with Session(self.engine) as session, session.begin():
-            try:
-                result = session.execute(text(query))
-                if not isinstance(result, CursorResult):
-                    return
-                cursor = result.cursor
-                if cursor is None:
-                    return
-                yield from cursor.fetch_pandas_batches()
-            except (DBAPIError, SnowflakeNotSupportedError, SnowflakeError) as e:
-                logger.debug("Database query failed", exc_info=True)
-                reason = str(getattr(e, "orig", e)).split("\n", 1)[0].strip()
-                raise ConnectionError(f"Database query failed: {reason}") from e
+        stack = contextlib.ExitStack()
+        try:
+            session = stack.enter_context(Session(self.engine))
+            stack.enter_context(session.begin())
+            result = session.execute(text(query))
+            if not isinstance(result, CursorResult) or result.cursor is None:
+                stack.close()
+                return StreamResult(total_chunks=0, batches=iter(()))
+
+            cursor = result.cursor
+            result_set = getattr(cursor, "_result_set", None)
+            total_chunks = len(result_set.batches) if result_set is not None else 0
+            batch_iter = cursor.fetch_pandas_batches()
+
+            def _batches() -> Iterator[pd.DataFrame]:
+                try:
+                    yield from batch_iter
+                except (DBAPIError, SnowflakeNotSupportedError, SnowflakeError) as e:
+                    logger.debug("Database query failed", exc_info=True)
+                    raise ConnectionError(f"Database query failed: {_connection_error_reason(e)}") from e
+                finally:
+                    stack.close()
+
+            return StreamResult(total_chunks=total_chunks, batches=_batches(), _close=stack.close)
+        except (DBAPIError, SnowflakeNotSupportedError, SnowflakeError) as e:
+            stack.close()
+            logger.debug("Database query failed", exc_info=True)
+            raise ConnectionError(f"Database query failed: {_connection_error_reason(e)}") from e
+        except Exception:
+            stack.close()
+            raise
 
 
 # In the mssql credential's ``database`` field, this sentinel (or a blank/whitespace value) means "no
@@ -185,10 +236,12 @@ class MSSQLConnector(DatabaseConnector):
         except mssql_python.Error as e:
             raise ConnectionError(f"Failed to connect to {server}: {e}") from e
 
-    def fetch(self, query: str) -> FetchResult:
+    def fetch(self, query: str, *, on_executed: Callable[[], None] | None = None) -> FetchResult:
         cursor = self._conn.cursor()
         try:
             cursor.execute(query)
+            if on_executed is not None:
+                on_executed()
             if cursor.description is None:
                 return FetchResult([], [])
             names = [desc[0] for desc in cursor.description]
@@ -285,10 +338,12 @@ class RedshiftConnector(DatabaseConnector):
             )
         raise ConnectionError(f"Invalid Redshift auth_type: {auth_type}. Expected one of: sql_authentication, iam")
 
-    def fetch(self, query: str) -> FetchResult:
+    def fetch(self, query: str, *, on_executed: Callable[[], None] | None = None) -> FetchResult:
         cursor = self._conn.cursor()
         try:
             cursor.execute(query)
+            if on_executed is not None:
+                on_executed()
             # DDL (e.g. DROP, CREATE VIEW) has no result set; return empty result
             if cursor.description is None:
                 return FetchResult([], [])
