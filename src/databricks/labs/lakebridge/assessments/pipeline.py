@@ -90,7 +90,7 @@ class PipelineClass:
         identify their originating source system. Overwrites any prior row.
         """
         generated_at = datetime.now(timezone.utc)
-        with duckdb.connect(self._db_path) as conn:
+        with connect_to_profiler_db(self._db_path) as conn:
             conn.execute(f"DROP TABLE IF EXISTS {PROFILER_RUN_METADATA_TABLE}")
             conn.execute(f"""
                 CREATE TABLE {PROFILER_RUN_METADATA_TABLE} (
