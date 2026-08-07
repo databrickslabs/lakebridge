@@ -90,9 +90,9 @@ def save_to_duckdb(
         schema: Optional DuckDB schema string (e.g. ``"ID BIGINT, NAME STRING"``).
             When provided, the table is created with this schema and the
             DataFrame's dtypes are ignored. Use this for tables that are
-            appended to across runs, where pandas' dtype inference can drift
-            between batches (e.g. a column that is null-only in one batch but
-            typed in the next).
+            appended to across runs to avoid drift, for example with dataframes
+            where pandas' dtype inference may drift between results (e.g. a column
+            that is null-only in one batch but typed in the next).
 
     Raises:
         ValueError: if ``mode`` is not one of ``"overwrite"`` / ``"append"``.
