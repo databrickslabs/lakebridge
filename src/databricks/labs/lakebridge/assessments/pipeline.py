@@ -131,6 +131,7 @@ class PipelineClass:
 
         logging.info(f"Executing query: {query}")
         if self.executor.supports_streaming():
+            # Warning: in this mode writing the step data may not be atomic.
             self._stream_sql_step(step, query)
             return
 
