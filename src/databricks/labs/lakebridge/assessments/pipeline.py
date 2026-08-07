@@ -129,12 +129,12 @@ class PipelineClass:
             logging.error("Database executor is not set.")
             raise RuntimeError("Database executor is not set.")
 
-        logging.info(f"Executing query: {query}")
         if self.executor.supports_streaming():
             # Warning: in this mode writing the step data may not be atomic.
             self._stream_sql_step(step, query)
             return
 
+        logging.info(f"Executing query: {query}")
         result = self.executor.fetch(query)
         self._save_to_db(result, step.name, step.mode)
 
@@ -144,6 +144,7 @@ class PipelineClass:
 
         first = True
         with connect_to_profiler_db(self._db_path) as conn:
+            logging.info(f"Starting query: {query}")
             for batch in self.executor.stream(query):
                 if batch.num_rows == 0:
                     continue
