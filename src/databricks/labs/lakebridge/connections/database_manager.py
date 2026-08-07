@@ -8,6 +8,7 @@ from types import TracebackType
 from typing import Any
 
 import pandas as pd
+import pyarrow as pa
 
 from sqlalchemy import create_engine
 from sqlalchemy.engine import CursorResult, Engine, URL
@@ -46,6 +47,12 @@ class FetchResult:
 class DatabaseConnector(contextlib.AbstractContextManager):
     @abstractmethod
     def fetch(self, query: str) -> FetchResult: ...
+
+    def supports_streaming(self) -> bool:
+        return False
+
+    def stream(self, query: str) -> Iterator[pa.Table]:
+        raise NotImplementedError
 
     @abstractmethod
     def close(self) -> None:
@@ -127,7 +134,10 @@ class SnowflakeConnector(_BaseConnector):
         )
         return create_engine(snowflake_url)
 
-    def stream(self, query: str) -> Iterator[pd.DataFrame]:
+    def supports_streaming(self) -> bool:
+        return True
+
+    def stream(self, query: str) -> Iterator[pa.Table]:
         if not self.engine:
             raise ConnectionError("Not connected to the database.")
 
@@ -139,7 +149,7 @@ class SnowflakeConnector(_BaseConnector):
                 cursor = result.cursor
                 if cursor is None:
                     return
-                yield from cursor.fetch_pandas_batches()
+                yield from cursor.fetch_arrow_batches(force_microsecond_precision=True)
             except (DBAPIError, SnowflakeNotSupportedError, SnowflakeError) as e:
                 logger.debug("Database query failed", exc_info=True)
                 reason = str(getattr(e, "orig", e)).split("\n", 1)[0].strip()
