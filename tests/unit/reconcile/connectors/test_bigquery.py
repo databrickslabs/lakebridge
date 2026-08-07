@@ -82,33 +82,49 @@ def test_get_schema_query_canonicalizes_types_within_family():
     # Same-family mappings for the types sqlglot can't bridge on its own.
     assert "when data_type = 'NUMERIC' then 'decimal(38, 9)'" in schema_query
     assert "when data_type = 'JSON' then 'variant'" in schema_query
-    # Pinned to the exact Databricks type so a narrower target is not accepted as equivalent.
-    assert "when data_type = 'INT64' then 'bigint'" in schema_query
-    assert "when data_type = 'FLOAT64' then 'double'" in schema_query
-    assert "when data_type = 'DATETIME' then 'timestamp_ntz'" in schema_query
+    # Types whose Databricks spelling is not valid BigQuery are not reported: the same string is the
+    # CAST target in the sampling query, so `timestamp_ntz`/`bigint`/`double` would fail on BigQuery.
+    assert "timestamp_ntz" not in schema_query
+    assert "'bigint'" not in schema_query
+    assert "'double'" not in schema_query
     # BIGNUMERIC has no exact Databricks equivalent, so it passes through rather than truncating.
     assert "BIGNUMERIC" not in schema_query
 
 
 @pytest.mark.parametrize(
-    "narrower_databricks_type, bigquery_type",
+    "data_type, expect_warning",
     [
-        # Rationale for reporting Databricks type names from _SCHEMA_QUERY: a narrower target converts
-        # back to the very BigQuery type the column started as, so a schema compare that reads the
-        # source side as its BigQuery spelling accepts the lossy migration. int and smallint overflow
-        # INT64's range and float overflows FLOAT64's, so these must not be treated as equivalent.
-        # Verified against SchemaCompare itself in tests/integration/reconcile/test_schema_compare.py.
-        ("int", "INT64"),
-        ("smallint", "INT64"),
-        ("float", "FLOAT64"),
+        # A lossy target compares as equal for these, so they are flagged for manual review.
+        ("int64", True),
+        ("float64", True),
+        ("datetime", True),
+        ("array<int64>", True),
+        ("array<datetime>", True),
+        # No Databricks equivalent: a correct migration may be reported as a mismatch.
+        ("bignumeric", True),
+        ("time", True),
+        ("range<date>", True),
+        # Types schema compare judges exactly must stay silent, or the warning becomes noise.
+        ("string", False),
+        ("date", False),
+        ("bool", False),
+        ("bytes", False),
+        ("decimal(38, 9)", False),
+        ("numeric(10, 2)", False),
+        ("timestamp", False),
+        ("geography", False),
     ],
 )
-def test_sqlglot_cannot_tell_a_narrower_target_apart(narrower_databricks_type, bigquery_type):
-    converted = parse_one(f"create table t (c {narrower_databricks_type})", read=get_dialect("databricks")).sql(
-        dialect=get_dialect("bigquery")
-    )
+def test_warns_only_for_types_schema_compare_cannot_judge(caplog, data_type, expect_warning):
+    engine, reader = initial_setup()
+    data_source = BigQueryDataSource(engine, reader)
+    schema = [Schema("amount_zz", data_type, "amount_zz", "amount_zz")]
 
-    assert converted == f"CREATE TABLE t (c {bigquery_type})"
+    with caplog.at_level("WARNING"):
+        data_source._warn_on_approximate_types(schema)  # pylint: disable=protected-access
+
+    # Assert on the column name, not a substring of the message itself.
+    assert ("amount_zz" in caplog.text) is expect_warning
 
 
 @pytest.mark.parametrize(
@@ -175,25 +191,28 @@ def test_hash_query_emits_bigquery_compatible_sql():
 
 
 def test_hash_query_formats_timestamps_the_way_spark_casts_them():
-    """BigQuery's CAST(... AS STRING) disagrees with Spark on timestamps, which changes the row hash: it
-    appends a UTC offset and pads fractional seconds to milliseconds. Verified equal against live
-    BigQuery and Databricks."""
+    """CAST AS STRING appends a UTC offset and pads fractional seconds, changing the row hash.
+    Verified equal against live BigQuery and Databricks."""
     engine, reader = initial_setup()
     data_source = BigQueryDataSource(engine, reader)
 
+    # `datetime` is what _SCHEMA_QUERY reports; `timestamp_ntz` reaches the mapping under a
+    # user-supplied schema, and both must format identically or the two paths would disagree.
     query = _build_hash_query(
         data_source,
         engine,
         [
-            ("id", "bigint"),
+            ("id", "int64"),
             ("ts", "timestamp"),
-            ("dt", "timestamp_ntz"),
+            ("dt", "datetime"),
+            ("dt_ntz", "timestamp_ntz"),
         ],
     )
 
-    # %E*S emits only the fractional-second digits present, as Spark does; 'UTC' drops the +00 suffix.
+    # %E*S emits only the fractional digits present, as Spark does; 'UTC' drops the +00 suffix.
     assert "FORMAT_TIMESTAMP('%F %H:%M:%E*S', `ts`, 'UTC')" in query
     assert "FORMAT_DATETIME('%F %H:%M:%E*S', `dt`)" in query
+    assert "FORMAT_DATETIME('%F %H:%M:%E*S', `dt_ntz`)" in query
     assert "CAST(`ts` AS STRING)" not in query
     assert "CAST(`dt` AS STRING)" not in query
 
