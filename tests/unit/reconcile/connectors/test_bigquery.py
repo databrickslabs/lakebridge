@@ -1,5 +1,6 @@
 import re
-from unittest.mock import create_autospec
+from types import SimpleNamespace
+from unittest.mock import MagicMock, create_autospec
 
 import pytest
 from sqlglot import parse_one
@@ -17,6 +18,15 @@ def initial_setup():
     engine = get_dialect("bigquery")
     reader = create_autospec(RemoteQueryReader)
     return engine, reader
+
+
+def _schema_df(*columns):
+    """Fake the DataFrame the schema query returns, so get_schema can be driven through its public API."""
+    rows = [SimpleNamespace(column_name=name, data_type=dtype) for name, dtype in columns]
+    df = MagicMock()
+    df.columns = ["column_name", "data_type"]
+    df.select.return_value.collect.return_value = rows
+    return df
 
 
 def test_read_data_builds_three_part_backtick_quoted_name():
@@ -118,10 +128,10 @@ def test_get_schema_query_canonicalizes_types_within_family():
 def test_warns_only_for_types_schema_compare_cannot_judge(caplog, data_type, expect_warning):
     engine, reader = initial_setup()
     data_source = BigQueryDataSource(engine, reader)
-    schema = [Schema("amount_zz", data_type, "amount_zz", "amount_zz")]
+    reader.read_data.return_value = _schema_df(("amount_zz", data_type))
 
     with caplog.at_level("WARNING"):
-        data_source._warn_on_approximate_types(schema)  # pylint: disable=protected-access
+        data_source.get_schema("proj", "dataset", "supplier")
 
     # Assert on the column name, not a substring of the message itself.
     assert ("amount_zz" in caplog.text) is expect_warning
