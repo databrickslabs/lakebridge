@@ -18,7 +18,6 @@ from sqlalchemy.orm.session import Session
 import mssql_python
 import redshift_connector  # type: ignore[import-untyped]
 from snowflake.connector.errors import Error as SnowflakeError
-from snowflake.connector.errors import NotSupportedError as SnowflakeNotSupportedError
 
 from databricks.labs.blueprint.installation import JsonObject
 from databricks.labs.lakebridge.connections.mssql_auth import resolve_mssql_credentials
@@ -150,7 +149,7 @@ class SnowflakeConnector(_BaseConnector):
                 if cursor is None:
                     return
                 yield from cursor.fetch_arrow_batches(force_microsecond_precision=True)
-            except (DBAPIError, SnowflakeNotSupportedError, SnowflakeError) as e:
+            except (DBAPIError, SnowflakeError) as e:
                 logger.debug("Database query failed", exc_info=True)
                 reason = str(getattr(e, "orig", e)).split("\n", 1)[0].strip()
                 raise ConnectionError(f"Database query failed: {reason}") from e
