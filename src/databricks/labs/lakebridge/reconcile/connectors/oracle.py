@@ -64,6 +64,11 @@ class OracleDataSource(DataSource):
         table: str,
         normalize: bool = True,
     ) -> list[Schema]:
+        # Validate and sanitize table and schema names to prevent SQL injection
+        if not re.match(r'^[a-zA-Z0-9_]+$', table):
+            raise ValueError(f"Invalid table name: '{table}'. Table names must contain only alphanumeric characters and underscores.")
+        if not re.match(r'^[a-zA-Z0-9_]+$', schema):
+            raise ValueError(f"Invalid schema name: '{schema}'. Schema names must contain only alphanumeric characters and underscores.")
         schema_query = re.sub(
             r'\s+',
             ' ',
