@@ -137,7 +137,7 @@ reconcile = "databricks.labs.lakebridge.reconcile.execute:main"
 
 [tool.uv]
 exclude-newer = "7d"
-required-version = "~=0.11.0"
+required-version = "~=0.12.1"
 
 [tool.uv.exclude-newer-package]
 databricks-bb-analyzer = false

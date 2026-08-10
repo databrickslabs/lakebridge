@@ -38,8 +38,8 @@ jobs:
       - name: Setup uv
         uses: astral-sh/setup-uv@5a095e7a2014a4212f075830d4f7277575a9d098  # v7.3.1
         with:
-          version: "0.11.2"
-          checksum: "7ac2ca0449c8d68dae9b99e635cd3bc9b22a4cb1de64b7c43716398447d42981"
+          version: "0.12.1"
+          checksum: "600cf9a742aca00d292673b16b5acffaa7b8c269a364ad0c2e79498dcb1fe101"
 
       - name: Setup for JFrog
         uses: ./.github/actions/jfrog-auth
@@ -70,8 +70,8 @@ jobs:
       - name: Setup uv
         uses: astral-sh/setup-uv@5a095e7a2014a4212f075830d4f7277575a9d098  # v7.3.1
         with:
-          version: "0.11.2"
-          checksum: "7ac2ca0449c8d68dae9b99e635cd3bc9b22a4cb1de64b7c43716398447d42981"
+          version: "0.12.1"
+          checksum: "600cf9a742aca00d292673b16b5acffaa7b8c269a364ad0c2e79498dcb1fe101"
 
       - name: Setup for JFrog
         uses: ./.github/actions/jfrog-auth
@@ -118,8 +118,8 @@ jobs:
       - name: Setup uv
         uses: astral-sh/setup-uv@5a095e7a2014a4212f075830d4f7277575a9d098  # v7.3.1
         with:
-          version: "0.11.2"
-          checksum: "7ac2ca0449c8d68dae9b99e635cd3bc9b22a4cb1de64b7c43716398447d42981"
+          version: "0.12.1"
+          checksum: "600cf9a742aca00d292673b16b5acffaa7b8c269a364ad0c2e79498dcb1fe101"
 
       - name: Setup for JFrog
         uses: ./.github/actions/jfrog-auth
@@ -170,8 +170,8 @@ jobs:
       - name: Setup uv
         uses: astral-sh/setup-uv@5a095e7a2014a4212f075830d4f7277575a9d098  # v7.3.1
         with:
-          version: "0.11.2"
-          checksum: "7ac2ca0449c8d68dae9b99e635cd3bc9b22a4cb1de64b7c43716398447d42981"
+          version: "0.12.1"
+          checksum: "600cf9a742aca00d292673b16b5acffaa7b8c269a364ad0c2e79498dcb1fe101"
 
       - name: Setup for JFrog
         uses: ./.github/actions/jfrog-auth
