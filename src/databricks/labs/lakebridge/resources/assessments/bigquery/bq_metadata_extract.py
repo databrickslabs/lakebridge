@@ -1,3 +1,14 @@
+"""Shared BigQuery profiler extract engine.
+
+Pipeline variants call thin entrypoints (`bq_inventory_extract.py`,
+`bq_definitions_extract.py`) that invoke :func:`execute` with the appropriate
+SQL-file map. Inventory covers sizing/workload tables; definitions covers
+object DDL extracts. Both share pair fan-out, parallelism, soft-fail, and
+empty-stub writing.
+"""
+
+from __future__ import annotations
+
 import importlib.resources as pkg_resources
 import json
 import sys
@@ -5,7 +16,8 @@ import threading
 import time
 import warnings
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Any, Callable
+from collections.abc import Callable, Mapping
+from typing import Any
 
 import pandas as pd
 
@@ -26,9 +38,9 @@ with warnings.catch_warnings():
 
 logger = get_logger(__file__)
 
-# Logical analysis_type → list of SQL files that feed it. Derived 1:1 from analysis_types.json
-# except for consumption_{beyond,through}_commitments which fan in 3 variant files each.
-SQL_FILE_TO_ANALYSIS_TYPE: dict[str, str] = {
+# Logical analysis_type → SQL files that feed it. Derived 1:1 from analysis_types.json
+# except for consumption_{beyond,through}_commitments which fan in 3 edition files each.
+INVENTORY_SQL_FILE_TO_ANALYSIS_TYPE: dict[str, str] = {
     "fulfillment_analysis.sql": "fulfillment_analysis",
     "table_storage.sql": "table_storage",
     "timeline_analysis.sql": "timeline_analysis",
@@ -45,9 +57,18 @@ SQL_FILE_TO_ANALYSIS_TYPE: dict[str, str] = {
     "consumption_through_commitments_standard.sql": "consumption_through_commitments",
     "consumption_through_commitments_enterprise.sql": "consumption_through_commitments",
     "consumption_through_commitments_enterprise_plus.sql": "consumption_through_commitments",
+}
+
+DEFINITION_SQL_FILE_TO_ANALYSIS_TYPE: dict[str, str] = {
     "table_definitions.sql": "table_definitions",
     "column_definitions.sql": "column_definitions",
     "routine_definitions.sql": "routine_definitions",
+}
+
+# Union kept for callers/tests that want the full extract surface.
+SQL_FILE_TO_ANALYSIS_TYPE: dict[str, str] = {
+    **INVENTORY_SQL_FILE_TO_ANALYSIS_TYPE,
+    **DEFINITION_SQL_FILE_TO_ANALYSIS_TYPE,
 }
 
 _RESERVATION_FILES = frozenset(
@@ -74,13 +95,13 @@ def _load_resource_text(filename: str) -> str:
     return (pkg_resources.files(_BIGQUERY_RESOURCES) / "resources" / filename).read_text(encoding="utf-8")
 
 
-def _select_sql_files(profiler_cfg: dict[str, Any]) -> list[str]:
+def _select_sql_files(profiler_cfg: dict[str, Any], sql_file_map: Mapping[str, str]) -> list[str]:
     excluded: set[str] = set()
     if profiler_cfg.get("exclude_reservations_data"):
         excluded.update(_RESERVATION_FILES)
     if profiler_cfg.get("exclude_streaming_metrics"):
         excluded.update(_STREAMING_FILES)
-    return [f for f in SQL_FILE_TO_ANALYSIS_TYPE if f not in excluded]
+    return [f for f in sql_file_map if f not in excluded]
 
 
 def _run_sql_for_iteration(
@@ -108,6 +129,7 @@ def _run_iteration(
     project_id: str,
     region: str,
     sql_files: list[str],
+    sql_file_map: Mapping[str, str],
     profiling_window_days: int,
     max_parallel_sqls: int,
     accumulators: dict[str, list[pd.DataFrame]],
@@ -133,7 +155,7 @@ def _run_iteration(
         }
         for future in as_completed(future_to_file):
             sql_filename = future_to_file[future]
-            analysis_type = SQL_FILE_TO_ANALYSIS_TYPE[sql_filename]
+            analysis_type = sql_file_map[sql_filename]
             try:
                 df, elapsed = future.result()
             except Exception as exc:
@@ -200,6 +222,9 @@ def execute(
     credential_manager: CredentialManager,
     bigquery_client_factory: Callable[[str, str], bigquery.Client],
     db_path: str,
+    *,
+    sql_file_map: Mapping[str, str],
+    success_message: str,
 ) -> None:
     bq_settings = credential_manager.get_credentials("bigquery")
 
@@ -210,13 +235,13 @@ def execute(
 
     wall_clock_start = time.monotonic()
     try:
-        sql_files = _select_sql_files(profiler_cfg)
+        sql_files = _select_sql_files(profiler_cfg, sql_file_map)
         if not sql_files:
             raise RuntimeError("All SQL files excluded by config; nothing to extract.")
 
         analysis_types = json.loads(_load_resource_text("analysis_types.json"))
 
-        accumulators: dict[str, list[pd.DataFrame]] = {at: [] for at in set(SQL_FILE_TO_ANALYSIS_TYPE.values())}
+        accumulators: dict[str, list[pd.DataFrame]] = {at: [] for at in set(sql_file_map.values())}
         accumulator_lock = threading.Lock()
 
         pair_statuses: list[dict[str, str]] = []
@@ -229,6 +254,7 @@ def execute(
                         project_id=project_id,
                         region=region,
                         sql_files=sql_files,
+                        sql_file_map=sql_file_map,
                         profiling_window_days=profiling_window_days,
                         max_parallel_sqls=max_parallel_sqls,
                         accumulators=accumulators,
@@ -261,7 +287,7 @@ def execute(
             json.dumps(
                 {
                     "status": "success",
-                    "message": "BigQuery metadata extract complete",
+                    "message": success_message,
                     "tables": sorted(row_counts.keys()),
                     "rows": row_counts,
                     "pairs": pair_statuses,
@@ -272,7 +298,7 @@ def execute(
     # Synapse pattern: catch-all at top level to produce a structured error payload that
     # pipeline.py can parse. Internal failures already propagate with specific types.
     except Exception as exc:
-        logger.error(f"BigQuery metadata extract failed: {exc}")
+        logger.error(f"BigQuery extract failed: {exc}")
         print(json.dumps({"status": "error", "message": str(exc)}), file=sys.stderr)
         sys.exit(1)
 
@@ -288,11 +314,22 @@ def create_bigquery_client(project_id: str, region: str) -> bigquery.Client:
     return bigquery.Client(project=project_id, location=region)
 
 
-if __name__ == "__main__":
+def run_entrypoint(sql_file_map: Mapping[str, str], success_message: str, desc: str) -> None:
     initialize_logging()
-    _db_path, _creds_file = arguments_loader(desc="BigQuery Metadata Extract Script")
+    db_path, creds_file = arguments_loader(desc=desc)
     execute(
-        credential_manager=create_credential_manager(PRODUCT_NAME, EnvGetter(), _creds_file),
+        credential_manager=create_credential_manager(PRODUCT_NAME, EnvGetter(), creds_file),
         bigquery_client_factory=create_bigquery_client,
-        db_path=_db_path,
+        db_path=db_path,
+        sql_file_map=sql_file_map,
+        success_message=success_message,
+    )
+
+
+if __name__ == "__main__":
+    # Full extract (inventory + definitions) for ad-hoc / legacy direct invocation.
+    run_entrypoint(
+        SQL_FILE_TO_ANALYSIS_TYPE,
+        "BigQuery metadata extract complete",
+        "BigQuery Metadata Extract Script",
     )

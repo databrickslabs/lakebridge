@@ -10,6 +10,7 @@ from databricks.sdk import WorkspaceClient
 from databricks.labs.blueprint.tui import MockPrompts
 from databricks.labs.blueprint.installation import MockInstallation
 from databricks.labs.lakebridge import cli
+from databricks.labs.lakebridge.assessments import SOURCE_SYSTEM_VARIANTS
 from databricks.labs.lakebridge.assessments.profiler import default_output_folder
 from databricks.labs.lakebridge.config import (
     LSPConfigOptionV1,
@@ -217,6 +218,37 @@ def test_cli_execute_database_profiler_missing_cred_file_raises(mock_workspace_c
             output_folder=str(tmp_path / "out"),
             cred_file_path=str(missing),
         )
+
+
+@pytest.mark.parametrize(
+    ("source_tech", "variant", "expected"),
+    (
+        ("bigquery", "inventory_and_ddl", "inventory_and_ddl"),
+        ("bigquery", "INVENTORY", "inventory"),
+        ("snowflake", None, None),  # source has no variants, none requested
+        ("snowflake", "anything", None),  # source has no variants → stray input ignored
+        ("redshift", None, None),  # unified pipeline, no variant required
+        ("redshift", "serverless", None),  # legacy variant input is ignored
+        ("teradata", None, None),
+        ("teradata", "core", None),
+    ),
+)
+def test_parse_profiler_variant_returns_expected(source_tech, variant, expected):
+    prompts = MagicMock()
+    assert cli.parse_profiler_variant(prompts, source_tech, variant) == expected
+    prompts.choice.assert_not_called()
+
+
+def test_parse_profiler_variant_prompts_for_bigquery():
+    prompts = MagicMock()
+    prompts.choice.return_value = "inventory_and_ddl"
+    assert cli.parse_profiler_variant(prompts, "bigquery", None) == "inventory_and_ddl"
+    prompts.choice.assert_called_once_with("Select a variant", SOURCE_SYSTEM_VARIANTS["bigquery"])
+
+
+def test_parse_profiler_variant_rejects_unknown_bigquery_variant():
+    with pytest.raises(ValueError, match="Invalid source technology variant"):
+        cli.parse_profiler_variant(MagicMock(), "bigquery", "bogus")
 
 
 def test_cli_auto_configure_recon_tables_no_recon_config(mock_workspace_client):

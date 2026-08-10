@@ -22,4 +22,6 @@ PROFILER_SOURCE_SYSTEM = sorted(
 
 SOURCE_SYSTEM_VARIANTS = {
     "mssql": (AUTO,),
+    # Explicit user choice: include object DDL extracts (recommended) or inventory-only.
+    "bigquery": ("inventory_and_ddl", "inventory"),
 }

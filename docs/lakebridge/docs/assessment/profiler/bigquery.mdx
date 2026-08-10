@@ -9,6 +9,7 @@ import Admonition from '@theme/Admonition';
 - [Prerequisites](#prerequisites)
 - [Configure Connection to BigQuery](#configure-connection-to-bigquery)
 - [Execute the profiler](#execute-the-profiler)
+- [Profiler variants](#profiler-variants)
 
 ## Prerequisites
 
@@ -62,7 +63,7 @@ bigquery.capacityCommitments.list           # Editions customers only
 | Capacity commitments | `region-{region}.INFORMATION_SCHEMA.CAPACITY_COMMITMENT_CHANGES_BY_PROJECT` | `bigquery.capacityCommitments.list` (admin project only) |
 
 :::warning Attention:
-Object-definition extracts (`table_definitions`, `column_definitions`, `routine_definitions`) include recreation DDL and routine bodies. Treat the DuckDB output as sensitive — the same way you would treat exported object scripts. Clone/snapshot `base_table_*` and materialized-view `replica_source_*` columns capture **source structural provenance** (dependency links), not Unity Catalog runtime lineage.
+Object-definition extracts (`table_definitions`, `column_definitions`, `routine_definitions`) are included when you run the `inventory_and_ddl` variant. They contain recreation DDL and routine bodies — treat the DuckDB output as sensitive. Clone/snapshot `base_table_*` and materialized-view `replica_source_*` columns capture **source structural provenance** (dependency links), not Unity Catalog runtime lineage. Use the `inventory` variant to skip these extracts.
 :::
 
 :::warning Attention:
@@ -124,13 +125,34 @@ bigquery:
 ## Execute the profiler
 
 ```bash
-databricks labs lakebridge execute-database-profiler --source-tech bigquery
+databricks labs lakebridge execute-database-profiler --source-tech bigquery --variant inventory_and_ddl
 ```
 
-The pipeline runs `bq_metadata_extract` — connects to BigQuery and runs 19 vendored SQL queries serially across the configured `(project, region)` pairs and in parallel within each iteration (`max_parallel_sqls` workers). Results land in `~/.databricks/labs/lakebridge_profilers/bigquery_assessment/profiler_extract.db` (DuckDB).
+If `--variant` is omitted, the CLI prompts you to choose one (see [Profiler variants](#profiler-variants)).
 
-The final DuckDB contains **15 analysis tables** by default (one per `analysis_type`): 12 sizing/workload tables plus `table_definitions`, `column_definitions`, and `routine_definitions`.
+The selected pipeline connects to BigQuery and runs vendored SQL queries serially across the configured `(project, region)` pairs and in parallel within each iteration (`max_parallel_sqls` workers). Results land in `~/.databricks/labs/lakebridge_profilers/bigquery_assessment/` as a timestamped DuckDB file.
 
-Setting `exclude_reservations_data: true` skips the 6 reservation/commitment BigQuery queries — the corresponding DuckDB tables are still created (empty) to keep the output schema consistent.
+With the recommended `inventory_and_ddl` variant, the DuckDB contains **15 analysis tables**: 12 sizing/workload tables plus `table_definitions`, `column_definitions`, and `routine_definitions`. The `inventory` variant writes only the 12 sizing/workload tables.
+
+Setting `exclude_reservations_data: true` skips the reservation/commitment BigQuery queries — the corresponding DuckDB tables are still created (empty) to keep the inventory output schema consistent.
+
+## Profiler variants
+
+BigQuery offers two execute-time variants (same credentials; choose per run):
+
+| Variant | What it extracts |
+|---|---|
+| `inventory_and_ddl` (**recommended**) | Sizing / workload inventory **plus** object definitions (`table_definitions`, `column_definitions`, `routine_definitions`), including recreation DDL and routine bodies |
+| `inventory` | Sizing / workload inventory only — use when the customer does not want DDL exported into the DuckDB file |
+
+```bash
+# Full extract (recommended)
+databricks labs lakebridge execute-database-profiler --source-tech bigquery --variant inventory_and_ddl
+
+# Inventory only (no object DDL)
+databricks labs lakebridge execute-database-profiler --source-tech bigquery --variant inventory
+```
+
+On the desktop UI, prefer `inventory_and_ddl` as the default selection.
 
 [Back to Configure Profiler](../#configure-profiler)

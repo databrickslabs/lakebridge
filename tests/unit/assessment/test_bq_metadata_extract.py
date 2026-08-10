@@ -5,9 +5,15 @@ from unittest.mock import MagicMock
 import duckdb
 import pandas as pd
 import pytest
+import yaml
 
+from databricks.labs.lakebridge.assessments import SOURCE_SYSTEM_VARIANTS
 from databricks.labs.lakebridge.resources.assessments.bigquery import bq_metadata_extract
 from databricks.labs.lakebridge.resources.assessments.common.sql_substituter import substitute
+
+_REPO_ROOT = Path(__file__).resolve().parents[3]
+_BQ_RESOURCES = _REPO_ROOT / "src/databricks/labs/lakebridge/resources/assessments/bigquery"
+_BIGQUERY_VARIANTS = ("inventory_and_ddl", "inventory")
 
 
 def _fake_run_sql_for_iteration(sql_filename, _substitution_vars, _bq_client, project_region):
@@ -18,8 +24,8 @@ def _fake_run_sql_for_iteration(sql_filename, _substitution_vars, _bq_client, pr
 
 
 @pytest.fixture
-def fake_credentials(tmp_path):
-    creds = {
+def fake_credentials():
+    return {
         "pairs": [{"project": "proj-a", "region": "us"}],
         "profiler": {
             "profiling_window_days": 180,
@@ -29,10 +35,9 @@ def fake_credentials(tmp_path):
             "exclude_streaming_metrics": False,
         },
     }
-    return creds
 
 
-def _run_execute(monkeypatch, tmp_path, credentials):
+def _run_execute(monkeypatch, tmp_path, credentials, *, sql_file_map, success_message="ok"):
     db_path = tmp_path / "profiler_extract.db"
 
     cred_manager = MagicMock()
@@ -43,6 +48,8 @@ def _run_execute(monkeypatch, tmp_path, credentials):
         credential_manager=cred_manager,
         bigquery_client_factory=lambda *_a, **_kw: MagicMock(),
         db_path=str(db_path),
+        sql_file_map=sql_file_map,
+        success_message=success_message,
     )
     return db_path
 
@@ -53,41 +60,6 @@ def _tables(db_path: Path) -> set[str]:
     return {row[0] for row in rows}
 
 
-def test_full_extract_produces_15_tables(monkeypatch, tmp_path, fake_credentials, capsys):
-    db_path = _run_execute(monkeypatch, tmp_path, fake_credentials)
-    tables = _tables(db_path)
-
-    expected = {
-        # 15 analysis types (12 sizing/workload + 3 object-definition extracts)
-        "fulfillment_analysis",
-        "table_storage",
-        "timeline_analysis",
-        "workload_types",
-        "commitment_changes",
-        "commitments",
-        "jobs_timeline_by_reservations",
-        "reservation_timeline_analysis",
-        "streaming_summary",
-        "write_api_summary",
-        "consumption_beyond_commitments",
-        "consumption_through_commitments",
-        "table_definitions",
-        "column_definitions",
-        "routine_definitions",
-    }
-    assert tables == expected
-
-    # Final stdout line is the success JSON payload.
-    captured = capsys.readouterr()
-    last_line = [line for line in captured.out.strip().split("\n") if line][-1]
-    payload = json.loads(last_line)
-    assert payload["status"] == "success"
-    assert set(payload["tables"]) == expected
-    assert "wall_clock_seconds" in payload
-    assert isinstance(payload["wall_clock_seconds"], (int, float))
-    assert payload["wall_clock_seconds"] >= 0
-
-
 def _row_count(db_path, table: str) -> int:
     with duckdb.connect(str(db_path), read_only=True) as conn:
         row = conn.execute(f"SELECT count(*) FROM {table}").fetchone()
@@ -95,17 +67,45 @@ def _row_count(db_path, table: str) -> int:
         return int(row[0])
 
 
+def test_bigquery_variants_are_registered() -> None:
+    assert SOURCE_SYSTEM_VARIANTS["bigquery"] == _BIGQUERY_VARIANTS
+
+
+@pytest.mark.parametrize("variant", _BIGQUERY_VARIANTS)
+def test_bigquery_variant_config_references_existing_files(variant: str) -> None:
+    config = yaml.safe_load((_BQ_RESOURCES / variant / "pipeline_config.yml").read_text(encoding="utf-8"))
+    for step in config["steps"]:
+        extract_source = _REPO_ROOT / step["extract_source"]
+        assert extract_source.exists(), f"{variant} step '{step['name']}' references missing file {extract_source}"
+
+
+def test_inventory_and_ddl_pipeline_has_definitions_step() -> None:
+    config = yaml.safe_load((_BQ_RESOURCES / "inventory_and_ddl" / "pipeline_config.yml").read_text(encoding="utf-8"))
+    step_names = [step["name"] for step in config["steps"]]
+    assert step_names == ["bq_inventory_extract", "bq_definitions_extract"]
+
+
+def test_inventory_pipeline_omits_definitions_step() -> None:
+    config = yaml.safe_load((_BQ_RESOURCES / "inventory" / "pipeline_config.yml").read_text(encoding="utf-8"))
+    step_names = [step["name"] for step in config["steps"]]
+    assert step_names == ["bq_inventory_extract"]
+
+
 def test_exclude_streaming_metrics_yields_empty_streaming_tables(monkeypatch, tmp_path, fake_credentials):
     """Excluded SQLs don't run, but their tables still exist with empty stub schemas so
     downstream dashboard queries see them instead of erroring with table-not-found."""
     fake_credentials["profiler"]["exclude_streaming_metrics"] = True
-    db_path = _run_execute(monkeypatch, tmp_path, fake_credentials)
+    db_path = _run_execute(
+        monkeypatch,
+        tmp_path,
+        fake_credentials,
+        sql_file_map=bq_metadata_extract.INVENTORY_SQL_FILE_TO_ANALYSIS_TYPE,
+    )
     tables = _tables(db_path)
     assert "streaming_summary" in tables
     assert "write_api_summary" in tables
     assert _row_count(db_path, "streaming_summary") == 0
     assert _row_count(db_path, "write_api_summary") == 0
-    # Non-streaming tables populated
     assert "workload_types" in tables
     assert _row_count(db_path, "workload_types") > 0
 
@@ -114,7 +114,12 @@ def test_exclude_reservations_data_yields_empty_reservation_tables(monkeypatch, 
     """Same stub-schema behavior for reservation/commitment tables — empty rows when
     excluded, full schema preserved so downstream consumers see consistent tables."""
     fake_credentials["profiler"]["exclude_reservations_data"] = True
-    db_path = _run_execute(monkeypatch, tmp_path, fake_credentials)
+    db_path = _run_execute(
+        monkeypatch,
+        tmp_path,
+        fake_credentials,
+        sql_file_map=bq_metadata_extract.INVENTORY_SQL_FILE_TO_ANALYSIS_TYPE,
+    )
     tables = _tables(db_path)
     for skipped in (
         "commitments",
@@ -169,9 +174,10 @@ def test_one_pair_failure_does_not_abort_others(monkeypatch, tmp_path, fake_cred
         credential_manager=cred_manager,
         bigquery_client_factory=lambda *_a, **_kw: MagicMock(),
         db_path=str(db_path),
+        sql_file_map=bq_metadata_extract.INVENTORY_SQL_FILE_TO_ANALYSIS_TYPE,
+        success_message="ok",
     )
 
-    # The healthy pair's data survives the other pair's failure.
     assert _row_count(db_path, "workload_types") > 0
 
     payload = json.loads([line for line in capsys.readouterr().out.strip().split("\n") if line][-1])
@@ -202,6 +208,8 @@ def test_all_pairs_failing_reports_top_level_error(monkeypatch, tmp_path, fake_c
             credential_manager=cred_manager,
             bigquery_client_factory=lambda *_a, **_kw: MagicMock(),
             db_path=str(db_path),
+            sql_file_map=bq_metadata_extract.INVENTORY_SQL_FILE_TO_ANALYSIS_TYPE,
+            success_message="ok",
         )
     assert exc_info.value.code == 1
     err_payload = json.loads([line for line in capsys.readouterr().err.strip().split("\n") if line][-1])
