@@ -23,5 +23,6 @@ PROFILER_SOURCE_SYSTEM = sorted(
 
 SOURCE_SYSTEM_VARIANTS = {
     "mssql": (AUTO,),
-    "clickhouse": (AUTO,),
 }
+# ClickHouse variant (oss/cloud) is auto-detected at execute time (see assessments/variants.py).
+SOURCE_SYSTEM_VARIANTS.update(clickhouse=(AUTO,))

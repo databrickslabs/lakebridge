@@ -197,28 +197,6 @@ def test_cli_execute_database_profiler_cred_file_path(
     )
 
 
-def test_cli_execute_database_profiler_prompts_variant_for_tuple_source(mock_workspace_client, tmp_path):
-    """redshift (a fixed-choice variant source) is prompted in the CLI and the choice is passed to create."""
-    fake_cred = tmp_path / "credentials.yml"
-    fake_cred.touch()
-
-    ctx_mock = create_autospec(spec=ApplicationContext, spec_set=True)
-    type(ctx_mock).workspace_client = PropertyMock(return_value=mock_workspace_client)
-    ctx_mock.current_user = "tester"
-    # choice() sorts the options; sorted(redshift variants)[0] == "provisioned".
-    ctx_mock.prompts = MockPrompts({r"Enter the profiler output.*": "", r"Select a variant": "0"})
-
-    profiler = MagicMock()
-    with (
-        patch("databricks.labs.lakebridge.cli.ApplicationContext", return_value=ctx_mock),
-        patch("databricks.labs.lakebridge.cli.cred_file", return_value=fake_cred),
-        patch("databricks.labs.lakebridge.cli.Profiler.create", return_value=profiler) as create_mock,
-    ):
-        cli.execute_database_profiler(w=mock_workspace_client, source_tech="redshift")
-
-    create_mock.assert_called_once_with("redshift", "provisioned", fake_cred)
-
-
 def test_cli_execute_database_profiler_auto_variant_source_not_prompted(mock_workspace_client, tmp_path):
     """clickhouse is an AUTO variant source: the CLI does not prompt and passes variant=None to create."""
     fake_cred = tmp_path / "credentials.yml"

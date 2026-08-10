@@ -149,3 +149,38 @@ def test_cost_enrich_emits_no_actual_monthly_dollar_field() -> None:
     # The projection exists but is explicitly labeled.
     assert "monthly_total_usd_projected" in billed
     assert billed["monthly_total_usd_projected"] == round(900.0 * (30 / 7), 2)
+
+
+def _credential_manager(config: dict) -> MagicMock:
+    cred_manager = MagicMock()
+    cred_manager.get_credentials.return_value = config
+    return cred_manager
+
+
+def test_cost_enrich_execute_uses_injected_client(tmp_path) -> None:
+    """execute() enriches from the injected Cloud API client (no live API/credentials needed) and
+    writes the row via save_to_duckdb."""
+    config = {"host": "svc.us-east-1.aws.clickhouse.cloud", "cloud_api": {"key_id": "k", "key_secret": "s"}}
+    client = MagicMock(spec=cost_enrich.ClickHouseCloudAPI)
+    client.discover_service.return_value = {"organization_id": "org", "service_id": "svc", "provider": "aws"}
+    client.get_usage_cost.return_value = {"grandTotals": []}
+    client.summarize_usage_cost.return_value = {"tier": "scale", "tier_as_of_date": "2026-08-01"}
+
+    with patch.object(cost_enrich, "save_to_duckdb") as save_mock:
+        result = cost_enrich.execute(_credential_manager(config), str(tmp_path / "extract.duckdb"), client=client)
+
+    assert result["status"] == "success"
+    assert client.discover_service.called
+    save_mock.assert_called_once()
+
+
+def test_cost_enrich_execute_without_credentials_writes_no_creds_note(tmp_path) -> None:
+    """With no cloud_api credentials and no injected client, execute() still succeeds, writing a row
+    that records why no billed-cost enrichment happened."""
+    with patch.object(cost_enrich, "save_to_duckdb") as save_mock:
+        result = cost_enrich.execute(_credential_manager({"host": "10.0.0.5"}), str(tmp_path / "extract.duckdb"))
+
+    assert result["status"] == "success"
+    written = save_mock.call_args.args[0].iloc[0]
+    assert "no cloud_api credentials were configured" in written["note"]
+    assert written["actual_billed_cost"] is None

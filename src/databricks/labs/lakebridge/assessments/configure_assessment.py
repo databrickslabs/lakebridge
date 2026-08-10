@@ -524,15 +524,7 @@ class ConfigureBigQueryAssessment(AssessmentConfigurator):
 
 
 class ConfigureClickHouseAssessment(AssessmentConfigurator):
-    """ClickHouse assessment configuration (ClickHouse Cloud and self-managed / OSS).
-
-    Connection keys (``host``/``port``/``user``/``password``/``secure``) are stored flat so the
-    ``ClickHouseConnector`` and the OSS-vs-Cloud variant probe can read them directly. The profiler
-    itself is SQL/DDL: the query-history window is a fixed 30 days and sensitive fields (SQL text, auth
-    params, host IPs, row-policy filters) are always redacted to ``[REDACTED]`` in the SQL, so there
-    are no ``days_back`` / ``redact`` knobs. An optional ``cloud_api`` block enables pulling the actual
-    billed cost + real sizing + plan tier from the ClickHouse Cloud API (Cloud only).
-    """
+    """ClickHouse assessment configuration (ClickHouse Cloud and self-managed / OSS)."""
 
     def _configure_credentials(self) -> None:
         cred_file = self._credential_file
@@ -591,8 +583,6 @@ class ConfigureClickHouseAssessment(AssessmentConfigurator):
             source: source_creds,
         }
         _save_to_disk(credential, cred_file)
-
-        logger.info(f"Credential template created for {source}.")
 
 
 def create_assessment_configurator(

@@ -81,14 +81,9 @@ def _config_tier_override(config: dict[str, Any]) -> str | None:
     return chosen or None
 
 
-def _fetch_cloud_metadata(config: dict[str, Any], warnings: list[str]) -> dict | None:
-    """Fetch service metadata + usageCost summary from the Cloud API, or None on missing creds/error."""
+def _fetch_cloud_metadata(config: dict[str, Any], warnings: list[str], api: ClickHouseCloudAPI) -> dict | None:
+    """Fetch service metadata + usageCost summary from the Cloud API, or None on error."""
     api_cfg = config.get("cloud_api") or {}
-    key_id, key_secret = api_cfg.get("key_id"), api_cfg.get("key_secret")
-    if not (key_id and key_secret):
-        return None
-
-    api = ClickHouseCloudAPI(key_id, key_secret)
     meta = api.discover_service(
         org_id=api_cfg.get("organization_id"),
         service_id=api_cfg.get("service_id"),
@@ -169,17 +164,26 @@ def build_pricing_row(config: dict[str, Any], cloud_meta: dict | None, note: str
     }
 
 
-def execute(credential_manager: CredentialManager, db_path: str) -> dict[str, Any]:
+def execute(
+    credential_manager: CredentialManager, db_path: str, client: ClickHouseCloudAPI | None = None
+) -> dict[str, Any]:
     config = dict(credential_manager.get_credentials("clickhouse"))
     warnings: list[str] = []
 
-    cloud_meta: dict | None = None
-    try:
-        cloud_meta = _fetch_cloud_metadata(config, warnings)
-    except CloudAPIError as e:
-        warnings.append(f"cloud_api: {str(e)[:200]}")
+    # `client` defaults to a live ClickHouseCloudAPI built from the configured cloud_api credentials;
+    # tests pass a substitute. With no credentials and no injected client there is nothing to enrich.
+    api_cfg = config.get("cloud_api") or {}
+    if client is None and api_cfg.get("key_id") and api_cfg.get("key_secret"):
+        client = ClickHouseCloudAPI(api_cfg["key_id"], api_cfg["key_secret"])
 
-    if not (config.get("cloud_api") or {}).get("key_id"):
+    cloud_meta: dict | None = None
+    if client is not None:
+        try:
+            cloud_meta = _fetch_cloud_metadata(config, warnings, client)
+        except CloudAPIError as e:
+            warnings.append(f"cloud_api: {str(e)[:200]}")
+
+    if client is None:
         note = _NO_CREDS_NOTE
     elif cloud_meta is None:
         note = _API_FAIL_NOTE

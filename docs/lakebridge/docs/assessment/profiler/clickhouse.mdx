@@ -16,22 +16,18 @@ import Admonition from '@theme/Admonition';
 
 ## Prerequisites
 
-### 1. Download
-- No ODBC driver is required. The ClickHouse profiler connects over the HTTP interface using the
-  [`clickhouse-connect`](https://clickhouse.com/docs/integrations/python) client, which is installed with Lakebridge.
-
-### 2. Connectivity
+### 1. Connectivity
 - **ClickHouse Cloud**: connect on port **8443** with TLS (`secure`). The host ends in `.clickhouse.cloud`.
 - **Self-managed / OSS**: connect over the HTTP interface (default port **8123**). The native protocol port (9000)
   is **not** used.
 
-### 3. System log tables (OSS only)
+### 2. System log tables (OSS only)
 System log tables must be enabled for the workload, features, dependencies, and utilization collectors to return
 data. ClickHouse Cloud enables them by default; on self-managed builds ensure `query_log`, `part_log`, and
 `metric_log` are configured. Some tables (e.g. `system.session_log`, `system.query_views_log`) do not exist on all
 builds — the profiler records a non-fatal warning and continues, and the corresponding table is still created empty.
 
-### 4. Required Permissions
+### 3. Required Permissions
 
 The profiler runs **read-only** queries against `system.*` metadata and `information_schema`. It never reads user
 data or modifies anything. For a dedicated profiler user:

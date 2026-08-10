@@ -22,7 +22,11 @@ import mssql_python
 import redshift_connector  # type: ignore[import-untyped]
 from snowflake.connector.errors import Error as SnowflakeError
 
-from databricks.labs.lakebridge.resources.assessments.clickhouse import normalize_secure_and_port
+from databricks.labs.lakebridge.resources.assessments.clickhouse import (
+    CLICKHOUSE_PLAINTEXT_PORT,
+    CLICKHOUSE_SECURE_PORT,
+    is_cloud_host,
+)
 
 from databricks.labs.blueprint.installation import JsonObject
 from databricks.labs.lakebridge.connections.mssql_auth import resolve_mssql_credentials
@@ -326,12 +330,7 @@ class RedshiftConnector(DatabaseConnector):
 
 
 class ClickHouseConnector(DatabaseConnector):
-    """ClickHouse connector over the clickhouse-connect HTTP client.
-
-    Not SQLAlchemy-based (like Redshift), so it subclasses the ABC directly. Works against both
-    ClickHouse Cloud (``secure=True``, port 8443) and self-managed / OSS (port 8123). Only read-only
-    ``system.*`` metadata queries are ever run through it.
-    """
+    """ClickHouse connector over the clickhouse-connect HTTP client."""
 
     def __init__(self, config: JsonObject):
         self.config = config
@@ -339,12 +338,13 @@ class ClickHouseConnector(DatabaseConnector):
 
     def _connect(self) -> ClickHouseClient:
         host = str(self.config["host"])
-        # The configurator always writes `secure` explicitly; this fallback is for a minimal
-        # hand-written credentials file. normalize_secure_and_port forces TLS/8443 for managed
-        # ClickHouse Cloud hosts (which only accept TLS) and defaults to plaintext/8123 for
-        # self-managed / OSS — never insecure-by-default for Cloud. Shared with the extraction
-        # ClickHouseConnection so both paths behave identically.
-        secure, port = normalize_secure_and_port(self.config)
+        # A *.clickhouse.cloud host is forced to TLS (managed Cloud only accepts TLS and this
+        # connection carries the password); otherwise `secure` follows the config, defaulting to
+        # plaintext for self-managed / OSS. `port` follows the config, else the TLS/plaintext default.
+        secure = True if is_cloud_host(host) else bool(self.config.get("secure", False))
+        default_port = CLICKHOUSE_SECURE_PORT if secure else CLICKHOUSE_PLAINTEXT_PORT
+        port_value = self.config.get("port")
+        port = default_port if port_value in {None, ""} else int(str(port_value))
         return clickhouse_connect.get_client(
             host=host,
             port=port,
@@ -354,9 +354,8 @@ class ClickHouseConnector(DatabaseConnector):
         )
 
     def fetch(self, query: str) -> FetchResult:
-        # Wrap driver errors as ConnectionError so the pipeline can classify them: an optional step
-        # that hits a missing/disabled system table (e.g. system.session_log on an OSS build) degrades
-        # to ABSENT instead of aborting the whole run. Mirrors the other connectors (e.g. Redshift).
+        # Wrap driver errors as ConnectionError so an optional step hitting a missing/disabled system
+        # table degrades to ABSENT instead of aborting the run. Mirrors the other connectors.
         try:
             result = self._client.query(query)
         except ClickHouseError as e:
