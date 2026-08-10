@@ -15,6 +15,7 @@ from databricks.labs.lakebridge.connections.credential_manager import (
 )
 from databricks.labs.lakebridge.connections.database_manager import create_connector
 from databricks.labs.lakebridge.connections.mssql_auth import AUTH_CHOICES
+from databricks.labs.lakebridge.connections.snowflake_auth import AUTH_CHOICES as SNOWFLAKE_AUTH_CHOICES
 from databricks.labs.lakebridge.connections.env_getter import EnvGetter
 from databricks.labs.lakebridge.connections.synapse_connection_helpers import validate_synapse_pools
 from databricks.labs.lakebridge.connections.bigquery_connection_helpers import validate_bigquery_pairs
@@ -47,6 +48,54 @@ def _prompt_mssql_auth_credentials(prompts: Prompts, auth_type: str) -> dict[str
             "AZURE_TENANT_ID / AZURE_CLIENT_ID / AZURE_CLIENT_SECRET for unattended runs."
         )
         return {}
+    return {}
+
+
+def _prompt_snowflake_auth_credentials(prompts: Prompts, auth_type: str, secret_vault_type: str) -> dict[str, str]:
+    """Prompt for Snowflake auth-specific fields for the chosen strategy.
+
+    Returns a partial dict to merge into the nested ``connection`` block. Shared
+    connection fields (account, user, warehouse, …) are prompted separately.
+    """
+    if auth_type == "Pat":
+        logger.info("Authentication uses a Programmatic Access Token (PAT). See Snowflake's docs:")
+        logger.info(
+            "  https://docs.snowflake.com/en/user-guide/programmatic-access-tokens"
+            "#generating-a-programmatic-access-token"
+        )
+        # In env mode the stored value is the name of an environment variable that
+        # EnvGetter resolves at runtime, not the token itself, so prompt accordingly.
+        # Stored under `pat` (not `password`) to flag this is a rotating
+        # Programmatic Access Token, not a SQL password.
+        if secret_vault_type == "env":
+            return {"pat": prompts.question("Enter the environment variable name holding the PAT")}
+        return {"pat": prompts.password("Enter Programmatic Access Token (PAT)")}
+
+    if auth_type == "KeyPair":
+        logger.info("Authentication uses key-pair (JWT). See Snowflake's docs:")
+        logger.info("  https://docs.snowflake.com/en/user-guide/key-pair-auth")
+        logger.info(
+            "Store the private key path in credentials (not the PEM contents). "
+            "Encrypted .p8 keys require a passphrase."
+        )
+        auth_fields: dict[str, str] = {}
+        if secret_vault_type == "env":
+            auth_fields["private_key_path"] = prompts.question(
+                "Enter the environment variable name holding the private key path"
+            )
+        else:
+            auth_fields["private_key_path"] = prompts.question(
+                "Enter path to the private key file (e.g., /path/to/rsa_key.p8)"
+            )
+        if prompts.confirm("Is the private key encrypted with a passphrase?"):
+            if secret_vault_type == "env":
+                auth_fields["private_key_passphrase"] = prompts.question(
+                    "Enter the environment variable name holding the private key passphrase"
+                )
+            else:
+                auth_fields["private_key_passphrase"] = prompts.password("Enter private key passphrase")
+        return auth_fields
+
     return {}
 
 
@@ -371,20 +420,9 @@ class ConfigureSnowflakeAssessment(AssessmentConfigurator):
         secret_vault_type = str(self.prompts.choice("Enter secret vault type (local | env)", ["local", "env"])).lower()
 
         logger.info("Snowflake Assessment Configuration")
-        auth_type = str(self.prompts.choice("Authentication type", ["pat", "key_pair"], sort=False)).lower()
-        if auth_type == "pat":
-            logger.info("Authentication uses a Programmatic Access Token (PAT). See Snowflake's docs:")
-            logger.info(
-                "  https://docs.snowflake.com/en/user-guide/programmatic-access-tokens"
-                "#generating-a-programmatic-access-token"
-            )
-        else:
-            logger.info("Authentication uses key-pair (JWT). See Snowflake's docs:")
-            logger.info("  https://docs.snowflake.com/en/user-guide/key-pair-auth")
-            logger.info(
-                "Store the private key path in credentials (not the PEM contents). "
-                "Encrypted .p8 keys require a passphrase."
-            )
+        auth_choices = [cls.__name__ for cls in SNOWFLAKE_AUTH_CHOICES]
+        auth_type = self.prompts.choice("Select authentication method", auth_choices, sort=False)
+        auth_credentials = _prompt_snowflake_auth_credentials(self.prompts, auth_type, secret_vault_type)
 
         snowflake_connection: dict[str, Any] = {
             "auth_type": auth_type,
@@ -396,37 +434,8 @@ class ConfigureSnowflakeAssessment(AssessmentConfigurator):
             "database": self.prompts.question("Enter database name", default="SNOWFLAKE"),
             "schema": self.prompts.question("Enter schema name", default="ACCOUNT_USAGE"),
             "role": self.prompts.question("Enter role", default="ACCOUNTADMIN"),
+            **auth_credentials,
         }
-
-        if auth_type == "pat":
-            # In env mode the stored value is the name of an environment variable that
-            # EnvGetter resolves at runtime, not the token itself, so prompt accordingly.
-            # Stored under `pat` (not `password`) to flag this is a rotating
-            # Programmatic Access Token, not a SQL password.
-            if secret_vault_type == "env":
-                snowflake_connection["pat"] = self.prompts.question(
-                    "Enter the environment variable name holding the PAT"
-                )
-            else:
-                snowflake_connection["pat"] = self.prompts.password("Enter Programmatic Access Token (PAT)")
-        else:
-            if secret_vault_type == "env":
-                snowflake_connection["private_key_path"] = self.prompts.question(
-                    "Enter the environment variable name holding the private key path"
-                )
-            else:
-                snowflake_connection["private_key_path"] = self.prompts.question(
-                    "Enter path to the private key file (e.g., /path/to/rsa_key.p8)"
-                )
-            if self.prompts.confirm("Is the private key encrypted with a passphrase?"):
-                if secret_vault_type == "env":
-                    snowflake_connection["private_key_passphrase"] = self.prompts.question(
-                        "Enter the environment variable name holding the private key passphrase"
-                    )
-                else:
-                    snowflake_connection["private_key_passphrase"] = self.prompts.password(
-                        "Enter private key passphrase"
-                    )
 
         credential = {
             "secret_vault_type": secret_vault_type,

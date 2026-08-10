@@ -4,7 +4,6 @@ import importlib
 import logging
 from abc import abstractmethod
 from collections.abc import Callable, Iterator, Sequence
-from pathlib import Path
 from types import TracebackType
 from typing import Any
 
@@ -22,10 +21,10 @@ from snowflake.connector.errors import Error as SnowflakeError
 
 from databricks.labs.blueprint.installation import JsonObject
 from databricks.labs.lakebridge.connections.mssql_auth import resolve_mssql_credentials
+from databricks.labs.lakebridge.connections.snowflake_auth import resolve_snowflake_credentials
 from databricks.labs.lakebridge.connections.snowflake_utils import (
     parse_snowflake_account,
     is_valid_snowflake_account,
-    load_snowflake_private_key,
 )
 
 # Side-effect import: registers the 'snowflake://' SQLAlchemy dialect so
@@ -121,9 +120,10 @@ class SnowflakeConnector(_BaseConnector):
         database = str(connection_config.get("database", "SNOWFLAKE"))
         schema = str(connection_config.get("schema", "ACCOUNT_USAGE"))
         role = str(connection_config.get("role", "ACCOUNTADMIN"))
-        # Missing auth_type keeps existing PAT credentials working.
-        auth_type = str(connection_config.get("auth_type", "pat")).lower()
+        resolved = resolve_snowflake_credentials(connection_config)
 
+        # PAT is base64url-encoded and can contain '/', '=', '@'. URL.create
+        # percent-escapes them so SQLAlchemy doesn't misread the token as URL structure.
         url_kwargs: dict[str, Any] = {
             "drivername": "snowflake",
             "username": user,
@@ -131,32 +131,16 @@ class SnowflakeConnector(_BaseConnector):
             "database": f"{database}/{schema}",
             "query": {"warehouse": warehouse, "role": role},
         }
+        if resolved.password is not None:
+            url_kwargs["password"] = resolved.password
 
-        if auth_type == "pat":
-            # PAT is base64url-encoded and can contain '/', '=', '@'. URL.create
-            # percent-escapes them so SQLAlchemy doesn't misread the token as URL structure.
-            if "pat" not in connection_config or not connection_config["pat"]:
-                raise ConnectionError("Snowflake PAT authentication requires a non-empty 'pat' in credentials")
-            url_kwargs["password"] = str(connection_config["pat"])
-            return create_engine(URL.create(**url_kwargs))
+        connect_args: dict[str, Any] = {}
+        if resolved.private_key is not None:
+            connect_args["private_key"] = resolved.private_key
 
-        if auth_type == "key_pair":
-            key_path_value = connection_config.get("private_key_path")
-            if not key_path_value:
-                raise ConnectionError(
-                    "Snowflake key-pair authentication requires 'private_key_path' in credentials"
-                )
-            passphrase = connection_config.get("private_key_passphrase")
-            passphrase_str = str(passphrase) if passphrase else None
-            private_key = load_snowflake_private_key(Path(str(key_path_value)), passphrase_str)
-            return create_engine(
-                URL.create(**url_kwargs),
-                connect_args={"private_key": private_key},
-            )
-
-        raise ConnectionError(
-            f"Unsupported Snowflake auth_type: {auth_type!r}. Expected 'pat' or 'key_pair'."
-        )
+        if connect_args:
+            return create_engine(URL.create(**url_kwargs), connect_args=connect_args)
+        return create_engine(URL.create(**url_kwargs))
 
     def supports_streaming(self) -> bool:
         return True
