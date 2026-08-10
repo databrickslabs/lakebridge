@@ -48,16 +48,16 @@ dependencies = [
   "pandas~=2.3.1", # Required for new configure assessment
   "pyarrow~=23.0.0",
   "redshift-connector~=2.1.13",
-  "snowflake-connector-python>=4.5.0",
-  "snowflake-sqlalchemy>=1.9.0",
+  "snowflake-connector-python~=4.7.1",
+  "snowflake-sqlalchemy~=1.11.0",
   "azure-identity~=1.19.0",
   "azure-mgmt-sql~=3.0.1",
   "azure-monitor-query~=1.4.0",
   "azure-synapse-artifacts~=0.20.0",
-  "google-cloud-bigquery>=3.0.0,<4",
-  "google-cloud-bigquery-storage>=2.0.0,<3",
-  "google-auth>=2.0.0,<3",
-  "db-dtypes>=1.0.0,<2",
+  "google-cloud-bigquery~=3.42.3",
+  "google-cloud-bigquery-storage~=2.39.0",
+  "google-auth~=2.56.2",
+  "db-dtypes~=1.7.1",
 ]
 
 [project.urls]
