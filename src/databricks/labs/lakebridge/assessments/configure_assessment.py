@@ -370,22 +370,24 @@ class ConfigureSnowflakeAssessment(AssessmentConfigurator):
         )
         secret_vault_type = str(self.prompts.choice("Enter secret vault type (local | env)", ["local", "env"])).lower()
 
-        # Snowflake Connection Settings
         logger.info("Snowflake Assessment Configuration")
-        logger.info("Authentication uses a Programmatic Access Token (PAT). See Snowflake's docs:")
-        logger.info(
-            "  https://docs.snowflake.com/en/user-guide/programmatic-access-tokens"
-            "#generating-a-programmatic-access-token"
-        )
-
-        # In env mode the stored value is the name of an environment variable that
-        # EnvGetter resolves at runtime, not the token itself, so prompt accordingly.
-        if secret_vault_type == "env":
-            pat = self.prompts.question("Enter the environment variable name holding the PAT")
+        auth_type = str(self.prompts.choice("Authentication type", ["pat", "key_pair"], sort=False)).lower()
+        if auth_type == "pat":
+            logger.info("Authentication uses a Programmatic Access Token (PAT). See Snowflake's docs:")
+            logger.info(
+                "  https://docs.snowflake.com/en/user-guide/programmatic-access-tokens"
+                "#generating-a-programmatic-access-token"
+            )
         else:
-            pat = self.prompts.password("Enter Programmatic Access Token (PAT)")
+            logger.info("Authentication uses key-pair (JWT). See Snowflake's docs:")
+            logger.info("  https://docs.snowflake.com/en/user-guide/key-pair-auth")
+            logger.info(
+                "Store the private key path in credentials (not the PEM contents). "
+                "Encrypted .p8 keys require a passphrase."
+            )
 
-        snowflake_connection = {
+        snowflake_connection: dict[str, Any] = {
+            "auth_type": auth_type,
             "account": self.prompts.question(
                 "Enter Snowflake account URL (e.g., myorg-myaccount.snowflakecomputing.com)"
             ),
@@ -394,10 +396,37 @@ class ConfigureSnowflakeAssessment(AssessmentConfigurator):
             "database": self.prompts.question("Enter database name", default="SNOWFLAKE"),
             "schema": self.prompts.question("Enter schema name", default="ACCOUNT_USAGE"),
             "role": self.prompts.question("Enter role", default="ACCOUNTADMIN"),
+        }
+
+        if auth_type == "pat":
+            # In env mode the stored value is the name of an environment variable that
+            # EnvGetter resolves at runtime, not the token itself, so prompt accordingly.
             # Stored under `pat` (not `password`) to flag this is a rotating
             # Programmatic Access Token, not a SQL password.
-            "pat": pat,
-        }
+            if secret_vault_type == "env":
+                snowflake_connection["pat"] = self.prompts.question(
+                    "Enter the environment variable name holding the PAT"
+                )
+            else:
+                snowflake_connection["pat"] = self.prompts.password("Enter Programmatic Access Token (PAT)")
+        else:
+            if secret_vault_type == "env":
+                snowflake_connection["private_key_path"] = self.prompts.question(
+                    "Enter the environment variable name holding the private key path"
+                )
+            else:
+                snowflake_connection["private_key_path"] = self.prompts.question(
+                    "Enter path to the private key file (e.g., /path/to/rsa_key.p8)"
+                )
+            if self.prompts.confirm("Is the private key encrypted with a passphrase?"):
+                if secret_vault_type == "env":
+                    snowflake_connection["private_key_passphrase"] = self.prompts.question(
+                        "Enter the environment variable name holding the private key passphrase"
+                    )
+                else:
+                    snowflake_connection["private_key_passphrase"] = self.prompts.password(
+                        "Enter private key passphrase"
+                    )
 
         credential = {
             "secret_vault_type": secret_vault_type,

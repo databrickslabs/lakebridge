@@ -8,13 +8,18 @@ import Admonition from '@theme/Admonition';
 
 ## Prerequisites
 
-- A Snowflake user with permission to create Personal Access Tokens (PATs) and to query the `SNOWFLAKE.ACCOUNT_USAGE` schema (e.g., the `ACCOUNTADMIN` role or a role granted `IMPORTED PRIVILEGES ON DATABASE SNOWFLAKE`).
+- A Snowflake user that can authenticate with either a **Programmatic Access Token (PAT)** or **key-pair (JWT)** authentication, and that can query the `SNOWFLAKE.ACCOUNT_USAGE` schema (e.g., the `ACCOUNTADMIN` role or a role granted `IMPORTED PRIVILEGES ON DATABASE SNOWFLAKE`).
+- For key-pair auth, the matching public key must be registered on the Snowflake user. See [Snowflake key-pair authentication](https://docs.snowflake.com/en/user-guide/key-pair-auth).
 - The `rate_sheet` step also reads `SNOWFLAKE.ORGANIZATION_USAGE.RATE_SHEET_DAILY` for the effective credit rate and account tier. This is available to `ACCOUNTADMIN` in an ORGADMIN-enabled account (the first account in an organization is ORGADMIN-enabled by default, so single-account orgs are covered), or to a custom role granted the `ORGANIZATION_BILLING_VIEWER` database role. If the account isn't ORGADMIN-enabled — or the organization is on a reseller contract — the view returns no rows, so `rate_sheet` is skipped and the rest of the profile still completes.
 - Network access from the machine running Lakebridge to your Snowflake account.
 
 ## Authentication
 
-The Snowflake profiler authenticates with a **Programmatic Access Token (PAT)**. Follow Snowflake's official guide to generate one:
+The Snowflake profiler supports two authentication methods. Choose one when you run `configure-database-profiler`.
+
+### Programmatic Access Token (PAT)
+
+Follow Snowflake's official guide to generate a PAT:
 
 [Snowflake docs: Programmatic access tokens](https://docs.snowflake.com/en/user-guide/programmatic-access-tokens#generating-a-programmatic-access-token)
 
@@ -27,13 +32,27 @@ You'll need:
 
 If your account or user has a network policy, also see Snowflake's docs on [bypassing the network policy on a PAT](https://docs.snowflake.com/en/user-guide/programmatic-access-tokens) for short-term testing from a dynamic IP.
 
+### Key-pair authentication
+
+Follow Snowflake's guide to create an RSA key pair and assign the public key to the user:
+
+[Snowflake docs: Key-pair authentication](https://docs.snowflake.com/en/user-guide/key-pair-auth)
+
+You'll need:
+
+- The same `account`, `user`, `role`, `warehouse`, `database`, and `schema` fields as PAT auth
+- `private_key_path` — path to the PEM private key file on disk (e.g., `/path/to/rsa_key.p8`). Lakebridge stores the **path**, not the PEM contents.
+- `private_key_passphrase` — only if the private key is encrypted
+
+Existing credentials files without `auth_type` continue to use PAT authentication.
+
 ## Configure and run the profiler
 
 ```bash
 databricks labs lakebridge configure-database-profiler
 ```
 
-Pick **snowflake** when prompted, then paste the connection details and PAT.
+Pick **snowflake** when prompted, then choose **pat** or **key_pair** and enter the connection details.
 
 ```bash
 databricks labs lakebridge execute-database-profiler
