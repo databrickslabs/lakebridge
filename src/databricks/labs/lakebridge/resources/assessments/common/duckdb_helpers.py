@@ -9,26 +9,78 @@ with the mechanics of getting a DataFrame into a DuckDB table.
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from typing import Literal
 
 import duckdb
 import pandas as pd
+import pyarrow as pa
 
 logger = logging.getLogger(__name__)
 
 SaveMode = Literal["overwrite", "append"]
+Frame = pd.DataFrame | pa.Table
+
+_PROFILER_DUCKDB_CONFIG: dict[str, bool | float | int | list[str] | str] = {
+    "storage_compatibility_version": "v1.4.0",
+    "force_compression": "auto",
+    "zstd_min_string_length": 8,
+}
+
+
+def connect_to_profiler_db(db_path: str | Path) -> duckdb.DuckDBPyConnection:
+    """Connect to a profiler database with native compression enabled."""
+    return duckdb.connect(str(db_path), config=_PROFILER_DUCKDB_CONFIG)
+
+
+def _is_empty(df: Frame) -> bool:
+    match df:
+        case pd.DataFrame():
+            return df.empty
+        case pa.Table():
+            return df.num_rows == 0
+        case _:
+            raise TypeError(f"Unsupported frame type: {type(df).__name__}")
+
+
+def _num_columns(df: Frame) -> int:
+    match df:
+        case pd.DataFrame():
+            return len(df.columns)
+        case pa.Table():
+            return df.num_columns
+        case _:
+            raise TypeError(f"Unsupported frame type: {type(df).__name__}")
+
+
+def save_to_duckdb_conn(
+    conn: duckdb.DuckDBPyConnection,
+    df: Frame,
+    table_name: str,
+    mode: SaveMode = "overwrite",
+    schema: str | None = None,
+) -> None:
+    """Write one frame into DuckDB using an already-open connection."""
+    if mode == "overwrite":
+        _save_overwrite(conn, df, table_name, schema)
+    elif mode == "append":
+        _save_append(conn, df, table_name, schema)
+    else:
+        raise ValueError(f"Unsupported mode '{mode}'. Must be 'overwrite' or 'append'.")
+    conn.commit()
+    logger.info("Wrote %d rows to '%s' (mode=%s).", len(df), table_name, mode)
 
 
 def save_to_duckdb(
-    df: pd.DataFrame,
+    df: Frame,
     table_name: str,
     db_path: str,
     mode: SaveMode = "overwrite",
     schema: str | None = None,
 ) -> None:
-    """Write a DataFrame into a DuckDB table.
+    """Write a frame into a DuckDB table.
 
-    Thin dispatcher over :func:`_save_overwrite` and :func:`_save_append`.
+    Opens a connection and delegates to :func:`save_to_duckdb_conn`.
 
     Args:
         df: The data to write.
@@ -38,9 +90,9 @@ def save_to_duckdb(
         schema: Optional DuckDB schema string (e.g. ``"ID BIGINT, NAME STRING"``).
             When provided, the table is created with this schema and the
             DataFrame's dtypes are ignored. Use this for tables that are
-            appended to across runs, where pandas' dtype inference can drift
-            between batches (e.g. a column that is null-only in one batch but
-            typed in the next).
+            appended to across runs to avoid drift, for example with dataframes
+            where pandas' dtype inference may drift between results (e.g. a column
+            that is null-only in one batch but typed in the next).
 
     Raises:
         ValueError: if ``mode`` is not one of ``"overwrite"`` / ``"append"``.
@@ -49,14 +101,8 @@ def save_to_duckdb(
         Any underlying DuckDB error is logged and re-raised.
     """
     try:
-        with duckdb.connect(db_path) as conn:
-            if mode == "overwrite":
-                _save_overwrite(conn, df, table_name, schema)
-            elif mode == "append":
-                _save_append(conn, df, table_name, schema)
-            else:
-                raise ValueError(f"Unsupported mode '{mode}'. Must be 'overwrite' or 'append'.")
-            logger.info("Wrote %d rows to '%s' (mode=%s).", len(df), table_name, mode)
+        with connect_to_profiler_db(db_path) as conn:
+            save_to_duckdb_conn(conn, df, table_name, mode, schema)
     except Exception as e:
         logger.error("Error in save_to_duckdb for table '%s': %s", table_name, str(e))
         raise
@@ -64,7 +110,7 @@ def save_to_duckdb(
 
 def _save_overwrite(
     conn: duckdb.DuckDBPyConnection,
-    df: pd.DataFrame,
+    df: Frame,
     table_name: str,
     schema: str | None,
 ) -> None:
@@ -85,12 +131,12 @@ def _save_overwrite(
     if schema is not None:
         conn.execute(f"DROP TABLE IF EXISTS {table_name}")
         conn.execute(f"CREATE TABLE {table_name} ({schema})")
-        if not df.empty:
+        if not _is_empty(df):
             conn.register("_lakebridge_df", df)
             conn.execute(f"INSERT INTO {table_name} SELECT * FROM _lakebridge_df")
         return
 
-    if len(df.columns) == 0:
+    if _num_columns(df) == 0:
         if table_exists:
             conn.execute(f"TRUNCATE {table_name}")
         else:
@@ -104,17 +150,17 @@ def _save_overwrite(
 
     if table_exists:
         conn.execute(f"TRUNCATE {table_name}")
-        if not df.empty:
+        if not _is_empty(df):
             conn.execute(f"INSERT INTO {table_name} SELECT * FROM _lakebridge_df")
         return
 
-    limit_clause = " LIMIT 0" if df.empty else ""
+    limit_clause = " LIMIT 0" if _is_empty(df) else ""
     conn.execute(f"CREATE TABLE {table_name} AS SELECT * FROM _lakebridge_df{limit_clause}")
 
 
 def _save_append(
     conn: duckdb.DuckDBPyConnection,
-    df: pd.DataFrame,
+    df: Frame,
     table_name: str,
     schema: str | None,
 ) -> None:
@@ -131,7 +177,7 @@ def _save_append(
     - Table exists: positional ``INSERT``. The DataFrame's column order
       must match the existing table.
     """
-    if df.empty:
+    if _is_empty(df):
         logger.info("No rows to append for table '%s'. Skipping.", table_name)
         return
 
@@ -172,7 +218,7 @@ def get_max_column_value_duckdb(
     """
     max_column_val = None
     try:
-        with duckdb.connect(db_path) as conn:
+        with connect_to_profiler_db(db_path) as conn:
             table_exists = table_name in conn.execute("SHOW TABLES").fetchdf()['name'].values
             if not table_exists:
                 logger.info(f"Table {table_name} does not exist in DuckDB. Returning None.")
