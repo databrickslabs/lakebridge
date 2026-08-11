@@ -143,19 +143,18 @@ class PipelineClass:
         if self.executor is None:
             raise RuntimeError("Database executor is not set.")
 
-        first = True
         with connect_to_profiler_db(self._db_path) as conn:
             logging.info(f"Starting query for step: {step.name}")
+            write_mode: SaveMode = "overwrite" if step.mode == "overwrite" else "append"
             total_rows = 0
             for batch in self.executor.stream(query):
                 if (batch_size := batch.num_rows) == 0:
                     logger.debug(f"Skipping empty batch while streaming results for step: {step.name}")
                     continue
                 logger.debug(f"Streaming batch of {batch_size} rows for step: {step.name}")
-                write_mode: SaveMode = "overwrite" if first and step.mode == "overwrite" else "append"
                 save_to_duckdb_conn(conn, batch, step.name, mode=write_mode)
                 total_rows += batch_size
-                first = False
+                write_mode = "append"
             if total_rows == 0 and step.mode == "overwrite":
                 logging.info(
                     f"Finished streaming query for {step.mode}-mode step '{step.name}'; empty results so previous data left as-is."
