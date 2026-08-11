@@ -1,6 +1,6 @@
 import logging
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum, auto
 from pathlib import Path
 from typing import Any, Literal, TypeVar, cast
@@ -285,7 +285,7 @@ class ReconcileMetadataConfig:
 @dataclass
 class ReconcileJobConfig:
     existing_cluster_id: str
-    tags: dict[str, str]
+    tags: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass

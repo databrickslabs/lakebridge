@@ -11,7 +11,7 @@ from pyspark.sql.types import (
     TimestampType,
     BooleanType,
     ArrayType,
-    MapType,
+    VariantType,
 )
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.service import iam
@@ -229,12 +229,15 @@ def report_tables_schema():
         ]
     )
 
+    # Record-level details: one row per sampled record, with VARIANT row images.
     details_schema = StructType(
         [
             StructField("recon_table_id", LongType(), nullable=False),
             StructField("recon_type", StringType(), nullable=False),
-            StructField("status", BooleanType(), nullable=False),
-            StructField("data", ArrayType(MapType(StringType(), StringType())), nullable=False),
+            StructField("record_key", VariantType()),
+            StructField("source_row", VariantType()),
+            StructField("target_row", VariantType()),
+            StructField("mismatch_columns", ArrayType(StringType())),
             StructField("inserted_ts", TimestampType(), nullable=False),
         ]
     )

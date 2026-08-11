@@ -1,5 +1,0 @@
-columns:
-- target_table
-type: MULTI_SELECT
-title: Target Table Name
-width: 2

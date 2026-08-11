@@ -1,0 +1,16 @@
+{
+  "datasets": [
+    {
+      "name": "queries_main",
+      "displayName": "queries",
+      "query": "SELECT\n  main.recon_id,\n  main.source_type,\n  main.report_type,\n  main.source_table.`catalog` AS source_catalog,\n  main.source_table.`schema` AS source_schema,\n  main.source_table.table_name AS source_table_name\nFROM remorph.reconcile.main AS main"
+    }
+  ],
+  "pages": [
+    {
+      "name": "queries",
+      "displayName": "queries",
+      "layout": []
+    }
+  ]
+}

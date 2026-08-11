@@ -10,7 +10,7 @@ from databricks.sdk.service import compute
 from databricks.sdk.service.jobs import (
     Task,
     PythonWheelTask,
-    JobCluster,
+    JobEnvironment,
     JobSettings,
     JobParameterDefinition,
 )
@@ -21,7 +21,8 @@ logger = logging.getLogger(__name__)
 
 class JobDeployment:
 
-    DEFAULT_CLUSTER_NAME = "Remorph_Reconciliation_Cluster"
+    SERVERLESS_ENVIRONMENT_KEY = "reconcile_serverless"
+    SERVERLESS_ENVIRONMENT_VERSION = "3"
 
     def __init__(
         self,
@@ -79,10 +80,9 @@ class JobDeployment:
             logger.debug(f"Applying deployment overrides: {recon_config.job_overrides}")
             tags.update(recon_config.job_overrides.tags)
 
-        return {
+        job_settings = {
             "name": self._name_with_prefix(job_name),
             "tags": tags,
-            "job_clusters": [] if recon_config.job_overrides else [self._default_job_cluster()],
             "tasks": [
                 self._job_recon_task(
                     task_key,
@@ -97,21 +97,33 @@ class JobDeployment:
                 JobParameterDefinition(name="install_folder", default=self._installation.install_folder()),
             ],
         }
+        if not self._existing_cluster_id(recon_config):
+            job_settings["environments"] = [
+                JobEnvironment(
+                    environment_key=self.SERVERLESS_ENVIRONMENT_KEY,
+                    spec=compute.Environment(
+                        environment_version=self.SERVERLESS_ENVIRONMENT_VERSION,
+                        dependencies=[lakebridge_wheel_path],
+                    ),
+                )
+            ]
+        return job_settings
 
     def _job_recon_task(
         self, task_key: str, description: str, recon_config: ReconcileConfig, lakebridge_wheel_path: str
     ) -> Task:
-        libraries = [
-            compute.Library(whl=lakebridge_wheel_path),
-        ]
+        existing_cluster_id = self._existing_cluster_id(recon_config)
+        # The job runs on serverless compute unless job_overrides points at a classic
+        # cluster. Serverless tasks must not set libraries or cluster references; the
+        # wheel is supplied through the job-level environment instead
+        # (see _recon_job_settings). Classic clusters get the wheel as a library.
+        libraries = [compute.Library(whl=lakebridge_wheel_path)] if existing_cluster_id else None
 
         task = Task(
             task_key=task_key,
             description=description,
-            job_cluster_key=None if recon_config.job_overrides else self.DEFAULT_CLUSTER_NAME,
-            existing_cluster_id=(
-                recon_config.job_overrides.existing_cluster_id if recon_config.job_overrides else None
-            ),
+            existing_cluster_id=existing_cluster_id,
+            environment_key=None if existing_cluster_id else self.SERVERLESS_ENVIRONMENT_KEY,
             libraries=libraries,
             python_wheel_task=PythonWheelTask(
                 package_name=self.parse_package_name(lakebridge_wheel_path),
@@ -120,25 +132,16 @@ class JobDeployment:
             ),
         )
         logger.debug(
-            f"Reconciliation job task cluster: existing: {task.existing_cluster_id} or name: {task.job_cluster_key}"
+            f"Reconciliation job task cluster: existing: {task.existing_cluster_id} "
+            f"or environment: {task.environment_key}"
         )
         return task
 
-    def _default_job_cluster(self) -> JobCluster:
-        latest_lts_spark = self._ws.clusters.select_spark_version(latest=True, long_term_support=True)
-        return JobCluster(
-            job_cluster_key=self.DEFAULT_CLUSTER_NAME,
-            new_cluster=compute.ClusterSpec(
-                data_security_mode=compute.DataSecurityMode.USER_ISOLATION,
-                spark_conf={},
-                node_type_id=self._get_default_node_type_id(),
-                autoscale=compute.AutoScale(min_workers=2, max_workers=10),
-                spark_version=latest_lts_spark,
-            ),
-        )
-
-    def _get_default_node_type_id(self) -> str:
-        return self._ws.clusters.select_node_type(local_disk=True, min_memory_gb=16)
+    @staticmethod
+    def _existing_cluster_id(recon_config: ReconcileConfig) -> str | None:
+        if recon_config.job_overrides:
+            return recon_config.job_overrides.existing_cluster_id or None
+        return None
 
     def _name_with_prefix(self, name: str) -> str:
         prefix = self._installation.product()
