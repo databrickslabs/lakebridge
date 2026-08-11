@@ -896,7 +896,7 @@ dev = [
     { name = "databricks-connect", marker = "python_full_version >= '3.12'", specifier = "~=17.3.8" },
     { name = "databricks-labs-pylint", specifier = "~=0.5.0" },
     { name = "databricks-labs-pytester", specifier = ">=0.3.0,<0.8.0" },
-    { name = "mypy", specifier = ">=1.20.2,<2.4.0" },
+    { name = "mypy", specifier = "~=2.3.0" },
     { name = "numpy", marker = "python_full_version >= '3.12'", specifier = ">=2.0.0,<3.0.0" },
     { name = "pandas-stubs", specifier = "~=2.3.0.250703" },
     { name = "pyarrow-stubs", specifier = "~=20.0.0.20260625" },
@@ -915,7 +915,7 @@ dev = [
 lint = [
     { name = "black", specifier = "~=26.3" },
     { name = "databricks-labs-pylint", specifier = "~=0.5.0" },
-    { name = "mypy", specifier = ">=1.20.2,<2.4.0" },
+    { name = "mypy", specifier = "~=2.3.0" },
     { name = "pandas-stubs", specifier = "~=2.3.0.250703" },
     { name = "pyarrow-stubs", specifier = "~=20.0.0.20260625" },
     { name = "pylint", specifier = "~=4.0.5" },
