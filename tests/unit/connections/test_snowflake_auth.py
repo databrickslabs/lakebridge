@@ -62,9 +62,7 @@ def test_key_pair_missing_path_raises_connection_error() -> None:
 def test_resolve_key_pair_via_auth_type(tmp_path) -> None:
     key_path = tmp_path / "rsa_key.p8"
     _write_unencrypted_private_key(key_path)
-    resolved = resolve_snowflake_credentials(
-        {"auth_type": "key_pair", "private_key_path": str(key_path)}
-    )
+    resolved = resolve_snowflake_credentials({"auth_type": "key_pair", "private_key_path": str(key_path)})
     assert resolved.password is None
     assert resolved.private_key
 

@@ -103,7 +103,7 @@ class _BaseConnector(DatabaseConnector):
 
 class SnowflakeConnector(_BaseConnector):
     @staticmethod
-    def _build_engine_args(connection_config: dict[str, Any]) -> tuple[URL, dict[str, Any]]:
+    def build_engine_args(connection_config: dict[str, Any]) -> tuple[URL, dict[str, Any]]:
         """Build the SQLAlchemy URL and connect_args for a Snowflake connection config.
 
         Separated from ``_connect`` so URL / connect-arg construction can be unit-tested
@@ -142,7 +142,7 @@ class SnowflakeConnector(_BaseConnector):
         if not isinstance(connection_config, dict):
             raise ConnectionError("Snowflake credentials must be nested under a 'connection' block")
 
-        snowflake_url, connect_args = self._build_engine_args(connection_config)
+        snowflake_url, connect_args = self.build_engine_args(connection_config)
         return create_engine(snowflake_url, connect_args=connect_args)
 
     def supports_streaming(self) -> bool:

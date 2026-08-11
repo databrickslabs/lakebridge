@@ -41,9 +41,7 @@ def load_snowflake_private_key(key_path: Path, passphrase: str | None = None) ->
     try:
         private_key = serialization.load_pem_private_key(key_bytes, password=password)
     except UnsupportedAlgorithm as e:
-        raise ConnectionError(
-            f"Unsupported private key algorithm in Snowflake key at {key_path}: {e}"
-        ) from e
+        raise ConnectionError(f"Unsupported private key algorithm in Snowflake key at {key_path}: {e}") from e
     except TypeError as e:
         # cryptography: encrypted key without a usable password, or password given for
         # an unencrypted key. Empty passphrase (b"") is treated as missing when decrypting.
@@ -55,12 +53,10 @@ def load_snowflake_private_key(key_path: Path, passphrase: str | None = None) ->
         message = str(e).lower()
         if "password" in message or "decrypt" in message:
             raise ConnectionError(
-                f"Unable to decrypt Snowflake private key at {key_path}: {e} "
-                "(check the passphrase)"
+                f"Unable to decrypt Snowflake private key at {key_path}: {e} " "(check the passphrase)"
             ) from e
         raise ConnectionError(
-            f"Invalid Snowflake private key PEM at {key_path}: {e} "
-            "(expected a PEM-encoded PKCS#8 private key)"
+            f"Invalid Snowflake private key PEM at {key_path}: {e} " "(expected a PEM-encoded PKCS#8 private key)"
         ) from e
 
     return private_key.private_bytes(

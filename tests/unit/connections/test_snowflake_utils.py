@@ -58,7 +58,7 @@ def test_connector_rejects_malformed_account():
 
 
 def test_snowflake_url_happy_path():
-    url, connect_args = SnowflakeConnector._build_engine_args(
+    url, connect_args = SnowflakeConnector.build_engine_args(
         {
             "account": "https://MYORG-MYACCOUNT.snowflakecomputing.com",
             "user": "svc_user",
@@ -73,14 +73,14 @@ def test_snowflake_url_happy_path():
     assert rendered.startswith("snowflake://svc_user:plain_token@MYORG-MYACCOUNT/SNOWFLAKE/ACCOUNT_USAGE")
     assert "warehouse=WH" in rendered
     assert "role=SYSADMIN" in rendered
-    assert connect_args == {}
+    assert not connect_args
 
 
 def test_snowflake_url_escapes_pat_special_chars():
     # PATs are base64url and routinely contain '/', '=', '@'. Those must be
     # percent-escaped so SQLAlchemy doesn't misread them as URL structure
     # (path separator, host delimiter, etc.).
-    url, connect_args = SnowflakeConnector._build_engine_args(
+    url, connect_args = SnowflakeConnector.build_engine_args(
         {
             "account": "MYORG-MYACCOUNT",
             "user": "svc_user",
@@ -96,7 +96,7 @@ def test_snowflake_url_escapes_pat_special_chars():
     assert "ab%2Fcd%3Def%40ij%25kl" in rendered
     # And the host is still parsed correctly despite the '@' in the password.
     assert "@MYORG-MYACCOUNT/SNOWFLAKE/ACCOUNT_USAGE" in rendered
-    assert connect_args == {}
+    assert not connect_args
 
 
 def _generate_rsa_key():
@@ -177,7 +177,7 @@ def test_snowflake_key_pair_builds_passwordless_url_with_private_key(tmp_path):
     key_path = tmp_path / "rsa_key.p8"
     _write_private_key(key_path, passphrase=None)
 
-    url, connect_args = SnowflakeConnector._build_engine_args(
+    url, connect_args = SnowflakeConnector.build_engine_args(
         {
             "auth_type": "key_pair",
             "account": "MYORG-MYACCOUNT",
