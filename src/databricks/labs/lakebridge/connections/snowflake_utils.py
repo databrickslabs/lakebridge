@@ -31,7 +31,8 @@ def load_snowflake_private_key(key_path: Path, passphrase: str | None = None) ->
     except OSError as e:
         raise ConnectionError(f"Unable to read Snowflake private key at {key_path}: {e}") from e
 
-    password = passphrase.encode() if passphrase else None
+    # None = unencrypted key; "" = encrypted with an empty passphrase (distinct from None).
+    password = passphrase.encode() if passphrase is not None else None
     try:
         private_key = serialization.load_pem_private_key(
             key_bytes,
@@ -39,7 +40,7 @@ def load_snowflake_private_key(key_path: Path, passphrase: str | None = None) ->
             backend=default_backend(),
         )
     except (TypeError, ValueError) as e:
-        hint = "check the passphrase" if passphrase else "the key may be encrypted (provide a passphrase)"
+        hint = "check the passphrase" if passphrase is not None else "the key may be encrypted (provide a passphrase)"
         raise ConnectionError(f"Invalid Snowflake private key at {key_path}: {e} ({hint})") from e
 
     return private_key.private_bytes(

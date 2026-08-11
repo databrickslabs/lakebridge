@@ -44,7 +44,7 @@ You'll need:
 - `private_key_path` — path to the PEM private key file on disk (e.g., `/path/to/rsa_key.p8`). Lakebridge stores the **path**, not the PEM contents.
 - `private_key_passphrase` — only if the private key is encrypted
 
-Existing credentials files without `auth_type` continue to use PAT authentication (`Pat`).
+Existing credentials files without `auth_type` continue to use PAT authentication (`pat`).
 
 ## Configure and run the profiler
 
@@ -52,7 +52,7 @@ Existing credentials files without `auth_type` continue to use PAT authenticatio
 databricks labs lakebridge configure-database-profiler
 ```
 
-Pick **snowflake** when prompted, then choose **Pat** or **KeyPair** and enter the connection details.
+Pick **snowflake** when prompted, then choose **PAT** or **Key-Pair** and enter the connection details.
 
 ```bash
 databricks labs lakebridge execute-database-profiler

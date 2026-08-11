@@ -7,19 +7,19 @@ from databricks.labs.blueprint.tui import MockPrompts
 from databricks.labs.lakebridge.assessments.configure_assessment import (
     ConfigureSnowflakeAssessment,
 )
-from databricks.labs.lakebridge.connections.snowflake_auth import AUTH_CHOICES
+from databricks.labs.lakebridge.connections.snowflake_auth import AUTH_CHOICES, Pat
 
 # Prompts.choice sorts options alphabetically; "env" is index 0, "local" is index 1.
 _VAULT_INDEX = {vault: idx for idx, vault in enumerate(sorted(["local", "env"]))}
-# Authentication method uses sort=False; index matches AUTH_CHOICES order.
-_AUTH_INDEX = {cls.__name__: str(i) for i, cls in enumerate(AUTH_CHOICES)}
+# Authentication method uses sort=True; index matches sorted labels.
+_AUTH_INDEX = {label: str(i) for i, label in enumerate(sorted(c.label for c in AUTH_CHOICES))}
 
 
 def _prompts(vault_type: str, pat_prompt: str, pat_answer: str) -> MockPrompts:
     return MockPrompts(
         {
             r"Enter secret vault type \(local \| env\)": str(_VAULT_INDEX[vault_type]),
-            r"Select authentication method": _AUTH_INDEX["Pat"],
+            r"Select authentication method": _AUTH_INDEX[Pat.label],
             r"Enter Snowflake account URL.*": "myorg-myaccount.snowflakecomputing.com",
             r"Enter username": "TEST_USER",
             r"Enter warehouse name": "COMPUTE_WH",
@@ -51,7 +51,7 @@ def test_local_vault_stores_pat_verbatim(tmp_path):
         "secret_vault_type": "local",
         "snowflake": {
             "connection": {
-                "auth_type": "Pat",
+                "auth_type": "pat",
                 "account": "myorg-myaccount.snowflakecomputing.com",
                 "user": "TEST_USER",
                 "warehouse": "COMPUTE_WH",
@@ -71,4 +71,4 @@ def test_env_vault_stores_env_var_name(tmp_path):
     creds = _run(prompts, tmp_path)
     assert creds["secret_vault_type"] == "env"
     assert creds["snowflake"]["connection"]["pat"] == "SNOWFLAKE_PAT"
-    assert creds["snowflake"]["connection"]["auth_type"] == "Pat"
+    assert creds["snowflake"]["connection"]["auth_type"] == "pat"

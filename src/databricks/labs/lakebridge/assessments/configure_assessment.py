@@ -15,7 +15,11 @@ from databricks.labs.lakebridge.connections.credential_manager import (
 )
 from databricks.labs.lakebridge.connections.database_manager import create_connector
 from databricks.labs.lakebridge.connections.mssql_auth import AUTH_CHOICES
-from databricks.labs.lakebridge.connections.snowflake_auth import AUTH_CHOICES as SNOWFLAKE_AUTH_CHOICES
+from databricks.labs.lakebridge.connections.snowflake_auth import (
+    AUTH_CHOICES as SNOWFLAKE_AUTH_CHOICES,
+    KeyPair,
+    Pat,
+)
 from databricks.labs.lakebridge.connections.env_getter import EnvGetter
 from databricks.labs.lakebridge.connections.synapse_connection_helpers import validate_synapse_pools
 from databricks.labs.lakebridge.connections.bigquery_connection_helpers import validate_bigquery_pairs
@@ -51,13 +55,14 @@ def _prompt_mssql_auth_credentials(prompts: Prompts, auth_type: str) -> dict[str
     return {}
 
 
-def _prompt_snowflake_auth_credentials(prompts: Prompts, auth_type: str, secret_vault_type: str) -> dict[str, str]:
+def _prompt_snowflake_auth_credentials(prompts: Prompts, auth_label: str, secret_vault_type: str) -> dict[str, str]:
     """Prompt for Snowflake auth-specific fields for the chosen strategy.
 
+    ``auth_label`` is the user-facing label from the auth-method prompt (e.g. ``PAT``).
     Returns a partial dict to merge into the nested ``connection`` block. Shared
     connection fields (account, user, warehouse, …) are prompted separately.
     """
-    if auth_type == "Pat":
+    if auth_label == Pat.label:
         logger.info("Authentication uses a Programmatic Access Token (PAT). See Snowflake's docs:")
         logger.info(
             "  https://docs.snowflake.com/en/user-guide/programmatic-access-tokens"
@@ -71,7 +76,7 @@ def _prompt_snowflake_auth_credentials(prompts: Prompts, auth_type: str, secret_
             return {"pat": prompts.question("Enter the environment variable name holding the PAT")}
         return {"pat": prompts.password("Enter Programmatic Access Token (PAT)")}
 
-    if auth_type == "KeyPair":
+    if auth_label == KeyPair.label:
         logger.info("Authentication uses key-pair (JWT). See Snowflake's docs:")
         logger.info("  https://docs.snowflake.com/en/user-guide/key-pair-auth")
         logger.info(
@@ -420,9 +425,11 @@ class ConfigureSnowflakeAssessment(AssessmentConfigurator):
         secret_vault_type = str(self.prompts.choice("Enter secret vault type (local | env)", ["local", "env"])).lower()
 
         logger.info("Snowflake Assessment Configuration")
-        auth_choices = [cls.__name__ for cls in SNOWFLAKE_AUTH_CHOICES]
-        auth_type = self.prompts.choice("Select authentication method", auth_choices, sort=False)
-        auth_credentials = _prompt_snowflake_auth_credentials(self.prompts, auth_type, secret_vault_type)
+        auth_choices = {cls.label: cls.auth_type for cls in SNOWFLAKE_AUTH_CHOICES}
+        assert len(auth_choices) == len(SNOWFLAKE_AUTH_CHOICES), "Label/auth-type collision."
+        auth_label = self.prompts.choice("Select authentication method", list(auth_choices.keys()), sort=True)
+        auth_type = auth_choices[auth_label]
+        auth_credentials = _prompt_snowflake_auth_credentials(self.prompts, auth_label, secret_vault_type)
 
         snowflake_connection: dict[str, Any] = {
             "auth_type": auth_type,
