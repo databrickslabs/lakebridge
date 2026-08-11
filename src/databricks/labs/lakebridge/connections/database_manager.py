@@ -102,13 +102,13 @@ class _BaseConnector(DatabaseConnector):
 
 
 class SnowflakeConnector(_BaseConnector):
-    def _connect(self) -> Engine:
-        # The configurator always nests Snowflake credentials under a "connection" block.
-        # The SDK types JSON values loosely, so narrow to a dict for the accesses below.
-        connection_config = self.config["connection"]
-        if not isinstance(connection_config, dict):
-            raise ConnectionError("Snowflake credentials must be nested under a 'connection' block")
+    @staticmethod
+    def _build_engine_args(connection_config: dict[str, Any]) -> tuple[URL, dict[str, Any]]:
+        """Build the SQLAlchemy URL and connect_args for a Snowflake connection config.
 
+        Separated from ``_connect`` so URL / connect-arg construction can be unit-tested
+        without opening a real engine.
+        """
         account = parse_snowflake_account(str(connection_config["account"]))
         if not is_valid_snowflake_account(account):
             raise ConnectionError(
@@ -124,23 +124,26 @@ class SnowflakeConnector(_BaseConnector):
 
         # PAT is base64url-encoded and can contain '/', '=', '@'. URL.create
         # percent-escapes them so SQLAlchemy doesn't misread the token as URL structure.
-        url_kwargs: dict[str, Any] = {
-            "drivername": "snowflake",
-            "username": user,
-            "host": account,
-            "database": f"{database}/{schema}",
-            "query": {"warehouse": warehouse, "role": role},
-        }
-        if resolved.password is not None:
-            url_kwargs["password"] = resolved.password
+        snowflake_url = URL.create(
+            drivername="snowflake",
+            host=account,
+            database=f"{database}/{schema}",
+            username=user,
+            password=resolved.password,
+            query={"warehouse": warehouse, "role": role},
+        )
+        connect_args = {"private_key": resolved.private_key} if resolved.private_key else {}
+        return snowflake_url, connect_args
 
-        connect_args: dict[str, Any] = {}
-        if resolved.private_key is not None:
-            connect_args["private_key"] = resolved.private_key
+    def _connect(self) -> Engine:
+        # The configurator always nests Snowflake credentials under a "connection" block.
+        # The SDK types JSON values loosely, so narrow to a dict for the accesses below.
+        connection_config = self.config["connection"]
+        if not isinstance(connection_config, dict):
+            raise ConnectionError("Snowflake credentials must be nested under a 'connection' block")
 
-        if connect_args:
-            return create_engine(URL.create(**url_kwargs), connect_args=connect_args)
-        return create_engine(URL.create(**url_kwargs))
+        snowflake_url, connect_args = self._build_engine_args(connection_config)
+        return create_engine(snowflake_url, connect_args=connect_args)
 
     def supports_streaming(self) -> bool:
         return True

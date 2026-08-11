@@ -1,8 +1,10 @@
 """Unit tests for the Snowflake account-URL helper and connector URL building."""
 
-from unittest.mock import patch
+from pathlib import Path
 
 import pytest
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
 
 from databricks.labs.lakebridge.connections.database_manager import SnowflakeConnector
 from databricks.labs.lakebridge.connections.snowflake_utils import (
@@ -54,21 +56,8 @@ def test_connector_rejects_malformed_account():
         )
 
 
-def _build_url(connection: dict) -> str:
-    """Construct the SQLAlchemy URL the connector would use, without opening a connection."""
-    captured = {}
-
-    def _capture(url):
-        captured["url"] = url
-        return object()  # stand-in engine; never used
-
-    with patch("databricks.labs.lakebridge.connections.database_manager.create_engine", side_effect=_capture):
-        SnowflakeConnector({"connection": connection})
-    return captured["url"].render_as_string(hide_password=False)
-
-
 def test_snowflake_url_happy_path():
-    url = _build_url(
+    url, connect_args = SnowflakeConnector._build_engine_args(
         {
             "account": "https://MYORG-MYACCOUNT.snowflakecomputing.com",
             "user": "svc_user",
@@ -79,16 +68,18 @@ def test_snowflake_url_happy_path():
             "role": "SYSADMIN",
         }
     )
-    assert url.startswith("snowflake://svc_user:plain_token@MYORG-MYACCOUNT/SNOWFLAKE/ACCOUNT_USAGE")
-    assert "warehouse=WH" in url
-    assert "role=SYSADMIN" in url
+    rendered = url.render_as_string(hide_password=False)
+    assert rendered.startswith("snowflake://svc_user:plain_token@MYORG-MYACCOUNT/SNOWFLAKE/ACCOUNT_USAGE")
+    assert "warehouse=WH" in rendered
+    assert "role=SYSADMIN" in rendered
+    assert connect_args == {}
 
 
 def test_snowflake_url_escapes_pat_special_chars():
     # PATs are base64url and routinely contain '/', '=', '@'. Those must be
     # percent-escaped so SQLAlchemy doesn't misread them as URL structure
     # (path separator, host delimiter, etc.).
-    url = _build_url(
+    url, connect_args = SnowflakeConnector._build_engine_args(
         {
             "account": "MYORG-MYACCOUNT",
             "user": "svc_user",
@@ -99,10 +90,47 @@ def test_snowflake_url_escapes_pat_special_chars():
             "role": "SYSADMIN",
         }
     )
+    rendered = url.render_as_string(hide_password=False)
     # The structural characters are escaped inside the password.
-    assert "ab%2Fcd%3Def%40ij%25kl" in url
+    assert "ab%2Fcd%3Def%40ij%25kl" in rendered
     # And the host is still parsed correctly despite the '@' in the password.
-    assert "@MYORG-MYACCOUNT/SNOWFLAKE/ACCOUNT_USAGE" in url
+    assert "@MYORG-MYACCOUNT/SNOWFLAKE/ACCOUNT_USAGE" in rendered
+    assert connect_args == {}
+
+
+def _write_unencrypted_private_key(path: Path) -> None:
+    private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    path.write_bytes(
+        private_key.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption(),
+        )
+    )
+
+
+def test_snowflake_key_pair_builds_passwordless_url_with_private_key(tmp_path):
+    key_path = tmp_path / "rsa_key.p8"
+    _write_unencrypted_private_key(key_path)
+
+    url, connect_args = SnowflakeConnector._build_engine_args(
+        {
+            "auth_type": "key_pair",
+            "account": "MYORG-MYACCOUNT",
+            "user": "svc_user",
+            "private_key_path": str(key_path),
+            "warehouse": "WH",
+            "database": "SNOWFLAKE",
+            "schema": "ACCOUNT_USAGE",
+            "role": "SYSADMIN",
+        }
+    )
+    rendered = url.render_as_string(hide_password=False)
+    assert rendered.startswith("snowflake://svc_user@MYORG-MYACCOUNT/SNOWFLAKE/ACCOUNT_USAGE")
+    assert url.password is None
+    assert set(connect_args) == {"private_key"}
+    assert isinstance(connect_args["private_key"], bytes)
+    assert connect_args["private_key"]  # non-empty DER PKCS8
 
 
 def test_connector_raises_when_account_missing():
