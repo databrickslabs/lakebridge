@@ -145,6 +145,7 @@ class PipelineClass:
 
         with connect_to_profiler_db(self._db_path) as conn:
             logging.info(f"Starting query for step: {step.name}")
+            # TODO: Would be nice to pipeline this: fetch next batch while the last is being written/flushed.
             write_mode: SaveMode = "overwrite" if step.mode == "overwrite" else "append"
             total_rows = 0
             for batch in self.executor.stream(query):
