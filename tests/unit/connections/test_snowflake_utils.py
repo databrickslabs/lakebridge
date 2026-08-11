@@ -1,4 +1,4 @@
-"""Unit tests for the Snowflake account-URL helper and connector URL building."""
+"""Unit tests for the Snowflake account-URL helper, private-key loader, and connector URL building."""
 
 from pathlib import Path
 
@@ -8,6 +8,7 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 
 from databricks.labs.lakebridge.connections.database_manager import SnowflakeConnector
 from databricks.labs.lakebridge.connections.snowflake_utils import (
+    load_snowflake_private_key,
     parse_snowflake_account,
     is_valid_snowflake_account,
 )
@@ -98,20 +99,83 @@ def test_snowflake_url_escapes_pat_special_chars():
     assert connect_args == {}
 
 
-def _write_unencrypted_private_key(path: Path) -> None:
-    private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+def _generate_rsa_key():
+    return rsa.generate_private_key(public_exponent=65537, key_size=2048)
+
+
+def _write_private_key(path: Path, *, passphrase: str | None = None) -> None:
+    private_key = _generate_rsa_key()
+    if passphrase is None:
+        encryption: serialization.KeySerializationEncryption = serialization.NoEncryption()
+    else:
+        encryption = serialization.BestAvailableEncryption(passphrase.encode())
     path.write_bytes(
         private_key.private_bytes(
             encoding=serialization.Encoding.PEM,
             format=serialization.PrivateFormat.PKCS8,
-            encryption_algorithm=serialization.NoEncryption(),
+            encryption_algorithm=encryption,
         )
     )
 
 
+def test_load_private_key_unencrypted(tmp_path):
+    key_path = tmp_path / "rsa_key.p8"
+    _write_private_key(key_path, passphrase=None)
+    der = load_snowflake_private_key(key_path, passphrase=None)
+    assert isinstance(der, bytes)
+    assert der
+
+
+@pytest.mark.parametrize("passphrase", ["secret-pass", "another"])
+def test_load_private_key_encrypted_with_passphrase(tmp_path, passphrase):
+    key_path = tmp_path / "rsa_key.p8"
+    _write_private_key(key_path, passphrase=passphrase)
+    der = load_snowflake_private_key(key_path, passphrase=passphrase)
+    assert isinstance(der, bytes)
+    assert der
+
+
+def test_load_private_key_empty_passphrase_cannot_decrypt(tmp_path):
+    """cryptography treats b'' as a missing password when decrypting, so empty-passphrase
+    encrypted keys cannot be loaded. We still pass "" through as b'' (not None) and
+    surface a decrypt-oriented error.
+    """
+    key_path = tmp_path / "rsa_key.p8"
+    _write_private_key(key_path, passphrase="not-empty")
+    with pytest.raises(ConnectionError, match="Unable to decrypt"):
+        load_snowflake_private_key(key_path, passphrase="")
+
+
+def test_load_private_key_wrong_passphrase(tmp_path):
+    key_path = tmp_path / "rsa_key.p8"
+    _write_private_key(key_path, passphrase="correct")
+    with pytest.raises(ConnectionError, match="check the passphrase"):
+        load_snowflake_private_key(key_path, passphrase="wrong")
+
+
+def test_load_private_key_missing_passphrase_for_encrypted_key(tmp_path):
+    key_path = tmp_path / "rsa_key.p8"
+    _write_private_key(key_path, passphrase="correct")
+    with pytest.raises(ConnectionError, match="Unable to decrypt"):
+        load_snowflake_private_key(key_path, passphrase=None)
+
+
+def test_load_private_key_path_missing(tmp_path):
+    missing = tmp_path / "does-not-exist.p8"
+    with pytest.raises(ConnectionError, match="Unable to read"):
+        load_snowflake_private_key(missing, passphrase=None)
+
+
+def test_load_private_key_garbage_file(tmp_path):
+    key_path = tmp_path / "not-a-key.p8"
+    key_path.write_text("this is not a PEM private key\n")
+    with pytest.raises(ConnectionError, match="Invalid Snowflake private key PEM"):
+        load_snowflake_private_key(key_path, passphrase=None)
+
+
 def test_snowflake_key_pair_builds_passwordless_url_with_private_key(tmp_path):
     key_path = tmp_path / "rsa_key.p8"
-    _write_unencrypted_private_key(key_path)
+    _write_private_key(key_path, passphrase=None)
 
     url, connect_args = SnowflakeConnector._build_engine_args(
         {
