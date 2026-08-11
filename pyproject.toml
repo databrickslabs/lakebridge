@@ -34,13 +34,13 @@ dependencies = [
   "standard-distutils~=3.11.9; python_version>='3.11'",
   "databricks-bb-analyzer~=0.3.0,!=0.3.1",  # 0.3.1 is a broken release.
   "sqlglot==28.5.0",
-  "databricks-labs-blueprint[yaml]>=0.12.0,<0.13.0",
+  "databricks-labs-blueprint[yaml]~=0.12.0",
   "databricks-labs-lsql==0.16.0",
   "pip~=26.0",
   "mssql-python~=1.10",
   "SQLAlchemy~=2.0.40",
   "pygls~=2.1.1",
-  "duckdb>=1.4.0,<1.5.0",
+  "duckdb~=1.4.5",
   "teradatasqlalchemy~=20.0.0.9",
   "oracledb~=3.4.2",
   "databricks-switch-plugin~=0.2.0",  # Temporary, until Switch is migrated to be a transpiler (LSP) plugin.
@@ -48,16 +48,16 @@ dependencies = [
   "pandas~=2.3.1", # Required for new configure assessment
   "pyarrow~=23.0.0",
   "redshift-connector~=2.1.13",
-  "snowflake-connector-python>=4.5.0",
-  "snowflake-sqlalchemy>=1.9.0",
+  "snowflake-connector-python~=4.7.1",
+  "snowflake-sqlalchemy~=1.11.0",
   "azure-identity~=1.19.0",
   "azure-mgmt-sql~=3.0.1",
   "azure-monitor-query~=1.4.0",
   "azure-synapse-artifacts~=0.20.0",
-  "google-cloud-bigquery>=3.0.0,<4",
-  "google-cloud-bigquery-storage>=2.0.0,<3",
-  "google-auth>=2.0.0,<3",
-  "db-dtypes>=1.0.0,<2",
+  "google-cloud-bigquery~=3.42.3",
+  "google-cloud-bigquery-storage~=2.39.0",
+  "google-auth~=2.56.2",
+  "db-dtypes~=1.7.1",
 ]
 
 [project.urls]
@@ -120,7 +120,7 @@ test = [
     # The DBR we test against must be higher than the databricks-connect version.
     "databricks-connect~=16.1.7; python_version < '3.12'",
     "databricks-connect~=17.3.8; python_version >= '3.12'",
-    "databricks-labs-pytester>=0.3.0,<0.8.0",
+    "databricks-labs-pytester~=0.7.4",
     "cattrs~=26.1",
     # Transitive via databricks-connect, but needed for binary packages to be available.
     "numpy>=2.0.0,<3.0.0; python_version >= '3.12.0'",
