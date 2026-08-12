@@ -636,3 +636,72 @@ def test_hash_query_builder_tsql_date_time_columns(
     )
 
     assert src_actual == src_expected
+
+
+def test_build_query_from_expression_splices_postgres_pyformat_placeholder(
+    redshift_table_conf_with_opts,
+    table_schema_redshift_ansi,
+    fake_redshift_datasource,
+):
+    """A Redshift-source query renders the placeholder as pyformat ``%(tbl)s``; passing a
+    ``from_expression`` splices the concrete subquery in and leaves no placeholder behind."""
+    src_schema, _ = table_schema_redshift_ansi
+    query = HashQueryBuilder(
+        redshift_table_conf_with_opts,
+        src_schema,
+        "source",
+        get_dialect("redshift"),
+        fake_redshift_datasource,
+        make_column_transformer(
+            src_schema, get_dialect("redshift"), fake_redshift_datasource, redshift_table_conf_with_opts
+        ),
+    ).build_query(report_type="data", from_expression="(SELECT * FROM t WHERE x = 1) _sub")
+
+    assert "(SELECT * FROM t WHERE x = 1) _sub" in query
+    assert "%(tbl)s" not in query
+    assert ":tbl" not in query
+
+
+def test_build_query_from_expression_splices_spark_placeholder(
+    snowflake_table_conf_with_opts,
+    table_schema_oracle_ansi,
+    fake_databricks_datasource,
+):
+    """A Databricks-target query renders the placeholder as ``:tbl``; a ``from_expression``
+    is spliced in raw (not re-parsed) so a hand-built subquery survives verbatim."""
+    _, tgt_schema = table_schema_oracle_ansi
+    query = HashQueryBuilder(
+        snowflake_table_conf_with_opts,
+        tgt_schema,
+        "target",
+        get_dialect("databricks"),
+        fake_databricks_datasource,
+        make_column_transformer(
+            tgt_schema, get_dialect("databricks"), fake_databricks_datasource, snowflake_table_conf_with_opts
+        ),
+    ).build_query(report_type="data", from_expression="(SELECT * FROM t WHERE x = 1) _sub")
+
+    assert "(SELECT * FROM t WHERE x = 1) _sub" in query
+    assert ":tbl" not in query
+    assert "%(tbl)s" not in query
+
+
+def test_build_query_without_from_expression_keeps_placeholder(
+    redshift_table_conf_with_opts,
+    table_schema_redshift_ansi,
+    fake_redshift_datasource,
+):
+    """The normal path leaves the placeholder for the connector's ``read_data`` to fill."""
+    src_schema, _ = table_schema_redshift_ansi
+    query = HashQueryBuilder(
+        redshift_table_conf_with_opts,
+        src_schema,
+        "source",
+        get_dialect("redshift"),
+        fake_redshift_datasource,
+        make_column_transformer(
+            src_schema, get_dialect("redshift"), fake_redshift_datasource, redshift_table_conf_with_opts
+        ),
+    ).build_query(report_type="data")
+
+    assert "%(tbl)s" in query
