@@ -1,5 +1,5 @@
 -- 8 - Chart: concurrent_users_by_hour
-with daily_hourly_users as (select date_trunc('day', start_time) as day
+with daily_hourly_users as (select start_time::date as day
                                   ,date_part(hour, start_time) as hour
                                   ,count(distinct user_id) as distinct_users
                               from query_view
