@@ -11,6 +11,7 @@ from databricks.labs.lakebridge.assessments.pipeline import (
     StepExecutionResult,
 )
 from databricks.labs.lakebridge.assessments.profiler import Profiler
+from databricks.labs.lakebridge.assessments import PROFILER_RUN_METADATA_TABLE
 from databricks.labs.lakebridge.assessments.profiler_config import Step, PipelineConfig
 from databricks.labs.lakebridge.connections.database_manager import DatabaseConnector
 
@@ -187,8 +188,16 @@ def test_skipped_steps(
 
 
 def verify_output(get_logger, path):
-    expected_tables = ["usage", "inventory", "random_data"]
+    expected_tables = ["usage", "inventory", "random_data", PROFILER_RUN_METADATA_TABLE]
     expected_columns = {
+        PROFILER_RUN_METADATA_TABLE: [
+            "source_system",
+            "variant",
+            "lakebridge_version",
+            "python_version",
+            "operating_system",
+            "generated_at",
+        ],
         "inventory": ["db_id", "name", "collation_name", "create_date", "extract_ts"],
         "usage": [
             "sql_handle",

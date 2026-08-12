@@ -1,28 +1,36 @@
 import json
 import logging
+import platform
 import sys
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 from subprocess import PIPE, Popen, STDOUT
 
 import duckdb
+import pandas as pd
 import yaml
 
 from databricks.labs.blueprint.paths import read_text
 from databricks.labs.lakebridge import __version__ as lakebridge_version
+from databricks.labs.lakebridge.assessments import PROFILER_RUN_METADATA_TABLE, PROFILER_SOURCE_SYSTEM
 from databricks.labs.lakebridge.assessments.profiler_config import PipelineConfig, Step
+from databricks.labs.lakebridge.assessments.run_metadata import (
+    PROFILER_RUN_METADATA_SCHEMA,
+    ProfilerRunMetadata,
+)
 from databricks.labs.lakebridge.connections.database_manager import DatabaseConnector, FetchResult
-from databricks.labs.lakebridge.resources.assessments.common.duckdb_helpers import connect_to_profiler_db
+from databricks.labs.lakebridge.resources.assessments.common.duckdb_helpers import (
+    connect_to_profiler_db,
+    save_to_duckdb,
+)
 
 logger = logging.getLogger(__name__)
 
-PROFILER_RUN_METADATA_TABLE = "profiler_run_metadata"
 
-
-def make_profiler_db_filename(platform: str) -> str:
-    return f"profiler_extract_{platform}_{lakebridge_version}_{datetime.now(timezone.utc).strftime('%Y%m%d')}.db"
+def make_profiler_db_filename(source_system: str) -> str:
+    return f"profiler_extract_{source_system}_{lakebridge_version}_{datetime.now(timezone.utc).strftime('%Y%m%d')}.db"
 
 
 class StepExecutionStatus(str, Enum):
@@ -46,15 +54,32 @@ class PipelineClass:
         executor: DatabaseConnector | None,
         db_path: Path,
         cred_file_path: Path,
-        *,
         source_system: str,
+        variant: str | None = None,
     ):
         self.config = config
         self.executor = executor
         self._db_path = db_path.expanduser()
         self._create_dir(self._db_path.parent)
         self._cred_file_path = cred_file_path
-        self._source_system = source_system
+        self._source_system = self._normalize_source_system(source_system)
+        self._variant = variant
+
+    @staticmethod
+    def _normalize_source_system(source_system: str) -> str:
+        """Casefold the label so every extract records one spelling of a given platform.
+
+        The CLI only offers the canonical names, but a caller constructing the pipeline
+        directly can pass anything. An unknown name is a warning rather than an error:
+        it makes the extract harder to consume, not impossible to produce.
+        """
+        normalized = source_system.casefold()
+        if normalized not in PROFILER_SOURCE_SYSTEM:
+            logger.warning(
+                f"Unknown source system {source_system!r}; consumers of {PROFILER_RUN_METADATA_TABLE} "
+                f"expect one of: {', '.join(PROFILER_SOURCE_SYSTEM)}."
+            )
+        return normalized
 
     def execute(self) -> list[StepExecutionResult]:
         logging.info(f"Pipeline initialized with config: {self.config.name}, version: {self.config.version}")
@@ -89,25 +114,21 @@ class PipelineClass:
         Written at the start of every run so partial / best-effort extracts still
         identify their originating source system. Overwrites any prior row.
         """
-        generated_at = datetime.now(timezone.utc)
-        with connect_to_profiler_db(self._db_path) as conn:
-            conn.execute(f"DROP TABLE IF EXISTS {PROFILER_RUN_METADATA_TABLE}")
-            conn.execute(f"""
-                CREATE TABLE {PROFILER_RUN_METADATA_TABLE} (
-                    source_system VARCHAR,
-                    lakebridge_version VARCHAR,
-                    generated_at TIMESTAMPTZ
-                )
-                """)
-            conn.execute(
-                f"INSERT INTO {PROFILER_RUN_METADATA_TABLE} VALUES (?, ?, ?)",
-                [self._source_system, lakebridge_version, generated_at],
-            )
-            conn.commit()
-        logger.info(
-            f"Wrote {PROFILER_RUN_METADATA_TABLE} (source_system={self._source_system}, "
-            f"lakebridge_version={lakebridge_version}, generated_at={generated_at.isoformat()})"
+        metadata = ProfilerRunMetadata(
+            source_system=self._source_system,
+            variant=self._variant,
+            lakebridge_version=lakebridge_version,
+            python_version=platform.python_version(),
+            operating_system=platform.platform(),
+            generated_at=datetime.now(timezone.utc),
         )
+        save_to_duckdb(
+            pd.DataFrame([asdict(metadata)]),
+            PROFILER_RUN_METADATA_TABLE,
+            str(self._db_path),
+            schema=PROFILER_RUN_METADATA_SCHEMA,
+        )
+        logger.info(f"Wrote {PROFILER_RUN_METADATA_TABLE}: {metadata}")
 
     def _process_step(self, step: Step) -> StepExecutionResult:
         logger.info(f"Executing step: {step.name}")

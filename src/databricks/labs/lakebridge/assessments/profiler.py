@@ -88,6 +88,7 @@ class Profiler:
                 db_path,
                 cred_file_path,
                 source_system=source_system,
+                variant=self._variant,
             ).execute()
             logger.info(f"Profiler extract written to {db_path.expanduser()}")
             logger.info(

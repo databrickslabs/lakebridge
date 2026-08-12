@@ -11,15 +11,15 @@ from databricks.labs.lakebridge.assessments.profiler import Profiler
 # Config file names for script-based execution tests (no live DB)
 PLATFORM_MAIN_CONFIG = {
     "synapse": "pipeline_config_main.yml",
-    "redshift_provisioned": "pipeline_config_main_redshift.yml",
+    "redshift": "pipeline_config_main_redshift.yml",
 }
 
 PLATFORM_EXTRACT_SCRIPT = {
     "synapse": "db_extract.py",
-    "redshift_provisioned": "db_extract_redshift.py",
+    "redshift": "db_extract_redshift.py",
 }
 
-_TEST_PLATFORMS = ["synapse", "redshift_provisioned"]
+_TEST_PLATFORMS = ["synapse", "redshift"]
 _EXPECTED_STORAGE_VERSION = "v1.4.0+"
 
 

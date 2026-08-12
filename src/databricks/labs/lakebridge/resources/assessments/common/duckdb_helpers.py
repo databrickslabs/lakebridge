@@ -53,7 +53,6 @@ def save_to_duckdb(
             appended to across runs, where pandas' dtype inference can drift
             between batches (e.g. a column that is null-only in one batch but
             typed in the next).
-
     Raises:
         ValueError: if ``mode`` is not one of ``"overwrite"`` / ``"append"``.
             The :data:`SaveMode` type narrows this at the call site, but the
@@ -62,12 +61,18 @@ def save_to_duckdb(
     """
     try:
         with connect_to_profiler_db(db_path) as conn:
-            if mode == "overwrite":
-                _save_overwrite(conn, df, table_name, schema)
-            elif mode == "append":
-                _save_append(conn, df, table_name, schema)
-            else:
-                raise ValueError(f"Unsupported mode '{mode}'. Must be 'overwrite' or 'append'.")
+            conn.begin()
+            try:
+                if mode == "overwrite":
+                    _save_overwrite(conn, df, table_name, schema)
+                elif mode == "append":
+                    _save_append(conn, df, table_name, schema)
+                else:
+                    raise ValueError(f"Unsupported mode '{mode}'. Must be 'overwrite' or 'append'.")
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
             logger.info("Wrote %d rows to '%s' (mode=%s).", len(df), table_name, mode)
     except Exception as e:
         logger.error("Error in save_to_duckdb for table '%s': %s", table_name, str(e))
