@@ -181,6 +181,24 @@ def capture_mismatch_data_and_columns(
     return MismatchOutput(mismatch_df, mismatch_columns)
 
 
+def filter_to_row_mismatches(mismatch_df: DataFrame | None) -> DataFrame | None:
+    """Keep only rows that genuinely differ on at least one compared column.
+
+    ``capture_mismatch_data_and_columns`` returns every key-joined row, including pairs that
+    match on all columns. The normal sampled path only ever feeds it hash-mismatched rows, so
+    that set is already all-mismatches; the fingerprint Stage-2 path pulls whole sub-buckets
+    (Stage-1 only proves a sub-bucket holds *some* mismatch), so it must drop the rows that turn
+    out to match column-by-column. This is a row filter over the existing null-safe ``<col>_match``
+    flags produced by ``_get_mismatch_df`` — not a second column diff.
+    """
+    if mismatch_df is None:
+        return mismatch_df
+    match_cols = [c for c in mismatch_df.columns if c.endswith("_match")]
+    if not match_cols:
+        return mismatch_df
+    return mismatch_df.filter(reduce(lambda a, b: a | b, [~col(c) for c in match_cols]))
+
+
 def _get_mismatch_columns(df: DataFrame, columns: list[str]):
     # Collect the DataFrame to a local variable
     local_df = df.collect()
@@ -216,8 +234,13 @@ def _get_mismatch_df(source: DataFrame, target: DataFrame, key_columns: list[str
         for column in column_list
     ]
 
+    # ``<=>`` (null-safe equality) rather than ``==``: ``NULL == NULL`` and ``NULL == value``
+    # both yield NULL, which downstream (``recon_capture._mismatch_records`` / ``_get_mismatch_columns``)
+    # cannot distinguish from a match. ``<=>`` yields a non-null BOOLEAN — ``NULL <=> NULL`` is TRUE
+    # (match), ``NULL <=> value`` is FALSE (mismatch) — so a difference involving NULL is attributed
+    # to the right column instead of being silently dropped.
     match_expr = [
-        expr(f"{_normalize_mismatch_df_col(column,'_base')}=={_normalize_mismatch_df_col(column,'_compare')}").alias(
+        expr(f"{_normalize_mismatch_df_col(column,'_base')}<=>{_normalize_mismatch_df_col(column,'_compare')}").alias(
             _unnormalize_mismatch_df_col(column, '_match')
         )
         for column in column_list

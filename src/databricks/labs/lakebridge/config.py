@@ -300,6 +300,7 @@ class ReconcileConfig:
     metadata_config: ReconcileMetadataConfig
     job_overrides: ReconcileJobConfig | None = None
     hash_expression_overrides: HashExpressionOverrides | None = None
+    reconcile_optimizer: bool = False
 
     def __post_init__(self):
         # Teradata has no out of the box cryptographic hash in pure SQL, so the user has to configure
