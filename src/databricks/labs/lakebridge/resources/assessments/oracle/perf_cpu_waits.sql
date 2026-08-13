@@ -19,4 +19,3 @@ FROM (
          JOIN (SELECT DISTINCT con_id, name, dbid FROM gv$containers) cont
               ON cont.con_id = ash.con_id
                   AND cont.dbid = ash.con_dbid
-ORDER BY pdb_name, mtime

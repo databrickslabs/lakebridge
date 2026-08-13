@@ -38,5 +38,4 @@ WHERE DatabaseName NOT IN (
     'SQLJ',
     'TD_SYSFNLIB',
     'SYSSPATIAL'
-)
-ORDER BY DatabaseName;
+);

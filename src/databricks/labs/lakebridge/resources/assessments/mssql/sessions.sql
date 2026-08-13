@@ -1,7 +1,7 @@
 /**
  * Retrieves active user session details from `sys.dm_exec_sessions`, including login info,
  * program and client names, CPU and memory usage, request timing, row counts, and database context.
- * Excludes system sessions and orders results by the end time of the last request.
+ * Excludes system sessions.
  */
 SELECT   session_id,
          login_time,
@@ -22,4 +22,3 @@ SELECT   session_id,
          Sysdatetime()        AS extract_ts
 FROM     sys.dm_exec_sessions
 WHERE    is_user_process <> 0
-ORDER BY last_request_end_time
