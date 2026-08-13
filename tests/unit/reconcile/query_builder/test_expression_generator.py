@@ -404,6 +404,24 @@ def test_double_handlers_guard_decimal_overflow():
     assert "DECIMAL(38,10)" in rs_rendered
 
 
+def test_float_pins_like_double_only_when_counterpart_also_pins():
+    """Regression (F1): Redshift ``real``/``float4`` (single precision) parses to FLOAT and
+    previously had no handler, falling to the universal ``TRIM`` default — the same
+    full-precision-vs-shortest-round-trip divergence that false-mismatched every DOUBLE row
+    before its pin. FLOAT must pin to the SAME ``DECIMAL(38,10)`` scale as DOUBLE (so a
+    float/double column pair stays byte-identical, since sqlglot resolves Redshift ``float``
+    to DOUBLE but Databricks ``float`` to FLOAT), and stay counterpart-gated so a non-Redshift
+    source is unaffected."""
+    for dt in ("real", "float4"):
+        # Redshift <-> Databricks: pinned identically to DOUBLE.
+        assert "DECIMAL(38,10)" in _render_type(dt, "redshift", "databricks"), dt
+        assert "DECIMAL(38,10)" in _render_type(dt, "databricks", "redshift"), dt
+        # Non-pinning counterpart: fall back to the universal default (no behaviour change).
+        assert _render_type(dt, "databricks", "snowflake") == "COALESCE(TRIM(ts_col), '_null_recon_')", dt
+        # Unknown counterpart (None, e.g. the Redshift-only fingerprint path) keeps the pin.
+        assert "DECIMAL(38,10)" in _render_type(dt, "databricks", None), dt
+
+
 def test_timestamp_pins_only_when_counterpart_also_pins():
     """The Databricks TIMESTAMP/TIMESTAMPTZ microsecond pin (``DATE_FORMAT`` with
     ``.SSSSSS``) is only byte-identical when the counterpart also pins (Redshift). Against

@@ -103,6 +103,21 @@ _DATATYPE_TRANSFORM_MAPPING: dict[str, dict[str, list[partial[exp.Expression]]]]
                 dialect=get_dialect("databricks"),
             )
         ],
+        # FLOAT (Redshift ``real``/``float4``, single precision) has the same
+        # full-precision-vs-shortest-round-trip divergence as DOUBLE, so it is pinned
+        # identically (same DECIMAL(38,10) scale -- see ``_COUNTERPART_PINNED_TYPES``).
+        # Mirrors the Redshift FLOAT handler below.
+        exp.DataType.Type.FLOAT.value: [
+            partial(
+                anonymous,
+                func=(
+                    "COALESCE(CASE WHEN ISNAN({0}) OR {0} IN (CAST('Infinity' AS DOUBLE), "
+                    "CAST('-Infinity' AS DOUBLE)) OR ABS({0}) >= 1e28 THEN CAST({0} AS STRING) "
+                    "ELSE CAST(CAST({0} AS DECIMAL(38,10)) AS STRING) END, '_null_recon_')"
+                ),
+                dialect=get_dialect("databricks"),
+            )
+        ],
     },
     "tsql": {
         "default": [partial(anonymous, func="COALESCE(TRIM(CAST({} AS VARCHAR(MAX))), '_null_recon_')")],
@@ -162,6 +177,23 @@ _DATATYPE_TRANSFORM_MAPPING: dict[str, dict[str, list[partial[exp.Expression]]]]
         # Postgres-family engines treat NaN as equal to itself, so the ``IN`` check is
         # well-defined. Gated on the counterpart via ``get_transform_for_type``.
         exp.DataType.Type.DOUBLE.value: [
+            partial(
+                anonymous,
+                func=(
+                    "COALESCE(CASE WHEN {0} IN (CAST('NaN' AS DOUBLE PRECISION), "
+                    "CAST('Infinity' AS DOUBLE PRECISION), CAST('-Infinity' AS DOUBLE PRECISION)) "
+                    "OR ABS({0}) >= 1e28 "
+                    "THEN CAST({0} AS VARCHAR) "
+                    "ELSE CAST(CAST({0} AS DECIMAL(38,10)) AS VARCHAR) END, '_null_recon_')"
+                ),
+                dialect=get_dialect("redshift"),
+            )
+        ],
+        # Redshift ``real``/``float4`` (single precision) has the same divergence as
+        # ``double precision`` above, pinned identically -- same DECIMAL(38,10) scale as
+        # DOUBLE so a float/double column pair stays byte-identical across engines.
+        # Mirrors the Databricks FLOAT handler above.
+        exp.DataType.Type.FLOAT.value: [
             partial(
                 anonymous,
                 func=(
@@ -239,7 +271,7 @@ def _dialect_key(dialect: Dialect) -> str:
 
 
 # Dialects whose mapping pins certain types to a fixed, cross-engine-identical
-# serialization (DOUBLE -> ``DECIMAL(38,10)`` string; TIMESTAMP/TIMESTAMPTZ ->
+# serialization (DOUBLE/FLOAT -> ``DECIMAL(38,10)`` string; TIMESTAMP/TIMESTAMPTZ ->
 # ``...HH:mm:ss.SSSSSS`` microsecond string). Such a pin only yields a byte-identical
 # hash when *both* engines pin the same way -- currently only Redshift <-> Databricks.
 _PINNING_DIALECTS = frozenset({"redshift", "databricks"})
@@ -248,9 +280,15 @@ _PINNING_DIALECTS = frozenset({"redshift", "databricks"})
 # counterpart also pins the same type. Against a non-pinning counterpart (e.g. a
 # Snowflake/Oracle/TSQL/BigQuery source reconciling into a Databricks target) these fall
 # back to the universal default so both sides still serialise identically.
+# FLOAT (Redshift ``real``/``float4``, single precision) shares DOUBLE's root cause:
+# Redshift renders it full-precision while Spark emits the shortest round-trip, so it is
+# pinned the same way -- and to the *same* ``DECIMAL(38,10)`` scale as DOUBLE, because
+# sqlglot resolves Redshift ``float`` to DOUBLE but Databricks ``float`` to FLOAT; a
+# different scale would make a float/double column pair diverge across engines.
 _COUNTERPART_PINNED_TYPES = frozenset(
     {
         exp.DataType.Type.DOUBLE.value,
+        exp.DataType.Type.FLOAT.value,
         exp.DataType.Type.TIMESTAMP.value,
         exp.DataType.Type.TIMESTAMPTZ.value,
     }
