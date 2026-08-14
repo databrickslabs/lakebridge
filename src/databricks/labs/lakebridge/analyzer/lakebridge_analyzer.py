@@ -1,13 +1,12 @@
 import dataclasses
 import shutil
 import tempfile
-from pathlib import Path
 from collections.abc import Callable
-
-from databricks.labs.blueprint.entrypoint import get_logger
-from databricks.labs.blueprint.tui import Prompts
+from pathlib import Path
 
 from databricks.labs.bladespector.analyzer import Analyzer
+from databricks.labs.blueprint.entrypoint import get_logger
+from databricks.labs.blueprint.tui import Prompts
 
 from databricks.labs.lakebridge.helpers.file_utils import check_path
 

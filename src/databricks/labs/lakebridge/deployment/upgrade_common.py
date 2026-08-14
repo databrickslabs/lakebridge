@@ -2,10 +2,10 @@ import logging
 import re
 from importlib.resources import files
 
-import databricks.labs.lakebridge.resources
-
 from databricks.labs.blueprint.tui import Prompts
 from databricks.sdk import WorkspaceClient
+
+import databricks.labs.lakebridge.resources
 from databricks.labs.lakebridge.helpers import db_sql
 
 logger = logging.getLogger(__name__)

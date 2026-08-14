@@ -3,8 +3,8 @@ from functools import cached_property
 
 from databricks.labs.blueprint.installation import Installation
 from databricks.labs.blueprint.installer import InstallState
-from databricks.labs.blueprint.upgrades import Upgrades
 from databricks.labs.blueprint.tui import Prompts
+from databricks.labs.blueprint.upgrades import Upgrades
 from databricks.labs.blueprint.wheels import ProductInfo
 from databricks.labs.lsql.backends import SqlBackend, StatementExecutionBackend
 from databricks.sdk import WorkspaceClient
@@ -12,17 +12,16 @@ from databricks.sdk.config import Config
 from databricks.sdk.errors import NotFound
 from databricks.sdk.service.iam import User
 
-from databricks.labs.lakebridge.analyzer.lakebridge_analyzer import LakebridgeAnalyzer, AnalyzerPrompts, AnalyzerRunner
-
+from databricks.labs.lakebridge.analyzer.lakebridge_analyzer import AnalyzerPrompts, AnalyzerRunner, LakebridgeAnalyzer
 from databricks.labs.lakebridge.config import (
-    TranspileConfig,
-    ReconcileConfig,
     LakebridgeConfiguration,
+    ReconcileConfig,
+    TranspileConfig,
 )
 from databricks.labs.lakebridge.deployment.configurator import ResourceConfigurator
 from databricks.labs.lakebridge.deployment.dashboard import DashboardDeployment
 from databricks.labs.lakebridge.deployment.installation import WorkspaceInstallation
-from databricks.labs.lakebridge.deployment.recon import TableDeployment, JobDeployment, ReconDeployment
+from databricks.labs.lakebridge.deployment.recon import JobDeployment, ReconDeployment, TableDeployment
 from databricks.labs.lakebridge.deployment.switch import SwitchDeployment
 from databricks.labs.lakebridge.helpers.metastore import CatalogOperations
 

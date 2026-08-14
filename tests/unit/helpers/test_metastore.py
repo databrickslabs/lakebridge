@@ -2,15 +2,16 @@ from unittest.mock import create_autospec
 
 import pytest
 from databricks.sdk import WorkspaceClient
+from databricks.sdk.errors import NotFound
 from databricks.sdk.service.catalog import (
     CatalogInfo,
     EffectivePermissionsList,
     Privilege,
     SchemaInfo,
-    VolumeInfo,
     SecurableType,
+    VolumeInfo,
 )
-from databricks.sdk.errors import NotFound
+
 from databricks.labs.lakebridge.helpers.metastore import CatalogOperations
 
 

@@ -1,13 +1,12 @@
 import json
 import logging
-from collections.abc import Sequence, Set, Mapping
+from collections.abc import Mapping, Sequence, Set
 from pathlib import Path
 from typing import cast
-from unittest.mock import create_autospec, PropertyMock, Mock
+from unittest.mock import Mock, PropertyMock, create_autospec
 
 import pytest
 import yaml
-
 from databricks.labs.blueprint.installation import JsonList, JsonObject
 
 from databricks.labs.lakebridge.config import LSPConfigOptionV1, LSPPromptMethod

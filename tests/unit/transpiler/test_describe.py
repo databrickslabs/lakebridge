@@ -2,7 +2,6 @@ from pathlib import Path
 from unittest.mock import create_autospec
 
 import pytest
-
 from databricks.labs.blueprint.installation import RootJsonValue
 
 from databricks.labs.lakebridge.config import LSPConfigOptionV1, LSPPromptMethod

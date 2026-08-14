@@ -1,7 +1,7 @@
-from sqlglot import Dialects, Dialect
+from sqlglot import Dialect, Dialects
 
-from databricks.labs.lakebridge.transpiler.sqlglot.parsers import oracle, presto, snowflake, tsql
 from databricks.labs.lakebridge.transpiler.sqlglot.generator.databricks import Databricks
+from databricks.labs.lakebridge.transpiler.sqlglot.parsers import oracle, presto, snowflake, tsql
 
 SQLGLOT_DIALECTS: dict[str, type[Dialect] | str] = {
     "athena": Dialects.ATHENA,

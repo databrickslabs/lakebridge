@@ -1,4 +1,5 @@
 import logging
+
 from databricks.labs.lakebridge.connections.database_manager import DatabaseConnector, create_connector
 
 logger = logging.getLogger(__name__)

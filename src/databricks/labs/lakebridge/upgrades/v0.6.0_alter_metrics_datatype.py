@@ -6,9 +6,9 @@ from databricks.sdk import WorkspaceClient
 
 from databricks.labs.lakebridge.contexts.application import ApplicationContext
 from databricks.labs.lakebridge.deployment.upgrade_common import (
+    check_table_mismatch,
     current_table_columns,
     installed_table_columns,
-    check_table_mismatch,
     recreate_table_sql,
 )
 from databricks.labs.lakebridge.helpers import db_sql

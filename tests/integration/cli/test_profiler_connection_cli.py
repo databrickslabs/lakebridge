@@ -3,10 +3,9 @@ from pathlib import Path
 
 import pytest
 import yaml
-
+from databricks.labs.blueprint.installation import JsonObject
 from databricks.sdk import WorkspaceClient
 
-from databricks.labs.blueprint.installation import JsonObject
 from databricks.labs.lakebridge.cli import test_profiler_connection as check_connection
 
 

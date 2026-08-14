@@ -5,12 +5,12 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
-from subprocess import PIPE, Popen, STDOUT
+from subprocess import PIPE, STDOUT, Popen
 
 import duckdb
 import yaml
-
 from databricks.labs.blueprint.paths import read_text
+
 from databricks.labs.lakebridge import __version__ as lakebridge_version
 from databricks.labs.lakebridge.assessments.profiler_config import PipelineConfig, Step
 from databricks.labs.lakebridge.connections.database_manager import DatabaseConnector, FetchResult

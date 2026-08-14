@@ -7,12 +7,12 @@ from databricks.labs.lakebridge.reconcile.query_builder.threshold_query import (
     ThresholdQueryBuilder,
 )
 from databricks.labs.lakebridge.reconcile.recon_config import (
-    JdbcReaderOptions,
     ColumnThresholds,
+    JdbcReaderOptions,
     Transformation,
 )
 from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
-from tests.conftest import oracle_schema_fixture_factory, ansi_schema_fixture_factory
+from tests.conftest import ansi_schema_fixture_factory, oracle_schema_fixture_factory
 
 
 def test_threshold_comparison_query_with_one_threshold(

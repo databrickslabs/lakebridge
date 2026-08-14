@@ -1,11 +1,11 @@
 from __future__ import annotations
 
+import logging
 from collections.abc import Generator, Iterable, Mapping, Sequence, Set
 from dataclasses import dataclass
 from json import loads
-from typing import Any
 from pathlib import Path
-import logging
+from typing import Any
 
 from databricks.labs.lakebridge.config import LSPConfigOptionV1
 from databricks.labs.lakebridge.transpiler.lsp.lsp_engine import LSPConfig

@@ -21,8 +21,8 @@ from databricks.labs.lakebridge.__about__ import __version__
 from databricks.labs.lakebridge.cli import lakebridge
 from databricks.labs.lakebridge.config import (
     HashExpressionOverrides,
-    ReconcileConfig,
     LakebridgeConfiguration,
+    ReconcileConfig,
     ReconcileMetadataConfig,
     SourceConnectionConfig,
     TargetConnectionConfig,

@@ -1,5 +1,6 @@
 from databricks.labs.lsql.backends import MockBackend
 from databricks.labs.lsql.core import Row
+
 from databricks.labs.lakebridge.helpers.validation import Validator
 
 
