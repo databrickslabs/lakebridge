@@ -1,13 +1,15 @@
+import json
 import logging
 import os
 import tempfile
 import uuid
+from dataclasses import asdict
 from datetime import datetime, timezone
 from functools import reduce, cached_property
 from pathlib import Path
 
 from pyspark.sql import DataFrame, SparkSession
-from pyspark.sql.functions import col, collect_list, create_map, lit
+from pyspark.sql.functions import array, array_compact, col, lit, parse_json, struct, to_variant_object, when
 from pyspark.errors import PySparkException
 from sqlglot import Dialect
 
@@ -16,6 +18,8 @@ from databricks.labs.lakebridge.config import (
     TargetConnectionConfig,
     Table,
     ReconcileMetadataConfig,
+    ReconcileConfig,
+    TableRecon,
 )
 from databricks.labs.lakebridge.reconcile.recon_config import TableThresholds
 from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_key_from_dialect
@@ -40,9 +44,14 @@ logger = logging.getLogger(__name__)
 _RECON_TABLE_NAME = "main"
 _RECON_METRICS_TABLE_NAME = "metrics"
 _RECON_DETAILS_TABLE_NAME = "details"
+_RECON_SCHEMA_DETAILS_TABLE_NAME = "schema_details"
+_RECON_RUN_CONTEXT_TABLE_NAME = "recon_run_context"
 _RECON_AGGREGATE_RULES_TABLE_NAME = "aggregate_rules"
 _RECON_AGGREGATE_METRICS_TABLE_NAME = "aggregate_metrics"
 _RECON_AGGREGATE_DETAILS_TABLE_NAME = "aggregate_details"
+
+# Suffixes appended to per-column source/target/match values in mismatch detail rows.
+_MISMATCH_SUFFIXES = ("_base", "_compare", "_match")
 
 
 class AbstractReconIntermediatePersist:
@@ -415,93 +424,140 @@ class ReconCapture:
         _write_df_to_delta(df, f"{self._db_prefix}.{_RECON_METRICS_TABLE_NAME}")
 
     @classmethod
-    def _create_map_column(
-        cls,
-        recon_table_id: int,
-        df: DataFrame,
-        recon_type: str,
-        status: bool,
-    ) -> DataFrame:
-        columns = df.columns
-        # Create a list of column names and their corresponding column values
-        map_args = []
-        for column in columns:
-            map_args.extend([lit(column).alias(column + "_key"), col(column).cast("string").alias(column + "_value")])
-        # Create a new DataFrame with a map column
-        df = df.select(create_map(*map_args).alias("data"))
-        df = (
-            df.withColumn("recon_table_id", lit(recon_table_id))
-            .withColumn("recon_type", lit(recon_type))
-            .withColumn("status", lit(status))
-            .withColumn("inserted_ts", lit(datetime.now(tz=timezone.utc)))
-        )
-        return (
-            df.groupBy("recon_table_id", "recon_type", "status", "inserted_ts")
-            .agg(collect_list("data").alias("data"))
-            .selectExpr("recon_table_id", "recon_type", "status", "data", "inserted_ts")
+    def _mismatch_records(cls, recon_table_id: int, df: DataFrame, inserted_ts: datetime) -> DataFrame:
+        """One Delta row per sampled mismatch record.
+
+        `df` carries the join key columns plus a `<col>_base` / `<col>_compare` / `<col>_match`
+        triple for every compared column (see `compare._get_mismatch_df`). Each record is folded
+        into typed VARIANT row images plus the list of columns that actually differ, so the
+        dashboard `details_columns` view can explode it back to a per-column diff.
+        """
+        key_cols = [c for c in df.columns if not c.endswith(_MISMATCH_SUFFIXES)]
+        bases = sorted({c[: -len("_base")] for c in df.columns if c.endswith("_base")})
+        record_key = struct(*[col(c) for c in key_cols]) if key_cols else struct()
+        source_row = struct(*[col(f"{b}_base").alias(b) for b in bases])
+        target_row = struct(*[col(f"{b}_compare").alias(b) for b in bases])
+        mismatch_columns = array_compact(array(*[when(~col(f"{b}_match"), lit(b)) for b in bases]))
+        return df.select(
+            lit(recon_table_id).alias("recon_table_id"),
+            lit("mismatch").alias("recon_type"),
+            to_variant_object(record_key).alias("record_key"),
+            to_variant_object(source_row).alias("source_row"),
+            to_variant_object(target_row).alias("target_row"),
+            mismatch_columns.alias("mismatch_columns"),
+            lit(inserted_ts).alias("inserted_ts"),
         )
 
-    def _create_map_column_and_insert(
-        self,
-        recon_table_id: int,
-        df: DataFrame,
-        recon_type: str,
-        status: bool,
-    ) -> None:
-        df = self._create_map_column(recon_table_id, df, recon_type, status)
-        _write_df_to_delta(df, f"{self._db_prefix}.{_RECON_DETAILS_TABLE_NAME}")
+    @classmethod
+    def _row_image_records(
+        cls, recon_table_id: int, df: DataFrame, recon_type: str, join_columns: list[str] | None, inserted_ts: datetime
+    ) -> DataFrame:
+        """One Delta row per sampled record that exists on a single side.
+
+        The whole row image is stored on the side it came from; the other side stays NULL.
+        `missing_in_source` rows live in the target, everything else lives in the source.
+        """
+        join_set = {c.lower() for c in (join_columns or [])}
+        key_cols = [c for c in df.columns if c.lower() in join_set] or df.columns
+        record_key = struct(*[col(c) for c in key_cols])
+        image = to_variant_object(struct(*[col(c) for c in df.columns]))
+        null_variant = lit(None).cast("variant")
+        source_row = null_variant if recon_type == "missing_in_source" else image
+        target_row = image if recon_type == "missing_in_source" else null_variant
+        return df.select(
+            lit(recon_table_id).alias("recon_table_id"),
+            lit(recon_type).alias("recon_type"),
+            to_variant_object(record_key).alias("record_key"),
+            source_row.alias("source_row"),
+            target_row.alias("target_row"),
+            lit(None).cast("array<string>").alias("mismatch_columns"),
+            lit(inserted_ts).alias("inserted_ts"),
+        )
 
     def _insert_into_details_table(
         self,
         recon_table_id: int,
         reconcile_output: DataReconcileOutput,
         schema_output: SchemaReconcileOutput,
+        table_conf: Table,
     ):
-        if reconcile_output.mismatch_count > 0 and reconcile_output.mismatch.mismatch_df:
-            self._create_map_column_and_insert(
-                recon_table_id,
-                reconcile_output.mismatch.mismatch_df,
-                "mismatch",
-                False,
-            )
+        join_columns = table_conf.join_columns
+        inserted_ts = datetime.now(tz=timezone.utc)
 
+        # All detail recon_types share one schema, so collect and write them in a single append.
+        detail_dfs: list[DataFrame] = []
+        if reconcile_output.mismatch_count > 0 and reconcile_output.mismatch and reconcile_output.mismatch.mismatch_df:
+            detail_dfs.append(
+                self._mismatch_records(recon_table_id, reconcile_output.mismatch.mismatch_df, inserted_ts)
+            )
         if reconcile_output.missing_in_src_count > 0 and reconcile_output.missing_in_src:
-            self._create_map_column_and_insert(
-                recon_table_id,
-                reconcile_output.missing_in_src,
-                "missing_in_source",
-                False,
+            detail_dfs.append(
+                self._row_image_records(
+                    recon_table_id, reconcile_output.missing_in_src, "missing_in_source", join_columns, inserted_ts
+                )
             )
-
         if reconcile_output.missing_in_tgt_count > 0 and reconcile_output.missing_in_tgt:
-            self._create_map_column_and_insert(
-                recon_table_id,
-                reconcile_output.missing_in_tgt,
-                "missing_in_target",
-                False,
+            detail_dfs.append(
+                self._row_image_records(
+                    recon_table_id, reconcile_output.missing_in_tgt, "missing_in_target", join_columns, inserted_ts
+                )
             )
-
         if (
             reconcile_output.threshold_output.threshold_mismatch_count > 0
             and reconcile_output.threshold_output.threshold_df
         ):
-            self._create_map_column_and_insert(
-                recon_table_id,
-                reconcile_output.threshold_output.threshold_df,
-                "threshold_mismatch",
-                False,
+            detail_dfs.append(
+                self._row_image_records(
+                    recon_table_id,
+                    reconcile_output.threshold_output.threshold_df,
+                    "threshold_mismatch",
+                    join_columns,
+                    inserted_ts,
+                )
             )
 
+        if detail_dfs:
+            _write_df_to_delta(self._union_dataframes(detail_dfs), f"{self._db_prefix}.{_RECON_DETAILS_TABLE_NAME}")
+
         if schema_output.compare_df is not None:
-            self._create_map_column_and_insert(
-                recon_table_id, schema_output.compare_df, "schema", schema_output.is_valid
+            self._insert_into_schema_details_table(recon_table_id, schema_output.compare_df)
+
+    def _insert_into_schema_details_table(self, recon_table_id: int, compare_df: DataFrame) -> None:
+        df = (
+            compare_df.withColumn("recon_table_id", lit(recon_table_id))
+            .withColumn("inserted_ts", lit(datetime.now(tz=timezone.utc)))
+            .select(
+                "recon_table_id",
+                "source_column",
+                "source_datatype",
+                "databricks_column",
+                "databricks_datatype",
+                "is_valid",
+                "inserted_ts",
             )
+        )
+        _write_df_to_delta(df, f"{self._db_prefix}.{_RECON_SCHEMA_DETAILS_TABLE_NAME}")
+
+    @classmethod
+    def _agg_records(cls, recon_table_id: int, df: DataFrame, recon_type: str, inserted_ts: datetime) -> DataFrame:
+        """Record-level aggregate detail: the aggregated row stored as a VARIANT image."""
+        row_image = struct(*[col(c) for c in df.columns])
+        return df.select(
+            lit(recon_table_id).alias("recon_table_id"),
+            lit(recon_type).alias("recon_type"),
+            to_variant_object(row_image).alias("record_key"),
+            to_variant_object(row_image).alias("source_row"),
+            lit(None).cast("variant").alias("target_row"),
+            lit(None).cast("array<string>").alias("mismatch_columns"),
+            lit(inserted_ts).alias("inserted_ts"),
+        )
 
     def _get_df(
         self,
         recon_table_id: int,
         agg_data: DataReconcileOutput,
         recon_type: str,
+        inserted_ts: datetime,
     ):
 
         column_count = agg_data.mismatch_count
@@ -515,12 +571,7 @@ class ReconCapture:
                 agg_df = agg_data.missing_in_tgt
 
         if column_count > 0 and agg_df:
-            return self._create_map_column(
-                recon_table_id,
-                agg_df,
-                recon_type,
-                False,
-            )
+            return self._agg_records(recon_table_id, agg_df, recon_type, inserted_ts)
         return None
 
     @classmethod
@@ -580,18 +631,19 @@ class ReconCapture:
         self, recon_table_id: int, reconcile_agg_output_list: list[AggregateQueryOutput]
     ):
         agg_details_df_list = []
+        inserted_ts = datetime.now(tz=timezone.utc)
         for agg_output in reconcile_agg_output_list:
             agg_details_rule_df_list = []
 
-            mismatch_df = self._get_df(recon_table_id, agg_output.reconcile_output, "mismatch")
+            mismatch_df = self._get_df(recon_table_id, agg_output.reconcile_output, "mismatch", inserted_ts)
             if mismatch_df and not mismatch_df.isEmpty():
                 agg_details_rule_df_list.append(mismatch_df)
 
-            missing_src_df = self._get_df(recon_table_id, agg_output.reconcile_output, "missing_in_source")
+            missing_src_df = self._get_df(recon_table_id, agg_output.reconcile_output, "missing_in_source", inserted_ts)
             if missing_src_df and not missing_src_df.isEmpty():
                 agg_details_rule_df_list.append(missing_src_df)
 
-            missing_tgt_df = self._get_df(recon_table_id, agg_output.reconcile_output, "missing_in_target")
+            missing_tgt_df = self._get_df(recon_table_id, agg_output.reconcile_output, "missing_in_target", inserted_ts)
             if missing_tgt_df and not missing_tgt_df.isEmpty():
                 agg_details_rule_df_list.append(missing_tgt_df)
 
@@ -600,7 +652,14 @@ class ReconCapture:
                 if agg_output.rule:
                     rule_id = hash(f"{recon_table_id}_{agg_output.rule.column_from_rule}")
                     agg_details_rule_df = agg_details_rule_df.withColumn("rule_id", lit(rule_id)).select(
-                        "recon_table_id", "rule_id", "recon_type", "data", "inserted_ts"
+                        "recon_table_id",
+                        "rule_id",
+                        "recon_type",
+                        "record_key",
+                        "source_row",
+                        "target_row",
+                        "mismatch_columns",
+                        "inserted_ts",
                     )
                     agg_details_df_list.append(agg_details_rule_df)
             else:
@@ -629,7 +688,26 @@ class ReconCapture:
         self._insert_into_metrics_table(
             recon_table_id, data_reconcile_output, schema_reconcile_output, table_conf, record_count
         )
-        self._insert_into_details_table(recon_table_id, data_reconcile_output, schema_reconcile_output)
+        self._insert_into_details_table(recon_table_id, data_reconcile_output, schema_reconcile_output, table_conf)
+
+    def store_run_context(self, reconcile_config: ReconcileConfig, table_recon: TableRecon) -> None:
+        """Persist the full run config (ReconcileConfig + TableRecon) once per recon_id.
+
+        Stored as a single VARIANT blob so the table schema is stable as the config evolves, and so
+        an agent can read the run's intent next to its results. Connections are referenced by UC
+        connection name, so no credentials are captured.
+        """
+        config_json = json.dumps(
+            {"reconcile": asdict(reconcile_config), "table_recon": asdict(table_recon)},
+            default=str,
+        )
+        df = (
+            self.spark.createDataFrame([(self.recon_id, config_json)], schema="recon_id string, config_str string")
+            .withColumn("config", parse_json(col("config_str")))
+            .withColumn("inserted_ts", lit(datetime.now(tz=timezone.utc)))
+            .select("recon_id", "config", "inserted_ts")
+        )
+        _write_df_to_delta(df, f"{self._db_prefix}.{_RECON_RUN_CONTEXT_TABLE_NAME}")
 
     def store_aggregates_metrics(
         self,

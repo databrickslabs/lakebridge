@@ -128,16 +128,10 @@ class ConfigureOracleAssessment(AssessmentConfigurator):
         }
 
         _save_to_disk(credential, cred_file)
-        logger.info(f"Credential template created for {source}.")
 
 
 class ConfigureSqlServerAssessment(AssessmentConfigurator):
-    """SQL Server-family assessment configuration.
-
-    Used for both `mssql` (regular SQL Server / Azure SQL Database) and
-    `legacy_synapse` (Azure Synapse dedicated SQL pool, where the database
-    is the pool name).
-    """
+    """SQL Server / Azure SQL Database (`mssql`) assessment configuration."""
 
     def _configure_credentials(self) -> None:
         cred_file = self._credential_file
@@ -148,38 +142,73 @@ class ConfigureSqlServerAssessment(AssessmentConfigurator):
             "from environment variables fall back to plain text if not variable is not found\n",
         )
         secret_vault_type = str(self.prompts.choice("Enter secret vault type (local | env)", ["local", "env"])).lower()
-        secret_vault_name = None
 
         auth_choices = [cls.__name__ for cls in AUTH_CHOICES]
         auth_type = self.prompts.choice("Select authentication method", auth_choices, sort=False)
         auth_credentials = _prompt_mssql_auth_credentials(self.prompts, auth_type)
 
-        credential_section: dict = {
-            "auth_type": auth_type,
-            **auth_credentials,
-            "fetch_size": self.prompts.question("Enter fetch size", default="1000", valid_number=True),
-            "login_timeout": self.prompts.question("Enter login timeout (seconds)", default="30", valid_number=True),
-            "server": self.prompts.question("Enter the fully-qualified server name"),
-            "port": int(self.prompts.question("Enter the port details", default="1433", valid_number=True)),
-            # mssql: `*` profiles every accessible database (on-prem / Managed Instance); a name scopes
-            # to that one database. legacy_synapse (shares this configurator) needs the dedicated-pool name.
-            "database": (
-                self.prompts.question("Enter the database name (* = all databases)")
-                if source == "mssql"
-                else self.prompts.question("Enter the dedicated pool name")
-            ),
-            "trust_server_certificate": self.prompts.confirm("Trust server certificate"),
-            "tz_info": self.prompts.question("Enter timezone (e.g. America/New_York)", default="UTC"),
-        }
-
         credential = {
             "secret_vault_type": secret_vault_type,
-            "secret_vault_name": secret_vault_name,
-            source: credential_section,
+            "secret_vault_name": None,
+            source: {
+                "auth_type": auth_type,
+                **auth_credentials,
+                "fetch_size": self.prompts.question("Enter fetch size", default="1000", valid_number=True),
+                "login_timeout": self.prompts.question(
+                    "Enter login timeout (seconds)", default="30", valid_number=True
+                ),
+                "server": self.prompts.question("Enter the fully-qualified server name"),
+                "port": int(self.prompts.question("Enter the port details", default="1433", valid_number=True)),
+                # `*` profiles every accessible database (on-prem / Managed Instance);
+                # a name scopes to that one database.
+                "database": self.prompts.question("Enter the database name (* = all databases)"),
+                "trust_server_certificate": self.prompts.confirm("Trust server certificate"),
+                "tz_info": self.prompts.question("Enter timezone (e.g. America/New_York)", default="UTC"),
+            },
         }
 
         _save_to_disk(credential, cred_file)
-        logger.info(f"Credential template created for {source}.")
+
+
+class ConfigureLegacySynapseAssessment(AssessmentConfigurator):
+    """Azure Synapse dedicated SQL pool (`legacy_synapse`) assessment configuration."""
+
+    def _configure_credentials(self) -> None:
+        cred_file = self._credential_file
+        source = self._source_name
+
+        logger.info(
+            "\n(local | env) \nlocal means values are read as plain text \nenv means values are read "
+            "from environment variables fall back to plain text if not variable is not found\n",
+        )
+        secret_vault_type = str(self.prompts.choice("Enter secret vault type (local | env)", ["local", "env"])).lower()
+
+        auth_choices = [cls.__name__ for cls in AUTH_CHOICES]
+        auth_type = self.prompts.choice("Select authentication method", auth_choices, sort=False)
+        auth_credentials = _prompt_mssql_auth_credentials(self.prompts, auth_type)
+
+        credential = {
+            "secret_vault_type": secret_vault_type,
+            "secret_vault_name": None,
+            source: {
+                "auth_type": auth_type,
+                **auth_credentials,
+                "fetch_size": self.prompts.question("Enter fetch size", default="1000", valid_number=True),
+                "login_timeout": self.prompts.question(
+                    "Enter login timeout (seconds)", default="30", valid_number=True
+                ),
+                "server": self.prompts.question("Enter the fully-qualified server name"),
+                "port": int(self.prompts.question("Enter the port details", default="1433", valid_number=True)),
+                "database": self.prompts.question("Enter the dedicated pool name"),
+                "tz_info": self.prompts.question("Enter timezone (e.g. America/New_York)", default="UTC"),
+                "azure": {
+                    "subscription_id": self.prompts.question("Enter the Azure subscription ID"),
+                    "resource_group": self.prompts.question("Enter the Azure resource group"),
+                },
+            },
+        }
+
+        _save_to_disk(credential, cred_file)
 
 
 # Redshift auth types mirror the values ``RedshiftConnector._connect`` accepts. Keep the
@@ -268,7 +297,6 @@ class ConfigureRedshiftAssessment(AssessmentConfigurator):
         }
 
         _save_to_disk(credential, cred_file)
-        logger.info(f"Credential template created for {source}.")
 
 
 class ConfigureSynapseAssessment(AssessmentConfigurator):
@@ -328,8 +356,6 @@ class ConfigureSynapseAssessment(AssessmentConfigurator):
         }
         _save_to_disk(credential, cred_file)
 
-        logger.info(f"Credential template created for {source}.")
-
 
 class ConfigureSnowflakeAssessment(AssessmentConfigurator):
     """Snowflake specific assessment configuration."""
@@ -381,8 +407,6 @@ class ConfigureSnowflakeAssessment(AssessmentConfigurator):
         }
         _save_to_disk(credential, cred_file)
 
-        logger.info(f"Credential template created for {source}.")
-
 
 class ConfigureTeradataAssessment(AssessmentConfigurator):
     """Teradata specific assessment configuration."""
@@ -416,8 +440,6 @@ class ConfigureTeradataAssessment(AssessmentConfigurator):
         }
 
         _save_to_disk(credential, cred_file)
-
-        logger.info(f"Credential template created for {source}.")
 
 
 ConfiguratorFactory = Callable[[str, Prompts, str, Path | str | None], AssessmentConfigurator]
@@ -500,8 +522,6 @@ class ConfigureBigQueryAssessment(AssessmentConfigurator):
         }
         _save_to_disk(credential, cred_file)
 
-        logger.info(f"Credential template created for {source}.")
-
 
 def create_assessment_configurator(
     source_system: str, product_name: str, prompts: Prompts, credential_file: Path | str | None = None
@@ -511,7 +531,7 @@ def create_assessment_configurator(
         "redshift": ConfigureRedshiftAssessment,
         "synapse": ConfigureSynapseAssessment,
         "snowflake": ConfigureSnowflakeAssessment,
-        "legacy_synapse": ConfigureSqlServerAssessment,
+        "legacy_synapse": ConfigureLegacySynapseAssessment,
         "oracle": ConfigureOracleAssessment,
         "teradata": ConfigureTeradataAssessment,
         "bigquery": ConfigureBigQueryAssessment,

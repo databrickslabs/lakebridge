@@ -1,5 +1,0 @@
-columns:
-- source_table
-type: MULTI_SELECT
-title: Source Table Name
-width: 2

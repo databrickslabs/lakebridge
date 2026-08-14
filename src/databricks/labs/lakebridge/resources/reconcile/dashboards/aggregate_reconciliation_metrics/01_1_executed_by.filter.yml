@@ -1,5 +1,0 @@
-columns:
-- executed_by
-type: MULTI_SELECT
-title: Executed by
-width: 2

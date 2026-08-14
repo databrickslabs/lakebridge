@@ -1,5 +1,0 @@
-columns:
-- source_type
-type: MULTI_SELECT
-title: Source Type
-width: 2

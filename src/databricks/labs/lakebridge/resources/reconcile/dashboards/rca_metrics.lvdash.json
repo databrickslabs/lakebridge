@@ -1,0 +1,4030 @@
+{
+  "datasets": [
+    {
+      "name": "05_0_jobs_summary",
+      "displayName": "05_0_jobs_summary",
+      "queryLines": [
+        "/* --title 'Jobs Summary' --width 6 --height 6 */\n",
+        "SELECT\n",
+        "  main.recon_id,\n",
+        "  main.source_type,\n",
+        "  metrics.run_metrics.run_by_user AS executed_by,\n",
+        "  MIN(main.start_ts) AS start_ts,\n",
+        "  COUNT(*) AS tables,\n",
+        "  SUM(IF(metrics.run_metrics.status, 1, 0)) AS succeeded,\n",
+        "  SUM(IF(NOT metrics.run_metrics.status, 1, 0)) AS failed,\n",
+        "  SUM(COALESCE(metrics.recon_metrics.column_comparison.absolute_mismatch, 0)) AS mismatched_rows,\n",
+        "  SUM(\n",
+        "    COALESCE(metrics.recon_metrics.row_comparison.missing_in_source, 0) + COALESCE(metrics.recon_metrics.row_comparison.missing_in_target, 0)\n",
+        "  ) AS missing_rows\n",
+        "FROM remorph.reconcile.main AS main\n",
+        "INNER JOIN remorph.reconcile.metrics AS metrics\n",
+        "  ON main.recon_table_id = metrics.recon_table_id\n",
+        "WHERE\n",
+        "  LOWER(main.report_type) IN ('all', 'data')\n",
+        "GROUP BY\n",
+        "  main.recon_id,\n",
+        "  main.source_type,\n",
+        "  metrics.run_metrics.run_by_user\n",
+        "ORDER BY\n",
+        "  start_ts DESC"
+      ]
+    },
+    {
+      "name": "05_1_run_details",
+      "displayName": "05_1_run_details",
+      "queryLines": [
+        "/* --title 'Run Details' --width 6 --height 6 */\n",
+        "SELECT\n",
+        "  main.recon_id,\n",
+        "  main.source_type,\n",
+        "  CONCAT_WS('.', main.target_table.catalog, main.target_table.schema, main.target_table.table_name) AS target_table,\n",
+        "  IF(\n",
+        "    ISNULL(main.source_table.catalog),\n",
+        "    CONCAT_WS('.', main.source_table.schema, main.source_table.table_name),\n",
+        "    CONCAT_WS('.', main.source_table.catalog, main.source_table.schema, main.source_table.table_name)\n",
+        "  ) AS source_table,\n",
+        "  metrics.run_metrics.run_by_user AS executed_by,\n",
+        "  main.start_ts,\n",
+        "  main.end_ts,\n",
+        "  IF(metrics.run_metrics.status, 'PASSED', 'FAILED') AS status_label,\n",
+        "  COALESCE(metrics.recon_metrics.column_comparison.absolute_mismatch, 0) AS mismatched_rows,\n",
+        "  COALESCE(metrics.recon_metrics.row_comparison.missing_in_source, 0) AS missing_in_source,\n",
+        "  COALESCE(metrics.recon_metrics.row_comparison.missing_in_target, 0) AS missing_in_target,\n",
+        "  COALESCE(fc.failing_columns, '') AS failing_columns\n",
+        "FROM remorph.reconcile.main AS main\n",
+        "INNER JOIN remorph.reconcile.metrics AS metrics\n",
+        "  ON main.recon_table_id = metrics.recon_table_id\n",
+        "LEFT JOIN (\n",
+        "  SELECT\n",
+        "    recon_table_id,\n",
+        "    ARRAY_JOIN(COLLECT_SET(column_name), ', ') AS failing_columns\n",
+        "  FROM remorph.reconcile.details_columns\n",
+        "  WHERE\n",
+        "    is_mismatch\n",
+        "  GROUP BY\n",
+        "    recon_table_id\n",
+        ") AS fc\n",
+        "  ON main.recon_table_id = fc.recon_table_id\n",
+        "WHERE\n",
+        "  LOWER(main.report_type) IN ('all', 'data')\n",
+        "ORDER BY\n",
+        "  main.start_ts DESC,\n",
+        "  target_table"
+      ]
+    },
+    {
+      "name": "07_0_total_runs",
+      "displayName": "07_0_total_runs",
+      "queryLines": [
+        "/* --title 'Total Runs' --width 2 --height 3 */\n",
+        "SELECT\n",
+        "  main.recon_id,\n",
+        "  main.source_type,\n",
+        "  CONCAT_WS('.', main.target_table.catalog, main.target_table.schema, main.target_table.table_name) AS target_table,\n",
+        "  IF(\n",
+        "    ISNULL(main.source_table.catalog),\n",
+        "    CONCAT_WS('.', main.source_table.schema, main.source_table.table_name),\n",
+        "    CONCAT_WS('.', main.source_table.catalog, main.source_table.schema, main.source_table.table_name)\n",
+        "  ) AS source_table,\n",
+        "  metrics.run_metrics.run_by_user AS executed_by,\n",
+        "  main.start_ts\n",
+        "FROM remorph.reconcile.main AS main\n",
+        "INNER JOIN remorph.reconcile.metrics AS metrics\n",
+        "  ON main.recon_table_id = metrics.recon_table_id\n",
+        "WHERE\n",
+        "  LOWER(main.report_type) IN ('all', 'data')"
+      ]
+    },
+    {
+      "name": "07_1_successful_runs",
+      "displayName": "07_1_successful_runs",
+      "queryLines": [
+        "/* --title 'Successful Runs' --width 2 --height 3 */\n",
+        "SELECT\n",
+        "  main.recon_id,\n",
+        "  main.source_type,\n",
+        "  CONCAT_WS('.', main.target_table.catalog, main.target_table.schema, main.target_table.table_name) AS target_table,\n",
+        "  IF(\n",
+        "    ISNULL(main.source_table.catalog),\n",
+        "    CONCAT_WS('.', main.source_table.schema, main.source_table.table_name),\n",
+        "    CONCAT_WS('.', main.source_table.catalog, main.source_table.schema, main.source_table.table_name)\n",
+        "  ) AS source_table,\n",
+        "  metrics.run_metrics.run_by_user AS executed_by,\n",
+        "  main.start_ts\n",
+        "FROM remorph.reconcile.main AS main\n",
+        "INNER JOIN remorph.reconcile.metrics AS metrics\n",
+        "  ON main.recon_table_id = metrics.recon_table_id\n",
+        "WHERE\n",
+        "  metrics.run_metrics.status = TRUE AND LOWER(main.report_type) IN ('all', 'data')"
+      ]
+    },
+    {
+      "name": "07_2_failed_runs",
+      "displayName": "07_2_failed_runs",
+      "queryLines": [
+        "/* --title 'Failed Runs' --width 2 --height 3 */\n",
+        "SELECT\n",
+        "  main.recon_id,\n",
+        "  main.source_type,\n",
+        "  CONCAT_WS('.', main.target_table.catalog, main.target_table.schema, main.target_table.table_name) AS target_table,\n",
+        "  IF(\n",
+        "    ISNULL(main.source_table.catalog),\n",
+        "    CONCAT_WS('.', main.source_table.schema, main.source_table.table_name),\n",
+        "    CONCAT_WS('.', main.source_table.catalog, main.source_table.schema, main.source_table.table_name)\n",
+        "  ) AS source_table,\n",
+        "  metrics.run_metrics.run_by_user AS executed_by,\n",
+        "  main.start_ts\n",
+        "FROM remorph.reconcile.main AS main\n",
+        "INNER JOIN remorph.reconcile.metrics AS metrics\n",
+        "  ON main.recon_table_id = metrics.recon_table_id\n",
+        "WHERE\n",
+        "  metrics.run_metrics.status = FALSE AND LOWER(main.report_type) IN ('all', 'data')"
+      ]
+    },
+    {
+      "name": "08_0_failed_tables",
+      "displayName": "08_0_failed_tables",
+      "queryLines": [
+        "/* --title 'Distinct Failed Tables' --width 2 --height 3 */\n",
+        "SELECT\n",
+        "  main.recon_id,\n",
+        "  main.source_type,\n",
+        "  CONCAT_WS('.', main.target_table.catalog, main.target_table.schema, main.target_table.table_name) AS target_table,\n",
+        "  IF(\n",
+        "    ISNULL(main.source_table.catalog),\n",
+        "    CONCAT_WS('.', main.source_table.schema, main.source_table.table_name),\n",
+        "    CONCAT_WS('.', main.source_table.catalog, main.source_table.schema, main.source_table.table_name)\n",
+        "  ) AS source_table,\n",
+        "  metrics.run_metrics.run_by_user AS executed_by,\n",
+        "  main.start_ts\n",
+        "FROM remorph.reconcile.main AS main\n",
+        "INNER JOIN remorph.reconcile.metrics AS metrics\n",
+        "  ON main.recon_table_id = metrics.recon_table_id\n",
+        "WHERE\n",
+        "  metrics.run_metrics.status = FALSE AND LOWER(main.report_type) IN ('all', 'data')"
+      ]
+    },
+    {
+      "name": "08_1_row_differences",
+      "displayName": "08_1_row_differences",
+      "queryLines": [
+        "/* --title 'Failed Rows' --width 2 --height 3 */\n",
+        "SELECT\n",
+        "  main.recon_id,\n",
+        "  main.source_type,\n",
+        "  CONCAT_WS('.', main.target_table.catalog, main.target_table.schema, main.target_table.table_name) AS target_table,\n",
+        "  IF(\n",
+        "    ISNULL(main.source_table.catalog),\n",
+        "    CONCAT_WS('.', main.source_table.schema, main.source_table.table_name),\n",
+        "    CONCAT_WS('.', main.source_table.catalog, main.source_table.schema, main.source_table.table_name)\n",
+        "  ) AS source_table,\n",
+        "  metrics.run_metrics.run_by_user AS executed_by,\n",
+        "  main.start_ts,\n",
+        "  COALESCE(metrics.recon_metrics.column_comparison.absolute_mismatch, 0) + COALESCE(metrics.recon_metrics.row_comparison.missing_in_source, 0) + COALESCE(metrics.recon_metrics.row_comparison.missing_in_target, 0) AS diff_rows\n",
+        "FROM remorph.reconcile.main AS main\n",
+        "INNER JOIN remorph.reconcile.metrics AS metrics\n",
+        "  ON main.recon_table_id = metrics.recon_table_id\n",
+        "WHERE\n",
+        "  LOWER(main.report_type) IN ('all', 'data')"
+      ]
+    },
+    {
+      "name": "08_2_successful_tables",
+      "displayName": "08_2_successful_tables",
+      "queryLines": [
+        "/* --title 'Distinct Successful Tables' --width 2 --height 3 */\n",
+        "SELECT\n",
+        "  main.recon_id,\n",
+        "  main.source_type,\n",
+        "  CONCAT_WS('.', main.target_table.catalog, main.target_table.schema, main.target_table.table_name) AS target_table,\n",
+        "  IF(\n",
+        "    ISNULL(main.source_table.catalog),\n",
+        "    CONCAT_WS('.', main.source_table.schema, main.source_table.table_name),\n",
+        "    CONCAT_WS('.', main.source_table.catalog, main.source_table.schema, main.source_table.table_name)\n",
+        "  ) AS source_table,\n",
+        "  metrics.run_metrics.run_by_user AS executed_by,\n",
+        "  main.start_ts\n",
+        "FROM remorph.reconcile.main AS main\n",
+        "INNER JOIN remorph.reconcile.metrics AS metrics\n",
+        "  ON main.recon_table_id = metrics.recon_table_id\n",
+        "WHERE\n",
+        "  metrics.run_metrics.status = TRUE AND LOWER(main.report_type) IN ('all', 'data')"
+      ]
+    },
+    {
+      "name": "09_0_latest_run_per_table",
+      "displayName": "09_0_latest_run_per_table",
+      "queryLines": [
+        "/* --title 'Latest Run per Table' --width 6 --height 6 */\n",
+        "WITH ranked AS (\n",
+        "  SELECT\n",
+        "    main.recon_id,\n",
+        "    main.recon_table_id,\n",
+        "    main.source_type,\n",
+        "    CONCAT_WS('.', main.target_table.catalog, main.target_table.schema, main.target_table.table_name) AS target_table,\n",
+        "    IF(\n",
+        "      ISNULL(main.source_table.catalog),\n",
+        "      CONCAT_WS('.', main.source_table.schema, main.source_table.table_name),\n",
+        "      CONCAT_WS('.', main.source_table.catalog, main.source_table.schema, main.source_table.table_name)\n",
+        "    ) AS source_table,\n",
+        "    metrics.run_metrics.run_by_user AS executed_by,\n",
+        "    main.start_ts,\n",
+        "    IF(metrics.run_metrics.status, 'PASSED', 'FAILED') AS status_label,\n",
+        "    COALESCE(metrics.recon_metrics.column_comparison.absolute_mismatch, 0) AS mismatched_rows,\n",
+        "    COALESCE(metrics.recon_metrics.row_comparison.missing_in_source, 0) AS missing_in_source,\n",
+        "    COALESCE(metrics.recon_metrics.row_comparison.missing_in_target, 0) AS missing_in_target,\n",
+        "    ROW_NUMBER() OVER (\n",
+        "      PARTITION BY CONCAT_WS('.', main.target_table.catalog, main.target_table.schema, main.target_table.table_name)\n",
+        "      ORDER BY main.start_ts DESC\n",
+        "    ) AS rn\n",
+        "  FROM remorph.reconcile.main AS main\n",
+        "  INNER JOIN remorph.reconcile.metrics AS metrics\n",
+        "    ON main.recon_table_id = metrics.recon_table_id\n",
+        "  WHERE\n",
+        "    LOWER(main.report_type) IN ('all', 'data')\n",
+        "), failing_cols_per_run AS (\n",
+        "  SELECT\n",
+        "    recon_table_id,\n",
+        "    ARRAY_JOIN(COLLECT_SET(column_name), ', ') AS failing_columns\n",
+        "  FROM remorph.reconcile.details_columns\n",
+        "  WHERE\n",
+        "    is_mismatch\n",
+        "  GROUP BY\n",
+        "    recon_table_id\n",
+        ")\n",
+        "SELECT\n",
+        "  r.recon_id,\n",
+        "  r.source_type,\n",
+        "  r.target_table,\n",
+        "  r.source_table,\n",
+        "  r.executed_by,\n",
+        "  r.start_ts,\n",
+        "  r.status_label,\n",
+        "  r.mismatched_rows,\n",
+        "  r.missing_in_source,\n",
+        "  r.missing_in_target,\n",
+        "  COALESCE(fc.failing_columns, '') AS failing_columns\n",
+        "FROM ranked AS r\n",
+        "LEFT JOIN failing_cols_per_run AS fc\n",
+        "  ON r.recon_table_id = fc.recon_table_id\n",
+        "WHERE\n",
+        "  r.rn = 1\n",
+        "ORDER BY\n",
+        "  r.target_table"
+      ]
+    },
+    {
+      "name": "09_1_job_timeline",
+      "displayName": "09_1_job_timeline",
+      "queryLines": [
+        "/* --title 'Runs Over Time' --width 6 --height 7 */\n",
+        "SELECT\n",
+        "  main.recon_id,\n",
+        "  main.source_type,\n",
+        "  CONCAT_WS('.', main.target_table.catalog, main.target_table.schema, main.target_table.table_name) AS target_table,\n",
+        "  IF(\n",
+        "    ISNULL(main.source_table.catalog),\n",
+        "    CONCAT_WS('.', main.source_table.schema, main.source_table.table_name),\n",
+        "    CONCAT_WS('.', main.source_table.catalog, main.source_table.schema, main.source_table.table_name)\n",
+        "  ) AS source_table,\n",
+        "  metrics.run_metrics.run_by_user AS executed_by,\n",
+        "  main.start_ts,\n",
+        "  IF(metrics.run_metrics.status, 1, 0) AS succeeded,\n",
+        "  IF(NOT metrics.run_metrics.status, 1, 0) AS failed\n",
+        "FROM remorph.reconcile.main AS main\n",
+        "INNER JOIN remorph.reconcile.metrics AS metrics\n",
+        "  ON main.recon_table_id = metrics.recon_table_id\n",
+        "WHERE\n",
+        "  LOWER(main.report_type) IN ('all', 'data')"
+      ]
+    },
+    {
+      "name": "09_2_mismatch_trend",
+      "displayName": "09_2_mismatch_trend",
+      "queryLines": [
+        "/* --title 'Failed Rows Over Time' --width 6 --height 7 */\n",
+        "SELECT\n",
+        "  main.recon_id,\n",
+        "  main.source_type,\n",
+        "  CONCAT_WS('.', main.target_table.catalog, main.target_table.schema, main.target_table.table_name) AS target_table,\n",
+        "  IF(\n",
+        "    ISNULL(main.source_table.catalog),\n",
+        "    CONCAT_WS('.', main.source_table.schema, main.source_table.table_name),\n",
+        "    CONCAT_WS('.', main.source_table.catalog, main.source_table.schema, main.source_table.table_name)\n",
+        "  ) AS source_table,\n",
+        "  metrics.run_metrics.run_by_user AS executed_by,\n",
+        "  main.start_ts,\n",
+        "  COALESCE(metrics.recon_metrics.column_comparison.absolute_mismatch, 0) AS mismatched,\n",
+        "  COALESCE(metrics.recon_metrics.row_comparison.missing_in_source, 0) AS missing_in_source,\n",
+        "  COALESCE(metrics.recon_metrics.row_comparison.missing_in_target, 0) AS missing_in_target\n",
+        "FROM remorph.reconcile.main AS main\n",
+        "INNER JOIN remorph.reconcile.metrics AS metrics\n",
+        "  ON main.recon_table_id = metrics.recon_table_id\n",
+        "WHERE\n",
+        "  LOWER(main.report_type) IN ('all', 'data')"
+      ]
+    },
+    {
+      "name": "10_0_failures_by_table",
+      "displayName": "10_0_failures_by_table",
+      "queryLines": [
+        "/* --title 'Failures by Table' --width 3 --height 7 */\n",
+        "SELECT\n",
+        "  main.recon_id,\n",
+        "  main.source_type,\n",
+        "  CONCAT_WS('.', main.target_table.catalog, main.target_table.schema, main.target_table.table_name) AS target_table,\n",
+        "  IF(\n",
+        "    ISNULL(main.source_table.catalog),\n",
+        "    CONCAT_WS('.', main.source_table.schema, main.source_table.table_name),\n",
+        "    CONCAT_WS('.', main.source_table.catalog, main.source_table.schema, main.source_table.table_name)\n",
+        "  ) AS source_table,\n",
+        "  metrics.run_metrics.run_by_user AS executed_by,\n",
+        "  main.start_ts,\n",
+        "  COALESCE(metrics.recon_metrics.column_comparison.absolute_mismatch, 0) AS mismatched_rows,\n",
+        "  COALESCE(metrics.recon_metrics.row_comparison.missing_in_source, 0) + COALESCE(metrics.recon_metrics.row_comparison.missing_in_target, 0) AS missing_rows\n",
+        "FROM remorph.reconcile.main AS main\n",
+        "INNER JOIN remorph.reconcile.metrics AS metrics\n",
+        "  ON main.recon_table_id = metrics.recon_table_id\n",
+        "WHERE\n",
+        "  metrics.run_metrics.status = FALSE AND LOWER(main.report_type) IN ('all', 'data')"
+      ]
+    },
+    {
+      "name": "10_1_successes_by_table",
+      "displayName": "10_1_successes_by_table",
+      "queryLines": [
+        "/* --title 'Successes by Table' --width 3 --height 7 */\n",
+        "SELECT\n",
+        "  main.recon_id,\n",
+        "  main.source_type,\n",
+        "  CONCAT_WS('.', main.target_table.catalog, main.target_table.schema, main.target_table.table_name) AS target_table,\n",
+        "  IF(\n",
+        "    ISNULL(main.source_table.catalog),\n",
+        "    CONCAT_WS('.', main.source_table.schema, main.source_table.table_name),\n",
+        "    CONCAT_WS('.', main.source_table.catalog, main.source_table.schema, main.source_table.table_name)\n",
+        "  ) AS source_table,\n",
+        "  metrics.run_metrics.run_by_user AS executed_by,\n",
+        "  main.start_ts\n",
+        "FROM remorph.reconcile.main AS main\n",
+        "INNER JOIN remorph.reconcile.metrics AS metrics\n",
+        "  ON main.recon_table_id = metrics.recon_table_id\n",
+        "WHERE\n",
+        "  metrics.run_metrics.status = TRUE AND LOWER(main.report_type) IN ('all', 'data')"
+      ]
+    },
+    {
+      "name": "ds_table_run",
+      "displayName": "Deep Dive - Table Run",
+      "queryLines": [
+        "SELECT\n",
+        "  m.recon_table_id,\n",
+        "  m.recon_id,\n",
+        "  m.source_type,\n",
+        "  m.report_type,\n",
+        "  IF(\n",
+        "    m.source_table.catalog IS NULL,\n",
+        "    CONCAT_WS('.', m.source_table.schema, m.source_table.table_name),\n",
+        "    CONCAT_WS('.', m.source_table.catalog, m.source_table.schema, m.source_table.table_name)\n",
+        "  ) AS source_table,\n",
+        "  CONCAT_WS(\n",
+        "    '.',\n",
+        "    m.target_table.catalog,\n",
+        "    m.target_table.schema,\n",
+        "    m.target_table.table_name\n",
+        "  ) AS target_table,\n",
+        "  m.start_ts,\n",
+        "  m.end_ts,\n",
+        "  metrics.recon_metrics.source_record_count AS source_rows,\n",
+        "  metrics.recon_metrics.target_record_count AS target_rows,\n",
+        "  metrics.recon_metrics.row_comparison.missing_in_source AS missing_in_source,\n",
+        "  metrics.recon_metrics.row_comparison.missing_in_target AS missing_in_target,\n",
+        "  metrics.recon_metrics.column_comparison.absolute_mismatch AS mismatched_records,\n",
+        "  metrics.recon_metrics.column_comparison.threshold_mismatch AS threshold_mismatch,\n",
+        "  metrics.recon_metrics.column_comparison.mismatch_columns AS mismatch_columns_csv,\n",
+        "  metrics.run_metrics.status AS status,\n",
+        "  metrics.run_metrics.exception_message AS exception_message\n",
+        "FROM\n",
+        "  remorph.reconcile.main AS m\n",
+        "    INNER JOIN remorph.reconcile.metrics AS metrics\n",
+        "      ON metrics.recon_table_id = m.recon_table_id"
+      ]
+    },
+    {
+      "name": "ds_schema",
+      "displayName": "Deep Dive - Schema Details",
+      "queryLines": [
+        "SELECT\n",
+        "  sd.recon_table_id,\n",
+        "  m.recon_id,\n",
+        "  CONCAT_WS(\n",
+        "    '.',\n",
+        "    m.target_table.catalog,\n",
+        "    m.target_table.schema,\n",
+        "    m.target_table.table_name\n",
+        "  ) AS target_table,\n",
+        "  sd.source_column AS column,\n",
+        "  sd.source_datatype AS source_type,\n",
+        "  sd.databricks_datatype AS databricks_type,\n",
+        "  sd.is_valid\n",
+        "FROM\n",
+        "  remorph.reconcile.schema_details AS sd\n",
+        "    INNER JOIN remorph.reconcile.main AS m\n",
+        "      ON m.recon_table_id = sd.recon_table_id"
+      ],
+      "columns": [
+        {
+          "displayName": "invalid_count",
+          "description": "Count of invalid schema columns, returns 0 when none exist",
+          "expression": "SUM(CASE WHEN NOT `is_valid` THEN 1 ELSE 0 END)"
+        }
+      ]
+    },
+    {
+      "name": "ds_details_columns",
+      "displayName": "Deep Dive - Details (columns)",
+      "queryLines": [
+        "SELECT\n",
+        "  dc.recon_table_id,\n",
+        "  m.recon_id,\n",
+        "  CONCAT_WS(\n",
+        "    '.',\n",
+        "    m.target_table.catalog,\n",
+        "    m.target_table.schema,\n",
+        "    m.target_table.table_name\n",
+        "  ) AS target_table,\n",
+        "  dc.recon_type,\n",
+        "  to_json(dc.record_key) AS record_key,\n",
+        "  dc.column_name,\n",
+        "  dc.source_value,\n",
+        "  dc.target_value,\n",
+        "  dc.is_mismatch\n",
+        "FROM\n",
+        "  remorph.reconcile.details_columns AS dc\n",
+        "    INNER JOIN remorph.reconcile.main AS m\n",
+        "      ON m.recon_table_id = dc.recon_table_id"
+      ]
+    },
+    {
+      "name": "ds_missing",
+      "displayName": "Deep Dive - Missing Records",
+      "queryLines": [
+        "SELECT\n",
+        "  d.recon_table_id,\n",
+        "  m.recon_id,\n",
+        "  CONCAT_WS(\n",
+        "    '.',\n",
+        "    m.target_table.catalog,\n",
+        "    m.target_table.schema,\n",
+        "    m.target_table.table_name\n",
+        "  ) AS target_table,\n",
+        "  d.recon_type,\n",
+        "  to_json(d.record_key) AS record_key,\n",
+        "  to_json(COALESCE(d.source_row, d.target_row)) AS row_image,\n",
+        "  d.inserted_ts\n",
+        "FROM\n",
+        "  remorph.reconcile.details AS d\n",
+        "    INNER JOIN remorph.reconcile.main AS m\n",
+        "      ON m.recon_table_id = d.recon_table_id\n",
+        "WHERE\n",
+        "  d.recon_type IN ('missing_in_source', 'missing_in_target')"
+      ]
+    },
+    {
+      "name": "fab68dbc",
+      "displayName": "recon_run_context",
+      "config": {
+        "version": "1.1",
+        "source": "remorph.reconcile.recon_run_context",
+        "dimensions": [
+          {
+            "name": "recon_id",
+            "expr": "source.recon_id",
+            "displayName": "Recon Id"
+          },
+          {
+            "name": "config",
+            "expr": "TO_JSON(source.config)",
+            "displayName": "Config"
+          },
+          {
+            "name": "inserted_ts",
+            "expr": "source.inserted_ts",
+            "displayName": "Inserted Ts"
+          }
+        ]
+      }
+    }
+  ],
+  "pages": [
+    {
+      "name": "LAKEBRIDGE_Reconciliation_RCA",
+      "displayName": "Overview and Jobs details",
+      "layout": [
+        {
+          "widget": {
+            "name": "01_0_recon_id_filter_widget",
+            "queries": [
+              {
+                "name": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e1416713e9a29f60d2387ecfec_recon_id",
+                "query": {
+                  "datasetName": "07_0_total_runs",
+                  "fields": [
+                    {
+                      "name": "recon_id",
+                      "expression": "`recon_id`"
+                    },
+                    {
+                      "name": "recon_id_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e1416714188d72ebe1a4ffecd1_recon_id",
+                "query": {
+                  "datasetName": "09_2_mismatch_trend",
+                  "fields": [
+                    {
+                      "name": "recon_id",
+                      "expression": "`recon_id`"
+                    },
+                    {
+                      "name": "recon_id_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e14167141496da013b6084bf13_recon_id",
+                "query": {
+                  "datasetName": "09_1_job_timeline",
+                  "fields": [
+                    {
+                      "name": "recon_id",
+                      "expression": "`recon_id`"
+                    },
+                    {
+                      "name": "recon_id_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e1416714038b7c9d0f514fddef_recon_id",
+                "query": {
+                  "datasetName": "08_1_row_differences",
+                  "fields": [
+                    {
+                      "name": "recon_id",
+                      "expression": "`recon_id`"
+                    },
+                    {
+                      "name": "recon_id_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e14167141db8d16469819900e1_recon_id",
+                "query": {
+                  "datasetName": "10_0_failures_by_table",
+                  "fields": [
+                    {
+                      "name": "recon_id",
+                      "expression": "`recon_id`"
+                    },
+                    {
+                      "name": "recon_id_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e1416713f997c5db72dc468deb_recon_id",
+                "query": {
+                  "datasetName": "07_2_failed_runs",
+                  "fields": [
+                    {
+                      "name": "recon_id",
+                      "expression": "`recon_id`"
+                    },
+                    {
+                      "name": "recon_id_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e1416713efaf22867f2076144e_recon_id",
+                "query": {
+                  "datasetName": "07_1_successful_runs",
+                  "fields": [
+                    {
+                      "name": "recon_id",
+                      "expression": "`recon_id`"
+                    },
+                    {
+                      "name": "recon_id_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e1416713e286e864f6271c47b8_recon_id",
+                "query": {
+                  "datasetName": "05_1_run_details",
+                  "fields": [
+                    {
+                      "name": "recon_id",
+                      "expression": "`recon_id`"
+                    },
+                    {
+                      "name": "recon_id_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e1416714218f55c814da2b486d_recon_id",
+                "query": {
+                  "datasetName": "10_1_successes_by_table",
+                  "fields": [
+                    {
+                      "name": "recon_id",
+                      "expression": "`recon_id`"
+                    },
+                    {
+                      "name": "recon_id_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e14167140891e51f8bba42d98b_recon_id",
+                "query": {
+                  "datasetName": "08_2_successful_tables",
+                  "fields": [
+                    {
+                      "name": "recon_id",
+                      "expression": "`recon_id`"
+                    },
+                    {
+                      "name": "recon_id_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e1416713ff88df4374cba5fb6d_recon_id",
+                "query": {
+                  "datasetName": "08_0_failed_tables",
+                  "fields": [
+                    {
+                      "name": "recon_id",
+                      "expression": "`recon_id`"
+                    },
+                    {
+                      "name": "recon_id_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f1640a988a137da4725f31d76d5e31_recon_id",
+                "query": {
+                  "datasetName": "fab68dbc",
+                  "fields": [
+                    {
+                      "name": "recon_id",
+                      "expression": "`recon_id`"
+                    },
+                    {
+                      "name": "recon_id_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "description": "",
+                "showDescription": false,
+                "showTitle": true,
+                "title": "Recon Id"
+              },
+              "widgetType": "filter-multi-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "recon_id",
+                    "queryName": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e1416713e9a29f60d2387ecfec_recon_id"
+                  },
+                  {
+                    "fieldName": "recon_id",
+                    "queryName": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e1416714188d72ebe1a4ffecd1_recon_id"
+                  },
+                  {
+                    "fieldName": "recon_id",
+                    "queryName": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e14167141496da013b6084bf13_recon_id"
+                  },
+                  {
+                    "fieldName": "recon_id",
+                    "queryName": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e1416714038b7c9d0f514fddef_recon_id"
+                  },
+                  {
+                    "fieldName": "recon_id",
+                    "queryName": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e14167141db8d16469819900e1_recon_id"
+                  },
+                  {
+                    "fieldName": "recon_id",
+                    "queryName": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e1416713f997c5db72dc468deb_recon_id"
+                  },
+                  {
+                    "fieldName": "recon_id",
+                    "queryName": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e1416713efaf22867f2076144e_recon_id"
+                  },
+                  {
+                    "fieldName": "recon_id",
+                    "queryName": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e1416713e286e864f6271c47b8_recon_id"
+                  },
+                  {
+                    "fieldName": "recon_id",
+                    "queryName": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e1416714218f55c814da2b486d_recon_id"
+                  },
+                  {
+                    "fieldName": "recon_id",
+                    "queryName": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e14167140891e51f8bba42d98b_recon_id"
+                  },
+                  {
+                    "fieldName": "recon_id",
+                    "queryName": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e1416713ff88df4374cba5fb6d_recon_id"
+                  },
+                  {
+                    "fieldName": "recon_id",
+                    "queryName": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f1640a988a137da4725f31d76d5e31_recon_id"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 16,
+            "width": 6,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "03_0_started_at_filter_widget",
+            "queries": [
+              {
+                "name": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e1416713ff88df4374cba5fb6d_start_ts",
+                "query": {
+                  "datasetName": "08_0_failed_tables",
+                  "fields": [
+                    {
+                      "name": "start_ts",
+                      "expression": "`start_ts`"
+                    },
+                    {
+                      "name": "start_ts_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e1416714188d72ebe1a4ffecd1_start_ts",
+                "query": {
+                  "datasetName": "09_2_mismatch_trend",
+                  "fields": [
+                    {
+                      "name": "start_ts",
+                      "expression": "`start_ts`"
+                    },
+                    {
+                      "name": "start_ts_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e1416713e9a29f60d2387ecfec_start_ts",
+                "query": {
+                  "datasetName": "07_0_total_runs",
+                  "fields": [
+                    {
+                      "name": "start_ts",
+                      "expression": "`start_ts`"
+                    },
+                    {
+                      "name": "start_ts_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e14167141496da013b6084bf13_start_ts",
+                "query": {
+                  "datasetName": "09_1_job_timeline",
+                  "fields": [
+                    {
+                      "name": "start_ts",
+                      "expression": "`start_ts`"
+                    },
+                    {
+                      "name": "start_ts_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e1416714038b7c9d0f514fddef_start_ts",
+                "query": {
+                  "datasetName": "08_1_row_differences",
+                  "fields": [
+                    {
+                      "name": "start_ts",
+                      "expression": "`start_ts`"
+                    },
+                    {
+                      "name": "start_ts_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e14167141db8d16469819900e1_start_ts",
+                "query": {
+                  "datasetName": "10_0_failures_by_table",
+                  "fields": [
+                    {
+                      "name": "start_ts",
+                      "expression": "`start_ts`"
+                    },
+                    {
+                      "name": "start_ts_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e1416713f997c5db72dc468deb_start_ts",
+                "query": {
+                  "datasetName": "07_2_failed_runs",
+                  "fields": [
+                    {
+                      "name": "start_ts",
+                      "expression": "`start_ts`"
+                    },
+                    {
+                      "name": "start_ts_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e1416713efaf22867f2076144e_start_ts",
+                "query": {
+                  "datasetName": "07_1_successful_runs",
+                  "fields": [
+                    {
+                      "name": "start_ts",
+                      "expression": "`start_ts`"
+                    },
+                    {
+                      "name": "start_ts_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e1416713e286e864f6271c47b8_start_ts",
+                "query": {
+                  "datasetName": "05_1_run_details",
+                  "fields": [
+                    {
+                      "name": "start_ts",
+                      "expression": "`start_ts`"
+                    },
+                    {
+                      "name": "start_ts_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e1416714218f55c814da2b486d_start_ts",
+                "query": {
+                  "datasetName": "10_1_successes_by_table",
+                  "fields": [
+                    {
+                      "name": "start_ts",
+                      "expression": "`start_ts`"
+                    },
+                    {
+                      "name": "start_ts_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e14167140891e51f8bba42d98b_start_ts",
+                "query": {
+                  "datasetName": "08_2_successful_tables",
+                  "fields": [
+                    {
+                      "name": "start_ts",
+                      "expression": "`start_ts`"
+                    },
+                    {
+                      "name": "start_ts_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "description": "",
+                "showDescription": false,
+                "showTitle": true,
+                "title": "Started At"
+              },
+              "widgetType": "filter-date-range-picker",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "start_ts",
+                    "queryName": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e1416713ff88df4374cba5fb6d_start_ts"
+                  },
+                  {
+                    "fieldName": "start_ts",
+                    "queryName": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e1416714188d72ebe1a4ffecd1_start_ts"
+                  },
+                  {
+                    "fieldName": "start_ts",
+                    "queryName": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e1416713e9a29f60d2387ecfec_start_ts"
+                  },
+                  {
+                    "fieldName": "start_ts",
+                    "queryName": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e14167141496da013b6084bf13_start_ts"
+                  },
+                  {
+                    "fieldName": "start_ts",
+                    "queryName": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e1416714038b7c9d0f514fddef_start_ts"
+                  },
+                  {
+                    "fieldName": "start_ts",
+                    "queryName": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e14167141db8d16469819900e1_start_ts"
+                  },
+                  {
+                    "fieldName": "start_ts",
+                    "queryName": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e1416713f997c5db72dc468deb_start_ts"
+                  },
+                  {
+                    "fieldName": "start_ts",
+                    "queryName": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e1416713efaf22867f2076144e_start_ts"
+                  },
+                  {
+                    "fieldName": "start_ts",
+                    "queryName": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e1416713e286e864f6271c47b8_start_ts"
+                  },
+                  {
+                    "fieldName": "start_ts",
+                    "queryName": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e1416714218f55c814da2b486d_start_ts"
+                  },
+                  {
+                    "fieldName": "start_ts",
+                    "queryName": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e14167140891e51f8bba42d98b_start_ts"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 16,
+            "width": 6,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "04_0_jobs_header_widget",
+            "multilineTextboxSpec": {
+              "lines": [
+                "## Overview\n",
+                "\n",
+                "The last run when a table was invoked, did it pass or fail, and summary list of all the jobs.\n",
+                "\n",
+                "**Check exact details on next page.**"
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 12,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "05_1_run_details_widget",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "05_1_run_details",
+                  "fields": [
+                    {
+                      "name": "recon_id",
+                      "expression": "`recon_id`"
+                    },
+                    {
+                      "name": "target_table",
+                      "expression": "`target_table`"
+                    },
+                    {
+                      "name": "status_label",
+                      "expression": "`status_label`"
+                    },
+                    {
+                      "name": "start_ts",
+                      "expression": "`start_ts`"
+                    },
+                    {
+                      "name": "mismatched_rows",
+                      "expression": "`mismatched_rows`"
+                    },
+                    {
+                      "name": "missing_in_source",
+                      "expression": "`missing_in_source`"
+                    },
+                    {
+                      "name": "missing_in_target",
+                      "expression": "`missing_in_target`"
+                    },
+                    {
+                      "name": "failing_columns",
+                      "expression": "`failing_columns`"
+                    },
+                    {
+                      "name": "executed_by",
+                      "expression": "`executed_by`"
+                    },
+                    {
+                      "name": "source_table",
+                      "expression": "`source_table`"
+                    },
+                    {
+                      "name": "source_type",
+                      "expression": "`source_type`"
+                    },
+                    {
+                      "name": "end_ts",
+                      "expression": "`end_ts`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "description": "",
+                "showDescription": false,
+                "showTitle": true,
+                "title": "Run Details"
+              },
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "recon_id",
+                    "displayName": "Recon ID",
+                    "style": {
+                      "type": "basic",
+                      "rules": [
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "PASSED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#D4EDDA",
+                          "foregroundColor": "#155724"
+                        },
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "FAILED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#F8D7DA",
+                          "foregroundColor": "#721C24"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "fieldName": "target_table",
+                    "displayName": "Table",
+                    "style": {
+                      "type": "basic",
+                      "rules": [
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "PASSED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#D4EDDA",
+                          "foregroundColor": "#155724"
+                        },
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "FAILED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#F8D7DA",
+                          "foregroundColor": "#721C24"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "fieldName": "status_label",
+                    "displayName": "Status",
+                    "style": {
+                      "type": "basic",
+                      "rules": [
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "PASSED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#D4EDDA",
+                          "foregroundColor": "#155724"
+                        },
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "FAILED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#F8D7DA",
+                          "foregroundColor": "#721C24"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "fieldName": "start_ts",
+                    "displayName": "Started At",
+                    "style": {
+                      "type": "basic",
+                      "rules": [
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "PASSED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#D4EDDA",
+                          "foregroundColor": "#155724"
+                        },
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "FAILED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#F8D7DA",
+                          "foregroundColor": "#721C24"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "fieldName": "mismatched_rows",
+                    "displayName": "Mismatched Rows",
+                    "style": {
+                      "type": "basic",
+                      "rules": [
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "PASSED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#D4EDDA",
+                          "foregroundColor": "#155724"
+                        },
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "FAILED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#F8D7DA",
+                          "foregroundColor": "#721C24"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "fieldName": "missing_in_source",
+                    "displayName": "Missing in Source",
+                    "style": {
+                      "type": "basic",
+                      "rules": [
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "PASSED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#D4EDDA",
+                          "foregroundColor": "#155724"
+                        },
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "FAILED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#F8D7DA",
+                          "foregroundColor": "#721C24"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "fieldName": "missing_in_target",
+                    "displayName": "Missing in Target",
+                    "style": {
+                      "type": "basic",
+                      "rules": [
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "PASSED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#D4EDDA",
+                          "foregroundColor": "#155724"
+                        },
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "FAILED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#F8D7DA",
+                          "foregroundColor": "#721C24"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "fieldName": "failing_columns",
+                    "displayName": "Failing Columns",
+                    "style": {
+                      "type": "basic",
+                      "rules": [
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "PASSED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#D4EDDA",
+                          "foregroundColor": "#155724"
+                        },
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "FAILED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#F8D7DA",
+                          "foregroundColor": "#721C24"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "fieldName": "executed_by",
+                    "displayName": "Executed By",
+                    "style": {
+                      "type": "basic",
+                      "rules": [
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "PASSED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#D4EDDA",
+                          "foregroundColor": "#155724"
+                        },
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "FAILED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#F8D7DA",
+                          "foregroundColor": "#721C24"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "fieldName": "source_table",
+                    "displayName": "Source Table",
+                    "style": {
+                      "type": "basic",
+                      "rules": [
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "PASSED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#D4EDDA",
+                          "foregroundColor": "#155724"
+                        },
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "FAILED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#F8D7DA",
+                          "foregroundColor": "#721C24"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "fieldName": "source_type",
+                    "displayName": "Source Type",
+                    "style": {
+                      "type": "basic",
+                      "rules": [
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "PASSED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#D4EDDA",
+                          "foregroundColor": "#155724"
+                        },
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "FAILED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#F8D7DA",
+                          "foregroundColor": "#721C24"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "fieldName": "end_ts",
+                    "displayName": "Ended At",
+                    "style": {
+                      "type": "basic",
+                      "rules": [
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "PASSED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#D4EDDA",
+                          "foregroundColor": "#155724"
+                        },
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "FAILED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#F8D7DA",
+                          "foregroundColor": "#721C24"
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 30,
+            "width": 12,
+            "height": 9
+          }
+        },
+        {
+          "widget": {
+            "name": "07_0_total_runs_widget",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "07_0_total_runs",
+                  "fields": [
+                    {
+                      "name": "count(*)",
+                      "expression": "COUNT(*)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "displayName": "Total Runs",
+                  "fieldName": "count(*)"
+                }
+              },
+              "frame": {
+                "description": "",
+                "showDescription": false,
+                "showTitle": true,
+                "title": "Total Runs"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 17,
+            "width": 4,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "07_1_successful_runs_widget",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "07_1_successful_runs",
+                  "fields": [
+                    {
+                      "name": "count(*)",
+                      "expression": "COUNT(*)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "displayName": "Successful Runs",
+                  "fieldName": "count(*)"
+                }
+              },
+              "frame": {
+                "description": "",
+                "showDescription": false,
+                "showTitle": true,
+                "title": "Successful Runs"
+              }
+            }
+          },
+          "position": {
+            "x": 4,
+            "y": 17,
+            "width": 4,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "07_2_failed_runs_widget",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "07_2_failed_runs",
+                  "fields": [
+                    {
+                      "name": "count(*)",
+                      "expression": "COUNT(*)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "displayName": "Failed Runs",
+                  "fieldName": "count(*)"
+                }
+              },
+              "frame": {
+                "description": "",
+                "showDescription": false,
+                "showTitle": true,
+                "title": "Failed Runs"
+              }
+            }
+          },
+          "position": {
+            "x": 8,
+            "y": 17,
+            "width": 4,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "08_0_failed_tables_widget",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "08_0_failed_tables",
+                  "fields": [
+                    {
+                      "name": "countdistinct(target_table)",
+                      "expression": "COUNT(DISTINCT `target_table`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "displayName": "Distinct Failed Tables",
+                  "fieldName": "countdistinct(target_table)"
+                }
+              },
+              "frame": {
+                "description": "",
+                "showDescription": false,
+                "showTitle": true,
+                "title": "Distinct Failed Tables"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 20,
+            "width": 4,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "08_1_row_differences_widget",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "08_1_row_differences",
+                  "fields": [
+                    {
+                      "name": "sum(diff_rows)",
+                      "expression": "SUM(`diff_rows`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "displayName": "Failed Rows",
+                  "fieldName": "sum(diff_rows)"
+                }
+              },
+              "frame": {
+                "description": "",
+                "showDescription": false,
+                "showTitle": true,
+                "title": "Failed Rows"
+              }
+            }
+          },
+          "position": {
+            "x": 4,
+            "y": 20,
+            "width": 4,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "08_2_successful_tables_widget",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "08_2_successful_tables",
+                  "fields": [
+                    {
+                      "name": "countdistinct(target_table)",
+                      "expression": "COUNT(DISTINCT `target_table`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "displayName": "Distinct Successful Tables",
+                  "fieldName": "countdistinct(target_table)"
+                }
+              },
+              "frame": {
+                "description": "",
+                "showDescription": false,
+                "showTitle": true,
+                "title": "Distinct Successful Tables"
+              }
+            }
+          },
+          "position": {
+            "x": 8,
+            "y": 20,
+            "width": 4,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "09_1_job_timeline_widget",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "09_1_job_timeline",
+                  "fields": [
+                    {
+                      "name": "daily(start_ts)",
+                      "expression": "DATE_TRUNC(\"DAY\", `start_ts`)"
+                    },
+                    {
+                      "name": "sum(succeeded)",
+                      "expression": "SUM(`succeeded`)"
+                    },
+                    {
+                      "name": "sum(failed)",
+                      "expression": "SUM(`failed`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "frame": {
+                "description": "",
+                "showDescription": false,
+                "showTitle": true,
+                "title": "Runs Over Time"
+              },
+              "mark": {
+                "layout": "group"
+              },
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "daily(start_ts)",
+                  "displayName": "Time",
+                  "scale": {
+                    "type": "temporal"
+                  }
+                },
+                "y": {
+                  "fields": [
+                    {
+                      "fieldName": "sum(succeeded)",
+                      "displayName": "Succeeded"
+                    },
+                    {
+                      "fieldName": "sum(failed)",
+                      "displayName": "Failed"
+                    }
+                  ],
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "label": {
+                  "show": false
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 39,
+            "width": 12,
+            "height": 7
+          }
+        },
+        {
+          "widget": {
+            "name": "09_2_mismatch_trend_widget",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "09_2_mismatch_trend",
+                  "fields": [
+                    {
+                      "name": "daily(start_ts)",
+                      "expression": "DATE_TRUNC(\"DAY\", `start_ts`)"
+                    },
+                    {
+                      "name": "sum(mismatched)",
+                      "expression": "SUM(`mismatched`)"
+                    },
+                    {
+                      "name": "sum(missing_in_source)",
+                      "expression": "SUM(`missing_in_source`)"
+                    },
+                    {
+                      "name": "sum(missing_in_target)",
+                      "expression": "SUM(`missing_in_target`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "label": {
+                  "show": false
+                },
+                "x": {
+                  "displayName": "Time",
+                  "fieldName": "daily(start_ts)",
+                  "scale": {
+                    "type": "temporal"
+                  }
+                },
+                "y": {
+                  "fields": [
+                    {
+                      "displayName": "Mismatched",
+                      "fieldName": "sum(mismatched)"
+                    },
+                    {
+                      "displayName": "Missing in Source",
+                      "fieldName": "sum(missing_in_source)"
+                    },
+                    {
+                      "displayName": "Missing in Target",
+                      "fieldName": "sum(missing_in_target)"
+                    }
+                  ],
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                }
+              },
+              "frame": {
+                "description": "",
+                "showDescription": false,
+                "showTitle": true,
+                "title": "Failed Rows Over Time"
+              },
+              "mark": {
+                "layout": "group"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 46,
+            "width": 12,
+            "height": 7
+          }
+        },
+        {
+          "widget": {
+            "name": "05_0_jobs_summary_widget",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "05_0_jobs_summary",
+                  "fields": [
+                    {
+                      "name": "recon_id",
+                      "expression": "`recon_id`"
+                    },
+                    {
+                      "name": "start_ts",
+                      "expression": "`start_ts`"
+                    },
+                    {
+                      "name": "tables",
+                      "expression": "`tables`"
+                    },
+                    {
+                      "name": "succeeded",
+                      "expression": "`succeeded`"
+                    },
+                    {
+                      "name": "failed",
+                      "expression": "`failed`"
+                    },
+                    {
+                      "name": "mismatched_rows",
+                      "expression": "`mismatched_rows`"
+                    },
+                    {
+                      "name": "missing_rows",
+                      "expression": "`missing_rows`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "showTitle": true,
+                "title": "Jobs Summary"
+              },
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "recon_id",
+                    "displayName": "Recon ID"
+                  },
+                  {
+                    "fieldName": "start_ts",
+                    "displayName": "Started At"
+                  },
+                  {
+                    "fieldName": "tables",
+                    "displayName": "Tables in Batch"
+                  },
+                  {
+                    "fieldName": "succeeded",
+                    "displayName": "Succeeded Tables"
+                  },
+                  {
+                    "fieldName": "failed",
+                    "displayName": "Failed Tables"
+                  },
+                  {
+                    "fieldName": "mismatched_rows",
+                    "displayName": "Mismatched Rows"
+                  },
+                  {
+                    "fieldName": "missing_rows",
+                    "displayName": "Missing Rows"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 8,
+            "width": 12,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "09_0_latest_run_per_table_widget",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "09_0_latest_run_per_table",
+                  "fields": [
+                    {
+                      "name": "recon_id",
+                      "expression": "`recon_id`"
+                    },
+                    {
+                      "name": "source_type",
+                      "expression": "`source_type`"
+                    },
+                    {
+                      "name": "target_table",
+                      "expression": "`target_table`"
+                    },
+                    {
+                      "name": "source_table",
+                      "expression": "`source_table`"
+                    },
+                    {
+                      "name": "executed_by",
+                      "expression": "`executed_by`"
+                    },
+                    {
+                      "name": "start_ts",
+                      "expression": "`start_ts`"
+                    },
+                    {
+                      "name": "status_label",
+                      "expression": "`status_label`"
+                    },
+                    {
+                      "name": "mismatched_rows",
+                      "expression": "`mismatched_rows`"
+                    },
+                    {
+                      "name": "missing_in_source",
+                      "expression": "`missing_in_source`"
+                    },
+                    {
+                      "name": "missing_in_target",
+                      "expression": "`missing_in_target`"
+                    },
+                    {
+                      "name": "failing_columns",
+                      "expression": "`failing_columns`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": "Latest Run per Table"
+              },
+              "version": 2,
+              "rowsPerPage": 25,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "recon_id",
+                    "style": {
+                      "type": "basic",
+                      "bold": true,
+                      "rules": [
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "PASSED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#D4EDDA",
+                          "foregroundColor": "#155724",
+                          "bold": true
+                        },
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "FAILED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#F8D7DA",
+                          "foregroundColor": "#721C24",
+                          "bold": true
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "fieldName": "source_type",
+                    "style": {
+                      "type": "basic",
+                      "rules": [
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "PASSED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#D4EDDA",
+                          "foregroundColor": "#155724"
+                        },
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "FAILED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#F8D7DA",
+                          "foregroundColor": "#721C24"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "fieldName": "target_table",
+                    "style": {
+                      "type": "basic",
+                      "rules": [
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "PASSED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#D4EDDA",
+                          "foregroundColor": "#155724"
+                        },
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "FAILED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#F8D7DA",
+                          "foregroundColor": "#721C24"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "fieldName": "source_table",
+                    "style": {
+                      "type": "basic",
+                      "rules": [
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "PASSED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#D4EDDA",
+                          "foregroundColor": "#155724"
+                        },
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "FAILED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#F8D7DA",
+                          "foregroundColor": "#721C24"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "fieldName": "executed_by",
+                    "style": {
+                      "type": "basic",
+                      "rules": [
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "PASSED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#D4EDDA",
+                          "foregroundColor": "#155724"
+                        },
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "FAILED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#F8D7DA",
+                          "foregroundColor": "#721C24"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "fieldName": "start_ts",
+                    "style": {
+                      "type": "basic",
+                      "rules": [
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "PASSED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#D4EDDA",
+                          "foregroundColor": "#155724"
+                        },
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "FAILED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#F8D7DA",
+                          "foregroundColor": "#721C24"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "fieldName": "status_label",
+                    "style": {
+                      "type": "basic",
+                      "rules": [
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "PASSED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#D4EDDA",
+                          "foregroundColor": "#155724"
+                        },
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "FAILED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#F8D7DA",
+                          "foregroundColor": "#721C24"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "fieldName": "mismatched_rows",
+                    "style": {
+                      "type": "basic",
+                      "rules": [
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "PASSED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#D4EDDA",
+                          "foregroundColor": "#155724"
+                        },
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "FAILED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#F8D7DA",
+                          "foregroundColor": "#721C24"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "fieldName": "missing_in_source",
+                    "style": {
+                      "type": "basic",
+                      "rules": [
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "PASSED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#D4EDDA",
+                          "foregroundColor": "#155724"
+                        },
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "FAILED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#F8D7DA",
+                          "foregroundColor": "#721C24"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "fieldName": "missing_in_target",
+                    "style": {
+                      "type": "basic",
+                      "rules": [
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "PASSED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#D4EDDA",
+                          "foregroundColor": "#155724"
+                        },
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "FAILED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#F8D7DA",
+                          "foregroundColor": "#721C24"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "fieldName": "failing_columns",
+                    "style": {
+                      "type": "basic",
+                      "rules": [
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "PASSED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#D4EDDA",
+                          "foregroundColor": "#155724"
+                        },
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "FAILED"
+                            },
+                            "operator": "=",
+                            "fieldName": "status_label"
+                          },
+                          "backgroundColor": "#F8D7DA",
+                          "foregroundColor": "#721C24"
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 2,
+            "width": 12,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "10_0_failures_by_table_widget",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "10_0_failures_by_table",
+                  "fields": [
+                    {
+                      "name": "sum(missing_rows)",
+                      "expression": "SUM(`missing_rows`)"
+                    },
+                    {
+                      "name": "target_table",
+                      "expression": "`target_table`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "frame": {
+                "showTitle": true,
+                "title": "Failures by Table"
+              },
+              "widgetType": "pie",
+              "encodings": {
+                "angle": {
+                  "fieldName": "sum(missing_rows)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Failed Rows"
+                },
+                "color": {
+                  "fieldName": "target_table",
+                  "displayName": "Table",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "label": {
+                  "show": true
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 23,
+            "width": 6,
+            "height": 7
+          }
+        },
+        {
+          "widget": {
+            "name": "10_1_successes_by_table_widget",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "10_1_successes_by_table",
+                  "fields": [
+                    {
+                      "name": "count(*)",
+                      "expression": "COUNT(`*`)"
+                    },
+                    {
+                      "name": "target_table",
+                      "expression": "`target_table`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "frame": {
+                "showTitle": true,
+                "title": "Successes by Table"
+              },
+              "widgetType": "pie",
+              "encodings": {
+                "angle": {
+                  "fieldName": "count(*)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Successful Runs"
+                },
+                "color": {
+                  "fieldName": "target_table",
+                  "displayName": "Table",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "label": {
+                  "show": true
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 23,
+            "width": 6,
+            "height": 7
+          }
+        },
+        {
+          "widget": {
+            "name": "d2164167",
+            "multilineTextboxSpec": {
+              "lines": [
+                "## Recon Jobs\n",
+                "\n",
+                "Pick a Recon Id below to scope every following tile on this page."
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 14,
+            "width": 12,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "11_0_config_header",
+            "multilineTextboxSpec": {
+              "lines": [
+                "## Recon Run Configurations\n",
+                "\n",
+                "Full JSON config captured at the time each recon job was registered."
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 53,
+            "width": 12,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "11_1_config_table",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "fab68dbc",
+                  "fields": [
+                    {
+                      "name": "recon_id",
+                      "expression": "`recon_id`"
+                    },
+                    {
+                      "name": "config",
+                      "expression": "`config`"
+                    },
+                    {
+                      "name": "inserted_ts",
+                      "expression": "`inserted_ts`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "showTitle": true,
+                "title": "Recon Run Configs"
+              },
+              "rowsPerPage": 10,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "recon_id",
+                    "displayName": "Recon ID"
+                  },
+                  {
+                    "fieldName": "config",
+                    "displayName": "Configuration (JSON)"
+                  },
+                  {
+                    "fieldName": "inserted_ts",
+                    "displayName": "Registered At"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 55,
+            "width": 12,
+            "height": 6
+          }
+        }
+      ],
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layoutVersion": "GRID_V1"
+    },
+    {
+      "name": "deep_dive",
+      "displayName": "Tables Details",
+      "layout": [
+        {
+          "widget": {
+            "name": "dd_header",
+            "multilineTextboxSpec": {
+              "lines": [
+                "# Table recon run\n",
+                "\n",
+                "Pick a **Target Table** and **Recon Id** below to scope every tile on this page."
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 12,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "dd_f_target_table",
+            "queries": [
+              {
+                "name": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e14167142a9f6bfb26fd19bde6_target_table",
+                "query": {
+                  "datasetName": "ds_table_run",
+                  "fields": [
+                    {
+                      "name": "target_table",
+                      "expression": "`target_table`"
+                    },
+                    {
+                      "name": "target_table_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e1416714319030156650f5dd31_target_table",
+                "query": {
+                  "datasetName": "ds_schema",
+                  "fields": [
+                    {
+                      "name": "target_table",
+                      "expression": "`target_table`"
+                    },
+                    {
+                      "name": "target_table_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e14167143694346737bf211f3a_target_table",
+                "query": {
+                  "datasetName": "ds_details_columns",
+                  "fields": [
+                    {
+                      "name": "target_table",
+                      "expression": "`target_table`"
+                    },
+                    {
+                      "name": "target_table_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e14167143a8e280d493ac4792f_target_table",
+                "query": {
+                  "datasetName": "ds_missing",
+                  "fields": [
+                    {
+                      "name": "target_table",
+                      "expression": "`target_table`"
+                    },
+                    {
+                      "name": "target_table_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e14167141496da013b6084bf13_target_table",
+                "query": {
+                  "datasetName": "09_1_job_timeline",
+                  "fields": [
+                    {
+                      "name": "target_table",
+                      "expression": "`target_table`"
+                    },
+                    {
+                      "name": "target_table_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e1416714188d72ebe1a4ffecd1_target_table",
+                "query": {
+                  "datasetName": "09_2_mismatch_trend",
+                  "fields": [
+                    {
+                      "name": "target_table",
+                      "expression": "`target_table`"
+                    },
+                    {
+                      "name": "target_table_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "disallowAll": false,
+              "frame": {
+                "showTitle": true,
+                "title": "Target Table"
+              },
+              "version": 2,
+              "widgetType": "filter-single-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "target_table",
+                    "queryName": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e14167142a9f6bfb26fd19bde6_target_table"
+                  },
+                  {
+                    "fieldName": "target_table",
+                    "queryName": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e1416714319030156650f5dd31_target_table"
+                  },
+                  {
+                    "fieldName": "target_table",
+                    "queryName": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e14167143694346737bf211f3a_target_table"
+                  },
+                  {
+                    "fieldName": "target_table",
+                    "queryName": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e14167143a8e280d493ac4792f_target_table"
+                  },
+                  {
+                    "fieldName": "target_table",
+                    "queryName": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e14167141496da013b6084bf13_target_table"
+                  },
+                  {
+                    "fieldName": "target_table",
+                    "queryName": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e1416714188d72ebe1a4ffecd1_target_table"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 2,
+            "width": 6,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "dd_f_recon_id",
+            "queries": [
+              {
+                "name": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e14167142a9f6bfb26fd19bde6_recon_id",
+                "query": {
+                  "datasetName": "ds_table_run",
+                  "fields": [
+                    {
+                      "name": "recon_id",
+                      "expression": "`recon_id`"
+                    },
+                    {
+                      "name": "recon_id_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e1416714319030156650f5dd31_recon_id",
+                "query": {
+                  "datasetName": "ds_schema",
+                  "fields": [
+                    {
+                      "name": "recon_id",
+                      "expression": "`recon_id`"
+                    },
+                    {
+                      "name": "recon_id_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e14167143694346737bf211f3a_recon_id",
+                "query": {
+                  "datasetName": "ds_details_columns",
+                  "fields": [
+                    {
+                      "name": "recon_id",
+                      "expression": "`recon_id`"
+                    },
+                    {
+                      "name": "recon_id_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e14167143a8e280d493ac4792f_recon_id",
+                "query": {
+                  "datasetName": "ds_missing",
+                  "fields": [
+                    {
+                      "name": "recon_id",
+                      "expression": "`recon_id`"
+                    },
+                    {
+                      "name": "recon_id_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e14167141496da013b6084bf13_recon_id",
+                "query": {
+                  "datasetName": "09_1_job_timeline",
+                  "fields": [
+                    {
+                      "name": "recon_id",
+                      "expression": "`recon_id`"
+                    },
+                    {
+                      "name": "recon_id_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e1416714188d72ebe1a4ffecd1_recon_id",
+                "query": {
+                  "datasetName": "09_2_mismatch_trend",
+                  "fields": [
+                    {
+                      "name": "recon_id",
+                      "expression": "`recon_id`"
+                    },
+                    {
+                      "name": "recon_id_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "disallowAll": false,
+              "frame": {
+                "showTitle": true,
+                "title": "Recon Id"
+              },
+              "version": 2,
+              "widgetType": "filter-single-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "recon_id",
+                    "queryName": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e14167142a9f6bfb26fd19bde6_recon_id"
+                  },
+                  {
+                    "fieldName": "recon_id",
+                    "queryName": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e1416714319030156650f5dd31_recon_id"
+                  },
+                  {
+                    "fieldName": "recon_id",
+                    "queryName": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e14167143694346737bf211f3a_recon_id"
+                  },
+                  {
+                    "fieldName": "recon_id",
+                    "queryName": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e14167143a8e280d493ac4792f_recon_id"
+                  },
+                  {
+                    "fieldName": "recon_id",
+                    "queryName": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e14167141496da013b6084bf13_recon_id"
+                  },
+                  {
+                    "fieldName": "recon_id",
+                    "queryName": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e1416714188d72ebe1a4ffecd1_recon_id"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 2,
+            "width": 6,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "dd_c_source",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_table_run",
+                  "fields": [
+                    {
+                      "name": "v",
+                      "expression": "MAX(`source_rows`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "displayName": "Source rows",
+                  "fieldName": "v"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Source rows"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 4,
+            "width": 4,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "dd_c_target",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_table_run",
+                  "fields": [
+                    {
+                      "name": "v",
+                      "expression": "MAX(`target_rows`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "displayName": "Target rows",
+                  "fieldName": "v"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Target rows"
+              }
+            }
+          },
+          "position": {
+            "x": 4,
+            "y": 4,
+            "width": 4,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "dd_c_mismatched",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_table_run",
+                  "fields": [
+                    {
+                      "name": "v",
+                      "expression": "MAX(`mismatched_records`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "displayName": "Mismatched records",
+                  "fieldName": "v"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Mismatched records"
+              }
+            }
+          },
+          "position": {
+            "x": 8,
+            "y": 4,
+            "width": 4,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "dd_c_miss_src",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_table_run",
+                  "fields": [
+                    {
+                      "name": "v",
+                      "expression": "MAX(`missing_in_source`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "displayName": "Missing in source",
+                  "fieldName": "v"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Missing in source"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 7,
+            "width": 4,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "dd_c_miss_tgt",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_table_run",
+                  "fields": [
+                    {
+                      "name": "v",
+                      "expression": "MAX(`missing_in_target`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "displayName": "Missing in target",
+                  "fieldName": "v"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Missing in target"
+              }
+            }
+          },
+          "position": {
+            "x": 4,
+            "y": 7,
+            "width": 4,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "dd_c_schema_invalid",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_schema",
+                  "fields": [
+                    {
+                      "name": "measure(invalid_count)",
+                      "expression": "MEASURE(`invalid_count`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "showTitle": true,
+                "title": "Invalid Column Datatypes"
+              },
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "measure(invalid_count)",
+                  "displayName": "Invalid Column Datatypes"
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 8,
+            "y": 7,
+            "width": 4,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "dd_h_schema",
+            "multilineTextboxSpec": {
+              "lines": [
+                "## Schema comparison"
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 10,
+            "width": 12,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "dd_t_schema",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_schema",
+                  "fields": [
+                    {
+                      "name": "column",
+                      "expression": "`column`"
+                    },
+                    {
+                      "name": "source_type",
+                      "expression": "`source_type`"
+                    },
+                    {
+                      "name": "databricks_type",
+                      "expression": "`databricks_type`"
+                    },
+                    {
+                      "name": "is_valid",
+                      "expression": "`is_valid`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "showTitle": true,
+                "title": "Schema"
+              },
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "column",
+                    "displayName": "Column",
+                    "style": {
+                      "type": "basic",
+                      "rules": [
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "true"
+                            },
+                            "operator": "=",
+                            "fieldName": "is_valid"
+                          },
+                          "backgroundColor": "#D4EDDA",
+                          "foregroundColor": "#155724"
+                        },
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "false"
+                            },
+                            "operator": "=",
+                            "fieldName": "is_valid"
+                          },
+                          "backgroundColor": "#F8D7DA",
+                          "foregroundColor": "#721C24"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "fieldName": "source_type",
+                    "displayName": "Source type",
+                    "style": {
+                      "type": "basic",
+                      "rules": [
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "true"
+                            },
+                            "operator": "=",
+                            "fieldName": "is_valid"
+                          },
+                          "backgroundColor": "#D4EDDA",
+                          "foregroundColor": "#155724"
+                        },
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "false"
+                            },
+                            "operator": "=",
+                            "fieldName": "is_valid"
+                          },
+                          "backgroundColor": "#F8D7DA",
+                          "foregroundColor": "#721C24"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "fieldName": "databricks_type",
+                    "displayName": "Databricks type",
+                    "style": {
+                      "type": "basic",
+                      "rules": [
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "true"
+                            },
+                            "operator": "=",
+                            "fieldName": "is_valid"
+                          },
+                          "backgroundColor": "#D4EDDA",
+                          "foregroundColor": "#155724"
+                        },
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "false"
+                            },
+                            "operator": "=",
+                            "fieldName": "is_valid"
+                          },
+                          "backgroundColor": "#F8D7DA",
+                          "foregroundColor": "#721C24"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "fieldName": "is_valid",
+                    "displayName": "Valid",
+                    "style": {
+                      "type": "basic",
+                      "rules": [
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "true"
+                            },
+                            "operator": "=",
+                            "fieldName": "is_valid"
+                          },
+                          "backgroundColor": "#D4EDDA",
+                          "foregroundColor": "#155724"
+                        },
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "false"
+                            },
+                            "operator": "=",
+                            "fieldName": "is_valid"
+                          },
+                          "backgroundColor": "#F8D7DA",
+                          "foregroundColor": "#721C24"
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 11,
+            "width": 12,
+            "height": 5
+          }
+        },
+        {
+          "widget": {
+            "name": "dd_h_topcols",
+            "multilineTextboxSpec": {
+              "lines": [
+                "## Mismatch analysis\n",
+                "\n",
+                "Use the **Columns** filter to narrow the chart and drill-down below to specific columns."
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 16,
+            "width": 12,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "dd_f_column",
+            "queries": [
+              {
+                "name": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e14167143694346737bf211f3a_column_name",
+                "query": {
+                  "datasetName": "ds_details_columns",
+                  "fields": [
+                    {
+                      "name": "column_name",
+                      "expression": "`column_name`"
+                    },
+                    {
+                      "name": "column_name_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "disallowAll": false,
+              "frame": {
+                "showTitle": true,
+                "title": "Columns"
+              },
+              "version": 2,
+              "widgetType": "filter-multi-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "column_name",
+                    "queryName": "dashboards/01f1602b428b18cf9c34706d68416ecd/datasets/01f163e14167143694346737bf211f3a_column_name"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 18,
+            "width": 6,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "dd_b_topcols",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_details_columns",
+                  "fields": [
+                    {
+                      "name": "column_name",
+                      "expression": "`column_name`"
+                    },
+                    {
+                      "name": "mismatched_records",
+                      "expression": "COUNT(*)"
+                    }
+                  ],
+                  "filters": [
+                    {
+                      "expression": "`recon_type` = 'mismatch'"
+                    },
+                    {
+                      "expression": "`is_mismatch` = true"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "column_name",
+                  "scale": {
+                    "type": "categorical",
+                    "sort": {
+                      "by": "y-reversed"
+                    }
+                  },
+                  "displayName": "column_name"
+                },
+                "y": {
+                  "fieldName": "mismatched_records",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "mismatched_records"
+                },
+                "label": {
+                  "show": true
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Top mismatching columns"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 20,
+            "width": 12,
+            "height": 4
+          }
+        },
+        {
+          "widget": {
+            "name": "dd_t_drill",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_details_columns",
+                  "fields": [
+                    {
+                      "name": "record_key",
+                      "expression": "`record_key`"
+                    },
+                    {
+                      "name": "column_name",
+                      "expression": "`column_name`"
+                    },
+                    {
+                      "name": "source_value",
+                      "expression": "`source_value`"
+                    },
+                    {
+                      "name": "target_value",
+                      "expression": "`target_value`"
+                    },
+                    {
+                      "name": "is_mismatch",
+                      "expression": "`is_mismatch`"
+                    }
+                  ],
+                  "filters": [
+                    {
+                      "expression": "`recon_type` = 'mismatch'"
+                    },
+                    {
+                      "expression": "`is_mismatch` = true"
+                    }
+                  ],
+                  "disaggregated": true,
+                  "orders": [
+                    {
+                      "direction": "ASC",
+                      "expression": "`record_key`"
+                    },
+                    {
+                      "direction": "ASC",
+                      "expression": "`column_name`"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "record_key",
+                    "displayName": "Record"
+                  },
+                  {
+                    "fieldName": "column_name",
+                    "displayName": "Column"
+                  },
+                  {
+                    "fieldName": "source_value",
+                    "displayName": "Source",
+                    "style": {
+                      "type": "basic",
+                      "rules": [
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "true"
+                            },
+                            "operator": "=",
+                            "fieldName": "is_mismatch"
+                          },
+                          "backgroundColor": "#F8D7DA",
+                          "foregroundColor": "#721C24"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "fieldName": "target_value",
+                    "displayName": "Target (Databricks)",
+                    "style": {
+                      "type": "basic",
+                      "rules": [
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "true"
+                            },
+                            "operator": "=",
+                            "fieldName": "is_mismatch"
+                          },
+                          "backgroundColor": "#D4EDDA",
+                          "foregroundColor": "#155724"
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Mismatch drill-down"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 24,
+            "width": 12,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "dd_h_miss_src",
+            "multilineTextboxSpec": {
+              "lines": [
+                "## Missing in source"
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 30,
+            "width": 12,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "dd_t_miss_src",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_missing",
+                  "fields": [
+                    {
+                      "name": "record_key",
+                      "expression": "`record_key`"
+                    },
+                    {
+                      "name": "row_image",
+                      "expression": "`row_image`"
+                    }
+                  ],
+                  "filters": [
+                    {
+                      "expression": "`recon_type` = 'missing_in_source'"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "record_key",
+                    "displayName": "Record"
+                  },
+                  {
+                    "fieldName": "row_image",
+                    "displayName": "Row image (JSON)"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Missing in source"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 31,
+            "width": 12,
+            "height": 4
+          }
+        },
+        {
+          "widget": {
+            "name": "dd_h_miss_tgt",
+            "multilineTextboxSpec": {
+              "lines": [
+                "## Missing in target"
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 35,
+            "width": 12,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "dd_t_miss_tgt",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_missing",
+                  "fields": [
+                    {
+                      "name": "record_key",
+                      "expression": "`record_key`"
+                    },
+                    {
+                      "name": "row_image",
+                      "expression": "`row_image`"
+                    }
+                  ],
+                  "filters": [
+                    {
+                      "expression": "`recon_type` = 'missing_in_target'"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "record_key",
+                    "displayName": "Record"
+                  },
+                  {
+                    "fieldName": "row_image",
+                    "displayName": "Row image (JSON)"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Missing in target"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 36,
+            "width": 12,
+            "height": 4
+          }
+        },
+        {
+          "widget": {
+            "name": "dd_runs_over_time",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "09_1_job_timeline",
+                  "fields": [
+                    {
+                      "name": "daily(start_ts)",
+                      "expression": "DATE_TRUNC(\"DAY\", `start_ts`)"
+                    },
+                    {
+                      "name": "sum(succeeded)",
+                      "expression": "SUM(`succeeded`)"
+                    },
+                    {
+                      "name": "sum(failed)",
+                      "expression": "SUM(`failed`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "frame": {
+                "showTitle": true,
+                "title": "Runs Over Time"
+              },
+              "mark": {
+                "layout": "group"
+              },
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "daily(start_ts)",
+                  "displayName": "Time",
+                  "scale": {
+                    "type": "temporal"
+                  }
+                },
+                "y": {
+                  "fields": [
+                    {
+                      "fieldName": "sum(succeeded)",
+                      "displayName": "Succeeded"
+                    },
+                    {
+                      "fieldName": "sum(failed)",
+                      "displayName": "Failed"
+                    }
+                  ],
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "label": {
+                  "show": false
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 40,
+            "width": 12,
+            "height": 7
+          }
+        },
+        {
+          "widget": {
+            "name": "dd_failed_rows_over_time",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "09_2_mismatch_trend",
+                  "fields": [
+                    {
+                      "name": "daily(start_ts)",
+                      "expression": "DATE_TRUNC(\"DAY\", `start_ts`)"
+                    },
+                    {
+                      "name": "sum(mismatched)",
+                      "expression": "SUM(`mismatched`)"
+                    },
+                    {
+                      "name": "sum(missing_in_source)",
+                      "expression": "SUM(`missing_in_source`)"
+                    },
+                    {
+                      "name": "sum(missing_in_target)",
+                      "expression": "SUM(`missing_in_target`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "frame": {
+                "showTitle": true,
+                "title": "Failed Rows Over Time"
+              },
+              "mark": {
+                "layout": "group"
+              },
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "daily(start_ts)",
+                  "displayName": "Time",
+                  "scale": {
+                    "type": "temporal"
+                  }
+                },
+                "y": {
+                  "fields": [
+                    {
+                      "fieldName": "sum(mismatched)",
+                      "displayName": "Mismatched"
+                    },
+                    {
+                      "fieldName": "sum(missing_in_source)",
+                      "displayName": "Missing in Source"
+                    },
+                    {
+                      "fieldName": "sum(missing_in_target)",
+                      "displayName": "Missing in Target"
+                    }
+                  ],
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "label": {
+                  "show": false
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 47,
+            "width": 12,
+            "height": 7
+          }
+        }
+      ],
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layoutVersion": "GRID_V1"
+    }
+  ],
+  "uiSettings": {
+    "theme": {
+      "widgetHeaderAlignment": "ALIGNMENT_UNSPECIFIED"
+    },
+    "applyModeEnabled": false
+  }
+}

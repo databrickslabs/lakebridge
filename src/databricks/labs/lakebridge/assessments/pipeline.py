@@ -14,6 +14,11 @@ from databricks.labs.blueprint.paths import read_text
 from databricks.labs.lakebridge import __version__ as lakebridge_version
 from databricks.labs.lakebridge.assessments.profiler_config import PipelineConfig, Step
 from databricks.labs.lakebridge.connections.database_manager import DatabaseConnector, FetchResult
+from databricks.labs.lakebridge.resources.assessments.common.duckdb_helpers import (
+    SaveMode,
+    connect_to_profiler_db,
+    save_to_duckdb_conn,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -124,9 +129,28 @@ class PipelineClass:
             logging.error("Database executor is not set.")
             raise RuntimeError("Database executor is not set.")
 
+        if self.executor.supports_streaming():
+            # Warning: in this mode writing the step data may not be atomic.
+            self._stream_sql_step(step, query)
+            return
+
         logging.info(f"Executing query: {query}")
         result = self.executor.fetch(query)
-        self._save_to_db(result, step.name, str(step.mode))
+        self._save_to_db(result, step.name, step.mode)
+
+    def _stream_sql_step(self, step: Step, query: str) -> None:
+        if self.executor is None:
+            raise RuntimeError("Database executor is not set.")
+
+        first = True
+        with connect_to_profiler_db(self._db_path) as conn:
+            logging.info(f"Starting query: {query}")
+            for batch in self.executor.stream(query):
+                if batch.num_rows == 0:
+                    continue
+                write_mode: SaveMode = "overwrite" if first and step.mode == "overwrite" else "append"
+                save_to_duckdb_conn(conn, batch, step.name, mode=write_mode)
+                first = False
 
     def _execute_source_ddl_step(self, step: Step):
         """Run a no-result DDL statement against the *source* database (one statement per file).
@@ -160,7 +184,7 @@ class PipelineClass:
             # TODO: Handle schema evolution
             # Current implementation just checks for table existence;
             # mode logic becomes irrelevant for ddl step.
-            with duckdb.connect(self._db_path) as conn:
+            with connect_to_profiler_db(self._db_path) as conn:
                 conn.begin()
                 if not self._table_exists(conn, step.name):
                     conn.execute(ddl)
@@ -233,7 +257,7 @@ class PipelineClass:
         row_count = len(result.rows)
         logging.info(f"Query for step '{step_name}' returned {row_count} rows.")
 
-        with duckdb.connect(self._db_path) as conn:
+        with connect_to_profiler_db(self._db_path) as conn:
             # Note: step_name is validated to be SQL-safe by Step.__post_init__
             table_exists = self._table_exists(conn, step_name)
             conn.begin()
