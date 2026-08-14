@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Generator, Iterable, Mapping, Sequence, Set
+from collections.abc import Generator, Iterable, Mapping, Sequence
+from collections.abc import Set as AbstractSet
 from dataclasses import dataclass
 from json import loads
 from pathlib import Path
@@ -117,7 +118,7 @@ class TranspilerRepository:
         """
         return {path.name: config for path, config in self._all_transpiler_configs()}
 
-    def all_transpiler_names(self) -> Set[str]:
+    def all_transpiler_names(self) -> AbstractSet[str]:
         """Query the set of transpiler names for all installed transpilers."""
         all_configs = self._all_transpiler_configs()
         return frozenset(config.name for _, config in all_configs)
@@ -150,14 +151,14 @@ class TranspilerRepository:
             for path, config in self._all_transpiler_configs()
         }
 
-    def all_dialects(self) -> Set[str]:
+    def all_dialects(self) -> AbstractSet[str]:
         """Query the set of dialects for all installed transpilers."""
         all_dialects: set[str] = set()
         for _, config in self._all_transpiler_configs():
             all_dialects = all_dialects.union(config.remorph.dialects)
         return all_dialects
 
-    def transpilers_with_dialect(self, dialect: str) -> Set[str]:
+    def transpilers_with_dialect(self, dialect: str) -> AbstractSet[str]:
         """
         Query the set of transpilers that can handle a given dialect.
 

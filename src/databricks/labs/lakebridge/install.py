@@ -3,7 +3,8 @@ import logging
 import os
 import sys
 import webbrowser
-from collections.abc import Callable, Sequence, Set
+from collections.abc import Callable, Sequence
+from collections.abc import Set as AbstractSet
 from pathlib import Path
 from typing import Any
 
@@ -88,7 +89,7 @@ class WorkspaceInstaller:
             raise SystemExit(msg)
 
     @property
-    def _transpiler_installers(self) -> Set[TranspilerInstaller]:
+    def _transpiler_installers(self) -> AbstractSet[TranspilerInstaller]:
         return frozenset(factory(self._transpiler_repository) for factory in self._transpiler_installer_factories)
 
     def run(

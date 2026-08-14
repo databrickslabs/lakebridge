@@ -194,6 +194,7 @@ extend-exclude = [
 extend-select = [
     # On by default in ruff 0.16
     "I",
+    "PYI",
 ]
 ignore = [
     # Allow non-abstract empty methods in abstract base classes
@@ -214,6 +215,7 @@ ignore = [
     "EM101",
     "PLR2004",
 ]
+typing-extensions = false
 
 [tool.ruff.lint.flake8-tidy-imports]
 ban-relative-imports = "all"

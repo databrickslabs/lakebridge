@@ -1,6 +1,7 @@
 import json
 import logging
-from collections.abc import Mapping, Sequence, Set
+from collections.abc import Mapping, Sequence
+from collections.abc import Set as AbstractSet
 from pathlib import Path
 from typing import cast
 from unittest.mock import Mock, PropertyMock, create_autospec
@@ -198,7 +199,7 @@ def test_all_dialects() -> None:
         ("baz", {"B Transpiler"}),
     ),
 )
-def test_transpilers_for_dialect(dialect: str, expected_transpiler_names: Set[str]) -> None:
+def test_transpilers_for_dialect(dialect: str, expected_transpiler_names: AbstractSet[str]) -> None:
     """Verify that the transpiler names for a given dialect can be queried."""
     a_transpiler = mock_transpiler("a_transpiler", transpiler_config("A Transpiler", dialects=("foo", "bar")))
     b_transpiler = mock_transpiler("b_transpiler", transpiler_config("B Transpiler", dialects=("bar", "baz")))
