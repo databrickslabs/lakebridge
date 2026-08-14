@@ -1,6 +1,7 @@
 import dataclasses
 import json
 import re
+import sys
 from collections.abc import Generator, Callable
 from unittest.mock import create_autospec, patch, ANY, MagicMock
 from pathlib import Path
@@ -155,6 +156,7 @@ def mock_cli_transpile_no_config(
     with (
         patch("databricks.labs.lakebridge.cli.do_transpile", new=do_transpile),
         patch("databricks.labs.lakebridge.cli.ApplicationContext", mock_app_context),
+        patch.object(sys.stdin, "isatty", return_value=True),
     ):
         mock_app_context.return_value.workspace_client = mock_workspace_client
         mock_app_context.return_value.prompts = prompts
@@ -433,7 +435,7 @@ def test_transpile_prints_errors(
     prompts = MockPrompts({"Do you want to use the experimental.*": "no"})
     ctx = ApplicationContext(ws=mock_workspace_client).replace(prompts=prompts)
     input_source = test_resources / "lsp_transpiler" / "unsupported_lca.sql"
-    with caplog.at_level("ERROR"):
+    with caplog.at_level("ERROR"), patch.object(sys.stdin, "isatty", return_value=True):
         cli.transpile(
             w=mock_workspace_client,
             transpiler_config_path=str(test_resources / "lsp_transpiler" / "lsp_config.yml"),
@@ -506,6 +508,75 @@ def test_transpile_no_config_with_source_override(
         ANY,
         expected_config,
     )
+
+
+@pytest.fixture
+def mock_stdin_non_interactive():
+    """Patch sys.stdin to simulate a non-interactive (non-TTY) environment."""
+    with patch.object(sys.stdin, "isatty", return_value=False):
+        yield
+
+
+def test_transpile_non_interactive_missing_input_source(
+    mock_cli_for_transpile,
+    transpiler_repository: TranspilerRepository,
+    mock_stdin_non_interactive,
+) -> None:
+    """When stdin is not a TTY and --input-source is missing, raise a clear error instead of hanging."""
+    ws, cfg, set_cfg, _ = mock_cli_for_transpile
+    set_cfg(dataclasses.replace(cfg, input_source=None))
+    with pytest.raises(ValueError, match="Missing required value for '--input-source'"):
+        cli.transpile(w=ws, transpiler_repository=transpiler_repository)
+
+
+def test_transpile_non_interactive_missing_output_folder(
+    mock_cli_for_transpile,
+    transpiler_repository: TranspilerRepository,
+    mock_stdin_non_interactive,
+) -> None:
+    """When stdin is not a TTY and --output-folder is missing, raise a clear error instead of hanging."""
+    ws, cfg, set_cfg, _ = mock_cli_for_transpile
+    set_cfg(dataclasses.replace(cfg, output_folder=None))
+    with pytest.raises(ValueError, match="Missing required value for '--output-folder'"):
+        cli.transpile(w=ws, transpiler_repository=transpiler_repository)
+
+
+def test_transpile_non_interactive_missing_source_dialect_with_multiple_dialects(
+    mock_cli_transpile_no_config,
+    transpiler_repository: TranspilerRepository,
+    empty_input_source: Path,
+    output_folder: Path,
+    mock_stdin_non_interactive,
+) -> None:
+    """When stdin is not a TTY and --source-dialect is missing with multiple available dialects, raise a clear error."""
+    ws, _, _ = mock_cli_transpile_no_config
+    # Provide input_source and output_folder so those checks pass; source_dialect remains unspecified.
+    with pytest.raises(ValueError, match="Multiple source dialects are available"):
+        cli.transpile(
+            w=ws,
+            input_source=str(empty_input_source),
+            output_folder=str(output_folder),
+            transpiler_repository=transpiler_repository,
+        )
+
+
+def test_transpile_non_interactive_missing_required_transpiler_option_with_cli_arg(
+    mock_cli_for_transpile,
+    transpiler_repository: TranspilerRepository,
+    mock_stdin_non_interactive,
+) -> None:
+    """When stdin is not a TTY and a required transpiler option with a known CLI arg is missing, raise a clear error."""
+    ws, cfg, set_cfg, _ = mock_cli_for_transpile
+    # Use informatica pc dialect which requires target-tech option
+    set_cfg(
+        dataclasses.replace(
+            cfg,
+            source_dialect="informatica pc",
+            transpiler_options={"overrides-file": None},  # target-tech is missing
+        )
+    )
+    with pytest.raises(ValueError, match=r"Missing required transpiler option 'target-tech'.*--target-technology"):
+        cli.transpile(w=ws, transpiler_repository=transpiler_repository)
 
 
 def test_describe_transpile(mock_cli_transpile_no_config, transpiler_repository: TranspilerRepository, capsys) -> None:
