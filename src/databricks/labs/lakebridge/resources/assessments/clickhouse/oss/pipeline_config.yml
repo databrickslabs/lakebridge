@@ -906,6 +906,19 @@ steps:
     frequency: once
     flag: active
     optional: true
+  - name: costs_read_locality
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/costs_read_locality_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: costs_read_locality
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/oss/costs_read_locality.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
   - name: costs_ingestion_by_table
     type: ddl
     extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/costs_ingestion_by_table_ddl.sql

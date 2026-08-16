@@ -29,6 +29,8 @@ builds — the profiler records a non-fatal warning and continues, and the corre
 
 ### 3. Required Permissions
 
+#### SQL user
+
 The profiler runs **read-only** queries against `system.*` metadata and `information_schema`. It never reads user
 data or modifies anything. For a dedicated profiler user:
 
@@ -43,6 +45,28 @@ GRANT SHOW DATABASES ON *.* TO profiler;
 
 On ClickHouse Cloud, the built-in `default` user (or any user with the `default` role) already has the required
 access.
+
+#### Cloud API key role (Cloud only)
+
+The optional `cloud_api` key is a **separate credential** from the SQL user and is used only for read-only
+cost/sizing lookups: service metadata (provider, region, compute sizing) and the organization `usageCost`
+report (actual billed cost + plan tier). The profiler makes **only `GET` requests** with it — it never writes.
+
+Grant the key the **bare minimum** — two ClickHouse Cloud predefined roles (Cloud console → **API Keys**):
+
+| Role | Why it is needed |
+|:-----|:-----------------|
+| **Basic Service API Reader** | Read-only service metadata (`GET /organizations`, `/services`, `/services/{id}`) → provider, region, replica memory/count for sizing. |
+| **Billing** | Read the organization `usageCost` report → actual billed cost and plan tier (the TCO figures). |
+
+<Admonition type="tip" title="Keep the API key least-privilege">
+    Do <strong>not</strong> assign <code>Admin</code>, <code>Service Admin</code>, or <code>Service API Admin</code> —
+    they grant write access the profiler never uses. If you drop the <strong>Billing</strong> role, the profiler
+    still runs and reports sizing/region, just without dollar figures. If you omit the API key entirely, the
+    <code>system.*</code> SQL collectors still run — you only lose cost/tier enrichment. Note the non-API
+    "Reader" roles (e.g. <code>Service Reader</code>) additionally carry SQL-console access an API key does not
+    need — prefer the <code>… API Reader</code> variants.
+</Admonition>
 
 ## OSS vs Cloud (auto-detected)
 
@@ -102,8 +126,8 @@ those tables degrades gracefully instead of failing the run.
     </tr>
     <tr>
       <td><strong>costs</strong></td>
-      <td>Usage attribution across storage, compute, scan, and ingestion by database/user/query, plus a resource footprint and (Cloud only) the actual billed cost.</td>
-      <td><code>system.parts</code>, <code>system.query_log</code>, <code>system.asynchronous_insert_log</code></td>
+      <td>Usage attribution across storage, compute, scan, and ingestion by database/user/query, read locality (local-cache vs object-storage/S3 reads), a resource footprint, and (Cloud only) the actual billed cost.</td>
+      <td><code>system.parts</code>, <code>system.query_log</code> (incl. <code>ProfileEvents</code>), <code>system.asynchronous_insert_log</code></td>
     </tr>
   </tbody>
 </table>
@@ -128,6 +152,18 @@ Dollar figures are **actual billed cost only**, never a synthetic estimate:
     pricing calculation. It reflects billed history and can lag a same-day plan change; set <code>tier</code> in the
     Cloud API configuration to override it.
 </Admonition>
+
+### Read Locality (cache vs object storage)
+
+The `costs_read_locality` result set breaks down, per normalized query, how much data was served from the **local
+filesystem cache** versus fetched from the **object-storage source (S3)** — read from the `query_log`
+`ProfileEvents` (`CachedReadBufferReadFromCacheBytes` vs `CachedReadBufferReadFromSourceBytes`, plus raw
+`ReadBufferFromS3Bytes` and `S3ReadRequestsCount`). It reports a `cache_hit_pct` = `cache / (cache + source)`; a low
+value flags an S3-read-heavy workload whose latency depends on cache warmth.
+
+These counters populate only when data lives on object storage — **ClickHouse Cloud (SharedMergeTree)** or an
+S3-backed disk. On a pure local-`MergeTree` deployment they are `0`, so the table is created but comes back empty,
+which itself correctly signals "no object-storage read dependency."
 
 ## Data Privacy and Redaction
 
