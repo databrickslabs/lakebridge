@@ -592,6 +592,7 @@ steps:
     mode: overwrite
     frequency: once
     flag: active
+    optional: true
   - name: security_roles
     type: ddl
     extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/security_roles_ddl.sql
@@ -664,6 +665,7 @@ steps:
     mode: overwrite
     frequency: once
     flag: active
+    optional: true
   - name: security_settings_profiles
     type: ddl
     extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/security_settings_profiles_ddl.sql

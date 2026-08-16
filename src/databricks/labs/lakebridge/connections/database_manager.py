@@ -341,10 +341,16 @@ class ClickHouseConnector(DatabaseConnector):
         # A *.clickhouse.cloud host is forced to TLS (managed Cloud only accepts TLS and this
         # connection carries the password); otherwise `secure` follows the config, defaulting to
         # plaintext for self-managed / OSS. `port` follows the config, else the TLS/plaintext default.
-        secure = True if is_cloud_host(host) else bool(self.config.get("secure", False))
+        is_cloud = is_cloud_host(host)
+        secure = True if is_cloud else bool(self.config.get("secure", False))
         default_port = CLICKHOUSE_SECURE_PORT if secure else CLICKHOUSE_PLAINTEXT_PORT
         port_value = self.config.get("port")
         port = default_port if port_value in {None, ""} else int(str(port_value))
+        # A cloud host is TLS-only. If it was configured with the plaintext default port (e.g. copied
+        # from an OSS template), a TLS handshake against that port fails — correct it to the secure
+        # port so the forced-TLS override doesn't connect to the wrong place.
+        if is_cloud and secure and port == CLICKHOUSE_PLAINTEXT_PORT:
+            port = CLICKHOUSE_SECURE_PORT
         return clickhouse_connect.get_client(
             host=host,
             port=port,

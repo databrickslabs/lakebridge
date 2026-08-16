@@ -69,8 +69,11 @@ def _detect_region(config: dict[str, Any], cloud_meta: dict | None) -> tuple[str
         if len(tokens) >= 3 and tokens[-1] in _CLOUD_PROVIDERS:
             return f"{tokens[-1]}:{tokens[-2]}", "hostname"
         if len(tokens) >= 2:
-            # Legacy host without a provider token: default to AWS, as before.
-            return f"aws:{tokens[-1]}", "hostname"
+            # Legacy host without a provider token: the region is knowable but the provider is not
+            # (ClickHouse Cloud runs on AWS, GCP, and Azure), so report the region alone rather than
+            # guessing a provider. When Cloud API metadata is available it supplies the authoritative
+            # provider via the branch above.
+            return tokens[-1], "hostname"
     return "default", "hostname"
 
 
@@ -90,10 +93,11 @@ def _fetch_cloud_metadata(config: dict[str, Any], warnings: list[str], api: Clic
         host=config.get("host"),
     )
     # usageCost: authoritative plan tier (organizationTier) + actual billed cost. The API allows at
-    # most a 31-day span, so the window is capped at 30 days (matching the SQL steps' INTERVAL 30 DAY).
+    # most a 31-day span; `today - 29 days .. today` is 30 inclusive calendar dates, which stays
+    # safely under that limit while covering ~30 days (matching the SQL steps' INTERVAL 30 DAY).
     try:
         today = datetime.now(timezone.utc).date()
-        usage = api.get_usage_cost(meta["organization_id"], (today - timedelta(days=30)).isoformat(), today.isoformat())
+        usage = api.get_usage_cost(meta["organization_id"], (today - timedelta(days=29)).isoformat(), today.isoformat())
         summary = api.summarize_usage_cost(usage, service_id=meta.get("service_id"))
         if summary.get("tier"):
             meta["tier"] = summary["tier"]

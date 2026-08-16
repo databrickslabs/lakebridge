@@ -47,6 +47,25 @@ def test_summarize_reports_org_total_as_tco():
     assert summary["tier"] == "scale"
 
 
+def test_summarize_includes_unnamed_metric_buckets_in_total():
+    """A CHC bucket outside the named set (e.g. ClickPipes) is folded into `other` and the total,
+    so the per-service billed cost is not silently under-reported."""
+    usage = _usage(
+        grand_total=1.0,
+        records=[
+            {
+                "serviceId": "svc-1",
+                "date": "2026-07-16",
+                "metrics": {"computeCHC": 0.5, "storageCHC": 0.1, "clickPipesCHC": 0.4},
+            }
+        ],
+    )
+    summary = ClickHouseCloudAPI.summarize_usage_cost(usage, service_id="svc-1")
+
+    assert summary["actual_cost_chc"]["other"] == 0.4  # the unnamed bucket
+    assert summary["actual_total_usd"] == 1.0  # 0.5 + 0.1 + 0.4, not 0.6
+
+
 def test_summarize_org_total_none_when_grand_total_absent():
     """Falls back to None org total when the API returns no grandTotalCHC (caller then uses service sum)."""
     usage = _usage(

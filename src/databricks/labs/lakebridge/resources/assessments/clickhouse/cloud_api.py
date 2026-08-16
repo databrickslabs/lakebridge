@@ -143,7 +143,12 @@ class ClickHouseCloudAPI:
         storage = totals.get("storageCHC", 0.0)
         backup = totals.get("backupCHC", 0.0)
         transfer = sum(v for k, v in totals.items() if "DataTransferCHC" in k) + totals.get("initialLoadCHC", 0.0)
-        total = round(compute + storage + backup + transfer, 6)
+        # Fold every remaining CHC bucket (e.g. ClickPipes, dictionary, or future/renamed metrics)
+        # into `other` so the total reflects the whole `metrics` map, not just the named buckets —
+        # otherwise the per-service billed total would silently under-report those charges.
+        _named = {"computeCHC", "storageCHC", "backupCHC", "initialLoadCHC"}
+        other = sum(v for k, v in totals.items() if k not in _named and "DataTransferCHC" not in k)
+        total = round(compute + storage + backup + transfer + other, 6)
 
         # True TCO: the org-wide grand total across ALL services plus org-level charges (backups,
         # ClickPipes, shared costs) that aren't attributed to any single service. This is >= the
@@ -162,6 +167,7 @@ class ClickHouseCloudAPI:
                 "storage": round(storage, 6),
                 "backup": round(backup, 6),
                 "data_transfer": round(transfer, 6),
+                "other": round(other, 6),
                 "total": total,
             },
             # ClickHouse Credits are denominated 1 CHC = 1 USD (before discounts).
