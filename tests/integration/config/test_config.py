@@ -1,6 +1,6 @@
 from databricks.labs.blueprint.tui import MockPrompts
 
-from databricks.labs.lakebridge.config import TranspileConfig, ReconcileConfig
+from databricks.labs.lakebridge.config import ReconcileConfig, TranspileConfig
 from databricks.labs.lakebridge.contexts.application import ApplicationContext
 from databricks.labs.lakebridge.install import WorkspaceInstaller
 

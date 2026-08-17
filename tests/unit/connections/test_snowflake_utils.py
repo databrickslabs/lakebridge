@@ -8,9 +8,9 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 
 from databricks.labs.lakebridge.connections.database_manager import SnowflakeConnector
 from databricks.labs.lakebridge.connections.snowflake_utils import (
+    is_valid_snowflake_account,
     load_snowflake_private_key,
     parse_snowflake_account,
-    is_valid_snowflake_account,
 )
 
 

@@ -3,8 +3,7 @@ from importlib.resources import files
 
 from databricks.labs.blueprint.installation import Installation
 from databricks.labs.blueprint.installer import InstallState
-from databricks.labs.blueprint.wheels import ProductInfo
-from databricks.labs.blueprint.wheels import find_project_root
+from databricks.labs.blueprint.wheels import ProductInfo, find_project_root
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.errors import InvalidParameterValue, NotFound
 

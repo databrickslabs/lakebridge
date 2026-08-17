@@ -19,4 +19,3 @@ GROUP BY con.name,
          sh.instance_number,
          TRUNC(sh.sample_time, 'MI'),
          u.username
-ORDER BY 1, 4, 2

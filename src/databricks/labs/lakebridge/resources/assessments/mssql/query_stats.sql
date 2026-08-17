@@ -61,4 +61,3 @@ with query_stats as (
   END as command_type,
   SYSDATETIME() as extract_ts
   FROM query_stats_ex
-  ORDER BY last_execution_time

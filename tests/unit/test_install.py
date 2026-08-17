@@ -5,14 +5,15 @@ from unittest.mock import create_autospec, patch
 
 import pytest
 from databricks.labs.blueprint.installation import JsonObject, MockInstallation
-from databricks.sdk import WorkspaceClient
-from databricks.sdk.service import iam
 from databricks.labs.blueprint.tui import MockPrompts
 from databricks.labs.blueprint.wheels import ProductInfo, WheelsV2
+from databricks.sdk import WorkspaceClient
+from databricks.sdk.service import iam
+
 from databricks.labs.lakebridge.config import (
+    LakebridgeConfiguration,
     LSPConfigOptionV1,
     LSPPromptMethod,
-    LakebridgeConfiguration,
     ReconcileConfig,
     ReconcileMetadataConfig,
     SourceConnectionConfig,
@@ -23,7 +24,7 @@ from databricks.labs.lakebridge.contexts.application import ApplicationContext
 from databricks.labs.lakebridge.deployment.configurator import ResourceConfigurator
 from databricks.labs.lakebridge.deployment.installation import WorkspaceInstallation
 from databricks.labs.lakebridge.install import WorkspaceInstaller
-from databricks.labs.lakebridge.reconcile.constants import ReconSourceType, ReconReportType
+from databricks.labs.lakebridge.reconcile.constants import ReconReportType, ReconSourceType
 from databricks.labs.lakebridge.transpiler.installers import (
     TranspilerInstaller,
 )

@@ -1,5 +1,6 @@
 from databricks.labs.blueprint.installation import JsonObject
-from databricks.labs.lakebridge.connections.database_manager import create_connector, MSSQLConnector
+
+from databricks.labs.lakebridge.connections.database_manager import MSSQLConnector, create_connector
 
 
 def test_mssql_connector_connection(sandbox_sqlserver):

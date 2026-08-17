@@ -1,15 +1,14 @@
 import dataclasses
 import shutil
 import tempfile
-from pathlib import Path
 from collections.abc import Callable
+from pathlib import Path
 
+from databricks.labs.bladespector.analyzer import Analyzer
 from databricks.labs.blueprint.entrypoint import get_logger
 from databricks.labs.blueprint.tui import Prompts
 
-from databricks.labs.bladespector.analyzer import Analyzer
-
-from databricks.labs.lakebridge.helpers.file_utils import check_path
+from databricks.labs.lakebridge.helpers.file_utils import check_readable_path, check_writable_path
 
 logger = get_logger(__file__)
 
@@ -31,7 +30,7 @@ class AnalyzerPrompts:
         directory_str = self._prompts.question(
             "Enter the path of the directory containing sources to analyze",
             default=Path.cwd().as_posix(),
-            validate=check_path,
+            validate=check_readable_path,
         )
         return Path(directory_str)
 
@@ -40,7 +39,7 @@ class AnalyzerPrompts:
         filename = self._prompts.question(
             "Enter the path of the report file for analyzer results",
             default="lakebridge-analyzer-results.xlsx",
-            validate=check_path,
+            validate=check_writable_path,
         )
         return Path(filename)
 
@@ -74,9 +73,9 @@ class AnalyzerRunner:
             results_file_path = results_file_path.resolve()
             logger.debug(f"Relative path provided for results file, will use: {results_file_path}")
 
-        if not check_path(source_dir):
-            raise ValueError(f"Invalid source directory, not writable: {source_dir}")
-        if not check_path(results_file_path):
+        if not check_readable_path(source_dir):
+            raise ValueError(f"Invalid source directory, cannot read: {source_dir}")
+        if not check_writable_path(results_file_path):
             raise ValueError(f"Invalid result path, not writable: {results_file_path}")
 
         json_result = results_file_path.with_suffix(".json") if generate_json else None

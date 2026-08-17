@@ -9,13 +9,13 @@ import time
 from collections.abc import Generator
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import TextIO, List
+from typing import List, TextIO
 
 import sqlglot
-from sqlglot.expressions import Expression
-from sqlglot.dialects.dialect import Dialect
 from sqlglot.dialects.databricks import Databricks
+from sqlglot.dialects.dialect import Dialect
 from sqlglot.errors import ErrorLevel
+from sqlglot.expressions import Expression
 
 logger = logging.getLogger(__name__)
 

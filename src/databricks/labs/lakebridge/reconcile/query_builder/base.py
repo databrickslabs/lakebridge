@@ -12,11 +12,11 @@ from databricks.labs.lakebridge.reconcile.connectors.snowflake import SnowflakeD
 from databricks.labs.lakebridge.reconcile.exception import InvalidInputException
 from databricks.labs.lakebridge.reconcile.query_builder.expression_generator import (
     DataType_transform_mapping,
-    transform_expression,
     build_column,
+    transform_expression,
 )
-from databricks.labs.lakebridge.reconcile.recon_config import Schema, Table, Aggregate
-from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect, SQLGLOT_DIALECTS
+from databricks.labs.lakebridge.reconcile.recon_config import Aggregate, Schema, Table
+from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import SQLGLOT_DIALECTS, get_dialect
 
 logger = logging.getLogger(__name__)
 

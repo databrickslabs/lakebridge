@@ -1,19 +1,17 @@
 import dataclasses
 import json
 import re
-from collections.abc import Generator, Callable
-from unittest.mock import create_autospec, patch, ANY, MagicMock
+from collections.abc import Callable, Generator
 from pathlib import Path
+from unittest.mock import ANY, MagicMock, create_autospec, patch
 
 import pytest
 import yaml
-
-from databricks.labs.lakebridge import cli
-
 from databricks.labs.blueprint.tui import MockPrompts
-from databricks.labs.lakebridge.config import TranspileConfig
 from databricks.sdk import WorkspaceClient
 
+from databricks.labs.lakebridge import cli
+from databricks.labs.lakebridge.config import TranspileConfig
 from databricks.labs.lakebridge.contexts.application import ApplicationContext
 from databricks.labs.lakebridge.transpiler.repository import TranspilerRepository
 

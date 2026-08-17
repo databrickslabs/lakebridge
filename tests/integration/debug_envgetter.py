@@ -1,6 +1,6 @@
-import os
 import json
 import logging
+import os
 from urllib.parse import urlparse
 
 from databricks.labs.lakebridge.connections.env_getter import EnvGetter

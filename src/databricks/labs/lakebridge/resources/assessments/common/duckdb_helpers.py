@@ -68,7 +68,7 @@ def save_to_duckdb_conn(
     else:
         raise ValueError(f"Unsupported mode '{mode}'. Must be 'overwrite' or 'append'.")
     conn.commit()
-    logger.info("Wrote %d rows to '%s' (mode=%s).", len(df), table_name, mode)
+    logger.debug(f"Committed data to table: {table_name} {len(df)} row(s), mode={mode}")
 
 
 def save_to_duckdb(

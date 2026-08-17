@@ -1,8 +1,8 @@
 import pytest
 from databricks.sdk import WorkspaceClient
+from databricks.sdk.service.catalog import Privilege, SecurableType
 
 from databricks.labs.lakebridge.helpers.metastore import CatalogOperations
-from databricks.sdk.service.catalog import SecurableType, Privilege
 
 
 @pytest.fixture

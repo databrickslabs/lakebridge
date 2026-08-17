@@ -1,7 +1,6 @@
 """Unit tests for ConfigureSnowflakeAssessment."""
 
 import yaml
-
 from databricks.labs.blueprint.tui import MockPrompts
 
 from databricks.labs.lakebridge.assessments.configure_assessment import (
