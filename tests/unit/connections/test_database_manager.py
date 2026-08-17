@@ -1,10 +1,10 @@
-import mssql_python
-import pytest
 from unittest.mock import MagicMock, patch
 
-
+import mssql_python
+import pytest
 from databricks.labs.blueprint.installation import JsonObject
-from databricks.labs.lakebridge.connections.database_manager import create_connector, MSSQLConnector
+
+from databricks.labs.lakebridge.connections.database_manager import MSSQLConnector, create_connector
 
 sample_config: JsonObject = {
     'user': 'test_user',

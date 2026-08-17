@@ -17,6 +17,9 @@ from typing import Any, ClassVar, Literal, TypeVar, cast
 
 import attrs
 import yaml
+from databricks.labs.blueprint.installation import JsonValue, RootJsonValue
+from databricks.labs.blueprint.logger import readlines
+from databricks.labs.blueprint.wheels import ProductInfo
 from lsprotocol import types as types_module
 from lsprotocol.types import (
     CLIENT_REGISTER_CAPABILITY,
@@ -34,17 +37,18 @@ from lsprotocol.types import (
     InitializeParams,
     InitializeResult,
     LanguageKind,
+    Registration,
+    RegistrationParams,
+    TextDocumentIdentifier,
+    TextDocumentItem,
+    TextEdit,
     WorkspaceClientCapabilities,
 )
 from lsprotocol.types import Position as LSPPosition
 from lsprotocol.types import Range as LSPRange
-from lsprotocol.types import Registration, RegistrationParams, TextDocumentIdentifier, TextDocumentItem, TextEdit
 from pygls.exceptions import FeatureRequestError
 from pygls.lsp.client import LanguageClient
 
-from databricks.labs.blueprint.installation import JsonValue, RootJsonValue
-from databricks.labs.blueprint.logger import readlines
-from databricks.labs.blueprint.wheels import ProductInfo
 from databricks.labs.lakebridge.config import LSPConfigOptionV1, TranspileConfig, TranspileResult, extract_string_field
 from databricks.labs.lakebridge.errors.exceptions import IllegalStateException
 from databricks.labs.lakebridge.helpers.file_utils import is_dbt_project_file, is_sql_file

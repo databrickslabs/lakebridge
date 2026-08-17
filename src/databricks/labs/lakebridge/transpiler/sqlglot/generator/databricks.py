@@ -3,8 +3,8 @@ import re
 
 from sqlglot import expressions as exp
 from sqlglot.dialects.databricks import Databricks as SqlglotDatabricks
+from sqlglot.dialects.dialect import groupconcat_sql, if_sql, rename_func
 from sqlglot.dialects.hive import Hive
-from sqlglot.dialects.dialect import if_sql, rename_func, groupconcat_sql
 from sqlglot.errors import UnsupportedError
 from sqlglot.helper import apply_index_offset, csv
 

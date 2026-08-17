@@ -8,35 +8,33 @@ from typing import Any, cast
 from unittest.mock import create_autospec, patch
 
 import pytest
-
 from databricks.connect import DatabricksSession
+from databricks.labs.blueprint.installation import JsonObject
 from databricks.labs.lsql.backends import MockBackend
 from databricks.labs.lsql.core import Row
 from databricks.sdk import WorkspaceClient
+from databricks.sdk.core import Config
 
-from databricks.labs.lakebridge.config import TranspileConfig, ValidationResult, TranspileResult
+from databricks.labs.lakebridge.config import TranspileConfig, TranspileResult, ValidationResult
 from databricks.labs.lakebridge.helpers.file_utils import dir_walk, is_sql_file
 from databricks.labs.lakebridge.helpers.validation import Validator
 from databricks.labs.lakebridge.transpiler.execute import (
-    transpile as do_transpile,
+    make_header,
     transpile_column_exp,
     transpile_sql,
-    make_header,
 )
-
-from databricks.labs.lakebridge.transpiler.transpile_status import (
-    TranspileError,
-    CodeRange,
-    CodePosition,
-    ErrorSeverity,
-    ErrorKind,
+from databricks.labs.lakebridge.transpiler.execute import (
+    transpile as do_transpile,
 )
-
-from databricks.labs.blueprint.installation import JsonObject
-from databricks.sdk.core import Config
-
 from databricks.labs.lakebridge.transpiler.sqlglot.sqlglot_engine import SqlglotEngine
 from databricks.labs.lakebridge.transpiler.transpile_engine import TranspileEngine
+from databricks.labs.lakebridge.transpiler.transpile_status import (
+    CodePosition,
+    CodeRange,
+    ErrorKind,
+    ErrorSeverity,
+    TranspileError,
+)
 
 # pylint: disable=unspecified-encoding
 

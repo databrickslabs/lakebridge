@@ -4,19 +4,19 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
-from sqlglot import expressions as exp, parse, transpile, Dialect
+from sqlglot import Dialect, parse, transpile
+from sqlglot import expressions as exp
 from sqlglot.errors import ErrorLevel, ParseError, TokenError, UnsupportedError
 from sqlglot.expressions import Expression
 from sqlglot.tokens import Token, TokenType
 
-from databricks.labs.lakebridge.config import TranspileResult, TranspileConfig
+from databricks.labs.lakebridge.config import TranspileConfig, TranspileResult
 from databricks.labs.lakebridge.helpers.file_utils import is_sql_file
 from databricks.labs.lakebridge.helpers.string_utils import format_error_message
 from databricks.labs.lakebridge.transpiler.sqlglot import lca_utils
-from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
-from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import SQLGLOT_DIALECTS
-from databricks.labs.lakebridge.transpiler.transpile_status import TranspileError, ErrorKind, ErrorSeverity
+from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import SQLGLOT_DIALECTS, get_dialect
 from databricks.labs.lakebridge.transpiler.transpile_engine import TranspileEngine
+from databricks.labs.lakebridge.transpiler.transpile_status import ErrorKind, ErrorSeverity, TranspileError
 
 logger = logging.getLogger(__name__)
 

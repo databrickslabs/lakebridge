@@ -1,19 +1,20 @@
 import uuid
 
-from pyspark.sql import SparkSession
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.service.catalog import TableInfo
+from pyspark.sql import SparkSession
+
 from databricks.labs.lakebridge.reconcile.connectors.bigquery import BigQueryDataSource
 from databricks.labs.lakebridge.reconcile.connectors.databricks import (
     DatabricksDataSource,
     DatabricksNonUnityCatalogDataSource,
 )
+from databricks.labs.lakebridge.reconcile.connectors.oracle import OracleDataSource
 from databricks.labs.lakebridge.reconcile.connectors.redshift import RedshiftDataSource
 from databricks.labs.lakebridge.reconcile.connectors.remote_query_reader import RemoteQueryReader
 from databricks.labs.lakebridge.reconcile.connectors.snowflake import SnowflakeDataSource
 from databricks.labs.lakebridge.reconcile.connectors.teradata import TeradataDataSource
 from databricks.labs.lakebridge.reconcile.connectors.tsql import TSQLServerDataSource
-from databricks.labs.lakebridge.reconcile.connectors.oracle import OracleDataSource
 from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
 
 

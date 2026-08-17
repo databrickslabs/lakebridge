@@ -1,14 +1,14 @@
 import json
+import logging
 from pathlib import Path
 from unittest.mock import create_autospec
-import logging
+
 import pytest
 from databricks.labs.blueprint.installation import MockInstallation
 from databricks.labs.blueprint.installer import InstallState
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.errors import InvalidParameterValue, NotFound
-from databricks.sdk.service.dashboards import Dashboard
-from databricks.sdk.service.dashboards import LifecycleState
+from databricks.sdk.service.dashboards import Dashboard, LifecycleState
 
 from databricks.labs.lakebridge.config import ReconcileMetadataConfig
 from databricks.labs.lakebridge.deployment.dashboard import DashboardDeployment

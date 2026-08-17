@@ -8,12 +8,13 @@ from databricks.sdk import WorkspaceClient
 from databricks.sdk.errors import InvalidParameterValue
 from databricks.sdk.service import compute
 from databricks.sdk.service.jobs import (
-    Task,
-    PythonWheelTask,
     JobEnvironment,
-    JobSettings,
     JobParameterDefinition,
+    JobSettings,
+    PythonWheelTask,
+    Task,
 )
+
 from databricks.labs.lakebridge.config import ReconcileConfig
 
 logger = logging.getLogger(__name__)

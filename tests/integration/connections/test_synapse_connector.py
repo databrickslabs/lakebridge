@@ -1,5 +1,6 @@
 import pytest
 from databricks.labs.blueprint.installation import JsonObject
+
 from databricks.labs.lakebridge.connections.database_manager import DatabaseConnector, MSSQLConnector, create_connector
 from databricks.labs.lakebridge.connections.synapse_connection_helpers import create_synapse_connection
 from tests.integration.debug_envgetter import TestEnvGetter

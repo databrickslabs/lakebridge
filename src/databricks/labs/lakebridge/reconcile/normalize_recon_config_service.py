@@ -3,11 +3,11 @@ import logging
 
 from databricks.labs.lakebridge.reconcile.connectors.data_source import DataSource
 from databricks.labs.lakebridge.reconcile.recon_config import (
-    Table,
     Aggregate,
     ColumnMapping,
-    Transformation,
     ColumnThresholds,
+    Table,
+    Transformation,
 )
 
 logger = logging.getLogger(__name__)

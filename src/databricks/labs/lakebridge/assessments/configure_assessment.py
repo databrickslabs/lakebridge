@@ -1,23 +1,25 @@
-from abc import ABC, abstractmethod
-from collections.abc import Callable
-from pathlib import Path
 import logging
 import os
 import shutil
+from abc import ABC, abstractmethod
+from collections.abc import Callable
+from pathlib import Path
 from typing import Any
-import yaml
 
+import yaml
 from databricks.labs.blueprint.tui import Prompts
 
+from databricks.labs.lakebridge.connections.bigquery_connection_helpers import validate_bigquery_pairs
 from databricks.labs.lakebridge.connections.credential_manager import (
-    cred_file as creds,
     create_credential_manager,
 )
+from databricks.labs.lakebridge.connections.credential_manager import (
+    cred_file as creds,
+)
 from databricks.labs.lakebridge.connections.database_manager import create_connector
-from databricks.labs.lakebridge.connections.mssql_auth import AUTH_CHOICES
 from databricks.labs.lakebridge.connections.env_getter import EnvGetter
+from databricks.labs.lakebridge.connections.mssql_auth import AUTH_CHOICES
 from databricks.labs.lakebridge.connections.synapse_connection_helpers import validate_synapse_pools
-from databricks.labs.lakebridge.connections.bigquery_connection_helpers import validate_bigquery_pairs
 
 logger = logging.getLogger(__name__)
 
@@ -422,6 +424,13 @@ class ConfigureTeradataAssessment(AssessmentConfigurator):
         secret_vault_type = str(self.prompts.choice("Enter secret vault type (local | env)", ["local", "env"])).lower()
         secret_vault_name = None
 
+        # Prompt for the connection fields in their natural order (host, port, database, user,
+        # password) so the flow matches the other configurators (e.g. Oracle, Redshift). The
+        # password is read last because the `env` vault stores an env-var name, not the secret.
+        host = self.prompts.question("Enter the Teradata server or host details")
+        port = int(self.prompts.question("Enter the port details", valid_number=True, default="1025"))
+        database = self.prompts.question("Enter the default database name", default="DBC")
+        user = self.prompts.question("Enter the user details")
         if secret_vault_type == "env":
             password = self.prompts.question("Enter the environment variable name holding the password")
         else:
@@ -431,11 +440,11 @@ class ConfigureTeradataAssessment(AssessmentConfigurator):
             "secret_vault_type": secret_vault_type,
             "secret_vault_name": secret_vault_name,
             source: {
-                "host": self.prompts.question("Enter the Teradata server or host details"),
-                "port": int(self.prompts.question("Enter the port details", valid_number=True, default="1025")),
-                "user": self.prompts.question("Enter the user details"),
+                "host": host,
+                "port": port,
+                "user": user,
                 "password": password,
-                "database": self.prompts.question("Enter the default database name", default="DBC"),
+                "database": database,
             },
         }
 

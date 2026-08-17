@@ -1,18 +1,19 @@
 from collections.abc import Callable
-from pathlib import Path
 from logging import Logger
+from pathlib import Path
 from typing import TypeAlias
+
 import duckdb
 import pytest
 
+from databricks.labs.lakebridge.assessments import PROFILER_RUN_METADATA_TABLE
 from databricks.labs.lakebridge.assessments.pipeline import (
     PipelineClass,
-    StepExecutionStatus,
     StepExecutionResult,
+    StepExecutionStatus,
 )
 from databricks.labs.lakebridge.assessments.profiler import Profiler
-from databricks.labs.lakebridge.assessments import PROFILER_RUN_METADATA_TABLE
-from databricks.labs.lakebridge.assessments.profiler_config import Step, PipelineConfig
+from databricks.labs.lakebridge.assessments.profiler_config import PipelineConfig, Step
 from databricks.labs.lakebridge.connections.database_manager import DatabaseConnector
 
 _Loader: TypeAlias = Callable[[Path], PipelineConfig]

@@ -1,8 +1,9 @@
 import logging
+
 import pytest
 
 from databricks.labs.lakebridge.reconcile.exception import ReconciliationException
-from databricks.labs.lakebridge.reconcile.recon_output_config import ReconcileTableOutput, ReconcileOutput, StatusOutput
+from databricks.labs.lakebridge.reconcile.recon_output_config import ReconcileOutput, ReconcileTableOutput, StatusOutput
 from databricks.labs.lakebridge.reconcile.trigger_recon_service import TriggerReconService
 
 

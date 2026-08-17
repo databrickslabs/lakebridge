@@ -79,7 +79,7 @@ def save_to_duckdb_conn(
     except Exception:
         conn.rollback()
         raise
-    logger.info("Wrote %d rows to '%s' (mode=%s).", len(df), table_name, mode)
+    logger.debug("Wrote %d rows to '%s' (mode=%s).", len(df), table_name, mode)
 
 
 def save_to_duckdb(

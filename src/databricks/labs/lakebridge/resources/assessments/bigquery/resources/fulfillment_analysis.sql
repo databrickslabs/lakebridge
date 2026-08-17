@@ -112,5 +112,4 @@ SUM(phase_slots_requested) as slots_requested,
 SUM(phase_slots_fulfilled) as slots_fulfilled,
  FROM slot_fulfillment_analysis
  GROUP BY project_id, FORMAT_TIMESTAMP('%Y-%m-%dT%H', phase_timestamp), workload_category
- order by time_window
 ;

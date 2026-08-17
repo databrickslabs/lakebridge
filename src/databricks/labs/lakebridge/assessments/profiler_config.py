@@ -1,8 +1,7 @@
 import dataclasses
+import logging
 import re
 from dataclasses import dataclass, field
-
-import logging
 
 from databricks.labs.lakebridge.assessments import RESERVED_TABLE_NAMES
 

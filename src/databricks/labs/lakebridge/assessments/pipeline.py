@@ -6,13 +6,13 @@ from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
-from subprocess import PIPE, Popen, STDOUT
+from subprocess import PIPE, STDOUT, Popen
 
 import duckdb
 import pandas as pd
 import yaml
-
 from databricks.labs.blueprint.paths import read_text
+
 from databricks.labs.lakebridge import __version__ as lakebridge_version
 from databricks.labs.lakebridge.assessments import PROFILER_RUN_METADATA_TABLE, PROFILER_SOURCE_SYSTEM
 from databricks.labs.lakebridge.assessments.profiler_config import PipelineConfig, Step
@@ -175,6 +175,7 @@ class PipelineClass:
     def _execute_sql_step(self, step: Step):
         logging.debug(f"Reading query from file: {step.extract_source}")
         query = read_text(Path(step.extract_source))
+        logging.debug(f"Query for step '{step.name}' will be: {query}")
 
         if self.executor is None:
             logging.error("Database executor is not set.")
@@ -185,7 +186,7 @@ class PipelineClass:
             self._stream_sql_step(step, query)
             return
 
-        logging.info(f"Executing query: {query}")
+        logging.info(f"Executing query for step: {step.name}")
         result = self.executor.fetch(query)
         self._save_to_db(result, step.name, step.mode)
 
@@ -193,15 +194,26 @@ class PipelineClass:
         if self.executor is None:
             raise RuntimeError("Database executor is not set.")
 
-        first = True
         with connect_to_profiler_db(self._db_path) as conn:
-            logging.info(f"Starting query: {query}")
+            logging.info(f"Starting query for step: {step.name}")
+            # TODO: Would be nice to pipeline this: fetch next batch while the last is being written/flushed.
+            write_mode: SaveMode = "overwrite" if step.mode == "overwrite" else "append"
+            total_rows = 0
             for batch in self.executor.stream(query):
-                if batch.num_rows == 0:
+                if (batch_size := batch.num_rows) == 0:
+                    logger.debug(f"Skipping empty batch while streaming results for step: {step.name}")
                     continue
-                write_mode: SaveMode = "overwrite" if first and step.mode == "overwrite" else "append"
+                logger.debug(f"Streaming batch of {batch_size} rows for step: {step.name}")
                 save_to_duckdb_conn(conn, batch, step.name, mode=write_mode)
-                first = False
+                total_rows += batch_size
+                write_mode = "append"
+            if total_rows == 0 and step.mode == "overwrite":
+                logging.info(
+                    f"Finished streaming query for {step.mode}-mode step '{step.name}'; empty results so previous data left as-is."
+                )
+            else:
+                logging.info(f"Finished streaming query for step: {step.name} (rows={total_rows}, mode={step.mode})")
+        logging.debug(f"Data flushed for step: {step.name}")
 
     def _execute_source_ddl_step(self, step: Step):
         """Run a no-result DDL statement against the *source* database (one statement per file).
@@ -340,6 +352,7 @@ class PipelineClass:
             # Explicit commit before context exit
             conn.commit()
             logging.info(f"Successfully processed {row_count} rows for table '{step_name}'.")
+        logger.debug(f"Flushed committed data to database for step: {step_name}")
 
     @staticmethod
     def _table_exists(conn: duckdb.DuckDBPyConnection, table_name: str) -> bool:
