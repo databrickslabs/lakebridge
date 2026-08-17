@@ -4,7 +4,6 @@ from pyspark.testing import assertDataFrameEqual
 
 from databricks.labs.lakebridge.reconcile.connectors.data_source import MockDataSource
 from databricks.labs.lakebridge.reconcile.exception import DataSourceRuntimeException
-
 from tests.conftest import schema_fixture_factory
 
 CATALOG = "org"

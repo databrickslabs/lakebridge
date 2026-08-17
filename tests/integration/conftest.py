@@ -5,15 +5,14 @@ from urllib.parse import urlparse
 from uuid import UUID
 
 import pytest
-
+from databricks.labs.blueprint.installation import JsonObject
 from databricks.labs.blueprint.paths import WorkspacePath
 from databricks.labs.blueprint.wheels import ProductInfo
-from databricks.labs.blueprint.installation import JsonObject
+from databricks.sdk import WorkspaceClient
+
 from databricks.labs.lakebridge.__about__ import __version__
 from databricks.labs.lakebridge.connections.database_manager import DatabaseConnector, create_connector
 from databricks.labs.lakebridge.contexts.application import ApplicationContext
-from databricks.sdk import WorkspaceClient
-
 from tests.integration.debug_envgetter import TestEnvGetter
 
 logging.getLogger("tests").setLevel(logging.DEBUG)

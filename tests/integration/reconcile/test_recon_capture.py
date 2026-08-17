@@ -1,40 +1,40 @@
-from datetime import datetime, timezone
 import tempfile
+from datetime import datetime, timezone
 
 import pytest
 from pyspark.sql import Row, SparkSession
 from pyspark.sql.types import BooleanType, StringType, StructField, StructType
 
 from databricks.labs.lakebridge.config import (
-    ReconcileMetadataConfig,
     ReconcileConfig,
+    ReconcileMetadataConfig,
     SourceConnectionConfig,
-    TargetConnectionConfig,
     TableRecon,
+    TargetConnectionConfig,
 )
-from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
 from databricks.labs.lakebridge.reconcile.exception import WriteToTableException
 from databricks.labs.lakebridge.reconcile.recon_capture import (
     ReconCapture,
-    generate_final_reconcile_output,
     ReconIntermediatePersist,
+    generate_final_reconcile_output,
+)
+from databricks.labs.lakebridge.reconcile.recon_config import (
+    Table,
+    TableThresholdBoundsException,
+    TableThresholds,
 )
 from databricks.labs.lakebridge.reconcile.recon_output_config import (
     DataReconcileOutput,
     MismatchOutput,
     ReconcileOutput,
     ReconcileProcessDuration,
+    ReconcileRecordCount,
     ReconcileTableOutput,
     SchemaReconcileOutput,
     StatusOutput,
     ThresholdOutput,
-    ReconcileRecordCount,
 )
-from databricks.labs.lakebridge.reconcile.recon_config import (
-    Table,
-    TableThresholds,
-    TableThresholdBoundsException,
-)
+from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
 
 
 def data_prep(spark: SparkSession):

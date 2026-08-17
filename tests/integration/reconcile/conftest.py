@@ -9,14 +9,12 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
-
-from pyspark.sql import DataFrame
-
 from databricks.labs.blueprint.paths import WorkspacePath
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.errors.platform import PermissionDenied
-from databricks.sdk.service.catalog import TableInfo, SchemaInfo
+from databricks.sdk.service.catalog import SchemaInfo, TableInfo
 from databricks.sdk.service.compute import DataSecurityMode, Kind
+from pyspark.sql import DataFrame
 
 from databricks.labs.lakebridge.config import (
     HashExpressionOverrides,
@@ -25,8 +23,8 @@ from databricks.labs.lakebridge.config import (
     ReconcileJobConfig,
     ReconcileMetadataConfig,
     SourceConnectionConfig,
-    TargetConnectionConfig,
     TableRecon,
+    TargetConnectionConfig,
 )
 from databricks.labs.lakebridge.contexts.application import ApplicationContext
 from databricks.labs.lakebridge.reconcile.recon_capture import AbstractReconIntermediatePersist

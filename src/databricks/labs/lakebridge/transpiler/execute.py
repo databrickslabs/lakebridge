@@ -1,15 +1,17 @@
 import asyncio
 import dataclasses
+import itertools
 import logging
 from email import policy
 from email.message import Message
 from email.parser import Parser as EmailParser
 from pathlib import Path
 from typing import cast
-import itertools
 
 from databricks.labs.blueprint.installation import JsonObject
 from databricks.labs.blueprint.paths import read_text
+from databricks.sdk import WorkspaceClient
+
 from databricks.labs.lakebridge.__about__ import __version__
 from databricks.labs.lakebridge.config import (
     TranspileConfig,
@@ -22,16 +24,15 @@ from databricks.labs.lakebridge.helpers.file_utils import (
     dir_walk,
     make_dir,
 )
-from databricks.labs.lakebridge.transpiler.transpile_engine import TranspileEngine
-from databricks.labs.lakebridge.transpiler.transpile_status import (
-    TranspileStatus,
-    TranspileError,
-    ErrorKind,
-    ErrorSeverity,
-)
 from databricks.labs.lakebridge.helpers.validation import Validator
 from databricks.labs.lakebridge.transpiler.sqlglot.sqlglot_engine import SqlglotEngine
-from databricks.sdk import WorkspaceClient
+from databricks.labs.lakebridge.transpiler.transpile_engine import TranspileEngine
+from databricks.labs.lakebridge.transpiler.transpile_status import (
+    ErrorKind,
+    ErrorSeverity,
+    TranspileError,
+    TranspileStatus,
+)
 
 logger = logging.getLogger(__name__)
 

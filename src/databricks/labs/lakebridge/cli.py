@@ -8,33 +8,30 @@ import re
 import sys
 import time
 import webbrowser
-from collections.abc import Mapping, Callable
+from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import NoReturn, TextIO
 
-from databricks.sdk.service.sql import CreateWarehouseRequestWarehouseType
-from databricks.sdk import WorkspaceClient
-from databricks.sdk.errors import NotFound
-
 from databricks.labs.blueprint.cli import App
 from databricks.labs.blueprint.entrypoint import get_logger
-from databricks.labs.blueprint.installation import RootJsonValue, JsonObject, JsonValue
+from databricks.labs.blueprint.installation import JsonObject, JsonValue, RootJsonValue
 from databricks.labs.blueprint.tui import Prompts
+from databricks.labs.switch.lsp import get_switch_dialects
+from databricks.sdk import WorkspaceClient
+from databricks.sdk.errors import NotFound
+from databricks.sdk.service.sql import CreateWarehouseRequestWarehouseType
 
-
-from databricks.labs.lakebridge.assessments.configure_assessment import create_assessment_configurator
 from databricks.labs.lakebridge.assessments import (
-    PROFILER_SOURCE_SYSTEM,
     PRODUCT_NAME,
+    PROFILER_SOURCE_SYSTEM,
     SOURCE_SYSTEM_VARIANTS,
 )
+from databricks.labs.lakebridge.assessments.configure_assessment import create_assessment_configurator
 from databricks.labs.lakebridge.assessments.profiler import Profiler, default_output_folder
-
-from databricks.labs.lakebridge.config import TableRecon, TranspileConfig, LSPConfigOptionV1
-from databricks.labs.lakebridge.contexts.application import ApplicationContext
+from databricks.labs.lakebridge.config import LSPConfigOptionV1, TableRecon, TranspileConfig
 from databricks.labs.lakebridge.connections.credential_manager import cred_file
+from databricks.labs.lakebridge.contexts.application import ApplicationContext
 from databricks.labs.lakebridge.helpers.telemetry_utils import make_alphanum_or_semver
-from databricks.labs.lakebridge.reconcile.runner import ReconcileRunner
 from databricks.labs.lakebridge.lineage import lineage_generator
 from databricks.labs.lakebridge.reconcile.recon_config import (
     AGG_RECONCILE_OPERATION_NAME,
@@ -43,6 +40,7 @@ from databricks.labs.lakebridge.reconcile.recon_config import (
     DISCOVER_TABLES_OPERATION_NAME,
     RECONCILE_OPERATION_NAME,
 )
+from databricks.labs.lakebridge.reconcile.runner import ReconcileRunner
 from databricks.labs.lakebridge.transpiler.describe import TranspilersDescription
 from databricks.labs.lakebridge.transpiler.execute import transpile as do_transpile
 from databricks.labs.lakebridge.transpiler.lsp.lsp_engine import LSPEngine
@@ -50,9 +48,7 @@ from databricks.labs.lakebridge.transpiler.repository import TranspilerRepositor
 from databricks.labs.lakebridge.transpiler.sqlglot.sqlglot_engine import SqlglotEngine
 from databricks.labs.lakebridge.transpiler.switch_runner import SwitchRunner
 from databricks.labs.lakebridge.transpiler.transpile_engine import TranspileEngine
-
 from databricks.labs.lakebridge.transpiler.transpile_status import ErrorSeverity
-from databricks.labs.switch.lsp import get_switch_dialects
 
 
 # Subclass to allow controlled access to protected methods.

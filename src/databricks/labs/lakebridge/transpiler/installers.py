@@ -13,13 +13,13 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from shutil import rmtree
 from types import SimpleNamespace
-from typing import Literal, ClassVar
+from typing import ClassVar, Literal
 from zipfile import ZipFile
 
 import requests
+from databricks.labs.blueprint.installation import RootJsonValue
 from requests.exceptions import RequestException
 
-from databricks.labs.blueprint.installation import RootJsonValue
 from databricks.labs.lakebridge.transpiler.repository import TranspilerRepository
 
 logger = logging.getLogger(__name__)

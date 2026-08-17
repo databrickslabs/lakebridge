@@ -186,31 +186,43 @@ cache-dir = ".venv/ruff-cache"
 target-version = "py310"
 line-length = 120
 
-lint.ignore = [
-  # Allow non-abstract empty methods in abstract base classes
-  "B027",
-  # Allow boolean positional values in function calls, like `dict.get(... True)`
-  "FBT003",
-  # Ignore checks for possible passwords and SQL statement construction
-  "S105", "S106", "S107", "S603", "S608",
-  # Allow print statements
-  "T201",
-  # Allow asserts
-  "S101",
-  # Allow standard random generators
-  "S311",
-  # Ignore complexity
-  "C901", "PLR0911", "PLR0912", "PLR0913", "PLR0915",
-  # Ignore Exception must not use a string literal, assign to variable first
-  "EM101",
-  "PLR2004",
-]
 extend-exclude = [
   "notebooks/*.py"
 ]
 
+[tool.ruff.lint]
+extend-select = [
+    # On by default in ruff 0.16
+    "I",
+    "PYI",
+]
+ignore = [
+    # Allow non-abstract empty methods in abstract base classes
+    "B027",
+    # Allow boolean positional values in function calls, like `dict.get(... True)`
+    "FBT003",
+    # Ignore checks for possible passwords and SQL statement construction
+    "S105", "S106", "S107", "S603", "S608",
+    # Allow print statements
+    "T201",
+    # Allow asserts
+    "S101",
+    # Allow standard random generators
+    "S311",
+    # Ignore complexity
+    "C901", "PLR0911", "PLR0912", "PLR0913", "PLR0915",
+    # Ignore Exception must not use a string literal, assign to variable first
+    "EM101",
+    "PLR2004",
+]
+typing-extensions = false
+
 [tool.ruff.lint.flake8-tidy-imports]
 ban-relative-imports = "all"
+
+[tool.ruff.lint.isort]
+known-first-party = ["databricks.labs.lakebridge"]
+known-third-party = ["databricks"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*" = [
@@ -629,7 +641,10 @@ disable = [
   "fixme",
   "consider-using-assignment-expr",
   "logging-fstring-interpolation",
-  "consider-using-any-or-all"
+  "consider-using-any-or-all",
+  # The checks below are now handled by ruff, but not completely compatible: ruff is now leading.
+  "wrong-import-order",
+  "ungrouped-imports",
 ]
 
 # Enable the message, report, category or checker with the given id(s). You can
