@@ -4,9 +4,9 @@ import pytest
 
 from databricks.labs.lakebridge.connections.credential_manager import (
     CredentialManager,
-    LocalSecretProvider,
-    EnvSecretProvider,
     DatabricksSecretProvider,
+    EnvSecretProvider,
+    LocalSecretProvider,
 )
 from databricks.labs.lakebridge.connections.env_getter import EnvGetter
 

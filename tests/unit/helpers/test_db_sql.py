@@ -1,9 +1,10 @@
-from unittest.mock import patch, create_autospec
+from unittest.mock import create_autospec, patch
 
 import pytest
-from databricks.labs.lakebridge.helpers.db_sql import get_sql_backend
-from databricks.sdk import WorkspaceClient
 from databricks.labs.lsql.backends import StatementExecutionBackend
+from databricks.sdk import WorkspaceClient
+
+from databricks.labs.lakebridge.helpers.db_sql import get_sql_backend
 
 
 def test_get_sql_backend_with_warehouse_id_in_config():

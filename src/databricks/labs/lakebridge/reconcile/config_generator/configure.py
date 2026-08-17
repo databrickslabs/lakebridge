@@ -14,10 +14,11 @@ Adding a new configurer: see `SUPPORTED_AUTO_CONFIGURERS` in `execute.py`.
 """
 
 from __future__ import annotations
-from typing import Protocol
+
 import dataclasses
 import logging
 import re
+from typing import Protocol
 
 from databricks.labs.lakebridge.config import TableRecon
 from databricks.labs.lakebridge.reconcile.connectors.data_source import DataSource

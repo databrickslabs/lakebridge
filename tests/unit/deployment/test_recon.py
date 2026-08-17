@@ -11,9 +11,9 @@ from databricks.sdk.service import iam
 from databricks.labs.lakebridge.config import (
     LakebridgeConfiguration,
     ReconcileConfig,
+    ReconcileMetadataConfig,
     SourceConnectionConfig,
     TargetConnectionConfig,
-    ReconcileMetadataConfig,
 )
 from databricks.labs.lakebridge.deployment.dashboard import DashboardDeployment
 from databricks.labs.lakebridge.deployment.job import JobDeployment

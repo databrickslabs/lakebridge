@@ -1,8 +1,8 @@
 import contextlib
 import logging
 import os
-from pathlib import Path
 from collections.abc import Generator
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 

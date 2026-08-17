@@ -1,12 +1,12 @@
+import copy
 from pathlib import Path
 from typing import Any
 from unittest.mock import patch
 
-import copy
 import pytest
 import yaml
-
 from databricks.labs.blueprint.installation import JsonValue
+
 from databricks.labs.lakebridge.transpiler.lsp.lsp_engine import LSPEngine
 
 

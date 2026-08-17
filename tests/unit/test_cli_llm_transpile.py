@@ -1,19 +1,17 @@
 import logging
 from pathlib import Path
-from unittest.mock import create_autospec
 from typing import Any, cast
+from unittest.mock import create_autospec
 
 import pytest
-
 from databricks.labs.blueprint.installation import MockInstallation, RootJsonValue
 from databricks.labs.blueprint.tui import MockPrompts, Prompts
 from databricks.labs.switch.lsp import get_switch_dialects
+from databricks.sdk import WorkspaceClient
+from databricks.sdk.service.serving import EndpointCoreConfigSummary, FoundationModel, ServedEntitySpec, ServingEndpoint
 
 from databricks.labs.lakebridge import cli
 from databricks.labs.lakebridge.contexts.application import ApplicationContext
-from databricks.sdk import WorkspaceClient
-from databricks.sdk.service.serving import ServingEndpoint, EndpointCoreConfigSummary, ServedEntitySpec, FoundationModel
-
 from databricks.labs.lakebridge.deployment.configurator import ResourceConfigurator
 from databricks.labs.lakebridge.helpers.metastore import CatalogOperations
 

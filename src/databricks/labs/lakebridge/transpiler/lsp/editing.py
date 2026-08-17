@@ -3,11 +3,9 @@ import re
 from abc import ABC, abstractmethod
 from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import ClassVar, IO, TypeAlias
+from typing import IO, ClassVar, TypeAlias
 
 import attrs
-from pygls.uris import to_fs_path
-
 from lsprotocol.types import (
     ApplyWorkspaceEditResult,
     CreateFile,
@@ -22,6 +20,7 @@ from lsprotocol.types import (
     WorkspaceEdit,
     WorkspaceEditClientCapabilities,
 )
+from pygls.uris import to_fs_path
 
 Changes: TypeAlias = Mapping[str, Sequence[TextEdit]]
 DocumentChange: TypeAlias = CreateFile | DeleteFile | RenameFile | TextDocumentEdit

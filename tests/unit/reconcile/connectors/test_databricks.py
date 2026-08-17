@@ -3,13 +3,13 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from databricks.labs.lakebridge.reconcile.connectors.models import NormalizedIdentifier
-from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
 from databricks.labs.lakebridge.reconcile.connectors.databricks import (
     DatabricksDataSource,
     DatabricksNonUnityCatalogDataSource,
 )
+from databricks.labs.lakebridge.reconcile.connectors.models import NormalizedIdentifier
 from databricks.labs.lakebridge.reconcile.exception import DataSourceRuntimeException
+from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
 
 
 def initial_setup():

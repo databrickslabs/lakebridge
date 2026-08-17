@@ -8,15 +8,15 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Callable
 
 import pandas as pd
+from databricks.labs.blueprint.entrypoint import get_logger
 
 from databricks.labs.lakebridge import initialize_logging
 from databricks.labs.lakebridge.assessments import PRODUCT_NAME
 from databricks.labs.lakebridge.connections.credential_manager import CredentialManager, create_credential_manager
 from databricks.labs.lakebridge.connections.env_getter import EnvGetter
-from databricks.labs.lakebridge.resources.assessments.common.sql_substituter import substitute
-from databricks.labs.blueprint.entrypoint import get_logger
 from databricks.labs.lakebridge.resources.assessments.common.cli import arguments_loader
 from databricks.labs.lakebridge.resources.assessments.common.duckdb_helpers import save_to_duckdb
+from databricks.labs.lakebridge.resources.assessments.common.sql_substituter import substitute
 
 # google.api_core emits a FutureWarning about Python <3.11 EOL on import; not actionable here.
 # Scope the suppression to the import so we don't mask the same warning elsewhere.
