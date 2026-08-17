@@ -15,9 +15,9 @@ from databricks.labs.lakebridge.reconcile.config_generator.execute import (
 from databricks.labs.lakebridge.reconcile.recon_config import (
     AGG_RECONCILE_OPERATION_NAME,
     AUTO_CONFIGURE_TABLES_OPERATION_NAME,
-    SUPPORTED_OPERATIONS,
-    DISCOVER_TABLES_OPERATION_NAME,
     DISCOVER_AND_AUTO_CONFIGURE_TABLES_OPERATION_NAME,
+    DISCOVER_TABLES_OPERATION_NAME,
+    SUPPORTED_OPERATIONS,
 )
 from databricks.labs.lakebridge.reconcile.trigger_recon_aggregate_service import TriggerReconAggregateService
 from databricks.labs.lakebridge.reconcile.trigger_recon_service import TriggerReconService

@@ -44,4 +44,3 @@ group by dt
 ,cont.name
 , command
 , parsing_schema_name
-order by dt

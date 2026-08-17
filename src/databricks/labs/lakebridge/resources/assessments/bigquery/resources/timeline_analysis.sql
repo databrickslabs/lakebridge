@@ -95,5 +95,4 @@ slots_perc_90th,
 slots_perc_99th,
 slots_max,
 cumulative_secs_spent_in_exec
-FROM SLOT_USAGE_AGGREGATED_BY_WORKLOAD
-ORDER BY time_window, workload_type;
+FROM SLOT_USAGE_AGGREGATED_BY_WORKLOAD;

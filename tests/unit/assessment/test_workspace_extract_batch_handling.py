@@ -1,5 +1,5 @@
-from unittest.mock import Mock
 from datetime import date
+from unittest.mock import Mock
 
 
 def test_pipeline_runs_handles_batches_correctly():

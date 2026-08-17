@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from databricks.labs.blueprint.wheels import ProductInfo
+
 from databricks.labs.lakebridge.coverage import commons
 from databricks.labs.lakebridge.transpiler.sqlglot.generator.databricks import Databricks
 from databricks.labs.lakebridge.transpiler.sqlglot.parsers.snowflake import Snowflake

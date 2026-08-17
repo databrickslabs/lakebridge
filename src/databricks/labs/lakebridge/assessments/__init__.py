@@ -1,9 +1,9 @@
 from ._constants import (
+    AUTO,
+    PRODUCT_NAME,
+    PRODUCT_PATH_PREFIX,
     PROFILER_SOURCE_SYSTEM,
     SOURCE_SYSTEM_VARIANTS,
-    AUTO,
-    PRODUCT_PATH_PREFIX,
-    PRODUCT_NAME,
 )
 
 __all__ = [

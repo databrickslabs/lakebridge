@@ -1,21 +1,22 @@
 import logging
 from functools import reduce
+
 from pyspark.sql import DataFrame
 from pyspark.sql.functions import col, expr, lit
 
 from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import DialectUtils
+from databricks.labs.lakebridge.reconcile.constants import DEFAULT_SAMPLE_ROWS
 from databricks.labs.lakebridge.reconcile.exception import ColumnMismatchException
 from databricks.labs.lakebridge.reconcile.recon_capture import (
     AbstractReconIntermediatePersist,
 )
-from databricks.labs.lakebridge.reconcile.recon_output_config import (
-    DataReconcileOutput,
-    MismatchOutput,
-)
-from databricks.labs.lakebridge.reconcile.constants import DEFAULT_SAMPLE_ROWS
 from databricks.labs.lakebridge.reconcile.recon_config import (
     AggregateRule,
     ColumnMapping,
+)
+from databricks.labs.lakebridge.reconcile.recon_output_config import (
+    DataReconcileOutput,
+    MismatchOutput,
 )
 
 logger = logging.getLogger(__name__)

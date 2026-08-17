@@ -3,13 +3,12 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+from databricks.labs.bladespector.analyzer import Analyzer
 from databricks.labs.blueprint.tui import MockPrompts
 from databricks.sdk import WorkspaceClient
 
 from databricks.labs.lakebridge import cli
 from databricks.labs.lakebridge.contexts.application import ApplicationContext
-
-from databricks.labs.bladespector.analyzer import Analyzer
 
 # TODO: These should be moved to the integration tests.
 

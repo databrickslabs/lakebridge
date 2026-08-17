@@ -2,6 +2,7 @@ from unittest.mock import patch
 
 import pytest
 from google.api_core.exceptions import GoogleAPICallError
+
 from databricks.labs.lakebridge.connections.bigquery_connection_helpers import validate_bigquery_pairs
 
 _CLIENT = "databricks.labs.lakebridge.connections.bigquery_connection_helpers.bigquery.Client"
