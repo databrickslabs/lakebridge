@@ -6,10 +6,11 @@ from pathlib import Path
 from databricks.labs.blueprint.installation import Installation
 from databricks.labs.blueprint.installer import InstallState
 from databricks.sdk import WorkspaceClient
-from databricks.sdk.errors import InvalidParameterValue, NotFound, DeadlineExceeded, InternalError
-from databricks.sdk.retries import retried
-from databricks.sdk.service.dashboards import LifecycleState, Dashboard
+from databricks.sdk.errors import DeadlineExceeded, InternalError, InvalidParameterValue, NotFound
 from databricks.sdk.errors.platform import ResourceAlreadyExists
+from databricks.sdk.retries import retried
+from databricks.sdk.service.dashboards import Dashboard, LifecycleState
+
 from databricks.labs.lakebridge.config import ReconcileMetadataConfig
 
 logger = logging.getLogger(__name__)

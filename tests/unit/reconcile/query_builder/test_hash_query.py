@@ -1,13 +1,13 @@
-from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
+from databricks.labs.lakebridge.reconcile.normalize_recon_config_service import NormalizeReconConfigService
 from databricks.labs.lakebridge.reconcile.query_builder.hash_query import HashQueryBuilder
 from databricks.labs.lakebridge.reconcile.recon_config import (
-    Filters,
     ColumnMapping,
-    Transformation,
+    Filters,
     Table,
+    Transformation,
 )
-from databricks.labs.lakebridge.reconcile.normalize_recon_config_service import NormalizeReconConfigService
-from tests.conftest import tsql_schema_fixture_factory, ansi_schema_fixture_factory, FakeDataSource
+from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
+from tests.conftest import FakeDataSource, ansi_schema_fixture_factory, tsql_schema_fixture_factory
 
 
 def test_hash_query_builder_for_snowflake_src(

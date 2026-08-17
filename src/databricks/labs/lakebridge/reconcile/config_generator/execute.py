@@ -27,11 +27,11 @@ from __future__ import annotations
 
 import json
 import logging
-from dataclasses import asdict
 from collections.abc import Sequence
+from dataclasses import asdict
 
-from pyspark.sql import SparkSession
 from databricks.labs.blueprint.installation import Installation
+from pyspark.sql import SparkSession
 
 from databricks.labs.lakebridge.config import ReconcileConfig, TableRecon
 from databricks.labs.lakebridge.reconcile.config_generator.configure import (

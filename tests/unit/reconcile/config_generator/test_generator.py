@@ -6,7 +6,6 @@ from databricks.labs.lakebridge.reconcile.config_generator.configure import (
     TableMatcher,
 )
 from databricks.labs.lakebridge.reconcile.recon_config import ColumnMapping, Table
-
 from tests.conftest import schema_fixture_factory
 
 

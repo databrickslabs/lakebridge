@@ -1,17 +1,16 @@
 import logging
 import time
-
 from collections.abc import Iterator
 
 from databricks.labs.blueprint.tui import Prompts
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.service.catalog import Privilege, SecurableType
+from databricks.sdk.service.serving import ServingEndpoint
 from databricks.sdk.service.sql import (
     CreateWarehouseRequestWarehouseType,
     EndpointInfoWarehouseType,
     SpotInstancePolicy,
 )
-from databricks.sdk.service.serving import ServingEndpoint
 
 from databricks.labs.lakebridge.helpers.metastore import CatalogOperations
 

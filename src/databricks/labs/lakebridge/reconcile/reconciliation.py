@@ -11,9 +11,9 @@ from databricks.labs.lakebridge.config import (
 )
 from databricks.labs.lakebridge.reconcile.compare import (
     capture_mismatch_data_and_columns,
-    reconcile_data,
     join_aggregate_data,
     reconcile_agg_data_per_rule,
+    reconcile_data,
 )
 from databricks.labs.lakebridge.reconcile.connectors.data_source import DataSource
 from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import DialectUtils
@@ -29,19 +29,17 @@ from databricks.labs.lakebridge.reconcile.query_builder.sampling_query import (
 from databricks.labs.lakebridge.reconcile.query_builder.threshold_query import (
     ThresholdQueryBuilder,
 )
-
 from databricks.labs.lakebridge.reconcile.recon_capture import AbstractReconIntermediatePersist
-
 from databricks.labs.lakebridge.reconcile.recon_config import (
+    SamplingOptions,
     Schema,
     Table,
-    SamplingOptions,
 )
 from databricks.labs.lakebridge.reconcile.recon_output_config import (
-    DataReconcileOutput,
-    ThresholdOutput,
-    ReconcileRecordCount,
     AggregateQueryOutput,
+    DataReconcileOutput,
+    ReconcileRecordCount,
+    ThresholdOutput,
 )
 from databricks.labs.lakebridge.reconcile.sampler import SamplerFactory
 from databricks.labs.lakebridge.reconcile.schema_compare import SchemaCompare

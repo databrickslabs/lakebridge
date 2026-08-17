@@ -6,8 +6,8 @@ import pytest
 
 from databricks.labs.lakebridge.connections.database_manager import SnowflakeConnector
 from databricks.labs.lakebridge.connections.snowflake_utils import (
-    parse_snowflake_account,
     is_valid_snowflake_account,
+    parse_snowflake_account,
 )
 
 

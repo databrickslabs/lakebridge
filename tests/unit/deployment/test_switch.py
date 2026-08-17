@@ -1,18 +1,19 @@
-from unittest.mock import create_autospec
 from typing import Any, cast
-import pytest
+from unittest.mock import create_autospec
 
+import pytest
 from databricks.labs.blueprint.installation import MockInstallation
 from databricks.labs.blueprint.installer import InstallState
 from databricks.labs.blueprint.wheels import ProductInfo
+from databricks.sdk import JobsExt, WorkspaceClient
+from databricks.sdk.errors import InvalidParameterValue, NotFound
+from databricks.sdk.service import compute
+from databricks.sdk.service.iam import User
+from databricks.sdk.service.jobs import CreateResponse
+
 from databricks.labs.lakebridge.config import LakebridgeConfiguration
 from databricks.labs.lakebridge.deployment.job import JobDeployment
 from databricks.labs.lakebridge.deployment.switch import SwitchDeployment
-from databricks.sdk import WorkspaceClient, JobsExt
-from databricks.sdk.errors import NotFound, InvalidParameterValue
-from databricks.sdk.service import compute
-from databricks.sdk.service.jobs import CreateResponse
-from databricks.sdk.service.iam import User
 
 
 @pytest.fixture()

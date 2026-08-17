@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from databricks.labs.lakebridge.transpiler.installers import MavenLite, WheelInstaller, MorpheusInstaller
+from databricks.labs.lakebridge.transpiler.installers import MavenLite, MorpheusInstaller, WheelInstaller
 
 
 def test_gets_maven_artifact_version() -> None:

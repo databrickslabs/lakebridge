@@ -1,15 +1,14 @@
 import pytest
 
-from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
 from databricks.labs.lakebridge.reconcile.recon_config import ColumnMapping, Table
 from databricks.labs.lakebridge.reconcile.schema_compare import SchemaCompare
-
+from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
 from tests.conftest import (
-    schema_fixture_factory,
-    tsql_schema_fixture_factory,
     ansi_schema_fixture_factory,
     redshift_schema_fixture_factory,
+    schema_fixture_factory,
     teradata_schema_fixture_factory,
+    tsql_schema_fixture_factory,
 )
 
 

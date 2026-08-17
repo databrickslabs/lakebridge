@@ -1,6 +1,7 @@
 from unittest.mock import create_autospec
 
 import pytest
+from databricks.labs.blueprint.tui import MockPrompts
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.service import iam
 
@@ -8,7 +9,6 @@ from databricks.labs.lakebridge import uninstall
 from databricks.labs.lakebridge.config import LakebridgeConfiguration
 from databricks.labs.lakebridge.contexts.application import ApplicationContext
 from databricks.labs.lakebridge.deployment.installation import WorkspaceInstallation
-from databricks.labs.blueprint.tui import MockPrompts
 
 
 @pytest.fixture

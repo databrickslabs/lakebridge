@@ -6,10 +6,10 @@ from pathlib import PurePosixPath
 from typing import Any
 
 from databricks.labs import switch
-from databricks.labs.switch.__about__ import __version__ as switch_version
 from databricks.labs.blueprint.installation import Installation
 from databricks.labs.blueprint.installer import InstallState
 from databricks.labs.blueprint.paths import WorkspacePath
+from databricks.labs.switch.__about__ import __version__ as switch_version
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.errors import InvalidParameterValue, NotFound
 from databricks.sdk.service import compute

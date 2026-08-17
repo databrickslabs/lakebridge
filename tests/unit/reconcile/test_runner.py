@@ -1,10 +1,12 @@
-from unittest.mock import create_autospec, Mock
+from unittest.mock import Mock, create_autospec
+
 import pytest
 from databricks.labs.blueprint.installation import MockInstallation
 from databricks.labs.blueprint.installer import InstallState
 from databricks.sdk import WorkspaceClient
-from databricks.labs.lakebridge.reconcile.runner import ReconcileRunner
+
 from databricks.labs.lakebridge.deployment.recon import RECON_JOB_NAME
+from databricks.labs.lakebridge.reconcile.runner import ReconcileRunner
 
 
 def test_run_with_missing_job_id():

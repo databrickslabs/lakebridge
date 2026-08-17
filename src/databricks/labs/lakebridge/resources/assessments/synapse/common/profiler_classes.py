@@ -1,10 +1,9 @@
+import datetime as dt
 from abc import ABC
 from collections.abc import Callable, Generator, Iterable, MutableMapping
-import datetime as dt
 from typing import Any
 
 import pandas as pd
-
 from azure.monitor.query import Metric, MetricAggregationType, MetricsQueryClient
 from azure.synapse.artifacts import ArtifactsClient
 from azure.synapse.artifacts import models as ArtifactsModels

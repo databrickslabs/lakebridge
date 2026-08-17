@@ -5,39 +5,39 @@ import tempfile
 import uuid
 from dataclasses import asdict
 from datetime import datetime, timezone
-from functools import reduce, cached_property
+from functools import cached_property, reduce
 from pathlib import Path
 
+from databricks.sdk import WorkspaceClient
+from pyspark.errors import PySparkException
 from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql.functions import array, array_compact, col, lit, parse_json, struct, to_variant_object, when
-from pyspark.errors import PySparkException
 from sqlglot import Dialect
 
 from databricks.labs.lakebridge.config import (
-    SourceConnectionConfig,
-    TargetConnectionConfig,
-    Table,
-    ReconcileMetadataConfig,
     ReconcileConfig,
+    ReconcileMetadataConfig,
+    SourceConnectionConfig,
+    Table,
     TableRecon,
+    TargetConnectionConfig,
+)
+from databricks.labs.lakebridge.reconcile.exception import (
+    ReadAndWriteWithVolumeException,
+    WriteToTableException,
 )
 from databricks.labs.lakebridge.reconcile.recon_config import TableThresholds
-from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_key_from_dialect
-from databricks.labs.lakebridge.reconcile.exception import (
-    WriteToTableException,
-    ReadAndWriteWithVolumeException,
-)
 from databricks.labs.lakebridge.reconcile.recon_output_config import (
+    AggregateQueryOutput,
     DataReconcileOutput,
     ReconcileOutput,
     ReconcileProcessDuration,
+    ReconcileRecordCount,
     ReconcileTableOutput,
     SchemaReconcileOutput,
     StatusOutput,
-    ReconcileRecordCount,
-    AggregateQueryOutput,
 )
-from databricks.sdk import WorkspaceClient
+from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_key_from_dialect
 
 logger = logging.getLogger(__name__)
 
