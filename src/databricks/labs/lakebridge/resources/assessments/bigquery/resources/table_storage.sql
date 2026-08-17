@@ -52,5 +52,4 @@ SELECT
     storage_billing_model,
     COUNT(DISTINCT table_schema) AS dataset_count
 FROM table_storage_with_model
-GROUP BY metadata_level, storage_billing_model
-ORDER BY storage_billing_model;
+GROUP BY metadata_level, storage_billing_model;

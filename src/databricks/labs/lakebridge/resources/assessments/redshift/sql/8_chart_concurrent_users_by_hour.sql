@@ -12,5 +12,4 @@ select 'chart_concurrent_users_by_hour' set_name
       ,hour
   from daily_hourly_users
  group by 1, 3
- order by 3
 ;
