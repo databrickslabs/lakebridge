@@ -8,7 +8,7 @@ from databricks.labs.bladespector.analyzer import Analyzer
 from databricks.labs.blueprint.entrypoint import get_logger
 from databricks.labs.blueprint.tui import Prompts
 
-from databricks.labs.lakebridge.helpers.file_utils import check_writable_path, check_readable_path
+from databricks.labs.lakebridge.helpers.file_utils import check_readable_path, check_writable_path
 
 logger = get_logger(__file__)
 
