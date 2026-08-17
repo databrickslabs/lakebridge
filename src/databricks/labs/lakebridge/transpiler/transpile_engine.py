@@ -1,9 +1,10 @@
 from __future__ import annotations
+
 import abc
 from collections.abc import Sequence
 from pathlib import Path
 
-from databricks.labs.lakebridge.config import TranspileResult, TranspileConfig
+from databricks.labs.lakebridge.config import TranspileConfig, TranspileResult
 
 
 class TranspileEngine(abc.ABC):

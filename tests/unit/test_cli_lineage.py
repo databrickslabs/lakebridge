@@ -3,7 +3,6 @@ import re
 from pathlib import Path
 
 import pytest
-
 from databricks.sdk import WorkspaceClient
 
 from databricks.labs.lakebridge import cli

@@ -3,7 +3,6 @@ from sqlglot import expressions as exp
 from sqlglot import parse_one
 from sqlglot.expressions import Column
 
-from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
 from databricks.labs.lakebridge.reconcile.query_builder.expression_generator import (
     array_sort,
     array_to_string,
@@ -20,12 +19,13 @@ from databricks.labs.lakebridge.reconcile.query_builder.expression_generator imp
     get_hash_transform,
     json_format,
     lower,
-    sha2,
     md5,
+    sha2,
     sort_array,
     to_char,
     trim,
 )
+from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
 
 
 def test_coalesce(expr):

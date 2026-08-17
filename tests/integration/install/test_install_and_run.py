@@ -1,15 +1,15 @@
 import logging
 import sys
 from collections.abc import Generator
-from pathlib import Path
 from email import policy
 from email.message import Message
 from email.parser import Parser as EmailParser
+from pathlib import Path
 
 import pytest
 
 from databricks.labs.lakebridge.config import TranspileConfig, TranspileResult
-from databricks.labs.lakebridge.transpiler.installers import WheelInstaller, MavenInstaller
+from databricks.labs.lakebridge.transpiler.installers import MavenInstaller, WheelInstaller
 from databricks.labs.lakebridge.transpiler.lsp.lsp_engine import LSPEngine
 from databricks.labs.lakebridge.transpiler.repository import TranspilerRepository
 from databricks.labs.lakebridge.transpiler.transpile_engine import TranspileEngine

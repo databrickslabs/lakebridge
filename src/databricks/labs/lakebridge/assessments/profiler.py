@@ -5,11 +5,11 @@ from databricks.labs.lakebridge.assessments import PRODUCT_PATH_PREFIX
 from databricks.labs.lakebridge.assessments.pipeline import PipelineClass, make_profiler_db_filename
 from databricks.labs.lakebridge.assessments.profiler_config import PipelineConfig
 from databricks.labs.lakebridge.assessments.variants import resolve_variant
-from databricks.labs.lakebridge.connections.database_manager import DatabaseConnector, create_connector
 from databricks.labs.lakebridge.connections.credential_manager import (
     create_credential_manager,
     cred_file,
 )
+from databricks.labs.lakebridge.connections.database_manager import DatabaseConnector, create_connector
 from databricks.labs.lakebridge.connections.env_getter import EnvGetter
 
 logger = logging.getLogger(__name__)

@@ -7,23 +7,21 @@ from collections.abc import Callable, Iterator, Sequence
 from types import TracebackType
 from typing import Any
 
+import mssql_python
 import pandas as pd
 import pyarrow as pa
-
-from sqlalchemy import create_engine
-from sqlalchemy.engine import CursorResult, Engine, URL
-from sqlalchemy import text
+import redshift_connector  # type: ignore[import-untyped]
+from databricks.labs.blueprint.installation import JsonObject
+from snowflake.connector.errors import Error as SnowflakeError
+from sqlalchemy import create_engine, text
+from sqlalchemy.engine import URL, CursorResult, Engine
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm.session import Session
-import mssql_python
-import redshift_connector  # type: ignore[import-untyped]
-from snowflake.connector.errors import Error as SnowflakeError
 
-from databricks.labs.blueprint.installation import JsonObject
 from databricks.labs.lakebridge.connections.mssql_auth import resolve_mssql_credentials
 from databricks.labs.lakebridge.connections.snowflake_utils import (
-    parse_snowflake_account,
     is_valid_snowflake_account,
+    parse_snowflake_account,
 )
 
 # Side-effect import: registers the 'snowflake://' SQLAlchemy dialect so

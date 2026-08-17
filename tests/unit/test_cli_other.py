@@ -1,14 +1,13 @@
 import io
 import os
 from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock, create_autospec, PropertyMock
+from unittest.mock import MagicMock, Mock, PropertyMock, create_autospec, patch
 
 import pytest
-
+from databricks.labs.blueprint.installation import MockInstallation
+from databricks.labs.blueprint.tui import MockPrompts
 from databricks.sdk import WorkspaceClient
 
-from databricks.labs.blueprint.tui import MockPrompts
-from databricks.labs.blueprint.installation import MockInstallation
 from databricks.labs.lakebridge import cli
 from databricks.labs.lakebridge.assessments import SOURCE_SYSTEM_VARIANTS
 from databricks.labs.lakebridge.assessments.profiler import default_output_folder

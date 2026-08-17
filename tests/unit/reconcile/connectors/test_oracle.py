@@ -3,11 +3,11 @@ from unittest.mock import create_autospec
 import pytest
 
 from databricks.labs.lakebridge.reconcile.connectors.models import NormalizedIdentifier
-from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
 from databricks.labs.lakebridge.reconcile.connectors.oracle import OracleDataSource
 from databricks.labs.lakebridge.reconcile.connectors.remote_query_reader import RemoteQueryReader
 from databricks.labs.lakebridge.reconcile.exception import DataSourceRuntimeException
 from databricks.labs.lakebridge.reconcile.recon_config import JdbcReaderOptions
+from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
 
 
 def initial_setup():

@@ -1,33 +1,31 @@
 import io
 import re
 import shutil
-from pathlib import Path
 from collections.abc import AsyncGenerator, Generator, Sequence
+from pathlib import Path
 from unittest.mock import create_autospec
 
 import pytest
 import yaml
-
-from sqlglot import ErrorLevel, UnsupportedError, Dialect, transpile
-from sqlglot import parse_one as sqlglot_parse_one
-from sqlglot.errors import SqlglotError, ParseError
-
 from databricks.sdk import WorkspaceClient
+from databricks.sdk.core import Config
 from databricks.sdk.errors import NotFound
+from sqlglot import Dialect, ErrorLevel, UnsupportedError, transpile
+from sqlglot import parse_one as sqlglot_parse_one
+from sqlglot.errors import ParseError, SqlglotError
 
 from databricks.labs.lakebridge.config import (
-    TranspileConfig,
     ReconcileConfig,
+    ReconcileMetadataConfig,
     SourceConnectionConfig,
     TargetConnectionConfig,
-    ReconcileMetadataConfig,
+    TranspileConfig,
 )
 from databricks.labs.lakebridge.helpers.file_utils import make_dir
 from databricks.labs.lakebridge.transpiler.lsp.lsp_engine import LSPEngine
 from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import SQLGLOT_DIALECTS
 from databricks.labs.lakebridge.transpiler.sqlglot.generator.databricks import Databricks
 from databricks.labs.lakebridge.transpiler.sqlglot.parsers.snowflake import Snowflake
-from databricks.sdk.core import Config
 
 from .transpiler.helpers.functional_test_cases import (
     FunctionalTestFile,

@@ -5,7 +5,6 @@ from databricks.labs.blueprint.paths import read_text
 
 from databricks.labs.lakebridge.helpers.file_utils import get_sql_file, is_sql_file
 from databricks.labs.lakebridge.intermediate.dag import DAG
-
 from databricks.labs.lakebridge.transpiler.sqlglot.sqlglot_engine import SqlglotEngine
 
 logger = logging.getLogger(__name__)

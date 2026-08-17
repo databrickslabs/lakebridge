@@ -9,9 +9,9 @@ import logging
 from collections.abc import Callable
 from pathlib import Path
 
-from databricks.labs.lakebridge.assessments import SOURCE_SYSTEM_VARIANTS, AUTO
-from databricks.labs.lakebridge.connections.database_manager import create_connector, ALL_DATABASES
+from databricks.labs.lakebridge.assessments import AUTO, SOURCE_SYSTEM_VARIANTS
 from databricks.labs.lakebridge.connections.credential_manager import create_credential_manager
+from databricks.labs.lakebridge.connections.database_manager import ALL_DATABASES, create_connector
 from databricks.labs.lakebridge.connections.env_getter import EnvGetter
 
 logger = logging.getLogger(__name__)
