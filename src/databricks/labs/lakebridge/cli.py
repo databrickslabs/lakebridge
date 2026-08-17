@@ -33,7 +33,6 @@ from databricks.labs.lakebridge.assessments.profiler import Profiler, default_ou
 from databricks.labs.lakebridge.config import TableRecon, TranspileConfig, LSPConfigOptionV1
 from databricks.labs.lakebridge.contexts.application import ApplicationContext
 from databricks.labs.lakebridge.connections.credential_manager import cred_file
-from databricks.labs.lakebridge.helpers.recon_config_utils import ReconConfigPrompts
 from databricks.labs.lakebridge.helpers.telemetry_utils import make_alphanum_or_semver
 from databricks.labs.lakebridge.reconcile.runner import ReconcileRunner
 from databricks.labs.lakebridge.lineage import lineage_generator
@@ -804,18 +803,6 @@ def generate_lineage(
         raise_validation_exception(msg)
 
     lineage_generator(engine, source_dialect, input_source, output_folder)
-
-
-@lakebridge.command
-def configure_secrets(*, w: WorkspaceClient) -> None:
-    """Setup reconciliation connection profile details as Secrets on Databricks Workspace"""
-    recon_conf = ReconConfigPrompts(w)
-
-    # Prompt for source
-    source = recon_conf.prompt_source()
-
-    logger.info(f"Setting up Scope, Secrets for `{source}` reconciliation")
-    recon_conf.prompt_and_save_connection_details()
 
 
 @lakebridge.command
