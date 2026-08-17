@@ -4,4 +4,3 @@ FROM CDB_OBJECTS o,
 WHERE o.CON_ID=cont.con_id
 AND OWNER in (select username from cdb_users where oracle_maintained='N' and cont.con_id=con_id)
 GROUP BY cont.name,OWNER,OBJECT_TYPE
-ORDER BY 1,2
