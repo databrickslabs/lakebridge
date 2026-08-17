@@ -254,8 +254,27 @@ def _get_is_string(column_types_dict: dict[str, DataType], column_name: str) -> 
 DataType_transform_mapping: dict[str, dict[str, list[partial[exp.Expression]]]] = {  # pylint: disable=invalid-name
     "universal": {"default": [partial(coalesce, default='_null_recon_', is_string=True), partial(trim)]},
     "bigquery": {
-        # TODO: add timestamps and numbers handling
+        # CAST(... AS STRING) does not render the way Spark does: BigQuery strips a decimal's trailing
+        # zeros (1.5 vs Spark's 1.500000000), drops the fractional part of a whole FLOAT64 (1 vs 1.0)
+        # and appends a UTC offset to a TIMESTAMP (...+00). Those differences change the row hash, so
+        # each family below is formatted to match Spark exactly. %E*S emits only the fractional-second
+        # digits that are present, which is also what Spark does.
         "default": [partial(anonymous, func="COALESCE(TRIM(CAST({} AS STRING)), '_null_recon_')")],
+        exp.DataType.Type.DOUBLE.value: [partial(anonymous, func="COALESCE(TRIM(FORMAT('%t', {})), '_null_recon_')")],
+        exp.DataType.Type.TIMESTAMPTZ.value: [
+            partial(
+                anonymous,
+                func="COALESCE(FORMAT_TIMESTAMP('%F %H:%M:%E*S', {}, 'UTC'), '_null_recon_')",
+            )
+        ],
+        # A BigQuery DATETIME parses as TIMESTAMP; the schema query reports it as timestamp_ntz, which
+        # parses as TIMESTAMPNTZ. Both spellings reach here, so both are mapped.
+        exp.DataType.Type.TIMESTAMP.value: [
+            partial(anonymous, func="COALESCE(FORMAT_DATETIME('%F %H:%M:%E*S', {}), '_null_recon_')")
+        ],
+        exp.DataType.Type.TIMESTAMPNTZ.value: [
+            partial(anonymous, func="COALESCE(FORMAT_DATETIME('%F %H:%M:%E*S', {}), '_null_recon_')")
+        ],
     },
     "snowflake": {exp.DataType.Type.ARRAY.value: [partial(array_to_string), partial(array_sort)]},
     "oracle": {
@@ -352,6 +371,26 @@ DataType_transform_mapping: dict[str, dict[str, list[partial[exp.Expression]]]] 
         ],
     },
 }
+
+
+def bigquery_decimal_transform(datatype: exp.DataType) -> list[partial[exp.Expression]] | None:
+    """Scale-padded rendering for a BigQuery DECIMAL, matching how Spark casts one to a string.
+
+    BigQuery strips trailing zeros (``1.5``) where Spark pads to the declared scale
+    (``1.500000000``), which changes the row hash. The scale has to come from the column's declared
+    type rather than the parsed category, so this is resolved per column instead of via a static
+    entry in ``DataType_transform_mapping``.
+
+    Returns ``None`` when the type carries no scale, leaving the caller on its usual lookup.
+    """
+    if datatype.this not in (exp.DataType.Type.DECIMAL, exp.DataType.Type.BIGDECIMAL):
+        return None
+    params = [param.name for param in datatype.expressions]
+    if not params:
+        return None
+    scale = params[1] if len(params) > 1 else "0"
+    return [partial(anonymous, func=f"COALESCE(TRIM(FORMAT('%.{scale}f', {{}})), '_null_recon_')")]
+
 
 sha256_partial = partial(sha2, num_bits="256", is_expr=True)
 md5_partial = partial(md5, is_expr=True)
