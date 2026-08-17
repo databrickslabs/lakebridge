@@ -12,5 +12,4 @@ select 'chart_cpu_consumption_by_hour_and_query_type' set_name
   from query_overview
  where run_time_ms > 0
  group by 1,2,4
- order by 4 asc, sum_cpu_time asc
 ;

@@ -5,5 +5,4 @@ select 'chart_query_type_by_hour' set_name
       ,count(*) as count
   from query_view
  group by 1, 2, 3
- order by hour
 ;

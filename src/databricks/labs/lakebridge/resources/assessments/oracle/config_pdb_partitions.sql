@@ -17,5 +17,4 @@ from
 (select distinct con_id as con_id, name from gv$containers) cont
 WHERE u.CON_ID=cont.con_id
 AND OWNER in (select username from cdb_users where oracle_maintained='N' and cont.con_id=u.con_id)
-ORDER BY 1,2
 

@@ -29,4 +29,3 @@ FROM
     WHERE cont.con_id = q.con_id
     GROUP BY cont.name, mtime, instance_number, core_nb
     )
-ORDER BY 1,2,3

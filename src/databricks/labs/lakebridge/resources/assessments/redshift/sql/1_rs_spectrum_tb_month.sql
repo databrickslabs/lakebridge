@@ -6,5 +6,4 @@ select 'rs_spectrum_tb_month' set_name
 where start_time >= current_date-30
   and source_type = 'S3'
 group by 1
-order by 1
 ;
