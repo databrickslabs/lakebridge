@@ -8,8 +8,7 @@ with t as (select version from product_component_version where product like 'Ora
 			group by stat_name),
 	  cpu_cores_details as (select 'INSTANCE' as scope,inst_id, stat_name,'CPU per Instance Id: '||inst_id||' - '||stat_name as detailed_stat_name, to_number(value) as value
 				from gv$osstat
-				where stat_name in ('NUM_CPUS','NUM_CPU_CORES','NUM_CPU_SOCKETS')
-				order by inst_id,stat_name)
+				where stat_name in ('NUM_CPUS','NUM_CPU_CORES','NUM_CPU_SOCKETS'))
 select * from
 (
 select null as scope, null as inst_id, null as stat_name, 'VERSION' as name,to_char(t.version) as value from t
@@ -24,4 +23,3 @@ select scope, null as inst_id, stat_name,detailed_stat_name, to_char(value) from
 union
 select scope, inst_id, stat_name, detailed_stat_name, to_char(value) from cpu_cores_details
 )
-order by name

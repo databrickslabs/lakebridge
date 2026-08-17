@@ -24,4 +24,3 @@ and param.parameter_name in ('sga_target',
                              'db_8k_cache_size',
                              'memory_target',
                              'memory_max_target')
-order by 1,3,2
