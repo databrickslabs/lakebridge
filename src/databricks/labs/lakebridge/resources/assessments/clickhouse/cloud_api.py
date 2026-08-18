@@ -139,11 +139,8 @@ class ClickHouseCloudAPI:
         tier_as_of = tier_rec.get("date") if tier_rec else None
         tier_days = {t: len(dates) for t, dates in tier_dates.items()}
 
-        # Classify each metric into one bucket, case-insensitively, so a re-cased key (e.g.
-        # "ComputeCHC", "dataTransferCHC") still lands where it belongs. `other` is the catch-all for
-        # everything not otherwise named (ClickPipes, dictionary, future/renamed metrics), so the total
-        # always reflects the whole `metrics` map — a mis-bucketed key can shift the breakdown but never
-        # drops from the total.
+        # Bucket each metric case-insensitively so a re-cased key still lands correctly. `other` is the
+        # catch-all, so the total always covers every metric even if a key is renamed/mis-bucketed.
         _exact = {"computechc": "compute", "storagechc": "storage", "backupchc": "backup", "initialloadchc": "transfer"}
         buckets = {"compute": 0.0, "storage": 0.0, "backup": 0.0, "transfer": 0.0, "other": 0.0}
         for k, v in totals.items():

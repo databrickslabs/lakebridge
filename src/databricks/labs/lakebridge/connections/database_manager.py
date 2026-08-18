@@ -331,21 +331,18 @@ class ClickHouseConnector(DatabaseConnector):
 
     def __init__(self, config: JsonObject):
         self.config = config
-        # Cloud profiler SQL reads replicated system tables via clusterAllReplicas('default', ...).
-        # ClickHouse Cloud always names its cluster 'default', but a self-managed deployment profiled as
-        # cloud may use a different name; the optional `cluster` config overrides the literal so those
-        # queries resolve instead of failing with CLUSTER_DOESNT_EXIST. Validate it (it is spliced into
-        # SQL) against the ClickHouse identifier charset.
+        # Optional override for the cluster the cloud SQL reads via clusterAllReplicas('default', ...);
+        # validated because it is spliced into SQL. See _apply_cluster_override.
         self._cluster = str(config.get("cluster") or "").strip()
         if self._cluster and not all(c.isalnum() or c in "_-." for c in self._cluster):
             raise ValueError(f"Invalid ClickHouse cluster name in config: {self._cluster!r}")
         self._client: ClickHouseClient = self._connect()
 
     def _apply_cluster_override(self, query: str) -> str:
-        """Point the cloud SQL's clusterAllReplicas(...) at the configured cluster.
+        """Point clusterAllReplicas('default', ...) at the configured cluster.
 
-        No-op unless `cluster` is set to something other than the built-in 'default' — so OSS queries
-        (which never call clusterAllReplicas) and stock Cloud services are unaffected.
+        Cloud always uses 'default'; only a self-managed deployment profiled as cloud with a
+        differently-named cluster needs this. No-op otherwise (incl. OSS, which never calls it).
         """
         if not self._cluster or self._cluster == "default":
             return query

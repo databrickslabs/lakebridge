@@ -62,12 +62,10 @@ _ENRICHED_NO_COST_NOTE = (
 
 
 def _has_billed_cost(cloud_meta: dict | None) -> bool:
-    """True when the usageCost summary carries billable data — either per-service records or an
-    org-wide grand total.
+    """True when the usageCost summary has billable data: per-service records or an org grand total.
 
-    The org total (grandTotalCHC) is reported even when the profiled service has no records of its
-    own yet (e.g. a brand-new service in an already-billing org), so it must not be gated on
-    ``record_count`` alone — doing so silently drops the org-wide TCO.
+    The org total (grandTotalCHC) can be present with zero service records (a new service in a billing
+    org), so gating on ``record_count`` alone would drop the org-wide TCO.
     """
     actual = (cloud_meta or {}).get("actual_cost") or {}
     return bool(actual.get("record_count")) or actual.get("org_total_usd") is not None
@@ -201,9 +199,8 @@ def execute(
     if client is not None:
         try:
             cloud_meta = _fetch_cloud_metadata(config, warnings, client)
-        # A reachable-but-malformed API response (a missing/renamed field) surfaces as a structural
-        # error (KeyError/IndexError/TypeError) rather than CloudAPIError; the step is optional, so
-        # treat it like any other API failure and degrade gracefully instead of aborting the run.
+        # A malformed API response raises a structural error, not CloudAPIError; this step is optional,
+        # so degrade gracefully rather than aborting the run.
         except (CloudAPIError, KeyError, IndexError, TypeError) as e:
             warnings.append(f"cloud_api: {str(e)[:200]}")
 
