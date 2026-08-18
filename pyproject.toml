@@ -129,7 +129,7 @@ sqlglot = [
     "sqlglot~=28.0",
 ]
 yq = [
-    "yq>=3.4.3,<4.2.0",
+    "yq~=4.1.2",
 ]
 
 [project.entry-points.databricks]
