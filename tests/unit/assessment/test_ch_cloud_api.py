@@ -66,6 +66,35 @@ def test_summarize_includes_unnamed_metric_buckets_in_total():
     assert summary["actual_total_usd"] == 1.0  # 0.5 + 0.1 + 0.4, not 0.6
 
 
+def test_summarize_buckets_metrics_case_insensitively():
+    """Metric keys are classified case-insensitively, so a re-cased key still lands in the right
+    bucket (not silently folded into `other`), while the total stays complete."""
+    usage = _usage(
+        grand_total=1.0,
+        records=[
+            {
+                "serviceId": "svc-1",
+                "date": "2026-07-16",
+                # Deliberately re-cased vs the canonical computeCHC / …DataTransferCHC keys.
+                "metrics": {
+                    "ComputeCHC": 0.5,
+                    "storageCHC": 0.1,
+                    "interRegionDataTransferCHC": 0.2,
+                    "dictionaryCHC": 0.1,
+                },
+            }
+        ],
+    )
+    summary = ClickHouseCloudAPI.summarize_usage_cost(usage, service_id="svc-1")
+
+    breakdown = summary["actual_cost_chc"]
+    assert breakdown["compute"] == 0.5  # "ComputeCHC" still recognized despite the capital C
+    assert breakdown["storage"] == 0.1
+    assert breakdown["data_transfer"] == 0.2  # matched by substring regardless of case/prefix
+    assert breakdown["other"] == 0.1  # only the genuinely-unnamed bucket
+    assert summary["actual_total_usd"] == 0.9  # total covers every metric
+
+
 def test_summarize_org_total_none_when_grand_total_absent():
     """Falls back to None org total when the API returns no grandTotalCHC (caller then uses service sum)."""
     usage = _usage(

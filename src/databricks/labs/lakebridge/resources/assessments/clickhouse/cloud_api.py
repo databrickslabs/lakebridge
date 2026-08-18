@@ -139,15 +139,28 @@ class ClickHouseCloudAPI:
         tier_as_of = tier_rec.get("date") if tier_rec else None
         tier_days = {t: len(dates) for t, dates in tier_dates.items()}
 
-        compute = totals.get("computeCHC", 0.0)
-        storage = totals.get("storageCHC", 0.0)
-        backup = totals.get("backupCHC", 0.0)
-        transfer = sum(v for k, v in totals.items() if "DataTransferCHC" in k) + totals.get("initialLoadCHC", 0.0)
-        # Fold every remaining CHC bucket (e.g. ClickPipes, dictionary, or future/renamed metrics)
-        # into `other` so the total reflects the whole `metrics` map, not just the named buckets —
-        # otherwise the per-service billed total would silently under-report those charges.
-        _named = {"computeCHC", "storageCHC", "backupCHC", "initialLoadCHC"}
-        other = sum(v for k, v in totals.items() if k not in _named and "DataTransferCHC" not in k)
+        # Classify each metric into one bucket, case-insensitively, so a re-cased key (e.g.
+        # "ComputeCHC", "dataTransferCHC") still lands where it belongs. `other` is the catch-all for
+        # everything not otherwise named (ClickPipes, dictionary, future/renamed metrics), so the total
+        # always reflects the whole `metrics` map — a mis-bucketed key can shift the breakdown but never
+        # drops from the total.
+        _exact = {"computechc": "compute", "storagechc": "storage", "backupchc": "backup", "initialloadchc": "transfer"}
+        buckets = {"compute": 0.0, "storage": 0.0, "backup": 0.0, "transfer": 0.0, "other": 0.0}
+        for k, v in totals.items():
+            kl = k.lower()
+            if kl in _exact:
+                buckets[_exact[kl]] += v
+            elif "datatransferchc" in kl:
+                buckets["transfer"] += v
+            else:
+                buckets["other"] += v
+        compute, storage, backup, transfer, other = (
+            buckets["compute"],
+            buckets["storage"],
+            buckets["backup"],
+            buckets["transfer"],
+            buckets["other"],
+        )
         total = round(compute + storage + backup + transfer + other, 6)
 
         # True TCO: the org-wide grand total across ALL services plus org-level charges (backups,
