@@ -4,6 +4,6 @@ CREATE TABLE IF NOT EXISTS dependencies_runtime_table_access (
     query_kind VARCHAR,
     accessed_databases VARCHAR,
     accessed_tables VARCHAR,
-    runs BIGINT,
-    total_read_bytes BIGINT
+    runs UBIGINT,
+    total_read_bytes UBIGINT
 );

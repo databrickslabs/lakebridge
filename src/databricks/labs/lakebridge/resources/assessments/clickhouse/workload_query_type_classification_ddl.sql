@@ -1,8 +1,8 @@
 CREATE TABLE IF NOT EXISTS workload_query_type_classification (
     query_category VARCHAR,
-    query_count BIGINT,
+    query_count UBIGINT,
     pct_of_total DOUBLE,
-    distinct_users BIGINT,
-    total_read_bytes BIGINT,
+    distinct_users UBIGINT,
+    total_read_bytes UBIGINT,
     avg_duration_ms DOUBLE
 );

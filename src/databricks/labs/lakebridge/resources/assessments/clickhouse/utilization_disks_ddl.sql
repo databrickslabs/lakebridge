@@ -3,6 +3,6 @@ CREATE TABLE IF NOT EXISTS utilization_disks (
     path VARCHAR,
     free_space UBIGINT,
     total_space UBIGINT,
-    keep_free_space BIGINT,
+    keep_free_space UBIGINT,
     "type" VARCHAR
 );

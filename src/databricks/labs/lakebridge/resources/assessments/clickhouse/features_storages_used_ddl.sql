@@ -1,5 +1,5 @@
 CREATE TABLE IF NOT EXISTS features_storages_used (
     storage VARCHAR,
-    query_count BIGINT,
-    distinct_users BIGINT
+    query_count UBIGINT,
+    distinct_users UBIGINT
 );

@@ -3,8 +3,8 @@ CREATE TABLE IF NOT EXISTS objects_largest_columns (
     "table" VARCHAR,
     column_name VARCHAR,
     "type" VARCHAR,
-    compressed_bytes BIGINT,
-    uncompressed_bytes BIGINT,
+    compressed_bytes UBIGINT,
+    uncompressed_bytes UBIGINT,
     compressed_readable VARCHAR,
     compression_ratio DOUBLE
 );

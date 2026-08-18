@@ -4,7 +4,7 @@ CREATE TABLE IF NOT EXISTS objects_skipping_indices (
     index_name VARCHAR,
     index_type VARCHAR,
     expr VARCHAR,
-    granularity BIGINT,
-    data_compressed_bytes BIGINT,
-    data_uncompressed_bytes BIGINT
+    granularity UBIGINT,
+    data_compressed_bytes UBIGINT,
+    data_uncompressed_bytes UBIGINT
 );

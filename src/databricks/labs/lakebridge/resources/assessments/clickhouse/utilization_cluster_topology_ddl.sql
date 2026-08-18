@@ -1,7 +1,7 @@
 CREATE TABLE IF NOT EXISTS utilization_cluster_topology (
     cluster VARCHAR,
-    shards BIGINT,
-    replicas_per_shard BIGINT,
-    total_nodes BIGINT,
+    shards UBIGINT,
+    replicas_per_shard UBIGINT,
+    total_nodes UBIGINT,
     host_names VARCHAR
 );

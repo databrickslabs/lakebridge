@@ -4,16 +4,16 @@ CREATE TABLE IF NOT EXISTS features_view_refreshes (
     uuid UUID,
     status VARCHAR,
     last_success_time TIMESTAMP,
-    last_success_duration_ms BIGINT,
+    last_success_duration_ms UBIGINT,
     last_refresh_time TIMESTAMP,
     last_refresh_replica VARCHAR,
     next_refresh_time TIMESTAMP,
     exception VARCHAR,
-    retry BIGINT,
+    retry UBIGINT,
     progress DOUBLE,
-    read_rows BIGINT,
-    read_bytes BIGINT,
-    total_rows BIGINT,
-    written_rows BIGINT,
-    written_bytes BIGINT
+    read_rows UBIGINT,
+    read_bytes UBIGINT,
+    total_rows UBIGINT,
+    written_rows UBIGINT,
+    written_bytes UBIGINT
 );
