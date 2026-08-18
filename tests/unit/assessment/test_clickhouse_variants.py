@@ -219,7 +219,9 @@ def test_cost_enrich_execute_metadata_without_billed_cost_uses_distinct_note(tmp
 
     assert result["status"] == "success"
     written = save_mock.call_args.args[0].iloc[0]
-    assert written["note"] == cost_enrich._ENRICHED_NO_COST_NOTE
+    # The note reports metadata-without-cost, and must NOT claim actual billed dollar figures.
+    assert "No dollar figures are reported" in written["note"]
+    assert "actual billed cost from the ClickHouse Cloud usageCost API" not in written["note"]
     assert written["actual_billed_cost"] is None
 
 
@@ -236,5 +238,5 @@ def test_cost_enrich_execute_degrades_on_malformed_api_response(tmp_path) -> Non
     assert result["status"] == "success"
     assert result["warnings"]  # the failure is surfaced, not swallowed
     written = save_mock.call_args.args[0].iloc[0]
-    assert written["note"] == cost_enrich._API_FAIL_NOTE
+    assert "the Cloud API could not be reached" in written["note"]  # degraded to the API-failure note
     assert written["actual_billed_cost"] is None
