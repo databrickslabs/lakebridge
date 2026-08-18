@@ -1,8 +1,7 @@
 import dataclasses
+import logging
 import re
 from dataclasses import dataclass, field
-
-import logging
 
 # Valid SQL identifier pattern: must start with letter or underscore,
 # followed by letters, numbers, or underscores only

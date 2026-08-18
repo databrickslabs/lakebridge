@@ -2,8 +2,9 @@ from unittest.mock import patch
 
 import yaml
 from databricks.labs.blueprint.tui import MockPrompts
+
 from databricks.labs.lakebridge.assessments.configure_assessment import (
-    create_assessment_configurator,
+    REDSHIFT_AUTH_TYPES,
     ConfigureBigQueryAssessment,
     ConfigureClickHouseAssessment,
     ConfigureLegacySynapseAssessment,
@@ -11,7 +12,7 @@ from databricks.labs.lakebridge.assessments.configure_assessment import (
     ConfigureSqlServerAssessment,
     ConfigureSynapseAssessment,
     ConfigureTeradataAssessment,
-    REDSHIFT_AUTH_TYPES,
+    create_assessment_configurator,
 )
 from databricks.labs.lakebridge.connections.mssql_auth import AUTH_CHOICES
 

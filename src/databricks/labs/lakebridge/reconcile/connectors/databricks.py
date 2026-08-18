@@ -8,8 +8,8 @@ from pyspark.sql.functions import col
 from sqlglot import Dialect
 
 from databricks.labs.lakebridge.reconcile.connectors.data_source import DataSource
-from databricks.labs.lakebridge.reconcile.connectors.models import NormalizedIdentifier
 from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import DialectUtils
+from databricks.labs.lakebridge.reconcile.connectors.models import NormalizedIdentifier
 from databricks.labs.lakebridge.reconcile.recon_config import JdbcReaderOptions, Schema
 
 logger = logging.getLogger(__name__)

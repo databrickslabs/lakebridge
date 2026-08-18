@@ -1,22 +1,22 @@
 import logging
 from datetime import datetime, timezone
 
-from pyspark.sql import SparkSession
 from databricks.sdk import WorkspaceClient
+from pyspark.sql import SparkSession
 
 from databricks.labs.lakebridge.config import ReconcileConfig, TableRecon
 from databricks.labs.lakebridge.reconcile.exception import DataSourceRuntimeException
 from databricks.labs.lakebridge.reconcile.normalize_recon_config_service import NormalizeReconConfigService
 from databricks.labs.lakebridge.reconcile.recon_capture import (
-    generate_final_reconcile_aggregate_output,
     ReconCapture,
+    generate_final_reconcile_aggregate_output,
 )
 from databricks.labs.lakebridge.reconcile.recon_config import Table
 from databricks.labs.lakebridge.reconcile.recon_output_config import (
-    ReconcileProcessDuration,
     AggregateQueryOutput,
     DataReconcileOutput,
     ReconcileOutput,
+    ReconcileProcessDuration,
 )
 from databricks.labs.lakebridge.reconcile.reconciliation import Reconciliation
 from databricks.labs.lakebridge.reconcile.trigger_recon_service import TriggerReconService

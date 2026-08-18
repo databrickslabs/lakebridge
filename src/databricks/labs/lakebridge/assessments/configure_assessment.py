@@ -1,23 +1,25 @@
-from abc import ABC, abstractmethod
-from collections.abc import Callable
-from pathlib import Path
 import logging
 import os
 import shutil
+from abc import ABC, abstractmethod
+from collections.abc import Callable
+from pathlib import Path
 from typing import Any
-import yaml
 
+import yaml
 from databricks.labs.blueprint.tui import Prompts
 
+from databricks.labs.lakebridge.connections.bigquery_connection_helpers import validate_bigquery_pairs
 from databricks.labs.lakebridge.connections.credential_manager import (
-    cred_file as creds,
     create_credential_manager,
 )
+from databricks.labs.lakebridge.connections.credential_manager import (
+    cred_file as creds,
+)
 from databricks.labs.lakebridge.connections.database_manager import create_connector
-from databricks.labs.lakebridge.connections.mssql_auth import AUTH_CHOICES
 from databricks.labs.lakebridge.connections.env_getter import EnvGetter
+from databricks.labs.lakebridge.connections.mssql_auth import AUTH_CHOICES
 from databricks.labs.lakebridge.connections.synapse_connection_helpers import validate_synapse_pools
-from databricks.labs.lakebridge.connections.bigquery_connection_helpers import validate_bigquery_pairs
 
 logger = logging.getLogger(__name__)
 

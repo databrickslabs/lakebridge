@@ -1,10 +1,10 @@
-import re
 import logging
+import re
 
 import pytest
+from databricks.sdk.core import DatabricksError
 from databricks.sdk.service.catalog import TableInfo
 from databricks.sdk.service.jobs import TerminationTypeType
-from databricks.sdk.core import DatabricksError
 
 from databricks.labs.lakebridge.config import ReconcileConfig, TableRecon
 from databricks.labs.lakebridge.contexts.application import ApplicationContext

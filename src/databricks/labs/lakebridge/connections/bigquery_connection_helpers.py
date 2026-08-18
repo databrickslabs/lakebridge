@@ -5,8 +5,8 @@ import warnings
 # Scope the suppression to the import so we don't mask the same warning elsewhere.
 with warnings.catch_warnings():
     warnings.filterwarnings("ignore", message="You are using a Python version", category=FutureWarning)
-    from google.cloud import bigquery
     from google.api_core.exceptions import GoogleAPIError
+    from google.cloud import bigquery
 
 logger = logging.getLogger(__name__)
 

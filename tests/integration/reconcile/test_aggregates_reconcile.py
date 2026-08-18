@@ -1,22 +1,16 @@
 import sys
-
 from dataclasses import dataclass
 from pathlib import Path
 
-
 import pytest
-from pyspark.testing import assertDataFrameEqual
 from pyspark.sql import Row, SparkSession
+from pyspark.testing import assertDataFrameEqual
 
-from tests.integration.reconcile.conftest import FakeReconIntermediatePersist
-from tests.conftest import ansi_schema_fixture_factory
 from databricks.labs.lakebridge.config import (
     ReconcileMetadataConfig,
     SourceConnectionConfig,
     TargetConnectionConfig,
 )
-from databricks.labs.lakebridge.reconcile.reconciliation import Reconciliation
-from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
 from databricks.labs.lakebridge.reconcile.connectors.data_source import MockDataSource
 from databricks.labs.lakebridge.reconcile.execute import main
 from databricks.labs.lakebridge.reconcile.recon_config import (
@@ -30,7 +24,11 @@ from databricks.labs.lakebridge.reconcile.recon_output_config import (
     DataReconcileOutput,
     MismatchOutput,
 )
+from databricks.labs.lakebridge.reconcile.reconciliation import Reconciliation
 from databricks.labs.lakebridge.reconcile.schema_compare import SchemaCompare
+from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
+from tests.conftest import ansi_schema_fixture_factory
+from tests.integration.reconcile.conftest import FakeReconIntermediatePersist
 
 CATALOG = "org"
 SCHEMA = "data"

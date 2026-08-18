@@ -9,13 +9,13 @@ from databricks.labs.lakebridge.config import (
 )
 from databricks.labs.lakebridge.reconcile.recon_capture import (
     ReconCapture,
+    generate_final_reconcile_aggregate_output,
 )
 from databricks.labs.lakebridge.reconcile.recon_config import Table
 from databricks.labs.lakebridge.reconcile.recon_output_config import (
-    ReconcileProcessDuration,
     AggregateQueryOutput,
+    ReconcileProcessDuration,
 )
-from databricks.labs.lakebridge.reconcile.recon_capture import generate_final_reconcile_aggregate_output
 from tests.integration.reconcile.test_aggregates_reconcile import expected_reconcile_output_dict, expected_rule_output
 from tests.unit.conftest import get_dialect
 
