@@ -969,7 +969,7 @@ test = [
     { name = "pytest-timeout", specifier = "~=2.4.0" },
     { name = "pytest-xdist", specifier = "~=3.8.0" },
 ]
-yq = [{ name = "yq", specifier = "~=3.4.3" }]
+yq = [{ name = "yq", specifier = ">=3.4.3,<4.2.0" }]
 
 [[package]]
 name = "databricks-labs-lsql"
@@ -3063,7 +3063,7 @@ wheels = [
 
 [[package]]
 name = "yq"
-version = "3.4.3"
+version = "4.1.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "argcomplete" },
@@ -3071,9 +3071,9 @@ dependencies = [
     { name = "tomlkit" },
     { name = "xmltodict" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/38/6a/eb9721ed0929d0f55d167c2222d288b529723afbef0a07ed7aa6cca72380/yq-3.4.3.tar.gz", hash = "sha256:ba586a1a6f30cf705b2f92206712df2281cd320280210e7b7b80adcb8f256e3b", size = 33214, upload-time = "2024-04-27T15:39:43.29Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/58/24/1e43bea1cb58532658a6d5b51a5f1d45d21df50eb1d14d977eb6d3064dbb/yq-4.1.2.tar.gz", hash = "sha256:a8f148930f8beb3170f451d67f29cbe0b3ac713cd2fc91ecf51d43b4879e6b4c", size = 33949, upload-time = "2026-07-11T17:52:55.307Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/f2/ba/d1b21f3e57469030bd6536b91bb28fedd2511d4e68b5a575f2bdb3a3dbb6/yq-3.4.3-py3-none-any.whl", hash = "sha256:547e34bc3caacce83665fd3429bf7c85f8e8b6b9aaee3f953db1ad716ff3434d", size = 18812, upload-time = "2024-04-27T15:39:41.652Z" },
+    { url = "https://files.pythonhosted.org/packages/47/8c/3b00e800e0293a0bb66b3cd9b180962c49f0a9fabdcd8198085bdb8316d1/yq-4.1.2-py3-none-any.whl", hash = "sha256:25252ae6cc2dba71c26b262fe7f3cb2ed04ffda908556bb602c9e40e9c975c4d", size = 23527, upload-time = "2026-07-11T17:52:53.98Z" },
 ]
 
 [[package]]
