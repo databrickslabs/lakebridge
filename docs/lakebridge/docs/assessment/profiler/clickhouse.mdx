@@ -73,7 +73,16 @@ Grant the key the **bare minimum** — two ClickHouse Cloud predefined roles (Cl
 ClickHouse has two profiler variants, **`oss`** and **`cloud`**, which are **detected automatically** — you do not
 select one. A host ending in `.clickhouse.cloud` is treated as Cloud; otherwise the profiler reads the
 `cloud_mode` server setting (`1` on Cloud, absent/`0` on self-managed). On Cloud, queries read across replicas via
-`clusterAllReplicas(...)`; on OSS they read the single node.
+`clusterAllReplicas('default', ...)`; on OSS they read the single node.
+
+<Admonition type="info" title="Cluster name (advanced)">
+    The Cloud variant reads replicated system tables through <code>clusterAllReplicas('default', ...)</code>, and
+    ClickHouse Cloud always names its cluster <code>default</code> — so no configuration is needed for Cloud. Only a
+    <strong>self-managed</strong> deployment profiled as Cloud (i.e. with <code>cloud_mode=1</code>) whose cluster is
+    <em>not</em> named <code>default</code> needs to override it: set <code>cluster</code> in the credentials file to
+    your cluster's name. Without it those (optional) steps fail with <code>CLUSTER_DOESNT_EXIST</code> and their tables
+    come back empty. Leave <code>cluster</code> unset otherwise.
+</Admonition>
 
 ## Profiled Collectors and Tables
 
@@ -224,8 +233,9 @@ Do you want to test the connection to clickhouse? (yes/no): yes
 
 `configure-database-profiler` writes the answers above to a credentials YAML at the default Lakebridge
 location. You can also write this file by hand (or keep a separate one per environment and point at it
-with `--cred-file-path`). The connection keys (`host`, `port`, `user`, `password`, `secure`) are flat
-under the `clickhouse` block, and the optional ClickHouse Cloud API settings nest under `cloud_api`.
+with `--cred-file-path`). The connection keys (`host`, `port`, `user`, `password`, `secure`, and the
+optional `cluster`) are flat under the `clickhouse` block, and the optional ClickHouse Cloud API settings
+nest under `cloud_api`.
 The query-history window is a fixed 30 days and sensitive fields are always redacted, so there are no
 profiler knobs to set. The `oss` / `cloud` variant is auto-detected from the host and `secure` — there
 is no variant field.
@@ -262,6 +272,8 @@ clickhouse:
   user: default
   password: "<service-password>"
   secure: true
+  # cluster: default                 # optional; only override for a self-managed cluster (profiled as
+  #                                   # Cloud) that is NOT named 'default'. ClickHouse Cloud always uses 'default'.
   # Optional: pulls actual billed cost, real compute sizing, and plan tier from the Cloud API.
   # Remove this whole block to skip it — the usage footprint and attribution are still reported,
   # just without dollar figures.
