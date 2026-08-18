@@ -331,7 +331,25 @@ class ClickHouseConnector(DatabaseConnector):
 
     def __init__(self, config: JsonObject):
         self.config = config
+        # Cloud profiler SQL reads replicated system tables via clusterAllReplicas('default', ...).
+        # ClickHouse Cloud always names its cluster 'default', but a self-managed deployment profiled as
+        # cloud may use a different name; the optional `cluster` config overrides the literal so those
+        # queries resolve instead of failing with CLUSTER_DOESNT_EXIST. Validate it (it is spliced into
+        # SQL) against the ClickHouse identifier charset.
+        self._cluster = str(config.get("cluster") or "").strip()
+        if self._cluster and not all(c.isalnum() or c in "_-." for c in self._cluster):
+            raise ValueError(f"Invalid ClickHouse cluster name in config: {self._cluster!r}")
         self._client: ClickHouseClient = self._connect()
+
+    def _apply_cluster_override(self, query: str) -> str:
+        """Point the cloud SQL's clusterAllReplicas(...) at the configured cluster.
+
+        No-op unless `cluster` is set to something other than the built-in 'default' — so OSS queries
+        (which never call clusterAllReplicas) and stock Cloud services are unaffected.
+        """
+        if not self._cluster or self._cluster == "default":
+            return query
+        return query.replace("clusterAllReplicas('default'", f"clusterAllReplicas('{self._cluster}'")
 
     def _connect(self) -> ClickHouseClient:
         host = str(self.config["host"])
@@ -357,6 +375,7 @@ class ClickHouseConnector(DatabaseConnector):
         )
 
     def fetch(self, query: str) -> FetchResult:
+        query = self._apply_cluster_override(query)
         # Wrap driver errors as ConnectionError so an optional step hitting a missing/disabled system
         # table degrades to ABSENT instead of aborting the run. Mirrors the other connectors.
         try:

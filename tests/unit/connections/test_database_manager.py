@@ -171,6 +171,46 @@ def test_clickhouse_connector_cloud_host_cannot_be_downgraded(mock_clickhouse_co
     assert kwargs["port"] == 8443
 
 
+@patch('databricks.labs.lakebridge.connections.database_manager.clickhouse_connect')
+def test_clickhouse_connector_rewrites_cluster_when_configured(mock_clickhouse_connect) -> None:
+    """A configured `cluster` name replaces the hardcoded clusterAllReplicas('default', ...) so cloud
+    SQL resolves on a self-managed deployment whose cluster is not named 'default'."""
+    mock_client = MagicMock()
+    mock_clickhouse_connect.get_client.return_value = mock_client
+    mock_client.query.return_value = MagicMock(column_names=["c"], result_rows=[[1]])
+
+    connector = create_connector("clickhouse", {**clickhouse_config, "cluster": "main_cluster"})
+    connector.fetch("SELECT count() FROM clusterAllReplicas('default', system.query_log)")
+
+    mock_client.query.assert_called_once_with(
+        "SELECT count() FROM clusterAllReplicas('main_cluster', system.query_log)"
+    )
+
+
+@patch('databricks.labs.lakebridge.connections.database_manager.clickhouse_connect')
+def test_clickhouse_connector_leaves_query_unchanged_without_cluster(mock_clickhouse_connect) -> None:
+    """With no `cluster` configured (the Cloud default), the query is passed through verbatim —
+    'default' is authoritative on ClickHouse Cloud."""
+    mock_client = MagicMock()
+    mock_clickhouse_connect.get_client.return_value = mock_client
+    mock_client.query.return_value = MagicMock(column_names=["c"], result_rows=[[1]])
+
+    query = "SELECT count() FROM clusterAllReplicas('default', system.query_log)"
+    create_connector("clickhouse", clickhouse_config).fetch(query)
+
+    mock_client.query.assert_called_once_with(query)
+
+
+@patch('databricks.labs.lakebridge.connections.database_manager.clickhouse_connect')
+def test_clickhouse_connector_rejects_invalid_cluster_name(mock_clickhouse_connect) -> None:
+    """The cluster name is spliced into SQL, so a value outside the identifier charset is rejected
+    at construction rather than allowed to alter the query."""
+    mock_clickhouse_connect.get_client.return_value = MagicMock()
+
+    with pytest.raises(ValueError, match="Invalid ClickHouse cluster name"):
+        create_connector("clickhouse", {**clickhouse_config, "cluster": "default', system.query_log) --"})
+
+
 @patch('databricks.labs.lakebridge.connections.database_manager.mssql_python.connect')
 def test_mssql_connect_failure_raises_connection_error(mock_connect) -> None:
     mock_connect.side_effect = mssql_python.OperationalError("login failed", "ddbc details")
