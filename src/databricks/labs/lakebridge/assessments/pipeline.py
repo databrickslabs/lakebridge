@@ -1,30 +1,22 @@
 import json
 import logging
-import platform
 import sys
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 from subprocess import PIPE, STDOUT, Popen
 
 import duckdb
-import pandas as pd
 import yaml
 from databricks.labs.blueprint.paths import read_text
 
 from databricks.labs.lakebridge import __version__ as lakebridge_version
-from databricks.labs.lakebridge.assessments import PROFILER_RUN_METADATA_TABLE, PROFILER_SOURCE_SYSTEM
 from databricks.labs.lakebridge.assessments.profiler_config import PipelineConfig, Step
-from databricks.labs.lakebridge.assessments.run_metadata import (
-    PROFILER_RUN_METADATA_SCHEMA,
-    ProfilerRunMetadata,
-)
 from databricks.labs.lakebridge.connections.database_manager import DatabaseConnector, FetchResult
 from databricks.labs.lakebridge.resources.assessments.common.duckdb_helpers import (
     SaveMode,
     connect_to_profiler_db,
-    save_to_duckdb,
     save_to_duckdb_conn,
 )
 
@@ -56,36 +48,21 @@ class PipelineClass:
         executor: DatabaseConnector | None,
         db_path: Path,
         cred_file_path: Path,
-        source_system: str,
-        variant: str | None = None,
     ):
         self.config = config
         self.executor = executor
         self._db_path = db_path.expanduser()
         self._create_dir(self._db_path.parent)
         self._cred_file_path = cred_file_path
-        self._source_system = self._normalize_source_system(source_system)
-        self._variant = variant
-
-    @staticmethod
-    def _normalize_source_system(source_system: str) -> str:
-        """Casefold the label so every extract records one spelling of a given platform.
-
-        The CLI only offers the canonical names, but a caller constructing the pipeline
-        directly can pass anything. An unknown name is a warning rather than an error:
-        it makes the extract harder to consume, not impossible to produce.
-        """
-        normalized = source_system.casefold()
-        if normalized not in PROFILER_SOURCE_SYSTEM:
-            logger.warning(
-                f"Unknown source system {source_system!r}; consumers of {PROFILER_RUN_METADATA_TABLE} "
-                f"expect one of: {', '.join(PROFILER_SOURCE_SYSTEM)}."
-            )
-        return normalized
 
     def execute(self) -> list[StepExecutionResult]:
+        """Run every configured step and return per-step outcomes.
+
+        Does not raise on step failures: callers (the Profiler) decide how to
+        surface them after recording run metadata. A failed DDL / source_ddl
+        step aborts the remaining steps because later extracts depend on it.
+        """
         logging.info(f"Pipeline initialized with config: {self.config.name}, version: {self.config.version}")
-        self._write_run_metadata()
         execution_results: list[StepExecutionResult] = []
 
         for step in self.config.steps:
@@ -94,43 +71,10 @@ class PipelineClass:
             self._log_step_result(result)
 
             if step.type in {"ddl", "source_ddl"} and result.status == StepExecutionStatus.ERROR:
-                error_msg = f"Pipeline execution failed due to error in DDL step: {result.step_name}"
-                if result.error_message:
-                    error_msg += f" - {result.error_message}"
-                logger.error(error_msg)
-                raise RuntimeError(error_msg)
-
-        failed_steps = [r for r in execution_results if r.status == StepExecutionStatus.ERROR]
-        if failed_steps:
-            error_msg = (
-                f"Pipeline execution failed due to errors in steps: {', '.join(r.step_name for r in failed_steps)}"
-            )
-            logger.error(error_msg)
-            raise RuntimeError(error_msg)
+                logger.error(f"Aborting run: DDL step {result.step_name} failed")
+                break
 
         return execution_results
-
-    def _write_run_metadata(self) -> None:
-        """Persist source-independent run metadata into the DuckDB extract.
-
-        Written at the start of every run so partial / best-effort extracts still
-        identify their originating source system. Overwrites any prior row.
-        """
-        metadata = ProfilerRunMetadata(
-            source_system=self._source_system,
-            variant=self._variant,
-            lakebridge_version=lakebridge_version,
-            python_version=platform.python_version(),
-            operating_system=platform.platform(),
-            generated_at=datetime.now(timezone.utc),
-        )
-        save_to_duckdb(
-            pd.DataFrame([asdict(metadata)]),
-            PROFILER_RUN_METADATA_TABLE,
-            str(self._db_path),
-            schema=PROFILER_RUN_METADATA_SCHEMA,
-        )
-        logger.info(f"Wrote {PROFILER_RUN_METADATA_TABLE}: {metadata}")
 
     def _process_step(self, step: Step) -> StepExecutionResult:
         logger.info(f"Executing step: {step.name}")
@@ -144,7 +88,7 @@ class PipelineClass:
             return StepExecutionResult(step_name=step.name, status=StepExecutionStatus.COMPLETE)
         except (RuntimeError, ConnectionError) as e:
             # Optional: warn + ABSENT (customer isn't failed; maintainers get the cause).
-            # Required: ERROR, which fails the run below.
+            # Required: ERROR — callers (the Profiler) fail the run after recording metadata.
             status = StepExecutionStatus.ABSENT if step.optional else StepExecutionStatus.ERROR
             return StepExecutionResult(step_name=step.name, status=status, error_message=str(e))
 

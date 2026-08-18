@@ -1,28 +1,32 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field, fields
 from datetime import datetime
+from enum import Enum
+
+
+class ProfilerRunStatus(str, Enum):
+    COMPLETE = "COMPLETE"
+    COMPLETE_WITH_ABSENCES = "COMPLETE_WITH_ABSENCES"
+    FAILED = "FAILED"
 
 
 @dataclass(frozen=True)
 class ProfilerRunMetadata:
-    source_system: str
-    variant: str | None
-    lakebridge_version: str
-    python_version: str
-    operating_system: str
-    generated_at: datetime
+    source_system: str = field(metadata={"duckdb_type": "VARCHAR"})
+    variant: str | None = field(metadata={"duckdb_type": "VARCHAR"})
+    pipeline_name: str = field(metadata={"duckdb_type": "VARCHAR"})
+    pipeline_version: str = field(metadata={"duckdb_type": "VARCHAR"})
+    lakebridge_version: str = field(metadata={"duckdb_type": "VARCHAR"})
+    python_version: str = field(metadata={"duckdb_type": "VARCHAR"})
+    operating_system: str = field(metadata={"duckdb_type": "VARCHAR"})
+    status: str = field(metadata={"duckdb_type": "VARCHAR"})
+    results: str = field(metadata={"duckdb_type": "VARCHAR"})
+    generated_at: datetime = field(metadata={"duckdb_type": "TIMESTAMPTZ"})
 
 
 # Declared rather than inferred: `variant` is NULL for sources without variants, and DuckDB
 # types an all-null column INTEGER, so inference would give the same column a different type
-# from one extract to the next. Column order must match the field order above: the row is
-# inserted positionally.
-PROFILER_RUN_METADATA_SCHEMA = (
-    "source_system VARCHAR, "
-    "variant VARCHAR, "
-    "lakebridge_version VARCHAR, "
-    "python_version VARCHAR, "
-    "operating_system VARCHAR, "
-    "generated_at TIMESTAMPTZ"
-)
+# from one extract to the next. Derived from the dataclass so column order can only come
+# from one place — the row is inserted positionally (`INSERT ... SELECT *`).
+PROFILER_RUN_METADATA_SCHEMA = ", ".join(f"{f.name} {f.metadata['duckdb_type']}" for f in fields(ProfilerRunMetadata))

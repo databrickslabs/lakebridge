@@ -6,7 +6,6 @@ from typing import TypeAlias
 import duckdb
 import pytest
 
-from databricks.labs.lakebridge.assessments import PROFILER_RUN_METADATA_TABLE
 from databricks.labs.lakebridge.assessments.pipeline import (
     PipelineClass,
     StepExecutionResult,
@@ -20,7 +19,6 @@ _Loader: TypeAlias = Callable[[Path], PipelineConfig]
 
 _DB_FILE = "test_profiler.db"
 _CREDS_FILE = "test_creds.yml"
-_SOURCE_SYSTEM = "mssql"
 
 
 @pytest.fixture
@@ -83,7 +81,6 @@ def test_run_pipeline(
         executor=sandbox_sqlserver,
         db_path=tmp_path / _DB_FILE,
         cred_file_path=tmp_path / _CREDS_FILE,
-        source_system=_SOURCE_SYSTEM,
     )
     results = pipeline.execute()
 
@@ -100,7 +97,6 @@ def test_run_pipeline(
 def test_run_sql_failure_pipeline(
     sandbox_sqlserver: DatabaseConnector,
     sql_failure_config: PipelineConfig,
-    get_logger: Logger,
     tmp_path: Path,
 ) -> None:
     pipeline = PipelineClass(
@@ -108,13 +104,13 @@ def test_run_sql_failure_pipeline(
         executor=sandbox_sqlserver,
         db_path=tmp_path / _DB_FILE,
         cred_file_path=tmp_path / _CREDS_FILE,
-        source_system=_SOURCE_SYSTEM,
     )
-    with pytest.raises(RuntimeError) as e:
-        pipeline.execute()
+    results = pipeline.execute()
 
-    # Find the failed SQL step
-    assert "Pipeline execution failed due to errors in steps: invalid_sql_step" in str(e.value)
+    statuses = {r.step_name: r.status for r in results}
+    assert statuses["invalid_sql_step"] == StepExecutionStatus.ERROR
+    failed = next(r for r in results if r.step_name == "invalid_sql_step")
+    assert failed.error_message
 
 
 def test_run_optional_absence_pipeline(
@@ -132,7 +128,6 @@ def test_run_optional_absence_pipeline(
         executor=sandbox_sqlserver,
         db_path=tmp_path / _DB_FILE,
         cred_file_path=tmp_path / _CREDS_FILE,
-        source_system=_SOURCE_SYSTEM,
     )
     results = pipeline.execute()
 
@@ -146,7 +141,6 @@ def test_run_optional_absence_pipeline(
 def test_run_python_failure_pipeline(
     sandbox_sqlserver: DatabaseConnector,
     python_failure_config: PipelineConfig,
-    get_logger: Logger,
     tmp_path: Path,
 ) -> None:
     pipeline = PipelineClass(
@@ -154,13 +148,13 @@ def test_run_python_failure_pipeline(
         executor=sandbox_sqlserver,
         db_path=tmp_path / _DB_FILE,
         cred_file_path=tmp_path / _CREDS_FILE,
-        source_system=_SOURCE_SYSTEM,
     )
-    with pytest.raises(RuntimeError) as e:
-        pipeline.execute()
+    results = pipeline.execute()
 
-    # Find the failed Python step
-    assert "Pipeline execution failed due to errors in steps: invalid_python_step" in str(e.value)
+    statuses = {r.step_name: r.status for r in results}
+    assert statuses["invalid_python_step"] == StepExecutionStatus.ERROR
+    failed = next(r for r in results if r.step_name == "invalid_python_step")
+    assert failed.error_message
 
 
 def test_skipped_steps(
@@ -177,7 +171,6 @@ def test_skipped_steps(
         executor=sandbox_sqlserver,
         db_path=tmp_path / _DB_FILE,
         cred_file_path=tmp_path / _CREDS_FILE,
-        source_system=_SOURCE_SYSTEM,
     )
     results = pipeline.execute()
 
@@ -189,16 +182,8 @@ def test_skipped_steps(
 
 
 def verify_output(get_logger, path):
-    expected_tables = ["usage", "inventory", "random_data", PROFILER_RUN_METADATA_TABLE]
+    expected_tables = ["usage", "inventory", "random_data"]
     expected_columns = {
-        PROFILER_RUN_METADATA_TABLE: [
-            "source_system",
-            "variant",
-            "lakebridge_version",
-            "python_version",
-            "operating_system",
-            "generated_at",
-        ],
         "inventory": ["db_id", "name", "collation_name", "create_date", "extract_ts"],
         "usage": [
             "sql_handle",
@@ -280,7 +265,6 @@ def test_run_empty_result_pipeline(
         executor=sandbox_sqlserver,
         db_path=tmp_path / _DB_FILE,
         cred_file_path=tmp_path / _CREDS_FILE,
-        source_system=_SOURCE_SYSTEM,
     )
     results = pipeline.execute()
 
@@ -311,7 +295,6 @@ def test_run_pipeline_with_ddl(
         executor=sandbox_sqlserver,
         db_path=tmp_path / _DB_FILE,
         cred_file_path=tmp_path / _CREDS_FILE,
-        source_system=_SOURCE_SYSTEM,
     )
     results = pipeline.execute()
 
@@ -360,7 +343,6 @@ def test_run_pipeline_with_combined_ddl(
         executor=sandbox_sqlserver,
         db_path=tmp_path / _DB_FILE,
         cred_file_path=tmp_path / _CREDS_FILE,
-        source_system=_SOURCE_SYSTEM,
     )
     results = pipeline.execute()
 
