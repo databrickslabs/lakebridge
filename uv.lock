@@ -198,16 +198,16 @@ wheels = [
 
 [[package]]
 name = "azure-monitor-query"
-version = "1.4.1"
+version = "2.0.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "azure-core" },
     { name = "isodate" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/93/c5/26eee462559e254ec69b1a8585528aa0d2bfb814c31a8640af872a151e7a/azure_monitor_query-1.4.1.tar.gz", hash = "sha256:71824e2b577d25df0d3bebbbb054c06a1ae3ebcb91831a9bac0bb344d0addf68", size = 162946, upload-time = "2025-01-14T23:00:47.263Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/04/c0/e5c760f38224575f1eba35c319842f2be30fab599854ba9bd0b19d39c261/azure_monitor_query-2.0.0.tar.gz", hash = "sha256:7b05f2fcac4fb67fc9f77a7d4c5d98a0f3099fb73b57c69ec1b080773994671b", size = 86658, upload-time = "2025-07-30T22:23:41.534Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/cb/71/bdf03aef699d9a17d80bcaa8255c20e596ed591daa8a42a21854ddc4277d/azure_monitor_query-1.4.1-py3-none-any.whl", hash = "sha256:192c5d8efec48b434f803aa3850ce73b869975507a12b3a823012fc100056ac0", size = 157978, upload-time = "2025-01-14T23:00:50.661Z" },
+    { url = "https://files.pythonhosted.org/packages/52/0c/6b08a5a1e5f0bd97cefa13c53bf47f281a9a11732d19a94a86709acbc6bd/azure_monitor_query-2.0.0-py3-none-any.whl", hash = "sha256:8f52d581271d785e12f49cd5aaa144b8910fb843db2373855a7ef94c7fc462ea", size = 71102, upload-time = "2025-07-30T22:23:43.056Z" },
 ]
 
 [[package]]
@@ -881,7 +881,7 @@ yq = [
 requires-dist = [
     { name = "azure-identity", specifier = "~=1.19.0" },
     { name = "azure-mgmt-sql", specifier = "~=3.0.1" },
-    { name = "azure-monitor-query", specifier = "~=1.4.0" },
+    { name = "azure-monitor-query", specifier = ">=1.4,<2.1" },
     { name = "azure-synapse-artifacts", specifier = "~=0.20.0" },
     { name = "databricks-bb-analyzer", specifier = "~=0.3.0,!=0.3.1" },
     { name = "databricks-labs-blueprint", extras = ["yaml"], specifier = "~=0.12.0" },
