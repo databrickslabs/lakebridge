@@ -37,7 +37,7 @@ def fake_credentials():
     }
 
 
-def _run_execute(monkeypatch, tmp_path, credentials, *, sql_file_map, success_message="ok"):
+def _run_execute(monkeypatch, tmp_path, credentials, sql_file_map, success_message="ok"):
     db_path = tmp_path / "profiler_extract.db"
 
     cred_manager = MagicMock()
@@ -99,7 +99,7 @@ def test_exclude_streaming_metrics_yields_empty_streaming_tables(monkeypatch, tm
         monkeypatch,
         tmp_path,
         fake_credentials,
-        sql_file_map=bq_metadata_extract.INVENTORY_SQL_FILE_TO_ANALYSIS_TYPE,
+        bq_metadata_extract.INVENTORY_SQL_FILE_TO_ANALYSIS_TYPE,
     )
     tables = _tables(db_path)
     assert "streaming_summary" in tables
@@ -118,7 +118,7 @@ def test_exclude_reservations_data_yields_empty_reservation_tables(monkeypatch, 
         monkeypatch,
         tmp_path,
         fake_credentials,
-        sql_file_map=bq_metadata_extract.INVENTORY_SQL_FILE_TO_ANALYSIS_TYPE,
+        bq_metadata_extract.INVENTORY_SQL_FILE_TO_ANALYSIS_TYPE,
     )
     tables = _tables(db_path)
     for skipped in (

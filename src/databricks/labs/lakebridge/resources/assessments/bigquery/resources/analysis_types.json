@@ -451,10 +451,6 @@
                     "type": "string"
                 },
                 {
-                    "name": "managed_table_type",
-                    "type": "string"
-                },
-                {
                     "name": "creation_time",
                     "type": "timestamp"
                 },

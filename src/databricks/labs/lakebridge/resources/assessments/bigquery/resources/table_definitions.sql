@@ -7,7 +7,6 @@ SELECT
   table_schema,
   table_name,
   table_type,
-  managed_table_type,
   creation_time,
   base_table_catalog,
   base_table_schema,

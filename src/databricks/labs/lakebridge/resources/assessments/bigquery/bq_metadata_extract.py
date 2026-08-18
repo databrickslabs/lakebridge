@@ -15,8 +15,8 @@ import sys
 import threading
 import time
 import warnings
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from collections.abc import Callable, Mapping
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
 
 import pandas as pd
@@ -323,13 +323,4 @@ def run_entrypoint(sql_file_map: Mapping[str, str], success_message: str, desc: 
         db_path=db_path,
         sql_file_map=sql_file_map,
         success_message=success_message,
-    )
-
-
-if __name__ == "__main__":
-    # Full extract (inventory + definitions) for ad-hoc / legacy direct invocation.
-    run_entrypoint(
-        SQL_FILE_TO_ANALYSIS_TYPE,
-        "BigQuery metadata extract complete",
-        "BigQuery Metadata Extract Script",
     )

@@ -5,9 +5,14 @@ from databricks.labs.lakebridge.resources.assessments.bigquery.bq_metadata_extra
     run_entrypoint,
 )
 
-if __name__ == "__main__":
+
+def execute():
     run_entrypoint(
         INVENTORY_SQL_FILE_TO_ANALYSIS_TYPE,
         "BigQuery inventory extract complete",
         "BigQuery Inventory Extract Script",
     )
+
+
+if __name__ == "__main__":
+    execute()
