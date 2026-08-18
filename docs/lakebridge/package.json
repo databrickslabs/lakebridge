@@ -27,7 +27,7 @@
     "docusaurus-lunr-search": "3.6.1",
     "docusaurus-plugin-image-zoom": "^3.0.1",
     "lucide-react": "^0.555.0",
-    "postcss-nesting": "^13.0.2",
+    "postcss-nesting": "^14.0.1",
     "prism-react-renderer": "^2.3.0",
     "react": "^19.2.1",
     "react-dom": "^19.2.1",
