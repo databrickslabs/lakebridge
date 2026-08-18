@@ -184,3 +184,57 @@ def test_cost_enrich_execute_without_credentials_writes_no_creds_note(tmp_path) 
     written = save_mock.call_args.args[0].iloc[0]
     assert "no cloud_api credentials were configured" in written["note"]
     assert written["actual_billed_cost"] is None
+
+
+def test_cost_enrich_reports_org_total_when_service_has_no_records() -> None:
+    """Org-wide TCO (grandTotalCHC) must be reported even when the profiled service itself has no
+    billed records yet. Gating the billed-cost block on record_count alone silently dropped it."""
+    cloud_meta = {
+        "tier": "scale",
+        "tier_source": "usage_cost",
+        "region_key": "aws:us-east-1",
+        # A brand-new service in an already-billing org: 0 per-service records, org grand total present.
+        "actual_cost": {"record_count": 0, "actual_total_usd": 0.0, "org_total_usd": 12.5},
+        "actual_cost_window_days": 30,
+    }
+    row = _pricing_row({}, cloud_meta)
+    assert row["actual_billed_cost"] is not None  # not silently dropped
+    billed = _decode_billed(row)
+    assert billed["org_total_usd"] == 12.5
+    assert billed["total_usd"] == 12.5  # TCO falls back to the org total
+    assert billed["service_total_usd"] == 0.0
+
+
+def test_cost_enrich_execute_metadata_without_billed_cost_uses_distinct_note(tmp_path) -> None:
+    """When service metadata is captured but the usageCost call yields no billed cost, the note must
+    NOT claim the dollar figures are actual billed cost (there are none)."""
+    config = {"host": "svc.us-east-1.aws.clickhouse.cloud", "cloud_api": {"key_id": "k", "key_secret": "s"}}
+    client = MagicMock(spec=cost_enrich.ClickHouseCloudAPI)
+    client.discover_service.return_value = {"organization_id": "org", "service_id": "svc", "provider": "aws"}
+    client.get_usage_cost.return_value = {"grandTotalCHC": None, "costs": []}
+    client.summarize_usage_cost.return_value = {"tier": "scale", "record_count": 0, "org_total_usd": None}
+
+    with patch.object(cost_enrich, "save_to_duckdb") as save_mock:
+        result = cost_enrich.execute(_credential_manager(config), str(tmp_path / "extract.duckdb"), client=client)
+
+    assert result["status"] == "success"
+    written = save_mock.call_args.args[0].iloc[0]
+    assert written["note"] == cost_enrich._ENRICHED_NO_COST_NOTE
+    assert written["actual_billed_cost"] is None
+
+
+def test_cost_enrich_execute_degrades_on_malformed_api_response(tmp_path) -> None:
+    """A reachable-but-malformed API response (structural KeyError, not CloudAPIError) must degrade
+    gracefully to the API-failure note rather than aborting the optional step."""
+    config = {"host": "svc.us-east-1.aws.clickhouse.cloud", "cloud_api": {"key_id": "k", "key_secret": "s"}}
+    client = MagicMock(spec=cost_enrich.ClickHouseCloudAPI)
+    client.discover_service.side_effect = KeyError("id")  # e.g. orgs[0]["id"] on a malformed org object
+
+    with patch.object(cost_enrich, "save_to_duckdb") as save_mock:
+        result = cost_enrich.execute(_credential_manager(config), str(tmp_path / "extract.duckdb"), client=client)
+
+    assert result["status"] == "success"
+    assert result["warnings"]  # the failure is surfaced, not swallowed
+    written = save_mock.call_args.args[0].iloc[0]
+    assert written["note"] == cost_enrich._API_FAIL_NOTE
+    assert written["actual_billed_cost"] is None

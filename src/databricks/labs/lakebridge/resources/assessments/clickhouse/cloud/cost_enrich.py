@@ -54,6 +54,23 @@ _ENRICHED_NOTE = (
     "Dollar figures are the actual billed cost from the ClickHouse Cloud usageCost API. No rate-card "
     "estimation is performed. Provider/region/tier are recorded as metadata."
 )
+_ENRICHED_NO_COST_NOTE = (
+    "ClickHouse Cloud service metadata (provider/region/tier/sizing) was captured, but the usageCost "
+    "API returned no billed cost for this window (see warnings). No dollar figures are reported; usage "
+    "attribution from the SQL steps is unaffected."
+)
+
+
+def _has_billed_cost(cloud_meta: dict | None) -> bool:
+    """True when the usageCost summary carries billable data — either per-service records or an
+    org-wide grand total.
+
+    The org total (grandTotalCHC) is reported even when the profiled service has no records of its
+    own yet (e.g. a brand-new service in an already-billing org), so it must not be gated on
+    ``record_count`` alone — doing so silently drops the org-wide TCO.
+    """
+    actual = (cloud_meta or {}).get("actual_cost") or {}
+    return bool(actual.get("record_count")) or actual.get("org_total_usd") is not None
 
 
 def _detect_region(config: dict[str, Any], cloud_meta: dict | None) -> tuple[str, str]:
@@ -138,7 +155,7 @@ def build_pricing_row(config: dict[str, Any], cloud_meta: dict | None, note: str
             "tier_as_of_date": cloud_meta.get("tier_as_of_date"),
         }
         actual = cloud_meta.get("actual_cost") or {}
-        if actual.get("record_count"):
+        if _has_billed_cost(cloud_meta):
             window_days = cloud_meta.get("actual_cost_window_days") or 30
             service_total = actual.get("actual_total_usd")
             org_total = actual.get("org_total_usd")
@@ -184,15 +201,20 @@ def execute(
     if client is not None:
         try:
             cloud_meta = _fetch_cloud_metadata(config, warnings, client)
-        except CloudAPIError as e:
+        # A reachable-but-malformed API response (a missing/renamed field) surfaces as a structural
+        # error (KeyError/IndexError/TypeError) rather than CloudAPIError; the step is optional, so
+        # treat it like any other API failure and degrade gracefully instead of aborting the run.
+        except (CloudAPIError, KeyError, IndexError, TypeError) as e:
             warnings.append(f"cloud_api: {str(e)[:200]}")
 
     if client is None:
         note = _NO_CREDS_NOTE
     elif cloud_meta is None:
         note = _API_FAIL_NOTE
-    else:
+    elif _has_billed_cost(cloud_meta):
         note = _ENRICHED_NOTE
+    else:
+        note = _ENRICHED_NO_COST_NOTE
 
     row = build_pricing_row(config, cloud_meta, note)
     save_to_duckdb(pd.DataFrame([row]), TABLE_NAME, db_path, schema=TABLE_SCHEMA)
