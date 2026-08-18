@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 import yaml
 
-from databricks.labs.lakebridge.assessments import SOURCE_SYSTEM_VARIANTS, AUTO
+from databricks.labs.lakebridge.assessments import AUTO, SOURCE_SYSTEM_VARIANTS
 from databricks.labs.lakebridge.assessments.profiler import get_pipeline
 from databricks.labs.lakebridge.assessments.variants import resolve_clickhouse_variant
 from databricks.labs.lakebridge.resources.assessments.clickhouse.cloud import cost_enrich

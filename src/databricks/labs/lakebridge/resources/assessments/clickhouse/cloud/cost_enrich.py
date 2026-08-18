@@ -19,16 +19,16 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import pandas as pd
+from databricks.labs.blueprint.entrypoint import get_logger
 
 from databricks.labs.lakebridge import initialize_logging
 from databricks.labs.lakebridge.assessments import PRODUCT_NAME
 from databricks.labs.lakebridge.connections.credential_manager import CredentialManager, create_credential_manager
 from databricks.labs.lakebridge.connections.env_getter import EnvGetter
-from databricks.labs.lakebridge.resources.assessments.common.cli import arguments_loader
-from databricks.labs.lakebridge.resources.assessments.common.duckdb_helpers import save_to_duckdb
 from databricks.labs.lakebridge.resources.assessments.clickhouse import is_cloud_host
 from databricks.labs.lakebridge.resources.assessments.clickhouse.cloud_api import ClickHouseCloudAPI, CloudAPIError
-from databricks.labs.blueprint.entrypoint import get_logger
+from databricks.labs.lakebridge.resources.assessments.common.cli import arguments_loader
+from databricks.labs.lakebridge.resources.assessments.common.duckdb_helpers import save_to_duckdb
 
 logger = get_logger(__file__)
 
