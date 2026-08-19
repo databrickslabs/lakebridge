@@ -67,9 +67,9 @@ def _prompt_snowflake_auth_credentials(prompts: Prompts, auth_label: str, secret
     connection fields (account, user, warehouse, …) are prompted separately.
     """
     if auth_label == Pat.label:
-        logger.info("Authentication uses a Programmatic Access Token (PAT). See Snowflake's docs:")
         logger.info(
-            "  https://docs.snowflake.com/en/user-guide/programmatic-access-tokens"
+            "Authentication uses a Programmatic Access Token (PAT). See Snowflake's docs: "
+            "https://docs.snowflake.com/en/user-guide/programmatic-access-tokens"
             "#generating-a-programmatic-access-token"
         )
         # In env mode the stored value is the name of an environment variable that
@@ -81,8 +81,10 @@ def _prompt_snowflake_auth_credentials(prompts: Prompts, auth_label: str, secret
         return {"pat": prompts.password("Enter Programmatic Access Token (PAT)")}
 
     if auth_label == KeyPair.label:
-        logger.info("Authentication uses key-pair (JWT). See Snowflake's docs:")
-        logger.info("  https://docs.snowflake.com/en/user-guide/key-pair-auth")
+        logger.info(
+            "Authentication uses key-pair. See Snowflake's docs: "
+            "https://docs.snowflake.com/en/user-guide/key-pair-auth"
+        )
         logger.info(
             "Store the private key path in credentials (not the PEM contents). "
             "Encrypted .p8 keys require a passphrase."

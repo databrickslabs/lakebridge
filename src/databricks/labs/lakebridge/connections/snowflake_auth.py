@@ -59,7 +59,7 @@ class Pat(SnowflakeAuth):
 
 
 class KeyPair(SnowflakeAuth):
-    """RSA key-pair (JWT) — PEM file on disk, passed via SQLAlchemy connect_args."""
+    """RSA key-pair — PEM file on disk, passed via SQLAlchemy connect_args."""
 
     auth_type = "key_pair"
     label = "Key-Pair"
