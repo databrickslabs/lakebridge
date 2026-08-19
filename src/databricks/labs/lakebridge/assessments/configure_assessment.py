@@ -21,6 +21,8 @@ from databricks.labs.lakebridge.connections.env_getter import EnvGetter
 from databricks.labs.lakebridge.connections.mssql_auth import AUTH_CHOICES
 from databricks.labs.lakebridge.connections.snowflake_auth import (
     AUTH_CHOICES as SNOWFLAKE_AUTH_CHOICES,
+)
+from databricks.labs.lakebridge.connections.snowflake_auth import (
     KeyPair,
     Pat,
 )
