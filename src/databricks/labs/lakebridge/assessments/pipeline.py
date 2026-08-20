@@ -154,19 +154,7 @@ class PipelineClass:
         logging.info(f"Starting query for step: {step.name}")
         try:
             with connect_to_profiler_db(self._db_path) as conn:
-                conn.begin()
-                self._apply_duckdb_ddl(conn, step)
-                total_rows = 0
-                for batch in self.executor.stream(query):
-                    if (batch_size := batch.num_rows) == 0:
-                        logger.debug(f"Skipping empty batch while streaming results for step: {step.name}")
-                        continue
-                    logger.debug(f"Streaming batch of {batch_size} rows for step: {step.name}")
-                    conn.register("_result_frame", batch)
-                    conn.execute(f"INSERT INTO {step.name} SELECT * FROM _result_frame")
-                    conn.unregister("_result_frame")
-                    total_rows += batch_size
-                conn.commit()
+                total_rows = self._write_stream(conn, step, query)
         except (RuntimeError, ConnectionError):
             raise
         except Exception as e:
@@ -174,6 +162,24 @@ class PipelineClass:
 
         logging.info(f"Finished streaming query for step: {step.name} (rows={total_rows}, mode={step.mode})")
         logging.debug(f"Data flushed for step: {step.name}")
+
+    def _write_stream(self, conn: duckdb.DuckDBPyConnection, step: Step, query: str) -> int:
+        if self.executor is None:
+            raise RuntimeError("Database executor is not set.")
+        conn.begin()
+        self._apply_duckdb_ddl(conn, step)
+        total_rows = 0
+        for batch in self.executor.stream(query):
+            if (batch_size := batch.num_rows) == 0:
+                logger.debug(f"Skipping empty batch while streaming results for step: {step.name}")
+                continue
+            logger.debug(f"Streaming batch of {batch_size} rows for step: {step.name}")
+            conn.register("_result_frame", batch)
+            conn.execute(f"INSERT INTO {step.name} SELECT * FROM _result_frame")
+            conn.unregister("_result_frame")
+            total_rows += batch_size
+        conn.commit()
+        return total_rows
 
     def _apply_duckdb_ddl(self, conn: duckdb.DuckDBPyConnection, step: Step) -> None:
         if not step.ddl_source:
