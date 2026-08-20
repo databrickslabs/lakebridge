@@ -19,6 +19,7 @@ def test_legacy_synapse_queries_match_duckdb_ddl() -> None:
         query_path = _REPO_ROOT / step["extract_source"]
         ddl_path = _REPO_ROOT / step["ddl_source"]
         query = sqlglot.parse_one(query_path.read_text(encoding="utf-8"), read="tsql")
+        assert isinstance(query, exp.Query)
         ddl_text = ddl_path.read_text(encoding="utf-8")
         ddl = sqlglot.parse_one(ddl_text, read="duckdb")
         schema = ddl.find(exp.Schema)
