@@ -107,6 +107,9 @@ commands:
   - name: configure-reconcile
     description: Configure 'reconcile' dependencies
 
+  - name: auto-configure-recon-tables
+    description: auto-discover and configure tables to reconcile
+
   - name: execute-database-profiler
     description: (Experimental) Profile the source system database
     flags:
