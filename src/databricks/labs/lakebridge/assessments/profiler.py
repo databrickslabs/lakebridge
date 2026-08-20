@@ -5,6 +5,7 @@ from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
 
+import duckdb
 import pandas as pd
 
 from databricks.labs.lakebridge import __version__ as lakebridge_version
@@ -37,8 +38,8 @@ from databricks.labs.lakebridge.resources.assessments.common.duckdb_helpers impo
 logger = logging.getLogger(__name__)
 
 
-def default_output_folder(platform: str) -> Path:
-    return Path.home() / ".databricks" / "labs" / "lakebridge_profilers" / f"{platform}_assessment"
+def default_output_folder(source_system: str) -> Path:
+    return Path.home() / ".databricks" / "labs" / "lakebridge_profilers" / f"{source_system}_assessment"
 
 
 def get_pipeline(source_system: str, variant: str | None) -> Path:
@@ -58,6 +59,10 @@ class Profiler:
         self._source_system = self._normalize_source_system(source_system)
         self._variant = variant
         self._pipeline_config = pipeline_configs
+
+    @property
+    def source_system(self) -> str:
+        return self._source_system
 
     @classmethod
     def create(cls, source_system: str, variant: str | None = None, cred_file_path: Path | None = None) -> "Profiler":
@@ -93,14 +98,14 @@ class Profiler:
         return normalized
 
     @staticmethod
-    def _run_status(results: list[StepExecutionResult]) -> str:
+    def run_status(results: list[StepExecutionResult]) -> str:
         if any(r.status == StepExecutionStatus.ERROR for r in results):
             return ProfilerRunStatus.FAILED.value
         if any(r.status == StepExecutionStatus.ABSENT for r in results):
             return ProfilerRunStatus.COMPLETE_WITH_ABSENCES.value
         return ProfilerRunStatus.COMPLETE.value
 
-    def _write_run_metadata(
+    def write_run_metadata(
         self,
         db_path: Path,
         pipeline_config: PipelineConfig,
@@ -120,7 +125,7 @@ class Profiler:
                 lakebridge_version=lakebridge_version,
                 python_version=platform.python_version(),
                 operating_system=platform.platform(),
-                status=self._run_status(results),
+                status=self.run_status(results),
                 results=json.dumps(
                     [
                         {
@@ -140,7 +145,7 @@ class Profiler:
                 schema=PROFILER_RUN_METADATA_SCHEMA,
             )
             logger.info(f"Wrote {PROFILER_RUN_METADATA_TABLE}: {metadata}")
-        except Exception:
+        except (OSError, TypeError, ValueError, duckdb.Error):
             logger.warning(f"Failed to write {PROFILER_RUN_METADATA_TABLE}", exc_info=True)
 
     def profile(
@@ -184,7 +189,7 @@ class Profiler:
             logger.error(f"Error executing pipeline for source {source_system}: {e}")
             raise RuntimeError(f"Pipeline execution failed for source {source_system} : {e}") from e
 
-        self._write_run_metadata(db_path, pipeline_config, results)
+        self.write_run_metadata(db_path, pipeline_config, results)
 
         failed = [r for r in results if r.status == StepExecutionStatus.ERROR]
         if failed:

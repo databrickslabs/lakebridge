@@ -62,7 +62,7 @@ def test_profiler_run_metadata_schema_tracks_dataclass_fields() -> None:
     ],
 )
 def test_run_status_derivation(results: list[StepExecutionResult], expected: str) -> None:
-    assert Profiler._run_status(results) == expected
+    assert Profiler.run_status(results) == expected
 
 
 def test_write_run_metadata_persists_row(tmp_path: Path) -> None:
@@ -74,7 +74,7 @@ def test_write_run_metadata_persists_row(tmp_path: Path) -> None:
     ]
 
     profiler = Profiler("mssql", variant="single_db")
-    profiler._write_run_metadata(db_path, pipeline_config, results)
+    profiler.write_run_metadata(db_path, pipeline_config, results)
 
     with duckdb.connect(str(db_path)) as conn:
         columns = [row[0] for row in conn.execute(f"DESCRIBE {PROFILER_RUN_METADATA_TABLE}").fetchall()]
@@ -114,12 +114,12 @@ def test_write_run_metadata_overwrites_prior_row(tmp_path: Path) -> None:
     pipeline_config = PipelineConfig(name="warehouse_profiler", version="1.0", steps=[])
     profiler = Profiler("snowflake")
 
-    profiler._write_run_metadata(
+    profiler.write_run_metadata(
         db_path,
         pipeline_config,
         [StepExecutionResult("a", StepExecutionStatus.COMPLETE)],
     )
-    profiler._write_run_metadata(
+    profiler.write_run_metadata(
         db_path,
         pipeline_config,
         [StepExecutionResult("b", StepExecutionStatus.ERROR, "failed")],
@@ -139,7 +139,7 @@ def test_write_run_metadata_overwrites_prior_row(tmp_path: Path) -> None:
 def test_normalize_source_system_casefolds_and_warns(caplog) -> None:
     with caplog.at_level("WARNING"):
         profiler = Profiler("MSSQL")
-    assert profiler._source_system == "mssql"
+    assert profiler.source_system == "mssql"
 
     with caplog.at_level("WARNING"):
         Profiler("not_a_real_source")
