@@ -16,6 +16,7 @@ steps:
   - name: rs_spectrum_tb_month
     type: sql
     extract_source: src/databricks/labs/lakebridge/resources/assessments/redshift/sql/1_rs_spectrum_tb_month.sql
+    ddl_source: src/databricks/labs/lakebridge/resources/assessments/redshift/sql/1_rs_spectrum_tb_month_ddl.sql
     mode: overwrite
     frequency: once
     flag: active
@@ -23,6 +24,7 @@ steps:
   - name: rs_managed_storage_gb
     type: sql
     extract_source: src/databricks/labs/lakebridge/resources/assessments/redshift/sql/2_rs_managed_storage_gb_stv.sql
+    ddl_source: src/databricks/labs/lakebridge/resources/assessments/redshift/sql/2_rs_managed_storage_gb_ddl.sql
     mode: overwrite
     frequency: once
     flag: active
@@ -31,6 +33,7 @@ steps:
   - name: rs_managed_storage_gb
     type: sql
     extract_source: src/databricks/labs/lakebridge/resources/assessments/redshift/sql/2_rs_managed_storage_gb_serverless.sql
+    ddl_source: src/databricks/labs/lakebridge/resources/assessments/redshift/sql/2_rs_managed_storage_gb_ddl.sql
     mode: overwrite
     frequency: once
     flag: active
@@ -39,6 +42,7 @@ steps:
   - name: rs_nodes
     type: sql
     extract_source: src/databricks/labs/lakebridge/resources/assessments/redshift/sql/3_rs_nodes_stv.sql
+    ddl_source: src/databricks/labs/lakebridge/resources/assessments/redshift/sql/3_rs_nodes_ddl.sql
     mode: overwrite
     frequency: once
     flag: active
@@ -47,6 +51,7 @@ steps:
   - name: rs_nodes
     type: sql
     extract_source: src/databricks/labs/lakebridge/resources/assessments/redshift/sql/3_rs_nodes_serverless.sql
+    ddl_source: src/databricks/labs/lakebridge/resources/assessments/redshift/sql/3_rs_nodes_ddl.sql
     mode: overwrite
     frequency: once
     flag: active
@@ -54,36 +59,42 @@ steps:
   - name: rs_avg_concurrent_users
     type: sql
     extract_source: src/databricks/labs/lakebridge/resources/assessments/redshift/sql/4_rs_avg_concurrent_users.sql
+    ddl_source: src/databricks/labs/lakebridge/resources/assessments/redshift/sql/4_rs_avg_concurrent_users_ddl.sql
     mode: overwrite
     frequency: once
     flag: active
   - name: rs_avg_queries_minute
     type: sql
     extract_source: src/databricks/labs/lakebridge/resources/assessments/redshift/sql/5_rs_avg_queries_minute.sql
+    ddl_source: src/databricks/labs/lakebridge/resources/assessments/redshift/sql/5_rs_avg_queries_minute_ddl.sql
     mode: overwrite
     frequency: once
     flag: active
   - name: chart_query_type_by_hour
     type: sql
     extract_source: src/databricks/labs/lakebridge/resources/assessments/redshift/sql/6_chart_query_type_by_hour.sql
+    ddl_source: src/databricks/labs/lakebridge/resources/assessments/redshift/sql/6_chart_query_type_by_hour_ddl.sql
     mode: overwrite
     frequency: once
     flag: active
   - name: chart_cpu_consumption_by_query_type
     type: sql
     extract_source: src/databricks/labs/lakebridge/resources/assessments/redshift/sql/7_chart_cpu_consumption_by_query_type.sql
+    ddl_source: src/databricks/labs/lakebridge/resources/assessments/redshift/sql/7_chart_cpu_consumption_by_query_type_ddl.sql
     mode: overwrite
     frequency: once
     flag: active
   - name: chart_concurrent_users_by_hour
     type: sql
     extract_source: src/databricks/labs/lakebridge/resources/assessments/redshift/sql/8_chart_concurrent_users_by_hour.sql
+    ddl_source: src/databricks/labs/lakebridge/resources/assessments/redshift/sql/8_chart_concurrent_users_by_hour_ddl.sql
     mode: overwrite
     frequency: once
     flag: active
   - name: chart_cpu_consumption_by_hour_and_query_type
     type: sql
     extract_source: src/databricks/labs/lakebridge/resources/assessments/redshift/sql/9_chart_cpu_consumption_by_hour_and_query_type.sql
+    ddl_source: src/databricks/labs/lakebridge/resources/assessments/redshift/sql/9_chart_cpu_consumption_by_hour_and_query_type_ddl.sql
     mode: overwrite
     frequency: once
     flag: active
@@ -91,6 +102,7 @@ steps:
   - name: cost_incurred
     type: sql
     extract_source: src/databricks/labs/lakebridge/resources/assessments/redshift/sql/10_cost_incurred.sql
+    ddl_source: src/databricks/labs/lakebridge/resources/assessments/redshift/sql/10_cost_incurred_ddl.sql
     mode: overwrite
     frequency: once
     flag: active
