@@ -110,11 +110,3 @@ def test_local_vault_stores_key_pair_with_passphrase(tmp_path):
     assert connection["auth_type"] == "key_pair"
     assert connection["private_key_path"] == "/path/to/rsa_key.p8"
     assert connection["private_key_passphrase"] == "secret-pass"
-
-
-def test_local_vault_stores_key_pair_with_empty_passphrase(tmp_path):
-    creds = _run(_key_pair_prompts(encrypted=True, passphrase=""), tmp_path)
-    connection = creds["snowflake"]["connection"]
-    assert connection["auth_type"] == "key_pair"
-    assert connection["private_key_path"] == "/path/to/rsa_key.p8"
-    assert connection["private_key_passphrase"] == ""

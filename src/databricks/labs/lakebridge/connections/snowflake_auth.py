@@ -12,9 +12,9 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import ClassVar
+from typing import Any, ClassVar
 
 from databricks.labs.blueprint.installation import JsonObject
 
@@ -26,11 +26,11 @@ class ResolvedSnowflakeCredentials:
     """Everything `SnowflakeConnector` needs after auth resolution.
 
     - `password`: PAT (or equivalent) placed in the SQLAlchemy URL password field
-    - `private_key`: DER PKCS8 bytes for ``connect_args={"private_key": ...}``
+    - `connect_args`: extra kwargs for ``create_engine`` (e.g. ``private_key``)
     """
 
     password: str | None = None
-    private_key: bytes | None = None
+    connect_args: dict[str, Any] = field(default_factory=dict)
 
 
 class SnowflakeAuth(ABC):
@@ -69,11 +69,10 @@ class KeyPair(SnowflakeAuth):
         key_path_value = config.get("private_key_path")
         if not key_path_value:
             raise ConnectionError(f"{cls.auth_type} requires 'private_key_path' in credentials")
-        # Preserve empty string as an empty passphrase (b""); only missing/None means unencrypted.
         passphrase = config.get("private_key_passphrase")
-        passphrase_str = None if passphrase is None else str(passphrase)
+        passphrase_str = str(passphrase) if passphrase else None
         private_key = load_snowflake_private_key(Path(str(key_path_value)), passphrase_str)
-        return ResolvedSnowflakeCredentials(private_key=private_key)
+        return ResolvedSnowflakeCredentials(connect_args={"private_key": private_key})
 
 
 # User-selectable auth methods, in the order they appear in the configurator prompt.

@@ -102,11 +102,7 @@ class _BaseConnector(DatabaseConnector):
 class SnowflakeConnector(_BaseConnector):
     @staticmethod
     def build_engine_args(connection_config: dict[str, Any]) -> tuple[URL, dict[str, Any]]:
-        """Build the SQLAlchemy URL and connect_args for a Snowflake connection config.
-
-        Separated from ``_connect`` so URL / connect-arg construction can be unit-tested
-        without opening a real engine.
-        """
+        """Build the SQLAlchemy URL and connect_args for a Snowflake connection config."""
         account = parse_snowflake_account(str(connection_config["account"]))
         if not is_valid_snowflake_account(account):
             raise ConnectionError(
@@ -130,8 +126,7 @@ class SnowflakeConnector(_BaseConnector):
             password=resolved.password,
             query={"warehouse": warehouse, "role": role},
         )
-        connect_args = {"private_key": resolved.private_key} if resolved.private_key else {}
-        return snowflake_url, connect_args
+        return snowflake_url, resolved.connect_args
 
     def _connect(self) -> Engine:
         # The configurator always nests Snowflake credentials under a "connection" block.

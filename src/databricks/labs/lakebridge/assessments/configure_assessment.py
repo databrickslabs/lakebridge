@@ -60,22 +60,13 @@ def _prompt_mssql_auth_credentials(prompts: Prompts, auth_type: str) -> dict[str
 
 
 def _prompt_snowflake_auth_credentials(prompts: Prompts, auth_label: str, secret_vault_type: str) -> dict[str, str]:
-    """Prompt for Snowflake auth-specific fields for the chosen strategy.
-
-    ``auth_label`` is the user-facing label from the auth-method prompt (e.g. ``PAT``).
-    Returns a partial dict to merge into the nested ``connection`` block. Shared
-    connection fields (account, user, warehouse, …) are prompted separately.
-    """
+    """Prompt for Snowflake auth-specific fields for the chosen strategy."""
     if auth_label == Pat.label:
         logger.info(
             "Authentication uses a Programmatic Access Token (PAT). See Snowflake's docs: "
             "https://docs.snowflake.com/en/user-guide/programmatic-access-tokens"
             "#generating-a-programmatic-access-token"
         )
-        # In env mode the stored value is the name of an environment variable that
-        # EnvGetter resolves at runtime, not the token itself, so prompt accordingly.
-        # Stored under `pat` (not `password`) to flag this is a rotating
-        # Programmatic Access Token, not a SQL password.
         if secret_vault_type == "env":
             return {"pat": prompts.question("Enter the environment variable name holding the PAT")}
         return {"pat": prompts.password("Enter Programmatic Access Token (PAT)")}
@@ -432,7 +423,6 @@ class ConfigureSnowflakeAssessment(AssessmentConfigurator):
 
         logger.info("Snowflake Assessment Configuration")
         auth_choices = {cls.label: cls.auth_type for cls in SNOWFLAKE_AUTH_CHOICES}
-        assert len(auth_choices) == len(SNOWFLAKE_AUTH_CHOICES), "Label/auth-type collision."
         auth_label = self.prompts.choice("Select authentication method", list(auth_choices.keys()), sort=True)
         auth_type = auth_choices[auth_label]
         auth_credentials = _prompt_snowflake_auth_credentials(self.prompts, auth_label, secret_vault_type)

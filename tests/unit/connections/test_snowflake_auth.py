@@ -26,7 +26,7 @@ def _write_unencrypted_private_key(path: Path) -> None:
 def test_pat_returns_password_from_config() -> None:
     resolved = Pat.resolve_credentials({"pat": "token-value"})
     assert resolved.password == "token-value"
-    assert resolved.private_key is None
+    assert not resolved.connect_args
 
 
 def test_pat_missing_raises_connection_error() -> None:
@@ -42,7 +42,7 @@ def test_pat_empty_raises_connection_error() -> None:
 def test_resolve_defaults_to_pat_when_auth_type_missing() -> None:
     resolved = resolve_snowflake_credentials({"pat": "token-value"})
     assert resolved.password == "token-value"
-    assert resolved.private_key is None
+    assert not resolved.connect_args
 
 
 def test_key_pair_returns_private_key_bytes(tmp_path) -> None:
@@ -50,8 +50,8 @@ def test_key_pair_returns_private_key_bytes(tmp_path) -> None:
     _write_unencrypted_private_key(key_path)
     resolved = KeyPair.resolve_credentials({"private_key_path": str(key_path)})
     assert resolved.password is None
-    assert isinstance(resolved.private_key, bytes)
-    assert resolved.private_key
+    assert isinstance(resolved.connect_args["private_key"], bytes)
+    assert resolved.connect_args["private_key"]
 
 
 def test_key_pair_missing_path_raises_connection_error() -> None:
@@ -64,7 +64,7 @@ def test_resolve_key_pair_via_auth_type(tmp_path) -> None:
     _write_unencrypted_private_key(key_path)
     resolved = resolve_snowflake_credentials({"auth_type": "key_pair", "private_key_path": str(key_path)})
     assert resolved.password is None
-    assert resolved.private_key
+    assert resolved.connect_args["private_key"]
 
 
 def test_resolve_unknown_auth_type_raises() -> None:

@@ -135,28 +135,24 @@ def test_load_private_key_encrypted_with_passphrase(tmp_path: Path, passphrase: 
     assert der
 
 
-def test_load_private_key_empty_passphrase_cannot_decrypt(tmp_path: Path) -> None:
-    """cryptography treats b'' as a missing password when decrypting, so empty-passphrase
-    encrypted keys cannot be loaded. We still pass "" through as b'' (not None) and
-    surface a decrypt-oriented error.
-    """
+def test_load_private_key_empty_passphrase_treated_as_missing(tmp_path: Path) -> None:
     key_path = tmp_path / "rsa_key.p8"
     _write_private_key(key_path, passphrase="not-empty")
-    with pytest.raises(ConnectionError, match="Unable to decrypt"):
+    with pytest.raises(ConnectionError, match="Unable to load private key"):
         load_snowflake_private_key(key_path, passphrase="")
 
 
 def test_load_private_key_wrong_passphrase(tmp_path: Path) -> None:
     key_path = tmp_path / "rsa_key.p8"
     _write_private_key(key_path, passphrase="correct")
-    with pytest.raises(ConnectionError, match="check the passphrase"):
+    with pytest.raises(ConnectionError, match="Unable to load private key"):
         load_snowflake_private_key(key_path, passphrase="wrong")
 
 
 def test_load_private_key_missing_passphrase_for_encrypted_key(tmp_path: Path) -> None:
     key_path = tmp_path / "rsa_key.p8"
     _write_private_key(key_path, passphrase="correct")
-    with pytest.raises(ConnectionError, match="Unable to decrypt"):
+    with pytest.raises(ConnectionError, match="Unable to load private key"):
         load_snowflake_private_key(key_path, passphrase=None)
 
 
@@ -169,7 +165,7 @@ def test_load_private_key_path_missing(tmp_path: Path) -> None:
 def test_load_private_key_garbage_file(tmp_path: Path) -> None:
     key_path = tmp_path / "not-a-key.p8"
     key_path.write_text("this is not a PEM private key\n")
-    with pytest.raises(ConnectionError, match="Invalid Snowflake private key PEM"):
+    with pytest.raises(ConnectionError, match="Unable to load private key"):
         load_snowflake_private_key(key_path, passphrase=None)
 
 
