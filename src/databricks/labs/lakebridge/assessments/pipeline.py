@@ -14,11 +14,7 @@ from databricks.labs.blueprint.paths import read_text
 from databricks.labs.lakebridge import __version__ as lakebridge_version
 from databricks.labs.lakebridge.assessments.profiler_config import PipelineConfig, Step
 from databricks.labs.lakebridge.connections.database_manager import DatabaseConnector, FetchResult
-from databricks.labs.lakebridge.resources.assessments.common.duckdb_helpers import (
-    SaveMode,
-    connect_to_profiler_db,
-    save_to_duckdb_conn,
-)
+from databricks.labs.lakebridge.resources.assessments.common.duckdb_helpers import connect_to_profiler_db
 
 logger = logging.getLogger(__name__)
 
@@ -30,8 +26,13 @@ def make_profiler_db_filename(platform: str) -> str:
 class StepExecutionStatus(str, Enum):
     COMPLETE = "COMPLETE"
     ERROR = "ERROR"
+    ERROR_FATAL = "ERROR_FATAL"
     SKIPPED = "SKIPPED"
     ABSENT = "ABSENT"
+
+
+class DuckDBDDLError(RuntimeError):
+    """Raised when applying or writing through a SQL step's DuckDB schema contract fails."""
 
 
 @dataclass
@@ -64,7 +65,7 @@ class PipelineClass:
             execution_results.append(result)
             self._log_step_result(result)
 
-            if step.type in {"ddl", "source_ddl"} and result.status == StepExecutionStatus.ERROR:
+            if result.status == StepExecutionStatus.ERROR_FATAL:
                 error_msg = f"Pipeline execution failed due to error in DDL step: {result.step_name}"
                 if result.error_message:
                     error_msg += f" - {result.error_message}"
@@ -91,18 +92,25 @@ class PipelineClass:
         try:
             self._dispatch_step(step)
             return StepExecutionResult(step_name=step.name, status=StepExecutionStatus.COMPLETE)
+        except DuckDBDDLError as e:
+            return StepExecutionResult(
+                step_name=step.name,
+                status=StepExecutionStatus.ERROR_FATAL,
+                error_message=str(e),
+            )
         except (RuntimeError, ConnectionError) as e:
-            # Optional: warn + ABSENT (customer isn't failed; maintainers get the cause).
-            # Required: ERROR, which fails the run below.
-            status = StepExecutionStatus.ABSENT if step.optional else StepExecutionStatus.ERROR
+            if step.optional:
+                status = StepExecutionStatus.ABSENT
+            elif step.type == "source_ddl":
+                status = StepExecutionStatus.ERROR_FATAL
+            else:
+                status = StepExecutionStatus.ERROR
             return StepExecutionResult(step_name=step.name, status=status, error_message=str(e))
 
     def _dispatch_step(self, step: Step) -> None:
         match step.type:
             case "sql":
                 self._execute_sql_step(step)
-            case "ddl":
-                self._execute_ddl_step(step)
             case "source_ddl":
                 self._execute_source_ddl_step(step)
             case "python":
@@ -112,7 +120,7 @@ class PipelineClass:
 
     def _log_step_result(self, result: StepExecutionResult):
         match result.status:
-            case StepExecutionStatus.ERROR:
+            case StepExecutionStatus.ERROR | StepExecutionStatus.ERROR_FATAL:
                 logger.error(f"Step {result.step_name} failed with error: {result.error_message}")
             case StepExecutionStatus.ABSENT:
                 logger.warning(f"Optional step {result.step_name} failed and was tolerated: {result.error_message}")
@@ -137,32 +145,57 @@ class PipelineClass:
 
         logging.info(f"Executing query for step: {step.name}")
         result = self.executor.fetch(query)
-        self._save_to_db(result, step.name, step.mode)
+        self._save_to_db(result, step)
 
     def _stream_sql_step(self, step: Step, query: str) -> None:
         if self.executor is None:
             raise RuntimeError("Database executor is not set.")
 
-        with connect_to_profiler_db(self._db_path) as conn:
-            logging.info(f"Starting query for step: {step.name}")
-            # TODO: Would be nice to pipeline this: fetch next batch while the last is being written/flushed.
-            write_mode: SaveMode = "overwrite" if step.mode == "overwrite" else "append"
-            total_rows = 0
-            for batch in self.executor.stream(query):
-                if (batch_size := batch.num_rows) == 0:
-                    logger.debug(f"Skipping empty batch while streaming results for step: {step.name}")
-                    continue
-                logger.debug(f"Streaming batch of {batch_size} rows for step: {step.name}")
-                save_to_duckdb_conn(conn, batch, step.name, mode=write_mode)
-                total_rows += batch_size
-                write_mode = "append"
-            if total_rows == 0 and step.mode == "overwrite":
-                logging.info(
-                    f"Finished streaming query for {step.mode}-mode step '{step.name}'; empty results so previous data left as-is."
-                )
-            else:
-                logging.info(f"Finished streaming query for step: {step.name} (rows={total_rows}, mode={step.mode})")
+        logging.info(f"Starting query for step: {step.name}")
+        try:
+            with connect_to_profiler_db(self._db_path) as conn:
+                total_rows = self._write_stream(conn, step, query)
+        except (RuntimeError, ConnectionError):
+            raise
+        except Exception as e:
+            raise DuckDBDDLError(f"DuckDB schema or insert failed for SQL step '{step.name}': {e}") from e
+
+        logging.info(f"Finished streaming query for step: {step.name} (rows={total_rows}, mode={step.mode})")
         logging.debug(f"Data flushed for step: {step.name}")
+
+    def _write_stream(self, conn: duckdb.DuckDBPyConnection, step: Step, query: str) -> int:
+        if self.executor is None:
+            raise RuntimeError("Database executor is not set.")
+        conn.begin()
+        self._apply_duckdb_ddl(conn, step)
+        total_rows = 0
+        for batch in self.executor.stream(query):
+            if (batch_size := batch.num_rows) == 0:
+                logger.debug(f"Skipping empty batch while streaming results for step: {step.name}")
+                continue
+            logger.debug(f"Streaming batch of {batch_size} rows for step: {step.name}")
+            conn.register("_result_frame", batch)
+            conn.execute(f"INSERT INTO {step.name} SELECT * FROM _result_frame")
+            conn.unregister("_result_frame")
+            total_rows += batch_size
+        conn.commit()
+        return total_rows
+
+    def _apply_duckdb_ddl(self, conn: duckdb.DuckDBPyConnection, step: Step) -> None:
+        if not step.ddl_source:
+            raise DuckDBDDLError(f"SQL step '{step.name}' is missing ddl_source")
+
+        logging.debug(f"Reading DDL from file: {step.ddl_source}")
+        ddl = read_text(Path(step.ddl_source)).strip()
+        if step.mode == "overwrite":
+            conn.execute(f"DROP TABLE IF EXISTS {step.name}")
+            conn.execute(ddl)
+            logging.debug(f"Recreated table '{step.name}' from DDL")
+        elif not self._table_exists(conn, step.name):
+            conn.execute(ddl)
+            logging.debug(f"Created table '{step.name}' from DDL")
+        else:
+            logging.debug(f"Table '{step.name}' already exists; skipping DDL in append mode")
 
     def _execute_source_ddl_step(self, step: Step):
         """Run a no-result DDL statement against the *source* database (one statement per file).
@@ -185,28 +218,6 @@ class PipelineClass:
 
         logging.info(f"Executing source_ddl step '{step.name}' on source")
         self.executor.fetch(content)
-
-    def _execute_ddl_step(self, step: Step):
-        logging.debug(f"Reading DDL from file: {step.extract_source}")
-        ddl = read_text(Path(step.extract_source)).strip()
-
-        logging.info(f"Executing DDL for table '{step.name}'")
-
-        try:
-            # TODO: Handle schema evolution
-            # Current implementation just checks for table existence;
-            # mode logic becomes irrelevant for ddl step.
-            with connect_to_profiler_db(self._db_path) as conn:
-                conn.begin()
-                if not self._table_exists(conn, step.name):
-                    conn.execute(ddl)
-                    conn.commit()
-                    logging.debug(f"Created new table '{step.name}'")
-                else:
-                    logging.debug(f"Table '{step.name}' already exists, skipping DDL execution")
-        except Exception as e:
-            logging.error(f"DDL execution failed: {str(e)}")
-            raise RuntimeError(f"DDL execution failed: {str(e)}") from e
 
     def _execute_python_step(self, step: Step):
         logging.debug(f"Executing Python script: {step.extract_source}")
@@ -258,50 +269,30 @@ class PipelineClass:
         if process.returncode != 0:
             raise RuntimeError(f"Script execution failed with exit code {process.returncode}")
 
-    def _save_to_db(self, result: FetchResult, step_name: str, mode: str):
-        # Check row count and log appropriately and skip data insertion if 0 rows
+    def _save_to_db(self, result: FetchResult, step: Step) -> None:
+        row_count = len(result.rows)
+        logging.info(f"Query for step '{step.name}' returned {row_count} rows.")
+
+        try:
+            with connect_to_profiler_db(self._db_path) as conn:
+                conn.begin()
+                self._apply_duckdb_ddl(conn, step)
+                if result.rows:
+                    _result_frame = result.to_df()
+                    conn.execute(f"INSERT INTO {step.name} SELECT * FROM _result_frame")
+                conn.commit()
+        except Exception as e:
+            if isinstance(e, DuckDBDDLError):
+                raise
+            raise DuckDBDDLError(f"DuckDB schema or insert failed for SQL step '{step.name}': {e}") from e
+
         if not result.rows:
             logging.warning(
-                f"Query for step '{step_name}' returned 0 rows. Skipping table creation and data insertion."
+                f"Query for step '{step.name}' returned 0 rows. " "Created the typed table and skipped data insertion."
             )
-            return
-
-        row_count = len(result.rows)
-        logging.info(f"Query for step '{step_name}' returned {row_count} rows.")
-
-        with connect_to_profiler_db(self._db_path) as conn:
-            # Note: step_name is validated to be SQL-safe by Step.__post_init__
-            table_exists = self._table_exists(conn, step_name)
-            conn.begin()
-            if table_exists and mode == 'overwrite':
-                # Table exists and overwrite mode: Truncate then insert within a transaction to preserve existing DDL schema
-                _result_frame = result.to_df()
-                # Note: step_name is validated to be SQL-safe by Step.__post_init__
-                logging.debug(f"Overwriting existing table '{step_name}'")
-                conn.execute(f"TRUNCATE {step_name}")
-                conn.execute(f"INSERT INTO {step_name} SELECT * FROM _result_frame")
-            else:
-                if table_exists:
-                    # Table exists and append mode: insert into existing table (DuckDB handles type conversion)
-                    _result_frame = result.to_df()
-                    # Note: step_name is validated to be SQL-safe by Step.__post_init__
-                    statement = f"INSERT INTO {step_name} SELECT * FROM _result_frame"
-                    logging.debug(f"Appending to existing table '{step_name}'")
-                else:
-                    # Table doesn't exist: create table with native types from query result
-                    # Use DDL steps for explicit type control when needed
-                    _result_frame = result.to_df()
-                    # Note: step_name is validated to be SQL-safe by Step.__post_init__
-                    statement = f"CREATE TABLE {step_name} AS SELECT * FROM _result_frame"
-                    logging.debug(f"Creating new table '{step_name}' with native types")
-
-                logging.debug(f"Executing: {statement}")
-                conn.execute(statement)
-
-            # Explicit commit before context exit
-            conn.commit()
-            logging.info(f"Successfully processed {row_count} rows for table '{step_name}'.")
-        logger.debug(f"Flushed committed data to database for step: {step_name}")
+        else:
+            logging.info(f"Successfully processed {row_count} rows for table '{step.name}'.")
+        logger.debug(f"Flushed committed data to database for step: {step.name}")
 
     @staticmethod
     def _table_exists(conn: duckdb.DuckDBPyConnection, table_name: str) -> bool:
