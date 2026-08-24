@@ -58,9 +58,8 @@ class PipelineClass:
     def execute(self) -> list[StepExecutionResult]:
         """Run every configured step and return per-step outcomes.
 
-        Does not raise on step failures: callers (the Profiler) decide how to
-        surface them after recording run metadata. A failed DDL / source_ddl
-        step aborts the remaining steps because later extracts depend on it.
+        Does not raise on step failures: callers decide how to surface them.
+        A failed DDL / source_ddl step aborts the remaining steps because later extracts depend on it.
         """
         logging.info(f"Pipeline initialized with config: {self.config.name}, version: {self.config.version}")
         execution_results: list[StepExecutionResult] = []
@@ -88,7 +87,7 @@ class PipelineClass:
             return StepExecutionResult(step_name=step.name, status=StepExecutionStatus.COMPLETE)
         except (RuntimeError, ConnectionError) as e:
             # Optional: warn + ABSENT (customer isn't failed; maintainers get the cause).
-            # Required: ERROR — callers (the Profiler) fail the run after recording metadata.
+            # Required: ERROR
             status = StepExecutionStatus.ABSENT if step.optional else StepExecutionStatus.ERROR
             return StepExecutionResult(step_name=step.name, status=status, error_message=str(e))
 

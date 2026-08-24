@@ -25,8 +25,5 @@ class ProfilerRunMetadata:
     generated_at: datetime = field(metadata={"duckdb_type": "TIMESTAMPTZ"})
 
 
-# Declared rather than inferred: `variant` is NULL for sources without variants, and DuckDB
-# types an all-null column INTEGER, so inference would give the same column a different type
-# from one extract to the next. Derived from the dataclass so column order can only come
-# from one place — the row is inserted positionally (`INSERT ... SELECT *`).
+# Derived from the dataclass so column order can only come from one place
 PROFILER_RUN_METADATA_SCHEMA = ", ".join(f"{f.name} {f.metadata['duckdb_type']}" for f in fields(ProfilerRunMetadata))

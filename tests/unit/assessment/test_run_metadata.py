@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import fields
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import duckdb
@@ -106,7 +106,8 @@ def test_write_run_metadata_persists_row(tmp_path: Path) -> None:
         {"step_name": "optional_metric", "status": "ABSENT", "error_message": "object missing"},
     ]
     assert isinstance(generated_at, datetime)
-    assert generated_at.tzinfo is not None or generated_at.replace(tzinfo=timezone.utc)
+    assert generated_at.tzinfo
+    assert abs(datetime.now(timezone.utc) - generated_at) < timedelta(minutes=5)
 
 
 def test_write_run_metadata_overwrites_prior_row(tmp_path: Path) -> None:
