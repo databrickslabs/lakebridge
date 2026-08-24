@@ -19,6 +19,7 @@ from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm.session import Session
 
 from databricks.labs.lakebridge.connections.mssql_auth import resolve_mssql_credentials
+from databricks.labs.lakebridge.connections.snowflake_auth import resolve_snowflake_credentials
 from databricks.labs.lakebridge.connections.snowflake_utils import (
     is_valid_snowflake_account,
     parse_snowflake_account,
@@ -99,13 +100,9 @@ class _BaseConnector(DatabaseConnector):
 
 
 class SnowflakeConnector(_BaseConnector):
-    def _connect(self) -> Engine:
-        # The configurator always nests Snowflake credentials under a "connection" block.
-        # The SDK types JSON values loosely, so narrow to a dict for the accesses below.
-        connection_config = self.config["connection"]
-        if not isinstance(connection_config, dict):
-            raise ConnectionError("Snowflake credentials must be nested under a 'connection' block")
-
+    @staticmethod
+    def build_engine_args(connection_config: dict[str, Any]) -> tuple[URL, dict[str, Any]]:
+        """Build the SQLAlchemy URL and connect_args for a Snowflake connection config."""
         account = parse_snowflake_account(str(connection_config["account"]))
         if not is_valid_snowflake_account(account):
             raise ConnectionError(
@@ -117,19 +114,29 @@ class SnowflakeConnector(_BaseConnector):
         database = str(connection_config.get("database", "SNOWFLAKE"))
         schema = str(connection_config.get("schema", "ACCOUNT_USAGE"))
         role = str(connection_config.get("role", "ACCOUNTADMIN"))
-        password = str(connection_config["pat"])
+        resolved = resolve_snowflake_credentials(connection_config)
 
         # PAT is base64url-encoded and can contain '/', '=', '@'. URL.create
         # percent-escapes them so SQLAlchemy doesn't misread the token as URL structure.
         snowflake_url = URL.create(
             drivername="snowflake",
-            username=user,
-            password=password,
             host=account,
             database=f"{database}/{schema}",
+            username=user,
+            password=resolved.password,
             query={"warehouse": warehouse, "role": role},
         )
-        return create_engine(snowflake_url)
+        return snowflake_url, resolved.connect_args
+
+    def _connect(self) -> Engine:
+        # The configurator always nests Snowflake credentials under a "connection" block.
+        # The SDK types JSON values loosely, so narrow to a dict for the accesses below.
+        connection_config = self.config["connection"]
+        if not isinstance(connection_config, dict):
+            raise ConnectionError("Snowflake credentials must be nested under a 'connection' block")
+
+        snowflake_url, connect_args = self.build_engine_args(connection_config)
+        return create_engine(snowflake_url, connect_args=connect_args)
 
     def supports_streaming(self) -> bool:
         return True
