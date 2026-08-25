@@ -59,6 +59,10 @@ def test_valid_step_names(valid_name: str) -> None:
         ("x--comment", "Invalid step name"),
         ("x;DELETE FROM sensitive_data", "Invalid step name"),
         ("x' UNION SELECT * FROM sensitive_data --", "Invalid step name"),
+        # Reserved: the pipeline writes this table itself. DuckDB identifiers are
+        # case-insensitive, so a differently-cased name targets the same table.
+        ("profiler_run_metadata", "is reserved"),
+        ("PROFILER_RUN_METADATA", "is reserved"),
     ],
 )
 def test_invalid_step_names(invalid_name: str, error_pattern: str) -> None:
