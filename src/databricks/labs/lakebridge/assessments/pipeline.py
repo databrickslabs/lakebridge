@@ -24,8 +24,7 @@ from databricks.labs.lakebridge.resources.assessments.common.duckdb_helpers impo
 
 logger = logging.getLogger(__name__)
 
-# Substitution values are interpolated into SQL text sent to the source, so restrict them
-# to a safe character set (digits, identifiers, dotted names) rather than arbitrary strings.
+# Values are interpolated into SQL sent to the source, so restrict them to a safe character set.
 _SAFE_VARIABLE_VALUE = re.compile(r'^[A-Za-z0-9_.]+$')
 
 
@@ -61,10 +60,8 @@ class PipelineClass:
         self._db_path = db_path.expanduser()
         self._create_dir(self._db_path.parent)
         self._cred_file_path = cred_file_path
-        # Precedence for ${...} substitution: packaged pipeline defaults < user credentials file
-        # < explicit overrides (e.g. a future CLI flag). Only variables the pipeline declares can
-        # be overridden from the credentials file, so unrelated `profiler` settings other sources
-        # store there (e.g. Synapse exclude flags, BigQuery window/parallelism) are ignored.
+        # Substitution precedence: pipeline defaults < credentials file < explicit overrides.
+        # Only declared variables can be overridden from credentials; other profiler keys are ignored.
         declared = set(config.variables or {})
         cred_variables = {k: v for k, v in self._load_profiler_variables(cred_file_path).items() if k in declared}
         overrides = {**cred_variables, **(variable_overrides or {})}
@@ -72,11 +69,9 @@ class PipelineClass:
 
     @staticmethod
     def _load_profiler_variables(cred_file_path: Path | None) -> dict:
-        """Read user-owned profiler substitution variables from the credentials file.
+        """Read substitution variables from the source's ``profiler`` section in the credentials file.
 
-        The profiler settings live under the source entry's ``profiler`` section (written by
-        ``configure-database-profiler``), so they are user-owned and survive upgrades, unlike the
-        packaged pipeline defaults. Returns an empty dict when the file or the section is absent.
+        Returns an empty dict when the file or the section is absent.
         """
         if not cred_file_path:
             return {}

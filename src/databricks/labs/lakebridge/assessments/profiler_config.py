@@ -81,8 +81,7 @@ class PipelineConfig:
     version: str
     comment: str | None = None
     steps: list[Step] = field(default_factory=list)
-    # Substitution variables (e.g. lookback_days) referenced as ${name} in SQL steps.
-    # Values here are per-source defaults; callers may override them at runtime.
+    # Default ${name} substitution values for SQL steps; overridable at runtime.
     variables: dict = field(default_factory=dict)
 
     def __post_init__(self) -> None:
