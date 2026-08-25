@@ -51,6 +51,7 @@ dependencies = [
   "clickhouse-connect~=1.4.2",
   "snowflake-connector-python~=4.7.1",
   "snowflake-sqlalchemy~=1.11.0",
+  "cryptography~=50.0.0",
   "azure-identity~=1.19.0",
   "azure-mgmt-sql~=3.0.1",
   "azure-monitor-query~=1.4.0",

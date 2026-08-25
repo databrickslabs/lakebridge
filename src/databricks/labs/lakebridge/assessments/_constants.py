@@ -26,3 +26,7 @@ SOURCE_SYSTEM_VARIANTS = {
 }
 # ClickHouse variant (oss/cloud) is auto-detected at execute time (see assessments/variants.py).
 SOURCE_SYSTEM_VARIANTS.update(clickhouse=(AUTO,))
+
+PROFILER_RUN_METADATA_TABLE = "profiler_run_metadata"
+
+RESERVED_TABLE_NAMES = frozenset({PROFILER_RUN_METADATA_TABLE})
