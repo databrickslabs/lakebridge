@@ -183,6 +183,23 @@ def test_invalid_mode_raises(tmp_path: Path) -> None:
         save_to_duckdb(pd.DataFrame({"id": [1]}), "t1", db_path, mode="upsert")  # type: ignore[arg-type]
 
 
+@pytest.mark.parametrize("schema", [None, "id BIGINT"])
+def test_failed_overwrite_leaves_existing_table_intact(tmp_path: Path, schema: str | None) -> None:
+    """Both overwrite paths reach the table in several statements: without ``schema`` a
+    ``TRUNCATE`` precedes the insert, with one a ``DROP``/``CREATE`` does. A failed insert
+    must leave neither an emptied nor a missing table behind.
+    """
+    db_path = str(tmp_path / "t.duckdb")
+    save_to_duckdb(pd.DataFrame({"id": [1, 2]}), "t1", db_path, schema="id BIGINT")
+
+    # One column in the table, two in the frame: the insert fails after the table was cleared.
+    with pytest.raises(duckdb.BinderException):
+        save_to_duckdb(pd.DataFrame({"id": [9], "extra": ["x"]}), "t1", db_path, schema=schema)
+
+    out = _read_table(db_path, "t1").sort_values("id").reset_index(drop=True)
+    assert out["id"].tolist() == [1, 2]
+
+
 def test_save_to_duckdb_writes_storage_compatibility_version(tmp_path: Path) -> None:
     db_path = tmp_path / "t.duckdb"
     save_to_duckdb(pd.DataFrame({"id": [1]}), "t1", str(db_path))
