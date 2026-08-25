@@ -1,5 +1,7 @@
 import contextlib
 import dataclasses
+import datetime
+import decimal
 import importlib
 import logging
 from abc import abstractmethod
@@ -230,7 +232,57 @@ class MSSQLConnector(DatabaseConnector):
         return result.rows[0][0] == 101
 
 
+# teradatasql reports each column's DBAPI ``type_code`` as the Python type it returns values as.
+# Mapping those to a fixed Arrow type lets every streamed batch share one schema regardless of
+# which columns happen to be all-NULL in a given batch (batches are appended positionally into
+# the DDL-pre-created DuckDB table, which then casts to the declared column types).
+_ARROW_TYPE_BY_PYTHON_TYPE: dict[type, pa.DataType] = {
+    str: pa.string(),
+    bool: pa.bool_(),
+    int: pa.int64(),
+    float: pa.float64(),
+    decimal.Decimal: pa.float64(),
+    bytes: pa.binary(),
+    datetime.datetime: pa.timestamp("us"),
+    datetime.date: pa.date32(),
+    datetime.time: pa.time64("us"),
+}
+
+
+def _arrow_type_for(type_code: Any) -> pa.DataType:
+    arrow_type = _ARROW_TYPE_BY_PYTHON_TYPE.get(type_code) if isinstance(type_code, type) else None
+    if arrow_type is None:
+        logger.debug(f"No Arrow mapping for cursor type_code {type_code!r}; carrying column as string")
+        return pa.string()
+    return arrow_type
+
+
+def _arrow_schema_from_description(description: Sequence[Sequence[Any]]) -> pa.Schema:
+    """Build a stable Arrow schema from a DBAPI ``cursor.description`` (column name + type_code)."""
+    return pa.schema([(str(col[0]), _arrow_type_for(col[1])) for col in description])
+
+
+def _arrow_column(rows: Sequence[Sequence[Any]], index: int, arrow_type: pa.DataType) -> pa.Array:
+    values = [row[index] for row in rows]
+    # Coerce to the column's Arrow type so a batch cannot infer a different type from its own data.
+    if arrow_type == pa.float64():
+        values = [None if v is None else float(v) for v in values]
+    elif arrow_type == pa.int64():
+        values = [None if v is None else int(v) for v in values]
+    elif arrow_type == pa.string():
+        values = [None if v is None else v if isinstance(v, str) else str(v) for v in values]
+    return pa.array(values, type=arrow_type)
+
+
+def _rows_to_arrow_table(rows: Sequence[Sequence[Any]], schema: pa.Schema) -> pa.Table:
+    columns = [_arrow_column(rows, i, field.type) for i, field in enumerate(schema)]
+    return pa.Table.from_arrays(columns, schema=schema)
+
+
 class TeradataConnector(_BaseConnector):
+    # Rows pulled per ``fetchmany`` while streaming, bounding peak memory for large extracts.
+    _STREAM_BATCH_ROWS = 10_000
+
     def _connect(self) -> Engine:
         query_params: dict[str, str] = {}
         if self.config.get("database"):
@@ -245,6 +297,33 @@ class TeradataConnector(_BaseConnector):
             query=query_params,
         )
         return create_engine(connection_string)
+
+    def supports_streaming(self) -> bool:
+        return True
+
+    def stream(self, query: str, parameters: Mapping[str, Any] | None = None) -> Iterator[pa.Table]:
+        if not self.engine:
+            raise ConnectionError("Not connected to the database.")
+
+        with Session(self.engine) as session, session.begin():
+            try:
+                result = session.execute(text(query), parameters or {})
+                yield from self._arrow_batches(result)
+            except DBAPIError as e:
+                logger.debug("Database query failed", exc_info=True)
+                reason = str(getattr(e, "orig", e)).split("\n", 1)[0].strip()
+                raise ConnectionError(f"Database query failed: {reason}") from e
+
+    def _arrow_batches(self, result: Any) -> Iterator[pa.Table]:
+        """Yield the result set as fixed-schema Arrow batches from the raw DBAPI cursor."""
+        if not isinstance(result, CursorResult):
+            return
+        cursor = result.cursor
+        if cursor is None or cursor.description is None:
+            return
+        schema = _arrow_schema_from_description(cursor.description)
+        while rows := cursor.fetchmany(self._STREAM_BATCH_ROWS):
+            yield _rows_to_arrow_table(rows, schema)
 
 
 class OracleConnector(_BaseConnector):
