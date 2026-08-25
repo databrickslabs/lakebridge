@@ -446,6 +446,8 @@ def test_configure_teradata_credentials(tmp_path):
             r"Enter the user details": "TERADATA_USER",
             r"Enter the environment variable name holding the password": "TERADATA_PASSWORD",
             r"Enter the default database name": "DBC",
+            r"Enter DBQL lookback window in days": "30",
+            r"Enter max rows for the DBQL extract": "5000000",
             r"Do you want to test the connection to teradata\?": "no",
         }
     )
@@ -465,6 +467,10 @@ def test_configure_teradata_credentials(tmp_path):
             # In env mode the stored value is the env var *name*, resolved by EnvGetter at runtime.
             'password': 'TERADATA_PASSWORD',
             'database': 'DBC',
+            'profiler': {
+                'lookback_days': 30,
+                'max_rows': 5000000,
+            },
         },
     }
 

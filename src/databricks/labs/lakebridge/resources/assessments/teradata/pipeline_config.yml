@@ -1,5 +1,10 @@
 name: teradata_assessment
 version: "1.0"
+# Substitution variables for ${name} placeholders in SQL steps. Override at runtime to
+# widen/narrow the DBQL extract (e.g. lookback_days: 30). Defaults preserve prior behavior.
+variables:
+  lookback_days: 7
+  max_rows: 100000
 steps:
   - name: td_sys_info
     type: ddl

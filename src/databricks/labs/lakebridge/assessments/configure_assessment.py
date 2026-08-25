@@ -475,6 +475,20 @@ class ConfigureTeradataAssessment(AssessmentConfigurator):
         else:
             password = self.prompts.password("Enter the password details")
 
+        # Profiler settings. These map to ${...} substitution variables in the DBQL extract SQL and
+        # live in the user-owned credentials file, so they survive upgrades (the packaged pipeline
+        # config only supplies defaults). Widen lookback_days for a longer history; raise max_rows
+        # to keep more of a high-volume DBQL window (the extract keeps the slowest queries).
+        logger.info("Please configure profiler settings:")
+        teradata_profiler = {
+            "lookback_days": int(
+                self.prompts.question("Enter DBQL lookback window in days", default="7", valid_number=True)
+            ),
+            "max_rows": int(
+                self.prompts.question("Enter max rows for the DBQL extract", default="100000", valid_number=True)
+            ),
+        }
+
         credential = {
             "secret_vault_type": secret_vault_type,
             "secret_vault_name": secret_vault_name,
@@ -484,6 +498,7 @@ class ConfigureTeradataAssessment(AssessmentConfigurator):
                 "user": user,
                 "password": password,
                 "database": database,
+                "profiler": teradata_profiler,
             },
         }
 

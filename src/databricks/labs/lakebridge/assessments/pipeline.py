@@ -1,10 +1,12 @@
 import json
 import logging
+import re
 import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
+from string import Template
 from subprocess import PIPE, STDOUT, Popen
 
 import duckdb
@@ -21,6 +23,10 @@ from databricks.labs.lakebridge.resources.assessments.common.duckdb_helpers impo
 )
 
 logger = logging.getLogger(__name__)
+
+# Substitution values are interpolated into SQL text sent to the source, so restrict them
+# to a safe character set (digits, identifiers, dotted names) rather than arbitrary strings.
+_SAFE_VARIABLE_VALUE = re.compile(r'^[A-Za-z0-9_.]+$')
 
 
 def make_profiler_db_filename(platform: str) -> str:
@@ -48,12 +54,68 @@ class PipelineClass:
         executor: DatabaseConnector | None,
         db_path: Path,
         cred_file_path: Path,
+        variable_overrides: dict | None = None,
     ):
         self.config = config
         self.executor = executor
         self._db_path = db_path.expanduser()
         self._create_dir(self._db_path.parent)
         self._cred_file_path = cred_file_path
+        # Precedence for ${...} substitution: packaged pipeline defaults < user credentials file
+        # < explicit overrides (e.g. a future CLI flag). Only variables the pipeline declares can
+        # be overridden from the credentials file, so unrelated `profiler` settings other sources
+        # store there (e.g. Synapse exclude flags, BigQuery window/parallelism) are ignored.
+        declared = set(config.variables or {})
+        cred_variables = {k: v for k, v in self._load_profiler_variables(cred_file_path).items() if k in declared}
+        overrides = {**cred_variables, **(variable_overrides or {})}
+        self._variables = self._resolve_variables(config.variables, overrides)
+
+    @staticmethod
+    def _load_profiler_variables(cred_file_path: Path | None) -> dict:
+        """Read user-owned profiler substitution variables from the credentials file.
+
+        The profiler settings live under the source entry's ``profiler`` section (written by
+        ``configure-database-profiler``), so they are user-owned and survive upgrades, unlike the
+        packaged pipeline defaults. Returns an empty dict when the file or the section is absent.
+        """
+        if not cred_file_path:
+            return {}
+        try:
+            with open(cred_file_path, "r", encoding="utf-8") as handle:
+                creds = yaml.safe_load(handle) or {}
+        except (OSError, yaml.YAMLError):
+            return {}
+        if not isinstance(creds, dict):
+            return {}
+        metadata_keys = {"secret_vault_type", "secret_vault_name"}
+        for key, value in creds.items():
+            if key in metadata_keys or not isinstance(value, dict):
+                continue
+            profiler = value.get("profiler")
+            if isinstance(profiler, dict):
+                return profiler
+        return {}
+
+    @staticmethod
+    def _resolve_variables(defaults: dict, overrides: dict | None) -> dict[str, str]:
+        """Merge per-source variable defaults with runtime overrides, validated for safe SQL substitution."""
+        merged = {**(defaults or {}), **(overrides or {})}
+        resolved: dict[str, str] = {}
+        for name, value in merged.items():
+            text = str(value)
+            if not _SAFE_VARIABLE_VALUE.match(text):
+                raise ValueError(
+                    f"Invalid value for pipeline variable '{name}': {value!r}. "
+                    f"Values must contain only letters, digits, underscores, or dots."
+                )
+            resolved[name] = text
+        return resolved
+
+    def _render(self, query: str) -> str:
+        """Substitute ${name} placeholders; a no-op for text that has none."""
+        if not self._variables:
+            return query
+        return Template(query).safe_substitute(self._variables)
 
     def execute(self) -> list[StepExecutionResult]:
         logging.info(f"Pipeline initialized with config: {self.config.name}, version: {self.config.version}")
@@ -123,7 +185,7 @@ class PipelineClass:
 
     def _execute_sql_step(self, step: Step):
         logging.debug(f"Reading query from file: {step.extract_source}")
-        query = read_text(Path(step.extract_source))
+        query = self._render(read_text(Path(step.extract_source)))
         logging.debug(f"Query for step '{step.name}' will be: {query}")
 
         if self.executor is None:
@@ -173,7 +235,7 @@ class PipelineClass:
         views or objects that subsequent ``sql`` steps depend on.
         """
         logging.debug(f"Reading source_ddl script from file: {step.extract_source}")
-        content = read_text(Path(step.extract_source)).strip()
+        content = self._render(read_text(Path(step.extract_source))).strip()
 
         if self.executor is None:
             logging.error("Database executor is not set.")
@@ -324,4 +386,5 @@ class PipelineClass:
             name=data['name'],
             version=data['version'],
             steps=steps,
+            variables=data.get('variables', {}) or {},
         )

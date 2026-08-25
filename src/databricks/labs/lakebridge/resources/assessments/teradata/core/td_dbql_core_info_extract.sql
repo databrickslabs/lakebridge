@@ -1,4 +1,4 @@
-SELECT TOP 100000
+SELECT TOP ${max_rows}
     LogTbl.AppID,
     LogTbl.UserName,
     LogTbl.SessionID,
@@ -13,7 +13,7 @@ SELECT TOP 100000
 FROM
     DBC.DBQLogTbl AS LogTbl
 WHERE
-    LogTbl.CollectTimeStamp >= CURRENT_DATE - INTERVAL '7' DAY
+    LogTbl.CollectTimeStamp >= CURRENT_DATE - INTERVAL '${lookback_days}' DAY
     AND UserName NOT IN ('AD_ANMGR', 'MS_ANMGR')
 ORDER BY
     TotalFirstRespTime DESC;

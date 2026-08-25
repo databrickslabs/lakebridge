@@ -72,6 +72,10 @@ Enter the Teradata server or host details: td-host.example.com
 Enter the user details: dbc_user
 Enter the password details:
 Enter the default database name (default: DBC):
+
+Please configure profiler settings:
+Enter DBQL lookback window in days (default: 7): 30
+Enter max rows for the DBQL extract (default: 100000): 5000000
 ```
 
 The generated credential block (written to `~/.databricks/labs/lakebridge/.credentials.yml`) includes:
@@ -80,6 +84,15 @@ The generated credential block (written to `~/.databricks/labs/lakebridge/.crede
 - `teradata.user`
 - `teradata.password`
 - `teradata.database`
+- `teradata.profiler.lookback_days`
+- `teradata.profiler.max_rows`
+
+The two profiler settings control the `core`-variant DBQL extract (`td_dbql_core_info_extract`):
+
+- **`lookback_days`** (default `7`) — how far back the DBQL query log is read: `CollectTimeStamp >= CURRENT_DATE - INTERVAL '<lookback_days>' DAY`. Widen it (e.g. `30`) for a longer history.
+- **`max_rows`** (default `100000`) — the cap on rows returned; the extract keeps the slowest queries (`ORDER BY TotalFirstRespTime DESC`). Raise it to retain more of a high-volume window.
+
+Because these live in your user-owned credentials file, they override the packaged defaults and survive upgrades (editing the installed pipeline resources does not). Increasing either value grows the extract; the query text is redacted, so the dominant cost is the number of rows retained.
 
 ## Run the Profiler
 
