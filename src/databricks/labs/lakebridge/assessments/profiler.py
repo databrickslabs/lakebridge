@@ -160,7 +160,7 @@ class Profiler:
             if not self._pipeline_config:
                 raise ValueError(f"Cannot Proceed without a valid pipeline configuration for {self._source_system}")
             pipeline_config = self._pipeline_config
-        resolved_output_folder = output_folder or default_output_folder(self._source_system)
+        resolved_output_folder = (output_folder or default_output_folder(self._source_system)).expanduser()
         resolved_creds_path = cred_file_path or cred_file()
         self._execute(self._source_system, pipeline_config, resolved_output_folder, resolved_creds_path)
 
@@ -195,7 +195,7 @@ class Profiler:
         if failed:
             raise RuntimeError(f"Pipeline failed for {source_system}: {', '.join(r.step_name for r in failed)}")
 
-        logger.info(f"Profiler extract written to {db_path.expanduser()}")
+        logger.info(f"Profiler extract written to {db_path}")
         logger.info(f"Profile execution has completed successfully for {source_system} for more info check: {results}.")
 
     @staticmethod
