@@ -9,14 +9,22 @@
 
 ### 1. Download[​](#1-download "Direct link to 1. Download")
 
-* ODBC driver for SQL Server (<https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server?view=sql-server-ver18>)
-* (Windows only) Visual C++ (<https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170>)
+No driver installation is required: the profiler connects with Microsoft's [mssql-python](https://github.com/microsoft/mssql-python) driver, which bundles its own connectivity layer.
 
-### 2. SQL Server Authentication[​](#2-sql-server-authentication "Direct link to 2. SQL Server Authentication")
+### 2. Authentication[​](#2-authentication "Direct link to 2. Authentication")
 
-Attention:
+The profiler supports the following authentication modes (`configure-database-profiler` prompts for one):
 
-Multi-factor Authentication (MFA) is **not** supported. The MSSQL profiler connects via ODBC, which does not support MFA. You must use **SQL Authentication** (username and password) to connect to the SQL Server instance.
+| Auth method                       | Description                                                                             | MFA-capable |
+| --------------------------------- | --------------------------------------------------------------------------------------- | ----------- |
+| `SqlPassword`                     | SQL Authentication — username + password from credentials file                          | No          |
+| `DefaultAzureCredential`          | Entra ID via the Azure Identity credentials chain. Recommended for Azure-hosted targets | Yes         |
+| `ActiveDirectoryPassword`         | Entra ID (Azure AD) username + password                                                 | No          |
+| `ActiveDirectoryServicePrincipal` | Service Principal — `AZURE_CLIENT_ID` / `AZURE_CLIENT_SECRET` env vars                  | No          |
+
+warning
+
+For `ActiveDirectoryServicePrincipal`, set `AZURE_CLIENT_ID` and `AZURE_CLIENT_SECRET` env vars before running the profiler. For `DefaultAzureCredential`, run `az login` first; for unattended runs set `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, and `AZURE_CLIENT_SECRET`.
 
 ### 3. Required Database Permissions[​](#3-required-database-permissions "Direct link to 3. Required Database Permissions")
 
@@ -117,43 +125,45 @@ Please select the source system you want to configure
 [1] mssql
 Enter a number between 0 and 1: 1
 
-(local | env)
-local means values are read as plain text
-env means values are read from environment variables, and fall back to plain text if not variable is not found
-
 Enter secret vault type (local | env)
 [0] env
 [1] local
 Enter a number between 0 and 1: 1
+Select authentication method
+[0] SqlPassword
+[1] DefaultAzureCredential
+[2] ActiveDirectoryPassword
+[3] ActiveDirectoryServicePrincipal
+Enter a number between 0 and 3: 0
+Enter the username: profiler_user
+Enter the password:
 Enter fetch size (default: 1000):
 Enter login timeout (seconds) (default: 30):
 Enter the fully-qualified server name: my-server.database.windows.net
 Enter the port details: 1433
 Enter the database name: MyAppDB
-Enter the SQL username: profiler_user
-Enter the SQL password:
 Trust server certificate (default: no):
 Enter timezone (e.g. America/New_York) (default: UTC):
-Enter the ODBC driver installed locally (default: ODBC Driver 18 for SQL Server):
 Do you want to test the connection to mssql? (yes/no): yes
 
 ```
 
+For `DefaultAzureCredential` and `ActiveDirectoryServicePrincipal`, the `Enter the username` / `Enter the password` prompts are skipped — the identity is resolved at run time (`az login` or `AZURE_*` env vars).
+
 ### Configuration Parameters[​](#configuration-parameters "Direct link to Configuration Parameters")
 
-| Parameter                    | Description                                                                                                                                                                                                                                       | Default                         |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
-| **Secret vault type**        | `local` for plain text values, `env` to read from environment variables                                                                                                                                                                           | —                               |
-| **Fetch size**               | Number of rows fetched per batch from the source                                                                                                                                                                                                  | `1000`                          |
-| **Login timeout**            | Connection timeout in seconds                                                                                                                                                                                                                     | `30`                            |
-| **Server name**              | Fully-qualified SQL Server hostname                                                                                                                                                                                                               | —                               |
-| **Port**                     | SQL Server port number                                                                                                                                                                                                                            | —                               |
-| **Database**                 | Database to connect to. `INFORMATION_SCHEMA` queries are scoped to this database; other databases on the instance are still discovered via `sys.databases`.                                                                                       | —                               |
-| **SQL username**             | SQL Authentication username                                                                                                                                                                                                                       | —                               |
-| **SQL password**             | SQL Authentication password (hidden input)                                                                                                                                                                                                        | —                               |
-| **Trust server certificate** | Skip TLS certificate validation when connecting. Set to `yes` only when the server uses a self-signed or untrusted certificate (e.g., local/dev SQL Server). Leave as `no` for Azure SQL Database and production servers with valid certificates. | `no`                            |
-| **Timezone**                 | Timezone for timestamp normalization                                                                                                                                                                                                              | `UTC`                           |
-| **ODBC driver**              | Locally installed ODBC driver name                                                                                                                                                                                                                | `ODBC Driver 18 for SQL Server` |
+| Parameter                    | Description                                                                                                                                                                                                                                       | Default       |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
+| **Secret vault type**        | `local` for plain text values, `env` to read from environment variables                                                                                                                                                                           | —             |
+| **Authentication method**    | One of the four modes in the table above                                                                                                                                                                                                          | `SqlPassword` |
+| **Username / Password**      | Required for `SqlPassword` and `ActiveDirectoryPassword`. Skipped for `DefaultAzureCredential` and `ActiveDirectoryServicePrincipal`.                                                                                                             | —             |
+| **Fetch size**               | Number of rows fetched per batch from the source                                                                                                                                                                                                  | `1000`        |
+| **Login timeout**            | Connection timeout in seconds                                                                                                                                                                                                                     | `30`          |
+| **Server name**              | Fully-qualified SQL Server hostname                                                                                                                                                                                                               | —             |
+| **Port**                     | SQL Server port number                                                                                                                                                                                                                            | —             |
+| **Database**                 | Database to connect to. `INFORMATION_SCHEMA` queries are scoped to this database; other databases on the instance are still discovered via `sys.databases`.                                                                                       | —             |
+| **Trust server certificate** | Skip TLS certificate validation when connecting. Set to `yes` only when the server uses a self-signed or untrusted certificate (e.g., local/dev SQL Server). Leave as `no` for Azure SQL Database and production servers with valid certificates. | `no`          |
+| **Timezone**                 | Timezone for timestamp normalization                                                                                                                                                                                                              | `UTC`         |
 
 ## Execute the Profiler[​](#execute-the-profiler "Direct link to Execute the Profiler")
 

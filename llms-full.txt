@@ -530,12 +530,28 @@ The profiler will:
 
 1. Connect to your source system using the configured credentials
 2. Execute the profiling pipeline to extract metadata and metrics
-3. Store the results in the configured output location
-4. Generate a summary report of the profiling execution
+3. Store the results as a natively compressed, directly queryable DuckDB `.db` file
 
 tip
 
 The profiler can be run multiple times to capture different time periods or updated configurations. Each execution will create a timestamped snapshot of your source environment.
+
+#### Extract Metadata[​](#extract-metadata "Direct link to Extract Metadata")
+
+Every profiler run writes a `profiler_run_metadata` table into the DuckDB extract at the end of the run to provide run-level metadata for downstream consumption. Failed runs still get a row when possible, so consumers can see which steps failed without parsing logs.
+
+| Column               | Type          | Description                                                                                                              |
+| -------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `source_system`      | `VARCHAR`     | Originating platform (for example `mssql`, `snowflake`)                                                                  |
+| `variant`            | `VARCHAR`     | Pipeline variant the source was profiled with (for example `single_db`, `multi_db`); `NULL` for sources without variants |
+| `pipeline_name`      | `VARCHAR`     | Name of the pipeline configuration that produced the extract                                                             |
+| `pipeline_version`   | `VARCHAR`     | Version of the pipeline configuration that produced the extract                                                          |
+| `lakebridge_version` | `VARCHAR`     | Lakebridge version that produced the extract                                                                             |
+| `python_version`     | `VARCHAR`     | Python version of the environment that ran the profiler                                                                  |
+| `operating_system`   | `VARCHAR`     | Operating system, version and architecture of the machine that ran the profiler                                          |
+| `status`             | `VARCHAR`     | Run summary: `COMPLETE`, `COMPLETE_WITH_ABSENCES`, or `FAILED`                                                           |
+| `results`            | `VARCHAR`     | JSON array of per-step outcomes (`step_name`, `status`, `error_message`)                                                 |
+| `generated_at`       | `TIMESTAMPTZ` | UTC timestamp when the metadata row was written                                                                          |
 
 
 ---
@@ -686,16 +702,28 @@ This profiler targets **Azure Synapse dedicated SQL pool** (formerly Azure SQL D
 
 ##### 1. Download[​](#1-download "Direct link to 1. Download")
 
-* **ODBC driver for SQL Server** — required for `pyodbc` to talk to the dedicated SQL pool. [Download](https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server?view=sql-server-ver18).
-* **(Windows only) Microsoft Visual C++ Redistributable (x64)** — required by `pyodbc` and the ODBC driver, both of which are native binaries linked against the MSVC runtime. [Download](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170).
+No driver installation is required: the profiler connects with Microsoft's [mssql-python](https://github.com/microsoft/mssql-python) driver, which bundles its own connectivity layer.
 
 ##### 2. Authentication[​](#2-authentication "Direct link to 2. Authentication")
 
-Attention:
+The profiler supports the following authentication modes (`configure-database-profiler` prompts for one):
 
-The profiler currently authenticates via **SQL Authentication** only. Please use a SQL login with MFA disabled.
+| Auth method                       | Description                                                                             | MFA-capable |
+| --------------------------------- | --------------------------------------------------------------------------------------- | ----------- |
+| `SqlPassword`                     | SQL Authentication — username + password from credentials file                          | No          |
+| `DefaultAzureCredential`          | Entra ID via the Azure Identity credentials chain. Recommended for Azure-hosted targets | Yes         |
+| `ActiveDirectoryPassword`         | Entra ID (Azure AD) username + password                                                 | No          |
+| `ActiveDirectoryServicePrincipal` | Service Principal — `AZURE_CLIENT_ID` / `AZURE_CLIENT_SECRET` env vars                  | No          |
 
-##### 3. Required Database Permissions[​](#3-required-database-permissions "Direct link to 3. Required Database Permissions")
+warning
+
+For `ActiveDirectoryServicePrincipal`, set `AZURE_CLIENT_ID` and `AZURE_CLIENT_SECRET` env vars before running the profiler. For `DefaultAzureCredential`, run `az login` first; for unattended runs set `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, and `AZURE_CLIENT_SECRET`.
+
+##### 3. Azure Monitor (CPU / DWU utilization metrics)[​](#3-azure-monitor-cpu--dwu-utilization-metrics "Direct link to 3. Azure Monitor (CPU / DWU utilization metrics)")
+
+The profiler collects dedicated-pool utilization metrics (CPU %, DWU %, memory %, active/queued queries, and more) from **Azure Monitor**. This requires the identity resolved by your chosen authentication method to hold the **Monitoring Reader** role on the dedicated pool.
+
+##### 4. Required Database Permissions[​](#4-required-database-permissions "Direct link to 4. Required Database Permissions")
 
 The SQL user configured for the profiler must have read access to the system catalog views and PDW Dynamic Management Views listed in [Profiled Tables and Views](#profiled-tables-and-views).
 
@@ -742,6 +770,12 @@ The profiler executes queries against the following system tables and PDW DMVs. 
 | Sessions     | `sys.dm_pdw_exec_sessions`            | Active user sessions with login info, app names, query counts, and transaction state. System sessions are excluded.                  |
 | Storage Info | `sys.dm_pdw_nodes_db_partition_stats` | Per-compute-node storage usage: reserved and used space (MB), aggregated across all partitions on each node.                         |
 
+##### Utilization Metrics (Azure Monitor)[​](#utilization-metrics-azure-monitor "Direct link to Utilization Metrics (Azure Monitor)")
+
+| Query              | Source                                            | Description                                                                                                                                                                                                                                                                                                                                                                              |
+| ------------------ | ------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Monitoring Metrics | Azure Monitor (`Microsoft.Sql/servers/databases`) | Dedicated-pool utilization over the profiling window: `cpu_percent`, `dwu_consumption_percent`, `dwu_limit`, `dwu_used`, `memory_usage_percent`, `physical_data_read_percent`, `local_tempdb_usage_percent`, `active_queries`, and `queued_queries`. Requires the Azure settings and Monitoring Reader role described in [Azure Monitor](#3-azure-monitor-cpu--dwu-utilization-metrics). |
+
 #### Configure Connection to Legacy Synapse[​](#configure-connection-to-legacy-synapse "Direct link to Configure Connection to Legacy Synapse")
 
 Run the following command to configure the profiler connection to your dedicated SQL pool:
@@ -763,34 +797,42 @@ Enter secret vault type (local | env)
 [0] env
 [1] local
 Enter a number between 0 and 1: 1
+Select authentication method
+[0] SqlPassword
+[1] DefaultAzureCredential
+[2] ActiveDirectoryPassword
+[3] ActiveDirectoryServicePrincipal
+Enter a number between 0 and 3: 0
+Enter the username: profiler_user
+Enter the password:
 Enter fetch size (default: 1000):
 Enter login timeout (seconds) (default: 30):
 Enter the fully-qualified server name: my-dw-server.database.windows.net
 Enter the port details: 1433
 Enter the database name: my_pool
-Enter the SQL username: profiler_user
-Enter the SQL password:
 Trust server certificate (default: no):
 Enter timezone (e.g. America/New_York) (default: UTC):
-Enter the ODBC driver installed locally (default: ODBC Driver 18 for SQL Server):
+Enter the Azure subscription ID: 00000000-0000-0000-0000-000000000000
+Enter the Azure resource group: rg-analytics
 
 ```
 
 ##### Configuration Parameters[​](#configuration-parameters "Direct link to Configuration Parameters")
 
-| Parameter                    | Description                                                                                                                                      | Default                         |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------- |
-| **Secret vault type**        | `local` for plain text values, `env` to read from environment variables                                                                          | —                               |
-| **Fetch size**               | Number of rows fetched per batch from the source                                                                                                 | `1000`                          |
-| **Login timeout**            | Connection timeout in seconds                                                                                                                    | `30`                            |
-| **Server name**              | Fully-qualified hostname of the dedicated SQL pool                                                                                               | —                               |
-| **Port**                     | Server port number                                                                                                                               | —                               |
-| **Database**                 | The dedicated SQL pool name to connect to. Dedicated pools do not have a `master` database, so this must be set to the pool you want to profile. | —                               |
-| **SQL username**             | SQL Authentication username                                                                                                                      | —                               |
-| **SQL password**             | SQL Authentication password (hidden input)                                                                                                       | —                               |
-| **Trust server certificate** | Skip TLS certificate validation when connecting. Leave as `no` for Azure-hosted dedicated SQL pools, which present valid certificates.           | `no`                            |
-| **Timezone**                 | Timezone for timestamp normalization                                                                                                             | `UTC`                           |
-| **ODBC driver**              | Locally installed ODBC driver name                                                                                                               | `ODBC Driver 18 for SQL Server` |
+| Parameter                    | Description                                                                                                                                      | Default       |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | ------------- |
+| **Secret vault type**        | `local` for plain text values, `env` to read from environment variables                                                                          | —             |
+| **Authentication method**    | One of the four modes in the table above                                                                                                         | `SqlPassword` |
+| **Username / Password**      | Required for `SqlPassword` and `ActiveDirectoryPassword`. Skipped for `DefaultAzureCredential` and `ActiveDirectoryServicePrincipal`.            | —             |
+| **Fetch size**               | Number of rows fetched per batch from the source                                                                                                 | `1000`        |
+| **Login timeout**            | Connection timeout in seconds                                                                                                                    | `30`          |
+| **Server name**              | Fully-qualified hostname of the dedicated SQL pool                                                                                               | —             |
+| **Port**                     | Server port number                                                                                                                               | —             |
+| **Database**                 | The dedicated SQL pool name to connect to. Dedicated pools do not have a `master` database, so this must be set to the pool you want to profile. | —             |
+| **Trust server certificate** | Skip TLS certificate validation when connecting. Leave as `no` for Azure-hosted dedicated SQL pools, which present valid certificates.           | `no`          |
+| **Timezone**                 | Timezone for timestamp normalization                                                                                                             | `UTC`         |
+| **Azure subscription ID**    | Subscription containing the dedicated pool. Used to build the Azure resource ID for the Azure Monitor metrics extract.                           | —             |
+| **Azure resource group**     | Resource group containing the dedicated pool's logical SQL server.                                                                               | —             |
 
 #### Execute the Profiler[​](#execute-the-profiler "Direct link to Execute the Profiler")
 
@@ -823,14 +865,22 @@ The profiler will:
 
 ##### 1. Download[​](#1-download "Direct link to 1. Download")
 
-* ODBC driver for SQL Server (<https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server?view=sql-server-ver18>)
-* (Windows only) Visual C++ (<https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170>)
+No driver installation is required: the profiler connects with Microsoft's [mssql-python](https://github.com/microsoft/mssql-python) driver, which bundles its own connectivity layer.
 
-##### 2. SQL Server Authentication[​](#2-sql-server-authentication "Direct link to 2. SQL Server Authentication")
+##### 2. Authentication[​](#2-authentication "Direct link to 2. Authentication")
 
-Attention:
+The profiler supports the following authentication modes (`configure-database-profiler` prompts for one):
 
-Multi-factor Authentication (MFA) is **not** supported. The MSSQL profiler connects via ODBC, which does not support MFA. You must use **SQL Authentication** (username and password) to connect to the SQL Server instance.
+| Auth method                       | Description                                                                             | MFA-capable |
+| --------------------------------- | --------------------------------------------------------------------------------------- | ----------- |
+| `SqlPassword`                     | SQL Authentication — username + password from credentials file                          | No          |
+| `DefaultAzureCredential`          | Entra ID via the Azure Identity credentials chain. Recommended for Azure-hosted targets | Yes         |
+| `ActiveDirectoryPassword`         | Entra ID (Azure AD) username + password                                                 | No          |
+| `ActiveDirectoryServicePrincipal` | Service Principal — `AZURE_CLIENT_ID` / `AZURE_CLIENT_SECRET` env vars                  | No          |
+
+warning
+
+For `ActiveDirectoryServicePrincipal`, set `AZURE_CLIENT_ID` and `AZURE_CLIENT_SECRET` env vars before running the profiler. For `DefaultAzureCredential`, run `az login` first; for unattended runs set `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, and `AZURE_CLIENT_SECRET`.
 
 ##### 3. Required Database Permissions[​](#3-required-database-permissions "Direct link to 3. Required Database Permissions")
 
@@ -931,43 +981,45 @@ Please select the source system you want to configure
 [1] mssql
 Enter a number between 0 and 1: 1
 
-(local | env)
-local means values are read as plain text
-env means values are read from environment variables, and fall back to plain text if not variable is not found
-
 Enter secret vault type (local | env)
 [0] env
 [1] local
 Enter a number between 0 and 1: 1
+Select authentication method
+[0] SqlPassword
+[1] DefaultAzureCredential
+[2] ActiveDirectoryPassword
+[3] ActiveDirectoryServicePrincipal
+Enter a number between 0 and 3: 0
+Enter the username: profiler_user
+Enter the password:
 Enter fetch size (default: 1000):
 Enter login timeout (seconds) (default: 30):
 Enter the fully-qualified server name: my-server.database.windows.net
 Enter the port details: 1433
 Enter the database name: MyAppDB
-Enter the SQL username: profiler_user
-Enter the SQL password:
 Trust server certificate (default: no):
 Enter timezone (e.g. America/New_York) (default: UTC):
-Enter the ODBC driver installed locally (default: ODBC Driver 18 for SQL Server):
 Do you want to test the connection to mssql? (yes/no): yes
 
 ```
 
+For `DefaultAzureCredential` and `ActiveDirectoryServicePrincipal`, the `Enter the username` / `Enter the password` prompts are skipped — the identity is resolved at run time (`az login` or `AZURE_*` env vars).
+
 ##### Configuration Parameters[​](#configuration-parameters "Direct link to Configuration Parameters")
 
-| Parameter                    | Description                                                                                                                                                                                                                                       | Default                         |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
-| **Secret vault type**        | `local` for plain text values, `env` to read from environment variables                                                                                                                                                                           | —                               |
-| **Fetch size**               | Number of rows fetched per batch from the source                                                                                                                                                                                                  | `1000`                          |
-| **Login timeout**            | Connection timeout in seconds                                                                                                                                                                                                                     | `30`                            |
-| **Server name**              | Fully-qualified SQL Server hostname                                                                                                                                                                                                               | —                               |
-| **Port**                     | SQL Server port number                                                                                                                                                                                                                            | —                               |
-| **Database**                 | Database to connect to. `INFORMATION_SCHEMA` queries are scoped to this database; other databases on the instance are still discovered via `sys.databases`.                                                                                       | —                               |
-| **SQL username**             | SQL Authentication username                                                                                                                                                                                                                       | —                               |
-| **SQL password**             | SQL Authentication password (hidden input)                                                                                                                                                                                                        | —                               |
-| **Trust server certificate** | Skip TLS certificate validation when connecting. Set to `yes` only when the server uses a self-signed or untrusted certificate (e.g., local/dev SQL Server). Leave as `no` for Azure SQL Database and production servers with valid certificates. | `no`                            |
-| **Timezone**                 | Timezone for timestamp normalization                                                                                                                                                                                                              | `UTC`                           |
-| **ODBC driver**              | Locally installed ODBC driver name                                                                                                                                                                                                                | `ODBC Driver 18 for SQL Server` |
+| Parameter                    | Description                                                                                                                                                                                                                                       | Default       |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
+| **Secret vault type**        | `local` for plain text values, `env` to read from environment variables                                                                                                                                                                           | —             |
+| **Authentication method**    | One of the four modes in the table above                                                                                                                                                                                                          | `SqlPassword` |
+| **Username / Password**      | Required for `SqlPassword` and `ActiveDirectoryPassword`. Skipped for `DefaultAzureCredential` and `ActiveDirectoryServicePrincipal`.                                                                                                             | —             |
+| **Fetch size**               | Number of rows fetched per batch from the source                                                                                                                                                                                                  | `1000`        |
+| **Login timeout**            | Connection timeout in seconds                                                                                                                                                                                                                     | `30`          |
+| **Server name**              | Fully-qualified SQL Server hostname                                                                                                                                                                                                               | —             |
+| **Port**                     | SQL Server port number                                                                                                                                                                                                                            | —             |
+| **Database**                 | Database to connect to. `INFORMATION_SCHEMA` queries are scoped to this database; other databases on the instance are still discovered via `sys.databases`.                                                                                       | —             |
+| **Trust server certificate** | Skip TLS certificate validation when connecting. Set to `yes` only when the server uses a self-signed or untrusted certificate (e.g., local/dev SQL Server). Leave as `no` for Azure SQL Database and production servers with valid certificates. | `no`          |
+| **Timezone**                 | Timezone for timestamp normalization                                                                                                                                                                                                              | `UTC`         |
 
 #### Execute the Profiler[​](#execute-the-profiler "Direct link to Execute the Profiler")
 
@@ -1140,21 +1192,11 @@ The profiler will:
 
 * **Lakebridge CLI** installed and configured for your Databricks workspace (same as other profiler sources).
 
-##### 2. Choose the Redshift deployment variant[​](#2-choose-the-redshift-deployment-variant "Direct link to 2. Choose the Redshift deployment variant")
-
-The profiler ships **three extract pipelines** — pick the one that matches your Redshift instance:
-
-| Variant                    | Use when                      |
-| -------------------------- | ----------------------------- |
-| **serverless**             | Amazon Redshift Serverless    |
-| **provisioned**            | Single-AZ provisioned cluster |
-| **provisioned\_multi\_az** | Multi-AZ provisioned cluster  |
-
-##### 3. Network connectivity[​](#3-network-connectivity "Direct link to 3. Network connectivity")
+##### 2. Network connectivity[​](#2-network-connectivity "Direct link to 2. Network connectivity")
 
 The machine running the profiler must reach the Redshift cluster **endpoint** (hostname) on the cluster port (default **5439**), subject to your security groups / VPC / routing rules.
 
-##### 4. Authentication[​](#4-authentication "Direct link to 4. Authentication")
+##### 3. Authentication[​](#3-authentication "Direct link to 3. Authentication")
 
 During configuration you choose an **authentication type** and where secrets are read from (**local**, **env**, or **file**):
 
@@ -1170,29 +1212,30 @@ For IAM authentication you typically need:
 
 Use **`local`** to store plaintext values in `~/.databricks/labs/lakebridge/.credentials.yml`, **`env`** to substitute values from environment variables (with fallback), or **`file`** to reuse an existing credential file when it already contains valid Redshift entries.
 
-##### 5. Database privileges[​](#5-database-privileges "Direct link to 5. Database privileges")
+##### 4. Database privileges[​](#4-database-privileges "Direct link to 4. Database privileges")
 
 The profiler connects as your configured user and runs read-only extracts. The pipeline includes **source\_ddl** steps that create a helper view **`query_view`** in the database (via `CREATE OR REPLACE VIEW`). The connecting user therefore needs permission to:
 
 * **Create (and replace) views** in the target database used for profiling.
 * **Select** from the Amazon Redshift system relations used by the extracts (see below).
 
-**Provisioned clusters** (`provisioned` / `provisioned_multi_az`) — objects referenced by the bundled SQL include, among others:
-
-* `stl_query`, `stl_query_metrics`
-* `stv_node_storage_capacity`, `stv_partitions`
-* `sys_external_query_detail`
-
-**Serverless** (`serverless`) — examples include:
+The unified pipeline standardizes on **SYS** monitoring views for query history and CPU charts. Objects referenced by the bundled SQL include, among others:
 
 * `sys_query_history`, `sys_query_detail`
-* `sys_external_query_detail`, `sys_serverless_usage`
+* `sys_external_query_detail`
+
+**Deployment-specific (optional) metrics** — these steps are marked optional and degrade to absent when the underlying objects are not available:
+
+| Metric                  | Single-AZ provisioned                         | Multi-AZ provisioned | Serverless             |
+| ----------------------- | --------------------------------------------- | -------------------- | ---------------------- |
+| Managed storage / nodes | `stv_node_storage_capacity`, `stv_partitions` | absent               | `sys_serverless_usage` |
+| Cost incurred           | absent                                        | absent               | `sys_serverless_usage` |
 
 Exact object access is determined by Amazon Redshift documentation for your edition; grant **minimum read** access consistent with those views/tables.
 
 tip
 
-If you cannot grant broad catalog access, narrow to the relations used in the YAML pipeline for your variant under `resources/assessments/redshift/<variant>/` in the Lakebridge package.
+If you cannot grant broad catalog access, narrow to the relations used in `resources/assessments/redshift/` in the Lakebridge package.
 
 #### Configure Connection to Redshift[​](#configure-connection-to-redshift "Direct link to Configure Connection to Redshift")
 
@@ -1201,7 +1244,7 @@ databricks labs lakebridge configure-database-profiler
 
 ```
 
-Select one Redshift source variant when prompted (`redshift_serverless`, `redshift_provisioned`, or `redshift_provisioned_multi_az`). The wizard will ask for authentication type, credential source (`local` | `env` | `file`), and connection details — for password auth, for example:
+Select **`redshift`** when prompted for the source system. The wizard will ask for authentication type, credential source (`local` | `env` | `file`), and connection details — for password auth, for example:
 
 * Redshift cluster **endpoint** (host)
 * **Port** (default 5439)
@@ -1216,11 +1259,15 @@ Example-style transcript (values are illustrative):
 databricks labs lakebridge configure-database-profiler
 
 Please select the source system you want to configure
-[0] redshift_provisioned
-[1] redshift_provisioned_multi_az
-[2] redshift_serverless
-...
-Enter a number ...: 0
+[0] bigquery
+[1] legacy_synapse
+[2] mssql
+[3] oracle
+[4] redshift
+[5] snowflake
+[6] synapse
+[7] teradata
+Enter a number ...: 4
 
 Redshift authentication: sql_authentication or iam.
 
@@ -1263,13 +1310,15 @@ databricks labs lakebridge execute-database-profiler
 You can pass the source explicitly:
 
 ```bash
-databricks labs lakebridge execute-database-profiler --source-tech redshift_provisioned
+databricks labs lakebridge execute-database-profiler --source-tech redshift
 
 ```
 
+There is no deployment-variant prompt. A single pipeline covers serverless, single-AZ provisioned, and multi-AZ provisioned clusters; capacity and cost extracts that do not apply to the connected deployment are reported as expected-absent.
+
 Execution will:
 
-1. Load `pipeline_config.yml` for the chosen source variant.
+1. Load `pipeline_config.yml` for Redshift.
 2. Run **source\_ddl** steps on the cluster (including creating/updating **`query_view`**).
 3. Run SQL extracts and persist results into a timestamped DuckDB file under the selected `--output-folder`.
 
@@ -1286,13 +1335,18 @@ The profiler extract is written as a timestamped DuckDB file under the selected 
 
 #### Prerequisites[​](#prerequisites "Direct link to Prerequisites")
 
-* A Snowflake user with permission to create Personal Access Tokens (PATs) and to query the `SNOWFLAKE.ACCOUNT_USAGE` schema (e.g., the `ACCOUNTADMIN` role or a role granted `IMPORTED PRIVILEGES ON DATABASE SNOWFLAKE`).
+* A Snowflake user that can authenticate with either a **Programmatic Access Token (PAT)** or **key-pair** authentication, and that can query the `SNOWFLAKE.ACCOUNT_USAGE` schema (e.g., the `ACCOUNTADMIN` role or a role granted `IMPORTED PRIVILEGES ON DATABASE SNOWFLAKE`).
+* For key-pair auth, the matching public key must be registered on the Snowflake user. See [Snowflake key-pair authentication](https://docs.snowflake.com/en/user-guide/key-pair-auth).
 * The `rate_sheet` step also reads `SNOWFLAKE.ORGANIZATION_USAGE.RATE_SHEET_DAILY` for the effective credit rate and account tier. This is available to `ACCOUNTADMIN` in an ORGADMIN-enabled account (the first account in an organization is ORGADMIN-enabled by default, so single-account orgs are covered), or to a custom role granted the `ORGANIZATION_BILLING_VIEWER` database role. If the account isn't ORGADMIN-enabled — or the organization is on a reseller contract — the view returns no rows, so `rate_sheet` is skipped and the rest of the profile still completes.
 * Network access from the machine running Lakebridge to your Snowflake account.
 
 #### Authentication[​](#authentication "Direct link to Authentication")
 
-The Snowflake profiler authenticates with a **Programmatic Access Token (PAT)**. Follow Snowflake's official guide to generate one:
+The Snowflake profiler supports two authentication methods. Choose one when you run `configure-database-profiler`.
+
+##### Programmatic Access Token (PAT)[​](#programmatic-access-token-pat "Direct link to Programmatic Access Token (PAT)")
+
+Follow Snowflake's official guide to generate a PAT:
 
 [Snowflake docs: Programmatic access tokens](https://docs.snowflake.com/en/user-guide/programmatic-access-tokens#generating-a-programmatic-access-token)
 
@@ -1305,6 +1359,20 @@ You'll need:
 
 If your account or user has a network policy, also see Snowflake's docs on [bypassing the network policy on a PAT](https://docs.snowflake.com/en/user-guide/programmatic-access-tokens) for short-term testing from a dynamic IP.
 
+##### Key-pair authentication[​](#key-pair-authentication "Direct link to Key-pair authentication")
+
+Follow Snowflake's guide to create an RSA key pair and assign the public key to the user:
+
+[Snowflake docs: Key-pair authentication](https://docs.snowflake.com/en/user-guide/key-pair-auth)
+
+You'll need:
+
+* The same `account`, `user`, `role`, `warehouse`, `database`, and `schema` fields as PAT auth
+* `private_key_path` — path to the PEM private key file on disk (e.g., `/path/to/rsa_key.p8`). Lakebridge stores the **path**, not the PEM contents.
+* `private_key_passphrase` — only if the private key is encrypted
+
+Existing credentials files without `auth_type` continue to use PAT authentication (`pat`).
+
 #### Configure and run the profiler[​](#configure-and-run-the-profiler "Direct link to Configure and run the profiler")
 
 ```bash
@@ -1312,7 +1380,7 @@ databricks labs lakebridge configure-database-profiler
 
 ```
 
-Pick **snowflake** when prompted, then paste the connection details and PAT.
+Pick **snowflake** when prompted, then choose **PAT** or **Key-Pair** and enter the connection details.
 
 ```bash
 databricks labs lakebridge execute-database-profiler
@@ -1346,65 +1414,42 @@ duckdb profiler_extract.db "SELECT query_id, query_type, left(query_text, 80) FR
 
 ##### 1. Download[​](#1-download "Direct link to 1. Download")
 
-* Azure CLI (<https://learn.microsoft.com/en-us/cli/azure/install-azure-cli>)
-* ODBC driver for SQL Server (<https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server?view=sql-server-ver17>)
-* (Windows only) Visual C++ (<https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170>)
+* **Azure CLI** — required for authenticating to the Azure Management REST API path (workspace metadata, pool listing, monitoring metrics). [Download](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli).
 
-##### 2. Authenticate to Azure using Azure CLI[​](#2-authenticate-to-azure-using-azure-cli "Direct link to 2. Authenticate to Azure using Azure CLI")
+No database driver installation is required: the profiler connects to SQL pools with Microsoft's [mssql-python](https://github.com/microsoft/mssql-python) driver, which bundles its own connectivity layer.
 
-```bash
-az login
+##### 2. Authentication[​](#2-authentication "Direct link to 2. Authentication")
 
-```
+info
 
-The profiler uses Azure SDK's `DefaultAzureCredential` which attempts authentication in this order:
+This page covers a full Synapse Workspace. If you are profiling a standalone SQL Dedicated Pool (formerly Azure SQL DW), use the [Legacy Synapse profiler](/lakebridge/docs/assessment/profiler/legacy_synapse.md) instead.
 
-1. **Environment Variables** (Service Principal):
+The synapse profiler has **two auth paths**:
 
-   <!-- -->
+###### Azure Management REST API (workspace metadata, pool listing, monitoring metrics)[​](#azure-management-rest-api-workspace-metadata-pool-listing-monitoring-metrics "Direct link to Azure Management REST API (workspace metadata, pool listing, monitoring metrics)")
 
-   * `AZURE_TENANT_ID`
-   * `AZURE_CLIENT_ID`
-   * `AZURE_CLIENT_SECRET`
+Uses Azure SDK's `DefaultAzureCredential`. Run `az login` first or set env vars `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, and `AZURE_CLIENT_SECRET`.
 
-2. **Managed Identity** (if running on Azure VM/App Service)
+The authenticated identity needs the **Synapse Artifact User** and **Monitoring Reader** roles on the workspace. Granting Synapse Administrator alone is **not** enough — both roles must be explicitly assigned. Assign from Synapse Workspace → Manage Access → Access Control and Synapse Workspace → IAM respectively. See [Azure documentation](https://learn.microsoft.com/en-us/azure/synapse-analytics/security/how-to-manage-synapse-rbac-role-assignments).
 
-3. **Azure CLI** (from `az login`)
+###### SQL connection to SQL pools[​](#sql-connection-to-sql-pools "Direct link to SQL connection to SQL pools")
 
-4. **Visual Studio Code**
+Picking authentication mode `DefaultAzureCredential` will use the same credentials as the previous section. The authenticated identity needs the right permissions on the sql pools listed in [section 3](#3-required-database-permissions). Or pick one of the other authentication modes (`configure-database-profiler` prompts for one):
 
-5. **Azure PowerShell**
+| Auth method                       | Description                                                                             | MFA-capable |
+| --------------------------------- | --------------------------------------------------------------------------------------- | ----------- |
+| `SqlPassword`                     | SQL Authentication — username + password from credentials file                          | No          |
+| `DefaultAzureCredential`          | Entra ID via the Azure Identity credentials chain. Recommended for Azure-hosted targets | Yes         |
+| `ActiveDirectoryPassword`         | Entra ID (Azure AD) username + password                                                 | No          |
+| `ActiveDirectoryServicePrincipal` | Service Principal — `AZURE_CLIENT_ID` / `AZURE_CLIENT_SECRET` env vars                  | No          |
 
-Ensure your user/service principal account has the required roles listed below. See [Azure documentation](https://learn.microsoft.com/en-us/cli/azure/authenticate-azure-cli?view=azure-cli-latest) for more details.
+warning
 
-##### 3. Required Access to Synapse Workspace[​](#3-required-access-to-synapse-workspace "Direct link to 3. Required Access to Synapse Workspace")
+For `ActiveDirectoryServicePrincipal`, set `AZURE_CLIENT_ID` and `AZURE_CLIENT_SECRET` env vars before running the profiler. For `DefaultAzureCredential`, run `az login` first; for unattended runs set `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, and `AZURE_CLIENT_SECRET`.
 
-Attention:
+##### 3. Required Database Permissions[​](#3-required-database-permissions "Direct link to 3. Required Database Permissions")
 
-Skip this prerequisite if you are using a standalone SQL Dedicated Pool (formerly Azure SQL DW) and NOT a Synapse Workspace
-
-* Profiler uses the Python version of Azure SDK libraries to extract information about target Synapse Workspace.
-
-* For making the Azure API calls using Azure SDK, the authenticated identity (user or service principal) needs the following role assignments. Just giving the Synapse Administrator role is not enough. The below roles must be explicitly assigned.
-
-  <!-- -->
-
-  * Synapse Artifact User.
-    <!-- -->
-    * Assign from Synapse Workspace → Manage Access → Access Control [Refer to Azure documentation](https://learn.microsoft.com/en-us/azure/synapse-analytics/security/how-to-manage-synapse-rbac-role-assignments)
-  * Monitoring Reader
-    <!-- -->
-    * Assign from Synapse Workspace → IAM
-
-##### 4. Setup user\_id/password for ODBC connectivity[​](#4-setup-user_idpassword-for-odbc-connectivity "Direct link to 4. Setup user_id/password for ODBC connectivity")
-
-Create/Use a user with access to query the following tables in Synapse.
-
-Attention:
-
-The user should not have Multi-factor Authentication (MFA) enabled as ODBC does not support MFA
-
-This user id needs to have read access (`SELECT grants`) on the following tables. The following permissions are required for Dynamic Management Views (DMVs):
+The SQL user configured for the profiler must have read access (`SELECT grants`) to the following tables. The following permissions are required for Dynamic Management Views (DMVs):
 
 * **`VIEW DATABASE STATE`** - Required for database-scoped DMVs (queries within specific databases)
 * **`VIEW SERVER STATE`** - Required for server-level DMVs (queries in the `master` database)
@@ -1447,22 +1492,20 @@ Enter secret vault type (local | env)
 [0] env
 [1] local
 Enter a number between 0 and 1: 1
+Select authentication method
+[0] SqlPassword
+[1] DefaultAzureCredential
+[2] ActiveDirectoryPassword
+[3] ActiveDirectoryServicePrincipal
+Enter a number between 0 and 3: 0
+Enter the username: user
+Enter the password:
 Please provide Synapse Workspace settings:
 Enter Synapse workspace name: synapse
-Enter SQL user: user
-Enter SQL password:
-Enter timezone (e.g. America/New_York) (default: UTC):
-Enter the ODBC driver installed locally (default: ODBC Driver 18 for SQL Server):
-Please provide Azure access settings:
 Enter development endpoint: synapse.endpoint
-Please select JDBC authentication type:
-Select authentication type
-[0] ad_passwd_authentication
-[1] spn_authentication
-[2] sql_authentication
-Enter a number between 0 and 2: 2
 Enter fetch size (default: 1000):
 Enter login timeout (seconds) (default: 30):
+Enter timezone (e.g. America/New_York) (default: UTC):
 Exclude serverless SQL pool from profiling? (default: no):
 Exclude dedicated SQL pools from profiling? (default: no):
 Exclude Spark pools from profiling? (default: no):
@@ -5887,28 +5930,32 @@ See [Configuration Reference](/lakebridge/docs/reconcile/configuration.md) for t
 The User configuring reconcile must have permission to:
 
 * Create Data Warehouses
-* Create Compute Clusters
 * `USE CONNECTION` on the source connection
 * `USE CATALOG` and `CREATE SCHEMA` on the target catalog
-* `CREATE VOLUME` if using a pre-existing schema on a serverless cluster
+* `CREATE VOLUME` if using a pre-existing schema
 
-##### Serverless cluster support[​](#serverless-cluster-support "Direct link to Serverless cluster support")
+##### Compute selection[​](#compute-selection "Direct link to Compute selection")
 
-Reconcile automatically detects the cluster type and optimizes intermediate data persistence accordingly:
+**The deployed reconcile job runs on serverless compute by default.** No cluster is created or managed for you.
 
-* **On Serverless clusters**: Reconcile uses Unity Catalog volumes for intermediate data persistence
-* **On Standard clusters**: Reconcile uses DataFrame caching for better performance
+To run the job on a classic cluster instead, create the cluster yourself and point `job_overrides` at it in the reconcile config (`<USER_WORKSPACE_HOME>/.lakebridge/reconcile.yml`):
+
+```yaml
+job_overrides:
+  existing_cluster_id: "0714-000000-abcdefgh"
+
+```
 
 note
 
-* On serverless clusters, the configured volume (from `metadata_config.volume`) is automatically used
-* The volume must be created in the metadata catalog and schema specified in your `ReconcileMetadataConfig`
-* Ensure you have the necessary permissions to write to the volume on serverless clusters
+A classic cluster must run **Databricks Runtime 17.3 or above** that supports reading from Unity Catalog connections.
 
-Reconcile automatically adapts to the cluster type:
+##### Intermediate data persistence[​](#intermediate-data-persistence "Direct link to Intermediate data persistence")
 
-* **Serverless clusters:** Uses Unity Catalog volumes for intermediate data persistence (`metadata_config.volume`)
-* **Standard clusters:** Uses DataFrame caching
+Reconcile automatically adapts to the compute type:
+
+* **Serverless (default):** Uses Unity Catalog volumes for intermediate data persistence — the configured volume (from `metadata_config.volume`) is automatically used. The volume must exist in the metadata catalog and schema specified in your `ReconcileMetadataConfig`, and you need write permission on it.
+* **Classic clusters:** Uses DataFrame caching for better performance
 
 ***
 
@@ -7678,6 +7725,17 @@ Verify:
 databricks labs lakebridge reconcile --help
 
 ```
+
+Upgrading from an older Reconcile schema
+
+Upgrading Lakebridge migrates the reconcile `details` and `aggregate_details` metadata tables to a new schema. The original tables are preserved as `<catalog>.<schema>.details_backup` and `aggregate_details_backup`, so the raw rows are never lost.
+
+The migration is not automatically resumable. If it fails midway, rerun the upgrade after restoring the original tables manually:
+
+* If `details` no longer exists, rename the backup back and rerun: `ALTER TABLE <catalog>.<schema>.details_backup RENAME TO <catalog>.<schema>.details`
+* If a new (empty or partial) `details` was already created, drop it, rename the backup back as above, then rerun.
+
+Apply the same steps to `aggregate_details` / `aggregate_details_backup`. Once the migrated tables are verified, the `*_backup` tables can be dropped.
 
 ##### Service Principal Setup (Optional)[​](#service-principal-setup-optional "Direct link to Service Principal Setup (Optional)")
 

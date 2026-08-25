@@ -78,28 +78,32 @@ See [Configuration Reference](/lakebridge/docs/reconcile/configuration.md) for t
 The User configuring reconcile must have permission to:
 
 * Create Data Warehouses
-* Create Compute Clusters
 * `USE CONNECTION` on the source connection
 * `USE CATALOG` and `CREATE SCHEMA` on the target catalog
-* `CREATE VOLUME` if using a pre-existing schema on a serverless cluster
+* `CREATE VOLUME` if using a pre-existing schema
 
-### Serverless cluster support[​](#serverless-cluster-support "Direct link to Serverless cluster support")
+### Compute selection[​](#compute-selection "Direct link to Compute selection")
 
-Reconcile automatically detects the cluster type and optimizes intermediate data persistence accordingly:
+**The deployed reconcile job runs on serverless compute by default.** No cluster is created or managed for you.
 
-* **On Serverless clusters**: Reconcile uses Unity Catalog volumes for intermediate data persistence
-* **On Standard clusters**: Reconcile uses DataFrame caching for better performance
+To run the job on a classic cluster instead, create the cluster yourself and point `job_overrides` at it in the reconcile config (`<USER_WORKSPACE_HOME>/.lakebridge/reconcile.yml`):
+
+```yaml
+job_overrides:
+  existing_cluster_id: "0714-000000-abcdefgh"
+
+```
 
 note
 
-* On serverless clusters, the configured volume (from `metadata_config.volume`) is automatically used
-* The volume must be created in the metadata catalog and schema specified in your `ReconcileMetadataConfig`
-* Ensure you have the necessary permissions to write to the volume on serverless clusters
+A classic cluster must run **Databricks Runtime 17.3 or above** that supports reading from Unity Catalog connections.
 
-Reconcile automatically adapts to the cluster type:
+### Intermediate data persistence[​](#intermediate-data-persistence "Direct link to Intermediate data persistence")
 
-* **Serverless clusters:** Uses Unity Catalog volumes for intermediate data persistence (`metadata_config.volume`)
-* **Standard clusters:** Uses DataFrame caching
+Reconcile automatically adapts to the compute type:
+
+* **Serverless (default):** Uses Unity Catalog volumes for intermediate data persistence — the configured volume (from `metadata_config.volume`) is automatically used. The volume must exist in the metadata catalog and schema specified in your `ReconcileMetadataConfig`, and you need write permission on it.
+* **Classic clusters:** Uses DataFrame caching for better performance
 
 ***
 
