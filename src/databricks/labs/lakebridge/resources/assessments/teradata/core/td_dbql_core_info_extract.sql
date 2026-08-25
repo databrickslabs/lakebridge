@@ -1,4 +1,4 @@
-SELECT TOP ${max_rows}
+SELECT
     LogTbl.AppID,
     LogTbl.UserName,
     LogTbl.SessionID,
@@ -13,7 +13,8 @@ SELECT TOP ${max_rows}
 FROM
     DBC.DBQLogTbl AS LogTbl
 WHERE
-    LogTbl.CollectTimeStamp >= CURRENT_DATE - INTERVAL '${lookback_days}' DAY
+    LogTbl.CollectTimeStamp >= CURRENT_DATE - :lookback_days
     AND UserName NOT IN ('AD_ANMGR', 'MS_ANMGR')
+QUALIFY ROW_NUMBER() OVER (ORDER BY TotalFirstRespTime DESC) <= :max_rows
 ORDER BY
     TotalFirstRespTime DESC;

@@ -1,7 +1,8 @@
 name: teradata_assessment
 version: "1.0"
-# Default ${name} values for SQL steps; override in the credentials file (e.g. lookback_days: 30).
-variables:
+# Default values bound into SQL steps (via :name placeholders); override in the credentials
+# file's profiler section (e.g. lookback_days: 30).
+parameters:
   lookback_days: 7
   max_rows: 100000
 steps:
