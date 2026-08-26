@@ -476,13 +476,18 @@ class ConfigureTeradataAssessment(AssessmentConfigurator):
             password = self.prompts.password("Enter the password details")
 
         # Stored in the credentials file to override the packaged DBQL extract defaults.
+        # Must be >= 1: 0/negative would yield an empty (or future-dated) extract with no error.
         logger.info("Please configure profiler settings:")
+
+        def positive_int(value: str) -> bool:
+            return value.isdigit() and int(value) >= 1
+
         teradata_profiler = {
             "lookback_days": int(
-                self.prompts.question("Enter DBQL lookback window in days", default="7", valid_number=True)
+                self.prompts.question("Enter DBQL lookback window in days", default="7", validate=positive_int)
             ),
             "max_rows": int(
-                self.prompts.question("Enter max rows for the DBQL extract", default="100000", valid_number=True)
+                self.prompts.question("Enter max rows for the DBQL extract", default="100000", validate=positive_int)
             ),
         }
 

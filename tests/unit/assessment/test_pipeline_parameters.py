@@ -32,6 +32,7 @@ def _run_step(
     parameters: dict | None = None,
     cred_body: str | None = None,
     parameter_overrides: dict | None = None,
+    source_system: str = "teradata",
 ) -> tuple[str, dict]:
     """Run a single SQL step through the real pipeline; return the (query, bind parameters) it received."""
     sql_file = tmp_path / "step.sql"
@@ -46,7 +47,7 @@ def _run_step(
     if cred_body is not None:
         cred_file.write_text(cred_body, encoding="utf-8")
     connector = RecordingConnector()
-    PipelineClass(config, connector, tmp_path / "extract.db", cred_file, parameter_overrides).execute()
+    PipelineClass(config, connector, tmp_path / "extract.db", cred_file, parameter_overrides, source_system).execute()
     return connector.calls[0]
 
 
@@ -99,10 +100,25 @@ def test_unrelated_profiler_settings_are_ignored(tmp_path: Path) -> None:
         tmp_path,
         "INTERVAL :lookback_days DAY",
         parameters={"lookback_days": 7},
+        source_system="synapse",
         cred_body="synapse:\n  workspace:\n    name: ws\n  profiler:\n"
         "    exclude_serverless_sql_pool: true\n    redact_sql_pools_sql_text: false\n",
     )
     assert params == {"lookback_days": 7}
+
+
+def test_parameters_are_scoped_to_the_profiled_source(tmp_path: Path) -> None:
+    # A shared credentials file may hold several sources, each with its own profiler block. The
+    # profiled source's values must be used, never another source's that happens to appear first.
+    _, params = _run_step(
+        tmp_path,
+        _QUERY,
+        parameters={"lookback_days": 7, "max_rows": 100000},
+        source_system="teradata",
+        cred_body="synapse:\n  profiler:\n    lookback_days: 999\n    max_rows: 1\n"
+        "teradata:\n  profiler:\n    lookback_days: 30\n    max_rows: 5000000\n",
+    )
+    assert params == {"lookback_days": 30, "max_rows": 5000000}
 
 
 def test_load_config_from_yaml_reads_parameters(tmp_path: Path) -> None:

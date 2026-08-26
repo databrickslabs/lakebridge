@@ -32,8 +32,8 @@ def test_schema_maps_python_type_codes_to_arrow() -> None:
     assert schema.types == [
         pa.string(),
         pa.int64(),
-        pa.float64(),  # Decimal columns are carried as float64 (DuckDB targets them as DOUBLE)
         pa.float64(),
+        pa.string(),  # Decimal columns are carried as exact text, not float64 (avoids rounding)
         pa.timestamp("us"),
         pa.date32(),
     ]
@@ -63,7 +63,7 @@ def test_values_are_coerced_to_column_types() -> None:
     assert row["name"] == "db1"
     assert row["count"] == 5
     assert row["cpu"] == 1.5
-    assert row["amount"] == 2.5  # Decimal -> float
+    assert row["amount"] == "2.50"  # Decimal -> exact text
     assert row["collected_at"] == datetime.datetime(2026, 1, 1, 12)
     assert row["as_of"] == datetime.date(2026, 1, 1)
 
@@ -73,3 +73,21 @@ def test_unknown_type_code_falls_back_to_string() -> None:
     assert schema.types == [pa.string()]
     table = _rows_to_arrow_table([(123,)], schema)
     assert table.to_pylist() == [{"blob": "123"}]  # non-str values stringified for the fallback
+
+
+def test_large_decimal_carried_exactly_without_float_rounding() -> None:
+    # A counter beyond 2**53 would lose its low-order digits if coerced through float().
+    big = decimal.Decimal("9007199254740993")  # 2**53 + 1, not representable as float64
+    schema = _arrow_schema_from_description([("total_io", decimal.Decimal, None, None, None, None, None)])
+    table = _rows_to_arrow_table([(big,)], schema)
+    assert table.to_pylist() == [{"total_io": "9007199254740993"}]
+
+
+def test_tz_aware_datetime_normalized_to_naive_utc() -> None:
+    # TIMESTAMP WITH TIME ZONE comes back tz-aware; the schema is tz-naive, so it must be converted
+    # to UTC and stripped of tzinfo rather than raising inside pa.array.
+    aware = datetime.datetime(2026, 1, 1, 12, tzinfo=datetime.timezone(datetime.timedelta(hours=5, minutes=30)))
+    schema = _arrow_schema_from_description([("collected_at", datetime.datetime, None, None, None, None, None)])
+    table = _rows_to_arrow_table([(aware,)], schema)
+    assert table.schema.types == [pa.timestamp("us")]
+    assert table.to_pylist() == [{"collected_at": datetime.datetime(2026, 1, 1, 6, 30)}]  # 12:00 +05:30 -> 06:30 UTC

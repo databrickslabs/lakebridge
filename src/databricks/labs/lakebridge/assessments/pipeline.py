@@ -49,6 +49,7 @@ class PipelineClass:
         db_path: Path,
         cred_file_path: Path,
         parameter_overrides: dict | None = None,
+        source_system: str | None = None,
     ):
         self.config = config
         self.executor = executor
@@ -59,32 +60,28 @@ class PipelineClass:
         # Precedence: pipeline defaults < credentials file < explicit overrides. Only parameters the
         # pipeline declares can be set from credentials; other `profiler` settings there are ignored.
         declared = set(config.parameters or {})
-        cred_parameters = {k: v for k, v in self._load_profiler_parameters(cred_file_path).items() if k in declared}
+        loaded = self._load_profiler_parameters(cred_file_path, source_system)
+        cred_parameters = {k: v for k, v in loaded.items() if k in declared}
         self._parameters = {**(config.parameters or {}), **cred_parameters, **(parameter_overrides or {})}
 
     @staticmethod
-    def _load_profiler_parameters(cred_file_path: Path | None) -> dict:
-        """Read bind parameters from the source's ``profiler`` section in the credentials file.
+    def _load_profiler_parameters(cred_file_path: Path | None, source_system: str | None = None) -> dict:
+        """Read bind parameters from the profiled source's ``profiler`` section in the credentials file.
 
-        Returns an empty dict when the file or the section is absent.
+        Scoped to ``source_system`` so the shared credentials file can hold more than one source
+        without one source's settings leaking into another. Returns an empty dict when the file, the
+        source entry, or its ``profiler`` section is absent (or when ``source_system`` is unknown).
         """
-        if not cred_file_path:
+        if not cred_file_path or not source_system:
             return {}
         try:
             with open(cred_file_path, "r", encoding="utf-8") as handle:
                 creds = yaml.safe_load(handle) or {}
         except (OSError, yaml.YAMLError):
             return {}
-        if not isinstance(creds, dict):
-            return {}
-        metadata_keys = {"secret_vault_type", "secret_vault_name"}
-        for key, value in creds.items():
-            if key in metadata_keys or not isinstance(value, dict):
-                continue
-            profiler = value.get("profiler")
-            if isinstance(profiler, dict):
-                return profiler
-        return {}
+        source = creds.get(source_system) if isinstance(creds, dict) else None
+        profiler = source.get("profiler") if isinstance(source, dict) else None
+        return profiler if isinstance(profiler, dict) else {}
 
     def execute(self) -> list[StepExecutionResult]:
         """Run every configured step and return per-step outcomes.
@@ -209,7 +206,7 @@ class PipelineClass:
             return
 
         logging.info(f"Executing source_ddl step '{step.name}' on source")
-        self.executor.fetch(content)
+        self.executor.fetch(content, self._parameters)
 
     def _execute_ddl_step(self, step: Step):
         logging.debug(f"Reading DDL from file: {step.extract_source}")
