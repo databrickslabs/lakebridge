@@ -47,11 +47,7 @@ class FetchResult:
 class DatabaseConnector(contextlib.AbstractContextManager):
     @abstractmethod
     def fetch(self, query: str, parameters: Mapping[str, Any] | None = None) -> FetchResult:
-        """Run ``query`` and return its result set.
-
-        ``parameters`` are bound at execution time by the driver (never interpolated into the SQL
-        text): the query carries ``:name`` placeholders and the driver substitutes them safely.
-        """
+        """Run ``query`` and return its rows. ``parameters`` bind ``:name`` placeholders at execution time."""
 
     def supports_streaming(self) -> bool:
         return False
@@ -232,17 +228,14 @@ class MSSQLConnector(DatabaseConnector):
         return result.rows[0][0] == 101
 
 
-# teradatasql reports each column's DBAPI ``type_code`` as the Python type it returns values as.
-# Mapping those to a fixed Arrow type lets every streamed batch share one schema regardless of
-# which columns happen to be all-NULL in a given batch (batches are appended positionally into
-# the DDL-pre-created DuckDB table, which then casts to the declared column types).
+# teradatasql reports each column's type_code as the Python type it returns. A fixed type per
+# column keeps every streamed batch's schema identical even when a column is all-NULL in one batch.
 _ARROW_TYPE_BY_PYTHON_TYPE: dict[type, pa.DataType] = {
     str: pa.string(),
     bool: pa.bool_(),
     int: pa.int64(),
     float: pa.float64(),
-    # Carried as exact decimal text, not float64: a DECIMAL/NUMBER counter can exceed 2**53, which
-    # float() would silently round. DuckDB casts the string to the declared column type losslessly.
+    # Exact text, not float64: a DECIMAL counter past 2**53 would round; DuckDB casts the string back.
     decimal.Decimal: pa.string(),
     bytes: pa.binary(),
     datetime.datetime: pa.timestamp("us"),
@@ -252,11 +245,8 @@ _ARROW_TYPE_BY_PYTHON_TYPE: dict[type, pa.DataType] = {
 
 
 def _to_naive_utc(value: datetime.datetime | None) -> datetime.datetime | None:
-    """Normalize a datetime to tz-naive UTC. Naive values pass through unchanged.
-
-    teradatasql returns tz-aware datetimes for ``TIMESTAMP WITH TIME ZONE`` columns, but the batch
-    schema is tz-naive; pa.array rejects tz-aware values against a naive type, so convert to UTC.
-    """
+    """Convert tz-aware datetimes (from ``TIMESTAMP WITH TIME ZONE``) to UTC and drop tzinfo, so they
+    don't get rejected against the tz-naive batch schema. Naive values pass through unchanged."""
     if value is None or value.tzinfo is None:
         return value
     return value.astimezone(datetime.timezone.utc).replace(tzinfo=None)

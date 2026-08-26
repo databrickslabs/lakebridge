@@ -56,9 +56,8 @@ class PipelineClass:
         self._db_path = db_path.expanduser()
         self._create_dir(self._db_path.parent)
         self._cred_file_path = cred_file_path
-        # Values bound into SQL steps at execution time (never interpolated into the SQL text).
-        # Precedence: pipeline defaults < credentials file < explicit overrides. Only parameters the
-        # pipeline declares can be set from credentials; other `profiler` settings there are ignored.
+        # Bind values, resolved by precedence: pipeline defaults < credentials file < explicit overrides.
+        # Only declared parameters are taken from credentials; other `profiler` settings are ignored.
         declared = set(config.parameters or {})
         loaded = self._load_profiler_parameters(cred_file_path, source_system)
         cred_parameters = {k: v for k, v in loaded.items() if k in declared}
