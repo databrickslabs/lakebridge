@@ -52,13 +52,19 @@ class SchemaCompare:
     @staticmethod
     def _select_columns(master_schema: list[Schema], table_conf: Table):
         if table_conf.select_columns:
-            return [schema for schema in master_schema if schema.column_name in table_conf.select_columns]
+            return [
+                schema for schema in master_schema if schema.ansi_normalized_column_name in table_conf.select_columns
+            ]
         return master_schema
 
     @staticmethod
     def _drop_columns(master_schema: list[Schema], table_conf: Table):
         if table_conf.drop_columns:
-            return [sschema for sschema in master_schema if sschema.column_name not in table_conf.drop_columns]
+            return [
+                sschema
+                for sschema in master_schema
+                if sschema.ansi_normalized_column_name not in table_conf.drop_columns
+            ]
         return master_schema
 
     @staticmethod

@@ -272,7 +272,7 @@ class Table:
 
     def get_select_columns(self, schema: list[Schema], layer: str) -> set[str]:
         if self.select_columns is None:
-            return {sch.column_name for sch in schema}
+            return {sch.ansi_normalized_column_name for sch in schema}
         if self.to_src_col_map:
             return self.get_src_to_tgt_col_mapping_list(self.select_columns, layer)
         return set(self.select_columns)
@@ -308,10 +308,8 @@ class Table:
 
 @dataclass
 class Schema:
-    # TODO remove: This will have the value of ansi_normalized_column_name. Kept for backwards compatibility.
-    column_name: str
-    data_type: str
     ansi_normalized_column_name: str
+    data_type: str
     source_normalized_column_name: str
 
 

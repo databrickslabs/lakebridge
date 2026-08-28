@@ -11,6 +11,7 @@ from databricks.labs.lakebridge.reconcile.exception import DataSourceRuntimeExce
 from databricks.labs.lakebridge.reconcile.query_builder.hash_query import HashQueryBuilder
 from databricks.labs.lakebridge.reconcile.recon_config import Schema, Table
 from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
+from tests.conftest import make_column_transformer
 
 
 def initial_setup():
@@ -131,10 +132,12 @@ def test_hash_query_emits_bigquery_compatible_sql():
     schema = []
     for name, dtype in cols:
         norm = data_source.normalize_identifier(name)
-        schema.append(Schema(norm.ansi_normalized, dtype, norm.ansi_normalized, norm.source_normalized))
+        schema.append(Schema(norm.ansi_normalized, dtype, norm.source_normalized))
     table_conf = Table(source_name="t", target_name="t", join_columns=["id"])
 
-    query = HashQueryBuilder(table_conf, schema, "source", engine, data_source).build_query("data")
+    query = HashQueryBuilder(
+        table_conf, schema, "source", engine, data_source, make_column_transformer(schema, engine, data_source)
+    ).build_query("data")
 
     # hex-wrapped SHA-256 (matches Databricks sha2(...,256))
     assert "TO_HEX(SHA256(" in query
