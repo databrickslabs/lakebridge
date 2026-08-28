@@ -21,6 +21,9 @@ PROFILER_SOURCE_SYSTEM = sorted(
 )
 
 SOURCE_SYSTEM_VARIANTS = {
-    "redshift": ("serverless", "provisioned", "provisioned_multi_az"),
     "mssql": (AUTO,),
 }
+
+PROFILER_RUN_METADATA_TABLE = "profiler_run_metadata"
+
+RESERVED_TABLE_NAMES = frozenset({PROFILER_RUN_METADATA_TABLE})

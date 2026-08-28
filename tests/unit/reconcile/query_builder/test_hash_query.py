@@ -1,17 +1,17 @@
-from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
+from databricks.labs.lakebridge.reconcile.normalize_recon_config_service import NormalizeReconConfigService
 from databricks.labs.lakebridge.reconcile.query_builder.hash_query import HashQueryBuilder
 from databricks.labs.lakebridge.reconcile.recon_config import (
-    Filters,
     ColumnMapping,
-    Transformation,
+    Filters,
     Table,
+    Transformation,
 )
-from databricks.labs.lakebridge.reconcile.normalize_recon_config_service import NormalizeReconConfigService
+from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
 from tests.conftest import (
-    tsql_schema_fixture_factory,
+    FakeDataSource,
     ansi_schema_fixture_factory,
     make_column_transformer,
-    FakeDataSource,
+    tsql_schema_fixture_factory,
 )
 
 

@@ -7,17 +7,15 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 import pytest
-
-from lsprotocol.types import TextEdit, Range, Position
-
 from databricks.labs.blueprint.paths import read_text
 from databricks.labs.blueprint.wheels import ProductInfo
+from lsprotocol.types import Position, Range, TextEdit
 
 from databricks.labs.lakebridge.config import TranspileConfig
 from databricks.labs.lakebridge.errors.exceptions import IllegalStateException
 from databricks.labs.lakebridge.helpers.file_utils import chdir
 from databricks.labs.lakebridge.transpiler.lsp.lsp_engine import ChangeManager, LSPEngine, TranspileDocumentResult
-from databricks.labs.lakebridge.transpiler.transpile_status import TranspileError, ErrorSeverity, ErrorKind
+from databricks.labs.lakebridge.transpiler.transpile_status import ErrorKind, ErrorSeverity, TranspileError
 
 # TODO: Arguably a form of integration test, as it round-trips with a real LSP server.
 

@@ -2,38 +2,38 @@ from pathlib import Path
 from unittest.mock import create_autospec
 
 import pytest
-from pyspark.sql import DataFrame
-from pyspark.sql.types import (
-    StructType,
-    StructField,
-    LongType,
-    StringType,
-    TimestampType,
-    BooleanType,
-    ArrayType,
-    VariantType,
-)
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.service import iam
+from pyspark.sql import DataFrame
+from pyspark.sql.types import (
+    ArrayType,
+    BooleanType,
+    LongType,
+    StringType,
+    StructField,
+    StructType,
+    TimestampType,
+    VariantType,
+)
 
+from databricks.labs.lakebridge.reconcile.connectors.data_source import DataSource, MockDataSource
 from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import DialectUtils
 from databricks.labs.lakebridge.reconcile.connectors.models import NormalizedIdentifier
-from databricks.labs.lakebridge.reconcile.connectors.data_source import DataSource, MockDataSource
+from databricks.labs.lakebridge.reconcile.normalize_recon_config_service import NormalizeReconConfigService
 from databricks.labs.lakebridge.reconcile.query_builder.column_transformer import (
-    RuleBasedColumnTransformer,
     ReconcileLayer,
+    RuleBasedColumnTransformer,
 )
 from databricks.labs.lakebridge.reconcile.recon_config import (
-    Table,
-    JdbcReaderOptions,
-    Transformation,
+    ColumnMapping,
     ColumnThresholds,
     Filters,
-    TableThresholds,
-    ColumnMapping,
+    JdbcReaderOptions,
     Schema,
+    Table,
+    TableThresholds,
+    Transformation,
 )
-from databricks.labs.lakebridge.reconcile.normalize_recon_config_service import NormalizeReconConfigService
 
 
 @pytest.fixture(scope="session")

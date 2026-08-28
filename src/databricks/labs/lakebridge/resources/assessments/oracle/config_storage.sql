@@ -35,4 +35,3 @@ GROUP BY con_name,
              WHEN tablespace_name IN (SELECT tablespace_name FROM undo_ts WHERE con_id = sub.con_id) THEN 'UNDO'
              ELSE 'USER_DATA'
              END
-ORDER BY 1

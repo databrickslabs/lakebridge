@@ -8,11 +8,11 @@ from databricks.labs.lakebridge.reconcile.query_builder.base import QueryBuilder
 from databricks.labs.lakebridge.reconcile.query_builder.column_transformer import ColumnTransformer
 from databricks.labs.lakebridge.reconcile.query_builder.expression_generator import (
     build_column,
+    build_column_no_alias,
     concat,
     get_hash_transform,
     lower,
     transform_expression,
-    build_column_no_alias,
 )
 from databricks.labs.lakebridge.reconcile.recon_config import Schema, Table
 

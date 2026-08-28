@@ -1,13 +1,16 @@
-"""Unit tests for the Snowflake account-URL helper and connector URL building."""
+"""Unit tests for the Snowflake account-URL helper, private-key loader, and connector URL building."""
 
-from unittest.mock import patch
+from pathlib import Path
 
 import pytest
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
 
 from databricks.labs.lakebridge.connections.database_manager import SnowflakeConnector
 from databricks.labs.lakebridge.connections.snowflake_utils import (
-    parse_snowflake_account,
     is_valid_snowflake_account,
+    load_snowflake_private_key,
+    parse_snowflake_account,
 )
 
 
@@ -22,7 +25,7 @@ from databricks.labs.lakebridge.connections.snowflake_utils import (
         ("", ""),
     ],
 )
-def test_parse_snowflake_account(raw, expected):
+def test_parse_snowflake_account(raw: str, expected: str) -> None:
     assert parse_snowflake_account(raw) == expected
 
 
@@ -37,11 +40,11 @@ def test_parse_snowflake_account(raw, expected):
         ("acct/with/slash", False),
     ],
 )
-def test_is_valid_snowflake_account(identifier, valid):
+def test_is_valid_snowflake_account(identifier: str, valid: bool) -> None:
     assert is_valid_snowflake_account(identifier) is valid
 
 
-def test_connector_rejects_malformed_account():
+def test_connector_rejects_malformed_account() -> None:
     with pytest.raises(ConnectionError, match="Invalid Snowflake account identifier"):
         SnowflakeConnector(
             {
@@ -54,21 +57,8 @@ def test_connector_rejects_malformed_account():
         )
 
 
-def _build_url(connection: dict) -> str:
-    """Construct the SQLAlchemy URL the connector would use, without opening a connection."""
-    captured = {}
-
-    def _capture(url):
-        captured["url"] = url
-        return object()  # stand-in engine; never used
-
-    with patch("databricks.labs.lakebridge.connections.database_manager.create_engine", side_effect=_capture):
-        SnowflakeConnector({"connection": connection})
-    return captured["url"].render_as_string(hide_password=False)
-
-
-def test_snowflake_url_happy_path():
-    url = _build_url(
+def test_snowflake_url_happy_path() -> None:
+    url, connect_args = SnowflakeConnector.build_engine_args(
         {
             "account": "https://MYORG-MYACCOUNT.snowflakecomputing.com",
             "user": "svc_user",
@@ -79,16 +69,18 @@ def test_snowflake_url_happy_path():
             "role": "SYSADMIN",
         }
     )
-    assert url.startswith("snowflake://svc_user:plain_token@MYORG-MYACCOUNT/SNOWFLAKE/ACCOUNT_USAGE")
-    assert "warehouse=WH" in url
-    assert "role=SYSADMIN" in url
+    rendered = url.render_as_string(hide_password=False)
+    assert rendered.startswith("snowflake://svc_user:plain_token@MYORG-MYACCOUNT/SNOWFLAKE/ACCOUNT_USAGE")
+    assert "warehouse=WH" in rendered
+    assert "role=SYSADMIN" in rendered
+    assert not connect_args
 
 
-def test_snowflake_url_escapes_pat_special_chars():
+def test_snowflake_url_escapes_pat_special_chars() -> None:
     # PATs are base64url and routinely contain '/', '=', '@'. Those must be
     # percent-escaped so SQLAlchemy doesn't misread them as URL structure
     # (path separator, host delimiter, etc.).
-    url = _build_url(
+    url, connect_args = SnowflakeConnector.build_engine_args(
         {
             "account": "MYORG-MYACCOUNT",
             "user": "svc_user",
@@ -99,12 +91,108 @@ def test_snowflake_url_escapes_pat_special_chars():
             "role": "SYSADMIN",
         }
     )
+    rendered = url.render_as_string(hide_password=False)
     # The structural characters are escaped inside the password.
-    assert "ab%2Fcd%3Def%40ij%25kl" in url
+    assert "ab%2Fcd%3Def%40ij%25kl" in rendered
     # And the host is still parsed correctly despite the '@' in the password.
-    assert "@MYORG-MYACCOUNT/SNOWFLAKE/ACCOUNT_USAGE" in url
+    assert "@MYORG-MYACCOUNT/SNOWFLAKE/ACCOUNT_USAGE" in rendered
+    assert not connect_args
 
 
-def test_connector_raises_when_account_missing():
+def _generate_rsa_key() -> rsa.RSAPrivateKey:
+    return rsa.generate_private_key(public_exponent=65537, key_size=2048)
+
+
+def _write_private_key(path: Path, *, passphrase: str | None = None) -> None:
+    private_key = _generate_rsa_key()
+    if passphrase is None:
+        encryption: serialization.KeySerializationEncryption = serialization.NoEncryption()
+    else:
+        encryption = serialization.BestAvailableEncryption(passphrase.encode())
+    path.write_bytes(
+        private_key.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=encryption,
+        )
+    )
+
+
+def test_load_private_key_unencrypted(tmp_path: Path) -> None:
+    key_path = tmp_path / "rsa_key.p8"
+    _write_private_key(key_path, passphrase=None)
+    der = load_snowflake_private_key(key_path, passphrase=None)
+    assert isinstance(der, bytes)
+    assert der
+
+
+@pytest.mark.parametrize("passphrase", ["secret-pass", "another"])
+def test_load_private_key_encrypted_with_passphrase(tmp_path: Path, passphrase: str) -> None:
+    key_path = tmp_path / "rsa_key.p8"
+    _write_private_key(key_path, passphrase=passphrase)
+    der = load_snowflake_private_key(key_path, passphrase=passphrase)
+    assert isinstance(der, bytes)
+    assert der
+
+
+def test_load_private_key_empty_passphrase_treated_as_missing(tmp_path: Path) -> None:
+    key_path = tmp_path / "rsa_key.p8"
+    _write_private_key(key_path, passphrase="not-empty")
+    with pytest.raises(ConnectionError, match="Unable to load private key"):
+        load_snowflake_private_key(key_path, passphrase="")
+
+
+def test_load_private_key_wrong_passphrase(tmp_path: Path) -> None:
+    key_path = tmp_path / "rsa_key.p8"
+    _write_private_key(key_path, passphrase="correct")
+    with pytest.raises(ConnectionError, match="Unable to load private key"):
+        load_snowflake_private_key(key_path, passphrase="wrong")
+
+
+def test_load_private_key_missing_passphrase_for_encrypted_key(tmp_path: Path) -> None:
+    key_path = tmp_path / "rsa_key.p8"
+    _write_private_key(key_path, passphrase="correct")
+    with pytest.raises(ConnectionError, match="Unable to load private key"):
+        load_snowflake_private_key(key_path, passphrase=None)
+
+
+def test_load_private_key_path_missing(tmp_path: Path) -> None:
+    missing = tmp_path / "does-not-exist.p8"
+    with pytest.raises(ConnectionError, match="Unable to read"):
+        load_snowflake_private_key(missing, passphrase=None)
+
+
+def test_load_private_key_garbage_file(tmp_path: Path) -> None:
+    key_path = tmp_path / "not-a-key.p8"
+    key_path.write_text("this is not a PEM private key\n")
+    with pytest.raises(ConnectionError, match="Unable to load private key"):
+        load_snowflake_private_key(key_path, passphrase=None)
+
+
+def test_snowflake_key_pair_builds_passwordless_url_with_private_key(tmp_path: Path) -> None:
+    key_path = tmp_path / "rsa_key.p8"
+    _write_private_key(key_path, passphrase=None)
+
+    url, connect_args = SnowflakeConnector.build_engine_args(
+        {
+            "auth_type": "key_pair",
+            "account": "MYORG-MYACCOUNT",
+            "user": "svc_user",
+            "private_key_path": str(key_path),
+            "warehouse": "WH",
+            "database": "SNOWFLAKE",
+            "schema": "ACCOUNT_USAGE",
+            "role": "SYSADMIN",
+        }
+    )
+    rendered = url.render_as_string(hide_password=False)
+    assert rendered.startswith("snowflake://svc_user@MYORG-MYACCOUNT/SNOWFLAKE/ACCOUNT_USAGE")
+    assert url.password is None
+    assert set(connect_args) == {"private_key"}
+    assert isinstance(connect_args["private_key"], bytes)
+    assert connect_args["private_key"]  # non-empty DER PKCS8
+
+
+def test_connector_raises_when_account_missing() -> None:
     with pytest.raises(KeyError):
         SnowflakeConnector({"connection": {"user": "svc_user", "pat": "token"}})

@@ -1,8 +1,9 @@
 import logging
 
-from databricks.sdk.core import with_user_agent_extra, with_product
 from databricks.labs.blueprint.entrypoint import is_in_debug
 from databricks.labs.blueprint.logger import install_logger
+from databricks.sdk.core import with_product, with_user_agent_extra
+
 from databricks.labs.lakebridge.__about__ import __version__
 from databricks.labs.lakebridge.helpers.telemetry_utils import get_entrypoint_from_env
 

@@ -1,11 +1,11 @@
 from unittest.mock import patch
 
 import pytest
-
 from databricks.labs.blueprint.tui import MockPrompts
-from databricks.labs.lakebridge.helpers.recon_config_utils import ReconConfigPrompts
 from databricks.sdk.errors.platform import ResourceDoesNotExist
 from databricks.sdk.service.workspace import SecretScope
+
+from databricks.labs.lakebridge.helpers.recon_config_utils import ReconConfigPrompts
 
 # Indices follow the alphabetically-sorted ReconSourceType values (Prompts.choice sorts):
 # bigquery, databricks, mssql, oracle, redshift, snowflake, synapse, teradata

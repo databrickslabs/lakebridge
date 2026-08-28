@@ -5,16 +5,16 @@ import sqlglot.expressions as exp
 from pyspark.sql import DataFrame
 from sqlglot import Dialect, parse_one, select
 
-from databricks.labs.lakebridge.reconcile.constants import RECON_SAMPLE_VIEW_PREFIX
 from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import DialectUtils
-from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect, get_key_from_dialect
+from databricks.labs.lakebridge.reconcile.constants import RECON_SAMPLE_VIEW_PREFIX
 from databricks.labs.lakebridge.reconcile.query_builder.base import QueryBuilder
 from databricks.labs.lakebridge.reconcile.query_builder.expression_generator import (
-    build_column,
-    build_literal,
     _get_is_string,
+    build_column,
     build_join_clause,
+    build_literal,
 )
+from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect, get_key_from_dialect
 
 logger = logging.getLogger(__name__)
 

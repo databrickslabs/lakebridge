@@ -1,8 +1,8 @@
 import json
-from pathlib import Path
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from unittest.mock import patch, MagicMock
+from pathlib import Path
+from unittest.mock import MagicMock, patch
 from uuid import UUID
 
 import pytest
@@ -11,19 +11,15 @@ from pyspark.errors import PySparkException
 from pyspark.testing import assertDataFrameEqual
 
 from databricks.labs.lakebridge.config import (
-    TableRecon,
-    ReconcileMetadataConfig,
     ReconcileConfig,
+    ReconcileMetadataConfig,
     SourceConnectionConfig,
+    TableRecon,
     TargetConnectionConfig,
 )
+from databricks.labs.lakebridge.reconcile.connectors.data_source import MockDataSource
 from databricks.labs.lakebridge.reconcile.connectors.databricks import DatabricksDataSource
 from databricks.labs.lakebridge.reconcile.connectors.snowflake import SnowflakeDataSource
-from databricks.labs.lakebridge.reconcile.reconciliation import Reconciliation
-from databricks.labs.lakebridge.reconcile.trigger_recon_service import TriggerReconService
-from databricks.labs.lakebridge.reconcile.utils import initialise_data_source
-from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
-from databricks.labs.lakebridge.reconcile.connectors.data_source import MockDataSource
 from databricks.labs.lakebridge.reconcile.exception import (
     DataSourceRuntimeException,
     InvalidInputException,
@@ -32,12 +28,16 @@ from databricks.labs.lakebridge.reconcile.exception import (
 from databricks.labs.lakebridge.reconcile.recon_output_config import (
     DataReconcileOutput,
     MismatchOutput,
-    ThresholdOutput,
     ReconcileOutput,
     ReconcileTableOutput,
     StatusOutput,
+    ThresholdOutput,
 )
+from databricks.labs.lakebridge.reconcile.reconciliation import Reconciliation
 from databricks.labs.lakebridge.reconcile.schema_compare import SchemaCompare
+from databricks.labs.lakebridge.reconcile.trigger_recon_service import TriggerReconService
+from databricks.labs.lakebridge.reconcile.utils import initialise_data_source
+from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
 from tests.integration.reconcile.conftest import FakeReconIntermediatePersist
 
 CATALOG = "org"

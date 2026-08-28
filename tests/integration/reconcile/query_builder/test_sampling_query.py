@@ -1,9 +1,8 @@
 from datetime import date
 
-from pyspark.sql.types import IntegerType, StringType, StructField, StructType, DoubleType, DateType
+from pyspark.sql.types import DateType, DoubleType, IntegerType, StringType, StructField, StructType
 
 from databricks.labs.lakebridge.reconcile.normalize_recon_config_service import NormalizeReconConfigService
-from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
 from databricks.labs.lakebridge.reconcile.query_builder.sampling_query import (
     SamplingQueryBuilder,
 )
@@ -13,12 +12,12 @@ from databricks.labs.lakebridge.reconcile.recon_config import (
     Table,
     Transformation,
 )
-
+from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
 from tests.conftest import (
-    oracle_schema_fixture_factory,
     ansi_schema_fixture_factory,
-    tsql_schema_fixture_factory,
     make_column_transformer,
+    oracle_schema_fixture_factory,
+    tsql_schema_fixture_factory,
 )
 
 

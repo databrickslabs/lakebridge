@@ -1,5 +1,6 @@
 import difflib
 from pathlib import Path
+
 from databricks.labs.lakebridge.config import TranspileConfig
 from databricks.labs.lakebridge.transpiler.execute import transpile
 

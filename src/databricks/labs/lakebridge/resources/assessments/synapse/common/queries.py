@@ -433,7 +433,6 @@ class SynapseQueries:
                         INNER JOIN SYS.INDEXES I ON P.OBJECT_ID = I.OBJECT_ID AND P.INDEX_ID = I.INDEX_ID
                         INNER JOIN SYS.ALLOCATION_UNITS AU ON P.PARTITION_ID = AU.CONTAINER_ID
                WHERE P.OBJECT_ID > 255
-               ORDER BY AU.TOTAL_PAGES DESC
                """
 
     @staticmethod
@@ -463,7 +462,6 @@ class SynapseQueries:
                 CURRENT_TIMESTAMP as EXTRACT_TS
             FROM SYS.DM_EXEC_QUERY_STATS QS
             WHERE QS.last_execution_time >= DATEADD(day, -{days}, GETDATE())
-            ORDER BY QS.total_elapsed_time DESC
         """
 
     @staticmethod

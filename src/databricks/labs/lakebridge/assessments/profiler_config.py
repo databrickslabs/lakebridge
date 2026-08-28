@@ -1,8 +1,9 @@
 import dataclasses
+import logging
 import re
 from dataclasses import dataclass, field
 
-import logging
+from databricks.labs.lakebridge.assessments import RESERVED_TABLE_NAMES
 
 # Valid SQL identifier pattern: must start with letter or underscore,
 # followed by letters, numbers, or underscores only
@@ -48,6 +49,14 @@ class Step:
             raise ValueError(
                 f"Step name '{self.name}' is too long ({len(self.name)} characters). "
                 f"Maximum length is 255 characters."
+            )
+
+        # Casefolded because DuckDB identifiers are case-insensitive: a step named
+        # PROFILER_RUN_METADATA targets the same table as profiler_run_metadata.
+        if self.name.casefold() in RESERVED_TABLE_NAMES:
+            raise ValueError(
+                f"Step name '{self.name}' is reserved: the profiler writes this table itself. "
+                f"Reserved names: {', '.join(sorted(RESERVED_TABLE_NAMES))}."
             )
 
     def _validate_mode(self) -> None:

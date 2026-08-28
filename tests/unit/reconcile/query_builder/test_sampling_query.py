@@ -6,8 +6,7 @@ from pyspark.sql.types import DataType, IntegerType, StructField, StructType
 from databricks.labs.lakebridge.reconcile.query_builder.sampling_query import SamplingQueryBuilder
 from databricks.labs.lakebridge.reconcile.recon_config import Filters
 from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
-
-from tests.conftest import ansi_schema_fixture_factory, oracle_schema_fixture_factory, make_column_transformer
+from tests.conftest import ansi_schema_fixture_factory, make_column_transformer, oracle_schema_fixture_factory
 
 
 def test_build_query_with_alias_emits_select_with_filter(table_conf, fake_databricks_datasource):

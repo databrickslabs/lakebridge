@@ -7,8 +7,8 @@ from databricks.labs.blueprint.upgrades import Upgrades
 from databricks.labs.blueprint.wheels import ProductInfo, Version
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.errors import NotFound
-from databricks.sdk.mixins.compute import SemVer
 from databricks.sdk.errors.platform import InvalidParameterValue, ResourceDoesNotExist
+from databricks.sdk.mixins.compute import SemVer
 
 from databricks.labs.lakebridge.config import LakebridgeConfiguration
 from databricks.labs.lakebridge.deployment.recon import ReconDeployment

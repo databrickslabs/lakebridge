@@ -1,4 +1,5 @@
 from pyspark.errors import PySparkException
+
 from databricks.labs.lakebridge.reconcile.recon_output_config import ReconcileOutput
 
 

@@ -1,23 +1,32 @@
-from abc import ABC, abstractmethod
-from collections.abc import Callable
-from pathlib import Path
 import logging
 import os
 import shutil
+from abc import ABC, abstractmethod
+from collections.abc import Callable
+from pathlib import Path
 from typing import Any
-import yaml
 
+import yaml
 from databricks.labs.blueprint.tui import Prompts
 
+from databricks.labs.lakebridge.connections.bigquery_connection_helpers import validate_bigquery_pairs
 from databricks.labs.lakebridge.connections.credential_manager import (
-    cred_file as creds,
     create_credential_manager,
 )
+from databricks.labs.lakebridge.connections.credential_manager import (
+    cred_file as creds,
+)
 from databricks.labs.lakebridge.connections.database_manager import create_connector
-from databricks.labs.lakebridge.connections.mssql_auth import AUTH_CHOICES
 from databricks.labs.lakebridge.connections.env_getter import EnvGetter
+from databricks.labs.lakebridge.connections.mssql_auth import AUTH_CHOICES
+from databricks.labs.lakebridge.connections.snowflake_auth import (
+    AUTH_CHOICES as SNOWFLAKE_AUTH_CHOICES,
+)
+from databricks.labs.lakebridge.connections.snowflake_auth import (
+    KeyPair,
+    Pat,
+)
 from databricks.labs.lakebridge.connections.synapse_connection_helpers import validate_synapse_pools
-from databricks.labs.lakebridge.connections.bigquery_connection_helpers import validate_bigquery_pairs
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +56,48 @@ def _prompt_mssql_auth_credentials(prompts: Prompts, auth_type: str) -> dict[str
             "AZURE_TENANT_ID / AZURE_CLIENT_ID / AZURE_CLIENT_SECRET for unattended runs."
         )
         return {}
+    return {}
+
+
+def _prompt_snowflake_auth_credentials(prompts: Prompts, auth_label: str, secret_vault_type: str) -> dict[str, str]:
+    """Prompt for Snowflake auth-specific fields for the chosen strategy."""
+    if auth_label == Pat.label:
+        logger.info(
+            "Authentication uses a Programmatic Access Token (PAT). See Snowflake's docs: "
+            "https://docs.snowflake.com/en/user-guide/programmatic-access-tokens"
+            "#generating-a-programmatic-access-token"
+        )
+        if secret_vault_type == "env":
+            return {"pat": prompts.question("Enter the environment variable name holding the PAT")}
+        return {"pat": prompts.password("Enter Programmatic Access Token (PAT)")}
+
+    if auth_label == KeyPair.label:
+        logger.info(
+            "Authentication uses key-pair. See Snowflake's docs: "
+            "https://docs.snowflake.com/en/user-guide/key-pair-auth"
+        )
+        logger.info(
+            "Store the private key path in credentials (not the PEM contents). "
+            "Encrypted .p8 keys require a passphrase."
+        )
+        auth_fields: dict[str, str] = {}
+        if secret_vault_type == "env":
+            auth_fields["private_key_path"] = prompts.question(
+                "Enter the environment variable name holding the private key path"
+            )
+        else:
+            auth_fields["private_key_path"] = prompts.question(
+                "Enter path to the private key file (e.g., /path/to/rsa_key.p8)"
+            )
+        if prompts.confirm("Is the private key encrypted with a passphrase?"):
+            if secret_vault_type == "env":
+                auth_fields["private_key_passphrase"] = prompts.question(
+                    "Enter the environment variable name holding the private key passphrase"
+                )
+            else:
+                auth_fields["private_key_passphrase"] = prompts.password("Enter private key passphrase")
+        return auth_fields
+
     return {}
 
 
@@ -370,22 +421,14 @@ class ConfigureSnowflakeAssessment(AssessmentConfigurator):
         )
         secret_vault_type = str(self.prompts.choice("Enter secret vault type (local | env)", ["local", "env"])).lower()
 
-        # Snowflake Connection Settings
         logger.info("Snowflake Assessment Configuration")
-        logger.info("Authentication uses a Programmatic Access Token (PAT). See Snowflake's docs:")
-        logger.info(
-            "  https://docs.snowflake.com/en/user-guide/programmatic-access-tokens"
-            "#generating-a-programmatic-access-token"
-        )
+        auth_choices = {cls.label: cls.auth_type for cls in SNOWFLAKE_AUTH_CHOICES}
+        auth_label = self.prompts.choice("Select authentication method", list(auth_choices.keys()), sort=True)
+        auth_type = auth_choices[auth_label]
+        auth_credentials = _prompt_snowflake_auth_credentials(self.prompts, auth_label, secret_vault_type)
 
-        # In env mode the stored value is the name of an environment variable that
-        # EnvGetter resolves at runtime, not the token itself, so prompt accordingly.
-        if secret_vault_type == "env":
-            pat = self.prompts.question("Enter the environment variable name holding the PAT")
-        else:
-            pat = self.prompts.password("Enter Programmatic Access Token (PAT)")
-
-        snowflake_connection = {
+        snowflake_connection: dict[str, Any] = {
+            "auth_type": auth_type,
             "account": self.prompts.question(
                 "Enter Snowflake account URL (e.g., myorg-myaccount.snowflakecomputing.com)"
             ),
@@ -394,9 +437,7 @@ class ConfigureSnowflakeAssessment(AssessmentConfigurator):
             "database": self.prompts.question("Enter database name", default="SNOWFLAKE"),
             "schema": self.prompts.question("Enter schema name", default="ACCOUNT_USAGE"),
             "role": self.prompts.question("Enter role", default="ACCOUNTADMIN"),
-            # Stored under `pat` (not `password`) to flag this is a rotating
-            # Programmatic Access Token, not a SQL password.
-            "pat": pat,
+            **auth_credentials,
         }
 
         credential = {
@@ -422,6 +463,13 @@ class ConfigureTeradataAssessment(AssessmentConfigurator):
         secret_vault_type = str(self.prompts.choice("Enter secret vault type (local | env)", ["local", "env"])).lower()
         secret_vault_name = None
 
+        # Prompt for the connection fields in their natural order (host, port, database, user,
+        # password) so the flow matches the other configurators (e.g. Oracle, Redshift). The
+        # password is read last because the `env` vault stores an env-var name, not the secret.
+        host = self.prompts.question("Enter the Teradata server or host details")
+        port = int(self.prompts.question("Enter the port details", valid_number=True, default="1025"))
+        database = self.prompts.question("Enter the default database name", default="DBC")
+        user = self.prompts.question("Enter the user details")
         if secret_vault_type == "env":
             password = self.prompts.question("Enter the environment variable name holding the password")
         else:
@@ -431,11 +479,11 @@ class ConfigureTeradataAssessment(AssessmentConfigurator):
             "secret_vault_type": secret_vault_type,
             "secret_vault_name": secret_vault_name,
             source: {
-                "host": self.prompts.question("Enter the Teradata server or host details"),
-                "port": int(self.prompts.question("Enter the port details", valid_number=True, default="1025")),
-                "user": self.prompts.question("Enter the user details"),
+                "host": host,
+                "port": port,
+                "user": user,
                 "password": password,
-                "database": self.prompts.question("Enter the default database name", default="DBC"),
+                "database": database,
             },
         }
 

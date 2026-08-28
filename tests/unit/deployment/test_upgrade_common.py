@@ -1,18 +1,19 @@
 from unittest.mock import patch
-from databricks.labs.lsql.backends import MockBackend
-from databricks.labs.blueprint.tui import MockPrompts
-from databricks.labs.blueprint.installation import MockInstallation
-from databricks.labs.lakebridge.contexts.application import ApplicationContext
 
+from databricks.labs.blueprint.installation import MockInstallation
+from databricks.labs.blueprint.tui import MockPrompts
+from databricks.labs.lsql.backends import MockBackend
+
+from databricks.labs.lakebridge.contexts.application import ApplicationContext
 from databricks.labs.lakebridge.deployment.upgrade_common import (
-    replace_patterns,
-    extract_columns_with_datatype,
-    extract_column_name,
-    table_original_query,
-    current_table_columns,
-    installed_table_columns,
     check_table_mismatch,
+    current_table_columns,
+    extract_column_name,
+    extract_columns_with_datatype,
+    installed_table_columns,
     recreate_table_sql,
+    replace_patterns,
+    table_original_query,
 )
 
 

@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import logging
-
-from dataclasses import dataclass, field
 from collections.abc import Callable
+from dataclasses import dataclass, field
+
 from sqlglot import expressions as exp
 
 from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import DialectUtils

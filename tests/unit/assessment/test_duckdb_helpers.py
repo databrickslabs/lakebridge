@@ -1,13 +1,17 @@
 from __future__ import annotations
 
+from datetime import datetime
 from pathlib import Path
 
 import duckdb
 import pandas as pd
+import pyarrow as pa
 import pytest
 
 from databricks.labs.lakebridge.resources.assessments.common.duckdb_helpers import (
+    connect_to_profiler_db,
     save_to_duckdb,
+    save_to_duckdb_conn,
 )
 
 _EXPECTED_STORAGE_VERSION = "v1.4.0+"
@@ -179,8 +183,77 @@ def test_invalid_mode_raises(tmp_path: Path) -> None:
         save_to_duckdb(pd.DataFrame({"id": [1]}), "t1", db_path, mode="upsert")  # type: ignore[arg-type]
 
 
+@pytest.mark.parametrize("schema", [None, "id BIGINT"])
+def test_failed_overwrite_leaves_existing_table_intact(tmp_path: Path, schema: str | None) -> None:
+    """Both overwrite paths reach the table in several statements: without ``schema`` a
+    ``TRUNCATE`` precedes the insert, with one a ``DROP``/``CREATE`` does. A failed insert
+    must leave neither an emptied nor a missing table behind.
+    """
+    db_path = str(tmp_path / "t.duckdb")
+    save_to_duckdb(pd.DataFrame({"id": [1, 2]}), "t1", db_path, schema="id BIGINT")
+
+    # One column in the table, two in the frame: the insert fails after the table was cleared.
+    with pytest.raises(duckdb.BinderException):
+        save_to_duckdb(pd.DataFrame({"id": [9], "extra": ["x"]}), "t1", db_path, schema=schema)
+
+    out = _read_table(db_path, "t1").sort_values("id").reset_index(drop=True)
+    assert out["id"].tolist() == [1, 2]
+
+
 def test_save_to_duckdb_writes_storage_compatibility_version(tmp_path: Path) -> None:
     db_path = tmp_path / "t.duckdb"
     save_to_duckdb(pd.DataFrame({"id": [1]}), "t1", str(db_path))
 
     assert _storage_version(db_path) == _EXPECTED_STORAGE_VERSION
+
+
+def test_arrow_batches_on_shared_connection_preserve_types_across_null_first_chunk(tmp_path: Path) -> None:
+    """Arrow declares types even when a batch is all-null, so overwrite→append needs no DuckDB schema=."""
+    db_path = str(tmp_path / "t.duckdb")
+    arrow_schema = pa.schema(
+        [
+            ("id", pa.int64()),
+            ("login_time", pa.timestamp("us")),
+        ]
+    )
+    batch_1 = pa.table(
+        {
+            "id": [1, 2],
+            "login_time": pa.array([None, None], type=pa.timestamp("us")),
+        },
+        schema=arrow_schema,
+    )
+    batch_2 = pa.table(
+        {
+            "id": [3, 4],
+            "login_time": pa.array(
+                [datetime(2024, 1, 1), datetime(2024, 1, 2)],
+                type=pa.timestamp("us"),
+            ),
+        },
+        schema=arrow_schema,
+    )
+    empty_batch = pa.table(
+        {
+            "id": pa.array([], type=pa.int64()),
+            "login_time": pa.array([], type=pa.timestamp("us")),
+        },
+        schema=arrow_schema,
+    )
+
+    with connect_to_profiler_db(db_path) as conn:
+        save_to_duckdb_conn(conn, batch_1, "t1", mode="overwrite")
+        save_to_duckdb_conn(conn, batch_2, "t1", mode="append")
+        save_to_duckdb_conn(conn, empty_batch, "t1", mode="append")
+
+    types = _column_types(db_path, "t1")
+    assert types["id"] == "BIGINT"
+    assert types["login_time"].startswith("TIMESTAMP")
+
+    out = _read_table(db_path, "t1").sort_values("id").reset_index(drop=True)
+    assert out["id"].tolist() == [1, 2, 3, 4]
+    assert pd.isna(out["login_time"].iloc[0]) and pd.isna(out["login_time"].iloc[1])
+    assert list(out["login_time"].iloc[2:4]) == [
+        pd.Timestamp("2024-01-01 00:00:00"),
+        pd.Timestamp("2024-01-02 00:00:00"),
+    ]
