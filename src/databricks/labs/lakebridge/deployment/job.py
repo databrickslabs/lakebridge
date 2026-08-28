@@ -8,21 +8,22 @@ from databricks.sdk import WorkspaceClient
 from databricks.sdk.errors import InvalidParameterValue
 from databricks.sdk.service import compute
 from databricks.sdk.service.jobs import (
-    Task,
-    PythonWheelTask,
-    JobCluster,
-    JobSettings,
+    JobEnvironment,
     JobParameterDefinition,
+    JobSettings,
+    PythonWheelTask,
+    Task,
 )
-from databricks.labs.lakebridge.config import ReconcileConfig, ProfilerDashboardConfig
-from databricks.labs.lakebridge.deployment.dashboard import ProfilerDashboardManager
+
+from databricks.labs.lakebridge.config import ReconcileConfig
 
 logger = logging.getLogger(__name__)
 
 
 class JobDeployment:
 
-    DEFAULT_CLUSTER_NAME = "Remorph_Reconciliation_Cluster"
+    SERVERLESS_ENVIRONMENT_KEY = "reconcile_serverless"
+    SERVERLESS_ENVIRONMENT_VERSION = "3"
 
     def __init__(
         self,
@@ -80,10 +81,9 @@ class JobDeployment:
             logger.debug(f"Applying deployment overrides: {recon_config.job_overrides}")
             tags.update(recon_config.job_overrides.tags)
 
-        return {
+        job_settings = {
             "name": self._name_with_prefix(job_name),
             "tags": tags,
-            "job_clusters": [] if recon_config.job_overrides else [self._default_job_cluster()],
             "tasks": [
                 self._job_recon_task(
                     task_key,
@@ -98,21 +98,33 @@ class JobDeployment:
                 JobParameterDefinition(name="install_folder", default=self._installation.install_folder()),
             ],
         }
+        if not self._existing_cluster_id(recon_config):
+            job_settings["environments"] = [
+                JobEnvironment(
+                    environment_key=self.SERVERLESS_ENVIRONMENT_KEY,
+                    spec=compute.Environment(
+                        environment_version=self.SERVERLESS_ENVIRONMENT_VERSION,
+                        dependencies=[lakebridge_wheel_path],
+                    ),
+                )
+            ]
+        return job_settings
 
     def _job_recon_task(
         self, task_key: str, description: str, recon_config: ReconcileConfig, lakebridge_wheel_path: str
     ) -> Task:
-        libraries = [
-            compute.Library(whl=lakebridge_wheel_path),
-        ]
+        existing_cluster_id = self._existing_cluster_id(recon_config)
+        # The job runs on serverless compute unless job_overrides points at a classic
+        # cluster. Serverless tasks must not set libraries or cluster references; the
+        # wheel is supplied through the job-level environment instead
+        # (see _recon_job_settings). Classic clusters get the wheel as a library.
+        libraries = [compute.Library(whl=lakebridge_wheel_path)] if existing_cluster_id else None
 
         task = Task(
             task_key=task_key,
             description=description,
-            job_cluster_key=None if recon_config.job_overrides else self.DEFAULT_CLUSTER_NAME,
-            existing_cluster_id=(
-                recon_config.job_overrides.existing_cluster_id if recon_config.job_overrides else None
-            ),
+            existing_cluster_id=existing_cluster_id,
+            environment_key=None if existing_cluster_id else self.SERVERLESS_ENVIRONMENT_KEY,
             libraries=libraries,
             python_wheel_task=PythonWheelTask(
                 package_name=self.parse_package_name(lakebridge_wheel_path),
@@ -121,25 +133,16 @@ class JobDeployment:
             ),
         )
         logger.debug(
-            f"Reconciliation job task cluster: existing: {task.existing_cluster_id} or name: {task.job_cluster_key}"
+            f"Reconciliation job task cluster: existing: {task.existing_cluster_id} "
+            f"or environment: {task.environment_key}"
         )
         return task
 
-    def _default_job_cluster(self) -> JobCluster:
-        latest_lts_spark = self._ws.clusters.select_spark_version(latest=True, long_term_support=True)
-        return JobCluster(
-            job_cluster_key=self.DEFAULT_CLUSTER_NAME,
-            new_cluster=compute.ClusterSpec(
-                data_security_mode=compute.DataSecurityMode.USER_ISOLATION,
-                spark_conf={},
-                node_type_id=self._get_default_node_type_id(),
-                autoscale=compute.AutoScale(min_workers=2, max_workers=10),
-                spark_version=latest_lts_spark,
-            ),
-        )
-
-    def _get_default_node_type_id(self) -> str:
-        return self._ws.clusters.select_node_type(local_disk=True, min_memory_gb=16)
+    @staticmethod
+    def _existing_cluster_id(recon_config: ReconcileConfig) -> str | None:
+        if recon_config.job_overrides:
+            return recon_config.job_overrides.existing_cluster_id or None
+        return None
 
     def _name_with_prefix(self, name: str) -> str:
         prefix = self._installation.product()
@@ -155,131 +158,3 @@ class JobDeployment:
             name = default_name
 
         return name
-
-    def deploy_profiler_ingestion_job(
-        self,
-        name: str,
-        profiler_dashboard_config: ProfilerDashboardConfig,
-        lakebridge_wheel_path: str,
-    ):
-        logger.info("Deploying profiler ingestion job.")
-        job_id = self._update_or_create_profiler_ingestion_job(name, profiler_dashboard_config, lakebridge_wheel_path)
-        logger.info(f"Profiler ingestion job deployed with job_id={job_id}")
-        logger.info(f"Job URL: {self._ws.config.host}#job/{job_id}")
-        self._install_state.save()
-
-    def _update_or_create_profiler_ingestion_job(
-        self,
-        name: str,
-        profiler_dashboard_config: ProfilerDashboardConfig,
-        lakebridge_wheel_path: str,
-    ) -> str:
-        description = "Ingest Lakebridge profiler results"
-        task_key = "ingest_profiler_extract"
-        extract_path = profiler_dashboard_config.extract_file_path
-        catalog_name = profiler_dashboard_config.metadata_config.catalog
-        schema_name = profiler_dashboard_config.metadata_config.schema
-        volume_name = profiler_dashboard_config.metadata_config.volume
-        volume_location = f"/Volumes/{catalog_name}/{schema_name}/{volume_name}"
-        resolved_volume_location = ProfilerDashboardManager.resolve_volume_path(extract_path, volume_location)
-        source_tech = profiler_dashboard_config.source_tech
-
-        job_settings = self._profiler_ingestion_job_settings(
-            name,
-            task_key,
-            description,
-            catalog_name,
-            schema_name,
-            resolved_volume_location,
-            source_tech,
-            lakebridge_wheel_path,
-        )
-        if name in self._install_state.jobs:
-            try:
-                job_id = int(self._install_state.jobs[name])
-                logger.info(f"Updating configuration for job `{name}`, job_id={job_id}")
-                self._ws.jobs.reset(job_id, JobSettings(**job_settings))
-                return str(job_id)
-            except InvalidParameterValue:
-                del self._install_state.jobs[name]
-                logger.warning(f"Job `{name}` does not exist anymore for some reason")
-                return self._update_or_create_profiler_ingestion_job(
-                    name, profiler_dashboard_config, lakebridge_wheel_path
-                )
-
-        logger.info(f"Creating new job configuration for job `{name}`")
-        new_job = self._ws.jobs.create(**job_settings)
-        assert new_job.job_id is not None
-        self._install_state.jobs[name] = str(new_job.job_id)
-        return str(new_job.job_id)
-
-    def _profiler_ingestion_job_settings(
-        self,
-        job_name: str,
-        task_key: str,
-        description: str,
-        catalog_name: str,
-        schema_name: str,
-        volume_location: str,
-        source_tech: str,
-        lakebridge_wheel_path: str,
-    ) -> dict[str, Any]:
-
-        latest_lts_spark = self._ws.clusters.select_spark_version(latest=True, long_term_support=True)
-        version = self._product_info.version()
-        version = version if not self._ws.config.is_gcp else version.replace("+", "-")
-        tags = {"version": f"v{version}"}
-
-        return {
-            "name": self._name_with_prefix(job_name),
-            "tags": tags,
-            "job_clusters": [
-                JobCluster(
-                    job_cluster_key="Lakebridge_Profiler_Ingest_Cluster",
-                    new_cluster=compute.ClusterSpec(
-                        data_security_mode=compute.DataSecurityMode.USER_ISOLATION,
-                        spark_conf={},
-                        node_type_id=self._get_default_node_type_id(),
-                        autoscale=compute.AutoScale(min_workers=1, max_workers=3),
-                        spark_version=latest_lts_spark,
-                    ),
-                )
-            ],
-            "tasks": [
-                self._job_profiler_ingestion_task(
-                    task_key,
-                    description,
-                    lakebridge_wheel_path,
-                ),
-            ],
-            "max_concurrent_runs": 1,
-            "parameters": [
-                JobParameterDefinition(name="catalog_name", default=catalog_name),
-                JobParameterDefinition(name="schema_name", default=schema_name),
-                JobParameterDefinition(name="extract_location", default=volume_location),
-                JobParameterDefinition(name="source_tech", default=source_tech),
-            ],
-        }
-
-    def _job_profiler_ingestion_task(self, task_key: str, description: str, lakebridge_wheel_path: str) -> Task:
-        libraries = [
-            compute.Library(whl=lakebridge_wheel_path),
-            compute.Library(pypi=compute.PythonPyPiLibrary(package="duckdb")),
-        ]
-
-        return Task(
-            task_key=task_key,
-            description=description,
-            job_cluster_key="Lakebridge_Profiler_Ingest_Cluster",
-            libraries=libraries,
-            python_wheel_task=PythonWheelTask(
-                package_name=self.parse_package_name(lakebridge_wheel_path),
-                entry_point="profiler_dashboards",
-                parameters=[
-                    "{{job.parameters.[catalog_name]}}",
-                    "{{job.parameters.[schema_name]}}",
-                    "{{job.parameters.[extract_location]}}",
-                    "{{job.parameters.[source_tech]}}",
-                ],
-            ),
-        )

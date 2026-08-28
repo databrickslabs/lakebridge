@@ -32,6 +32,7 @@ def test_analyze_arguments_return(tmp_path: Path, report_file: Path) -> None:
     path = tmp_path / "in"
     file = tmp_path / report_file
     mock_prompts = MockPrompts({})
+    path.mkdir()
 
     runner = AnalyzerRunner(runnable=_mock_analyze, is_debug=True)
     expected_result = AnalyzerResult(source_directory=path, report_path=file, source_system=str("Synapse"))
@@ -46,6 +47,7 @@ def test_analyze_prompts_result(tmp_path: Path):
     first_tech = next(iter(sorted(Analyzer.supported_source_technologies(), key=str.casefold)))
     input_path = tmp_path / "in"
     report_file = tmp_path / "report.xlsx"
+    input_path.mkdir()
     mock_prompts = MockPrompts(
         {
             "Select the source technology": "0",
@@ -61,6 +63,7 @@ def test_analyze_prompt_relative_result_path(tmp_path: Path) -> None:
     """Verify the handling when a relative path is provided for the report file."""
     first_tech = next(iter(sorted(Analyzer.supported_source_technologies(), key=str.casefold)))
     input_path = Path("in")
+    (tmp_path / input_path).mkdir()
     report_file = Path("report.xlsx")
     mock_prompts = MockPrompts(
         {

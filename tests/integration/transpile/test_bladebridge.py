@@ -11,6 +11,7 @@ from databricks.labs.lakebridge.config import TranspileConfig
 from databricks.labs.lakebridge.contexts.application import ApplicationContext
 from databricks.labs.lakebridge.transpiler.installers import WheelInstaller
 from databricks.labs.lakebridge.transpiler.repository import TranspilerRepository
+
 from .common_utils import assert_sql_outputs
 
 logger = logging.getLogger(__name__)
@@ -31,7 +32,7 @@ def capture_bladebridge_logs(
     transpiler_repository: TranspilerRepository,
     *,
     level: int = logging.DEBUG,
-) -> Generator[None, None, None]:
+) -> Generator[None]:
     """Reset the logs from Bladebridge before yielding, and capture them afterward, to help with test debugging."""
     # TODO: Move this into the core?
     #   - Extend the LSP config.yml to describe where error logs go.
@@ -59,7 +60,7 @@ def capture_bladebridge_logs(
 
 
 @pytest.fixture(name="errors_path")
-def capture_errors_log(tmp_path: Path) -> Generator[Path, None, None]:
+def capture_errors_log(tmp_path: Path) -> Generator[Path]:
     """The path to an errors log file. If it exists after the test, its content will be logged to help with debugging."""
     path = tmp_path / "errors.log"
     yield path
@@ -105,7 +106,7 @@ def test_transpiles_informatica_to_sparksql(
             ctx=application_ctx,
             transpiler_repository=repository_with_bladebridge,
         )
-    (out, _) = capsys.readouterr()
+    out, _ = capsys.readouterr()
 
     # Check the conversion summary.
     summary = json.loads(out)
@@ -168,7 +169,7 @@ def test_transpiles_informatica_to_sparksql_non_interactive(
             transpiler_repository=repository_with_bladebridge,
             **kwargs,
         )
-    (out, _) = capsys.readouterr()
+    out, _ = capsys.readouterr()
 
     _check_transpile_informatica_to_sparksql(out, output_folder, errors_path)
 
@@ -226,7 +227,7 @@ def test_transpile_teradata_sql(
     # Run the conversion.
     with capture_bladebridge_logs(repository_with_bladebridge):
         cli.transpile(w=application_ctx.workspace_client, ctx=application_ctx)
-    (out, _) = capsys.readouterr()
+    out, _ = capsys.readouterr()
 
     _check_transpile_teradata_sql(out, output_folder, errors_path)
 
@@ -272,7 +273,7 @@ def test_transpile_teradata_sql_non_interactive(
             transpiler_repository=repository_with_bladebridge,
             **kwargs,
         )
-    (out, _) = capsys.readouterr()
+    out, _ = capsys.readouterr()
 
     _check_transpile_teradata_sql(out, output_folder, errors_path)
 
@@ -318,7 +319,7 @@ PRIMARY KEY (col1,col3) )
 TBLPROPERTIES('delta.feature.allowColumnDefaults' = 'supported');"""
     expected_validation_failure_sql = """-------------- Exception Start-------------------
 /*
-[UNRESOLVED_ROUTINE] Cannot resolve routine `cole` on search path [`system`.`builtin`, `system`.`session`, `catalog`.`schema`].
+[UNRESOLVED_ROUTINE] Cannot resolve routine `cole` on search path [`system`.`session`, `system`.`builtin`, `system`.`ai`, `catalog`.`schema`].
 */
 select cole(hello) world from table;
 

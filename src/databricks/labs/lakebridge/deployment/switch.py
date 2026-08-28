@@ -1,19 +1,24 @@
 import importlib.resources
 import logging
+import sys
 from collections.abc import Generator, Sequence
-from importlib.abc import Traversable
 from pathlib import PurePosixPath
 from typing import Any
 
 from databricks.labs import switch
-from databricks.labs.switch.__about__ import __version__ as switch_version
 from databricks.labs.blueprint.installation import Installation
 from databricks.labs.blueprint.installer import InstallState
 from databricks.labs.blueprint.paths import WorkspacePath
+from databricks.labs.switch.__about__ import __version__ as switch_version
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.errors import InvalidParameterValue, NotFound
 from databricks.sdk.service import compute
 from databricks.sdk.service.jobs import JobCluster, JobParameterDefinition, JobSettings, NotebookTask, Source, Task
+
+if sys.version_info >= (3, 11):
+    from importlib.resources.abc import Traversable
+else:
+    from importlib.abc import Traversable
 
 
 logger = logging.getLogger(__name__)

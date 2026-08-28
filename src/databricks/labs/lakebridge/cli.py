@@ -8,34 +8,40 @@ import re
 import sys
 import time
 import webbrowser
-from collections.abc import Mapping, Callable
+from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import NoReturn, TextIO
 
-from databricks.sdk.service.sql import CreateWarehouseRequestWarehouseType
-from databricks.sdk import WorkspaceClient
-
 from databricks.labs.blueprint.cli import App
 from databricks.labs.blueprint.entrypoint import get_logger
-from databricks.labs.blueprint.installation import RootJsonValue, JsonObject, JsonValue
+from databricks.labs.blueprint.installation import JsonObject, JsonValue, RootJsonValue
 from databricks.labs.blueprint.tui import Prompts
+from databricks.labs.switch.lsp import get_switch_dialects
+from databricks.sdk import WorkspaceClient
+from databricks.sdk.errors import NotFound
+from databricks.sdk.service.sql import CreateWarehouseRequestWarehouseType
 
-
+from databricks.labs.lakebridge.assessments import (
+    PRODUCT_NAME,
+    PROFILER_SOURCE_SYSTEM,
+    SOURCE_SYSTEM_VARIANTS,
+)
 from databricks.labs.lakebridge.assessments.configure_assessment import create_assessment_configurator
-from databricks.labs.lakebridge.assessments import PROFILER_SOURCE_SYSTEM, PRODUCT_NAME
-from databricks.labs.lakebridge.assessments.profiler import Profiler
-
-from databricks.labs.lakebridge.config import TranspileConfig, LSPConfigOptionV1
+from databricks.labs.lakebridge.assessments.profiler import Profiler, default_output_folder
+from databricks.labs.lakebridge.config import LSPConfigOptionV1, TableRecon, TranspileConfig
+from databricks.labs.lakebridge.connections.credential_manager import cred_file
 from databricks.labs.lakebridge.contexts.application import ApplicationContext
-from databricks.labs.lakebridge.connections.credential_manager import cred_file, create_credential_manager
-from databricks.labs.lakebridge.connections.database_manager import DatabaseManager
-from databricks.labs.lakebridge.connections.env_getter import EnvGetter
-from databricks.labs.lakebridge.connections.synapse_connection_helpers import validate_synapse_pools
 from databricks.labs.lakebridge.helpers.recon_config_utils import ReconConfigPrompts
 from databricks.labs.lakebridge.helpers.telemetry_utils import make_alphanum_or_semver
-from databricks.labs.lakebridge.reconcile.runner import ReconcileRunner
 from databricks.labs.lakebridge.lineage import lineage_generator
-from databricks.labs.lakebridge.reconcile.recon_config import RECONCILE_OPERATION_NAME, AGG_RECONCILE_OPERATION_NAME
+from databricks.labs.lakebridge.reconcile.recon_config import (
+    AGG_RECONCILE_OPERATION_NAME,
+    AUTO_CONFIGURE_TABLES_OPERATION_NAME,
+    DISCOVER_AND_AUTO_CONFIGURE_TABLES_OPERATION_NAME,
+    DISCOVER_TABLES_OPERATION_NAME,
+    RECONCILE_OPERATION_NAME,
+)
+from databricks.labs.lakebridge.reconcile.runner import ReconcileRunner
 from databricks.labs.lakebridge.transpiler.describe import TranspilersDescription
 from databricks.labs.lakebridge.transpiler.execute import transpile as do_transpile
 from databricks.labs.lakebridge.transpiler.lsp.lsp_engine import LSPEngine
@@ -43,9 +49,7 @@ from databricks.labs.lakebridge.transpiler.repository import TranspilerRepositor
 from databricks.labs.lakebridge.transpiler.sqlglot.sqlglot_engine import SqlglotEngine
 from databricks.labs.lakebridge.transpiler.switch_runner import SwitchRunner
 from databricks.labs.lakebridge.transpiler.transpile_engine import TranspileEngine
-
 from databricks.labs.lakebridge.transpiler.transpile_status import ErrorSeverity
-from databricks.labs.switch.lsp import get_switch_dialects
 
 
 # Subclass to allow controlled access to protected methods.
@@ -100,11 +104,6 @@ def _create_warehouse(ws: WorkspaceClient) -> str:
 
     logger.info(f"Created warehouse with id: {dbsql.id}")
     return dbsql.id
-
-
-def _remove_warehouse(ws: WorkspaceClient, warehouse_id: str):
-    ws.warehouses.delete(warehouse_id)
-    logger.info(f"Removed warehouse post installation with id: {warehouse_id}")
 
 
 @lakebridge.command
@@ -660,6 +659,9 @@ def reconcile(
     """[EXPERIMENTAL] Reconciles source to Databricks datasets"""
     ctx = ctx_factory(w)
     ctx.add_user_agent_extra("cmd", "execute-reconcile")
+    if ctx.recon_config:
+        ctx.add_user_agent_extra("reconcile_source_tech", make_alphanum_or_semver(ctx.recon_config.source.dialect))
+        ctx.add_user_agent_extra("reconcile_report_type", make_alphanum_or_semver(ctx.recon_config.report_type))
     user = ctx.current_user
     logger.debug(f"User: {user}")
     recon_runner = ReconcileRunner(
@@ -670,6 +672,88 @@ def reconcile(
     _, job_run_url = recon_runner.run(operation_name=RECONCILE_OPERATION_NAME)
     if ctx.prompts.confirm(f"Would you like to open the job run URL `{job_run_url}` in the browser?"):
         webbrowser.open(job_run_url)
+
+
+@lakebridge.command
+def auto_configure_recon_tables(
+    *, w: WorkspaceClient, ctx_factory: Callable[[WorkspaceClient], ApplicationContext] = ApplicationContext
+) -> None:
+    """[EXPERIMENTAL] Auto-discover source/target tables and generate the reconcile table mappings"""
+    ctx = ctx_factory(w)
+    ctx.add_user_agent_extra("cmd", "auto-configure-recon-tables")
+    if ctx.recon_config:
+        ctx.add_user_agent_extra("reconcile_source_tech", make_alphanum_or_semver(ctx.recon_config.source.dialect))
+        ctx.add_user_agent_extra("reconcile_report_type", make_alphanum_or_semver(ctx.recon_config.report_type))
+    user = ctx.current_user
+    logger.debug(f"User: {user}")
+    _run_auto_configure_recon_tables(ctx)
+
+
+def _run_auto_configure_recon_tables(ctx: ApplicationContext) -> None:
+    """Drives the recommended discover → review → auto-configure flow documented at
+    docs/reconcile/running.mdx#recommended-flow.
+
+    The two-step pattern (one job to discover, a second job to auto-configure the curated file) is
+    the default. As an opt-in escape, the user can also choose to discover and auto-configure in a
+    single job — skipping the review step the docs recommend.
+    """
+    recon_config = ctx.recon_config
+    if recon_config is None:
+        raise SystemExit("Reconcile is not configured. Run `databricks labs lakebridge configure-reconcile` first.")
+
+    filename = recon_config.table_recon_filename
+    file_exists = _table_recon_exists(ctx, filename)
+
+    if not file_exists:
+        logger.info(
+            "No existing table config found. The recommended flow is to discover first, review the "
+            "output in the workspace, then re-run this command to auto-configure the reviewed config."
+        )
+        operation_name = _discover_with_optional_auto_configure(ctx)
+        if not operation_name:
+            logger.info("Aborted by user; no discovery run.")
+            return
+    else:
+        ws_url = ctx.installation.workspace_link(filename)
+        logger.info(f"Existing table mappings found at `{ws_url}`.")
+        if ctx.prompts.confirm("Auto-configure and use existing table mappings (no discovery)?"):
+            operation_name = AUTO_CONFIGURE_TABLES_OPERATION_NAME
+        else:
+            operation_name = _discover_with_optional_auto_configure(ctx)
+
+        if not operation_name:
+            logger.info("Nothing to do; existing file preserved.")
+            return
+
+    _, job_run_url = ReconcileRunner(ctx.workspace_client, ctx.install_state).run(operation_name=operation_name)
+    if operation_name == DISCOVER_TABLES_OPERATION_NAME:
+        logger.info(
+            "When the job finishes, the discovered table mappings will be saved to the Lakebridge "
+            "install folder. Review the file, then re-run this command to auto-configure."
+        )
+    else:
+        logger.info(
+            "When the job finishes, the auto-configured table mappings will be saved to the "
+            "Lakebridge install folder. Edit the file to add join columns and any final touches."
+        )
+    if ctx.prompts.confirm(f"Would you like to open the job run URL `{job_run_url}` in the browser?"):
+        webbrowser.open(job_run_url)
+
+
+def _discover_with_optional_auto_configure(ctx: ApplicationContext) -> str:
+    if not ctx.prompts.confirm("Discover tables now (this will overwrite any existing table config)?"):
+        return ""
+    if ctx.prompts.confirm("Also run auto-configure in the same job (skips the recommended review step)?"):
+        return DISCOVER_AND_AUTO_CONFIGURE_TABLES_OPERATION_NAME
+    return DISCOVER_TABLES_OPERATION_NAME
+
+
+def _table_recon_exists(ctx: ApplicationContext, filename: str) -> bool:
+    try:
+        ctx.installation.load(type_ref=TableRecon, filename=filename)
+        return True
+    except NotFound:
+        return False
 
 
 @lakebridge.command
@@ -839,6 +923,9 @@ def configure_reconcile(
     reconcile_installer = installer(w, transpiler_repository, is_interactive=True)
     reconcile_installer.run(module="reconcile")
 
+    if ctx.prompts.confirm("Auto-discover source/target tables and pre-fill the table mappings now?"):
+        _run_auto_configure_recon_tables(ctx)
+
 
 @lakebridge.command
 def analyze(
@@ -922,8 +1009,7 @@ def llm_transpile(
     logger.debug(f"User: {user}")
 
     if not accept_terms:
-        logger.warning(
-            """Please read and accept these terms before proceeding:
+        logger.warning("""Please read and accept these terms before proceeding:
     This feature leverages a Large Language Model (LLM) to analyse and convert
     your provided content, code and data. You consent to your content being
     transmitted to, processed by, and returned from the foundation models hosted
@@ -934,8 +1020,7 @@ def llm_transpile(
     or production use.
 
     By using this feature you accept these terms, re-run with '--accept-terms=true'.
-                """
-        )
+                """)
         raise SystemExit("LLM transpiler terms not accepted, exiting.")
 
     prompts = ctx.prompts
@@ -1003,69 +1088,75 @@ def llm_transpile(
 
 
 @lakebridge.command()
-def execute_database_profiler(w: WorkspaceClient, source_tech: str | None = None) -> None:
+def execute_database_profiler(
+    w: WorkspaceClient,
+    source_tech: str | None = None,
+    variant: str | None = None,
+    output_folder: str | None = None,
+    cred_file_path: str | None = None,
+) -> None:
     """Execute the Profiler Extraction for the given source technology"""
     ctx = ApplicationContext(w)
     ctx.add_user_agent_extra("cmd", "execute-profiler")
     prompts = ctx.prompts
     if source_tech is None:
-        source_tech = prompts.choice("Select the source technology", PROFILER_SOURCE_SYSTEM)
+        source_tech = prompts.choice("Select the source technology", PROFILER_SOURCE_SYSTEM, sort=False)
     source_tech = source_tech.lower()
 
     if source_tech not in PROFILER_SOURCE_SYSTEM:
         logger.error(f"Only the following source systems are supported: {PROFILER_SOURCE_SYSTEM}")
         raise_validation_exception(f"Invalid source technology {source_tech}")
 
+    variant = parse_profiler_variant(prompts, source_tech, variant)
+
     ctx.add_user_agent_extra("profiler_source_tech", make_alphanum_or_semver(source_tech))
     user = ctx.current_user
     logger.debug(f"User: {user}")
-    # check if cred_file is present which has the connection details before running the profiler
-    file = cred_file(PRODUCT_NAME)
-    if not file.exists():
-        raise_validation_exception(
-            f"Connection details not found. Please run `databricks labs lakebridge configure-database-profiler` "
-            f"to set up connection details for {source_tech}."
-        )
-    profiler = Profiler.create(source_tech)
 
-    # TODO: Add extractor logic to ApplicationContext instead of creating inside the Profiler class
-    profiler.profile()
+    if cred_file_path:
+        creds_path = Path(cred_file_path).expanduser()
+        if not creds_path.exists():
+            raise_validation_exception(
+                f"Credential file not found at {creds_path}. Please try again with the right file."
+            )
+    else:
+        creds_path = cred_file(PRODUCT_NAME)
+        if not creds_path.exists():
+            raise_validation_exception(
+                f"Connection details not found. Please run `databricks labs lakebridge configure-database-profiler` "
+                f"to set up connection details for {source_tech}."
+            )
 
+    if output_folder is None:
+        output_folder = prompts.question(
+            "Enter the profiler output folder path (directory)",
+            default=str(default_output_folder(source_tech)),
+        ).strip()
 
-@lakebridge.command()
-def visualize_profiler_results(
-    *,
-    w: WorkspaceClient,
-    transpiler_repository: TranspilerRepository = TranspilerRepository.user_home(),
-) -> None:
-    """Deploys a profiler summary as a Databricks dashboard"""
-    from databricks.labs.lakebridge.install import installer  # pylint: disable=cyclic-import, import-outside-toplevel
-
-    ctx = ApplicationContext(w)
-    ctx.add_user_agent_extra("cmd", "visualize-profiler-results")
-
-    # Deploy the profiler dashboard and ingestion job
-    if not w.config.warehouse_id:
-        dbsql_id = _create_warehouse(w)
-        w.config.warehouse_id = dbsql_id
-    logger.debug(f"Warehouse ID used for running the profiler dashboard: {w.config.warehouse_id}.")
-    profiler_dashboard_installer = installer(w, transpiler_repository, is_interactive=True)
-    profiler_dashboard_installer.run(module="profiler_dashboard")
+    try:
+        profiler = Profiler.create(source_tech, variant, creds_path)
+        # TODO: Add extractor logic to ApplicationContext instead of creating inside the Profiler class
+        profiler.profile(output_folder=Path(output_folder), cred_file_path=creds_path)
+    except Exception as e:  # noqa: BLE001
+        raise SystemExit(f"Profiler execution failed: {e}") from e
 
 
-def _test_database_connection(source_tech: str, raw_config: dict) -> None:
-    """Test connection to the source database with appropriate error handling."""
-    # Handle synapse-specific validation using dedicated helper
-    if source_tech == "synapse":
-        validate_synapse_pools(raw_config)
-        logger.info("Connection to the source system successful")
-        return
+def parse_profiler_variant(prompts: Prompts, source_tech: str, variant: str | None) -> str | None:
+    variants = SOURCE_SYSTEM_VARIANTS.get(source_tech, ())
+    if len(variants) > 1:
+        if variant:
+            variant = variant.lower()
+            if variant not in variants:
+                logger.error(f"Only the following source systems variants are supported: {variants}")
+                raise_validation_exception(f"Invalid source technology variant {variant}")
+        else:
+            variant = prompts.choice("Select a variant", variants)
+        return variant
 
-    # For other source technologies, use DatabaseManager directly
-    with DatabaseManager(source_tech, raw_config) as db_manager:
-        response = db_manager.check_connection()
-    logger.debug(f"Connection response: {response}")
-    logger.info("Connection to the source system successful")
+    if variant:
+        logger.warning(f"Ignoring variant input. Not a valid option for source system: {source_tech}")
+
+    return None
 
 
 @lakebridge.command()
@@ -1105,23 +1196,17 @@ def test_profiler_connection(
 
     logger.info(f"Testing connection for source technology: {source_tech}")
 
-    cred_manager = create_credential_manager(PRODUCT_NAME, EnvGetter(), creds_path=credential_file)
+    configurator = create_assessment_configurator(source_tech, PRODUCT_NAME, prompts, credential_file)
 
     try:
-        raw_config = cred_manager.get_credentials(source_tech)
+        configurator.test_connection()
     except KeyError as e:
         logger.error(f"Credential configuration error: {e}")
         raise SystemExit(
             f"Invalid credentials for {source_tech}. Please run `databricks labs lakebridge configure-database-profiler`."
         ) from e
-
-    try:
-        _test_database_connection(source_tech, raw_config)
     except ConnectionError as e:
         logger.error(f"Failed to connect to the source system: {e}")
-        error_msg = str(e).lower()
-        if any(pattern in error_msg for pattern in ("im002", "odbc driver not found", "can't open lib")):
-            raise SystemExit("Missing ODBC driver, Please install pre-req. Exiting...") from e
         raise SystemExit("Connection validation failed. Exiting...") from e
     except Exception as e:  # noqa: BLE001
         logger.error(f"Unexpected error during connection test: {e}")

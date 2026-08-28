@@ -2,6 +2,7 @@ from databricks.labs.blueprint.installation import MockInstallation
 
 from databricks.labs.lakebridge.config import (
     ReconcileConfig,
+    ReconcileJobConfig,
     ReconcileMetadataConfig,
     SourceConnectionConfig,
     TableRecon,
@@ -9,6 +10,36 @@ from databricks.labs.lakebridge.config import (
     TranspileConfig,
 )
 from databricks.labs.lakebridge.reconcile.recon_config import Table
+
+
+def _reconcile_config(
+    *,
+    dialect: str = "snowflake",
+    catalog: str = "src_cat",
+    uc_connection_name: str | None = "my_conn",
+    report_type: str = "all",
+) -> ReconcileConfig:
+    return ReconcileConfig(
+        report_type=report_type,
+        source=SourceConnectionConfig(
+            dialect=dialect,
+            catalog=catalog,
+            schema="src_schema",
+            uc_connection_name=uc_connection_name,
+        ),
+        target=TargetConnectionConfig(catalog="tgt_cat", schema="tgt_schema"),
+        metadata_config=ReconcileMetadataConfig(catalog="meta_cat", schema="meta_schema", volume="meta_vol"),
+    )
+
+
+def test_table_recon_filename_uses_uc_connection_when_set() -> None:
+    config = _reconcile_config(dialect="snowflake", uc_connection_name="my_conn", report_type="all")
+    assert config.table_recon_filename == "recon_config_snowflake_my_conn_all.json"
+
+
+def test_table_recon_filename_falls_back_to_catalog_for_databricks() -> None:
+    config = _reconcile_config(dialect="databricks", catalog="hive_metastore", uc_connection_name=None)
+    assert config.table_recon_filename == "recon_config_databricks_hive_metastore_all.json"
 
 
 def test_transpiler_config_default_serialization() -> None:
@@ -85,10 +116,6 @@ def test_reconcile_table_config_default_serialization() -> None:
     installation = MockInstallation(
         {
             "recon_config.yml": {
-                "source_schema": "schema1",
-                "target_schema": "schema2",
-                "source_catalog": "catalog1",
-                "target_catalog": "catalog2",
                 "tables": [
                     {
                         "source_name": "source1",
@@ -217,3 +244,28 @@ def test_reconcile_v1_migrate_drops_orphan_fields() -> None:
     loaded = installation.load(ReconcileConfig)
     assert loaded.source.dialect == "snowflake"
     assert loaded.target.catalog == "tgt"
+
+
+def test_reconcile_job_overrides_without_tags_keeps_existing_cluster_id() -> None:
+    """A job_overrides block that pins a cluster but omits tags must not silently drop the cluster."""
+    installation = MockInstallation(
+        {
+            "reconcile.yml": {
+                "report_type": "all",
+                "source": {
+                    "dialect": "snowflake",
+                    "catalog": "src_cat",
+                    "schema": "src_sch",
+                    "uc_connection_name": "c",
+                },
+                "target": {"catalog": "tgt_cat", "schema": "tgt_sch"},
+                "metadata_config": {"catalog": "remorph", "schema": "reconcile", "volume": "reconcile_volume"},
+                "job_overrides": {"existing_cluster_id": "0714-000000-abcdefgh"},
+                "version": 2,
+            }
+        }
+    )
+
+    loaded = installation.load(ReconcileConfig)
+
+    assert loaded.job_overrides == ReconcileJobConfig(existing_cluster_id="0714-000000-abcdefgh", tags={})

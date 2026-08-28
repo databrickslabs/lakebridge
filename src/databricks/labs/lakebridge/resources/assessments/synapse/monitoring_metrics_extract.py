@@ -10,15 +10,15 @@ from databricks.labs.lakebridge import initialize_logging
 from databricks.labs.lakebridge.assessments import PRODUCT_NAME
 from databricks.labs.lakebridge.connections.credential_manager import create_credential_manager
 from databricks.labs.lakebridge.connections.env_getter import EnvGetter
-from databricks.labs.lakebridge.resources.assessments.synapse.common.duckdb_helpers import insert_df_to_duckdb
+from databricks.labs.lakebridge.resources.assessments.common.cli import arguments_loader
+from databricks.labs.lakebridge.resources.assessments.common.duckdb_helpers import save_to_duckdb
 from databricks.labs.lakebridge.resources.assessments.synapse.common.functions import (
-    arguments_loader,
     create_azure_metrics_query_client,
     create_synapse_artifacts_client,
 )
 from databricks.labs.lakebridge.resources.assessments.synapse.common.profiler_classes import (
-    SynapseWorkspace,
     SynapseMetrics,
+    SynapseWorkspace,
 )
 
 logger = get_logger(__file__)
@@ -26,7 +26,7 @@ logger = get_logger(__file__)
 
 def execute():
     db_path, creds_file = arguments_loader(desc="Monitoring Metrics Extract Script")
-    cred_manager = create_credential_manager(PRODUCT_NAME, EnvGetter())
+    cred_manager = create_credential_manager(PRODUCT_NAME, EnvGetter(), creds_file)
     synapse_workspace_settings = cred_manager.get_credentials("synapse")
     synapse_profiler_settings = synapse_workspace_settings["profiler"]
 
@@ -52,7 +52,7 @@ def execute():
         workspace_resource_id = workspace_info["id"]
         logger.info(f"workspace_resource_id : {workspace_resource_id}")
         metrics_df = synapse_metrics.get_workspace_level_metrics(workspace_resource_id)
-        insert_df_to_duckdb(metrics_df, db_path, "metrics_workspace_level_metrics")
+        save_to_duckdb(metrics_df, "metrics_workspace_level_metrics", db_path)
 
         # SQL Pool Metrics
 
@@ -97,7 +97,7 @@ def execute():
             step_name = "metrics_dedicated_pool_metrics"
             print(f"Loading data for {step_name}")
             pools_df = pd.concat(pool_metrics_list, ignore_index=True) if pool_metrics_list else pd.DataFrame()
-            insert_df_to_duckdb(pools_df, db_path, step_name)
+            save_to_duckdb(pools_df, step_name, db_path)
 
         # Spark Pool  Metrics
 
@@ -143,7 +143,7 @@ def execute():
             spark_pools_df = (
                 pd.concat(spark_pool_metrics_list, ignore_index=True) if spark_pool_metrics_list else pd.DataFrame()
             )
-            insert_df_to_duckdb(spark_pools_df, db_path, step_name)
+            save_to_duckdb(spark_pools_df, step_name, db_path)
 
         # This is the output format expected by the pipeline.py which orchestrates the execution of this script
         print(json.dumps({"status": "success", "message": "Data loaded successfully"}))

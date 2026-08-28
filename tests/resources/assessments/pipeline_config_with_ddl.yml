@@ -1,7 +1,5 @@
 name: PipelineWithDDL
 version: "1.0"
-# Value replaced prior to actual use:
-extract_folder: /replaced/after/loading/
 steps:
   # DDL step creates table with proper data types
   - name: inventory
@@ -17,7 +15,7 @@ steps:
     mode: append
     frequency: daily
     flag: active
-  # Regular SQL step without DDL (backwards compatibility)
+  # Regular SQL step without DDL
   - name: usage
     type: sql
     extract_source: assessments/usage.sql

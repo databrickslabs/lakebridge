@@ -3,8 +3,8 @@ from functools import cached_property
 
 from databricks.labs.blueprint.installation import Installation
 from databricks.labs.blueprint.installer import InstallState
-from databricks.labs.blueprint.upgrades import Upgrades
 from databricks.labs.blueprint.tui import Prompts
+from databricks.labs.blueprint.upgrades import Upgrades
 from databricks.labs.blueprint.wheels import ProductInfo
 from databricks.labs.lsql.backends import SqlBackend, StatementExecutionBackend
 from databricks.sdk import WorkspaceClient
@@ -12,19 +12,16 @@ from databricks.sdk.config import Config
 from databricks.sdk.errors import NotFound
 from databricks.sdk.service.iam import User
 
-from databricks.labs.lakebridge.analyzer.lakebridge_analyzer import LakebridgeAnalyzer, AnalyzerPrompts, AnalyzerRunner
-
+from databricks.labs.lakebridge.analyzer.lakebridge_analyzer import AnalyzerPrompts, AnalyzerRunner, LakebridgeAnalyzer
 from databricks.labs.lakebridge.config import (
-    TranspileConfig,
-    ReconcileConfig,
     LakebridgeConfiguration,
-    ProfilerDashboardConfig,
+    ReconcileConfig,
+    TranspileConfig,
 )
 from databricks.labs.lakebridge.deployment.configurator import ResourceConfigurator
-from databricks.labs.lakebridge.deployment.dashboard import DashboardDeployment, ProfilerDashboardManager
+from databricks.labs.lakebridge.deployment.dashboard import DashboardDeployment
 from databricks.labs.lakebridge.deployment.installation import WorkspaceInstallation
-from databricks.labs.lakebridge.deployment.profiler_dashboard import ProfilerDashboardDeployment
-from databricks.labs.lakebridge.deployment.recon import TableDeployment, JobDeployment, ReconDeployment
+from databricks.labs.lakebridge.deployment.recon import JobDeployment, ReconDeployment, TableDeployment
 from databricks.labs.lakebridge.deployment.switch import SwitchDeployment
 from databricks.labs.lakebridge.helpers.metastore import CatalogOperations
 
@@ -75,19 +72,10 @@ class ApplicationContext:
             return None
 
     @cached_property
-    def profiler_dashboard_config(self) -> ProfilerDashboardConfig | None:
-        try:
-            return self.installation.load(ProfilerDashboardConfig)
-        except NotFound as err:
-            logger.debug(f"Couldn't find existing profiler dashboard installation: {err}")
-            return None
-
-    @cached_property
     def remorph_config(self) -> LakebridgeConfiguration:
         return LakebridgeConfiguration(
             transpile=self.transpile_config,
             reconcile=self.recon_config,
-            profiler_dashboard=self.profiler_dashboard_config,
         )
 
     @property
@@ -128,10 +116,6 @@ class ApplicationContext:
         return DashboardDeployment(self.workspace_client, self.installation, self.install_state)
 
     @cached_property
-    def dashboard_manager(self) -> ProfilerDashboardManager:
-        return ProfilerDashboardManager(self.workspace_client, self.installation, self.install_state)
-
-    @cached_property
     def recon_deployment(self) -> ReconDeployment:
         return ReconDeployment(
             self.workspace_client,
@@ -152,24 +136,12 @@ class ApplicationContext:
         )
 
     @cached_property
-    def profiler_dashboard_deployment(self) -> ProfilerDashboardDeployment:
-        return ProfilerDashboardDeployment(
-            self.workspace_client,
-            self.installation,
-            self.install_state,
-            self.product_info,
-            self.job_deployment,
-            self.dashboard_manager,
-        )
-
-    @cached_property
     def workspace_installation(self) -> WorkspaceInstallation:
         return WorkspaceInstallation(
             self.workspace_client,
             self.installation,
             self.recon_deployment,
             self.switch_deployment,
-            self.profiler_dashboard_deployment,
             self.product_info,
             self.upgrades,
         )

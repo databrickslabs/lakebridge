@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from databricks.labs.lakebridge.transpiler.installers import MavenLite, WheelInstaller, MorpheusInstaller
+from databricks.labs.lakebridge.transpiler.installers import MavenLite, MorpheusInstaller, WheelInstaller
 
 
 def test_gets_maven_artifact_version() -> None:
@@ -44,7 +44,7 @@ def test_java_version() -> None:
         case None:
             # Fine, no Java available.
             pass
-        case (java_home, tuple(version)):
-            assert java_home.exists() and version >= (11, 0, 0, 0)
+        case (java_home, tuple() as version):
+            assert java_home.exists() and version >= (21, 0, 0, 0)
         case _:
             pytest.fail(f"Unexpected result from WorkspaceInstaller.find_java(): {result!r}")

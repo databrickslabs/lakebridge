@@ -1,8 +1,9 @@
 import dataclasses
+import logging
 import re
 from dataclasses import dataclass, field
 
-import logging
+from databricks.labs.lakebridge.assessments import RESERVED_TABLE_NAMES
 
 # Valid SQL identifier pattern: must start with letter or underscore,
 # followed by letters, numbers, or underscores only
@@ -19,14 +20,15 @@ class Step:
     mode: str = "append"
     frequency: str = "once"
     flag: str = "active"
-    dependencies: list[str] = field(default_factory=list)
     comment: str | None = None
+    optional: bool = False
 
     def __post_init__(self) -> None:
         """Validate step configuration to prevent SQL injection and configuration errors."""
         self._validate_name()
         self._validate_mode()
         self._validate_type()
+        self._validate_optional()
 
     def _validate_name(self) -> None:
         """Validate step name uses only safe SQL identifier characters."""
@@ -49,6 +51,14 @@ class Step:
                 f"Maximum length is 255 characters."
             )
 
+        # Casefolded because DuckDB identifiers are case-insensitive: a step named
+        # PROFILER_RUN_METADATA targets the same table as profiler_run_metadata.
+        if self.name.casefold() in RESERVED_TABLE_NAMES:
+            raise ValueError(
+                f"Step name '{self.name}' is reserved: the profiler writes this table itself. "
+                f"Reserved names: {', '.join(sorted(RESERVED_TABLE_NAMES))}."
+            )
+
     def _validate_mode(self) -> None:
         """Validate mode is a recognized value."""
         valid_modes = {'append', 'overwrite'}
@@ -60,12 +70,16 @@ class Step:
 
     def _validate_type(self) -> None:
         """Validate type is a recognized value."""
-        valid_types = {'sql', 'ddl', 'python'}
+        valid_types = {'sql', 'ddl', 'python', 'source_ddl'}
         if self.type not in valid_types:
             raise ValueError(
                 f"Invalid type '{self.type}' for step '{self.name}'. "
                 f"Valid types are: {', '.join(sorted(valid_types))}"
             )
+
+    def _validate_optional(self) -> None:
+        if not isinstance(self.optional, bool):
+            raise ValueError(f"Invalid optional value for step '{self.name}': {self.optional!r}. Expected a boolean.")
 
     def copy(self, /, **changes) -> "Step":
         return dataclasses.replace(self, **changes)
@@ -75,7 +89,6 @@ class Step:
 class PipelineConfig:
     name: str
     version: str
-    extract_folder: str
     comment: str | None = None
     steps: list[Step] = field(default_factory=list)
 
@@ -85,7 +98,7 @@ class PipelineConfig:
         active_steps = [s for s in self.steps if s.flag == "active"]
         first_ddl_index = next((i for i, s in enumerate(active_steps) if s.type == "ddl"), None)
         if first_ddl_index is not None and first_ddl_index > 0:
-            early_non_ddl = [s.name for s in active_steps[:first_ddl_index] if s.type != "ddl"]
+            early_non_ddl = [s.name for s in active_steps[:first_ddl_index] if s.type not in ("ddl", "source_ddl")]
             if early_non_ddl:
                 names = ", ".join(early_non_ddl)
                 logger.warning(

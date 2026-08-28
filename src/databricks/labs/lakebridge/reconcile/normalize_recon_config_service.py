@@ -1,14 +1,17 @@
 import dataclasses
+import logging
 
 from databricks.labs.lakebridge.reconcile.connectors.data_source import DataSource
 from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import DialectUtils
 from databricks.labs.lakebridge.reconcile.recon_config import (
-    Table,
     Aggregate,
     ColumnMapping,
-    Transformation,
     ColumnThresholds,
+    Table,
+    Transformation,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class NormalizeReconConfigService:
@@ -33,12 +36,23 @@ class NormalizeReconConfigService:
 
     def _normalize_sampling(self, table: Table):
         if table.sampling_options:
-            normalized_sampling = dataclasses.replace(table.sampling_options)
+            normalized_sampling = dataclasses.replace(
+                table.sampling_options,
+                specifications=dataclasses.replace(table.sampling_options.specifications),
+            )
             normalized_sampling.stratified_columns = (
                 [self.source.normalize_identifier(c).ansi_normalized for c in normalized_sampling.stratified_columns]
                 if normalized_sampling.stratified_columns
                 else None
             )
+            requested = normalized_sampling.specifications.value
+            max_allowed = self.source.max_sample_size
+            if requested > max_allowed:
+                logger.warning(
+                    f"sample size={requested} exceeds the limit of {max_allowed} "
+                    f"for {type(self.source).__name__}; capping to {max_allowed}."
+                )
+                normalized_sampling.specifications.value = max_allowed
             table.sampling_options = normalized_sampling
         return table
 

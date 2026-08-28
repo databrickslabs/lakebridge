@@ -1,12 +1,12 @@
+import copy
 from pathlib import Path
 from typing import Any
 from unittest.mock import patch
 
-import copy
 import pytest
 import yaml
-
 from databricks.labs.blueprint.installation import JsonValue
+
 from databricks.labs.lakebridge.transpiler.lsp.lsp_engine import LSPEngine
 
 
@@ -16,8 +16,7 @@ def test_valid_config(test_resources: Path) -> None:
     assert engine.supported_dialects == ["snowflake"]
 
 
-VALID_CONFIG: dict[str, Any] = yaml.safe_load(
-    """remorph:
+VALID_CONFIG: dict[str, Any] = yaml.safe_load("""remorph:
   version: 1
   name: test-transpiler
   dialects:
@@ -30,8 +29,7 @@ VALID_CONFIG: dict[str, Any] = yaml.safe_load(
     - lsp_server.py
 custom:
   whatever: xyz
-"""
-)
+""")
 
 
 @pytest.mark.parametrize(

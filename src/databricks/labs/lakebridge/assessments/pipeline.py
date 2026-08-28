@@ -1,31 +1,37 @@
 import json
 import logging
-import os
 import sys
-import venv
-import tempfile
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
-from subprocess import CalledProcessError, PIPE, Popen, STDOUT, run
+from subprocess import PIPE, STDOUT, Popen
 
 import duckdb
 import yaml
-
 from databricks.labs.blueprint.paths import read_text
+
+from databricks.labs.lakebridge import __version__ as lakebridge_version
 from databricks.labs.lakebridge.assessments.profiler_config import PipelineConfig, Step
-from databricks.labs.lakebridge.connections.credential_manager import cred_file
-from databricks.labs.lakebridge.connections.database_manager import DatabaseManager, FetchResult
+from databricks.labs.lakebridge.connections.database_manager import DatabaseConnector, FetchResult
+from databricks.labs.lakebridge.resources.assessments.common.duckdb_helpers import (
+    SaveMode,
+    connect_to_profiler_db,
+    save_to_duckdb_conn,
+)
 
 logger = logging.getLogger(__name__)
 
-DB_NAME = "profiler_extract.db"
+
+def make_profiler_db_filename(source_system: str) -> str:
+    return f"profiler_extract_{source_system}_{lakebridge_version}_{datetime.now(timezone.utc).strftime('%Y%m%d')}.db"
 
 
 class StepExecutionStatus(str, Enum):
     COMPLETE = "COMPLETE"
     ERROR = "ERROR"
     SKIPPED = "SKIPPED"
+    ABSENT = "ABSENT"
 
 
 @dataclass
@@ -36,14 +42,25 @@ class StepExecutionResult:
 
 
 class PipelineClass:
-    def __init__(self, config: PipelineConfig, executor: DatabaseManager | None):
+    def __init__(
+        self,
+        config: PipelineConfig,
+        executor: DatabaseConnector | None,
+        db_path: Path,
+        cred_file_path: Path,
+    ):
         self.config = config
         self.executor = executor
-        self._db_path_prefix = Path(config.extract_folder).expanduser()
-        self._create_dir(self._db_path_prefix)
-        self._db_path = str(self._db_path_prefix / DB_NAME)
+        self._db_path = db_path.expanduser()
+        self._create_dir(self._db_path.parent)
+        self._cred_file_path = cred_file_path
 
     def execute(self) -> list[StepExecutionResult]:
+        """Run every configured step and return per-step outcomes.
+
+        Does not raise on step failures: callers decide how to surface them.
+        A failed DDL / source_ddl step aborts the remaining steps because later extracts depend on it.
+        """
         logging.info(f"Pipeline initialized with config: {self.config.name}, version: {self.config.version}")
         execution_results: list[StepExecutionResult] = []
 
@@ -52,22 +69,9 @@ class PipelineClass:
             execution_results.append(result)
             self._log_step_result(result)
 
-            # Fail immediately if DDL step failed
-            if step.type == "ddl" and result.status == StepExecutionStatus.ERROR:
-                error_msg = f"Pipeline execution failed due to error in DDL step: {result.step_name}"
-                if result.error_message:
-                    error_msg += f" - {result.error_message}"
-                logger.error(error_msg)
-                raise RuntimeError(error_msg)
-
-        # Check if any non-DDL steps failed
-        failed_steps = [r for r in execution_results if r.status == StepExecutionStatus.ERROR]
-        if failed_steps:
-            error_msg = (
-                f"Pipeline execution failed due to errors in steps: {', '.join(r.step_name for r in failed_steps)}"
-            )
-            logger.error(error_msg)
-            raise RuntimeError(error_msg)
+            if step.type in {"ddl", "source_ddl"} and result.status == StepExecutionStatus.ERROR:
+                logger.error(f"Aborting run: DDL step {result.step_name} failed")
+                break
 
         return execution_results
 
@@ -79,25 +83,33 @@ class PipelineClass:
             return StepExecutionResult(step_name=step.name, status=StepExecutionStatus.SKIPPED)
 
         try:
-            # Execute based on step type
-            match step.type:
-                case "sql":
-                    self._execute_sql_step(step)
-                case "ddl":
-                    self._execute_ddl_step(step)
-                case "python":
-                    self._execute_python_step(step)
-                case _:
-                    raise RuntimeError(f"Unsupported step type: {step.type}")
-
+            self._dispatch_step(step)
             return StepExecutionResult(step_name=step.name, status=StepExecutionStatus.COMPLETE)
-        except RuntimeError as e:
-            return StepExecutionResult(step_name=step.name, status=StepExecutionStatus.ERROR, error_message=str(e))
+        except (RuntimeError, ConnectionError) as e:
+            # Optional: warn + ABSENT (customer isn't failed; maintainers get the cause).
+            # Required: ERROR
+            status = StepExecutionStatus.ABSENT if step.optional else StepExecutionStatus.ERROR
+            return StepExecutionResult(step_name=step.name, status=status, error_message=str(e))
+
+    def _dispatch_step(self, step: Step) -> None:
+        match step.type:
+            case "sql":
+                self._execute_sql_step(step)
+            case "ddl":
+                self._execute_ddl_step(step)
+            case "source_ddl":
+                self._execute_source_ddl_step(step)
+            case "python":
+                self._execute_python_step(step)
+            case _:
+                raise RuntimeError(f"Unsupported step type: {step.type}")
 
     def _log_step_result(self, result: StepExecutionResult):
         match result.status:
             case StepExecutionStatus.ERROR:
                 logger.error(f"Step {result.step_name} failed with error: {result.error_message}")
+            case StepExecutionStatus.ABSENT:
+                logger.warning(f"Optional step {result.step_name} failed and was tolerated: {result.error_message}")
             case StepExecutionStatus.SKIPPED:
                 logger.info(f"Step {result.step_name} was skipped.")
             case StepExecutionStatus.COMPLETE:
@@ -106,21 +118,67 @@ class PipelineClass:
     def _execute_sql_step(self, step: Step):
         logging.debug(f"Reading query from file: {step.extract_source}")
         query = read_text(Path(step.extract_source))
+        logging.debug(f"Query for step '{step.name}' will be: {query}")
 
         if self.executor is None:
-            logging.error("DatabaseManager executor is not set.")
-            raise RuntimeError("DatabaseManager executor is not set.")
+            logging.error("Database executor is not set.")
+            raise RuntimeError("Database executor is not set.")
 
-        # Execute the query using the database manager
-        logging.info(f"Executing query: {query}")
-        try:
-            result = self.executor.fetch(query)
+        if self.executor.supports_streaming():
+            # Warning: in this mode writing the step data may not be atomic.
+            self._stream_sql_step(step, query)
+            return
 
-            # Save the result to duckdb
-            self._save_to_db(result, step.name, str(step.mode))
-        except Exception as e:
-            logging.error(f"SQL execution failed: {str(e)}")
-            raise RuntimeError(f"SQL execution failed: {str(e)}") from e
+        logging.info(f"Executing query for step: {step.name}")
+        result = self.executor.fetch(query)
+        self._save_to_db(result, step.name, step.mode)
+
+    def _stream_sql_step(self, step: Step, query: str) -> None:
+        if self.executor is None:
+            raise RuntimeError("Database executor is not set.")
+
+        with connect_to_profiler_db(self._db_path) as conn:
+            logging.info(f"Starting query for step: {step.name}")
+            # TODO: Would be nice to pipeline this: fetch next batch while the last is being written/flushed.
+            write_mode: SaveMode = "overwrite" if step.mode == "overwrite" else "append"
+            total_rows = 0
+            for batch in self.executor.stream(query):
+                if (batch_size := batch.num_rows) == 0:
+                    logger.debug(f"Skipping empty batch while streaming results for step: {step.name}")
+                    continue
+                logger.debug(f"Streaming batch of {batch_size} rows for step: {step.name}")
+                save_to_duckdb_conn(conn, batch, step.name, mode=write_mode)
+                total_rows += batch_size
+                write_mode = "append"
+            if total_rows == 0 and step.mode == "overwrite":
+                logging.info(
+                    f"Finished streaming query for {step.mode}-mode step '{step.name}'; empty results so previous data left as-is."
+                )
+            else:
+                logging.info(f"Finished streaming query for step: {step.name} (rows={total_rows}, mode={step.mode})")
+        logging.debug(f"Data flushed for step: {step.name}")
+
+    def _execute_source_ddl_step(self, step: Step):
+        """Run a no-result DDL statement against the *source* database (one statement per file).
+
+        Distinct from ``ddl`` (which targets the local DuckDB extract) and from ``sql``
+        (which expects a result set: ``DatabaseConnector.fetch`` calls ``fetchall()`` and
+        raises on statements that return no rows). Used to create/drop source-side
+        views or objects that subsequent ``sql`` steps depend on.
+        """
+        logging.debug(f"Reading source_ddl script from file: {step.extract_source}")
+        content = read_text(Path(step.extract_source)).strip()
+
+        if self.executor is None:
+            logging.error("Database executor is not set.")
+            raise RuntimeError("Database executor is not set.")
+
+        if not content or all(line.strip().startswith("--") for line in content.split("\n")):
+            logging.warning(f"source_ddl step '{step.name}' has no statement in {step.extract_source}")
+            return
+
+        logging.info(f"Executing source_ddl step '{step.name}' on source")
+        self.executor.fetch(content)
 
     def _execute_ddl_step(self, step: Step):
         logging.debug(f"Reading DDL from file: {step.extract_source}")
@@ -132,7 +190,7 @@ class PipelineClass:
             # TODO: Handle schema evolution
             # Current implementation just checks for table existence;
             # mode logic becomes irrelevant for ddl step.
-            with duckdb.connect(self._db_path) as conn:
+            with connect_to_profiler_db(self._db_path) as conn:
                 conn.begin()
                 if not self._table_exists(conn, step.name):
                     conn.execute(ddl)
@@ -145,94 +203,22 @@ class PipelineClass:
             raise RuntimeError(f"DDL execution failed: {str(e)}") from e
 
     def _execute_python_step(self, step: Step):
-
         logging.debug(f"Executing Python script: {step.extract_source}")
-        credential_config = str(cred_file("lakebridge"))
-        venv_path_prefix = Path.home() / ".databricks" / "labs" / "lakebridge_profilers"
-        os.makedirs(venv_path_prefix, exist_ok=True)
-
-        # Create a temporary directory for the virtual environment
-        # TODO Windows has strict checks on for temp venv cleanup, so will ignore cleanup errors and have it cleaned up later
-        with tempfile.TemporaryDirectory(dir=venv_path_prefix, ignore_cleanup_errors=True) as temp_dir:
-            venv_dir = Path(temp_dir) / "venv"
-            venv_exec_cmd = self._create_venv(venv_dir)
-
-            # Define the paths to the virtual environment's Python and pip executables
-            if sys.platform == "win32":
-                venv_python = (venv_dir / "Scripts" / "python.exe").resolve()
-                venv_pip = (venv_dir / "Scripts" / "pip.exe").resolve()
-            else:
-                venv_python = (venv_dir / "bin" / "python").resolve()
-                venv_pip = (venv_dir / "bin" / "pip").resolve()
-
-            # Log resolved paths
-            logger.info(f"Resolved venv_python: {venv_python}")
-            logger.info(f"Resolved venv_pip: {venv_pip}")
-
-            logger.info(f"Creating a virtual environment for Python script execution: {venv_dir} for step: {step.name}")
-            if step.dependencies:
-                self._install_dependencies(venv_exec_cmd, step.dependencies)
-
-            self._run_python_script(venv_exec_cmd, step.extract_source, self._db_path, credential_config)
+        logger.info(f"Executing Python script for step '{step.name}' using interpreter: {sys.executable}")
+        self._run_python_script(sys.executable, step.extract_source, self._db_path, self._cred_file_path)
 
     @staticmethod
-    def _install_dependencies(venv_exec_cmd, dependencies):
-        logging.info(f"Installing dependencies: {', '.join(dependencies)}")
-        try:
-            logging.debug("Upgrading local pip")
-            is_debug = logging.getLogger(__name__).isEnabledFor(logging.DEBUG)
-            run(
-                [
-                    venv_exec_cmd,
-                    "-m",
-                    "pip",
-                    "install",
-                    "--upgrade",
-                    "pip",
-                    "--require-virtualenv",
-                    "--no-input",
-                    "--disable-pip-version-check",
-                ],
-                check=True,
-                capture_output=not is_debug,
-                text=True,
-            )
-
-            run(
-                [
-                    venv_exec_cmd,
-                    "-m",
-                    "pip",
-                    "install",
-                    *dependencies,
-                    "--require-virtualenv",
-                    "--no-input",
-                    "--disable-pip-version-check",
-                ],
-                check=True,
-                capture_output=not is_debug,
-                text=True,
-            )
-        except CalledProcessError as e:
-            # Log detailed output at debug level for troubleshooting
-            logging.debug(
-                f"Failed to install dependencies (exit code {e.returncode})\n" f"stdout: {e.stdout}\nstderr: {e.stderr}"
-            )
-            logging.error(f"Failed to install dependencies: {e.stderr}")
-            raise RuntimeError(f"Failed to install dependencies: {e.stderr}") from e
-
-    @staticmethod
-    def _run_python_script(venv_exec_cmd, script_path, db_path, credential_config):
+    def _run_python_script(venv_exec_cmd: str, script_path: str, db_path: Path, credential_config: Path):
         output_lines = []
         try:
             with Popen(
                 [
                     venv_exec_cmd,
-                    str(script_path),
+                    script_path,
                     "--db-path",
-                    db_path,
+                    str(db_path),
                     "--credential-config-path",
-                    credential_config,
+                    str(credential_config),
                 ],
                 stdout=PIPE,
                 stderr=STDOUT,
@@ -277,7 +263,7 @@ class PipelineClass:
         row_count = len(result.rows)
         logging.info(f"Query for step '{step_name}' returned {row_count} rows.")
 
-        with duckdb.connect(self._db_path) as conn:
+        with connect_to_profiler_db(self._db_path) as conn:
             # Note: step_name is validated to be SQL-safe by Step.__post_init__
             table_exists = self._table_exists(conn, step_name)
             conn.begin()
@@ -309,6 +295,7 @@ class PipelineClass:
             # Explicit commit before context exit
             conn.commit()
             logging.info(f"Successfully processed {row_count} rows for table '{step_name}'.")
+        logger.debug(f"Flushed committed data to database for step: {step_name}")
 
     @staticmethod
     def _table_exists(conn: duckdb.DuckDBPyConnection, table_name: str) -> bool:
@@ -328,19 +315,7 @@ class PipelineClass:
             data = yaml.safe_load(file)
         steps = [Step(**step) for step in data['steps']]
         return PipelineConfig(
-            name=data['name'], version=data['version'], extract_folder=data['extract_folder'], steps=steps
+            name=data['name'],
+            version=data['version'],
+            steps=steps,
         )
-
-    @staticmethod
-    def _create_venv(install_path: Path) -> str:
-        venv_path = install_path
-        # Sadly, some platform-specific variations need to be dealt with:
-        #   - Windows venvs do not use symlinks, but rather copies, when populating the venv.
-        #   - The library path is different.
-        use_symlinks = sys.platform != "win32"
-
-        builder = venv.EnvBuilder(with_pip=True, symlinks=use_symlinks)
-        builder.create(venv_path)
-        context = builder.ensure_directories(venv_path)
-        logger.debug(f"Created virtual environment with context: {context}")
-        return context.env_exec_cmd

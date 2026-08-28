@@ -3,7 +3,8 @@ import logging
 import os
 import sys
 import webbrowser
-from collections.abc import Callable, Sequence, Set
+from collections.abc import Callable, Sequence
+from collections.abc import Set as AbstractSet
 from pathlib import Path
 from typing import Any
 
@@ -20,19 +21,17 @@ from databricks.labs.lakebridge import initialize_logging
 from databricks.labs.lakebridge.__about__ import __version__
 from databricks.labs.lakebridge.cli import lakebridge
 from databricks.labs.lakebridge.config import (
-    ReconcileConfig,
+    HashExpressionOverrides,
     LakebridgeConfiguration,
+    ReconcileConfig,
     ReconcileMetadataConfig,
     SourceConnectionConfig,
     TargetConnectionConfig,
     TranspileConfig,
-    ProfilerDashboardConfig,
-    ProfilerDashboardMetadataConfig,
 )
 from databricks.labs.lakebridge.contexts.application import ApplicationContext
 from databricks.labs.lakebridge.deployment.configurator import ResourceConfigurator
 from databricks.labs.lakebridge.deployment.installation import WorkspaceInstallation
-from databricks.labs.lakebridge.assessments import PROFILER_SOURCE_SYSTEM
 from databricks.labs.lakebridge.reconcile.constants import ReconReportType, ReconSourceType
 from databricks.labs.lakebridge.transpiler.installers import (
     BladebridgeInstaller,
@@ -90,7 +89,7 @@ class WorkspaceInstaller:
             raise SystemExit(msg)
 
     @property
-    def _transpiler_installers(self) -> Set[TranspilerInstaller]:
+    def _transpiler_installers(self) -> AbstractSet[TranspilerInstaller]:
         return frozenset(factory(self._transpiler_repository) for factory in self._transpiler_installer_factories)
 
     def run(
@@ -150,25 +149,20 @@ class WorkspaceInstaller:
                 return LakebridgeConfiguration(
                     self._configure_transpile(),
                     reconcile=None,
-                    profiler_dashboard=None,
                     include_switch=self._include_llm,
                     switch_use_serverless=self._switch_use_serverless,
                 )
             case "reconcile":
                 logger.info("Configuring lakebridge `reconcile`.")
-                return LakebridgeConfiguration(None, self._configure_reconcile(), None)
+                return LakebridgeConfiguration(None, self._configure_reconcile())
             case "all":
                 logger.info("Configuring lakebridge `transpile` and `reconcile`.")
                 return LakebridgeConfiguration(
                     self._configure_transpile(),
                     self._configure_reconcile(),
-                    self._configure_profiler_dashboard(),
                     include_switch=self._include_llm,
                     switch_use_serverless=self._switch_use_serverless,
                 )
-            case "profiler_dashboard":
-                logger.info("Configuring Lakebridge `profiler-dashboard`.")
-                return LakebridgeConfiguration(None, None, self._configure_profiler_dashboard())
             case _:
                 raise ValueError(f"Invalid input: {module}")
 
@@ -349,12 +343,16 @@ class WorkspaceInstaller:
         source_config = self._prompt_for_source_connection_config(data_source)
         target_config = self._prompt_for_target_connection_config()
         metadata_config = self._prompt_for_reconcile_metadata_config()
+        hash_expression_overrides = None
+        if data_source == ReconSourceType.TERADATA.value:
+            hash_expression_overrides = self._prompt_for_hash_expression_overrides()
 
         return ReconcileConfig(
             report_type=report_type,
             source=source_config,
             target=target_config,
             metadata_config=metadata_config,
+            hash_expression_overrides=hash_expression_overrides,
         )
 
     def _prompt_for_source_connection_config(self, dialect: str) -> SourceConnectionConfig:
@@ -366,12 +364,16 @@ class WorkspaceInstaller:
             catalog = self._prompts.question("Enter Oracle service name")
         elif dialect == ReconSourceType.DATABRICKS.value:
             catalog = self._prompts.question("Enter source Databricks catalog name", default="hive_metastore")
+        elif dialect == ReconSourceType.BIGQUERY.value:
+            catalog = self._prompts.question("Enter BigQuery project ID")
         else:
             catalog = self._prompts.question(f"Enter {dialect.capitalize()} database name")
 
         schema_prompt = f"Enter source {dialect.capitalize()} schema name"
         if dialect == ReconSourceType.ORACLE.value:
             schema_prompt = "Enter Oracle database name"
+        elif dialect == ReconSourceType.BIGQUERY.value:
+            schema_prompt = "Enter BigQuery dataset name"
 
         schema = self._prompts.question(schema_prompt)
 
@@ -381,6 +383,15 @@ class WorkspaceInstaller:
             schema=schema,
             uc_connection_name=uc_connection_name,
         )
+
+    def _prompt_for_hash_expression_overrides(self) -> HashExpressionOverrides:
+        source_prompt = (
+            "Enter the Teradata source hash expression (must contain a single '{}' placeholder, e.g. my_sha256({}))"
+        )
+        source_expr = self._prompts.question(source_prompt)
+        target_prompt = "Enter the Databricks target hash expression (must contain a single '{}' placeholder)"
+        target_expr = self._prompts.question(target_prompt, default="sha2({}, 256)")
+        return HashExpressionOverrides(source=source_expr, target=target_expr)
 
     def _prompt_for_target_connection_config(self) -> TargetConnectionConfig:
         target_catalog = self._prompts.question("Enter target Databricks catalog name")
@@ -410,7 +421,7 @@ class WorkspaceInstaller:
             default_volume_name,
         )
 
-    def _save_config(self, config: TranspileConfig | ReconcileConfig | ProfilerDashboardConfig):
+    def _save_config(self, config: TranspileConfig | ReconcileConfig):
         logger.info(f"Saving configuration file {config.__file__}")
         self._installation.save(config)
         ws_file_url = self._installation.workspace_link(config.__file__)
@@ -419,59 +430,6 @@ class WorkspaceInstaller:
 
     def _has_necessary_access(self, catalog_name: str, schema_name: str, volume_name: str | None = None):
         self._resource_configurator.has_necessary_access(catalog_name, schema_name, volume_name)
-
-    def _configure_profiler_dashboard(self) -> ProfilerDashboardConfig:
-        try:
-            existing = self._installation.load(ProfilerDashboardConfig)
-            logger.info("Lakebridge profiler dashboard is already installed on this workspace.")
-            if not self._prompts.confirm("Do you want to override the existing installation?"):
-                return existing
-        except NotFound:
-            logger.info("Couldn't find existing profiler dashboard installation")
-        except (PermissionDenied, SerdeError, ValueError, AttributeError):
-            install_dir = self._installation.install_folder()
-            logger.warning(
-                f"Existing profiler dashboard installation at {install_dir} is corrupted. "
-                f"Continuing new installation..."
-            )
-
-        config = self._configure_new_profiler_dashboard_installation()
-        logger.info("Finished configuring Lakebridge profiler dashboard.")
-        return config
-
-    def _configure_new_profiler_dashboard_installation(self) -> ProfilerDashboardConfig:
-        default_config = self._prompt_for_new_profiler_dashboard_installation()
-        self._save_config(default_config)
-        return default_config
-
-    def _prompt_for_new_profiler_dashboard_installation(self) -> ProfilerDashboardConfig:
-        logger.info("Please answer a few questions to configure the Lakebridge profiler dashboard.")
-        source_tech = self._prompts.choice("Select the source technology", PROFILER_SOURCE_SYSTEM)
-        extract_file_path = self._prompts.question(
-            "Enter the path to the profiler extract file:",
-            default=str(
-                Path("~/.databricks/labs/lakebridge_profilers/synapse_assessment/profiler_extract.db").expanduser()
-            ),
-        )
-
-        metadata_config = self._prompt_for_profiler_dashboard_metadata_config()
-
-        return ProfilerDashboardConfig(
-            source_tech=source_tech,
-            extract_file_path=extract_file_path,
-            metadata_config=metadata_config,
-        )
-
-    def _prompt_for_profiler_dashboard_metadata_config(self) -> ProfilerDashboardMetadataConfig:
-        logger.info("Configuring profiler dashboard metadata.")
-        catalog = self._configure_catalog()
-        schema = self._configure_schema(
-            catalog,
-            "profiler",
-        )
-        volume = self._configure_volume(catalog, schema, "ingestion_volume")
-        self._has_necessary_access(catalog, schema, volume)
-        return ProfilerDashboardMetadataConfig(catalog=catalog, schema=schema, volume=volume)
 
 
 def installer(

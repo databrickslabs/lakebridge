@@ -3,7 +3,8 @@
  * specified database by querying INFORMATION_SCHEMA.ROUTINES. Returns routine
  * details along with a timestamp indicating when the data was extracted.
  */
-SELECT created,
+SELECT DB_NAME() AS database_name,
+       created,
        data_type,
        is_deterministic,
        is_implicitly_invocable,

@@ -3,20 +3,27 @@ from pathlib import Path
 PRODUCT_NAME = "lakebridge"
 PRODUCT_PATH_PREFIX = Path.home() / ".databricks" / "labs" / PRODUCT_NAME / "lib"
 
-PLATFORM_TO_SOURCE_TECHNOLOGY_CFG = {
-    "synapse": "src/databricks/labs/lakebridge/resources/assessments/synapse/pipeline_config.yml",
-    "mssql": "src/databricks/labs/lakebridge/resources/assessments/mssql/pipeline_config.yml",
+# Marker used as a SOURCE_SYSTEM_VARIANTS value: the variant is auto-detected (probed) at load time
+# rather than being one of a fixed set of choices the CLI prompts for.
+AUTO = "__AUTO"
+
+PROFILER_SOURCE_SYSTEM = sorted(
+    [
+        "synapse",
+        "snowflake",
+        "oracle",
+        "mssql",
+        "legacy_synapse",
+        "bigquery",
+        "redshift",
+        "teradata",
+    ]
+)
+
+SOURCE_SYSTEM_VARIANTS = {
+    "mssql": (AUTO,),
 }
 
-# TODO modify this PLATFORM_TO_SOURCE_TECHNOLOGY.keys() once all platforms are supported
-PROFILER_SOURCE_SYSTEM = ["synapse", "mssql"]
+PROFILER_RUN_METADATA_TABLE = "profiler_run_metadata"
 
-
-# This flag indicates whether a connector is required for the source system when pipeline is trigger
-# For example in the case of synapse no connector is required and the python scripts
-# manage the connection by directly reading the credentials files
-# Revisit this when more source systems are added to standardize the approach
-CONNECTOR_REQUIRED = {
-    "synapse": False,
-    "mssql": True,
-}
+RESERVED_TABLE_NAMES = frozenset({PROFILER_RUN_METADATA_TABLE})

@@ -1,27 +1,31 @@
 import io
 import re
 import shutil
-from pathlib import Path
 from collections.abc import AsyncGenerator, Generator, Sequence
+from pathlib import Path
 from unittest.mock import create_autospec
 
 import pytest
 import yaml
-
-from sqlglot import ErrorLevel, UnsupportedError, Dialect, transpile
-from sqlglot import parse_one as sqlglot_parse_one
-from sqlglot.errors import SqlglotError, ParseError
-
 from databricks.sdk import WorkspaceClient
+from databricks.sdk.core import Config
 from databricks.sdk.errors import NotFound
+from sqlglot import Dialect, ErrorLevel, UnsupportedError, transpile
+from sqlglot import parse_one as sqlglot_parse_one
+from sqlglot.errors import ParseError, SqlglotError
 
-from databricks.labs.lakebridge.config import TranspileConfig
+from databricks.labs.lakebridge.config import (
+    ReconcileConfig,
+    ReconcileMetadataConfig,
+    SourceConnectionConfig,
+    TargetConnectionConfig,
+    TranspileConfig,
+)
 from databricks.labs.lakebridge.helpers.file_utils import make_dir
 from databricks.labs.lakebridge.transpiler.lsp.lsp_engine import LSPEngine
 from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import SQLGLOT_DIALECTS
 from databricks.labs.lakebridge.transpiler.sqlglot.generator.databricks import Databricks
 from databricks.labs.lakebridge.transpiler.sqlglot.parsers.snowflake import Snowflake
-from databricks.sdk.core import Config
 
 from .transpiler.helpers.functional_test_cases import (
     FunctionalTestFile,
@@ -233,9 +237,6 @@ def mock_workspace_client() -> WorkspaceClient:
         "/Users/foo/.lakebridge/recon_config.yml": yaml.dump(
             {
                 'version': 1,
-                'source_schema': "src_schema",
-                'target_catalog': "src_catalog",
-                'target_schema': "tgt_schema",
                 'tables': [
                     {
                         "source_name": 'src_table',
@@ -250,7 +251,6 @@ def mock_workspace_client() -> WorkspaceClient:
                         "filters": None,
                     }
                 ],
-                'source_catalog': "src_catalog",
             }
         ),
     }
@@ -290,7 +290,7 @@ def write_data_to_file(path: Path, content: str):
 
 
 @pytest.fixture
-def input_source(tmp_path: Path) -> Generator[Path, None, None]:
+def input_source(tmp_path: Path) -> Generator[Path]:
     source_dir = tmp_path / "remorph_source"
     safe_remove_dir(source_dir)  # should never be required but harmless
     make_dir(source_dir)
@@ -404,7 +404,7 @@ def input_source(tmp_path: Path) -> Generator[Path, None, None]:
 
 
 @pytest.fixture
-def empty_input_source(tmp_path: Path) -> Generator[Path, None, None]:
+def empty_input_source(tmp_path: Path) -> Generator[Path]:
     source_dir = tmp_path / "remorph_source"
     source_dir.mkdir()
     yield source_dir
@@ -412,7 +412,7 @@ def empty_input_source(tmp_path: Path) -> Generator[Path, None, None]:
 
 
 @pytest.fixture
-def output_folder(tmp_path: Path) -> Generator[Path, None, None]:
+def output_folder(tmp_path: Path) -> Generator[Path]:
     # Only the parent of the output folder has to exist.
     output_dir = tmp_path / "remorph_transpiled"
     yield output_dir
@@ -420,16 +420,60 @@ def output_folder(tmp_path: Path) -> Generator[Path, None, None]:
 
 
 @pytest.fixture
-def error_file(tmp_path: Path) -> Generator[Path, None, None]:
+def error_file(tmp_path: Path) -> Generator[Path]:
     file_path = tmp_path / "transpile_errors.lst"
     yield file_path
     safe_remove_file(file_path)
 
 
 @pytest.fixture
-async def lsp_engine(test_resources: Path) -> AsyncGenerator[LSPEngine, None]:
+async def lsp_engine(test_resources: Path) -> AsyncGenerator[LSPEngine]:
     config_path = test_resources / "lsp_transpiler" / "lsp_config.yml"
     engine = LSPEngine.from_config_path(Path(config_path))
     yield engine
     if engine.is_alive:
         await engine.shutdown()
+
+
+@pytest.fixture
+def oracle_recon_config() -> ReconcileConfig:
+    return ReconcileConfig(
+        report_type="all",
+        source=SourceConnectionConfig(
+            dialect="oracle",
+            catalog="ORCL",
+            schema="tpch_sf10009",
+            uc_connection_name="remorph_oracle9",
+        ),
+        target=TargetConnectionConfig(
+            catalog="tpch9",
+            schema="1000gb9",
+        ),
+        metadata_config=ReconcileMetadataConfig(
+            catalog="remorph9",
+            schema="reconcile9",
+            volume="reconcile_volume9",
+        ),
+    )
+
+
+@pytest.fixture
+def snowflake_recon_config() -> ReconcileConfig:
+    return ReconcileConfig(
+        report_type="all",
+        source=SourceConnectionConfig(
+            dialect="snowflake",
+            catalog="snowflake_sample_data9",
+            schema="tpch_sf10009",
+            uc_connection_name="remorph_snowflake9",
+        ),
+        target=TargetConnectionConfig(
+            catalog="tpch9",
+            schema="1000gb9",
+        ),
+        metadata_config=ReconcileMetadataConfig(
+            catalog="remorph9",
+            schema="reconcile9",
+            volume="reconcile_volume9",
+        ),
+    )

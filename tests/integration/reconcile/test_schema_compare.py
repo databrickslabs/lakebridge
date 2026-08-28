@@ -1,14 +1,14 @@
 import pytest
 
-from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
 from databricks.labs.lakebridge.reconcile.recon_config import ColumnMapping, Table
 from databricks.labs.lakebridge.reconcile.schema_compare import SchemaCompare
-
+from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
 from tests.conftest import (
-    schema_fixture_factory,
-    tsql_schema_fixture_factory,
     ansi_schema_fixture_factory,
     redshift_schema_fixture_factory,
+    schema_fixture_factory,
+    teradata_schema_fixture_factory,
+    tsql_schema_fixture_factory,
 )
 
 
@@ -79,7 +79,7 @@ def snowflake_databricks_schema():
         schema_fixture_factory("array_col", "array<string>"),
         schema_fixture_factory("col_array_int", "array<int>"),
         schema_fixture_factory("col_array_float", "array<double>"),
-        schema_fixture_factory("col_geography", "string"),
+        schema_fixture_factory("col_geography", "geography"),
         schema_fixture_factory("col_num10", "decimal(10,1)"),
         schema_fixture_factory("col_dec", "decimal(20,1)"),
         schema_fixture_factory("col_numeric_2", "decimal(38,0)"),
@@ -312,6 +312,94 @@ def redshift_databricks_schema():
     return src_schema, tgt_schema
 
 
+def teradata_databricks_schema():
+    src_schema = [
+        teradata_schema_fixture_factory("col_smallint", "smallint"),
+        teradata_schema_fixture_factory("col_integer", "integer"),
+        teradata_schema_fixture_factory("col_bigint", "bigint"),
+        teradata_schema_fixture_factory("col_decimal", "decimal(10,2)"),
+        teradata_schema_fixture_factory("col_number", "number(38,0)"),
+        teradata_schema_fixture_factory("col_double", "double precision"),
+        teradata_schema_fixture_factory("col_varchar", "varchar(100)"),
+        teradata_schema_fixture_factory("col_char", "char(10)"),
+        teradata_schema_fixture_factory("col_clob", "clob"),
+        teradata_schema_fixture_factory("col_blob", "blob"),
+        teradata_schema_fixture_factory("col_date", "date"),
+        teradata_schema_fixture_factory("col_time", "time"),
+        teradata_schema_fixture_factory("col_timestamp", "timestamp"),
+        teradata_schema_fixture_factory("col_timestamptz", "timestamp with time zone"),
+        schema_fixture_factory("`col Escaped`", "varchar(50)", source_delimiter='"'),
+        schema_fixture_factory('"col escaped2"', "integer", source_delimiter='"'),
+    ]
+    tgt_schema = [
+        ansi_schema_fixture_factory("col_smallint", "smallint"),
+        ansi_schema_fixture_factory("col_integer", "int"),
+        ansi_schema_fixture_factory("col_bigint", "bigint"),
+        ansi_schema_fixture_factory("col_decimal", "decimal(10,2)"),
+        ansi_schema_fixture_factory("col_number", "decimal(38,0)"),
+        ansi_schema_fixture_factory("col_double", "double"),
+        ansi_schema_fixture_factory("col_varchar", "string"),
+        ansi_schema_fixture_factory("col_char", "string"),
+        ansi_schema_fixture_factory("col_clob", "string"),
+        ansi_schema_fixture_factory("col_blob", "binary"),
+        ansi_schema_fixture_factory("col_date", "date"),
+        ansi_schema_fixture_factory("col_time", "timestamp"),
+        ansi_schema_fixture_factory("col_timestamp", "timestamp"),
+        ansi_schema_fixture_factory("col_timestamptz", "timestamp"),
+        ansi_schema_fixture_factory("`col Escaped`", "string"),
+        ansi_schema_fixture_factory("`col escaped2`", "int"),
+    ]
+    return src_schema, tgt_schema
+
+
+def bigquery_databricks_schema():
+    src_schema = [
+        schema_fixture_factory("col_int64", "int64"),
+        schema_fixture_factory("col_float64", "float64"),
+        schema_fixture_factory("col_bool", "bool"),
+        schema_fixture_factory("col_string", "string"),
+        schema_fixture_factory("col_bytes", "bytes"),
+        schema_fixture_factory("col_date", "date"),
+        schema_fixture_factory("col_datetime", "datetime"),
+        schema_fixture_factory("col_timestamp", "timestamp"),
+        schema_fixture_factory("col_numeric_ps", "numeric(10, 2)"),
+        schema_fixture_factory("col_geography", "geography"),
+        schema_fixture_factory("col_array_int", "array<int64>"),
+        schema_fixture_factory("col_struct_int", "struct<a int64>"),
+        schema_fixture_factory("col_numeric", "decimal(38, 9)"),
+        schema_fixture_factory("col_bignumeric", "bignumeric"),
+        schema_fixture_factory("col_json", "variant"),
+        schema_fixture_factory("col_time", "time"),
+        schema_fixture_factory("col_array_time", "array<time>"),
+        schema_fixture_factory("col_range_date", "range<date>"),
+        schema_fixture_factory("col_range_datetime", "range<datetime>"),
+        schema_fixture_factory("col_range_timestamp", "range<timestamp>"),
+    ]
+    tgt_schema = [
+        schema_fixture_factory("col_int64", "bigint"),
+        schema_fixture_factory("col_float64", "double"),
+        schema_fixture_factory("col_bool", "boolean"),
+        schema_fixture_factory("col_string", "string"),
+        schema_fixture_factory("col_bytes", "binary"),
+        schema_fixture_factory("col_date", "date"),
+        schema_fixture_factory("col_datetime", "timestamp_ntz"),
+        schema_fixture_factory("col_timestamp", "timestamp"),
+        schema_fixture_factory("col_numeric_ps", "decimal(10,2)"),
+        schema_fixture_factory("col_geography", "geography"),
+        schema_fixture_factory("col_array_int", "array<bigint>"),
+        schema_fixture_factory("col_struct_int", "struct<a: bigint>"),
+        schema_fixture_factory("col_numeric", "decimal(38,9)"),
+        schema_fixture_factory("col_bignumeric", "decimal(38,9)"),
+        schema_fixture_factory("col_json", "variant"),
+        schema_fixture_factory("col_time", "string"),
+        schema_fixture_factory("col_array_time", "array<string>"),
+        schema_fixture_factory("col_range_date", "struct<start: date, end: date>"),
+        schema_fixture_factory("col_range_datetime", "struct<start: timestamp_ntz, end: timestamp_ntz>"),
+        schema_fixture_factory("col_range_timestamp", "struct<start: timestamp, end: timestamp>"),
+    ]
+    return src_schema, tgt_schema
+
+
 @pytest.fixture
 def schemas():
     return {
@@ -320,6 +408,8 @@ def schemas():
         "oracle_databricks_schema": oracle_databricks_schema(),
         "tsql_databricks_schema": tsql_databricks_schema(),
         "redshift_databricks_schema": redshift_databricks_schema(),
+        "teradata_databricks_schema": teradata_databricks_schema(),
+        "bigquery_databricks_schema": bigquery_databricks_schema(),
     }
 
 
@@ -470,6 +560,23 @@ def test_schema_compare(spark):
     assert df.filter("is_valid = 'false'").count() == 0
 
 
+def test_bigquery_schema_compare(schemas, spark):
+    src_schema, tgt_schema = schemas["bigquery_databricks_schema"]
+    table_conf = Table(source_name="supplier", target_name="supplier")
+
+    schema_compare_output = SchemaCompare(spark).compare(
+        src_schema,
+        tgt_schema,
+        get_dialect("bigquery"),
+        table_conf,
+    )
+    df = schema_compare_output.compare_df
+    assert not schema_compare_output.is_valid
+    assert df.count() == 20
+    assert df.filter("is_valid = 'true'").count() == 14
+    assert df.filter("is_valid = 'false'").count() == 6
+
+
 def test_redshift_schema_compare(schemas, spark):
     src_schema, tgt_schema = schemas["redshift_databricks_schema"]
     table_conf = Table(
@@ -481,6 +588,26 @@ def test_redshift_schema_compare(schemas, spark):
         src_schema,
         tgt_schema,
         get_dialect("redshift"),
+        table_conf,
+    )
+    df = schema_compare_output.compare_df
+    assert schema_compare_output.is_valid
+    assert df.count() == 16
+    assert df.filter("is_valid = 'true'").count() == 16
+    assert df.filter("is_valid = 'false'").count() == 0
+
+
+def test_teradata_schema_compare(schemas, spark):
+    src_schema, tgt_schema = schemas["teradata_databricks_schema"]
+    table_conf = Table(
+        source_name="supplier",
+        target_name="supplier",
+    )
+
+    schema_compare_output = SchemaCompare(spark).compare(
+        src_schema,
+        tgt_schema,
+        get_dialect("teradata"),
         table_conf,
     )
     df = schema_compare_output.compare_df

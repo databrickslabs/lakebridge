@@ -2,34 +2,34 @@ from pathlib import Path
 from unittest.mock import create_autospec
 
 import pytest
-from pyspark.sql import DataFrame
-from pyspark.sql.types import (
-    StructType,
-    StructField,
-    LongType,
-    StringType,
-    TimestampType,
-    BooleanType,
-    ArrayType,
-    MapType,
-)
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.service import iam
+from pyspark.sql import DataFrame
+from pyspark.sql.types import (
+    ArrayType,
+    BooleanType,
+    LongType,
+    StringType,
+    StructField,
+    StructType,
+    TimestampType,
+    VariantType,
+)
 
+from databricks.labs.lakebridge.reconcile.connectors.data_source import DataSource, MockDataSource
 from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import DialectUtils
 from databricks.labs.lakebridge.reconcile.connectors.models import NormalizedIdentifier
-from databricks.labs.lakebridge.reconcile.connectors.data_source import DataSource, MockDataSource
+from databricks.labs.lakebridge.reconcile.normalize_recon_config_service import NormalizeReconConfigService
 from databricks.labs.lakebridge.reconcile.recon_config import (
-    Table,
-    JdbcReaderOptions,
-    Transformation,
+    ColumnMapping,
     ColumnThresholds,
     Filters,
-    TableThresholds,
-    ColumnMapping,
+    JdbcReaderOptions,
     Schema,
+    Table,
+    TableThresholds,
+    Transformation,
 )
-from databricks.labs.lakebridge.reconcile.normalize_recon_config_service import NormalizeReconConfigService
 
 
 @pytest.fixture(scope="session")
@@ -116,6 +116,7 @@ def table_conf():
             transformations=kwargs.get('transformations', None),
             column_thresholds=kwargs.get('thresholds', None),
             filters=kwargs.get('filters', None),
+            sampling_options=kwargs.get('sampling_options', None),
         )
 
     return _table_conf
@@ -228,12 +229,15 @@ def report_tables_schema():
         ]
     )
 
+    # Record-level details: one row per sampled record, with VARIANT row images.
     details_schema = StructType(
         [
             StructField("recon_table_id", LongType(), nullable=False),
             StructField("recon_type", StringType(), nullable=False),
-            StructField("status", BooleanType(), nullable=False),
-            StructField("data", ArrayType(MapType(StringType(), StringType())), nullable=False),
+            StructField("record_key", VariantType()),
+            StructField("source_row", VariantType()),
+            StructField("target_row", VariantType()),
+            StructField("mismatch_columns", ArrayType(StringType())),
             StructField("inserted_ts", TimestampType(), nullable=False),
         ]
     )
@@ -292,6 +296,16 @@ def redshift_schema_fixture_factory(column_name: str, data_type: str) -> Schema:
     )
 
 
+def teradata_schema_fixture_factory(column_name: str, data_type: str) -> Schema:
+    norm = DialectUtils.normalize_identifier(column_name, "\"", "\"")
+    return schema_fixture_factory(
+        norm.ansi_normalized,
+        data_type,
+        norm.ansi_normalized,
+        norm.source_normalized,
+    )
+
+
 def ansi_schema_fixture_factory(column_name: str, data_type: str) -> Schema:
     ansi = DialectUtils.ansi_normalize_identifier(column_name)
     return schema_fixture_factory(
@@ -332,6 +346,12 @@ class FakeDataSource(DataSource):
     def get_schema(self, catalog: str | None, schema: str, table: str, normalize: bool = True) -> list[Schema]:
         raise RuntimeError("Not implemented")
 
+    def list_schemas(self, catalog: str) -> list[str]:
+        raise RuntimeError("Not implemented")
+
+    def list_tables(self, catalog: str, schema: str) -> list[str]:
+        raise RuntimeError("Not implemented")
+
     def normalize_identifier(self, identifier: str) -> NormalizedIdentifier:
         return DialectUtils.normalize_identifier(identifier, self.start_delimiter, self.end_delimiter)
 
@@ -353,6 +373,11 @@ def fake_databricks_datasource() -> FakeDataSource:
 
 @pytest.fixture
 def fake_redshift_datasource() -> FakeDataSource:
+    return FakeDataSource('"', '"')
+
+
+@pytest.fixture
+def fake_teradata_datasource() -> FakeDataSource:
     return FakeDataSource('"', '"')
 
 
@@ -399,6 +424,19 @@ def redshift_table_conf_with_opts(normalize_config_service: NormalizeReconConfig
 
 
 @pytest.fixture
+def teradata_table_conf_with_opts(normalize_config_service: NormalizeReconConfigService, table_conf_with_opts):
+    conf = normalize_config_service.normalize_recon_table_config(table_conf_with_opts)
+    conf.transformations = [  # SQL has to be valid
+        Transformation(column_name="`s_address`", source="trim(\"s_address\")", target="trim(`s_address_t`)"),
+        Transformation(column_name="`s_phone`", source="trim(\"s_phone\")", target="trim(`s_phone_t`)"),
+        Transformation(column_name="`s_name`", source="trim(\"s_name\")", target="trim(`s_name`)"),
+    ]
+    if conf.filters:
+        conf.filters.source = "\"s_name\"='t' and \"s_address\"='a'"
+    return conf
+
+
+@pytest.fixture
 def tsql_table_conf_with_opts(normalize_config_service: NormalizeReconConfigService, table_conf_with_opts):
     conf = normalize_config_service.normalize_recon_table_config(table_conf_with_opts)
     conf.transformations = [  # SQL has to be valid
@@ -432,6 +470,14 @@ def table_schema_ansi_ansi(table_schema):
 def table_schema_redshift_ansi(table_schema):
     src_schema, tgt_schema = table_schema
     src_schema = [redshift_schema_fixture_factory(s.column_name, s.data_type) for s in src_schema]
+    tgt_schema = [ansi_schema_fixture_factory(s.column_name, s.data_type) for s in tgt_schema]
+    return src_schema, tgt_schema
+
+
+@pytest.fixture
+def table_schema_teradata_ansi(table_schema):
+    src_schema, tgt_schema = table_schema
+    src_schema = [teradata_schema_fixture_factory(s.column_name, s.data_type) for s in src_schema]
     tgt_schema = [ansi_schema_fixture_factory(s.column_name, s.data_type) for s in tgt_schema]
     return src_schema, tgt_schema
 

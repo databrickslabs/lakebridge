@@ -59,6 +59,10 @@ def test_valid_step_names(valid_name: str) -> None:
         ("x--comment", "Invalid step name"),
         ("x;DELETE FROM sensitive_data", "Invalid step name"),
         ("x' UNION SELECT * FROM sensitive_data --", "Invalid step name"),
+        # Reserved: the pipeline writes this table itself. DuckDB identifiers are
+        # case-insensitive, so a differently-cased name targets the same table.
+        ("profiler_run_metadata", "is reserved"),
+        ("PROFILER_RUN_METADATA", "is reserved"),
     ],
 )
 def test_invalid_step_names(invalid_name: str, error_pattern: str) -> None:
@@ -95,7 +99,7 @@ def test_invalid_mode(invalid_mode: str) -> None:
         )
 
 
-@pytest.mark.parametrize("step_type", ["sql", "ddl", "python"])
+@pytest.mark.parametrize("step_type", ["sql", "ddl", "python", "source_ddl"])
 def test_valid_types(step_type: str) -> None:
     """Test that valid types are accepted."""
     step = Step(
@@ -114,6 +118,36 @@ def test_invalid_type(invalid_type: str) -> None:
             name="test_table",
             type=invalid_type,
             extract_source="test.sql",
+        )
+
+
+@pytest.mark.parametrize("optional", [True, False])
+def test_valid_optional(optional: bool) -> None:
+    """Test that boolean optional values are accepted."""
+    step = Step(
+        name="test_table",
+        type="sql",
+        extract_source="test.sql",
+        optional=optional,
+    )
+    assert step.optional is optional
+
+
+def test_optional_defaults_false() -> None:
+    """Test that optional defaults to False so existing steps stay required."""
+    step = Step(name="test_table", type="sql", extract_source="test.sql")
+    assert step.optional is False
+
+
+@pytest.mark.parametrize("invalid_optional", ["true", 1, None])
+def test_invalid_optional(invalid_optional: object) -> None:
+    """Test that non-boolean optional values are rejected."""
+    with pytest.raises(ValueError, match="Invalid optional value"):
+        Step(
+            name="test_table",
+            type="sql",
+            extract_source="test.sql",
+            optional=invalid_optional,  # type: ignore[arg-type]
         )
 
 
@@ -145,7 +179,6 @@ def test_pipeline_config_with_valid_steps() -> None:
     config = PipelineConfig(
         name="TestPipeline",
         version="1.0",
-        extract_folder="/tmp/test",
         steps=steps,
     )
 

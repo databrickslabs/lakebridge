@@ -1,8 +1,8 @@
 import contextlib
 import logging
 import os
-from pathlib import Path
 from collections.abc import Generator
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +46,7 @@ def dir_walk(root: Path):
         yield from dir_walk(each_dir)
 
 
-def get_sql_file(input_path: str | Path) -> Generator[Path, None, None]:
+def get_sql_file(input_path: str | Path) -> Generator[Path]:
     """
     Returns Generator that yields the names of all SQL files in the given directory.
     :param input_path: Path
@@ -59,7 +59,7 @@ def get_sql_file(input_path: str | Path) -> Generator[Path, None, None]:
 
 
 @contextlib.contextmanager
-def chdir(new_path: Path) -> Generator[None, None, None]:
+def chdir(new_path: Path) -> Generator[None]:
     saved_path = Path.cwd()
     try:
         os.chdir(new_path)
@@ -68,7 +68,7 @@ def chdir(new_path: Path) -> Generator[None, None, None]:
         os.chdir(saved_path)
 
 
-def check_path(path: Path | str) -> bool:
+def check_writable_path(path: Path | str) -> bool:
     """Validates a path for both existing files and writable files."""
     try:
         path_obj = Path(path) if not isinstance(path, Path) else path
@@ -78,6 +78,17 @@ def check_path(path: Path | str) -> bool:
 
         parent = path_obj.parent
         return parent.exists() and os.access(parent, os.W_OK)
+
+    except OSError as e:
+        logger.warning(f"Could not validate path: {path}, error: {e}")
+        return False
+
+
+def check_readable_path(path: Path | str) -> bool:
+    """Validates a path exists and can be read."""
+    try:
+        path_obj = Path(path) if not isinstance(path, Path) else path
+        return path_obj.exists() and os.access(path_obj, os.R_OK)
 
     except OSError as e:
         logger.warning(f"Could not validate path: {path}, error: {e}")

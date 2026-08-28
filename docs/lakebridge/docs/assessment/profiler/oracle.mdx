@@ -1,0 +1,203 @@
+---
+sidebar_position: 4
+title: Oracle Profiler Details
+---
+import Admonition from '@theme/Admonition';
+
+# Oracle Profiler Details
+
+- [Prerequisites](#prerequisites)
+- [Profiled Tables and Views](#profiled-tables-and-views)
+- [Configure Connection to Oracle](#configure-connection-to-oracle)
+- [Execute the Profiler](#execute-the-profiler)
+
+:::info
+The Oracle profiler targets **multitenant container databases (CDB)** and reads from `CDB_*`, `GV$*`, and AWR views.
+It must be run against `CDB$ROOT`, not an individual PDB.
+:::
+
+## Prerequisites
+
+### 1. Download
+
+No local Oracle client install is required.
+
+### 2. Network and Authentication
+
+:::warning Attention:
+The profiler connects with **username and password over TCP** only. The following are **not supported**:
+
+- TCPS / TLS-encrypted listener connections
+- Oracle Wallet (mTLS, externally identified users)
+- Kerberos / OS authentication
+- Multi-factor authentication
+
+The Oracle listener must be reachable from the host running `databricks labs lakebridge` on the configured TNS port.
+:::
+
+### 3. Required Database Permissions
+
+The Oracle user configured for the profiler must be able to read the data dictionary and AWR views listed in
+[Profiled Tables and Views](#profiled-tables-and-views).
+
+Connect to `CDB$ROOT` as `SYS` (or a DBA-privileged user) and run:
+
+```sql
+-- Create a common profiler user (skip if reusing an existing account)
+CREATE USER c##lakebridge_profiler IDENTIFIED BY <password> CONTAINER=ALL;
+GRANT CREATE SESSION TO c##lakebridge_profiler CONTAINER=ALL;
+GRANT SET CONTAINER TO c##lakebridge_profiler CONTAINER=ALL;
+
+-- Catalog and AWR access
+GRANT SELECT_CATALOG_ROLE TO c##lakebridge_profiler CONTAINER=ALL;
+```
+
+:::warning Diagnostic Pack license
+The performance queries read from AWR (`CDB_HIST_*`), which requires an Oracle **Diagnostic Pack** license. AWR
+views return data on any Enterprise Edition database whether or not the pack is licensed — querying them without
+a license is an audit-time violation, not a runtime error.
+
+By running the profiler against an Oracle source you are asserting that your database is appropriately licensed.
+:::
+
+## Profiled Tables and Views
+
+The Oracle profiler executes queries against the following Oracle data dictionary and AWR views. The results are
+organized into two extraction steps: **configuration metadata** and **performance metrics**.
+
+### Configuration Metadata
+
+<table>
+  <thead>
+    <tr>
+      <th>Query</th>
+      <th>Source View(s)</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Containers</td>
+      <td><code>gv$containers</code></td>
+      <td>CDB and PDB inventory across all RAC instances.</td>
+    </tr>
+    <tr>
+      <td>DB Features</td>
+      <td><code>product_component_version</code>, <code>gv$instance</code>, <code>gv$pdbs</code>, <code>gv$osstat</code></td>
+      <td>Database version, instance count, PDB list, and CPU/core/socket counts.</td>
+    </tr>
+    <tr>
+      <td>Instance</td>
+      <td><code>gv$instance</code></td>
+      <td>Instance id, name, version, and database type.</td>
+    </tr>
+    <tr>
+      <td>Memory Evolution</td>
+      <td><code>cdb_hist_parameter</code>, <code>cdb_hist_snapshot</code></td>
+      <td>Historical SGA/PGA/buffer-cache parameter values across AWR snapshots.</td>
+    </tr>
+    <tr>
+      <td>PDB Objects</td>
+      <td><code>cdb_objects</code>, <code>cdb_users</code></td>
+      <td>Object counts per PDB, owner, and object type (Oracle-maintained schemas excluded).</td>
+    </tr>
+    <tr>
+      <td>PDB Partitions</td>
+      <td><code>cdb_tables</code>, <code>cdb_indexes</code>, <code>cdb_lobs</code></td>
+      <td>Partitioned vs. non-partitioned counts for tables, indexes, and LOBs per PDB and owner.</td>
+    </tr>
+    <tr>
+      <td>Storage</td>
+      <td><code>cdb_data_files</code>, <code>cdb_free_space</code>, <code>cdb_tablespaces</code></td>
+      <td>Allocated, free, and max sizes per container, grouped into <code>SYSTEM</code>, <code>UNDO</code>, and <code>USER_DATA</code>.</td>
+    </tr>
+  </tbody>
+</table>
+
+### Performance Metrics
+
+<table>
+  <thead>
+    <tr>
+      <th>Query</th>
+      <th>Source View(s)</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>CPU &amp; Waits</td>
+      <td><code>cdb_hist_active_sess_history</code></td>
+      <td>Hourly wait-event and CPU-time breakdown per PDB and instance from ASH samples.</td>
+    </tr>
+    <tr>
+      <td>Foreground Session Evolution</td>
+      <td><code>cdb_hist_active_sess_history</code>, <code>cdb_users</code></td>
+      <td>Per-minute distinct foreground session counts by PDB, instance, and end-user.</td>
+    </tr>
+    <tr>
+      <td>CPU Heatmap</td>
+      <td><code>cdb_hist_active_sess_history</code>, <code>gv$osstat</code></td>
+      <td>Hourly Average Active Sessions normalized by CPU core count.</td>
+    </tr>
+    <tr>
+      <td>SQL Text</td>
+      <td><code>cdb_hist_sqlstat</code>, <code>cdb_hist_sqltext</code>, <code>audit_actions</code></td>
+      <td>SQL statements from AWR, classified into workload categories (BI/QUERY, ETL, DML, DDL, PL/SQL) with execution counts and total elapsed time per schema and PDB.</td>
+    </tr>
+  </tbody>
+</table>
+
+## Configure Connection to Oracle
+
+Run the following command to configure the profiler connection to your Oracle CDB:
+
+```console
+databricks labs lakebridge configure-database-profiler
+
+Please select the source system you want to configure
+[0] synapse
+[1] mssql
+[2] oracle
+Enter a number between 0 and 2: 2
+
+(local | env)
+local means values are read as plain text
+env means values are read from environment variables, and fall back to plain text if not variable is not found
+
+Enter secret vault type (local | env)
+[0] env
+[1] local
+Enter a number between 0 and 1: 1
+Enter the host details (Server name, IP address, SCAN Name): oracle-host.example.com
+Enter the host port number (default: 1521):
+Enter the service name (default: orcl): ORCLCDB
+Enter user with privileges:
+Enter user password:
+```
+
+### Configuration Parameters
+
+| Parameter | Description | Default |
+|:----------|:------------|:--------|
+| **Secret vault type** | `local` for plain text values, `env` to read from environment variables | — |
+| **Host** | Oracle server hostname, IP, or RAC SCAN name | — |
+| **Port** | Port the Oracle listener is bound to | `1521` |
+| **Service name** | Service name registered in the Oracle listener (the CDB service) | `orcl` |
+| **User** | Database user with the grants from [Required Database Permissions](#3-required-database-permissions). `SYSTEM` works out of the box but is over-privileged; the dedicated user above is recommended. | — |
+| **Password** | Password for the database user (hidden input) | — |
+
+## Execute the Profiler
+
+Once configured, run the profiler to extract metadata and performance metrics from your Oracle CDB:
+
+```bash
+databricks labs lakebridge execute-database-profiler --source-tech oracle
+```
+
+The profiler will:
+1. Connect to your Oracle CDB using the configured credentials
+2. Execute the configuration and performance metric extraction queries
+3. Store the results in a local DuckDB extract file
+
+[Back to Configure Profiler](../#configure-profiler)

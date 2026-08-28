@@ -1,12 +1,12 @@
 import logging
-from sqlglot.dialects.presto import Presto as presto
+
 from sqlglot import exp
-from sqlglot.helper import seq_get
+from sqlglot.dialects.presto import Presto as presto
 from sqlglot.errors import ParseError
+from sqlglot.helper import seq_get
 from sqlglot.tokens import TokenType
 
 from databricks.labs.lakebridge.transpiler.sqlglot import local_expression
-
 
 logger = logging.getLogger(__name__)
 

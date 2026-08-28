@@ -5,10 +5,11 @@ from collections.abc import Callable, Sequence
 from logging import LogRecord
 from pathlib import Path
 from typing import TypeAlias
-from unittest.mock import Mock, DEFAULT
+from unittest.mock import DEFAULT, Mock
 
 import pytest
 from lsprotocol.types import (
+    ApplyWorkspaceEditResult,
     CreateFile,
     CreateFileOptions,
     DeleteFile,
@@ -21,20 +22,20 @@ from lsprotocol.types import (
     TextDocumentEdit,
     TextEdit,
     WorkspaceEdit,
-    ApplyWorkspaceEditResult,
 )
 
 from databricks.labs.lakebridge.transpiler.lsp.editing import (
     BaseEditor,
     DocumentChange,
+    Editor,
     EditorProxy,
     LakebridgeEditor,
     RetargetingEditor,
     SandboxEditor,
-    logger as editing_logger,
-    Editor,
 )
-
+from databricks.labs.lakebridge.transpiler.lsp.editing import (
+    logger as editing_logger,
+)
 
 LSP_ORIGIN = Range(start=Position(0, 0), end=Position(0, 0))
 

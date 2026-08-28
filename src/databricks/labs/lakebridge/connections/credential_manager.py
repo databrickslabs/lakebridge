@@ -1,5 +1,5 @@
-from pathlib import Path
 import logging
+from pathlib import Path
 from typing import Any, Protocol
 
 import yaml
@@ -85,7 +85,7 @@ def _get_home() -> Path:
     return Path.home()
 
 
-def cred_file(product_name) -> Path:
+def cred_file(product_name: str = "lakebridge") -> Path:
     return _get_home() / ".databricks" / "labs" / product_name / ".credentials.yml"
 
 

@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from collections.abc import Generator, Iterable, Mapping, Sequence, Set
+import logging
+from collections.abc import Generator, Iterable, Mapping, Sequence
+from collections.abc import Set as AbstractSet
 from dataclasses import dataclass
 from json import loads
-from typing import Any
 from pathlib import Path
-import logging
+from typing import Any
 
 from databricks.labs.lakebridge.config import LSPConfigOptionV1
 from databricks.labs.lakebridge.transpiler.lsp.lsp_engine import LSPConfig
@@ -117,12 +118,12 @@ class TranspilerRepository:
         """
         return {path.name: config for path, config in self._all_transpiler_configs()}
 
-    def all_transpiler_names(self) -> Set[str]:
+    def all_transpiler_names(self) -> AbstractSet[str]:
         """Query the set of transpiler names for all installed transpilers."""
         all_configs = self._all_transpiler_configs()
         return frozenset(config.name for _, config in all_configs)
 
-    def _transpiler_locations(self) -> Generator[Path, None, None]:
+    def _transpiler_locations(self) -> Generator[Path]:
         transpilers_path = self.transpilers_path()
         try:
             # Treat the first entry specially: failure here is different from failure once underway.
@@ -150,14 +151,14 @@ class TranspilerRepository:
             for path, config in self._all_transpiler_configs()
         }
 
-    def all_dialects(self) -> Set[str]:
+    def all_dialects(self) -> AbstractSet[str]:
         """Query the set of dialects for all installed transpilers."""
         all_dialects: set[str] = set()
         for _, config in self._all_transpiler_configs():
             all_dialects = all_dialects.union(config.remorph.dialects)
         return all_dialects
 
-    def transpilers_with_dialect(self, dialect: str) -> Set[str]:
+    def transpilers_with_dialect(self, dialect: str) -> AbstractSet[str]:
         """
         Query the set of transpilers that can handle a given dialect.
 

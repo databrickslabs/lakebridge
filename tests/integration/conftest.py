@@ -5,15 +5,14 @@ from urllib.parse import urlparse
 from uuid import UUID
 
 import pytest
-
+from databricks.labs.blueprint.installation import JsonObject
 from databricks.labs.blueprint.paths import WorkspacePath
 from databricks.labs.blueprint.wheels import ProductInfo
-from databricks.labs.blueprint.installation import JsonObject
-from databricks.labs.lakebridge.__about__ import __version__
-from databricks.labs.lakebridge.connections.database_manager import DatabaseManager
-from databricks.labs.lakebridge.contexts.application import ApplicationContext
 from databricks.sdk import WorkspaceClient
 
+from databricks.labs.lakebridge.__about__ import __version__
+from databricks.labs.lakebridge.connections.database_manager import DatabaseConnector, create_connector
+from databricks.labs.lakebridge.contexts.application import ApplicationContext
 from tests.integration.debug_envgetter import TestEnvGetter
 
 logging.getLogger("tests").setLevel(logging.DEBUG)
@@ -51,7 +50,7 @@ class MockApplicationContext(ApplicationContext):
 
 
 @pytest.fixture
-def application_ctx(ws: WorkspaceClient) -> Generator[ApplicationContext, None, None]:
+def application_ctx(ws: WorkspaceClient) -> Generator[ApplicationContext]:
     """A mock application context with a unique installation path, cleaned up after the test."""
     ctx = MockApplicationContext(ws)
     yield ctx
@@ -89,28 +88,26 @@ def sandbox_sqlserver_config() -> JsonObject:
         "password": env.get("TEST_TSQL_PASS"),
         "server": server,
         "database": database,
-        "driver": "ODBC Driver 18 for SQL Server",
     }
     return config
 
 
 @pytest.fixture()
-def sandbox_sqlserver(sandbox_sqlserver_config) -> DatabaseManager:
-    return DatabaseManager("mssql", sandbox_sqlserver_config)
+def sandbox_sqlserver(sandbox_sqlserver_config) -> DatabaseConnector:
+    return create_connector("mssql", sandbox_sqlserver_config)
 
 
 @pytest.fixture()
 def sandbox_synapse_config(sandbox_sqlserver_config: JsonObject) -> JsonObject:
-    """Convert SQL Server config to Synapse config format for direct DatabaseManager usage."""
+    """Convert SQL Server config to Synapse config format for direct connector usage."""
     # Transform MSSQL config to Synapse format
     # In testing, we use SQL Server as a stand-in for Synapse since they use the same protocol
     return {
         "server": sandbox_sqlserver_config["server"],
         "user": sandbox_sqlserver_config["user"],
         "password": sandbox_sqlserver_config["password"],
-        "driver": sandbox_sqlserver_config["driver"],
         "database": sandbox_sqlserver_config["database"],
-        "auth_type": "sql_authentication",
+        "auth_type": "SqlPassword",
         "port": 1433,
     }
 
@@ -135,18 +132,13 @@ def sandbox_synapse_cred_config(sandbox_sqlserver_config: JsonObject) -> JsonObj
                 "name": workspace_name,
                 "dedicated_sql_endpoint": server,
                 "serverless_sql_endpoint": f"{workspace_name}-ondemand.sql.azuresynapse.net",
-                "sql_user": sandbox_sqlserver_config["user"],
-                "sql_password": sandbox_sqlserver_config["password"],
-                "driver": sandbox_sqlserver_config["driver"],
-                "tz_info": "UTC",
-            },
-            "azure_api_access": {
                 "development_endpoint": f"https://{workspace_name}.dev.azuresynapse.net",
-            },
-            "jdbc": {
-                "auth_type": "sql_authentication",
+                "auth_type": "SqlPassword",
+                "user": sandbox_sqlserver_config["user"],
+                "password": sandbox_sqlserver_config["password"],
                 "fetch_size": "1000",
                 "login_timeout": "30",
+                "tz_info": "UTC",
             },
             "profiler": {
                 "exclude_serverless_sql_pool": False,
@@ -161,9 +153,38 @@ def sandbox_synapse_cred_config(sandbox_sqlserver_config: JsonObject) -> JsonObj
 
 
 @pytest.fixture()
-def sandbox_synapse(sandbox_synapse_config: JsonObject) -> DatabaseManager:
-    """Create a DatabaseManager for Synapse (uses MSSQLConnector via factory method)."""
-    return DatabaseManager("synapse", sandbox_synapse_config)
+def sandbox_spn_sqlserver_config(sandbox_sqlserver_config: JsonObject, monkeypatch: pytest.MonkeyPatch) -> JsonObject:
+    env = TestEnvGetter(True)
+    monkeypatch.setenv("AZURE_CLIENT_ID", env.get("TOOLS_CLIENT_ID"))
+    monkeypatch.setenv("AZURE_CLIENT_SECRET", env.get("TOOLS_CLIENT_SECRET"))
+    config = {k: v for k, v in sandbox_sqlserver_config.items() if k not in ("user", "password")}
+    return {**config, "auth_type": "ActiveDirectoryServicePrincipal"}
+
+
+@pytest.fixture()
+def sandbox_synapse(sandbox_synapse_config: JsonObject) -> DatabaseConnector:
+    """Create a connector for Synapse (uses MSSQLConnector via factory method)."""
+    return create_connector("synapse", sandbox_synapse_config)
+
+
+@pytest.fixture()
+def sandbox_redshift_config() -> JsonObject:
+    env = TestEnvGetter(True)
+    config: JsonObject = {
+        "host": env.get("REDSHIFT_HOST"),
+        "user": env.get("REDSHIFT_USER"),
+        "password": env.get("REDSHIFT_PASS"),
+        "database": "labs",
+        "port": int(env.get("REDSHIFT_PORT")),
+        "auth_type": "sql_authentication",
+        "ssl": "true",
+    }
+    return config
+
+
+@pytest.fixture()
+def sandbox_redshift(sandbox_redshift_config: JsonObject) -> DatabaseConnector:
+    return create_connector("redshift", sandbox_redshift_config)
 
 
 @pytest.fixture()

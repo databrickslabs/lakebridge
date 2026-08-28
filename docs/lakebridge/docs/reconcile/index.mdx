@@ -26,7 +26,13 @@ Lakebridge Reconcile validates data fidelity after migration by comparing your s
 | Snowflake | Yes | Yes | Yes | Yes |
 | SQL Server | Yes | Yes | Yes | Yes |
 | Redshift | Yes | Yes | Yes | Yes |
+| Teradata | Yes | Yes [^teradata-hash] | Yes [^teradata-hash] | Yes [^teradata-hash] |
+| BigQuery | Yes [^bigquery-types] | Yes | Yes | Yes |
 | Databricks | Yes | Yes | Yes | Yes |
+
+[^teradata-hash]: Teradata has no portable cryptographic hash in pure SQL, so row-hash report types (`row`, `data`, `all`) require a user-installed hash UDF on the source and an explicit `hash_expression_overrides.source` entry on the recon config. See [Hash Expression](/docs/reconcile/configuration#hash-expression) for wiring.
+
+[^bigquery-types]: BigQuery types with no equivalent in Databricks — `BIGNUMERIC`, `TIME`, `RANGE<T>`, nested `JSON` such as `ARRAY<JSON>`, or these nested inside `ARRAY`/`STRUCT` — are left as their original BigQuery type and may be reported as `schema` mismatches even when the data migrated correctly.
 
 ---
 
@@ -51,7 +57,7 @@ If you haven't already, complete the initial setup:
 databricks labs lakebridge configure-reconcile
 ```
 
-This sets up Lakebridge workspace resources, deploys the reconciliation dashboards and creates the config file. See [Installation → Configure Reconcile](/docs/installation#configure-reconcile) for details.
+This sets up Lakebridge workspace resources. See [Installation → Configure Reconcile](/docs/installation#configure-reconcile) for details.
 
 ### Config file
 A reconcile config file is created under the path:
@@ -77,27 +83,31 @@ See [Configuration Reference](/docs/reconcile/configuration) for the full schema
 
 The User configuring reconcile must have permission to:
 - Create Data Warehouses
-- Create Compute Clusters
 - `USE CONNECTION` on the source connection
 - `USE CATALOG` and `CREATE SCHEMA` on the target catalog
-- `CREATE VOLUME` if using a pre-existing schema on a serverless cluster
+- `CREATE VOLUME` if using a pre-existing schema
 
-### Serverless cluster support
+### Compute selection
 
-Reconcile automatically detects the cluster type and optimizes intermediate data persistence accordingly:
-- **On Serverless clusters**: Reconcile uses Unity Catalog volumes for intermediate data persistence
-- **On Standard clusters**: Reconcile uses DataFrame caching for better performance
+**The deployed reconcile job runs on serverless compute by default.** No cluster is created or managed for you.
+
+To run the job on a classic cluster instead, create the cluster yourself and point
+`job_overrides` at it in the reconcile config (`<USER_WORKSPACE_HOME>/.lakebridge/reconcile.yml`):
+
+```yaml
+job_overrides:
+  existing_cluster_id: "0714-000000-abcdefgh"
+```
 
 :::note
-- On serverless clusters, the configured volume (from `metadata_config.volume`) is automatically used
-- The volume must be created in the metadata catalog and schema specified in your `ReconcileMetadataConfig`
-- Ensure you have the necessary permissions to write to the volume on serverless clusters
+A classic cluster must run **Databricks Runtime 17.3 or above** that supports reading from Unity Catalog connections.
 :::
 
+### Intermediate data persistence
 
-Reconcile automatically adapts to the cluster type:
-- **Serverless clusters:** Uses Unity Catalog volumes for intermediate data persistence (`metadata_config.volume`)
-- **Standard clusters:** Uses DataFrame caching
+Reconcile automatically adapts to the compute type:
+- **Serverless (default):** Uses Unity Catalog volumes for intermediate data persistence — the configured volume (from `metadata_config.volume`) is automatically used. The volume must exist in the metadata catalog and schema specified in your `ReconcileMetadataConfig`, and you need write permission on it.
+- **Classic clusters:** Uses DataFrame caching for better performance
 
 ---
 

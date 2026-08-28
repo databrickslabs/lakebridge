@@ -1,5 +1,5 @@
-import re
 import logging
+import re
 from datetime import datetime
 
 from pyspark.errors import PySparkException
@@ -8,9 +8,9 @@ from pyspark.sql.functions import col
 from sqlglot import Dialect
 
 from databricks.labs.lakebridge.reconcile.connectors.data_source import DataSource
+from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import DialectUtils
 from databricks.labs.lakebridge.reconcile.connectors.models import NormalizedIdentifier
 from databricks.labs.lakebridge.reconcile.connectors.remote_query_reader import RemoteQueryReader
-from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import DialectUtils
 from databricks.labs.lakebridge.reconcile.recon_config import JdbcReaderOptions, Schema
 
 logger = logging.getLogger(__name__)
@@ -18,6 +18,15 @@ logger = logging.getLogger(__name__)
 
 class RedshiftDataSource(DataSource):
     _IDENTIFIER_DELIMITER = "\""
+    _LIST_SCHEMAS_QUERY = (
+        "SELECT schema_name FROM information_schema.schemata "
+        "WHERE LOWER(catalog_name) = LOWER('{catalog}') ORDER BY schema_name"
+    )
+    _LIST_TABLES_QUERY = (
+        "SELECT table_name FROM information_schema.tables "
+        "WHERE LOWER(table_catalog) = LOWER('{catalog}') "
+        "AND LOWER(table_schema) = LOWER('{schema}') ORDER BY table_name"
+    )
     _SCHEMA_QUERY = """SELECT
                          column_name,
                          CASE
@@ -85,6 +94,22 @@ class RedshiftDataSource(DataSource):
             return [self._map_meta_column(field, normalize) for field in schema_metadata]
         except (RuntimeError, PySparkException) as e:
             return self.log_and_throw_exception(e, "schema", schema_query)
+
+    def list_schemas(self, catalog: str) -> list[str]:
+        query = RedshiftDataSource._LIST_SCHEMAS_QUERY.format(catalog=catalog)
+        try:
+            df = self._reader.read_data(query, catalog, "database", "query")
+            return [row.schema_name for row in df.select(col("SCHEMA_NAME").alias("schema_name")).collect()]
+        except (RuntimeError, PySparkException) as e:
+            return self.log_and_throw_exception(e, "schemas", query)
+
+    def list_tables(self, catalog: str, schema: str) -> list[str]:
+        query = RedshiftDataSource._LIST_TABLES_QUERY.format(catalog=catalog, schema=schema)
+        try:
+            df = self._reader.read_data(query, catalog, "database", "query")
+            return [row.table_name for row in df.select(col("TABLE_NAME").alias("table_name")).collect()]
+        except (RuntimeError, PySparkException) as e:
+            return self.log_and_throw_exception(e, "tables", query)
 
     def normalize_identifier(self, identifier: str) -> NormalizedIdentifier:
         return DialectUtils.normalize_identifier(

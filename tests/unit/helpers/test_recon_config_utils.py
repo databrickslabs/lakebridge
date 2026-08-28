@@ -1,13 +1,23 @@
 from unittest.mock import patch
 
 import pytest
-
 from databricks.labs.blueprint.tui import MockPrompts
-from databricks.labs.lakebridge.helpers.recon_config_utils import ReconConfigPrompts
 from databricks.sdk.errors.platform import ResourceDoesNotExist
 from databricks.sdk.service.workspace import SecretScope
 
-SOURCE_DICT = {"databricks": "0", "mssql": "1", "oracle": "2", "redshift": "3", "snowflake": "4", "synapse": "5"}
+from databricks.labs.lakebridge.helpers.recon_config_utils import ReconConfigPrompts
+
+# Indices follow the alphabetically-sorted ReconSourceType values (Prompts.choice sorts):
+# bigquery, databricks, mssql, oracle, redshift, snowflake, synapse, teradata
+SOURCE_DICT = {
+    "bigquery": "0",
+    "databricks": "1",
+    "mssql": "2",
+    "oracle": "3",
+    "redshift": "4",
+    "snowflake": "5",
+    "synapse": "6",
+}
 SCOPE_NAME = "dummy_scope"
 
 

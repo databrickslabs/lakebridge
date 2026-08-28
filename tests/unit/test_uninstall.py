@@ -1,6 +1,7 @@
 from unittest.mock import create_autospec
 
 import pytest
+from databricks.labs.blueprint.tui import MockPrompts
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.service import iam
 
@@ -8,7 +9,6 @@ from databricks.labs.lakebridge import uninstall
 from databricks.labs.lakebridge.config import LakebridgeConfiguration
 from databricks.labs.lakebridge.contexts.application import ApplicationContext
 from databricks.labs.lakebridge.deployment.installation import WorkspaceInstallation
-from databricks.labs.blueprint.tui import MockPrompts
 
 
 @pytest.fixture
@@ -30,7 +30,7 @@ def test_uninstaller_run(ws):
     ctx = ApplicationContext(ws)
     ctx.replace(
         workspace_installation=ws_installation,
-        remorph_config=LakebridgeConfiguration(transpile=None, reconcile=None, profiler_dashboard=None),
+        remorph_config=LakebridgeConfiguration(transpile=None, reconcile=None),
         prompts=prompts,
     )
     uninstall.run(ctx)
@@ -47,7 +47,7 @@ def test_negative_uninstall_confirmation(ws):
     ctx = ApplicationContext(ws)
     ctx.replace(
         workspace_installation=ws_installation,
-        remorph_config=LakebridgeConfiguration(transpile=None, reconcile=None, profiler_dashboard=None),
+        remorph_config=LakebridgeConfiguration(transpile=None, reconcile=None),
         prompts=prompts,
     )
     uninstall.run(ctx)

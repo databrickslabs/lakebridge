@@ -1,7 +1,6 @@
 import json
 import sys
 
-import duckdb
 from databricks.labs.blueprint.entrypoint import get_logger
 
 from databricks.labs.lakebridge import initialize_logging
@@ -9,13 +8,14 @@ from databricks.labs.lakebridge.assessments import PRODUCT_NAME
 from databricks.labs.lakebridge.connections.credential_manager import create_credential_manager
 from databricks.labs.lakebridge.connections.env_getter import EnvGetter
 from databricks.labs.lakebridge.connections.synapse_connection_helpers import create_synapse_connection
-from databricks.labs.lakebridge.resources.assessments.synapse.common.duckdb_helpers import (
-    save_resultset_to_db,
+from databricks.labs.lakebridge.resources.assessments.common.cli import arguments_loader
+from databricks.labs.lakebridge.resources.assessments.common.duckdb_helpers import (
+    connect_to_profiler_db,
     get_max_column_value_duckdb,
+    save_to_duckdb,
 )
-from databricks.labs.lakebridge.resources.assessments.synapse.common.functions import arguments_loader
 from databricks.labs.lakebridge.resources.assessments.synapse.common.queries import SynapseQueries
-
+from databricks.labs.lakebridge.resources.assessments.synapse.common.schemas import SYNAPSE_SCHEMAS
 
 logger = get_logger(__file__)
 
@@ -33,7 +33,7 @@ def get_serverless_database_groups(
     Returns:
         (serverless_database_groups, serverless_db_groups_in_scope)
     """
-    with duckdb.connect(db_path) as conn:
+    with connect_to_profiler_db(db_path) as conn:
         rows = conn.execute(f"SELECT name, collation_name FROM {table_name}").fetchall()
 
     serverless_database_groups = {}
@@ -55,10 +55,11 @@ def get_serverless_database_groups(
 def execute():
     db_path, creds_file = arguments_loader(desc="Synapse Synapse Serverless SQL Pool Extract Script")
 
-    cred_manager = create_credential_manager(PRODUCT_NAME, EnvGetter())
+    cred_manager = create_credential_manager(PRODUCT_NAME, EnvGetter(), creds_file)
     synapse_workspace_settings = cred_manager.get_credentials("synapse")
     config = synapse_workspace_settings["workspace"]
-    auth_type = synapse_workspace_settings["jdbc"].get("auth_type", "sql_authentication")
+    workspace_name = config["name"]
+    auth_type = synapse_workspace_settings["workspace"].get("auth_type", "SqlPassword")
     synapse_profiler_settings = synapse_workspace_settings["profiler"]
 
     connection = None
@@ -73,7 +74,13 @@ def execute():
                 auth_type=auth_type,
             )
             result = connection.fetch(database_query)
-            save_resultset_to_db(result, "serverless_databases", db_path, mode="overwrite")
+            save_to_duckdb(
+                result.to_df(),
+                "serverless_databases",
+                db_path,
+                mode="overwrite",
+                schema=SYNAPSE_SCHEMAS["serverless_databases"],
+            )
 
             serverless_db_groups_in_scope = get_serverless_database_groups(db_path)
             logger.info(f"serverless db in scope: {serverless_db_groups_in_scope}")
@@ -94,28 +101,28 @@ def execute():
                     table_query = SynapseQueries.list_tables(db_name)
                     logger.info(f"Loading '{table_name}' for pool: %s", db_name)
                     result = connection.fetch(table_query)
-                    save_resultset_to_db(result, table_name, db_path, mode=mode)
+                    save_to_duckdb(result.to_df(), table_name, db_path, mode=mode, schema=SYNAPSE_SCHEMAS[table_name])
 
                     # columns
                     table_name = "serverless_columns"
                     column_query = SynapseQueries.list_columns(db_name)
                     logger.info(f"Loading '{table_name}' for pool: %s", db_name)
                     result = connection.fetch(column_query)
-                    save_resultset_to_db(result, table_name, db_path, mode=mode)
+                    save_to_duckdb(result.to_df(), table_name, db_path, mode=mode, schema=SYNAPSE_SCHEMAS[table_name])
 
                     # views
                     table_name = "serverless_views"
                     view_query = SynapseQueries.list_views(db_name)
                     logger.info(f"Loading '{table_name}' for pool: %s", db_name)
                     result = connection.fetch(view_query)
-                    save_resultset_to_db(result, table_name, db_path, mode=mode)
+                    save_to_duckdb(result.to_df(), table_name, db_path, mode=mode, schema=SYNAPSE_SCHEMAS[table_name])
 
                     # Routines
                     table_name = "serverless_routines"
                     view_query = SynapseQueries.list_serverless_routines(db_name, True)
                     logger.info(f"Loading '{table_name}' for pool: %s", db_name)
                     result = connection.fetch(view_query)
-                    save_resultset_to_db(result, table_name, db_path, mode=mode)
+                    save_to_duckdb(result.to_df(), table_name, db_path, mode=mode, schema=SYNAPSE_SCHEMAS[table_name])
 
                     mode = "append"
 
@@ -131,27 +138,35 @@ def execute():
             # Data Processed - server-level DMV, must be queried from master database
             table_name = "serverless_data_processed"
             logger.info(f"Loading '{table_name}' for pool: %s", pool_name)
-            data_processed_query = SynapseQueries.data_processed(pool_name)
+            data_processed_query = SynapseQueries.data_processed(pool_name, workspace_name)
 
             session_result = connection.fetch(data_processed_query)
-            save_resultset_to_db(session_result, table_name, db_path, mode="append")
+            save_to_duckdb(
+                session_result.to_df(), table_name, db_path, mode="append", schema=SYNAPSE_SCHEMAS[table_name]
+            )
 
             # Activity Extract:
             table_name = "serverless_sessions"
             logger.info(f"Loading '{table_name}' for pool: %s", pool_name)
             prev_max_login_time = get_max_column_value_duckdb("login_time", table_name, db_path)
-            session_query = SynapseQueries.list_serverless_sessions(pool_name, prev_max_login_time)
+            session_query = SynapseQueries.list_serverless_sessions(pool_name, workspace_name, prev_max_login_time)
 
             session_result = connection.fetch(session_query)
-            save_resultset_to_db(session_result, table_name, db_path, mode="append")
+            save_to_duckdb(
+                session_result.to_df(), table_name, db_path, mode="append", schema=SYNAPSE_SCHEMAS[table_name]
+            )
 
             table_name = "serverless_session_requests"
             logger.info(f"Loading '{table_name}' for pool: %s", pool_name)
             prev_max_end_time = get_max_column_value_duckdb("start_time", table_name, db_path)
-            session_request_query = SynapseQueries.list_serverless_requests(pool_name, prev_max_end_time)
+            session_request_query = SynapseQueries.list_serverless_requests(
+                pool_name, workspace_name, prev_max_end_time
+            )
 
             session_request_result = connection.fetch(session_request_query)
-            save_resultset_to_db(session_request_result, table_name, db_path, mode="append")
+            save_to_duckdb(
+                session_request_result.to_df(), table_name, db_path, mode="append", schema=SYNAPSE_SCHEMAS[table_name]
+            )
 
             table_name = "serverless_query_stats"
             logger.info(f"Loading '{table_name}' for pool: %s", pool_name)
@@ -159,7 +174,9 @@ def execute():
             query_stats = SynapseQueries.list_query_stats(max_last_execution_time)
 
             session_result = connection.fetch(query_stats)
-            save_resultset_to_db(session_result, table_name, db_path, mode="append")
+            save_to_duckdb(
+                session_result.to_df(), table_name, db_path, mode="append", schema=SYNAPSE_SCHEMAS[table_name]
+            )
 
             table_name = "serverless_requests_history"
             logger.info(f"Loading '{table_name}' for pool: %s", pool_name)
@@ -167,7 +184,9 @@ def execute():
             query_history = SynapseQueries.query_requests_history(max_end_time)
 
             session_request_result = connection.fetch(query_history)
-            save_resultset_to_db(session_request_result, table_name, db_path, mode="append")
+            save_to_duckdb(
+                session_request_result.to_df(), table_name, db_path, mode="append", schema=SYNAPSE_SCHEMAS[table_name]
+            )
 
         else:
             logger.info("'exclude_serverless_sql_pool' configuration is set to True.Skipping Serverless Pool extracts.")

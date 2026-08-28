@@ -6,36 +6,36 @@ from collections.abc import Generator
 from contextlib import contextmanager
 from dataclasses import asdict
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
-
-from pyspark.sql import DataFrame
-
 from databricks.labs.blueprint.paths import WorkspacePath
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.errors.platform import PermissionDenied
-from databricks.sdk.service.catalog import TableInfo, SchemaInfo
+from databricks.sdk.service.catalog import SchemaInfo, TableInfo
 from databricks.sdk.service.compute import DataSecurityMode, Kind
+from pyspark.sql import DataFrame
 
 from databricks.labs.lakebridge.config import (
+    HashExpressionOverrides,
     LakebridgeConfiguration,
     ReconcileConfig,
     ReconcileJobConfig,
     ReconcileMetadataConfig,
     SourceConnectionConfig,
-    TargetConnectionConfig,
     TableRecon,
+    TargetConnectionConfig,
 )
 from databricks.labs.lakebridge.contexts.application import ApplicationContext
 from databricks.labs.lakebridge.reconcile.recon_capture import AbstractReconIntermediatePersist
-from databricks.labs.lakebridge.reconcile.recon_config import Table
+from databricks.labs.lakebridge.reconcile.recon_config import Table, Transformation
 
 logger = logging.getLogger(__name__)
 
 DIAMONDS_COLUMNS = [
     ("carat", "DOUBLE"),
     ("cut", "STRING"),
-    ("color", "STRING"),
+    ("color", "CHAR(10)"),
     ("clarity", "STRING"),
     ("mined_at", "DATE"),
 ]
@@ -65,6 +65,55 @@ ORACLE_CONNECTION = "oracle_sandbox"
 ORACLE_SRV = "orcl"
 ORACLE_SCHEMA = "ADMIN"
 ORACLE_TABLE = "DIAMONDS"
+TERADATA_CONNECTION = "teradata_sandbox"
+TERADATA_CATALOG = "DBC"
+TERADATA_SCHEMA = "lf_test_user"
+TERADATA_TABLE = "diamonds"
+BIGQUERY_CONNECTION = "bigquery_sandbox"
+BIGQUERY_PROJECT = "databricks-dev-customer"
+BIGQUERY_SCHEMA = "lakebridge"
+BIGQUERY_TABLE = "diamonds"
+
+_FIXED_RECON_VIEW_HEX = "0" * 32
+
+
+@pytest.fixture
+def fixed_recon_view_uuid(monkeypatch):
+    """Pin uuid.uuid4().hex inside sampling_query so the temp-view name is predictable in tests
+    that make a single temp-view build_query call. Returns the fixed hex.
+    """
+    fake = MagicMock()
+    fake.uuid4.return_value.hex = _FIXED_RECON_VIEW_HEX
+    monkeypatch.setattr(
+        "databricks.labs.lakebridge.reconcile.query_builder.sampling_query.uuid",
+        fake,
+    )
+    return _FIXED_RECON_VIEW_HEX
+
+
+@pytest.fixture
+def recon_view_uuid_seq(monkeypatch):
+    """Patch uuid.uuid4 inside sampling_query to return a sequence of hex values, one per call.
+
+    Returns a callable that the test invokes with the list of hex strings to use in order.
+    Use for tests that trigger multiple temp-view build_query calls (e.g. mismatch + missing paths).
+    """
+
+    def _patch(hexes: list[str]) -> list[str]:
+        hex_iter = iter(hexes)
+
+        def _next_uuid():
+            return type("U", (), {"hex": next(hex_iter)})()
+
+        fake = MagicMock()
+        fake.uuid4.side_effect = _next_uuid
+        monkeypatch.setattr(
+            "databricks.labs.lakebridge.reconcile.query_builder.sampling_query.uuid",
+            fake,
+        )
+        return hexes
+
+    return _patch
 
 
 @pytest.fixture
@@ -126,6 +175,12 @@ def recon_metadata(spark, recon_schema, make_volume, report_tables_schema) -> Re
     spark.createDataFrame(data=[], schema=main_schema).write.saveAsTable(f"{prefix}.MAIN")
     spark.createDataFrame(data=[], schema=metrics_schema).write.saveAsTable(f"{prefix}.METRICS")
     spark.createDataFrame(data=[], schema=details_schema).write.saveAsTable(f"{prefix}.DETAILS")
+    spark.sql(
+        f"CREATE TABLE IF NOT EXISTS {prefix}.SCHEMA_DETAILS ("
+        "recon_table_id BIGINT NOT NULL, source_column STRING, source_datatype STRING, "
+        "databricks_column STRING, databricks_datatype STRING, is_valid BOOLEAN, "
+        "inserted_ts TIMESTAMP NOT NULL)"
+    )
 
     volume = make_volume(catalog_name=recon_schema.catalog_name, schema_name=recon_schema.name, name=recon_schema.name)
     return ReconcileMetadataConfig(catalog=recon_schema.catalog_name, schema=recon_schema.name, volume=volume.name)
@@ -133,7 +188,7 @@ def recon_metadata(spark, recon_schema, make_volume, report_tables_schema) -> Re
 
 @pytest.fixture
 def databricks_recon_table_config(recon_schema: SchemaInfo, recon_tables: tuple[TableInfo, TableInfo]) -> TableRecon:
-    (src_table, tgt_table) = recon_tables
+    src_table, tgt_table = recon_tables
     assert src_table.name
     assert tgt_table.name
 
@@ -150,7 +205,7 @@ def databricks_recon_table_config(recon_schema: SchemaInfo, recon_tables: tuple[
 
 @pytest.fixture
 def tsql_recon_table_config(recon_schema: SchemaInfo, recon_tables: tuple[TableInfo, TableInfo]) -> TableRecon:
-    (_, tgt_table) = recon_tables
+    _, tgt_table = recon_tables
     assert tgt_table.name
 
     return TableRecon(
@@ -166,7 +221,7 @@ def tsql_recon_table_config(recon_schema: SchemaInfo, recon_tables: tuple[TableI
 
 @pytest.fixture
 def snowflake_recon_table_config(recon_schema: SchemaInfo, recon_tables: tuple[TableInfo, TableInfo]) -> TableRecon:
-    (_, tgt_table) = recon_tables
+    _, tgt_table = recon_tables
     assert tgt_table.name
 
     return TableRecon(
@@ -182,7 +237,7 @@ def snowflake_recon_table_config(recon_schema: SchemaInfo, recon_tables: tuple[T
 
 @pytest.fixture
 def oracle_recon_table_config(recon_schema: SchemaInfo, recon_tables: tuple[TableInfo, TableInfo]) -> TableRecon:
-    (_, tgt_table) = recon_tables
+    _, tgt_table = recon_tables
     assert tgt_table.name
 
     return TableRecon(
@@ -302,7 +357,7 @@ def snowflake_recon_config(recon_cluster: str, recon_schema: SchemaInfo, make_vo
 
 @pytest.fixture
 def redshift_recon_table_config(recon_schema: SchemaInfo, recon_tables: tuple[TableInfo, TableInfo]) -> TableRecon:
-    (_, tgt_table) = recon_tables
+    _, tgt_table = recon_tables
     assert tgt_table.name
 
     return TableRecon(
@@ -378,6 +433,126 @@ def oracle_recon_config(recon_cluster: str, recon_schema: SchemaInfo, make_volum
     )
 
 
+@pytest.fixture
+def teradata_recon_table_config(recon_schema: SchemaInfo, recon_tables: tuple[TableInfo, TableInfo]) -> TableRecon:
+    _, tgt_table = recon_tables
+    assert tgt_table.name
+
+    return TableRecon(
+        [
+            Table(
+                source_name=TERADATA_TABLE,
+                target_name=tgt_table.name,
+                join_columns=["color", "clarity"],
+                transformations=[
+                    # Teradata FLOAT and Databricks DOUBLE serialise to different strings by
+                    # default. CAST to a fixed-precision DECIMAL then VARCHAR/STRING on each side.
+                    Transformation(
+                        column_name="carat",
+                        # Teradata CAST(DECIMAL to VARCHAR) drops the leading zero (".23" not
+                        # "0.23"); use TO_CHAR with a format mask that forces at least one digit
+                        # before the decimal point so the string matches Databricks'
+                        # STRING(DECIMAL) form.
+                        source=(
+                            "COALESCE(TRIM(TO_CHAR(CAST(carat AS DECIMAL(38,10)),"
+                            " '9999999990.9999999999')), '_null_recon_')"
+                        ),
+                        target="COALESCE(CAST(CAST(carat AS DECIMAL(38,10)) AS STRING), '_null_recon_')",
+                    ),
+                    # Pin the date format explicitly on both sides ('YYYY-MM-DD' ISO form).
+                    Transformation(
+                        column_name="mined_at",
+                        source="COALESCE(CAST(CAST(mined_at AS DATE FORMAT 'YYYY-MM-DD') AS VARCHAR(10)), '_null_recon_')",
+                        target="COALESCE(date_format(mined_at, 'yyyy-MM-dd'), '_null_recon_')",
+                    ),
+                ],
+            )
+        ]
+    )
+
+
+@pytest.fixture
+def teradata_recon_config(recon_cluster: str, recon_schema: SchemaInfo, make_volume) -> ReconcileConfig:
+    volume = make_volume(catalog_name=recon_schema.catalog_name, schema_name=recon_schema.name, name=recon_schema.name)
+
+    deployment_overrides = ReconcileJobConfig(
+        existing_cluster_id=recon_cluster,
+        tags={"lakebridge": "reconcile_test"},
+    )
+    logger.info(f"Using recon job overrides: {deployment_overrides}")
+
+    assert recon_schema.catalog_name
+    assert recon_schema.name
+    # Test-infra Teradata has no hash UDF installed; compare raw concatenated row-key as a string.
+    # Drop these overrides once a real SHA-256 UDF is installed on the testing-infra Teradata.
+    # testing-infra Teradata.
+    return ReconcileConfig(
+        report_type="all",
+        source=SourceConnectionConfig(
+            dialect="teradata",
+            catalog=TERADATA_CATALOG,
+            schema=TERADATA_SCHEMA,
+            uc_connection_name=TERADATA_CONNECTION,
+        ),
+        target=TargetConnectionConfig(
+            catalog=recon_schema.catalog_name,
+            schema=recon_schema.name,
+        ),
+        metadata_config=ReconcileMetadataConfig(
+            catalog=recon_schema.catalog_name, schema=recon_schema.name, volume=volume.name
+        ),
+        job_overrides=deployment_overrides,
+        hash_expression_overrides=HashExpressionOverrides(source="{}", target="{}"),
+    )
+
+
+@pytest.fixture
+def bigquery_recon_table_config(recon_schema: SchemaInfo, recon_tables: tuple[TableInfo, TableInfo]) -> TableRecon:
+    _, tgt_table = recon_tables
+    assert tgt_table.name
+
+    return TableRecon(
+        [
+            Table(
+                source_name=BIGQUERY_TABLE,
+                target_name=tgt_table.name,
+                join_columns=["color", "clarity"],
+            )
+        ]
+    )
+
+
+@pytest.fixture
+def bigquery_recon_config(recon_cluster: str, recon_schema: SchemaInfo, make_volume) -> ReconcileConfig:
+    volume = make_volume(catalog_name=recon_schema.catalog_name, schema_name=recon_schema.name, name=recon_schema.name)
+
+    deployment_overrides = ReconcileJobConfig(
+        existing_cluster_id=recon_cluster,
+        tags={"lakebridge": "reconcile_test"},
+    )
+    logger.info(f"Using recon job overrides: {deployment_overrides}")
+
+    assert recon_schema.catalog_name
+    assert recon_schema.name
+    return ReconcileConfig(
+        report_type="all",
+        source=SourceConnectionConfig(
+            dialect="bigquery",
+            catalog=BIGQUERY_PROJECT,
+            schema=BIGQUERY_SCHEMA,
+            uc_connection_name=BIGQUERY_CONNECTION,
+        ),
+        target=TargetConnectionConfig(
+            catalog=recon_schema.catalog_name,
+            schema=recon_schema.name,
+        ),
+        metadata_config=ReconcileMetadataConfig(
+            catalog=recon_schema.catalog_name, schema=recon_schema.name, volume=volume.name
+        ),
+        job_overrides=deployment_overrides,
+    )
+
+
 def recon_config_filename(recon_config: ReconcileConfig) -> str:
     connection_or_catalog = recon_config.source.uc_connection_name or recon_config.source.catalog
     return f"recon_config_{recon_config.source.dialect}_{connection_or_catalog}_{recon_config.report_type}.json"
@@ -387,15 +562,16 @@ def recon_config_filename(recon_config: ReconcileConfig) -> str:
 def generate_recon_application_context(
     application_ctx: ApplicationContext,
     recon_config: ReconcileConfig,
-    recon_table_config: TableRecon,
-) -> Generator[ApplicationContext, None, None]:
+    recon_table_config: TableRecon | None = None,
+) -> Generator[ApplicationContext]:
     logger.info("Setting up application context for recon tests")
-    config = LakebridgeConfiguration(None, recon_config, None)
+    config = LakebridgeConfiguration(None, recon_config)
     ws = application_ctx.workspace_client
     logger.info("Installing app and recon configuration into workspace")
     application_ctx.installation.save(recon_config)
-    filename = recon_config_filename(recon_config)
-    application_ctx.installation.upload(filename, json.dumps(asdict(recon_table_config)).encode())
+    if recon_table_config:
+        filename = recon_config_filename(recon_config)
+        application_ctx.installation.upload(filename, json.dumps(asdict(recon_table_config)).encode())
     application_ctx.workspace_installation.install(config)
 
     logger.info("Application context setup complete for recon tests")
@@ -406,6 +582,13 @@ def generate_recon_application_context(
     if WorkspacePath(ws, application_ctx.installation.install_folder()).exists():
         application_ctx.installation.remove()
     logger.info("Application context teardown complete for recon tests")
+
+
+@pytest.fixture
+def run_by_user(ws: WorkspaceClient) -> str:
+    user_name = ws.current_user.me().user_name
+    assert user_name is not None
+    return user_name
 
 
 class FakeReconIntermediatePersist(AbstractReconIntermediatePersist):

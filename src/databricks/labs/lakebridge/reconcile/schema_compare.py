@@ -5,9 +5,9 @@ from pyspark.sql.types import BooleanType, StringType, StructField, StructType
 from sqlglot import Dialect, parse_one
 
 from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import DialectUtils
-from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
 from databricks.labs.lakebridge.reconcile.recon_config import Schema, Table
 from databricks.labs.lakebridge.reconcile.recon_output_config import SchemaMatchResult, SchemaReconcileOutput
+from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
 from databricks.labs.lakebridge.transpiler.sqlglot.generator.databricks import Databricks
 
 logger = logging.getLogger(__name__)
@@ -125,16 +125,14 @@ class SchemaCompare:
         converted_databricks_query = cls._parse(target, source, databricks_query)
         parsed_source_check = converted_source_query.lower() == databricks_query.lower()
         parsed_databricks_check = source_query.lower() == converted_databricks_query.lower()
-        logger.info(
-            f"""
+        logger.info(f"""
         Source query: {source_query}
         Converted source query: {converted_source_query}
         Databricks query: {databricks_query}
         Converted databricks query: {converted_databricks_query}
         Source equality check: {parsed_source_check}
         Databricks equality check: {parsed_databricks_check}
-        """
-        )
+        """)
 
         if not parsed_source_check and not parsed_databricks_check:
             master.is_valid = False

@@ -1,7 +1,5 @@
 name: "SQL Failure Pipeline"
 version: "1.0"
-# Value replaced prior to actual use.
-extract_folder: /replaced/after/loading/
 steps:
   - name: invalid_sql_step
     type: sql

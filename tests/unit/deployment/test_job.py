@@ -1,6 +1,6 @@
+import dataclasses
 from unittest.mock import create_autospec
 
-import pytest
 from databricks.labs.blueprint.installation import MockInstallation
 from databricks.labs.blueprint.installer import InstallState
 from databricks.labs.blueprint.wheels import ProductInfo
@@ -8,60 +8,8 @@ from databricks.sdk import WorkspaceClient
 from databricks.sdk.errors import InvalidParameterValue
 from databricks.sdk.service.jobs import Job
 
-from databricks.labs.lakebridge.config import (
-    LakebridgeConfiguration,
-    ReconcileConfig,
-    ReconcileMetadataConfig,
-    SourceConnectionConfig,
-    TargetConnectionConfig,
-    ProfilerDashboardConfig,
-    ProfilerDashboardMetadataConfig,
-)
+from databricks.labs.lakebridge.config import LakebridgeConfiguration, ReconcileJobConfig
 from databricks.labs.lakebridge.deployment.job import JobDeployment
-
-
-@pytest.fixture
-def oracle_recon_config() -> ReconcileConfig:
-    return ReconcileConfig(
-        report_type="all",
-        source=SourceConnectionConfig(
-            dialect="oracle",
-            catalog="ORCL",
-            schema="tpch_sf10009",
-            uc_connection_name="remorph_oracle9",
-        ),
-        target=TargetConnectionConfig(
-            catalog="tpch9",
-            schema="1000gb9",
-        ),
-        metadata_config=ReconcileMetadataConfig(
-            catalog="remorph9",
-            schema="reconcile9",
-            volume="reconcile_volume9",
-        ),
-    )
-
-
-@pytest.fixture
-def snowflake_recon_config() -> ReconcileConfig:
-    return ReconcileConfig(
-        report_type="all",
-        source=SourceConnectionConfig(
-            dialect="snowflake",
-            catalog="snowflake_sample_data9",
-            schema="tpch_sf10009",
-            uc_connection_name="remorph_snowflake9",
-        ),
-        target=TargetConnectionConfig(
-            catalog="tpch9",
-            schema="1000gb9",
-        ),
-        metadata_config=ReconcileMetadataConfig(
-            catalog="remorph9",
-            schema="reconcile9",
-            volume="reconcile_volume9",
-        ),
-    )
 
 
 def test_deploy_existing_job(snowflake_recon_config):
@@ -95,7 +43,7 @@ def test_deploy_missing_job(snowflake_recon_config):
     assert install_state.jobs[name] == str(job.job_id)
 
 
-def test_deploy_new_job(oracle_recon_config):
+def test_deploy_new_job_defaults_to_serverless(oracle_recon_config):
     workspace_client = create_autospec(WorkspaceClient)
     job = Job(job_id=1234)
     workspace_client.jobs.create.return_value = job
@@ -103,10 +51,76 @@ def test_deploy_new_job(oracle_recon_config):
     install_state = InstallState.from_installation(installation)
     product_info = ProductInfo.from_class(LakebridgeConfiguration)
     name = "Recon Job"
+    wheel_path = "/Workspace/user/.lakebridge/wheels/databricks_labs_lakebridge-x.y.z-py3-none-any.whl"
     job_deployer = JobDeployment(workspace_client, installation, install_state, product_info)
-    job_deployer.deploy_recon_job(name, oracle_recon_config, "lakebridge-x.y.z-py3-none-any.whl")
+    job_deployer.deploy_recon_job(name, oracle_recon_config, wheel_path)
     workspace_client.jobs.create.assert_called_once()
     assert install_state.jobs[name] == str(job.job_id)
+    job_settings = workspace_client.jobs.create.call_args.kwargs
+    assert "job_clusters" not in job_settings
+    environments = job_settings["environments"]
+    assert len(environments) == 1
+    assert environments[0].environment_key == JobDeployment.SERVERLESS_ENVIRONMENT_KEY
+    assert environments[0].spec.dependencies == [wheel_path]
+    task = job_settings["tasks"][0]
+    assert task.environment_key == JobDeployment.SERVERLESS_ENVIRONMENT_KEY
+    assert task.libraries is None
+    assert task.existing_cluster_id is None
+    # No classic cluster APIs should be touched on the serverless path
+    workspace_client.clusters.select_spark_version.assert_not_called()
+    workspace_client.clusters.select_node_type.assert_not_called()
+
+
+def test_deploy_new_job_with_existing_cluster(oracle_recon_config):
+    workspace_client = create_autospec(WorkspaceClient)
+    job = Job(job_id=1234)
+    workspace_client.jobs.create.return_value = job
+    installation = MockInstallation(is_global=False)
+    install_state = InstallState.from_installation(installation)
+    product_info = ProductInfo.from_class(LakebridgeConfiguration)
+    name = "Recon Job"
+    wheel_path = "/Workspace/user/.lakebridge/wheels/databricks_labs_lakebridge-x.y.z-py3-none-any.whl"
+    cluster_id = "0714-000000-abcdefgh"
+    recon_config = dataclasses.replace(
+        oracle_recon_config, job_overrides=ReconcileJobConfig(existing_cluster_id=cluster_id, tags={})
+    )
+    job_deployer = JobDeployment(workspace_client, installation, install_state, product_info)
+    job_deployer.deploy_recon_job(name, recon_config, wheel_path)
+    workspace_client.jobs.create.assert_called_once()
+    job_settings = workspace_client.jobs.create.call_args.kwargs
+    assert "environments" not in job_settings
+    task = job_settings["tasks"][0]
+    assert task.existing_cluster_id == cluster_id
+    assert task.environment_key is None
+    assert [library.whl for library in task.libraries] == [wheel_path]
+
+
+def test_deploy_new_job_with_blank_existing_cluster_falls_back_to_serverless(oracle_recon_config):
+    workspace_client = create_autospec(WorkspaceClient)
+    job = Job(job_id=1234)
+    workspace_client.jobs.create.return_value = job
+    installation = MockInstallation(is_global=False)
+    install_state = InstallState.from_installation(installation)
+    product_info = ProductInfo.from_class(LakebridgeConfiguration)
+    name = "Recon Job"
+    wheel_path = "/Workspace/user/.lakebridge/wheels/databricks_labs_lakebridge-x.y.z-py3-none-any.whl"
+    # A blank existing_cluster_id must not leak an empty cluster reference into the spec: the Jobs API
+    # rejects a task that carries both environment_key and existing_cluster_id="".
+    recon_config = dataclasses.replace(
+        oracle_recon_config, job_overrides=ReconcileJobConfig(existing_cluster_id="", tags={})
+    )
+    job_deployer = JobDeployment(workspace_client, installation, install_state, product_info)
+    job_deployer.deploy_recon_job(name, recon_config, wheel_path)
+    workspace_client.jobs.create.assert_called_once()
+    job_settings = workspace_client.jobs.create.call_args.kwargs
+    environments = job_settings["environments"]
+    assert len(environments) == 1
+    task = job_settings["tasks"][0]
+    assert task.environment_key == JobDeployment.SERVERLESS_ENVIRONMENT_KEY
+    assert task.existing_cluster_id is None
+    assert task.libraries is None
+    # The serialized spec must not carry an empty existing_cluster_id key alongside the environment.
+    assert task.as_dict().get("existing_cluster_id") is None
 
 
 def test_parse_package_name() -> None:
@@ -128,84 +142,3 @@ def test_parse_package_name() -> None:
         )
         == "databricks_labs_lakebridge"
     )
-
-
-def test_deploy_new_profiler_ingestion_job():
-    workspace_client = create_autospec(WorkspaceClient)
-    job = Job(job_id=5678)
-    workspace_client.jobs.create.return_value = job
-    installation = MockInstallation(is_global=False)
-    install_state = InstallState.from_installation(installation)
-    product_info = ProductInfo.from_class(LakebridgeConfiguration)
-    name = "Profiler Ingestion Job"
-    config = ProfilerDashboardConfig(
-        source_tech="synapse",
-        extract_file_path="/tmp/data/synapse_assessment/profiler_extract.db",
-        metadata_config=ProfilerDashboardMetadataConfig(
-            catalog="lakebridge_profiler", schema="profiler_runs", volume="synapse-extract"
-        ),
-        job_overrides=None,
-    )
-    job_deployer = JobDeployment(workspace_client, installation, install_state, product_info)
-    job_deployer.deploy_profiler_ingestion_job(
-        name,
-        config,
-        lakebridge_wheel_path="lakebridge-x.y.z-py3-none-any.whl",
-    )
-    workspace_client.jobs.create.assert_called_once()
-    assert install_state.jobs[name] == str(job.job_id)
-
-
-def test_deploy_existing_profiler_ingestion_job():
-    workspace_client = create_autospec(WorkspaceClient)
-    job_id = 5678
-    job = Job(job_id=job_id)
-    name = "Profiler Ingestion Job"
-    # Create an existing state
-    installation = MockInstallation({"state.json": {"resources": {"jobs": {name: str(job_id)}}, "version": 1}})
-    install_state = InstallState.from_installation(installation)
-    product_info = ProductInfo.for_testing(LakebridgeConfiguration)
-    config = ProfilerDashboardConfig(
-        source_tech="synapse",
-        extract_file_path="/tmp/data/synapse_assessment/profiler_extract.db",
-        metadata_config=ProfilerDashboardMetadataConfig(
-            catalog="lakebridge_profiler", schema="profiler_runs", volume="synapse-extract"
-        ),
-        job_overrides=None,
-    )
-    job_deployer = JobDeployment(workspace_client, installation, install_state, product_info)
-    job_deployer.deploy_profiler_ingestion_job(
-        name,
-        config,
-        lakebridge_wheel_path="lakebridge-x.y.z-py3-none-any.whl",
-    )
-    workspace_client.jobs.reset.assert_called_once()
-    assert install_state.jobs[name] == str(job.job_id)
-
-
-def test_deploy_missing_profiler_ingestion_job():
-    workspace_client = create_autospec(WorkspaceClient)
-    job = Job(job_id=5678)
-    workspace_client.jobs.create.return_value = job
-    # Simulate a `Job not found` response
-    workspace_client.jobs.reset.side_effect = InvalidParameterValue("Job not found")
-    name = "Profiler Ingestion Job"
-    installation = MockInstallation({"state.json": {"resources": {"jobs": {name: "9012"}}, "version": 1}})
-    install_state = InstallState.from_installation(installation)
-    product_info = ProductInfo.for_testing(LakebridgeConfiguration)
-    config = ProfilerDashboardConfig(
-        source_tech="synapse",
-        extract_file_path="/tmp/data/synapse_assessment/profiler_extract.db",
-        metadata_config=ProfilerDashboardMetadataConfig(
-            catalog="lakebridge_profiler", schema="profiler_runs", volume="synapse-extract"
-        ),
-        job_overrides=None,
-    )
-    job_deployer = JobDeployment(workspace_client, installation, install_state, product_info)
-    job_deployer.deploy_profiler_ingestion_job(
-        name,
-        config,
-        lakebridge_wheel_path="lakebridge-x.y.z-py3-none-any.whl",
-    )
-    workspace_client.jobs.create.assert_called_once()
-    assert install_state.jobs[name] == str(job.job_id)

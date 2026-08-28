@@ -4,9 +4,9 @@ import pytest
 
 from databricks.labs.lakebridge.connections.credential_manager import (
     CredentialManager,
-    LocalSecretProvider,
-    EnvSecretProvider,
     DatabricksSecretProvider,
+    EnvSecretProvider,
+    LocalSecretProvider,
 )
 from databricks.labs.lakebridge.connections.env_getter import EnvGetter
 
@@ -128,9 +128,7 @@ def test_nested_dict_credentials_local_vault():
     enterprise data sources. The test structure mirrors actual Synapse credential
     requirements with multiple configuration levels:
 
-    - workspace: SQL connection details (endpoints, user, password, driver, port)
-    - azure_api_access: Azure API endpoints for resource management
-    - jdbc: JDBC-specific settings (authentication, timeouts, fetch size)
+    - workspace: connection + Azure API details (endpoints, auth, user, password, driver, timeouts, port)
     - profiler: Profiler configuration (pool exclusions, profiling lists)
 
     This demonstrates the credential manager's ability to:
@@ -145,19 +143,15 @@ def test_nested_dict_credentials_local_vault():
                 'name': 'test-workspace',
                 'dedicated_sql_endpoint': 'test-workspace.sql.azuresynapse.net',
                 'serverless_sql_endpoint': 'test-workspace-ondemand.sql.azuresynapse.net',
-                'sql_user': 'synapse_user',
-                'sql_password': 'synapse_password',
+                'development_endpoint': 'https://test-dev-endpoint.azuresynapse.net',
+                'auth_type': 'SqlPassword',
+                'user': 'synapse_user',
+                'password': 'synapse_password',
+                'fetch_size': '1000',
+                'login_timeout': '30',
                 'tz_info': 'UTC',
                 'driver': 'ODBC Driver 18 for SQL Server',
                 'port': 1433,
-            },
-            'azure_api_access': {
-                'development_endpoint': 'https://test-dev-endpoint.azuresynapse.net',
-            },
-            'jdbc': {
-                'auth_type': 'sql_authentication',
-                'fetch_size': '1000',
-                'login_timeout': '30',
             },
             'profiler': {
                 'exclude_serverless_sql_pool': False,
@@ -176,14 +170,12 @@ def test_nested_dict_credentials_local_vault():
 
     # Verify nested structure is preserved
     assert 'workspace' in creds
-    assert 'azure_api_access' in creds
-    assert 'jdbc' in creds
     assert 'profiler' in creds
 
     # Verify strings are returned as-is with local vault
     assert creds['workspace']['name'] == 'test-workspace'
-    assert creds['workspace']['sql_user'] == 'synapse_user'
-    assert creds['workspace']['sql_password'] == 'synapse_password'
+    assert creds['workspace']['user'] == 'synapse_user'
+    assert creds['workspace']['password'] == 'synapse_password'
 
     # Verify integers are preserved
     assert creds['workspace']['port'] == 1433
@@ -202,8 +194,8 @@ def test_nested_dict_credentials_env_vault():
         'synapse': {
             'workspace': {
                 'name': 'test-workspace',
-                'sql_user': 'SYNAPSE_USER_ENV',
-                'sql_password': 'SYNAPSE_PASSWORD_ENV',
+                'user': 'SYNAPSE_USER_ENV',
+                'password': 'SYNAPSE_PASSWORD_ENV',
                 'port': 1433,
             },
             'profiler': {
@@ -222,8 +214,8 @@ def test_nested_dict_credentials_env_vault():
     assert 'profiler' in creds
 
     # Verify strings are resolved from environment variables
-    assert creds['workspace']['sql_user'] == 'resolved_user'
-    assert creds['workspace']['sql_password'] == 'resolved_password'
+    assert creds['workspace']['user'] == 'resolved_user'
+    assert creds['workspace']['password'] == 'resolved_password'
 
     # Verify integers are preserved (not treated as secrets)
     assert creds['workspace']['port'] == 1433

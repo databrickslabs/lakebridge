@@ -3,14 +3,13 @@ import re
 
 from sqlglot import expressions as exp
 from sqlglot.dialects.databricks import Databricks as SqlglotDatabricks
+from sqlglot.dialects.dialect import groupconcat_sql, if_sql, rename_func
 from sqlglot.dialects.hive import Hive
-from sqlglot.dialects.dialect import if_sql, rename_func, groupconcat_sql
 from sqlglot.errors import UnsupportedError
 from sqlglot.helper import apply_index_offset, csv
 
 from databricks.labs.lakebridge.transpiler.sqlglot import local_expression
 from databricks.labs.lakebridge.transpiler.sqlglot.lca_utils import unalias_lca_in_select
-
 
 logger = logging.getLogger(__name__)
 
@@ -424,7 +423,7 @@ class Databricks(SqlglotDatabricks):  #
             exp.DataType.Type.VARIANT: "VARIANT",
             exp.DataType.Type.FLOAT: "DOUBLE",
             exp.DataType.Type.OBJECT: "STRING",
-            exp.DataType.Type.GEOGRAPHY: "STRING",
+            exp.DataType.Type.GEOGRAPHY: "GEOGRAPHY",
         }
 
         TRANSFORMS = {

@@ -1,15 +1,15 @@
 import logging
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum, auto
 from pathlib import Path
 from typing import Any, Literal, TypeVar, cast
 
 from databricks.labs.blueprint.installation import JsonValue
 from databricks.labs.blueprint.tui import Prompts
-from databricks.labs.lakebridge.transpiler.transpile_status import TranspileError
-from databricks.labs.lakebridge.reconcile.recon_config import Table
 
+from databricks.labs.lakebridge.reconcile.recon_config import Table
+from databricks.labs.lakebridge.transpiler.transpile_status import TranspileError
 
 logger = logging.getLogger(__name__)
 
@@ -223,16 +223,6 @@ class TableRecon:
         return raw
 
 
-@dataclass(frozen=True)
-class DatabaseConfig:
-    """TODO remove. this was kept for backwards compatibility while migrating to ReconcileConfig v2"""
-
-    source_catalog: str
-    source_schema: str
-    target_catalog: str
-    target_schema: str
-
-
 @dataclass
 class SourceConnectionConfig:
     dialect: str
@@ -250,6 +240,27 @@ class SourceConnectionConfig:
 class TargetConnectionConfig:
     catalog: str
     schema: str
+
+
+@dataclass
+class HashExpressionOverrides:
+    """Overrides for the row-hash function.
+
+    Each value is raw SQL containing a single ``{}`` placeholder that the framework substitutes
+    with the concatenated hash input. Whatever hash you pick on the source side must produce the
+    same digest as the target side for the same input.
+    """
+
+    source: str
+    target: str = "sha2({}, 256)"
+
+    def __post_init__(self):
+        for layer, expr in (("source", self.source), ("target", self.target)):
+            if "{}" not in expr:
+                raise ValueError(
+                    f"hash_expression_overrides.{layer} must contain a '{{}}' placeholder for "
+                    f"the hash input; got {expr!r}"
+                )
 
 
 @dataclass
@@ -275,7 +286,7 @@ class ReconcileMetadataConfig:
 @dataclass
 class ReconcileJobConfig:
     existing_cluster_id: str
-    tags: dict[str, str]
+    tags: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass
@@ -288,6 +299,12 @@ class ReconcileConfig:
     target: TargetConnectionConfig
     metadata_config: ReconcileMetadataConfig
     job_overrides: ReconcileJobConfig | None = None
+    hash_expression_overrides: HashExpressionOverrides | None = None
+
+    def __post_init__(self):
+        # Teradata has no out of the box cryptographic hash in pure SQL, so the user has to configure
+        if self.source.dialect.lower() == "teradata" and not self.hash_expression_overrides:
+            raise ValueError("Teradata source requires hash_expression_overrides to be configured ")
 
     @classmethod
     def v1_migrate(cls, raw: dict[str, Any]) -> dict[str, Any]:
@@ -316,45 +333,16 @@ class ReconcileConfig:
         return raw
 
     @property
-    def database_config(self) -> DatabaseConfig:
-        """TODO remove. this was kept for backwards compatibility while migrating to ReconcileConfig v2"""
-        return DatabaseConfig(
-            source_catalog=self.source.catalog,
-            source_schema=self.source.schema,
-            target_catalog=self.target.catalog,
-            target_schema=self.target.schema,
-        )
-
-
-@dataclass
-class ProfilerDashboardMetadataConfig:
-    catalog: str = "lakebridge"
-    schema: str = "profiler"
-    volume: str = "ingestion_volume"
-
-
-@dataclass
-class IngestionJobConfig:
-    existing_cluster_id: str
-    tags: dict[str, str]
-
-
-@dataclass
-class ProfilerDashboardConfig:
-    __file__ = "profiler_dashboard.yml"
-    __version__ = 1
-
-    source_tech: str
-    extract_file_path: str
-    metadata_config: ProfilerDashboardMetadataConfig
-    job_overrides: IngestionJobConfig | None = None
+    def table_recon_filename(self) -> str:
+        """Canonical filename of the `TableRecon` config file in the install folder."""
+        connection_or_catalog = self.source.uc_connection_name or self.source.catalog
+        return f"recon_config_{self.source.dialect}_{connection_or_catalog}_{self.report_type}.json"
 
 
 @dataclass
 class LakebridgeConfiguration:
     transpile: TranspileConfig | None
     reconcile: ReconcileConfig | None
-    profiler_dashboard: ProfilerDashboardConfig | None
     # Temporary flag, indicating whether to include the LLM-based Switch transpiler.
     include_switch: bool = False
     # Internal: Use serverless compute for Switch job. Set via LAKEBRIDGE_CLUSTER_TYPE env var.

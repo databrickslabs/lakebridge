@@ -1,22 +1,22 @@
 import logging
 from datetime import datetime, timezone
 
-from pyspark.sql import SparkSession
 from databricks.sdk import WorkspaceClient
+from pyspark.sql import SparkSession
 
 from databricks.labs.lakebridge.config import ReconcileConfig, TableRecon
 from databricks.labs.lakebridge.reconcile.exception import DataSourceRuntimeException
 from databricks.labs.lakebridge.reconcile.normalize_recon_config_service import NormalizeReconConfigService
 from databricks.labs.lakebridge.reconcile.recon_capture import (
-    generate_final_reconcile_aggregate_output,
     ReconCapture,
+    generate_final_reconcile_aggregate_output,
 )
 from databricks.labs.lakebridge.reconcile.recon_config import Table
 from databricks.labs.lakebridge.reconcile.recon_output_config import (
-    ReconcileProcessDuration,
     AggregateQueryOutput,
     DataReconcileOutput,
     ReconcileOutput,
+    ReconcileProcessDuration,
 )
 from databricks.labs.lakebridge.reconcile.reconciliation import Reconciliation
 from databricks.labs.lakebridge.reconcile.trigger_recon_service import TriggerReconService
@@ -33,6 +33,7 @@ class TriggerReconAggregateService:
         reconcile_config: ReconcileConfig,
     ) -> ReconcileOutput:
         reconciler, recon_capture = TriggerReconService.create_recon_dependencies(ws, spark, reconcile_config)
+        recon_capture.store_run_context(reconcile_config, table_recon)
 
         try:
             for table_conf in table_recon.tables:
@@ -67,7 +68,12 @@ class TriggerReconAggregateService:
         recon_process_duration = ReconcileProcessDuration(start_ts=str(datetime.now(tz=timezone.utc)), end_ts=None)
         try:
             src_schema, tgt_schema = TriggerReconService.get_schemas(
-                reconciler.source, reconciler.target, normalized_table_conf, reconcile_config.database_config, True
+                reconciler.source,
+                reconciler.target,
+                normalized_table_conf,
+                reconcile_config.source,
+                reconcile_config.target,
+                True,
             )
 
             table_reconcile_agg_output_list = reconciler.reconcile_aggregates(

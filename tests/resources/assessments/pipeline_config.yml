@@ -1,7 +1,5 @@
 name: ExamplePipeline
 version: "1.0"
-# Value replaced prior to actual use:
-extract_folder: /replaced/after/loading/
 steps:
   # Paths for extract_source are relative to the tests/resources/ directory within the project.
   - name: inventory
@@ -22,12 +20,15 @@ steps:
     mode: overwrite
     frequency: daily
     flag: inactive
+  - name: source_side_ddl
+    type: source_ddl
+    extract_source: assessments/source_side_ddl.sql
+    mode: overwrite
+    frequency: daily
+    flag: active
   - name: random_data
     type: python
     extract_source: assessments/db_extract.py
     mode: overwrite
     frequency: daily
     flag: active
-    dependencies:
-      - pandas
-      - duckdb

@@ -1,19 +1,17 @@
 import dataclasses
 import json
 import re
-from collections.abc import Generator, Callable
-from unittest.mock import create_autospec, patch, ANY, MagicMock
+from collections.abc import Callable, Generator
 from pathlib import Path
+from unittest.mock import ANY, MagicMock, create_autospec, patch
 
 import pytest
 import yaml
-
-from databricks.labs.lakebridge import cli
-
 from databricks.labs.blueprint.tui import MockPrompts
-from databricks.labs.lakebridge.config import TranspileConfig
 from databricks.sdk import WorkspaceClient
 
+from databricks.labs.lakebridge import cli
+from databricks.labs.lakebridge.config import TranspileConfig
 from databricks.labs.lakebridge.contexts.application import ApplicationContext
 from databricks.labs.lakebridge.transpiler.repository import TranspilerRepository
 
@@ -98,7 +96,7 @@ def mock_cli_for_transpile(
     transpiler_config_path: Path,
     empty_input_source: Path,
     output_folder: Path,
-) -> Generator[tuple[WorkspaceClient, TranspileConfig, Callable[[TranspileConfig], None], MagicMock], None, None]:
+) -> Generator[tuple[WorkspaceClient, TranspileConfig, Callable[[TranspileConfig], None], MagicMock]]:
     mock_transpile = MagicMock(return_value=({}, []))
 
     async def do_transpile(*args, **kwargs):
@@ -136,7 +134,7 @@ def mock_cli_transpile_no_config(
     transpiler_config_path: Path,
     empty_input_source: Path,
     output_folder: Path,
-) -> Generator[tuple[WorkspaceClient, TranspileConfig, MagicMock], None, None]:
+) -> Generator[tuple[WorkspaceClient, TranspileConfig, MagicMock]]:
     mock_transpile = MagicMock(return_value=({}, []))
 
     async def do_transpile(*args, **kwargs):
@@ -513,7 +511,7 @@ def test_describe_transpile(mock_cli_transpile_no_config, transpiler_repository:
     ws, _, _ = mock_cli_transpile_no_config
     cli.describe_transpile(w=ws, transpiler_repository=transpiler_repository)
 
-    (out, _) = capsys.readouterr()
+    out, _ = capsys.readouterr()
     json_description = json.loads(out)
 
     overrides_file_option = {
