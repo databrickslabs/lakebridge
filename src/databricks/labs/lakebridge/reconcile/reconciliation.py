@@ -21,12 +21,12 @@ from databricks.labs.lakebridge.reconcile.exception import (
     DataSourceRuntimeException,
 )
 from databricks.labs.lakebridge.reconcile.query_builder.aggregate_query import AggregateQueryBuilder
-from databricks.labs.lakebridge.reconcile.query_builder.count_query import CountQueryBuilder
 from databricks.labs.lakebridge.reconcile.query_builder.column_transformer import (
     ColumnTransformer,
-    RuleBasedColumnTransformer,
     ReconcileLayer,
+    RuleBasedColumnTransformer,
 )
+from databricks.labs.lakebridge.reconcile.query_builder.count_query import CountQueryBuilder
 from databricks.labs.lakebridge.reconcile.query_builder.hash_query import HashQueryBuilder
 from databricks.labs.lakebridge.reconcile.query_builder.sampling_query import (
     SamplingQueryBuilder,

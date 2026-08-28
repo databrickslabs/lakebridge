@@ -17,7 +17,7 @@ from databricks.labs.lakebridge.reconcile.query_builder.expression_generator imp
     trim,
 )
 from databricks.labs.lakebridge.reconcile.recon_config import Schema, Table
-from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect, SQLGLOT_DIALECTS
+from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import SQLGLOT_DIALECTS, get_dialect
 
 logger = logging.getLogger(__name__)
 
