@@ -76,6 +76,14 @@ Switch includes built-in YAML configuration files for supported conversion types
 
 **Location**: You can find built-in YAML files in the `/Workspace/Users/{user}/.lakebridge/switch/resources/builtin_prompts/` directory within the Switch installation. These files demonstrate the proper structure and provide conversion-specific examples that you can adapt for your custom requirements.
 
+### Reference Prompts
+
+Switch also bundles **reference prompts** in `resources/reference_prompts/` - field-tested prompts for alternative conversion patterns, such as producing Databricks SQL directly instead of a Python notebook. For example, `teradata_stored_procedures.yml` converts Teradata stored procedures into a sequence of Databricks SQL statements.
+
+Unlike built-in prompts, reference prompts are **not** automatically selected by `--source-dialect`, so they do not appear in the supported source format tables. To use one, set the `conversion_prompt_yaml` parameter in your `switch_config.yml` to the prompt's workspace path.
+
+**Location**: You can find reference prompts in the `/Workspace/Users/{user}/.lakebridge/switch/resources/reference_prompts/` directory within the Switch installation.
+
 ---
 
 ## LLM Configuration
