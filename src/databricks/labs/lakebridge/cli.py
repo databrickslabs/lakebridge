@@ -934,9 +934,12 @@ def analyze(
     source_directory: str | None = None,
     report_file: str | None = None,
     source_tech: str | None = None,
-    generate_json: bool = False,
+    generate_json: bool = True,
 ):
-    """Run the Analyzer"""
+    """Run the Analyzer.
+
+    JSON is emitted alongside Excel by default (for estimators and UI). Use --generate-json false to skip.
+    """
     ctx = ApplicationContext(w)
     try:
         result = ctx.analyzer.run_analyzer(source_directory, report_file, source_tech, generate_json)
