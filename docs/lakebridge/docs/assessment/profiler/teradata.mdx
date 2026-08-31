@@ -74,7 +74,7 @@ Enter the password details:
 Enter the default database name (default: DBC):
 
 Please configure profiler settings:
-Enter DBQL lookback window in days (default: 7): 7
+Enter DBQL lookback window in days (default: 30): 30
 Enter PDCR history lookback window in days (default: 180): 180
 Enter system usage (ResUsage) lookback window in days (default: 60): 60
 Enter system node info lookback window in days (default: 30): 30
@@ -95,7 +95,7 @@ The generated credential block (written to `~/.databricks/labs/lakebridge/.crede
 
 These profiler settings are supplied to the extract queries as bind parameters at execution time (not interpolated into the SQL text):
 
-- **`lookback_days`** (default `7`) — how far back the core DBQL query log is read from the live `DBC.DBQLogTbl`: `CollectTimeStamp >= CURRENT_DATE - :lookback_days`. Widen it (e.g. `30`) for a longer history.
+- **`lookback_days`** (default `30`) — how far back the core DBQL query log is read from the live `DBC.DBQLogTbl`: `CollectTimeStamp >= CURRENT_DATE - :lookback_days`. Adjust it for a shorter or longer history (bounded by the live table's retention).
 - **`pdcr_lookback_days`** (default `180`) — how far back the PDCR extracts read the PDCR history tables (`PDCRINFO.DBQLogTbl_Hst`): `LogDate >= date - :pdcr_lookback_days`. PDCR retains far more history than the live table, so this defaults to a much longer horizon.
 - **`sys_usage_lookback_days`** (default `60`) — how far back the system usage aggregation reads the resource-usage history (`DBC.ResUsageSpma`): `TheDate >= date - :sys_usage_lookback_days`. This is a utilization time series, so a multi-week window is typical.
 - **`sys_nodes_lookback_days`** (default `30`) — how far back the node hardware inventory scans `DBC.ResUsageSpma` for distinct node configuration: `TheDate >= date - :sys_nodes_lookback_days`. It only needs a recent window to capture the current node layout.

@@ -484,7 +484,7 @@ class ConfigureTeradataAssessment(AssessmentConfigurator):
 
         teradata_profiler = {
             "lookback_days": int(
-                self.prompts.question("Enter DBQL lookback window in days", default="7", validate=positive_int)
+                self.prompts.question("Enter DBQL lookback window in days", default="30", validate=positive_int)
             ),
             # PDCR history tables (pdcrinfo) retain far more than the live DBC.DBQLogTbl, so their
             # window is configured separately and defaults to a longer horizon.
