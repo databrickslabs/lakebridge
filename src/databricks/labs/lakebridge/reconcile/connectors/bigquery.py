@@ -105,7 +105,7 @@ class BigQueryDataSource(DataSource):
     def _warn_on_approximate_types(self, schema: list[Schema]) -> None:
         """Log columns whose BigQuery type has no exact Databricks equivalent."""
         pattern = rf"\b({'|'.join(BigQueryDataSource._APPROXIMATE_TYPES)})\b"
-        approximate = [s.column_name for s in schema if re.search(pattern, s.data_type.lower())]
+        approximate = [s.ansi_normalized_column_name for s in schema if re.search(pattern, s.data_type.lower())]
         if approximate:
             logger.warning(
                 f"BigQuery columns {approximate} have no exact Databricks equivalent and may be reported as "
