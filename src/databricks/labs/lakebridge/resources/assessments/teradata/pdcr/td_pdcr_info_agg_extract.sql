@@ -69,5 +69,5 @@ WHERE (
         OR a.TotalIOCount > 0
     )
     AND a.NumSteps > 0
-    AND a.LogDate >= date - 180
+    AND a.LogDate >= date - :pdcr_lookback_days
 GROUP BY 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13;

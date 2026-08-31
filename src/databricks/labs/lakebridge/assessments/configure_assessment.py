@@ -475,6 +475,41 @@ class ConfigureTeradataAssessment(AssessmentConfigurator):
         else:
             password = self.prompts.password("Enter the password details")
 
+        # Stored in the credentials file to override the packaged DBQL extract defaults.
+        # Must be >= 1: 0/negative would yield an empty (or future-dated) extract with no error.
+        logger.info("Please configure profiler settings:")
+
+        def positive_int(value: str) -> bool:
+            return value.isdigit() and int(value) >= 1
+
+        teradata_profiler = {
+            "lookback_days": int(
+                self.prompts.question("Enter DBQL lookback window in days", default="30", validate=positive_int)
+            ),
+            # PDCR history tables (pdcrinfo) retain far more than the live DBC.DBQLogTbl, so their
+            # window is configured separately and defaults to a longer horizon.
+            "pdcr_lookback_days": int(
+                self.prompts.question(
+                    "Enter PDCR history lookback window in days", default="180", validate=positive_int
+                )
+            ),
+            # ResUsageSpma windows: the usage aggregation is a longer utilization time series, while
+            # the node-hardware inventory only needs a recent window to capture the current config.
+            "sys_usage_lookback_days": int(
+                self.prompts.question(
+                    "Enter system usage (ResUsage) lookback window in days", default="60", validate=positive_int
+                )
+            ),
+            "sys_nodes_lookback_days": int(
+                self.prompts.question(
+                    "Enter system node info lookback window in days", default="30", validate=positive_int
+                )
+            ),
+            "max_rows": int(
+                self.prompts.question("Enter max rows for the DBQL extract", default="100000", validate=positive_int)
+            ),
+        }
+
         credential = {
             "secret_vault_type": secret_vault_type,
             "secret_vault_name": secret_vault_name,
@@ -484,6 +519,7 @@ class ConfigureTeradataAssessment(AssessmentConfigurator):
                 "user": user,
                 "password": password,
                 "database": database,
+                "profiler": teradata_profiler,
             },
         }
 

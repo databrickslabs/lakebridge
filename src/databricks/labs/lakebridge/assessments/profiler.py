@@ -181,6 +181,7 @@ class Profiler:
                 extractor,
                 db_path,
                 cred_file_path,
+                source_system=source_system,
             ).execute()
         except FileNotFoundError as e:
             logger.error(f"Configuration file not found for source {source_system}: {e}")

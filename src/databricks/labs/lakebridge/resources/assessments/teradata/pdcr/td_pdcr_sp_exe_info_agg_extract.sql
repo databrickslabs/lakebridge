@@ -22,7 +22,7 @@ FROM
             QueryText,
             lower(trim(both from oreplace(oTranslate(substr(QueryText, 5, instr(QueryText, '(') -5), '0D0A'XC, ''), '09'XC,' '))) as ProcName
         FROM PDCRINFO.DBQLogTbl_Hst
-        WHERE LogDate >= date - 180
+        WHERE LogDate >= date - :pdcr_lookback_days
             AND upper(trim(both from StatementType)) = 'CALL'
             AND upper(left(oreplace(QueryText, '09'XC,' '), 5)) = 'CALL '
             AND instr(QueryText, '(') > 5
@@ -30,7 +30,7 @@ FROM
     JOIN PDCRINFO.DBQLogTbl_Hst B
     ON  A.SessionID  = B.SessionID
         AND A.RequestNum = B.RequestNum
-        AND B.LogDate >= date - 180
+        AND B.LogDate >= date - :pdcr_lookback_days
         AND B.RequestNum <> B.InternalRequestNum
     GROUP BY 1, 2, 3
     ) X

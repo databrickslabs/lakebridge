@@ -48,12 +48,39 @@ class PipelineClass:
         executor: DatabaseConnector | None,
         db_path: Path,
         cred_file_path: Path,
+        parameter_overrides: dict | None = None,
+        source_system: str | None = None,
     ):
         self.config = config
         self.executor = executor
         self._db_path = db_path.expanduser()
         self._create_dir(self._db_path.parent)
         self._cred_file_path = cred_file_path
+        # Bind values, resolved by precedence: pipeline defaults < credentials file < explicit overrides.
+        # Only declared parameters are taken from credentials; other `profiler` settings are ignored.
+        declared = set(config.parameters or {})
+        loaded = self._load_profiler_parameters(cred_file_path, source_system)
+        cred_parameters = {k: v for k, v in loaded.items() if k in declared}
+        self._parameters = {**(config.parameters or {}), **cred_parameters, **(parameter_overrides or {})}
+
+    @staticmethod
+    def _load_profiler_parameters(cred_file_path: Path | None, source_system: str | None = None) -> dict:
+        """Read bind parameters from the profiled source's ``profiler`` section in the credentials file.
+
+        Scoped to ``source_system`` so the shared credentials file can hold more than one source
+        without one source's settings leaking into another. Returns an empty dict when the file, the
+        source entry, or its ``profiler`` section is absent (or when ``source_system`` is unknown).
+        """
+        if not cred_file_path or not source_system:
+            return {}
+        try:
+            with open(cred_file_path, "r", encoding="utf-8") as handle:
+                creds = yaml.safe_load(handle) or {}
+        except (OSError, yaml.YAMLError):
+            return {}
+        source = creds.get(source_system) if isinstance(creds, dict) else None
+        profiler = source.get("profiler") if isinstance(source, dict) else None
+        return profiler if isinstance(profiler, dict) else {}
 
     def execute(self) -> list[StepExecutionResult]:
         """Run every configured step and return per-step outcomes.
@@ -130,7 +157,7 @@ class PipelineClass:
             return
 
         logging.info(f"Executing query for step: {step.name}")
-        result = self.executor.fetch(query)
+        result = self.executor.fetch(query, self._parameters)
         self._save_to_db(result, step.name, step.mode)
 
     def _stream_sql_step(self, step: Step, query: str) -> None:
@@ -142,7 +169,7 @@ class PipelineClass:
             # TODO: Would be nice to pipeline this: fetch next batch while the last is being written/flushed.
             write_mode: SaveMode = "overwrite" if step.mode == "overwrite" else "append"
             total_rows = 0
-            for batch in self.executor.stream(query):
+            for batch in self.executor.stream(query, self._parameters):
                 if (batch_size := batch.num_rows) == 0:
                     logger.debug(f"Skipping empty batch while streaming results for step: {step.name}")
                     continue
@@ -178,7 +205,7 @@ class PipelineClass:
             return
 
         logging.info(f"Executing source_ddl step '{step.name}' on source")
-        self.executor.fetch(content)
+        self.executor.fetch(content, self._parameters)
 
     def _execute_ddl_step(self, step: Step):
         logging.debug(f"Reading DDL from file: {step.extract_source}")
@@ -318,4 +345,5 @@ class PipelineClass:
             name=data['name'],
             version=data['version'],
             steps=steps,
+            parameters=data.get('parameters', {}) or {},
         )

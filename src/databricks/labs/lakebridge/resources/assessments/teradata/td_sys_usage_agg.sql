@@ -24,7 +24,7 @@ FROM (
         sum(CPUIdle) as totCPUIdle,
         sum(round(MemFreeKB / 1024, 0)) as totMemFreeMB
     from dbc.resusagespma
-    where TheDate >= date - 60
+    where TheDate >= date - :sys_usage_lookback_days
     group by thedate,
         thetime
 ) X

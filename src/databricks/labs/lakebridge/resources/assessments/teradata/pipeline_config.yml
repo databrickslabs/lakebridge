@@ -1,5 +1,13 @@
 name: teradata_assessment
 version: "1.0"
+# Default values bound into SQL steps (via :name placeholders); override in the credentials
+# file's profiler section (e.g. lookback_days: 30).
+parameters:
+  lookback_days: 30
+  pdcr_lookback_days: 180
+  sys_usage_lookback_days: 60
+  sys_nodes_lookback_days: 30
+  max_rows: 100000
 steps:
   - name: td_sys_info
     type: ddl
