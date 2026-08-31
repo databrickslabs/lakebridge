@@ -37,6 +37,27 @@ def test_mismatches_but_no_exceptions_logs_warning(caplog: pytest.LogCaptureFixt
     assert any("found mismatches in 1 table(s)" in rec.message for rec in caplog.records)
 
 
+def test_success_count_excludes_mismatched_tables(caplog: pytest.LogCaptureFixture) -> None:
+    # Regression (#2259): the succeeded-table count must EXCLUDE mismatched tables
+    # (total - exceptions - mismatches). The old ``total - exc + mismatched`` added them,
+    # inflating success_count above the total number of reconciled tables.
+    caplog.set_level(logging.INFO)
+
+    results = [
+        ReconcileTableOutput("t1", "s1", StatusOutput(column=True, row=True, schema=True, aggregate=True)),
+        ReconcileTableOutput("t2", "s2", StatusOutput(column=False, row=True, schema=True, aggregate=None)),
+        ReconcileTableOutput("t3", "s3", StatusOutput(column=True, row=False, schema=True, aggregate=None)),
+    ]
+    reconcile_output = ReconcileOutput(recon_id="mock-id", results=results)
+
+    TriggerReconService.verify_successful_reconciliation(reconcile_output, report_type="daily")
+
+    # 3 tables, 0 exceptions, 2 mismatches -> exactly 1 succeeded (never 5, and never > total).
+    summary = next(rec.message for rec in caplog.records if "tables succeeded" in rec.message)
+    assert "1 tables succeeded" in summary
+    assert "2 tables mismatched" in summary
+
+
 def test_ignores_none_status_values() -> None:
     # None should be ignored (not treated as mismatch)
     results = [
