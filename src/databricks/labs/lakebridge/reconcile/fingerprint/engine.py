@@ -218,13 +218,13 @@ def solve_d1(sb_id: int, d_cnt: int, d_p1: int, d_p2: int, d_p1_rh2: int, d_p2_r
     # be falsely "solved" with a wrong hash.
     if d_p2 != rh1 * rh1 * d_cnt:
         return None
-    if rh1 < 0 or rh1 > MAX_RH_VALUE:
+    if rh1 > MAX_RH_VALUE:  # rh1 = abs(...) is always >= 0; only the upper 32-bit band bound matters
         return None
 
     rh2 = abs(d_p1_rh2)
     if d_p2_rh2 != rh2 * rh2 * d_cnt:
         return None
-    if rh2 < 0 or rh2 > MAX_RH_VALUE:
+    if rh2 > MAX_RH_VALUE:  # rh2 = abs(...) is always >= 0; only the upper 32-bit band bound matters
         return None
 
     if d_cnt > 0:
@@ -260,9 +260,6 @@ def solve_d2_swap(
     if h_old - h_new != d_p1 or h_old * h_old - h_new * h_new != d_p2:
         return None
     if not (0 <= h_old <= MAX_RH_VALUE and 0 <= h_new <= MAX_RH_VALUE):
-        return None
-    # Sign-product guard: real 1-for-1 swaps have non-negative roots on both sides.
-    if h_old * h_new < 0:
         return None
     if not _cross_verify_d2_swap(d_p1_rh2, d_p2_rh2):
         return None

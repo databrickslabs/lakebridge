@@ -11,7 +11,7 @@ import pytest
 from pyspark.errors import PySparkException
 
 from databricks.labs.lakebridge.config import ReconcileConfig
-from databricks.labs.lakebridge.reconcile.exception import DataSourceRuntimeException
+from databricks.labs.lakebridge.reconcile.exception import ColumnMismatchException, DataSourceRuntimeException
 from databricks.labs.lakebridge.reconcile.fingerprint.exceptions import UnmappedTargetColumnMappingError
 from databricks.labs.lakebridge.reconcile.fingerprint.metadata import (
     INELIGIBLE_FILTERS_CONFIGURED,
@@ -394,6 +394,88 @@ def test_pyspark_exception_during_mismatch_output_falls_back_to_full_pipeline(mo
         output is full_output
     ), "Output must come from the full pipeline so the customer still gets a real recon answer."
     mock_full.assert_called_once()
+
+
+@pytest.mark.parametrize(
+    "raised",
+    [
+        ColumnMismatchException("source and target should have same columns for capturing the mismatch data"),
+        KeyError("hash_value_recon"),
+        RuntimeError("unexpected build state"),
+    ],
+    ids=["column_mismatch", "key_error", "runtime_error"],
+)
+@patch.object(TriggerReconService, "_run_reconcile_data")
+@patch("databricks.labs.lakebridge.reconcile.trigger_recon_service.build_mismatch_output")
+@patch("databricks.labs.lakebridge.reconcile.trigger_recon_service.run_fingerprint_precheck")
+def test_non_spark_exception_during_mismatch_output_falls_back_instead_of_aborting(
+    mock_precheck, mock_build, mock_full, raised
+):
+    """Regression for the fail-open hole (review finding B2). ``build_mismatch_output``
+    also runs pure-Python compare logic, so it can raise NON-Spark exceptions — notably
+    ``ColumnMismatchException`` (a plain ``Exception``) from
+    ``capture_mismatch_data_and_columns`` on a column-order desync, or an incidental
+    ``KeyError`` / ``RuntimeError``. The old ``except (DataSourceRuntimeException,
+    PySparkException)`` guard did not catch these, so they escaped ``recon_one`` and
+    aborted the ENTIRE multi-table job. The ``BaseException`` fail-open must instead fall
+    through to the full pipeline — exactly like the Spark-fault case — so one table's
+    build surprise never crashes the run.
+    """
+    mock_precheck.return_value = FingerprintResult(
+        verdict="MISMATCH",
+        source_rows=MagicMock(),
+        target_rows=MagicMock(),
+        detection_elapsed_ms=10,
+        solved_count=1,
+    )
+    mock_build.side_effect = raised
+    full_output = _stub_full_pipeline_output()
+    mock_full.return_value = full_output
+
+    output, metadata = TriggerReconService.run_fingerprint_or_reconcile_data(
+        reconciler=_reconciler(),
+        reconcile_config=_config(),
+        table_conf=_table(),
+        src_schema=[],
+        tgt_schema=[],
+    )
+
+    assert metadata.verdict == "MISMATCH", (
+        "Verdict reflects the precheck signal; the build failure is recorded via "
+        "fallback_to_full_pipeline=True, not by aborting the job."
+    )
+    assert metadata.fallback_to_full_pipeline is True
+    assert output is full_output, "A non-Spark build failure must still yield the full-pipeline recon answer."
+    mock_full.assert_called_once()
+
+
+@patch.object(TriggerReconService, "_run_reconcile_data")
+@patch("databricks.labs.lakebridge.reconcile.trigger_recon_service.build_mismatch_output")
+@patch("databricks.labs.lakebridge.reconcile.trigger_recon_service.run_fingerprint_precheck")
+def test_control_flow_signal_during_mismatch_output_is_not_swallowed(mock_precheck, mock_build, mock_full):
+    """The fail-open catch-all must NOT swallow control-flow signals: a ``KeyboardInterrupt``
+    (operator Ctrl-C) has to propagate so the job can actually be stopped, rather than
+    being demoted to a silent full-pipeline fallback.
+    """
+    mock_precheck.return_value = FingerprintResult(
+        verdict="MISMATCH",
+        source_rows=MagicMock(),
+        target_rows=MagicMock(),
+        detection_elapsed_ms=10,
+        solved_count=1,
+    )
+    mock_build.side_effect = KeyboardInterrupt()
+
+    with pytest.raises(KeyboardInterrupt):
+        TriggerReconService.run_fingerprint_or_reconcile_data(
+            reconciler=_reconciler(),
+            reconcile_config=_config(),
+            table_conf=_table(),
+            src_schema=[],
+            tgt_schema=[],
+        )
+
+    mock_full.assert_not_called()
 
 
 @patch.object(TriggerReconService, "_run_reconcile_data")

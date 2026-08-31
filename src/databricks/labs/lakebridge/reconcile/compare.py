@@ -181,6 +181,25 @@ def capture_mismatch_data_and_columns(
     return MismatchOutput(mismatch_df, mismatch_columns)
 
 
+def _row_mismatch_flag_columns(columns: list[str]) -> list[str]:
+    """The genuine ``<col>_match`` boolean flags among ``columns``.
+
+    A match flag always comes as a ``(_base, _compare, _match)`` triple (see
+    ``_get_mismatch_df``), so we require the sibling ``_base``/``_compare`` columns rather
+    than matching a bare ``_match`` suffix. Otherwise a *key* column literally named
+    ``*_match`` — which the key-join projects unsuffixed — would be misread as a boolean
+    flag; evaluating ``~col(<non-boolean>)`` on it raises an AnalysisException and (via the
+    fingerprint fail-open) silently discards the surgical Stage-2 output.
+    """
+    present = set(columns)
+    suffix = "_match"
+    return [
+        c
+        for c in columns
+        if c.endswith(suffix) and f"{c[: -len(suffix)]}_base" in present and f"{c[: -len(suffix)]}_compare" in present
+    ]
+
+
 def filter_to_row_mismatches(mismatch_df: DataFrame | None) -> DataFrame | None:
     """Keep only rows that genuinely differ on at least one compared column.
 
@@ -193,7 +212,7 @@ def filter_to_row_mismatches(mismatch_df: DataFrame | None) -> DataFrame | None:
     """
     if mismatch_df is None:
         return mismatch_df
-    match_cols = [c for c in mismatch_df.columns if c.endswith("_match")]
+    match_cols = _row_mismatch_flag_columns(mismatch_df.columns)
     if not match_cols:
         return mismatch_df
     return mismatch_df.filter(reduce(lambda a, b: a | b, [~col(c) for c in match_cols]))

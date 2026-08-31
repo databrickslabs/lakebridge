@@ -27,14 +27,13 @@ from databricks.labs.lakebridge.reconcile import utils
 from databricks.labs.lakebridge.reconcile.connectors.data_source import DataSource
 from databricks.labs.lakebridge.reconcile.constants import RECON_SAMPLE_VIEW_PREFIX
 from databricks.labs.lakebridge.reconcile.exception import DataSourceRuntimeException, ReconciliationException
-from databricks.labs.lakebridge.reconcile.normalize_recon_config_service import NormalizeReconConfigService
 from databricks.labs.lakebridge.reconcile.fingerprint.exceptions import (
     FingerprintError,
     UnmappedTargetColumnMappingError,
 )
 from databricks.labs.lakebridge.reconcile.fingerprint.metadata import (
-    FingerprintRunMetadata,
     INELIGIBLE_UNMAPPED_TARGET_COLUMN_MAPPING,
+    FingerprintRunMetadata,
 )
 from databricks.labs.lakebridge.reconcile.fingerprint.orchestrator import (
     ConnectionConfigPair,
@@ -45,6 +44,7 @@ from databricks.labs.lakebridge.reconcile.fingerprint.orchestrator import (
     resolve_compare_key_columns,
     run_fingerprint_precheck,
 )
+from databricks.labs.lakebridge.reconcile.normalize_recon_config_service import NormalizeReconConfigService
 from databricks.labs.lakebridge.reconcile.recon_capture import (
     ReconCapture,
     ReconIntermediatePersist,
@@ -524,18 +524,30 @@ class TriggerReconService:
                 report_type=reconciler.report_type,
                 persistence=reconciler.intermediate_persist,
             )
-        except (DataSourceRuntimeException, PySparkException) as e:
-            # ``build_mismatch_output`` runs Spark actions on the prefetched src/tgt
-            # frames; an analysis or runtime failure here must not crash the recon.
-            # Mirror the fail-open pattern used by every other non-MATCH branch in
-            # this method: fall through to the standard full pipeline so the table
-            # still gets a real recon answer, and record on the metadata that the
-            # precheck-built output was rejected. Release the cached frames first
-            # so a partial materialisation does not linger in executor storage for
-            # the full recon lifetime.
+        except (KeyboardInterrupt, SystemExit, GeneratorExit):
+            raise
+        except BaseException as e:
+            # Fail-open catch-all, matching the ``BaseException`` boundary in
+            # ``_invoke_precheck``. Building the mismatch output is precheck work: it
+            # runs Spark actions on the prefetched src/tgt frames AND pure-Python
+            # compare logic — ``capture_mismatch_data_and_columns`` can raise
+            # ``ColumnMismatchException`` (a plain ``Exception``) on a column-order
+            # desync, and other Python-level faults (a ``KeyError`` in column handling,
+            # etc.) are possible too. Catching only Spark errors here would let any of
+            # those escape ``recon_one`` and abort the ENTIRE multi-table job, breaking
+            # the feature's core promise that an opt-in pre-check never aborts the
+            # recon. Instead: release the cached frames first (so a partial
+            # materialisation does not linger in executor storage for the full recon
+            # lifetime), log the full traceback, and fall through to the standard full
+            # pipeline so the table still gets a real recon answer — recording on the
+            # metadata that the precheck-built output was rejected. Control-flow signals
+            # (Ctrl-C, interpreter shutdown) are re-raised above rather than swallowed.
             _try_unpersist(fp_result.source_rows)
             _try_unpersist(fp_result.target_rows)
-            logger.warning(f"Fingerprint mismatch-output build failed ({e}); falling back to full pipeline.")
+            logger.warning(
+                f"Fingerprint mismatch-output build raised {type(e).__name__} ({e}); falling back to full pipeline.",
+                exc_info=True,
+            )
             data_reconcile_output = TriggerReconService._run_reconcile_data(
                 reconciler=reconciler,
                 table_conf=table_conf,

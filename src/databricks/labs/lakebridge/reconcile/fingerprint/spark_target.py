@@ -150,10 +150,15 @@ def serialize_target_column_sql(col_name: str, col_type: str) -> str:
 
 
 def _target_col_name(schema_col: Schema, column_mapping: dict[str, str] | None) -> str:
-    """Resolve target physical column name; ``Schema.ansi_normalized_column_name`` arrives ANSI-delimited."""
+    """Resolve target physical column name; ``Schema.ansi_normalized_column_name`` arrives ANSI-delimited.
+
+    ``column_mapping`` is keyed by the bare, lower-cased source name (see
+    ``orchestrator.align_columns``), so the lookup is case-insensitive -- a config whose
+    ``source_name`` case differs from the source schema still resolves to its mapped target.
+    """
     bare = DialectUtils.unnormalize_identifier(schema_col.ansi_normalized_column_name)
     if column_mapping:
-        return column_mapping.get(bare, bare)
+        return column_mapping.get(bare.lower(), bare)
     return bare
 
 

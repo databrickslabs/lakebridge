@@ -1,3 +1,5 @@
+import sqlglot
+
 from databricks.labs.lakebridge.reconcile.normalize_recon_config_service import NormalizeReconConfigService
 from databricks.labs.lakebridge.reconcile.query_builder.hash_query import HashQueryBuilder
 from databricks.labs.lakebridge.reconcile.recon_config import (
@@ -11,6 +13,7 @@ from tests.conftest import (
     FakeDataSource,
     ansi_schema_fixture_factory,
     make_column_transformer,
+    redshift_schema_fixture_factory,
     tsql_schema_fixture_factory,
 )
 
@@ -705,3 +708,115 @@ def test_build_query_without_from_expression_keeps_placeholder(
     ).build_query(report_type="data")
 
     assert "%(tbl)s" in query
+
+
+def _projection_aliases(sql: str, dialect: str) -> list[str]:
+    """Output column names (aliases) of a hash query's SELECT, minus the hash column."""
+    parsed = sqlglot.parse_one(sql, read=dialect)
+    return [p.alias_or_name for p in parsed.expressions if p.alias_or_name != "hash_value_recon"]
+
+
+def test_hash_query_permuting_column_mapping_keeps_layers_aligned():
+    """Regression for review finding B1 + the pre-existing hash-order desync.
+
+    A ``column_mapping`` that PERMUTES alphabetical order (source ``alpha`` -> target
+    ``zeta``, source ``beta`` -> target ``apple``) must not desync the two layers. Before
+    the fix the layer-local sort ordered the source side as [alpha, beta, id] but the target
+    side as [apple, id, zeta] (= source [beta, id, alpha]); the row hashes diverged (false
+    mismatch on every row) and the ``project_all_columns`` Stage-2 projection tripped
+    ``capture_mismatch_data_and_columns``' ``source_columns != target_columns`` guard
+    (``ColumnMismatchException``). Sorting by the source-side identifier keeps both layers
+    in source-canonical order.
+    """
+    table = Table(
+        source_name="t",
+        target_name="t",
+        join_columns=["id"],
+        select_columns=["alpha", "beta"],
+        column_mapping=[
+            ColumnMapping(source_name="alpha", target_name="zeta"),
+            ColumnMapping(source_name="beta", target_name="apple"),
+        ],
+    )
+    src_schema = [redshift_schema_fixture_factory(n, "int") for n in ["id", "alpha", "beta"]]
+    tgt_schema = [ansi_schema_fixture_factory(n, "int") for n in ["id", "zeta", "apple"]]
+    src_ds = FakeDataSource('"', '"')
+    tgt_ds = FakeDataSource("`", "`")
+
+    src_builder = HashQueryBuilder(
+        table,
+        src_schema,
+        "source",
+        get_dialect("redshift"),
+        src_ds,
+        make_column_transformer(src_schema, get_dialect("redshift"), src_ds, table),
+    )
+    tgt_builder = HashQueryBuilder(
+        table,
+        tgt_schema,
+        "target",
+        get_dialect("databricks"),
+        tgt_ds,
+        make_column_transformer(tgt_schema, get_dialect("databricks"), tgt_ds, table),
+    )
+
+    # (1) Row hash: both layers hash the same source-logical columns in the same order.
+    src_hash_seq = [table.get_layer_tgt_to_src_col_mapping(c, "source") for c in src_builder.ordered_hash_columns()]
+    tgt_hash_seq = [table.get_layer_tgt_to_src_col_mapping(c, "target") for c in tgt_builder.ordered_hash_columns()]
+    assert src_hash_seq == tgt_hash_seq == ["alpha", "beta", "id"]
+
+    # (2) Stage-2 projection: identical column lists (order + names) on both sides, so
+    # capture_mismatch_data_and_columns does not raise ColumnMismatchException.
+    src_sql = src_builder.build_query(report_type="all", project_all_columns=True)
+    tgt_sql = tgt_builder.build_query(report_type="all", project_all_columns=True)
+    assert (
+        _projection_aliases(src_sql, "redshift")
+        == _projection_aliases(tgt_sql, "databricks")
+        == ["alpha", "beta", "id"]
+    )
+
+
+def test_hash_query_order_preserving_mapping_is_unchanged_by_source_alignment():
+    """The source-aligned ordering must be a no-op for order-preserving mappings (the common
+    case): a shared-suffix rename keeps the same relative order, so source and target already
+    agree and the generated column order is identical to the pre-fix behaviour.
+    """
+    table = Table(
+        source_name="t",
+        target_name="t",
+        join_columns=["id"],
+        select_columns=["alpha", "beta"],
+        column_mapping=[
+            ColumnMapping(source_name="alpha", target_name="alpha_t"),
+            ColumnMapping(source_name="beta", target_name="beta_t"),
+        ],
+    )
+    src_schema = [redshift_schema_fixture_factory(n, "int") for n in ["id", "alpha", "beta"]]
+    tgt_schema = [ansi_schema_fixture_factory(n, "int") for n in ["id", "alpha_t", "beta_t"]]
+    src_ds = FakeDataSource('"', '"')
+    tgt_ds = FakeDataSource("`", "`")
+
+    src_builder = HashQueryBuilder(
+        table,
+        src_schema,
+        "source",
+        get_dialect("redshift"),
+        src_ds,
+        make_column_transformer(src_schema, get_dialect("redshift"), src_ds, table),
+    )
+    tgt_builder = HashQueryBuilder(
+        table,
+        tgt_schema,
+        "target",
+        get_dialect("databricks"),
+        tgt_ds,
+        make_column_transformer(tgt_schema, get_dialect("databricks"), tgt_ds, table),
+    )
+
+    src_sql = src_builder.build_query(report_type="all", project_all_columns=True)
+    tgt_sql = tgt_builder.build_query(report_type="all", project_all_columns=True)
+    assert (
+        _projection_aliases(src_sql, "redshift")
+        == _projection_aliases(tgt_sql, "databricks")
+        == ["alpha", "beta", "id"]
+    )

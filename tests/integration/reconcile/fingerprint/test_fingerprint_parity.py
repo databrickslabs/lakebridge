@@ -22,7 +22,6 @@ import dataclasses
 import logging
 
 import pytest
-
 from databricks.sdk.service.catalog import SchemaInfo
 
 from databricks.labs.lakebridge.config import ReconcileConfig, TableRecon
