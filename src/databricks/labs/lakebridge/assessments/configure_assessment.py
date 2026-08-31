@@ -486,6 +486,25 @@ class ConfigureTeradataAssessment(AssessmentConfigurator):
             "lookback_days": int(
                 self.prompts.question("Enter DBQL lookback window in days", default="7", validate=positive_int)
             ),
+            # PDCR history tables (pdcrinfo) retain far more than the live DBC.DBQLogTbl, so their
+            # window is configured separately and defaults to a longer horizon.
+            "pdcr_lookback_days": int(
+                self.prompts.question(
+                    "Enter PDCR history lookback window in days", default="180", validate=positive_int
+                )
+            ),
+            # ResUsageSpma windows: the usage aggregation is a longer utilization time series, while
+            # the node-hardware inventory only needs a recent window to capture the current config.
+            "sys_usage_lookback_days": int(
+                self.prompts.question(
+                    "Enter system usage (ResUsage) lookback window in days", default="60", validate=positive_int
+                )
+            ),
+            "sys_nodes_lookback_days": int(
+                self.prompts.question(
+                    "Enter system node info lookback window in days", default="30", validate=positive_int
+                )
+            ),
             "max_rows": int(
                 self.prompts.question("Enter max rows for the DBQL extract", default="100000", validate=positive_int)
             ),

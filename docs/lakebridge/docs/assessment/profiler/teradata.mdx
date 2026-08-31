@@ -9,7 +9,7 @@ import Admonition from '@theme/Admonition';
 - [Prerequisites](#prerequisites)
 - [Configure Connection to Teradata](#configure-connection-to-teradata)
 - [Run the Profiler](#run-the-profiler)
-- [Choosing a Profiler Variant](#choosing-a-profiler-variant)
+- [Workload Extraction](#workload-extraction)
 - [SQL Text Redaction](#sql-text-redaction)
 - [International Character Support](#international-character-support)
 
@@ -34,14 +34,14 @@ Grant `SELECT` access to:
 
 ### 3. Optional PDCR access for longer-history analysis
 
-The `pdcr` variant uses Teradata PDCR tables for richer, aggregated history (up to 180 days). To use it, grant `SELECT` access to:
+When available, the profiler also extracts Teradata PDCR tables for richer, aggregated history (the default `pdcr_lookback_days` window is 180 days). To enable this, grant `SELECT` access to:
 
 - `PDCRINFO.DBQlogTbl_Hst`
 - `PDCRINFO.DBQLSummaryTbl_Hst`
 - `PDCRINFO.UserInfo`
 
 <Admonition type="info" title="PDCR is optional">
-If PDCR is not available in the environment, use the `core` variant, which relies only on the core `DBC`/DBQL tables. See [Choosing a Profiler Variant](#choosing-a-profiler-variant).
+PDCR access is not required. The profiler always runs the core `DBC`/DBQL extraction and additionally attempts the PDCR extraction; if `PDCRINFO` is not present or not accessible, the PDCR steps are skipped automatically and the run still succeeds. See [Workload Extraction](#workload-extraction).
 </Admonition>
 
 ## Configure Connection to Teradata
@@ -74,8 +74,11 @@ Enter the password details:
 Enter the default database name (default: DBC):
 
 Please configure profiler settings:
-Enter DBQL lookback window in days (default: 7): 30
-Enter max rows for the DBQL extract (default: 100000): 5000000
+Enter DBQL lookback window in days (default: 7): 7
+Enter PDCR history lookback window in days (default: 180): 180
+Enter system usage (ResUsage) lookback window in days (default: 60): 60
+Enter system node info lookback window in days (default: 30): 30
+Enter max rows for the DBQL extract (default: 100000): 100000
 ```
 
 The generated credential block (written to `~/.databricks/labs/lakebridge/.credentials.yml`) includes:
@@ -85,18 +88,24 @@ The generated credential block (written to `~/.databricks/labs/lakebridge/.crede
 - `teradata.password`
 - `teradata.database`
 - `teradata.profiler.lookback_days`
+- `teradata.profiler.pdcr_lookback_days`
+- `teradata.profiler.sys_usage_lookback_days`
+- `teradata.profiler.sys_nodes_lookback_days`
 - `teradata.profiler.max_rows`
 
-The two profiler settings control the `core`-variant DBQL extract (`td_dbql_core_info_extract`). They are supplied to the query as bind parameters at execution time (not interpolated into the SQL text):
+These profiler settings are supplied to the extract queries as bind parameters at execution time (not interpolated into the SQL text):
 
-- **`lookback_days`** (default `7`) — how far back the DBQL query log is read: `CollectTimeStamp >= CURRENT_DATE - :lookback_days`. Widen it (e.g. `30`) for a longer history.
-- **`max_rows`** (default `100000`) — the cap on rows returned; the extract keeps the slowest queries (`QUALIFY ROW_NUMBER() OVER (ORDER BY TotalFirstRespTime DESC) <= :max_rows`). Raise it to retain more of a high-volume window.
+- **`lookback_days`** (default `7`) — how far back the core DBQL query log is read from the live `DBC.DBQLogTbl`: `CollectTimeStamp >= CURRENT_DATE - :lookback_days`. Widen it (e.g. `30`) for a longer history.
+- **`pdcr_lookback_days`** (default `180`) — how far back the PDCR extracts read the PDCR history tables (`PDCRINFO.DBQLogTbl_Hst`): `LogDate >= date - :pdcr_lookback_days`. PDCR retains far more history than the live table, so this defaults to a much longer horizon.
+- **`sys_usage_lookback_days`** (default `60`) — how far back the system usage aggregation reads the resource-usage history (`DBC.ResUsageSpma`): `TheDate >= date - :sys_usage_lookback_days`. This is a utilization time series, so a multi-week window is typical.
+- **`sys_nodes_lookback_days`** (default `30`) — how far back the node hardware inventory scans `DBC.ResUsageSpma` for distinct node configuration: `TheDate >= date - :sys_nodes_lookback_days`. It only needs a recent window to capture the current node layout.
+- **`max_rows`** (default `100000`) — the cap on rows returned by the core DBQL extract; it keeps the slowest queries (`QUALIFY ROW_NUMBER() OVER (ORDER BY TotalFirstRespTime DESC) <= :max_rows`). Raise it to retain more of a high-volume window.
 
-Because these live in your user-owned credentials file, they override the packaged defaults and survive upgrades (editing the installed pipeline resources does not). Increasing either value grows the extract; the query text is redacted, so the dominant cost is the number of rows retained.
+Because these live in your user-owned credentials file, they override the packaged defaults and survive upgrades (editing the installed pipeline resources does not). Increasing any value grows the extract; the query text is redacted, so the dominant cost is the number of rows retained.
 
 ## Run the Profiler
 
-The variant (`core` or `pdcr`) is selected at extraction time via `--variant`. Optionally verify connectivity first:
+There is no variant to choose — a single run performs both the core and PDCR extraction (see [Workload Extraction](#workload-extraction)). Optionally verify connectivity first:
 
 ```console
 databricks labs lakebridge test-profiler-connection --source-tech teradata
@@ -105,13 +114,13 @@ databricks labs lakebridge test-profiler-connection --source-tech teradata
 Then run the extraction:
 
 ```console
-databricks labs lakebridge execute-database-profiler --source-tech teradata --variant core --output-folder /path/to/output
+databricks labs lakebridge execute-database-profiler --source-tech teradata --output-folder /path/to/output
 ```
 
 `--output-folder` is optional; if omitted you are prompted for it (defaulting to
 `~/.databricks/labs/lakebridge_profilers/<source-tech>_assessment`).
 
-This executes the extraction steps defined in the selected variant's pipeline configuration and produces a local
+This executes the extraction steps defined in the Teradata pipeline configuration and produces a local
 DuckDB extract in the output folder, named:
 
 ```
@@ -120,30 +129,21 @@ profiler_extract_<source-tech>_<version>_<YYYYMMDD>.db
 
 The extract contains the system, storage, object, user-database, UDF, and workload tables gathered from the source.
 
-## Choosing a Profiler Variant
+## Workload Extraction
 
-The Teradata profiler ships as two variants. They share the same connection and credentials; choose the one that
-matches the access available in your environment:
+There is no variant to select. A single profiler run extracts the system, storage, object, user-database, and UDF
+tables, plus workload data from two sources when they are available:
 
-| Variant | Workload source | Use when |
+| Workload source | Steps | Availability |
 |---|---|---|
-| `core` | Core `DBC` / DBQL tables | The baseline. Works on any Teradata system with the system-view grants above. |
-| `pdcr` | PDCR aggregated history (`PDCRINFO`) | You have PDCR access and want richer, longer-history workload aggregates. |
+| Core `DBC` / DBQL tables | `td_dbql_core_info_extract` | Always runs; requires only the system-view grants above. |
+| PDCR aggregated history (`PDCRINFO`) | `td_pdcr_info_agg_extract`, `td_pdcr_sp_exe_info_agg_extract` | Runs when PDCR is accessible; provides richer, longer-history workload aggregates. |
 
-Both variants extract the same system, storage, object, user-database, and UDF tables; they differ only in the
-workload extraction:
-
-- `core` extracts `td_dbql_core_info_extract`.
-- `pdcr` extracts `td_pdcr_info_agg_extract` and `td_pdcr_sp_exe_info_agg_extract`.
-
-The `core` workload data is typically narrower (recent days from DBQL instead of long historical
-aggregates), which can reduce long-horizon trend analysis and may underrepresent short-query aggregate metrics.
-
-<Admonition type="warning" title="PDCR not available?">
-If you run the `pdcr` variant and the profiler fails with `Error 3802 ... Database 'PDCRINFO' does not exist`,
-the PDCR repository is not present (or not accessible) in this environment. Re-run with `--source-tech teradata --variant core`,
-which uses only the core `DBC`/DBQL tables.
-</Admonition>
+The PDCR steps are optional: if `PDCRINFO` is not present or not accessible (for example `Error 3802 ... Database
+'PDCRINFO' does not exist`), those steps are skipped automatically and the run still succeeds with the core DBQL
+workload data. The core workload data is typically narrower (recent days from DBQL rather than long historical
+aggregates), which can reduce long-horizon trend analysis and may underrepresent short-query aggregate metrics — so
+granting PDCR access is recommended where possible.
 
 ## SQL Text Redaction
 

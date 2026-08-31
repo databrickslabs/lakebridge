@@ -447,6 +447,9 @@ def test_configure_teradata_credentials(tmp_path):
             r"Enter the environment variable name holding the password": "TERADATA_PASSWORD",
             r"Enter the default database name": "DBC",
             r"Enter DBQL lookback window in days": "30",
+            r"Enter PDCR history lookback window in days": "365",
+            r"Enter system usage \(ResUsage\) lookback window in days": "90",
+            r"Enter system node info lookback window in days": "45",
             r"Enter max rows for the DBQL extract": "5000000",
             r"Do you want to test the connection to teradata\?": "no",
         }
@@ -469,6 +472,9 @@ def test_configure_teradata_credentials(tmp_path):
             'database': 'DBC',
             'profiler': {
                 'lookback_days': 30,
+                'pdcr_lookback_days': 365,
+                'sys_usage_lookback_days': 90,
+                'sys_nodes_lookback_days': 45,
                 'max_rows': 5000000,
             },
         },
