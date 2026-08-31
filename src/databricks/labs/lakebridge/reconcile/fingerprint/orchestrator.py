@@ -11,6 +11,8 @@ from databricks.labs.lakebridge.reconcile.compare import (
     _HASH_COLUMN_NAME,
     capture_mismatch_data_and_columns,
     filter_to_row_mismatches,
+)
+from databricks.labs.lakebridge.reconcile.compare import (
     reconcile_data as compare_reconcile_data,
 )
 from databricks.labs.lakebridge.reconcile.connectors.data_source import DataSource
@@ -49,12 +51,12 @@ from databricks.labs.lakebridge.reconcile.query_builder.column_transformer impor
 )
 from databricks.labs.lakebridge.reconcile.query_builder.hash_query import HashQueryBuilder
 from databricks.labs.lakebridge.reconcile.recon_capture import AbstractReconIntermediatePersist
-from databricks.labs.lakebridge.reconcile.recon_config import Table, Schema
-from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
+from databricks.labs.lakebridge.reconcile.recon_config import Schema, Table
 from databricks.labs.lakebridge.reconcile.recon_output_config import (
     DataReconcileOutput,
     MismatchOutput,
 )
+from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
 
 logger = logging.getLogger(__name__)
 
@@ -159,7 +161,16 @@ def align_columns(
     if table_conf.table_thresholds:
         return None
 
-    col_map = {cm.source_name: cm.target_name for cm in table_conf.column_mapping or []}
+    # Key the map by the bare, lower-cased source name so the downstream lookup in
+    # ``spark_target._target_col_name`` is case-insensitive -- matching how this function
+    # validates target names (``.lower()`` below) and how the rest of the pipeline
+    # (``base.py`` normalize_identifier) resolves columns. Without this a config whose
+    # ``source_name`` case differs from the source schema (e.g. ``custid`` vs ``CustID``)
+    # passes validation but misses the lookup, hashing the source-named column on the target.
+    col_map = {
+        DialectUtils.unnormalize_identifier(cm.source_name).lower(): cm.target_name
+        for cm in table_conf.column_mapping or []
+    }
 
     if col_map:
         tgt_cols_bare = {DialectUtils.unnormalize_identifier(s.ansi_normalized_column_name).lower() for s in tgt_schema}
@@ -221,51 +232,76 @@ def build_mismatch_output(
     ``report_type='all'`` + ``mismatch_count > 0`` so fingerprint MATCH and the
     zero-mismatch fast-path bear no overhead.
     """
-    output = compare_reconcile_data(
-        source=src_hashed,
-        target=tgt_hashed,
-        key_columns=key_columns,
-        report_type=report_type,
-        persistence=persistence,
-    )
+    # For report_type='all' the src/tgt frames are consumed twice — once by the
+    # ``compare_reconcile_data`` join and again by the ``capture_mismatch_data_and_columns``
+    # join — and each join re-runs the Stage-2 fetch (Redshift JDBC pull + Delta scan) and
+    # its shuffle. Cache them once so both consumers share a single materialization. Mirrors
+    # the serverless-aware pattern in ``Reconciliation._get_mismatch_data`` (cache on classic
+    # clusters, volume-materialise on serverless); the cached frames are released in the
+    # ``finally`` below. Other report types consume the frames only once (early return), so
+    # they are not cached.
+    cached_frames: list[DataFrame] = []
+    if report_type == "all":
+        if persistence.is_serverless:
+            src_hashed = persistence.write_and_read_df_with_volumes(src_hashed)
+            tgt_hashed = persistence.write_and_read_df_with_volumes(tgt_hashed)
+        else:
+            src_hashed = src_hashed.cache()
+            tgt_hashed = tgt_hashed.cache()
+            cached_frames = [src_hashed, tgt_hashed]
 
-    if report_type != "all" or output.mismatch_count == 0:
-        return output
+    try:
+        output = compare_reconcile_data(
+            source=src_hashed,
+            target=tgt_hashed,
+            key_columns=key_columns,
+            report_type=report_type,
+            persistence=persistence,
+        )
 
-    # The fingerprint frames carry ``hash_value_recon``; treat it as a
-    # derived/synthetic column - rows that hash differently are precisely the
-    # mismatched rows, so leaving it in would always show as "mismatched" and
-    # inflate ``mismatch_columns`` with a non-source-column.
-    src_for_capture = src_hashed.drop(_HASH_COLUMN_NAME) if _HASH_COLUMN_NAME in src_hashed.columns else src_hashed
-    tgt_for_capture = tgt_hashed.drop(_HASH_COLUMN_NAME) if _HASH_COLUMN_NAME in tgt_hashed.columns else tgt_hashed
+        if report_type != "all" or output.mismatch_count == 0:
+            return output
 
-    # ``capture_mismatch_data_and_columns`` builds the wide ``mismatch_df`` (join key +
-    # ``<col>_base``/``_compare``/``_match`` triples) and the ``mismatch_columns`` list consumed by
-    # ``recon_capture._mismatch_records`` — the SAME compare-layer function the normal sampled path
-    # uses, now with its per-column match flags computed null-safely. No fingerprint-specific diff.
-    capture = capture_mismatch_data_and_columns(
-        source=src_for_capture,
-        target=tgt_for_capture,
-        key_columns=key_columns,
-        persistence=persistence,
-    )
+        # The fingerprint frames carry ``hash_value_recon``; treat it as a
+        # derived/synthetic column - rows that hash differently are precisely the
+        # mismatched rows, so leaving it in would always show as "mismatched" and
+        # inflate ``mismatch_columns`` with a non-source-column.
+        src_for_capture = src_hashed.drop(_HASH_COLUMN_NAME) if _HASH_COLUMN_NAME in src_hashed.columns else src_hashed
+        tgt_for_capture = tgt_hashed.drop(_HASH_COLUMN_NAME) if _HASH_COLUMN_NAME in tgt_hashed.columns else tgt_hashed
 
-    # The Stage-2 fetch pulls whole sub-buckets (Stage-1 only proves a sub-bucket holds *some*
-    # mismatch), so the captured frame can include pairs that match column-by-column. Drop them so
-    # recon_details records only genuine mismatches — a row filter over the null-safe ``_match``
-    # flags, not a second diff. ``mismatch_columns`` is unaffected (matching rows contribute none).
-    return DataReconcileOutput(
-        mismatch_count=output.mismatch_count,
-        missing_in_src_count=output.missing_in_src_count,
-        missing_in_tgt_count=output.missing_in_tgt_count,
-        missing_in_src=output.missing_in_src,
-        missing_in_tgt=output.missing_in_tgt,
-        mismatch=MismatchOutput(
-            mismatch_df=filter_to_row_mismatches(capture.mismatch_df),
-            mismatch_columns=capture.mismatch_columns,
-        ),
-        threshold_output=output.threshold_output,
-    )
+        # ``capture_mismatch_data_and_columns`` builds the wide ``mismatch_df`` (join key +
+        # ``<col>_base``/``_compare``/``_match`` triples) and the ``mismatch_columns`` list consumed by
+        # ``recon_capture._mismatch_records`` — the SAME compare-layer function the normal sampled path
+        # uses, now with its per-column match flags computed null-safely. No fingerprint-specific diff.
+        capture = capture_mismatch_data_and_columns(
+            source=src_for_capture,
+            target=tgt_for_capture,
+            key_columns=key_columns,
+            persistence=persistence,
+        )
+
+        # The Stage-2 fetch pulls whole sub-buckets (Stage-1 only proves a sub-bucket holds *some*
+        # mismatch), so the captured frame can include pairs that match column-by-column. Drop them so
+        # recon_details records only genuine mismatches — a row filter over the null-safe ``_match``
+        # flags, not a second diff. ``mismatch_columns`` is unaffected (matching rows contribute none).
+        return DataReconcileOutput(
+            mismatch_count=output.mismatch_count,
+            missing_in_src_count=output.missing_in_src_count,
+            missing_in_tgt_count=output.missing_in_tgt_count,
+            missing_in_src=output.missing_in_src,
+            missing_in_tgt=output.missing_in_tgt,
+            mismatch=MismatchOutput(
+                mismatch_df=filter_to_row_mismatches(capture.mismatch_df),
+                mismatch_columns=capture.mismatch_columns,
+            ),
+            threshold_output=output.threshold_output,
+        )
+    finally:
+        # Release the cached inputs. The returned frames read from the volume-materialised
+        # compare/capture outputs (each does its own ``write_and_read_df_with_volumes``), not
+        # from these inputs, so releasing here is safe before the caller materializes them.
+        for df in cached_frames:
+            df.unpersist(blocking=False)
 
 
 def resolve_detection_columns(

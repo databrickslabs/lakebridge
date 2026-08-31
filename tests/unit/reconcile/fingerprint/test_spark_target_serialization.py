@@ -11,9 +11,9 @@ from __future__ import annotations
 import pytest
 
 from databricks.labs.lakebridge.reconcile.fingerprint.spark_target import (
+    build_target_filter_subquery,
     quote_spark_identifier,
     serialize_target_column_sql,
-    build_target_filter_subquery,
 )
 from databricks.labs.lakebridge.reconcile.query_builder.column_transformer import serialize_column_for_hash
 from databricks.labs.lakebridge.reconcile.recon_config import Schema

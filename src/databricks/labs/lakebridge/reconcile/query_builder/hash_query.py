@@ -58,19 +58,46 @@ class HashQueryBuilder(QueryBuilder):
         super().__init__(table_conf, schema, layer, source_engine, data_source, transformer)
         self._hash_expression_override = hash_expression_override
 
+    def _hash_column_set(self) -> set[str]:
+        """The set of columns that participate in the row hash: ``(join ∪ select) − thresholds − drops``.
+
+        Single source of truth for "which columns participate", consumed by both
+        ``ordered_hash_columns`` (which orders it for the hash sequence) and
+        ``build_query`` (which needs it for the projection). Keeping the set algebra in
+        one place stops the two from silently diverging if an exclusion set is ever added.
+        """
+        _join_columns = self.join_columns if self.join_columns else set()
+        return (_join_columns | self.select_columns) - self.threshold_columns - self.drop_columns
+
+    def _source_aligned_sort_key(self, col: str) -> str:
+        """Ordering key that sorts a column by its SOURCE-side identifier.
+
+        Both layers must order columns identically for the row hash to line up and for the
+        ``project_all_columns`` projection to expose the same column list to
+        ``capture_mismatch_data_and_columns``. Sorting by the *layer-local* name (the previous
+        behaviour) only aligns when a ``column_mapping`` preserves alphabetical order (e.g. a
+        shared suffix). A mapping that *permutes* the order — e.g. source ``alpha`` → target
+        ``zeta`` and source ``beta`` → target ``apple`` — desynced the two sides: the row
+        hashes diverged (false mismatch on every row) and, on the Stage-2 path, the projection
+        raised ``ColumnMismatchException`` in ``capture_mismatch_data_and_columns``. Mapping
+        each column back to its source name first (identity on the source layer) makes the
+        order source-canonical on both sides. This is the same source identifier
+        ``_build_column_with_alias`` uses for the output alias, so the projected column *names*
+        and their *order* agree by construction.
+        """
+        return self._unnormalize_identifier(self.table_conf.get_layer_tgt_to_src_col_mapping(col, self.layer)).lower()
+
     def ordered_hash_columns(self) -> list[str]:
         """Hash-column set in the deterministic order used to build the row hash.
 
-        Set = ``(join ∪ select) − thresholds − drops``. Order = by the unnormalized,
-        case-insensitive identifier, so that source and target — which can differ by
-        ``column_mapping`` and delimiter style — concatenate the same sequence and
-        therefore produce the same hash. This is the single definition of "which
-        columns participate, in what order"; both ``build_query`` and the fingerprint
+        Set = ``(join ∪ select) − thresholds − drops`` (see ``_hash_column_set``). Order =
+        by the source-side identifier (see ``_source_aligned_sort_key``), so that source and
+        target — which can differ by ``column_mapping`` and delimiter style — concatenate the
+        same sequence and therefore produce the same hash. This is the single definition of
+        "which columns participate, in what order"; both ``build_query`` and the fingerprint
         pre-check consume it.
         """
-        _join_columns = self.join_columns if self.join_columns else set()
-        hash_cols = sorted((_join_columns | self.select_columns) - self.threshold_columns - self.drop_columns)
-        return sorted(hash_cols, key=lambda col: self._unnormalize_identifier(col).lower())
+        return sorted(self._hash_column_set(), key=self._source_aligned_sort_key)
 
     def build_query(
         self, report_type: str, *, project_all_columns: bool = False, from_expression: str | None = None
@@ -97,24 +124,30 @@ class HashQueryBuilder(QueryBuilder):
             self._validate(self.join_columns, f"Join Columns are compulsory for {report_type} type")
 
         _join_columns = self.join_columns if self.join_columns else set()
-        hash_cols = sorted((_join_columns | self.select_columns) - self.threshold_columns - self.drop_columns)
+        # Every column list is ordered by the source-side identifier (see
+        # ``_source_aligned_sort_key`` / ``ordered_hash_columns``) so the source and target
+        # layers emit the hash sequence AND the projection in the same order under any
+        # ``column_mapping``. ``hash_cols`` is that canonical order over the full hash set.
+        hash_cols = self.ordered_hash_columns()
 
-        key_cols = hash_cols if report_type == "row" else sorted(_join_columns | self.partition_column)
+        key_cols = (
+            hash_cols
+            if report_type == "row"
+            else sorted(_join_columns | self.partition_column, key=self._source_aligned_sort_key)
+        )
         if project_all_columns and report_type != "row":
-            # Union with hash_cols (already a sorted superset of join columns)
-            # so we can keep the deterministic projection order while still
-            # widening the SELECT list to every hashed column.
-            key_cols = sorted(set(key_cols) | set(hash_cols))
+            # Widen the SELECT to every hashed column while keeping the same source-aligned
+            # order, so ``capture_mismatch_data_and_columns`` sees identical column lists on
+            # both sides. ``hash_cols`` is already the sorted superset of the join/partition keys.
+            key_cols = sorted(set(key_cols) | set(hash_cols), key=self._source_aligned_sort_key)
 
         cols_with_alias = [self._build_column_with_alias(col) for col in key_cols]
 
-        # Hash the columns in the canonical order (see ``ordered_hash_columns``) so a
-        # column_mapping or delimiter difference between source and target does not change
-        # the concatenation sequence and therefore the hash value.
+        # Hash the columns in the same source-aligned order (see ``ordered_hash_columns``) so a
+        # column_mapping or delimiter difference between source and target does not change the
+        # concatenation sequence and therefore the hash value.
         # Fix for https://github.com/databrickslabs/lakebridge/issues/2195
-        hashcols_sorted_as_src_seq = [
-            self._build_column_name_source_normalized(col) for col in self.ordered_hash_columns()
-        ]
+        hashcols_sorted_as_src_seq = [self._build_column_name_source_normalized(col) for col in hash_cols]
 
         key_cols_with_transform = [
             rendered.column for rendered in self._transformer.transform_user(cols_with_alias, self.layer)
@@ -129,10 +162,25 @@ class HashQueryBuilder(QueryBuilder):
         )
 
         if from_expression is not None:
-            # Raw string splice (not a sqlglot re-render) so a hand-built dialect
-            # subquery survives byte-for-byte; covers both rendered placeholder forms.
+            # Splice the caller's FROM source in as a raw string, NOT via a sqlglot re-render.
+            # This is the same mechanism every connector's ``read_data`` uses to fill the table
+            # placeholder (``query.replace(":tbl", schema.table)``), and it preserves a hand-built
+            # dialect subquery byte-for-byte. Re-rendering through sqlglot would rewrite the
+            # subquery -- e.g. it turns Redshift ``MOD(x, n)`` into ``x % n`` and
+            # ``SUBSTRING(m, 1, 8)`` into ``SUBSTRING(m FROM 1 FOR 8)`` -- which mutates the
+            # hand-crafted MD5 bucket arithmetic the Stage-2 filter depends on.
+            # Anchor on the rendered ``FROM <placeholder>`` and replace a single occurrence: a
+            # bare ``.replace(placeholder, ...)`` would rewrite every occurrence, so a stray
+            # ``:tbl`` / ``%(tbl)s`` in a filter literal or identifier elsewhere in the SQL could
+            # be corrupted. Exactly one placeholder form is present (dialect-dependent); fail loud
+            # if the query shape ever changes.
             for placeholder in _RENDERED_TABLE_PLACEHOLDERS:
-                res = res.replace(placeholder, from_expression)
+                anchored = f"FROM {placeholder}"
+                if anchored in res:
+                    res = res.replace(anchored, f"FROM {from_expression}", 1)
+                    break
+            else:
+                raise ValueError(f"Expected a table placeholder to splice into, found none in: {res}")
 
         logger.info(f"Hash Query for {self.layer}: {res}")
         return res

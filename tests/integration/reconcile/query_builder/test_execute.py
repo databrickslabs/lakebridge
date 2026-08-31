@@ -38,7 +38,7 @@ from databricks.labs.lakebridge.reconcile.schema_compare import SchemaCompare
 from databricks.labs.lakebridge.reconcile.trigger_recon_service import TriggerReconService
 from databricks.labs.lakebridge.reconcile.utils import initialise_data_source
 from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
-from tests.integration.reconcile.conftest import FakeReconIntermediatePersist, FINGERPRINT_METRICS_DISABLED
+from tests.integration.reconcile.conftest import FINGERPRINT_METRICS_DISABLED, FakeReconIntermediatePersist
 
 CATALOG = "org"
 SCHEMA = "data"
