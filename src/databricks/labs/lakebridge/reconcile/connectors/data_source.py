@@ -65,9 +65,9 @@ class DataSource(ABC):
         dtype = meta_column.data_type.strip().lower()
         if normalize:
             normalized = self.normalize_identifier(name)
-            return Schema(normalized.ansi_normalized, dtype, normalized.ansi_normalized, normalized.source_normalized)
+            return Schema(normalized.ansi_normalized, dtype, normalized.source_normalized)
 
-        return Schema(name, dtype, name, name)
+        return Schema(name, dtype, name)
 
 
 class MockDataSource(DataSource):
