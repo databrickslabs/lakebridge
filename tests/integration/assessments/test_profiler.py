@@ -1,24 +1,38 @@
+import json
+import shutil
 from pathlib import Path
 
-import shutil
-import yaml
+import duckdb
 import pytest
+import yaml
 
+from databricks.labs.lakebridge.assessments import PROFILER_RUN_METADATA_TABLE
 from databricks.labs.lakebridge.assessments.pipeline import PipelineClass, make_profiler_db_filename
 from databricks.labs.lakebridge.assessments.profiler import Profiler
+from databricks.labs.lakebridge.assessments.run_metadata import ProfilerRunStatus
 
 # Config file names for script-based execution tests (no live DB)
 PLATFORM_MAIN_CONFIG = {
     "synapse": "pipeline_config_main.yml",
-    "redshift_provisioned": "pipeline_config_main_redshift.yml",
+    "redshift": "pipeline_config_main_redshift.yml",
 }
 
 PLATFORM_EXTRACT_SCRIPT = {
     "synapse": "db_extract.py",
-    "redshift_provisioned": "db_extract_redshift.py",
+    "redshift": "db_extract_redshift.py",
 }
 
-_TEST_PLATFORMS = ["synapse", "redshift_provisioned"]
+_TEST_PLATFORMS = ["synapse", "redshift"]
+_EXPECTED_STORAGE_VERSION = "v1.4.0+"
+
+
+def _storage_version(db_path: Path) -> str | None:
+    """Fetch the on-disk storage format of a DuckDB file."""
+    with duckdb.connect(str(db_path), read_only=True) as conn:
+        row = conn.execute("SELECT tags FROM duckdb_databases() WHERE database_name = current_database()").fetchone()
+    assert row is not None
+    (tags,) = row
+    return tags.get("storage_version")
 
 
 @pytest.mark.parametrize("platform", _TEST_PLATFORMS)
@@ -37,7 +51,20 @@ def test_profile_execution(platform: str, test_resources: Path, tmp_path: Path) 
     profiler = Profiler(platform)
     config = Profiler.path_modifier(config_file=config_file, path_prefix=test_resources)
     profiler.profile(pipeline_config=config, output_folder=output_folder)
-    assert (output_folder / make_profiler_db_filename(platform)).exists(), "Profiler extract database should be created"
+    db_path = output_folder / make_profiler_db_filename(platform)
+    assert db_path.exists(), "Profiler extract database should be created"
+    assert _storage_version(db_path) == _EXPECTED_STORAGE_VERSION
+
+    with duckdb.connect(str(db_path)) as conn:
+        row = conn.execute(
+            f"SELECT source_system, pipeline_name, status, results FROM {PROFILER_RUN_METADATA_TABLE}"
+        ).fetchone()
+    assert row is not None
+    source_system, pipeline_name, status, results_json = row
+    assert source_system == platform
+    assert pipeline_name == config.name
+    assert status == ProfilerRunStatus.COMPLETE.value
+    assert isinstance(json.loads(results_json), list)
 
 
 @pytest.mark.parametrize("platform", _TEST_PLATFORMS)

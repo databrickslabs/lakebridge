@@ -2,37 +2,36 @@ import logging
 from datetime import datetime, timezone
 from uuid import uuid4
 
+from databricks.sdk import WorkspaceClient
 from pyspark.errors import PySparkException
 from pyspark.sql import SparkSession
 
-from databricks.sdk import WorkspaceClient
-
 from databricks.labs.lakebridge.config import (
     ReconcileConfig,
-    TableRecon,
     SourceConnectionConfig,
+    TableRecon,
     TargetConnectionConfig,
 )
 from databricks.labs.lakebridge.reconcile import utils
 from databricks.labs.lakebridge.reconcile.connectors.data_source import DataSource
 from databricks.labs.lakebridge.reconcile.constants import RECON_SAMPLE_VIEW_PREFIX
 from databricks.labs.lakebridge.reconcile.exception import DataSourceRuntimeException, ReconciliationException
+from databricks.labs.lakebridge.reconcile.normalize_recon_config_service import NormalizeReconConfigService
 from databricks.labs.lakebridge.reconcile.recon_capture import (
     ReconCapture,
-    generate_final_reconcile_output,
     ReconIntermediatePersist,
+    generate_final_reconcile_output,
 )
-from databricks.labs.lakebridge.reconcile.recon_config import Table, Schema
+from databricks.labs.lakebridge.reconcile.recon_config import Schema, Table
 from databricks.labs.lakebridge.reconcile.recon_output_config import (
+    DataReconcileOutput,
     ReconcileOutput,
     ReconcileProcessDuration,
-    SchemaReconcileOutput,
-    DataReconcileOutput,
     ReconcileTableOutput,
+    SchemaReconcileOutput,
 )
 from databricks.labs.lakebridge.reconcile.reconciliation import Reconciliation
 from databricks.labs.lakebridge.reconcile.schema_compare import SchemaCompare
-from databricks.labs.lakebridge.reconcile.normalize_recon_config_service import NormalizeReconConfigService
 from databricks.labs.lakebridge.transpiler.execute import verify_workspace_client
 from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
 

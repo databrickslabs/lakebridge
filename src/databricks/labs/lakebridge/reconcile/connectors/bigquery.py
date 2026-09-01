@@ -8,9 +8,9 @@ from pyspark.sql.functions import col
 from sqlglot import Dialect
 
 from databricks.labs.lakebridge.reconcile.connectors.data_source import DataSource
+from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import DialectUtils
 from databricks.labs.lakebridge.reconcile.connectors.models import NormalizedIdentifier
 from databricks.labs.lakebridge.reconcile.connectors.remote_query_reader import RemoteQueryReader
-from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import DialectUtils
 from databricks.labs.lakebridge.reconcile.recon_config import JdbcReaderOptions, Schema
 
 logger = logging.getLogger(__name__)
@@ -115,7 +115,7 @@ class BigQueryDataSource(DataSource):
     def _warn_on_approximate_types(self, schema: list[Schema]) -> None:
         """Log columns whose BigQuery type schema compare cannot judge exactly."""
         pattern = rf"\b({'|'.join(BigQueryDataSource._APPROXIMATE_TYPES)})\b"
-        approximate = [s.column_name for s in schema if re.search(pattern, s.data_type.lower())]
+        approximate = [s.ansi_normalized_column_name for s in schema if re.search(pattern, s.data_type.lower())]
         if approximate:
             logger.warning(
                 f"BigQuery columns {approximate} cannot be compared exactly against Databricks: they either have "

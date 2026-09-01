@@ -1,4 +1,5 @@
 from pathlib import Path
+
 import pytest
 from pyspark import Row
 from pyspark.testing import assertDataFrameEqual

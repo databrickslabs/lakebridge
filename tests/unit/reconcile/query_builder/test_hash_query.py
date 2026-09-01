@@ -1,13 +1,18 @@
-from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
+from databricks.labs.lakebridge.reconcile.normalize_recon_config_service import NormalizeReconConfigService
 from databricks.labs.lakebridge.reconcile.query_builder.hash_query import HashQueryBuilder
 from databricks.labs.lakebridge.reconcile.recon_config import (
-    Filters,
     ColumnMapping,
-    Transformation,
+    Filters,
     Table,
+    Transformation,
 )
-from databricks.labs.lakebridge.reconcile.normalize_recon_config_service import NormalizeReconConfigService
-from tests.conftest import tsql_schema_fixture_factory, ansi_schema_fixture_factory, FakeDataSource
+from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
+from tests.conftest import (
+    FakeDataSource,
+    ansi_schema_fixture_factory,
+    make_column_transformer,
+    tsql_schema_fixture_factory,
+)
 
 
 def test_hash_query_builder_for_snowflake_src(
@@ -23,6 +28,9 @@ def test_hash_query_builder_for_snowflake_src(
         "source",
         get_dialect("snowflake"),
         fake_oracle_datasource,
+        make_column_transformer(
+            src_schema, get_dialect("snowflake"), fake_oracle_datasource, snowflake_table_conf_with_opts
+        ),
     ).build_query(report_type="data")
     src_expected = (
         "SELECT LOWER(SHA2(TRIM(\"s_address\") || TRIM(\"s_name\") || COALESCE(TRIM(\"s_nationkey\"), '_null_recon_') || "
@@ -37,6 +45,9 @@ def test_hash_query_builder_for_snowflake_src(
         "target",
         get_dialect("databricks"),
         fake_databricks_datasource,
+        make_column_transformer(
+            tgt_schema, get_dialect("databricks"), fake_databricks_datasource, snowflake_table_conf_with_opts
+        ),
     ).build_query(report_type="data")
     tgt_expected = (
         "SELECT LOWER(SHA2(TRIM(`s_address_t`) || TRIM(`s_name`) || COALESCE(TRIM(`s_nationkey_t`), '_null_recon_') || "
@@ -59,7 +70,12 @@ def test_hash_query_builder_for_oracle_src(
         column_mapping=[ColumnMapping(source_name="`s_nationkey`", target_name="`s_nationkey`")],
     )
     src_actual = HashQueryBuilder(
-        table_conf, schema, "source", get_dialect("oracle"), fake_oracle_datasource
+        table_conf,
+        schema,
+        "source",
+        get_dialect("oracle"),
+        fake_oracle_datasource,
+        make_column_transformer(schema, get_dialect("oracle"), fake_oracle_datasource, table_conf),
     ).build_query(report_type="all")
     src_expected = (
         "SELECT LOWER(DBMS_CRYPTO.HASH(RAWTOHEX(COALESCE(TRIM(\"s_acctbal\"), '_null_recon_') || COALESCE(TRIM("
@@ -71,7 +87,12 @@ def test_hash_query_builder_for_oracle_src(
     )
 
     tgt_actual = HashQueryBuilder(
-        table_conf, schema, "target", get_dialect("databricks"), fake_databricks_datasource
+        table_conf,
+        schema,
+        "target",
+        get_dialect("databricks"),
+        fake_databricks_datasource,
+        make_column_transformer(schema, get_dialect("databricks"), fake_databricks_datasource, table_conf),
     ).build_query(report_type="all")
     tgt_expected = (
         "SELECT LOWER(SHA2(COALESCE(TRIM(`s_acctbal`), '_null_recon_') || COALESCE(TRIM(`s_address`), "
@@ -97,7 +118,12 @@ def test_hash_query_builder_for_databricks_src(
     )
     sch, sch_with_alias = table_schema_oracle_ansi
     src_actual = HashQueryBuilder(
-        table_conf, sch, "source", get_dialect("databricks"), fake_databricks_datasource
+        table_conf,
+        sch,
+        "source",
+        get_dialect("databricks"),
+        fake_databricks_datasource,
+        make_column_transformer(sch, get_dialect("databricks"), fake_databricks_datasource, table_conf),
     ).build_query(report_type="data")
     src_expected = (
         "SELECT LOWER(SHA2(COALESCE(TRIM(`s_acctbal`), '_null_recon_') || COALESCE(TRIM(`s_address`), '_null_recon_') || "
@@ -108,7 +134,12 @@ def test_hash_query_builder_for_databricks_src(
     )
 
     tgt_actual = HashQueryBuilder(
-        table_conf, sch_with_alias, "target", get_dialect("databricks"), fake_databricks_datasource
+        table_conf,
+        sch_with_alias,
+        "target",
+        get_dialect("databricks"),
+        fake_databricks_datasource,
+        make_column_transformer(sch_with_alias, get_dialect("databricks"), fake_databricks_datasource, table_conf),
     ).build_query(report_type="data")
     tgt_expected = (
         "SELECT LOWER(SHA2(COALESCE(TRIM(`s_acctbal_t`), '_null_recon_') || COALESCE(TRIM(`s_address_t`), "
@@ -137,6 +168,9 @@ def test_hash_query_builder_for_redshift_src(
         "source",
         get_dialect("redshift"),
         fake_redshift_datasource,
+        make_column_transformer(
+            src_schema, get_dialect("redshift"), fake_redshift_datasource, redshift_table_conf_with_opts
+        ),
     ).build_query(report_type="data")
     src_expected = (
         "SELECT LOWER(SHA2(TRIM(\"s_address\") || TRIM(\"s_name\") || COALESCE(TRIM(\"s_nationkey\"), '_null_recon_') || "
@@ -151,6 +185,9 @@ def test_hash_query_builder_for_redshift_src(
         "target",
         get_dialect("databricks"),
         fake_databricks_datasource,
+        make_column_transformer(
+            tgt_schema, get_dialect("databricks"), fake_databricks_datasource, redshift_table_conf_with_opts
+        ),
     ).build_query(report_type="data")
     tgt_expected = (
         "SELECT LOWER(SHA2(TRIM(`s_address_t`) || TRIM(`s_name`) || COALESCE(TRIM(`s_nationkey_t`), '_null_recon_') || "
@@ -176,6 +213,9 @@ def test_hash_query_builder_user_hash_expression_overrides_dialect_default(
         "source",
         get_dialect("teradata"),
         fake_teradata_datasource,
+        make_column_transformer(
+            src_schema, get_dialect("teradata"), fake_teradata_datasource, teradata_table_conf_with_opts
+        ),
         hash_expression_override="my_db.my_sha256({})",
     ).build_query(report_type="data")
     src_expected = (
@@ -192,6 +232,9 @@ def test_hash_query_builder_user_hash_expression_overrides_dialect_default(
         "target",
         get_dialect("databricks"),
         fake_databricks_datasource,
+        make_column_transformer(
+            tgt_schema, get_dialect("databricks"), fake_databricks_datasource, teradata_table_conf_with_opts
+        ),
         hash_expression_override="sha2({}, 256)",
     ).build_query(report_type="data")
     tgt_expected = (
@@ -219,6 +262,9 @@ def test_hash_query_builder_user_hash_expression_only_source(
         "source",
         get_dialect("teradata"),
         fake_teradata_datasource,
+        make_column_transformer(
+            src_schema, get_dialect("teradata"), fake_teradata_datasource, teradata_table_conf_with_opts
+        ),
         hash_expression_override="my_db.my_sha256({})",
     ).build_query(report_type="data")
     assert "my_db.my_sha256(" in src_actual
@@ -229,6 +275,9 @@ def test_hash_query_builder_user_hash_expression_only_source(
         "target",
         get_dialect("databricks"),
         fake_databricks_datasource,
+        make_column_transformer(
+            tgt_schema, get_dialect("databricks"), fake_databricks_datasource, teradata_table_conf_with_opts
+        ),
     ).build_query(report_type="data")
     # Without an override, the target falls back to the dialect default (Databricks SHA2).
     assert "SHA2(" in tgt_actual
@@ -248,6 +297,7 @@ def test_hash_query_builder_for_tsql_src(
         "source",
         get_dialect("tsql"),
         fake_tsql_datasource,
+        make_column_transformer(src_schema, get_dialect("tsql"), fake_tsql_datasource, tsql_table_conf_with_opts),
     ).build_query(report_type="data")
     src_expected = (
         "SELECT LOWER(CONVERT(VARCHAR(64), HASHBYTES('SHA2_256', "
@@ -265,6 +315,9 @@ def test_hash_query_builder_for_tsql_src(
         "target",
         get_dialect("databricks"),
         fake_databricks_datasource,
+        make_column_transformer(
+            tgt_schema, get_dialect("databricks"), fake_databricks_datasource, tsql_table_conf_with_opts
+        ),
     ).build_query(report_type="data")
     print(tgt_actual)
     tgt_expected = (
@@ -286,7 +339,12 @@ def test_hash_query_builder_without_column_mapping(table_conf, table_schema_orac
     )
     sch, _ = table_schema_oracle_ansi
     src_actual = HashQueryBuilder(
-        table_conf, sch, "source", get_dialect("databricks"), fake_databricks_datasource
+        table_conf,
+        sch,
+        "source",
+        get_dialect("databricks"),
+        fake_databricks_datasource,
+        make_column_transformer(sch, get_dialect("databricks"), fake_databricks_datasource, table_conf),
     ).build_query(report_type="data")
     src_expected = (
         "SELECT LOWER(SHA2(COALESCE(TRIM(`s_acctbal`), '_null_recon_') || COALESCE(TRIM(`s_address`), '_null_recon_') ||"
@@ -297,7 +355,12 @@ def test_hash_query_builder_without_column_mapping(table_conf, table_schema_orac
     )
 
     tgt_actual = HashQueryBuilder(
-        table_conf, sch, "target", get_dialect("databricks"), fake_databricks_datasource
+        table_conf,
+        sch,
+        "target",
+        get_dialect("databricks"),
+        fake_databricks_datasource,
+        make_column_transformer(sch, get_dialect("databricks"), fake_databricks_datasource, table_conf),
     ).build_query(report_type="data")
     tgt_expected = (
         "SELECT LOWER(SHA2(COALESCE(TRIM(`s_acctbal`), '_null_recon_') || COALESCE(TRIM(`s_address`), "
@@ -328,7 +391,12 @@ def test_hash_query_builder_without_transformation(
     )
     sch, tgt_sch = table_schema_oracle_ansi
     src_actual = HashQueryBuilder(
-        table_conf, sch, "source", get_dialect("databricks"), fake_databricks_datasource
+        table_conf,
+        sch,
+        "source",
+        get_dialect("databricks"),
+        fake_databricks_datasource,
+        make_column_transformer(sch, get_dialect("databricks"), fake_databricks_datasource, table_conf),
     ).build_query(report_type="data")
     src_expected = (
         "SELECT LOWER(SHA2(COALESCE(TRIM(`s_acctbal`), '_null_recon_') || `s_address` || "
@@ -338,7 +406,12 @@ def test_hash_query_builder_without_transformation(
     )
 
     tgt_actual = HashQueryBuilder(
-        table_conf, tgt_sch, "target", get_dialect("databricks"), fake_databricks_datasource
+        table_conf,
+        tgt_sch,
+        "target",
+        get_dialect("databricks"),
+        fake_databricks_datasource,
+        make_column_transformer(tgt_sch, get_dialect("databricks"), fake_databricks_datasource, table_conf),
     ).build_query(report_type="data")
     tgt_expected = (
         "SELECT LOWER(SHA2(COALESCE(TRIM(`s_acctbal_t`), '_null_recon_') || TRIM(`s_address_t`) || COALESCE(TRIM("
@@ -357,7 +430,14 @@ def test_hash_query_builder_for_report_type_is_row(
 ):
     sch, sch_with_alias = table_schema_oracle_ansi
     src_actual = HashQueryBuilder(
-        normalized_table_conf_with_opts, sch, "source", get_dialect("databricks"), fake_databricks_datasource
+        normalized_table_conf_with_opts,
+        sch,
+        "source",
+        get_dialect("databricks"),
+        fake_databricks_datasource,
+        make_column_transformer(
+            sch, get_dialect("databricks"), fake_databricks_datasource, normalized_table_conf_with_opts
+        ),
     ).build_query(report_type="row")
     src_expected = (
         "SELECT LOWER(SHA2(TRIM(s_address) || TRIM(s_name) || COALESCE(TRIM(`s_nationkey`), '_null_recon_') || "
@@ -368,7 +448,14 @@ def test_hash_query_builder_for_report_type_is_row(
     )
 
     tgt_actual = HashQueryBuilder(
-        normalized_table_conf_with_opts, sch_with_alias, "target", get_dialect("databricks"), fake_databricks_datasource
+        normalized_table_conf_with_opts,
+        sch_with_alias,
+        "target",
+        get_dialect("databricks"),
+        fake_databricks_datasource,
+        make_column_transformer(
+            sch_with_alias, get_dialect("databricks"), fake_databricks_datasource, normalized_table_conf_with_opts
+        ),
     ).build_query(report_type="row")
     tgt_expected = (
         "SELECT LOWER(SHA2(TRIM(s_address_t) || TRIM(s_name) || COALESCE(TRIM(`s_nationkey_t`), '_null_recon_') || "
@@ -399,7 +486,12 @@ def test_config_case_sensitivity(
     )
     sch, tgt_sch = table_schema_oracle_ansi
     src_actual = HashQueryBuilder(
-        table_conf, sch, "source", get_dialect("databricks"), fake_databricks_datasource
+        table_conf,
+        sch,
+        "source",
+        get_dialect("databricks"),
+        fake_databricks_datasource,
+        make_column_transformer(sch, get_dialect("databricks"), fake_databricks_datasource, table_conf),
     ).build_query(report_type="data")
     src_expected = (
         "SELECT LOWER(SHA2(COALESCE(TRIM(`s_acctbal`), '_null_recon_') || `s_address` || "
@@ -408,7 +500,12 @@ def test_config_case_sensitivity(
     )
 
     tgt_actual = HashQueryBuilder(
-        table_conf, tgt_sch, "target", get_dialect("databricks"), fake_databricks_datasource
+        table_conf,
+        tgt_sch,
+        "target",
+        get_dialect("databricks"),
+        fake_databricks_datasource,
+        make_column_transformer(tgt_sch, get_dialect("databricks"), fake_databricks_datasource, table_conf),
     ).build_query(report_type="data")
     tgt_expected = (
         "SELECT LOWER(SHA2(COALESCE(TRIM(`s_acctbal_t`), '_null_recon_') || TRIM(`s_address_t`) || `s_name` || "
@@ -462,6 +559,7 @@ def test_hash_query_builder_sort_column(
         "source",
         get_dialect("tsql"),
         fake_tsql_datasource,
+        make_column_transformer(src_schema, get_dialect("tsql"), fake_tsql_datasource, normalized_conf),
     ).build_query(report_type="data")
 
     # Build target query (Databricks)
@@ -471,6 +569,7 @@ def test_hash_query_builder_sort_column(
         "target",
         get_dialect("databricks"),
         fake_databricks_datasource,
+        make_column_transformer(tgt_schema, get_dialect("databricks"), fake_databricks_datasource, normalized_conf),
     ).build_query(report_type="data")
 
     # Verify columns are in alphabetical order: id, month, month_num, revenue, year
@@ -524,6 +623,7 @@ def test_hash_query_builder_tsql_date_time_columns(
         "source",
         get_dialect("tsql"),
         fake_tsql_datasource,
+        make_column_transformer(src_schema, get_dialect("tsql"), fake_tsql_datasource, normalized_conf),
     ).build_query(report_type="data")
 
     src_expected = (

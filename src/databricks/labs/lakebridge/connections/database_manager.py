@@ -3,25 +3,26 @@ import dataclasses
 import importlib
 import logging
 from abc import abstractmethod
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from types import TracebackType
 from typing import Any
 
+import mssql_python
 import pandas as pd
-
-from sqlalchemy import create_engine
-from sqlalchemy.engine import Engine, URL
-from sqlalchemy import text
+import pyarrow as pa
+import redshift_connector  # type: ignore[import-untyped]
+from databricks.labs.blueprint.installation import JsonObject
+from snowflake.connector.errors import Error as SnowflakeError
+from sqlalchemy import create_engine, text
+from sqlalchemy.engine import URL, CursorResult, Engine
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm.session import Session
-import mssql_python
-import redshift_connector  # type: ignore[import-untyped]
 
-from databricks.labs.blueprint.installation import JsonObject
 from databricks.labs.lakebridge.connections.mssql_auth import resolve_mssql_credentials
+from databricks.labs.lakebridge.connections.snowflake_auth import resolve_snowflake_credentials
 from databricks.labs.lakebridge.connections.snowflake_utils import (
-    parse_snowflake_account,
     is_valid_snowflake_account,
+    parse_snowflake_account,
 )
 
 # Side-effect import: registers the 'snowflake://' SQLAlchemy dialect so
@@ -44,6 +45,12 @@ class FetchResult:
 class DatabaseConnector(contextlib.AbstractContextManager):
     @abstractmethod
     def fetch(self, query: str) -> FetchResult: ...
+
+    def supports_streaming(self) -> bool:
+        return False
+
+    def stream(self, query: str) -> Iterator[pa.Table]:
+        raise NotImplementedError
 
     @abstractmethod
     def close(self) -> None:
@@ -93,13 +100,9 @@ class _BaseConnector(DatabaseConnector):
 
 
 class SnowflakeConnector(_BaseConnector):
-    def _connect(self) -> Engine:
-        # The configurator always nests Snowflake credentials under a "connection" block.
-        # The SDK types JSON values loosely, so narrow to a dict for the accesses below.
-        connection_config = self.config["connection"]
-        if not isinstance(connection_config, dict):
-            raise ConnectionError("Snowflake credentials must be nested under a 'connection' block")
-
+    @staticmethod
+    def build_engine_args(connection_config: dict[str, Any]) -> tuple[URL, dict[str, Any]]:
+        """Build the SQLAlchemy URL and connect_args for a Snowflake connection config."""
         account = parse_snowflake_account(str(connection_config["account"]))
         if not is_valid_snowflake_account(account):
             raise ConnectionError(
@@ -111,19 +114,50 @@ class SnowflakeConnector(_BaseConnector):
         database = str(connection_config.get("database", "SNOWFLAKE"))
         schema = str(connection_config.get("schema", "ACCOUNT_USAGE"))
         role = str(connection_config.get("role", "ACCOUNTADMIN"))
-        password = str(connection_config["pat"])
+        resolved = resolve_snowflake_credentials(connection_config)
 
         # PAT is base64url-encoded and can contain '/', '=', '@'. URL.create
         # percent-escapes them so SQLAlchemy doesn't misread the token as URL structure.
         snowflake_url = URL.create(
             drivername="snowflake",
-            username=user,
-            password=password,
             host=account,
             database=f"{database}/{schema}",
+            username=user,
+            password=resolved.password,
             query={"warehouse": warehouse, "role": role},
         )
-        return create_engine(snowflake_url)
+        return snowflake_url, resolved.connect_args
+
+    def _connect(self) -> Engine:
+        # The configurator always nests Snowflake credentials under a "connection" block.
+        # The SDK types JSON values loosely, so narrow to a dict for the accesses below.
+        connection_config = self.config["connection"]
+        if not isinstance(connection_config, dict):
+            raise ConnectionError("Snowflake credentials must be nested under a 'connection' block")
+
+        snowflake_url, connect_args = self.build_engine_args(connection_config)
+        return create_engine(snowflake_url, connect_args=connect_args)
+
+    def supports_streaming(self) -> bool:
+        return True
+
+    def stream(self, query: str) -> Iterator[pa.Table]:
+        if not self.engine:
+            raise ConnectionError("Not connected to the database.")
+
+        with Session(self.engine) as session, session.begin():
+            try:
+                result = session.execute(text(query))
+                if not isinstance(result, CursorResult):
+                    return
+                cursor = result.cursor
+                if cursor is None:
+                    return
+                yield from cursor.fetch_arrow_batches(force_microsecond_precision=True)
+            except (DBAPIError, SnowflakeError) as e:
+                logger.debug("Database query failed", exc_info=True)
+                reason = str(getattr(e, "orig", e)).split("\n", 1)[0].strip()
+                raise ConnectionError(f"Database query failed: {reason}") from e
 
 
 # In the mssql credential's ``database`` field, this sentinel (or a blank/whitespace value) means "no
@@ -229,6 +263,9 @@ class RedshiftConnector(DatabaseConnector):
     def __init__(self, config: JsonObject):
         self.config = config
         self._conn: redshift_connector.Connection = self._connect()
+        # Optional extract steps can fail (e.g. STV on serverless). Without autocommit that
+        # aborts the transaction (25P02); rollback would also undo source_ddl query_view.
+        self._conn.autocommit = True
 
     def _connect(self) -> redshift_connector.Connection:
         auth_type = str(self.config.get("auth_type", "sql_authentication")).lower()

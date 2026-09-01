@@ -6,8 +6,7 @@ from pyspark.sql.types import DataType, IntegerType, StructField, StructType
 from databricks.labs.lakebridge.reconcile.query_builder.sampling_query import SamplingQueryBuilder
 from databricks.labs.lakebridge.reconcile.recon_config import Filters
 from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
-
-from tests.conftest import ansi_schema_fixture_factory, oracle_schema_fixture_factory
+from tests.conftest import ansi_schema_fixture_factory, make_column_transformer, oracle_schema_fixture_factory
 
 
 def test_build_query_with_alias_emits_select_with_filter(table_conf, fake_databricks_datasource):
@@ -25,6 +24,15 @@ def test_build_query_with_alias_emits_select_with_filter(table_conf, fake_databr
         "source",
         get_dialect("databricks"),
         fake_databricks_datasource,
+        make_column_transformer(
+            [
+                ansi_schema_fixture_factory("s_suppkey", "bigint"),
+                ansi_schema_fixture_factory("s_address", "string"),
+                ansi_schema_fixture_factory("s_name", "string"),
+            ],
+            get_dialect("databricks"),
+            fake_databricks_datasource,
+        ),
     )
 
     sql = builder.build_query_with_alias()
@@ -48,6 +56,9 @@ def test_build_query_databricks_engine_registers_temp_view(table_conf, fake_data
         "source",
         get_dialect("databricks"),
         fake_databricks_datasource,
+        make_column_transformer(
+            [ansi_schema_fixture_factory("s_suppkey", "bigint")], get_dialect("databricks"), fake_databricks_datasource
+        ),
     )
 
     sql = builder.build_query(df)
@@ -83,6 +94,14 @@ def test_build_query_non_databricks_engine_emits_union_recon_subquery(table_conf
         "source",
         get_dialect("snowflake"),
         fake_oracle_datasource,
+        make_column_transformer(
+            [
+                oracle_schema_fixture_factory("s_suppkey", "number"),
+                oracle_schema_fixture_factory("s_nationkey", "number"),
+            ],
+            get_dialect("snowflake"),
+            fake_oracle_datasource,
+        ),
     )
 
     sql = builder.build_query(df)
@@ -110,6 +129,14 @@ def test_build_query_oracle_engine_uses_dual_in_union_recon_cte(table_conf, fake
         "source",
         get_dialect("oracle"),
         fake_oracle_datasource,
+        make_column_transformer(
+            [
+                oracle_schema_fixture_factory("s_suppkey", "number"),
+                oracle_schema_fixture_factory("s_nationkey", "number"),
+            ],
+            get_dialect("oracle"),
+            fake_oracle_datasource,
+        ),
     )
 
     sql = builder.build_query(df)

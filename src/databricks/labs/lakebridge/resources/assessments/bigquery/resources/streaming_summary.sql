@@ -29,6 +29,4 @@
     `{{project_region}}`.INFORMATION_SCHEMA.STREAMING_TIMELINE_BY_PROJECT
     WHERE start_timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL {{profiling_window_in_days}} DAY)
     GROUP BY
-    start_timestamp
-    ORDER BY
-    start_timestamp DESC;
+    start_timestamp;

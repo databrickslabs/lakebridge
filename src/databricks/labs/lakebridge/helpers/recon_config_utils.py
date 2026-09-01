@@ -1,9 +1,10 @@
 import logging
 
 from databricks.labs.blueprint.tui import Prompts
-from databricks.labs.lakebridge.reconcile.constants import ReconSourceType
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.errors.platform import ResourceDoesNotExist
+
+from databricks.labs.lakebridge.reconcile.constants import ReconSourceType
 
 logger = logging.getLogger(__name__)
 

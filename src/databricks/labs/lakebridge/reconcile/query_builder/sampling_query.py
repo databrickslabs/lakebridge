@@ -5,16 +5,16 @@ import sqlglot.expressions as exp
 from pyspark.sql import DataFrame
 from sqlglot import Dialect, parse_one, select
 
-from databricks.labs.lakebridge.reconcile.constants import RECON_SAMPLE_VIEW_PREFIX
 from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import DialectUtils
-from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect, get_key_from_dialect
+from databricks.labs.lakebridge.reconcile.constants import RECON_SAMPLE_VIEW_PREFIX
 from databricks.labs.lakebridge.reconcile.query_builder.base import QueryBuilder
 from databricks.labs.lakebridge.reconcile.query_builder.expression_generator import (
-    build_column,
-    build_literal,
     _get_is_string,
+    build_column,
     build_join_clause,
+    build_literal,
 )
+from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect, get_key_from_dialect
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +56,7 @@ class SamplingQueryBuilder(QueryBuilder):
         cols = sorted((join_columns | self.select_columns) - self.threshold_columns - self.drop_columns)
 
         cols_with_alias = [self._build_column_with_alias(col) for col in cols]
-        sql_with_transforms = self.add_transformations(cols_with_alias, self.engine)
+        sql_with_transforms = [r.column for r in self._transformer.transform(cols_with_alias, self.layer)]
 
         query = (
             select(*sql_with_transforms).from_(":tbl").where(self.filter, dialect=self.engine).sql(dialect=self.engine)
@@ -78,7 +78,9 @@ class SamplingQueryBuilder(QueryBuilder):
 
         cols_with_alias = [self._build_column_with_alias(col) for col in cols]
 
-        sql_with_transforms = self.add_transformations(cols_with_alias, self.engine)
+        rendered_cols = self._transformer.transform(cols_with_alias, self.layer)
+        sql_with_transforms = [r.column for r in rendered_cols]
+        cast_types = {r.ansi_name: r.original_type for r in rendered_cols if r.original_type is not None}
         query_sql = select(*sql_with_transforms).from_(":tbl").where(self.filter, dialect=self.engine)
         if self.layer == "source":
             with_select = [
@@ -95,12 +97,7 @@ class SamplingQueryBuilder(QueryBuilder):
                 for col in sorted(self.table_conf.get_tgt_to_src_col_mapping_list(cols))
             ]
 
-        # Two derived tables joined directly — no CTEs, no VALUES — so the shape:
-        #  * survives the `SELECT * FROM (...) WHERE 1=0` schema-resolution wrap Spark JDBC
-        #    applies on every read (CTEs are illegal inside that derived table on T-SQL);
-        #  * is portable across SQL Server and Synapse (Synapse rejects VALUES as a row-source);
-        #  * is identical in shape across every dialect we support.
-        recon_subquery = self._get_recon_subquery(keys_df)
+        recon_subquery = self._get_recon_subquery(keys_df, cast_types)
         on_expr = self._get_join_clause(key_cols).args["on"]
         query = (
             select(*with_select)
@@ -118,7 +115,7 @@ class SamplingQueryBuilder(QueryBuilder):
             "recon", normalized, source_table_alias="src", target_table_alias="recon", kind="inner", func=exp.EQ
         )
 
-    def _get_recon_subquery(self, df: DataFrame) -> exp.Subquery:
+    def _get_recon_subquery(self, df: DataFrame, cast_types: dict[str, str]) -> exp.Subquery:
         """Build a derived table of literal sample rows aliased as ``recon``.
 
         Emits ``(SELECT 'a' AS c1, ... UNION SELECT ...) AS recon``. Dialects that reject a
@@ -128,15 +125,13 @@ class SamplingQueryBuilder(QueryBuilder):
         Databricks instead registers the sample keys as a temp view and references it, so the
         emitted SQL stays small regardless of sample size (an inline UNION of thousands of rows
         overruns Spark Connect's gRPC retry limits).
+
+        ``cast_types`` maps a column's ansi name to the declared type to cast its literal back to;
+        user-transformed columns are absent (their transform already changed the value's type).
         """
         if get_key_from_dialect(self.engine) == "databricks":
             return self._recon_subquery_from_temp_view(df)
         column_types_dict = {str(f.name).lower(): f.dataType for f in df.schema.fields}
-        orig_types_dict = {
-            schema.column_name: schema.data_type
-            for schema in self.schema
-            if schema.column_name not in self.user_transformations
-        }
         quoted = self._is_add_quotes
         one_row_table = _one_row_table(self.engine)
         union_res: list[exp.Select] = []
@@ -150,7 +145,7 @@ class SamplingQueryBuilder(QueryBuilder):
                             this=str(value),
                             alias=alias,
                             is_string=_get_is_string(column_types_dict, col),
-                            cast=orig_types_dict.get(DialectUtils.ansi_normalize_identifier(col)),
+                            cast=cast_types.get(DialectUtils.ansi_normalize_identifier(col)),
                             quoted=quoted,
                         )
                     )

@@ -27,6 +27,4 @@
         `{{project_region}}`.INFORMATION_SCHEMA.WRITE_API_TIMELINE
     WHERE start_timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL {{profiling_window_in_days}} DAY)
     GROUP BY
-    start_timestamp
-    ORDER BY
-    start_timestamp DESC;
+    start_timestamp;

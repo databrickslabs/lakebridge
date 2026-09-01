@@ -5,9 +5,9 @@ from pyspark.sql.types import BooleanType, StringType, StructField, StructType
 from sqlglot import Dialect, parse_one
 
 from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import DialectUtils
-from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
 from databricks.labs.lakebridge.reconcile.recon_config import Schema, Table
 from databricks.labs.lakebridge.reconcile.recon_output_config import SchemaMatchResult, SchemaReconcileOutput
+from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
 from databricks.labs.lakebridge.transpiler.sqlglot.generator.databricks import Databricks
 
 logger = logging.getLogger(__name__)
@@ -52,13 +52,19 @@ class SchemaCompare:
     @staticmethod
     def _select_columns(master_schema: list[Schema], table_conf: Table):
         if table_conf.select_columns:
-            return [schema for schema in master_schema if schema.column_name in table_conf.select_columns]
+            return [
+                schema for schema in master_schema if schema.ansi_normalized_column_name in table_conf.select_columns
+            ]
         return master_schema
 
     @staticmethod
     def _drop_columns(master_schema: list[Schema], table_conf: Table):
         if table_conf.drop_columns:
-            return [sschema for sschema in master_schema if sschema.column_name not in table_conf.drop_columns]
+            return [
+                sschema
+                for sschema in master_schema
+                if sschema.ansi_normalized_column_name not in table_conf.drop_columns
+            ]
         return master_schema
 
     @staticmethod

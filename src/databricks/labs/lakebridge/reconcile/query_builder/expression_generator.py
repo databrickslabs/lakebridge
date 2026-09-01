@@ -1,12 +1,12 @@
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Sequence
 from functools import partial, reduce
 
 from pyspark.sql.types import DataType, NumericType
 from sqlglot import Dialect
 from sqlglot import expressions as exp
 
-from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
 from databricks.labs.lakebridge.reconcile.recon_config import HashAlgoMapping
+from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
 
 
 def _apply_func_expr(expr: exp.Expression, expr_func: Callable, **kwargs) -> exp.Expression:
@@ -152,7 +152,7 @@ def build_literal(this: exp.ExpOrStr, alias=None, quoted=False, is_string=True, 
 
 def transform_expression(
     expr: exp.Expression,
-    funcs: list[Callable[[exp.Expression], exp.Expression]],
+    funcs: Sequence[Callable[[exp.Expression], exp.Expression]],
 ) -> exp.Expression:
     for func in funcs:
         expr = func(expr)
@@ -250,124 +250,6 @@ def _get_is_string(column_types_dict: dict[str, DataType], column_name: str) -> 
         return False
     return True
 
-
-DataType_transform_mapping: dict[str, dict[str, list[partial[exp.Expression]]]] = {  # pylint: disable=invalid-name
-    "universal": {"default": [partial(coalesce, default='_null_recon_', is_string=True), partial(trim)]},
-    "bigquery": {
-        # TODO: add numbers handling
-        # Timestamps are formatted rather than cast: BigQuery's CAST AS STRING appends a UTC offset and
-        # pads fractional seconds, which changes the row hash. %E*S matches Spark's rendering.
-        "default": [partial(anonymous, func="COALESCE(TRIM(CAST({} AS STRING)), '_null_recon_')")],
-        exp.DataType.Type.TIMESTAMPTZ.value: [
-            partial(
-                anonymous,
-                func="COALESCE(FORMAT_TIMESTAMP('%F %H:%M:%E*S', {}, 'UTC'), '_null_recon_')",
-            )
-        ],
-        # A BigQuery DATETIME parses as TIMESTAMP; a user-supplied `timestamp_ntz` parses as
-        # TIMESTAMPNTZ. Both spellings reach the mapping, so both are keyed.
-        exp.DataType.Type.TIMESTAMP.value: [
-            partial(anonymous, func="COALESCE(FORMAT_DATETIME('%F %H:%M:%E*S', {}), '_null_recon_')")
-        ],
-        exp.DataType.Type.TIMESTAMPNTZ.value: [
-            partial(anonymous, func="COALESCE(FORMAT_DATETIME('%F %H:%M:%E*S', {}), '_null_recon_')")
-        ],
-    },
-    "snowflake": {exp.DataType.Type.ARRAY.value: [partial(array_to_string), partial(array_sort)]},
-    "oracle": {
-        exp.DataType.Type.NCHAR.value: [
-            partial(anonymous, func="NVL(TRIM(TO_CHAR({})),'_null_recon_')", dialect=get_dialect("oracle"))
-        ],
-        exp.DataType.Type.CHAR.value: [
-            partial(anonymous, func="NVL(TRIM(TO_CHAR({})),'_null_recon_')", dialect=get_dialect("oracle"))
-        ],
-    },
-    "databricks": {
-        exp.DataType.Type.ARRAY.value: [
-            partial(anonymous, func="CONCAT_WS(',', SORT_ARRAY({}))", dialect=get_dialect("databricks"))
-        ],
-    },
-    "tsql": {
-        "default": [partial(anonymous, func="COALESCE(TRIM(CAST({} AS VARCHAR(MAX))), '_null_recon_')")],
-        exp.DataType.Type.DATE.value: [
-            partial(anonymous, func="COALESCE(CONVERT(VARCHAR(10), {0}, 101), '1900-01-01')")
-        ],
-        exp.DataType.Type.TIME.value: [partial(anonymous, func="COALESCE(CONVERT(VARCHAR(12), {0}, 108), '00:00:00')")],
-        exp.DataType.Type.DATETIME.value: [
-            partial(anonymous, func="COALESCE(CONVERT(VARCHAR(23), {0}, 120), '1900-01-01 00:00:00')")
-        ],
-    },
-    "redshift": {
-        exp.DataType.Type.SUPER.value: [
-            partial(anonymous, func="COALESCE(JSON_SERIALIZE({}), '_null_recon_')", dialect=get_dialect("redshift"))
-        ],
-        exp.DataType.Type.DATE.value: [
-            partial(
-                anonymous,
-                func="COALESCE(TO_CHAR({}, 'YYYY-MM-DD'), '_null_recon_')",
-                dialect=get_dialect("redshift"),
-            )
-        ],
-        exp.DataType.Type.TIMESTAMP.value: [
-            partial(
-                anonymous,
-                func="COALESCE(TO_CHAR({}, 'YYYY-MM-DD HH24:MI:SS.US'), '_null_recon_')",
-                dialect=get_dialect("redshift"),
-            )
-        ],
-        exp.DataType.Type.TIMESTAMPTZ.value: [
-            partial(
-                anonymous,
-                func="COALESCE(TO_CHAR({}, 'YYYY-MM-DD HH24:MI:SS.US'), '_null_recon_')",
-                dialect=get_dialect("redshift"),
-            )
-        ],
-    },
-    "teradata": {
-        exp.DataType.Type.DATE.value: [
-            partial(
-                anonymous,
-                func="COALESCE(CAST(CAST({} AS DATE FORMAT 'YYYY-MM-DD') AS VARCHAR(10)), '_null_recon_')",
-                dialect=get_dialect("teradata"),
-            )
-        ],
-        exp.DataType.Type.TIMESTAMP.value: [
-            partial(
-                anonymous,
-                func="COALESCE(CAST(CAST({} AS TIMESTAMP(6) FORMAT 'YYYY-MM-DDBHH:MI:SS.S(6)') AS VARCHAR(26)), '_null_recon_')",
-                dialect=get_dialect("teradata"),
-            )
-        ],
-        exp.DataType.Type.TIMESTAMPTZ.value: [
-            partial(
-                anonymous,
-                func="COALESCE(CAST(CAST({} AS TIMESTAMP(6) WITH TIME ZONE) AS VARCHAR(32)), '_null_recon_')",
-                dialect=get_dialect("teradata"),
-            )
-        ],
-        exp.DataType.Type.TIME.value: [
-            partial(
-                anonymous,
-                func="COALESCE(CAST({} AS VARCHAR(15)), '_null_recon_')",
-                dialect=get_dialect("teradata"),
-            )
-        ],
-        exp.DataType.Type.JSON.value: [
-            partial(
-                anonymous,
-                func="COALESCE(CAST({} AS VARCHAR(32000)), '_null_recon_')",
-                dialect=get_dialect("teradata"),
-            )
-        ],
-        exp.DataType.Type.XML.value: [
-            partial(
-                anonymous,
-                func="COALESCE(CAST({} AS VARCHAR(32000)), '_null_recon_')",
-                dialect=get_dialect("teradata"),
-            )
-        ],
-    },
-}
 
 sha256_partial = partial(sha2, num_bits="256", is_expr=True)
 md5_partial = partial(md5, is_expr=True)
