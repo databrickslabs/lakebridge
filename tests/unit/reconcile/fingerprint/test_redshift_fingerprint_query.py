@@ -84,7 +84,6 @@ def test_detection_sql_uses_decimal_precision_for_hash_aggregates():
         columns=cols,
         column_mapping=None,
         sub_bucket_count=1024,
-        bucket_count=8192,
     )
 
     assert "CAST(STRTOL(SUBSTRING(MD5" in sql

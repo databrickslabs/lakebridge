@@ -81,8 +81,17 @@ def _try_describe_detail(spark: SparkSession, fully_qualified_name: str) -> int 
     Returns None when the table is not Delta, the column is missing, the value is null,
     or any Spark-side error occurs — tier selection must never block detection.
     """
+    # The whole read is inside the try: ``spark.sql`` may analyze cleanly and still fail
+    # later at ``.collect()`` (a transient executor / IO error while materialising the
+    # metadata row). Leaving the collect outside the guard would let that propagate and
+    # break this function's "Never raises" contract, aborting the pre-check instead of
+    # degrading to the static-default tier.
     try:
         detail_df = spark.sql(f"DESCRIBE DETAIL {fully_qualified_name}")
+        if "numRecords" not in detail_df.columns:
+            logger.debug(f"DESCRIBE DETAIL on {fully_qualified_name} returned no numRecords column")
+            return None
+        rows = detail_df.select("numRecords").collect()
     except AnalysisException as exc:
         logger.debug(f"DESCRIBE DETAIL failed for {fully_qualified_name}: {exc}")
         return None
@@ -92,11 +101,6 @@ def _try_describe_detail(spark: SparkSession, fully_qualified_name: str) -> int 
         logger.debug(f"DESCRIBE DETAIL raised unexpected error for {fully_qualified_name}: {exc}")
         return None
 
-    if "numRecords" not in detail_df.columns:
-        logger.debug(f"DESCRIBE DETAIL on {fully_qualified_name} returned no numRecords column")
-        return None
-
-    rows = detail_df.select("numRecords").collect()
     if not rows:
         logger.debug(f"DESCRIBE DETAIL on {fully_qualified_name} returned 0 rows")
         return None

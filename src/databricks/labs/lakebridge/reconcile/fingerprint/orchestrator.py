@@ -167,8 +167,17 @@ def align_columns(
     # (``base.py`` normalize_identifier) resolves columns. Without this a config whose
     # ``source_name`` case differs from the source schema (e.g. ``custid`` vs ``CustID``)
     # passes validation but misses the lookup, hashing the source-named column on the target.
+    #
+    # Store the *bare* (un-delimited) target name as the value. ``recon_one`` normalizes the
+    # Table config before the pre-check runs, so ``cm.target_name`` arrives ANSI-delimited
+    # (e.g. ```customer_id```). ``spark_target._target_col_name`` returns this value
+    # verbatim and ``quote_spark_identifier`` wraps it again -- double-delimiting it into a
+    # reference to a non-existent column, which fails the target detection query and (via the
+    # trigger-layer fail-open) silently disables the pre-check for every column-mapped table.
+    # Un-normalizing here makes the mapped path symmetric with the unmapped fallback (which
+    # already returns the bare name) so both are quoted exactly once.
     col_map = {
-        DialectUtils.unnormalize_identifier(cm.source_name).lower(): cm.target_name
+        DialectUtils.unnormalize_identifier(cm.source_name).lower(): DialectUtils.unnormalize_identifier(cm.target_name)
         for cm in table_conf.column_mapping or []
     }
 
@@ -262,46 +271,81 @@ def build_mismatch_output(
         if report_type != "all" or output.mismatch_count == 0:
             return output
 
-        # The fingerprint frames carry ``hash_value_recon``; treat it as a
-        # derived/synthetic column - rows that hash differently are precisely the
-        # mismatched rows, so leaving it in would always show as "mismatched" and
-        # inflate ``mismatch_columns`` with a non-source-column.
-        src_for_capture = src_hashed.drop(_HASH_COLUMN_NAME) if _HASH_COLUMN_NAME in src_hashed.columns else src_hashed
-        tgt_for_capture = tgt_hashed.drop(_HASH_COLUMN_NAME) if _HASH_COLUMN_NAME in tgt_hashed.columns else tgt_hashed
-
-        # ``capture_mismatch_data_and_columns`` builds the wide ``mismatch_df`` (join key +
-        # ``<col>_base``/``_compare``/``_match`` triples) and the ``mismatch_columns`` list consumed by
-        # ``recon_capture._mismatch_records`` — the SAME compare-layer function the normal sampled path
-        # uses, now with its per-column match flags computed null-safely. No fingerprint-specific diff.
-        capture = capture_mismatch_data_and_columns(
-            source=src_for_capture,
-            target=tgt_for_capture,
-            key_columns=key_columns,
-            persistence=persistence,
-        )
-
-        # The Stage-2 fetch pulls whole sub-buckets (Stage-1 only proves a sub-bucket holds *some*
-        # mismatch), so the captured frame can include pairs that match column-by-column. Drop them so
-        # recon_details records only genuine mismatches — a row filter over the null-safe ``_match``
-        # flags, not a second diff. ``mismatch_columns`` is unaffected (matching rows contribute none).
-        return DataReconcileOutput(
-            mismatch_count=output.mismatch_count,
-            missing_in_src_count=output.missing_in_src_count,
-            missing_in_tgt_count=output.missing_in_tgt_count,
-            missing_in_src=output.missing_in_src,
-            missing_in_tgt=output.missing_in_tgt,
-            mismatch=MismatchOutput(
-                mismatch_df=filter_to_row_mismatches(capture.mismatch_df),
-                mismatch_columns=capture.mismatch_columns,
-            ),
-            threshold_output=output.threshold_output,
-        )
+        # report_type='all' with mismatches: backfill the column-level detail from the
+        # already-fetched frames (extracted to keep this ``try`` within the statement budget).
+        return _backfill_mismatch_columns(src_hashed, tgt_hashed, key_columns, persistence, output)
     finally:
         # Release the cached inputs. The returned frames read from the volume-materialised
         # compare/capture outputs (each does its own ``write_and_read_df_with_volumes``), not
         # from these inputs, so releasing here is safe before the caller materializes them.
         for df in cached_frames:
             df.unpersist(blocking=False)
+
+
+def _backfill_mismatch_columns(
+    src_hashed: DataFrame,
+    tgt_hashed: DataFrame,
+    key_columns: list[str],
+    persistence: AbstractReconIntermediatePersist,
+    output: DataReconcileOutput,
+) -> DataReconcileOutput:
+    """Add ``mismatch_columns`` (and a genuine-mismatch row filter) to ``output`` for the
+    fingerprint ``report_type='all'`` MISMATCH path, reusing the already-fetched frames.
+
+    Split out of ``build_mismatch_output`` so its ``try`` stays within the project's
+    statement budget; the caching / release of the input frames stays with the caller.
+    """
+    # The fingerprint frames carry ``hash_value_recon``; treat it as a
+    # derived/synthetic column - rows that hash differently are precisely the
+    # mismatched rows, so leaving it in would always show as "mismatched" and
+    # inflate ``mismatch_columns`` with a non-source-column.
+    src_for_capture = src_hashed.drop(_HASH_COLUMN_NAME) if _HASH_COLUMN_NAME in src_hashed.columns else src_hashed
+    tgt_for_capture = tgt_hashed.drop(_HASH_COLUMN_NAME) if _HASH_COLUMN_NAME in tgt_hashed.columns else tgt_hashed
+
+    # Align both frames to the columns they share before the per-column diff.
+    # ``HashQueryBuilder.build_query(project_all_columns=True)`` folds the JDBC
+    # ``partition_column`` into the SOURCE projection (``get_partition_column`` returns it
+    # only for the source layer — it is a read-parallelism hint, kept in the SELECT so the
+    # ``remote_query`` read can still partition on it), but the TARGET frame never carries
+    # it. ``capture_mismatch_data_and_columns`` requires identical column sets, so the extra
+    # source column would raise ``ColumnMismatchException`` and — via the fingerprint
+    # fail-open — silently drop the whole Stage-2 output for any partitioned-read table.
+    # A partition-only column is not a compared column (it is excluded from the row hash,
+    # exactly as on the normal row-hash path), so restricting to the common set here keeps
+    # fingerprint and the full pipeline in parity while making capture's inputs symmetric.
+    # ``tgt_for_capture`` is a subset of ``src_for_capture`` in practice; iterating over the
+    # source order gives a deterministic, identically-ordered projection on both sides.
+    common_cols = [c for c in src_for_capture.columns if c in set(tgt_for_capture.columns)]
+    src_for_capture = src_for_capture.select(*common_cols)
+    tgt_for_capture = tgt_for_capture.select(*common_cols)
+
+    # ``capture_mismatch_data_and_columns`` builds the wide ``mismatch_df`` (join key +
+    # ``<col>_base``/``_compare``/``_match`` triples) and the ``mismatch_columns`` list consumed by
+    # ``recon_capture._mismatch_records`` — the SAME compare-layer function the normal sampled path
+    # uses, now with its per-column match flags computed null-safely. No fingerprint-specific diff.
+    capture = capture_mismatch_data_and_columns(
+        source=src_for_capture,
+        target=tgt_for_capture,
+        key_columns=key_columns,
+        persistence=persistence,
+    )
+
+    # The Stage-2 fetch pulls whole sub-buckets (Stage-1 only proves a sub-bucket holds *some*
+    # mismatch), so the captured frame can include pairs that match column-by-column. Drop them so
+    # recon_details records only genuine mismatches — a row filter over the null-safe ``_match``
+    # flags, not a second diff. ``mismatch_columns`` is unaffected (matching rows contribute none).
+    return DataReconcileOutput(
+        mismatch_count=output.mismatch_count,
+        missing_in_src_count=output.missing_in_src_count,
+        missing_in_tgt_count=output.missing_in_tgt_count,
+        missing_in_src=output.missing_in_src,
+        missing_in_tgt=output.missing_in_tgt,
+        mismatch=MismatchOutput(
+            mismatch_df=filter_to_row_mismatches(capture.mismatch_df),
+            mismatch_columns=capture.mismatch_columns,
+        ),
+        threshold_output=output.threshold_output,
+    )
 
 
 def resolve_detection_columns(
@@ -383,7 +427,6 @@ def _run_detection_phase(
         columns=detection_cols,
         column_mapping=column_mapping,
         sub_bucket_count=tier.sub_bucket_count,
-        bucket_count=tier.bucket_count,
     )
     source_agg_df = source.read_data(
         catalog=source_connection.catalog,
@@ -400,7 +443,6 @@ def _run_detection_phase(
         columns=detection_cols,
         column_mapping=column_mapping,
         sub_bucket_count=tier.sub_bucket_count,
-        bucket_count=tier.bucket_count,
     )
     detection = detect_and_solve(source_agg_df, target_agg_df)
     elapsed_ms = int((time.monotonic() - start_time) * 1000)
@@ -529,13 +571,18 @@ def fetch_source_and_target_rows(
     on two driver threads lets the JDBC pull overlap with the target Spark job
     submission instead of running serially.
 
-    Note: each fetch returns lazily — Spark's DAG isn't materialised until a
-    downstream action collects. So the wall-clock win comes from overlapping the
-    JDBC pull (which connectors typically force-collect via ``read_data``)
-    with the target query planning + initial Spark stage submission. On Spark
-    cluster execution itself, both fetches still parallelize across the
-    cluster's executors as before; this helper only addresses driver-side
-    serialization.
+    Note: this driver-side parallelism yields NO wall-clock benefit with the
+    current Redshift source. ``RemoteQueryReader.read_data`` (and
+    ``RedshiftDataSource.read_data`` on top of it) returns a lazy ``spark.sql(...)``
+    DataFrame — it does NOT force-collect — so each ``submit`` merely builds a lazy
+    plan and returns immediately; the actual JDBC pull and Delta scan are deferred to
+    the downstream compare action and run single-threaded regardless. The dispatch is
+    therefore latent: it would overlap the round trips only for a future connector
+    whose ``read_data`` force-collects. It is retained (rather than run serially)
+    because it is harmless — the failure semantics below are identical to serial — and
+    keeps that future connector fast without a re-plumb. On Spark cluster execution
+    itself, both fetches parallelize across executors as before either way; this helper
+    only ever addressed driver-side serialization.
 
     Failure semantics: ``ThreadPoolExecutor.__exit__`` joins both futures, and
     ``future.result()`` re-raises any exception from the worker thread on the

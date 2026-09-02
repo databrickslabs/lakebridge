@@ -77,12 +77,11 @@ def detect_and_solve(
         source_agg_df.alias("src")
         .join(
             target_agg_df.alias("tgt"),
-            on=["sub_bucket_id", "bucket_id"],
+            on=["sub_bucket_id"],
             how="full",
         )
         .select(
             F.coalesce(F.col("src.sub_bucket_id"), F.col("tgt.sub_bucket_id")).alias("sub_bucket_id"),
-            F.coalesce(F.col("src.bucket_id"), F.col("tgt.bucket_id")).alias("bucket_id"),
             F.coalesce(F.col("src.cnt"), F.lit(0)).alias("src_cnt"),
             F.coalesce(F.col("tgt.cnt"), F.lit(0)).alias("tgt_cnt"),
             F.coalesce(F.col("src.p1"), F.lit(0)).alias("src_p1"),

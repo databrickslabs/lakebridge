@@ -48,8 +48,12 @@ SUB_BUCKET_COUNT = 1_048_576  # 1M sub-buckets
 BUCKET_COUNT = 32_768
 
 # Adaptive tier table. Each entry: (max_row_count_inclusive, sub_bucket_count, bucket_count).
-# Last entry's max_row_count is None and clamps everything larger. Sub-bucket counts are
-# powers of 2 to keep MOD distribution clean; bucket count = sub_bucket_count / 1024.
+# Last entry's max_row_count is None and clamps everything larger. Both counts are powers of 2
+# (clean MOD distribution). ``bucket_count`` is a coarser power of 2 retained ONLY as a recorded
+# observability metric (``FingerprintRunMetadata.bucket_count``): detection groups, joins, and
+# solves purely at sub-bucket granularity, so no coarse ``bucket_id`` is computed — it would be
+# fully determined by ``sub_bucket_id`` (bucket_count divides sub_bucket_count) and carry no
+# independent information. Do not reintroduce a ``bucket_id`` without an actual two-level scheme.
 SUB_BUCKET_TIERS: tuple[tuple[int | None, int, int], ...] = (
     (50_000, 16_384, 128),  # < 50K
     (500_000, 262_144, 512),  # 50K – 500K
