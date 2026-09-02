@@ -14,7 +14,6 @@ class FingerprintQueryBuilder(ABC):
         columns: list[Schema],
         column_mapping: dict[str, str] | None,
         sub_bucket_count: int,
-        bucket_count: int,
     ) -> str:
         """Source-side detection SQL grouping into sub-buckets with (cnt, p1, p2, p1_rh2, p2_rh2)."""
 

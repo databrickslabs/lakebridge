@@ -30,7 +30,6 @@ _COLUMNS = [
     Schema("`is_priority`", "boolean", '"is_priority"'),
 ]
 _SUB_BUCKET_COUNT = 2048
-_BUCKET_COUNT = 64
 
 # --- Literal building blocks (declared independently of the builder) --------
 _CONCAT = (
@@ -42,18 +41,16 @@ _CONCAT = (
 _RH1 = f"STRTOL(SUBSTRING(MD5({_CONCAT}), 1, 8), 16)"
 _RH2 = f"STRTOL(SUBSTRING(MD5({_CONCAT}), 9, 8), 16)"
 _SB_EXPR = f"ABS(MOD({_RH1}, {_SUB_BUCKET_COUNT}))"
-_BUCKET_EXPR = f"ABS(MOD({_RH1}, {_BUCKET_COUNT}))"
 
 _EXPECTED_DETECTION = (
     f"SELECT {_SB_EXPR} AS sub_bucket_id, "
-    f"{_BUCKET_EXPR} AS bucket_id, "
     f"COUNT(*) AS cnt, "
     f"SUM(CAST({_RH1} AS DECIMAL(38,0))) AS p1, "
     f"SUM(CAST({_RH1} AS DECIMAL(19,0)) * CAST({_RH1} AS DECIMAL(19,0))) AS p2, "
     f"SUM(CAST({_RH2} AS DECIMAL(38,0))) AS p1_rh2, "
     f"SUM(CAST({_RH2} AS DECIMAL(19,0)) * CAST({_RH2} AS DECIMAL(19,0))) AS p2_rh2 "
     f'FROM "public"."orders" '
-    f"GROUP BY sub_bucket_id, bucket_id"
+    f"GROUP BY sub_bucket_id"
 )
 
 
@@ -65,7 +62,6 @@ def test_build_detection_sql_golden() -> None:
         columns=_COLUMNS,
         column_mapping=None,
         sub_bucket_count=_SUB_BUCKET_COUNT,
-        bucket_count=_BUCKET_COUNT,
     )
     assert sql == _EXPECTED_DETECTION
 
@@ -81,7 +77,6 @@ def test_build_detection_sql_ignores_column_mapping_on_source() -> None:
         columns=_COLUMNS,
         column_mapping={"notes": "tgt_notes", "is_priority": "tgt_priority"},
         sub_bucket_count=_SUB_BUCKET_COUNT,
-        bucket_count=_BUCKET_COUNT,
     )
     assert mapped == _EXPECTED_DETECTION
 
@@ -149,6 +144,5 @@ def test_detection_sql_quotes_exotic_schema_and_table() -> None:
         columns=_COLUMNS,
         column_mapping=None,
         sub_bucket_count=_SUB_BUCKET_COUNT,
-        bucket_count=_BUCKET_COUNT,
     )
     assert 'FROM "my""schema"."my-table"' in sql

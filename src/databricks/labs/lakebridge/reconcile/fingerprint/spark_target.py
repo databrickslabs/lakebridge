@@ -41,7 +41,6 @@ def compute_target_fingerprint(
     columns: list[Schema],
     column_mapping: dict[str, str] | None,
     sub_bucket_count: int,
-    bucket_count: int,
 ) -> DataFrame:
     """Compute Stage-1 sub-bucket aggregates on the target Delta table.
 
@@ -58,11 +57,10 @@ def compute_target_fingerprint(
 
     df_hashed = df.select(
         F.abs(rh1_col % F.lit(sub_bucket_count)).alias("sub_bucket_id"),
-        F.abs(rh1_col % F.lit(bucket_count)).alias("bucket_id"),
         rh1_col.alias("rh1"),
         rh2_col.alias("rh2"),
     )
-    return df_hashed.groupBy("sub_bucket_id", "bucket_id").agg(*_hash_agg_exprs())
+    return df_hashed.groupBy("sub_bucket_id").agg(*_hash_agg_exprs())
 
 
 def build_target_filter_subquery(

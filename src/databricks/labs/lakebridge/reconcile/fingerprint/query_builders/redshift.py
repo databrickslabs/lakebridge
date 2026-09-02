@@ -54,13 +54,11 @@ class RedshiftFingerprintQueryBuilder(FingerprintQueryBuilder):
         columns: list[Schema],
         column_mapping: dict[str, str] | None,
         sub_bucket_count: int,
-        bucket_count: int,
     ) -> str:
         # ``column_mapping`` is unused on the source side: Redshift reads its own physical
         # names. The ABC carries it for symmetry with dialects whose source-side SQL
         # might need to project differently from the target.
         rh1_expr, rh2_expr, sb_expr = self._md5_hash_exprs(columns, sub_bucket_count)
-        bucket_expr = f"ABS(MOD({rh1_expr}, {bucket_count}))"
 
         # rh*rh exceeds BIGINT range. Cast operands to DECIMAL(19,0) so the multiply lands
         # in DECIMAL(38,0); SUM lifts linear aggregates directly to DECIMAL(38,0).
@@ -77,14 +75,13 @@ class RedshiftFingerprintQueryBuilder(FingerprintQueryBuilder):
         from_table = f"{quote_redshift_identifier(schema)}.{quote_redshift_identifier(table)}"
         return (
             f"SELECT {sb_expr} AS sub_bucket_id, "
-            f"{bucket_expr} AS bucket_id, "
             f"COUNT(*) AS cnt, "
             f"SUM({rh1_dec38}) AS p1, "
             f"SUM({rh1_dec19} * {rh1_dec19}) AS p2, "
             f"SUM({rh2_dec38}) AS p1_rh2, "
             f"SUM({rh2_dec19} * {rh2_dec19}) AS p2_rh2 "
             f"FROM {from_table} "
-            f"GROUP BY sub_bucket_id, bucket_id"
+            f"GROUP BY sub_bucket_id"
         )
 
     def build_source_filter_subquery(

@@ -131,6 +131,44 @@ def test_column_mapping_lookup_is_case_insensitive():
     assert spark_target._target_col_name(src_schema[1], alignment.column_mapping) == "order_id"
 
 
+def test_column_mapping_target_is_not_double_delimited_after_normalization():
+    """Regression: ``recon_one`` normalizes the Table config BEFORE the pre-check, so
+    ``column_mapping.target_name`` arrives ANSI-delimited (```customer_id```). ``align_columns``
+    must store the *bare* target name — otherwise ``spark_target._target_col_name`` returns the
+    delimited value and ``quote_spark_identifier`` wraps it AGAIN, producing a reference to a
+    non-existent column (````customer_id````). That fails the target detection query and,
+    via the trigger-layer fail-open, silently disables the pre-check for EVERY column-mapped
+    table. The existing align_columns tests pass bare (un-normalized) names, so they miss this.
+    """
+    # Mirror production: names arrive ANSI-delimited (as NormalizeReconConfigService leaves them).
+    table_conf = Table(
+        source_name="`orders`",
+        target_name="`orders`",
+        join_columns=["order_id"],
+        column_mapping=[ColumnMapping(source_name="`src_a`", target_name="`customer_id`")],
+    )
+    src_schema = [
+        Schema("`src_a`", "int", '"src_a"'),
+        Schema("`order_id`", "bigint", '"order_id"'),
+    ]
+    tgt_schema = [
+        Schema("`customer_id`", "int", "`customer_id`"),
+        Schema("`order_id`", "bigint", "`order_id`"),
+    ]
+    alignment = align_columns(table_conf, src_schema, tgt_schema)
+    assert alignment is not None
+    # The stored value is the BARE target name, not the delimited form.
+    assert alignment.column_mapping == {"src_a": "customer_id"}
+
+    # End-to-end through the target serializer: exactly one level of backtick quoting,
+    # referencing the real column — no ````customer_id```` double-delimiting.
+    resolved = spark_target._target_col_name(src_schema[0], alignment.column_mapping)
+    assert resolved == "customer_id"
+    rendered = spark_target.serialize_target_column_sql(resolved, "int")
+    assert "`customer_id`" in rendered
+    assert "``" not in rendered  # the double-delimiting bug would produce ``customer_id``
+
+
 def test_query_builder_registry_returns_redshift_builder():
     builder = get_query_builder("redshift")
     assert isinstance(builder, RedshiftFingerprintQueryBuilder)
@@ -261,6 +299,9 @@ def test_build_mismatch_output_backfills_mismatch_columns_for_report_all(monkeyp
         def drop(self, name):
             return FakeDF([c for c in self.columns if c != name])
 
+        def select(self, *cols):
+            return FakeDF(list(cols))
+
         def cache(self):
             cache_events["cached"] += 1
             return self
@@ -297,6 +338,73 @@ def test_build_mismatch_output_backfills_mismatch_columns_for_report_all(monkeyp
     # hash column would otherwise always show as a mismatched column).
     assert "hash_value_recon" not in captured_calls["capture_mismatch_data_and_columns"]["source_columns"]
     assert "hash_value_recon" not in captured_calls["capture_mismatch_data_and_columns"]["target_columns"]
+
+
+def test_build_mismatch_output_aligns_columns_when_source_carries_partition_column(monkeypatch):
+    """Regression (#4): the source hash-query projects the JDBC ``partition_column`` (a
+    read-parallelism hint ``get_partition_column`` returns only for the SOURCE layer) that the
+    target frame never carries. For ``report_type='all'`` those frames feed
+    ``capture_mismatch_data_and_columns``, which requires identical column sets — the extra
+    source column previously raised ``ColumnMismatchException`` and, via the fingerprint
+    fail-open, silently dropped the whole Stage-2 output for any partitioned-read table.
+    ``build_mismatch_output`` must align both frames to their common columns first, excluding
+    the partition-only column on BOTH sides (it is not a compared column — matching the normal
+    row-hash path — so this keeps the two paths in parity).
+    """
+    captured: dict = {}
+
+    def fake_compare_reconcile_data(*, source, target, key_columns, report_type, persistence):
+        del source, target, key_columns, report_type, persistence
+        return DataReconcileOutput(
+            mismatch_count=2,
+            mismatch=MismatchOutput(mismatch_df=object(), mismatch_columns=None),
+        )
+
+    def fake_capture(*, source, target, key_columns, persistence):
+        del key_columns, persistence
+        captured["source_columns"] = list(source.columns)
+        captured["target_columns"] = list(target.columns)
+        return MismatchOutput(mismatch_df=object(), mismatch_columns=["c_val"])
+
+    monkeypatch.setattr(orchestrator, "compare_reconcile_data", fake_compare_reconcile_data)
+    monkeypatch.setattr(orchestrator, "capture_mismatch_data_and_columns", fake_capture)
+    monkeypatch.setattr(orchestrator, "filter_to_row_mismatches", lambda mismatch_df: mismatch_df)
+
+    class FakeDF:
+        def __init__(self, cols):
+            self.columns = list(cols)
+
+        def drop(self, name):
+            return FakeDF([c for c in self.columns if c != name])
+
+        def select(self, *cols):
+            return FakeDF(list(cols))
+
+        def cache(self):
+            return self
+
+        def unpersist(self, blocking=False):
+            return self
+
+    # Source carries the partition-only column ``c_part`` (a JDBC read hint) that the target lacks.
+    src = FakeDF(["c_key", "c_val", "c_part", "hash_value_recon"])
+    tgt = FakeDF(["c_key", "c_val", "hash_value_recon"])
+
+    out = orchestrator.build_mismatch_output(
+        src_hashed=src,
+        tgt_hashed=tgt,
+        key_columns=["c_key"],
+        report_type="all",
+        persistence=MagicMock(is_serverless=False),
+    )
+
+    # capture must see identical column lists on both sides — no crash — with the source-only
+    # partition column (and hash_value_recon) excluded.
+    assert captured["source_columns"] == captured["target_columns"]
+    assert set(captured["source_columns"]) == {"c_key", "c_val"}
+    assert "c_part" not in captured["source_columns"]
+    assert "hash_value_recon" not in captured["source_columns"]
+    assert out.mismatch_count == 2
 
 
 def test_build_mismatch_output_skips_capture_for_report_data(monkeypatch):
