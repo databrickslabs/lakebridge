@@ -1,5 +1,5 @@
 name: teradata_assessment
-version: "1.0"
+version: "1.1"
 steps:
   - name: td_sys_info
     type: ddl
@@ -114,6 +114,20 @@ steps:
   - name: td_pdcr_info_agg_extract
     type: sql
     extract_source: src/databricks/labs/lakebridge/resources/assessments/teradata/pdcr/td_pdcr_info_agg_extract.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+
+  - name: td_pdcr_bi_concurrency_extract
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/teradata/pdcr/td_pdcr_bi_concurrency_extract_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: td_pdcr_bi_concurrency_extract
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/teradata/pdcr/td_pdcr_bi_concurrency_extract.sql
     mode: overwrite
     frequency: once
     flag: active
