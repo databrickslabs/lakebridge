@@ -166,6 +166,10 @@ ALL_DATABASES = "*"
 
 
 class MSSQLConnector(DatabaseConnector):
+    @staticmethod
+    def odbc_value(value: str) -> str:
+        return "{" + value.replace("}", "}}") + "}"
+    
     def __init__(self, config: JsonObject):
         self.config = config
         self._conn: mssql_python.Connection = self._connect()
@@ -186,7 +190,7 @@ class MSSQLConnector(DatabaseConnector):
         if resolved.username is not None:
             parts.append(f"UID={resolved.username}")
         if resolved.password is not None:
-            parts.append(f"PWD={resolved.password}")
+            parts.append(f"PWD={MSSQLConnector.odbc_value(resolved.password)}")
         trust = "no" if str(self.config.get('trust_server_certificate', 'False')) == 'False' else "yes"
         parts.append(f"TrustServerCertificate={trust}")
 
