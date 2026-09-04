@@ -14,6 +14,9 @@ _REPO_ROOT = Path(__file__).resolve().parents[3]
 _ASSESSMENTS = _REPO_ROOT / "src/databricks/labs/lakebridge/resources/assessments"
 
 REQUIRED_CASTS: dict[str, tuple[str, ...]] = {
+    "synapse/common/queries.py": (
+        "CAST(RESOURCE_ALLOCATION_PERCENTAGE AS FLOAT) AS RESOURCE_ALLOCATION_PERCENTAGE",
+    ),
     "bigquery/resources/workload_types.sql": (
         "CAST(sum(slot_ms) AS FLOAT64)",
         "CAST(sum(bytes_processed) AS FLOAT64)",
