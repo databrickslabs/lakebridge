@@ -1,0 +1,987 @@
+name: clickhouse_assessment_oss
+version: "1.0"
+
+# Self-managed / OSS variant. Paired ddl+sql profiler steps: the ddl creates the typed DuckDB
+# table, the sql reads system.* on the source. Steps that read per-node log tables (query_log,
+# session_log, query_views_log, asynchronous_insert_log) are marked optional so a build without
+# them degrades to ABSENT rather than failing the run. Replicated-metadata SQL is shared from the
+# clickhouse/ root; log-table SQL lives under oss/ (read directly, no clusterAllReplicas).
+steps:
+  - name: objects_databases
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/objects_databases_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: objects_databases
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/objects_databases.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: objects_tables
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/objects_tables_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: objects_tables
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/objects_tables.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: objects_engine_distribution
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/objects_engine_distribution_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: objects_engine_distribution
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/objects_engine_distribution.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: objects_columns
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/objects_columns_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: objects_columns
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/objects_columns.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: objects_data_type_distribution
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/objects_data_type_distribution_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: objects_data_type_distribution
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/objects_data_type_distribution.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: objects_parts_summary
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/objects_parts_summary_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: objects_parts_summary
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/objects_parts_summary.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: objects_largest_columns
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/objects_largest_columns_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: objects_largest_columns
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/objects_largest_columns.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: objects_projections
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/objects_projections_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: objects_projections
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/objects_projections.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: objects_skipping_indices
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/objects_skipping_indices_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: objects_skipping_indices
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/objects_skipping_indices.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: objects_dictionaries
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/objects_dictionaries_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: objects_dictionaries
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/objects_dictionaries.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: workload_query_volume_summary
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/workload_query_volume_summary_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: workload_query_volume_summary
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/oss/workload_query_volume_summary.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+  - name: workload_daily_query_trend
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/workload_daily_query_trend_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: workload_daily_query_trend
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/oss/workload_daily_query_trend.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+  - name: workload_top_queries_by_frequency
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/workload_top_queries_by_frequency_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: workload_top_queries_by_frequency
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/oss/workload_top_queries_by_frequency.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+  - name: workload_slowest_queries
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/workload_slowest_queries_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: workload_slowest_queries
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/oss/workload_slowest_queries.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+  - name: workload_most_expensive_queries
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/workload_most_expensive_queries_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: workload_most_expensive_queries
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/oss/workload_most_expensive_queries.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+  - name: workload_hourly_query_pattern
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/workload_hourly_query_pattern_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: workload_hourly_query_pattern
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/oss/workload_hourly_query_pattern.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+  - name: workload_query_type_classification
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/workload_query_type_classification_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: workload_query_type_classification
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/oss/workload_query_type_classification.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+  - name: workload_user_workload_summary
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/workload_user_workload_summary_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: workload_user_workload_summary
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/oss/workload_user_workload_summary.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+  - name: workload_latency_sla
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/workload_latency_sla_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: workload_latency_sla
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/oss/workload_latency_sla.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+  - name: workload_error_analysis
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/workload_error_analysis_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: workload_error_analysis
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/oss/workload_error_analysis.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+  - name: features_engine_usage
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/features_engine_usage_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: features_engine_usage
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/features_engine_usage.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: features_functions_used
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/features_functions_used_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: features_functions_used
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/oss/features_functions_used.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+  - name: features_storages_used
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/features_storages_used_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: features_storages_used
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/oss/features_storages_used.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+  - name: features_table_functions_used
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/features_table_functions_used_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: features_table_functions_used
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/oss/features_table_functions_used.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+  - name: features_formats_used
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/features_formats_used_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: features_formats_used
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/oss/features_formats_used.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+  - name: features_aggregate_functions_used
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/features_aggregate_functions_used_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: features_aggregate_functions_used
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/oss/features_aggregate_functions_used.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+  - name: features_materialized_views
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/features_materialized_views_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: features_materialized_views
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/features_materialized_views.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: features_views
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/features_views_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: features_views
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/features_views.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: features_view_refreshes
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/features_view_refreshes_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: features_view_refreshes
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/features_view_refreshes.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+  - name: features_ttl_tables
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/features_ttl_tables_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: features_ttl_tables
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/features_ttl_tables.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: features_partitioned_tables
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/features_partitioned_tables_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: features_partitioned_tables
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/features_partitioned_tables.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: features_available_table_engines
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/features_available_table_engines_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: features_available_table_engines
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/features_available_table_engines.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: utilization_current_metrics
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/utilization_current_metrics_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: utilization_current_metrics
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/utilization_current_metrics.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: utilization_event_counters
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/utilization_event_counters_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: utilization_event_counters
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/utilization_event_counters.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: utilization_async_metrics
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/utilization_async_metrics_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: utilization_async_metrics
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/utilization_async_metrics.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: utilization_mutations
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/utilization_mutations_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: utilization_mutations
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/utilization_mutations.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: utilization_active_merges
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/utilization_active_merges_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: utilization_active_merges
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/utilization_active_merges.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: utilization_part_log_summary
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/utilization_part_log_summary_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: utilization_part_log_summary
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/utilization_part_log_summary.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+  - name: utilization_metric_log_trend
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/utilization_metric_log_trend_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: utilization_metric_log_trend
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/utilization_metric_log_trend.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+  - name: utilization_replicas
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/utilization_replicas_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: utilization_replicas
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/utilization_replicas.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: utilization_disks
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/utilization_disks_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: utilization_disks
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/utilization_disks.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: utilization_workload_utilization
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/utilization_workload_utilization_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: utilization_workload_utilization
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/oss/utilization_workload_utilization.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+  - name: utilization_cluster_topology
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/utilization_cluster_topology_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: utilization_cluster_topology
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/utilization_cluster_topology.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: utilization_server_resources
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/utilization_server_resources_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: utilization_server_resources
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/utilization_server_resources.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: utilization_resource_utilization_trend
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/utilization_resource_utilization_trend_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: utilization_resource_utilization_trend
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/utilization_resource_utilization_trend.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+  - name: utilization_compute_footprint
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/utilization_compute_footprint_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: utilization_compute_footprint
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/oss/utilization_compute_footprint.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+  - name: security_users
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/security_users_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: security_users
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/security_users.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+  - name: security_roles
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/security_roles_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: security_roles
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/security_roles.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: security_role_grants
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/security_role_grants_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: security_role_grants
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/security_role_grants.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: security_grants
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/security_grants_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: security_grants
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/security_grants.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: security_row_policies
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/security_row_policies_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: security_row_policies
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/security_row_policies.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: security_quotas
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/security_quotas_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: security_quotas
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/security_quotas.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: security_quota_usage
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/security_quota_usage_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: security_quota_usage
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/security_quota_usage.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+  - name: security_settings_profiles
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/security_settings_profiles_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: security_settings_profiles
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/security_settings_profiles.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: security_session_activity
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/security_session_activity_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: security_session_activity
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/oss/security_session_activity.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+  - name: security_privileges_used
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/security_privileges_used_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: security_privileges_used
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/oss/security_privileges_used.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+  - name: dependencies_object_dependencies
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/dependencies_object_dependencies_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: dependencies_object_dependencies
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/dependencies_object_dependencies.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: dependencies_runtime_table_access
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/dependencies_runtime_table_access_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: dependencies_runtime_table_access
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/oss/dependencies_runtime_table_access.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+  - name: dependencies_table_usage_frequency
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/dependencies_table_usage_frequency_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: dependencies_table_usage_frequency
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/oss/dependencies_table_usage_frequency.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+  - name: dependencies_column_usage_frequency
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/dependencies_column_usage_frequency_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: dependencies_column_usage_frequency
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/oss/dependencies_column_usage_frequency.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+  - name: dependencies_view_execution_lineage
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/dependencies_view_execution_lineage_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: dependencies_view_execution_lineage
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/oss/dependencies_view_execution_lineage.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+  - name: dependencies_potentially_unused_tables
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/dependencies_potentially_unused_tables_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: dependencies_potentially_unused_tables
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/oss/dependencies_potentially_unused_tables.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+  - name: costs_storage_by_table
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/costs_storage_by_table_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: costs_storage_by_table
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/costs_storage_by_table.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: costs_storage_by_database
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/costs_storage_by_database_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: costs_storage_by_database
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/costs_storage_by_database.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: costs_storage_total
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/costs_storage_total_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: costs_storage_total
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/costs_storage_total.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: costs_compute_by_user
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/costs_compute_by_user_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: costs_compute_by_user
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/oss/costs_compute_by_user.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+  - name: costs_compute_by_database
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/costs_compute_by_database_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: costs_compute_by_database
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/oss/costs_compute_by_database.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+  - name: costs_compute_by_query_type
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/costs_compute_by_query_type_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: costs_compute_by_query_type
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/oss/costs_compute_by_query_type.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+  - name: costs_top_expensive_queries
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/costs_top_expensive_queries_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: costs_top_expensive_queries
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/oss/costs_top_expensive_queries.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+  - name: costs_compute_by_hour
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/costs_compute_by_hour_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: costs_compute_by_hour
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/oss/costs_compute_by_hour.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+  - name: costs_compute_by_day
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/costs_compute_by_day_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: costs_compute_by_day
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/oss/costs_compute_by_day.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+  - name: costs_top_scan_heavy_queries
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/costs_top_scan_heavy_queries_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: costs_top_scan_heavy_queries
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/oss/costs_top_scan_heavy_queries.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+  - name: costs_read_locality
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/costs_read_locality_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: costs_read_locality
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/oss/costs_read_locality.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+  - name: costs_ingestion_by_table
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/costs_ingestion_by_table_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: costs_ingestion_by_table
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/oss/costs_ingestion_by_table.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+  - name: costs_async_ingestion_by_table
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/costs_async_ingestion_by_table_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: costs_async_ingestion_by_table
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/oss/costs_async_ingestion_by_table.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+  - name: costs_waste_indicators
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/costs_waste_indicators_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: costs_waste_indicators
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/oss/costs_waste_indicators.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+  - name: costs_resource_footprint
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/costs_resource_footprint_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: costs_resource_footprint
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/oss/costs_resource_footprint.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+  - name: costs_pricing_config
+    type: ddl
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/costs_pricing_config_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+  - name: costs_pricing_config
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/clickhouse/oss/costs_pricing_config.sql
+    mode: overwrite
+    frequency: once
+    flag: active
