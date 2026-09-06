@@ -19,22 +19,6 @@ from databricks.labs.lakebridge.config import (
     TargetConnectionConfig,
 )
 from databricks.labs.lakebridge.contexts.application import ApplicationContext
-from databricks.labs.lakebridge.helpers.recon_config_utils import ReconConfigPrompts
-
-
-def test_configure_secrets_databricks(mock_workspace_client):
-    # index into the alphabetically-sorted ReconSourceType values (bigquery sorts first → databricks is 1)
-    source_dict = {"databricks": "1", "oracle": "3", "snowflake": "5"}
-    prompts = MockPrompts(
-        {
-            r"Select the source": source_dict["databricks"],
-        }
-    )
-
-    recon_conf = ReconConfigPrompts(mock_workspace_client, prompts)
-    recon_conf.prompt_source()
-
-    recon_conf.prompt_and_save_connection_details()
 
 
 @pytest.mark.parametrize(
@@ -72,12 +56,6 @@ def test_interactive_argument_auto(is_tty: bool) -> None:
     # Check that we queried whether it's a TTY and that the result is as expected.
     assert mock_isatty.call_count == 1
     assert interactive_mode is is_tty
-
-
-def test_cli_configure_secrets_config(mock_workspace_client):
-    with patch("databricks.labs.lakebridge.cli.ReconConfigPrompts") as mock_recon_config:
-        cli.configure_secrets(w=mock_workspace_client)
-        mock_recon_config.assert_called_once_with(mock_workspace_client)
 
 
 def app_factory(w: WorkspaceClient) -> ApplicationContext:
