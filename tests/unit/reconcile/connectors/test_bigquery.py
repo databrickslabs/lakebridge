@@ -1,5 +1,6 @@
 import re
-from unittest.mock import create_autospec
+from types import SimpleNamespace
+from unittest.mock import MagicMock, create_autospec
 
 import pytest
 from sqlglot import parse_one
@@ -18,6 +19,15 @@ def initial_setup():
     engine = get_dialect("bigquery")
     reader = create_autospec(RemoteQueryReader)
     return engine, reader
+
+
+def _schema_df(*columns):
+    """Fake the DataFrame the schema query returns, so get_schema can be driven through its public API."""
+    rows = [SimpleNamespace(column_name=name, data_type=dtype) for name, dtype in columns]
+    df = MagicMock()
+    df.columns = ["column_name", "data_type"]
+    df.select.return_value.collect.return_value = rows
+    return df
 
 
 def test_read_data_builds_three_part_backtick_quoted_name():
@@ -83,8 +93,49 @@ def test_get_schema_query_canonicalizes_types_within_family():
     # Same-family mappings for the types sqlglot can't bridge on its own.
     assert "when data_type = 'NUMERIC' then 'decimal(38, 9)'" in schema_query
     assert "when data_type = 'JSON' then 'variant'" in schema_query
+    # Types whose Databricks spelling is not valid BigQuery are not reported: the same string is the
+    # CAST target in the sampling query, so `timestamp_ntz`/`bigint`/`double` would fail on BigQuery.
+    assert "timestamp_ntz" not in schema_query
+    assert "'bigint'" not in schema_query
+    assert "'double'" not in schema_query
     # BIGNUMERIC has no exact Databricks equivalent, so it passes through rather than truncating.
     assert "BIGNUMERIC" not in schema_query
+
+
+@pytest.mark.parametrize(
+    "data_type, expect_warning",
+    [
+        # A lossy target compares as equal for these, so they are flagged for manual review.
+        ("int64", True),
+        ("float64", True),
+        ("datetime", True),
+        ("array<int64>", True),
+        ("array<datetime>", True),
+        # No Databricks equivalent: a correct migration may be reported as a mismatch.
+        ("bignumeric", True),
+        ("time", True),
+        ("range<date>", True),
+        # Types schema compare judges exactly must stay silent, or the warning becomes noise.
+        ("string", False),
+        ("date", False),
+        ("bool", False),
+        ("bytes", False),
+        ("decimal(38, 9)", False),
+        ("numeric(10, 2)", False),
+        ("timestamp", False),
+        ("geography", False),
+    ],
+)
+def test_warns_only_for_types_schema_compare_cannot_judge(caplog, data_type, expect_warning):
+    engine, reader = initial_setup()
+    data_source = BigQueryDataSource(engine, reader)
+    reader.read_data.return_value = _schema_df(("amount_zz", data_type))
+
+    with caplog.at_level("WARNING"):
+        data_source.get_schema("proj", "dataset", "supplier")
+
+    # Assert on the column name, not a substring of the message itself.
+    assert ("amount_zz" in caplog.text) is expect_warning
 
 
 @pytest.mark.parametrize(
@@ -123,29 +174,59 @@ def test_list_schemas_and_tables():
     assert "`proj.dataset`.INFORMATION_SCHEMA.TABLES" in reader.read_data.call_args.args[0]
 
 
-def test_hash_query_emits_bigquery_compatible_sql():
-    # Regression for the hash path: BigQuery needs a Dialect_hash_algo_mapping entry (else ValueError)
-    # and a cast-to-STRING transform (else CONCAT/TRIM fail on non-string columns).
-    engine, reader = initial_setup()
-    data_source = BigQueryDataSource(engine, reader)
-    cols = [("id", "int64"), ("amount", "decimal(38,9)"), ("name", "string")]
+def _build_hash_query(data_source, engine, cols):
     schema = []
     for name, dtype in cols:
         norm = data_source.normalize_identifier(name)
         schema.append(Schema(norm.ansi_normalized, dtype, norm.source_normalized))
     table_conf = Table(source_name="t", target_name="t", join_columns=["id"])
+    transformer = make_column_transformer(schema, engine, data_source)
+    return HashQueryBuilder(table_conf, schema, "source", engine, data_source, transformer).build_query("data")
 
-    query = HashQueryBuilder(
-        table_conf, schema, "source", engine, data_source, make_column_transformer(schema, engine, data_source)
-    ).build_query("data")
+
+def test_hash_query_emits_bigquery_compatible_sql():
+    # Regression for the hash path: BigQuery needs a Dialect_hash_algo_mapping entry (else ValueError)
+    # and a cast-to-STRING transform (else CONCAT/TRIM fail on non-string columns).
+    engine, reader = initial_setup()
+    data_source = BigQueryDataSource(engine, reader)
+
+    query = _build_hash_query(data_source, engine, [("id", "int64"), ("amount", "decimal(38,9)"), ("name", "string")])
 
     # hex-wrapped SHA-256 (matches Databricks sha2(...,256))
     assert "TO_HEX(SHA256(" in query
-    # every column cast to STRING for concatenation
+    # types without a dedicated transform are cast to STRING for concatenation
     assert "CAST(`id` AS STRING)" in query
     assert "CAST(`amount` AS STRING)" in query
+    assert "CAST(`name` AS STRING)" in query
     # sqlglot renders the :tbl placeholder as @tbl for BigQuery — read_data handles both
     assert "@tbl" in query or ":tbl" in query
+
+
+def test_hash_query_formats_timestamps_the_way_spark_casts_them():
+    """CAST AS STRING appends a UTC offset and pads fractional seconds, changing the row hash.
+    Verified equal against live BigQuery and Databricks."""
+    engine, reader = initial_setup()
+    data_source = BigQueryDataSource(engine, reader)
+
+    # `datetime` is what _SCHEMA_QUERY reports; `timestamp_ntz` reaches the mapping under a
+    # user-supplied schema, and both must format identically or the two paths would disagree.
+    query = _build_hash_query(
+        data_source,
+        engine,
+        [
+            ("id", "int64"),
+            ("ts", "timestamp"),
+            ("dt", "datetime"),
+            ("dt_ntz", "timestamp_ntz"),
+        ],
+    )
+
+    # %E*S emits only the fractional digits present, as Spark does; 'UTC' drops the +00 suffix.
+    assert "FORMAT_TIMESTAMP('%F %H:%M:%E*S', `ts`, 'UTC')" in query
+    assert "FORMAT_DATETIME('%F %H:%M:%E*S', `dt`)" in query
+    assert "FORMAT_DATETIME('%F %H:%M:%E*S', `dt_ntz`)" in query
+    assert "CAST(`ts` AS STRING)" not in query
+    assert "CAST(`dt` AS STRING)" not in query
 
 
 def test_list_schemas_exception_handling():

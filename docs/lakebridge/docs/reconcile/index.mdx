@@ -32,7 +32,7 @@ Lakebridge Reconcile validates data fidelity after migration by comparing your s
 
 [^teradata-hash]: Teradata has no portable cryptographic hash in pure SQL, so row-hash report types (`row`, `data`, `all`) require a user-installed hash UDF on the source and an explicit `hash_expression_overrides.source` entry on the recon config. See [Hash Expression](/docs/reconcile/configuration#hash-expression) for wiring.
 
-[^bigquery-types]: BigQuery types with no equivalent in Databricks — `BIGNUMERIC`, `TIME`, `RANGE<T>`, nested `JSON` such as `ARRAY<JSON>`, or these nested inside `ARRAY`/`STRUCT` — are left as their original BigQuery type and may be reported as `schema` mismatches even when the data migrated correctly.
+[^bigquery-types]: Two groups of BigQuery types cannot be compared exactly, and `schema` logs a warning naming the affected columns. Types with no equivalent in Databricks — `BIGNUMERIC`, `TIME`, `RANGE<T>`, nested `JSON` such as `ARRAY<JSON>`, or these nested inside `ARRAY`/`STRUCT` — are left as their original BigQuery type and may be reported as mismatches even when the data migrated correctly. Conversely, some lossy targets are reported as a match: every BigQuery integer type is an alias of `INT64` and both float types of `FLOAT64`, so the declared width is not recoverable and a narrower Databricks target (`int`, `smallint`, `float`) compares as equal even though it cannot hold the full source range; likewise a `DATETIME` column matches a `timestamp` target, which reads wall-clock values as instants. Verify these manually.
 
 ---
 
