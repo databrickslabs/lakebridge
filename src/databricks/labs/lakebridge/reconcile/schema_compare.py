@@ -117,7 +117,8 @@ class SchemaCompare:
             * we don't use the databricks column name as it may have been renamed.
             * renaming is checked in the previous step to retrieve the databricks column.
         2. Parse both queries using sqlglot and convert both to the other dialect
-        3. Compare the converted queries with our original queries.
+        3. Compare the converted queries with our original queries. The declared types are normalized
+           the same way sqlglot renders them, so a type spelt ``STRUCT<a INT64, b STRING>`` still matches.
         4. If neither of the checks succeed, the column is marked as invalid
 
         :param source: source dialect e.g. TSQL, Oracle, Snowflake etc.
@@ -125,9 +126,12 @@ class SchemaCompare:
         """
         target = get_dialect("databricks")
         source_column_normalized = cls._escape_source_column(source, target, master.source_column_normalized_ansi)
-        source_query = f"create table dummy ({source_column_normalized} {master.source_datatype})"
+        source_query = f"create table dummy ({source_column_normalized} {cls._normalize(master.source_datatype)})"
         converted_source_query = cls._parse(source, target, source_query)
-        databricks_query = f"create table dummy ({master.source_column_normalized_ansi} {master.databricks_datatype})"
+        databricks_query = (
+            f"create table dummy ({master.source_column_normalized_ansi} "
+            f"{cls._normalize(master.databricks_datatype)})"
+        )
         converted_databricks_query = cls._parse(target, source, databricks_query)
         parsed_source_check = converted_source_query.lower() == databricks_query.lower()
         parsed_databricks_check = source_query.lower() == converted_databricks_query.lower()
@@ -142,6 +146,11 @@ class SchemaCompare:
 
         if not parsed_source_check and not parsed_databricks_check:
             master.is_valid = False
+
+    @staticmethod
+    def _normalize(datatype: str) -> str:
+        """Drop the space after a type parameter separator, as sqlglot does when it renders a type."""
+        return datatype.replace(", ", ",")
 
     @classmethod
     def _parse(cls, source: Dialect, target: Dialect, source_query: str) -> str:
