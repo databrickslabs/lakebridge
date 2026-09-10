@@ -25,19 +25,29 @@ class BigQueryDataSource(DataSource):
 
     Schema type handling
     ---------------------
+    A column is reported as its Databricks equivalent only where that is exact:
+
     * ``NUMERIC`` -> ``decimal(38, 9)`` (BigQuery's NUMERIC default precision/scale; same-family, exact).
     * ``JSON`` -> ``variant`` (top-level columns only; nested ``JSON`` is left as-is — see below).
 
-    Columns with no same-family Databricks equivalent (``TIME``, ``BIGNUMERIC`` — its precision of up
-    to 76 digits exceeds Databricks' DECIMAL max of 38, ``RANGE<T>``, nested ``JSON`` such as
-    ``ARRAY<JSON>``, or any of these nested inside ``ARRAY``/``STRUCT``) are left as their original
-    BigQuery type; ``get_schema`` logs a warning naming those columns so the user knows to verify them
-    manually.
+    Everything else keeps its BigQuery spelling, and ``get_schema`` warns about the columns schema
+    compare cannot judge exactly (``_APPROXIMATE_TYPES``), in either direction:
+
+    * no Databricks equivalent, so a correct migration may still be reported as a mismatch: ``TIME``,
+      ``BIGNUMERIC`` (up to 76 digits of precision against Databricks' DECIMAL max of 38), ``RANGE<T>``,
+      nested ``JSON`` such as ``ARRAY<JSON>``, or any of these nested inside ``ARRAY``/``STRUCT``.
+    * a lossy target is accepted as equal, because sqlglot converts it back to the source type: every
+      integer and float type is an alias of ``INT64``/``FLOAT64``, so a narrower ``int``/``smallint``/
+      ``float`` matches, and ``DATETIME`` matches ``timestamp``, reading wall-clock values as instants.
+
+    Note that the reported type is also the CAST target in the mismatch-sampling query, so it has to
+    stay valid BigQuery SQL — which is why a Databricks-only spelling such as ``timestamp_ntz`` is not
+    reported here.
     """
 
     _IDENTIFIER_DELIMITER = "`"
 
-    _APPROXIMATE_TYPES = ("time", "bignumeric", "range", "json")
+    _APPROXIMATE_TYPES = ("time", "bignumeric", "range", "json", "int64", "float64", "datetime")
 
     _LIST_SCHEMAS_QUERY = "select schema_name from `{catalog}`.INFORMATION_SCHEMA.SCHEMATA order by schema_name"
     _LIST_TABLES_QUERY = "select table_name from `{catalog}.{schema}`.INFORMATION_SCHEMA.TABLES order by table_name"
@@ -103,13 +113,15 @@ class BigQueryDataSource(DataSource):
         return schemas
 
     def _warn_on_approximate_types(self, schema: list[Schema]) -> None:
-        """Log columns whose BigQuery type has no exact Databricks equivalent."""
+        """Log columns whose BigQuery type schema compare cannot judge exactly."""
         pattern = rf"\b({'|'.join(BigQueryDataSource._APPROXIMATE_TYPES)})\b"
         approximate = [s.ansi_normalized_column_name for s in schema if re.search(pattern, s.data_type.lower())]
         if approximate:
             logger.warning(
-                f"BigQuery columns {approximate} have no exact Databricks equivalent and may be reported as "
-                f"schema mismatches even when migrated correctly; verify manually. See {_DOCS_URL}"
+                f"BigQuery columns {approximate} cannot be compared exactly against Databricks: they either have "
+                f"no equivalent type, so a correct migration may be reported as a schema mismatch, or they are "
+                f"INT64/FLOAT64/DATETIME, where a lossy target is reported as a match; verify manually. "
+                f"See {_DOCS_URL}"
             )
 
     def list_schemas(self, catalog: str) -> list[str]:
