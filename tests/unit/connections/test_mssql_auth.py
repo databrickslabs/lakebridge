@@ -184,6 +184,7 @@ def test_mssql_connector_sql_password_omits_authentication_keyword() -> None:
     assert "UID=alice" in captured["connection_string"]
     assert "PWD={secret}" in captured["connection_string"]
 
+
 def test_mssql_connector_wraps_special_password_in_odbc_braces() -> None:
     captured = {}
 
@@ -207,6 +208,8 @@ def test_mssql_connector_wraps_special_password_in_odbc_braces() -> None:
 
     assert "UID=alice" in captured["connection_string"]
     assert "PWD={secret?}" in captured["connection_string"]
+
+
 def test_mssql_connector_default_azure_credential_has_no_uid_pwd() -> None:
     """DefaultAzureCredential delegates identity to the driver: keyword only, no credentials."""
     captured = {}

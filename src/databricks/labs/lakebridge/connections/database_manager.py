@@ -169,21 +169,21 @@ class MSSQLConnector(DatabaseConnector):
     @staticmethod
     def odbc_value(value: str) -> str:
         return "{" + value.replace("}", "}}") + "}"
-    
+
     def __init__(self, config: JsonObject):
         self.config = config
         self._conn: mssql_python.Connection = self._connect()
 
     def _connect(self) -> mssql_python.Connection:
-        db_value = str(self.config.get('database') or "").strip()
+        db_value = str(self.config.get("database") or "").strip()
         db_name = db_value if db_value and db_value != ALL_DATABASES else "master"
 
         resolved = resolve_mssql_credentials(self.config)
 
-        server = str(self.config['server'])
-        port = int(str(self.config.get('port', '1433')))
+        server = str(self.config["server"])
+        port = int(str(self.config.get("port", "1433")))
         parts = [f"Server={server},{port}"]
-        if self.config.get('database'):
+        if self.config.get("database"):
             parts.append(f"Database={db_name}")
         if resolved.authentication_param is not None:
             parts.append(f"Authentication={resolved.authentication_param}")
@@ -191,14 +191,14 @@ class MSSQLConnector(DatabaseConnector):
             parts.append(f"UID={resolved.username}")
         if resolved.password is not None:
             parts.append(f"PWD={MSSQLConnector.odbc_value(resolved.password)}")
-        trust = "no" if str(self.config.get('trust_server_certificate', 'False')) == 'False' else "yes"
+        trust = "no" if str(self.config.get("trust_server_certificate", "False")) == "False" else "yes"
         parts.append(f"TrustServerCertificate={trust}")
 
         try:
             return mssql_python.connect(
                 ";".join(parts),
                 autocommit=True,
-                timeout=int(str(self.config.get('login_timeout', '30'))),
+                timeout=int(str(self.config.get("login_timeout", "30"))),
             )
         except mssql_python.Error as e:
             raise ConnectionError(f"Failed to connect to {server}: {e}") from e
@@ -235,10 +235,10 @@ class TeradataConnector(_BaseConnector):
 
         connection_string = URL.create(
             drivername="teradatasql",
-            username=str(self.config['user']),
-            password=str(self.config['password']),
-            host=str(self.config['host']),
-            port=int(str(self.config.get('port', 1025))),
+            username=str(self.config["user"]),
+            password=str(self.config["password"]),
+            host=str(self.config["host"]),
+            port=int(str(self.config.get("port", 1025))),
             query=query_params,
         )
         return create_engine(connection_string)
@@ -248,11 +248,11 @@ class OracleConnector(_BaseConnector):
     def _connect(self) -> Engine:
         connection_string = URL.create(
             drivername="oracle+oracledb",
-            username=str(self.config['user']),
-            password=str(self.config['password']),
-            host=str(self.config['host']),
-            port=int(str(self.config.get('port', 1521))),
-            database=str(self.config.get('service_name')),
+            username=str(self.config["user"]),
+            password=str(self.config["password"]),
+            host=str(self.config["host"]),
+            port=int(str(self.config.get("port", 1521))),
+            database=str(self.config.get("service_name")),
         )
 
         return create_engine(connection_string)
