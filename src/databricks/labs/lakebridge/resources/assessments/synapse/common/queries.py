@@ -238,7 +238,7 @@ class SynapseQueries:
                 IMPORTANCE,
                 [LABEL],
                 REQUEST_ID,
-                RESOURCE_ALLOCATION_PERCENTAGE,
+                CAST(RESOURCE_ALLOCATION_PERCENTAGE AS FLOAT) AS RESOURCE_ALLOCATION_PERCENTAGE,
                 RESOURCE_CLASS,
                 RESULT_CACHE_HIT,
                 SESSION_ID,
