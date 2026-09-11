@@ -33,7 +33,6 @@ from databricks.labs.lakebridge.connections.credential_manager import cred_file
 from databricks.labs.lakebridge.contexts.application import ApplicationContext
 from databricks.labs.lakebridge.helpers.recon_config_utils import ReconConfigPrompts
 from databricks.labs.lakebridge.helpers.telemetry_utils import make_alphanum_or_semver
-from databricks.labs.lakebridge.lineage import lineage_generator
 from databricks.labs.lakebridge.reconcile.recon_config import (
     AGG_RECONCILE_OPERATION_NAME,
     AUTO_CONFIGURE_TABLES_OPERATION_NAME,
@@ -46,7 +45,6 @@ from databricks.labs.lakebridge.transpiler.describe import TranspilersDescriptio
 from databricks.labs.lakebridge.transpiler.execute import transpile as do_transpile
 from databricks.labs.lakebridge.transpiler.lsp.lsp_engine import LSPEngine
 from databricks.labs.lakebridge.transpiler.repository import TranspilerRepository
-from databricks.labs.lakebridge.transpiler.sqlglot.sqlglot_engine import SqlglotEngine
 from databricks.labs.lakebridge.transpiler.switch_runner import SwitchRunner
 from databricks.labs.lakebridge.transpiler.transpile_engine import TranspileEngine
 from databricks.labs.lakebridge.transpiler.transpile_status import ErrorSeverity
@@ -773,33 +771,6 @@ def aggregates_reconcile(
     _, job_run_url = recon_runner.run(operation_name=AGG_RECONCILE_OPERATION_NAME)
     if ctx.prompts.confirm(f"Would you like to open the job run URL `{job_run_url}` in the browser?"):
         webbrowser.open(job_run_url)
-
-
-@lakebridge.command
-def generate_lineage(
-    *,
-    w: WorkspaceClient,
-    source_dialect: str | None = None,
-    input_source: str,
-    output_folder: str,
-) -> None:
-    """[Experimental] Generates a lineage of source SQL files or folder"""
-    ctx = ApplicationContext(w)
-    logger.debug(f"User: {ctx.current_user}")
-    if not os.path.exists(input_source):
-        raise_validation_exception(f"Invalid path for '--input-source': Path '{input_source}' does not exist.")
-    if not os.path.exists(output_folder):
-        raise_validation_exception(f"Invalid path for '--output-folder': Path '{output_folder}' does not exist.")
-    if source_dialect is None:
-        raise_validation_exception("Value for '--source-dialect' must be provided.")
-    engine = SqlglotEngine()
-    supported_dialects = engine.supported_dialects
-    if source_dialect not in supported_dialects:
-        supported_dialects_description = ", ".join(supported_dialects)
-        msg = f"Unsupported source dialect provided for '--source-dialect': '{source_dialect}' (supported: {supported_dialects_description})"
-        raise_validation_exception(msg)
-
-    lineage_generator(engine, source_dialect, input_source, output_folder)
 
 
 @lakebridge.command
