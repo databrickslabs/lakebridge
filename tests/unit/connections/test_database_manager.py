@@ -87,6 +87,130 @@ def test_teradata_connector(mock_teradata_connector) -> None:
     mock_teradata_connector.assert_called_once_with(sample_config)
 
 
+clickhouse_config: JsonObject = {
+    'host': '127.0.0.1',
+    'port': 8123,
+    'user': 'default',
+    'password': 'test_pass',
+    'secure': False,
+}
+
+
+@patch('databricks.labs.lakebridge.connections.database_manager.ClickHouseConnector')
+def test_clickhouse_connector_registered(mock_clickhouse_connector) -> None:
+    mock_connector_instance = MagicMock()
+    mock_clickhouse_connector.return_value = mock_connector_instance
+
+    connector = create_connector("clickhouse", clickhouse_config)
+
+    assert connector == mock_connector_instance
+    mock_clickhouse_connector.assert_called_once_with(clickhouse_config)
+
+
+@patch('databricks.labs.lakebridge.connections.database_manager.clickhouse_connect')
+def test_clickhouse_connector_fetch_maps_result(mock_clickhouse_connect) -> None:
+    """fetch() maps the clickhouse-connect result (column_names/result_rows) into a FetchResult."""
+    mock_client = MagicMock()
+    mock_clickhouse_connect.get_client.return_value = mock_client
+    mock_client.query.return_value = MagicMock(
+        column_names=["engine_edition", "name"],
+        result_rows=[[3, "prod"]],
+    )
+
+    connector = create_connector("clickhouse", clickhouse_config)
+    result = connector.fetch("SELECT 1")
+
+    assert result.columns == ["engine_edition", "name"]
+    assert result.rows == [[3, "prod"]]
+    mock_client.query.assert_called_once_with("SELECT 1")
+
+
+@patch('databricks.labs.lakebridge.connections.database_manager.clickhouse_connect')
+def test_clickhouse_connector_health_check_and_close(mock_clickhouse_connect) -> None:
+    mock_client = MagicMock()
+    mock_clickhouse_connect.get_client.return_value = mock_client
+    mock_client.query.return_value = MagicMock(column_names=["test_column"], result_rows=[[101]])
+
+    with create_connector("clickhouse", clickhouse_config) as connector:
+        assert connector.health_check() is True
+
+    # __exit__ closes the underlying client.
+    mock_client.close.assert_called_once()
+
+
+@patch('databricks.labs.lakebridge.connections.database_manager.clickhouse_connect')
+def test_clickhouse_connector_secure_default_is_host_derived(mock_clickhouse_connect) -> None:
+    """With `secure` absent, a *.clickhouse.cloud host defaults to TLS on 8443; any other host
+    defaults to plaintext on 8123 (never insecure-by-default for Cloud)."""
+    mock_clickhouse_connect.get_client.return_value = MagicMock()
+
+    create_connector("clickhouse", {"host": "abc.us-east-1.aws.clickhouse.cloud", "password": "p"})
+    cloud_kwargs = mock_clickhouse_connect.get_client.call_args.kwargs
+    assert cloud_kwargs["secure"] is True
+    assert cloud_kwargs["port"] == 8443
+
+    mock_clickhouse_connect.get_client.reset_mock()
+    create_connector("clickhouse", {"host": "10.0.0.5", "password": "p"})
+    oss_kwargs = mock_clickhouse_connect.get_client.call_args.kwargs
+    assert oss_kwargs["secure"] is False
+    assert oss_kwargs["port"] == 8123
+
+
+@patch('databricks.labs.lakebridge.connections.database_manager.clickhouse_connect')
+def test_clickhouse_connector_cloud_host_cannot_be_downgraded(mock_clickhouse_connect) -> None:
+    """A `secure=False` in a creds file must NOT downgrade a Cloud host to plaintext — the connection
+    carries the password, and managed ClickHouse Cloud only accepts TLS."""
+    mock_clickhouse_connect.get_client.return_value = MagicMock()
+
+    create_connector(
+        "clickhouse",
+        {"host": "abc.us-east-1.aws.clickhouse.cloud", "password": "p", "secure": False},
+    )
+    kwargs = mock_clickhouse_connect.get_client.call_args.kwargs
+    assert kwargs["secure"] is True
+    assert kwargs["port"] == 8443
+
+
+@patch('databricks.labs.lakebridge.connections.database_manager.clickhouse_connect')
+def test_clickhouse_connector_rewrites_cluster_when_configured(mock_clickhouse_connect) -> None:
+    """A configured `cluster` name replaces the hardcoded clusterAllReplicas('default', ...) so cloud
+    SQL resolves on a self-managed deployment whose cluster is not named 'default'."""
+    mock_client = MagicMock()
+    mock_clickhouse_connect.get_client.return_value = mock_client
+    mock_client.query.return_value = MagicMock(column_names=["c"], result_rows=[[1]])
+
+    connector = create_connector("clickhouse", {**clickhouse_config, "cluster": "main_cluster"})
+    connector.fetch("SELECT count() FROM clusterAllReplicas('default', system.query_log)")
+
+    mock_client.query.assert_called_once_with(
+        "SELECT count() FROM clusterAllReplicas('main_cluster', system.query_log)"
+    )
+
+
+@patch('databricks.labs.lakebridge.connections.database_manager.clickhouse_connect')
+def test_clickhouse_connector_leaves_query_unchanged_without_cluster(mock_clickhouse_connect) -> None:
+    """With no `cluster` configured (the Cloud default), the query is passed through verbatim —
+    'default' is authoritative on ClickHouse Cloud."""
+    mock_client = MagicMock()
+    mock_clickhouse_connect.get_client.return_value = mock_client
+    mock_client.query.return_value = MagicMock(column_names=["c"], result_rows=[[1]])
+
+    query = "SELECT count() FROM clusterAllReplicas('default', system.query_log)"
+    create_connector("clickhouse", clickhouse_config).fetch(query)
+
+    mock_client.query.assert_called_once_with(query)
+
+
+@patch('databricks.labs.lakebridge.connections.database_manager.clickhouse_connect')
+def test_clickhouse_connector_rejects_invalid_cluster_name(mock_clickhouse_connect) -> None:
+    """The cluster name is spliced into SQL, so a value outside the identifier charset is rejected
+    at construction rather than allowed to alter the query."""
+    mock_clickhouse_connect.get_client.return_value = MagicMock()
+
+    with pytest.raises(ValueError, match="Invalid ClickHouse cluster name"):
+        create_connector("clickhouse", {**clickhouse_config, "cluster": "default', system.query_log) --"})
+
+
 @patch('databricks.labs.lakebridge.connections.database_manager.mssql_python.connect')
 def test_mssql_connect_failure_raises_connection_error(mock_connect) -> None:
     mock_connect.side_effect = mssql_python.OperationalError("login failed", "ddbc details")

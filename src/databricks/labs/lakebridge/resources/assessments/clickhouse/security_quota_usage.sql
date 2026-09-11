@@ -1,0 +1,31 @@
+-- Current quota usage (system.quota_usage). Explicit column list matching the DDL
+-- (the source used SELECT *). Replicated: identical on OSS and Cloud.
+SELECT
+    quota_name,
+    quota_key,
+    start_time,
+    end_time,
+    duration,
+    queries,
+    max_queries,
+    query_selects,
+    max_query_selects,
+    query_inserts,
+    max_query_inserts,
+    errors,
+    max_errors,
+    result_rows,
+    max_result_rows,
+    result_bytes,
+    max_result_bytes,
+    read_rows,
+    max_read_rows,
+    read_bytes,
+    max_read_bytes,
+    execution_time,
+    max_execution_time,
+    written_bytes,
+    max_written_bytes,
+    failed_sequential_authentications,
+    max_failed_sequential_authentications
+FROM system.quota_usage
