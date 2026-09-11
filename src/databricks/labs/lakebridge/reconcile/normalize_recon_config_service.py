@@ -2,6 +2,7 @@ import dataclasses
 import logging
 
 from databricks.labs.lakebridge.reconcile.connectors.data_source import DataSource
+from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import DialectUtils
 from databricks.labs.lakebridge.reconcile.recon_config import (
     Aggregate,
     ColumnMapping,
@@ -62,7 +63,22 @@ class NormalizeReconConfigService:
 
     def _normalize_agg(self, agg: Aggregate) -> Aggregate:
         normalized = dataclasses.replace(agg)
-        normalized.agg_columns = [self.source.normalize_identifier(c).ansi_normalized for c in normalized.agg_columns]
+
+        # `*` is not an identifier — it's the SQL star, only valid in COUNT(*). Skip
+        # identifier normalization (otherwise it would be wrapped in backticks and
+        # produce invalid SQL like `count(`*`)`). Accept both the raw "*" and the
+        # ansi-normalized "`*`" form on input, and store as the raw "*" downstream.
+        def _is_star(col: str) -> bool:
+            return DialectUtils.unnormalize_identifier(col) == "*"
+
+        for col in normalized.agg_columns:
+            if _is_star(col) and normalized.type.lower() != "count":
+                raise ValueError(
+                    f"Invalid aggregate: '*' is only supported with type='count', got type='{normalized.type}'."
+                )
+        normalized.agg_columns = [
+            "*" if _is_star(c) else self.source.normalize_identifier(c).ansi_normalized for c in normalized.agg_columns
+        ]
         normalized.group_by_columns = (
             [self.source.normalize_identifier(c).ansi_normalized for c in normalized.group_by_columns]
             if normalized.group_by_columns
