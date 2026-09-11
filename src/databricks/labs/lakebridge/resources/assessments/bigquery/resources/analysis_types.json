@@ -430,5 +430,191 @@
                 }
             ]
         }
+    },
+    "table_definitions": {
+        "schema": {
+            "fields": [
+                {
+                    "name": "table_catalog",
+                    "type": "string"
+                },
+                {
+                    "name": "table_schema",
+                    "type": "string"
+                },
+                {
+                    "name": "table_name",
+                    "type": "string"
+                },
+                {
+                    "name": "table_type",
+                    "type": "string"
+                },
+                {
+                    "name": "creation_time",
+                    "type": "timestamp"
+                },
+                {
+                    "name": "base_table_catalog",
+                    "type": "string"
+                },
+                {
+                    "name": "base_table_schema",
+                    "type": "string"
+                },
+                {
+                    "name": "base_table_name",
+                    "type": "string"
+                },
+                {
+                    "name": "snapshot_time_ms",
+                    "type": "timestamp"
+                },
+                {
+                    "name": "replica_source_catalog",
+                    "type": "string"
+                },
+                {
+                    "name": "replica_source_schema",
+                    "type": "string"
+                },
+                {
+                    "name": "replica_source_name",
+                    "type": "string"
+                },
+                {
+                    "name": "ddl",
+                    "type": "string"
+                },
+                {
+                    "name": "default_collation_name",
+                    "type": "string"
+                }
+            ]
+        }
+    },
+    "column_definitions": {
+        "schema": {
+            "fields": [
+                {
+                    "name": "table_catalog",
+                    "type": "string"
+                },
+                {
+                    "name": "table_schema",
+                    "type": "string"
+                },
+                {
+                    "name": "table_name",
+                    "type": "string"
+                },
+                {
+                    "name": "column_name",
+                    "type": "string"
+                },
+                {
+                    "name": "ordinal_position",
+                    "type": "long"
+                },
+                {
+                    "name": "is_nullable",
+                    "type": "string"
+                },
+                {
+                    "name": "data_type",
+                    "type": "string"
+                },
+                {
+                    "name": "is_hidden",
+                    "type": "string"
+                },
+                {
+                    "name": "is_system_defined",
+                    "type": "string"
+                },
+                {
+                    "name": "is_partitioning_column",
+                    "type": "string"
+                },
+                {
+                    "name": "clustering_ordinal_position",
+                    "type": "long"
+                },
+                {
+                    "name": "collation_name",
+                    "type": "string"
+                },
+                {
+                    "name": "column_default",
+                    "type": "string"
+                },
+                {
+                    "name": "rounding_mode",
+                    "type": "string"
+                },
+                {
+                    "name": "policy_tags",
+                    "type": "string"
+                }
+            ]
+        }
+    },
+    "routine_definitions": {
+        "schema": {
+            "fields": [
+                {
+                    "name": "routine_catalog",
+                    "type": "string"
+                },
+                {
+                    "name": "routine_schema",
+                    "type": "string"
+                },
+                {
+                    "name": "routine_name",
+                    "type": "string"
+                },
+                {
+                    "name": "routine_type",
+                    "type": "string"
+                },
+                {
+                    "name": "data_type",
+                    "type": "string"
+                },
+                {
+                    "name": "routine_body",
+                    "type": "string"
+                },
+                {
+                    "name": "routine_definition",
+                    "type": "string"
+                },
+                {
+                    "name": "external_language",
+                    "type": "string"
+                },
+                {
+                    "name": "is_deterministic",
+                    "type": "string"
+                },
+                {
+                    "name": "created",
+                    "type": "timestamp"
+                },
+                {
+                    "name": "last_altered",
+                    "type": "timestamp"
+                },
+                {
+                    "name": "ddl",
+                    "type": "string"
+                },
+                {
+                    "name": "connection",
+                    "type": "string"
+                }
+            ]
+        }
     }
 }
