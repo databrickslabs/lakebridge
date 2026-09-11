@@ -3,7 +3,7 @@ import dataclasses
 import importlib
 import logging
 from abc import abstractmethod
-from collections.abc import Callable, Iterator, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from types import TracebackType
 from typing import Any
 
@@ -44,12 +44,13 @@ class FetchResult:
 
 class DatabaseConnector(contextlib.AbstractContextManager):
     @abstractmethod
-    def fetch(self, query: str) -> FetchResult: ...
+    def fetch(self, query: str, parameters: Mapping[str, Any] | None = None) -> FetchResult:
+        """Run ``query`` and return its rows. ``parameters`` bind ``:name`` placeholders at execution time."""
 
     def supports_streaming(self) -> bool:
         return False
 
-    def stream(self, query: str) -> Iterator[pa.Table]:
+    def stream(self, query: str, parameters: Mapping[str, Any] | None = None) -> Iterator[pa.Table]:
         raise NotImplementedError
 
     @abstractmethod
@@ -80,13 +81,13 @@ class _BaseConnector(DatabaseConnector):
     def close(self) -> None:
         self.engine.dispose()
 
-    def fetch(self, query: str) -> FetchResult:
+    def fetch(self, query: str, parameters: Mapping[str, Any] | None = None) -> FetchResult:
         if not self.engine:
             raise ConnectionError("Not connected to the database.")
 
         with Session(self.engine) as session, session.begin():
             try:
-                result = session.execute(text(query))
+                result = session.execute(text(query), parameters or {})
                 return FetchResult(list(result.keys()), result.fetchall())
             except DBAPIError as e:
                 logger.debug("Database query failed", exc_info=True)
@@ -141,13 +142,13 @@ class SnowflakeConnector(_BaseConnector):
     def supports_streaming(self) -> bool:
         return True
 
-    def stream(self, query: str) -> Iterator[pa.Table]:
+    def stream(self, query: str, parameters: Mapping[str, Any] | None = None) -> Iterator[pa.Table]:
         if not self.engine:
             raise ConnectionError("Not connected to the database.")
 
         with Session(self.engine) as session, session.begin():
             try:
-                result = session.execute(text(query))
+                result = session.execute(text(query), parameters or {})
                 if not isinstance(result, CursorResult):
                     return
                 cursor = result.cursor
@@ -199,7 +200,9 @@ class MSSQLConnector(DatabaseConnector):
         except mssql_python.Error as e:
             raise ConnectionError(f"Failed to connect to {server}: {e}") from e
 
-    def fetch(self, query: str) -> FetchResult:
+    def fetch(self, query: str, parameters: Mapping[str, Any] | None = None) -> FetchResult:
+        if parameters:
+            raise NotImplementedError("Parameter binding is not yet supported for the MSSQL connector")
         cursor = self._conn.cursor()
         try:
             cursor.execute(query)
@@ -299,7 +302,9 @@ class RedshiftConnector(DatabaseConnector):
             )
         raise ConnectionError(f"Invalid Redshift auth_type: {auth_type}. Expected one of: sql_authentication, iam")
 
-    def fetch(self, query: str) -> FetchResult:
+    def fetch(self, query: str, parameters: Mapping[str, Any] | None = None) -> FetchResult:
+        if parameters:
+            raise NotImplementedError("Parameter binding is not yet supported for the Redshift connector")
         cursor = self._conn.cursor()
         try:
             cursor.execute(query)

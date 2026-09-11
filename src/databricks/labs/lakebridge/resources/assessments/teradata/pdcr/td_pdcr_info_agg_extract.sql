@@ -65,6 +65,6 @@ FROM (
     FROM PDCRINFO.DBQLogTbl_Hst
     WHERE (AMPCPUTime > 0 OR TotalIOCount > 0)
         AND NumSteps > 0
-        AND LogDate >= DATE - 180
+        AND LogDate >= DATE - :pdcr_lookback_days
 ) AS ClassifiedQueries
 GROUP BY 1, 2;

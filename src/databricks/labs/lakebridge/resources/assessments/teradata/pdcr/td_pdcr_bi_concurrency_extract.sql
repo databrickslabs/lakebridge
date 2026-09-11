@@ -1,7 +1,7 @@
 SELECT
-    180 AS LookbackDays,
+    :pdcr_lookback_days AS LookbackDays,
     COUNT(*) AS BIQueryCount,
-    CAST(COUNT(*) AS FLOAT) / (180 * 24 * 60) AS AvgBIQueriesPerMinute
+    CAST(COUNT(*) AS FLOAT) / (:pdcr_lookback_days * 24 * 60) AS AvgBIQueriesPerMinute
 FROM (
     SELECT
         CASE
@@ -40,6 +40,6 @@ FROM (
     FROM PDCRINFO.DBQLogTbl_Hst
     WHERE (AMPCPUTime > 0 OR TotalIOCount > 0)
         AND NumSteps > 0
-        AND LogDate >= DATE - 180
+        AND LogDate >= DATE - :pdcr_lookback_days
 ) AS ClassifiedQueries
 WHERE QueryType = 'BI/QUERY';

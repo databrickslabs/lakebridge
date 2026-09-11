@@ -13,4 +13,4 @@ SELECT
     NodeNormFactor
 FROM DBC.ResUsageSpma
 WHERE
-    TheDate >= date - 30;
+    TheDate >= date - :sys_nodes_lookback_days;

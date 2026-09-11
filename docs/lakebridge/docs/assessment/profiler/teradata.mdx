@@ -72,6 +72,13 @@ Enter the Teradata server or host details: td-host.example.com
 Enter the user details: dbc_user
 Enter the password details:
 Enter the default database name (default: DBC):
+
+Please configure profiler settings:
+Enter DBQL lookback window in days (default: 30): 30
+Enter PDCR history lookback window in days (default: 180): 180
+Enter system usage (ResUsage) lookback window in days (default: 60): 60
+Enter system node info lookback window in days (default: 30): 30
+Enter max rows for the DBQL extract (default: 100000): 100000
 ```
 
 The generated credential block (written to `~/.databricks/labs/lakebridge/.credentials.yml`) includes:
@@ -80,6 +87,21 @@ The generated credential block (written to `~/.databricks/labs/lakebridge/.crede
 - `teradata.user`
 - `teradata.password`
 - `teradata.database`
+- `teradata.profiler.lookback_days`
+- `teradata.profiler.pdcr_lookback_days`
+- `teradata.profiler.sys_usage_lookback_days`
+- `teradata.profiler.sys_nodes_lookback_days`
+- `teradata.profiler.max_rows`
+
+These profiler settings are supplied to the extract queries as bind parameters at execution time (not interpolated into the SQL text):
+
+- **`lookback_days`** (default `30`) — how far back the core DBQL query log is read from the live `DBC.DBQLogTbl`: `CollectTimeStamp >= CURRENT_DATE - :lookback_days`. Adjust it for a shorter or longer history (bounded by the live table's retention).
+- **`pdcr_lookback_days`** (default `180`) — how far back the PDCR extracts read the PDCR history tables (`PDCRINFO.DBQLogTbl_Hst`): `LogDate >= date - :pdcr_lookback_days`. PDCR retains far more history than the live table, so this defaults to a much longer horizon.
+- **`sys_usage_lookback_days`** (default `60`) — how far back the system usage aggregation reads the resource-usage history (`DBC.ResUsageSpma`): `TheDate >= date - :sys_usage_lookback_days`. This is a utilization time series, so a multi-week window is typical.
+- **`sys_nodes_lookback_days`** (default `30`) — how far back the node hardware inventory scans `DBC.ResUsageSpma` for distinct node configuration: `TheDate >= date - :sys_nodes_lookback_days`. It only needs a recent window to capture the current node layout.
+- **`max_rows`** (default `100000`) — the cap on rows returned by the core DBQL extract; it keeps the slowest queries (`QUALIFY ROW_NUMBER() OVER (ORDER BY TotalFirstRespTime DESC) <= :max_rows`). Raise it to retain more of a high-volume window.
+
+Because these live in your user-owned credentials file, they override the packaged defaults and survive upgrades (editing the installed pipeline resources does not). Increasing any value grows the extract; the query text is redacted, so the dominant cost is the number of rows retained.
 
 ## Run the Profiler
 

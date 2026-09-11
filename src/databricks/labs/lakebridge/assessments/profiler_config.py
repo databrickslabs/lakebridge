@@ -91,6 +91,8 @@ class PipelineConfig:
     version: str
     comment: str | None = None
     steps: list[Step] = field(default_factory=list)
+    # Default bind values (``:name``) for SQL steps; per-source, overridable at runtime.
+    parameters: dict = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         # Warn if any active non-DDL step precedes the first active DDL step.
