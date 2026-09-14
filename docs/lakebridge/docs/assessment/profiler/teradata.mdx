@@ -9,7 +9,7 @@ import Admonition from '@theme/Admonition';
 - [Prerequisites](#prerequisites)
 - [Configure Connection to Teradata](#configure-connection-to-teradata)
 - [Run the Profiler](#run-the-profiler)
-- [Choosing a Profiler Variant](#choosing-a-profiler-variant)
+- [Workload Extraction](#workload-extraction)
 - [SQL Text Redaction](#sql-text-redaction)
 - [International Character Support](#international-character-support)
 
@@ -32,16 +32,12 @@ Grant `SELECT` access to:
 - `DBC.FunctionsV`
 - `DBC.ColumnsV`
 
-### 3. Optional PDCR access for longer-history analysis
+### 3. PDCR access
 
-The `pdcr` variant uses Teradata PDCR tables for richer, aggregated history (up to 180 days). To use it, grant `SELECT` access to:
-
-- `PDCRINFO.DBQlogTbl_Hst`
-- `PDCRINFO.DBQLSummaryTbl_Hst`
-- `PDCRINFO.UserInfo`
-
-<Admonition type="info" title="PDCR is optional">
-If PDCR is not available in the environment, use the `core` variant, which relies only on the core `DBC`/DBQL tables. See [Choosing a Profiler Variant](#choosing-a-profiler-variant).
+<Admonition type="info" title="PDCR extraction is currently disabled">
+The Teradata profiler does not currently collect PDCR (`PDCRINFO`) data, so no PDCR-specific grants are
+required. Workload history is gathered from the core `DBC`/DBQL tables listed under
+[Required permissions](#2-required-permissions-on-system-views).
 </Admonition>
 
 ## Configure Connection to Teradata
@@ -83,7 +79,7 @@ The generated credential block (written to `~/.databricks/labs/lakebridge/.crede
 
 ## Run the Profiler
 
-The variant (`core` or `pdcr`) is selected at extraction time via `--variant`. Optionally verify connectivity first:
+Optionally verify connectivity first:
 
 ```console
 databricks labs lakebridge test-profiler-connection --source-tech teradata
@@ -92,13 +88,13 @@ databricks labs lakebridge test-profiler-connection --source-tech teradata
 Then run the extraction:
 
 ```console
-databricks labs lakebridge execute-database-profiler --source-tech teradata --variant core --output-folder /path/to/output
+databricks labs lakebridge execute-database-profiler --source-tech teradata --output-folder /path/to/output
 ```
 
 `--output-folder` is optional; if omitted you are prompted for it (defaulting to
 `~/.databricks/labs/lakebridge_profilers/<source-tech>_assessment`).
 
-This executes the extraction steps defined in the selected variant's pipeline configuration and produces a local
+This executes the extraction steps defined in the profiler's pipeline configuration and produces a local
 DuckDB extract in the output folder, named:
 
 ```
@@ -107,29 +103,16 @@ profiler_extract_<source-tech>_<version>_<YYYYMMDD>.db
 
 The extract contains the system, storage, object, user-database, UDF, and workload tables gathered from the source.
 
-## Choosing a Profiler Variant
+## Workload Extraction
 
-The Teradata profiler ships as two variants. They share the same connection and credentials; choose the one that
-matches the access available in your environment:
+The profiler extracts system, storage, object, user-database, and UDF tables, plus workload data from the
+core `DBC`/DBQL tables (`td_dbql_core_info_extract`). It works on any Teradata system with the system-view
+grants listed under [Required permissions](#2-required-permissions-on-system-views).
 
-| Variant | Workload source | Use when |
-|---|---|---|
-| `core` | Core `DBC` / DBQL tables | The baseline. Works on any Teradata system with the system-view grants above. |
-| `pdcr` | PDCR aggregated history (`PDCRINFO`) | You have PDCR access and want richer, longer-history workload aggregates. |
-
-Both variants extract the same system, storage, object, user-database, and UDF tables; they differ only in the
-workload extraction:
-
-- `core` extracts `td_dbql_core_info_extract`.
-- `pdcr` extracts `td_pdcr_info_agg_extract` and `td_pdcr_sp_exe_info_agg_extract`.
-
-The `core` workload data is typically narrower (recent days from DBQL instead of long historical
-aggregates), which can reduce long-horizon trend analysis and may underrepresent short-query aggregate metrics.
-
-<Admonition type="warning" title="PDCR not available?">
-If you run the `pdcr` variant and the profiler fails with `Error 3802 ... Database 'PDCRINFO' does not exist`,
-the PDCR repository is not present (or not accessible) in this environment. Re-run with `--source-tech teradata --variant core`,
-which uses only the core `DBC`/DBQL tables.
+<Admonition type="info" title="PDCR workload aggregates are currently disabled">
+PDCR (`PDCRINFO`) workload extraction is currently disabled, so workload history reflects recent days from
+DBQL rather than long historical PDCR aggregates. This can reduce long-horizon trend analysis and may
+underrepresent short-query aggregate metrics.
 </Admonition>
 
 ## SQL Text Redaction
