@@ -241,16 +241,24 @@ def test_capture_mismatch_data_and_cols_null_safe(spark):
     # Before the fix ``_match`` was built with bare ``=`` and evaluated to NULL for any NULL cell,
     # which downstream (``recon_capture._mismatch_records`` / ``_get_mismatch_columns``) could
     # distinguish from neither a match nor a mismatch.
+    # All-NULL columns (s_name / s_address here) need an explicit schema: Spark cannot infer a
+    # type for a column that is NULL in every row, and otherwise fails createDataFrame with
+    # CANNOT_DETERMINE_TYPE before the compare even runs.
+    io_schema = (
+        "s_suppkey bigint, s_nationkey bigint, s_name string, s_address string, s_phone string, s_acctbal bigint"
+    )
     source = spark.createDataFrame(
         [
             # s_name NULL vs 'supp-2' -> mismatch; s_address NULL on both -> match.
             Row(s_suppkey=2, s_nationkey=22, s_name=None, s_address=None, s_phone='ph-2', s_acctbal=200),
-        ]
+        ],
+        io_schema,
     )
     target = spark.createDataFrame(
         [
             Row(s_suppkey=2, s_nationkey=22, s_name='supp-2', s_address=None, s_phone='ph-2', s_acctbal=200),
-        ]
+        ],
+        io_schema,
     )
 
     actual = capture_mismatch_data_and_columns(
@@ -260,29 +268,27 @@ def test_capture_mismatch_data_and_cols_null_safe(spark):
         persistence=FakeReconIntermediatePersist(),
     )
 
-    expected_df = spark.createDataFrame(
-        [
-            Row(
-                s_suppkey=2,
-                s_nationkey=22,
-                s_acctbal_base=200,
-                s_acctbal_compare=200,
-                s_acctbal_match=True,
-                s_address_base=None,
-                s_address_compare=None,
-                s_address_match=True,  # NULL <=> NULL is a match, not NULL
-                s_name_base=None,
-                s_name_compare='supp-2',
-                s_name_match=False,  # NULL <=> value is a mismatch, not NULL
-                s_phone_base='ph-2',
-                s_phone_compare='ph-2',
-                s_phone_match=True,
-            ),
-        ]
-    )
-
+    # Assert on the single mismatch row as a dict (order- and type-independent) so the all-NULL
+    # columns need no typed expected frame. ``<=>`` makes ``_match`` null-safe: NULL vs value is a
+    # mismatch (False), NULL vs NULL a match (True) -- never NULL.
     assert actual.mismatch_df is not None
-    assertDataFrameEqual(actual.mismatch_df, expected_df)
+    assert actual.mismatch_df.count() == 1
+    assert actual.mismatch_df.collect()[0].asDict() == {
+        "s_suppkey": 2,
+        "s_nationkey": 22,
+        "s_acctbal_base": 200,
+        "s_acctbal_compare": 200,
+        "s_acctbal_match": True,
+        "s_address_base": None,
+        "s_address_compare": None,
+        "s_address_match": True,  # NULL <=> NULL is a match, not NULL
+        "s_name_base": None,
+        "s_name_compare": "supp-2",
+        "s_name_match": False,  # NULL <=> value is a mismatch, not NULL
+        "s_phone_base": "ph-2",
+        "s_phone_compare": "ph-2",
+        "s_phone_match": True,
+    }
     assert sorted(actual.mismatch_columns) == ['s_name']
 
 
