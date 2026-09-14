@@ -1,13 +1,10 @@
 from datetime import datetime, timezone
 
 import pytest
+from sqlglot import Dialect, parse_one
 from sqlglot import expressions as exp
-from sqlglot import parse_one
 from sqlglot.expressions import Column
 
-from databricks.labs.lakebridge.reconcile.query_builder.column_transformer import (
-    _DATATYPE_TRANSFORM_MAPPING as DataType_transform_mapping,
-)
 from databricks.labs.lakebridge.reconcile.query_builder.column_transformer import (
     get_transform_for_type,
 )
@@ -269,10 +266,18 @@ def test_build_between():
 # ``TO_CHAR(ts, 'YYYY-MM-DD HH24:MI:SS.US')``.
 
 
+def _handlers_for(dialect_name: str, type_value: str) -> list:
+    """The transform handlers ``dialect_name`` applies to a column of ``type_value``,
+    resolved through the public ``get_transform_for_type`` lookup — the same entry point
+    the row-hash path uses. ``counterpart=None`` keeps the counterpart-gated pins, so this
+    returns the dialect's own handler without reaching into the private transform table."""
+    return get_transform_for_type(type_value, get_dialect(dialect_name), None)
+
+
 def _apply_handler(handler_partial, col_name: str = "ts_col") -> str:
-    """Run a single ``DataType_transform_mapping`` partial against a column expression
-    and return the rendered SQL. Mirrors how ``HashQueryBuilder._apply_transform``
-    threads partials over the projected expression."""
+    """Run a single per-type transform partial against a column expression and return the
+    rendered SQL. Mirrors how ``HashQueryBuilder._apply_transform`` threads partials over
+    the projected expression."""
     rendered = handler_partial(exp.Column(this=col_name))
     return rendered.sql(dialect="databricks")
 
@@ -295,7 +300,7 @@ def test_databricks_timestamp_handler_emits_exact_microsecond_sql():
     surrounding ``COALESCE`` / sentinel pieces; equality on the whole string
     is the strongest unit-level guard.
     """
-    handlers = DataType_transform_mapping["databricks"][exp.DataType.Type.TIMESTAMP.value]
+    handlers = _handlers_for("databricks", exp.DataType.Type.TIMESTAMP.value)
     assert len(handlers) == 1, "expected exactly one TIMESTAMP handler for databricks"
     assert _apply_handler(handlers[0]) == _EXPECTED_DATABRICKS_TS_SQL
 
@@ -305,13 +310,13 @@ def test_databricks_timestamptz_handler_emits_exact_microsecond_sql():
     sqlglot maps naive TIMESTAMP and TIMESTAMPTZ to this single entry). UTC
     determinism relies on the reconcile cluster session being UTC (the Databricks
     default), not on anything rendered here."""
-    handlers = DataType_transform_mapping["databricks"][exp.DataType.Type.TIMESTAMPTZ.value]
+    handlers = _handlers_for("databricks", exp.DataType.Type.TIMESTAMPTZ.value)
     assert len(handlers) == 1, "expected exactly one TIMESTAMPTZ handler for databricks"
     assert _apply_handler(handlers[0]) == _EXPECTED_DATABRICKS_TS_SQL
 
 
 def test_redshift_timestamp_handler_emits_exact_microsecond_sql():
-    rs_handlers = DataType_transform_mapping["redshift"][exp.DataType.Type.TIMESTAMP.value]
+    rs_handlers = _handlers_for("redshift", exp.DataType.Type.TIMESTAMP.value)
     assert len(rs_handlers) == 1, "expected exactly one TIMESTAMP handler for redshift"
     rs_rendered = rs_handlers[0](exp.Column(this="ts_col")).sql(dialect="redshift")
     assert rs_rendered == _EXPECTED_REDSHIFT_TS_SQL
@@ -320,7 +325,7 @@ def test_redshift_timestamp_handler_emits_exact_microsecond_sql():
 def test_redshift_timestamptz_handler_pins_utc():
     """TIMESTAMPTZ pins to UTC via ``AT TIME ZONE 'UTC'`` so the render is
     independent of the Redshift session ``TIMEZONE`` setting."""
-    rs_handlers = DataType_transform_mapping["redshift"][exp.DataType.Type.TIMESTAMPTZ.value]
+    rs_handlers = _handlers_for("redshift", exp.DataType.Type.TIMESTAMPTZ.value)
     assert len(rs_handlers) == 1, "expected exactly one TIMESTAMPTZ handler for redshift"
     rs_rendered = rs_handlers[0](exp.Column(this="ts_col")).sql(dialect="redshift")
     assert rs_rendered == _EXPECTED_REDSHIFT_TSTZ_SQL
@@ -343,8 +348,8 @@ def test_databricks_and_redshift_timestamp_format_strings_produce_identical_byte
     canonical = reference.strftime("%Y-%m-%d %H:%M:%S.%f")
     assert canonical == "2025-01-15 12:34:56.789012"
 
-    rs_handlers = DataType_transform_mapping["redshift"][exp.DataType.Type.TIMESTAMPTZ.value]
-    db_handlers = DataType_transform_mapping["databricks"][exp.DataType.Type.TIMESTAMPTZ.value]
+    rs_handlers = _handlers_for("redshift", exp.DataType.Type.TIMESTAMPTZ.value)
+    db_handlers = _handlers_for("databricks", exp.DataType.Type.TIMESTAMPTZ.value)
     rs_rendered = rs_handlers[0](exp.Column(this="ts_col")).sql(dialect="redshift")
     db_rendered = db_handlers[0](exp.Column(this="ts_col")).sql(dialect="databricks")
 
@@ -412,14 +417,14 @@ def test_float_pins_like_double_only_when_counterpart_also_pins():
     float/double column pair stays byte-identical, since sqlglot resolves Redshift ``float``
     to DOUBLE but Databricks ``float`` to FLOAT), and stay counterpart-gated so a non-Redshift
     source is unaffected."""
-    for dt in ("real", "float4"):
+    for dtype in ("real", "float4"):
         # Redshift <-> Databricks: pinned identically to DOUBLE.
-        assert "DECIMAL(38,10)" in _render_type(dt, "redshift", "databricks"), dt
-        assert "DECIMAL(38,10)" in _render_type(dt, "databricks", "redshift"), dt
+        assert "DECIMAL(38,10)" in _render_type(dtype, "redshift", "databricks"), dtype
+        assert "DECIMAL(38,10)" in _render_type(dtype, "databricks", "redshift"), dtype
         # Non-pinning counterpart: fall back to the universal default (no behaviour change).
-        assert _render_type(dt, "databricks", "snowflake") == "COALESCE(TRIM(ts_col), '_null_recon_')", dt
+        assert _render_type(dtype, "databricks", "snowflake") == "COALESCE(TRIM(ts_col), '_null_recon_')", dtype
         # Unknown counterpart (None, e.g. the Redshift-only fingerprint path) keeps the pin.
-        assert "DECIMAL(38,10)" in _render_type(dt, "databricks", None), dt
+        assert "DECIMAL(38,10)" in _render_type(dtype, "databricks", None), dtype
 
 
 def test_timestamp_pins_only_when_counterpart_also_pins():
@@ -447,9 +452,32 @@ def test_redshift_boolean_handler_emits_exact_case_when_sql():
     ``'false'`` literals so the bytes match Spark's
     ``cast(boolean AS string)`` output and per-row hashes stay aligned.
     """
-    handlers = DataType_transform_mapping["redshift"][exp.DataType.Type.BOOLEAN.value]
+    handlers = _handlers_for("redshift", exp.DataType.Type.BOOLEAN.value)
     assert len(handlers) == 1, "expected exactly one BOOLEAN handler for redshift"
     rendered = handlers[0](exp.Column(this="bool_col")).sql(dialect="redshift")
     assert rendered == (
         "COALESCE(CASE WHEN bool_col THEN 'true' WHEN NOT bool_col THEN 'false' ELSE NULL END, " "'_null_recon_')"
+    )
+
+
+def test_unmapped_dialect_falls_back_to_universal_serialization():
+    """A source dialect with no ``_DATATYPE_TRANSFORM_MAPPING`` entry serializes through the
+    universal default via ``_dialect_key``'s fallback, so an unsupported engine still
+    reconciles rather than raising. Covers both fallback arms: a dialect whose sqlglot
+    synonyms exist but carry no mapping entry (Postgres family -> ``keys[0]``), and one that
+    resolves to no registered synonym at all (-> ``universal``)."""
+    node = build_column_no_alias(this="c")
+    # Postgres family: sqlglot collapses netezza/postgresql/vertica onto one Dialect, none of
+    # which is a mapping key, so _dialect_key returns the first synonym and the lookup falls
+    # through to the universal default.
+    postgres = get_dialect("postgresql")
+    assert (
+        transform_expression(node, get_transform_for_type("integer", postgres, None)).sql(dialect=postgres)
+        == "COALESCE(TRIM(c), '_null_recon_')"
+    )
+    # A dialect that matches no registered synonym at all -> _dialect_key returns "universal".
+    duckdb = Dialect.get_or_raise("duckdb")
+    assert (
+        transform_expression(node, get_transform_for_type("integer", duckdb, None)).sql(dialect=duckdb)
+        == "COALESCE(TRIM(c), '_null_recon_')"
     )
