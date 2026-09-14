@@ -181,7 +181,7 @@ def capture_mismatch_data_and_columns(
     return MismatchOutput(mismatch_df, mismatch_columns)
 
 
-def _row_mismatch_flag_columns(columns: list[str]) -> list[str]:
+def row_mismatch_flag_columns(columns: list[str]) -> list[str]:
     """The genuine ``<col>_match`` boolean flags among ``columns``.
 
     A match flag always comes as a ``(_base, _compare, _match)`` triple (see
@@ -212,7 +212,7 @@ def filter_to_row_mismatches(mismatch_df: DataFrame | None) -> DataFrame | None:
     """
     if mismatch_df is None:
         return mismatch_df
-    match_cols = _row_mismatch_flag_columns(mismatch_df.columns)
+    match_cols = row_mismatch_flag_columns(mismatch_df.columns)
     if not match_cols:
         return mismatch_df
     return mismatch_df.filter(reduce(lambda a, b: a | b, [~col(c) for c in match_cols]))
