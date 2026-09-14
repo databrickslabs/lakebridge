@@ -124,11 +124,22 @@ def test_column_mapping_lookup_is_case_insensitive():
     assert alignment is not None
     # Map is keyed by the bare, lower-cased source name.
     assert alignment.column_mapping == {"custid": "customer_id"}
-    # The source column (schema case ``custid``) resolves to its mapped target despite the
-    # config's ``CustId`` casing -- not the source-named fallback.
-    assert spark_target._target_col_name(src_schema[0], alignment.column_mapping) == "customer_id"
-    # An unmapped column still falls back to its own bare name.
-    assert spark_target._target_col_name(src_schema[1], alignment.column_mapping) == "order_id"
+    # Through the public target-filter builder: the mapped source column (schema case
+    # ``custid``) resolves to its target ``customer_id`` despite the config's ``CustId``
+    # casing -- not the source-named fallback -- while an unmapped column keeps its bare name.
+    subquery = spark_target.build_target_filter_subquery(
+        None,
+        "sch",
+        "orders",
+        src_schema,
+        alignment.column_mapping,
+        solved_hashes={},
+        unsolved_sb_ids=[0],
+        sub_bucket_count=64,
+    )
+    assert "`customer_id`" in subquery
+    assert "`custid`" not in subquery
+    assert "`order_id`" in subquery
 
 
 def test_column_mapping_target_is_not_double_delimited_after_normalization():
@@ -160,13 +171,20 @@ def test_column_mapping_target_is_not_double_delimited_after_normalization():
     # The stored value is the BARE target name, not the delimited form.
     assert alignment.column_mapping == {"src_a": "customer_id"}
 
-    # End-to-end through the target serializer: exactly one level of backtick quoting,
-    # referencing the real column — no ````customer_id```` double-delimiting.
-    resolved = spark_target._target_col_name(src_schema[0], alignment.column_mapping)
-    assert resolved == "customer_id"
-    rendered = spark_target.serialize_target_column_sql(resolved, "int")
-    assert "`customer_id`" in rendered
-    assert "``" not in rendered  # the double-delimiting bug would produce ``customer_id``
+    # End-to-end through the public target-filter builder: exactly one level of backtick
+    # quoting, referencing the real column — no ````customer_id```` double-delimiting.
+    subquery = spark_target.build_target_filter_subquery(
+        None,
+        "sch",
+        "orders",
+        src_schema,
+        alignment.column_mapping,
+        solved_hashes={},
+        unsolved_sb_ids=[0],
+        sub_bucket_count=64,
+    )
+    assert "`customer_id`" in subquery
+    assert "``" not in subquery  # the double-delimiting bug would produce ``customer_id``
 
 
 def test_query_builder_registry_returns_redshift_builder():
@@ -307,6 +325,7 @@ def test_build_mismatch_output_backfills_mismatch_columns_for_report_all(monkeyp
             return self
 
         def unpersist(self, blocking=False):
+            del blocking  # matches DataFrame.unpersist(blocking=...); unused by the fake
             cache_events["unpersisted"] += 1
             return self
 
@@ -384,6 +403,7 @@ def test_build_mismatch_output_aligns_columns_when_source_carries_partition_colu
             return self
 
         def unpersist(self, blocking=False):
+            del blocking  # matches DataFrame.unpersist(blocking=...); unused by the fake
             return self
 
     # Source carries the partition-only column ``c_part`` (a JDBC read hint) that the target lacks.

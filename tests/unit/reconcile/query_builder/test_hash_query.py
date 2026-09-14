@@ -738,8 +738,8 @@ def test_hash_query_permuting_column_mapping_keeps_layers_aligned():
             ColumnMapping(source_name="beta", target_name="apple"),
         ],
     )
-    src_schema = [redshift_schema_fixture_factory(n, "int") for n in ["id", "alpha", "beta"]]
-    tgt_schema = [ansi_schema_fixture_factory(n, "int") for n in ["id", "zeta", "apple"]]
+    src_schema = [redshift_schema_fixture_factory(n, "int") for n in ("id", "alpha", "beta")]
+    tgt_schema = [ansi_schema_fixture_factory(n, "int") for n in ("id", "zeta", "apple")]
     src_ds = FakeDataSource('"', '"')
     tgt_ds = FakeDataSource("`", "`")
 
@@ -791,8 +791,8 @@ def test_hash_query_order_preserving_mapping_is_unchanged_by_source_alignment():
             ColumnMapping(source_name="beta", target_name="beta_t"),
         ],
     )
-    src_schema = [redshift_schema_fixture_factory(n, "int") for n in ["id", "alpha", "beta"]]
-    tgt_schema = [ansi_schema_fixture_factory(n, "int") for n in ["id", "alpha_t", "beta_t"]]
+    src_schema = [redshift_schema_fixture_factory(n, "int") for n in ("id", "alpha", "beta")]
+    tgt_schema = [ansi_schema_fixture_factory(n, "int") for n in ("id", "alpha_t", "beta_t")]
     src_ds = FakeDataSource('"', '"')
     tgt_ds = FakeDataSource("`", "`")
 
