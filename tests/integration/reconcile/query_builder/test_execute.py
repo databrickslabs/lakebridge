@@ -38,7 +38,7 @@ from databricks.labs.lakebridge.reconcile.schema_compare import SchemaCompare
 from databricks.labs.lakebridge.reconcile.trigger_recon_service import TriggerReconService
 from databricks.labs.lakebridge.reconcile.utils import initialise_data_source
 from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
-from tests.integration.reconcile.conftest import FakeReconIntermediatePersist
+from tests.integration.reconcile.conftest import FINGERPRINT_METRICS_DISABLED, FakeReconIntermediatePersist
 
 CATALOG = "org"
 SCHEMA = "data"
@@ -827,7 +827,7 @@ def test_recon_for_report_type_is_data(
         data=[
             (
                 11111111111,
-                (3, 3, (1, 1), (1, 0, "s_address,s_phone"), None),
+                (3, 3, (1, 1), (1, 0, "s_address,s_phone"), None, FINGERPRINT_METRICS_DISABLED),
                 (False, run_by_user, ""),
                 MOCK_TIMESTAMP,
             )
@@ -997,7 +997,7 @@ def test_recon_for_report_type_schema(
         data=[
             (
                 22222222222,
-                (0, 0, None, None, True),
+                (0, 0, None, None, True, FINGERPRINT_METRICS_DISABLED),
                 (True, run_by_user, ""),
                 MOCK_TIMESTAMP,
             )
@@ -1620,7 +1620,7 @@ def test_schema_recon_with_data_source_exception(
         data=[
             (
                 33333333333,
-                (0, 0, None, None, None),
+                (0, 0, None, None, None, FINGERPRINT_METRICS_DISABLED),
                 (
                     False,
                     run_by_user,
@@ -1693,7 +1693,7 @@ def test_schema_recon_with_general_exception(
         data=[
             (
                 33333333333,
-                (0, 0, None, None, None),
+                (0, 0, None, None, None, FINGERPRINT_METRICS_DISABLED),
                 (
                     False,
                     run_by_user,
@@ -1771,7 +1771,7 @@ def test_data_recon_with_general_exception(
         data=[
             (
                 33333333333,
-                (3, 3, None, None, None),
+                (3, 3, None, None, None, FINGERPRINT_METRICS_DISABLED),
                 (
                     False,
                     run_by_user,
@@ -1849,7 +1849,7 @@ def test_data_recon_with_source_exception(
         data=[
             (
                 33333333333,
-                (3, 3, None, None, None),
+                (3, 3, None, None, None, FINGERPRINT_METRICS_DISABLED),
                 (
                     False,
                     run_by_user,
