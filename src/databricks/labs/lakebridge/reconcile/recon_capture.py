@@ -499,10 +499,21 @@ class ReconCapture:
         if data_reconcile_output.mismatch and data_reconcile_output.mismatch.mismatch_columns:
             mismatch_columns = data_reconcile_output.mismatch.mismatch_columns
 
-        # Sources that don't go through the fingerprint precheck (e.g. Snowflake,
-        # Oracle today, or any aggregate-mode reconcile) don't pass metadata.
-        # Use the populated "feature off" struct so dashboards can group by
-        # ``eligible`` without NULL-struct handling.
+        # The ``fingerprint_metrics`` struct is written on EVERY reconcile, opted-in or not:
+        # sources that don't run the precheck (e.g. Snowflake, Oracle today, or any
+        # aggregate-mode reconcile) get the populated "feature off" struct
+        # (``FingerprintRunMetadata.disabled()``) rather than a NULL/absent field. This uniform
+        # shape is deliberate — a per-flag struct would make an append that omits the field
+        # collide with a table that already has it (struct-field mismatch), so uniformity avoids
+        # a mixed-schema failure and lets dashboards group by ``eligible`` without NULL handling.
+        #
+        # REQUIREMENT (documented, see the ``mergeSchema`` note on the write below): the first
+        # write of this struct against a pre-existing ``recon_metrics`` table adds a NESTED field
+        # to the ``recon_metrics`` StructType. That evolution relies on Delta nested-column schema
+        # evolution via ``mergeSchema`` on ``saveAsTable`` append — supported on the DBR / Delta
+        # versions this tool targets. On an older engine the write would fail; that is the
+        # accepted trade-off of keeping the struct uniform. This write is intentionally OUTSIDE
+        # the fingerprint fail-open, so a metrics-write failure surfaces rather than being masked.
         fp_metadata = fingerprint_metadata if fingerprint_metadata is not None else FingerprintRunMetadata.disabled()
         fingerprint_struct_sql = self.fingerprint_metrics_struct_sql(fp_metadata)
 
@@ -536,9 +547,10 @@ class ReconCapture:
                 ) as run_metrics,
                 cast('{insertion_time}' as timestamp) as inserted_ts
             """)
-        # mergeSchema=True so the additive ``fingerprint_metrics`` field
-        # evolves on first write against pre-existing customer tables without
-        # a manual ALTER TABLE.
+        # mergeSchema=True so the additive nested ``fingerprint_metrics`` field evolves on first
+        # write against a pre-existing customer ``recon_metrics`` table without a manual ALTER
+        # TABLE. Requires Delta nested-struct schema evolution (see the struct note above);
+        # scoped to this metrics table only.
         _write_df_to_delta(df, f"{self._db_prefix}.{_RECON_METRICS_TABLE_NAME}", merge_schema=True)
 
     @classmethod

@@ -21,6 +21,12 @@ from enum import Enum
 from pyspark.sql import SparkSession
 from pyspark.sql.utils import AnalysisException
 
+from databricks.labs.lakebridge.reconcile.fingerprint.constants import quote_identifier
+
+# Spark SQL identifier delimiter; kept local (not imported from ``spark_target``) so this
+# metadata-only module has no dependency on the hashing layer.
+_SPARK_IDENTIFIER_QUOTE = "`"
+
 logger = logging.getLogger(__name__)
 
 
@@ -70,9 +76,18 @@ def fetch_target_row_count(
 
 
 def _build_fqn(*, catalog: str | None, schema: str, table: str) -> str:
+    """Backtick-quote each identifier so a delimiting-needed name (hyphen, reserved word,
+    embedded dot) cannot malform the ``DESCRIBE DETAIL`` SQL. Parity with
+    ``spark_target._table_fqn``; without it such a name makes DESCRIBE DETAIL fail, the
+    error is swallowed here, and tier selection silently degrades to the static default.
+    """
+    parts = [
+        quote_identifier(schema, _SPARK_IDENTIFIER_QUOTE),
+        quote_identifier(table, _SPARK_IDENTIFIER_QUOTE),
+    ]
     if catalog:
-        return f"{catalog}.{schema}.{table}"
-    return f"{schema}.{table}"
+        parts.insert(0, quote_identifier(catalog, _SPARK_IDENTIFIER_QUOTE))
+    return ".".join(parts)
 
 
 def _try_describe_detail(spark: SparkSession, fully_qualified_name: str) -> int | None:
