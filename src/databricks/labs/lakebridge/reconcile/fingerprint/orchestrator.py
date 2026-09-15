@@ -1,6 +1,5 @@
 import logging
 import time
-from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 
 from pyspark.sql import DataFrame, SparkSession
@@ -10,13 +9,13 @@ from databricks.labs.lakebridge.config import SourceConnectionConfig, TargetConn
 from databricks.labs.lakebridge.reconcile.compare import (
     _HASH_COLUMN_NAME,
     capture_mismatch_data_and_columns,
-    filter_to_row_mismatches,
 )
 from databricks.labs.lakebridge.reconcile.compare import (
     reconcile_data as compare_reconcile_data,
 )
 from databricks.labs.lakebridge.reconcile.connectors.data_source import DataSource
 from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import DialectUtils
+from databricks.labs.lakebridge.reconcile.constants import DEFAULT_SAMPLE_ROWS
 from databricks.labs.lakebridge.reconcile.fingerprint.constants import pick_sub_bucket_count
 from databricks.labs.lakebridge.reconcile.fingerprint.engine import (
     DetectionResult,
@@ -226,6 +225,7 @@ def build_mismatch_output(
     key_columns: list[str],
     report_type: str,
     persistence: AbstractReconIntermediatePersist,
+    max_sample_size: int = DEFAULT_SAMPLE_ROWS,
 ) -> DataReconcileOutput:
     """Run compare.reconcile_data on rows that already have hash_value_recon.
 
@@ -266,6 +266,7 @@ def build_mismatch_output(
             key_columns=key_columns,
             report_type=report_type,
             persistence=persistence,
+            max_sample_size=max_sample_size,
         )
 
         if report_type != "all" or output.mismatch_count == 0:
@@ -273,7 +274,7 @@ def build_mismatch_output(
 
         # report_type='all' with mismatches: backfill the column-level detail from the
         # already-fetched frames (extracted to keep this ``try`` within the statement budget).
-        return _backfill_mismatch_columns(src_hashed, tgt_hashed, key_columns, persistence, output)
+        return _backfill_mismatch_columns(src_hashed, tgt_hashed, key_columns, persistence, output, max_sample_size)
     finally:
         # Release the cached inputs. The returned frames read from the volume-materialised
         # compare/capture outputs (each does its own ``write_and_read_df_with_volumes``), not
@@ -288,6 +289,7 @@ def _backfill_mismatch_columns(
     key_columns: list[str],
     persistence: AbstractReconIntermediatePersist,
     output: DataReconcileOutput,
+    max_sample_size: int,
 ) -> DataReconcileOutput:
     """Add ``mismatch_columns`` (and a genuine-mismatch row filter) to ``output`` for the
     fingerprint ``report_type='all'`` MISMATCH path, reusing the already-fetched frames.
@@ -323,17 +325,20 @@ def _backfill_mismatch_columns(
     # ``<col>_base``/``_compare``/``_match`` triples) and the ``mismatch_columns`` list consumed by
     # ``recon_capture._mismatch_records`` — the SAME compare-layer function the normal sampled path
     # uses, now with its per-column match flags computed null-safely. No fingerprint-specific diff.
+    #
+    # ``sample_size`` bounds the work: the Stage-2 fetch pulls WHOLE sub-buckets (Stage-1 only
+    # proves a sub-bucket holds *some* mismatch), so capture first drops the pairs that match
+    # column-by-column and then caps at ``max_sample_size`` — before its driver-side collect and
+    # the ``recon_details`` write — mirroring the normal sampled path. Without the cap the collect
+    # could pull the full (mostly-matching) sub-bucket set to the driver and OOM at scale.
     capture = capture_mismatch_data_and_columns(
         source=src_for_capture,
         target=tgt_for_capture,
         key_columns=key_columns,
         persistence=persistence,
+        sample_size=max_sample_size,
     )
 
-    # The Stage-2 fetch pulls whole sub-buckets (Stage-1 only proves a sub-bucket holds *some*
-    # mismatch), so the captured frame can include pairs that match column-by-column. Drop them so
-    # recon_details records only genuine mismatches — a row filter over the null-safe ``_match``
-    # flags, not a second diff. ``mismatch_columns`` is unaffected (matching rows contribute none).
     return DataReconcileOutput(
         mismatch_count=output.mismatch_count,
         missing_in_src_count=output.missing_in_src_count,
@@ -341,7 +346,7 @@ def _backfill_mismatch_columns(
         missing_in_src=output.missing_in_src,
         missing_in_tgt=output.missing_in_tgt,
         mismatch=MismatchOutput(
-            mismatch_df=filter_to_row_mismatches(capture.mismatch_df),
+            mismatch_df=capture.mismatch_df,
             mismatch_columns=capture.mismatch_columns,
         ),
         threshold_output=output.threshold_output,
@@ -384,6 +389,42 @@ def resolve_detection_columns(
     return detection_cols
 
 
+def resolve_target_detection_columns(
+    detection_cols: list[Schema],
+    tgt_schema: list[Schema],
+    column_mapping: dict[str, str] | None,
+) -> list[Schema] | None:
+    """Target-side counterpart of ``detection_cols``: for each source detection column, in the
+    same source-canonical order, the matching TARGET ``Schema`` (physical name AND type).
+
+    The target fingerprint must serialize each column with the TARGET column's own type — the
+    same type the row-hash target path and the Stage-2 fetch use. Serializing the target with the
+    *source* column's type (the earlier behaviour) means a value can serialize identically across
+    a type-divergent source/target pair, so Stage-1 could declare MATCH — which short-circuits
+    with no row-hash re-verification — for genuinely differing rows. Order MUST match
+    ``detection_cols`` exactly, or the MD5 concat won't align across the two sides.
+
+    Returns None (decline the pre-check → full pipeline) if any column can't be resolved on the
+    target. ``column_mapping`` is keyed by the bare, lower-cased source name with a bare
+    target-name value (see ``align_columns``); an unmapped column resolves by its own bare name.
+    """
+    tgt_by_name = {DialectUtils.unnormalize_identifier(s.ansi_normalized_column_name).lower(): s for s in tgt_schema}
+    mapping = column_mapping or {}
+    resolved: list[Schema] = []
+    for src_col in detection_cols:
+        src_bare = DialectUtils.unnormalize_identifier(src_col.ansi_normalized_column_name).lower()
+        tgt_bare = mapping.get(src_bare, src_bare)
+        entry = tgt_by_name.get(DialectUtils.unnormalize_identifier(tgt_bare).lower())
+        if entry is None:
+            logger.warning(
+                f"Fingerprint: target column for source '{src_bare}' (target '{tgt_bare}') "
+                "not found in target schema — skipping pre-check"
+            )
+            return None
+        resolved.append(entry)
+    return resolved
+
+
 def select_tier(
     spark: SparkSession,
     target_connection: TargetConnectionConfig,
@@ -415,11 +456,17 @@ def _run_detection_phase(
     target_connection: TargetConnectionConfig,
     table_conf: Table,
     detection_cols: list[Schema],
+    target_detection_cols: list[Schema],
     column_mapping: dict[str, str] | None,
     query_builder: FingerprintQueryBuilder,
     tier: TierSelection,
 ) -> tuple[DetectionResult, int]:
-    """Run detection aggregates on both sides; return (result, elapsed_ms)."""
+    """Run detection aggregates on both sides; return (result, elapsed_ms).
+
+    ``detection_cols`` (source types) drive the source-side SQL; ``target_detection_cols``
+    (target types, same source-canonical order) drive the target-side compute — so the target
+    hashes with the target column's own type, matching the row-hash path and Stage-2 fetch.
+    """
     start_time = time.monotonic()
     source_detection_sql = query_builder.build_detection_sql(
         schema=source_connection.schema,
@@ -435,13 +482,15 @@ def _run_detection_phase(
         query=source_detection_sql,
         options=table_conf.jdbc_reader_options,
     )
+    # ``column_mapping`` is None: ``target_detection_cols`` already carry the resolved target
+    # physical names (and target types), so no re-mapping is needed on the target side.
     target_agg_df = compute_target_fingerprint(
         spark=spark,
         catalog=target_connection.catalog,
         schema=target_connection.schema,
         table=table_conf.target_name,
-        columns=detection_cols,
-        column_mapping=column_mapping,
+        columns=target_detection_cols,
+        column_mapping=None,
         sub_bucket_count=tier.sub_bucket_count,
     )
     detection = detect_and_solve(source_agg_df, target_agg_df)
@@ -462,6 +511,9 @@ class FetchContext:
     src_schema: list[Schema]
     tgt_schema: list[Schema]
     detection_cols: list[Schema]
+    # Target-typed counterpart of ``detection_cols`` (same source-canonical order), so the
+    # Stage-2 target filter serializes each column with the target column's own type.
+    target_detection_cols: list[Schema]
     column_mapping: dict[str, str] | None
     query_builder: FingerprintQueryBuilder
     tier: TierSelection
@@ -535,12 +587,14 @@ def fetch_target_rows(
     tgt_hash_builder = HashQueryBuilder(
         ctx.table_conf, ctx.tgt_schema, "target", ctx.source_engine, ctx.target, transformer
     )
+    # ``target_detection_cols`` carry resolved target names + target types (column_mapping=None),
+    # so the filter subquery hashes with the target column's own type — matching Stage-1 detection.
     tgt_filter_subquery = build_target_filter_subquery(
         ctx.target_connection.catalog,
         ctx.target_connection.schema,
         ctx.table_conf.target_name,
-        ctx.detection_cols,
-        ctx.column_mapping,
+        ctx.target_detection_cols,
+        None,
         solved_hashes,
         unsolved_sb_ids,
         sub_bucket_count=ctx.tier.sub_bucket_count,
@@ -563,50 +617,19 @@ def fetch_source_and_target_rows(
     unsolved_sb_ids: list[int],
     report_type: str,
 ) -> tuple[DataFrame, str, DataFrame]:
-    """Run Stage-2 source and target fetches in parallel (B3).
+    """Run the Stage-2 source and target fetches; return ``(src_df, fetch_path, tgt_df)``.
 
-    Source fetch is JDBC-bound (Redshift round trip + scan), target fetch is a
-    Spark filter-subquery against the cached Delta table. They share zero state
-    (different connectors, different DataFrames, immutable inputs) so dispatching
-    on two driver threads lets the JDBC pull overlap with the target Spark job
-    submission instead of running serially.
-
-    Note: this driver-side parallelism yields NO wall-clock benefit with the
-    current Redshift source. ``RemoteQueryReader.read_data`` (and
-    ``RedshiftDataSource.read_data`` on top of it) returns a lazy ``spark.sql(...)``
-    DataFrame — it does NOT force-collect — so each ``submit`` merely builds a lazy
-    plan and returns immediately; the actual JDBC pull and Delta scan are deferred to
-    the downstream compare action and run single-threaded regardless. The dispatch is
-    therefore latent: it would overlap the round trips only for a future connector
-    whose ``read_data`` force-collects. It is retained (rather than run serially)
-    because it is harmless — the failure semantics below are identical to serial — and
-    keeps that future connector fast without a re-plumb. On Spark cluster execution
-    itself, both fetches parallelize across executors as before either way; this helper
-    only ever addressed driver-side serialization.
-
-    Failure semantics: ``ThreadPoolExecutor.__exit__`` joins both futures, and
-    ``future.result()`` re-raises any exception from the worker thread on the
-    caller's stack — so behaviour is identical to the serial version on errors.
-    A failure in either fetch immediately aborts the precheck, just like before.
-
-    Sibling-future cancellation: if the source fetch fails first, the target
-    fetch keeps running until it completes naturally — Python's
-    ``Future.cancel()`` is a no-op once the worker has started, so there is no
-    cheap way to interrupt a Spark job submission mid-flight from the driver.
-    The trigger layer's exception-catch wraps this whole block, so any work
-    that completes after the first failure is discarded and the ``with`` block
-    waits at most one extra fetch's worth of time before returning. The
-    two-thread cap means the overshoot is bounded; documenting this here so
-    future readers do not add a ``cancel()`` call expecting it to interrupt
-    the running Spark/JDBC submission.
+    Both ``read_data`` calls return LAZY DataFrames — each builds a ``spark.sql(...)`` plan and
+    returns immediately, deferring the JDBC pull / Delta scan to the downstream compare action —
+    so there is no driver-side round trip to overlap here. An earlier revision dispatched the two
+    fetches on a ``ThreadPoolExecutor`` for that overlap, but with lazy ``read_data`` it added a
+    driver thread pool for zero wall-clock benefit, so this runs them serially. Failure semantics
+    are identical: the first fetch to raise aborts the precheck on the caller's stack, and the
+    trigger layer's fail-open catch turns that into a fall-through to the full pipeline. Spark
+    still parallelises each fetch across executors at action time regardless.
     """
-    # max_workers=2 because we have exactly two independent fetches. Naming the
-    # threads helps when debugging stuck JDBC pulls in production thread dumps.
-    with ThreadPoolExecutor(max_workers=2, thread_name_prefix="fp-stage2") as pool:
-        src_future = pool.submit(fetch_source_rows, ctx, solved_hashes, unsolved_sb_ids, report_type)
-        tgt_future = pool.submit(fetch_target_rows, ctx, solved_hashes, unsolved_sb_ids, report_type)
-        src_data, fetch_path = src_future.result()
-        tgt_data = tgt_future.result()
+    src_data, fetch_path = fetch_source_rows(ctx, solved_hashes, unsolved_sb_ids, report_type)
+    tgt_data = fetch_target_rows(ctx, solved_hashes, unsolved_sb_ids, report_type)
     return src_data, fetch_path, tgt_data
 
 
@@ -659,6 +682,13 @@ def run_fingerprint_precheck(
     if detection_cols is None:
         return None
 
+    # Resolve the TARGET-typed counterparts (same source order) so the target side hashes with the
+    # target column's own type, not the source column's — otherwise a type-divergent pair can
+    # false-MATCH on the short-circuit path. Declining here falls through to the full pipeline.
+    target_detection_cols = resolve_target_detection_columns(detection_cols, tgt_schema, alignment.column_mapping)
+    if target_detection_cols is None:
+        return None
+
     query_builder = get_query_builder(data_source)
 
     # Same tier MUST be used by detection and fetch — Stage-2's filter modulus
@@ -672,6 +702,7 @@ def run_fingerprint_precheck(
         connections.target,
         table_conf,
         detection_cols,
+        target_detection_cols,
         alignment.column_mapping,
         query_builder,
         tier,
@@ -701,6 +732,7 @@ def run_fingerprint_precheck(
         src_schema=src_schema,
         tgt_schema=tgt_schema,
         detection_cols=detection_cols,
+        target_detection_cols=target_detection_cols,
         column_mapping=alignment.column_mapping,
         query_builder=query_builder,
         tier=tier,

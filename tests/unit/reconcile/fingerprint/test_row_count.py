@@ -65,7 +65,7 @@ def test_describe_detail_returns_num_records_for_delta_table():
     spark = _make_spark(df)
     result = fetch_target_row_count(spark, catalog="test_catalog", schema="perf_test", table="orders")
     assert result == RowCountResult(row_count=100_000_000, source=RowCountSource.DELTA_DESCRIBE_DETAIL)
-    spark.sql.assert_called_once_with("DESCRIBE DETAIL test_catalog.perf_test.orders")
+    spark.sql.assert_called_once_with("DESCRIBE DETAIL `test_catalog`.`perf_test`.`orders`")
 
 
 def test_describe_detail_works_without_catalog():
@@ -74,7 +74,17 @@ def test_describe_detail_works_without_catalog():
     spark = _make_spark(df)
     result = fetch_target_row_count(spark, catalog=None, schema="default", table="orders")
     assert result.row_count == 1_000
-    spark.sql.assert_called_once_with("DESCRIBE DETAIL default.orders")
+    spark.sql.assert_called_once_with("DESCRIBE DETAIL `default`.`orders`")
+
+
+def test_describe_detail_quotes_delimiting_needed_identifiers():
+    """A hyphenated / reserved-word name must be backtick-quoted so DESCRIBE DETAIL parses
+    (otherwise the fetcher silently degrades to the static-default tier)."""
+    df = _make_describe_detail_df(columns=["numRecords"], rows=[{"numRecords": 42}])
+    spark = _make_spark(df)
+    result = fetch_target_row_count(spark, catalog="my-catalog", schema="perf_test", table="order")
+    assert result == RowCountResult(row_count=42, source=RowCountSource.DELTA_DESCRIBE_DETAIL)
+    spark.sql.assert_called_once_with("DESCRIBE DETAIL `my-catalog`.`perf_test`.`order`")
 
 
 def test_describe_detail_zero_rows_is_legitimate():

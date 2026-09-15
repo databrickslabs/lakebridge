@@ -523,6 +523,7 @@ class TriggerReconService:
                 key_columns=resolve_compare_key_columns(table_conf),
                 report_type=reconciler.report_type,
                 persistence=reconciler.intermediate_persist,
+                max_sample_size=table_conf.get_max_sample_size(),
             )
         except (KeyboardInterrupt, SystemExit, GeneratorExit):
             raise

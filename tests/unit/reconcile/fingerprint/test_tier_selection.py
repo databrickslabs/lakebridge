@@ -85,9 +85,10 @@ def test_select_tier_uses_target_catalog_and_schema_not_source():
     select_tier(spark, make_target_connection(), make_table_conf(target_name="my_target_table"))
     spark.sql.assert_called_once()
     call_arg = spark.sql.call_args[0][0]
-    # Must reference TARGET catalog/schema/table, not source.
+    # Must reference TARGET catalog/schema/table, not source. Identifiers are backtick-quoted
+    # (see ``row_count._build_fqn``) so a delimiting-needed name cannot malform DESCRIBE DETAIL.
     assert (
-        "test_catalog.perf_test.my_target_table" in call_arg
+        "`test_catalog`.`perf_test`.`my_target_table`" in call_arg
     ), f"select_tier must DESCRIBE DETAIL the TARGET table; got SQL: {call_arg!r}"
     assert "source_catalog" not in call_arg, (
         f"select_tier must NEVER reference source catalog (Redshift side has no Delta metadata); "
@@ -105,8 +106,8 @@ def test_run_fingerprint_precheck_passes_same_tier_to_source_and_target():
     fake_detection = DetectionResult(verdict="MATCH")
 
     def fake_detection_phase(*args, **kwargs):
-        # ``tier`` is the 9th positional argument; tolerate kwarg form too.
-        tier = kwargs.get("tier") if "tier" in kwargs else args[8]
+        # ``tier`` is the last positional argument; tolerate kwarg form too.
+        tier = kwargs.get("tier") if "tier" in kwargs else args[-1]
         captured_tier_detection.append(tier)
         return fake_detection, 42
 
@@ -125,6 +126,7 @@ def test_run_fingerprint_precheck_passes_same_tier_to_source_and_target():
     with (
         patch.object(orch, "_run_detection_phase", side_effect=fake_detection_phase),
         patch.object(orch, "resolve_detection_columns", side_effect=fake_resolve_cols),
+        patch.object(orch, "resolve_target_detection_columns", side_effect=fake_resolve_cols),
         patch.object(orch, "align_columns", side_effect=fake_align_columns),
         patch.object(orch, "get_query_builder", return_value=MagicMock()),
     ):
@@ -179,6 +181,7 @@ def test_fingerprint_result_carries_static_default_provenance_on_describe_detail
     with (
         patch.object(orch, "_run_detection_phase", side_effect=fake_detection_phase),
         patch.object(orch, "resolve_detection_columns", side_effect=fake_resolve_cols),
+        patch.object(orch, "resolve_target_detection_columns", side_effect=fake_resolve_cols),
         patch.object(orch, "align_columns", side_effect=fake_align_columns),
         patch.object(orch, "get_query_builder", return_value=MagicMock()),
     ):

@@ -16,6 +16,7 @@ from databricks.labs.lakebridge.reconcile.fingerprint.orchestrator import (
     fingerprint_supported_sources,
     get_query_builder,
     resolve_detection_columns,
+    resolve_target_detection_columns,
 )
 from databricks.labs.lakebridge.reconcile.fingerprint.query_builders.redshift import (
     RedshiftFingerprintQueryBuilder,
@@ -124,15 +125,18 @@ def test_column_mapping_lookup_is_case_insensitive():
     assert alignment is not None
     # Map is keyed by the bare, lower-cased source name.
     assert alignment.column_mapping == {"custid": "customer_id"}
-    # Through the public target-filter builder: the mapped source column (schema case
-    # ``custid``) resolves to its target ``customer_id`` despite the config's ``CustId``
+    # Production flow: the orchestrator resolves target-typed columns (mapping applied here),
+    # then hands them to the builder with column_mapping=None. The mapped source column (schema
+    # case ``custid``) resolves to its target ``customer_id`` despite the config's ``CustId``
     # casing -- not the source-named fallback -- while an unmapped column keeps its bare name.
+    target_cols = resolve_target_detection_columns(src_schema, tgt_schema, alignment.column_mapping)
+    assert target_cols is not None
     subquery = spark_target.build_target_filter_subquery(
         None,
         "sch",
         "orders",
-        src_schema,
-        alignment.column_mapping,
+        target_cols,
+        None,
         solved_hashes={},
         unsolved_sb_ids=[0],
         sub_bucket_count=64,
@@ -171,20 +175,61 @@ def test_column_mapping_target_is_not_double_delimited_after_normalization():
     # The stored value is the BARE target name, not the delimited form.
     assert alignment.column_mapping == {"src_a": "customer_id"}
 
-    # End-to-end through the public target-filter builder: exactly one level of backtick
-    # quoting, referencing the real column — no ````customer_id```` double-delimiting.
+    # End-to-end through the production flow (resolve target-typed cols → builder): exactly one
+    # level of backtick quoting, referencing the real column — no ````customer_id```` double-delimiting.
+    target_cols = resolve_target_detection_columns(src_schema, tgt_schema, alignment.column_mapping)
+    assert target_cols is not None
     subquery = spark_target.build_target_filter_subquery(
         None,
         "sch",
         "orders",
-        src_schema,
-        alignment.column_mapping,
+        target_cols,
+        None,
         solved_hashes={},
         unsolved_sb_ids=[0],
         sub_bucket_count=64,
     )
     assert "`customer_id`" in subquery
     assert "``" not in subquery  # the double-delimiting bug would produce ``customer_id``
+
+
+def test_target_detection_uses_target_column_type_not_source_type():
+    """Regression (#1): the target fingerprint must serialize each column with the TARGET
+    column's own type, matching the row-hash target path and the Stage-2 fetch. A source
+    ``double`` mapped to a target ``decimal(18,2)`` must hash on the target with the decimal
+    (universal TRIM) serialization — NOT the source ``double``'s ``DECIMAL(38,10)``/``ISNAN``
+    pin. Serializing the target with the source type could make a genuinely-differing value
+    hash identically and produce a false MATCH, which short-circuits with no row-hash re-verify.
+    """
+    src_detection_cols = [Schema("`amount`", "double", '"amount"')]
+    tgt_schema = [Schema("`amount`", "decimal(18,2)", "`amount`")]
+
+    target_cols = resolve_target_detection_columns(src_detection_cols, tgt_schema, None)
+    assert target_cols is not None
+    # Resolved entry carries the TARGET type (decimal), not the source ``double``.
+    assert target_cols[0].data_type == "decimal(18,2)"
+
+    subquery = spark_target.build_target_filter_subquery(
+        None,
+        "sch",
+        "orders",
+        target_cols,
+        None,
+        solved_hashes={},
+        unsolved_sb_ids=[0],
+        sub_bucket_count=64,
+    )
+    # Target-type (decimal) serialization: no DOUBLE-handler ``ISNAN``/``DECIMAL(38,10)`` pin.
+    assert "ISNAN" not in subquery.upper(), subquery
+    assert "38, 10" not in subquery and "38,10" not in subquery, subquery
+
+
+def test_resolve_target_detection_columns_declines_when_target_missing():
+    """If a resolved target column isn't in the target schema, decline (None) so the caller
+    falls through to the full pipeline rather than hashing a non-existent target column."""
+    src_detection_cols = [Schema("`ghost`", "int", '"ghost"')]
+    tgt_schema = [Schema("`order_id`", "bigint", "`order_id`")]
+    assert resolve_target_detection_columns(src_detection_cols, tgt_schema, None) is None
 
 
 def test_query_builder_registry_returns_redshift_builder():
@@ -268,23 +313,19 @@ def test_build_mismatch_output_backfills_mismatch_columns_for_report_all(monkeyp
 
     fake_skinny_mismatch_df = object()
     # capture.mismatch_df carries _base/_compare/_match for every check column
-    # (its shape is exercised end-to-end in the integration compare tests).
+    # (its shape is exercised end-to-end in the integration compare tests). capture now applies
+    # the genuine-mismatch filter + the ``sample_size`` cap internally, so the orchestrator uses
+    # its frame directly.
     fake_wide_capture_df = object()
-    # filter_to_row_mismatches drops the column-matching rows the Stage-2 sub-bucket fetch
-    # can include; the orchestrator must route capture's frame through it before returning.
-    fake_filtered_mismatch_df = object()
 
-    def fake_filter_to_row_mismatches(mismatch_df):
-        captured_calls["filter_to_row_mismatches"] = mismatch_df
-        return fake_filtered_mismatch_df
-
-    def fake_compare_reconcile_data(*, source, target, key_columns, report_type, persistence):
+    def fake_compare_reconcile_data(*, source, target, key_columns, report_type, persistence, max_sample_size):
         del persistence  # accepted to match the real signature, not needed here
         captured_calls["compare_reconcile_data"] = {
             "source": source,
             "target": target,
             "key_columns": key_columns,
             "report_type": report_type,
+            "max_sample_size": max_sample_size,
         }
         return DataReconcileOutput(
             mismatch_count=3,
@@ -293,18 +334,18 @@ def test_build_mismatch_output_backfills_mismatch_columns_for_report_all(monkeyp
             mismatch=MismatchOutput(mismatch_df=fake_skinny_mismatch_df, mismatch_columns=None),
         )
 
-    def fake_capture_mismatch_data_and_columns(*, source, target, key_columns, persistence):
+    def fake_capture_mismatch_data_and_columns(*, source, target, key_columns, persistence, sample_size):
         del persistence  # accepted to match the real signature, not needed here
         captured_calls["capture_mismatch_data_and_columns"] = {
             "source_columns": list(source.columns),  # must NOT contain hash_value_recon
             "target_columns": list(target.columns),
             "key_columns": key_columns,
+            "sample_size": sample_size,
         }
         return MismatchOutput(mismatch_df=fake_wide_capture_df, mismatch_columns=["s_name", "s_acctbal"])
 
     monkeypatch.setattr(orchestrator, "compare_reconcile_data", fake_compare_reconcile_data)
     monkeypatch.setattr(orchestrator, "capture_mismatch_data_and_columns", fake_capture_mismatch_data_and_columns)
-    monkeypatch.setattr(orchestrator, "filter_to_row_mismatches", fake_filter_to_row_mismatches)
 
     # Build minimal stand-ins: need .columns/.drop() plus .cache()/.unpersist() (P3 caches
     # the inputs for report_type='all' since they feed both the compare and capture joins).
@@ -338,6 +379,7 @@ def test_build_mismatch_output_backfills_mismatch_columns_for_report_all(monkeyp
         key_columns=["s_suppkey", "s_nationkey"],
         report_type="all",
         persistence=MagicMock(is_serverless=False),
+        max_sample_size=50,
     )
 
     # mismatch_columns must be the list capture_mismatch returned, not the empty default.
@@ -346,13 +388,16 @@ def test_build_mismatch_output_backfills_mismatch_columns_for_report_all(monkeyp
     # released afterward, so the Stage-2 fetch/shuffle is not re-run for the second join.
     assert cache_events["cached"] == 2
     assert cache_events["unpersisted"] == 2
-    # capture's WIDE frame (with _base/_compare/_match triples) must be routed through
-    # filter_to_row_mismatches, and the FILTERED frame returned — not the skinny frame from
-    # compare.reconcile_data, and not capture's unfiltered frame.
-    assert captured_calls["filter_to_row_mismatches"] is fake_wide_capture_df
-    assert out.mismatch.mismatch_df is fake_filtered_mismatch_df
+    # capture's WIDE frame (with _base/_compare/_match triples) is used directly — capture now
+    # applies the genuine-mismatch filter + the ``sample_size`` cap internally — not the skinny
+    # frame from compare.reconcile_data.
+    assert out.mismatch.mismatch_df is fake_wide_capture_df
     assert out.mismatch.mismatch_df is not fake_skinny_mismatch_df
     assert out.mismatch_count == 3
+    # #2: the max_sample_size must be threaded to capture (and to compare_reconcile_data) so the
+    # driver-side collect + recon_details write are bounded, mirroring the normal sampled path.
+    assert captured_calls["capture_mismatch_data_and_columns"]["sample_size"] == 50
+    assert captured_calls["compare_reconcile_data"]["max_sample_size"] == 50
     # capture_mismatch_data_and_columns must NOT see hash_value_recon (the synthetic
     # hash column would otherwise always show as a mismatched column).
     assert "hash_value_recon" not in captured_calls["capture_mismatch_data_and_columns"]["source_columns"]
@@ -372,22 +417,21 @@ def test_build_mismatch_output_aligns_columns_when_source_carries_partition_colu
     """
     captured: dict = {}
 
-    def fake_compare_reconcile_data(*, source, target, key_columns, report_type, persistence):
-        del source, target, key_columns, report_type, persistence
+    def fake_compare_reconcile_data(*, source, target, key_columns, report_type, persistence, max_sample_size):
+        del source, target, key_columns, report_type, persistence, max_sample_size
         return DataReconcileOutput(
             mismatch_count=2,
             mismatch=MismatchOutput(mismatch_df=object(), mismatch_columns=None),
         )
 
-    def fake_capture(*, source, target, key_columns, persistence):
-        del key_columns, persistence
+    def fake_capture(*, source, target, key_columns, persistence, sample_size):
+        del key_columns, persistence, sample_size
         captured["source_columns"] = list(source.columns)
         captured["target_columns"] = list(target.columns)
         return MismatchOutput(mismatch_df=object(), mismatch_columns=["c_val"])
 
     monkeypatch.setattr(orchestrator, "compare_reconcile_data", fake_compare_reconcile_data)
     monkeypatch.setattr(orchestrator, "capture_mismatch_data_and_columns", fake_capture)
-    monkeypatch.setattr(orchestrator, "filter_to_row_mismatches", lambda mismatch_df: mismatch_df)
 
     class FakeDF:
         def __init__(self, cols):

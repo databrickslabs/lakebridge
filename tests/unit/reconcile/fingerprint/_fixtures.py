@@ -117,6 +117,7 @@ def make_fetch_ctx(
         src_schema=make_schema(),
         tgt_schema=make_schema(),
         detection_cols=make_schema(),
+        target_detection_cols=make_schema(),
         column_mapping=None,
         query_builder=query_builder if query_builder is not None else MagicMock(),
         tier=make_tier(),
