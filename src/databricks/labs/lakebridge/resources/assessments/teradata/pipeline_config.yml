@@ -75,14 +75,9 @@ steps:
     optional: true
 
   - name: td_pdcr_bi_concurrency_extract
-    type: ddl
-    extract_source: src/databricks/labs/lakebridge/resources/assessments/teradata/pdcr/td_pdcr_bi_concurrency_extract_ddl.sql
-    mode: overwrite
-    frequency: once
-    flag: active
-  - name: td_pdcr_bi_concurrency_extract
     type: sql
     extract_source: src/databricks/labs/lakebridge/resources/assessments/teradata/pdcr/td_pdcr_bi_concurrency_extract.sql
+    ddl_source: src/databricks/labs/lakebridge/resources/assessments/teradata/pdcr/td_pdcr_bi_concurrency_extract_ddl.sql
     mode: overwrite
     frequency: once
     flag: active
