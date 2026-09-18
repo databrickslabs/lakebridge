@@ -4,9 +4,8 @@ from typing import cast
 
 import duckdb
 import pyarrow as pa
-import pytest
 
-from databricks.labs.lakebridge.assessments.pipeline import PipelineClass
+from databricks.labs.lakebridge.assessments.pipeline import PipelineClass, StepExecutionStatus
 from databricks.labs.lakebridge.assessments.profiler_config import PipelineConfig, Step
 from databricks.labs.lakebridge.connections.database_manager import DatabaseConnector, FetchResult
 
@@ -75,9 +74,9 @@ def test_failed_fetch_preserves_previous_overwrite_result(tmp_path: Path) -> Non
     pipeline = _pipeline(tmp_path, _Executor(result=ConnectionError("source failed")))
     _seed_previous_result(tmp_path / "profiler.db")
 
-    with pytest.raises(RuntimeError, match="metric"):
-        pipeline.execute()
+    results = pipeline.execute()
 
+    assert results[0].status == StepExecutionStatus.ERROR
     assert _metric_values(tmp_path / "profiler.db") == [99]
 
 
@@ -89,9 +88,9 @@ def test_failed_stream_rolls_back_previous_overwrite_result(tmp_path: Path) -> N
     )
     _seed_previous_result(tmp_path / "profiler.db")
 
-    with pytest.raises(RuntimeError, match="metric"):
-        pipeline.execute()
+    results = pipeline.execute()
 
+    assert results[0].status == StepExecutionStatus.ERROR
     assert _metric_values(tmp_path / "profiler.db") == [99]
 
 
@@ -103,7 +102,8 @@ def test_stream_uses_explicit_ddl_and_commits_after_completion(tmp_path: Path) -
     assert _metric_values(tmp_path / "profiler.db") == [1, 2]
 
 
-def test_optional_step_does_not_tolerate_invalid_duckdb_ddl(tmp_path: Path) -> None:
+def test_optional_step_tolerates_invalid_duckdb_ddl(tmp_path: Path) -> None:
+    """With ERROR_FATAL removed, an optional step whose DuckDB DDL/insert fails is tolerated (ABSENT)."""
     pipeline = _pipeline(
         tmp_path,
         _Executor(result=FetchResult(["value"], [(1,)])),
@@ -111,5 +111,6 @@ def test_optional_step_does_not_tolerate_invalid_duckdb_ddl(tmp_path: Path) -> N
     )
     pipeline.config = pipeline.config.copy(steps=[pipeline.config.steps[0].copy(optional=True)])
 
-    with pytest.raises(RuntimeError, match="DDL step: metric"):
-        pipeline.execute()
+    results = pipeline.execute()
+
+    assert results[0].status == StepExecutionStatus.ABSENT
