@@ -185,6 +185,11 @@ def test_mssql_connector_sql_password_omits_authentication_keyword() -> None:
     assert "PWD={secret}" in captured["connection_string"]
 
 
+def test_mssql_connector_escape_wraps_and_doubles_braces() -> None:
+    assert MSSQLConnector.escape("pa}ss") == "{pa}}ss}"
+    assert MSSQLConnector.escape("pa;ss") == "{pa;ss}"
+
+
 def test_mssql_connector_wraps_special_password_in_odbc_braces() -> None:
     captured = {}
 
