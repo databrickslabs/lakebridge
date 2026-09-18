@@ -19,8 +19,8 @@ from databricks.labs.lakebridge.resources.assessments.common.duckdb_helpers impo
 logger = logging.getLogger(__name__)
 
 
-def make_profiler_db_filename(platform: str) -> str:
-    return f"profiler_extract_{platform}_{lakebridge_version}_{datetime.now(timezone.utc).strftime('%Y%m%d')}.db"
+def make_profiler_db_filename(source_system: str) -> str:
+    return f"profiler_extract_{source_system}_{lakebridge_version}_{datetime.now(timezone.utc).strftime('%Y%m%d')}.db"
 
 
 class StepExecutionStatus(str, Enum):
@@ -57,6 +57,11 @@ class PipelineClass:
         self._cred_file_path = cred_file_path
 
     def execute(self) -> list[StepExecutionResult]:
+        """Run every configured step and return per-step outcomes.
+
+        Does not raise on step failures: callers decide how to surface them.
+        A failed DDL / source_ddl step aborts the remaining steps because later extracts depend on it.
+        """
         logging.info(f"Pipeline initialized with config: {self.config.name}, version: {self.config.version}")
         execution_results: list[StepExecutionResult] = []
 
@@ -66,19 +71,11 @@ class PipelineClass:
             self._log_step_result(result)
 
             if result.status == StepExecutionStatus.ERROR_FATAL:
-                error_msg = f"Pipeline execution failed due to error in DDL step: {result.step_name}"
+                error_msg = f"Aborting run: fatal error in DDL step '{result.step_name}'"
                 if result.error_message:
                     error_msg += f" - {result.error_message}"
                 logger.error(error_msg)
-                raise RuntimeError(error_msg)
-
-        failed_steps = [r for r in execution_results if r.status == StepExecutionStatus.ERROR]
-        if failed_steps:
-            error_msg = (
-                f"Pipeline execution failed due to errors in steps: {', '.join(r.step_name for r in failed_steps)}"
-            )
-            logger.error(error_msg)
-            raise RuntimeError(error_msg)
+                break
 
         return execution_results
 
