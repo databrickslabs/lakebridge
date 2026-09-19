@@ -8,7 +8,7 @@ with query_metrics as (select user_id
 select 'chart_cpu_consumption_by_hour_and_query_type' set_name
       ,query_type
       ,sum(run_time_ms)::double precision as sum_cpu_time
-      ,date_part(hour,start_time) as hour
+      ,date_part(hour,start_time)::int as hour
   from query_overview
  where run_time_ms > 0
  group by 1,2,4
