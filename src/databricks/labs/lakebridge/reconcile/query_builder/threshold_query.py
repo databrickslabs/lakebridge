@@ -236,13 +236,11 @@ class ThresholdQueryBuilder(QueryBuilder):
         join_columns = self.join_columns if self.join_columns else set()
         keys: list[str] = sorted(self.partition_column.union(join_columns))
         keys_select_alias = [self._build_column_with_alias(col) for col in keys]
-        keys_expr = self._apply_user_transformation(keys_select_alias)
+        keys_expr = [r.column for r in self._transformer.transform_user(keys_select_alias, self.layer)]
 
         # threshold column expression
         threshold_alias = [self._build_column_with_alias(col) for col in sorted(self.threshold_columns)]
-        thresholds_expr = threshold_alias
-        if self.user_transformations:
-            thresholds_expr = self._apply_user_transformation(threshold_alias)
+        thresholds_expr = [r.column for r in self._transformer.transform_user(threshold_alias, self.layer)]
 
         query = (select(*keys_expr + thresholds_expr).from_(":tbl").where(self.filter, dialect=self.engine)).sql(
             dialect=self.engine

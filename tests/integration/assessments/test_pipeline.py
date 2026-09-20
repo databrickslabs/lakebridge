@@ -102,7 +102,6 @@ def test_run_pipeline(
 def test_run_sql_failure_pipeline(
     sandbox_sqlserver: DatabaseConnector,
     sql_failure_config: PipelineConfig,
-    get_logger: Logger,
     tmp_path: Path,
 ) -> None:
     pipeline = PipelineClass(
@@ -111,11 +110,12 @@ def test_run_sql_failure_pipeline(
         db_path=tmp_path / _DB_FILE,
         cred_file_path=tmp_path / _CREDS_FILE,
     )
-    with pytest.raises(RuntimeError) as e:
-        pipeline.execute()
+    results = pipeline.execute()
 
-    # Find the failed SQL step
-    assert "Pipeline execution failed due to errors in steps: invalid_sql_step" in str(e.value)
+    statuses = {r.step_name: r.status for r in results}
+    assert statuses["invalid_sql_step"] == StepExecutionStatus.ERROR
+    failed = next(r for r in results if r.step_name == "invalid_sql_step")
+    assert failed.error_message
 
 
 def test_run_optional_absence_pipeline(
@@ -146,7 +146,6 @@ def test_run_optional_absence_pipeline(
 def test_run_python_failure_pipeline(
     sandbox_sqlserver: DatabaseConnector,
     python_failure_config: PipelineConfig,
-    get_logger: Logger,
     tmp_path: Path,
 ) -> None:
     pipeline = PipelineClass(
@@ -155,11 +154,12 @@ def test_run_python_failure_pipeline(
         db_path=tmp_path / _DB_FILE,
         cred_file_path=tmp_path / _CREDS_FILE,
     )
-    with pytest.raises(RuntimeError) as e:
-        pipeline.execute()
+    results = pipeline.execute()
 
-    # Find the failed Python step
-    assert "Pipeline execution failed due to errors in steps: invalid_python_step" in str(e.value)
+    statuses = {r.step_name: r.status for r in results}
+    assert statuses["invalid_python_step"] == StepExecutionStatus.ERROR
+    failed = next(r for r in results if r.step_name == "invalid_python_step")
+    assert failed.error_message
 
 
 def test_skipped_steps(
