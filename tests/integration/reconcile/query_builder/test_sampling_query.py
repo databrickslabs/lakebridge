@@ -13,7 +13,12 @@ from databricks.labs.lakebridge.reconcile.recon_config import (
     Transformation,
 )
 from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
-from tests.conftest import ansi_schema_fixture_factory, oracle_schema_fixture_factory, tsql_schema_fixture_factory
+from tests.conftest import (
+    ansi_schema_fixture_factory,
+    make_column_transformer,
+    oracle_schema_fixture_factory,
+    tsql_schema_fixture_factory,
+)
 
 
 def test_build_query_for_snowflake_src(
@@ -61,7 +66,12 @@ def test_build_query_for_snowflake_src(
     )
 
     src_actual = SamplingQueryBuilder(
-        conf, sch, "source", get_dialect("snowflake"), fake_oracle_datasource
+        conf,
+        sch,
+        "source",
+        get_dialect("snowflake"),
+        fake_oracle_datasource,
+        make_column_transformer(sch, get_dialect("snowflake"), fake_oracle_datasource, conf),
     ).build_query(df)
 
     src_expected = (
@@ -81,7 +91,12 @@ def test_build_query_for_snowflake_src(
     )
 
     tgt_actual = SamplingQueryBuilder(
-        conf, sch_with_alias, "target", get_dialect("databricks"), fake_databricks_datasource
+        conf,
+        sch_with_alias,
+        "target",
+        get_dialect("databricks"),
+        fake_databricks_datasource,
+        make_column_transformer(sch_with_alias, get_dialect("databricks"), fake_databricks_datasource, conf),
     ).build_query(df)
 
     tgt_expected = (
@@ -147,9 +162,14 @@ def test_build_query_for_oracle_src(
         oracle_schema_fixture_factory("s_comment", "nchar"),
     ]
 
-    src_actual = SamplingQueryBuilder(conf, sch, "source", get_dialect("oracle"), fake_oracle_datasource).build_query(
-        df
-    )
+    src_actual = SamplingQueryBuilder(
+        conf,
+        sch,
+        "source",
+        get_dialect("oracle"),
+        fake_oracle_datasource,
+        make_column_transformer(sch, get_dialect("oracle"), fake_oracle_datasource, conf),
+    ).build_query(df)
     src_expected = (
         'SELECT src."s_acctbal", src."s_address", src."s_comment", src."s_name", '
         'src."s_nationkey", src."s_phone", src."s_suppkey" FROM (SELECT '
@@ -169,7 +189,12 @@ def test_build_query_for_oracle_src(
     )
 
     tgt_actual = SamplingQueryBuilder(
-        conf, sch_with_alias, "target", get_dialect("databricks"), fake_databricks_datasource
+        conf,
+        sch_with_alias,
+        "target",
+        get_dialect("databricks"),
+        fake_databricks_datasource,
+        make_column_transformer(sch_with_alias, get_dialect("databricks"), fake_databricks_datasource, conf),
     ).build_query(df)
     tgt_expected = (
         'SELECT src.`s_acctbal`, src.`s_address`, src.`s_comment`, src.`s_name`, '
@@ -216,7 +241,12 @@ def test_build_query_for_databricks_src(spark, table_conf, fake_databricks_datas
     conf = table_conf(join_columns=["`s_suppkey`", "`s_nationkey`"])
 
     src_actual = SamplingQueryBuilder(
-        conf, schema, "source", get_dialect("databricks"), fake_databricks_datasource
+        conf,
+        schema,
+        "source",
+        get_dialect("databricks"),
+        fake_databricks_datasource,
+        make_column_transformer(schema, get_dialect("databricks"), fake_databricks_datasource, conf),
     ).build_query(df)
     src_expected = (
         'SELECT src.`s_acctbal`, src.`s_address`, src.`s_comment`, src.`s_name`, '
@@ -281,7 +311,12 @@ def test_build_query_for_snowflake_without_transformations(
     )
 
     src_actual = SamplingQueryBuilder(
-        conf, sch, "source", get_dialect("snowflake"), fake_oracle_datasource
+        conf,
+        sch,
+        "source",
+        get_dialect("snowflake"),
+        fake_oracle_datasource,
+        make_column_transformer(sch, get_dialect("snowflake"), fake_oracle_datasource, conf),
     ).build_query(df)
     src_expected = (
         'SELECT src."s_acctbal", src."s_address", src."s_comment", src."s_name", '
@@ -298,7 +333,12 @@ def test_build_query_for_snowflake_without_transformations(
     )
 
     tgt_actual = SamplingQueryBuilder(
-        conf, sch_with_alias, "target", get_dialect("databricks"), fake_databricks_datasource
+        conf,
+        sch_with_alias,
+        "target",
+        get_dialect("databricks"),
+        fake_databricks_datasource,
+        make_column_transformer(sch_with_alias, get_dialect("databricks"), fake_databricks_datasource, conf),
     ).build_query(df)
     tgt_expected = (
         'SELECT src.`s_acctbal`, src.`s_address`, src.`s_comment`, src.`s_name`, '
@@ -353,7 +393,12 @@ def test_build_query_for_tsql(spark, fake_tsql_datasource, fake_databricks_datas
     )
 
     src_actual = SamplingQueryBuilder(
-        normalized_conf, src_schema, "source", get_dialect("tsql"), fake_tsql_datasource
+        normalized_conf,
+        src_schema,
+        "source",
+        get_dialect("tsql"),
+        fake_tsql_datasource,
+        make_column_transformer(src_schema, get_dialect("tsql"), fake_tsql_datasource, normalized_conf),
     ).build_query(df)
 
     src_expected = (
@@ -412,7 +457,12 @@ def test_build_query_for_snowflake_src_for_non_integer_primary_keys(
     )
 
     src_actual = SamplingQueryBuilder(
-        conf, sch, "source", get_dialect("snowflake"), fake_oracle_datasource
+        conf,
+        sch,
+        "source",
+        get_dialect("snowflake"),
+        fake_oracle_datasource,
+        make_column_transformer(sch, get_dialect("snowflake"), fake_oracle_datasource, conf),
     ).build_query(df)
     src_expected = (
         'SELECT src."s_name", src."s_nationkey", src."s_suppkey" FROM (SELECT '
@@ -426,7 +476,12 @@ def test_build_query_for_snowflake_src_for_non_integer_primary_keys(
     )
 
     tgt_actual = SamplingQueryBuilder(
-        conf, sch_with_alias, "target", get_dialect("databricks"), fake_databricks_datasource
+        conf,
+        sch_with_alias,
+        "target",
+        get_dialect("databricks"),
+        fake_databricks_datasource,
+        make_column_transformer(sch_with_alias, get_dialect("databricks"), fake_databricks_datasource, conf),
     ).build_query(df)
     tgt_expected = (
         'SELECT src.`s_name`, src.`s_nationkey`, src.`s_suppkey` FROM (SELECT '
@@ -459,7 +514,12 @@ def test_build_query_with_alias_applies_dialect_transformations(
         ],
     )
     actual = SamplingQueryBuilder(
-        conf, sch_with_alias, "target", get_dialect("databricks"), fake_databricks_datasource
+        conf,
+        sch_with_alias,
+        "target",
+        get_dialect("databricks"),
+        fake_databricks_datasource,
+        make_column_transformer(sch_with_alias, get_dialect("databricks"), fake_databricks_datasource, conf),
     ).build_query_with_alias()
 
     expected = (
