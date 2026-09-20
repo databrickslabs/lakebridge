@@ -19,6 +19,7 @@ from databricks.labs.lakebridge.connections.credential_manager import (
 from databricks.labs.lakebridge.connections.database_manager import create_connector
 from databricks.labs.lakebridge.connections.env_getter import EnvGetter
 from databricks.labs.lakebridge.connections.mssql_auth import AUTH_CHOICES
+from databricks.labs.lakebridge.connections.redshift_utils import parse_redshift_region
 from databricks.labs.lakebridge.connections.synapse_connection_helpers import validate_synapse_pools
 
 logger = logging.getLogger(__name__)
@@ -285,6 +286,13 @@ class ConfigureRedshiftAssessment(AssessmentConfigurator):
 
         source_creds: dict[str, Any] = {"auth_type": auth_type, "ssl": "yes"}
         source_creds["host"] = self.prompts.question("Enter the Redshift cluster endpoint (host)")
+        region = parse_redshift_region(str(source_creds["host"]))
+        if region:
+            # Redshift can't report its region in SQL; capture it from the endpoint host so the
+            # profiler extract is self-contained (region is written to profiler_metadata, letting a
+            # downstream consumer compute Serverless cost = rpu_hours x region price).
+            source_creds["metadata"] = {"region": region}
+            logger.info("Parsed AWS region '%s' from the Redshift host; stored under source metadata.", region)
         source_creds["port"] = int(self.prompts.question("Enter the port details", valid_number=True, default="5439"))
         source_creds["database"] = self.prompts.question("Enter the database name")
         if auth_type == "sql_authentication":

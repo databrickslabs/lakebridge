@@ -19,7 +19,6 @@ from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm.session import Session
 
 from databricks.labs.lakebridge.connections.mssql_auth import resolve_mssql_credentials
-from databricks.labs.lakebridge.connections.redshift_utils import parse_redshift_region
 from databricks.labs.lakebridge.connections.snowflake_utils import (
     is_valid_snowflake_account,
     parse_snowflake_account,
@@ -256,7 +255,6 @@ class OracleConnector(_BaseConnector):
 class RedshiftConnector(DatabaseConnector):
     def __init__(self, config: JsonObject):
         self.config = config
-        self.region: str | None = None
         self._conn: redshift_connector.Connection = self._connect()
         # Optional extract steps can fail (e.g. STV on serverless). Without autocommit that
         # aborts the transaction (25P02); rollback would also undo source_ddl query_view.
@@ -268,20 +266,6 @@ class RedshiftConnector(DatabaseConnector):
         database = str(self.config["database"])
         port = int(str(self.config.get("port", "5439")))
         ssl = str(self.config.get("ssl", "true")).lower() in {"true", "yes", "1"}
-
-        # Redshift has no in-SQL region function, but the endpoint host encodes the region
-        # (e.g. <wg>.<acct>.us-east-1.redshift-serverless.amazonaws.com). Parse and log it so
-        # region-dependent logic (Serverless price lookup) and incident triage have it.
-        parsed_region = parse_redshift_region(host)
-        if parsed_region:
-            logger.info("Redshift region resolved from endpoint host: %s", parsed_region)
-        else:
-            logger.warning(
-                "Could not resolve AWS region from Redshift host %r (non-standard endpoint); "
-                "region-dependent logic will fall back to the configured region if set.",
-                host,
-            )
-        self.region = parsed_region or (str(self.config["region"]) if "region" in self.config else None)
 
         if auth_type == "sql_authentication":
             return redshift_connector.connect(
@@ -299,7 +283,7 @@ class RedshiftConnector(DatabaseConnector):
                 port=port,
                 ssl=ssl,
                 iam=True,
-                region=self.region,
+                region=str(self.config["region"]) if "region" in self.config else None,
                 profile=str(self.config["aws_profile"]) if "aws_profile" in self.config else None,
                 cluster_identifier=(
                     str(self.config["cluster_identifier"]) if "cluster_identifier" in self.config else None
