@@ -66,7 +66,12 @@ def empty_result_config() -> PipelineConfig:
     config_path = prefix / ".." / ".." / "resources" / "assessments" / "pipeline_config_empty_result.yml"
     config: PipelineConfig = PipelineClass.load_config_from_yaml(config_path)
     test_root = prefix / ".." / ".."
-    updated_steps = [step.copy(extract_source=str(test_root / step.extract_source)) for step in config.steps]
+    updated_steps = []
+    for step in config.steps:
+        changes: dict[str, str] = {"extract_source": str(test_root / step.extract_source)}
+        if step.ddl_source is not None:
+            changes["ddl_source"] = str(test_root / step.ddl_source)
+        updated_steps.append(step.copy(**changes))
     return config.copy(steps=updated_steps)
 
 
@@ -237,6 +242,7 @@ def test_pipeline_step_comments() -> None:
         name="step_w_comment",
         type="sql",
         extract_source="path/to/extract/source.sql",
+        ddl_source="path/to/extract/source_ddl.sql",
         mode="append",
         frequency="once",
         flag="active",
@@ -274,13 +280,19 @@ def test_run_empty_result_pipeline(
         StepExecutionResult(step_name="empty_result_step", status=StepExecutionStatus.COMPLETE, error_message=None)
     ]
 
-    # Verify that no table was created (processing was skipped for empty resultset)
+    # Verify that DDL still created the empty typed table
     with duckdb.connect(tmp_path / _DB_FILE) as conn:
         tables = conn.execute("SHOW TABLES").fetchall()
         table_names = [table[0] for table in tables]
 
-    # Table should NOT be created when resultset is empty
-    assert "empty_result_step" not in table_names, "Empty resultset should skip table creation"
+    assert "empty_result_step" in table_names, "Empty resultset should still apply DDL schema"
+    with duckdb.connect(tmp_path / _DB_FILE) as conn:
+        count = conn.execute("SELECT COUNT(*) FROM empty_result_step").fetchone()
+        assert count is not None and count[0] == 0
+        schema = {col[0]: col[1] for col in conn.execute("DESCRIBE empty_result_step").fetchall()}
+        assert "col1" in schema
+        assert "col2" in schema
+        assert "col3" in schema
 
 
 def test_run_pipeline_with_ddl(
@@ -289,7 +301,7 @@ def test_run_pipeline_with_ddl(
     get_logger: Logger,
     tmp_path: Path,
 ) -> None:
-    """Test pipeline execution with DDL steps that create tables with proper data types."""
+    """Test pipeline execution with per-step DDL that creates tables with proper data types."""
     pipeline = PipelineClass(
         config=pipeline_config_with_ddl,
         executor=sandbox_sqlserver,
@@ -317,12 +329,12 @@ def test_run_pipeline_with_ddl(
         assert "VARCHAR" in schema_dict["name"], "name should be VARCHAR"
         assert "TIMESTAMP" in schema_dict["create_date"], "create_date should be TIMESTAMP"
 
-        # Check usage table schema (created without DDL, preserves native types)
+        # Check usage table schema (also from DDL)
         usage_schema = conn.execute("DESCRIBE usage").fetchall()
         get_logger.info(f"Usage schema: {usage_schema}")
-
-        # Verify table was created successfully (native types are preserved)
-        assert len(usage_schema) > 0, "Usage table should have columns"
+        usage_schema_dict = {col[0]: col[1] for col in usage_schema}
+        assert "VARCHAR" in usage_schema_dict["sql_handle"], "sql_handle should be VARCHAR"
+        assert "BIGINT" in usage_schema_dict["execution_count"], "execution_count should be BIGINT"
 
         # Verify data was inserted
         inventory_result = conn.execute("SELECT COUNT(*) FROM inventory").fetchone()
@@ -337,7 +349,7 @@ def test_run_pipeline_with_combined_ddl(
     get_logger: Logger,
     tmp_path: Path,
 ) -> None:
-    """Test pipeline execution with a single DDL file containing multiple CREATE TABLE statements."""
+    """Test pipeline execution where each SQL step carries its own DuckDB DDL."""
     pipeline = PipelineClass(
         config=pipeline_config_combined_ddl,
         executor=sandbox_sqlserver,
@@ -353,25 +365,20 @@ def test_run_pipeline_with_combined_ddl(
             StepExecutionStatus.SKIPPED,
         ), f"Step {result.step_name} failed with status {result.status}"
 
-    # Verify all tables from combined DDL were created
     with duckdb.connect(tmp_path / _DB_FILE) as conn:
-        # Check that all three tables exist
         tables = conn.execute("SHOW TABLES").fetchall()
         table_names = [table[0] for table in tables]
         get_logger.info(f"Created tables: {table_names}")
 
         assert "inventory" in table_names, "inventory table should exist"
         assert "usage" in table_names, "usage table should exist"
-        assert "metadata" in table_names, "metadata table should exist"
 
-        # Verify inventory table schema
         inventory_schema = conn.execute("DESCRIBE inventory").fetchall()
         get_logger.info(f"Inventory schema: {inventory_schema}")
         schema_dict = {col[0]: col[1] for col in inventory_schema}
-        assert schema_dict["db_id"] == "INTEGER", "db_id should be INTEGER from combined DDL"
+        assert schema_dict["db_id"] == "INTEGER", "db_id should be INTEGER from DDL"
         assert "VARCHAR" in schema_dict["name"], "name should be VARCHAR"
 
-        # Verify usage table schema
         usage_schema = conn.execute("DESCRIBE usage").fetchall()
         get_logger.info(f"Usage schema: {usage_schema}")
         usage_schema_dict = {col[0]: col[1] for col in usage_schema}
@@ -379,17 +386,8 @@ def test_run_pipeline_with_combined_ddl(
         assert "BIGINT" in usage_schema_dict["execution_count"], "execution_count should be BIGINT"
         assert "BIGINT" in usage_schema_dict["total_rows"], "total_rows should be BIGINT"
 
-        # Verify metadata table schema (created but not populated)
-        metadata_schema = conn.execute("DESCRIBE metadata").fetchall()
-        get_logger.info(f"Metadata schema: {metadata_schema}")
-        metadata_schema_dict = {col[0]: col[1] for col in metadata_schema}
-        assert "VARCHAR" in metadata_schema_dict["pipeline_name"], "pipeline_name should be VARCHAR"
-
-        # Verify data was inserted into inventory and usage tables
         inventory_result = conn.execute("SELECT COUNT(*) FROM inventory").fetchone()
         usage_result = conn.execute("SELECT COUNT(*) FROM usage").fetchone()
-        metadata_result = conn.execute("SELECT COUNT(*) FROM metadata").fetchone()
 
         assert inventory_result is not None and inventory_result[0] > 0, "Inventory table should have data"
         assert usage_result is not None and usage_result[0] > 0, "Usage table should have data"
-        assert metadata_result is not None and metadata_result[0] == 0, "Metadata table should be empty (no data step)"
