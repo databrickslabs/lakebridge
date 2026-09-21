@@ -70,19 +70,14 @@ _FALLBACK_PRICES = {
 
 
 def resolve_region(cred_config_path: str) -> str | None:
-    """Region the configurator parsed from the endpoint host (creds ``metadata.region``), else the host."""
+    """AWS region parsed from the Redshift endpoint host in the credentials."""
     try:
-        config = create_credential_manager(
-            "redshift", EnvGetter(), creds_path=Path(cred_config_path)
-        ).get_credentials("redshift")
+        config = create_credential_manager("redshift", EnvGetter(), creds_path=Path(cred_config_path)).get_credentials(
+            "redshift"
+        )
     except Exception:  # pylint: disable=broad-except  # creds are optional / may be malformed
         return None
-    if not isinstance(config, dict):
-        return None
-    metadata = config.get("metadata")
-    if isinstance(metadata, dict) and metadata.get("region"):
-        return str(metadata["region"])
-    host = config.get("host")
+    host = config.get("host") if isinstance(config, dict) else None
     return parse_redshift_region(str(host)) if host else None
 
 

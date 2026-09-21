@@ -1,7 +1,6 @@
 import json
 import logging
 import platform
-import re
 from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
@@ -28,7 +27,6 @@ from databricks.labs.lakebridge.assessments.run_metadata import (
     ProfilerRunStatus,
 )
 from databricks.labs.lakebridge.assessments.variants import resolve_variant
-from databricks.labs.lakebridge.resources.assessments.common.duckdb_helpers import connect_to_profiler_db
 from databricks.labs.lakebridge.connections.credential_manager import (
     create_credential_manager,
     cred_file,
@@ -197,7 +195,6 @@ class Profiler:
             raise RuntimeError(f"Pipeline execution failed for source {source_system} : {e}") from e
 
         self.write_run_metadata(db_path, pipeline_config, results)
-        self._write_metadata(self._source_metadata(source_system, cred_file_path), db_path)
 
         failed = [r for r in results if r.status == StepExecutionStatus.ERROR]
         if failed:
@@ -211,43 +208,3 @@ class Profiler:
         cred_manager = create_credential_manager(source_system, EnvGetter(), creds_path=cred_file_path)
         connect_config = cred_manager.get_credentials(source_system)
         return create_connector(source_system, connect_config)
-
-    @staticmethod
-    def _source_metadata(source_system: str, cred_file_path: Path | None) -> dict:
-        """Return the generic ``metadata`` block a configurator wrote under the source in creds.
-
-        Configurators may record source-specific context there (e.g. the Redshift configurator
-        stores the AWS region parsed from the endpoint host). Returns ``{}`` when creds or the
-        block are absent, so the caller no-ops.
-        """
-        try:
-            cred_manager = create_credential_manager(source_system, EnvGetter(), creds_path=cred_file_path)
-            connect_config = cred_manager.get_credentials(source_system)
-        except Exception:  # pylint: disable=broad-except  # creds are optional (e.g. python-only pipelines)
-            return {}
-        metadata = connect_config.get("metadata") if isinstance(connect_config, dict) else None
-        return metadata if isinstance(metadata, dict) else {}
-
-    @staticmethod
-    def _write_metadata(metadata: dict, db_path: Path) -> None:
-        """Persist a source's ``metadata`` block into the profiler DB, one column per key.
-
-        Makes the extract self-contained: e.g. Redshift stores ``region`` so a downstream consumer
-        that lacks the connection config can still compute Serverless cost (rpu_hours x region
-        price). Generic (any keys) and best-effort -- a failure must not fail the profile. Keys are
-        restricted to identifier-safe names since they become column names.
-        """
-        safe = {k: v for k, v in metadata.items() if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", str(k))}
-        if not safe:
-            return
-        cols = list(safe)
-        col_defs = ", ".join(f'"{c}" VARCHAR' for c in cols)
-        placeholders = ", ".join("?" for _ in cols)
-        values = [None if safe[c] is None else str(safe[c]) for c in cols]
-        try:
-            with connect_to_profiler_db(str(db_path.expanduser())) as conn:
-                conn.execute(f"CREATE OR REPLACE TABLE profiler_metadata ({col_defs})")
-                conn.execute(f"INSERT INTO profiler_metadata VALUES ({placeholders})", values)
-            logger.info("Stored profiler_metadata columns %s for self-contained downstream analysis", cols)
-        except Exception as e:  # pylint: disable=broad-except
-            logger.warning("Could not persist profiler metadata: %s", e)

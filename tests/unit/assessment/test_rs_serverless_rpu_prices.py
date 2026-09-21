@@ -7,13 +7,18 @@ import duckdb
 
 from databricks.labs.lakebridge.resources.assessments.redshift import rs_serverless_rpu_prices as mod
 
-_REGION_INDEX = {"regions": {"us-east-1": {"currentVersionUrl": "/offers/v1.0/aws/AmazonRedshift/x/us-east-1/index.json"}}}
+_REGION_INDEX = {
+    "regions": {"us-east-1": {"currentVersionUrl": "/offers/v1.0/aws/AmazonRedshift/x/us-east-1/index.json"}}
+}
 _OFFER = {
     "products": {
         # on-demand compute rate (the one we want)
         "SKU_RPU": {"productFamily": "Serverless", "attributes": {"usagetype": "USE1-Redshift:ServerlessUsage"}},
         # reservation rate (must be excluded)
-        "SKU_RESV": {"productFamily": "Serverless", "attributes": {"usagetype": "USE1-Redshift:ServerlessUsage-CR-1YR-NU"}},
+        "SKU_RESV": {
+            "productFamily": "Serverless",
+            "attributes": {"usagetype": "USE1-Redshift:ServerlessUsage-CR-1YR-NU"},
+        },
         # managed storage (different metric, must be excluded)
         "SKU_RMS": {"productFamily": "Redshift Managed Storage", "attributes": {"usagetype": "USE1-RMS:Serverless"}},
     },
@@ -26,14 +31,14 @@ _OFFER = {
 }
 
 
-def _fake_get(url, timeout=None):
+def _fake_get(url, timeout=None):  # pylint: disable=unused-argument
     resp = mock.Mock()
     resp.json.return_value = _OFFER if "us-east-1/index.json" in url else _REGION_INDEX
     return resp
 
 
-def _rows(db):
-    with duckdb.connect(str(db)) as conn:
+def _rows(db_path):
+    with duckdb.connect(str(db_path)) as conn:
         return conn.execute(
             "SELECT region, usd_per_rpu_hour, valid_at, source FROM rs_serverless_rpu_prices"
         ).fetchall()
@@ -50,33 +55,34 @@ def test_fetch_rpu_price_unknown_region_returns_none():
 
 
 def test_write_prices_uses_live_api(tmp_path):
-    db = tmp_path / "p.duckdb"
+    db_path = tmp_path / "p.duckdb"
     with (
         mock.patch.object(mod, "resolve_region", return_value="us-east-1"),
         mock.patch.object(mod.requests, "get", side_effect=_fake_get),
     ):
-        mod.write_prices(str(db), "unused")
-    assert _rows(db) == [("us-east-1", 0.375, date.today(), "api")]
+        mod.write_prices(str(db_path), "unused")
+    assert _rows(db_path) == [("us-east-1", 0.375, date.today(), "api")]
 
 
 def test_write_prices_falls_back_on_api_exception(tmp_path):
-    db = tmp_path / "p.duckdb"
+    db_path = tmp_path / "p.duckdb"
     with (
         mock.patch.object(mod, "resolve_region", return_value="us-west-2"),
         mock.patch.object(mod, "fetch_rpu_price", side_effect=RuntimeError("network down")),
     ):
-        mod.write_prices(str(db), "unused")
-    assert _rows(db) == [("us-west-2", 0.36, mod._FALLBACK_VALID_AT, "fallback")]
+        mod.write_prices(str(db_path), "unused")
+    # us-west-2 fallback = 0.36, stamped with the snapshot date and marked 'fallback'
+    assert _rows(db_path) == [("us-west-2", 0.36, date(2026, 9, 21), "fallback")]
 
 
 def test_write_prices_falls_back_when_api_returns_none(tmp_path):
-    db = tmp_path / "p.duckdb"
+    db_path = tmp_path / "p.duckdb"
     with (
         mock.patch.object(mod, "resolve_region", return_value="eu-west-1"),
         mock.patch.object(mod, "fetch_rpu_price", return_value=None),
     ):
-        mod.write_prices(str(db), "unused")
-    assert _rows(db) == [("eu-west-1", 0.387, mod._FALLBACK_VALID_AT, "fallback")]
+        mod.write_prices(str(db_path), "unused")
+    assert _rows(db_path) == [("eu-west-1", 0.387, date(2026, 9, 21), "fallback")]
 
 
 def test_write_prices_raises_without_region():
