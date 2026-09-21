@@ -16,6 +16,7 @@ steps:
   - name: rs_spectrum_tb_month
     type: sql
     extract_source: src/databricks/labs/lakebridge/resources/assessments/redshift/sql/1_rs_spectrum_tb_month.sql
+    ddl_source: src/databricks/labs/lakebridge/resources/assessments/redshift/sql/1_rs_spectrum_tb_month_ddl.sql
     mode: overwrite
     frequency: once
     flag: active
@@ -23,6 +24,7 @@ steps:
   - name: rs_managed_storage_gb
     type: sql
     extract_source: src/databricks/labs/lakebridge/resources/assessments/redshift/sql/2_rs_managed_storage_gb_stv.sql
+    ddl_source: src/databricks/labs/lakebridge/resources/assessments/redshift/sql/2_rs_managed_storage_gb_ddl.sql
     mode: overwrite
     frequency: once
     flag: active
@@ -31,22 +33,7 @@ steps:
   - name: rs_managed_storage_gb
     type: sql
     extract_source: src/databricks/labs/lakebridge/resources/assessments/redshift/sql/2_rs_managed_storage_gb_serverless.sql
-    mode: overwrite
-    frequency: once
-    flag: active
-    optional: true
-  # Provisioned single-AZ nodes (stv_partitions). Absent on serverless / multi-AZ.
-  - name: rs_nodes
-    type: sql
-    extract_source: src/databricks/labs/lakebridge/resources/assessments/redshift/sql/3_rs_nodes_stv.sql
-    mode: overwrite
-    frequency: once
-    flag: active
-    optional: true
-  # Serverless nodes / RPU capacity (sys_serverless_usage). Absent on provisioned clusters.
-  - name: rs_nodes
-    type: sql
-    extract_source: src/databricks/labs/lakebridge/resources/assessments/redshift/sql/3_rs_nodes_serverless.sql
+    ddl_source: src/databricks/labs/lakebridge/resources/assessments/redshift/sql/2_rs_managed_storage_gb_ddl.sql
     mode: overwrite
     frequency: once
     flag: active
@@ -54,43 +41,68 @@ steps:
   - name: rs_avg_concurrent_users
     type: sql
     extract_source: src/databricks/labs/lakebridge/resources/assessments/redshift/sql/4_rs_avg_concurrent_users.sql
+    ddl_source: src/databricks/labs/lakebridge/resources/assessments/redshift/sql/4_rs_avg_concurrent_users_ddl.sql
     mode: overwrite
     frequency: once
     flag: active
   - name: rs_avg_queries_minute
     type: sql
     extract_source: src/databricks/labs/lakebridge/resources/assessments/redshift/sql/5_rs_avg_queries_minute.sql
+    ddl_source: src/databricks/labs/lakebridge/resources/assessments/redshift/sql/5_rs_avg_queries_minute_ddl.sql
     mode: overwrite
     frequency: once
     flag: active
   - name: chart_query_type_by_hour
     type: sql
     extract_source: src/databricks/labs/lakebridge/resources/assessments/redshift/sql/6_chart_query_type_by_hour.sql
+    ddl_source: src/databricks/labs/lakebridge/resources/assessments/redshift/sql/6_chart_query_type_by_hour_ddl.sql
     mode: overwrite
     frequency: once
     flag: active
   - name: chart_cpu_consumption_by_query_type
     type: sql
     extract_source: src/databricks/labs/lakebridge/resources/assessments/redshift/sql/7_chart_cpu_consumption_by_query_type.sql
+    ddl_source: src/databricks/labs/lakebridge/resources/assessments/redshift/sql/7_chart_cpu_consumption_by_query_type_ddl.sql
     mode: overwrite
     frequency: once
     flag: active
   - name: chart_concurrent_users_by_hour
     type: sql
     extract_source: src/databricks/labs/lakebridge/resources/assessments/redshift/sql/8_chart_concurrent_users_by_hour.sql
+    ddl_source: src/databricks/labs/lakebridge/resources/assessments/redshift/sql/8_chart_concurrent_users_by_hour_ddl.sql
     mode: overwrite
     frequency: once
     flag: active
   - name: chart_cpu_consumption_by_hour_and_query_type
     type: sql
     extract_source: src/databricks/labs/lakebridge/resources/assessments/redshift/sql/9_chart_cpu_consumption_by_hour_and_query_type.sql
+    ddl_source: src/databricks/labs/lakebridge/resources/assessments/redshift/sql/9_chart_cpu_consumption_by_hour_and_query_type_ddl.sql
     mode: overwrite
     frequency: once
     flag: active
-  # Serverless-only cost. Absent on provisioned clusters.
-  - name: cost_incurred
+  # Provisioned cluster shape (stv_partitions). Absent on serverless clusters.
+  - name: rs_provisioned_nodes
     type: sql
-    extract_source: src/databricks/labs/lakebridge/resources/assessments/redshift/sql/10_cost_incurred.sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/redshift/sql/3_rs_provisioned_nodes.sql
+    ddl_source: src/databricks/labs/lakebridge/resources/assessments/redshift/sql/3_rs_provisioned_nodes_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+  # Serverless usage + cost per (day, RPU capacity) (sys_serverless_usage). Absent on provisioned clusters.
+  - name: rs_serverless_usage
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/redshift/sql/3_rs_serverless_usage.sql
+    ddl_source: src/databricks/labs/lakebridge/resources/assessments/redshift/sql/3_rs_serverless_usage_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+  # Serverless RPU price ($/RPU-hour) for the cluster's region, fetched at run time from the public
+  # AWS Price List API (no credentials). Serverless-only; downstream cost = rpu_hours * price[region].
+  - name: rs_serverless_rpu_prices
+    type: python
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/redshift/rs_serverless_rpu_prices.py
     mode: overwrite
     frequency: once
     flag: active
