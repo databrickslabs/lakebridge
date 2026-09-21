@@ -90,3 +90,20 @@ The profiler can be run multiple times to capture different time periods or upda
 Each execution will create a timestamped snapshot of your source environment.
 :::
 
+## Extract Metadata 
+
+Every profiler run writes a `profiler_run_metadata` table into the DuckDB extract at the end of the run to provide run-level metadata for downstream consumption. Failed runs still get a row when possible, so consumers can see which steps failed without parsing logs.
+
+| Column | Type | Description |
+|:-------|:-----|:------------|
+| `source_system` | `VARCHAR` | Originating platform (for example `mssql`, `snowflake`) |
+| `variant` | `VARCHAR` | Pipeline variant the source was profiled with (for example `single_db`, `multi_db`); `NULL` for sources without variants |
+| `pipeline_name` | `VARCHAR` | Name of the pipeline configuration that produced the extract |
+| `pipeline_version` | `VARCHAR` | Version of the pipeline configuration that produced the extract |
+| `lakebridge_version` | `VARCHAR` | Lakebridge version that produced the extract |
+| `python_version` | `VARCHAR` | Python version of the environment that ran the profiler |
+| `operating_system` | `VARCHAR` | Operating system, version and architecture of the machine that ran the profiler |
+| `status` | `VARCHAR` | Run summary: `COMPLETE`, `COMPLETE_WITH_ABSENCES`, or `FAILED` |
+| `results` | `VARCHAR` | JSON array of per-step outcomes (`step_name`, `status`, `error_message`) |
+| `generated_at` | `TIMESTAMPTZ` | UTC timestamp when the metadata row was written |
+

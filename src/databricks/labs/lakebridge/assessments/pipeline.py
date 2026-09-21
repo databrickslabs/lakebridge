@@ -19,14 +19,13 @@ from databricks.labs.lakebridge.resources.assessments.common.duckdb_helpers impo
 logger = logging.getLogger(__name__)
 
 
-def make_profiler_db_filename(platform: str) -> str:
-    return f"profiler_extract_{platform}_{lakebridge_version}_{datetime.now(timezone.utc).strftime('%Y%m%d')}.db"
+def make_profiler_db_filename(source_system: str) -> str:
+    return f"profiler_extract_{source_system}_{lakebridge_version}_{datetime.now(timezone.utc).strftime('%Y%m%d')}.db"
 
 
 class StepExecutionStatus(str, Enum):
     COMPLETE = "COMPLETE"
     ERROR = "ERROR"
-    ERROR_FATAL = "ERROR_FATAL"
     SKIPPED = "SKIPPED"
     ABSENT = "ABSENT"
 
@@ -57,6 +56,11 @@ class PipelineClass:
         self._cred_file_path = cred_file_path
 
     def execute(self) -> list[StepExecutionResult]:
+        """Run every configured step and return per-step outcomes.
+
+        Does not raise on step failures: callers decide how to surface them.
+        A failed DDL / source_ddl step aborts the remaining steps because later extracts depend on it.
+        """
         logging.info(f"Pipeline initialized with config: {self.config.name}, version: {self.config.version}")
         execution_results: list[StepExecutionResult] = []
 
@@ -65,20 +69,12 @@ class PipelineClass:
             execution_results.append(result)
             self._log_step_result(result)
 
-            if result.status == StepExecutionStatus.ERROR_FATAL:
-                error_msg = f"Pipeline execution failed due to error in DDL step: {result.step_name}"
+            if step.type in {"ddl", "source_ddl"} and result.status == StepExecutionStatus.ERROR:
+                error_msg = f"Aborting run: {step.type} step '{result.step_name}' failed"
                 if result.error_message:
                     error_msg += f" - {result.error_message}"
                 logger.error(error_msg)
-                raise RuntimeError(error_msg)
-
-        failed_steps = [r for r in execution_results if r.status == StepExecutionStatus.ERROR]
-        if failed_steps:
-            error_msg = (
-                f"Pipeline execution failed due to errors in steps: {', '.join(r.step_name for r in failed_steps)}"
-            )
-            logger.error(error_msg)
-            raise RuntimeError(error_msg)
+                break
 
         return execution_results
 
@@ -92,19 +88,11 @@ class PipelineClass:
         try:
             self._dispatch_step(step)
             return StepExecutionResult(step_name=step.name, status=StepExecutionStatus.COMPLETE)
-        except DuckDBDDLError as e:
-            return StepExecutionResult(
-                step_name=step.name,
-                status=StepExecutionStatus.ERROR_FATAL,
-                error_message=str(e),
-            )
         except (RuntimeError, ConnectionError) as e:
-            if step.optional:
-                status = StepExecutionStatus.ABSENT
-            elif step.type == "source_ddl":
-                status = StepExecutionStatus.ERROR_FATAL
-            else:
-                status = StepExecutionStatus.ERROR
+            # Optional steps tolerate failure (ABSENT); required steps record ERROR. DuckDBDDLError
+            # is a RuntimeError, so a failed schema/insert is caught here too. execute() decides
+            # whether to abort based on step.type (ddl / source_ddl), not on a separate status.
+            status = StepExecutionStatus.ABSENT if step.optional else StepExecutionStatus.ERROR
             return StepExecutionResult(step_name=step.name, status=status, error_message=str(e))
 
     def _dispatch_step(self, step: Step) -> None:
@@ -120,7 +108,7 @@ class PipelineClass:
 
     def _log_step_result(self, result: StepExecutionResult):
         match result.status:
-            case StepExecutionStatus.ERROR | StepExecutionStatus.ERROR_FATAL:
+            case StepExecutionStatus.ERROR:
                 logger.error(f"Step {result.step_name} failed with error: {result.error_message}")
             case StepExecutionStatus.ABSENT:
                 logger.warning(f"Optional step {result.step_name} failed and was tolerated: {result.error_message}")
@@ -288,7 +276,7 @@ class PipelineClass:
 
         if not result.rows:
             logging.warning(
-                f"Query for step '{step.name}' returned 0 rows. " "Created the typed table and skipped data insertion."
+                f"Query for step '{step.name}' returned 0 rows. Created the typed table and skipped data insertion."
             )
         else:
             logging.info(f"Successfully processed {row_count} rows for table '{step.name}'.")
@@ -308,11 +296,11 @@ class PipelineClass:
 
     @staticmethod
     def load_config_from_yaml(file_path: str | Path) -> PipelineConfig:
-        with open(file_path, 'r', encoding='utf-8') as file:
+        with open(file_path, "r", encoding="utf-8") as file:
             data = yaml.safe_load(file)
-        steps = [Step(**step) for step in data['steps']]
+        steps = [Step(**step) for step in data["steps"]]
         return PipelineConfig(
-            name=data['name'],
-            version=data['version'],
+            name=data["name"],
+            version=data["version"],
             steps=steps,
         )
