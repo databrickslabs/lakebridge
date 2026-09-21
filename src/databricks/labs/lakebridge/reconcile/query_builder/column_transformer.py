@@ -27,8 +27,24 @@ logger = logging.getLogger(__name__)
 _DATATYPE_TRANSFORM_MAPPING: dict[str, dict[str, list[partial[exp.Expression]]]] = {
     "universal": {"default": [partial(coalesce, default='_null_recon_', is_string=True), partial(trim)]},
     "bigquery": {
-        # TODO: add timestamps and numbers handling
+        # TODO: add numbers handling
+        # Timestamps are formatted rather than cast: BigQuery's CAST AS STRING appends a UTC offset and
+        # pads fractional seconds, which changes the row hash. %E*S matches Spark's rendering.
         "default": [partial(anonymous, func="COALESCE(TRIM(CAST({} AS STRING)), '_null_recon_')")],
+        exp.DataType.Type.TIMESTAMPTZ.value: [
+            partial(
+                anonymous,
+                func="COALESCE(FORMAT_TIMESTAMP('%F %H:%M:%E*S', {}, 'UTC'), '_null_recon_')",
+            )
+        ],
+        # A BigQuery DATETIME parses as TIMESTAMP; a user-supplied `timestamp_ntz` parses as
+        # TIMESTAMPNTZ. Both spellings reach the mapping, so both are keyed.
+        exp.DataType.Type.TIMESTAMP.value: [
+            partial(anonymous, func="COALESCE(FORMAT_DATETIME('%F %H:%M:%E*S', {}), '_null_recon_')")
+        ],
+        exp.DataType.Type.TIMESTAMPNTZ.value: [
+            partial(anonymous, func="COALESCE(FORMAT_DATETIME('%F %H:%M:%E*S', {}), '_null_recon_')")
+        ],
     },
     "snowflake": {exp.DataType.Type.ARRAY.value: [partial(array_to_string), partial(array_sort)]},
     "oracle": {
