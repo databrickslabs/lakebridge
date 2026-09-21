@@ -19,8 +19,8 @@ REQUIRED_CASTS: dict[str, tuple[str, ...]] = {
         "CAST(sum(bytes_processed) AS FLOAT64)",
     ),
     "legacy_synapse/storage_info.sql": (
-        "(SUM(reserved_page_count) * 8.0) / 1024.0 AS reserved_space_mb",
-        "(SUM(used_page_count) * 8.0) / 1024.0 AS used_space_mb",
+        "CAST((SUM(reserved_page_count) * 8.0) / 1024.0 AS FLOAT) AS reserved_space_mb",
+        "CAST((SUM(used_page_count) * 8.0) / 1024.0 AS FLOAT) AS used_space_mb",
     ),
     "redshift/sql/1_rs_spectrum_tb_month.sql": (
         "round(sum(returned_bytes)/(1024.0*1024*1024*1024),4)::double precision s3_scanned_tb_month",
