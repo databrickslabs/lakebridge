@@ -4,5 +4,5 @@ CREATE TABLE views (
     table_name VARCHAR,
     check_option VARCHAR,
     is_updatable VARCHAR,
-    VIEW_DEFINITION VARCHAR
+    view_definition VARCHAR
 );

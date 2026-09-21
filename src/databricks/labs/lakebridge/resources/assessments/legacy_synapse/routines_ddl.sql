@@ -12,7 +12,7 @@ CREATE TABLE routines (
     numeric_scale BIGINT,
     routine_body VARCHAR,
     routine_catalog VARCHAR,
-    ROUTINE_DEFINITION VARCHAR,
+    routine_definition VARCHAR,
     routine_name VARCHAR,
     routine_schema VARCHAR,
     routine_type VARCHAR,

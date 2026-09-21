@@ -1,6 +1,6 @@
 CREATE TABLE storage_info (
     node_id BIGINT,
-    ReservedSpaceMB DOUBLE,
-    UsedSpaceMB DOUBLE,
+    reserved_space_mb DOUBLE,
+    used_space_mb DOUBLE,
     extract_ts TIMESTAMP
 );
