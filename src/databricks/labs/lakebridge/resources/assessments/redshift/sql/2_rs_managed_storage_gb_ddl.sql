@@ -1,4 +1,4 @@
 CREATE TABLE rs_managed_storage_gb (
-    set_name VARCHAR,
+    cluster_type VARCHAR,
     rs_managed_storage_gb DOUBLE
 );

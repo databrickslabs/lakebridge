@@ -11,7 +11,7 @@ from databricks.labs.lakebridge.resources.assessments.common.duckdb_helpers impo
 def create_redshift_extract(db_path: str) -> None:
     path = Path(db_path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    # Minimal tables matching redshift_schema_def / validator tests: 3 tables, 1 empty
+    # Minimal Redshift-shaped extract for the integration test (a provisioned-cluster example).
     with connect_to_profiler_db(db_path) as conn:
         conn.execute("""
             CREATE OR REPLACE TABLE query_view (
@@ -29,17 +29,15 @@ def create_redshift_extract(db_path: str) -> None:
         )
         conn.execute("""
             CREATE OR REPLACE TABLE rs_managed_storage_gb (
-                set_name VARCHAR,
+                cluster_type VARCHAR,
                 rs_managed_storage_gb DOUBLE
             )
         """)
-        conn.execute("INSERT INTO rs_managed_storage_gb SELECT 's1', 1.0 FROM range(10)")
+        conn.execute("INSERT INTO rs_managed_storage_gb SELECT 'provisioned', 1.0 FROM range(10)")
         conn.execute("""
-            CREATE OR REPLACE TABLE rs_nodes (
-                set_name VARCHAR,
-                rs_nodes_type VARCHAR,
-                rs_number_of_nodes BIGINT,
-                compute_seconds BIGINT
+            CREATE OR REPLACE TABLE rs_provisioned_nodes (
+                node_type VARCHAR,
+                number_of_nodes BIGINT
             )
         """)
 
