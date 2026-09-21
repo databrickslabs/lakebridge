@@ -8,5 +8,5 @@ SELECT table_catalog,
        table_name,
        check_option,
        is_updatable,
-       '[REDACTED]' AS VIEW_DEFINITION
-FROM   information_schema.views
+       '[REDACTED]' AS view_definition
+FROM   information_schema.views;
