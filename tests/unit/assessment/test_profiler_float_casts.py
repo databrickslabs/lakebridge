@@ -16,7 +16,19 @@ _ASSESSMENTS = _REPO_ROOT / "src/databricks/labs/lakebridge/resources/assessment
 REQUIRED_CASTS: dict[str, tuple[str, ...]] = {
     "synapse/common/queries.py": (
         "CAST(RESOURCE_ALLOCATION_PERCENTAGE AS FLOAT) AS RESOURCE_ALLOCATION_PERCENTAGE",
+        "CAST(AU.TOTAL_PAGES * 8.0 / 1024 AS FLOAT) AS TOTAL_SIZE_MB",
+        "CAST(QS.TOTAL_ELAPSED_TIME / 1000000.0 AS FLOAT) AS TOTAL_ELAPSED_TIME_SEC",
     ),
+    "oracle/config_storage.sql": ("CAST(SUM(gb) AS BINARY_DOUBLE) AS gb",),
+    "oracle/perf_heatmap.sql": ("CAST(LOAD AS BINARY_DOUBLE) AS value",),
+    "oracle/perf_sqltext.sql": ("CAST(sum(elapsed_time)/1000000 AS BINARY_DOUBLE) as total_run_time_secs",),
+    "teradata/td_sys_usage_agg.sql": ("CAST(round(avg(totNCPUs), 0) AS FLOAT) as totNCPUs",),
+    "teradata/td_sys_disk_utilization.sql": ("CAST(SUM((MAXPERM) /(1024 * 1024)) AS FLOAT) MAX_PERM_MB",),
+    "teradata/core/td_dbql_core_info_extract.sql": (
+        "CAST((LogTbl.AMPCPUTime + LogTbl.ParserCPUTime + LogTbl.DisCPUTime) AS FLOAT) as TotalCPUTime",
+    ),
+    "teradata/pdcr/td_pdcr_info_agg_extract.sql": ("CAST(SUM(AMPCPUTime) AS FLOAT) AS SumCPU",),
+    "teradata/pdcr/td_pdcr_sp_exe_info_agg_extract.sql": ("CAST(avg(AMPCPUTime) AS FLOAT) avgAMPCPUTime",),
     "bigquery/resources/workload_types.sql": (
         "CAST(sum(slot_ms) AS FLOAT64)",
         "CAST(sum(bytes_processed) AS FLOAT64)",
