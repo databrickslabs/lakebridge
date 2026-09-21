@@ -3,6 +3,5 @@ CREATE TABLE rs_serverless_usage (
     rpu_capacity         BIGINT,
     compute_seconds      DOUBLE,
     charged_seconds      DOUBLE,
-    rpu_hours            DOUBLE,
-    legacy_cost_incurred DOUBLE
+    rpu_hours            DOUBLE
 );

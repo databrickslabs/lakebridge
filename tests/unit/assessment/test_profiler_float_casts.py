@@ -36,7 +36,6 @@ REQUIRED_CASTS: dict[str, tuple[str, ...]] = {
         "sum(compute_seconds)::double precision as compute_seconds",
         "sum(charged_seconds)::double precision as charged_seconds",
         "(sum(charged_seconds) / 3600.0)::double precision as rpu_hours",
-        "(sum(charged_seconds) / 3600.0 * 0.36)::double precision as legacy_cost_incurred",
     ),
     "redshift/sql/4_rs_avg_concurrent_users.sql": (
         "round(avg(distinct_users),0)::double precision avg_concurrent_users",
