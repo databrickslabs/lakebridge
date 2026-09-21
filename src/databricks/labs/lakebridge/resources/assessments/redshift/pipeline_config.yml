@@ -107,3 +107,22 @@ steps:
     frequency: once
     flag: active
     optional: true
+  # New model (additive; coexists with rs_nodes / cost_incurred until those are retired).
+  # Provisioned cluster shape (stv_partitions). Absent on serverless clusters.
+  - name: rs_provisioned
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/redshift/sql/provisioned/rs_provisioned.sql
+    ddl_source: src/databricks/labs/lakebridge/resources/assessments/redshift/sql/provisioned/rs_provisioned_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+  # Serverless usage + cost per (day, RPU capacity) (sys_serverless_usage). Absent on provisioned clusters.
+  - name: rs_serverless
+    type: sql
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/redshift/sql/serverless/rs_serverless.sql
+    ddl_source: src/databricks/labs/lakebridge/resources/assessments/redshift/sql/serverless/rs_serverless_ddl.sql
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
