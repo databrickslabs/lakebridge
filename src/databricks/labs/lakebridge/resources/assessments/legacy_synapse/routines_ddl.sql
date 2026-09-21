@@ -6,7 +6,7 @@ CREATE TABLE routines (
     is_null_call VARCHAR,
     is_user_defined_cast VARCHAR,
     last_altered TIMESTAMP,
-    max_dynamic_result_sets VARCHAR,
+    max_dynamic_result_sets BIGINT,
     numeric_precision BIGINT,
     numeric_precision_radix BIGINT,
     numeric_scale BIGINT,
