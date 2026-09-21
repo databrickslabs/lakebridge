@@ -32,7 +32,12 @@ REQUIRED_CASTS: dict[str, tuple[str, ...]] = {
     "redshift/sql/2_rs_managed_storage_gb_serverless.sql": (
         "round(avg(data_storage) / 1024.0, 2)::double precision as rs_managed_storage_gb",
     ),
-    "redshift/sql/3_rs_nodes_serverless.sql": ("sum(compute_seconds)::double precision as compute_seconds",),
+    "redshift/sql/serverless/rs_serverless.sql": (
+        "sum(compute_seconds)::double precision as compute_seconds",
+        "sum(charged_seconds)::double precision as charged_seconds",
+        "(sum(charged_seconds) / 3600.0)::double precision as rpu_hours",
+        "(sum(charged_seconds) / 3600.0 * 0.36)::double precision as legacy_cost_incurred",
+    ),
     "redshift/sql/4_rs_avg_concurrent_users.sql": (
         "round(avg(distinct_users),0)::double precision avg_concurrent_users",
     ),
