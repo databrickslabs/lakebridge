@@ -6,7 +6,7 @@ SELECT TOP 100000
     LogTbl.StartTime,
     LogTbl.FirstRespTime,
     LogTbl.TotalFirstRespTime,
-    (LogTbl.AMPCPUTime + LogTbl.ParserCPUTime + LogTbl.DisCPUTime) as TotalCPUTime,
+    CAST((LogTbl.AMPCPUTime + LogTbl.ParserCPUTime + LogTbl.DisCPUTime) AS FLOAT) as TotalCPUTime,
     LogTbl.TotalIOCount,
     LogTbl.ReqPhysIOKB,
     LogTbl.SpoolUsage
