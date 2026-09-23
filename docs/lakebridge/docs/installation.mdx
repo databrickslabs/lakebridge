@@ -141,11 +141,33 @@ Install and authenticate the CLI:
     </TabItem>
 </Tabs>
 
-Authenticate the CLI:
+Authenticate the CLI — choose a method:
 
-```bash
-databricks configure
-```
+<Tabs>
+  <TabItem value="oauth" label="OAuth (Recommended)" default>
+    ```bash
+    databricks auth login --host <your-workspace-url>
+    ```
+
+    Opens a browser-based OAuth flow. No PAT or environment variable required.
+  </TabItem>
+  <TabItem value="pat" label="Personal Access Token (PAT)">
+    ```bash
+    databricks configure
+    ```
+
+    Then set the auth type in your current shell (or add to your shell profile to persist across sessions):
+
+    ```bash
+    export DATABRICKS_AUTH_TYPE=pat
+    ```
+
+    :::note
+    Without `DATABRICKS_AUTH_TYPE=pat`, the Databricks SDK may prefer OIDC or instance-metadata auth over
+    the PAT in `.databrickscfg` — particularly on cloud VMs where instance metadata is available.
+    :::
+  </TabItem>
+</Tabs>
 
 Verify connectivity: `databricks clusters list`
 
@@ -341,3 +363,4 @@ password tAble5
 ```
 
 Note that `my-proxy.example.com` should be the host from the URL (and not the entire URL).
+
