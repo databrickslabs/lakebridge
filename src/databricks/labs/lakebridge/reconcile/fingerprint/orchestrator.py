@@ -238,8 +238,12 @@ def build_mismatch_output(
     every hashed column (``project_all_columns=True``), ``src_hashed`` /
     ``tgt_hashed`` already carry every hashed column, so we can compute
     ``mismatch_columns`` in-place here without a second JDBC pull. Gated on
-    ``report_type='all'`` + ``mismatch_count > 0`` so fingerprint MATCH and the
-    zero-mismatch fast-path bear no overhead.
+    ``report_type in {'all','data'}`` + ``mismatch_count > 0`` so fingerprint MATCH and the
+    zero-mismatch fast-path bear no overhead. ``'data'`` is included because it too writes the
+    per-column mismatch detail to ``recon_details`` — omitting it makes the details write emit an
+    ``array<null>`` ``mismatch_columns`` that Delta refuses to persist when there are no missing
+    rows to coerce the union element type (CF-6). ``'row'`` compares on the row hash only and never
+    produces mismatch rows, so it needs no backfill.
     """
     # For report_type='all' the src/tgt frames are consumed twice — once by the
     # ``compare_reconcile_data`` join and again by the ``capture_mismatch_data_and_columns``
@@ -250,7 +254,11 @@ def build_mismatch_output(
     # ``finally`` below. Other report types consume the frames only once (early return), so
     # they are not cached.
     cached_frames: list[DataFrame] = []
-    if report_type == "all":
+    # Both "all" and "data" write per-column mismatch detail (the <col>_base/_compare/_match triples)
+    # to recon_details, so both need the capture backfill below and both consume the src/tgt frames
+    # twice (compare + capture) — hence both cache. ("row" compares on the row hash only, produces no
+    # mismatch rows, and never reaches the backfill.) See CF-6.
+    if report_type in {"all", "data"}:
         if persistence.is_serverless:
             src_hashed = persistence.write_and_read_df_with_volumes(src_hashed)
             tgt_hashed = persistence.write_and_read_df_with_volumes(tgt_hashed)
@@ -269,11 +277,15 @@ def build_mismatch_output(
             max_sample_size=max_sample_size,
         )
 
-        if report_type != "all" or output.mismatch_count == 0:
+        if report_type not in {"all", "data"} or output.mismatch_count == 0:
             return output
 
-        # report_type='all' with mismatches: backfill the column-level detail from the
-        # already-fetched frames (extracted to keep this ``try`` within the statement budget).
+        # "all"/"data" with mismatches: backfill the column-level detail (the <col>_base/_compare/
+        # _match triples) from the already-fetched frames. Without it the "data" mismatch frame
+        # carries only source-row values (no triples), so recon_capture._mismatch_records emits an
+        # ``array<null>`` mismatch_columns that Delta refuses to write when there are no missing rows
+        # to coerce the union type — the CF-6 crash. (Extracted to keep this ``try`` within the
+        # statement budget.)
         return _backfill_mismatch_columns(src_hashed, tgt_hashed, key_columns, persistence, output, max_sample_size)
     finally:
         # Release the cached inputs. The returned frames read from the volume-materialised

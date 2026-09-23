@@ -42,7 +42,14 @@ def test_double_column_normalised_to_fixed_scale_decimal_matching_target():
 
     sql = builder.build_concat_expression(cols)
 
+    # In-range values pin to DECIMAL(38,10); NaN/±Inf/>=1e28 route to the native VARCHAR cast.
+    # NaN is detected via the VARCHAR cast (a Redshift *column* ``NaN IN (CAST('NaN' AS DOUBLE
+    # PRECISION), ...)`` returns FALSE), so with a correct guard NaN never reaches the ELSE and
+    # it feeds the raw column straight to the DECIMAL pin -- no sanitize (see the DOUBLE handler
+    # in column_transformer and CF-2 in E2E_FINDINGS).
     assert 'CAST(CAST("carat" AS DECIMAL(38,10)) AS VARCHAR)' in sql, sql
+    assert 'CAST("carat" AS VARCHAR) IN (' in sql, sql
+    assert "THEN 0 ELSE" not in sql, sql
     assert "TRIM" not in sql, sql
     # The source concat delegates to the same shared transform map the row-hash path uses.
     assert serialize_column_for_hash('"carat"', "double precision", _REDSHIFT) in sql

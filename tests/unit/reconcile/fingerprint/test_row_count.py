@@ -1,8 +1,9 @@
 """Unit tests for the fingerprint target row-count fetcher.
 
-Two-step fallback chain:
-  1. ``DESCRIBE DETAIL`` succeeds -> DELTA_DESCRIBE_DETAIL
-  2. Any failure -> STATIC_DEFAULT with row_count=None
+Three-step fallback chain:
+  1. ``DESCRIBE DETAIL`` exposes numRecords -> DELTA_DESCRIBE_DETAIL
+  2. else ``SELECT COUNT(*)`` (metadata-only on Delta) -> COUNT_STAR
+  3. else -> STATIC_DEFAULT with row_count=None
 
 The fetcher must never raise — tier selection is best-effort.
 """
@@ -44,13 +45,36 @@ class _RowLike:
         return self._mapping[key]
 
 
-def _make_spark(describe_detail_df: MagicMock | Exception) -> MagicMock:
-    """Mock SparkSession whose ``.sql()`` returns the DataFrame or raises the exception."""
+_UNSET = object()
+
+
+def _make_count_df(value) -> MagicMock:
+    """Mock DataFrame for ``SELECT COUNT(*) AS cnt`` — ``value=None`` means zero rows."""
+    df = MagicMock()
+    df.collect.return_value = [] if value is None else [_RowLike({"cnt": value})]
+    return df
+
+
+def _make_spark(describe_detail_df: MagicMock | Exception, *, count_star=_UNSET) -> MagicMock:
+    """Mock SparkSession routing ``DESCRIBE DETAIL`` and ``SELECT COUNT(*)`` separately.
+
+    ``describe_detail_df`` drives the DESCRIBE DETAIL call (a mock df, or an Exception to
+    raise). ``count_star`` drives the COUNT(*) call: an int/None (see ``_make_count_df``)
+    or an Exception to raise. Left ``_UNSET`` it yields no usable row (empty), so callers
+    that only exercise the DESCRIBE DETAIL path still fall through to the static default.
+    """
+
+    def _sql(query, *args, **kwargs):
+        if "COUNT(*)" in query:
+            if isinstance(count_star, Exception):
+                raise count_star
+            return _make_count_df(None if count_star is _UNSET else count_star)
+        if isinstance(describe_detail_df, Exception):
+            raise describe_detail_df
+        return describe_detail_df
+
     spark = MagicMock()
-    if isinstance(describe_detail_df, Exception):
-        spark.sql.side_effect = describe_detail_df
-    else:
-        spark.sql.return_value = describe_detail_df
+    spark.sql.side_effect = _sql
     return spark
 
 
@@ -95,7 +119,72 @@ def test_describe_detail_zero_rows_is_legitimate():
     assert result == RowCountResult(row_count=0, source=RowCountSource.DELTA_DESCRIBE_DETAIL)
 
 
-# --- Path 2: fallback to STATIC_DEFAULT ---------------------------------------
+# --- Path 2: SELECT COUNT(*) (DESCRIBE DETAIL exposes no numRecords) -----------
+
+
+def test_count_star_used_when_describe_detail_lacks_num_records():
+    """DBR 17.3 exposes no numRecords on DESCRIBE DETAIL, so COUNT(*) (metadata-only on
+    Delta — a LocalTableScan over transaction-log stats) supplies the exact count."""
+    describe = _make_describe_detail_df(columns=["format", "numFiles", "sizeInBytes"], rows=[])
+    spark = _make_spark(describe, count_star=1_000_000)
+    result = fetch_target_row_count(spark, catalog="users", schema="ameer_salman", table="orders_capbound")
+    assert result == RowCountResult(row_count=1_000_000, source=RowCountSource.COUNT_STAR)
+
+
+def test_count_star_used_when_describe_detail_raises():
+    """A DESCRIBE DETAIL error must not end the chain — COUNT(*) still supplies the count."""
+    spark = _make_spark(AnalysisException("DESCRIBE DETAIL unsupported"), count_star=500)
+    result = fetch_target_row_count(spark, catalog="c", schema="s", table="orders")
+    assert result == RowCountResult(row_count=500, source=RowCountSource.COUNT_STAR)
+
+
+def test_count_star_queries_the_backtick_quoted_target_fqn():
+    """COUNT(*) must target the backtick-quoted FQN (parity with DESCRIBE DETAIL) so a
+    delimiting-needed name cannot malform the SQL."""
+    describe = _make_describe_detail_df(columns=["format"], rows=[])  # no numRecords
+    spark = _make_spark(describe, count_star=7)
+    fetch_target_row_count(spark, catalog="my-catalog", schema="perf_test", table="orders")
+    count_calls = [c.args[0] for c in spark.sql.call_args_list if "COUNT(*)" in c.args[0]]
+    assert count_calls == ["SELECT COUNT(*) AS cnt FROM `my-catalog`.`perf_test`.`orders`"], count_calls
+
+
+def test_count_star_zero_is_legitimate_empty_table():
+    """An empty target: COUNT(*)=0 is a valid exact count, not a fall-through."""
+    describe = _make_describe_detail_df(columns=["format"], rows=[])
+    spark = _make_spark(describe, count_star=0)
+    result = fetch_target_row_count(spark, catalog="c", schema="s", table="orders")
+    assert result == RowCountResult(row_count=0, source=RowCountSource.COUNT_STAR)
+
+
+def test_count_star_failure_falls_back_to_static_default():
+    """DESCRIBE DETAIL (no numRecords) then COUNT(*) failing -> static default, not a raise."""
+    describe = _make_describe_detail_df(columns=["format"], rows=[])
+    spark = _make_spark(describe, count_star=RuntimeError("executor lost"))
+    result = fetch_target_row_count(spark, catalog="c", schema="s", table="orders")
+    assert result == RowCountResult(row_count=None, source=RowCountSource.STATIC_DEFAULT)
+
+
+def test_count_star_non_int_falls_back_to_static_default():
+    """Defensive against driver/SDK drift: a non-int COUNT(*) value falls through."""
+    describe = _make_describe_detail_df(columns=["format"], rows=[])
+    spark = _make_spark(describe, count_star="1000000")
+    result = fetch_target_row_count(spark, catalog="c", schema="s", table="orders")
+    assert result == RowCountResult(row_count=None, source=RowCountSource.STATIC_DEFAULT)
+
+
+def test_count_star_path_emits_info_log(caplog):
+    """COUNT(*) success logs INFO with the structured ``row_count_source=count_star`` shape."""
+    describe = _make_describe_detail_df(columns=["format"], rows=[])
+    spark = _make_spark(describe, count_star=1_000_000)
+    with caplog.at_level("INFO"):
+        fetch_target_row_count(spark, catalog="c", schema="s", table="orders")
+    assert any(
+        "row_count_source=count_star" in rec.message and "row_count=1000000" in rec.message
+        for rec in caplog.records
+    )
+
+
+# --- Path 3: fallback to STATIC_DEFAULT ---------------------------------------
 
 
 def test_table_not_found_falls_back_to_static_default():

@@ -567,7 +567,15 @@ class ReconCapture:
         record_key = struct(*[col(c) for c in key_cols]) if key_cols else struct()
         source_row = struct(*[col(f"{b}_base").alias(b) for b in bases])
         target_row = struct(*[col(f"{b}_compare").alias(b) for b in bases])
-        mismatch_columns = array_compact(array(*[when(~col(f"{b}_match"), lit(b)) for b in bases]))
+        # ``array()`` with zero args is typed ``array<null>``, which Delta refuses to persist
+        # (DELTA_COMPLEX_TYPE_COLUMN_CONTAINS_NULL_TYPE) when no missing-row records are unioned in
+        # to coerce the element type. Cast so the column is always ``array<string>`` regardless of how
+        # many compared columns there are -- mirroring the explicit cast on the missing-row path
+        # (``_row_image_records``). Defense-in-depth: the fingerprint data/row path is now backfilled
+        # upstream (CF-6), so ``bases`` is normally non-empty here.
+        mismatch_columns = array_compact(
+            array(*[when(~col(f"{b}_match"), lit(b)) for b in bases]).cast("array<string>")
+        )
         return df.select(
             lit(recon_table_id).alias("recon_table_id"),
             lit("mismatch").alias("recon_type"),

@@ -471,36 +471,78 @@ def test_build_mismatch_output_aligns_columns_when_source_carries_partition_colu
     assert out.mismatch_count == 2
 
 
-def test_build_mismatch_output_skips_capture_for_report_data(monkeypatch):
-    """For ``report_type='data'`` we don't need column-level diff; the orchestrator
-    must skip ``capture_mismatch_data_and_columns`` entirely (it's an O(driver-collect)
-    operation on the mismatch_df).
+def test_build_mismatch_output_backfills_mismatch_columns_for_report_data(monkeypatch):
+    """CF-6: ``report_type='data'`` must backfill the per-column mismatch detail exactly like
+    ``'all'``. ``reconcile_data``'s ``'data'`` mismatch frame carries only source-row values (no
+    ``<col>_base/_compare/_match`` triples), so without the backfill
+    ``recon_capture._mismatch_records`` emits an ``array<null>`` ``mismatch_columns`` that Delta
+    refuses to write when there are no missing rows to coerce the union element type — aborting the
+    recon. So ``'data'`` now routes through the SAME ``capture_mismatch_data_and_columns`` as
+    ``'all'`` (which also restores OFF==ON detail parity). ``mismatch_count == 0`` and ``'row'``
+    still skip capture (covered separately).
     """
+    fake_skinny_mismatch_df = object()
+    fake_wide_capture_df = object()
     capture_call_count = {"n": 0}
 
-    def fake_compare_reconcile_data(*_args, **_kwargs):
+    def fake_compare_reconcile_data(*, source, target, key_columns, report_type, persistence, max_sample_size):
+        del source, target, key_columns, report_type, persistence, max_sample_size
         return DataReconcileOutput(
-            mismatch_count=5,
-            mismatch=MismatchOutput(mismatch_df=object(), mismatch_columns=None),
+            mismatch_count=3,
+            missing_in_src_count=0,
+            missing_in_tgt_count=0,
+            mismatch=MismatchOutput(mismatch_df=fake_skinny_mismatch_df, mismatch_columns=None),
         )
 
-    def fake_capture(*_args, **_kwargs):
+    def fake_capture(*, source, target, key_columns, persistence, sample_size):
+        del source, target, key_columns, persistence, sample_size
         capture_call_count["n"] += 1
-        return MismatchOutput(mismatch_df=object(), mismatch_columns=["should_not_appear"])
+        return MismatchOutput(mismatch_df=fake_wide_capture_df, mismatch_columns=["s_name", "s_acctbal"])
 
     monkeypatch.setattr(orchestrator, "compare_reconcile_data", fake_compare_reconcile_data)
     monkeypatch.setattr(orchestrator, "capture_mismatch_data_and_columns", fake_capture)
 
+    cache_events = {"cached": 0, "unpersisted": 0}
+
+    class FakeDF:
+        def __init__(self, cols):
+            self.columns = list(cols)
+
+        def drop(self, name):
+            return FakeDF([c for c in self.columns if c != name])
+
+        def select(self, *cols):
+            return FakeDF(list(cols))
+
+        def cache(self):
+            cache_events["cached"] += 1
+            return self
+
+        def unpersist(self, blocking=False):
+            del blocking
+            cache_events["unpersisted"] += 1
+            return self
+
+    src = FakeDF(["s_suppkey", "s_name", "s_acctbal", "hash_value_recon"])
+    tgt = FakeDF(["s_suppkey", "s_name", "s_acctbal", "hash_value_recon"])
+
     out = orchestrator.build_mismatch_output(
-        src_hashed=None,
-        tgt_hashed=None,
-        key_columns=["k"],
+        src_hashed=src,
+        tgt_hashed=tgt,
+        key_columns=["s_suppkey"],
         report_type="data",
-        persistence=None,
+        persistence=MagicMock(is_serverless=False),
+        max_sample_size=50,
     )
 
-    assert capture_call_count["n"] == 0
-    assert out.mismatch.mismatch_columns is None
+    # 'data' now backfills exactly like 'all': capture runs once, mismatch_columns is populated,
+    # the wide (triples) frame is used, and the cached inputs are released.
+    assert capture_call_count["n"] == 1
+    assert out.mismatch.mismatch_columns == ["s_name", "s_acctbal"]
+    assert out.mismatch.mismatch_df is fake_wide_capture_df
+    assert out.mismatch_count == 3
+    assert cache_events["cached"] == 2
+    assert cache_events["unpersisted"] == 2
 
 
 def test_build_mismatch_output_skips_capture_when_no_mismatches(monkeypatch):

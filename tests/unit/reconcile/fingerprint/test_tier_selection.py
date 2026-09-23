@@ -68,7 +68,7 @@ def test_select_tier_picks_correct_tier_from_target_delta_count(
 
 
 def test_select_tier_falls_back_to_static_default_when_describe_detail_fails():
-    """DESCRIBE DETAIL failure falls back to legacy static defaults."""
+    """DESCRIBE DETAIL failure (and no COUNT(*)) falls back to legacy static defaults."""
     spark = MagicMock()
     spark.sql.side_effect = AnalysisException("Table or view not found: test_catalog.perf_test.orders")
     tier = select_tier(spark, make_target_connection(), make_table_conf())
@@ -76,6 +76,29 @@ def test_select_tier_falls_back_to_static_default_when_describe_detail_fails():
     assert tier.bucket_count == BUCKET_COUNT
     assert tier.target_row_count is None
     assert tier.row_count_source == RowCountSource.STATIC_DEFAULT.value
+
+
+def test_select_tier_uses_count_star_when_describe_detail_lacks_num_records():
+    """Real DBR-17.3 path (CF-1): DESCRIBE DETAIL exposes no ``numRecords`` column, so
+    ``select_tier`` reads the count from ``SELECT COUNT(*)`` (metadata-only on Delta) and
+    records ``count_star`` provenance. 1M rows -> the 500K–50M tier — the adaptive selector
+    now actually engages (bucket_count 1_024, not the static-default 32_768)."""
+    describe = MagicMock()
+    describe.columns = ["format", "numFiles", "sizeInBytes"]  # no numRecords (DBR 17.3)
+
+    count_df = MagicMock()
+    count_row = MagicMock()
+    count_row.__getitem__.side_effect = lambda k: {"cnt": 1_000_000}[k]
+    count_df.collect.return_value = [count_row]
+
+    spark = MagicMock()
+    spark.sql.side_effect = lambda query, *a, **k: count_df if "COUNT(*)" in query else describe
+
+    tier = select_tier(spark, make_target_connection(), make_table_conf())
+    assert tier.target_row_count == 1_000_000
+    assert tier.row_count_source == RowCountSource.COUNT_STAR.value
+    assert tier.sub_bucket_count == 1_048_576
+    assert tier.bucket_count == 1_024
 
 
 def test_select_tier_uses_target_catalog_and_schema_not_source():
