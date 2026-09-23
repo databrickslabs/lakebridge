@@ -159,7 +159,21 @@ def capture_mismatch_data_and_columns(
     target: DataFrame,
     key_columns: list[str],
     persistence: AbstractReconIntermediatePersist,
+    *,
+    sample_size: int | None = None,
 ) -> MismatchOutput:
+    """Build the wide ``<col>_base``/``_compare``/``_match`` frame + the mismatched-column list.
+
+    ``sample_size`` (keyword-only): when set, the key-joined frame is first reduced to the rows
+    that genuinely differ on at least one compared column, then capped at ``sample_size`` rows —
+    BEFORE the driver-side ``_get_mismatch_columns`` collect and the detail materialisation. The
+    normal sampled path pre-samples its mismatched rows upstream and passes ``None`` (behaviour
+    unchanged); the fingerprint Stage-2 path pulls WHOLE sub-buckets (mostly matching rows), so
+    without this bound the collect would pull the full set to the driver (OOM at scale) and write
+    unsampled rows to ``recon_details``. Filtering to genuine mismatches before the cap keeps the
+    bounded sample from being dominated by the matching rows the sub-bucket fetch includes, and
+    mirrors the normal path's sample-then-capture ordering.
+    """
     source_df = _build_capture_df(source)
     target_df = _build_capture_df(target)
     unnormalized_key_columns = [DialectUtils.unnormalize_identifier(column) for column in key_columns]
@@ -174,11 +188,50 @@ def capture_mismatch_data_and_columns(
         raise _raise_column_mismatch_exception(message, source_missing, target_missing)
 
     check_columns = [column for column in source_columns if column not in unnormalized_key_columns]
-    mismatch_df = persistence.write_and_read_df_with_volumes(
-        _get_mismatch_df(source_df, target_df, unnormalized_key_columns, check_columns)
-    )
+    joined = _get_mismatch_df(source_df, target_df, unnormalized_key_columns, check_columns)
+    if sample_size is not None:
+        filtered = filter_to_row_mismatches(joined)
+        joined = (filtered if filtered is not None else joined).limit(sample_size)
+    mismatch_df = persistence.write_and_read_df_with_volumes(joined)
     mismatch_columns = _get_mismatch_columns(mismatch_df, check_columns)
     return MismatchOutput(mismatch_df, mismatch_columns)
+
+
+def row_mismatch_flag_columns(columns: list[str]) -> list[str]:
+    """The genuine ``<col>_match`` boolean flags among ``columns``.
+
+    A match flag always comes as a ``(_base, _compare, _match)`` triple (see
+    ``_get_mismatch_df``), so we require the sibling ``_base``/``_compare`` columns rather
+    than matching a bare ``_match`` suffix. Otherwise a *key* column literally named
+    ``*_match`` — which the key-join projects unsuffixed — would be misread as a boolean
+    flag; evaluating ``~col(<non-boolean>)`` on it raises an AnalysisException and (via the
+    fingerprint fail-open) silently discards the surgical Stage-2 output.
+    """
+    present = set(columns)
+    suffix = "_match"
+    return [
+        c
+        for c in columns
+        if c.endswith(suffix) and f"{c[: -len(suffix)]}_base" in present and f"{c[: -len(suffix)]}_compare" in present
+    ]
+
+
+def filter_to_row_mismatches(mismatch_df: DataFrame | None) -> DataFrame | None:
+    """Keep only rows that genuinely differ on at least one compared column.
+
+    ``capture_mismatch_data_and_columns`` returns every key-joined row, including pairs that
+    match on all columns. The normal sampled path only ever feeds it hash-mismatched rows, so
+    that set is already all-mismatches; the fingerprint Stage-2 path pulls whole sub-buckets
+    (Stage-1 only proves a sub-bucket holds *some* mismatch), so it must drop the rows that turn
+    out to match column-by-column. This is a row filter over the existing null-safe ``<col>_match``
+    flags produced by ``_get_mismatch_df`` — not a second column diff.
+    """
+    if mismatch_df is None:
+        return mismatch_df
+    match_cols = row_mismatch_flag_columns(mismatch_df.columns)
+    if not match_cols:
+        return mismatch_df
+    return mismatch_df.filter(reduce(lambda a, b: a | b, [~col(c) for c in match_cols]))
 
 
 def _get_mismatch_columns(df: DataFrame, columns: list[str]):
@@ -216,8 +269,13 @@ def _get_mismatch_df(source: DataFrame, target: DataFrame, key_columns: list[str
         for column in column_list
     ]
 
+    # ``<=>`` (null-safe equality) rather than ``==``: ``NULL == NULL`` and ``NULL == value``
+    # both yield NULL, which downstream (``recon_capture._mismatch_records`` / ``_get_mismatch_columns``)
+    # cannot distinguish from a match. ``<=>`` yields a non-null BOOLEAN — ``NULL <=> NULL`` is TRUE
+    # (match), ``NULL <=> value`` is FALSE (mismatch) — so a difference involving NULL is attributed
+    # to the right column instead of being silently dropped.
     match_expr = [
-        expr(f"{_normalize_mismatch_df_col(column,'_base')}=={_normalize_mismatch_df_col(column,'_compare')}").alias(
+        expr(f"{_normalize_mismatch_df_col(column,'_base')}<=>{_normalize_mismatch_df_col(column,'_compare')}").alias(
             _unnormalize_mismatch_df_col(column, '_match')
         )
         for column in column_list

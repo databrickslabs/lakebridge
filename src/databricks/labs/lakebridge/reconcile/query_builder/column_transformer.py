@@ -12,6 +12,7 @@ from databricks.labs.lakebridge.reconcile.query_builder.expression_generator imp
     anonymous,
     array_sort,
     array_to_string,
+    build_column_no_alias,
     coalesce,
     transform_expression,
     trim,
@@ -351,6 +352,21 @@ def get_transform_for_type(
     if dialect_default is not None:
         return dialect_default
     return _DATATYPE_TRANSFORM_MAPPING["universal"]["default"]
+
+
+def serialize_column_for_hash(column_ref: str, datatype: str, source: Dialect) -> str:
+    """Render one column's hash-serialised SQL for ``source`` dialect.
+
+    ``column_ref`` is the *source-normalised* (already dialect-quoted) column reference,
+    exactly as the row-hash path feeds ``build_column_no_alias`` -- e.g. the double-quoted
+    form for Redshift or the backtick-quoted form for Databricks. Applying the dialect/type
+    transforms here means the fingerprint source (Redshift) and target (Databricks)
+    serialisers produce a per-column byte stream identical to the row-hash compare path by
+    construction, rather than via three hand-maintained copies kept in sync by tests.
+    """
+    node = build_column_no_alias(this=column_ref)
+    transformed = transform_expression(node, get_transform_for_type(datatype, source))
+    return transformed.sql(dialect=source)
 
 
 @dataclass(frozen=True)
