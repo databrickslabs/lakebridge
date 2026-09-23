@@ -173,35 +173,47 @@ _DATATYPE_TRANSFORM_MAPPING: dict[str, dict[str, list[partial[exp.Expression]]]]
         # Mirror of the Databricks DOUBLE handler: pin to a fixed-scale ``DECIMAL(38,10)``
         # string so Redshift's full-precision render and Spark's shortest round-trip agree.
         # NaN / Infinity and finite magnitude >= 1e28 overflow ``DECIMAL(38,10)`` (Redshift
-        # raises "numeric field overflow") and bypass the pin via a native VARCHAR cast.
-        # Postgres-family engines treat NaN as equal to itself, so the ``IN`` check is
-        # well-defined. Gated on the counterpart via ``get_transform_for_type``.
+        # raises SQLSTATE 8001 "NaN input" / "numeric field overflow"), so the WHEN routes
+        # them to a native VARCHAR cast (which renders 'NaN'/'Infinity'/'-Infinity', matching
+        # Spark's ``CAST(... AS STRING)``). NaN is detected via the VARCHAR cast, NOT a float
+        # ``IN`` list: a live Redshift probe showed a *column* ``NaN IN (CAST('NaN' AS DOUBLE
+        # PRECISION), ...)`` returns FALSE (even though ``NaN = NaN`` is TRUE, and ±Inf ARE
+        # matched by that IN) -- so a float-``IN`` guard silently misses NaN, letting it fall
+        # into the ELSE ``CAST(... AS DECIMAL(38,10))`` and abort the whole reconcile with 8001.
+        # ``CAST({0} AS VARCHAR)`` renders 'NaN'/'Infinity'/'-Infinity' reliably, so a string
+        # ``IN`` detects all three; once detected they never reach the DECIMAL cast, so the ELSE
+        # feeds it the raw column directly (with a correct guard the cast only ever sees finite,
+        # in-range values -- no sanitizing needed; verified live that the plain-ELSE serializer
+        # runs clean on a real NaN-bearing column). NULL flows through unchanged to
+        # ``'_null_recon_'``. Gated on the counterpart via ``get_transform_for_type``.
         exp.DataType.Type.DOUBLE.value: [
             partial(
                 anonymous,
                 func=(
-                    "COALESCE(CASE WHEN {0} IN (CAST('NaN' AS DOUBLE PRECISION), "
-                    "CAST('Infinity' AS DOUBLE PRECISION), CAST('-Infinity' AS DOUBLE PRECISION)) "
+                    "COALESCE(CASE WHEN CAST({0} AS VARCHAR) IN ('NaN', 'Infinity', '-Infinity') "
                     "OR ABS({0}) >= 1e28 "
                     "THEN CAST({0} AS VARCHAR) "
-                    "ELSE CAST(CAST({0} AS DECIMAL(38,10)) AS VARCHAR) END, '_null_recon_')"
+                    "ELSE CAST(CAST({0} AS DECIMAL(38,10)) AS VARCHAR) "
+                    "END, '_null_recon_')"
                 ),
                 dialect=get_dialect("redshift"),
             )
         ],
         # Redshift ``real``/``float4`` (single precision) has the same divergence as
         # ``double precision`` above, pinned identically -- same DECIMAL(38,10) scale as
-        # DOUBLE so a float/double column pair stays byte-identical across engines.
-        # Mirrors the Databricks FLOAT handler above.
+        # DOUBLE so a float/double column pair stays byte-identical across engines. Uses the
+        # same VARCHAR-cast NaN/Inf detection as the DOUBLE handler (a float ``IN`` misses a
+        # column NaN on Redshift -- see the DOUBLE handler above). Mirrors the Databricks
+        # FLOAT handler above.
         exp.DataType.Type.FLOAT.value: [
             partial(
                 anonymous,
                 func=(
-                    "COALESCE(CASE WHEN {0} IN (CAST('NaN' AS DOUBLE PRECISION), "
-                    "CAST('Infinity' AS DOUBLE PRECISION), CAST('-Infinity' AS DOUBLE PRECISION)) "
+                    "COALESCE(CASE WHEN CAST({0} AS VARCHAR) IN ('NaN', 'Infinity', '-Infinity') "
                     "OR ABS({0}) >= 1e28 "
                     "THEN CAST({0} AS VARCHAR) "
-                    "ELSE CAST(CAST({0} AS DECIMAL(38,10)) AS VARCHAR) END, '_null_recon_')"
+                    "ELSE CAST(CAST({0} AS DECIMAL(38,10)) AS VARCHAR) "
+                    "END, '_null_recon_')"
                 ),
                 dialect=get_dialect("redshift"),
             )

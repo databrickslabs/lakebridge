@@ -409,6 +409,35 @@ def test_double_handlers_guard_decimal_overflow():
     assert "DECIMAL(38,10)" in rs_rendered
 
 
+def test_redshift_double_float_detect_nan_via_varchar_cast():
+    """CF-2 regression: a live Redshift probe showed a *column* ``NaN`` is NOT matched by
+    ``NaN IN (CAST('NaN' AS DOUBLE PRECISION), ...)`` -- even though ``NaN = NaN`` is TRUE
+    and ±Inf ARE matched by that IN. So the old float-``IN`` guard silently missed NaN,
+    letting it fall into the ELSE ``CAST(... AS DECIMAL(38,10))`` and abort the whole
+    reconcile with SQLSTATE 8001 "NaN input". NaN/±Inf must be detected via the VARCHAR cast
+    (``CAST({0} AS VARCHAR) IN ('NaN','Infinity','-Infinity')``), which renders all three
+    reliably. With a correct guard the ELSE only ever sees finite, in-range values, so it
+    feeds the raw column straight to the DECIMAL pin -- no sanitize/clamp (proven live: the
+    plain-ELSE serializer runs clean on a real NaN-bearing column). A ``{0} <> {0}`` check
+    would be WRONG here (``NaN <> NaN`` is FALSE on Redshift). Databricks is unchanged
+    (``ISNAN`` already detects NaN)."""
+    for dtype in ("double", "real", "float4"):
+        rendered = _render_type(dtype, "redshift", "databricks")
+        # NaN/±Inf are detected by casting to VARCHAR -- never by the float IN (misses a
+        # column NaN) and never by `<>` self (``NaN <> NaN`` is FALSE on Redshift).
+        assert "CAST(ts_col AS VARCHAR) IN (" in rendered, dtype
+        assert "'NaN'" in rendered and "'Infinity'" in rendered and "'-Infinity'" in rendered, dtype
+        assert "IN (CAST('NaN' AS DOUBLE PRECISION)" not in rendered, dtype
+        assert "<>" not in rendered, dtype
+        # The ELSE feeds the raw column straight to the DECIMAL pin -- no sanitize (``THEN 0``).
+        assert "CAST(CAST(ts_col AS DECIMAL(38,10)) AS VARCHAR)" in rendered, dtype
+        assert "THEN 0 ELSE" not in rendered, dtype
+        # In-range values are still normalized to the fixed-scale decimal string, and finite
+        # magnitude >= 1e28 (overflows DECIMAL(38,10)) still routes to the native cast.
+        assert "DECIMAL(38,10)" in rendered, dtype
+        assert ">= 1e28" in rendered, dtype
+
+
 def test_float_pins_like_double_only_when_counterpart_also_pins():
     """Regression (F1): Redshift ``real``/``float4`` (single precision) parses to FLOAT and
     previously had no handler, falling to the universal ``TRIM`` default — the same
