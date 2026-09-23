@@ -267,7 +267,10 @@ class TriggerReconService:
         mismatched = [r for r in reconcile_output.results if is_table_recon_mismatch(r)]
 
         total_count, exc_count, mismatched_count = (len(reconcile_output.results), len(exceptions), len(mismatched))
-        success_count = max(0, total_count - exc_count + mismatched_count)
+        # Succeeded tables are those that neither errored nor mismatched: total - exceptions - mismatches.
+        # The previous ``+ mismatched_count`` inflated the count (a mismatch is a failure, not a success)
+        # and could report more succeeded tables than were reconciled (success_count > total_count).
+        success_count = max(0, total_count - exc_count - mismatched_count)
 
         logger.info(
             f"Reconciliation **{report_type}** with id: {reconcile_output.recon_id} ran for total {total_count} source tables and their targets."
