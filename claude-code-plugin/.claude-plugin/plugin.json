@@ -1,0 +1,17 @@
+{
+  "name": "lakebridge",
+  "version": "0.1.0",
+  "description": "Agentic SQL-to-Databricks migration workflows on top of Lakebridge: plan/build/review/fix subagents, parity fixing, job self-healing, and Ralph loop templates",
+  "author": {
+    "name": "Databricks Labs"
+  },
+  "repository": "https://github.com/databrickslabs/lakebridge",
+  "keywords": [
+    "lakebridge",
+    "databricks",
+    "migration",
+    "transpile",
+    "reconcile",
+    "ralph"
+  ]
+}
