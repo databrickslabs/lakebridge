@@ -13,6 +13,7 @@ from databricks.labs.lakebridge.assessments import AUTO, SOURCE_SYSTEM_VARIANTS
 from databricks.labs.lakebridge.connections.credential_manager import create_credential_manager
 from databricks.labs.lakebridge.connections.database_manager import ALL_DATABASES, create_connector
 from databricks.labs.lakebridge.connections.env_getter import EnvGetter
+from databricks.labs.lakebridge.resources.assessments.clickhouse import CLICKHOUSE_CLOUD_HOST_SUFFIX
 
 logger = logging.getLogger(__name__)
 
@@ -50,11 +51,33 @@ def resolve_mssql_variant(cred_file_path: Path | None) -> str:
     return "multi_db"
 
 
+def resolve_clickhouse_variant(cred_file_path: Path | None) -> str:
+    """Pick the ClickHouse profiler variant by detecting ClickHouse Cloud vs self-managed (OSS).
+
+    A hostname ending in ``.clickhouse.cloud`` is a definitive Cloud signal. Otherwise the authoritative
+    ``cloud_mode`` server setting decides: ``1`` on Cloud, absent/``0`` on OSS. Cloud profiling reads
+    replicated system tables across replicas; OSS reads the single node.
+    """
+    cred_manager = create_credential_manager("clickhouse", EnvGetter(), creds_path=cred_file_path)
+    connect_config = cred_manager.get_credentials("clickhouse")
+    host = str(connect_config.get("host") or "").strip().lower()
+    if host.endswith(CLICKHOUSE_CLOUD_HOST_SUFFIX):
+        logger.info("Detected ClickHouse Cloud from host suffix; using 'cloud' profiler variant")
+        return "cloud"
+    with create_connector("clickhouse", connect_config) as connector:
+        result = connector.fetch("SELECT value FROM system.settings WHERE name = 'cloud_mode'")
+    cloud_mode = str(result.rows[0][0]).strip().lower() if result.rows else ""
+    variant = "cloud" if cloud_mode in {"1", "true"} else "oss"
+    logger.info(f"Detected ClickHouse cloud_mode={cloud_mode!r}; using '{variant}' profiler variant")
+    return variant
+
+
 Resolvers = dict[str, Callable[[Path | None], str]]
 
 # Sources whose variant is auto-detected from a live connection (probe) rather than supplied explicitly.
 VARIANT_RESOLVERS: Resolvers = {
     "mssql": resolve_mssql_variant,
+    "clickhouse": resolve_clickhouse_variant,
 }
 
 

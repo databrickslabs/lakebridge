@@ -1,0 +1,20 @@
+CREATE TABLE IF NOT EXISTS objects_tables (
+    database VARCHAR,
+    name VARCHAR,
+    engine VARCHAR,
+    partition_key VARCHAR,
+    sorting_key VARCHAR,
+    primary_key VARCHAR,
+    sampling_key VARCHAR,
+    total_rows UBIGINT,
+    total_bytes UBIGINT,
+    lifetime_rows UBIGINT,
+    lifetime_bytes UBIGINT,
+    has_own_data BIGINT,
+    dependencies_database VARCHAR,
+    dependencies_table VARCHAR,
+    create_table_query VARCHAR,
+    engine_full VARCHAR,
+    as_select VARCHAR,
+    comment VARCHAR
+);

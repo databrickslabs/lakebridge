@@ -7,10 +7,13 @@ from collections.abc import Callable, Iterator, Sequence
 from types import TracebackType
 from typing import Any
 
+import clickhouse_connect
 import mssql_python
 import pandas as pd
 import pyarrow as pa
 import redshift_connector  # type: ignore[import-untyped]
+from clickhouse_connect.driver.client import Client as ClickHouseClient
+from clickhouse_connect.driver.exceptions import ClickHouseError
 from databricks.labs.blueprint.installation import JsonObject
 from snowflake.connector.errors import Error as SnowflakeError
 from sqlalchemy import create_engine, text
@@ -23,6 +26,11 @@ from databricks.labs.lakebridge.connections.snowflake_auth import resolve_snowfl
 from databricks.labs.lakebridge.connections.snowflake_utils import (
     is_valid_snowflake_account,
     parse_snowflake_account,
+)
+from databricks.labs.lakebridge.resources.assessments.clickhouse import (
+    CLICKHOUSE_PLAINTEXT_PORT,
+    CLICKHOUSE_SECURE_PORT,
+    is_cloud_host,
 )
 
 # Side-effect import: registers the 'snowflake://' SQLAlchemy dialect so
@@ -325,6 +333,72 @@ class RedshiftConnector(DatabaseConnector):
         return result.rows[0][0] == 101
 
 
+class ClickHouseConnector(DatabaseConnector):
+    """ClickHouse connector over the clickhouse-connect HTTP client."""
+
+    def __init__(self, config: JsonObject):
+        self.config = config
+        # Optional override for the cluster the cloud SQL reads via clusterAllReplicas('default', ...);
+        # validated because it is spliced into SQL. See _apply_cluster_override.
+        self._cluster = str(config.get("cluster") or "").strip()
+        if self._cluster and not all(c.isalnum() or c in "_-." for c in self._cluster):
+            raise ValueError(f"Invalid ClickHouse cluster name in config: {self._cluster!r}")
+        self._client: ClickHouseClient = self._connect()
+
+    def _apply_cluster_override(self, query: str) -> str:
+        """Point clusterAllReplicas('default', ...) at the configured cluster.
+
+        Cloud always uses 'default'; only a self-managed deployment profiled as cloud with a
+        differently-named cluster needs this. No-op otherwise (incl. OSS, which never calls it).
+        """
+        if not self._cluster or self._cluster == "default":
+            return query
+        return query.replace("clusterAllReplicas('default'", f"clusterAllReplicas('{self._cluster}'")
+
+    def _connect(self) -> ClickHouseClient:
+        host = str(self.config["host"])
+        # A *.clickhouse.cloud host is forced to TLS (managed Cloud only accepts TLS and this
+        # connection carries the password); otherwise `secure` follows the config, defaulting to
+        # plaintext for self-managed / OSS. `port` follows the config, else the TLS/plaintext default.
+        is_cloud = is_cloud_host(host)
+        secure = True if is_cloud else bool(self.config.get("secure", False))
+        default_port = CLICKHOUSE_SECURE_PORT if secure else CLICKHOUSE_PLAINTEXT_PORT
+        port_value = self.config.get("port")
+        port = default_port if port_value in {None, ""} else int(str(port_value))
+        # A cloud host is TLS-only. If it was configured with the plaintext default port (e.g. copied
+        # from an OSS template), a TLS handshake against that port fails — correct it to the secure
+        # port so the forced-TLS override doesn't connect to the wrong place.
+        if is_cloud and secure and port == CLICKHOUSE_PLAINTEXT_PORT:
+            port = CLICKHOUSE_SECURE_PORT
+        return clickhouse_connect.get_client(
+            host=host,
+            port=port,
+            username=str(self.config.get("user", "default")),
+            password=str(self.config.get("password", "")),
+            secure=secure,
+        )
+
+    def fetch(self, query: str) -> FetchResult:
+        query = self._apply_cluster_override(query)
+        # Wrap driver errors as ConnectionError so an optional step hitting a missing/disabled system
+        # table degrades to ABSENT instead of aborting the run. Mirrors the other connectors.
+        try:
+            result = self._client.query(query)
+        except ClickHouseError as e:
+            logger.debug("Database query failed", exc_info=True)
+            reason = str(e).split("\n", 1)[0].strip()
+            raise ConnectionError(f"Database query failed: {reason}") from e
+        return FetchResult(list(result.column_names), result.result_rows)
+
+    def close(self) -> None:
+        self._client.close()
+
+    def health_check(self) -> bool:
+        query = "SELECT 101 AS test_column"
+        result = self.fetch(query)
+        return result.rows[0][0] == 101
+
+
 def create_connector(db_type: str, config: JsonObject) -> DatabaseConnector:
     connectors: dict[str, Callable[[JsonObject], DatabaseConnector]] = {
         "snowflake": SnowflakeConnector,
@@ -334,6 +408,7 @@ def create_connector(db_type: str, config: JsonObject) -> DatabaseConnector:
         "redshift": RedshiftConnector,
         "oracle": OracleConnector,
         "teradata": TeradataConnector,
+        "clickhouse": ClickHouseConnector,
     }
 
     connector_class = connectors.get(db_type.lower())

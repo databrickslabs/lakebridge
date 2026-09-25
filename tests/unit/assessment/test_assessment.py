@@ -6,6 +6,7 @@ from databricks.labs.blueprint.tui import MockPrompts
 from databricks.labs.lakebridge.assessments.configure_assessment import (
     REDSHIFT_AUTH_TYPES,
     ConfigureBigQueryAssessment,
+    ConfigureClickHouseAssessment,
     ConfigureLegacySynapseAssessment,
     ConfigureRedshiftAssessment,
     ConfigureSqlServerAssessment,
@@ -324,6 +325,103 @@ def test_configure_bigquery_credentials(tmp_path):
     assert credentials == expected_credentials
 
 
+def test_configure_clickhouse_credentials_oss(tmp_path):
+    """OSS: plain connection, no Cloud API block. The profiler is SQL/DDL with a fixed window and
+    always-on redaction, so there is no profiler knob block."""
+    prompts = MockPrompts(
+        {
+            r"Enter secret vault type \(local \| env\)": sorted(['local', 'env']).index("local"),
+            r"Use a secure \(TLS\) connection\?.*": "no",
+            r"Enter the ClickHouse host": "10.0.0.5",
+            r"Enter the ClickHouse HTTP port": "8123",
+            r"Enter the ClickHouse user": "default",
+            r"Enter the ClickHouse password": "s3cret",
+            r"Configure ClickHouse Cloud API credentials.*": "no",
+            r"Do you want to test the connection to clickhouse\?": "no",
+        }
+    )
+    file = tmp_path / ".credentials.yml"
+    ConfigureClickHouseAssessment(
+        product_name="lakebridge", source_name="clickhouse", prompts=prompts, credential_file=file
+    ).run()
+
+    with open(file, 'r', encoding='utf-8') as handle:
+        credentials = yaml.safe_load(handle)
+
+    clickhouse = credentials["clickhouse"]
+    assert clickhouse['host'] == "10.0.0.5"
+    assert clickhouse['port'] == 8123
+    assert clickhouse['secure'] is False
+    assert 'profiler' not in clickhouse
+    assert 'cloud_api' not in clickhouse
+
+
+def test_configure_clickhouse_credentials_cloud_with_api(tmp_path):
+    """Cloud: secure connection defaults port to 8443 and records the Cloud API block + tier override."""
+    prompts = MockPrompts(
+        {
+            r"Enter secret vault type \(local \| env\)": sorted(['local', 'env']).index("local"),
+            r"Use a secure \(TLS\) connection\?.*": "yes",
+            r"Enter the ClickHouse host": "abc.us-east-1.aws.clickhouse.cloud",
+            r"Enter the ClickHouse HTTP port": "8443",
+            r"Enter the ClickHouse user": "default",
+            r"Enter the ClickHouse password": "s3cret",
+            r"Configure ClickHouse Cloud API credentials.*": "yes",
+            r"Enter the Cloud API Key ID": "key-id",
+            r"Enter the Cloud API Key Secret": "key-secret",
+            r"Enter the Cloud organization id.*": "",
+            r"Enter the Cloud service id.*": "",
+            r"Override the plan tier\?.*": "yes",
+            r"Select the plan tier": sorted(["basic", "scale", "enterprise"]).index("enterprise"),
+            r"Do you want to test the connection to clickhouse\?": "no",
+        }
+    )
+    file = tmp_path / ".credentials.yml"
+    ConfigureClickHouseAssessment(
+        product_name="lakebridge", source_name="clickhouse", prompts=prompts, credential_file=file
+    ).run()
+
+    with open(file, 'r', encoding='utf-8') as handle:
+        credentials = yaml.safe_load(handle)
+
+    clickhouse = credentials["clickhouse"]
+    assert clickhouse['secure'] is True
+    assert clickhouse['cloud_api'] == {'key_id': 'key-id', 'key_secret': 'key-secret', 'tier': 'enterprise'}
+
+
+def test_configure_clickhouse_credentials_cloud_tier_auto_detect(tmp_path):
+    """Declining the tier-override confirm records no `tier` key (auto-detect), and must not hang on an
+    empty prompt — regression for the tier prompt re-looping when Enter was pressed."""
+    prompts = MockPrompts(
+        {
+            r"Enter secret vault type \(local \| env\)": sorted(['local', 'env']).index("local"),
+            r"Use a secure \(TLS\) connection\?.*": "yes",
+            r"Enter the ClickHouse host": "abc.us-east-1.aws.clickhouse.cloud",
+            r"Enter the ClickHouse HTTP port": "8443",
+            r"Enter the ClickHouse user": "default",
+            r"Enter the ClickHouse password": "s3cret",
+            r"Configure ClickHouse Cloud API credentials.*": "yes",
+            r"Enter the Cloud API Key ID": "key-id",
+            r"Enter the Cloud API Key Secret": "key-secret",
+            r"Enter the Cloud organization id.*": "",
+            r"Enter the Cloud service id.*": "",
+            r"Override the plan tier\?.*": "no",
+            r"Do you want to test the connection to clickhouse\?": "no",
+        }
+    )
+    file = tmp_path / ".credentials.yml"
+    ConfigureClickHouseAssessment(
+        product_name="lakebridge", source_name="clickhouse", prompts=prompts, credential_file=file
+    ).run()
+
+    with open(file, 'r', encoding='utf-8') as handle:
+        credentials = yaml.safe_load(handle)
+
+    cloud_api = credentials["clickhouse"]["cloud_api"]
+    assert cloud_api == {'key_id': 'key-id', 'key_secret': 'key-secret'}
+    assert 'tier' not in cloud_api
+
+
 def test_configure_synapse_credentials_spn(tmp_path):
     """Synapse SPN: workspace omits user/password; auth_type is the new ODBC class name."""
     prompts = MockPrompts(
@@ -428,6 +526,12 @@ def test_create_assessment_configurator():
         source_system="redshift", product_name="lakebridge", prompts=prompts
     )
     assert isinstance(redshift_configurator, ConfigureRedshiftAssessment)
+
+    # Test ClickHouse configurator
+    clickhouse_configurator = create_assessment_configurator(
+        source_system="clickhouse", product_name="lakebridge", prompts=prompts
+    )
+    assert isinstance(clickhouse_configurator, ConfigureClickHouseAssessment)
 
     # Test invalid source system
     try:
