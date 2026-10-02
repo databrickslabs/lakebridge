@@ -126,6 +126,16 @@ def test_load_private_key_unencrypted(tmp_path: Path) -> None:
     assert der
 
 
+def test_load_private_key_expands_tilde(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # A '~' in private_key_path must be expanded against the user's home before the file is read.
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))  # Windows
+    _write_private_key(tmp_path / "rsa_key.p8", passphrase=None)
+    der = load_snowflake_private_key(Path("~/rsa_key.p8"), passphrase=None)
+    assert isinstance(der, bytes)
+    assert der
+
+
 @pytest.mark.parametrize("passphrase", ["secret-pass", "another"])
 def test_load_private_key_encrypted_with_passphrase(tmp_path: Path, passphrase: str) -> None:
     key_path = tmp_path / "rsa_key.p8"

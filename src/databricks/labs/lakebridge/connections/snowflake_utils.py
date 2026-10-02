@@ -26,6 +26,7 @@ def load_snowflake_private_key(key_path: Path, passphrase: str | None = None) ->
     Snowflake SQLAlchemy expects the private key as unencrypted DER PKCS8 bytes via
     ``connect_args={"private_key": ...}``. Encrypted ``.p8`` files need ``passphrase``.
     """
+    key_path = key_path.expanduser()  # honor a '~' in the configured private_key_path
     try:
         key_bytes = key_path.read_bytes()
     except OSError as e:
