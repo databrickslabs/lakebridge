@@ -126,23 +126,16 @@ def test_invalid_legacy_auth_type_no_longer_aliased(monkeypatch: pytest.MonkeyPa
         resolve_mssql_credentials({"auth_type": "spn_authentication"})
 
 
-def test_mssql_connector_applies_resolved_credentials_to_connection_string(
+def test_mssql_connector_applies_resolved_credentials_as_connect_kwargs(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """MSSQLConnector calls resolve_mssql_credentials and applies the result to mssql_python.connect."""
     monkeypatch.setenv("AZURE_CLIENT_ID", "spn-id")
     monkeypatch.setenv("AZURE_CLIENT_SECRET", "spn-secret")
 
-    captured = {}
-
-    def fake_connect(connection_string, **kwargs):
-        captured["connection_string"] = connection_string
-        captured["kwargs"] = kwargs
-        return object()
-
     with patch(
-        "databricks.labs.lakebridge.connections.database_manager.mssql_python.connect", side_effect=fake_connect
-    ):
+        "databricks.labs.lakebridge.connections.database_manager.mssql_python.connect",
+        return_value=object(),
+    ) as connect:
         MSSQLConnector(
             {
                 "auth_type": "ActiveDirectoryServicePrincipal",
@@ -152,23 +145,23 @@ def test_mssql_connector_applies_resolved_credentials_to_connection_string(
             }
         )
 
-    assert "Server=test-server,1433" in captured["connection_string"]
-    assert "Authentication=ActiveDirectoryServicePrincipal" in captured["connection_string"]
-    assert "UID=spn-id" in captured["connection_string"]
-    assert captured["kwargs"]["timeout"] == 30
+    connect.assert_called_once_with(
+        autocommit=True,
+        timeout=30,
+        server="test-server,1433",
+        database="master",
+        authentication="ActiveDirectoryServicePrincipal",
+        uid="spn-id",
+        pwd="spn-secret",
+        trust_server_certificate="no",
+    )
 
 
 def test_mssql_connector_sql_password_omits_authentication_keyword() -> None:
-    """SQL auth is plain UID/PWD; a legacy `driver` key from old credential files is ignored."""
-    captured = {}
-
-    def fake_connect(connection_string, **kwargs):
-        captured["connection_string"] = connection_string
-        return object()
-
     with patch(
-        "databricks.labs.lakebridge.connections.database_manager.mssql_python.connect", side_effect=fake_connect
-    ):
+        "databricks.labs.lakebridge.connections.database_manager.mssql_python.connect",
+        return_value=object(),
+    ) as connect:
         MSSQLConnector(
             {
                 "server": "test-server",
@@ -180,52 +173,42 @@ def test_mssql_connector_sql_password_omits_authentication_keyword() -> None:
             }
         )
 
-    assert "Authentication=" not in captured["connection_string"]
-    assert "UID=alice" in captured["connection_string"]
-    assert "PWD={secret}" in captured["connection_string"]
+    connect.assert_called_once_with(
+        autocommit=True,
+        timeout=30,
+        server="test-server,1433",
+        database="master",
+        uid="alice",
+        pwd="secret",
+        trust_server_certificate="no",
+    )
 
 
-def test_mssql_connector_escape_wraps_and_doubles_braces() -> None:
-    assert MSSQLConnector.escape("pa}ss") == "{pa}}ss}"
-    assert MSSQLConnector.escape("pa;ss") == "{pa;ss}"
-
-
-def test_mssql_connector_wraps_special_password_in_odbc_braces() -> None:
-    captured = {}
-
-    def fake_connect(connection_string, **kwargs):
-        captured["connection_string"] = connection_string
-        return object()
-
+def test_mssql_connector_passes_special_credentials_verbatim_as_kwargs() -> None:
     with patch(
         "databricks.labs.lakebridge.connections.database_manager.mssql_python.connect",
-        side_effect=fake_connect,
-    ):
+        return_value=object(),
+    ) as connect:
         MSSQLConnector(
             {
                 "server": "test-server",
                 "port": 1433,
                 "database": "master",
-                "user": "alice",
-                "password": "secret?",
+                "user": "al;ice",
+                "password": "se}cr{et;=?",
             }
         )
 
-    assert "UID=alice" in captured["connection_string"]
-    assert "PWD={secret?}" in captured["connection_string"]
+    kwargs = connect.call_args.kwargs
+    assert kwargs["uid"] == "al;ice"
+    assert kwargs["pwd"] == "se}cr{et;=?"
 
 
 def test_mssql_connector_default_azure_credential_has_no_uid_pwd() -> None:
-    """DefaultAzureCredential delegates identity to the driver: keyword only, no credentials."""
-    captured = {}
-
-    def fake_connect(connection_string, **kwargs):
-        captured["connection_string"] = connection_string
-        return object()
-
     with patch(
-        "databricks.labs.lakebridge.connections.database_manager.mssql_python.connect", side_effect=fake_connect
-    ):
+        "databricks.labs.lakebridge.connections.database_manager.mssql_python.connect",
+        return_value=object(),
+    ) as connect:
         MSSQLConnector(
             {
                 "auth_type": "DefaultAzureCredential",
@@ -235,6 +218,11 @@ def test_mssql_connector_default_azure_credential_has_no_uid_pwd() -> None:
             }
         )
 
-    assert "Authentication=ActiveDirectoryDefault" in captured["connection_string"]
-    assert "UID=" not in captured["connection_string"]
-    assert "PWD=" not in captured["connection_string"]
+    connect.assert_called_once_with(
+        autocommit=True,
+        timeout=30,
+        server="test-server,1433",
+        database="master",
+        authentication="ActiveDirectoryDefault",
+        trust_server_certificate="no",
+    )

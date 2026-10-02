@@ -5,7 +5,7 @@ import logging
 from abc import abstractmethod
 from collections.abc import Callable, Iterator, Sequence
 from types import TracebackType
-from typing import Any
+from typing import Any, TypedDict
 
 import mssql_python
 import pandas as pd
@@ -165,16 +165,16 @@ class SnowflakeConnector(_BaseConnector):
 ALL_DATABASES = "*"
 
 
+class _MSSQLConnectionKwargs(TypedDict, total=False):
+    server: str
+    database: str
+    authentication: str
+    uid: str
+    pwd: str
+    trust_server_certificate: str
+
+
 class MSSQLConnector(DatabaseConnector):
-    @staticmethod
-    def escape(value: str) -> str:
-        """Wrap an ODBC connection-string value in braces, doubling any closing brace.
-
-        Lets passwords with special characters (``;``, ``{``, ``}``, ``=``) survive
-        ODBC connection-string parsing.
-        """
-        return "{" + value.replace("}", "}}") + "}"
-
     def __init__(self, config: JsonObject):
         self.config = config
         self._conn: mssql_python.Connection = self._connect()
@@ -187,23 +187,24 @@ class MSSQLConnector(DatabaseConnector):
 
         server = str(self.config["server"])
         port = int(str(self.config.get("port", "1433")))
-        parts = [f"Server={server},{port}"]
+        kwargs: _MSSQLConnectionKwargs = {"server": f"{server},{port}"}
         if self.config.get("database"):
-            parts.append(f"Database={db_name}")
+            kwargs["database"] = db_name
         if resolved.authentication_param is not None:
-            parts.append(f"Authentication={resolved.authentication_param}")
+            kwargs["authentication"] = resolved.authentication_param
         if resolved.username is not None:
-            parts.append(f"UID={resolved.username}")
+            kwargs["uid"] = resolved.username
         if resolved.password is not None:
-            parts.append(f"PWD={MSSQLConnector.escape(resolved.password)}")
-        trust = "no" if str(self.config.get("trust_server_certificate", "False")) == "False" else "yes"
-        parts.append(f"TrustServerCertificate={trust}")
+            kwargs["pwd"] = resolved.password
+        kwargs["trust_server_certificate"] = (
+            "no" if str(self.config.get("trust_server_certificate", "False")) == "False" else "yes"
+        )
 
         try:
             return mssql_python.connect(
-                ";".join(parts),
                 autocommit=True,
                 timeout=int(str(self.config.get("login_timeout", "30"))),
+                **kwargs,
             )
         except mssql_python.Error as e:
             raise ConnectionError(f"Failed to connect to {server}: {e}") from e
