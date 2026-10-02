@@ -1,0 +1,8 @@
+# Never commit filled credentials or key material, even if dropped into this directory by mistake.
+# (The real files live in ~/.databricks/labs/lakebridge/, downloaded from the UC volume.)
+.credentials.yml
+.credentials.*
+*.pem
+*.p8
+*-sa.json
+bigquery-sa.json
