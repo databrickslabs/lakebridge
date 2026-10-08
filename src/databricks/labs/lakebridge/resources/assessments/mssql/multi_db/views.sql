@@ -7,7 +7,7 @@
 SET NOCOUNT ON;
 
 DECLARE @cols NVARCHAR(MAX) =
-    N'table_catalog, table_schema, table_name, check_option, is_updatable, ''[REDACTED]'' AS view_definition';
+    N'TABLE_CATALOG, TABLE_SCHEMA, TABLE_NAME, CHECK_OPTION, IS_UPDATABLE, ''[REDACTED]'' AS VIEW_DEFINITION';
 DECLARE @sql NVARCHAR(MAX) =
     N'SELECT DB_NAME() AS database_name, ' + @cols + N' FROM INFORMATION_SCHEMA.VIEWS WHERE 1 = 0';
 

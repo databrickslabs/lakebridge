@@ -8,10 +8,10 @@
 SET NOCOUNT ON;
 
 DECLARE @cols NVARCHAR(MAX) =
-    N'created, data_type, is_deterministic, is_implicitly_invocable, is_null_call, is_user_defined_cast,'
-    + N' last_altered, max_dynamic_result_sets, numeric_precision, numeric_precision_radix, numeric_scale,'
-    + N' routine_body, routine_catalog, ''[REDACTED]'' AS routine_definition, routine_name, routine_schema,'
-    + N' routine_type, schema_level_routine, specific_catalog, specific_name, specific_schema, sql_data_access';
+    N'CREATED, DATA_TYPE, IS_DETERMINISTIC, IS_IMPLICITLY_INVOCABLE, IS_NULL_CALL, IS_USER_DEFINED_CAST,'
+    + N' LAST_ALTERED, MAX_DYNAMIC_RESULT_SETS, NUMERIC_PRECISION, NUMERIC_PRECISION_RADIX, NUMERIC_SCALE,'
+    + N' ROUTINE_BODY, ROUTINE_CATALOG, ''[REDACTED]'' AS ROUTINE_DEFINITION, ROUTINE_NAME, ROUTINE_SCHEMA,'
+    + N' ROUTINE_TYPE, SCHEMA_LEVEL_ROUTINE, SPECIFIC_CATALOG, SPECIFIC_NAME, SPECIFIC_SCHEMA, SQL_DATA_ACCESS';
 DECLARE @sql NVARCHAR(MAX) =
     N'SELECT DB_NAME() AS database_name, ' + @cols + N' FROM INFORMATION_SCHEMA.ROUTINES WHERE 1 = 0';
 

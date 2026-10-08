@@ -101,7 +101,7 @@ class SynapseQueries:
                    SPECIFIC_SCHEMA,
                    SQL_DATA_ACCESS,
                    '{pool_name}' as POOL_NAME
-                   FROM information_schema.routines
+                   FROM INFORMATION_SCHEMA.ROUTINES
                    """
 
     @staticmethod

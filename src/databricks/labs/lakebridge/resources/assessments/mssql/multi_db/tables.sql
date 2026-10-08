@@ -7,7 +7,7 @@
  */
 SET NOCOUNT ON;
 
-DECLARE @cols NVARCHAR(MAX) = N'table_catalog, table_schema, table_name, table_type';
+DECLARE @cols NVARCHAR(MAX) = N'TABLE_CATALOG, TABLE_SCHEMA, TABLE_NAME, TABLE_TYPE';
 DECLARE @sql NVARCHAR(MAX) =
     N'SELECT DB_NAME() AS database_name, ' + @cols + N' FROM INFORMATION_SCHEMA.TABLES WHERE 1 = 0';
 

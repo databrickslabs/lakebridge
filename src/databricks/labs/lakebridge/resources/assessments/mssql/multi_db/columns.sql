@@ -7,11 +7,11 @@
 SET NOCOUNT ON;
 
 DECLARE @cols NVARCHAR(MAX) =
-    N'table_catalog, table_schema, table_name, column_name, ordinal_position, column_default,'
-    + N' is_nullable, data_type, character_maximum_length, character_octet_length, numeric_precision,'
-    + N' numeric_precision_radix, numeric_scale, datetime_precision, character_set_catalog,'
-    + N' character_set_schema, character_set_name, collation_catalog, collation_schema, collation_name,'
-    + N' domain_catalog, domain_schema, domain_name';
+    N'TABLE_CATALOG, TABLE_SCHEMA, TABLE_NAME, COLUMN_NAME, ORDINAL_POSITION, COLUMN_DEFAULT,'
+    + N' IS_NULLABLE, DATA_TYPE, CHARACTER_MAXIMUM_LENGTH, CHARACTER_OCTET_LENGTH, NUMERIC_PRECISION,'
+    + N' NUMERIC_PRECISION_RADIX, NUMERIC_SCALE, DATETIME_PRECISION, CHARACTER_SET_CATALOG,'
+    + N' CHARACTER_SET_SCHEMA, CHARACTER_SET_NAME, COLLATION_CATALOG, COLLATION_SCHEMA, COLLATION_NAME,'
+    + N' DOMAIN_CATALOG, DOMAIN_SCHEMA, DOMAIN_NAME';
 DECLARE @sql NVARCHAR(MAX) =
     N'SELECT DB_NAME() AS database_name, ' + @cols + N' FROM INFORMATION_SCHEMA.COLUMNS WHERE 1 = 0';
 

@@ -3,11 +3,11 @@
  * `INFORMATION_SCHEMA.VIEWS`. Returns view definitions along with a timestamp
  * indicating when the data was extracted.
  */
-SELECT DB_NAME() AS database_name,
-       table_catalog,
-       table_schema,
-       table_name,
-       check_option,
-       is_updatable,
+SELECT DB_NAME() AS DATABASE_NAME,
+       TABLE_CATALOG,
+       TABLE_SCHEMA,
+       TABLE_NAME,
+       CHECK_OPTION,
+       IS_UPDATABLE,
        '[REDACTED]' AS VIEW_DEFINITION
-FROM   information_schema.views
+FROM   INFORMATION_SCHEMA.VIEWS
