@@ -3,7 +3,7 @@ SELECT TO_CHAR(mtime,'YYYY/MM/DD') AS mtime,
        instance_number,
        TO_CHAR(mtime,'HH24') AS hour,
        core_nb,
-       LOAD AS value
+       CAST(LOAD AS BINARY_DOUBLE) AS value
 FROM
     (SELECT to_date(mtime,'YYYY-MM-DD HH24') mtime,
     cont.name AS pdb_name,

@@ -1,6 +1,7 @@
 """Assert profiler SQL retains float casts that prevent DuckDB narrow-DECIMAL overflow (PR #2578).
 
-Snippets are matched after whitespace normalization; case is preserved.
+Every float/double cast in each referenced query is enumerated below, so removing any single
+cast fails CI. Snippets are matched after whitespace normalization; case is preserved.
 """
 
 from __future__ import annotations
@@ -14,6 +15,58 @@ _REPO_ROOT = Path(__file__).resolve().parents[3]
 _ASSESSMENTS = _REPO_ROOT / "src/databricks/labs/lakebridge/resources/assessments"
 
 REQUIRED_CASTS: dict[str, tuple[str, ...]] = {
+    "synapse/common/queries.py": (
+        "CAST(RESOURCE_ALLOCATION_PERCENTAGE AS FLOAT) AS RESOURCE_ALLOCATION_PERCENTAGE",
+        "CAST(AU.TOTAL_PAGES * 8.0 / 1024 AS FLOAT) AS TOTAL_SIZE_MB",
+        "CAST(AU.USED_PAGES * 8.0 / 1024 AS FLOAT) AS USED_SIZE_MB",
+        "CAST(QS.TOTAL_ELAPSED_TIME / 1000000.0 AS FLOAT) AS TOTAL_ELAPSED_TIME_SEC",
+        "CAST(QS.TOTAL_WORKER_TIME / 1000000.0 AS FLOAT) AS TOTAL_WORKER_TIME_SEC",
+        "CAST(QS.LAST_ELAPSED_TIME / 1000000.0 AS FLOAT) AS LAST_ELAPSED_TIME_SEC",
+        "CAST(QS.LAST_WORKER_TIME / 1000000.0 AS FLOAT) AS LAST_WORKER_TIME_SEC",
+    ),
+    "oracle/config_storage.sql": (
+        "CAST(SUM(gb) AS BINARY_DOUBLE) AS gb",
+        "CAST(SUM(freegb) AS BINARY_DOUBLE) AS freegb",
+        "CAST(SUM(maxgb) AS BINARY_DOUBLE) AS maxgb",
+    ),
+    "oracle/perf_heatmap.sql": ("CAST(LOAD AS BINARY_DOUBLE) AS value",),
+    "oracle/perf_sqltext.sql": ("CAST(sum(elapsed_time)/1000000 AS BINARY_DOUBLE) as total_run_time_secs",),
+    "teradata/td_sys_usage_agg.sql": (
+        "CAST(round(avg(totNCPUs), 0) AS FLOAT) as totNCPUs",
+        "CAST(round(avg(totVproc1), 0) AS FLOAT) as totVproc1",
+        "CAST(round(avg(totCPUUExec), 0) AS FLOAT) as totCPUUExec",
+        "CAST(round(avg(totCPUUServ), 0) AS FLOAT) as totCPUUServ",
+        "CAST(round(avg(totCPUIoWait), 0) AS FLOAT) as totCPUIoWait",
+        "CAST(round(avg(totMemSizeMB), 0) AS FLOAT) as totMemSizeMB",
+        "CAST(round(avg(totCPUIdle), 0) AS FLOAT) as totCPUIdle",
+        "CAST(round(avg(totMemFreeMB), 0) AS FLOAT) as totMemFreeMB",
+    ),
+    "teradata/td_sys_disk_utilization.sql": (
+        "CAST(SUM((MAXPERM) /(1024 * 1024)) AS FLOAT) MAX_PERM_MB",
+        "CAST(SUM((CURRENTPERM) /(1024 * 1024)) AS FLOAT) CURRENT_PERM_MB",
+        "CAST(SUM((MAXSPOOL) /(1024 * 1024)) AS FLOAT) MAX_SPOOL_MB",
+        "CAST(SUM((CURRENTSPOOL) /(1024 * 1024)) AS FLOAT) CURRENT_SPOOL_MB",
+    ),
+    "teradata/core/td_dbql_core_info_extract.sql": (
+        "CAST((LogTbl.AMPCPUTime + LogTbl.ParserCPUTime + LogTbl.DisCPUTime) AS FLOAT) as TotalCPUTime",
+    ),
+    "teradata/pdcr/td_pdcr_info_agg_extract.sql": (
+        "CAST(SUM(AMPCPUTime) AS FLOAT) AS SumCPU",
+        "CAST(AVG(AMPCPUTime) AS FLOAT) AS AvgCPU",
+        "CAST(MAX(AMPCPUTime) AS FLOAT) AS MaxCPU",
+        "CAST(SUM(TotalIOCount) AS FLOAT) AS SumIO",
+        "CAST(AVG(TotalIOCount) AS FLOAT) AS AvgIO",
+        "CAST(MAX(TotalIOCount) AS FLOAT) AS MaxIO",
+        "CAST(MAX(DelayTime) AS FLOAT) AS MaxTDWMDelayTime",
+        "CAST(SUM(DelayTime) AS FLOAT) AS SumTDWMDelayTime",
+        "CAST(AVG(ResponseSecs) AS FLOAT) AS AvgRespSecs",
+        "CAST(MAX(ResponseSecs) AS FLOAT) AS MaxRespSecs",
+    ),
+    "teradata/pdcr/td_pdcr_sp_exe_info_agg_extract.sql": (
+        "CAST(avg(AMPCPUTime) AS FLOAT) avgAMPCPUTime",
+        "CAST(avg(ExecutionSecs) AS FLOAT) avgExecutionSecs",
+        "CAST(avg(NumStatements) AS FLOAT) NumStatements",
+    ),
     "bigquery/resources/workload_types.sql": (
         "CAST(sum(slot_ms) AS FLOAT64)",
         "CAST(sum(bytes_processed) AS FLOAT64)",

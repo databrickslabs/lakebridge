@@ -25,9 +25,9 @@ SELECT con_name,
            WHEN tablespace_name IN (SELECT tablespace_name FROM undo_ts WHERE con_id = sub.con_id) THEN 'UNDO'
            ELSE 'USER_DATA'
            END AS tablespace_type,
-       SUM(gb) AS gb,
-       SUM(freegb) AS freegb,
-       SUM(maxgb) AS maxgb
+       CAST(SUM(gb) AS BINARY_DOUBLE) AS gb,
+       CAST(SUM(freegb) AS BINARY_DOUBLE) AS freegb,
+       CAST(SUM(maxgb) AS BINARY_DOUBLE) AS maxgb
 FROM sub
 GROUP BY con_name,
          CASE

@@ -6,16 +6,16 @@ SELECT
         ELSE 'INTERACTIVE'
     END AS WorkloadBucket,
     COUNT(*) AS QryCNT,
-    SUM(AMPCPUTime) AS SumCPU,
-    AVG(AMPCPUTime) AS AvgCPU,
-    MAX(AMPCPUTime) AS MaxCPU,
-    SUM(TotalIOCount) AS SumIO,
-    AVG(TotalIOCount) AS AvgIO,
-    MAX(TotalIOCount) AS MaxIO,
-    MAX(DelayTime) AS MaxTDWMDelayTime,
-    SUM(DelayTime) AS SumTDWMDelayTime,
-    AVG(ResponseSecs) AS AvgRespSecs,
-    MAX(ResponseSecs) AS MaxRespSecs
+    CAST(SUM(AMPCPUTime) AS FLOAT) AS SumCPU,
+    CAST(AVG(AMPCPUTime) AS FLOAT) AS AvgCPU,
+    CAST(MAX(AMPCPUTime) AS FLOAT) AS MaxCPU,
+    CAST(SUM(TotalIOCount) AS FLOAT) AS SumIO,
+    CAST(AVG(TotalIOCount) AS FLOAT) AS AvgIO,
+    CAST(MAX(TotalIOCount) AS FLOAT) AS MaxIO,
+    CAST(MAX(DelayTime) AS FLOAT) AS MaxTDWMDelayTime,
+    CAST(SUM(DelayTime) AS FLOAT) AS SumTDWMDelayTime,
+    CAST(AVG(ResponseSecs) AS FLOAT) AS AvgRespSecs,
+    CAST(MAX(ResponseSecs) AS FLOAT) AS MaxRespSecs
 FROM (
     SELECT
         CASE
