@@ -1,0 +1,71 @@
+# Lakebridge Claude Code plugin — project configuration.
+#
+# Every skill, subagent and Ralph loop in the plugin reads this file instead of
+# hard-coding project facts. Keep secrets OUT of this file: reference Databricks
+# CLI profiles, secret scopes and environment variables by name only.
+
+project:
+  name: my-migration
+  # Lakebridge source dialect (see `databricks labs lakebridge describe-transpile`)
+  source_dialect: mssql
+
+databricks:
+  # Databricks CLI profile from ~/.databrickscfg (`databricks auth login --profile ...`)
+  profile: DEFAULT
+  catalog: main
+  # Logical layers -> Unity Catalog schemas. Remove layers you don't use.
+  schemas:
+    bronze: bronze
+    silver: silver
+    gold: gold
+  # SQL warehouse used for validation queries (optional; leave empty to use serverless notebooks)
+  warehouse_id: ""
+  # How converted code reaches the workspace: git-folder | bundle | workspace-import
+  deploy_method: bundle
+  # Workspace root for deployed notebooks (Git folder or bundle target path)
+  workspace_root: /Workspace/Shared/migration
+  # Secret scope holding source-system credentials used by notebooks
+  secret_scope: migration
+
+source:
+  # Split, one-object-per-file source SQL (see the Lakebridge SQL Splitter)
+  objects_dir: source_sql/
+  # Optional read-only command used to run validation queries on the legacy system.
+  # The query text is appended as the final argument. Leave empty to rely on
+  # `databricks labs lakebridge reconcile` only.
+  query_command: ""
+
+lakebridge:
+  analyzer_report: migration/analysis/report.xlsx
+  transpile_output: transpiled/
+  # Reconcile is configured with `databricks labs lakebridge configure-reconcile`
+  reconcile_enabled: true
+
+target:
+  # Where converted notebooks / SQL files live in this repository
+  code_dir: pipelines/
+  # Optional mapping of legacy objects to target tables (legacy_name: catalog.schema.table)
+  mapping_file: migration/mappings.yml
+
+jobs:
+  # Databricks jobs the run-and-monitor skill may trigger, by name
+  - name: my_migration_job
+
+paths:
+  specs: migration/specs
+  reviews: migration/reviews
+  fixes: migration/fixes
+  sessions: migration/sessions
+  queue: migration/queue.md
+
+rules:
+  # The legacy object's logic is the blueprint for the conversion
+  legacy_logic_is_source_of_truth: true
+  # Never copy rows from the legacy target into the new target without explicit approval
+  allow_legacy_data_copy: false
+  # git workflow for agent commits:
+  #   direct - commit to the current branch (typical inside a Ralph loop on a feature branch)
+  #   pr     - commit to the current branch and open a pull request when an object reaches PASS
+  git_workflow: direct
+  # Max review->fix rounds inside one migrate-object run before it returns FAIL
+  max_fix_attempts: 3
