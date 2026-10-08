@@ -1,23 +1,17 @@
 name: PipelineWithCombinedDDL
 version: "1.0"
 steps:
-  # Single DDL step with multiple CREATE TABLE statements
-  - name: combined_schema
-    type: ddl
-    extract_source: assessments/combined_ddl.sql
-    mode: overwrite
-    frequency: once
-    flag: active
-  # SQL steps to populate the tables created by combined DDL
   - name: inventory
     type: sql
     extract_source: assessments/inventory.sql
+    ddl_source: assessments/inventory_ddl.sql
     mode: append
     frequency: daily
     flag: active
   - name: usage
     type: sql
     extract_source: assessments/usage.sql
+    ddl_source: assessments/usage_ddl.sql
     mode: append
     frequency: weekly
     flag: active

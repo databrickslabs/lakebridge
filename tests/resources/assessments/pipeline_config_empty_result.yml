@@ -4,6 +4,7 @@ steps:
   - name: empty_result_step
     type: sql
     extract_source: resources/assessments/empty_resultset.sql
+    ddl_source: resources/assessments/empty_resultset_ddl.sql
     mode: overwrite
     frequency: once
     flag: active
