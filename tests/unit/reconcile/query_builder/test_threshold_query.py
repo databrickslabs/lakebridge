@@ -12,7 +12,7 @@ from databricks.labs.lakebridge.reconcile.recon_config import (
     Transformation,
 )
 from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
-from tests.conftest import ansi_schema_fixture_factory, oracle_schema_fixture_factory
+from tests.conftest import ansi_schema_fixture_factory, make_column_transformer, oracle_schema_fixture_factory
 
 
 def test_threshold_comparison_query_with_one_threshold(
@@ -24,7 +24,12 @@ def test_threshold_comparison_query_with_one_threshold(
     src_schema, _ = table_schema_oracle_ansi
     src_schema.append(oracle_schema_fixture_factory("s_suppdate", "timestamp"))
     comparison_query = ThresholdQueryBuilder(
-        table_conf, src_schema, "source", get_dialect("oracle"), fake_oracle_datasource
+        table_conf,
+        src_schema,
+        "source",
+        get_dialect("oracle"),
+        fake_oracle_datasource,
+        make_column_transformer(src_schema, get_dialect("oracle"), fake_oracle_datasource, table_conf),
     ).build_comparison_query()
     assert re.sub(r'\s+', ' ', comparison_query.strip().lower()) == re.sub(
         r'\s+',
@@ -57,7 +62,12 @@ def test_threshold_comparison_query_with_dual_threshold(
     src_schema.append(ansi_schema_fixture_factory("s_suppdate", "timestamp"))
 
     comparison_query = ThresholdQueryBuilder(
-        table_conf, src_schema, "target", get_dialect("databricks"), fake_databricks_datasource
+        table_conf,
+        src_schema,
+        "target",
+        get_dialect("databricks"),
+        fake_databricks_datasource,
+        make_column_transformer(src_schema, get_dialect("databricks"), fake_databricks_datasource, table_conf),
     ).build_comparison_query()
     assert re.sub(r'\s+', ' ', comparison_query.strip().lower()) == re.sub(
         r'\s+',
@@ -92,10 +102,20 @@ def test_build_threshold_query_with_single_threshold(
     ]
     src_schema, tgt_schema = table_schema_oracle_ansi
     src_query = ThresholdQueryBuilder(
-        table_conf, src_schema, "source", get_dialect("oracle"), fake_oracle_datasource
+        table_conf,
+        src_schema,
+        "source",
+        get_dialect("oracle"),
+        fake_oracle_datasource,
+        make_column_transformer(src_schema, get_dialect("oracle"), fake_oracle_datasource, table_conf),
     ).build_threshold_query()
     target_query = ThresholdQueryBuilder(
-        table_conf, tgt_schema, "target", get_dialect("databricks"), fake_databricks_datasource
+        table_conf,
+        tgt_schema,
+        "target",
+        get_dialect("databricks"),
+        fake_databricks_datasource,
+        make_column_transformer(tgt_schema, get_dialect("databricks"), fake_databricks_datasource, table_conf),
     ).build_threshold_query()
     assert src_query == (
         "SELECT \"s_nationkey\" AS \"s_nationkey\", \"s_suppkey\" AS \"s_suppkey\", "
@@ -123,10 +143,20 @@ def test_build_threshold_query_with_multiple_threshold(
     src_schema.append(oracle_schema_fixture_factory("s_suppdate", "timestamp"))
     tgt_schema.append(ansi_schema_fixture_factory("s_suppdate", "timestamp"))
     src_query = ThresholdQueryBuilder(
-        table_conf, src_schema, "source", get_dialect("oracle"), fake_oracle_datasource
+        table_conf,
+        src_schema,
+        "source",
+        get_dialect("oracle"),
+        fake_oracle_datasource,
+        make_column_transformer(src_schema, get_dialect("oracle"), fake_oracle_datasource, table_conf),
     ).build_threshold_query()
     target_query = ThresholdQueryBuilder(
-        table_conf, tgt_schema, "target", get_dialect("databricks"), fake_databricks_datasource
+        table_conf,
+        tgt_schema,
+        "target",
+        get_dialect("databricks"),
+        fake_databricks_datasource,
+        make_column_transformer(tgt_schema, get_dialect("databricks"), fake_databricks_datasource, table_conf),
     ).build_threshold_query()
     assert src_query == (
         "SELECT \"s_nationkey\" AS \"s_nationkey\", TRIM(s_phone) AS \"s_phone\", \"s_suppkey\" "  # transformations are used as the user configures them
@@ -150,7 +180,12 @@ def test_build_expression_type_raises_value_error(
 
     with pytest.raises(ValueError):
         ThresholdQueryBuilder(
-            table_conf, src_schema, "source", get_dialect("oracle"), fake_oracle_datasource
+            table_conf,
+            src_schema,
+            "source",
+            get_dialect("oracle"),
+            fake_oracle_datasource,
+            make_column_transformer(src_schema, get_dialect("oracle"), fake_oracle_datasource, table_conf),
         ).build_comparison_query()
 
 
@@ -163,5 +198,10 @@ def test_test_no_join_columns_raise_exception(fake_oracle_datasource, table_conf
 
     with pytest.raises(InvalidInputException):
         ThresholdQueryBuilder(
-            table_conf, src_schema, "source", get_dialect("oracle"), fake_oracle_datasource
+            table_conf,
+            src_schema,
+            "source",
+            get_dialect("oracle"),
+            fake_oracle_datasource,
+            make_column_transformer(src_schema, get_dialect("oracle"), fake_oracle_datasource, table_conf),
         ).build_comparison_query()

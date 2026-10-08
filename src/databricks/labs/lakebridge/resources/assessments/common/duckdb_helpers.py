@@ -60,15 +60,26 @@ def save_to_duckdb_conn(
     mode: SaveMode = "overwrite",
     schema: str | None = None,
 ) -> None:
-    """Write one frame into DuckDB using an already-open connection."""
-    if mode == "overwrite":
-        _save_overwrite(conn, df, table_name, schema)
-    elif mode == "append":
-        _save_append(conn, df, table_name, schema)
-    else:
-        raise ValueError(f"Unsupported mode '{mode}'. Must be 'overwrite' or 'append'.")
-    conn.commit()
-    logger.debug(f"Committed data to table: {table_name} {len(df)} row(s), mode={mode}")
+    """Write one frame into DuckDB using an already-open connection.
+
+    Both writers reach the target table in more than one statement (``TRUNCATE`` then
+    ``INSERT``, or ``DROP``/``CREATE`` then ``INSERT``), so the write runs in a transaction:
+    a failure part-way leaves the table as it was rather than truncated or missing. A
+    streamed write is one transaction per batch.
+    """
+    conn.begin()
+    try:
+        if mode == "overwrite":
+            _save_overwrite(conn, df, table_name, schema)
+        elif mode == "append":
+            _save_append(conn, df, table_name, schema)
+        else:
+            raise ValueError(f"Unsupported mode '{mode}'. Must be 'overwrite' or 'append'.")
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    logger.debug("Wrote %d rows to '%s' (mode=%s).", len(df), table_name, mode)
 
 
 def save_to_duckdb(

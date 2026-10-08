@@ -1,21 +1,7 @@
 SELECT
-    QueryType,
-    CASE
-        WHEN QueryType = 'ETL' THEN 'ETL'
-        WHEN QueryType = 'BI/QUERY' THEN 'BI'
-        ELSE 'INTERACTIVE'
-    END AS WorkloadBucket,
-    COUNT(*) AS QryCNT,
-    SUM(AMPCPUTime) AS SumCPU,
-    AVG(AMPCPUTime) AS AvgCPU,
-    MAX(AMPCPUTime) AS MaxCPU,
-    SUM(TotalIOCount) AS SumIO,
-    AVG(TotalIOCount) AS AvgIO,
-    MAX(TotalIOCount) AS MaxIO,
-    MAX(DelayTime) AS MaxTDWMDelayTime,
-    SUM(DelayTime) AS SumTDWMDelayTime,
-    AVG(ResponseSecs) AS AvgRespSecs,
-    MAX(ResponseSecs) AS MaxRespSecs
+    180 AS LookbackDays,
+    COUNT(*) AS BIQueryCount,
+    CAST(COUNT(*) AS FLOAT) / (180 * 24 * 60) AS AvgBIQueriesPerMinute
 FROM (
     SELECT
         CASE
@@ -50,21 +36,10 @@ FROM (
                 ) THEN 'DML'
             WHEN INSTR(UPPER(StatementType), 'CALL') > 0 THEN 'SP'
             ELSE 'OTHER'
-        END AS QueryType,
-        AMPCPUTime,
-        TotalIOCount,
-        DelayTime,
-        ZeroIfNull(
-            CAST(
-                EXTRACT(HOUR FROM ((FirstRespTime - StartTime) DAY(4) TO SECOND(6))) * 3600
-                + EXTRACT(MINUTE FROM ((FirstRespTime - StartTime) DAY(4) TO SECOND(6))) * 60
-                + EXTRACT(SECOND FROM ((FirstRespTime - StartTime) DAY(4) TO SECOND(6)))
-                AS DECIMAL(10, 2)
-            )
-        ) AS ResponseSecs
+        END AS QueryType
     FROM PDCRINFO.DBQLogTbl_Hst
     WHERE (AMPCPUTime > 0 OR TotalIOCount > 0)
         AND NumSteps > 0
         AND LogDate >= DATE - 180
 ) AS ClassifiedQueries
-GROUP BY 1, 2;
+WHERE QueryType = 'BI/QUERY';

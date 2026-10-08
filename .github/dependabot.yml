@@ -14,3 +14,8 @@ updates:
       default-days: 7
     schedule:
       interval: "daily"
+    groups:
+      docusaurus:
+        applies-to: version-updates
+        patterns:
+          - "@docusaurus/*"
