@@ -13,6 +13,11 @@ import Admonition from '@theme/Admonition';
 
 ## Prerequisites
 
+**Supported versions:** SQL Server 2012 and later, Azure SQL Database, and Azure SQL Managed Instance. Earlier versions
+aren't supported. On versions older than SQL Server 2017, a few `sys_info` fields that were introduced in later releases
+(for example `container_type` and `process_physical_affinity`) are recorded as empty. Case-sensitive and mixed database
+collations are supported.
+
 ### 1. Download
 
 No driver installation is required: the profiler connects with Microsoft's
