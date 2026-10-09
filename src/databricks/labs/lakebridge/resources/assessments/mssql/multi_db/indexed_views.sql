@@ -15,7 +15,7 @@ DECLARE @sql NVARCHAR(MAX) =
     + N' WHERE i.[index_id] = 1 AND 1 = 0';
 
 SELECT @sql = @sql + ISNULL((
-        SELECT ' UNION ALL SELECT ' + QUOTENAME([name], '''') + ' AS database_name,'
+        SELECT ' UNION ALL SELECT N' + QUOTENAME([name], '''') + ' AS database_name,'
                + ' v.[name] COLLATE DATABASE_DEFAULT, s.[name] COLLATE DATABASE_DEFAULT,'
                + ' i.[name] COLLATE DATABASE_DEFAULT, i.[type_desc] COLLATE DATABASE_DEFAULT,'
                + ' i.[index_id], SYSDATETIME()'

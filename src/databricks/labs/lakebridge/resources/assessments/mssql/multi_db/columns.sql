@@ -28,7 +28,7 @@ DECLARE @sql NVARCHAR(MAX) =
     N'SELECT DB_NAME() AS database_name, ' + @cols + N' FROM INFORMATION_SCHEMA.COLUMNS WHERE 1 = 0';
 
 SELECT @sql = @sql + ISNULL((
-        SELECT ' UNION ALL SELECT ' + QUOTENAME([name], '''') + ' AS database_name, ' + @cols
+        SELECT ' UNION ALL SELECT N' + QUOTENAME([name], '''') + ' AS database_name, ' + @cols
                + ' FROM ' + QUOTENAME([name]) + '.INFORMATION_SCHEMA.COLUMNS'
         FROM   sys.databases
         WHERE  state_desc = 'ONLINE'
