@@ -25,10 +25,10 @@ DECLARE @cols NVARCHAR(MAX) =
     + N' DOMAIN_SCHEMA COLLATE DATABASE_DEFAULT AS DOMAIN_SCHEMA,'
     + N' DOMAIN_NAME COLLATE DATABASE_DEFAULT AS DOMAIN_NAME';
 DECLARE @sql NVARCHAR(MAX) =
-    N'SELECT DB_NAME() AS database_name, ' + @cols + N' FROM INFORMATION_SCHEMA.COLUMNS WHERE 1 = 0';
+    N'SELECT DB_NAME() AS DATABASE_NAME, ' + @cols + N' FROM INFORMATION_SCHEMA.COLUMNS WHERE 1 = 0';
 
 SELECT @sql = @sql + ISNULL((
-        SELECT ' UNION ALL SELECT N' + QUOTENAME([name], '''') + ' AS database_name, ' + @cols
+        SELECT ' UNION ALL SELECT N' + QUOTENAME([name], '''') + ' AS DATABASE_NAME, ' + @cols
                + ' FROM ' + QUOTENAME([name]) + '.INFORMATION_SCHEMA.COLUMNS'
         FROM   sys.databases
         WHERE  state_desc = 'ONLINE'
