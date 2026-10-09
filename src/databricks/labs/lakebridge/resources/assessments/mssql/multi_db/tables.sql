@@ -7,12 +7,16 @@
  */
 SET NOCOUNT ON;
 
-DECLARE @cols NVARCHAR(MAX) = N'table_catalog, table_schema, table_name, table_type';
+DECLARE @cols NVARCHAR(MAX) =
+    N'TABLE_CATALOG COLLATE DATABASE_DEFAULT AS TABLE_CATALOG,'
+    + N' TABLE_SCHEMA COLLATE DATABASE_DEFAULT AS TABLE_SCHEMA,'
+    + N' TABLE_NAME COLLATE DATABASE_DEFAULT AS TABLE_NAME,'
+    + N' TABLE_TYPE COLLATE DATABASE_DEFAULT AS TABLE_TYPE';
 DECLARE @sql NVARCHAR(MAX) =
-    N'SELECT DB_NAME() AS database_name, ' + @cols + N' FROM INFORMATION_SCHEMA.TABLES WHERE 1 = 0';
+    N'SELECT DB_NAME() AS DATABASE_NAME, ' + @cols + N' FROM INFORMATION_SCHEMA.TABLES WHERE 1 = 0';
 
 SELECT @sql = @sql + ISNULL((
-        SELECT ' UNION ALL SELECT ' + QUOTENAME([name], '''') + ' AS database_name, ' + @cols
+        SELECT ' UNION ALL SELECT N' + QUOTENAME([name], '''') + ' AS DATABASE_NAME, ' + @cols
                + ' FROM ' + QUOTENAME([name]) + '.INFORMATION_SCHEMA.TABLES'
         FROM   sys.databases
         WHERE  state_desc = 'ONLINE'

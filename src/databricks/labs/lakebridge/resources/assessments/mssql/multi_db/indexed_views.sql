@@ -7,16 +7,18 @@
 SET NOCOUNT ON;
 
 DECLARE @sql NVARCHAR(MAX) =
-    N'SELECT DB_NAME() AS database_name, v.[name] AS indexed_view_name, s.[name] AS schema_name,'
-    + N' i.[name] AS index_name, i.[type_desc] AS index_type, i.[index_id], SYSDATETIME() AS extract_ts'
+    N'SELECT DB_NAME() AS DATABASE_NAME, v.[name] COLLATE DATABASE_DEFAULT AS indexed_view_name, s.[name] COLLATE DATABASE_DEFAULT AS schema_name,'
+    + N' i.[name] COLLATE DATABASE_DEFAULT AS index_name, i.[type_desc] COLLATE DATABASE_DEFAULT AS index_type, i.[index_id], SYSDATETIME() AS extract_ts'
     + N' FROM sys.views AS v'
     + N' JOIN sys.schemas AS s ON v.[schema_id] = s.[schema_id]'
     + N' JOIN sys.indexes AS i ON v.[object_id] = i.[object_id]'
     + N' WHERE i.[index_id] = 1 AND 1 = 0';
 
 SELECT @sql = @sql + ISNULL((
-        SELECT ' UNION ALL SELECT ' + QUOTENAME([name], '''') + ' AS database_name,'
-               + ' v.[name], s.[name], i.[name], i.[type_desc], i.[index_id], SYSDATETIME()'
+        SELECT ' UNION ALL SELECT N' + QUOTENAME([name], '''') + ' AS DATABASE_NAME,'
+               + ' v.[name] COLLATE DATABASE_DEFAULT, s.[name] COLLATE DATABASE_DEFAULT,'
+               + ' i.[name] COLLATE DATABASE_DEFAULT, i.[type_desc] COLLATE DATABASE_DEFAULT,'
+               + ' i.[index_id], SYSDATETIME()'
                + ' FROM ' + QUOTENAME([name]) + '.sys.views AS v'
                + ' JOIN ' + QUOTENAME([name]) + '.sys.schemas AS s ON v.[schema_id] = s.[schema_id]'
                + ' JOIN ' + QUOTENAME([name]) + '.sys.indexes AS i ON v.[object_id] = i.[object_id]'

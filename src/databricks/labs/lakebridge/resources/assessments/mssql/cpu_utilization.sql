@@ -22,11 +22,11 @@ record.value('(./Record/SchedulerMonitorEvent/SystemHealth/ProcessUtilization)[1
      AS (SELECT record_id,
                 Dateadd (ms, ( [timestamp] - ms_ticks ), Getdate()) AS EventTime
                 ,
-                systemidle,
-                sqlprocessutilization
+                SystemIdle,
+                SQLProcessUtilization
          FROM   process_utilization_info
                 CROSS JOIN os_sysinfo)
 SELECT *,
        Sysdatetime() AS extract_ts
 FROM   cpu_utilization
-ORDER  BY eventtime
+ORDER  BY EventTime

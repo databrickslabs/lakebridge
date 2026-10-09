@@ -5,7 +5,7 @@
  * index space, and a timestamp indicating when the data was extracted.
  */
 SELECT DB_NAME()                                                            AS
-       database_name,
+       DATABASE_NAME,
        o.NAME                                                               AS
        TableName,
        Sum(ps.row_count)                                                    AS

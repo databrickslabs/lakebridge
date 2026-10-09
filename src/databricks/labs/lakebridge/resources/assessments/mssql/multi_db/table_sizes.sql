@@ -8,7 +8,7 @@
 SET NOCOUNT ON;
 
 DECLARE @results TABLE (
-    database_name SYSNAME,
+    DATABASE_NAME SYSNAME,
     TableName SYSNAME,
     [RowCount] BIGINT,
     ReservedMB BIGINT,
@@ -30,7 +30,7 @@ FETCH NEXT FROM db_cursor INTO @name;
 WHILE @@FETCH_STATUS = 0
 BEGIN
     SET @sql = N'USE ' + QUOTENAME(@name) + N';'
-        + N' SELECT DB_NAME() AS database_name, o.[name] AS TableName,'
+        + N' SELECT DB_NAME() AS DATABASE_NAME, o.[name] AS TableName,'
         + N' SUM(ps.row_count) AS [RowCount],'
         + N' SUM(ps.reserved_page_count) * 8 / 1024 AS ReservedMB,'
         + N' SUM(ps.used_page_count) * 8 / 1024 AS UsedMB,'
@@ -50,5 +50,5 @@ END
 CLOSE db_cursor;
 DEALLOCATE db_cursor;
 
-SELECT database_name, TableName, [RowCount], ReservedMB, UsedMB, UnusedMB, DataMB, IndexMB, extract_ts
+SELECT DATABASE_NAME, TableName, [RowCount], ReservedMB, UsedMB, UnusedMB, DataMB, IndexMB, extract_ts
 FROM   @results;
