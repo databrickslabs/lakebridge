@@ -102,6 +102,45 @@ def test_build_literal():
     assert actual == expected
 
 
+def test_build_literal_cast_renders_in_source_dialect():
+    """With a source dialect, a declared type renders in that engine's own nomenclature.
+
+    Redshift external/Spectrum tables report Spark/Glue "string", which Redshift rejects verbatim;
+    it must become VARCHAR(MAX) so the literal CAST pushed down to Redshift is valid SQL.
+    """
+    literal = build_literal(
+        this="sample_key", alias="key_col", cast="string", cast_dialect=get_dialect("redshift"), quoted=True
+    )
+
+    assert literal.sql(dialect="redshift") == 'CAST(\'sample_key\' AS VARCHAR(MAX)) AS "key_col"'
+
+
+def test_build_literal_cast_without_dialect_is_verbatim():
+    """Without a source dialect -- every non-Redshift caller -- the cast stays verbatim, so the
+    Redshift fix leaves other sources byte-for-byte unchanged."""
+    literal = build_literal(this="sample_key", alias="key_col", cast="string", quoted=True)
+
+    assert literal.sql(dialect="redshift") == 'CAST(\'sample_key\' AS string) AS "key_col"'
+
+
+def test_build_literal_cast_unparseable_type_falls_back_verbatim():
+    """An unparseable declared type must not raise; it falls back to the verbatim form.
+
+    Covers both sqlglot error classes: ParseError (unknown type) and TokenError (a type string
+    with a stray quote/comment token) -- both subclass SqlglotError and must fall back, not raise.
+    """
+    parse_error = build_literal(
+        this="sample_key", alias="key_col", cast="not a type", cast_dialect=get_dialect("redshift"), quoted=True
+    )
+    assert parse_error.sql(dialect="redshift") == 'CAST(\'sample_key\' AS not a type) AS "key_col"'
+
+    # A quote in the type string triggers sqlglot TokenError (not ParseError); must not raise.
+    token_error = build_literal(
+        this="sample_key", alias="key_col", cast="var'char", cast_dialect=get_dialect("redshift"), quoted=True
+    )
+    assert token_error.sql(dialect="redshift").startswith("CAST('sample_key' AS ")
+
+
 def test_sha2(expr):
     assert sha2(expr, num_bits="256").sql() == "SELECT SHA2(col1, 256) FROM DUAL"
     assert (
