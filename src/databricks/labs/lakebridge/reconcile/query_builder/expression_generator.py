@@ -1,12 +1,16 @@
+import logging
 from collections.abc import Callable, Iterable, Sequence
 from functools import partial, reduce
 
 from pyspark.sql.types import DataType, NumericType
 from sqlglot import Dialect
 from sqlglot import expressions as exp
+from sqlglot.errors import SqlglotError
 
 from databricks.labs.lakebridge.reconcile.recon_config import HashAlgoMapping
 from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
+
+logger = logging.getLogger(__name__)
 
 
 def _apply_func_expr(expr: exp.Expression, expr_func: Callable, **kwargs) -> exp.Expression:
@@ -141,13 +145,40 @@ def build_column_no_alias(this: str, table_name="") -> exp.Expression:
     return exp.Column(this=this, table=table_name)
 
 
-def build_literal(this: exp.ExpOrStr, alias=None, quoted=False, is_string=True, cast=None) -> exp.Expression:
+def build_literal(
+    this: exp.ExpOrStr,
+    alias=None,
+    quoted=False,
+    is_string=True,
+    cast=None,
+    cast_dialect: Dialect | None = None,
+) -> exp.Expression:
     base_literal = exp.Literal(this=this, is_string=is_string)
     if not cast and not alias:
         return base_literal
 
-    cast_expr = exp.Cast(this=base_literal, to=exp.DataType(this=cast)) if cast else base_literal
+    cast_expr = exp.Cast(this=base_literal, to=_build_cast_datatype(cast, cast_dialect)) if cast else base_literal
     return exp.Alias(this=cast_expr, alias=exp.Identifier(this=alias, quoted=quoted)) if alias else cast_expr
+
+
+def _build_cast_datatype(datatype: str, dialect: Dialect | None) -> exp.DataType:
+    """Render a declared type in ``dialect``'s own nomenclature so the CAST is valid for that engine.
+
+    Needed for Redshift external/Spectrum tables, whose metadata reports Spark/Glue type names
+    (e.g. ``string``) that Redshift rejects verbatim -- parsing and re-emitting yields
+    ``VARCHAR(MAX)``. ``dialect=None`` (the default, used by every non-Redshift caller) keeps the
+    original verbatim behavior, so other sources are byte-for-byte unaffected. Falls back to
+    verbatim for types sqlglot cannot parse.
+    """
+    if dialect is None:
+        return exp.DataType(this=datatype)
+    try:
+        return exp.DataType.build(datatype, dialect=dialect)
+    except SqlglotError:
+        # SqlglotError covers both ParseError and TokenError (e.g. a type string containing a
+        # quote or comment token), so an unparseable type falls back to verbatim rather than raising.
+        logger.warning(f"Could not parse cast type {datatype!r}; emitting it verbatim")
+        return exp.DataType(this=datatype)
 
 
 def transform_expression(
