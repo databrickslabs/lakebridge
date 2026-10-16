@@ -22,6 +22,7 @@ PROFILER_SOURCE_SYSTEM = sorted(
 
 SOURCE_SYSTEM_VARIANTS = {
     "mssql": (AUTO,),
+    "bigquery": ("inventory_and_ddl", "inventory"),
 }
 
 PROFILER_RUN_METADATA_TABLE = "profiler_run_metadata"
