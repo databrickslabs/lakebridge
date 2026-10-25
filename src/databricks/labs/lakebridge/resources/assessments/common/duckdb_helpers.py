@@ -25,6 +25,10 @@ _PROFILER_DUCKDB_CONFIG: dict[str, bool | float | int | list[str] | str] = {
     "storage_compatibility_version": "v1.4.0",
     "force_compression": "auto",
     "zstd_min_string_length": 8,
+    # DuckDB infers the type of a pandas ``object`` column from a sample of rows (default 1000). Sparse columns from
+    # ``pd.json_normalize`` can hold e.g. a boolean in that sample and a string later, which fails the CTAS with
+    # "Could not convert string ... to BOOL". Inspect every row instead.
+    "pandas_analyze_sample": 2**31 - 1,
 }
 
 
@@ -53,6 +57,35 @@ def _num_columns(df: Frame) -> int:
             raise TypeError(f"Unsupported frame type: {type(df).__name__}")
 
 
+def _value_family(value: object) -> type:
+    """Group Python types DuckDB can unify (int/float) so only genuinely incompatible mixes count as mixed."""
+    if isinstance(value, bool):
+        return bool
+    if isinstance(value, int | float):
+        return float
+    return type(value)
+
+
+def _normalise_mixed_object_columns(df: pd.DataFrame) -> pd.DataFrame:
+    """Stringify pandas ``object`` columns whose non-null values are of incompatible Python types.
+
+    DuckDB infers such a column's type from the values it samples, so a column that mixes e.g. booleans, numbers
+    and strings fails to load (``Could not convert string ... to BOOL``/``INT32``, or ``BOOLEAN does not match
+    with INTEGER``). This is typical for sparse columns produced by ``pd.json_normalize`` on open-ended JSON.
+    Such columns are loaded as ``VARCHAR`` (nulls preserved); single-type columns are left untouched so their
+    inferred types do not change. The caller's frame is not modified.
+    """
+    result = df
+    for name in df.columns[df.dtypes == object]:
+        column = df[name]
+        non_null = column[column.notna()]
+        if len({_value_family(value) for value in non_null}) > 1:
+            if result is df:
+                result = df.copy()
+            result[name] = column.where(column.isna(), non_null.astype(str))
+    return result
+
+
 def save_to_duckdb_conn(
     conn: duckdb.DuckDBPyConnection,
     df: Frame,
@@ -67,6 +100,8 @@ def save_to_duckdb_conn(
     a failure part-way leaves the table as it was rather than truncated or missing. A
     streamed write is one transaction per batch.
     """
+    if isinstance(df, pd.DataFrame):
+        df = _normalise_mixed_object_columns(df)
     conn.begin()
     try:
         if mode == "overwrite":
