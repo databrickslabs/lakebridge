@@ -67,6 +67,7 @@ class HashQueryBuilder(QueryBuilder):
         # Fix for https://github.com/databrickslabs/lakebridge/issues/2195
         hash_cols_with_alias = [
             {
+                "name": col,
                 "this": self._build_column_name_source_normalized(col),
                 "alias": self._build_alias_source_normalized(col),
                 "sort_key": self._unnormalize_identifier(col),
@@ -76,11 +77,14 @@ class HashQueryBuilder(QueryBuilder):
         # Sort by unnormalized column name (case-insensitive) to ensure deterministic ordering across all dialects
         sorted_hash_cols_with_alias = sorted(hash_cols_with_alias, key=lambda column: column["sort_key"].lower())
         hashcols_sorted_as_src_seq = [column["this"] for column in sorted_hash_cols_with_alias]
+        hashcol_names = [column["name"] for column in sorted_hash_cols_with_alias]
 
         key_cols_with_transform = [
             rendered.column for rendered in self._transformer.transform_user(cols_with_alias, self.layer)
         ]
-        hash_col_with_transform = [self._generate_hash_algorithm(hashcols_sorted_as_src_seq, _HASH_COLUMN_NAME)]
+        hash_col_with_transform = [
+            self._generate_hash_algorithm(hashcols_sorted_as_src_seq, hashcol_names, _HASH_COLUMN_NAME)
+        ]
 
         res = (
             exp.select(*hash_col_with_transform + key_cols_with_transform)
@@ -95,10 +99,11 @@ class HashQueryBuilder(QueryBuilder):
     def _generate_hash_algorithm(
         self,
         cols: list[str],
+        column_names: list[str],
         column_alias: str,
     ) -> exp.Expression:
         cols_no_alias = [build_column_no_alias(this=col) for col in cols]
-        cols_with_transform = [rendered.column for rendered in self._transformer.transform(cols_no_alias, self.layer)]
+        cols_with_transform = [rendered.column for rendered in self._transform(cols_no_alias, column_names)]
         col_exprs = exp.select(*cols_with_transform).iter_expressions()
         # We now use exp.Dpipe to force the use of CONCAT() function across all dialects to be dialect specific || or + in TSQL
         concat_expr = concat(col_exprs)
