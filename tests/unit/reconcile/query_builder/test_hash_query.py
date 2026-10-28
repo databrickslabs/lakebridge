@@ -11,6 +11,7 @@ from tests.conftest import (
     FakeDataSource,
     ansi_schema_fixture_factory,
     make_column_transformer,
+    make_paired_column_transformer,
     tsql_schema_fixture_factory,
 )
 
@@ -22,15 +23,21 @@ def test_hash_query_builder_for_snowflake_src(
     fake_databricks_datasource,
 ):
     src_schema, tgt_schema = table_schema_oracle_ansi
+    transformer = make_paired_column_transformer(
+        src_schema,
+        get_dialect("snowflake"),
+        fake_oracle_datasource,
+        tgt_schema,
+        fake_databricks_datasource,
+        snowflake_table_conf_with_opts,
+    )
     src_actual = HashQueryBuilder(
         snowflake_table_conf_with_opts,
         src_schema,
         "source",
         get_dialect("snowflake"),
         fake_oracle_datasource,
-        make_column_transformer(
-            src_schema, get_dialect("snowflake"), fake_oracle_datasource, snowflake_table_conf_with_opts
-        ),
+        transformer,
     ).build_query(report_type="data")
     src_expected = (
         "SELECT LOWER(SHA2(TRIM(\"s_address\") || TRIM(\"s_name\") || COALESCE(TRIM(\"s_nationkey\"), '_null_recon_') || "
@@ -45,9 +52,7 @@ def test_hash_query_builder_for_snowflake_src(
         "target",
         get_dialect("databricks"),
         fake_databricks_datasource,
-        make_column_transformer(
-            tgt_schema, get_dialect("databricks"), fake_databricks_datasource, snowflake_table_conf_with_opts
-        ),
+        transformer,
     ).build_query(report_type="data")
     tgt_expected = (
         "SELECT LOWER(SHA2(TRIM(`s_address_t`) || TRIM(`s_name`) || COALESCE(TRIM(`s_nationkey_t`), '_null_recon_') || "
@@ -162,15 +167,21 @@ def test_hash_query_builder_for_redshift_src(
     fake_databricks_datasource,
 ):
     src_schema, tgt_schema = table_schema_redshift_ansi
+    transformer = make_paired_column_transformer(
+        src_schema,
+        get_dialect("redshift"),
+        fake_redshift_datasource,
+        tgt_schema,
+        fake_databricks_datasource,
+        redshift_table_conf_with_opts,
+    )
     src_actual = HashQueryBuilder(
         redshift_table_conf_with_opts,
         src_schema,
         "source",
         get_dialect("redshift"),
         fake_redshift_datasource,
-        make_column_transformer(
-            src_schema, get_dialect("redshift"), fake_redshift_datasource, redshift_table_conf_with_opts
-        ),
+        transformer,
     ).build_query(report_type="data")
     src_expected = (
         "SELECT LOWER(SHA2(TRIM(\"s_address\") || TRIM(\"s_name\") || COALESCE(TRIM(\"s_nationkey\"), '_null_recon_') || "
@@ -185,9 +196,7 @@ def test_hash_query_builder_for_redshift_src(
         "target",
         get_dialect("databricks"),
         fake_databricks_datasource,
-        make_column_transformer(
-            tgt_schema, get_dialect("databricks"), fake_databricks_datasource, redshift_table_conf_with_opts
-        ),
+        transformer,
     ).build_query(report_type="data")
     tgt_expected = (
         "SELECT LOWER(SHA2(TRIM(`s_address_t`) || TRIM(`s_name`) || COALESCE(TRIM(`s_nationkey_t`), '_null_recon_') || "
@@ -207,15 +216,21 @@ def test_hash_query_builder_user_hash_expression_overrides_dialect_default(
     fake_databricks_datasource,
 ):
     src_schema, tgt_schema = table_schema_teradata_ansi
+    transformer = make_paired_column_transformer(
+        src_schema,
+        get_dialect("teradata"),
+        fake_teradata_datasource,
+        tgt_schema,
+        fake_databricks_datasource,
+        teradata_table_conf_with_opts,
+    )
     src_actual = HashQueryBuilder(
         teradata_table_conf_with_opts,
         src_schema,
         "source",
         get_dialect("teradata"),
         fake_teradata_datasource,
-        make_column_transformer(
-            src_schema, get_dialect("teradata"), fake_teradata_datasource, teradata_table_conf_with_opts
-        ),
+        transformer,
         hash_expression_override="my_db.my_sha256({})",
     ).build_query(report_type="data")
     src_expected = (
@@ -232,9 +247,7 @@ def test_hash_query_builder_user_hash_expression_overrides_dialect_default(
         "target",
         get_dialect("databricks"),
         fake_databricks_datasource,
-        make_column_transformer(
-            tgt_schema, get_dialect("databricks"), fake_databricks_datasource, teradata_table_conf_with_opts
-        ),
+        transformer,
         hash_expression_override="sha2({}, 256)",
     ).build_query(report_type="data")
     tgt_expected = (
@@ -256,15 +269,21 @@ def test_hash_query_builder_user_hash_expression_only_source(
     fake_databricks_datasource,
 ):
     src_schema, tgt_schema = table_schema_teradata_ansi
+    transformer = make_paired_column_transformer(
+        src_schema,
+        get_dialect("teradata"),
+        fake_teradata_datasource,
+        tgt_schema,
+        fake_databricks_datasource,
+        teradata_table_conf_with_opts,
+    )
     src_actual = HashQueryBuilder(
         teradata_table_conf_with_opts,
         src_schema,
         "source",
         get_dialect("teradata"),
         fake_teradata_datasource,
-        make_column_transformer(
-            src_schema, get_dialect("teradata"), fake_teradata_datasource, teradata_table_conf_with_opts
-        ),
+        transformer,
         hash_expression_override="my_db.my_sha256({})",
     ).build_query(report_type="data")
     assert "my_db.my_sha256(" in src_actual
@@ -275,9 +294,7 @@ def test_hash_query_builder_user_hash_expression_only_source(
         "target",
         get_dialect("databricks"),
         fake_databricks_datasource,
-        make_column_transformer(
-            tgt_schema, get_dialect("databricks"), fake_databricks_datasource, teradata_table_conf_with_opts
-        ),
+        transformer,
     ).build_query(report_type="data")
     # Without an override, the target falls back to the dialect default (Databricks SHA2).
     assert "SHA2(" in tgt_actual
@@ -291,13 +308,21 @@ def test_hash_query_builder_for_tsql_src(
     fake_databricks_datasource,
 ):
     src_schema, tgt_schema = table_schema_tsql_ansi
+    transformer = make_paired_column_transformer(
+        src_schema,
+        get_dialect("tsql"),
+        fake_tsql_datasource,
+        tgt_schema,
+        fake_databricks_datasource,
+        tsql_table_conf_with_opts,
+    )
     src_actual = HashQueryBuilder(
         tsql_table_conf_with_opts,
         src_schema,
         "source",
         get_dialect("tsql"),
         fake_tsql_datasource,
-        make_column_transformer(src_schema, get_dialect("tsql"), fake_tsql_datasource, tsql_table_conf_with_opts),
+        transformer,
     ).build_query(report_type="data")
     src_expected = (
         "SELECT LOWER(CONVERT(VARCHAR(64), HASHBYTES('SHA2_256', "
@@ -315,9 +340,7 @@ def test_hash_query_builder_for_tsql_src(
         "target",
         get_dialect("databricks"),
         fake_databricks_datasource,
-        make_column_transformer(
-            tgt_schema, get_dialect("databricks"), fake_databricks_datasource, tsql_table_conf_with_opts
-        ),
+        transformer,
     ).build_query(report_type="data")
     print(tgt_actual)
     tgt_expected = (
@@ -636,3 +659,57 @@ def test_hash_query_builder_tsql_date_time_columns(
     )
 
     assert src_actual == src_expected
+
+
+def test_hash_query_builder_redshift_to_databricks_pairs_columns_through_the_mapping(
+    fake_redshift_datasource, fake_databricks_datasource
+):
+    conf = Table(
+        source_name="t",
+        target_name="t",
+        join_columns=["`id`"],
+        column_mapping=[ColumnMapping("`price`", "`unit_price`")],
+    )
+    src_schema = [
+        ansi_schema_fixture_factory("id", "integer"),
+        ansi_schema_fixture_factory("price", "double precision"),
+        ansi_schema_fixture_factory("created_at", "timestamp with time zone"),
+        ansi_schema_fixture_factory("is_active", "boolean"),
+    ]
+    tgt_schema = [
+        ansi_schema_fixture_factory("id", "int"),
+        ansi_schema_fixture_factory("unit_price", "double"),
+        ansi_schema_fixture_factory("created_at", "timestamp"),
+        ansi_schema_fixture_factory("is_active", "boolean"),
+    ]
+    transformer = make_paired_column_transformer(
+        src_schema, get_dialect("redshift"), fake_redshift_datasource, tgt_schema, fake_databricks_datasource, conf
+    )
+
+    src_actual = HashQueryBuilder(
+        conf, src_schema, "source", get_dialect("redshift"), fake_redshift_datasource, transformer
+    ).build_query(report_type="data")
+    tgt_actual = HashQueryBuilder(
+        conf, tgt_schema, "target", get_dialect("redshift"), fake_databricks_datasource, transformer
+    ).build_query(report_type="data")
+
+    assert src_actual == (
+        "SELECT LOWER(SHA2("
+        "COALESCE(TO_CHAR(\"created_at\" AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS.US'), '_null_recon_') || "
+        "COALESCE(TRIM(\"id\"), '_null_recon_') || "
+        "COALESCE(CASE WHEN \"is_active\" THEN 'true' WHEN NOT \"is_active\" THEN 'false' ELSE NULL END, "
+        "'_null_recon_') || "
+        "COALESCE(CASE WHEN CAST(\"price\" AS VARCHAR) IN ('NaN', 'Infinity', '-Infinity') OR ABS(\"price\") >= 1e28 "
+        "THEN CAST(\"price\" AS VARCHAR) ELSE CAST(CAST(\"price\" AS DECIMAL(38,10)) AS VARCHAR) END, '_null_recon_')"
+        ", 256)) AS hash_value_recon, \"id\" AS \"id\" FROM %(tbl)s"
+    )
+    assert tgt_actual == (
+        "SELECT LOWER(SHA2("
+        "COALESCE(DATE_FORMAT(`created_at`, 'yyyy-MM-dd HH:mm:ss.SSSSSS'), '_null_recon_') || "
+        "COALESCE(TRIM(`id`), '_null_recon_') || "
+        "COALESCE(TRIM(`is_active`), '_null_recon_') || "
+        "COALESCE(CASE WHEN ISNAN(`unit_price`) OR `unit_price` IN (CAST('Infinity' AS DOUBLE), "
+        "CAST('-Infinity' AS DOUBLE)) OR ABS(`unit_price`) >= 1e28 THEN CAST(`unit_price` AS STRING) "
+        "ELSE CAST(CAST(`unit_price` AS DECIMAL(38,10)) AS STRING) END, '_null_recon_')"
+        ", 256)) AS hash_value_recon, `id` AS `id` FROM :tbl"
+    )
