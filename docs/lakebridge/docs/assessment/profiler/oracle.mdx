@@ -183,7 +183,7 @@ Enter user password:
 | **Secret vault type** | `local` for plain text values, `env` to read from environment variables | — |
 | **Host** | Oracle server hostname, IP, or RAC SCAN name | — |
 | **Port** | Port the Oracle listener is bound to | `1521` |
-| **SID** | SID of the Oracle instance. Use the SID of the container database (CDB), since the profiler connects to `CDB$ROOT`; to find it, run `SELECT instance_name FROM v$instance` there. Saved as `service_name` in the credentials file. | `orcl` |
+| **SID** | SID of the container database (CDB) instance, from `SELECT instance_name FROM v$instance` | `orcl` |
 | **User** | Database user with the grants from [Required Database Permissions](#3-required-database-permissions). `SYSTEM` works out of the box but is over-privileged; the dedicated user above is recommended. | — |
 | **Password** | Password for the database user (hidden input) | — |
 
