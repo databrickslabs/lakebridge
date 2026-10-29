@@ -171,7 +171,7 @@ Enter secret vault type (local | env)
 Enter a number between 0 and 1: 1
 Enter the host details (Server name, IP address, SCAN Name): oracle-host.example.com
 Enter the host port number (default: 1521):
-Enter the service name (default: orcl): ORCLCDB
+Enter the Oracle SID (default: orcl): ORCLCDB
 Enter user with privileges:
 Enter user password:
 ```
@@ -183,9 +183,14 @@ Enter user password:
 | **Secret vault type** | `local` for plain text values, `env` to read from environment variables | — |
 | **Host** | Oracle server hostname, IP, or RAC SCAN name | — |
 | **Port** | Port the Oracle listener is bound to | `1521` |
-| **Service name** | Service name registered in the Oracle listener (the CDB service) | `orcl` |
+| **SID** | SID of the Oracle instance. Use the SID of the container database (CDB), since the profiler connects to `CDB$ROOT`; to find it, run `SELECT instance_name FROM v$instance` there. Saved as `service_name` in the credentials file. | `orcl` |
 | **User** | Database user with the grants from [Required Database Permissions](#3-required-database-permissions). `SYSTEM` works out of the box but is over-privileged; the dedicated user above is recommended. | — |
 | **Password** | Password for the database user (hidden input) | — |
+
+:::note
+Enter the SID, not a service name. A service name that differs from the SID, such as a pluggable database
+service, fails to connect with `DPY-6005`.
+:::
 
 ## Execute the Profiler
 
