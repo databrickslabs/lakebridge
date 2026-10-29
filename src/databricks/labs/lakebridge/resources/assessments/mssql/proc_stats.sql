@@ -2,6 +2,9 @@
  * Retrieves execution statistics for stored procedures from `sys.dm_exec_procedure_stats`,
  * including execution counts, total CPU and elapsed time, last execution timestamp,
  * and maps object and database IDs to their names. Results are ordered by most recent execution.
+ * The hidden Resource database (database_id 32767) is excluded: it holds SQL Server's own system
+ * procedures, whose names never resolve. Names of user procedures resolve only where the profiling
+ * login has VIEW DEFINITION in that database.
  */
 SELECT database_id,
        Db_name(database_id)                AS db_name,
@@ -14,4 +17,5 @@ SELECT database_id,
        total_elapsed_time,
        Sysdatetime()                       AS extract_ts
 FROM   sys.dm_exec_procedure_stats
+WHERE  database_id <> 32767
 ORDER  BY last_execution_time

@@ -1,6 +1,6 @@
 import pytest
 
-from databricks.labs.lakebridge.assessments.profiler_config import PipelineConfig, Step
+from databricks.labs.lakebridge.assessments.profiler_config import PipelineConfig, Step, StepLabel
 
 
 @pytest.mark.parametrize(
@@ -59,6 +59,10 @@ def test_valid_step_names(valid_name: str) -> None:
         ("x--comment", "Invalid step name"),
         ("x;DELETE FROM sensitive_data", "Invalid step name"),
         ("x' UNION SELECT * FROM sensitive_data --", "Invalid step name"),
+        # Reserved: the pipeline writes this table itself. DuckDB identifiers are
+        # case-insensitive, so a differently-cased name targets the same table.
+        ("profiler_run_metadata", "is reserved"),
+        ("PROFILER_RUN_METADATA", "is reserved"),
     ],
 )
 def test_invalid_step_names(invalid_name: str, error_pattern: str) -> None:
@@ -145,6 +149,25 @@ def test_invalid_optional(invalid_optional: object) -> None:
             extract_source="test.sql",
             optional=invalid_optional,  # type: ignore[arg-type]
         )
+
+
+def test_valid_label() -> None:
+    """Test that known labels are accepted."""
+    step = Step(name="test_table", type="sql", extract_source="test.sql", label="unredacted")
+    assert step.label == StepLabel.UNREDACTED
+
+
+def test_label_defaults_none() -> None:
+    """Test that label defaults to None so existing steps can't be skipped."""
+    step = Step(name="test_table", type="sql", extract_source="test.sql")
+    assert step.label is None
+
+
+@pytest.mark.parametrize("invalid_label", ["unknown", ""])
+def test_invalid_label(invalid_label: str) -> None:
+    """Test that unknown labels are rejected."""
+    with pytest.raises(ValueError, match="Invalid label"):
+        Step(name="test_table", type="sql", extract_source="test.sql", label=invalid_label)
 
 
 def test_step_copy_preserves_validation() -> None:

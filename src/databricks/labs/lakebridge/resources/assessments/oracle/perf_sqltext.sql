@@ -4,7 +4,7 @@ select dt
     ,parsing_schema_name
     ,instance_number
     ,count(*) as cnt
-    ,sum(elapsed_time)/1000000 as total_run_time_secs
+    ,CAST(sum(elapsed_time)/1000000 AS BINARY_DOUBLE) as total_run_time_secs
 from
 ( select  g.con_id,g.instance_number,
      trunc(begin_interval_time,'MI') as dt,

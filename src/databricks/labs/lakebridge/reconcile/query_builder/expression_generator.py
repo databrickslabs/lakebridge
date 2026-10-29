@@ -1,12 +1,16 @@
-from collections.abc import Callable, Iterable
+import logging
+from collections.abc import Callable, Iterable, Sequence
 from functools import partial, reduce
 
 from pyspark.sql.types import DataType, NumericType
 from sqlglot import Dialect
 from sqlglot import expressions as exp
+from sqlglot.errors import SqlglotError
 
 from databricks.labs.lakebridge.reconcile.recon_config import HashAlgoMapping
 from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
+
+logger = logging.getLogger(__name__)
 
 
 def _apply_func_expr(expr: exp.Expression, expr_func: Callable, **kwargs) -> exp.Expression:
@@ -141,18 +145,45 @@ def build_column_no_alias(this: str, table_name="") -> exp.Expression:
     return exp.Column(this=this, table=table_name)
 
 
-def build_literal(this: exp.ExpOrStr, alias=None, quoted=False, is_string=True, cast=None) -> exp.Expression:
+def build_literal(
+    this: exp.ExpOrStr,
+    alias=None,
+    quoted=False,
+    is_string=True,
+    cast=None,
+    cast_dialect: Dialect | None = None,
+) -> exp.Expression:
     base_literal = exp.Literal(this=this, is_string=is_string)
     if not cast and not alias:
         return base_literal
 
-    cast_expr = exp.Cast(this=base_literal, to=exp.DataType(this=cast)) if cast else base_literal
+    cast_expr = exp.Cast(this=base_literal, to=_build_cast_datatype(cast, cast_dialect)) if cast else base_literal
     return exp.Alias(this=cast_expr, alias=exp.Identifier(this=alias, quoted=quoted)) if alias else cast_expr
+
+
+def _build_cast_datatype(datatype: str, dialect: Dialect | None) -> exp.DataType:
+    """Render a declared type in ``dialect``'s own nomenclature so the CAST is valid for that engine.
+
+    Needed for Redshift external/Spectrum tables, whose metadata reports Spark/Glue type names
+    (e.g. ``string``) that Redshift rejects verbatim -- parsing and re-emitting yields
+    ``VARCHAR(MAX)``. ``dialect=None`` (the default, used by every non-Redshift caller) keeps the
+    original verbatim behavior, so other sources are byte-for-byte unaffected. Falls back to
+    verbatim for types sqlglot cannot parse.
+    """
+    if dialect is None:
+        return exp.DataType(this=datatype)
+    try:
+        return exp.DataType.build(datatype, dialect=dialect)
+    except SqlglotError:
+        # SqlglotError covers both ParseError and TokenError (e.g. a type string containing a
+        # quote or comment token), so an unparseable type falls back to verbatim rather than raising.
+        logger.warning(f"Could not parse cast type {datatype!r}; emitting it verbatim")
+        return exp.DataType(this=datatype)
 
 
 def transform_expression(
     expr: exp.Expression,
-    funcs: list[Callable[[exp.Expression], exp.Expression]],
+    funcs: Sequence[Callable[[exp.Expression], exp.Expression]],
 ) -> exp.Expression:
     for func in funcs:
         expr = func(expr)
@@ -250,108 +281,6 @@ def _get_is_string(column_types_dict: dict[str, DataType], column_name: str) -> 
         return False
     return True
 
-
-DataType_transform_mapping: dict[str, dict[str, list[partial[exp.Expression]]]] = {  # pylint: disable=invalid-name
-    "universal": {"default": [partial(coalesce, default='_null_recon_', is_string=True), partial(trim)]},
-    "bigquery": {
-        # TODO: add timestamps and numbers handling
-        "default": [partial(anonymous, func="COALESCE(TRIM(CAST({} AS STRING)), '_null_recon_')")],
-    },
-    "snowflake": {exp.DataType.Type.ARRAY.value: [partial(array_to_string), partial(array_sort)]},
-    "oracle": {
-        exp.DataType.Type.NCHAR.value: [
-            partial(anonymous, func="NVL(TRIM(TO_CHAR({})),'_null_recon_')", dialect=get_dialect("oracle"))
-        ],
-        exp.DataType.Type.CHAR.value: [
-            partial(anonymous, func="NVL(TRIM(TO_CHAR({})),'_null_recon_')", dialect=get_dialect("oracle"))
-        ],
-    },
-    "databricks": {
-        exp.DataType.Type.ARRAY.value: [
-            partial(anonymous, func="CONCAT_WS(',', SORT_ARRAY({}))", dialect=get_dialect("databricks"))
-        ],
-    },
-    "tsql": {
-        "default": [partial(anonymous, func="COALESCE(TRIM(CAST({} AS VARCHAR(MAX))), '_null_recon_')")],
-        exp.DataType.Type.DATE.value: [
-            partial(anonymous, func="COALESCE(CONVERT(VARCHAR(10), {0}, 101), '1900-01-01')")
-        ],
-        exp.DataType.Type.TIME.value: [partial(anonymous, func="COALESCE(CONVERT(VARCHAR(12), {0}, 108), '00:00:00')")],
-        exp.DataType.Type.DATETIME.value: [
-            partial(anonymous, func="COALESCE(CONVERT(VARCHAR(23), {0}, 120), '1900-01-01 00:00:00')")
-        ],
-    },
-    "redshift": {
-        exp.DataType.Type.SUPER.value: [
-            partial(anonymous, func="COALESCE(JSON_SERIALIZE({}), '_null_recon_')", dialect=get_dialect("redshift"))
-        ],
-        exp.DataType.Type.DATE.value: [
-            partial(
-                anonymous,
-                func="COALESCE(TO_CHAR({}, 'YYYY-MM-DD'), '_null_recon_')",
-                dialect=get_dialect("redshift"),
-            )
-        ],
-        exp.DataType.Type.TIMESTAMP.value: [
-            partial(
-                anonymous,
-                func="COALESCE(TO_CHAR({}, 'YYYY-MM-DD HH24:MI:SS.US'), '_null_recon_')",
-                dialect=get_dialect("redshift"),
-            )
-        ],
-        exp.DataType.Type.TIMESTAMPTZ.value: [
-            partial(
-                anonymous,
-                func="COALESCE(TO_CHAR({}, 'YYYY-MM-DD HH24:MI:SS.US'), '_null_recon_')",
-                dialect=get_dialect("redshift"),
-            )
-        ],
-    },
-    "teradata": {
-        exp.DataType.Type.DATE.value: [
-            partial(
-                anonymous,
-                func="COALESCE(CAST(CAST({} AS DATE FORMAT 'YYYY-MM-DD') AS VARCHAR(10)), '_null_recon_')",
-                dialect=get_dialect("teradata"),
-            )
-        ],
-        exp.DataType.Type.TIMESTAMP.value: [
-            partial(
-                anonymous,
-                func="COALESCE(CAST(CAST({} AS TIMESTAMP(6) FORMAT 'YYYY-MM-DDBHH:MI:SS.S(6)') AS VARCHAR(26)), '_null_recon_')",
-                dialect=get_dialect("teradata"),
-            )
-        ],
-        exp.DataType.Type.TIMESTAMPTZ.value: [
-            partial(
-                anonymous,
-                func="COALESCE(CAST(CAST({} AS TIMESTAMP(6) WITH TIME ZONE) AS VARCHAR(32)), '_null_recon_')",
-                dialect=get_dialect("teradata"),
-            )
-        ],
-        exp.DataType.Type.TIME.value: [
-            partial(
-                anonymous,
-                func="COALESCE(CAST({} AS VARCHAR(15)), '_null_recon_')",
-                dialect=get_dialect("teradata"),
-            )
-        ],
-        exp.DataType.Type.JSON.value: [
-            partial(
-                anonymous,
-                func="COALESCE(CAST({} AS VARCHAR(32000)), '_null_recon_')",
-                dialect=get_dialect("teradata"),
-            )
-        ],
-        exp.DataType.Type.XML.value: [
-            partial(
-                anonymous,
-                func="COALESCE(CAST({} AS VARCHAR(32000)), '_null_recon_')",
-                dialect=get_dialect("teradata"),
-            )
-        ],
-    },
-}
 
 sha256_partial = partial(sha2, num_bits="256", is_expr=True)
 md5_partial = partial(md5, is_expr=True)

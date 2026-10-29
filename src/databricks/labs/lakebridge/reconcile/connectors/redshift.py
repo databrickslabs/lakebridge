@@ -18,14 +18,25 @@ logger = logging.getLogger(__name__)
 
 class RedshiftDataSource(DataSource):
     _IDENTIFIER_DELIMITER = "\""
+    # UNION information_schema (local catalog only) with the SVV_* catalog views so that
+    # external / Spectrum schemas and tables are discovered alongside native Redshift ones.
     _LIST_SCHEMAS_QUERY = (
         "SELECT schema_name FROM information_schema.schemata "
-        "WHERE LOWER(catalog_name) = LOWER('{catalog}') ORDER BY schema_name"
+        "WHERE LOWER(catalog_name) = LOWER('{catalog}') "
+        "UNION "
+        "SELECT schema_name FROM pg_catalog.svv_all_schemas "
+        "WHERE LOWER(database_name) = LOWER('{catalog}') "
+        "ORDER BY schema_name"
     )
     _LIST_TABLES_QUERY = (
         "SELECT table_name FROM information_schema.tables "
         "WHERE LOWER(table_catalog) = LOWER('{catalog}') "
-        "AND LOWER(table_schema) = LOWER('{schema}') ORDER BY table_name"
+        "AND LOWER(table_schema) = LOWER('{schema}') "
+        "UNION "
+        "SELECT table_name FROM pg_catalog.svv_tables "
+        "WHERE LOWER(table_catalog) = LOWER('{catalog}') "
+        "AND LOWER(table_schema) = LOWER('{schema}') "
+        "ORDER BY table_name"
     )
     _SCHEMA_QUERY = """SELECT
                          column_name,
@@ -41,10 +52,11 @@ class RedshiftDataSource(DataSource):
                             ELSE data_type
                         END AS data_type
                         FROM
-                            information_schema.columns
+                            pg_catalog.svv_columns
                         WHERE
                         LOWER(table_name) = LOWER('{table}')
                         AND LOWER(table_schema) = LOWER('{schema}')
+                        AND LOWER(table_catalog) = LOWER('{catalog}')
                         ORDER BY ordinal_position
                   """
 
@@ -83,7 +95,7 @@ class RedshiftDataSource(DataSource):
         schema_query = re.sub(
             r'\s+',
             ' ',
-            RedshiftDataSource._SCHEMA_QUERY.format(schema=schema, table=table),
+            RedshiftDataSource._SCHEMA_QUERY.format(catalog=catalog, schema=schema, table=table),
         )
         try:
             logger.debug(f"Fetching schema using query: \n`{schema_query}`")

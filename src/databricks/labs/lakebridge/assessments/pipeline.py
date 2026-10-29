@@ -1,6 +1,7 @@
 import json
 import logging
 import sys
+from collections.abc import Collection
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
@@ -12,7 +13,7 @@ import yaml
 from databricks.labs.blueprint.paths import read_text
 
 from databricks.labs.lakebridge import __version__ as lakebridge_version
-from databricks.labs.lakebridge.assessments.profiler_config import PipelineConfig, Step
+from databricks.labs.lakebridge.assessments.profiler_config import PipelineConfig, Step, StepLabel
 from databricks.labs.lakebridge.connections.database_manager import DatabaseConnector, FetchResult
 from databricks.labs.lakebridge.resources.assessments.common.duckdb_helpers import (
     SaveMode,
@@ -23,8 +24,8 @@ from databricks.labs.lakebridge.resources.assessments.common.duckdb_helpers impo
 logger = logging.getLogger(__name__)
 
 
-def make_profiler_db_filename(platform: str) -> str:
-    return f"profiler_extract_{platform}_{lakebridge_version}_{datetime.now(timezone.utc).strftime('%Y%m%d')}.db"
+def make_profiler_db_filename(source_system: str) -> str:
+    return f"profiler_extract_{source_system}_{lakebridge_version}_{datetime.now(timezone.utc).strftime('%Y%m%d')}.db"
 
 
 class StepExecutionStatus(str, Enum):
@@ -48,14 +49,21 @@ class PipelineClass:
         executor: DatabaseConnector | None,
         db_path: Path,
         cred_file_path: Path,
+        exclude_labels: Collection[StepLabel] = (),
     ):
         self.config = config
         self.executor = executor
         self._db_path = db_path.expanduser()
         self._create_dir(self._db_path.parent)
         self._cred_file_path = cred_file_path
+        self._exclude_labels = exclude_labels
 
     def execute(self) -> list[StepExecutionResult]:
+        """Run every configured step and return per-step outcomes.
+
+        Does not raise on step failures: callers decide how to surface them.
+        A failed DDL / source_ddl step aborts the remaining steps because later extracts depend on it.
+        """
         logging.info(f"Pipeline initialized with config: {self.config.name}, version: {self.config.version}")
         execution_results: list[StepExecutionResult] = []
 
@@ -65,19 +73,8 @@ class PipelineClass:
             self._log_step_result(result)
 
             if step.type in {"ddl", "source_ddl"} and result.status == StepExecutionStatus.ERROR:
-                error_msg = f"Pipeline execution failed due to error in DDL step: {result.step_name}"
-                if result.error_message:
-                    error_msg += f" - {result.error_message}"
-                logger.error(error_msg)
-                raise RuntimeError(error_msg)
-
-        failed_steps = [r for r in execution_results if r.status == StepExecutionStatus.ERROR]
-        if failed_steps:
-            error_msg = (
-                f"Pipeline execution failed due to errors in steps: {', '.join(r.step_name for r in failed_steps)}"
-            )
-            logger.error(error_msg)
-            raise RuntimeError(error_msg)
+                logger.error(f"Aborting run: DDL step {result.step_name} failed")
+                break
 
         return execution_results
 
@@ -88,12 +85,16 @@ class PipelineClass:
             logging.info(f"Skipping step: {step.name} as it is not active")
             return StepExecutionResult(step_name=step.name, status=StepExecutionStatus.SKIPPED)
 
+        if step.label in self._exclude_labels:
+            logging.info(f"Skipping step: {step.name} as its label '{step.label}' is excluded")
+            return StepExecutionResult(step_name=step.name, status=StepExecutionStatus.SKIPPED)
+
         try:
             self._dispatch_step(step)
             return StepExecutionResult(step_name=step.name, status=StepExecutionStatus.COMPLETE)
         except (RuntimeError, ConnectionError) as e:
             # Optional: warn + ABSENT (customer isn't failed; maintainers get the cause).
-            # Required: ERROR, which fails the run below.
+            # Required: ERROR
             status = StepExecutionStatus.ABSENT if step.optional else StepExecutionStatus.ERROR
             return StepExecutionResult(step_name=step.name, status=status, error_message=str(e))
 

@@ -4,7 +4,7 @@
  * maximum size, and a timestamp indicating when the data was extracted.
  */
 SELECT Db_name()                                                           AS
-       database_name,
+       DATABASE_NAME,
        NAME                                                                AS
        FileName,
        type_desc,

@@ -13,6 +13,8 @@ import Admonition from '@theme/Admonition';
 
 ## Prerequisites
 
+**Supported versions:** SQL Server 2012 and later, Azure SQL Database, and Azure SQL Managed Instance.
+
 ### 1. Download
 
 No driver installation is required: the profiler connects with Microsoft's
@@ -43,22 +45,29 @@ Permissions differ depending on whether you are running against an **on-premises
 
 #### On-Premises SQL Server
 
-On a self-hosted SQL Server instance, a server-level grant is sufficient:
+On a self-hosted SQL Server instance, grant one server-level permission to the login, then map it to a
+user with `VIEW DEFINITION` in each database you profile:
 
 ```sql
--- Grant access to Dynamic Management Views (DMVs)
-GRANT VIEW SERVER STATE TO [<user_name>];
+-- Server level: access to Dynamic Management Views (DMVs)
+USE master;
+GRANT VIEW SERVER STATE TO [<login_name>];
 
--- Grant access to object definitions (routines, views)
+-- In each database you profile
+USE [<target_database>];
+CREATE USER [<user_name>] FROM LOGIN [<login_name>];
 GRANT VIEW DEFINITION TO [<user_name>];
-
--- Grant read access to INFORMATION_SCHEMA views
-GRANT SELECT ON SCHEMA::INFORMATION_SCHEMA TO [<user_name>];
 ```
 
 :::tip
-`VIEW SERVER STATE` is a server-level permission required to query `sys.dm_*` Dynamic Management Views.
-`VIEW DEFINITION` allows the user to see the definitions of stored procedures and views.
+`VIEW SERVER STATE` is a server-level permission required to query `sys.dm_*` Dynamic Management Views. It
+also gives `VIEW DATABASE STATE` in every database, which `sys.dm_db_partition_stats` (table sizes) needs.
+`VIEW DEFINITION` makes a database's tables, views, columns and stored procedures visible to the profiler.
+Without it, that database's inventory and table sizes are empty or incomplete, and its stored procedure
+names in `proc_stats` are missing. Granting it per database keeps databases you don't profile out of reach.
+On SQL Server 2022 and later, these two grants also cover the finer-grained performance and security
+definition permissions. `INFORMATION_SCHEMA` views need no grant: every user can query them, and what they
+return depends on `VIEW DEFINITION`.
 These grants should be executed by a `sysadmin` or a login with `CONTROL SERVER` permission.
 :::
 
@@ -88,7 +97,6 @@ USE [<target_database>];
 CREATE USER [<user_name>] FROM LOGIN [<user_name>];
 GRANT VIEW DATABASE STATE TO [<user_name>];
 GRANT VIEW DEFINITION TO [<user_name>];
-GRANT SELECT ON SCHEMA::INFORMATION_SCHEMA TO [<user_name>];
 ```
 
 :::tip

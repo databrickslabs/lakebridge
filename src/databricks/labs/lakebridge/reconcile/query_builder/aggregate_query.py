@@ -145,9 +145,7 @@ class AggregateQueryBuilder(QueryBuilder):
 
         # Apply user transformations on Select columns
         # Example: {column_name: creation_date, source: creation_date, target: to_date(creation_date,'yyyy-mm-dd')}
-        select_cols_with_transform = (
-            self._apply_user_transformation(cols_with_mapping) if self.user_transformations else cols_with_mapping
-        )
+        select_cols_with_transform = [r.column for r in self._transformer.transform_user(cols_with_mapping, self.layer)]
 
         # Transformed columns
         select_cols_with_alias = self._agg_query_cols_with_alias(select_cols_with_transform)
@@ -161,11 +159,9 @@ class AggregateQueryBuilder(QueryBuilder):
 
             # Apply user transformations on group_by_columns,
             # ex: {column_name: creation_date, source: creation_date, target: to_date(creation_date,'yyyy-mm-dd')}
-            group_by_cols_with_transform = (
-                self._apply_user_transformation(group_by_cols_with_mapping)
-                if self.user_transformations
-                else group_by_cols_with_mapping
-            )
+            group_by_cols_with_transform = [
+                r.column for r in self._transformer.transform_user(group_by_cols_with_mapping, self.layer)
+            ]
 
             select_group_by_cols_with_alias = self._agg_query_cols_with_alias(group_by_cols_with_transform)
 

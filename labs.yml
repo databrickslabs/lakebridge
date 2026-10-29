@@ -107,6 +107,9 @@ commands:
   - name: configure-reconcile
     description: Configure 'reconcile' dependencies
 
+  - name: auto-configure-recon-tables
+    description: auto-discover and configure tables to reconcile
+
   - name: execute-database-profiler
     description: (Experimental) Profile the source system database
     flags:
@@ -118,6 +121,8 @@ commands:
         description: (Optional) Folder where the extracted DuckDB file is written; if omitted, prompts with a smart default
       - name: cred-file-path
         description: (Optional) Local `path` of the credential file to use; defaults to the file written by `configure-database-profiler`
+      - name: exclude
+        description: (Optional) Comma-separated labels of the steps to skip
 
   - name: test-profiler-connection
     description: (Internal) Test the connection to the source database for profiling

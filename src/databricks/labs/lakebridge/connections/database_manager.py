@@ -5,7 +5,7 @@ import logging
 from abc import abstractmethod
 from collections.abc import Callable, Iterator, Sequence
 from types import TracebackType
-from typing import Any
+from typing import Any, TypedDict
 
 import mssql_python
 import pandas as pd
@@ -19,6 +19,7 @@ from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm.session import Session
 
 from databricks.labs.lakebridge.connections.mssql_auth import resolve_mssql_credentials
+from databricks.labs.lakebridge.connections.snowflake_auth import resolve_snowflake_credentials
 from databricks.labs.lakebridge.connections.snowflake_utils import (
     is_valid_snowflake_account,
     parse_snowflake_account,
@@ -99,13 +100,9 @@ class _BaseConnector(DatabaseConnector):
 
 
 class SnowflakeConnector(_BaseConnector):
-    def _connect(self) -> Engine:
-        # The configurator always nests Snowflake credentials under a "connection" block.
-        # The SDK types JSON values loosely, so narrow to a dict for the accesses below.
-        connection_config = self.config["connection"]
-        if not isinstance(connection_config, dict):
-            raise ConnectionError("Snowflake credentials must be nested under a 'connection' block")
-
+    @staticmethod
+    def build_engine_args(connection_config: dict[str, Any]) -> tuple[URL, dict[str, Any]]:
+        """Build the SQLAlchemy URL and connect_args for a Snowflake connection config."""
         account = parse_snowflake_account(str(connection_config["account"]))
         if not is_valid_snowflake_account(account):
             raise ConnectionError(
@@ -117,19 +114,29 @@ class SnowflakeConnector(_BaseConnector):
         database = str(connection_config.get("database", "SNOWFLAKE"))
         schema = str(connection_config.get("schema", "ACCOUNT_USAGE"))
         role = str(connection_config.get("role", "ACCOUNTADMIN"))
-        password = str(connection_config["pat"])
+        resolved = resolve_snowflake_credentials(connection_config)
 
         # PAT is base64url-encoded and can contain '/', '=', '@'. URL.create
         # percent-escapes them so SQLAlchemy doesn't misread the token as URL structure.
         snowflake_url = URL.create(
             drivername="snowflake",
-            username=user,
-            password=password,
             host=account,
             database=f"{database}/{schema}",
+            username=user,
+            password=resolved.password,
             query={"warehouse": warehouse, "role": role},
         )
-        return create_engine(snowflake_url)
+        return snowflake_url, resolved.connect_args
+
+    def _connect(self) -> Engine:
+        # The configurator always nests Snowflake credentials under a "connection" block.
+        # The SDK types JSON values loosely, so narrow to a dict for the accesses below.
+        connection_config = self.config["connection"]
+        if not isinstance(connection_config, dict):
+            raise ConnectionError("Snowflake credentials must be nested under a 'connection' block")
+
+        snowflake_url, connect_args = self.build_engine_args(connection_config)
+        return create_engine(snowflake_url, connect_args=connect_args)
 
     def supports_streaming(self) -> bool:
         return True
@@ -158,36 +165,46 @@ class SnowflakeConnector(_BaseConnector):
 ALL_DATABASES = "*"
 
 
+class _MSSQLConnectionKwargs(TypedDict, total=False):
+    server: str
+    database: str
+    authentication: str
+    uid: str
+    pwd: str
+    trust_server_certificate: str
+
+
 class MSSQLConnector(DatabaseConnector):
     def __init__(self, config: JsonObject):
         self.config = config
         self._conn: mssql_python.Connection = self._connect()
 
     def _connect(self) -> mssql_python.Connection:
-        db_value = str(self.config.get('database') or "").strip()
+        db_value = str(self.config.get("database") or "").strip()
         db_name = db_value if db_value and db_value != ALL_DATABASES else "master"
 
         resolved = resolve_mssql_credentials(self.config)
 
-        server = str(self.config['server'])
-        port = int(str(self.config.get('port', '1433')))
-        parts = [f"Server={server},{port}"]
-        if self.config.get('database'):
-            parts.append(f"Database={db_name}")
+        server = str(self.config["server"])
+        port = int(str(self.config.get("port", "1433")))
+        kwargs: _MSSQLConnectionKwargs = {"server": f"{server},{port}"}
+        if self.config.get("database"):
+            kwargs["database"] = db_name
         if resolved.authentication_param is not None:
-            parts.append(f"Authentication={resolved.authentication_param}")
+            kwargs["authentication"] = resolved.authentication_param
         if resolved.username is not None:
-            parts.append(f"UID={resolved.username}")
+            kwargs["uid"] = resolved.username
         if resolved.password is not None:
-            parts.append(f"PWD={resolved.password}")
-        trust = "no" if str(self.config.get('trust_server_certificate', 'False')) == 'False' else "yes"
-        parts.append(f"TrustServerCertificate={trust}")
+            kwargs["pwd"] = resolved.password
+        kwargs["trust_server_certificate"] = (
+            "no" if str(self.config.get("trust_server_certificate", "False")) == "False" else "yes"
+        )
 
         try:
             return mssql_python.connect(
-                ";".join(parts),
                 autocommit=True,
-                timeout=int(str(self.config.get('login_timeout', '30'))),
+                timeout=int(str(self.config.get("login_timeout", "30"))),
+                **kwargs,
             )
         except mssql_python.Error as e:
             raise ConnectionError(f"Failed to connect to {server}: {e}") from e
@@ -224,10 +241,10 @@ class TeradataConnector(_BaseConnector):
 
         connection_string = URL.create(
             drivername="teradatasql",
-            username=str(self.config['user']),
-            password=str(self.config['password']),
-            host=str(self.config['host']),
-            port=int(str(self.config.get('port', 1025))),
+            username=str(self.config["user"]),
+            password=str(self.config["password"]),
+            host=str(self.config["host"]),
+            port=int(str(self.config.get("port", 1025))),
             query=query_params,
         )
         return create_engine(connection_string)
@@ -237,11 +254,11 @@ class OracleConnector(_BaseConnector):
     def _connect(self) -> Engine:
         connection_string = URL.create(
             drivername="oracle+oracledb",
-            username=str(self.config['user']),
-            password=str(self.config['password']),
-            host=str(self.config['host']),
-            port=int(str(self.config.get('port', 1521))),
-            database=str(self.config.get('service_name')),
+            username=str(self.config["user"]),
+            password=str(self.config["password"]),
+            host=str(self.config["host"]),
+            port=int(str(self.config.get("port", 1521))),
+            database=str(self.config.get("service_name")),
         )
 
         return create_engine(connection_string)

@@ -133,3 +133,4 @@ steps:
     mode: overwrite
     frequency: once
     flag: active
+    label: unredacted

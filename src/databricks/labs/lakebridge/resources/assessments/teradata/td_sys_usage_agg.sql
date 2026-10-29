@@ -1,13 +1,13 @@
 SELECT TheDate,
     HOUR(time_of_day) as hour_of_day,
-    round(avg(totNCPUs), 0) as totNCPUs,
-    round(avg(totVproc1), 0) as totVproc1,
-    round(avg(totCPUUExec), 0) as totCPUUExec,
-    round(avg(totCPUUServ), 0) as totCPUUServ,
-    round(avg(totCPUIoWait), 0) as totCPUIoWait,
-    round(avg(totMemSizeMB), 0) as totMemSizeMB,
-    round(avg(totCPUIdle), 0) as totCPUIdle,
-    round(avg(totMemFreeMB), 0) as totMemFreeMB
+    CAST(round(avg(totNCPUs), 0) AS FLOAT) as totNCPUs,
+    CAST(round(avg(totVproc1), 0) AS FLOAT) as totVproc1,
+    CAST(round(avg(totCPUUExec), 0) AS FLOAT) as totCPUUExec,
+    CAST(round(avg(totCPUUServ), 0) AS FLOAT) as totCPUUServ,
+    CAST(round(avg(totCPUIoWait), 0) AS FLOAT) as totCPUIoWait,
+    CAST(round(avg(totMemSizeMB), 0) AS FLOAT) as totMemSizeMB,
+    CAST(round(avg(totCPUIdle), 0) AS FLOAT) as totCPUIdle,
+    CAST(round(avg(totMemFreeMB), 0) AS FLOAT) as totMemFreeMB
 FROM (
     SELECT thedate,
         cast(
