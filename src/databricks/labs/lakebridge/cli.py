@@ -32,7 +32,6 @@ from databricks.labs.lakebridge.assessments.profiler_config import StepLabel
 from databricks.labs.lakebridge.config import LSPConfigOptionV1, TableRecon, TranspileConfig
 from databricks.labs.lakebridge.connections.credential_manager import cred_file
 from databricks.labs.lakebridge.contexts.application import ApplicationContext
-from databricks.labs.lakebridge.helpers.recon_config_utils import ReconConfigPrompts
 from databricks.labs.lakebridge.helpers.telemetry_utils import make_alphanum_or_semver
 from databricks.labs.lakebridge.reconcile.recon_config import (
     AGG_RECONCILE_OPERATION_NAME,
@@ -772,18 +771,6 @@ def aggregates_reconcile(
     _, job_run_url = recon_runner.run(operation_name=AGG_RECONCILE_OPERATION_NAME)
     if ctx.prompts.confirm(f"Would you like to open the job run URL `{job_run_url}` in the browser?"):
         webbrowser.open(job_run_url)
-
-
-@lakebridge.command
-def configure_secrets(*, w: WorkspaceClient) -> None:
-    """Setup reconciliation connection profile details as Secrets on Databricks Workspace"""
-    recon_conf = ReconConfigPrompts(w)
-
-    # Prompt for source
-    source = recon_conf.prompt_source()
-
-    logger.info(f"Setting up Scope, Secrets for `{source}` reconciliation")
-    recon_conf.prompt_and_save_connection_details()
 
 
 @lakebridge.command
