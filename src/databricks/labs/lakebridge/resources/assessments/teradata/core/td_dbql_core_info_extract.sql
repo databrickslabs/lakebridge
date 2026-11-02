@@ -13,7 +13,7 @@ SELECT TOP 100000
 FROM
     DBC.DBQLogTbl AS LogTbl
 WHERE
-    LogTbl.CollectTimeStamp >= CURRENT_DATE - INTERVAL '7' DAY
+    LogTbl.CollectTimeStamp >= CURRENT_DATE - INTERVAL '30' DAY
     AND UserName NOT IN ('AD_ANMGR', 'MS_ANMGR')
 ORDER BY
     TotalFirstRespTime DESC;
