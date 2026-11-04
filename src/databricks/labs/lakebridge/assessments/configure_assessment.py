@@ -172,7 +172,7 @@ class ConfigureOracleAssessment(AssessmentConfigurator):
             source: {
                 "host": self.prompts.question("Enter the host details (Server name, IP address, SCAN Name)"),
                 "port": int(self.prompts.question("Enter the host port number", default=str(1521), valid_number=True)),
-                "service_name": self.prompts.question("Enter the service name", default="orcl"),
+                "service_name": self.prompts.question("Enter the Oracle SID", default="orcl"),
                 "user": self.prompts.question("Enter user with privileges"),
                 "password": self.prompts.password("Enter user password"),
             },
