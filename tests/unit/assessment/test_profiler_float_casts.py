@@ -42,10 +42,10 @@ REQUIRED_CASTS: dict[str, tuple[str, ...]] = {
         "CAST(round(avg(totMemFreeMB), 0) AS FLOAT) as totMemFreeMB",
     ),
     "teradata/td_sys_disk_utilization.sql": (
-        "CAST(SUM((MAXPERM) /(1024 * 1024)) AS FLOAT) MAX_PERM_MB",
-        "CAST(SUM((CURRENTPERM) /(1024 * 1024)) AS FLOAT) CURRENT_PERM_MB",
-        "CAST(SUM((MAXSPOOL) /(1024 * 1024)) AS FLOAT) MAX_SPOOL_MB",
-        "CAST(SUM((CURRENTSPOOL) /(1024 * 1024)) AS FLOAT) CURRENT_SPOOL_MB",
+        "SUM(CAST(MAXPERM AS FLOAT)) / (1024 * 1024) MAX_PERM_MB",
+        "SUM(CAST(CURRENTPERM AS FLOAT)) / (1024 * 1024) CURRENT_PERM_MB",
+        "SUM(CAST(MAXSPOOL AS FLOAT)) / (1024 * 1024) MAX_SPOOL_MB",
+        "SUM(CAST(CURRENTSPOOL AS FLOAT)) / (1024 * 1024) CURRENT_SPOOL_MB",
     ),
     "teradata/core/td_dbql_core_info_extract.sql": (
         "CAST((LogTbl.AMPCPUTime + LogTbl.ParserCPUTime + LogTbl.DisCPUTime) AS FLOAT) as TotalCPUTime",
