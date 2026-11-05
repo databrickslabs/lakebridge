@@ -80,7 +80,7 @@ REQUIRED_CASTS: dict[str, tuple[str, ...]] = {
         "round(avg(s3_scanned_tb_month) over (), 4 )::double precision avg_daily_scanned_tb",
     ),
     "redshift/sql/2_rs_managed_storage_gb_stv.sql": (
-        "round((sum(used) / 1024), 2)::double precision as rs_managed_storage_gb",
+        "round((sum(used) / 1024.0), 2)::double precision as rs_managed_storage_gb",
     ),
     "redshift/sql/2_rs_managed_storage_gb_serverless.sql": (
         "round(avg(data_storage) / 1024.0, 2)::double precision as rs_managed_storage_gb",
