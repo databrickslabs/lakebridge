@@ -3,7 +3,7 @@
 -- collapsed into 24 hour-of-day buckets. The outer max() then returns the peak (busiest day)
 -- for each hour-of-day, not the average across days.
 with daily_hourly_users as (select start_time::date as day
-                                  ,date_part(hour, start_time) as hour
+                                  ,date_part(hour, start_time)::int as hour
                                   ,count(distinct user_id) as distinct_users
                               from query_view
                              group by 1, 2)
