@@ -6,12 +6,26 @@
 
 /* import fonts: DM Mono and DM Sans */
 @import url('https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300;1,400;1,500&family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&display=swap');
-@import "table.css";
+@import "./table.css";
 
-/* configure tailwindcss */
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/* configure tailwindcss (CSS-first config)
+   Note: theme & utilities only, preflight omitted to leave Infima's H1-H6 heading styles in place. */
+@layer theme;
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css";
+@plugin "@tailwindcss/typography";
+
+/* Content sources (formerly `content` in tailwind.config.ts); paths are relative to this file. */
+@source "../../docs/**/*.{md,mdx}";
+@source "../**/*.{js,jsx,ts,tsx}";
+
+/* Dark mode keyed off Docusaurus's html[data-theme="dark"] (formerly `darkMode` in the config). */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+/* Ensure `font-sans` resolves to the site font instead of Tailwind's default system stack. */
+@theme {
+  --font-sans: "DM Sans", sans-serif;
+}
 
 :root {
   --ifm-font-family-base: 'DM Sans';
