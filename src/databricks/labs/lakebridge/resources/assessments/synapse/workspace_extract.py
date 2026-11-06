@@ -27,10 +27,10 @@ def _items(pages: Iterable[list[dict[str, Any]]]) -> list[dict[str, Any]]:
 
 
 def _runs(list_runs: Callable[[date], Iterable[list[dict[str, Any]]]], table_name: str) -> list[dict[str, Any]]:
-    """The runs of each of the last 60 days, each with the day it was listed for as `last_upd`."""
+    """The runs of each of the 60 days before today, each with the day it was listed for as `last_upd`."""
     runs_list = []
     today = date.today()
-    for days in range(1, 60):
+    for days in range(1, 61):
         last_upd = today + timedelta(days=-days)
         runs = _items(list_runs(last_upd))
         if not runs:
