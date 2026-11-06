@@ -35,7 +35,7 @@ dependencies = [
   "databricks-bb-analyzer~=0.3.0,!=0.3.1",  # 0.3.1 is a broken release.
   "sqlglot==28.5.0",
   "databricks-labs-blueprint[yaml]~=0.13.0",
-  "databricks-labs-lsql~=0.16.0",
+  "databricks-labs-lsql~=0.18.0",
   "pip>=26.2.2,<27",
   "mssql-python~=1.10",
   "SQLAlchemy~=2.0.40",
@@ -122,7 +122,7 @@ test = [
     # The DBR we test against must be higher than the databricks-connect version.
     "databricks-connect~=16.1.7; python_version < '3.12'",
     "databricks-connect~=17.3.8; python_version >= '3.12'",
-    "databricks-labs-pytester~=0.7.4",
+    "databricks-labs-pytester~=0.7.5",
     "cattrs~=26.1",
     # Transitive via databricks-connect, but needed for binary packages to be available.
     "numpy>=2.0.0,<3.0.0; python_version >= '3.12.0'",
