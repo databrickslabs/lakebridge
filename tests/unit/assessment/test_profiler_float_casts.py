@@ -1,7 +1,8 @@
-"""Assert profiler SQL retains float casts that prevent DuckDB narrow-DECIMAL overflow (PR #2578).
+"""Assert profiler SQL retains the casts that prevent DuckDB narrow-DECIMAL overflow (PR #2578).
 
-Every float/double cast in each referenced query is enumerated below, so removing any single
-cast fails CI. Snippets are matched after whitespace normalization; case is preserved.
+A decimal result is cast to a float, or to BIGINT when it holds whole numbers. Every such cast in
+each referenced query is enumerated below, so removing any single cast fails CI. Snippets are
+matched after whitespace normalization; case is preserved.
 """
 
 from __future__ import annotations
@@ -100,30 +101,30 @@ REQUIRED_CASTS: dict[str, tuple[str, ...]] = {
     ),
     "snowflake/automatic_clustering.sql": (
         "CREDITS_USED::DOUBLE AS CREDITS_USED",
-        "NUM_BYTES_RECLUSTERED::DOUBLE AS NUM_BYTES_RECLUSTERED",
-        "NUM_ROWS_RECLUSTERED::DOUBLE AS NUM_ROWS_RECLUSTERED",
+        "NUM_BYTES_RECLUSTERED::BIGINT AS NUM_BYTES_RECLUSTERED",
+        "NUM_ROWS_RECLUSTERED::BIGINT AS NUM_ROWS_RECLUSTERED",
     ),
     "snowflake/materialized_view_refresh.sql": ("CREDITS_USED::DOUBLE AS CREDITS_USED",),
     "snowflake/pipe_usage.sql": (
         "CREDITS_USED::DOUBLE AS CREDITS_USED",
-        "BYTES_INSERTED::DOUBLE AS BYTES_INSERTED",
+        "BYTES_INSERTED::BIGINT AS BYTES_INSERTED",
     ),
     "snowflake/query_history.sql": (
-        "TOTAL_ELAPSED_TIME::DOUBLE AS TOTAL_ELAPSED_TIME",
-        "EXECUTION_TIME::DOUBLE AS EXECUTION_TIME",
-        "COMPILATION_TIME::DOUBLE AS COMPILATION_TIME",
-        "QUEUED_PROVISIONING_TIME::DOUBLE AS QUEUED_PROVISIONING_TIME",
-        "QUEUED_REPAIR_TIME::DOUBLE AS QUEUED_REPAIR_TIME",
-        "QUEUED_OVERLOAD_TIME::DOUBLE AS QUEUED_OVERLOAD_TIME",
-        "TRANSACTION_BLOCKED_TIME::DOUBLE AS TRANSACTION_BLOCKED_TIME",
-        "BYTES_SCANNED::DOUBLE AS BYTES_SCANNED",
-        "BYTES_WRITTEN::DOUBLE AS BYTES_WRITTEN",
-        "BYTES_SPILLED_TO_LOCAL_STORAGE::DOUBLE AS BYTES_SPILLED_TO_LOCAL_STORAGE",
-        "BYTES_SPILLED_TO_REMOTE_STORAGE::DOUBLE AS BYTES_SPILLED_TO_REMOTE_STORAGE",
-        "ROWS_PRODUCED::DOUBLE AS ROWS_PRODUCED",
+        "TOTAL_ELAPSED_TIME::BIGINT AS TOTAL_ELAPSED_TIME",
+        "EXECUTION_TIME::BIGINT AS EXECUTION_TIME",
+        "COMPILATION_TIME::BIGINT AS COMPILATION_TIME",
+        "QUEUED_PROVISIONING_TIME::BIGINT AS QUEUED_PROVISIONING_TIME",
+        "QUEUED_REPAIR_TIME::BIGINT AS QUEUED_REPAIR_TIME",
+        "QUEUED_OVERLOAD_TIME::BIGINT AS QUEUED_OVERLOAD_TIME",
+        "TRANSACTION_BLOCKED_TIME::BIGINT AS TRANSACTION_BLOCKED_TIME",
+        "BYTES_SCANNED::BIGINT AS BYTES_SCANNED",
+        "BYTES_WRITTEN::BIGINT AS BYTES_WRITTEN",
+        "BYTES_SPILLED_TO_LOCAL_STORAGE::BIGINT AS BYTES_SPILLED_TO_LOCAL_STORAGE",
+        "BYTES_SPILLED_TO_REMOTE_STORAGE::BIGINT AS BYTES_SPILLED_TO_REMOTE_STORAGE",
+        "ROWS_PRODUCED::BIGINT AS ROWS_PRODUCED",
         "CREDITS_USED_CLOUD_SERVICES::DOUBLE AS CREDITS_USED_CLOUD_SERVICES",
     ),
-    "snowflake/query_samples.sql": ("TOTAL_ELAPSED_TIME::DOUBLE AS TOTAL_ELAPSED_TIME",),
+    "snowflake/query_samples.sql": ("TOTAL_ELAPSED_TIME::BIGINT AS TOTAL_ELAPSED_TIME",),
     "snowflake/storage_usage.sql": (
         "AVERAGE_DATABASE_BYTES::DOUBLE AS AVERAGE_DATABASE_BYTES",
         "AVERAGE_FAILSAFE_BYTES::DOUBLE AS AVERAGE_FAILSAFE_BYTES",
