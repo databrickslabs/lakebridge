@@ -9,6 +9,7 @@ import Admonition from '@theme/Admonition';
 - [Prerequisites](#prerequisites)
 - [Configure Connection to BigQuery](#configure-connection-to-bigquery)
 - [Execute the profiler](#execute-the-profiler)
+- [Profiler variants](#profiler-variants)
 
 ## Prerequisites
 
@@ -37,7 +38,9 @@ bigquery.jobs.list
 bigquery.datasets.get
 bigquery.datasets.getIamPolicy
 bigquery.tables.get
+bigquery.tables.list
 bigquery.tables.getData
+bigquery.routines.get
 bigquery.routines.list
 bigquery.readSessions.create
 bigquery.reservations.list                  # Editions customers only
@@ -51,10 +54,17 @@ bigquery.capacityCommitments.list           # Editions customers only
 |---|---|---|
 | Job history (workload, timeline, fulfillment, jobs-by-reservation) | `region-{region}.INFORMATION_SCHEMA.JOBS_BY_PROJECT`, `JOBS_TIMELINE` | `bigquery.jobs.list` (job-owner sees own jobs; admin sees all) |
 | Table storage | `region-{region}.INFORMATION_SCHEMA.TABLE_STORAGE_BY_PROJECT` | `bigquery.tables.get` + `bigquery.tables.getData` |
+| Table / view definitions (including recreation DDL) | `region-{region}.INFORMATION_SCHEMA.TABLES` | `bigquery.tables.get` + `bigquery.tables.list` |
+| Column definitions | `region-{region}.INFORMATION_SCHEMA.COLUMNS` | `bigquery.tables.get` + `bigquery.tables.list` |
+| Routine definitions (UDFs, procedures, including DDL) | `region-{region}.INFORMATION_SCHEMA.ROUTINES` | `bigquery.routines.get` + `bigquery.routines.list` |
 | Streaming inserts | `region-{region}.INFORMATION_SCHEMA.STREAMING_TIMELINE_BY_PROJECT` | `bigquery.jobs.list` |
 | Write API | `region-{region}.INFORMATION_SCHEMA.WRITE_API_TIMELINE_BY_PROJECT` | `bigquery.jobs.list` |
 | Reservation timeline | `region-{region}.INFORMATION_SCHEMA.RESERVATIONS_TIMELINE`, `RESERVATION_CHANGES` | `bigquery.reservations.list` |
 | Capacity commitments | `region-{region}.INFORMATION_SCHEMA.CAPACITY_COMMITMENT_CHANGES_BY_PROJECT` | `bigquery.capacityCommitments.list` (admin project only) |
+
+:::warning Attention:
+Object-definition extracts (`table_definitions`, `column_definitions`, `routine_definitions`) are included when you run the `inventory_and_ddl` variant. They contain recreation DDL and routine bodies — treat the DuckDB output as sensitive. Clone/snapshot `base_table_*` and materialized-view `replica_source_*` columns capture **source structural provenance** (dependency links), not Unity Catalog runtime lineage. Use the `inventory` variant to skip these extracts.
+:::
 
 :::warning Attention:
 Skip the reservation/commitment permissions if the customer is on **Pay-as-you-go pricing** rather than BigQuery Editions. The corresponding SQL files will return empty results — harmless. You can also set `exclude_reservations_data: true` during configuration to skip those queries entirely (saves BigQuery slot time; the corresponding DuckDB tables are still created as empty stubs so the output schema stays consistent).
@@ -115,13 +125,33 @@ bigquery:
 ## Execute the profiler
 
 ```bash
-databricks labs lakebridge execute-database-profiler --source-tech bigquery
+databricks labs lakebridge execute-database-profiler --source-tech bigquery --variant inventory_and_ddl
 ```
 
-The pipeline runs `bq_metadata_extract` — connects to BigQuery and runs 16 vendored SQL queries serially across the configured `(project, region)` pairs and in parallel within each iteration (`max_parallel_sqls` workers). Results land in `~/.databricks/labs/lakebridge_profilers/bigquery_assessment/profiler_extract.db` (DuckDB).
+If `--variant` is omitted, the CLI prompts you to choose one (see [Profiler variants](#profiler-variants)).
 
-The final DuckDB contains **12 analysis tables** by default (one per `analysis_type`).
+The selected pipeline connects to BigQuery and runs vendored SQL queries serially across the configured `(project, region)` pairs and in parallel within each iteration (`max_parallel_sqls` workers). Results land in `~/.databricks/labs/lakebridge_profilers/bigquery_assessment/` as a timestamped DuckDB file.
 
-Setting `exclude_reservations_data: true` skips the 6 reservation/commitment BigQuery queries — the corresponding DuckDB tables are still created (empty) to keep the output schema consistent.
+With the recommended `inventory_and_ddl` variant, the DuckDB contains **15 analysis tables**: 12 sizing/workload tables plus `table_definitions`, `column_definitions`, and `routine_definitions`. The `inventory` variant writes only the 12 sizing/workload tables.
+
+Setting `exclude_reservations_data: true` skips the reservation/commitment BigQuery queries — the corresponding DuckDB tables are still created (empty) to keep the inventory output schema consistent.
+
+## Profiler variants
+
+BigQuery offers two execute-time variants (same credentials; choose per run):
+
+| Variant | What it extracts |
+|---|---|
+| `inventory_and_ddl` (**recommended**) | Sizing / workload inventory **plus** object definitions (`table_definitions`, `column_definitions`, `routine_definitions`), including recreation DDL and routine bodies |
+| `inventory` | Sizing / workload inventory only — use when the customer does not want DDL exported into the DuckDB file |
+
+```bash
+# Full extract (recommended)
+databricks labs lakebridge execute-database-profiler --source-tech bigquery --variant inventory_and_ddl
+
+# Inventory only (no object DDL)
+databricks labs lakebridge execute-database-profiler --source-tech bigquery --variant inventory
+```
+
 
 [Back to Configure Profiler](../#configure-profiler)
