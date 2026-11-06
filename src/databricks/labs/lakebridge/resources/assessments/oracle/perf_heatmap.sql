@@ -1,7 +1,7 @@
-SELECT TO_CHAR(mtime,'YYYY/MM/DD') AS mtime,
+SELECT TRUNC(mtime) AS mtime,
        pdb_name,
        instance_number,
-       TO_CHAR(mtime,'HH24') AS hour,
+       TO_NUMBER(TO_CHAR(mtime,'HH24')) AS hour,
        core_nb,
        CAST(LOAD AS BINARY_DOUBLE) AS value
 FROM
