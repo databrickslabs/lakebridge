@@ -1,8 +1,8 @@
 CREATE TABLE perf_heatmap (
-    mtime VARCHAR,
+    mtime DATE,
     pdb_name VARCHAR,
     instance_number INTEGER,
-    hour VARCHAR,
+    hour INTEGER,
     core_nb INTEGER,
     value DOUBLE
 );

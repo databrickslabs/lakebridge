@@ -5,7 +5,7 @@
  */
 with query_stats as (
   SELECT
-      CONVERT(VARCHAR(64), HASHBYTES('SHA2_256', qs.sql_handle), 1) as sql_handle,
+      CONVERT(VARCHAR(66), HASHBYTES('SHA2_256', qs.sql_handle), 1) as sql_handle,
       st.dbid,
       qs.creation_time,
       qs.last_execution_time,
