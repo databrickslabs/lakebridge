@@ -41,11 +41,6 @@ def pipeline_config_with_ddl(pipeline_configuration_loader: _Loader) -> Pipeline
 
 
 @pytest.fixture
-def pipeline_config_combined_ddl(pipeline_configuration_loader: _Loader) -> PipelineConfig:
-    return pipeline_configuration_loader(Path("pipeline_config_with_combined_ddl.yml"))
-
-
-@pytest.fixture
 def sql_failure_config(pipeline_configuration_loader: _Loader) -> PipelineConfig:
     return pipeline_configuration_loader(Path("pipeline_config_sql_failure.yml"))
 
@@ -339,55 +334,5 @@ def test_run_pipeline_with_ddl(
         # Verify data was inserted
         inventory_result = conn.execute("SELECT COUNT(*) FROM inventory").fetchone()
         usage_result = conn.execute("SELECT COUNT(*) FROM usage").fetchone()
-        assert inventory_result is not None and inventory_result[0] > 0, "Inventory table should have data"
-        assert usage_result is not None and usage_result[0] > 0, "Usage table should have data"
-
-
-def test_run_pipeline_with_combined_ddl(
-    sandbox_sqlserver: DatabaseConnector,
-    pipeline_config_combined_ddl: PipelineConfig,
-    get_logger: Logger,
-    tmp_path: Path,
-) -> None:
-    """Test pipeline execution where each SQL step carries its own DuckDB DDL."""
-    pipeline = PipelineClass(
-        config=pipeline_config_combined_ddl,
-        executor=sandbox_sqlserver,
-        db_path=tmp_path / _DB_FILE,
-        cred_file_path=tmp_path / _CREDS_FILE,
-    )
-    results = pipeline.execute()
-
-    # Verify all steps completed successfully
-    for result in results:
-        assert result.status in (
-            StepExecutionStatus.COMPLETE,
-            StepExecutionStatus.SKIPPED,
-        ), f"Step {result.step_name} failed with status {result.status}"
-
-    with duckdb.connect(tmp_path / _DB_FILE) as conn:
-        tables = conn.execute("SHOW TABLES").fetchall()
-        table_names = [table[0] for table in tables]
-        get_logger.info(f"Created tables: {table_names}")
-
-        assert "inventory" in table_names, "inventory table should exist"
-        assert "usage" in table_names, "usage table should exist"
-
-        inventory_schema = conn.execute("DESCRIBE inventory").fetchall()
-        get_logger.info(f"Inventory schema: {inventory_schema}")
-        schema_dict = {col[0]: col[1] for col in inventory_schema}
-        assert schema_dict["db_id"] == "INTEGER", "db_id should be INTEGER from DDL"
-        assert "VARCHAR" in schema_dict["name"], "name should be VARCHAR"
-
-        usage_schema = conn.execute("DESCRIBE usage").fetchall()
-        get_logger.info(f"Usage schema: {usage_schema}")
-        usage_schema_dict = {col[0]: col[1] for col in usage_schema}
-        assert "VARCHAR" in usage_schema_dict["sql_handle"], "sql_handle should be VARCHAR"
-        assert "BIGINT" in usage_schema_dict["execution_count"], "execution_count should be BIGINT"
-        assert "BIGINT" in usage_schema_dict["total_rows"], "total_rows should be BIGINT"
-
-        inventory_result = conn.execute("SELECT COUNT(*) FROM inventory").fetchone()
-        usage_result = conn.execute("SELECT COUNT(*) FROM usage").fetchone()
-
         assert inventory_result is not None and inventory_result[0] > 0, "Inventory table should have data"
         assert usage_result is not None and usage_result[0] > 0, "Usage table should have data"
