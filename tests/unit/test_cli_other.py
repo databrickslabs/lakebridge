@@ -130,7 +130,7 @@ def test_cli_execute_database_profiler_output_folder(
 
     create_mock.assert_called_once_with("snowflake", None, fake_cred)
     profiler.profile.assert_called_once_with(
-        output_folder=expected_path, cred_file_path=fake_cred, exclude_labels=set()
+        output_folder=expected_path, cred_file_path=fake_cred, exclude_labels=set(), exclude_steps=set()
     )
 
 
@@ -175,19 +175,24 @@ def test_cli_execute_database_profiler_cred_file_path(
         output_folder=tmp_path / "out",
         cred_file_path=expected_cred,
         exclude_labels=set(),
+        exclude_steps=set(),
     )
 
 
 @pytest.mark.parametrize(
-    ("exclude", "expected_labels"),
+    ("exclude", "expected_labels", "expected_steps"),
     (
-        (None, frozenset()),
-        ("unredacted", frozenset({StepLabel.UNREDACTED})),
-        (" Unredacted , unredacted ", frozenset({StepLabel.UNREDACTED})),
+        (None, frozenset(), frozenset()),
+        ("unredacted", frozenset({StepLabel.UNREDACTED}), frozenset()),
+        (" Unredacted , unredacted ", frozenset({StepLabel.UNREDACTED}), frozenset()),
+        # What isn't a label is a step name; the profiler checks it against its pipeline.
+        ("unredacted, TD_SYS_INFO", frozenset({StepLabel.UNREDACTED}), frozenset({"td_sys_info"})),
     ),
 )
-def test_cli_execute_database_profiler_exclude(mock_workspace_client, exclude, expected_labels, tmp_path):
-    """`--exclude` is parsed into step labels and forwarded to Profiler.profile."""
+def test_cli_execute_database_profiler_exclude(
+    mock_workspace_client, exclude, expected_labels, expected_steps, tmp_path
+):
+    """`--exclude` is split into step labels and step names, and forwarded to Profiler.profile."""
     fake_cred = tmp_path / "credentials.yml"
     fake_cred.touch()
 
@@ -213,24 +218,8 @@ def test_cli_execute_database_profiler_exclude(mock_workspace_client, exclude, e
         output_folder=tmp_path / "out",
         cred_file_path=fake_cred,
         exclude_labels=expected_labels,
+        exclude_steps=expected_steps,
     )
-
-
-def test_cli_execute_database_profiler_unknown_exclude_label_raises(mock_workspace_client):
-    """An unknown `--exclude` label fails before the profiler runs."""
-    ctx_mock = create_autospec(spec=ApplicationContext, spec_set=True)
-    type(ctx_mock).workspace_client = PropertyMock(return_value=mock_workspace_client)
-    ctx_mock.current_user = "tester"
-    ctx_mock.prompts = MockPrompts({})
-
-    with (
-        patch("databricks.labs.lakebridge.cli.ApplicationContext", return_value=ctx_mock),
-        patch("databricks.labs.lakebridge.cli.Profiler.create") as create_mock,
-        pytest.raises(ValueError, match="Invalid label"),
-    ):
-        cli.execute_database_profiler(w=mock_workspace_client, source_tech="snowflake", exclude="unredacted,unknown")
-
-    create_mock.assert_not_called()
 
 
 def test_cli_execute_database_profiler_missing_cred_file_raises(mock_workspace_client, tmp_path):

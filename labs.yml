@@ -122,7 +122,7 @@ commands:
       - name: cred-file-path
         description: (Optional) Local `path` of the credential file to use; defaults to the file written by `configure-database-profiler`
       - name: exclude
-        description: (Optional) Comma-separated labels of the steps to skip
+        description: (Optional) Comma-separated labels or names of the steps to skip
 
   - name: test-profiler-connection
     description: (Internal) Test the connection to the source database for profiling
