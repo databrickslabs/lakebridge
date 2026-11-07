@@ -58,6 +58,18 @@ class AggregateQueryBuilder(QueryBuilder):
         """
         cols_with_mapping: list[exp.Expression] = []
         for col in cols_list:
+            # The literal `*` (COUNT(*)) is preserved by NormalizeReconConfigService
+            # rather than wrapped in backticks, so a single equality check is
+            # sufficient here. Emit a Star expression so sqlglot renders count(*)
+            # instead of count(`*`).
+            if col == "*":
+                cols_with_mapping.append(
+                    exp.Alias(
+                        this=exp.Star(),
+                        alias=exp.Identifier(this=f"{agg_type.lower()}<#>*", quoted=False),
+                    )
+                )
+                continue
             column_expr = build_column(
                 this=(
                     self._build_column_name_source_normalized(self._get_mapping_col(col))
