@@ -181,7 +181,7 @@ Enter secret vault type (local | env)
 [0] env
 [1] local
 Enter a number between 0 and 1: 1
-Enter the host details (Server name, IP address, SCAN Name): oracle-scan.example.com
+Enter the host details (Server name, IP address, SCAN Name): oracle-host.example.com
 Enter the host port number (default: 1521):
 Connect to CDB$ROOT using
 [0] Service name
@@ -210,7 +210,7 @@ The settings are saved to `~/.databricks/labs/lakebridge/.credentials.yml`:
 ```yaml
 secret_vault_type: local
 oracle:
-  host: oracle-scan.example.com
+  host: oracle-host.example.com
   port: 1521
   db_service_name: ORCLCDB  # service name of CDB$ROOT
   # sid: ORCL1              # or a SID instead; if both are set, the service name is used
