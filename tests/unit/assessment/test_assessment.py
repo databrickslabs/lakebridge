@@ -490,7 +490,7 @@ def test_configure_oracle_credentials(tmp_path, identifier_choice, expected_iden
             r"Enter secret vault type \(local \| env\)": sorted(['local', 'env']).index("local"),
             r"Enter the host details": "scan.example.com",
             r"Enter the host port number": "1521",
-            r"Connect to CDB\$ROOT using": identifier_choice,
+            r"Connect to Oracle using": identifier_choice,
             r"Enter the Oracle (service name|SID)": "ORCLCDB",
             r"Enter user with privileges": "PROFILER",
             r"Enter user password": "secret",

@@ -167,12 +167,12 @@ class ConfigureOracleAssessment(AssessmentConfigurator):
         )
         secret_vault_type = str(self.prompts.choice("Enter secret vault type (local | env)", ["local", "env"])).lower()
 
-        source_creds: dict[str, Any] = {
+        source_creds: dict[str, str | int] = {
             "host": self.prompts.question("Enter the host details (Server name, IP address, SCAN Name)"),
             "port": int(self.prompts.question("Enter the host port number", default=str(1521), valid_number=True)),
         }
-        if self.prompts.choice("Connect to CDB$ROOT using", ["Service name", "SID"], sort=False) == "Service name":
-            source_creds["db_service_name"] = self.prompts.question("Enter the Oracle service name of CDB$ROOT")
+        if self.prompts.choice("Connect to Oracle using", ["Service name", "SID"], sort=False) == "Service name":
+            source_creds["db_service_name"] = self.prompts.question("Enter the Oracle service name")
         else:
             source_creds["sid"] = self.prompts.question("Enter the Oracle SID")
         source_creds["user"] = self.prompts.question("Enter user with privileges")
