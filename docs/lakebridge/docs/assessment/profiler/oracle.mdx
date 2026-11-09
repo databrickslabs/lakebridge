@@ -158,10 +158,8 @@ The profiler connects to `CDB$ROOT` through the Oracle listener, using either a 
 - **SID**: the system identifier of a database instance, from `SELECT instance_name FROM v$instance`. On RAC, each
   instance has its own SID, so use that instance's host, not the SCAN name.
 
-:::warning Use the CDB root service, not a PDB service
-A Unity Catalog connection to Oracle usually uses the service name of the pluggable database (PDB) that holds your
-tables. You can reuse its host and port, but the profiler needs the service name of `CDB$ROOT`. Through a PDB
-service, the profiler connects but only sees that PDB, so the profile is incomplete.
+:::warning
+Use the service name of `CDB$ROOT`, not of a PDB. Through a PDB service, the profiler only sees that PDB.
 :::
 
 Run the following command to configure the profiler connection to your Oracle CDB:
