@@ -112,6 +112,19 @@ class FriendOfMorpheusInstaller(MorpheusInstaller):
         pytest.param("1.2.3", False, (1, 2, 3, 0), id="1.2.3"),
         pytest.param("1.2", False, (1, 2, 0, 0), id="1.2"),
         pytest.param("1", False, (1, 0, 0, 0), id="1"),
+        # Elements beyond the first four are ignored.
+        pytest.param("1.2.3.4.5.6", False, (1, 2, 3, 4), id="1.2.3.4.5.6"),
+        # Pre-release, build and optional information are ignored.
+        pytest.param("27-ea", False, (27, 0, 0, 0), id="27-ea"),
+        pytest.param("27.0.1-ea", False, (27, 0, 1, 0), id="27.0.1-ea"),
+        pytest.param("21.0.5+11", False, (21, 0, 5, 0), id="21.0.5+11"),
+        pytest.param("21.0.5+11-LTS", False, (21, 0, 5, 0), id="21.0.5+11-LTS"),
+        pytest.param("27-ea+3-187", False, (27, 0, 0, 0), id="27-ea+3-187"),
+        pytest.param("27-internal-adhoc.user.src", False, (27, 0, 0, 0), id="27-internal-adhoc.user.src"),
+        pytest.param("21.0.5+-custom", False, (21, 0, 5, 0), id="21.0.5+-custom"),
+        # Malformed suffixes are not.
+        pytest.param("27-", False, None, id="27-"),
+        pytest.param("27_ea", False, None, id="27_ea"),
         # Another edge case.
         pytest.param("", False, None, id="empty string"),
     ),
