@@ -596,9 +596,16 @@ class MorpheusInstaller(TranspilerInstaller):
         return java_executable_path, java_version
 
     # Pattern to match a Java version string, compiled at import time to ensure it's valid.
-    # Ref: https://docs.oracle.com/en/java/javase/11/install/version-string-format.html
+    # Ref: https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/Runtime.Version.html
+    # Only the first four elements of $VNUM are captured: any further elements, and the optional $PRE, $BUILD and $OPT
+    # parts, are tolerated but ignored.
     _java_version_pattern = re.compile(
-        r' version "(?P<feature>\d+)(?:\.(?P<interim>\d+)(?:\.(?P<update>\d+)(?:\.(?P<patch>\d+))?)?)?"'
+        r' version "'
+        # $VNUM
+        r"(?P<feature>\d+)(?:\.(?P<interim>\d+)(?:\.(?P<update>\d+)(?:\.(?P<patch>\d+)(?:\.\d+)*)?)?)?"
+        # (-$PRE)?(+$BUILD?)?(-$OPT)?
+        r"(?:-[a-zA-Z0-9]+)?(?:\+\d*)?(?:-[-a-zA-Z0-9.]+)?"
+        r'"'
     )
 
     @classmethod
