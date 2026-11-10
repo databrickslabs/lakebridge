@@ -15,23 +15,23 @@ SELECT DB_NAME()                                                            AS
              ELSE 0
            END)                                                             AS
        [RowCount],
-       Sum(ps.reserved_page_count) * 8 / 1024                               AS
+       Cast(Sum(ps.reserved_page_count) AS FLOAT) * 8 / 1024                AS
        ReservedMB,
-       Sum(ps.used_page_count) * 8 / 1024                                   AS
+       Cast(Sum(ps.used_page_count) AS FLOAT) * 8 / 1024                    AS
        UsedMB,
-       ( Sum(ps.reserved_page_count) - Sum(ps.used_page_count) ) * 8 / 1024 AS
+       Cast(Sum(ps.reserved_page_count) - Sum(ps.used_page_count) AS FLOAT) * 8 / 1024 AS
        UnusedMB,
-       Sum(CASE
+       Cast(Sum(CASE
              WHEN ps.index_id < 2 THEN ps.in_row_data_page_count
                                        + ps.lob_used_page_count
                                        + ps.row_overflow_used_page_count
              ELSE 0
-           END) * 8 / 1024                                                  AS
+           END) AS FLOAT) * 8 / 1024                                        AS
        DataMB,
-       Sum(CASE
+       Cast(Sum(CASE
              WHEN ps.index_id >= 2 THEN ps.in_row_data_page_count
              ELSE 0
-           END) * 8 / 1024                                                  AS
+           END) AS FLOAT) * 8 / 1024                                        AS
        IndexMB,
        Sysdatetime()                                                        AS
        extract_ts

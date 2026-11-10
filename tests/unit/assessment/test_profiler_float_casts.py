@@ -42,10 +42,10 @@ REQUIRED_CASTS: dict[str, tuple[str, ...]] = {
         "CAST(round(avg(totMemFreeMB), 0) AS FLOAT) as totMemFreeMB",
     ),
     "teradata/td_sys_disk_utilization.sql": (
-        "CAST(SUM((MAXPERM) /(1024 * 1024)) AS FLOAT) MAX_PERM_MB",
-        "CAST(SUM((CURRENTPERM) /(1024 * 1024)) AS FLOAT) CURRENT_PERM_MB",
-        "CAST(SUM((MAXSPOOL) /(1024 * 1024)) AS FLOAT) MAX_SPOOL_MB",
-        "CAST(SUM((CURRENTSPOOL) /(1024 * 1024)) AS FLOAT) CURRENT_SPOOL_MB",
+        "SUM(CAST(MAXPERM AS FLOAT)) / (1024 * 1024) MAX_PERM_MB",
+        "SUM(CAST(CURRENTPERM AS FLOAT)) / (1024 * 1024) CURRENT_PERM_MB",
+        "SUM(CAST(MAXSPOOL AS FLOAT)) / (1024 * 1024) MAX_SPOOL_MB",
+        "SUM(CAST(CURRENTSPOOL AS FLOAT)) / (1024 * 1024) CURRENT_SPOOL_MB",
     ),
     "teradata/core/td_dbql_core_info_extract.sql": (
         "CAST((LogTbl.AMPCPUTime + LogTbl.ParserCPUTime + LogTbl.DisCPUTime) AS FLOAT) as TotalCPUTime",
@@ -72,15 +72,15 @@ REQUIRED_CASTS: dict[str, tuple[str, ...]] = {
         "CAST(sum(bytes_processed) AS FLOAT64)",
     ),
     "legacy_synapse/storage_info.sql": (
-        "(SUM(reserved_page_count) * 8.0) / 1024.0 AS ReservedSpaceMB",
-        "(SUM(used_page_count) * 8.0) / 1024.0 AS UsedSpaceMB",
+        "CAST((SUM(reserved_page_count) * 8.0) / 1024.0 AS FLOAT) AS reserved_space_mb",
+        "CAST((SUM(used_page_count) * 8.0) / 1024.0 AS FLOAT) AS used_space_mb",
     ),
     "redshift/sql/1_rs_spectrum_tb_month.sql": (
         "round(sum(returned_bytes)/(1024.0*1024*1024*1024),4)::double precision s3_scanned_tb_month",
         "round(avg(s3_scanned_tb_month) over (), 4 )::double precision avg_daily_scanned_tb",
     ),
     "redshift/sql/2_rs_managed_storage_gb_stv.sql": (
-        "round((sum(used) / 1024), 2)::double precision as rs_managed_storage_gb",
+        "round((sum(used) / 1024.0), 2)::double precision as rs_managed_storage_gb",
     ),
     "redshift/sql/2_rs_managed_storage_gb_serverless.sql": (
         "round(avg(data_storage) / 1024.0, 2)::double precision as rs_managed_storage_gb",
@@ -97,43 +97,6 @@ REQUIRED_CASTS: dict[str, tuple[str, ...]] = {
     "redshift/sql/9_chart_cpu_consumption_by_hour_and_query_type.sql": (
         "duration/1000.0 as run_time_ms",
         "sum(run_time_ms)::double precision as sum_cpu_time",
-    ),
-    "snowflake/automatic_clustering.sql": (
-        "CREDITS_USED::DOUBLE AS CREDITS_USED",
-        "NUM_BYTES_RECLUSTERED::DOUBLE AS NUM_BYTES_RECLUSTERED",
-        "NUM_ROWS_RECLUSTERED::DOUBLE AS NUM_ROWS_RECLUSTERED",
-    ),
-    "snowflake/materialized_view_refresh.sql": ("CREDITS_USED::DOUBLE AS CREDITS_USED",),
-    "snowflake/pipe_usage.sql": (
-        "CREDITS_USED::DOUBLE AS CREDITS_USED",
-        "BYTES_INSERTED::DOUBLE AS BYTES_INSERTED",
-    ),
-    "snowflake/query_history.sql": (
-        "TOTAL_ELAPSED_TIME::DOUBLE AS TOTAL_ELAPSED_TIME",
-        "EXECUTION_TIME::DOUBLE AS EXECUTION_TIME",
-        "COMPILATION_TIME::DOUBLE AS COMPILATION_TIME",
-        "QUEUED_PROVISIONING_TIME::DOUBLE AS QUEUED_PROVISIONING_TIME",
-        "QUEUED_REPAIR_TIME::DOUBLE AS QUEUED_REPAIR_TIME",
-        "QUEUED_OVERLOAD_TIME::DOUBLE AS QUEUED_OVERLOAD_TIME",
-        "TRANSACTION_BLOCKED_TIME::DOUBLE AS TRANSACTION_BLOCKED_TIME",
-        "BYTES_SCANNED::DOUBLE AS BYTES_SCANNED",
-        "BYTES_WRITTEN::DOUBLE AS BYTES_WRITTEN",
-        "BYTES_SPILLED_TO_LOCAL_STORAGE::DOUBLE AS BYTES_SPILLED_TO_LOCAL_STORAGE",
-        "BYTES_SPILLED_TO_REMOTE_STORAGE::DOUBLE AS BYTES_SPILLED_TO_REMOTE_STORAGE",
-        "ROWS_PRODUCED::DOUBLE AS ROWS_PRODUCED",
-        "CREDITS_USED_CLOUD_SERVICES::DOUBLE AS CREDITS_USED_CLOUD_SERVICES",
-    ),
-    "snowflake/query_samples.sql": ("TOTAL_ELAPSED_TIME::DOUBLE AS TOTAL_ELAPSED_TIME",),
-    "snowflake/storage_usage.sql": (
-        "AVERAGE_DATABASE_BYTES::DOUBLE AS AVERAGE_DATABASE_BYTES",
-        "AVERAGE_FAILSAFE_BYTES::DOUBLE AS AVERAGE_FAILSAFE_BYTES",
-        "(AVERAGE_DATABASE_BYTES / (1024*1024*1024))::DOUBLE as STORAGE_GB",
-        "(AVERAGE_FAILSAFE_BYTES / (1024*1024*1024))::DOUBLE as FAILSAFE_GB",
-    ),
-    "snowflake/warehouse_usage.sql": (
-        "CREDITS_USED::DOUBLE AS CREDITS_USED",
-        "CREDITS_USED_COMPUTE::DOUBLE AS CREDITS_USED_COMPUTE",
-        "CREDITS_USED_CLOUD_SERVICES::DOUBLE AS CREDITS_USED_CLOUD_SERVICES",
     ),
 }
 

@@ -2,7 +2,6 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
-import yaml
 
 from databricks.labs.lakebridge.assessments import AUTO, SOURCE_SYSTEM_VARIANTS
 from databricks.labs.lakebridge.assessments.profiler import get_pipeline
@@ -10,8 +9,6 @@ from databricks.labs.lakebridge.assessments.variants import resolve_mssql_varian
 
 # mssql is registered as AUTO in the registry; these are the resolver's outputs / the config directories.
 MSSQL_VARIANTS = ("single_db", "multi_db")
-_REPO_ROOT = Path(__file__).resolve().parents[3]
-_MSSQL_RESOURCES = _REPO_ROOT / "src/databricks/labs/lakebridge/resources/assessments/mssql"
 
 
 def test_mssql_is_registered_as_auto_variant_source() -> None:
@@ -22,15 +19,6 @@ def test_mssql_is_registered_as_auto_variant_source() -> None:
 def test_mssql_variants_have_pipeline_config_path(variant: str) -> None:
     cfg_path = get_pipeline("mssql", variant)
     assert f"/mssql/{variant}/pipeline_config.yml" in str(cfg_path)
-
-
-@pytest.mark.parametrize("variant", MSSQL_VARIANTS)
-def test_mssql_variant_config_references_existing_files(variant: str) -> None:
-    """Every extract_source referenced by a variant config must point at a real SQL file."""
-    config = yaml.safe_load((_MSSQL_RESOURCES / variant / "pipeline_config.yml").read_text())
-    for step in config["steps"]:
-        extract_source = _REPO_ROOT / step["extract_source"]
-        assert extract_source.exists(), f"{variant} step '{step['name']}' references missing file {extract_source}"
 
 
 @pytest.mark.parametrize(

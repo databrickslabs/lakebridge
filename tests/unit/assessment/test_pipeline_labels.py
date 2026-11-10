@@ -18,7 +18,9 @@ from databricks.labs.lakebridge.assessments.profiler_config import PipelineConfi
 def test_exclude_labels(tmp_path: Path, exclude_labels: set[StepLabel], expected_status: StepExecutionStatus) -> None:
     query = tmp_path / "query.sql"
     query.write_text("SELECT 1", encoding="utf-8")
-    step = Step(name="labelled_step", type="sql", extract_source=str(query), label="unredacted")
+    ddl = tmp_path / "query_ddl.sql"
+    ddl.write_text("CREATE TABLE labelled_step (value BIGINT)", encoding="utf-8")
+    step = Step(name="labelled_step", type="sql", extract_source=str(query), ddl_source=str(ddl), label="unredacted")
     config = PipelineConfig(name="test", version="1.0", steps=[step])
 
     pipeline = PipelineClass(

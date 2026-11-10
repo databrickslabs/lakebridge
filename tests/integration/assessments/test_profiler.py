@@ -7,7 +7,7 @@ import pytest
 import yaml
 
 from databricks.labs.lakebridge.assessments import PROFILER_RUN_METADATA_TABLE
-from databricks.labs.lakebridge.assessments.pipeline import PipelineClass, make_profiler_db_filename
+from databricks.labs.lakebridge.assessments.pipeline import PipelineClass
 from databricks.labs.lakebridge.assessments.profiler import Profiler
 from databricks.labs.lakebridge.assessments.run_metadata import ProfilerRunStatus
 
@@ -24,6 +24,12 @@ PLATFORM_EXTRACT_SCRIPT = {
 
 _TEST_PLATFORMS = ["synapse", "redshift"]
 _EXPECTED_STORAGE_VERSION = "v1.4.0+"
+
+
+def _extract(output_folder: Path) -> Path:
+    """The run's extract: its name carries the run's start time, so find it rather than rebuild the name."""
+    (db_path,) = output_folder.glob("profiler_extract_*.db")
+    return db_path
 
 
 def _storage_version(db_path: Path) -> str | None:
@@ -51,7 +57,7 @@ def test_profile_execution(platform: str, test_resources: Path, tmp_path: Path) 
     profiler = Profiler(platform)
     config = Profiler.path_modifier(config_file=config_file, path_prefix=test_resources)
     profiler.profile(pipeline_config=config, output_folder=output_folder)
-    db_path = output_folder / make_profiler_db_filename(platform)
+    db_path = _extract(output_folder)
     assert db_path.exists(), "Profiler extract database should be created"
     assert _storage_version(db_path) == _EXPECTED_STORAGE_VERSION
 
@@ -100,4 +106,4 @@ def test_profile_execution_config_override(platform: str, test_resources: Path, 
     profiler = Profiler(platform)
     pipeline_config = PipelineClass.load_config_from_yaml(config_file_dest)
     profiler.profile(pipeline_config=pipeline_config, output_folder=output_folder)
-    assert (output_folder / make_profiler_db_filename(platform)).exists(), "Profiler extract database should be created"
+    assert list(output_folder.glob("profiler_extract_*.db")), "Profiler extract database should be created"
