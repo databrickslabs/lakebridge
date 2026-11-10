@@ -1,0 +1,11 @@
+name: bigquery_assessment_inventory
+version: "1.0"
+# Inventory-only variant: sizing and workload extracts without object DDL.
+# Use when the customer does not want recreation DDL / routine bodies in the DuckDB output.
+steps:
+  - name: bq_inventory_extract
+    type: python
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/bigquery/bq_inventory_extract.py
+    mode: overwrite
+    frequency: once
+    flag: active
