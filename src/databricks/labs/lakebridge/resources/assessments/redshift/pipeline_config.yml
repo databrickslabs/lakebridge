@@ -29,12 +29,13 @@ steps:
     frequency: once
     flag: active
     optional: true
-  # Serverless storage (sys_serverless_usage). Absent on provisioned clusters.
+  # Serverless storage (sys_serverless_usage). Absent on provisioned clusters, or empty where a superuser can read it,
+  # so it appends to the provisioned step's table rather than replace it.
   - name: rs_managed_storage_gb
     type: sql
     extract_source: src/databricks/labs/lakebridge/resources/assessments/redshift/sql/2_rs_managed_storage_gb_serverless.sql
     ddl_source: src/databricks/labs/lakebridge/resources/assessments/redshift/sql/2_rs_managed_storage_gb_ddl.sql
-    mode: overwrite
+    mode: append
     frequency: once
     flag: active
     optional: true
@@ -47,12 +48,13 @@ steps:
     frequency: once
     flag: active
     optional: true
-  # Serverless RPU capacity (sys_serverless_usage). Absent on provisioned clusters.
+  # Serverless RPU capacity (sys_serverless_usage). Absent on provisioned clusters, or empty where a superuser can
+  # read it, so it appends to the provisioned step's table rather than replace it.
   - name: rs_nodes
     type: sql
     extract_source: src/databricks/labs/lakebridge/resources/assessments/redshift/sql/3_rs_nodes_serverless.sql
     ddl_source: src/databricks/labs/lakebridge/resources/assessments/redshift/sql/3_rs_nodes_ddl.sql
-    mode: overwrite
+    mode: append
     frequency: once
     flag: active
     optional: true
