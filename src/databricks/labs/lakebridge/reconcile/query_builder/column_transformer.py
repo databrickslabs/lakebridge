@@ -143,6 +143,63 @@ _DATATYPE_TRANSFORM_MAPPING: dict[str, dict[str, list[partial[exp.Expression]]]]
 }
 
 
+_REDSHIFT = get_dialect("redshift")
+_DATABRICKS = get_dialect("databricks")
+
+
+def _redshift(func: str) -> partial[exp.Expression]:
+    return partial(anonymous, func=func, dialect=_REDSHIFT)
+
+
+def _databricks(func: str) -> partial[exp.Expression]:
+    return partial(anonymous, func=func, dialect=_DATABRICKS)
+
+
+_TIMESTAMP_TYPES = (exp.DataType.Type.TIMESTAMP.value, exp.DataType.Type.TIMESTAMPTZ.value)
+_FLOAT_TYPES = (exp.DataType.Type.DOUBLE.value, exp.DataType.Type.FLOAT.value)
+
+_redshift_timestamp = _redshift("COALESCE(TO_CHAR({}, 'YYYY-MM-DD HH24:MI:SS.US'), '_null_recon_')")
+_redshift_timestamptz = _redshift(
+    "COALESCE(TO_CHAR({} AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS.US'), '_null_recon_')"
+)
+_redshift_boolean = _redshift(
+    "COALESCE(CASE WHEN {0} THEN 'true' WHEN NOT {0} THEN 'false' ELSE NULL END, '_null_recon_')"
+)
+_redshift_float = _redshift(
+    "COALESCE(CASE WHEN CAST({0} AS VARCHAR) IN ('NaN', 'Infinity', '-Infinity') OR ABS({0}) >= 1e28 "
+    "THEN CAST({0} AS VARCHAR) ELSE CAST(CAST({0} AS DECIMAL(38,10)) AS VARCHAR) END, '_null_recon_')"
+)
+_databricks_timestamp = _databricks("COALESCE(DATE_FORMAT({}, 'yyyy-MM-dd HH:mm:ss.SSSSSS'), '_null_recon_')")
+_databricks_float = _databricks(
+    "COALESCE(CASE WHEN ISNAN({0}) OR {0} IN (CAST('Infinity' AS DOUBLE), CAST('-Infinity' AS DOUBLE)) "
+    "OR ABS({0}) >= 1e28 THEN CAST({0} AS STRING) "
+    "ELSE CAST(CAST({0} AS DECIMAL(38,10)) AS STRING) END, '_null_recon_')"
+)
+
+
+@dataclass(frozen=True)
+class TransformPair:
+    """The transforms for a source column and its target counterpart."""
+
+    source: list[partial[exp.Expression]]
+    target: list[partial[exp.Expression]]
+
+
+#: Redshift -> Databricks pairs keyed by (source type, target type).
+_REDSHIFT_TO_DATABRICKS_PAIRS: dict[tuple[str, str], TransformPair] = {
+    **{
+        (source_type, target_type): TransformPair([source_handler], [_databricks_timestamp])
+        for source_type, source_handler in zip(_TIMESTAMP_TYPES, (_redshift_timestamp, _redshift_timestamptz))
+        for target_type in _TIMESTAMP_TYPES
+    },
+    **{
+        (source_type, target_type): TransformPair([_redshift_float], [_databricks_float])
+        for source_type in _FLOAT_TYPES
+        for target_type in _FLOAT_TYPES
+    },
+}
+
+
 @dataclass(frozen=True)
 class TransformedColumn:
     """A column expression after transformation.
@@ -182,6 +239,10 @@ class ColumnTransformer(ABC):
     def transform_user(self, columns: list[exp.Expression], layer: str) -> list[TransformedColumn]:
         """Apply only user-configured SQL overrides; a no-op when none are configured."""
 
+    @abstractmethod
+    def transforms(self, source: Dialect, datatype: str | None, target_datatype: str | None) -> TransformPair:
+        """The transforms for a source column of `datatype` and its target column of `target_datatype`."""
+
 
 class RuleBasedColumnTransformer(ColumnTransformer):
     """Transforms columns from config rules: user overrides plus a per-dialect,
@@ -213,11 +274,12 @@ class RuleBasedColumnTransformer(ColumnTransformer):
             for s in side.schema
             if s.ansi_normalized_column_name not in user_overrides
         }
+        transforms_by_name = self._transforms_by_name(layer, set(types_by_name))
         transformed = []
         for column in columns:
             ansi_name = self._get_referenced_column_name(column, side)
             new_column = column.transform(self._substitute_user_sql, side, user_overrides).transform(
-                self._normalize_by_type, side, types_by_name
+                self._normalize_by_type, side, transforms_by_name
             )
             transformed.append(TransformedColumn(new_column, ansi_name, types_by_name.get(ansi_name)))
         return transformed
@@ -274,25 +336,74 @@ class RuleBasedColumnTransformer(ColumnTransformer):
                 return parse_one(user_overrides.get(ansi_name, normalized_column.source_normalized), read=side.dialect)
         return node
 
+    def transforms(self, source: Dialect, datatype: str | None, target_datatype: str | None) -> TransformPair:
+        target = self._sides["target"].dialect
+        if source == _REDSHIFT and target == _DATABRICKS and datatype:
+            source_type = self._type_value(datatype, source)
+            if target_datatype:
+                pair = _REDSHIFT_TO_DATABRICKS_PAIRS.get((source_type, self._type_value(target_datatype, target)))
+                if pair:
+                    return pair
+            if source_type == exp.DataType.Type.BOOLEAN.value:
+                return TransformPair([_redshift_boolean], self._lookup_transformation_for_type(target_datatype, target))
+        return TransformPair(
+            self._lookup_transformation_for_type(datatype, source),
+            self._lookup_transformation_for_type(target_datatype, target),
+        )
+
+    def _transforms_by_name(self, layer: str, names: set[str]) -> dict[str, list[partial[exp.Expression]]]:
+        """Ansi column name -> the transforms for that column on `layer`, resolved against the counterpart's type."""
+        source, target = self._sides["source"], self._sides["target"]
+        if layer == "source":
+            counterpart_types = {s.ansi_normalized_column_name: s.data_type for s in target.schema}
+        else:
+            counterpart_types = {s.ansi_normalized_column_name: s.data_type for s in source.schema}
+        resolved = {}
+        for column in (s for s in self._sides[layer].schema if s.ansi_normalized_column_name in names):
+            name = column.ansi_normalized_column_name
+            if layer == "source":
+                pair = self.transforms(
+                    source.dialect,
+                    column.data_type,
+                    counterpart_types.get(self._table_conf.get_layer_src_to_tgt_col_mapping(name, "target")),
+                )
+                resolved[name] = pair.source
+            else:
+                pair = self.transforms(
+                    source.dialect,
+                    counterpart_types.get(self._table_conf.get_layer_tgt_to_src_col_mapping(name, "target")),
+                    column.data_type,
+                )
+                resolved[name] = pair.target
+        return resolved
+
     def _normalize_by_type(
         self,
         node: exp.Expression,
         side: ReconcileLayer,
-        types_by_name: dict[str, str],
+        transforms_by_name: dict[str, list[partial[exp.Expression]]],
     ) -> exp.Expression:
         """Tree visitor: wrap a column node so its value serializes identically
         across engines, per the column's declared type."""
         if isinstance(node, exp.Column):
             ansi_name = side.data_source.normalize_identifier(node.name).ansi_normalized
-            if ansi_name in types_by_name:
-                normalization = self._lookup_transformation_for_type(types_by_name[ansi_name], side.dialect)
-                return transform_expression(node, normalization)
+            if ansi_name in transforms_by_name:
+                return transform_expression(node, transforms_by_name[ansi_name])
         return node
 
     @staticmethod
-    def _lookup_transformation_for_type(datatype: str, dialect: Dialect) -> list[partial[exp.Expression]]:
+    def _type_value(datatype: str, dialect: Dialect) -> str:
+        try:
+            return exp.DataType.build(datatype, dialect).this.value
+        except sqlglot.errors.ParseError:
+            return datatype
+
+    @staticmethod
+    def _lookup_transformation_for_type(datatype: str | None, dialect: Dialect) -> list[partial[exp.Expression]]:
         """The normalization functions for `datatype` under `dialect`: an exact-type
         match, else the dialect's default, else the universal default."""
+        if datatype is None:
+            return _DATATYPE_TRANSFORM_MAPPING["universal"]["default"]
         dialect_names = [name for name, registered in SQLGLOT_DIALECTS.items() if registered == dialect]
         dialect_name = dialect_names[0] if dialect_names else "universal"
         dialect_mapping = _DATATYPE_TRANSFORM_MAPPING.get(dialect_name, {})
