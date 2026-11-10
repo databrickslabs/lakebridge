@@ -21,7 +21,9 @@ logger = logging.getLogger(__name__)
 
 
 def make_profiler_db_filename(source_system: str) -> str:
-    return f"profiler_extract_{source_system}_{lakebridge_version}_{datetime.now(timezone.utc).strftime('%Y%m%d')}.db"
+    """The extract's file name, with the run's start time in UTC (ISO 8601 basic), so each run writes a new extract."""
+    started = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    return f"profiler_extract_{source_system}_{lakebridge_version}_{started}.db"
 
 
 class StepExecutionStatus(str, Enum):
