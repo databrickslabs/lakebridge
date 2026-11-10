@@ -4,7 +4,7 @@ import mssql_python
 import pytest
 from databricks.labs.blueprint.installation import JsonObject
 
-from databricks.labs.lakebridge.connections.database_manager import MSSQLConnector, create_connector
+from databricks.labs.lakebridge.connections.database_manager import MSSQLConnector, OracleConnector, create_connector
 
 sample_config: JsonObject = {
     'user': 'test_user',
@@ -85,6 +85,47 @@ def test_teradata_connector(mock_teradata_connector) -> None:
 
     assert connector == mock_connector_instance
     mock_teradata_connector.assert_called_once_with(sample_config)
+
+
+@pytest.mark.parametrize(
+    ("host", "identifiers", "expected_dsn"),
+    [
+        pytest.param(
+            "db.example.com",
+            {"sid": "ORCL1"},
+            "(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=db.example.com)(PORT=1521))(CONNECT_DATA=(SID=ORCL1)))",
+            id="sid",
+        ),
+        pytest.param(
+            "db.example.com",
+            {"service_name": "ORCL1"},
+            "(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=db.example.com)(PORT=1521))(CONNECT_DATA=(SID=ORCL1)))",
+            id="legacy-service-name-key-is-sid",
+        ),
+        pytest.param(
+            "scan.example.com",
+            {"db_service_name": "ORCLCDB"},
+            "(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=scan.example.com)(PORT=1521))(CONNECT_DATA=(SERVICE_NAME=ORCLCDB)))",
+            id="service-name",
+        ),
+        pytest.param(
+            "scan.example.com",
+            {"db_service_name": "ORCLCDB", "sid": "ORCL1"},
+            "(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=scan.example.com)(PORT=1521))(CONNECT_DATA=(SERVICE_NAME=ORCLCDB)))",
+            id="service-name-wins-over-sid",
+        ),
+        pytest.param(
+            "scan.example.com:1521/ORCLCDB", {"service_name": ""}, "scan.example.com:1521/ORCLCDB", id="host-is-dsn"
+        ),
+    ],
+)
+def test_oracle_connector_dsn(host: str, identifiers: dict[str, str], expected_dsn: str) -> None:
+    config: JsonObject = {"host": host, "port": 1521, "user": "u", "password": "p", **identifiers}
+
+    with OracleConnector(config) as connector:
+        _, connect_kwargs = connector.engine.dialect.create_connect_args(connector.engine.url)
+
+    assert connect_kwargs["dsn"] == expected_dsn
 
 
 @patch('databricks.labs.lakebridge.connections.database_manager.mssql_python.connect')

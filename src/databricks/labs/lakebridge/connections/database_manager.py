@@ -252,13 +252,24 @@ class TeradataConnector(_BaseConnector):
 
 class OracleConnector(_BaseConnector):
     def _connect(self) -> Engine:
+        # Credential files written before the `sid` key existed hold the SID under `service_name`.
+        sid = str(self.config.get("sid") or self.config.get("service_name") or "").strip()
+        service_name = str(self.config.get("db_service_name") or "").strip()
+        if service_name and sid:
+            logger.warning(
+                f"Both an Oracle service name and a SID are configured; connecting to service {service_name}"
+            )
+
+        # SQLAlchemy's Oracle dialect connects by SID through the URL database part and by service
+        # name through the `service_name` query parameter. With neither, the host is the whole DSN.
         connection_string = URL.create(
             drivername="oracle+oracledb",
             username=str(self.config["user"]),
             password=str(self.config["password"]),
             host=str(self.config["host"]),
             port=int(str(self.config.get("port", 1521))),
-            database=str(self.config.get("service_name")),
+            database=sid if sid and not service_name else None,
+            query={"service_name": service_name} if service_name else {},
         )
 
         return create_engine(connection_string)

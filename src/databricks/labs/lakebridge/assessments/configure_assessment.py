@@ -167,16 +167,18 @@ class ConfigureOracleAssessment(AssessmentConfigurator):
         )
         secret_vault_type = str(self.prompts.choice("Enter secret vault type (local | env)", ["local", "env"])).lower()
 
-        credential = {
-            "secret_vault_type": secret_vault_type,
-            source: {
-                "host": self.prompts.question("Enter the host details (Server name, IP address, SCAN Name)"),
-                "port": int(self.prompts.question("Enter the host port number", default=str(1521), valid_number=True)),
-                "service_name": self.prompts.question("Enter the Oracle SID", default="orcl"),
-                "user": self.prompts.question("Enter user with privileges"),
-                "password": self.prompts.password("Enter user password"),
-            },
+        source_creds: dict[str, str | int] = {
+            "host": self.prompts.question("Enter the host details (Server name, IP address, SCAN Name)"),
+            "port": int(self.prompts.question("Enter the host port number", default=str(1521), valid_number=True)),
         }
+        if self.prompts.choice("Connect to Oracle using", ["Service name", "SID"], sort=False) == "Service name":
+            source_creds["db_service_name"] = self.prompts.question("Enter the Oracle service name")
+        else:
+            source_creds["sid"] = self.prompts.question("Enter the Oracle SID")
+        source_creds["user"] = self.prompts.question("Enter user with privileges")
+        source_creds["password"] = self.prompts.password("Enter user password")
+
+        credential = {"secret_vault_type": secret_vault_type, source: source_creds}
 
         _save_to_disk(credential, cred_file)
 
