@@ -1068,7 +1068,7 @@ def execute_database_profiler(
         raise_validation_exception(f"Invalid source technology {source_tech}")
 
     variant = parse_profiler_variant(prompts, source_tech, variant)
-    exclude_labels = parse_exclude_labels(exclude)
+    exclude_labels, exclude_steps = parse_exclude(exclude)
 
     ctx.add_user_agent_extra("profiler_source_tech", make_alphanum_or_semver(source_tech))
     user = ctx.current_user
@@ -1101,24 +1101,20 @@ def execute_database_profiler(
             output_folder=Path(output_folder),
             cred_file_path=creds_path,
             exclude_labels=exclude_labels,
+            exclude_steps=exclude_steps,
         )
     except Exception as e:  # noqa: BLE001
         raise SystemExit(f"Profiler execution failed: {e}") from e
 
 
-def parse_exclude_labels(exclude: str | None) -> frozenset[StepLabel]:
-    """Parse the comma-separated `--exclude` labels, rejecting unknown ones."""
-    if not exclude:
-        return frozenset()
-    names = {name.strip().lower() for name in exclude.split(",") if name.strip()}
-    valid = {label.value for label in StepLabel}
-    unknown = names - valid
-    if unknown:
-        raise_validation_exception(
-            f"Invalid label(s) for --exclude: {', '.join(sorted(unknown))}. "
-            f"Valid labels are: {', '.join(sorted(valid))}"
-        )
-    return frozenset(StepLabel(name) for name in names)
+def parse_exclude(exclude: str | None) -> tuple[frozenset[StepLabel], frozenset[str]]:
+    """Split the comma-separated `--exclude` into step labels and step names.
+
+    A name that isn't a label is a step name; the profiler rejects it when its pipeline has no such step.
+    """
+    names = {name.strip().lower() for name in (exclude or "").split(",") if name.strip()}
+    labels = {label.value for label in StepLabel}
+    return frozenset(StepLabel(name) for name in names & labels), frozenset(names - labels)
 
 
 def parse_profiler_variant(prompts: Prompts, source_tech: str, variant: str | None) -> str | None:

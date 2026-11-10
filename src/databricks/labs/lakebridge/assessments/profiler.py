@@ -161,12 +161,21 @@ class Profiler:
         output_folder: Path | None = None,
         cred_file_path: Path | None = None,
         exclude_labels: Collection[StepLabel] = (),
+        exclude_steps: Collection[str] = (),
     ) -> None:
 
         if not pipeline_config:
             if not self._pipeline_config:
                 raise ValueError(f"Cannot Proceed without a valid pipeline configuration for {self._source_system}")
             pipeline_config = self._pipeline_config
+        step_names = dict.fromkeys(step.name for step in pipeline_config.steps)
+        unknown = {name.casefold() for name in exclude_steps} - {name.casefold() for name in step_names}
+        if unknown:
+            raise ValueError(
+                f"Cannot exclude {', '.join(sorted(unknown))}: neither a step label nor a step of the "
+                f"{self._source_system} pipeline. Labels: {', '.join(label.value for label in StepLabel)}; "
+                f"steps: {', '.join(step_names)}"
+            )
         resolved_output_folder = output_folder or default_output_folder(self._source_system)
         resolved_creds_path = cred_file_path or cred_file()
         self._execute(
@@ -175,6 +184,7 @@ class Profiler:
             resolved_output_folder,
             resolved_creds_path,
             exclude_labels=exclude_labels,
+            exclude_steps=exclude_steps,
         )
 
     def _execute(
@@ -184,6 +194,7 @@ class Profiler:
         output_folder: Path,
         cred_file_path: Path,
         exclude_labels: Collection[StepLabel] = (),
+        exclude_steps: Collection[str] = (),
     ) -> None:
         try:
             # A source connector is needed for any step that isn't a self-managing python step.
@@ -196,6 +207,7 @@ class Profiler:
                 db_path,
                 cred_file_path,
                 exclude_labels=exclude_labels,
+                exclude_steps=exclude_steps,
             ).execute()
         except FileNotFoundError as e:
             logger.error(f"Configuration file not found for source {source_system}: {e}")

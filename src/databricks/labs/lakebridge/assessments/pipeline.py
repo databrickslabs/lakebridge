@@ -52,6 +52,7 @@ class PipelineClass:
         db_path: Path,
         cred_file_path: Path,
         exclude_labels: Collection[StepLabel] = (),
+        exclude_steps: Collection[str] = (),
     ):
         self.config = config
         self.executor = executor
@@ -59,6 +60,7 @@ class PipelineClass:
         self._create_dir(self._db_path.parent)
         self._cred_file_path = cred_file_path
         self._exclude_labels = exclude_labels
+        self._exclude_steps = {name.casefold() for name in exclude_steps}
 
     def execute(self) -> list[StepExecutionResult]:
         """Run every configured step and return per-step outcomes.
@@ -92,6 +94,10 @@ class PipelineClass:
 
         if step.label in self._exclude_labels:
             logging.info(f"Skipping step: {step.name} as its label '{step.label}' is excluded")
+            return StepExecutionResult(step_name=step.name, status=StepExecutionStatus.SKIPPED)
+
+        if step.name.casefold() in self._exclude_steps:
+            logging.info(f"Skipping step: {step.name} as it is excluded")
             return StepExecutionResult(step_name=step.name, status=StepExecutionStatus.SKIPPED)
 
         try:
