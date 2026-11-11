@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
+  "name": "lakebridge",
+  "description": "Claude Code plugins for Databricks Labs Lakebridge",
+  "owner": {
+    "name": "Databricks Labs"
+  },
+  "plugins": [
+    {
+      "name": "lakebridge",
+      "description": "Agentic SQL-to-Databricks migration workflows on top of Lakebridge: plan/build/review/fix subagents, parity fixing, job self-healing, and Ralph loop templates",
+      "source": "./claude-code-plugin",
+      "category": "development"
+    }
+  ]
+}
