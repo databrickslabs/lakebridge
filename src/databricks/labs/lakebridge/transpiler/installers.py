@@ -597,8 +597,10 @@ class MorpheusInstaller(TranspilerInstaller):
 
     # Pattern to match a Java version string, compiled at import time to ensure it's valid.
     # Ref: https://docs.oracle.com/en/java/javase/11/install/version-string-format.html
+    # Vendors may append further elements after the patch element (e.g. Oracle JDK reports "27.0.1.0.3"); these are
+    # matched but ignored.
     _java_version_pattern = re.compile(
-        r' version "(?P<feature>\d+)(?:\.(?P<interim>\d+)(?:\.(?P<update>\d+)(?:\.(?P<patch>\d+))?)?)?"'
+        r' version "(?P<feature>\d+)(?:\.(?P<interim>\d+)(?:\.(?P<update>\d+)(?:\.(?P<patch>\d+)(?:\.\d+)*)?)?)?"'
     )
 
     @classmethod

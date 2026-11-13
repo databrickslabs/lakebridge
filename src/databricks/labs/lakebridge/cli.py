@@ -17,7 +17,8 @@ from databricks.labs.blueprint.entrypoint import get_logger
 from databricks.labs.blueprint.installation import JsonObject, JsonValue, RootJsonValue
 from databricks.labs.blueprint.tui import Prompts
 from databricks.labs.switch.lsp import get_switch_dialects
-from databricks.sdk import WorkspaceClient
+from databricks.sdk import AccountClient, WorkspaceClient
+from databricks.sdk.config import Config
 from databricks.sdk.errors import NotFound
 from databricks.sdk.service.sql import CreateWarehouseRequestWarehouseType
 
@@ -53,6 +54,9 @@ from databricks.labs.lakebridge.transpiler.transpile_status import ErrorSeverity
 # Subclass to allow controlled access to protected methods.
 class Lakebridge(App):
 
+    # SDK configuration attributes that OIDC-based authentication uses together with the token audience.
+    _OIDC_ATTRIBUTES = frozenset({"token_audience", "client_id", "oidc_token_env", "oidc_token_filepath"})
+
     def create_workspace_client(self) -> WorkspaceClient:
         """Create a workspace client, with the appropriate product and version information.
 
@@ -60,6 +64,40 @@ class Lakebridge(App):
         """
         self._patch_databricks_host()
         return self._workspace_client()
+
+    def _workspace_client(self) -> WorkspaceClient:
+        self.drop_conflicting_token_audience()
+        return super()._workspace_client()
+
+    def _account_client(self) -> AccountClient:
+        self.drop_conflicting_token_audience()
+        return super()._account_client()
+
+    def drop_conflicting_token_audience(self) -> None:
+        """Drop DATABRICKS_TOKEN_AUDIENCE when it conflicts with the credentials passed by the Databricks CLI.
+
+        The Databricks CLI passes DATABRICKS_TOKEN_AUDIENCE to labs projects along with the resolved credentials. The
+        Python SDK treats the audience as a credential of the github-oidc authentication method, so alongside a PAT
+        (or other non-OIDC credential) creating a client fails with "more than one authorization method configured".
+        The audience is only meaningful for OIDC-based authentication, so it is dropped when no authentication type
+        has been chosen explicitly and a credential for another method is present.
+
+        See: https://github.com/databrickslabs/lakebridge/issues/2393
+        """
+        if not os.environ.get("DATABRICKS_TOKEN_AUDIENCE") or os.environ.get("DATABRICKS_AUTH_TYPE"):
+            return
+        conflicting = sorted(
+            attr.env
+            for attr in Config.attributes()
+            if attr.auth and attr.env and attr.name not in self._OIDC_ATTRIBUTES and os.environ.get(attr.env)
+        )
+        if not conflicting:
+            return
+        self._logger.debug(
+            f"Ignoring DATABRICKS_TOKEN_AUDIENCE: it is only used for OIDC authentication, "
+            f"but credentials for another method are set: {', '.join(conflicting)}"
+        )
+        del os.environ["DATABRICKS_TOKEN_AUDIENCE"]
 
     def _log_level(self, raw: str) -> int:
         """Convert the log-level provided by the Databricks CLI into a logging level supported by Python."""

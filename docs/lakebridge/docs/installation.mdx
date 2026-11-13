@@ -35,7 +35,7 @@ ships with — so the version in the installer filename does not match the relea
 
 | Requirement              | Details                                                                                             |
 |--------------------------|-----------------------------------------------------------------------------------------------------|
-| **Databricks workspace** | Any workspace (production, development, or [free trial](https://www.databricks.com/try-databricks)) |
+| **Databricks workspace** | Any AWS or Azure workspace (production, development, or [free trial](https://www.databricks.com/try-databricks)); for Google Cloud, see [Troubleshooting](#troubleshooting) |
 | **Java**                 | Java 21 or above (required for the Morpheus transpiler) — [download](https://adoptium.net/temurin/releases) |
 | **Network access**       | GitHub, Maven Central, PyPI (see [Network access](#network-access-proxies-and-mirrors))             |
 
@@ -88,6 +88,25 @@ On first launch, the app walks you through everything needed to get started:
 Once these steps complete, you can run assessment, transpilation, and profiling directly from the app.
 
 <img src={useBaseUrl('img/installation-desktop-app.gif')} alt="Installing Lakebridge using the desktop app" />
+
+### Troubleshooting
+
+**The app reports that Java is not installed, but `java -version` works.**
+The prerequisite check cannot read Java version strings with more than four parts, such as Oracle JDK's
+`java version "27.0.1.0.3"`. Install [Eclipse Temurin](https://adoptium.net/temurin/releases) (LTS), whose version
+strings use the usual `25.0.5` form. On macOS, if another JDK is still the default, point apps launched from the
+Dock or Finder at Temurin, then restart the app:
+
+```bash
+launchctl setenv JAVA_HOME "$(/usr/libexec/java_home -v 25)"
+```
+
+This setting lasts until the next reboot.
+
+**The app shows "Invalid workspace URL" for a Google Cloud workspace.**
+The desktop app currently accepts only workspace URLs ending in `cloud.databricks.com` (AWS) or
+`azuredatabricks.net` (Azure), so `*.gcp.databricks.com` workspaces are rejected before sign-in. Use the
+[Command-line (CLI)](#command-line-cli) installation for Google Cloud workspaces.
 
 ---
 
@@ -162,6 +181,22 @@ databricks labs install lakebridge --profile <profile_name>
 ```
 
 <img src={useBaseUrl('img/Install_Lakebridge.gif')} alt="lakebridge-install" />
+
+:::tip `more than one authorization method configured`
+If installation fails with `validate: more than one authorization method configured: github-oidc and pat`,
+the Databricks CLI has passed `DATABRICKS_TOKEN_AUDIENCE` to the installer, and the bundled Databricks SDK treats it
+as a second authentication method. Set the authentication type explicitly in the profile in `~/.databrickscfg`
+(use the type that matches your profile, e.g. `pat` or `oauth-m2m`):
+
+```ini
+[<profile_name>]
+host      = <your-workspace-url>
+token     = <your-token>
+auth_type = pat
+```
+
+Or set it for a single command: `DATABRICKS_AUTH_TYPE=pat databricks labs install lakebridge --profile <profile_name>`.
+:::
 
 Verify:
 
