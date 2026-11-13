@@ -107,6 +107,9 @@ class FriendOfMorpheusInstaller(MorpheusInstaller):
         pytest.param("25", True, (25, 0, 0, 0), id="25"),
         # All digits.
         pytest.param("1.2.3.4", False, (1, 2, 3, 4), id="1.2.3.4"),
+        # Vendors may add further elements after the patch element; these are ignored.
+        pytest.param("27.0.1.0.3", False, (27, 0, 1, 0), id="27.0.1.0.3"),
+        pytest.param("1.2.3.4.5.6", False, (1, 2, 3, 4), id="1.2.3.4.5.6"),
         # Trailing zeros can be omitted.
         pytest.param("1.2.3", False, (1, 2, 3, 0), id="1.2.3"),
         pytest.param("1.2", False, (1, 2, 0, 0), id="1.2"),
@@ -123,6 +126,17 @@ def test_java_version_parse(version: str, lts_suffix: bool, expected: tuple[int,
     version_output = f'openjdk version "{version}" 2025-06-19{suffix}'
     parsed = FriendOfMorpheusInstaller.parse_java_version(version_output)
     assert parsed == expected
+
+
+def test_java_version_parse_oracle_jdk() -> None:
+    """Verify that the version reported by Oracle JDK, which has additional version elements, can be parsed."""
+    version_output = (
+        'java version "27.0.1.0.3" 2026-10-25\n'
+        "Java(TM) SE Runtime Environment (build 27.0.1.0.3+1-2)\n"
+        "Java HotSpot(TM) 64-Bit Server VM (build 27.0.1.0.3+1-2, mixed mode, sharing)\n"
+    )
+    parsed = FriendOfMorpheusInstaller.parse_java_version(version_output)
+    assert parsed == (27, 0, 1, 0)
 
 
 def test_java_version_parse_missing() -> None:
