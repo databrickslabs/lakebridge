@@ -9,7 +9,7 @@ from databricks.labs.lakebridge.reconcile.query_builder.column_transformer impor
     TransformPair,
 )
 from databricks.labs.lakebridge.reconcile.query_builder.expression_generator import build_column_no_alias
-from databricks.labs.lakebridge.reconcile.recon_config import ColumnMapping, Table, Transformation
+from databricks.labs.lakebridge.reconcile.recon_config import Table, Transformation
 from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
 from tests.conftest import ansi_schema_fixture_factory
 
@@ -20,7 +20,8 @@ REDSHIFT_FLOAT_SQL = (
 )
 DATABRICKS_FLOAT_SQL = (
     "COALESCE(CASE WHEN ISNAN(c) OR c IN (CAST('Infinity' AS DOUBLE), CAST('-Infinity' AS DOUBLE)) "
-    "OR ABS(c) >= 1e28 THEN CAST(c AS STRING) ELSE CAST(CAST(c AS DECIMAL(38,10)) AS STRING) END, '_null_recon_')"
+    "OR ABS(c) >= 1e28 THEN CAST(c AS STRING) "
+    "ELSE REPLACE(FORMAT_NUMBER(CAST(c AS DECIMAL(38,10)), 10), ',', '') END, '_null_recon_')"
 )
 DATABRICKS_TIMESTAMP_SQL = "COALESCE(DATE_FORMAT(c, 'yyyy-MM-dd HH:mm:ss.SSSSSS'), '_null_recon_')"
 
@@ -99,9 +100,8 @@ def test_other_sources_to_databricks_are_unchanged(source, datatype):
     assert target_sql == UNIVERSAL_SQL
 
 
-def test_pair_is_resolved_through_the_column_mapping():
-    conf = Table(source_name="t", target_name="t", column_mapping=[ColumnMapping("`c`", "`d`")])
-    assert _render(_transform("redshift", "double", "double", conf, target_column="d")) == (
+def test_differently_named_columns_are_transformed_as_a_pair():
+    assert _render(_transform("redshift", "double", "double", target_column="d")) == (
         REDSHIFT_FLOAT_SQL,
         DATABRICKS_FLOAT_SQL.replace("(c", "(d").replace(" c ", " d "),
     )

@@ -175,7 +175,7 @@ _databricks_float = partial(
     anonymous,
     func="COALESCE(CASE WHEN ISNAN({0}) OR {0} IN (CAST('Infinity' AS DOUBLE), CAST('-Infinity' AS DOUBLE)) "
     "OR ABS({0}) >= 1e28 THEN CAST({0} AS STRING) "
-    "ELSE CAST(CAST({0} AS DECIMAL(38,10)) AS STRING) END, '_null_recon_')",
+    "ELSE REPLACE(FORMAT_NUMBER(CAST({0} AS DECIMAL(38,10)), 10), ',', '') END, '_null_recon_')",
     dialect=get_dialect("databricks"),
 )
 
@@ -320,7 +320,7 @@ class RuleBasedColumnTransformer(ColumnTransformer):
         targets = self._transform_layer(
             [pair.target for pair in columns], "target", types_by_layer["target"], paired_by_layer["target"]
         )
-        return [TransformPair(source, target) for source, target in zip(sources, targets)]
+        return [TransformPair(source, target) for source, target in zip(sources, targets, strict=True)]
 
     def _transform_layer(
         self,
