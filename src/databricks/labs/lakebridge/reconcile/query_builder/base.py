@@ -117,7 +117,7 @@ class QueryBuilder(ABC):
 
     def _transform(self, columns: list[exp.Expression], column_names: list[str]) -> list[TransformedColumn]:
         """Transform this layer's columns, each paired with its counterpart column on the other layer."""
-        pairs = [self._pair_with_counterpart(column, name) for column, name in zip(columns, column_names)]
+        pairs = [self._pair_with_counterpart(column, name) for column, name in zip(columns, column_names, strict=True)]
         return [pair.for_layer(self.layer) for pair in self._transformer.transform(pairs)]
 
     def _pair_with_counterpart(self, column: exp.Expression, column_name: str) -> ColumnPair:

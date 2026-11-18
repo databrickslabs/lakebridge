@@ -710,6 +710,6 @@ def test_hash_query_builder_redshift_to_databricks_pairs_columns_through_the_map
         "COALESCE(TRIM(`is_active`), '_null_recon_') || "
         "COALESCE(CASE WHEN ISNAN(`unit_price`) OR `unit_price` IN (CAST('Infinity' AS DOUBLE), "
         "CAST('-Infinity' AS DOUBLE)) OR ABS(`unit_price`) >= 1e28 THEN CAST(`unit_price` AS STRING) "
-        "ELSE CAST(CAST(`unit_price` AS DECIMAL(38,10)) AS STRING) END, '_null_recon_')"
+        "ELSE REPLACE(FORMAT_NUMBER(CAST(`unit_price` AS DECIMAL(38,10)), 10), ',', '') END, '_null_recon_')"
         ", 256)) AS hash_value_recon, `id` AS `id` FROM :tbl"
     )

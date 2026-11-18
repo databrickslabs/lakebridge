@@ -186,7 +186,7 @@ def test_build_query_with_alias_redshift_to_databricks_pins_paired_columns(
         "SELECT COALESCE(TRIM(`id`), '_null_recon_') AS `id`, "
         "COALESCE(CASE WHEN ISNAN(`unit_price`) OR `unit_price` IN (CAST('Infinity' AS DOUBLE), "
         "CAST('-Infinity' AS DOUBLE)) OR ABS(`unit_price`) >= 1e28 THEN CAST(`unit_price` AS STRING) "
-        "ELSE CAST(CAST(`unit_price` AS DECIMAL(38,10)) AS STRING) END, '_null_recon_') AS `price` FROM :tbl"
+        "ELSE REPLACE(FORMAT_NUMBER(CAST(`unit_price` AS DECIMAL(38,10)), 10), ',', '') END, '_null_recon_') AS `price` FROM :tbl"
     )
 
 
