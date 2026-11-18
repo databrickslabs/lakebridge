@@ -1,7 +1,7 @@
 import json
 import logging
 import platform
-from collections.abc import Collection
+from collections.abc import Set as AbstractSet
 from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
@@ -47,6 +47,10 @@ def get_pipeline(source_system: str, variant: str | None) -> Path:
     file = "pipeline_config.yml"
     base = PRODUCT_PATH_PREFIX / f"src/databricks/labs/lakebridge/resources/assessments/{source_system}"
     return base / variant / file if variant else base / file
+
+
+class InvalidExcludeError(ValueError):
+    """An `exclude` entry is neither a step label nor a step of the pipeline."""
 
 
 class Profiler:
@@ -160,7 +164,7 @@ class Profiler:
         pipeline_config: PipelineConfig | None = None,
         output_folder: Path | None = None,
         cred_file_path: Path | None = None,
-        exclude: Collection[str] = (),
+        exclude: AbstractSet[str] = frozenset(),
     ) -> None:
         """Run the pipeline, skipping the steps whose label or name is in `exclude`."""
 
@@ -170,7 +174,7 @@ class Profiler:
             pipeline_config = self._pipeline_config
         unknown = set(exclude) - {step.name for step in pipeline_config.steps} - {label.value for label in StepLabel}
         if unknown:
-            raise ValueError(
+            raise InvalidExcludeError(
                 f"Cannot exclude {', '.join(sorted(unknown))}: neither a step label nor a step of the "
                 f"{self._source_system} pipeline"
             )
@@ -190,7 +194,7 @@ class Profiler:
         pipeline_config: PipelineConfig,
         output_folder: Path,
         cred_file_path: Path,
-        exclude: Collection[str] = (),
+        exclude: AbstractSet[str] = frozenset(),
     ) -> None:
         try:
             # A source connector is needed for any step that isn't a self-managing python step.

@@ -9,7 +9,7 @@ from databricks.labs.blueprint.tui import MockPrompts
 from databricks.sdk import WorkspaceClient
 
 from databricks.labs.lakebridge import cli
-from databricks.labs.lakebridge.assessments.profiler import default_output_folder
+from databricks.labs.lakebridge.assessments.profiler import InvalidExcludeError, default_output_folder
 from databricks.labs.lakebridge.config import (
     LSPConfigOptionV1,
     LSPPromptMethod,
@@ -180,7 +180,8 @@ def test_cli_execute_database_profiler_cred_file_path(
     (
         (None, frozenset()),
         ("unredacted", frozenset({"unredacted"})),
-        (" Unredacted , unredacted ", frozenset({"unredacted"})),
+        # Case is preserved: entries match labels and step names exactly.
+        (" Unredacted , unredacted ", frozenset({"Unredacted", "unredacted"})),
         ("unredacted,td_sys_info", frozenset({"unredacted", "td_sys_info"})),
     ),
 )
@@ -212,6 +213,32 @@ def test_cli_execute_database_profiler_exclude(mock_workspace_client, exclude, e
         cred_file_path=fake_cred,
         exclude=expected,
     )
+
+
+def test_cli_execute_database_profiler_unknown_exclude_is_a_bad_argument(mock_workspace_client, tmp_path):
+    """An `--exclude` entry the pipeline doesn't have is reported as a bad argument, not as a failed run."""
+    fake_cred = tmp_path / "credentials.yml"
+    fake_cred.touch()
+
+    ctx_mock = create_autospec(spec=ApplicationContext, spec_set=True)
+    type(ctx_mock).workspace_client = PropertyMock(return_value=mock_workspace_client)
+    ctx_mock.current_user = "tester"
+    ctx_mock.prompts = MockPrompts({})
+
+    profiler = MagicMock()
+    profiler.profile.side_effect = InvalidExcludeError("Cannot exclude unknown_step")
+    with (
+        patch("databricks.labs.lakebridge.cli.ApplicationContext", return_value=ctx_mock),
+        patch("databricks.labs.lakebridge.cli.cred_file", return_value=fake_cred),
+        patch("databricks.labs.lakebridge.cli.Profiler.create", return_value=profiler),
+        pytest.raises(InvalidExcludeError, match="Cannot exclude unknown_step"),
+    ):
+        cli.execute_database_profiler(
+            w=mock_workspace_client,
+            source_tech="snowflake",
+            output_folder=str(tmp_path / "out"),
+            exclude="unknown_step",
+        )
 
 
 def test_cli_execute_database_profiler_missing_cred_file_raises(mock_workspace_client, tmp_path):

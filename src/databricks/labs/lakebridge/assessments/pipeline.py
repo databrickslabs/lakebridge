@@ -1,7 +1,7 @@
 import json
 import logging
 import sys
-from collections.abc import Collection
+from collections.abc import Set as AbstractSet
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
@@ -51,7 +51,7 @@ class PipelineClass:
         executor: DatabaseConnector | None,
         db_path: Path,
         cred_file_path: Path,
-        exclude: Collection[str] = (),
+        exclude: AbstractSet[str] = frozenset(),
     ):
         self.config = config
         self.executor = executor

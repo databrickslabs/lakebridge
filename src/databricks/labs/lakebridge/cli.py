@@ -27,7 +27,7 @@ from databricks.labs.lakebridge.assessments import (
     SOURCE_SYSTEM_VARIANTS,
 )
 from databricks.labs.lakebridge.assessments.configure_assessment import create_assessment_configurator
-from databricks.labs.lakebridge.assessments.profiler import Profiler, default_output_folder
+from databricks.labs.lakebridge.assessments.profiler import InvalidExcludeError, Profiler, default_output_folder
 from databricks.labs.lakebridge.config import LSPConfigOptionV1, TableRecon, TranspileConfig
 from databricks.labs.lakebridge.connections.credential_manager import cred_file
 from databricks.labs.lakebridge.contexts.application import ApplicationContext
@@ -1067,7 +1067,7 @@ def execute_database_profiler(
         raise_validation_exception(f"Invalid source technology {source_tech}")
 
     variant = parse_profiler_variant(prompts, source_tech, variant)
-    excluded = frozenset(name.strip().lower() for name in (exclude or "").split(",") if name.strip())
+    excluded = frozenset(name.strip() for name in (exclude or "").split(",") if name.strip())
 
     ctx.add_user_agent_extra("profiler_source_tech", make_alphanum_or_semver(source_tech))
     user = ctx.current_user
@@ -1101,6 +1101,8 @@ def execute_database_profiler(
             cred_file_path=creds_path,
             exclude=excluded,
         )
+    except InvalidExcludeError:
+        raise  # a bad `--exclude` argument, not a failed run
     except Exception as e:  # noqa: BLE001
         raise SystemExit(f"Profiler execution failed: {e}") from e
 
