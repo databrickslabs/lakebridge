@@ -1,6 +1,7 @@
 import logging
 from abc import ABC
 
+import sqlglot.expressions as exp
 from sqlglot import Dialect
 
 from databricks.labs.lakebridge.reconcile.connectors.data_source import DataSource
@@ -8,8 +9,15 @@ from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import Dialec
 from databricks.labs.lakebridge.reconcile.connectors.oracle import OracleDataSource
 from databricks.labs.lakebridge.reconcile.connectors.snowflake import SnowflakeDataSource
 from databricks.labs.lakebridge.reconcile.exception import InvalidInputException
-from databricks.labs.lakebridge.reconcile.query_builder.column_transformer import ColumnTransformer
-from databricks.labs.lakebridge.reconcile.query_builder.expression_generator import build_column
+from databricks.labs.lakebridge.reconcile.query_builder.column_transformer import (
+    ColumnPair,
+    ColumnTransformer,
+    TransformedColumn,
+)
+from databricks.labs.lakebridge.reconcile.query_builder.expression_generator import (
+    build_column,
+    build_column_no_alias,
+)
 from databricks.labs.lakebridge.reconcile.recon_config import Aggregate, Schema, Table
 from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
 
@@ -106,6 +114,18 @@ class QueryBuilder(ABC):
         return self._data_source.normalize_identifier(
             self.table_conf.get_layer_tgt_to_src_col_mapping(column, self.layer)
         ).source_normalized
+
+    def _transform(self, columns: list[exp.Expression], column_names: list[str]) -> list[TransformedColumn]:
+        """Transform this layer's columns, each paired with its counterpart column on the other layer."""
+        pairs = [self._pair_with_counterpart(column, name) for column, name in zip(columns, column_names, strict=True)]
+        return [pair.for_layer(self.layer) for pair in self._transformer.transform(pairs)]
+
+    def _pair_with_counterpart(self, column: exp.Expression, column_name: str) -> ColumnPair:
+        if self.layer == "source":
+            counterpart = self.table_conf.get_layer_src_to_tgt_col_mapping(column_name, "target")
+            return ColumnPair(column, build_column_no_alias(this=counterpart))
+        counterpart = self.table_conf.get_layer_tgt_to_src_col_mapping(column_name, "target")
+        return ColumnPair(build_column_no_alias(this=counterpart), column)
 
     @property
     def _is_add_quotes(self) -> bool:

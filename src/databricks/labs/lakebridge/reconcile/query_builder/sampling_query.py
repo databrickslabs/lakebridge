@@ -56,7 +56,7 @@ class SamplingQueryBuilder(QueryBuilder):
         cols = sorted((join_columns | self.select_columns) - self.threshold_columns - self.drop_columns)
 
         cols_with_alias = [self._build_column_with_alias(col) for col in cols]
-        sql_with_transforms = [r.column for r in self._transformer.transform(cols_with_alias, self.layer)]
+        sql_with_transforms = [r.column for r in self._transform(cols_with_alias, cols)]
 
         query = (
             select(*sql_with_transforms).from_(":tbl").where(self.filter, dialect=self.engine).sql(dialect=self.engine)
@@ -78,7 +78,7 @@ class SamplingQueryBuilder(QueryBuilder):
 
         cols_with_alias = [self._build_column_with_alias(col) for col in cols]
 
-        rendered_cols = self._transformer.transform(cols_with_alias, self.layer)
+        rendered_cols = self._transform(cols_with_alias, cols)
         sql_with_transforms = [r.column for r in rendered_cols]
         cast_types = {r.ansi_name: r.original_type for r in rendered_cols if r.original_type is not None}
         query_sql = select(*sql_with_transforms).from_(":tbl").where(self.filter, dialect=self.engine)
