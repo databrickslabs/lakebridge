@@ -9,13 +9,14 @@ AUTO = "__AUTO"
 
 PROFILER_SOURCE_SYSTEM = sorted(
     [
-        "synapse",
-        "snowflake",
-        "oracle",
-        "mssql",
-        "legacy_synapse",
         "bigquery",
+        "clickhouse",
+        "legacy_synapse",
+        "mssql",
+        "oracle",
         "redshift",
+        "snowflake",
+        "synapse",
         "teradata",
     ]
 )
@@ -23,6 +24,8 @@ PROFILER_SOURCE_SYSTEM = sorted(
 SOURCE_SYSTEM_VARIANTS = {
     "mssql": (AUTO,),
 }
+# ClickHouse variant (oss/cloud) is auto-detected at execute time (see assessments/variants.py).
+SOURCE_SYSTEM_VARIANTS.update(clickhouse=(AUTO,))
 
 PROFILER_RUN_METADATA_TABLE = "profiler_run_metadata"
 

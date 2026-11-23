@@ -18,6 +18,8 @@ _ASSESSMENTS = _REPO_ROOT / "src/databricks/labs/lakebridge/resources/assessment
 
 # Profiler source -> sqlglot dialect its extract queries are written in.
 _DDL_SOURCES = {
+    "clickhouse/cloud": "clickhouse",
+    "clickhouse/oss": "clickhouse",
     "legacy_synapse": "tsql",
     "mssql/multi_db": "tsql",
     "mssql/single_db": "tsql",
