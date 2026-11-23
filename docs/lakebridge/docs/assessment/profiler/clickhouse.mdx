@@ -87,12 +87,13 @@ select one. A host ending in `.clickhouse.cloud` is treated as Cloud; otherwise 
 ## Profiled Collectors and Tables
 
 The ClickHouse profiler groups its extracts into seven logical collectors. Each produces several named result sets,
-and each result set is a paired **DDL + SQL** profiler step: the DDL creates a typed DuckDB table named
-`<collector>_<result_set>` (for example `workload_query_volume_summary`, `objects_tables`), and the SQL reads the
-corresponding `system.*` data from the source. Because the table is created from explicit DDL first, its schema stays
-consistent across runs and deployments even when a result set comes back empty. Steps that read per-node log tables
-(`query_log`, `session_log`, `query_views_log`, `asynchronous_insert_log`) are marked optional, so a build without
-those tables degrades gracefully instead of failing the run.
+and each result set is one SQL profiler step: its SQL reads the corresponding `system.*` data from the source, and its
+`ddl_source` creates the typed DuckDB table it writes, named `<collector>_<result_set>` (for example
+`workload_query_volume_summary`, `objects_tables`). Because the table is created from explicit DDL before any rows are
+written, its schema stays consistent across runs and deployments even when a result set comes back empty. Steps that
+read per-node log tables (`query_log`, `session_log`, `query_views_log`, `asynchronous_insert_log`) are marked
+optional, so a build without those tables degrades gracefully instead of failing the run; such a step is recorded as
+`ABSENT` and writes no table.
 
 <table>
   <thead>
