@@ -4,9 +4,14 @@ from pyspark.sql import DataFrame, Row
 from pyspark.sql.types import DataType, IntegerType, StructField, StructType
 
 from databricks.labs.lakebridge.reconcile.query_builder.sampling_query import SamplingQueryBuilder
-from databricks.labs.lakebridge.reconcile.recon_config import Filters
+from databricks.labs.lakebridge.reconcile.recon_config import ColumnMapping, Filters, Table
 from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
-from tests.conftest import ansi_schema_fixture_factory, make_column_transformer, oracle_schema_fixture_factory
+from tests.conftest import (
+    ansi_schema_fixture_factory,
+    make_column_transformer,
+    make_paired_column_transformer,
+    oracle_schema_fixture_factory,
+)
 
 
 def test_build_query_with_alias_emits_select_with_filter(table_conf, fake_databricks_datasource):
@@ -143,3 +148,55 @@ def test_build_query_oracle_engine_uses_dual_in_union_recon_cte(table_conf, fake
 
     keys_df.createOrReplaceTempView.assert_not_called()
     assert "FROM dual" in sql  # Oracle requires FROM dual for bare SELECT
+
+
+def _redshift_to_databricks_builders(fake_redshift_datasource, fake_databricks_datasource):
+    conf = Table(
+        source_name="t",
+        target_name="t",
+        join_columns=["`id`"],
+        column_mapping=[ColumnMapping("`price`", "`unit_price`")],
+    )
+    src_schema = [ansi_schema_fixture_factory("id", "integer"), ansi_schema_fixture_factory("price", "real")]
+    tgt_schema = [ansi_schema_fixture_factory("id", "int"), ansi_schema_fixture_factory("unit_price", "float")]
+    transformer = make_paired_column_transformer(
+        src_schema, get_dialect("redshift"), fake_redshift_datasource, tgt_schema, fake_databricks_datasource, conf
+    )
+    source = SamplingQueryBuilder(
+        conf, src_schema, "source", get_dialect("redshift"), fake_redshift_datasource, transformer
+    )
+    target = SamplingQueryBuilder(
+        conf, tgt_schema, "target", get_dialect("redshift"), fake_databricks_datasource, transformer
+    )
+    return source, target
+
+
+def test_build_query_with_alias_redshift_to_databricks_pins_paired_columns(
+    fake_redshift_datasource, fake_databricks_datasource
+):
+    source, target = _redshift_to_databricks_builders(fake_redshift_datasource, fake_databricks_datasource)
+
+    assert source.build_query_with_alias() == (
+        "SELECT COALESCE(TRIM(\"id\"), '_null_recon_') AS \"id\", "
+        "COALESCE(CASE WHEN CAST(\"price\" AS VARCHAR) IN ('NaN', 'Infinity', '-Infinity') OR ABS(\"price\") >= 1e28 "
+        "THEN CAST(\"price\" AS VARCHAR) ELSE CAST(CAST(\"price\" AS DECIMAL(38,10)) AS VARCHAR) END, '_null_recon_') "
+        "AS \"price\" FROM %(tbl)s"
+    )
+    assert target.build_query_with_alias() == (
+        "SELECT COALESCE(TRIM(`id`), '_null_recon_') AS `id`, "
+        "COALESCE(CASE WHEN ISNAN(`unit_price`) OR `unit_price` IN (CAST('Infinity' AS DOUBLE), "
+        "CAST('-Infinity' AS DOUBLE)) OR ABS(`unit_price`) >= 1e28 THEN CAST(`unit_price` AS STRING) "
+        "ELSE REPLACE(FORMAT_NUMBER(CAST(`unit_price` AS DECIMAL(38,10)), 10), ',', '') END, '_null_recon_') AS `price` FROM :tbl"
+    )
+
+
+def test_build_query_redshift_casts_sample_keys_to_their_declared_type(
+    fake_redshift_datasource, fake_databricks_datasource
+):
+    source, _ = _redshift_to_databricks_builders(fake_redshift_datasource, fake_databricks_datasource)
+    df = MagicMock(spec=DataFrame)
+    df.select.return_value = _stub_keys_df(rows=[Row(id=1)], column_types=[("id", IntegerType)])
+
+    sql = source.build_query(df)
+
+    assert "INNER JOIN (SELECT CAST(1 AS INTEGER) AS \"id\") AS recon" in sql

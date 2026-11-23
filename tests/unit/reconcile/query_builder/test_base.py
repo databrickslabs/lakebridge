@@ -1,3 +1,4 @@
+from databricks.labs.lakebridge.reconcile.query_builder.column_transformer import ColumnPair
 from databricks.labs.lakebridge.reconcile.query_builder.expression_generator import build_column
 from databricks.labs.lakebridge.reconcile.recon_config import Schema
 from tests.conftest import make_column_transformer
@@ -10,7 +11,7 @@ def test_use_default_transformations_for_bogus_input(mock_data_source):
     exps = [build_column("`col1`")]
     transformer = make_column_transformer(schema, engine, mock_data_source)
 
-    result = [r.column for r in transformer.transform(exps, "source")]
+    result = [r.source.column for r in transformer.transform([ColumnPair(e, e) for e in exps])]
 
     assert result != exps
 
@@ -21,6 +22,6 @@ def test_use_type_transformations(mock_data_source):
     exps = [build_column("`col1`")]
     transformer = make_column_transformer(schema, engine, mock_data_source)
 
-    result = [r.column for r in transformer.transform(exps, "source")]
+    result = [r.source.column for r in transformer.transform([ColumnPair(e, e) for e in exps])]
 
     assert result != exps

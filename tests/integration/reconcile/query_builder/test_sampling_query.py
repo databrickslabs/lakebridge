@@ -16,6 +16,7 @@ from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dial
 from tests.conftest import (
     ansi_schema_fixture_factory,
     make_column_transformer,
+    make_paired_column_transformer,
     oracle_schema_fixture_factory,
     tsql_schema_fixture_factory,
 )
@@ -310,13 +311,17 @@ def test_build_query_for_snowflake_without_transformations(
         ],
     )
 
+    transformer = make_paired_column_transformer(
+        sch, get_dialect("snowflake"), fake_oracle_datasource, sch_with_alias, fake_databricks_datasource, conf
+    )
+
     src_actual = SamplingQueryBuilder(
         conf,
         sch,
         "source",
         get_dialect("snowflake"),
         fake_oracle_datasource,
-        make_column_transformer(sch, get_dialect("snowflake"), fake_oracle_datasource, conf),
+        transformer,
     ).build_query(df)
     src_expected = (
         'SELECT src."s_acctbal", src."s_address", src."s_comment", src."s_name", '
@@ -338,7 +343,7 @@ def test_build_query_for_snowflake_without_transformations(
         "target",
         get_dialect("databricks"),
         fake_databricks_datasource,
-        make_column_transformer(sch_with_alias, get_dialect("databricks"), fake_databricks_datasource, conf),
+        transformer,
     ).build_query(df)
     tgt_expected = (
         'SELECT src.`s_acctbal`, src.`s_address`, src.`s_comment`, src.`s_name`, '
