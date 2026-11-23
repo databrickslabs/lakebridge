@@ -5,6 +5,7 @@ steps:
     type: sql
     flag: active
     extract_source: assessments/usage.sql
+    ddl_source: assessments/required_metric_ddl.sql
     mode: overwrite
     frequency: daily
   - name: optional_missing_table
@@ -12,5 +13,6 @@ steps:
     flag: active
     optional: true
     extract_source: assessments/missing_table_query.sql
+    ddl_source: assessments/optional_missing_table_ddl.sql
     mode: overwrite
     frequency: daily

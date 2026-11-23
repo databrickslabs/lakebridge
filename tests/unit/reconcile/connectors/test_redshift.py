@@ -76,10 +76,11 @@ def test_get_schema():
                 ELSE data_type
             END AS data_type
             FROM
-                information_schema.columns
+                pg_catalog.svv_columns
             WHERE
             LOWER(table_name) = LOWER('employee')
             AND LOWER(table_schema) = LOWER('data')
+            AND LOWER(table_catalog) = LOWER('dev')
             ORDER BY ordinal_position
       """,
     )
@@ -87,6 +88,48 @@ def test_get_schema():
     assert call_args[0][1] == "dev"
     assert call_args[0][2] == "database"
     assert call_args[0][3] == "query"
+
+
+def test_list_tables_unions_information_schema_and_svv_tables():
+    """External/Spectrum tables are discovered by UNIONing information_schema.tables with pg_catalog.svv_tables."""
+    engine, reader = initial_setup()
+    rds = RedshiftDataSource(engine, reader)
+
+    rds.list_tables("dev", "data")
+
+    reader.read_data.assert_called_once_with(
+        "SELECT table_name FROM information_schema.tables "
+        "WHERE LOWER(table_catalog) = LOWER('dev') "
+        "AND LOWER(table_schema) = LOWER('data') "
+        "UNION "
+        "SELECT table_name FROM pg_catalog.svv_tables "
+        "WHERE LOWER(table_catalog) = LOWER('dev') "
+        "AND LOWER(table_schema) = LOWER('data') "
+        "ORDER BY table_name",
+        "dev",
+        "database",
+        "query",
+    )
+
+
+def test_list_schemas_unions_information_schema_and_svv_all_schemas():
+    """External schemas are discovered by UNIONing information_schema.schemata with pg_catalog.svv_all_schemas."""
+    engine, reader = initial_setup()
+    rds = RedshiftDataSource(engine, reader)
+
+    rds.list_schemas("dev")
+
+    reader.read_data.assert_called_once_with(
+        "SELECT schema_name FROM information_schema.schemata "
+        "WHERE LOWER(catalog_name) = LOWER('dev') "
+        "UNION "
+        "SELECT schema_name FROM pg_catalog.svv_all_schemas "
+        "WHERE LOWER(database_name) = LOWER('dev') "
+        "ORDER BY schema_name",
+        "dev",
+        "database",
+        "query",
+    )
 
 
 def test_read_data_exception_handling():

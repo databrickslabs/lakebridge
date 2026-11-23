@@ -3,21 +3,37 @@
  * database by dynamically UNION-ing INFORMATION_SCHEMA.COLUMNS from each database, tagging each row
  * with its source `database_name`. The WHERE 1 = 0 anchor guarantees a single, correctly-typed result
  * set. Requires three-part naming (on-prem SQL Server / Azure SQL Managed Instance only).
+ * System objects (is_ms_shipped) and the sys and cdc (change data capture) schemas are excluded.
  */
 SET NOCOUNT ON;
 
 DECLARE @cols NVARCHAR(MAX) =
-    N'table_catalog, table_schema, table_name, column_name, ordinal_position, column_default,'
-    + N' is_nullable, data_type, character_maximum_length, character_octet_length, numeric_precision,'
-    + N' numeric_precision_radix, numeric_scale, datetime_precision, character_set_catalog,'
-    + N' character_set_schema, character_set_name, collation_catalog, collation_schema, collation_name,'
-    + N' domain_catalog, domain_schema, domain_name';
+    N'TABLE_CATALOG COLLATE DATABASE_DEFAULT AS TABLE_CATALOG,'
+    + N' TABLE_SCHEMA COLLATE DATABASE_DEFAULT AS TABLE_SCHEMA,'
+    + N' TABLE_NAME COLLATE DATABASE_DEFAULT AS TABLE_NAME,'
+    + N' COLUMN_NAME COLLATE DATABASE_DEFAULT AS COLUMN_NAME, ORDINAL_POSITION,'
+    + N' COLUMN_DEFAULT COLLATE DATABASE_DEFAULT AS COLUMN_DEFAULT,'
+    + N' IS_NULLABLE COLLATE DATABASE_DEFAULT AS IS_NULLABLE,'
+    + N' DATA_TYPE COLLATE DATABASE_DEFAULT AS DATA_TYPE, CHARACTER_MAXIMUM_LENGTH,'
+    + N' CHARACTER_OCTET_LENGTH, NUMERIC_PRECISION, NUMERIC_PRECISION_RADIX, NUMERIC_SCALE,'
+    + N' DATETIME_PRECISION, CHARACTER_SET_CATALOG COLLATE DATABASE_DEFAULT AS CHARACTER_SET_CATALOG,'
+    + N' CHARACTER_SET_SCHEMA COLLATE DATABASE_DEFAULT AS CHARACTER_SET_SCHEMA,'
+    + N' CHARACTER_SET_NAME COLLATE DATABASE_DEFAULT AS CHARACTER_SET_NAME,'
+    + N' COLLATION_CATALOG COLLATE DATABASE_DEFAULT AS COLLATION_CATALOG,'
+    + N' COLLATION_SCHEMA COLLATE DATABASE_DEFAULT AS COLLATION_SCHEMA,'
+    + N' COLLATION_NAME COLLATE DATABASE_DEFAULT AS COLLATION_NAME,'
+    + N' DOMAIN_CATALOG COLLATE DATABASE_DEFAULT AS DOMAIN_CATALOG,'
+    + N' DOMAIN_SCHEMA COLLATE DATABASE_DEFAULT AS DOMAIN_SCHEMA,'
+    + N' DOMAIN_NAME COLLATE DATABASE_DEFAULT AS DOMAIN_NAME';
 DECLARE @sql NVARCHAR(MAX) =
-    N'SELECT DB_NAME() AS database_name, ' + @cols + N' FROM INFORMATION_SCHEMA.COLUMNS WHERE 1 = 0';
+    N'SELECT DB_NAME() AS DATABASE_NAME, ' + @cols + N' FROM INFORMATION_SCHEMA.COLUMNS WHERE 1 = 0';
 
 SELECT @sql = @sql + ISNULL((
-        SELECT ' UNION ALL SELECT ' + QUOTENAME([name], '''') + ' AS database_name, ' + @cols
+        SELECT ' UNION ALL SELECT N' + QUOTENAME([name], '''') + ' AS DATABASE_NAME, ' + @cols
                + ' FROM ' + QUOTENAME([name]) + '.INFORMATION_SCHEMA.COLUMNS'
+               + ' WHERE TABLE_SCHEMA NOT IN (N''sys'', N''cdc'') AND NOT EXISTS (SELECT 1 FROM ' + QUOTENAME([name]) + '.sys.all_objects AS o'
+               + ' JOIN ' + QUOTENAME([name]) + '.sys.schemas AS s ON s.schema_id = o.schema_id'
+               + ' WHERE o.is_ms_shipped = 1 AND s.[name] = TABLE_SCHEMA AND o.[name] = TABLE_NAME)'
         FROM   sys.databases
         WHERE  state_desc = 'ONLINE'
                AND HAS_DBACCESS([name]) = 1

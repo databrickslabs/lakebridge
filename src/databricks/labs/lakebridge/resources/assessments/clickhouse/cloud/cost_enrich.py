@@ -4,7 +4,7 @@ The one Python step in the ClickHouse profiler. Everything else is SQL/DDL; this
 the authoritative billing figures live behind the ClickHouse Cloud REST API (HTTP Basic auth to
 ``api.clickhouse.cloud``), which SQL cannot reach. It fetches provider/region, the real compute
 sizing, the plan tier, and the actual billed cost for the 30-day window, then writes a single row to
-``costs_pricing_config`` (the same typed table the ``*_ddl.sql`` created).
+``costs_pricing_config``, a typed table it creates itself from ``TABLE_SCHEMA``.
 
 Declared ``optional: true`` in ``cloud/pipeline_config.yml``: with no ``cloud_api`` credentials, or if
 the API is unreachable, the step exits successfully having written a "no enrichment" row, so a missing

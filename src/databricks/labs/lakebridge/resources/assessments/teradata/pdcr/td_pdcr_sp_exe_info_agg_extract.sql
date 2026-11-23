@@ -1,8 +1,8 @@
 SELECT
     ProcName,
-    avg(AMPCPUTime) avgAMPCPUTime,
-    avg(ExecutionSecs) avgExecutionSecs,
-    avg(NumStatements) NumStatements,
+    CAST(avg(AMPCPUTime) AS FLOAT) avgAMPCPUTime,
+    CAST(avg(ExecutionSecs) AS FLOAT) avgExecutionSecs,
+    CAST(avg(NumStatements) AS FLOAT) NumStatements,
     min(cast(StartTime as date)) as FirstExeDate,
     max(cast(StartTime as date)) as LastExeDate,
     count(*) NumExecutions

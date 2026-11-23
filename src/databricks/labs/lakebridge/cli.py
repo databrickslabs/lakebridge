@@ -27,13 +27,11 @@ from databricks.labs.lakebridge.assessments import (
     SOURCE_SYSTEM_VARIANTS,
 )
 from databricks.labs.lakebridge.assessments.configure_assessment import create_assessment_configurator
-from databricks.labs.lakebridge.assessments.profiler import Profiler, default_output_folder
+from databricks.labs.lakebridge.assessments.profiler import InvalidExcludeError, Profiler, default_output_folder
 from databricks.labs.lakebridge.config import LSPConfigOptionV1, TableRecon, TranspileConfig
 from databricks.labs.lakebridge.connections.credential_manager import cred_file
 from databricks.labs.lakebridge.contexts.application import ApplicationContext
-from databricks.labs.lakebridge.helpers.recon_config_utils import ReconConfigPrompts
 from databricks.labs.lakebridge.helpers.telemetry_utils import make_alphanum_or_semver
-from databricks.labs.lakebridge.lineage import lineage_generator
 from databricks.labs.lakebridge.reconcile.recon_config import (
     AGG_RECONCILE_OPERATION_NAME,
     AUTO_CONFIGURE_TABLES_OPERATION_NAME,
@@ -46,7 +44,6 @@ from databricks.labs.lakebridge.transpiler.describe import TranspilersDescriptio
 from databricks.labs.lakebridge.transpiler.execute import transpile as do_transpile
 from databricks.labs.lakebridge.transpiler.lsp.lsp_engine import LSPEngine
 from databricks.labs.lakebridge.transpiler.repository import TranspilerRepository
-from databricks.labs.lakebridge.transpiler.sqlglot.sqlglot_engine import SqlglotEngine
 from databricks.labs.lakebridge.transpiler.switch_runner import SwitchRunner
 from databricks.labs.lakebridge.transpiler.transpile_engine import TranspileEngine
 from databricks.labs.lakebridge.transpiler.transpile_status import ErrorSeverity
@@ -776,45 +773,6 @@ def aggregates_reconcile(
 
 
 @lakebridge.command
-def generate_lineage(
-    *,
-    w: WorkspaceClient,
-    source_dialect: str | None = None,
-    input_source: str,
-    output_folder: str,
-) -> None:
-    """[Experimental] Generates a lineage of source SQL files or folder"""
-    ctx = ApplicationContext(w)
-    logger.debug(f"User: {ctx.current_user}")
-    if not os.path.exists(input_source):
-        raise_validation_exception(f"Invalid path for '--input-source': Path '{input_source}' does not exist.")
-    if not os.path.exists(output_folder):
-        raise_validation_exception(f"Invalid path for '--output-folder': Path '{output_folder}' does not exist.")
-    if source_dialect is None:
-        raise_validation_exception("Value for '--source-dialect' must be provided.")
-    engine = SqlglotEngine()
-    supported_dialects = engine.supported_dialects
-    if source_dialect not in supported_dialects:
-        supported_dialects_description = ", ".join(supported_dialects)
-        msg = f"Unsupported source dialect provided for '--source-dialect': '{source_dialect}' (supported: {supported_dialects_description})"
-        raise_validation_exception(msg)
-
-    lineage_generator(engine, source_dialect, input_source, output_folder)
-
-
-@lakebridge.command
-def configure_secrets(*, w: WorkspaceClient) -> None:
-    """Setup reconciliation connection profile details as Secrets on Databricks Workspace"""
-    recon_conf = ReconConfigPrompts(w)
-
-    # Prompt for source
-    source = recon_conf.prompt_source()
-
-    logger.info(f"Setting up Scope, Secrets for `{source}` reconciliation")
-    recon_conf.prompt_and_save_connection_details()
-
-
-@lakebridge.command
 def configure_database_profiler(w: WorkspaceClient) -> None:
     """[Experimental] Installs and runs the Lakebridge Assessment package for database profiling"""
     ctx = ApplicationContext(w)
@@ -1094,6 +1052,7 @@ def execute_database_profiler(
     variant: str | None = None,
     output_folder: str | None = None,
     cred_file_path: str | None = None,
+    exclude: str | None = None,
 ) -> None:
     """Execute the Profiler Extraction for the given source technology"""
     ctx = ApplicationContext(w)
@@ -1108,6 +1067,7 @@ def execute_database_profiler(
         raise_validation_exception(f"Invalid source technology {source_tech}")
 
     variant = parse_profiler_variant(prompts, source_tech, variant)
+    excluded = frozenset(name.strip() for name in (exclude or "").split(",") if name.strip())
 
     ctx.add_user_agent_extra("profiler_source_tech", make_alphanum_or_semver(source_tech))
     user = ctx.current_user
@@ -1136,7 +1096,13 @@ def execute_database_profiler(
     try:
         profiler = Profiler.create(source_tech, variant, creds_path)
         # TODO: Add extractor logic to ApplicationContext instead of creating inside the Profiler class
-        profiler.profile(output_folder=Path(output_folder), cred_file_path=creds_path)
+        profiler.profile(
+            output_folder=Path(output_folder),
+            cred_file_path=creds_path,
+            exclude=excluded,
+        )
+    except InvalidExcludeError:
+        raise  # a bad `--exclude` argument, not a failed run
     except Exception as e:  # noqa: BLE001
         raise SystemExit(f"Profiler execution failed: {e}") from e
 

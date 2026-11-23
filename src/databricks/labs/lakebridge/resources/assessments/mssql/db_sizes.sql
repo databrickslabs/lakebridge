@@ -4,13 +4,13 @@
  * maximum size, and a timestamp indicating when the data was extracted.
  */
 SELECT Db_name()                                                           AS
-       database_name,
+       DATABASE_NAME,
        NAME                                                                AS
        FileName,
        type_desc,
-       size / 128.0                                                        AS
+       Cast(size / 128.0 AS FLOAT)                                         AS
        CurrentSizeMB,
-       size / 128.0 - Cast(Fileproperty(NAME, 'SpaceUsed') AS INT) / 128.0 AS
+       Cast(size / 128.0 - Cast(Fileproperty(NAME, 'SpaceUsed') AS INT) / 128.0 AS FLOAT) AS
        FreeSpaceInMB,
        max_size                                                            AS
        MaxSize,

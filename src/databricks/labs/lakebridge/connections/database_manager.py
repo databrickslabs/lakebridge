@@ -5,7 +5,7 @@ import logging
 from abc import abstractmethod
 from collections.abc import Callable, Iterator, Sequence
 from types import TracebackType
-from typing import Any
+from typing import Any, TypedDict
 
 import clickhouse_connect
 import mssql_python
@@ -173,36 +173,46 @@ class SnowflakeConnector(_BaseConnector):
 ALL_DATABASES = "*"
 
 
+class _MSSQLConnectionKwargs(TypedDict, total=False):
+    server: str
+    database: str
+    authentication: str
+    uid: str
+    pwd: str
+    trust_server_certificate: str
+
+
 class MSSQLConnector(DatabaseConnector):
     def __init__(self, config: JsonObject):
         self.config = config
         self._conn: mssql_python.Connection = self._connect()
 
     def _connect(self) -> mssql_python.Connection:
-        db_value = str(self.config.get('database') or "").strip()
+        db_value = str(self.config.get("database") or "").strip()
         db_name = db_value if db_value and db_value != ALL_DATABASES else "master"
 
         resolved = resolve_mssql_credentials(self.config)
 
-        server = str(self.config['server'])
-        port = int(str(self.config.get('port', '1433')))
-        parts = [f"Server={server},{port}"]
-        if self.config.get('database'):
-            parts.append(f"Database={db_name}")
+        server = str(self.config["server"])
+        port = int(str(self.config.get("port", "1433")))
+        kwargs: _MSSQLConnectionKwargs = {"server": f"{server},{port}"}
+        if self.config.get("database"):
+            kwargs["database"] = db_name
         if resolved.authentication_param is not None:
-            parts.append(f"Authentication={resolved.authentication_param}")
+            kwargs["authentication"] = resolved.authentication_param
         if resolved.username is not None:
-            parts.append(f"UID={resolved.username}")
+            kwargs["uid"] = resolved.username
         if resolved.password is not None:
-            parts.append(f"PWD={resolved.password}")
-        trust = "no" if str(self.config.get('trust_server_certificate', 'False')) == 'False' else "yes"
-        parts.append(f"TrustServerCertificate={trust}")
+            kwargs["pwd"] = resolved.password
+        kwargs["trust_server_certificate"] = (
+            "no" if str(self.config.get("trust_server_certificate", "False")) == "False" else "yes"
+        )
 
         try:
             return mssql_python.connect(
-                ";".join(parts),
                 autocommit=True,
-                timeout=int(str(self.config.get('login_timeout', '30'))),
+                timeout=int(str(self.config.get("login_timeout", "30"))),
+                **kwargs,
             )
         except mssql_python.Error as e:
             raise ConnectionError(f"Failed to connect to {server}: {e}") from e
@@ -239,10 +249,10 @@ class TeradataConnector(_BaseConnector):
 
         connection_string = URL.create(
             drivername="teradatasql",
-            username=str(self.config['user']),
-            password=str(self.config['password']),
-            host=str(self.config['host']),
-            port=int(str(self.config.get('port', 1025))),
+            username=str(self.config["user"]),
+            password=str(self.config["password"]),
+            host=str(self.config["host"]),
+            port=int(str(self.config.get("port", 1025))),
             query=query_params,
         )
         return create_engine(connection_string)
@@ -250,13 +260,24 @@ class TeradataConnector(_BaseConnector):
 
 class OracleConnector(_BaseConnector):
     def _connect(self) -> Engine:
+        # Credential files written before the `sid` key existed hold the SID under `service_name`.
+        sid = str(self.config.get("sid") or self.config.get("service_name") or "").strip()
+        service_name = str(self.config.get("db_service_name") or "").strip()
+        if service_name and sid:
+            logger.warning(
+                f"Both an Oracle service name and a SID are configured; connecting to service {service_name}"
+            )
+
+        # SQLAlchemy's Oracle dialect connects by SID through the URL database part and by service
+        # name through the `service_name` query parameter. With neither, the host is the whole DSN.
         connection_string = URL.create(
             drivername="oracle+oracledb",
-            username=str(self.config['user']),
-            password=str(self.config['password']),
-            host=str(self.config['host']),
-            port=int(str(self.config.get('port', 1521))),
-            database=str(self.config.get('service_name')),
+            username=str(self.config["user"]),
+            password=str(self.config["password"]),
+            host=str(self.config["host"]),
+            port=int(str(self.config.get("port", 1521))),
+            database=sid if sid and not service_name else None,
+            query={"service_name": service_name} if service_name else {},
         )
 
         return create_engine(connection_string)
