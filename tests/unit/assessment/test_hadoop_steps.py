@@ -150,6 +150,14 @@ def test_scheduler_fair_tree_reads_hadoop3_wrapped_child_queues(tmp_path: Path) 
     ]
 
 
+def test_scheduler_capacity_children_without_queue_path_get_full_paths(tmp_path: Path) -> None:
+    """HDInsight 5.1 (Hadoop 3.3.4) reports neither the root's nor the children's queuePath, only short names."""
+    with _load("yarn_scheduler_queues", [_fixture("yarn_scheduler_hdi_capacity.json")], tmp_path) as conn:
+        rows = _rows(conn, "SELECT queue_path, parent_queue_path, depth FROM yarn_scheduler_queues ORDER BY queue_path")
+
+    assert rows == [("root", None, 0), ("root.default", "root", 1), ("root.thriftsvr", "root", 1)]
+
+
 def test_scheduler_capacity_root_without_queue_path_uses_its_queue_name(tmp_path: Path) -> None:
     """Older capacity schedulers (Hadoop 2.x / 3.1) name the root only by queueName."""
     doc = {

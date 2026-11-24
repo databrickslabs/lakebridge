@@ -16,7 +16,14 @@ WITH RECURSIVE tree(scheduler_type, queue_path, parent_queue_path, depth, node) 
     UNION ALL
     SELECT
         tree.scheduler_type,
-        COALESCE(child.q->>'$.queuePath', child.q->>'$.queueName'),
+        -- queuePath when the scheduler reports it. Otherwise a fair-scheduler queueName is already the full path
+        -- (root.default), and a capacity-scheduler queueName (Hadoop 3.3 and older: default) is joined to its parent.
+        CASE
+            WHEN (child.q->>'$.queuePath') IS NOT NULL THEN child.q->>'$.queuePath'
+            WHEN tree.queue_path IS NULL OR starts_with(child.q->>'$.queueName', tree.queue_path || '.')
+                THEN child.q->>'$.queueName'
+            ELSE tree.queue_path || '.' || (child.q->>'$.queueName')
+        END,
         tree.queue_path,
         tree.depth + 1,
         child.q
