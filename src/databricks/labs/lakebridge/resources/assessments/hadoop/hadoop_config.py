@@ -10,15 +10,21 @@ Example::
         urls:                        # HA: list every ResourceManager; a gateway URL may carry a path
           - http://rm1.example.com:8088
           - http://rm2.example.com:8088
-        auth: basic                  # none | basic (kerberos is not supported yet)
+        auth: basic                  # none | basic | kerberos (kerberos: yarn and spark_history only)
         username: profiler
         password: ...                # literal, or an environment variable name when secret_vault_type is env
         verify_ssl: true             # true | false | path to a CA bundle
         app_filter: "user=etl"       # optional YARN apps query filter (the original RM_APP_FILTER)
       spark_history:                 # optional: the Spark steps are skipped when this is absent
         url: https://spark-hs.example.com:18081
-        auth: none
+        auth: none                   # none | basic | kerberos
         verify_ssl: true
+        # kerberos settings (yarn and spark_history only), with auth: kerberos:
+        #   principal: profiler@EXAMPLE.COM   # required with keytab; optional otherwise
+        #   keytab: /etc/security/keytabs/profiler.keytab   # optional; kinit -kt runs before the steps
+        #   ccache: FILE:/tmp/krb5cc_profiler  # optional; the ticket cache (KRB5CCNAME)
+        #   krb5_config: /etc/krb5.conf         # optional; the Kerberos config (KRB5_CONFIG)
+        # without a keytab, an existing ticket (kinit beforehand) is used and checked with klist.
       cloudera_manager:              # optional: the CM steps are skipped when this is absent (CDH and CDP)
         url: https://cm.example.com:7183
         auth: basic
@@ -63,10 +69,14 @@ from urllib.parse import parse_qsl
 from databricks.labs.lakebridge.assessments import PRODUCT_NAME
 from databricks.labs.lakebridge.connections.credential_manager import create_credential_manager
 from databricks.labs.lakebridge.connections.env_getter import EnvGetter
-from databricks.labs.lakebridge.resources.assessments.hadoop.rest_client import normalize_base_url
+from databricks.labs.lakebridge.resources.assessments.hadoop.kerberos import KerberosRestClient, KerberosSettings
+from databricks.labs.lakebridge.resources.assessments.hadoop.rest_client import RestClient, normalize_base_url
 
 DISTRIBUTIONS = ("oth", "mapr", "cdh", "hdp", "hdi")
 SUPPORTED_AUTH = ("none", "basic")
+# Kerberos (SPNEGO) is supported only where the original profiler supports it: the YARN ResourceManager and the Spark
+# History Server (RM_KERBERIZED and SPARK_HS_KERBERIZED).
+KERBEROS_SECTIONS = ("yarn", "spark_history")
 DEFAULT_LOOKBACK_DAYS = 30
 # The original profiler's CM_IMPALA_NUMBER_OF_DAYS=1: yesterday and today. Impala query history is large.
 DEFAULT_IMPALA_LOOKBACK_DAYS = 1
@@ -93,6 +103,14 @@ class RestEndpoint:
     verify: bool | str = True
     # Extra query parameters for the YARN applications request (the original profiler's RM_APP_FILTER).
     app_filter: tuple[tuple[str, str], ...] = ()
+    # Set with auth: kerberos. The requests then go through curl with SPNEGO instead of requests.
+    kerberos: KerberosSettings | None = None
+
+    def client(self, url: str) -> RestClient:
+        """The client for one of this endpoint's URLs, with the endpoint's authentication."""
+        if self.kerberos is not None:
+            return KerberosRestClient(url, kerberos=self.kerberos, verify=self.verify)
+        return RestClient(url, username=self.username, password=self.password, verify=self.verify)
 
 
 @dataclass(frozen=True)
@@ -293,7 +311,12 @@ def _endpoint(raw: Any, section: str, *, multiple_urls: bool) -> RestEndpoint | 
     if not auth:
         auth = "basic" if username else "none"
     if auth == "kerberos":
-        raise HadoopConfigError(f"hadoop.{section}.auth: kerberos is not supported yet; use none or basic")
+        if section not in KERBEROS_SECTIONS:
+            raise HadoopConfigError(
+                f"hadoop.{section}.auth: kerberos is not supported for {section}; Kerberos is supported only for "
+                "yarn and spark_history, like the original profiler; use none or basic"
+            )
+        return _kerberos_endpoint(raw, section, multiple_urls=multiple_urls)
     if auth not in SUPPORTED_AUTH:
         raise HadoopConfigError(f"hadoop.{section}.auth must be one of {', '.join(SUPPORTED_AUTH)}; got {auth!r}")
     if auth == "basic" and not username:
@@ -308,6 +331,40 @@ def _endpoint(raw: Any, section: str, *, multiple_urls: bool) -> RestEndpoint | 
         verify=_verify(raw.get("verify_ssl", True), section),
         app_filter=_app_filter(raw.get("app_filter"), section) if multiple_urls else (),
     )
+
+
+def _kerberos_endpoint(raw: Mapping[str, Any], section: str, *, multiple_urls: bool) -> RestEndpoint:
+    if _optional_text(raw.get("username")) or _optional_text(raw.get("password")):
+        raise HadoopConfigError(
+            f"hadoop.{section}: auth 'kerberos' takes no username or password; the ticket identifies the profiler"
+        )
+    principal = _optional_text(raw.get("principal"))
+    keytab = _optional_path(raw.get("keytab"), f"hadoop.{section}.keytab")
+    krb5_config = _optional_path(raw.get("krb5_config"), f"hadoop.{section}.krb5_config")
+    if keytab is not None and principal is None:
+        raise HadoopConfigError(f"hadoop.{section}: a keytab needs a principal (for example profiler@EXAMPLE.COM)")
+    return RestEndpoint(
+        urls=_urls(raw, section, multiple_urls=multiple_urls),
+        verify=_verify(raw.get("verify_ssl", True), section),
+        app_filter=_app_filter(raw.get("app_filter"), section) if multiple_urls else (),
+        kerberos=KerberosSettings(
+            principal=principal.strip() if principal else None,
+            keytab=keytab,
+            ccache=_optional_text(raw.get("ccache")),
+            krb5_config=krb5_config,
+        ),
+    )
+
+
+def _optional_path(raw: Any, key: str) -> str | None:
+    """A file the profiler reads (a keytab or a krb5.conf): it must exist. A leading ~ is expanded."""
+    text = _optional_text(raw)
+    if text is None or not text.strip():
+        return None
+    path = Path(text.strip()).expanduser()
+    if not path.is_file():
+        raise HadoopConfigError(f"{key} not found at {text.strip()!r}")
+    return str(path)
 
 
 def _app_filter(raw: Any, section: str) -> tuple[tuple[str, str], ...]:

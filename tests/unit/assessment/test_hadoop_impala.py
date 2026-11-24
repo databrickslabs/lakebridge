@@ -117,7 +117,7 @@ def test_impala_urls_may_be_a_comma_separated_string() -> None:
     [
         ({"urls": []}, "hadoop.impala.urls must be a non-empty list of URLs"),
         ({}, "hadoop.impala.urls must be a non-empty list of URLs"),
-        ({"urls": [_DAEMON_A], "auth": "kerberos"}, "kerberos is not supported yet"),
+        ({"urls": [_DAEMON_A], "auth": "kerberos"}, "kerberos is not supported for impala"),
         ({"urls": [_DAEMON_A], "auth": "basic"}, "hadoop.impala: auth 'basic' needs a username"),
         ({"urls": [_DAEMON_A], "catalogd_url": "ftp://catalogd:25020"}, "hadoop.impala.catalogd_url"),
         ({"urls": [_DAEMON_A], "statestored_url": "not a url"}, "hadoop.impala.statestored_url"),

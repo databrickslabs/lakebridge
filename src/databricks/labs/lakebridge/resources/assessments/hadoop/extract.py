@@ -139,17 +139,11 @@ def run_step(
     if endpoint == "yarn":
         if config.yarn is None:
             raise HadoopConfigError("hadoop.yarn is not configured; the YARN steps need it")
-        client = find_active_resource_manager(
-            config.yarn.urls,
-            username=config.yarn.username,
-            password=config.yarn.password,
-            verify=config.yarn.verify,
-        )
+        client = find_active_resource_manager(config.yarn.urls, make_client=config.yarn.client)
     elif endpoint == "spark_history":
         if config.spark_history is None:
             return "skipped: not configured (hadoop.spark_history is absent)"
-        spark = config.spark_history
-        client = RestClient(spark.urls[0], username=spark.username, password=spark.password, verify=spark.verify)
+        client = config.spark_history.client(config.spark_history.urls[0])
     elif endpoint == "ranger":
         if config.ranger is None:
             return "skipped: not configured (hadoop.ranger is absent)"

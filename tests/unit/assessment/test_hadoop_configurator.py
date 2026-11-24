@@ -9,6 +9,9 @@ from databricks.labs.lakebridge.assessments.configure_assessment import (
     ConfigureHadoopAssessment,
     create_assessment_configurator,
 )
+from databricks.labs.lakebridge.resources.assessments.hadoop import hadoop_config
+from databricks.labs.lakebridge.resources.assessments.hadoop.hadoop_config import RestEndpoint
+from databricks.labs.lakebridge.resources.assessments.hadoop.kerberos import KerberosSettings
 from databricks.labs.lakebridge.resources.assessments.hadoop.rest_client import HadoopApiError
 
 
@@ -142,7 +145,7 @@ def test_check_connection_probes_the_spark_history_server(tmp_path: Path, monkey
             probed.append((self._url, path, params))
             return []
 
-    monkeypatch.setattr(configure_assessment, "RestClient", _Client)
+    monkeypatch.setattr(hadoop_config, "RestClient", _Client)
     monkeypatch.setattr(configure_assessment, "find_active_resource_manager", lambda *_a, **_k: None)
     raw = {
         "distribution": "oth",
@@ -448,3 +451,72 @@ def test_check_connection_reports_an_impala_failure_as_a_connection_error(tmp_pa
 
     with pytest.raises(ConnectionError, match="timed out"):
         _configurator(tmp_path, {})._check_connection(raw)  # pylint: disable=protected-access
+
+
+def test_configure_yarn_kerberos_with_keytab_writes_the_block(tmp_path: Path) -> None:
+    answers = {
+        r"Enter secret vault type": "1",  # local
+        r"Select the Hadoop distribution": "2",  # cdh
+        r"Enter the lookback window in days": "30",
+        r"Enter the YARN ResourceManager URL": "http://rm:8088",
+        r"Select the YARN ResourceManager authentication": "2",  # kerberos
+        r"Enter the path to the keytab for the YARN ResourceManager": "/etc/security/profiler.keytab",
+        r"Enter the Kerberos principal for the YARN ResourceManager": "profiler@HADOOP.SIM",
+        r"Configure a Spark History Server": "no",
+        r"Configure Cloudera Manager": "no",
+        r"Configure Apache Ranger": "no",
+        r"Read Impala daemons directly": "no",
+        r"Do you want to test the connection to hadoop": "no",
+    }
+    _configurator(tmp_path, answers).run()
+
+    credentials = yaml.safe_load((tmp_path / ".credentials.yml").read_text(encoding="utf-8"))
+    assert credentials["hadoop"]["yarn"] == {
+        "urls": ["http://rm:8088"],
+        "auth": "kerberos",
+        "keytab": "/etc/security/profiler.keytab",
+        "principal": "profiler@HADOOP.SIM",
+    }
+
+
+def test_configure_spark_history_kerberos_without_keytab_uses_the_existing_ticket(tmp_path: Path) -> None:
+    answers = {
+        r"Enter secret vault type": "1",
+        r"Select the Hadoop distribution": "2",
+        r"Enter the lookback window in days": "30",
+        r"Enter the YARN ResourceManager URL": "http://rm:8088",
+        r"Select the YARN ResourceManager authentication": "0",  # none
+        r"Configure a Spark History Server": "yes",
+        r"Enter the Spark History Server URL": "http://shs:18080",
+        r"Select the Spark History Server authentication": "2",  # kerberos
+        r"path to the keytab for the Spark History Server": "",
+        r"Configure Cloudera Manager": "no",
+        r"Configure Apache Ranger": "no",
+        r"Read Impala daemons directly": "no",
+        r"Do you want to test the connection to hadoop": "no",
+    }
+    _configurator(tmp_path, answers).run()
+
+    credentials = yaml.safe_load((tmp_path / ".credentials.yml").read_text(encoding="utf-8"))
+    assert credentials["hadoop"]["spark_history"] == {"url": "http://shs:18080", "auth": "kerberos"}
+
+
+def test_kerberos_yarn_check_connection_passes_the_endpoint_transport(tmp_path: Path, monkeypatch) -> None:
+    seen: dict = {}
+
+    def capture(urls, **kwargs):
+        seen["urls"] = urls
+        seen["make_client"] = kwargs.get("make_client")
+
+    monkeypatch.setattr(configure_assessment, "find_active_resource_manager", capture)
+    raw = {
+        "distribution": "oth",
+        "yarn": {"urls": ["http://rm:8088"], "auth": "kerberos", "principal": "profiler@HADOOP.SIM"},
+    }
+
+    _configurator(tmp_path, {})._check_connection(raw)  # pylint: disable=protected-access
+
+    assert seen["urls"] == ("http://rm:8088",)
+    # The factory is the endpoint's client method, bound to the endpoint with the Kerberos settings.
+    assert seen["make_client"].__func__ is RestEndpoint.client
+    assert seen["make_client"].__self__.kerberos == KerberosSettings(principal="profiler@HADOOP.SIM")

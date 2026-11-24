@@ -18,6 +18,7 @@ _HADOOP = _REPO_ROOT / "src/databricks/labs/lakebridge/resources/assessments/had
 _PIPELINE_CONFIG = _HADOOP / "pipeline_config.yml"
 _NON_STEP_MODULES = {
     "__init__",
+    "kerberos",
     "cloudera_manager",
     "endpoints",
     "extract",

@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Any
 
 import pytest
 import yaml
@@ -8,6 +9,7 @@ from databricks.labs.lakebridge.resources.assessments.hadoop.hadoop_config impor
     load_hadoop_config,
     parse_hadoop_config,
 )
+from databricks.labs.lakebridge.resources.assessments.hadoop.kerberos import KerberosSettings
 
 _YARN = {"urls": ["http://rm1:8088", "http://rm2:8088"], "auth": "none", "verify_ssl": True}
 
@@ -102,7 +104,6 @@ def test_spark_history_block_is_parsed_with_its_own_settings() -> None:
         (_raw(yarn={"urls": []}), "hadoop.yarn.urls must be a non-empty list"),
         (_raw(yarn={"urls": ["rm1:8088"]}), "Invalid Hadoop service URL"),
         (_raw(yarn={"urls": ["http://u:p@rm1:8088"]}), "put credentials in username and password"),
-        (_raw(yarn={"urls": ["http://rm1:8088"], "auth": "kerberos"}), "kerberos is not supported yet"),
         (_raw(yarn={"urls": ["http://rm1:8088"], "auth": "ntlm"}), "auth must be one of none, basic"),
         (_raw(yarn={"urls": ["http://rm1:8088"], "auth": "basic"}), "auth 'basic' needs a username"),
         (_raw(yarn={"urls": ["http://rm1:8088"], "auth": "none", "username": "u"}), "auth 'none' takes no"),
@@ -230,7 +231,7 @@ def test_cloudera_manager_url_may_carry_a_gateway_path() -> None:
         ({"username": "u"}, "hadoop.cloudera_manager.url is required"),
         ({**_CM, "url": "cm:7180"}, "Invalid Hadoop service URL"),
         ({**_CM, "url": "https://u:p@cm:7183"}, "put credentials in username and password"),
-        ({**_CM, "auth": "kerberos"}, "kerberos is not supported yet"),
+        ({**_CM, "auth": "kerberos"}, "kerberos is not supported for cloudera_manager"),
         ({**_CM, "auth": "none"}, "auth 'none' takes no username or password"),
         ({**_CM, "api_version": "twelve"}, "api_version must look like v12"),
         ({**_CM, "impala_interval_minutes": 45}, "impala_interval_minutes must be one of 1, 2, 3, 6, 10, 20, 30, 60"),
@@ -284,7 +285,7 @@ def test_ranger_url_may_carry_a_gateway_path() -> None:
     [
         ({"auth": "none"}, "hadoop.ranger.url is required"),
         ({"url": "ftp://ranger:6182"}, "Invalid Hadoop service URL"),
-        ({"url": "https://ranger:6182", "auth": "kerberos"}, "kerberos is not supported yet"),
+        ({"url": "https://ranger:6182", "auth": "kerberos"}, "kerberos is not supported for ranger"),
         ({"url": "https://ranger:6182", "auth": "basic"}, "auth 'basic' needs a username"),
         ({"url": "https://ranger:6182", "auth": "none", "username": "admin"}, "auth 'none' takes no username"),
         ({"url": "https://u:p@ranger:6182"}, "not in the URL"),
@@ -294,3 +295,97 @@ def test_ranger_url_may_carry_a_gateway_path() -> None:
 def test_invalid_ranger_settings_are_rejected(ranger: dict, message: str) -> None:
     with pytest.raises(HadoopConfigError, match=message):
         parse_hadoop_config(_raw(ranger=ranger))
+
+
+# ---- Kerberos (SPNEGO): yarn and spark_history only ---------------------------------------------------------------------
+
+
+def test_kerberos_yarn_block_is_parsed_with_its_ticket_settings(tmp_path: Path) -> None:
+    keytab = tmp_path / "profiler.keytab"
+    keytab.write_text("synthetic", encoding="utf-8")
+    krb5 = tmp_path / "krb5.conf"
+    krb5.write_text("synthetic", encoding="utf-8")
+    raw = _raw(
+        yarn={
+            "urls": ["http://rm1:8088"],
+            "auth": "kerberos",
+            "principal": "profiler@HADOOP.SIM",
+            "keytab": str(keytab),
+            "krb5_config": str(krb5),
+            "ccache": "FILE:/tmp/krb-profiler.cc",
+        }
+    )
+
+    yarn = parse_hadoop_config(raw).yarn
+
+    assert yarn is not None
+    assert yarn.username is None and yarn.password is None
+    assert yarn.kerberos == KerberosSettings(
+        principal="profiler@HADOOP.SIM",
+        keytab=str(keytab),
+        ccache="FILE:/tmp/krb-profiler.cc",
+        krb5_config=str(krb5),
+    )
+
+
+def test_kerberos_spark_history_may_use_an_existing_ticket() -> None:
+    spark = parse_hadoop_config(_raw(spark_history={"url": "http://shs:18080", "auth": "kerberos"})).spark_history
+
+    assert spark is not None
+    assert spark.kerberos == KerberosSettings()
+    assert spark.urls == ("http://shs:18080",)
+
+
+def test_non_kerberos_endpoints_have_no_kerberos_settings() -> None:
+    assert parse_hadoop_config(_raw()).yarn.kerberos is None  # type: ignore[union-attr]
+
+
+def test_keytab_path_is_expanded_and_must_exist(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    keytab = tmp_path / "profiler.keytab"
+    keytab.write_text("synthetic", encoding="utf-8")
+    monkeypatch.setenv("HOME", str(tmp_path))
+
+    spark = parse_hadoop_config(
+        _raw(
+            spark_history={
+                "url": "http://shs:18080",
+                "auth": "kerberos",
+                "principal": "p@R",
+                "keytab": "~/profiler.keytab",
+            }
+        )
+    ).spark_history
+
+    assert spark is not None and spark.kerberos is not None
+    assert spark.kerberos.keytab == str(keytab)
+
+
+@pytest.mark.parametrize(
+    ("yarn", "message"),
+    [
+        ({"urls": ["http://rm1:8088"], "auth": "kerberos", "username": "u"}, "takes no username or password"),
+        ({"urls": ["http://rm1:8088"], "auth": "kerberos", "password": "p"}, "takes no username or password"),
+        (
+            {"urls": ["http://rm1:8088"], "auth": "kerberos", "keytab": "/no/such/profiler.keytab", "principal": "p@R"},
+            r"hadoop\.yarn\.keytab not found at '/no/such/profiler.keytab'",
+        ),
+        ({"urls": ["http://rm1:8088"], "auth": "kerberos", "keytab": "/etc/hosts"}, "a keytab needs a principal"),
+        (
+            {"urls": ["http://rm1:8088"], "auth": "kerberos", "krb5_config": "/no/such/krb5.conf"},
+            r"hadoop\.yarn\.krb5_config not found",
+        ),
+    ],
+)
+def test_invalid_kerberos_yarn_settings_are_rejected(yarn: dict, message: str) -> None:
+    with pytest.raises(HadoopConfigError, match=message):
+        parse_hadoop_config(_raw(yarn=yarn))
+
+
+@pytest.mark.parametrize("section", ["cloudera_manager", "ranger", "impala"])
+def test_kerberos_is_rejected_outside_yarn_and_spark_history(section: str) -> None:
+    block: dict[str, Any] = {"url": "https://cm:7183"} if section != "impala" else {"urls": ["http://impalad:25000"]}
+    block["auth"] = "kerberos"
+    raw = _raw(**{section: block})
+
+    with pytest.raises(HadoopConfigError, match=f"kerberos is not supported for {section}"):
+        parse_hadoop_config(raw)

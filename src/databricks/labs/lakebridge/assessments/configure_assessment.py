@@ -532,12 +532,7 @@ class ConfigureHadoopAssessment(AssessmentConfigurator):
 
     def _check_sources(self, config: HadoopConfig) -> None:
         if config.yarn is not None:
-            find_active_resource_manager(
-                config.yarn.urls,
-                username=config.yarn.username,
-                password=config.yarn.password,
-                verify=config.yarn.verify,
-            )
+            find_active_resource_manager(config.yarn.urls, make_client=config.yarn.client)
         if config.spark_history is not None:
             self._check_spark_history(config.spark_history)
         if config.cloudera_manager is not None:
@@ -559,9 +554,7 @@ class ConfigureHadoopAssessment(AssessmentConfigurator):
 
     @staticmethod
     def _check_spark_history(spark: RestEndpoint) -> None:
-        RestClient(spark.urls[0], username=spark.username, password=spark.password, verify=spark.verify).get_json(
-            "/api/v1/applications", {"limit": 1}
-        )
+        spark.client(spark.urls[0]).get_json("/api/v1/applications", {"limit": 1})
 
     @staticmethod
     def _check_ranger(ranger: RestEndpoint) -> None:
@@ -606,10 +599,12 @@ class ConfigureHadoopAssessment(AssessmentConfigurator):
         source_creds: dict[str, Any] = {
             "distribution": distribution,
             "lookback_days": int(lookback_days),
-            "yarn": self._prompt_endpoint(secret_vault_type, multiple_urls=True),
+            "yarn": self._prompt_endpoint(secret_vault_type, multiple_urls=True, allow_kerberos=True),
         }
         if self.prompts.confirm("Configure a Spark History Server?"):
-            source_creds["spark_history"] = self._prompt_endpoint(secret_vault_type, multiple_urls=False)
+            source_creds["spark_history"] = self._prompt_endpoint(
+                secret_vault_type, multiple_urls=False, allow_kerberos=True
+            )
         if self.prompts.confirm("Configure Cloudera Manager (CDH and CDP clusters)?"):
             source_creds["cloudera_manager"] = self._prompt_cloudera_manager(secret_vault_type)
 
@@ -706,6 +701,7 @@ class ConfigureHadoopAssessment(AssessmentConfigurator):
         multiple_urls: bool,
         name: str | None = None,
         example: str = "http://spark-hs:18081",
+        allow_kerberos: bool = False,
     ) -> dict[str, Any]:
         name = name or ("YARN ResourceManager" if multiple_urls else "Spark History Server")
         endpoint: dict[str, Any] = {}
@@ -717,8 +713,11 @@ class ConfigureHadoopAssessment(AssessmentConfigurator):
             urls = [self.prompts.question(f"Enter the {name} URL (for example {example})")]
             endpoint["url"] = urls[0]
 
+        # Kerberos is offered only where the original profiler supports it; it is the last choice so the others keep
+        # their positions.
+        methods = ["none", "basic", "kerberos"] if allow_kerberos else ["none", "basic"]
         auth = str(
-            self.prompts.choice(f"Select the {name} authentication (none | basic)", ["none", "basic"], sort=False)
+            self.prompts.choice(f"Select the {name} authentication ({' | '.join(methods)})", methods, sort=False)
         )
         endpoint["auth"] = auth.lower()
         if endpoint["auth"] == "basic":
@@ -729,6 +728,21 @@ class ConfigureHadoopAssessment(AssessmentConfigurator):
                 )
             else:
                 endpoint["password"] = self.prompts.password(f"Enter the {name} password")
+        elif endpoint["auth"] == "kerberos":
+            logger.info(
+                f"{name} Kerberos: give a keytab and principal so the profiler runs kinit itself, or leave the keytab "
+                "empty to use a ticket that kinit already obtained. curl with SPNEGO and the Kerberos tools must be on "
+                "PATH."
+            )
+            keytab = self.prompts.question(
+                f"Enter the path to the keytab for the {name} principal (leave empty to use an existing ticket)",
+                default="",
+            ).strip()
+            if keytab:
+                endpoint["keytab"] = keytab
+                endpoint["principal"] = self.prompts.question(
+                    f"Enter the Kerberos principal for the {name} (for example profiler@EXAMPLE.COM)"
+                ).strip()
 
         if any(url.lower().startswith("https://") for url in urls):
             ca_bundle = self.prompts.question(

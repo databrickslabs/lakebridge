@@ -55,8 +55,46 @@ The profiler supports:
 |------|-----|
 | `none` | The REST endpoints are open to the network, as on many development clusters |
 | `basic` | HTTP basic authentication with a username and password, for example HDInsight gateway logins or a proxy in front of the ResourceManager, or a Cloudera Manager login |
+| `kerberos` | SPNEGO (Kerberos) for the YARN ResourceManager and the Spark History Server only, as in the original profiler. See [Kerberos](#kerberos). |
 
-**Kerberos is not supported yet.** A credentials file that sets `auth: kerberos` fails with a clear message.
+Cloudera Manager, Ranger and the Impala web UIs do not support Kerberos. A credentials file that sets `auth: kerberos` on
+them fails with a clear message.
+
+#### Kerberos
+
+For a cluster where the ResourceManager and the Spark History Server require SPNEGO, set `auth: kerberos` on the
+`yarn` and `spark_history` blocks. The profiler does not use a Python Kerberos library. Like the original profiler, it
+runs the system `curl --negotiate -u :` and the system `kinit` and `klist`, so these must be on `PATH`:
+
+- **curl with SPNEGO support** (`curl -V` lists `SPNEGO` or `GSS-API`). The profiler checks this before its first request.
+- **Kerberos client tools**: `kinit` and `klist` (MIT krb5 or Heimdal).
+- **A ticket**, in one of two ways:
+  - a **keytab**: set `keytab` and `principal`. The profiler runs `kinit -kt <keytab> <principal>` once per run, before
+    its first request. A wrong keytab or principal fails with kinit's message.
+  - **an existing ticket**: leave out `keytab`. Run `kinit <principal>` beforehand. The profiler checks the ticket with
+    `klist -s` and stops with a clear message if there is none or it has expired. Long runs can outlive a ticket, so a
+    keytab is more reliable for scheduled runs.
+
+The host in the URL must match the service principal. A ResourceManager registered as `HTTP/rm1.example.com@REALM` is
+reached as `http://rm1.example.com:8088`, not by an IP address or an alias. Otherwise the server answers HTTP 401 and
+the step reports it. Use the names the service is registered under.
+
+Use `ccache` (sets `KRB5CCNAME`) and `krb5_config` (sets `KRB5_CONFIG`) when the ticket cache or the Kerberos
+configuration (KDC and realm) is not in the default place. Windows is not tested.
+
+```yaml
+  yarn:
+    urls: [https://rm1.example.com:8090]
+    auth: kerberos
+    principal: profiler@EXAMPLE.COM
+    keytab: /etc/security/keytabs/profiler.keytab   # optional; without it, use an existing ticket
+    ccache: FILE:/tmp/krb5cc_profiler              # optional
+    krb5_config: /etc/krb5.conf                    # optional
+    verify_ssl: true
+```
+
+Kerberos is not combined with a username or password. It is per block, so a cluster can use Kerberos for the
+ResourceManager and `none` for the Spark History Server.
 
 ### 4. Permissions
 
@@ -81,9 +119,10 @@ Select **`hadoop`** as the source system. The wizard asks for:
 2. The distribution (`oth`, `mapr`, `cdh`, `hdp` or `hdi`).
 3. The lookback window in days (default 30).
 4. The YARN ResourceManager URL or URLs, comma-separated. For high availability, list every ResourceManager.
-5. The YARN authentication (`none` or `basic`) and, for `basic`, the username and password.
+5. The YARN authentication (`none`, `basic` or `kerberos`). For `basic`, the username and password. For `kerberos`, an
+   optional keytab path and the principal (leave the keytab empty to use an existing ticket).
 6. Whether to verify the YARN TLS certificate, and an optional CA bundle path.
-7. Whether to configure a Spark History Server, and if so the same questions for its URL.
+7. Whether to configure a Spark History Server, and if so the same questions for its URL (including `kerberos`).
 8. Whether to configure Cloudera Manager. If so: its URL, authentication, TLS settings, an optional cluster name, and
    whether to extract Impala queries (and, if so, the interval and an optional Impala service name). Leave the cluster
    and service empty to have the profiler detect them.
@@ -110,14 +149,14 @@ hadoop:
     urls:                        # every ResourceManager in HA; a gateway URL may include a path
       - http://rm1.example.com:8088
       - http://rm2.example.com:8088
-    auth: basic                  # none | basic
+    auth: basic                  # none | basic | kerberos (kerberos: yarn and spark_history only)
     username: profiler
     password: ...                # a literal, or an environment variable name when secret_vault_type is env
     verify_ssl: true             # true | false | path to a CA bundle (applies to https URLs)
     app_filter: "user=etl"       # optional: extra YARN apps query parameters (the original RM_APP_FILTER)
   spark_history:                 # optional; without this block the Spark steps are skipped
     url: https://spark-hs.example.com:18081
-    auth: none
+    auth: none                   # none | basic | kerberos
     verify_ssl: true
   cloudera_manager:              # optional; without this block the cm_* steps are skipped
     url: https://cm.example.com:7183
@@ -144,10 +183,15 @@ hadoop:
 | `distribution` | yes | Recorded in `yarn_cluster_info`. |
 | `lookback_days` | no (30) | Window for finished YARN applications and Spark applications. |
 | `yarn.urls` | yes | Each URL is `http(s)://host[:port][/path]`. Credentials in the URL are rejected. |
-| `yarn.auth` / `username` / `password` | no | `auth` defaults to `basic` when a username is set, otherwise `none`. |
+| `yarn.auth` / `username` / `password` | no | `auth` defaults to `basic` when a username is set, otherwise `none`. `kerberos` takes no username or password. |
+| `yarn.principal` | with `keytab` | The Kerberos principal, for example `profiler@EXAMPLE.COM`. Optional with an existing ticket. |
+| `yarn.keytab` | no | A keytab file that must exist. The profiler runs `kinit -kt` with it. Without it, an existing ticket is used. |
+| `yarn.ccache` | no | The ticket cache, such as `FILE:/tmp/krb5cc_profiler`. Sets `KRB5CCNAME` for curl and kinit/klist. |
+| `yarn.krb5_config` | no | A `krb5.conf` file that must exist. Sets `KRB5_CONFIG`. |
 | `yarn.verify_ssl` | no (true) | `false` disables certificate checks and logs a warning. |
 | `yarn.app_filter` | no | Query parameters added to the YARN applications request, for example `user=etl&queue=root.prod` (a leading `?` is allowed). Same as `RM_APP_FILTER` in the original profiler; where it names a parameter the profiler also sets, your value wins. |
 | `spark_history.url` | yes, if the block is present | A single URL. |
+| `spark_history.auth` / `principal` / `keytab` / `ccache` / `krb5_config` | no | As for YARN, including Kerberos. |
 | `cloudera_manager.url` | yes, if the block is present | The Cloudera Manager base URL. It may include a path, for example behind a gateway. |
 | `cloudera_manager.auth` / `username` / `password` | no | As for YARN. Cloudera Manager needs `basic` in practice. |
 | `cloudera_manager.verify_ssl` | no (true) | As for YARN. |
@@ -159,7 +203,7 @@ hadoop:
 | `cloudera_manager.impala_lookback_days` | no (1) | The Impala window in days, like the original profiler's `CM_IMPALA_NUMBER_OF_DAYS`. Impala query history is large, so widen it with care. |
 | `cloudera_manager.impala_max_pages` | no (2) | Pages of 1,000 queries per time slice. A busy slice stops here and logs a warning. |
 | `impala.urls` | yes, if the block is present | The impalad web UI base URLs (port 25000 by default), one per coordinator. A comma-separated string also works. |
-| `impala.auth` / `username` / `password` | no | As for YARN. Used for every Impala URL below. Kerberos (SPNEGO) is not supported. |
+| `impala.auth` / `username` / `password` | no | As for YARN. Used for every Impala URL below. `kerberos` is not supported here. |
 | `impala.verify_ssl` | no (true) | As for YARN. Applies to every Impala URL below. |
 | `impala.catalogd_url` | no | The catalogd web UI base URL (port 25020 by default). Enables the `impala_catalog` step. |
 | `impala.statestored_url` | no | The statestore web UI base URL (port 25010 by default). Enables the `impala_statestore` step. |
@@ -380,8 +424,8 @@ makes the step fail with an error, so match values rather than syntax.
 
 ## Limitations
 
-- **Kerberos** is not supported yet. Use `none` or `basic`, or a gateway that accepts basic authentication. This includes
-  the Impala web UIs, which can also use SPNEGO; that is not supported. Use LDAP basic authentication or leave the UIs open.
+- **Kerberos** works for the YARN ResourceManager and the Spark History Server only. Cloudera Manager, Ranger and the
+  Impala web UIs use `none` or `basic`; their SPNEGO is not supported. Windows is not tested.
 - **Scope**. Ambari (the blueprint and host metrics) is not extracted yet. Ranger audit logs are not extracted.
 - **Cloudera Manager time series** cover every cluster the Cloudera Manager server manages, as in the original. Use
   the `cluster_name` column to filter them.

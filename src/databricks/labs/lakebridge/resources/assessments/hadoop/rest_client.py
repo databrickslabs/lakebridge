@@ -11,14 +11,15 @@ through this client. It provides:
 - ResourceManager HA: the client for the RM whose ``/ws/v1/cluster/info`` reports ``haState == "ACTIVE"``.
 
 A base URL may carry a path and no port. An HDInsight gateway, for example, is
-``https://<cluster>.azurehdinsight.net/yarnui``. Kerberos is not implemented in this phase.
+``https://<cluster>.azurehdinsight.net/yarnui``. The YARN ResourceManager and the Spark History Server can also be
+read with Kerberos (SPNEGO); that transport lives in ``kerberos.py`` and subclasses ``RestClient``.
 """
 
 import json
 import logging
 import time
 from collections.abc import Callable, Mapping, Sequence
-from typing import Any
+from typing import Any, Protocol
 from urllib.parse import urlsplit, urlunsplit
 
 import requests
@@ -39,6 +40,16 @@ _HTTP_STATUS_HINTS = {
     403: " (check the username and password, and the account's permissions)",
     404: " (check the URL path; a gateway may need its own path prefix)",
 }
+
+
+class HttpResponse(Protocol):
+    """The part of a response the client reads. ``requests.Response`` and the Kerberos transport both satisfy it."""
+
+    @property
+    def status_code(self) -> int: ...
+
+    @property
+    def text(self) -> str: ...
 
 
 class HadoopApiError(RuntimeError):
@@ -116,18 +127,21 @@ class RestClient:
         """GET ``path`` and return the body as is, for endpoints that answer in plain text (Cloudera's /api/version)."""
         response = self._get(path, params)
         if response.status_code >= 400:
-            hint = _HTTP_STATUS_HINTS.get(response.status_code, "")
             raise HadoopHttpError(
-                f"GET {path} from {self._base_url} returned HTTP {response.status_code}{hint}",
+                self._http_error_message(path, response.status_code),
                 status_code=response.status_code,
                 body=response.text,
             )
         return response.text
 
+    def _http_error_message(self, path: str, status_code: int) -> str:
+        hint = _HTTP_STATUS_HINTS.get(status_code, "")
+        return f"GET {path} from {self._base_url} returned HTTP {status_code}{hint}"
+
     def get_json(self, path: str, params: Mapping[str, str | int] | None = None) -> Any:
         return json.loads(self.get_text(path, params))
 
-    def _get(self, path: str, params: Mapping[str, str | int] | None) -> requests.Response:
+    def _get(self, path: str, params: Mapping[str, str | int] | None) -> HttpResponse:
         url = f"{self._base_url}{path}"
         attempt = 1
         while True:
@@ -153,15 +167,19 @@ def find_active_resource_manager(
     username: str | None = None,
     password: str | None = None,
     verify: bool | str = True,
+    make_client: Callable[[str], RestClient] | None = None,
 ) -> RestClient:
     """Return the client for the ResourceManager in HA state ACTIVE.
 
     The URLs are tried in order. A non-HA cluster also reports ``haState`` ACTIVE, so it needs no special case.
     Unreachable or standby ResourceManagers are skipped, and the error lists why each one was rejected.
+    ``make_client`` builds the client for each URL (for example a Kerberos client); by default it is a basic-auth or
+    anonymous ``RestClient``.
     """
+    build = make_client or (lambda url: RestClient(url, username=username, password=password, verify=verify))
     failures: list[str] = []
     for url in urls:
-        client = RestClient(url, username=username, password=password, verify=verify)
+        client = build(url)
         try:
             info = client.get_json(CLUSTER_INFO_PATH)
         except HadoopApiError as e:
