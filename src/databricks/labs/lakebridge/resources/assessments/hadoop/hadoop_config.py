@@ -58,9 +58,7 @@ Example::
         password: ...
         verify_ssl: true
         cluster: "Sandbox HDP"       # optional; detected when Ambari manages exactly one cluster
-      mask_rules:                    # optional search/replace on every REST response (the original sed.txt)
-        - pattern: 'internal\.example\.com'
-          replacement: 'masked.example'
+      search_replace_file: /etc/lakebridge/masking.txt   # optional masking rules file (s/find/replace/g lines), read every run
 
 Other sections are ignored here.
 """
@@ -76,6 +74,12 @@ from databricks.labs.lakebridge.assessments import PRODUCT_NAME
 from databricks.labs.lakebridge.connections.credential_manager import create_credential_manager
 from databricks.labs.lakebridge.connections.env_getter import EnvGetter
 from databricks.labs.lakebridge.resources.assessments.hadoop.kerberos import KerberosRestClient, KerberosSettings
+from databricks.labs.lakebridge.resources.assessments.hadoop.masking import (
+    MaskingRulesError,
+    SearchReplaceRule,
+    apply_masking_rules,
+    load_masking_rules,
+)
 from databricks.labs.lakebridge.resources.assessments.hadoop.rest_client import RestClient, normalize_base_url
 
 DISTRIBUTIONS = ("oth", "mapr", "cdh", "hdp", "hdi")
@@ -154,31 +158,20 @@ class ImpalaConfig:
 
 
 @dataclass(frozen=True)
-class MaskRule:
-    """A search/replace applied to every REST response before it is parsed (the original profiler's sed.txt)."""
-
-    pattern: re.Pattern[str]
-    replacement: str
-
-    def apply(self, text: str) -> str:
-        return self.pattern.sub(self.replacement, text)
-
-
-@dataclass(frozen=True)
 class HadoopConfig:
     distribution: str
     yarn: RestEndpoint | None
     spark_history: RestEndpoint | None
-    mask_rules: tuple[MaskRule, ...] = ()
+    # The masking rules from hadoop.search_replace_file, in file order. Empty when no file is configured.
+    search_replace: tuple[SearchReplaceRule, ...] = ()
     cloudera_manager: ClouderaManagerConfig | None = None
     ranger: RestEndpoint | None = None
     impala: ImpalaConfig | None = None
     ambari: AmbariConfig | None = None
 
     def mask(self, text: str) -> str:
-        for rule in self.mask_rules:
-            text = rule.apply(text)
-        return text
+        """Apply the masking rules to one raw REST response."""
+        return apply_masking_rules(self.search_replace, text)
 
 
 def parse_hadoop_config(raw: Any) -> HadoopConfig:
@@ -194,7 +187,7 @@ def parse_hadoop_config(raw: Any) -> HadoopConfig:
         distribution=distribution,
         yarn=_endpoint(raw.get("yarn"), "yarn", multiple_urls=True),
         spark_history=_endpoint(raw.get("spark_history"), "spark_history", multiple_urls=False),
-        mask_rules=_mask_rules(raw.get("mask_rules")),
+        search_replace=_search_replace_rules(raw.get("search_replace_file")),
         cloudera_manager=_cloudera_manager(raw.get("cloudera_manager")),
         ranger=_endpoint(raw.get("ranger"), "ranger", multiple_urls=False),
         impala=_impala(raw.get("impala")),
@@ -405,24 +398,18 @@ def _app_filter(raw: Any, section: str) -> tuple[tuple[str, str], ...]:
     return tuple(pairs)
 
 
-def _mask_rules(raw: Any) -> tuple[MaskRule, ...]:
+def _search_replace_rules(raw: Any) -> tuple[SearchReplaceRule, ...]:
+    """The masking rules file, read and parsed on every load. Blank means no masking, as in the original profiler."""
     if raw is None:
         return ()
-    if not isinstance(raw, list):
-        raise HadoopConfigError("hadoop.mask_rules must be a list of {pattern, replacement} entries")
-    rules = []
-    for index, entry in enumerate(raw):
-        if not isinstance(entry, Mapping) or not isinstance(entry.get("pattern"), str) or not entry["pattern"]:
-            raise HadoopConfigError(f"hadoop.mask_rules[{index}] needs a non-empty 'pattern'")
-        replacement = entry.get("replacement", "")
-        if not isinstance(replacement, str):
-            raise HadoopConfigError(f"hadoop.mask_rules[{index}].replacement must be text")
-        try:
-            pattern = re.compile(entry["pattern"])
-        except re.error as e:
-            raise HadoopConfigError(f"hadoop.mask_rules[{index}].pattern is not a valid regex: {e}") from e
-        rules.append(MaskRule(pattern=pattern, replacement=replacement))
-    return tuple(rules)
+    if not isinstance(raw, str):
+        raise HadoopConfigError("hadoop.search_replace_file must be the path to a masking rules file")
+    if not raw.strip():
+        return ()
+    try:
+        return load_masking_rules(raw.strip())
+    except MaskingRulesError as e:
+        raise HadoopConfigError(f"hadoop.search_replace_file: {e}") from e
 
 
 def _urls(raw: Mapping[str, Any], section: str, *, multiple_urls: bool) -> tuple[str, ...]:

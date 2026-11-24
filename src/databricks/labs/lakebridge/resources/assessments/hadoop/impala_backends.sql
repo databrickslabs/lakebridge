@@ -1,7 +1,7 @@
 -- Impala daemon web UI /backends: one row per backend (executor and coordinator) the daemon knows about.
 -- Sizes are in bytes. process_start_time is the time the daemon started, as Impala prints it.
 SELECT
-    doc->>'$.coordinator' AS coordinator_url,
+    coordinator AS coordinator_url,
     b->>'$.address' AS address,
     b->>'$.backend_id' AS backend_id,
     b->>'$.webserver_url' AS webserver_url,
@@ -19,4 +19,6 @@ SELECT
     TRY_CAST(b->>'$.num_admitted' AS BIGINT) AS num_admitted,
     impala_timestamp(b->>'$.process_start_time') AS process_start_time,
     b->>'$.version' AS version
-FROM raw_documents, UNNEST(hadoop_records(doc, '$.body.backends')) AS t(b)
+FROM (
+    SELECT doc->>'$.coordinator' AS coordinator, unnest(hadoop_records(doc, '$.body.backends')) AS b FROM raw_documents
+) AS t

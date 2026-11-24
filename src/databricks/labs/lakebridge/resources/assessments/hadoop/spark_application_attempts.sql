@@ -1,7 +1,7 @@
 -- One row per Spark application attempt. A running attempt has no end time (Spark reports endTimeEpoch -1).
 WITH apps AS (
     SELECT t.a AS a
-    FROM raw_documents, UNNEST(hadoop_records(doc, '$')) AS t(a)
+    FROM (SELECT unnest(hadoop_records(doc, '$')) AS a FROM raw_documents) AS t
 ),
 attempts AS (
     SELECT apps.a->>'$.id' AS application_id, u.att AS att

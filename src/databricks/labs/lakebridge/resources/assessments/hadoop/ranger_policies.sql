@@ -23,4 +23,4 @@ SELECT
     CAST(p->'$.conditions' AS VARCHAR) AS conditions,
     CAST(p->'$.validitySchedules' AS VARCHAR) AS validity_schedules,
     CAST(p->'$.policyLabels' AS VARCHAR) AS policy_labels
-FROM raw_documents, UNNEST(hadoop_records(doc, '$')) AS t(p)
+FROM (SELECT unnest(hadoop_records(doc, '$')) AS p FROM raw_documents) AS t

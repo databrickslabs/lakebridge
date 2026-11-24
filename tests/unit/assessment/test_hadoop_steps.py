@@ -326,8 +326,31 @@ def test_extract_tables_are_persisted_without_temporary_helpers(tmp_path: Path) 
         tables = {name for (name,) in _rows(conn, "SELECT table_name FROM duckdb_tables()")}
         macros = _rows(conn, "SELECT function_name FROM duckdb_functions() WHERE function_name = 'hadoop_records'")
 
-    assert tables == {"yarn_nodes"}
+    assert tables == {"yarn_nodes", extract.RAW_RESPONSES_TABLE}
     assert macros == []
+
+
+def test_every_response_body_is_kept_verbatim_in_order(tmp_path: Path) -> None:
+    """The raw table keeps each body exactly, including YARN's duplicate "entry" keys that a JSON parser collapses."""
+    duplicate_keys = (
+        '{"apps":{"app":[{"id":"application_1_0001","resourceSecondsMap":'
+        '{"entry":{"key":"memory-mb","value":"32111"},"entry":{"key":"vcores","value":"33"}}}]}}'
+    )
+    bodies = [duplicate_keys, '{"apps":null}']
+    with _load("yarn_applications", bodies, tmp_path) as conn:
+        rows = _rows(conn, f"SELECT step, sequence, CAST(body AS VARCHAR) FROM {extract.RAW_RESPONSES_TABLE}")
+
+    assert rows == [("yarn_applications", 1, duplicate_keys), ("yarn_applications", 2, '{"apps":null}')]
+
+
+def test_a_step_replaces_only_its_own_raw_responses(tmp_path: Path) -> None:
+    nodes, metrics = _fixture("yarn_nodes_vanilla.json"), _fixture("yarn_metrics_vanilla.json")
+    _load("yarn_nodes", [nodes], tmp_path).close()
+    _load("yarn_cluster_metrics", [metrics], tmp_path).close()
+    with _load("yarn_nodes", [nodes, nodes], tmp_path) as conn:
+        counts = _rows(conn, f"SELECT step, COUNT(*) FROM {extract.RAW_RESPONSES_TABLE} GROUP BY step ORDER BY step")
+
+    assert counts == [("yarn_cluster_metrics", 1), ("yarn_nodes", 2)]
 
 
 def test_run_step_skips_an_unconfigured_spark_history_without_writing(tmp_path: Path) -> None:
@@ -348,17 +371,12 @@ def test_run_step_skips_an_unconfigured_spark_history_without_writing(tmp_path: 
     assert not db_path.exists()
 
 
-def test_run_step_applies_mask_rules_to_the_raw_responses(tmp_path: Path) -> None:
-    """hadoop.mask_rules plays the role of the original profiler's sed.txt: it rewrites every response."""
+def test_run_step_applies_the_masking_rules_to_the_raw_responses(tmp_path: Path) -> None:
+    """hadoop.search_replace_file plays the role of the original profiler's sed.txt: it rewrites every response."""
+    rules = tmp_path / "masking.txt"
+    rules.write_text("s/Spark Pi/masked-app/g\ns/\\broot\\b/u1/g\n", encoding="utf-8")
     creds = tmp_path / ".credentials.yml"
-    hadoop = {
-        "distribution": "oth",
-        "spark_history": {"url": "http://s:18081"},
-        "mask_rules": [
-            {"pattern": "Spark Pi", "replacement": "masked-app"},
-            {"pattern": r"\broot\b", "replacement": "u1"},
-        ],
-    }
+    hadoop = {"distribution": "oth", "spark_history": {"url": "http://s:18081"}, "search_replace_file": str(rules)}
     creds.write_text(yaml.safe_dump({"hadoop": hadoop}))
     db_path = tmp_path / "extract.db"
 
@@ -570,3 +588,139 @@ def test_pipeline_extracts_cloudera_manager_over_http(hadoop_server: str, tmp_pa
 
     assert services == [(13,)]
     assert dropped == [("impala_memory_rss",), ("impala_memory_total_used",)]
+
+
+def _pairs_keeping_duplicates(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    """json.loads hook: a key that repeats (YARN's "entry") keeps every value, as a list."""
+    out: dict[str, object] = {}
+    for key, value in pairs:
+        if key in out:
+            previous = out[key]
+            out[key] = (previous if isinstance(previous, list) else [previous]) + [value]
+        else:
+            out[key] = value
+    return out
+
+
+def _resource_map(raw: object) -> dict[str, int] | None:
+    if not isinstance(raw, dict):
+        return None
+    entries = raw.get("entry", [])
+    entries = entries if isinstance(entries, list) else [entries]
+    return {entry["key"]: int(entry["value"]) for entry in entries}
+
+
+def test_applications_keep_resource_seconds_per_resource_type(tmp_path: Path) -> None:
+    body = _fixture("yarn_applications_vanilla.json")
+    apps = json.loads(body, object_pairs_hook=_pairs_keeping_duplicates)["apps"]["app"]
+    expected = {
+        a["id"]: (_resource_map(a.get("resourceSecondsMap")), _resource_map(a.get("preemptedResourceSecondsMap")))
+        for a in apps
+    }
+    with _load("yarn_applications", [body], tmp_path) as conn:
+        rows = _rows(conn, "SELECT application_id, resource_seconds, preempted_resource_seconds FROM yarn_applications")
+
+    got = {app: (json.loads(rs) if rs else None, json.loads(prs) if prs else None) for app, rs, prs in rows}
+    assert got == expected
+    assert any(len(seconds or {}) >= 2 for seconds, _ in expected.values()), "the fixture must have repeated entries"
+
+
+def test_nodes_keep_the_host_name_and_measured_utilization(tmp_path: Path) -> None:
+    body = _fixture("yarn_nodes_vanilla.json")
+    nodes = json.loads(body)["nodes"]["node"]
+    expected = {
+        n["id"]: (
+            n["nodeHostName"],
+            n["resourceUtilization"]["nodePhysicalMemoryMB"],
+            n["resourceUtilization"]["nodeCPUUsage"],
+            n["resourceUtilization"]["aggregatedContainersPhysicalMemoryMB"],
+            n["resourceUtilization"]["containersCPUUsage"],
+        )
+        for n in nodes
+    }
+    with _load("yarn_nodes", [body], tmp_path) as conn:
+        rows = _rows(
+            conn,
+            "SELECT node_id, node_host_name, node_physical_memory_mb, node_cpu_usage, "
+            "containers_physical_memory_mb, containers_cpu_usage FROM yarn_nodes",
+        )
+
+    assert {r[0]: r[1:] for r in rows} == expected
+
+
+def test_cluster_metrics_keep_utilization_and_partition_totals(tmp_path: Path) -> None:
+    body = _fixture("yarn_metrics_vanilla.json")
+    metrics = json.loads(body)["clusterMetrics"]
+    with _load("yarn_cluster_metrics", [body], tmp_path) as conn:
+        row = _rows(
+            conn,
+            "SELECT utilized_mb, utilized_mb_percent, utilized_virtual_cores_percent, "
+            "total_memory_mb_across_partitions, used_vcores_across_partitions FROM yarn_cluster_metrics",
+        )
+
+    assert row == [
+        (
+            metrics["utilizedMB"],
+            metrics["utilizedMBPercent"],
+            metrics["utilizedVirtualCoresPercent"],
+            metrics["totalClusterResourcesAcrossPartition"]["memory"],
+            metrics["totalUsedResourcesAcrossPartition"]["vCores"],
+        )
+    ]
+
+
+def _capacity_queues(info: dict, parent: str | None, out: dict[str, dict]) -> dict[str, dict]:
+    """Every queue of a capacity scheduler tree by path (the RM names children by their short name on Hadoop 3.3)."""
+    name = info.get("queuePath") or info["queueName"]
+    path = name if parent is None or name.startswith(parent + ".") else f"{parent}.{name}"
+    out[path] = info
+    for child in (info.get("queues") or {}).get("queue") or []:
+        _capacity_queues(child, path, out)
+    return out
+
+
+@pytest.mark.parametrize("fixture", ["yarn_scheduler_vanilla.json", "yarn_scheduler_hdi_capacity.json"])
+def test_queue_partitions_keep_every_partition_capacity_and_usage(fixture: str, tmp_path: Path) -> None:
+    body = _fixture(fixture)
+    queues = _capacity_queues(json.loads(body)["scheduler"]["schedulerInfo"], None, {})
+    expected = set()
+    for path, queue in queues.items():
+        usages = {u["partitionName"]: u for u in queue.get("resources", {}).get("resourceUsagesByPartition", [])}
+        for cap in queue.get("capacities", {}).get("queueCapacitiesByPartition", []):
+            use = usages.get(cap["partitionName"], {})
+            expected.add(
+                (
+                    path,
+                    cap["partitionName"],
+                    cap["absoluteCapacity"],
+                    cap.get("absoluteUsedCapacity"),
+                    (cap.get("effectiveMaxResource") or {}).get("memory"),
+                    (use.get("used") or {}).get("memory"),
+                    (use.get("amLimit") or {}).get("vCores"),
+                )
+            )
+    with _load("yarn_scheduler_queue_partitions", [body], tmp_path) as conn:
+        rows = _rows(
+            conn,
+            "SELECT queue_path, partition_name, absolute_capacity, absolute_used_capacity, effective_max_memory_mb, "
+            "used_memory_mb, am_limit_vcores FROM yarn_scheduler_queue_partitions",
+        )
+
+    assert expected, "the fixture must have partitions"
+    assert set(rows) == expected
+    assert len(rows) == len(expected)
+
+
+def test_a_fair_scheduler_has_no_partitions_but_keeps_its_fair_shares(tmp_path: Path) -> None:
+    body = _fixture("yarn_scheduler_cdh.json")
+    with _load("yarn_scheduler_queue_partitions", [body], tmp_path) as conn:
+        partitions = _rows(conn, "SELECT COUNT(*) FROM yarn_scheduler_queue_partitions")
+    with _load("yarn_scheduler_queues", [body], tmp_path) as conn:
+        shares = _rows(
+            conn,
+            "SELECT COUNT(*) FROM yarn_scheduler_queues "
+            "WHERE fair_share_memory_mb IS NOT NULL AND steady_fair_share_vcores IS NOT NULL",
+        )
+
+    assert partitions == [(0,)]
+    assert shares[0][0] > 0

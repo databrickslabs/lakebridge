@@ -2,12 +2,14 @@
 -- One row per daemon and flag. flag_value is the current value and default_value the built-in default. A flag the
 -- daemon does not have (another Impala release) has no row.
 SELECT
-    doc->>'$.coordinator' AS coordinator_url,
+    coordinator AS coordinator_url,
     f->>'$.name' AS flag_name,
     f->>'$.type' AS flag_type,
     f->>'$.current' AS flag_value,
     f->>'$.default' AS default_value
-FROM raw_documents, UNNEST(hadoop_records(doc, '$.body.flags')) AS t(f)
+FROM (
+    SELECT doc->>'$.coordinator' AS coordinator, unnest(hadoop_records(doc, '$.body.flags')) AS f FROM raw_documents
+) AS t
 WHERE f->>'$.name' IN (
     'query_log_size',
     'query_log_size_in_bytes',

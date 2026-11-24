@@ -2,7 +2,7 @@
 -- kept as returned, and its sizes are summed per host for the two totals.
 WITH hosts AS (
     SELECT h, h->>'$.Hosts.host_name' AS host_name
-    FROM raw_documents, UNNEST(hadoop_records(doc, '$.items')) AS t(h)
+    FROM (SELECT unnest(hadoop_records(doc, '$.items')) AS h FROM raw_documents) AS t
 ),
 disks AS (
     SELECT hs.host_name, disk

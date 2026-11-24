@@ -29,6 +29,13 @@ steps:
     frequency: once
     flag: active
 
+  - name: yarn_scheduler_queue_partitions
+    type: python
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/hadoop/yarn_scheduler_queue_partitions.py
+    mode: overwrite
+    frequency: once
+    flag: active
+
   - name: yarn_applications
     type: python
     extract_source: src/databricks/labs/lakebridge/resources/assessments/hadoop/yarn_applications.py
@@ -120,14 +127,6 @@ steps:
     flag: active
     optional: true
 
-  - name: ranger_service_defs
-    type: python
-    extract_source: src/databricks/labs/lakebridge/resources/assessments/hadoop/ranger_service_defs.py
-    mode: overwrite
-    frequency: once
-    flag: active
-    optional: true
-
   - name: ranger_policies
     type: python
     extract_source: src/databricks/labs/lakebridge/resources/assessments/hadoop/ranger_policies.py
@@ -139,22 +138,6 @@ steps:
   - name: ranger_policy_items
     type: python
     extract_source: src/databricks/labs/lakebridge/resources/assessments/hadoop/ranger_policy_items.py
-    mode: overwrite
-    frequency: once
-    flag: active
-    optional: true
-
-  - name: ranger_users
-    type: python
-    extract_source: src/databricks/labs/lakebridge/resources/assessments/hadoop/ranger_users.py
-    mode: overwrite
-    frequency: once
-    flag: active
-    optional: true
-
-  - name: ranger_groups
-    type: python
-    extract_source: src/databricks/labs/lakebridge/resources/assessments/hadoop/ranger_groups.py
     mode: overwrite
     frequency: once
     flag: active

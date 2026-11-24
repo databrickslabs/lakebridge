@@ -2,4 +2,4 @@
 SELECT
     s->>'$.ServiceInfo.cluster_name' AS cluster_name,
     s->>'$.ServiceInfo.service_name' AS service_name
-FROM raw_documents, UNNEST(hadoop_records(doc, '$.items')) AS t(s)
+FROM (SELECT unnest(hadoop_records(doc, '$.items')) AS s FROM raw_documents) AS t

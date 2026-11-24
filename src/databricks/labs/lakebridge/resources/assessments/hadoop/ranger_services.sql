@@ -15,4 +15,4 @@ SELECT
     s->>'$.createdBy' AS created_by,
     s->>'$.updatedBy' AS updated_by,
     CAST(s->'$.configs' AS VARCHAR) AS configs
-FROM raw_documents, UNNEST(hadoop_records(doc, '$')) AS t(s)
+FROM (SELECT unnest(hadoop_records(doc, '$')) AS s FROM raw_documents) AS t

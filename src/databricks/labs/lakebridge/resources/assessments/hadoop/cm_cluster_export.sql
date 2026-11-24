@@ -1,7 +1,7 @@
 -- Cloudera Manager: the cluster export flattened. Each row is a service config reference, a role config group item, or a role. hostTemplates and instantiator are not extracted.
 WITH services AS (
     SELECT s.svc AS svc
-    FROM raw_documents, UNNEST(hadoop_records(doc, '$.services')) AS s(svc)
+    FROM (SELECT unnest(hadoop_records(doc, '$.services')) AS svc FROM raw_documents) AS s
 )
 SELECT
     'service_config' AS section,

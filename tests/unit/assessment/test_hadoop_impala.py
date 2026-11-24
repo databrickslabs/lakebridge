@@ -401,6 +401,12 @@ def test_each_impala_fetch_reads_its_json_endpoint(fetch, path: str) -> None:
     assert client.paths == [path]
 
 
+def _rules_file(tmp_path: Path, text: str) -> Path:
+    path = tmp_path / "masking.txt"
+    path.write_text(text, encoding="utf-8")
+    return path
+
+
 def _creds(tmp_path: Path, hadoop: dict) -> Path:
     creds = tmp_path / ".credentials.yml"
     creds.write_text(yaml.safe_dump({"secret_vault_type": "local", "hadoop": hadoop}), encoding="utf-8")
@@ -536,7 +542,7 @@ def test_pipeline_masks_impala_responses_before_they_are_stored(impala_server: s
         {
             "distribution": "oth",
             "impala": {"urls": [f"{impala_server}/a"]},
-            "mask_rules": [{"pattern": "172\\.24\\.0\\.5", "replacement": "masked-host"}],
+            "search_replace_file": str(_rules_file(tmp_path, "s/172\\.24\\.0\\.5/masked-host/g\n")),
         },
     )
     db_path = tmp_path / "extract.db"
@@ -549,13 +555,13 @@ def test_pipeline_masks_impala_responses_before_they_are_stored(impala_server: s
 
 
 def test_pipeline_masks_the_coordinator_url_too(impala_server: str, tmp_path: Path) -> None:
-    """mask_rules apply to the coordinator URL the profiler records, not only to the daemon's response."""
+    """The masking rules apply to the coordinator URL the profiler records, not only to the daemon's response."""
     creds = _creds(
         tmp_path,
         {
             "distribution": "oth",
             "impala": {"urls": [f"{impala_server}/a"]},
-            "mask_rules": [{"pattern": "127\\.0\\.0\\.1", "replacement": "masked-coordinator"}],
+            "search_replace_file": str(_rules_file(tmp_path, "s/127\\.0\\.0\\.1/masked-coordinator/g\n")),
         },
     )
     db_path = tmp_path / "extract.db"

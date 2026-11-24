@@ -22,11 +22,8 @@ _SQL_DIR = Path(extract.__file__).resolve().parent
 _RANGER_URL = "https://ranger.example.net:6182"
 _V2_SERVICE = "/service/public/v2/api/service"
 _V2_POLICY = "/service/public/v2/api/policy"
-_V2_SERVICE_DEF = "/service/public/v2/api/servicedef"
 _V1_REPOSITORY = "/service/public/api/repository"
 _V1_POLICY = "/service/public/api/policy"
-_XUSERS_USERS = "/service/xusers/users"
-_XUSERS_GROUPS = "/service/xusers/groups"
 
 Handler = Callable[[str, dict], str]
 
@@ -77,27 +74,12 @@ def _page(rows: list[Any], params: dict, *, cap: int | None = None) -> list[Any]
     return rows[start : start + size]
 
 
-def _xusers(rows: list[Any], key: str) -> Callable[[dict], str]:
-    def answer(params: dict) -> str:
-        return json.dumps(
-            {key: _page(rows, params), "totalCount": len(rows), "startIndex": params.get("startIndex", 0)}
-        )
-
-    return answer
-
-
 def _ranger_2_9(path: str, params: dict) -> str:
-    """Ranger 2.9.0: the v2 API answers every list, and the xusers endpoints are paged."""
+    """Ranger 2.9.0: the v2 API answers the service and policy lists."""
     if path == _V2_SERVICE:
         return _fixture("ranger_services_v2.json")
     if path == _V2_POLICY:
         return json.dumps(_page(_fixture_json("ranger_policies_v2.json"), params))
-    if path == _V2_SERVICE_DEF:
-        return _fixture("ranger_service_defs_v2.json")
-    if path == _XUSERS_USERS:
-        return _xusers(_fixture_json("ranger_xusers_users.json")["vXUsers"], "vXUsers")(params)
-    if path == _XUSERS_GROUPS:
-        return _xusers(_fixture_json("ranger_xusers_groups.json")["vXGroups"], "vXGroups")(params)
     raise AssertionError(f"unexpected request {path} {params}")
 
 
@@ -151,21 +133,6 @@ def test_service_configs_are_kept_as_ranger_returns_them(tmp_path: Path) -> None
     # Ranger masks the password itself; the profiler does not redact anything else.
     assert parsed["password"] == "*****"
     assert parsed["fs.default.name"] == "hdfs://ranger-sim-nn:8020"
-
-
-def test_service_defs_list_access_types_and_resources(tmp_path: Path) -> None:
-    with _extract("ranger_service_defs", endpoints.ranger_service_defs, _ranger_2_9, tmp_path) as conn:
-        count = conn.execute("SELECT COUNT(*) FROM ranger_service_defs").fetchone()
-        hdfs = conn.execute(
-            "SELECT access_type_count, access_types, resource_names, options FROM ranger_service_defs WHERE name = 'hdfs'"
-        ).fetchone()
-
-    assert count == (22,)
-    access_count, access_types, resource_names, options = hdfs
-    assert access_count == 3
-    assert json.loads(access_types) == ["read", "write", "execute"]
-    assert json.loads(resource_names) == ["path"]
-    assert json.loads(options)["enableDenyAndExceptionsInPolicies"] == "true"
 
 
 def test_policies_are_one_row_each_with_masking_and_row_filter_mapped(tmp_path: Path) -> None:
@@ -234,33 +201,6 @@ def test_policy_item_accesses_and_delegate_admin_are_kept_as_json(tmp_path: Path
     assert delegate_admin is True
 
 
-def test_users_and_groups_keep_identity_metadata_only(tmp_path: Path) -> None:
-    with _extract("ranger_users", endpoints.ranger_users, _ranger_2_9, tmp_path) as conn:
-        columns = {row[0] for row in conn.execute("DESCRIBE ranger_users").fetchall()}
-        users = conn.execute("SELECT COUNT(*) FROM ranger_users").fetchone()
-        analyst = conn.execute("SELECT name, group_names, user_source FROM ranger_users WHERE name = 'alice_analyst'")
-        analyst_row = analyst.fetchone()
-    with _extract("ranger_groups", endpoints.ranger_groups, _ranger_2_9, tmp_path / "groups") as conn:
-        groups = conn.execute("SELECT COUNT(*) FROM ranger_groups").fetchone()
-        group_columns = {row[0] for row in conn.execute("DESCRIBE ranger_groups").fetchall()}
-
-    assert users == (12,)
-    assert analyst_row == ("alice_analyst", '["analysts"]', 0)
-    assert columns == {
-        "id",
-        "name",
-        "status",
-        "is_visible",
-        "user_source",
-        "group_names",
-        "role_names",
-        "create_time",
-        "update_time",
-    }
-    assert groups == (6,)
-    assert group_columns == {"id", "name", "group_type", "group_source", "is_visible", "create_time", "update_time"}
-
-
 # ---- paging ----------------------------------------------------------------------------------------------------------
 
 
@@ -308,18 +248,20 @@ def test_v2_services_are_paged_like_policies() -> None:
     assert len(fake.requests) > 1
 
 
-def test_xusers_paging_follows_total_count() -> None:
-    users = _fixture_json("ranger_xusers_users.json")["vXUsers"]
+def test_v1_paging_follows_total_count() -> None:
+    """The legacy v1 lists report totalCount; a server that caps its pages is read page by page."""
+    repositories = _fixture_json("ranger_repository_v1.json")["vXRepositories"]
 
-    def capped(_path: str, params: dict) -> str:
-        page = _page(users, params, cap=5)
-        return json.dumps({"vXUsers": page, "totalCount": len(users)})
+    def capped(path: str, params: dict) -> str:
+        if path.startswith("/service/public/v2/"):
+            raise _not_found(path)
+        return json.dumps({"vXRepositories": _page(repositories, params, cap=1), "totalCount": len(repositories)})
 
     client, fake = _client(capped)
-    rows = ranger.list_users(client)
+    rows = ranger.list_services(client)
 
-    assert len(rows) == 12
-    assert [params["startIndex"] for _, params in fake.requests] == [0, 5, 10]
+    assert len(rows) == len(repositories) == 2
+    assert [params["startIndex"] for path, params in fake.requests if path == _V1_REPOSITORY] == [0, 1]
 
 
 # ---- v1 fallback and errors ------------------------------------------------------------------------------------------
@@ -371,25 +313,6 @@ def test_policies_fall_back_to_v1_and_translate_permission_maps(
     assert [a["type"] for a in json.loads(accesses)] == ["read", "write", "execute"]
     assert delegate_admin is True  # the v1 "admin" permission is the delegate-admin flag
     assert "v2" in caplog.text
-
-
-def test_service_defs_have_no_v1_fallback() -> None:
-    def missing(path: str, params: dict) -> str:
-        raise _not_found(path)
-
-    client, _ = _client(missing)
-    with pytest.raises(HadoopHttpError) as raised:
-        ranger.list_service_defs(client)
-    assert raised.value.status_code == 404
-
-
-def test_users_need_an_admin_account() -> None:
-    def forbidden(path: str, params: dict) -> str:
-        raise HadoopHttpError(f"GET {path} returned HTTP 403", status_code=403, body="")
-
-    client, _ = _client(forbidden)
-    with pytest.raises(HadoopHttpError, match="403"):
-        endpoints.ranger_users(client, _config(), RUN)
 
 
 def test_other_policy_errors_are_not_treated_as_a_missing_v2_api() -> None:

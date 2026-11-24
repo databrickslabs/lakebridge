@@ -2,7 +2,7 @@
 -- users, groups, roles, accesses and conditions are JSON text lists. mask_type is set for data_mask items and
 -- row_filter_expr for row_filter items.
 WITH policies AS (
-    SELECT p AS pol FROM raw_documents, UNNEST(hadoop_records(doc, '$')) AS t(p)
+    SELECT p AS pol FROM (SELECT unnest(hadoop_records(doc, '$')) AS p FROM raw_documents) AS t
 ),
 items AS (
     SELECT pol, 'allow' AS item_kind, it FROM policies, UNNEST(hadoop_records(pol, '$.policyItems')) AS u(it)

@@ -8,8 +8,7 @@ FROM (
     SELECT
         k AS config_type,
         json_extract(cfg, '$."' || k || '".properties') AS properties
-    FROM raw_documents,
-        UNNEST(hadoop_records(doc, '$.configurations')) AS cf(cfg),
+    FROM (SELECT unnest(hadoop_records(doc, '$.configurations')) AS cfg FROM raw_documents) AS cf,
         UNNEST(json_keys(cfg)) AS ck(k)
 ) AS t,
     UNNEST(json_keys(t.properties)) AS p(property)

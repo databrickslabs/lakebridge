@@ -8,5 +8,6 @@ CREATE TABLE cm_services (
     entity_status VARCHAR,
     maintenance_mode BOOLEAN,
     config_staleness_status VARCHAR,
-    health_checks VARCHAR
+    health_checks VARCHAR,
+    service_version VARCHAR
 )

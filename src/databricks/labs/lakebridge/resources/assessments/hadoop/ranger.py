@@ -10,7 +10,7 @@ The v2 list endpoints return a top-level JSON array. The v1 endpoints wrap their
 ``vXPolicies`` with a ``totalCount``. The v1 bodies are translated to the v2 shape here, so the step SQL reads one
 shape. v1 has no deny, exception, masking or row-filter items, so a translated v1 policy has only its allow items.
 
-The ``xusers`` endpoints (users and groups) are admin-only and page with ``pageSize`` and ``startIndex``.
+Like the original, the profiler reads the services and the policies only (no users, groups or service definitions).
 """
 
 import json
@@ -25,11 +25,8 @@ logger = logging.getLogger(__name__)
 
 V2_SERVICE_PATH = "/service/public/v2/api/service"
 V2_POLICY_PATH = "/service/public/v2/api/policy"
-V2_SERVICE_DEF_PATH = "/service/public/v2/api/servicedef"
 V1_REPOSITORY_PATH = "/service/public/api/repository"
 V1_POLICY_PATH = "/service/public/api/policy"
-XUSERS_USERS_PATH = "/service/xusers/users"
-XUSERS_GROUPS_PATH = "/service/xusers/groups"
 
 PAGE_SIZE = 500
 _NOT_FOUND = 404
@@ -54,11 +51,6 @@ def list_services(client: RestClient) -> list[dict[str, Any]]:
         return [_repository_as_service(repository) for repository in repositories]
 
 
-def list_service_defs(client: RestClient) -> str:
-    """The service-definition list as Ranger returns it. There is no v1 equivalent, so a 404 is an error."""
-    return client.get_text(V2_SERVICE_DEF_PATH)
-
-
 def list_policies(client: RestClient) -> list[dict[str, Any]]:
     """Every policy of every service, in the v2 shape. Falls back to v1 (translated) when v2 is not there."""
     try:
@@ -68,14 +60,6 @@ def list_policies(client: RestClient) -> list[dict[str, Any]]:
             raise
     logger.warning(_V1_WARNING % "policy")
     return [_policy_as_v2(policy) for policy in _page_through(_wrapped_page(client, V1_POLICY_PATH, "vXPolicies"))]
-
-
-def list_users(client: RestClient) -> list[dict[str, Any]]:
-    return _page_through(_wrapped_page(client, XUSERS_USERS_PATH, "vXUsers"))
-
-
-def list_groups(client: RestClient) -> list[dict[str, Any]]:
-    return _page_through(_wrapped_page(client, XUSERS_GROUPS_PATH, "vXGroups"))
 
 
 def _list_page(client: RestClient, path: str) -> PageFetch:

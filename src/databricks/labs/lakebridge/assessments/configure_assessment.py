@@ -51,6 +51,14 @@ from databricks.labs.lakebridge.resources.assessments.hadoop.hadoop_config impor
     RestEndpoint,
     parse_hadoop_config,
 )
+from databricks.labs.lakebridge.resources.assessments.hadoop.masking import (
+    DOMAIN_PATTERN,
+    MaskingRulesError,
+    default_rules_file,
+    guided_rules_text,
+    load_masking_rules,
+    write_rules_file,
+)
 from databricks.labs.lakebridge.resources.assessments.hadoop.ranger import list_services
 from databricks.labs.lakebridge.resources.assessments.hadoop.rest_client import (
     HadoopApiError,
@@ -522,6 +530,10 @@ class ConfigureTeradataAssessment(AssessmentConfigurator):
         _save_to_disk(credential, cred_file)
 
 
+NO_MASKING_ANSWER = "none"
+MASKING_RULES_ATTEMPTS = 10
+
+
 class ConfigureHadoopAssessment(AssessmentConfigurator):
     """Hadoop (YARN, Spark History Server, Cloudera Manager, Apache Ranger, Impala and Ambari) assessment configuration."""
 
@@ -627,12 +639,81 @@ class ConfigureHadoopAssessment(AssessmentConfigurator):
         if self.prompts.confirm("Configure Ambari (blueprint, hosts, services and components)?"):
             source_creds["ambari"] = self._prompt_ambari(secret_vault_type)
 
+        masking_rules = self._prompt_masking()
+        if masking_rules is not None:
+            source_creds["search_replace_file"] = masking_rules
+
         credential = {
             "secret_vault_type": secret_vault_type,
             "secret_vault_name": None,
             source: source_creds,
         }
         _save_to_disk(credential, cred_file)
+
+    def _prompt_masking(self) -> str | None:
+        """Guided masking. Returns the rules file to save, or None when the extract is not masked."""
+        if not self.prompts.confirm("Mask data in the extract?"):
+            return None
+        if self.prompts.confirm("Use an existing masking rules file?"):
+            return self._prompt_existing_rules_file()
+
+        path = default_rules_file()
+        if path.exists() and not self.prompts.confirm(f"{path} already exists. Overwrite it?"):
+            logger.info(f"Kept the existing masking rules file {path}")
+            return str(path)
+        domains = self._prompt_masking_domains()
+        mask_ips = self.prompts.confirm(
+            "Mask IP addresses (replaces the first two numbers, e.g. 10.20.3.7 -> x.x.3.7)?"
+        )
+        redact_users = self.prompts.confirm("Redact user names?")
+        redact_queries = self.prompts.confirm("Redact query text and job names?")
+
+        write_rules_file(
+            path,
+            guided_rules_text(domains, redact_users=redact_users, redact_queries=redact_queries, mask_ips=mask_ips),
+            overwrite=path.exists(),
+        )
+        if domains:
+            logger.info(
+                "Host names keep their own first label and stay unique, because each domain gets its own number."
+            )
+        if mask_ips:
+            logger.info(
+                "IP addresses keep their last two numbers, so addresses that differ only in the first two look the same."
+            )
+        if redact_users:
+            logger.info("User names are redacted, so per-user workload analysis will not be possible.")
+        if redact_queries:
+            logger.info("Query text and job names are redacted, so workload classification will be weaker.")
+        logger.info(f"Saved masking rules to {path} (edit it to add or change rules).")
+        return str(path)
+
+    def _prompt_existing_rules_file(self) -> str:
+        for _ in range(MASKING_RULES_ATTEMPTS):
+            path = Path(self.prompts.question("Path to the existing masking rules file").strip()).expanduser()
+            try:
+                load_masking_rules(path)
+            except MaskingRulesError as e:
+                logger.error(str(e))
+                continue
+            return str(path.absolute())
+        raise ValueError(f"No valid masking rules file was given in {MASKING_RULES_ATTEMPTS} attempts")
+
+    def _prompt_masking_domains(self) -> list[str]:
+        for _ in range(MASKING_RULES_ATTEMPTS):
+            # blueprint's question() accepts a blank answer only when it has a default, so "none" stands for blank.
+            answer = self.prompts.question(
+                "Domain(s) to mask in host names (comma-separated, blank to skip)", default=NO_MASKING_ANSWER
+            ).strip()
+            if answer in ("", NO_MASKING_ANSWER):
+                return []
+            domains = [part.strip().lstrip(".") for part in answer.split(",") if part.strip()]
+            invalid = [domain for domain in domains if not DOMAIN_PATTERN.fullmatch(domain)]
+            if invalid:
+                logger.error(f"Not a domain name: {', '.join(invalid)}")
+                continue
+            return list(dict.fromkeys(domains))
+        raise ValueError(f"No valid domain names were given in {MASKING_RULES_ATTEMPTS} attempts")
 
     def _prompt_ambari(self, secret_vault_type: str) -> dict[str, Any]:
         logger.info(

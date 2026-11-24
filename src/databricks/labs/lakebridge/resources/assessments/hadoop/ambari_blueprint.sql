@@ -1,13 +1,16 @@
 -- Ambari blueprint: one row per host group and component, with the stack from Blueprints. Cardinality is kept as Ambari
 -- returns it (text). A host group with no components keeps one row, with a NULL component_name.
 SELECT
-    doc->>'$.Blueprints.stack_name' AS stack_name,
-    doc->>'$.Blueprints.stack_version' AS stack_version,
+    stack_name,
+    stack_version,
     g->>'$.name' AS host_group_name,
     g->>'$.cardinality' AS cardinality,
     c->>'$.name' AS component_name
-FROM raw_documents,
-    UNNEST(hadoop_records(doc, '$.host_groups')) AS hg(g),
+FROM (
+    SELECT doc->>'$.Blueprints.stack_name' AS stack_name, doc->>'$.Blueprints.stack_version' AS stack_version,
+        unnest(hadoop_records(doc, '$.host_groups')) AS g
+    FROM raw_documents
+) AS hg,
     UNNEST(
         CASE WHEN json_array_length(g, '$.components') > 0
             THEN hadoop_records(g, '$.components')

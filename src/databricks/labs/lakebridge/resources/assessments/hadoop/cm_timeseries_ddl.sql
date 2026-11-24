@@ -8,5 +8,16 @@ CREATE TABLE cm_timeseries (
     sample_time TIMESTAMP,
     sample_value DOUBLE,
     rollup VARCHAR,
-    unit VARCHAR
+    unit VARCHAR,
+    point_type VARCHAR,
+    aggregate_count BIGINT,
+    aggregate_min DOUBLE,
+    aggregate_min_time TIMESTAMP,
+    aggregate_max DOUBLE,
+    aggregate_max_time TIMESTAMP,
+    aggregate_mean DOUBLE,
+    aggregate_std_dev DOUBLE,
+    cross_entity_count DOUBLE,
+    cross_entity_min_name VARCHAR,
+    cross_entity_max_name VARCHAR
 )

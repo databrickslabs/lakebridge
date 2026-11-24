@@ -25,5 +25,16 @@ CREATE TABLE yarn_applications (
     cluster_usage_percentage DOUBLE,
     log_aggregation_status VARCHAR,
     unmanaged_application BOOLEAN,
-    priority BIGINT
+    priority BIGINT,
+    resource_seconds VARCHAR,
+    preempted_resource_seconds VARCHAR,
+    preempted_memory_seconds BIGINT,
+    preempted_vcore_seconds BIGINT,
+    reserved_mb BIGINT,
+    reserved_vcores BIGINT,
+    am_host_http_address VARCHAR,
+    application_tags VARCHAR,
+    am_node_label_expression VARCHAR,
+    app_node_label_expression VARCHAR,
+    cluster_id VARCHAR
 )

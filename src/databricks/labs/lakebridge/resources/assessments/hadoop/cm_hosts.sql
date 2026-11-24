@@ -8,5 +8,9 @@ SELECT
     CAST(h->>'$.maintenanceMode' AS BOOLEAN) AS maintenance_mode,
     CAST(h->>'$.numCores' AS BIGINT) AS num_cores,
     CAST(h->>'$.numPhysicalCores' AS BIGINT) AS num_physical_cores,
-    CAST(h->>'$.totalPhysMemBytes' AS BIGINT) AS total_memory_bytes
-FROM raw_documents, UNNEST(hadoop_records(doc, '$.items')) AS t(h)
+    CAST(h->>'$.totalPhysMemBytes' AS BIGINT) AS total_memory_bytes,
+    h->>'$.clusterRef.clusterName' AS cluster_name,
+    h->>'$.distribution.name' AS os_name,
+    h->>'$.distribution.version' AS os_version,
+    CAST(h->'$.tags' AS VARCHAR) AS tags
+FROM (SELECT unnest(hadoop_records(doc, '$.items')) AS h FROM raw_documents) AS t

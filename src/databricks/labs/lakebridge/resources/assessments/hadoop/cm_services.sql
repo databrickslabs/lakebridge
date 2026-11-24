@@ -9,5 +9,6 @@ SELECT
     s->>'$.entityStatus' AS entity_status,
     CAST(s->>'$.maintenanceMode' AS BOOLEAN) AS maintenance_mode,
     s->>'$.configStalenessStatus' AS config_staleness_status,
-    CAST(s->'$.healthChecks' AS VARCHAR) AS health_checks
-FROM raw_documents, UNNEST(hadoop_records(doc, '$.items')) AS t(s)
+    CAST(s->'$.healthChecks' AS VARCHAR) AS health_checks,
+    s->>'$.serviceVersion' AS service_version
+FROM (SELECT unnest(hadoop_records(doc, '$.items')) AS s FROM raw_documents) AS t

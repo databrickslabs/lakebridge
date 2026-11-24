@@ -3,7 +3,14 @@ SELECT
     c->>'$.name' AS cluster_name,
     c->>'$.displayName' AS display_name,
     c->>'$.fullVersion' AS full_version,
-    doc->>'$.api_version' AS api_version,
-    doc->>'$.cm_version.version' AS cm_version,
-    COALESCE((c->>'$.name') = (doc->>'$.selected_cluster'), FALSE) AS is_selected
-FROM raw_documents, UNNEST(hadoop_records(doc, '$.clusters.items')) AS t(c)
+    api_version,
+    cm_version,
+    COALESCE((c->>'$.name') = selected_cluster, FALSE) AS is_selected
+FROM (
+    SELECT
+        doc->>'$.api_version' AS api_version,
+        doc->>'$.cm_version.version' AS cm_version,
+        doc->>'$.selected_cluster' AS selected_cluster,
+        unnest(hadoop_records(doc, '$.clusters.items')) AS c
+    FROM raw_documents
+) AS t

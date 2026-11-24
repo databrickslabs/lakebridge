@@ -1,0 +1,86 @@
+{
+  "href" : "http://hn1-hdi.hdi.example.internal:8080/api/v1/clusters/hdi-cluster/stack_versions/1",
+  "ClusterStackVersions" : {
+    "cluster_name" : "hdi-cluster",
+    "id" : 1,
+    "repository_summary" : {
+      "services" : {
+        "HIVE" : {
+          "version" : "3.1.2",
+          "release_version" : "5.1.8",
+          "upgrade" : true
+        },
+        "ZEPPELIN" : {
+          "version" : "0.10.1",
+          "release_version" : "5.1.8",
+          "upgrade" : true
+        },
+        "HDFS" : {
+          "version" : "3.3.4",
+          "release_version" : "5.1.8",
+          "upgrade" : true
+        },
+        "MAPREDUCE2" : {
+          "version" : "3.3.4",
+          "release_version" : "5.1.8",
+          "upgrade" : true
+        },
+        "OOZIE" : {
+          "version" : "5.2.1",
+          "release_version" : "5.1.8",
+          "upgrade" : true
+        },
+        "TEZ" : {
+          "version" : "0.9.1",
+          "release_version" : "5.1.8",
+          "upgrade" : true
+        },
+        "ZOOKEEPER" : {
+          "version" : "3.6.3",
+          "release_version" : "5.1.8",
+          "upgrade" : true
+        },
+        "YARN" : {
+          "version" : "3.3.4",
+          "release_version" : "5.1.8",
+          "upgrade" : true
+        },
+        "SPARK3" : {
+          "version" : "3.3.1",
+          "release_version" : "5.1.8",
+          "upgrade" : true
+        }
+      }
+    },
+    "repository_version" : 1,
+    "stack" : "HDInsight",
+    "state" : "CURRENT",
+    "supports_revert" : false,
+    "version" : "5.1",
+    "host_states" : {
+      "CURRENT" : [
+        "wn0-hdi.hdi.example.internal",
+        "zk2-hdi.hdi.example.internal",
+        "zk0-hdi.hdi.example.internal",
+        "zk4-hdi.hdi.example.internal",
+        "hn1-hdi.hdi.example.internal",
+        "hn0-hdi.hdi.example.internal"
+      ],
+      "INSTALLED" : [ ],
+      "INSTALLING" : [ ],
+      "INSTALL_FAILED" : [ ],
+      "NOT_REQUIRED" : [ ],
+      "OUT_OF_SYNC" : [ ]
+    }
+  },
+  "repository_versions" : [
+    {
+      "href" : "http://hn1-hdi.hdi.example.internal:8080/api/v1/clusters/hdi-cluster/stack_versions/1/repository_versions/1",
+      "RepositoryVersions" : {
+        "id" : 1,
+        "stack_name" : "HDInsight",
+        "stack_version" : "5.1"
+      }
+    }
+  ]
+}

@@ -31,18 +31,55 @@ def test_minimal_config_gets_defaults() -> None:
     assert config.yarn.verify is True
 
 
-def test_app_filter_and_mask_rules_are_optional_and_parsed() -> None:
-    assert not parse_hadoop_config(_raw()).mask_rules
+def test_app_filter_is_optional_and_parsed() -> None:
+    raw = _raw(yarn={**_YARN, "app_filter": "?user=cloudera&queue=root.etl"})
 
-    raw = _raw(
-        yarn={**_YARN, "app_filter": "?user=cloudera&queue=root.etl"},
-        mask_rules=[{"pattern": r"internal\.example\.com", "replacement": "masked"}, {"pattern": "secret"}],
-    )
     config = parse_hadoop_config(raw)
 
     assert config.yarn is not None
     assert config.yarn.app_filter == (("user", "cloudera"), ("queue", "root.etl"))
-    assert config.mask("host1.internal.example.com has a secret") == "host1.masked has a "
+
+
+def test_masking_is_off_without_a_rules_file() -> None:
+    config = parse_hadoop_config(_raw())
+
+    assert not config.search_replace
+    assert config.mask("host1.corp.example.com") == "host1.corp.example.com"
+
+
+@pytest.mark.parametrize("blank", ["", "   "])
+def test_a_blank_rules_file_setting_means_no_masking(blank: str) -> None:
+    assert not parse_hadoop_config(_raw(search_replace_file=blank)).search_replace
+
+
+def test_the_rules_file_is_read_when_the_config_is_loaded(tmp_path: Path) -> None:
+    rules = tmp_path / "rules.txt"
+    rules.write_text("# comment\ns/corp\\.example\\.com/masked.example/g\n", encoding="utf-8")
+    config = parse_hadoop_config(_raw(search_replace_file=str(rules)))
+
+    assert config.mask("host1.corp.example.com and host2.corp.example.com") == (
+        "host1.masked.example and host2.masked.example"
+    )
+
+
+def test_the_rules_file_is_read_again_on_every_load(tmp_path: Path) -> None:
+    """Like the original profiler, which re-read sed.txt for every call, so an edit applies to the next run."""
+    rules = tmp_path / "rules.txt"
+    rules.write_text("s/alpha/one/g\n", encoding="utf-8")
+    creds = tmp_path / ".credentials.yml"
+    creds.write_text(yaml.safe_dump({"hadoop": _raw(search_replace_file=str(rules))}), encoding="utf-8")
+    assert load_hadoop_config(creds).mask("alpha beta") == "one beta"
+
+    rules.write_text("s/beta/two/g\n", encoding="utf-8")
+
+    assert load_hadoop_config(creds).mask("alpha beta") == "alpha two"
+
+
+def test_a_leading_tilde_in_the_rules_file_is_expanded(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+    (tmp_path / "rules.txt").write_text("s/a/b/g\n", encoding="utf-8")
+
+    assert len(parse_hadoop_config(_raw(search_replace_file="~/rules.txt")).search_replace) == 1
 
 
 @pytest.mark.parametrize(
@@ -50,15 +87,34 @@ def test_app_filter_and_mask_rules_are_optional_and_parsed() -> None:
     [
         ({"yarn": {**_YARN, "app_filter": 5}}, "app_filter must be a query string"),
         ({"yarn": {**_YARN, "app_filter": "user"}}, "app_filter is not a valid query string"),
-        ({"mask_rules": {"pattern": "x"}}, "mask_rules must be a list"),
-        ({"mask_rules": [{"replacement": "x"}]}, r"mask_rules\[0\] needs a non-empty 'pattern'"),
-        ({"mask_rules": [{"pattern": "("}]}, r"mask_rules\[0\].pattern is not a valid regex"),
-        ({"mask_rules": [{"pattern": "x", "replacement": 1}]}, r"mask_rules\[0\].replacement must be text"),
     ],
 )
-def test_invalid_app_filter_or_mask_rules_are_rejected(overrides: dict, message: str) -> None:
+def test_invalid_app_filter_is_rejected(overrides: dict, message: str) -> None:
     with pytest.raises(HadoopConfigError, match=message):
         parse_hadoop_config(_raw(**overrides))
+
+
+def test_a_rules_file_that_is_missing_is_a_clear_config_error(tmp_path: Path) -> None:
+    missing = tmp_path / "missing.txt"
+
+    with pytest.raises(
+        HadoopConfigError, match=rf"hadoop\.search_replace_file: masking rules file not found: {missing}"
+    ):
+        parse_hadoop_config(_raw(search_replace_file=str(missing)))
+
+
+def test_a_rules_file_with_a_bad_line_names_the_file_and_line(tmp_path: Path) -> None:
+    rules = tmp_path / "rules.txt"
+    rules.write_text("s/a/b/g\ns/c/d\n", encoding="utf-8")
+
+    with pytest.raises(HadoopConfigError, match=rf"hadoop\.search_replace_file: {rules}, line 2: "):
+        parse_hadoop_config(_raw(search_replace_file=str(rules)))
+
+
+@pytest.mark.parametrize("value", [5, ["rules.txt"]])
+def test_search_replace_file_must_be_a_path(value: object) -> None:
+    with pytest.raises(HadoopConfigError, match="must be the path to a masking rules file"):
+        parse_hadoop_config(_raw(search_replace_file=value))
 
 
 def test_basic_auth_is_inferred_from_a_username() -> None:

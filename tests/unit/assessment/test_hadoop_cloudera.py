@@ -635,3 +635,56 @@ def test_ambiguous_cluster_fails_the_step(tmp_path: Path, monkeypatch: pytest.Mo
             db_path=str(tmp_path / "extract.db"),
             creds_file=creds,
         )
+
+
+def test_cm_timeseries_hourly_points_keep_their_aggregate_statistics(tmp_path: Path) -> None:
+    point = {
+        "timestamp": "2026-11-20T10:00:00.000Z",
+        "value": 41.5,
+        "type": "CALCULATED",
+        "aggregateStatistics": {
+            "sampleTime": "2026-11-20T10:59:00.000Z",
+            "sampleValue": 40.0,
+            "count": 60,
+            "min": 12.0,
+            "minTime": "2026-11-20T10:03:00.000Z",
+            "max": 97.5,
+            "maxTime": "2026-11-20T10:41:00.000Z",
+            "mean": 41.5,
+            "stdDev": 18.25,
+            "crossEntityMetadata": {
+                "maxEntityDisplayName": "host-2",
+                "maxEntityName": "host-2-id",
+                "minEntityDisplayName": "host-7",
+                "minEntityName": "host-7-id",
+                "numEntities": 12.0,
+            },
+        },
+    }
+    series = {"metadata": {"metricName": "cpu_percent_across_hosts", "rollupUsed": "HOURLY"}, "data": [point]}
+    body = json.dumps(
+        {"query_name": "cluster_cpu", "unsupported_metrics": [], "response": {"items": [{"timeSeries": [series]}]}}
+    )
+    with _load("cm_timeseries", [body], tmp_path) as conn:
+        rows = conn.execute(
+            "SELECT point_type, sample_value, aggregate_count, aggregate_min, aggregate_min_time, aggregate_max, "
+            "aggregate_max_time, aggregate_mean, aggregate_std_dev, cross_entity_count, cross_entity_min_name, "
+            "cross_entity_max_name FROM cm_timeseries"
+        ).fetchall()
+
+    assert rows == [
+        (
+            "CALCULATED",
+            41.5,
+            60,
+            12.0,
+            datetime(2026, 11, 20, 10, 3),
+            97.5,
+            datetime(2026, 11, 20, 10, 41),
+            41.5,
+            18.25,
+            12.0,
+            "host-7-id",
+            "host-2-id",
+        )
+    ]

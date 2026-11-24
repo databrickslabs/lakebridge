@@ -3,4 +3,4 @@ SELECT
     c->>'$.name' AS config_name,
     c->>'$.value' AS config_value,
     CAST(c->>'$.sensitive' AS BOOLEAN) AS sensitive
-FROM raw_documents, UNNEST(hadoop_records(doc, '$.items')) AS t(c)
+FROM (SELECT unnest(hadoop_records(doc, '$.items')) AS c FROM raw_documents) AS t

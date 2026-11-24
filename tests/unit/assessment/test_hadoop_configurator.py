@@ -1,3 +1,5 @@
+import logging
+import re
 from pathlib import Path
 
 import pytest
@@ -13,16 +15,232 @@ from databricks.labs.lakebridge.resources.assessments.hadoop import hadoop_confi
 from databricks.labs.lakebridge.resources.assessments.hadoop.ambari import AmbariError
 from databricks.labs.lakebridge.resources.assessments.hadoop.hadoop_config import RestEndpoint
 from databricks.labs.lakebridge.resources.assessments.hadoop.kerberos import KerberosSettings
+from databricks.labs.lakebridge.resources.assessments.hadoop.masking import parse_masking_rules
 from databricks.labs.lakebridge.resources.assessments.hadoop.rest_client import HadoopApiError
 
 
 def _configurator(tmp_path: Path, answers: dict[str, str]) -> ConfigureHadoopAssessment:
+    # The extract is not masked unless a test says so.
     return ConfigureHadoopAssessment(
         product_name="lakebridge",
         source_name="hadoop",
-        prompts=MockPrompts(answers),
+        prompts=MockPrompts({r"Mask data in the extract": "no", **answers}),
         credential_file=tmp_path / ".credentials.yml",
     )
+
+
+class _MaskingPrompts(MockPrompts):
+    """The configuration answers from a dict, and the masking questions from a script that is asked in order."""
+
+    def __init__(self, answers: dict[str, str], masking: list[tuple[str, str]]) -> None:
+        super().__init__(answers)
+        self._masking = list(masking)
+        self.asked: list[tuple[str, str | None]] = []
+
+    def question(self, text: str, default: str | None = None, **kwargs) -> str:
+        self.asked.append((text, default))
+        if self._masking and re.search(self._masking[0][0], text):
+            _, answer = self._masking.pop(0)
+            return answer or default or answer
+        return super().question(text, default=default, **kwargs)
+
+
+_HADOOP_ANSWERS = {
+    r"Enter secret vault type": "1",
+    r"Select the Hadoop distribution": "0",
+    r"Enter the YARN ResourceManager URL": "http://localhost:8088",
+    r"Select the YARN ResourceManager authentication": "0",
+    r"Configure a Spark History Server": "no",
+    r"Configure Cloudera Manager": "no",
+    r"Configure Apache Ranger": "no",
+    r"Read Impala daemons directly": "no",
+    r"Configure Ambari": "no",
+    r"Do you want to test the connection to hadoop": "no",
+}
+
+
+def _run_masking(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, masking: list[tuple[str, str]]
+) -> tuple[dict, _MaskingPrompts]:
+    """Run the Hadoop configuration with HOME in tmp_path. Returns the saved hadoop section and the prompts asked."""
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    prompts = _MaskingPrompts(_HADOOP_ANSWERS, masking)
+    ConfigureHadoopAssessment("lakebridge", prompts, "hadoop", tmp_path / ".credentials.yml").run()
+    credentials = yaml.safe_load((tmp_path / ".credentials.yml").read_text(encoding="utf-8"))
+    return credentials["hadoop"], prompts
+
+
+def _default_rules(tmp_path: Path) -> Path:
+    return tmp_path / "home" / ".databricks" / "labs" / "lakebridge" / "hadoop-masking-rules.txt"
+
+
+def test_no_masking_saves_no_rules_file_and_asks_nothing_more(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    hadoop, prompts = _run_masking(tmp_path, monkeypatch, [(r"Mask data in the extract", "no")])
+
+    assert "search_replace_file" not in hadoop
+    assert not _default_rules(tmp_path).exists()
+    assert not any("Domain" in text or "Redact" in text for text, _ in prompts.asked)
+
+
+def test_an_existing_rules_file_is_checked_and_its_path_is_saved(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    rules = tmp_path / "my-rules.txt"
+    rules.write_text("s/corp\\.example\\.com/masked.example/g\n", encoding="utf-8")
+    masking = [
+        (r"Mask data in the extract", "yes"),
+        (r"Use an existing masking rules file", "yes"),
+        (r"Path to the existing masking rules file", str(rules)),
+    ]
+
+    hadoop, prompts = _run_masking(tmp_path, monkeypatch, masking)
+
+    assert hadoop["search_replace_file"] == str(rules)
+    assert rules.read_text(encoding="utf-8") == "s/corp\\.example\\.com/masked.example/g\n"
+    assert not any("Domain" in text for text, _ in prompts.asked)
+
+
+def test_a_broken_existing_rules_file_is_reported_and_asked_again(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    caplog.set_level(logging.INFO)
+    broken = tmp_path / "broken.txt"
+    broken.write_text("s/a/b\n", encoding="utf-8")
+    good = tmp_path / "good.txt"
+    good.write_text("s/a/b/g\n", encoding="utf-8")
+    masking = [
+        (r"Mask data in the extract", "yes"),
+        (r"Use an existing masking rules file", "yes"),
+        (r"Path to the existing masking rules file", str(broken)),
+        (r"Path to the existing masking rules file", str(good)),
+    ]
+
+    hadoop, _ = _run_masking(tmp_path, monkeypatch, masking)
+
+    assert hadoop["search_replace_file"] == str(good)
+    assert f"{broken}, line 1: the replacement has no closing /" in caplog.text
+
+
+def test_a_missing_existing_rules_file_is_asked_for_ten_times_and_then_stops(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    masking = [
+        (r"Mask data in the extract", "yes"),
+        (r"Use an existing masking rules file", "yes"),
+        *[(r"Path to the existing masking rules file", str(tmp_path / "missing.txt"))] * 10,
+    ]
+
+    with pytest.raises(ValueError, match="No valid masking rules file was given in 10 attempts"):
+        _run_masking(tmp_path, monkeypatch, masking)
+
+
+def test_guided_answers_write_the_rules_file_owner_only_and_save_its_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    caplog.set_level(logging.INFO)
+    masking = [
+        (r"Mask data in the extract", "yes"),
+        (r"Use an existing masking rules file", "no"),
+        (r"Domain\(s\) to mask in host names", "corp.example.com, eu.corp.example.com"),
+        (r"Mask IP addresses", "yes"),
+        (r"Redact user names", "yes"),
+        (r"Redact query text and job names", "yes"),
+    ]
+
+    hadoop, prompts = _run_masking(tmp_path, monkeypatch, masking)
+
+    rules = _default_rules(tmp_path)
+    assert hadoop["search_replace_file"] == str(rules)
+    assert rules.stat().st_mode & 0o777 == 0o600
+    text = rules.read_text(encoding="utf-8")
+    assert "s/\\.eu\\.corp\\.example\\.com\\>/.masked-2/g" in text
+    assert "x.x." in text
+    assert '"\\1":"redacted"' in text
+    # Two domains (two rules each), seven IP rules (with version protect/restore), four user rules and four query rules.
+    assert len(parse_masking_rules(text, str(rules))) == 4 + 7 + 4 + 4
+    assert ("Domain(s) to mask in host names (comma-separated, blank to skip)", "none") in prompts.asked
+    assert "Host names keep their own first label" in caplog.text
+    assert "User names are redacted, so per-user workload analysis will not be possible." in caplog.text
+    assert f"Saved masking rules to {rules}" in caplog.text
+
+
+def test_guided_answers_with_blank_domains_and_no_redactions_write_a_header_only_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    masking = [
+        (r"Mask data in the extract", "yes"),
+        (r"Use an existing masking rules file", "no"),
+        (r"Domain\(s\) to mask in host names", ""),
+        (r"Mask IP addresses", "no"),
+        (r"Redact user names", "no"),
+        (r"Redact query text and job names", "no"),
+    ]
+
+    hadoop, _ = _run_masking(tmp_path, monkeypatch, masking)
+
+    assert not parse_masking_rules(_default_rules(tmp_path).read_text(encoding="utf-8"), "rules")
+    assert hadoop["search_replace_file"] == str(_default_rules(tmp_path))
+
+
+def test_the_domain_question_asks_again_when_an_entry_is_not_a_domain(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    caplog.set_level(logging.INFO)
+    masking = [
+        (r"Mask data in the extract", "yes"),
+        (r"Use an existing masking rules file", "no"),
+        (r"Domain\(s\) to mask in host names", "not a domain!"),
+        (r"Domain\(s\) to mask in host names", "corp.example.com"),
+        (r"Mask IP addresses", "no"),
+        (r"Redact user names", "no"),
+        (r"Redact query text and job names", "no"),
+    ]
+
+    _run_masking(tmp_path, monkeypatch, masking)
+
+    assert "Not a domain name: not a domain!" in caplog.text
+    assert "s/\\<corp\\.example\\.com\\>/masked-1/g" in _default_rules(tmp_path).read_text(encoding="utf-8")
+
+
+def test_an_existing_default_rules_file_is_kept_unless_overwriting_is_chosen(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    rules = _default_rules(tmp_path)
+    rules.parent.mkdir(parents=True)
+    rules.write_text("s/keep/me/g\n", encoding="utf-8")
+    masking = [
+        (r"Mask data in the extract", "yes"),
+        (r"Use an existing masking rules file", "no"),
+        (r"already exists. Overwrite it", "no"),
+    ]
+
+    hadoop, prompts = _run_masking(tmp_path, monkeypatch, masking)
+
+    assert hadoop["search_replace_file"] == str(rules)
+    assert rules.read_text(encoding="utf-8") == "s/keep/me/g\n"
+    assert not any("Domain" in text for text, _ in prompts.asked)
+
+
+def test_an_existing_default_rules_file_is_replaced_when_overwriting_is_chosen(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    rules = _default_rules(tmp_path)
+    rules.parent.mkdir(parents=True)
+    rules.write_text("s/keep/me/g\n", encoding="utf-8")
+    masking = [
+        (r"Mask data in the extract", "yes"),
+        (r"Use an existing masking rules file", "no"),
+        (r"already exists. Overwrite it", "yes"),
+        (r"Domain\(s\) to mask in host names", "corp.example.com"),
+        (r"Mask IP addresses", "no"),
+        (r"Redact user names", "no"),
+        (r"Redact query text and job names", "no"),
+    ]
+
+    _run_masking(tmp_path, monkeypatch, masking)
+
+    assert "keep" not in rules.read_text(encoding="utf-8")
+    assert rules.stat().st_mode & 0o777 == 0o600
 
 
 def test_hadoop_is_a_registered_configurator(tmp_path: Path) -> None:

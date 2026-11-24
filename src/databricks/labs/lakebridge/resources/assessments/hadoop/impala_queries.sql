@@ -4,11 +4,11 @@
 -- timestamps are local times as Impala prints them. query_json keeps the whole record as Impala returned it.
 -- Impala's completed-query log holds only the last query_log_size queries (200 by default) for each daemon.
 WITH queries AS (
-    SELECT doc->>'$.coordinator' AS coordinator_url, t.q AS q, FALSE AS is_in_flight
-    FROM raw_documents, UNNEST(hadoop_records(doc, '$.body.completed_queries')) AS t(q)
+    SELECT doc->>'$.coordinator' AS coordinator_url, unnest(hadoop_records(doc, '$.body.completed_queries')) AS q, FALSE AS is_in_flight
+    FROM raw_documents
     UNION ALL
-    SELECT doc->>'$.coordinator' AS coordinator_url, t.q AS q, TRUE AS is_in_flight
-    FROM raw_documents, UNNEST(hadoop_records(doc, '$.body.in_flight_queries')) AS t(q)
+    SELECT doc->>'$.coordinator' AS coordinator_url, unnest(hadoop_records(doc, '$.body.in_flight_queries')) AS q, TRUE AS is_in_flight
+    FROM raw_documents
 )
 SELECT
     q->>'$.query_id' AS query_id,

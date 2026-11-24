@@ -24,5 +24,19 @@ SELECT
     CAST(doc->>'$.clusterMetrics.decommissioningNodes' AS BIGINT) AS decommissioning_nodes,
     CAST(doc->>'$.clusterMetrics.decommissionedNodes' AS BIGINT) AS decommissioned_nodes,
     CAST(doc->>'$.clusterMetrics.rebootedNodes' AS BIGINT) AS rebooted_nodes,
-    CAST(doc->>'$.clusterMetrics.shutdownNodes' AS BIGINT) AS shutdown_nodes
+    CAST(doc->>'$.clusterMetrics.shutdownNodes' AS BIGINT) AS shutdown_nodes,
+    CAST(doc->>'$.clusterMetrics.reservedVirtualCores' AS BIGINT) AS reserved_virtual_cores,
+    CAST(doc->>'$.clusterMetrics.containersReserved' AS BIGINT) AS containers_reserved,
+    CAST(doc->>'$.clusterMetrics.utilizedMB' AS BIGINT) AS utilized_mb,
+    CAST(doc->>'$.clusterMetrics.utilizedVirtualCores' AS BIGINT) AS utilized_virtual_cores,
+    CAST(doc->>'$.clusterMetrics.utilizedMBPercent' AS DOUBLE) AS utilized_mb_percent,
+    CAST(doc->>'$.clusterMetrics.utilizedVirtualCoresPercent' AS DOUBLE) AS utilized_virtual_cores_percent,
+    CAST(doc->>'$.clusterMetrics.rmSchedulerBusyPercent' AS DOUBLE) AS rm_scheduler_busy_percent,
+    CAST(doc->>'$.clusterMetrics.totalClusterResourcesAcrossPartition.memory' AS BIGINT) AS total_memory_mb_across_partitions,
+    CAST(doc->>'$.clusterMetrics.totalClusterResourcesAcrossPartition.vCores' AS BIGINT) AS total_vcores_across_partitions,
+    CAST(doc->>'$.clusterMetrics.totalUsedResourcesAcrossPartition.memory' AS BIGINT) AS used_memory_mb_across_partitions,
+    CAST(doc->>'$.clusterMetrics.totalUsedResourcesAcrossPartition.vCores' AS BIGINT) AS used_vcores_across_partitions,
+    CAST(doc->>'$.clusterMetrics.totalReservedResourcesAcrossPartition.memory' AS BIGINT) AS reserved_memory_mb_across_partitions,
+    CAST(doc->>'$.clusterMetrics.totalReservedResourcesAcrossPartition.vCores' AS BIGINT) AS reserved_vcores_across_partitions,
+    CAST(doc->>'$.clusterMetrics.totalAllocatedContainersAcrossPartition' AS BIGINT) AS allocated_containers_across_partitions
 FROM raw_documents

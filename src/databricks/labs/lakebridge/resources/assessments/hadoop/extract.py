@@ -15,6 +15,7 @@ Impala extract is large, so it is written the same way. Every other step reads a
 import json
 import sys
 from collections.abc import Callable, Iterable
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal
 
@@ -62,6 +63,15 @@ Endpoint = Literal[
 IMPALA_DIRECT_ENDPOINTS: tuple[str, ...] = ("impala_daemons", "impala_catalogd", "impala_statestored")
 Fetch = Callable[[RestClient, HadoopConfig, ExtractRun], Iterable[str]]
 
+# Every REST response body a step read, after masking, exactly as the original profiler saved it to its Output files.
+# The typed step tables keep the fields the analysis uses; this table keeps the rest, so nothing the original kept is
+# lost. Each step replaces its own rows, in the same transaction as its typed table.
+RAW_RESPONSES_TABLE = "hadoop_raw_responses"
+RAW_RESPONSES_DDL = (
+    f"CREATE TABLE IF NOT EXISTS {RAW_RESPONSES_TABLE} "
+    "(step VARCHAR, sequence INTEGER, extracted_at TIMESTAMP, body JSON)"
+)
+
 # Session-scoped (TEMP) so they never persist into the profiler extract. Each takes a JSON value.
 HELPER_MACROS: tuple[str, ...] = (
     # The RM's JSON gives a list as an array when it has several items, but as an object when it has one, and as a
@@ -72,6 +82,14 @@ HELPER_MACROS: tuple[str, ...] = (
             WHEN 'OBJECT' THEN [json_extract(doc, path)]
             ELSE CAST([] AS JSON[])
         END)""",
+    # A YARN resource map (resourceSecondsMap, preemptedResourceSecondsMap) as a JSON object {"memory-mb":n,...}. The RM
+    # writes the entries as repeated "entry" keys in one object, which a JSON parser collapses to the last, or as an
+    # array, so the pairs are read from the text. Values may be quoted. NULL when the map is absent.
+    r"""CREATE TEMP MACRO yarn_resource_map(m) AS (
+        CASE WHEN m IS NULL THEN NULL ELSE CAST(to_json(map_from_entries(list_transform(
+            regexp_extract_all(CAST(m AS VARCHAR), '"key"\s*:\s*"[^"]*"\s*,\s*"value"\s*:\s*"?-?[0-9]+"?'),
+            e -> {'k': regexp_extract(e, '"key"\s*:\s*"([^"]*)"', 1),
+                  'v': CAST(regexp_extract(e, '"value"\s*:\s*"?(-?[0-9]+)', 1) AS BIGINT)}))) AS VARCHAR) END)""",
     # A scheduler queue's children: capacity schedulers nest them under queues.queue; fair schedulers under
     # childQueues, which Hadoop 2.8+ wraps as childQueues.queue (FairSchedulerQueueInfoList) and older YARN gives bare.
     """CREATE TEMP MACRO child_queues(node) AS (
@@ -172,7 +190,7 @@ def _extract(
         if isinstance(clients, str):
             return clients, False
         # Each daemon's body is wrapped with the daemon's URL so the step's rows say where they came from, then masked
-        # as a whole, so mask_rules also apply to the coordinator URL.
+        # as a whole, so the masking rules also apply to the coordinator URL.
         bodies = (
             config.mask(_coordinator_envelope(client.base_url, body))
             for client in clients
@@ -217,7 +235,7 @@ def _extract(
             verify=cm.endpoint.verify,
         )
 
-    # Masking runs on the raw responses before parsing, like the original profiler's SEARCH_REPLACE pipe.
+    # Masking runs on the raw responses before parsing, as the original profiler's SEARCH_REPLACE pipe did.
     bodies = (config.mask(body) for body in fetch(client, config, run))
     row_count = _write_table(
         step=step,
@@ -310,14 +328,27 @@ def _write_table(
             conn.execute("CREATE TEMP TABLE raw_documents (doc JSON)")
             conn.execute(f"DROP TABLE IF EXISTS {step}")
             conn.execute(ddl)
+            conn.execute(RAW_RESPONSES_DDL)
+            conn.execute(f"DELETE FROM {RAW_RESPONSES_TABLE} WHERE step = ?", [step])
+            extracted_at = datetime.now(timezone.utc).replace(tzinfo=None)
             if streaming:
-                for body in bodies:
+                for sequence, body in enumerate(bodies, start=1):
                     conn.execute("DELETE FROM raw_documents")
                     conn.execute("INSERT INTO raw_documents VALUES (CAST(? AS JSON))", [body])
+                    conn.execute(
+                        f"INSERT INTO {RAW_RESPONSES_TABLE} SELECT ?, ?, ?, doc FROM raw_documents",
+                        [step, sequence, extracted_at],
+                    )
                     conn.execute(f"INSERT INTO {step} SELECT * FROM ({sql})", bound)
             else:
-                conn.register("_bodies", pd.DataFrame({"doc": list(bodies)}))
-                conn.execute("INSERT INTO raw_documents SELECT CAST(doc AS JSON) FROM _bodies")
+                docs = list(bodies)
+                conn.register("_bodies", pd.DataFrame({"sequence": range(1, len(docs) + 1), "doc": docs}))
+                conn.execute("INSERT INTO raw_documents SELECT CAST(doc AS JSON) FROM _bodies ORDER BY sequence")
+                conn.execute(
+                    f"INSERT INTO {RAW_RESPONSES_TABLE} "
+                    "SELECT ?, CAST(sequence AS INTEGER), ?, CAST(doc AS JSON) FROM _bodies ORDER BY sequence",
+                    [step, extracted_at],
+                )
                 conn.unregister("_bodies")
                 conn.execute(f"INSERT INTO {step} SELECT * FROM ({sql})", bound)
             row_count = conn.execute(f"SELECT COUNT(*) FROM {step}").fetchone()

@@ -38,11 +38,8 @@ from databricks.labs.lakebridge.resources.assessments.hadoop.hadoop_config impor
     HadoopConfigError,
 )
 from databricks.labs.lakebridge.resources.assessments.hadoop.ranger import (
-    list_groups,
     list_policies,
-    list_service_defs,
     list_services,
-    list_users,
 )
 from databricks.labs.lakebridge.resources.assessments.hadoop.rest_client import HadoopHttpError, RestClient
 
@@ -291,21 +288,9 @@ def ranger_services(client: RestClient, _config: HadoopConfig, _run: ExtractRun)
     return [json.dumps(list_services(client))]
 
 
-def ranger_service_defs(client: RestClient, _config: HadoopConfig, _run: ExtractRun) -> list[str]:
-    return [list_service_defs(client)]
-
-
 def ranger_policies(client: RestClient, _config: HadoopConfig, _run: ExtractRun) -> list[str]:
     """Every policy. The policies step and the policy items step each read this same list."""
     return [json.dumps(list_policies(client))]
-
-
-def ranger_users(client: RestClient, _config: HadoopConfig, _run: ExtractRun) -> list[str]:
-    return [json.dumps(list_users(client))]
-
-
-def ranger_groups(client: RestClient, _config: HadoopConfig, _run: ExtractRun) -> list[str]:
-    return [json.dumps(list_groups(client))]
 
 
 def _ambari_cluster(client: RestClient, config: HadoopConfig) -> str:

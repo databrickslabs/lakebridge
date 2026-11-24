@@ -57,6 +57,7 @@ STEP_KINDS: Mapping[str, StepKind] = {
     "yarn_cluster_metrics": _I,
     "yarn_nodes": _I,
     "yarn_scheduler_queues": _I,
+    "yarn_scheduler_queue_partitions": _I,
     # Spark History Server: the windows differ between the initial and incremental runs, so both steps run every time.
     "spark_applications": _E,
     "spark_application_attempts": _E,
@@ -68,13 +69,10 @@ STEP_KINDS: Mapping[str, StepKind] = {
     "cm_hosts": _I,
     "cm_host_config": _I,
     "cm_cluster_export": _I,
-    # Ranger: the policies and the users, groups and service definitions are inventory.
+    # Ranger: the services and policies are inventory.
     "ranger_services": _I,
-    "ranger_service_defs": _I,
     "ranger_policies": _I,
     "ranger_policy_items": _I,
-    "ranger_users": _I,
-    "ranger_groups": _I,
     # Direct Impala: the query log is workload; the daemon, catalogd and statestore configuration is inventory.
     "impala_queries": _E,
     "impala_backends": _I,

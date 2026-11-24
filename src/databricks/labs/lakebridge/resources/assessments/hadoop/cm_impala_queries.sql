@@ -21,4 +21,4 @@ SELECT
     TRY_CAST(q->>'$.attributes.memory_spilled' AS BIGINT) AS memory_spilled_bytes,
     TRY_CAST(q->>'$.attributes.cm_cpu_milliseconds' AS DOUBLE) AS cm_cpu_milliseconds,
     CAST(q->'$.attributes' AS VARCHAR) AS attributes
-FROM raw_documents, UNNEST(hadoop_records(doc, '$.queries')) AS t(q)
+FROM (SELECT unnest(hadoop_records(doc, '$.queries')) AS q FROM raw_documents) AS t

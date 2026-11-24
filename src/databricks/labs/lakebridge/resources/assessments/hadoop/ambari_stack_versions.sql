@@ -8,5 +8,10 @@ SELECT
     s->>'$.state' AS state,
     CAST(s->>'$.supports_revert' AS BOOLEAN) AS supports_revert,
     CAST(s->'$.host_states' AS VARCHAR) AS host_states,
-    CAST(doc->'$.repository_versions' AS VARCHAR) AS repository_versions
-FROM raw_documents, UNNEST(hadoop_records(doc, '$.ClusterStackVersions')) AS t(s)
+    repository_versions,
+    CAST(s->'$.repository_summary' AS VARCHAR) AS repository_summary
+FROM (
+    SELECT CAST(doc->'$.repository_versions' AS VARCHAR) AS repository_versions,
+        unnest(hadoop_records(doc, '$.ClusterStackVersions')) AS s
+    FROM raw_documents
+) AS t

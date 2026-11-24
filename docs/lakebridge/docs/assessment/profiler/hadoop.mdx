@@ -24,7 +24,7 @@ access to the cluster's file system or Hive metastore. It covers:
 - **Spark History Server**: applications and their attempts (optional).
 - **Cloudera Manager** (CDH and CDP clusters, optional): services, hosts, configuration, time-series utilisation, and
   Impala queries (opt-in). See [Cloudera Manager](#cloudera-manager).
-- **Apache Ranger** (optional): services, service definitions, policies, policy items, users and groups. See
+- **Apache Ranger** (optional): services, policies and policy items. See
   [Apache Ranger](#apache-ranger).
 - **Impala, read directly** (optional): the queries each Impala daemon knows about, its backends and configuration, and
   the catalogd tables and statestore subscribers. No Cloudera Manager is needed. See [Impala (direct)](#impala-direct).
@@ -107,7 +107,8 @@ Cloudera Manager user is enough.
 <Admonition type="warning" title="Sensitive text">
 YARN application names and failure diagnostics can contain paths, query text or data values, and user, queue and
 host names appear throughout. Like the original Hadoop profiler, these are stored as the cluster reports them. To
-mask them, add `mask_rules` (see [Mask data](#mask-data)) and inspect the extract before sharing it.
+mask them, answer the masking questions in the configuration (see [Mask data](#mask-data)) and inspect the extract
+before sharing it.
 </Admonition>
 
 ## Configure Connection to Hadoop
@@ -183,9 +184,7 @@ hadoop:
     password: ...
     verify_ssl: true
     cluster: "Sandbox HDP"       # optional; detected when Ambari manages exactly one cluster
-  mask_rules:                    # optional: regex search/replace on every response (the original sed.txt)
-    - pattern: 'internal\.example\.com'
-      replacement: 'masked.example'
+  search_replace_file: ~/.databricks/labs/lakebridge/hadoop-masking-rules.txt   # optional: masking rules, see Mask data
 ```
 
 | Key | Required | Notes |
@@ -223,7 +222,7 @@ hadoop:
 | `ambari.auth` / `username` / `password` | no | As for YARN. Ambari needs `basic` in practice. `kerberos` is not supported. |
 | `ambari.cluster` | no | The cluster name, which may contain spaces. When absent, the profiler uses the cluster if Ambari manages exactly one, and otherwise stops and lists the names. |
 | `ambari.verify_ssl` | no (true) | As for YARN. |
-| `mask_rules` | no | A list of `{pattern, replacement}` regex rules applied, in order, to every REST response before it is stored. Same role as `SEARCH_REPLACE` / `sed.txt` in the original profiler. |
+| `search_replace_file` | no | The path to a masking rules file (`s/<find>/<replace>/g` lines), applied in order to every REST response before anything is stored. It is read on every run. Blank or absent means no masking. The configuration writes it; see [Mask data](#mask-data). |
 
 Other sections in the same file (for example `ambari`) are reserved for later phases and are ignored today.
 
@@ -261,7 +260,7 @@ credentials.
 **Values.** Impala prints durations (for example `1s156ms`), sizes (for example `4.11 MB`) and timestamps as text. The
 profiler converts them to milliseconds, bytes and timestamps. Times are the daemon's local times, without a time zone. An
 unset end time (the in-flight queries) is NULL. `query_json` keeps each record as Impala returned it. Query text is kept as
-Impala returns it, so use `mask_rules` to mask literals or names.
+Impala returns it, so mask literals and names with the masking rules (see [Mask data](#mask-data)).
 
 **Not extracted.** Query profiles (`/query_profile`) are large and are not fetched by default; they are a possible
 future step. The `/metrics`, `/memz` and `/sessions` pages are not extracted either.
@@ -311,7 +310,7 @@ the previous `impala_lookback_days` days (default 1). Each later run reads yeste
 
 The profiler reads the window in slices of `impala_interval_minutes`. Each slice is read in pages of 1,000 queries,
 and the pages stop at the first short page or at `impala_max_pages`. Queries are stored as CM returns them: the
-statement text and user names are not redacted. Use `mask_rules` to mask them.
+statement text and user names are not redacted. Answer the masking questions to redact them.
 
 When Cloudera Manager reports `Impala query scan limit reached` for a slice, the profiler logs a warning. Reduce
 `impala_interval_minutes` and raise `impala_max_pages` to read every query in that slice.
@@ -321,37 +320,29 @@ When Cloudera Manager reports `Impala query scan limit reached` for a slice, the
 The cluster export and the configuration steps store the values that Cloudera Manager returns. The export includes
 database and other `*_password` settings. Cloudera Manager returns those as placeholders such as `<changeme>` or
 omits them, and the profiler keeps what it receives, as the original did. Check the extract before you share it, or
-use `mask_rules` to mask values.
+use the masking rules to mask values.
 
 ## Apache Ranger
 
-The Ranger steps read the Ranger Admin REST API for the services, their definitions, the policies, and the users and
-groups. They run only when `hadoop.ranger` is configured. The original profiler ran them on HDP and CDP clusters, and
+The Ranger steps read the Ranger Admin REST API for the services (repositories) and the policies, the two lists the
+original profiler extracted. They run only when `hadoop.ranger` is configured. The original profiler ran them on HDP and CDP clusters, and
 an HDInsight cluster uses its gateway URL.
 
 | Step | Source | Notes |
 |------|--------|-------|
 | `ranger_services` | `/service/public/v2/api/service` | One row per service (repository). `configs` is kept as Ranger returns it. |
-| `ranger_service_defs` | `/service/public/v2/api/servicedef` | One row per plugin type, with its access types and resource names. |
 | `ranger_policies` | `/service/public/v2/api/policy` | One row per policy. Its type is `access`, `masking` or `row_filter`. |
 | `ranger_policy_items` | `/service/public/v2/api/policy` | One row per item: allow, deny, allow and deny exceptions, data masks and row filters. |
-| `ranger_users` | `/service/xusers/users` | Admin-only. Identity and metadata only. |
-| `ranger_groups` | `/service/xusers/groups` | Admin-only. Identity and metadata only. |
 
 **Why v2 and not the legacy v1 API.** The original profiler reads the v1 API (`/service/public/api/repository` and
 `/service/public/api/policy`). On Ranger 2.x the v1 calls under-report: in a Ranger 2.9.0 test, the v1 policy list
 returned 20 of the 24 policies while its own `totalCount` said 24, and the v1 repository list left out the YARN and tag
 services. This profiler therefore reads the v2 API. It falls back to v1 only when the v2 API returns 404 (very old
-Ranger releases), and then logs a warning that the result may be incomplete. There is no v1 fallback for
-`ranger_service_defs`, so that step fails on a Ranger without the v2 service-definition API.
-
-**Users and groups need an admin account.** The `xusers` endpoints return HTTP 403 to other users. That fails the
-`ranger_users` and `ranger_groups` steps and leaves the other Ranger steps unaffected.
+Ranger releases), and then logs a warning that the result may be incomplete.
 
 **Sensitive values.** Ranger returns the service configurations (`ranger_services.configs`) with passwords masked as
-`*****`, and the profiler stores them as Ranger returns them. The users and groups tables do not read the password,
-e-mail address or name fields. Policy descriptions, resource values and conditions are stored as they are. Check the
-extract before you share it, or use `mask_rules` to mask values.
+`*****`, and the profiler stores them as Ranger returns them. Policy descriptions, resource values and conditions are stored as they are. Check the
+extract before you share it, or use the masking rules to mask values.
 
 ## Ambari
 
@@ -386,7 +377,7 @@ Ambari (for example `dfs.namenode.CapacityTotal`), so each leaf is one row. The 
 component's `metrics` object.
 
 **What is kept.** Nothing is redacted. Host names, disk paths and the blueprint configuration values are stored as Ambari
-returns them. Use `mask_rules` to mask them.
+returns them. Use the masking rules to mask them.
 
 **Differences from the original.** The original saved HTTP error bodies as data and exited 0. Here an HTTP error is an
 error, except the 404 described above. The original requested metrics only for the NameNode and DataNode, and this
@@ -427,7 +418,7 @@ again.
 |------|-------|-------------|-----------------|
 | YARN cluster identity and HA state | `yarn_cluster_info` | Yes | Yes |
 | YARN applications | `yarn_applications` | Every application the ResourceManager lists, with `yarn.app_filter` | Same |
-| YARN metrics, NodeManagers, scheduler queues | `yarn_cluster_metrics`, `yarn_nodes`, `yarn_scheduler_queues` | Yes | No |
+| YARN metrics, NodeManagers, scheduler queues and their partitions | `yarn_cluster_metrics`, `yarn_nodes`, `yarn_scheduler_queues`, `yarn_scheduler_queue_partitions` | Yes | No |
 | Spark History Server applications and attempts | `spark_applications`, `spark_application_attempts` | Started in the last 7 UTC days (`minDate`) | Started since yesterday (`minDate`) |
 | Cloudera Manager version and cluster | `cm_clusters` | Yes | Yes |
 | Cloudera Manager time series | `cm_timeseries` | One month up to today | Same |
@@ -436,7 +427,7 @@ again.
 | Impala daemon query log (direct, opt-in) | `impala_queries` | Yes | Yes |
 | Impala backends, daemon configuration, catalogd, statestore (direct) | `impala_backends`, `impala_daemon_config`, `impala_catalog`, `impala_statestore` | Yes | No |
 | Ambari blueprint, hosts, services, components, stack versions, metrics | `ambari_*` (7 steps) | Yes | No |
-| Ranger services, service definitions, policies, users, groups | `ranger_*` (6 steps) | Yes | No |
+| Ranger services and policies | `ranger_*` (3 steps) | Yes | No |
 
 Each step's status message says what it did. An incremental run reports an inventory step that already succeeded as:
 
@@ -543,34 +534,37 @@ tables, query the initial run's file, which holds the tables that only the initi
 
 The extract is a timestamped DuckDB file in the output folder. Each step's name is its table name.
 
+The typed tables below hold the fields an assessment uses. The original profiler saved every REST response whole, so the
+extract also keeps every response body a step read, after masking, in `hadoop_raw_responses` (`step`, `sequence`,
+`extracted_at`, `body` as JSON). Nothing the original profiler saved is lost: a field without a typed column can be read
+from `body`. Each step replaces its own rows.
+
 | Table | One row per | Notes |
 |-------|-------------|-------|
 | `yarn_cluster_info` | the ResourceManager | Distribution, cluster id, HA state, Hadoop version. |
-| `yarn_cluster_metrics` | snapshot | Cluster-wide application, container, memory, vcore and node counters. |
-| `yarn_nodes` | NodeManager | State, version, containers, memory and vcores. Utilisation fields are NULL where a distribution does not report them. |
-| `yarn_scheduler_queues` | queue | Capacity and fair scheduler trees, flattened with `depth` and `parent_queue_path`. |
-| `yarn_applications` | application | User, queue, type, state, timings, memory and vcore seconds, preemption counts, `name` and `diagnostics`. |
+| `yarn_cluster_metrics` | snapshot | Cluster-wide application, container, memory, vcore and node counters, utilized memory and vcores (and their percentages), scheduler busy percent, and the totals across node label partitions. |
+| `yarn_nodes` | NodeManager | Host name, HTTP address, state, version, health report, containers, allocated memory and vcores, node labels, and the utilization the NodeManager measures (`node_physical_memory_mb`, `node_cpu_usage`, `containers_physical_memory_mb`, `containers_cpu_usage`, ...). Utilization fields are NULL where a distribution does not report them. |
+| `yarn_scheduler_queues` | queue | Capacity and fair scheduler trees, flattened with `depth` and `parent_queue_path`: capacities, used and absolute used capacity, applications and containers, application and user limits, effective and AM resources, fair, steady fair, minimum and maximum shares (fair scheduler), and per-user usage (`queue_users`, JSON text). |
+| `yarn_scheduler_queue_partitions` | queue and node label partition | Capacity scheduler only: configured, effective, used, reserved, pending and AM capacity and resources of each partition. The default partition has an empty name. |
+| `yarn_applications` | application | User, queue, type, state, timings, memory and vcore seconds, `resource_seconds` per resource type (JSON text: `memory-mb`, `vcores`, GPUs), preempted resource seconds, preemption counts, reserved resources, AM host, tags and node labels, `name` and `diagnostics`. |
 | `spark_applications` | Spark application (optional) | Attempt count, Spark user and version, first start, last end, completed, `name`. |
 | `spark_application_attempts` | Spark application attempt (optional) | Attempt start, end, last update, duration, Spark user and version. |
 | `cm_clusters` | cluster (optional, Cloudera Manager) | Name, display name, full version, API version, CM version, and whether it is the configured cluster. |
-| `cm_services` | service (optional, Cloudera Manager) | Type, state, health summary, maintenance mode, and health checks as JSON text. |
-| `cm_hosts` | host (optional, Cloudera Manager) | Hostname, IP address, rack, commission state, cores and memory. |
+| `cm_services` | service (optional, Cloudera Manager) | Type, version, state, health summary, maintenance mode, and health checks as JSON text. |
+| `cm_hosts` | host (optional, Cloudera Manager) | Hostname, IP address, rack, cluster, commission state, cores and memory, operating system, and tags as JSON text. |
 | `cm_host_config` | configuration item (optional, Cloudera Manager) | Name, value and sensitive flag of the host configuration. |
 | `cm_cluster_export` | export row (optional, Cloudera Manager) | Section (`service_config`, `role_config` or `role`), service, role config group, role type, and config name and value. |
-| `cm_timeseries` | sample (optional, Cloudera Manager) | Query name, status (`returned` or `unsupported_by_cm`), metric, entity, cluster, entity attributes as JSON text, time, value, rollup and unit. |
+| `cm_timeseries` | sample (optional, Cloudera Manager) | Query name, status (`returned` or `unsupported_by_cm`), metric, entity, cluster, entity attributes as JSON text, time, value, rollup and unit, and for an hourly rollup point its aggregate statistics (count, min, max, mean, standard deviation, the times of the min and max, and the entities with the lowest and highest value across entities). |
 | `cm_impala_queries` | Impala query (optional, opt-in) | Typed core fields, a few typed attributes (pool, status, admission result, OOM, memory, HDFS bytes, CPU), and all attributes as JSON text. |
 | `ranger_services` | service (optional, Ranger) | Name, type, enabled flag, tag service, policy and tag versions, timestamps, and configs as JSON text. |
-| `ranger_service_defs` | plugin type (optional, Ranger) | Name, label, implementation class, access type count, and access types, resource names and options as JSON text. |
 | `ranger_policies` | policy (optional, Ranger) | Service, name, `policy_type` (`access`, `masking` or `row_filter`), priority, enabled and audit flags, and resources, conditions and validity schedules as JSON text. |
 | `ranger_policy_items` | policy item (optional, Ranger) | Policy id, service, policy name, `item_kind`, users, groups, roles, accesses and conditions as JSON text, delegate admin, and the mask type or row filter expression. |
-| `ranger_users` | user (optional, Ranger) | Name, status, visibility, user source, group and role names, and timestamps. |
-| `ranger_groups` | group (optional, Ranger) | Name, group type and source, visibility, and timestamps. |
 | `ambari_blueprint` | host group component (optional, Ambari) | Stack name and version, host group, cardinality, and component name. |
 | `ambari_blueprint_configurations` | blueprint property (optional, Ambari) | Configuration type, property name and value. |
 | `ambari_hosts` | host (optional, Ambari) | Cluster, host name, CPU count, `total_mem`, OS type, summed disk size and available space, and `disk_info` as JSON text. |
 | `ambari_services` | service (optional, Ambari) | Cluster name and service name. |
 | `ambari_host_components` | host component (optional, Ambari) | Cluster, host name and component name. |
-| `ambari_stack_versions` | stack version (optional, Ambari) | Cluster, stack, version, repository version, state, `host_states` and `repository_versions` as JSON text. |
+| `ambari_stack_versions` | stack version (optional, Ambari) | Cluster, stack, version, repository version, state, `host_states`, `repository_versions` and `repository_summary` as JSON text. |
 | `ambari_component_metrics` | component metric (optional, Ambari) | Service and component, category, state, desired stack and version, component counts, and one metric path and value (NULL without Ambari Metrics). |
 | `impala_queries` | query per daemon (optional, Impala) | Query id, the coordinator URL and host, `is_in_flight`, statement, statement type, user, default database, state, start and end time, duration, queued and waiting time (milliseconds), memory use and estimate, rows fetched, bytes read and sent (bytes), resource pool, progress, and the raw record as JSON text. |
 | `impala_backends` | backend per daemon (optional, Impala) | Address, backend id, coordinator and executor flags, admission memory and slots, executor group, start time, and version. |
@@ -589,22 +583,60 @@ run the profiler before a planned restart and often enough to stay inside the re
 
 ## Mask data
 
-Like the original profiler's `sed.txt`, `mask_rules` rewrites each REST response before it is stored. Rules are
-Python regular expressions applied in order. Keep obfuscated host names and addresses unique (for example, replace
-a domain suffix or a leading part of an address), so the analysis can still tell hosts apart:
+Masking rewrites every REST response before anything is parsed or written to the DuckDB extract, so masked values never
+reach the extract file. The configuration asks whether to mask the extract, and walks through the rules:
 
-```yaml
-hadoop:
-  mask_rules:
-    - pattern: '\.corp\.example\.com'
-      replacement: '.masked'
-    - pattern: '"(user|sparkUser)"\s*:\s*"[^"]*"'
-      replacement: '"\1":"redacted"'
+1. **Mask data in the extract?** No saves nothing and masks nothing.
+2. **Use an existing masking rules file?** Yes asks for its path. The file is checked, and its path is saved.
+3. **Domain(s) to mask in host names.** Each domain gets a number, and its host names keep their first label, so
+   `rm1.corp.example.com` becomes `rm1.masked-1` and hosts stay unique. A domain is matched as a whole name, so
+   `corp.example.community` is not changed.
+4. **Mask IP addresses.** The first two numbers become `x.x`, so `10.20.3.7` becomes `x.x.3.7`. Only four dotted numbers
+   count as an address, so version strings such as `3.3.4.5.1.8.42`, `2.6.0-cdh5.7.0` and `2.6.1.0-129` are kept. A
+   four-number version such as `"2.5.0.0"` is kept under a key whose name contains `version`; anywhere else it has the
+   shape of an address and is masked as one. Addresses that differ only in their first two numbers look the same after
+   masking.
+5. **Redact user names.** The value of each user key becomes `redacted`: `user`, `sparkUser`, `effective_user`,
+   `connected_user`, `delegated_user`, `original_user`, `username`, `userName`, `owner`, `createdBy` and `updatedBy`.
+   So do the user lists of Ranger policies (`users`, and `userList` in the legacy API), the users in a Ranger service's
+   audit filters, the user keys inside a legacy Ranger service `config`. Group names are kept. Per-user workload analysis will not be possible.
+6. **Redact query text and job names.** Impala statements, YARN diagnostics and application names become `redacted`.
+   Workload classification will be weaker.
+
+The answers are saved to `~/.databricks/labs/lakebridge/hadoop-masking-rules.txt`, readable only by its owner. If that
+file exists, the configuration asks before it overwrites it. Edit the file to add or change rules: the profiler reads it
+on every run, so an edit applies to the next run.
+
+### The rules file
+
+The file holds one rule per line, in the same `s/<text to find>/<replacement>/g` form as the original profiler's
+`sed.txt`. Rules run in file order. A blank line or a line that starts with `#` is ignored. A file written for the
+original profiler's `SEARCH_REPLACE` works unchanged: the profiler reads the same syntax, and its commented-out example
+lines stay off until you remove the `#`.
+
+- **Delimiter.** Any punctuation character can separate the parts, as in `s|a|b|g`. A `\` before the delimiter makes it
+  a literal character.
+- **Text to find.** A POSIX basic regular expression, as sed reads it: `.`, `*`, `^`, `$`, `[...]` and `\1` to `\9` work
+  as in sed. `\(`, `\)`, `\{m,n\}`, `\|`, `\+` and `\?` are operators, while bare `( ) { } | + ?` are literal text.
+  `\w`, `\s`, `\b`, `\<`, `\>` and `\n` also work. A delimiter inside a bracket expression is literal.
+- **Replacement.** `&` is the whole match, `\1` to `\9` are groups, `\&` is a literal `&`, and `\n` is a new line.
+- **Flags.** `g` changes every match in a response. Without `g`, only the first match in each response changes. `I`
+  ignores case. Any other flag is an error.
+- **Whole responses.** A rule matches the whole response, not each line, so `^` and `$` mark the start and end of the
+  response. The Spark History Server writes pretty-printed JSON, so use `g` for rules that must reach every value.
+
+Syntax errors stop the run, and the message names the file, the line and the expected form, for example
+`line 3: ... each line must look like s/<text to find>/<replacement>/g`.
+
+A rule that keeps JSON valid matches values, not structure. This one tolerates the spacing that YARN (`"user":"etl"`)
+and the Spark History Server (`"sparkUser" : "etl"`) write:
+
+```text
+s/"\(user\|sparkUser\)"[[:space:]]*:[[:space:]]*"[^"]*"/"\1":"redacted"/g
 ```
 
-Services format their JSON differently: YARN writes `"user":"etl"` while the Spark History Server writes
-`"sparkUser" : "etl"`, so allow optional spaces around the colon (`\s*:\s*`). A rule that breaks the JSON structure
-makes the step fail with an error, so match values rather than syntax.
+The commented-out examples in the original `sed.txt` match only the spaced form that Cloudera Manager writes, so they
+do not reach YARN's compact JSON. The rules that the guided questions write cover both shapes.
 
 ## Limitations
 

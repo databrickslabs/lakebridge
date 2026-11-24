@@ -7,5 +7,6 @@ CREATE TABLE ambari_stack_versions (
     state VARCHAR,
     supports_revert BOOLEAN,
     host_states VARCHAR,
-    repository_versions VARCHAR
+    repository_versions VARCHAR,
+    repository_summary VARCHAR
 )

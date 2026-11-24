@@ -7,5 +7,9 @@ CREATE TABLE cm_hosts (
     maintenance_mode BOOLEAN,
     num_cores BIGINT,
     num_physical_cores BIGINT,
-    total_memory_bytes BIGINT
+    total_memory_bytes BIGINT,
+    cluster_name VARCHAR,
+    os_name VARCHAR,
+    os_version VARCHAR,
+    tags VARCHAR
 )

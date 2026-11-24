@@ -26,6 +26,7 @@ _NON_STEP_MODULES = {
     "endpoints",
     "extract",
     "hadoop_config",
+    "masking",
     "ranger",
     "rest_client",
 }
@@ -43,11 +44,8 @@ _CM_STEPS = {
 }
 _RANGER_STEPS = {
     "ranger_services",
-    "ranger_service_defs",
     "ranger_policies",
     "ranger_policy_items",
-    "ranger_users",
-    "ranger_groups",
 }
 _AMBARI_STEPS = {
     "ambari_blueprint",
@@ -136,6 +134,6 @@ def test_pipeline_config_labels_and_optional_steps() -> None:
 
 @pytest.mark.parametrize("step", ["yarn_applications", "spark_applications"])
 def test_application_tables_keep_free_text_like_the_original_profiler(step: str) -> None:
-    """The original profiler redacts nothing by default; masking is opt-in through hadoop.mask_rules."""
+    """The original profiler redacts nothing by default; masking is opt-in through hadoop.search_replace_file."""
     code = "\n".join(line for line in _query(step).splitlines() if not line.lstrip().startswith("--"))
     assert "[REDACTED]" not in code

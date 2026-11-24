@@ -1,12 +1,12 @@
 -- One row per YARN application.
 -- Like the original Hadoop profiler, the application name and diagnostics are kept as the ResourceManager reports
--- them (empty becomes NULL). Mask them with hadoop.mask_rules if needed.
+-- them (empty becomes NULL). Mask them with hadoop.search_replace_file if needed.
 -- The RM reports -1 for allocation fields that do not apply; those become NULL.
 -- The RM can report one application in both the finished and the unfinished response, so keep one row per id,
 -- preferring the one that has finished.
 WITH apps AS (
     SELECT t.a AS a
-    FROM raw_documents, UNNEST(hadoop_records(doc, '$.apps.app')) AS t(a)
+    FROM (SELECT unnest(hadoop_records(doc, '$.apps.app')) AS a FROM raw_documents) AS t
 ),
 latest AS (
     SELECT a, ROW_NUMBER() OVER (
@@ -42,6 +42,18 @@ SELECT
     CAST(a->>'$.clusterUsagePercentage' AS DOUBLE) AS cluster_usage_percentage,
     a->>'$.logAggregationStatus' AS log_aggregation_status,
     CAST(a->>'$.unmanagedApplication' AS BOOLEAN) AS unmanaged_application,
-    CAST(a->>'$.priority' AS BIGINT) AS priority
+    CAST(a->>'$.priority' AS BIGINT) AS priority,
+    -- Resource-seconds per resource type (memory-mb, vcores, GPUs and other custom resources).
+    yarn_resource_map(a->'$.resourceSecondsMap') AS resource_seconds,
+    yarn_resource_map(a->'$.preemptedResourceSecondsMap') AS preempted_resource_seconds,
+    CAST(a->>'$.preemptedMemorySeconds' AS BIGINT) AS preempted_memory_seconds,
+    CAST(a->>'$.preemptedVcoreSeconds' AS BIGINT) AS preempted_vcore_seconds,
+    NULLIF(CAST(a->>'$.reservedMB' AS BIGINT), -1) AS reserved_mb,
+    NULLIF(CAST(a->>'$.reservedVCores' AS BIGINT), -1) AS reserved_vcores,
+    NULLIF(a->>'$.amHostHttpAddress', '') AS am_host_http_address,
+    NULLIF(a->>'$.applicationTags', '') AS application_tags,
+    NULLIF(a->>'$.amNodeLabelExpression', '') AS am_node_label_expression,
+    NULLIF(a->>'$.appNodeLabelExpression', '') AS app_node_label_expression,
+    a->>'$.clusterId' AS cluster_id
 FROM latest
 WHERE rn = 1

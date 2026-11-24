@@ -10,5 +10,16 @@ CREATE TABLE yarn_nodes (
     available_virtual_cores BIGINT,
     mem_utilization DOUBLE,
     cpu_utilization DOUBLE,
-    last_health_update TIMESTAMP
+    last_health_update TIMESTAMP,
+    node_host_name VARCHAR,
+    node_http_address VARCHAR,
+    health_report VARCHAR,
+    num_queued_containers BIGINT,
+    node_labels VARCHAR,
+    node_physical_memory_mb BIGINT,
+    node_virtual_memory_mb BIGINT,
+    node_cpu_usage DOUBLE,
+    containers_physical_memory_mb BIGINT,
+    containers_virtual_memory_mb BIGINT,
+    containers_cpu_usage DOUBLE
 )

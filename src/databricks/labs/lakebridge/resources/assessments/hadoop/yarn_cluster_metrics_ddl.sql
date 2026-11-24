@@ -23,5 +23,19 @@ CREATE TABLE yarn_cluster_metrics (
     decommissioning_nodes BIGINT,
     decommissioned_nodes BIGINT,
     rebooted_nodes BIGINT,
-    shutdown_nodes BIGINT
+    shutdown_nodes BIGINT,
+    reserved_virtual_cores BIGINT,
+    containers_reserved BIGINT,
+    utilized_mb BIGINT,
+    utilized_virtual_cores BIGINT,
+    utilized_mb_percent DOUBLE,
+    utilized_virtual_cores_percent DOUBLE,
+    rm_scheduler_busy_percent DOUBLE,
+    total_memory_mb_across_partitions BIGINT,
+    total_vcores_across_partitions BIGINT,
+    used_memory_mb_across_partitions BIGINT,
+    used_vcores_across_partitions BIGINT,
+    reserved_memory_mb_across_partitions BIGINT,
+    reserved_vcores_across_partitions BIGINT,
+    allocated_containers_across_partitions BIGINT
 )

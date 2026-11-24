@@ -161,12 +161,12 @@ def test_a_completed_initial_extract_makes_the_later_runs_incremental(tmp_path: 
 
 
 def test_recording_an_inventory_step_is_written_once_and_sorted(tmp_path: Path) -> None:
-    db = _db(tmp_path, "run_a.db")
-    run = resolve_run(db)
+    run_db = _db(tmp_path, "run_a.run_db")
+    run = resolve_run(run_db)
 
-    record_inventory_step(db, run, "ambari_hosts")
-    record_inventory_step(db, run, "ambari_blueprint")
-    record_inventory_step(db, run, "ambari_hosts")
+    record_inventory_step(run_db, run, "ambari_hosts")
+    record_inventory_step(run_db, run, "ambari_blueprint")
+    record_inventory_step(run_db, run, "ambari_hosts")
 
     assert _tracker(tmp_path)["completed_inventory_steps"] == ["ambari_blueprint", "ambari_hosts"]
 
