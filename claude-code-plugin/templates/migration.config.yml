@@ -65,7 +65,9 @@ rules:
   allow_legacy_data_copy: false
   # git workflow for agent commits:
   #   direct - commit to the current branch (typical inside a Ralph loop on a feature branch)
-  #   pr     - commit to the current branch and open a pull request when an object reaches PASS
+  #   pr     - commit to the current branch and open a pull request when an object reaches PASS.
+  #            For single-object runs only: Ralph loops put every object on one branch, so they
+  #            always behave as `direct`.
   git_workflow: direct
   # Max review->fix rounds inside one migrate-object run before it returns FAIL
   max_fix_attempts: 3

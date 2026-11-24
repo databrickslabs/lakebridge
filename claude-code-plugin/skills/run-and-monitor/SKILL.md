@@ -17,7 +17,9 @@ apply a fix plan from an earlier failed run first. Optional `--max-iterations <n
   or stop and ask.
 - Check each task's notebook/file path is the git-backed deploy path (see `databricks.deploy_method`).
   A task pointing at a stale copy explains "fixed but still failing".
-- `git status` is clean and the deployed commit matches `HEAD`. If not, deploy first.
+- `git status` is clean and the workspace runs `HEAD`. With `git-folder`, compare `head_commit_id`
+  from `databricks repos get <repo_id> --profile <p>` with `git rev-parse HEAD`. With `bundle` or
+  `workspace-import`, just redeploy; both are safe to repeat.
 
 ## 2. Run
 

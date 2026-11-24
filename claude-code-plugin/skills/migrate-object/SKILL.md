@@ -19,9 +19,12 @@ reviewer judge the builder's output independently.
 2. Find the object's source file in `source.objects_dir`. If missing, stop.
 3. Create a session file `<paths.sessions>/<object-kebab>.json`:
    ```json
-   {"object": "...", "attempt": 1, "phases": {}, "status": "IN_PROGRESS"}
+   {"object": "...", "attempt": 1, "phases": {}, "history": [], "status": "IN_PROGRESS"}
    ```
-   If one exists with status `IN_PROGRESS`, resume from its last completed phase.
+   If one exists with status `IN_PROGRESS`, resume from its last completed phase. If one exists
+   with status `FAIL` or `BLOCKED` (a retry), keep the file: append the previous `phases` and
+   `status` to `history`, increment `attempt`, clear `phases`, set `IN_PROGRESS`, and start at
+   Phase 1, passing the last review report to the planner as the previous review.
 
 ## Phase 1 — Plan
 
@@ -56,7 +59,8 @@ Update the session file (`PASS`, `FAIL` or `BLOCKED`), and if a queue file exist
 object's row: status and a one-line note (verdict, or the blocker). Commit the queue, plan,
 reports and session file together. With `rules.git_workflow: pr`, open a pull request for the
 object's commits when the status is `PASS`; with `direct`, the commits on the current branch are
-the result.
+the result. Inside a Ralph loop always behave as `direct`: every object goes on the loop's branch,
+so a per-object pull request would also carry the earlier objects' commits.
 
 ## Report
 

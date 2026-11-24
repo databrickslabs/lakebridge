@@ -1,6 +1,6 @@
 # Lakebridge plugin for Claude Code
 
-Agentic migration workflows for [Claude Code](https://docs.claude.com/en/docs/claude-code) on top of
+Agentic migration workflows for [Claude Code](https://code.claude.com/docs) on top of
 Lakebridge. The plugin is prompts only: no Python, no extra dependencies. It drives the
 `databricks labs lakebridge` and `databricks` CLIs you already use.
 
@@ -13,11 +13,11 @@ Full guide: [Agentic Migration with Claude Code](https://databrickslabs.github.i
 /plugin install lakebridge@lakebridge
 ```
 
-For the Ralph loops, also install Anthropic's `ralph-wiggum` plugin:
+For the Ralph loops, also install Anthropic's `ralph-loop` plugin:
 
 ```
 /plugin marketplace add anthropics/claude-code
-/plugin install ralph-wiggum@claude-code-plugins
+/plugin install ralph-loop@claude-code-plugins
 ```
 
 ## Contents
@@ -32,7 +32,7 @@ For the Ralph loops, also install Anthropic's `ralph-wiggum` plugin:
 | Expert | `/lakebridge:expert-tsql-to-spark` | T-SQL type, function and procedural-pattern conversions |
 | Subagent | `migration-planner` | Reads the source object, runs transpile, writes a conversion plan |
 | Subagent | `migration-builder` | Implements, deploys, runs and validates the plan |
-| Subagent | `migration-reviewer` | Read-only review with risk tiers and a PASS/FAIL verdict |
+| Subagent | `migration-reviewer` | Review with risk tiers and a PASS/FAIL verdict; writes only its report |
 | Subagent | `migration-fixer` | Fixes BLOCKER and HIGH issues, revalidates |
 | Skill | `migrate-object` | Orchestrates plan → build → review → fix for one object |
 | Skill | `parity-fix` | Schema first, then per-layer counts, then key-level diffs, then the fix |

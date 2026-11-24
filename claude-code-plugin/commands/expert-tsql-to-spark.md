@@ -34,11 +34,11 @@ source first; the source is the blueprint.
 | `GETUTCDATE()` | `current_timestamp()` (session TZ = UTC) |
 | `ISNULL(a,b)` | `coalesce(a,b)` |
 | `DATEADD(part,n,d)` | `dateadd(part,n,d)` / `timestampadd` |
-| `DATEDIFF(part,a,b)` | `date_diff(part,a,b)` / `timestampdiff(part,a,b)` — T-SQL counts boundaries crossed, Databricks counts whole units, so `DATEDIFF(day, '23:59', '00:01')` differs |
+| `DATEDIFF(part,a,b)` | `date_diff(part,a,b)` / `timestampdiff(part,a,b)` — T-SQL counts boundaries crossed, Databricks counts whole units: `DATEDIFF(day, '2024-01-01 23:59', '2024-01-02 00:01')` is 1 in T-SQL, 0 with `timestampdiff(DAY, ...)` |
 | `CONVERT(type, x, style)` | `cast` + `date_format`/`to_timestamp` with explicit pattern |
 | `LEN(s)` | `length(rtrim(s))` (T-SQL `LEN` ignores trailing spaces) |
 | `CHARINDEX(a,s)` | `instr(s,a)` or `locate(a,s)` |
-| `STRING_AGG(x, ',')` | `array_join(collect_list(x), ',')` (order not guaranteed without `array_sort`) |
+| `STRING_AGG(x, ',')` | `string_agg(x, ',')` / `listagg` on recent runtimes, with `WITHIN GROUP (ORDER BY ...)` for ordered output; on older runtimes `array_join(collect_list(x), ',')` (order not guaranteed) |
 | `IIF(c,a,b)` | `if(c,a,b)` |
 | `TOP n` | `LIMIT n` |
 | `NEWID()` | `uuid()` |

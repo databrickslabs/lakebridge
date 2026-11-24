@@ -8,7 +8,7 @@ title: Agentic Migration with Claude Code
 Lakebridge's transpilers convert most SQL deterministically. Procedural code — stored procedures
 with cursors, temp tables, multi-step `MERGE` logic or dynamic SQL — usually needs a person to finish
 the conversion, validate it against the legacy system and fix differences. The Lakebridge plugin
-for [Claude Code](https://docs.claude.com/en/docs/claude-code) automates that loop with AI agents
+for [Claude Code](https://code.claude.com/docs) automates that loop with AI agents
 that use the Lakebridge and Databricks CLIs.
 
 The plugin is made of prompts only. It adds no dependencies to Lakebridge and runs entirely on your
@@ -70,7 +70,7 @@ skill runs four subagents in turn:
    and writes a plan.
 2. **Builder** implements the plan, deploys it, runs it on Databricks and records validation
    evidence.
-3. **Reviewer** compares the legacy contract with the new code line by line, read-only, and writes
+3. **Reviewer** compares the legacy contract with the new code line by line, without changing it, and writes
    a report with BLOCKER / HIGH / MEDIUM / LOW issues and a PASS/FAIL verdict.
 4. **Fixer** runs only on FAIL. It fixes BLOCKER and HIGH issues and revalidates; then a fresh
    reviewer checks again, up to a configured number of attempts.
@@ -99,10 +99,17 @@ only infrastructure problems remain. Those go back to you.
 
 ## Ralph loops
 
-A [Ralph loop](https://github.com/anthropics/claude-code/tree/main/plugins/ralph-wiggum) feeds Claude
+A [Ralph loop](https://github.com/anthropics/claude-plugins-official/tree/main/plugins/ralph-loop) feeds Claude
 the same prompt repeatedly until it outputs a completion promise. Claude's memory between iterations
 is the files it committed, not the conversation, so long migrations survive context limits and
-restarts. Install Anthropic's `ralph-wiggum` plugin, then:
+restarts. Install Anthropic's `ralph-loop` plugin, then:
+
+```
+/plugin marketplace add anthropics/claude-code
+/plugin install ralph-loop@claude-code-plugins
+```
+
+Loops commit every object to the current branch, so they always use `rules.git_workflow: direct`.
 
 | Loop | What one iteration does | Ends when |
 |---|---|---|
@@ -116,7 +123,8 @@ restarts. Install Anthropic's `ralph-wiggum` plugin, then:
 
 `/lakebridge:ralph` prepares each loop and gives you the exact command. `/cancel-ralph` stops a loop.
 Every iteration commits, so `git log` is the progress report, and a loop restarted later picks up
-where it stopped.
+where it stopped. A loop that stops early on an infrastructure error also outputs its completion
+promise; check `migration/ralph/STOPPED.md` or the stabilize log before treating the work as done.
 
 ## Expert commands
 
@@ -131,5 +139,6 @@ where it stopped.
 - The agents use your CLI credentials and can write to your workspace. Use a development catalog and
   a branch, and review commits before merging.
 - Keep secrets out of `migration.config.yml`. Reference CLI profiles and secret scopes by name.
-- The reviewer is read-only. The builder, fixer and job skill run jobs and write tables. Loops commit
+- The reviewer is instructed to change nothing but its report, but like every agent it has shell access
+  and is not sandboxed. The builder, fixer and job skill run jobs and write tables. Loops commit
   to the current branch.

@@ -5,12 +5,12 @@ argument-hint: "[migrate-queue|parity-sweep|stabilize-job]"
 
 # Start a Lakebridge Ralph loop
 
-Ralph loops need the `ralph-wiggum` plugin from the official Claude Code marketplace, which
+Ralph loops need Anthropic's `ralph-loop` plugin (listed in the `claude-code-plugins` marketplace), which
 provides `/ralph-loop` and `/cancel-ralph`. If `/ralph-loop` isn't available, tell the user to run:
 
 ```
 /plugin marketplace add anthropics/claude-code
-/plugin install ralph-wiggum@claude-code-plugins
+/plugin install ralph-loop@claude-code-plugins
 ```
 
 Loops available (prompt files are copied into `migration/ralph/` by `/lakebridge:init`):
@@ -24,9 +24,10 @@ Loops available (prompt files are copied into `migration/ralph/` by `/lakebridge
 For the loop in `$ARGUMENTS` (or ask which one):
 
 1. Check the prompt file exists; if not, suggest `/lakebridge:init`.
-2. For `stabilize-job`, ask which job and replace `<JOB>` in the prompt file.
+2. For `stabilize-job`, ask which job, replace `<JOB>` in the prompt file and commit that change,
+   so the working tree is clean for the next step.
 3. Check preconditions: `/lakebridge:prime` passes, the git working tree is clean, the user is on a
-   branch they're happy for the loop to commit to, and `.claude/ralph-loop.local.md` is git-ignored
+   branch they're happy for the loop to commit to, `rules.git_workflow` is `direct`, and `.claude/ralph-loop.local.md` is git-ignored
    (the loop's state file must not be committed).
 4. Give the user the exact command to run, for example:
 
@@ -36,3 +37,8 @@ For the loop in `$ARGUMENTS` (or ask which one):
 
 Don't start the loop yourself. Remind the user that `/cancel-ralph` stops it, and that the loop commits
 after every iteration, so `git log` shows its progress.
+
+The completion promise is an exact string, so a loop that stops early also outputs it: `migrate-queue`
+when it hits an infrastructure error or nothing is runnable, `stabilize-job` when only infra errors
+remain. After a loop exits, check `migration/ralph/STOPPED.md` (migrate-queue) or the top of
+`migration/ralph/stabilize-log.md` (stabilize-job) before treating the work as done.
