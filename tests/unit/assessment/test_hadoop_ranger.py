@@ -289,6 +289,22 @@ def test_v2_paging_stops_when_the_server_ignores_the_start_index() -> None:
     assert len(fake.requests) == 2  # the second page adds nothing, so the read ends
 
 
+def test_v2_services_are_paged_like_policies() -> None:
+    """Ranger caps list pages (ranger.db.maxrows.default); services must be read past the first page."""
+    services = [{"id": i, "name": f"svc{i}", "type": "hdfs"} for i in range(1, 8)]
+
+    def capped(path: str, params: dict) -> str:
+        if path != ranger.V2_SERVICE_PATH:
+            raise AssertionError(path)
+        start = int(params["startIndex"])
+        return json.dumps(services[start : start + 3])
+
+    client, fake = _client(capped)
+
+    assert [row["id"] for row in ranger.list_services(client)] == list(range(1, 8))
+    assert len(fake.requests) > 1
+
+
 def test_xusers_paging_follows_total_count() -> None:
     users = _fixture_json("ranger_xusers_users.json")["vXUsers"]
 

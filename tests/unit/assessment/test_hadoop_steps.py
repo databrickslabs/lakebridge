@@ -5,7 +5,7 @@ from collections.abc import Iterator
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from types import SimpleNamespace
-from urllib.parse import parse_qs, urlsplit
+from urllib.parse import parse_qs, parse_qsl, urlsplit
 
 import duckdb
 import pytest
@@ -115,6 +115,56 @@ def test_scheduler_fair_tree_is_read_from_child_queues(tmp_path: Path) -> None:
         ("root.default", "root", "fairSchedulerLeafQueueInfo"),
         ("root.root", "root", "fairSchedulerLeafQueueInfo"),
     ]
+
+
+def test_scheduler_fair_tree_reads_hadoop3_wrapped_child_queues(tmp_path: Path) -> None:
+    """Hadoop 2.8+ (CDH 6, CDP) wraps fair-scheduler children as childQueues: {"queue": [...]}."""
+    leaf = "fairSchedulerLeafQueueInfo"
+    doc = {
+        "scheduler": {
+            "schedulerInfo": {
+                "type": "fairScheduler",
+                "rootQueue": {
+                    "queueName": "root",
+                    "childQueues": {
+                        "queue": [
+                            {"queueName": "root.default", "type": leaf},
+                            {
+                                "queueName": "root.etl",
+                                "childQueues": {"queue": [{"queueName": "root.etl.daily", "type": leaf}]},
+                            },
+                        ]
+                    },
+                },
+            }
+        }
+    }
+    with _load("yarn_scheduler_queues", [json.dumps(doc)], tmp_path) as conn:
+        rows = _rows(conn, "SELECT queue_path, parent_queue_path, depth FROM yarn_scheduler_queues ORDER BY queue_path")
+
+    assert rows == [
+        ("root", None, 0),
+        ("root.default", "root", 1),
+        ("root.etl", "root", 1),
+        ("root.etl.daily", "root.etl", 2),
+    ]
+
+
+def test_scheduler_capacity_root_without_queue_path_uses_its_queue_name(tmp_path: Path) -> None:
+    """Older capacity schedulers (Hadoop 2.x / 3.1) name the root only by queueName."""
+    doc = {
+        "scheduler": {
+            "schedulerInfo": {
+                "type": "capacityScheduler",
+                "queueName": "root",
+                "queues": {"queue": [{"queueName": "default", "queuePath": "root.default", "capacity": 100.0}]},
+            }
+        }
+    }
+    with _load("yarn_scheduler_queues", [json.dumps(doc)], tmp_path) as conn:
+        rows = _rows(conn, "SELECT queue_path, parent_queue_path, depth FROM yarn_scheduler_queues ORDER BY depth")
+
+    assert rows == [("root", None, 0), ("root.default", "root", 1)]
 
 
 def test_yarn_applications_vanilla_is_typed_and_keeps_free_text(tmp_path: Path) -> None:
@@ -334,6 +384,25 @@ def test_yarn_applications_adds_the_app_filter_to_both_requests() -> None:
     assert len(calls) == 2
     assert all(call["user"] == "etl" and call["queue"] == "root.prod" for call in calls)
     assert "finishedTimeBegin" in calls[0] and "states" in calls[1]
+
+
+@pytest.mark.parametrize("app_filter", ["states=FINISHED,FAILED", "finishedTimeBegin=1700000000000&user=etl"])
+def test_yarn_applications_filter_with_its_own_window_is_sent_alone(app_filter: str) -> None:
+    """Like the original's single apps${RM_APP_FILTER} request: the user's window replaces the profiler's."""
+    calls: list[dict] = []
+
+    class _RecordingClient:
+        def get_text(self, _path: str, params: dict) -> str:
+            calls.append(dict(params))
+            return '{"apps": null}'
+
+    config = parse_hadoop_config(
+        {"distribution": "oth", "yarn": {"urls": ["http://rm:8088"], "app_filter": app_filter}}
+    )
+
+    yarn_applications(_RecordingClient(), config)  # type: ignore[arg-type]  # a recording stand-in for RestClient
+
+    assert calls == [dict(parse_qsl(app_filter))]
 
 
 def test_run_step_requires_yarn_for_the_yarn_steps(tmp_path: Path) -> None:

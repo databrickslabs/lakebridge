@@ -45,14 +45,13 @@ PageFetch = Callable[[int], tuple[list[Any], int | None]]
 def list_services(client: RestClient) -> list[dict[str, Any]]:
     """Every Ranger service (repository), in the v2 shape. Falls back to v1 when v2 is not there."""
     try:
-        rows = client.get_json(V2_SERVICE_PATH)
+        return _page_through(_list_page(client, V2_SERVICE_PATH))
     except HadoopHttpError as e:
         if e.status_code != _NOT_FOUND:
             raise
         logger.warning(_V1_WARNING % "service")
         repositories = _page_through(_wrapped_page(client, V1_REPOSITORY_PATH, "vXRepositories"))
         return [_repository_as_service(repository) for repository in repositories]
-    return [row for row in rows if isinstance(row, dict)] if isinstance(rows, list) else []
 
 
 def list_service_defs(client: RestClient) -> str:

@@ -61,10 +61,12 @@ HELPER_MACROS: tuple[str, ...] = (
             WHEN 'OBJECT' THEN [json_extract(doc, path)]
             ELSE CAST([] AS JSON[])
         END)""",
-    # A scheduler queue's children: capacity schedulers nest them under queues.queue, fair schedulers under childQueues.
+    # A scheduler queue's children: capacity schedulers nest them under queues.queue; fair schedulers under
+    # childQueues, which Hadoop 2.8+ wraps as childQueues.queue (FairSchedulerQueueInfoList) and older YARN gives bare.
     """CREATE TEMP MACRO child_queues(node) AS (
-        CASE WHEN json_type(node, '$.queues.queue') IS NOT NULL
-            THEN hadoop_records(node, '$.queues.queue')
+        CASE
+            WHEN json_type(node, '$.queues.queue') IS NOT NULL THEN hadoop_records(node, '$.queues.queue')
+            WHEN json_type(node, '$.childQueues.queue') IS NOT NULL THEN hadoop_records(node, '$.childQueues.queue')
             ELSE hadoop_records(node, '$.childQueues')
         END)""",
     # Impala's web UI prints a timestamp with up to nanoseconds ("2026-11-24 05:52:53.851880000"). DuckDB reads
@@ -122,9 +124,10 @@ def run_step(
         clients = _impala_clients(endpoint, config.impala)
         if isinstance(clients, str):
             return clients
-        # Each daemon's body is masked, then wrapped with the daemon's URL so the step's rows say where they came from.
+        # Each daemon's body is wrapped with the daemon's URL so the step's rows say where they came from, then masked
+        # as a whole, so mask_rules also apply to the coordinator URL.
         bodies = (
-            _coordinator_envelope(client.base_url, config.mask(body))
+            config.mask(_coordinator_envelope(client.base_url, body))
             for client in clients
             for body in fetch(client, config)
         )

@@ -1,11 +1,13 @@
 -- Every queue in the scheduler tree, root included, with its depth and parent path.
--- Capacity schedulers nest children under queues.queue; fair schedulers nest them under childQueues.
+-- Capacity schedulers nest children under queues.queue; fair schedulers under childQueues (childQueues.queue on
+-- Hadoop 2.8+). Older capacity schedulers report the root's name as queueName only, without queuePath.
 WITH RECURSIVE tree(scheduler_type, queue_path, parent_queue_path, depth, node) AS (
     SELECT
         doc->>'$.scheduler.schedulerInfo.type',
         COALESCE(
             json_extract_string(doc, '$.scheduler.schedulerInfo.rootQueue.queueName'),
-            json_extract_string(doc, '$.scheduler.schedulerInfo.queuePath')
+            json_extract_string(doc, '$.scheduler.schedulerInfo.queuePath'),
+            json_extract_string(doc, '$.scheduler.schedulerInfo.queueName')
         ),
         CAST(NULL AS VARCHAR),
         0,

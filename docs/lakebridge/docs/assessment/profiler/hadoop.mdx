@@ -198,10 +198,10 @@ hadoop:
 | `yarn.auth` / `username` / `password` | no | `auth` defaults to `basic` when a username is set, otherwise `none`. `kerberos` takes no username or password. |
 | `yarn.principal` | with `keytab` | The Kerberos principal, for example `profiler@EXAMPLE.COM`. Optional with an existing ticket. |
 | `yarn.keytab` | no | A keytab file that must exist. The profiler runs `kinit -kt` with it. Without it, an existing ticket is used. |
-| `yarn.ccache` | no | The ticket cache, such as `FILE:/tmp/krb5cc_profiler`. Sets `KRB5CCNAME` for curl and kinit/klist. |
+| `yarn.ccache` | no | The ticket cache, such as `FILE:/tmp/krb5cc_profiler`. Sets `KRB5CCNAME` for curl and kinit/klist. Recommended with a keytab: without it, kinit replaces the default ticket cache of the account running the profiler (as the original profiler's kinit did). |
 | `yarn.krb5_config` | no | A `krb5.conf` file that must exist. Sets `KRB5_CONFIG`. |
 | `yarn.verify_ssl` | no (true) | `false` disables certificate checks and logs a warning. |
-| `yarn.app_filter` | no | Query parameters added to the YARN applications request, for example `user=etl&queue=root.prod` (a leading `?` is allowed). Same as `RM_APP_FILTER` in the original profiler; where it names a parameter the profiler also sets, your value wins. |
+| `yarn.app_filter` | no | Query parameters added to the YARN applications request, for example `user=etl&queue=root.prod` (a leading `?` is allowed). Same as `RM_APP_FILTER` in the original profiler; where it names a parameter the profiler also sets, your value wins. A filter that sets its own `states`, `state`, `finishedTime*`, `startedTime*` or `limit` replaces the profiler's lookback window and is sent as the only request, as the original did. |
 | `spark_history.url` | yes, if the block is present | A single URL. |
 | `spark_history.auth` / `principal` / `keytab` / `ccache` / `krb5_config` | no | As for YARN, including Kerberos. |
 | `cloudera_manager.url` | yes, if the block is present | The Cloudera Manager base URL. It may include a path, for example behind a gateway. |

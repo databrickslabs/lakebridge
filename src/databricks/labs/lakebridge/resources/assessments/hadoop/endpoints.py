@@ -48,6 +48,10 @@ logger = logging.getLogger(__name__)
 
 YARN_APPS_PATH = "/ws/v1/cluster/apps"
 # Applications that have not finished yet. Their finishedTime is 0, so the finished-time window misses them.
+# App-list parameters that define which applications are returned; a user filter naming one replaces the window.
+YARN_WINDOW_PARAMS = frozenset(
+    {"states", "state", "finishedTimeBegin", "finishedTimeEnd", "startedTimeBegin", "startedTimeEnd", "limit"}
+)
 YARN_UNFINISHED_STATES = ("NEW", "NEW_SAVING", "SUBMITTED", "ACCEPTED", "RUNNING")
 # The page size and the marker CM puts in a response that hit its scan limit (the original profiler's CM_IMPALA_PAGES).
 IMPALA_PAGE_LIMIT = 1000
@@ -76,9 +80,11 @@ def yarn_applications(client: RestClient, config: HadoopConfig) -> list[str]:
     The two bodies overlap when an application finishes between the two calls. The SQL keeps one row per id.
     """
     since_ms = _epoch_ms_days_ago(config.lookback_days)
-    # The user's filter (the original profiler's RM_APP_FILTER) is added to both requests; where it names the same
-    # parameter as the window, the user's value wins.
+    # The user's filter (the original profiler's RM_APP_FILTER) is added to both requests. A filter that sets its own
+    # states or time window replaces the profiler's window: one request with exactly that filter, as the original did.
     user_filter = dict(config.yarn.app_filter) if config.yarn else {}
+    if YARN_WINDOW_PARAMS & user_filter.keys():
+        return [client.get_text(YARN_APPS_PATH, user_filter)]
     finished = client.get_text(YARN_APPS_PATH, {"finishedTimeBegin": since_ms, **user_filter})
     unfinished = client.get_text(YARN_APPS_PATH, {"states": ",".join(YARN_UNFINISHED_STATES), **user_filter})
     return [finished, unfinished]

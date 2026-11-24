@@ -545,6 +545,25 @@ def test_pipeline_masks_impala_responses_before_they_are_stored(impala_server: s
     assert addresses == [("masked-host:27000",)]
 
 
+def test_pipeline_masks_the_coordinator_url_too(impala_server: str, tmp_path: Path) -> None:
+    """mask_rules apply to the coordinator URL the profiler records, not only to the daemon's response."""
+    creds = _creds(
+        tmp_path,
+        {
+            "distribution": "oth",
+            "impala": {"urls": [f"{impala_server}/a"]},
+            "mask_rules": [{"pattern": "127\\.0\\.0\\.1", "replacement": "masked-coordinator"}],
+        },
+    )
+    db_path = tmp_path / "extract.db"
+
+    _run_script("impala_backends", db_path, creds)
+
+    with duckdb.connect(str(db_path), read_only=True) as conn:
+        urls = {url for (url,) in _rows(conn, "SELECT coordinator_url FROM impala_backends")}
+    assert urls and all("masked-coordinator" in url and "127.0.0.1" not in url for url in urls)
+
+
 def test_pipeline_reports_an_unreachable_daemon_as_a_step_error(impala_server: str, tmp_path: Path) -> None:
     creds = _creds(
         tmp_path, {"distribution": "oth", "impala": {"urls": [f"{impala_server}/a", f"{impala_server}/broken/x"]}}
